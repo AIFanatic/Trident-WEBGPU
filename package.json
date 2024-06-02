@@ -1,0 +1,14 @@
+{
+  "name": "trident-webgpu",
+  "version": "1.0.0",
+  "main": "index.js",
+  "license": "MIT",
+  "scripts": {
+    "dev": "esbuild src/index.ts --bundle --outfile=dist/trident.js --loader:.wgsl=text --loader:.obj=file --target=es2022 --format=esm --watch"
+  },
+  "devDependencies": {
+    "@webgpu/types": "^0.1.40",
+    "esbuild": "^0.21.2"
+  },
+  "dependencies": {}
+}

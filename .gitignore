@@ -1,0 +1,10 @@
+.DS_Store
+.vscode
+node_modules
+yarn.*
+
+dist
+src/TEST
+research
+src-bak*
+cloc.sh
