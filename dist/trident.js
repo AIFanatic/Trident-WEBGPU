@@ -852,19 +852,6 @@ var GameObject = class {
   }
 };
 
-// src/components/Light.ts
-var Light = class extends Component {
-  camera;
-  color = new Color(1, 1, 1);
-  intensity = 1;
-  radius = 1;
-  Start() {
-    this.camera = this.gameObject.AddComponent(Camera);
-    this.camera.renderTarget = RenderTexture.Create(Renderer.width, Renderer.height);
-    this.camera.depthTarget = DepthTexture.Create(Renderer.width, Renderer.height);
-  }
-};
-
 // src/renderer/RenderGraph.ts
 var RenderPass = class {
   name;
@@ -1470,6 +1457,19 @@ var TextureSampler = class {
   }
 };
 
+// src/components/Light.ts
+var Light = class extends Component {
+  camera;
+  color = new Color(1, 1, 1);
+  intensity = 1;
+  radius = 1;
+  Start() {
+    this.camera = this.gameObject.AddComponent(Camera);
+    this.camera.renderTarget = RenderTexture.Create(Renderer.width, Renderer.height);
+    this.camera.depthTarget = DepthTexture.Create(Renderer.width, Renderer.height);
+  }
+};
+
 // src/renderer/passes/LightingPass.ts
 var LightingPass = class extends RenderPass {
   name = "LightingPass";
@@ -1591,9 +1591,7 @@ var RenderingPipeline = class {
   passes = {
     SetMainCamera: new SetMeshRenderCameraPass({ outputs: ["MainCamera" /* MainCamera */] }),
     MeshRenderPass: new MeshRenderPass("MainCamera" /* MainCamera */, "GBufferPosition" /* GBufferPosition */, "GBufferAlbedo" /* GBufferAlbedo */, "GBufferNormal" /* GBufferNormal */, "GBufferDepth" /* GBufferDepth */),
-    // OutputPass: new OutputPass(PassParams.GeometryRenderTargetNormal),
     LightingPass: new LightingPass("GBufferPosition" /* GBufferPosition */, "GBufferAlbedo" /* GBufferAlbedo */, "GBufferNormal" /* GBufferNormal */, "GBufferDepth" /* GBufferDepth */)
-    // OutputDepthPass: new OutputDepthPass(),
   };
   constructor(renderer) {
     this.renderer = renderer;
@@ -1603,9 +1601,7 @@ var RenderingPipeline = class {
     }
   }
   Render(scene) {
-    const mainCamera = Camera.mainCamera;
     this.renderer.BeginRenderFrame();
-    const lights = scene.GetComponents(Light);
     this.renderGraph.execute();
     this.renderer.EndRenderFrame();
   }

@@ -96,12 +96,12 @@ export class LightingPass extends RenderPass {
 
         RendererContext.BeginRenderPass("LightingPass", [{ clear: true, color: backgroundColor }]);
 
+        // TODO: Should be reactive
         this.shader.SetTexture("positionTexture", inputGBufferPosition);
         this.shader.SetTexture("albedoTexture", inputGBufferAlbedo);
         this.shader.SetTexture("normalTexture", inputGBufferNormal);
         this.shader.SetTexture("depthTexture", inputGBufferDepth);
 
-        // TODO: Should be reactive
         const lights = Camera.mainCamera.gameObject.scene.GetComponents(Light);
         const lightBuffer = new Float32Array(lights.length * (4 + 4));
         for (let i = 0; i < lights.length; i++) {
