@@ -1,91 +1,28 @@
 import { Shader } from "../Shader";
 import { Geometry } from "../../Geometry";
-import { RenderTexture } from "../Texture";
+import { DepthTexture, RenderTexture } from "../Texture";
 import { TextureSampler } from "../TextureSampler";
 import { Camera } from "../../components/Camera";
 import { RendererContext } from "../RendererContext";
 import { RenderPass, ResourcePool } from "../RenderGraph";
 import { Renderer } from "../Renderer";
 
-
-
-// type VariableType = "u32" | "i32" | "f32" | "vec3<f32>" | "vec4<f32>" | "texture_2d<f32>";
-
-// interface Builtin {
-//     keyword: string;
-//     name: string;
-//     type: VariableType;
-// }
-
-// interface Location {
-//     index: number;
-//     name: string;
-//     type: VariableType;
-// }
-
-// interface ShaderDefinition {
-//     code: string;
-//     inputs: (Builtin | Location)[];
-//     outputs: (Builtin | Location)[];
-// }
-
-// interface ShaderBinding {
-//     group: number;
-//     binding: number;
-//     name: string;
-//     type: "texture_2d<f32>" | "textureSampler" | "vec3<f32>";
-// }
-// class ShaderV2 {
-//     constructor(params: {bindings?: ShaderBinding[], vertexShader: ShaderDefinition, fragmentShader: ShaderDefinition}) {
-//     }
-// }
-
-// const s = new ShaderV2({
-//     bindings: [{group: 0, binding: 0, name: "texture", type: "texture_2d<f32>"}],
-//     vertexShader: {
-//         inputs: [
-//             {keyword: "instance_index", name: "instanceIdx", type: "u32"},
-//             {index: 0, name: "position", type: "vec3<f32>"},
-//             {index: 1, name: "normal", type: "vec3<f32>"},
-//         ],
-//         outputs: [
-//             {keyword: "position", name: "position", type: "vec4<f32>"}
-//         ],
-//         code: `output.position = vec4(input.position, 1.0);`
-//     },
-//     fragmentShader: {
-//         code: `
-//             let uv = fragData.position.xy / vec2<f32>(textureDimensions(texture));
-//             var color = textureSample(texture, textureSampler, uv);
-//             output.color = color;
-//         `,
-//         inputs: [
-//             {keyword: "position", name: "position", type: "vec4<f32>"}
-//         ],
-//         outputs: [
-//             {index: 0, name: "color", type: "vec4<f32>"},
-//         ]
-//     }
-// })
-
-
-
-export class OutputPass extends RenderPass {
+export class GBufferDebugger extends RenderPass {
     public name: string = "OutputPass";
     private shader: Shader;
     private sampler: TextureSampler;
     private quadGeometry: Geometry;
 
-    private inputRenderTarget: string;
-
-    constructor(inputRenderTarget: string) {
-        super({inputs: [inputRenderTarget]});
-        this.inputRenderTarget = inputRenderTarget;
-        this.inputs = [this.inputRenderTarget];
+    constructor(inputGBufferPosition: string, inputGBufferAlbedo: string, inputGBufferNormal: string, inputGBufferDepth: string) {
+        super({inputs: [inputGBufferPosition, inputGBufferAlbedo, inputGBufferNormal, inputGBufferDepth]});
 
         const code = `
-        @group(0) @binding(0) var texture: texture_2d<f32>;
-        @group(0) @binding(1) var textureSampler: sampler;
+        @group(0) @binding(0) var textureSampler: sampler;
+
+        @group(0) @binding(1) var positionTexture: texture_2d<f32>;
+        @group(0) @binding(2) var albedoTexture: texture_2d<f32>;
+        @group(0) @binding(3) var normalTexture: texture_2d<f32>;
+        @group(0) @binding(4) var depthTexture: texture_depth_2d;
         
         @vertex
         fn vertexMain(@location(0) position : vec3<f32>) -> @builtin(position) vec4<f32> {
@@ -94,9 +31,22 @@ export class OutputPass extends RenderPass {
         
         @fragment
         fn fragmentMain(@builtin(position) position : vec4<f32>) -> @location(0) vec4<f32> {
-            let uv = position.xy / vec2<f32>(textureDimensions(texture));
-            var color = textureSample(texture, textureSampler, uv);
-            return color;
+            let uv = position.xy / vec2<f32>(textureDimensions(albedoTexture));
+            var positionA = textureSample(positionTexture, textureSampler, uv);
+            var albedo = textureSample(albedoTexture, textureSampler, uv);
+            var normal = textureSample(normalTexture, textureSampler, uv);
+            var depth = textureSample(depthTexture, textureSampler, uv);
+
+            if (uv.x > 0.0 && uv.y > 0.0 && uv.x < 0.5 && uv.y < 0.5) {
+                return vec4(depth);
+            }
+            else if (uv.x > 0.5 && uv.y > 0.0 && uv.x < 1.0 && uv.y < 0.5) {
+                return albedo;
+            }
+            else if (uv.x > 0.0 && uv.y > 0.5 && uv.x < 0.5 && uv.y < 1.0) {
+                return normal;
+            }
+            return positionA;
         }
         `;
         this.shader = Shader.Create({
@@ -106,8 +56,11 @@ export class OutputPass extends RenderPass {
                 normal: {location: 1, size: 3, type: "vec3"}
             },
             uniforms: {
-                texture: {location: 0, type: "storage"},
-                textureSampler: {location: 1, type: "storage"},
+                textureSampler: {location: 0, type: "storage"},
+                positionTexture: {location: 1, type: "storage"},
+                albedoTexture: {location: 2, type: "storage"},
+                normalTexture: {location: 3, type: "storage"},
+                depthTexture: {location: 4, type: "storage"},
             },
             targets: 1
         });
@@ -119,10 +72,7 @@ export class OutputPass extends RenderPass {
         this.quadGeometry = Geometry.Plane();
     }
 
-    public execute(resources: ResourcePool) {
-        const texture = resources.getResource(this.inputRenderTarget) as RenderTexture;
-        if (!texture) throw Error(`No texture passed to ${this.name}!`);
-       
+    public execute(resources: ResourcePool, inputGBufferPosition: RenderTexture, inputGBufferAlbedo: RenderTexture, inputGBufferNormal: RenderTexture, inputGBufferDepth: DepthTexture) {
         const camera = Camera.mainCamera;
         const renderTarget = camera.renderTarget;
         const depthTarget = camera.depthTarget;
@@ -133,9 +83,10 @@ export class OutputPass extends RenderPass {
             {target: depthTarget, clear: true}
         );
 
-        RendererContext.SetScissor(0, 0, Renderer.width * 0.5, Renderer.height);
-    
-        this.shader.SetTexture("texture", texture);
+        this.shader.SetTexture("positionTexture", inputGBufferPosition);
+        this.shader.SetTexture("albedoTexture", inputGBufferAlbedo);
+        this.shader.SetTexture("normalTexture", inputGBufferNormal);
+        this.shader.SetTexture("depthTexture", inputGBufferDepth);
 
         RendererContext.DrawGeometry(this.quadGeometry, this.shader);
         RendererContext.EndRenderPass();

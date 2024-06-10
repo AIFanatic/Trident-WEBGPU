@@ -53,15 +53,15 @@ export class MeshRenderCache {
 
     public static AddMesh(mesh: Mesh) {
         const geometry = mesh.GetGeometry();
-        const shaders = mesh.GetShaders();
+        const materials = mesh.GetMaterials();
         
-        if (!geometry || !geometry.vertices) return;
-        if (!shaders || shaders.length === 0) return;
+        if (!geometry || !geometry.attributes.get("position")) return;
+        if (!materials || materials.length === 0) return;
 
         const transform = mesh.transform;
-        for (const shader of shaders) {
-            if (mesh.enableGPUInstancing) this.AddRenderableInstanced(transform, geometry, shader);
-            else this.AddRenderable(transform, geometry, shader);
+        for (const material of materials) {
+            if (material.shader.autoInstancing) this.AddRenderableInstanced(transform, geometry, material.shader);
+            else this.AddRenderable(transform, geometry, material.shader);
         }
     }
 

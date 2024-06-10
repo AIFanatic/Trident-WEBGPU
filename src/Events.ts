@@ -1,7 +1,9 @@
+import { Scene } from "./Scene";
 import { Component } from "./components/Component";
 import { Mesh } from "./components/Mesh";
 
 export interface Events {
+    AddedComponent: (component: Component, scene: Scene) => void;
     CallUpdate: (component: Component, flag: boolean) => void;
     MeshUpdated: (mesh: Mesh, type: "geometry" | "shader") => void;
 };

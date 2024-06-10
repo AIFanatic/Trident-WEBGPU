@@ -1,3 +1,4 @@
+import { TextureFormat } from "./Texture";
 import { WEBGPURenderer } from "./webgpu/WEBGPURenderer";
 
 export type RendererAPIType = "webgpu";
@@ -16,6 +17,10 @@ export class Renderer {
         throw Error("Unknown render api type.");
     }
 
+    public static get SwapChainFormat(): TextureFormat {
+        if (Renderer.type === "webgpu") return WEBGPURenderer.presentationFormat as TextureFormat;
+        throw Error("Unknown render api type.");
+    }
     public BeginRenderFrame() {}
     public EndRenderFrame() {}
 }

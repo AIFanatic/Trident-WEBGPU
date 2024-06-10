@@ -19,6 +19,8 @@ export class Component {
 
         if (this.gameObject.scene.hasStarted) this.Start();
         if (this.constructor.prototype.Update !== Component.prototype.Update) EventSystem.emit("CallUpdate", this, true);
+
+        EventSystem.emit("AddedComponent", this, this.gameObject.scene);
     }
 
     public Start() {}

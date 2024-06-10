@@ -1,10 +1,45 @@
-import { RenderCommandBuffer } from "./RenderCommandBuffer";
+import { Geometry } from "../Geometry";
+import { Color } from "../math/Color";
 import { Renderer } from "./Renderer";
+import { Shader } from "./Shader";
+import { DepthTexture, RenderTexture } from "./Texture";
 import { WEBGPURendererContext } from "./webgpu/WEBGPURendererContext";
+import { WEBGPUShader } from "./webgpu/WEBGPUShader";
+
+export interface RenderTarget {
+    target?: RenderTexture;
+    clear: boolean;
+    color?: Color;
+};
+
+export interface DepthTarget {
+    target: DepthTexture;
+    clear: boolean;
+};
 
 export class RendererContext {
-    public static ProcessCommandBuffer(commandBuffer: RenderCommandBuffer) {
-        if (Renderer.type === "webgpu") WEBGPURendererContext.ProcessCommandBuffer(commandBuffer);
+    public static BeginRenderPass(name: string, renderTargets: RenderTarget[], depthTarget?: DepthTarget) {
+        if (Renderer.type === "webgpu") WEBGPURendererContext.BeginRenderPass(name, renderTargets, depthTarget);
+        else throw Error("Unknown render api type.");
+    }
+
+    public static EndRenderPass() {
+        if (Renderer.type === "webgpu") WEBGPURendererContext.EndRenderPass();
+        else throw Error("Unknown render api type.");
+    }
+
+    public static SetViewport(x: number, y: number, width: number, height: number, minDepth: number = 0, maxDepth: number = 1) {
+        if (Renderer.type === "webgpu") WEBGPURendererContext.SetViewport(x, y, width, height, minDepth, maxDepth);
+        else throw Error("Unknown render api type.");
+    }
+
+    public static SetScissor(x: number, y: number, width: number, height: number) {
+        if (Renderer.type === "webgpu") WEBGPURendererContext.SetScissor(x, y, width, height);
+        else throw Error("Unknown render api type.");
+    }
+
+    public static DrawGeometry(geometry: Geometry, shader: Shader, instanceCount?: number) {
+        if (Renderer.type === "webgpu") WEBGPURendererContext.DrawGeometry(geometry, shader as WEBGPUShader, instanceCount);
         else throw Error("Unknown render api type.");
     }
 }

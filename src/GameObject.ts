@@ -1,6 +1,7 @@
 import { Component } from "./components/Component";
 import { Scene } from "./Scene";
 import { Transform } from "./components/Transform";
+import { Camera } from "./components/Camera";
 
 export class GameObject {
     public name: string = "GameObject";
@@ -23,10 +24,12 @@ export class GameObject {
             let componentInstance = new component(this);
             if (!(componentInstance instanceof Component)) throw Error("Invalid component");
             if (componentInstance instanceof Transform) throw Error("A GameObject can only have one Transform");
-
+            
             if (!this.componentsMapped.has(component.name)) this.componentsMapped.set(component.name, []);
             this.componentsMapped.get(component.name)?.push(componentInstance);
             this.componentsArray.push(componentInstance);
+
+            if (componentInstance instanceof Camera && !Camera.mainCamera) Camera.mainCamera = componentInstance;
 
             return componentInstance;
         } catch (error) {

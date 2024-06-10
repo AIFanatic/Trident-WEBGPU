@@ -1,30 +1,72 @@
+import { Geometry } from "../Geometry";
 import { Matrix4 } from "../math/Matrix4";
+import { Vector3 } from "../math/Vector3";
 import { Buffer } from "./Buffer";
 import { Renderer } from "./Renderer";
-import { DepthTexture, RenderTexture, Texture } from "./Texture";
+import { DepthTexture, RenderTexture, Texture, TextureFormat } from "./Texture";
 import { TextureSampler } from "./TextureSampler";
 import { WEBGPUShader } from "./webgpu/WEBGPUShader";
-import { WEBGPUDefaultShaders } from "./webgpu/shaders/WEBGPUDefaultShaders";
+import { WEBGPUShaders } from "./webgpu/shaders/WEBGPUShaders";
+
+export interface ShaderColorOutput {
+    format: TextureFormat;
+};
+
+export interface ShaderAttribute {
+    location: number;
+    size: number;
+    type: "vec2" | "vec3" | "vec4" | "mat4"
+};
+
+export interface ShaderUniform {
+    location: number;
+    type: "uniform" | "storage" | "texture" | "sampler";
+};
+
+export enum Topology {
+    Triangles = "triangle-list",
+    Points = "point-list",
+    Lines = "line-list"
+}
+
+export interface ShaderParams {
+    code: string;
+    attributes?: {[key: string]: ShaderAttribute};
+    uniforms?: {[key: string]: ShaderUniform};
+    vertexEntrypoint?: string;
+    fragmentEntrypoint?: string;
+    colorOutputs: ShaderColorOutput[];
+    depthOutput?: TextureFormat;
+    topology?: Topology;
+    frontFace?: "ccw" | "cw",
+    cullMode?: "back" | "front" | "none"
+};
 
 export class Shader {
     public readonly id: string;
+    public readonly params: ShaderParams;
+    public autoInstancing: boolean = false;
 
-    public depthTest: boolean;
-
-    public static Create(code: string): Shader {
-        if (Renderer.type === "webgpu") return new WEBGPUShader(code);
+    public static Create(params: ShaderParams): Shader {
+        if (Renderer.type === "webgpu") return new WEBGPUShader(params);
         throw Error("Unknown api");
     }
 
-    public static get Standard(): Shader {
-        if (Renderer.type === "webgpu") return new WEBGPUShader(WEBGPUDefaultShaders.Standard);
-        throw Error("Unknown api");
-    }
-
+    public SetValue(name: string, value: number) {}
     public SetMatrix4(name: string, matrix: Matrix4) {}
+    public SetVector3(name: string, vector: Vector3) {}
     public SetArray(name: string, array: ArrayBuffer, bufferOffset?: number, dataOffset?: number | undefined, size?: number | undefined) {}
     public SetTexture(name: string, texture: Texture | DepthTexture | RenderTexture) {}
     public SetSampler(name: string, texture: TextureSampler) {}
     public SetBuffer(name: string, buffer: Buffer) {}
     public HasBuffer(name: string): boolean { return false }
+
+    public OnPreRender(geometry: Geometry) {};
+}
+
+export class ShaderCode {
+    public static MeshBasicMaterial(): string {
+        if (Renderer.type === "webgpu") return WEBGPUShaders.BasicShaderCode;
+        throw Error("Unknown api");
+    }
 }

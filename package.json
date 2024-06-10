@@ -4,7 +4,7 @@
   "main": "index.js",
   "license": "MIT",
   "scripts": {
-    "dev": "esbuild src/index.ts --bundle --outfile=dist/trident.js --loader:.wgsl=text --loader:.obj=file --target=es2022 --format=esm --watch"
+    "dev": "esbuild src/index.ts --bundle --outfile=dist/trident.js --loader:.wgsl=text --loader:.obj=file --loader:.png=file  --target=es2022 --format=esm --watch"
   },
   "devDependencies": {
     "@webgpu/types": "^0.1.40",

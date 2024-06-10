@@ -1,5 +1,6 @@
 interface UnpackedAttrs {
     verts: number[];
+    norms: number[];
     hashindices: { [k: string]: number };
     indices: number[][];
     index: number;
@@ -7,6 +8,7 @@ interface UnpackedAttrs {
 
 export interface OBJMesh {
     vertices: Float32Array,
+    normals: Float32Array,
     indices: Uint32Array
 };
 
@@ -32,17 +34,20 @@ export class OBJLoaderIndexed {
         const indices = [];
 
         const verts: string[] = [];
+        const vertNormals: string[] = [];
         let currentMaterialIndex = -1;
         let currentObjectByMaterialIndex = 0;
         // unpacking stuff
         const unpacked: UnpackedAttrs = {
             verts: [],
+            norms: [],
             hashindices: {},
             indices: [[]],
             index: 0,
         };
 
         const VERTEX_RE = /^v\s/;
+        const NORMAL_RE = /^vn\s/;
         const FACE_RE = /^f\s/;
         const WHITESPACE_RE = /\s+/;
 
@@ -59,6 +64,8 @@ export class OBJLoaderIndexed {
 
             if (VERTEX_RE.test(line)) {
                 verts.push(...elements);
+            } else if (NORMAL_RE.test(line)) {
+                vertNormals.push(...elements);
             } else if (FACE_RE.test(line)) {
                 const triangles = OBJLoaderIndexed.triangulate(elements);
                 for (const triangle of triangles) {
@@ -73,11 +80,18 @@ export class OBJLoaderIndexed {
                             unpacked.verts.push(+verts[(+vertex[0] - 1) * 3 + 0]);
                             unpacked.verts.push(+verts[(+vertex[0] - 1) * 3 + 1]);
                             unpacked.verts.push(+verts[(+vertex[0] - 1) * 3 + 2]);
+                            // vertex normals
+                            if (vertNormals.length > 0) {
+                                unpacked.norms.push(+vertNormals[(+vertex[2] - 1) * 3 + 0]);
+                                unpacked.norms.push(+vertNormals[(+vertex[2] - 1) * 3 + 1]);
+                                unpacked.norms.push(+vertNormals[(+vertex[2] - 1) * 3 + 2]);
+                            }
                             // add the newly created Vertex to the list of indices
                             unpacked.hashindices[hash] = unpacked.index;
                             unpacked.indices[currentObjectByMaterialIndex].push(unpacked.hashindices[hash]);
                             // increment the counter
                             unpacked.index += 1;
+                            // throw Error("ERGERG")
                         }
                     }
                 }
@@ -86,6 +100,7 @@ export class OBJLoaderIndexed {
 
         return {
             vertices: new Float32Array(unpacked.verts),
+            normals: new Float32Array(unpacked.norms),
             indices: new Uint32Array(unpacked.indices[currentObjectByMaterialIndex])
         };
     }

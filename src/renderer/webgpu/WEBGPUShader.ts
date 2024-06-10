@@ -1,128 +1,148 @@
+import { Geometry } from "../../Geometry";
 import { Utils } from "../../Utils";
 import { Matrix4 } from "../../math/Matrix4";
-import { Shader } from "../Shader";
+import { Vector3 } from "../../math/Vector3";
+import { Shader, ShaderAttribute, ShaderParams, ShaderUniform } from "../Shader";
 import { WEBGPUBuffer } from "./WEBGPUBuffer";
 import { WEBGPURenderer } from "./WEBGPURenderer";
 import { WEBGPUTexture } from "./WEBGPUTexture";
 import { WEBGPUTextureSampler } from "./WEBGPUTextureSampler";
 
-type ShaderBufferType = "i32" | "u32" | "f32" | "vec2" | "vec3" | "vec4" | "mat3x3" | "mat4x4" | "array" | "texture_2d" | "sampler";
-
-enum WGSLUsageToWEBGPU {
-    "storage" = GPUBufferUsage.STORAGE,
-    "uniform" = GPUBufferUsage.UNIFORM,
-    "read" = GPUBufferUsage.COPY_DST,
-    "read_write" = GPUBufferUsage.COPY_DST,
+// TODO: Make this error!!
+const WGSLShaderAttributeFormat = {
+    vec2: "float32x2",
+    vec3: "float32x3",
+    vec4: "float32x4",
 };
 
-interface ShaderBuffer {
-    group: number;
-    binding: number;
-    name: string;
-    usage?: GPUBufferUsageFlags;
-    types?: ShaderBufferType[];
+interface WEBGPUShaderUniform extends ShaderUniform {
     buffer?: GPUBuffer | GPUTexture | GPUSampler;
 }
 
 export class WEBGPUShader implements Shader {
     public readonly id: string = Utils.UUID();
-    public depthTest: boolean = true;
+    public autoInstancing: boolean = false;
+    public needsUpdate = false;
     
-    private readonly vertexEntrypoint: string;
-    private readonly fragmentEntrypoint: string;
+    private readonly vertexEntrypoint: string | undefined;
+    private readonly fragmentEntrypoint: string | undefined;
     private readonly module: GPUShaderModule;
-    private readonly bindings: Map<string, ShaderBuffer>;
+    
+    public readonly params: ShaderParams;
+    private attributeMap: Map<string, ShaderAttribute> = new Map();
+    private uniformMap: Map<string, WEBGPUShaderUniform> = new Map();
 
-    constructor(code: string) {
-        this.module = WEBGPURenderer.device.createShaderModule({code: code});
-        const cleanedCode = Utils.StringReplaceAll(Utils.StringReplaceAll(code, "\n", " "), "  ", "");
-        const vertexEntrypoint = Utils.StringFindAllBetween(cleanedCode, "@vertex fn ", "(")[0];
-        const fragmentEntrypoint = Utils.StringFindAllBetween(cleanedCode, "@fragment fn ", "(")[0];
+    private valueArray = new Float32Array(1);
+    
+    private _pipeline: GPURenderPipeline | null = null;
+    private _bindGroup: GPUBindGroup | null = null;
+    public get pipeline() { return this._pipeline };
+    public get bindGroup() { return this._bindGroup };
 
-        if (!vertexEntrypoint) throw Error("Vertex entrypoint not found.");
-        if (!fragmentEntrypoint) throw Error("Fragment entrypoint not found.");
+    constructor(params: ShaderParams) {
+        this.params = params;
+        this.module = WEBGPURenderer.device.createShaderModule({code: this.params.code});
+        this.vertexEntrypoint = this.params.vertexEntrypoint;
+        this.fragmentEntrypoint = this.params.fragmentEntrypoint;
 
-        this.vertexEntrypoint = vertexEntrypoint;
-        this.fragmentEntrypoint = fragmentEntrypoint;
-
-        this.bindings = WEBGPUShader.ParseShader(code);
+        if (this.params.attributes) this.attributeMap = new Map(Object.entries(this.params.attributes));
+        if (this.params.uniforms) this.uniformMap = new Map(Object.entries(this.params.uniforms));
     }
     
-    private static ParseShader(code: string): Map<string, ShaderBuffer> {
-        const bindings = Utils.StringFindAllBetween(Utils.StringReplaceAll(Utils.StringRemoveTextBetween(code, "//", "\n"), " ", ""), "@", ";", false);
+    public RebuildDescriptors() {
+        // let uniformsSet = 0;
+        // for (const [_, uniform] of this.uniformMap) {if (uniform.buffer) uniformsSet++;};
 
-        const buffers: Map<string, ShaderBuffer> = new Map();
+        // if (uniformsSet > 0 && (this.params.uniforms && Object.keys(this.params.uniforms).length !== uniformsSet)) return;
 
-        for (let uniform of bindings) {
-            const group = Utils.StringFindAllBetween(uniform, "group(", ")")[0];
-            const binding = Utils.StringFindAllBetween(uniform, "binding(", ")")[0];
-            let name = Utils.StringFindAllBetween(uniform, ">", ":")[0];
-            if (!name) name = Utils.StringFindAllBetween(uniform, "var", ":")[0]; // Textures/samplers dont have a type
-            if (!group || !binding || !name) throw Error(`Could not find group or binding or name ${group} ${binding} ${name}`);
-            
-            const types = Utils.StringReplaceAll(Utils.StringFindAllBetween(uniform, ":", ";")[0], ">", "").split("<");
+        // if (!this.needsUpdate && this.pipeline && this.bindGroup) return;
 
-            const usageStr = Utils.StringFindAllBetween(uniform, "var<", ">")[0];
-            const usage: GPUBufferUsageFlags | undefined = usageStr ? usageStr.split(",").map(v => WGSLUsageToWEBGPU[v]).reduce((a, b) => a | b) : undefined;
+        console.warn("building")
+
+        let targets: GPUColorTargetState[] = [];
+        for (const output of this.params.colorOutputs) targets.push({format: output.format});
+        const pipelineDescriptor: GPURenderPipelineDescriptor = {
+            layout: "auto",
+            vertex: { module: this.module, entryPoint: this.vertexEntrypoint },
+            fragment: { module: this.module, entryPoint: this.fragmentEntrypoint, targets: targets },
+            primitive: {
+                topology: this.params.topology ? this.params.topology : "triangle-list",
+                frontFace: this.params.frontFace ? this.params.frontFace : "ccw",
+                cullMode: this.params.cullMode ? this.params.cullMode : "back"
+            }
+        }
+
+        if (this.params.depthOutput) pipelineDescriptor.depthStencil = { depthWriteEnabled: true, depthCompare: 'less', format: this.params.depthOutput };
     
-            buffers.set(name, {
-                name: name,
-                group: parseInt(group),
-                binding: parseInt(binding),
-                usage: usage,
-                types: types as ShaderBufferType[]
-            });
+        const buffers: GPUVertexBufferLayout[] = [];
+        for (const [_, attribute] of this.attributeMap) {
+            buffers.push({arrayStride: attribute.size * 4, attributes: [{ shaderLocation: attribute.location, offset: 0, format: WGSLShaderAttributeFormat[attribute.type] }] })
+        }
+        pipelineDescriptor.vertex.buffers = buffers;
+
+        this._pipeline = WEBGPURenderer.device.createRenderPipeline(pipelineDescriptor);
+
+        const bindGroupEntries: GPUBindGroupEntry[] = [];
+        for (const [name, uniform] of this.uniformMap) {
+            if (!uniform.buffer) continue;
+            // if (!uniform.buffer) throw Error(`Shader has binding (${name}) but no buffer was set`);
+            if (uniform.buffer instanceof GPUBuffer) bindGroupEntries.push({binding: uniform.location, resource: {buffer: uniform.buffer}});
+            else if (uniform.buffer instanceof GPUTexture) bindGroupEntries.push({binding: uniform.location, resource: uniform.buffer.createView()});
+            else if (uniform.buffer instanceof GPUSampler) bindGroupEntries.push({binding: uniform.location, resource: uniform.buffer});
+        }
+        
+        this._bindGroup = WEBGPURenderer.device.createBindGroup({
+            layout: this._pipeline.getBindGroupLayout(0),
+            entries: bindGroupEntries
+        });
+
+        this.needsUpdate = false;
+    }
+
+    public GetAttributeSlot(name: string): number | undefined {
+        return this.attributeMap.get(name)?.location;
+    }
+
+    private GetValidUniform(name: string): WEBGPUShaderUniform {
+        const uniform = this.uniformMap.get(name);
+        if (!uniform) throw Error(`Shader does not have a parameter named ${name}`);
+        return uniform;
+    }
+
+    private SetUniformDataFromArray(name: string, data: ArrayBuffer, dataOffset?: number | undefined, bufferOffset: number = 0, size?: number | undefined) {
+        const uniform = this.GetValidUniform(name);
+        if (!uniform.buffer) {
+            let usage = GPUBufferUsage.COPY_DST;
+            if (uniform.type === "uniform") usage |= GPUBufferUsage.UNIFORM;
+            else if (uniform.type === "storage") usage |= GPUBufferUsage.STORAGE;
+            uniform.buffer = WEBGPURenderer.device.createBuffer({ size: data.byteLength, usage: usage });
+            // this.RebuildDescriptors();
+            this.needsUpdate = true;
         }
 
-        return buffers;
+        WEBGPURenderer.device.queue.writeBuffer(uniform.buffer as GPUBuffer, bufferOffset, data, dataOffset, size);
     }
-
-    public GetBindings(): Map<string, ShaderBuffer> { return this.bindings };
-    public GetModule(): GPUShaderModule { return this.module };
-    public GetVertexEntrypoint(): string { return this.vertexEntrypoint };
-    public GetFragmentEntrypoint(): string { return this.fragmentEntrypoint};
-
-    private GetValidBinding(name: string, type: ShaderBufferType): ShaderBuffer {
-        const binding = this.bindings.get(name);
-        if (!binding) throw Error(`Shader does not have a parameter named ${name}`);
-        if (!binding.types || binding.types.length == 0 || !binding.types.includes(type)) throw Error(`Binding is not of "mat4x4" type, it is ${binding.types}`);
-        return binding;
-    }
-
-    public SetMatrix4(name: string, matrix: Matrix4): void {
-        const binding = this.GetValidBinding(name, "mat4x4");
-        if (!binding.usage) throw Error(`Binding has no usage`);
-        if (!binding.buffer) binding.buffer = WEBGPURenderer.device.createBuffer({ size: 4 * 16, usage: binding.usage });
-        WEBGPURenderer.device.queue.writeBuffer(binding.buffer as GPUBuffer, 0, matrix.elements);
-    }
-
-    public SetArray(name: string, array: ArrayBuffer, bufferOffset: number = 0, dataOffset?: number | undefined, size?: number | undefined) {
-        const binding = this.GetValidBinding(name, "array");
-        if (!binding.usage) throw Error(`Binding has no usage`);
-        if (!binding.buffer) binding.buffer = WEBGPURenderer.device.createBuffer({ size: array.byteLength, usage: binding.usage });
-        WEBGPURenderer.device.queue.writeBuffer(binding.buffer as GPUBuffer, bufferOffset, array, dataOffset, size);
-    }
-
-    public SetTexture(name: string, texture: WEBGPUTexture) {
-        const binding = this.GetValidBinding(name, "texture_2d");
-        binding.buffer = texture.GetBuffer();
-    }
-
-    public SetSampler(name: string, sampler: WEBGPUTextureSampler) {
-        const binding = this.GetValidBinding(name, "sampler");
-
-        binding.buffer = sampler.GetSampler();
-    }
-
-    public SetBuffer(name: string, buffer: WEBGPUBuffer): void {
-        const binding = this.bindings.get(name);
-        if (!binding) throw Error(`Shader does not have a parameter named ${name}`);
-        if (binding.buffer !== buffer.GetBuffer()) {
-            binding.buffer = buffer.GetBuffer();
+    private SetUniformDataFromBuffer(name: string, data: WEBGPUTexture | WEBGPUTextureSampler | WEBGPUBuffer) {
+        const binding = this.GetValidUniform(name);
+        if (!binding.buffer || binding.buffer !== data.GetBuffer()) {
+            binding.buffer = data.GetBuffer();
+            // this.RebuildDescriptors();
+            this.needsUpdate = true;
         }
     }
 
-    public HasBuffer(name: string): boolean {
-        return this.bindings.get(name)?.buffer ? true : false;
+    public SetArray(name: string, array: ArrayBuffer, bufferOffset: number = 0, dataOffset?: number, size?: number) { this.SetUniformDataFromArray(name, array, bufferOffset, dataOffset, size) }
+    public SetValue(name: string, value: number) {this.valueArray[0] = value; this.SetUniformDataFromArray(name, this.valueArray)}
+    public SetMatrix4(name: string, matrix: Matrix4): void { this.SetUniformDataFromArray(name, matrix.elements) }
+    public SetVector3(name: string, vector: Vector3) { this.SetUniformDataFromArray(name, vector.elements) }
+    
+    public SetTexture(name: string, texture: WEBGPUTexture) { this.SetUniformDataFromBuffer(name, texture) }
+    public SetSampler(name: string, sampler: WEBGPUTextureSampler) { this.SetUniformDataFromBuffer(name, sampler) }
+    public SetBuffer(name: string, buffer: WEBGPUBuffer): void { this.SetUniformDataFromBuffer(name, buffer) }
+
+    public HasBuffer(name: string): boolean { return this.uniformMap.get(name)?.buffer ? true : false }
+
+    public OnPreRender(geometry: Geometry): void {
+        if (this.needsUpdate || !this.pipeline || !this.bindGroup) this.RebuildDescriptors();
     }
 }

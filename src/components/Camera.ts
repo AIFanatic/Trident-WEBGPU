@@ -8,7 +8,7 @@ export class Camera extends Component {
     public renderTarget: RenderTexture | null = null;
     public depthTarget: DepthTexture | null = null;
 
-    public clearValue: Color = new Color(0.2, 0.2, 0.2, 1);
+    public backgroundColor: Color = new Color(0.2, 0.2, 0.2, 1);
 
     public fov = 60;
     public aspect = 1;
@@ -22,12 +22,6 @@ export class Camera extends Component {
     public static mainCamera: Camera;
     
     public Start() {
-        for (const gameObject of this.gameObject.scene.GetGameObjects()) {
-            if (gameObject.GetComponent(Camera)) {
-                Camera.mainCamera = this;
-                break;
-            }
-        }
         if (Camera.mainCamera === this) this.depthTarget = DepthTexture.Create(Renderer.width, Renderer.height);
     }
 

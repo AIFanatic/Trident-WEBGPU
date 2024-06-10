@@ -11,3 +11,9 @@ TODO:
 * Add drawIndirect/drawIndexedIndirect
 * Add sub passes
 * Geometry should calculate CRC from vertices and indices (MeshCache/Sponza)
+
+
+
+* Mesh cache sucks shader/geometry keys cant be unique per instance they need to be unique per mesh or something dunno
+
+* CompileGeometry hardcodes the attributes and stuff which are part of the shader

@@ -55,6 +55,50 @@ export class Quaternion {
         return this;
     }
 
+    public fromEuler(euler: Vector3, inDegrees: boolean = false): Quaternion {
+        const roll = inDegrees ? euler.x * Math.PI / 180 : euler.x;
+        const pitch = inDegrees ? euler.y * Math.PI / 180 : euler.y;
+        const yaw = inDegrees ? euler.z * Math.PI / 180 : euler.z;
+        const cr = Math.cos(roll * 0.5);
+        const sr = Math.sin(roll * 0.5);
+        const cp = Math.cos(pitch * 0.5);
+        const sp = Math.sin(pitch * 0.5);
+        const cy = Math.cos(yaw * 0.5);
+        const sy = Math.sin(yaw * 0.5);
+
+        this.w = cr * cp * cy + sr * sp * sy;
+        this.x = sr * cp * cy - cr * sp * sy;
+        this.y = cr * sp * cy + sr * cp * sy;
+        this.z = cr * cp * sy - sr * sp * cy;
+
+        return this;
+    }
+
+    public toEuler(out?: Vector3, inDegrees = false): Vector3 {
+        if (!out) out = new Vector3();
+        // roll (x-axis rotation)
+        const sinr_cosp = 2 * (this.w * this.x + this.y * this.z);
+        const cosr_cosp = 1 - 2 * (this.x * this.x + this.y * this.y);
+        out.x = Math.atan2(sinr_cosp, cosr_cosp);
+    
+        // pitch (y-axis rotation)
+        const sinp = Math.sqrt(1 + 2 * (this.w * this.y - this.x * this.z));
+        const cosp = Math.sqrt(1 - 2 * (this.w * this.y - this.x * this.z));
+        out.y = 2 * Math.atan2(sinp, cosp) - Math.PI / 2;
+    
+        // yaw (z-axis rotation)
+        const siny_cosp = 2 * (this.w * this.z + this.x * this.y);
+        const cosy_cosp = 1 - 2 * (this.y * this.y + this.z * this.z);
+        out.z = Math.atan2(siny_cosp, cosy_cosp);
+    
+        if (inDegrees) {
+            out.x *= 180 / Math.PI;
+            out.y *= 180 / Math.PI;
+            out.z *= 180 / Math.PI;
+        }
+        return out;
+    }
+
     lookAt(eye: Vector3, target: Vector3, up: Vector3): Quaternion {
         const z = this._a.copy(eye).sub(target)
 

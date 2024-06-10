@@ -1,19 +1,18 @@
 import { Component } from "./Component";
 import { Geometry } from "../Geometry";
 import { EventSystem } from "../Events";
-import { Shader } from "../renderer/Shader";
+import { Material } from "../renderer/Material";
 
 export class Mesh extends Component {
     private geometry: Geometry;
-    private shaders: Shader[] = [];
-    public enableGPUInstancing = true;
+    private materials: Material[] = [];
 
-    public AddShader(shader: Shader) {
-        if (this.shaders.includes(shader)) return;
-        this.shaders.push(shader);
+    public AddMaterial(material: Material) {
+        if (this.materials.includes(material)) return;
+        this.materials.push(material);
         EventSystem.emit("MeshUpdated", this, "shader");
     }
-    public GetShaders(): Shader[] { return this.shaders};
+    public GetMaterials(): Material[] { return this.materials};
 
     public SetGeometry(geometry: Geometry) {
         this.geometry = geometry;

@@ -11,5 +11,5 @@ export class WEBGPUTextureSampler implements TextureSampler {
         });
     }
 
-    public GetSampler(): GPUSampler { return this.sampler }
+    public GetBuffer(): GPUSampler { return this.sampler }
 }

@@ -105,7 +105,6 @@ export class OrbitControls {
 
     private _onPointerMove(event: PointerEvent): void {
         if (!this._focused) return
-
         const prevPointer = this._pointers.get(event.pointerId)!
         if (prevPointer) {
             const deltaX = (event.pageX - prevPointer.pageX) / this._pointers.size

@@ -13,6 +13,14 @@ export class Vector3 {
     public set y(v: number) { this._y = v };
     public set z(v: number) { this._z = v };
 
+    private _elements = new Float32Array(3);
+    public get elements(): Float32Array {
+        this._elements[0] = this._x;
+        this._elements[1] = this._y;
+        this._elements[2] = this._z;
+        return this._elements;
+    }
+
     constructor(x = 0, y = 0, z = 0) {
         this.x = x;
         this.y = y;

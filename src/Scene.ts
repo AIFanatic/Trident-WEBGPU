@@ -12,6 +12,7 @@ export class Scene {
 
     private gameObjects: GameObject[] = [];
     private toUpdate: Map<Component, boolean> = new Map();
+    private componentsByType: Map<string, Component[]> = new Map();
 
     private renderPipeline: RenderingPipeline;
 
@@ -25,10 +26,18 @@ export class Scene {
             else this.toUpdate.delete(component);
         });
 
+        EventSystem.on("AddedComponent", (component, scene) => {
+            if (scene !== this) return;
+            let componentsArray = this.componentsByType.get(component.name) || [];
+            componentsArray.push(component);
+            this.componentsByType.set(component.name, componentsArray);
+        });
+
     }
 
     public AddGameObject(gameObject: GameObject) { this.gameObjects.push(gameObject) }
     public GetGameObjects(): GameObject[] { return this.gameObjects }
+    public GetComponents<T extends Component>(type: new(...args: any[]) => T): T[] { return this.componentsByType.get(type.name) as T[] || [] }
     
     public Start() {
         if (this.hasStarted) return;
@@ -41,7 +50,7 @@ export class Scene {
     private Tick() {
         for (const [component, _] of this.toUpdate) component.Update();
 
-        this.renderPipeline.Render();
+        this.renderPipeline.Render(this);
 
         // setTimeout(() => {
         //     this.Tick()
