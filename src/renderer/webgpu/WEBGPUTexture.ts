@@ -1,6 +1,7 @@
 import { Utils } from "../../Utils";
 import { Renderer } from "../Renderer";
 import { Texture, TextureFormat, TextureType } from "../Texture";
+import { WEBGPUMipsGenerator } from "../WEBGPUMipsGenerator";
 import { WEBGPURenderer } from "./WEBGPURenderer";
 
 export class WEBGPUTexture implements Texture {
@@ -20,7 +21,7 @@ export class WEBGPUTexture implements Texture {
 
         if (!type) textureType = GPUTextureUsage.TEXTURE_BINDING;
         else if (type === TextureType.DEPTH) textureType = GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING;
-        else if (type === TextureType.RENDER_TARGET) textureType = GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING;
+        else if (type === TextureType.RENDER_TARGET) textureType = GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_SRC;
 
         else throw Error(`Unknown texture format ${format}`);
 
@@ -28,6 +29,7 @@ export class WEBGPUTexture implements Texture {
             size: [width, height],
             format: format,
             usage: textureUsage | textureType,
+            label: "My texture"
         });
 
         this.width = width;
@@ -35,10 +37,14 @@ export class WEBGPUTexture implements Texture {
     }
 
     public GetBuffer(): GPUTexture { return this.buffer }
-    
+
     public GetView(): GPUTextureView {
         if (!this.view) this.view = this.buffer.createView();
         return this.view;
+    }
+
+    public GenerateMips() {
+        this.buffer = WEBGPUMipsGenerator.generateMips(this);
     }
 
     // Format and types are very limited for now
@@ -51,7 +57,7 @@ export class WEBGPUTexture implements Texture {
             { texture: texture.GetBuffer() },
             [imageBitmap.width, imageBitmap.height]
         );
-        
+
         return texture;
     }
 }

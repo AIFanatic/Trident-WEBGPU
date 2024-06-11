@@ -11,6 +11,7 @@ enum PassParams {
     GBufferPosition = "GBufferPosition",
     GBufferAlbedo = "GBufferAlbedo",
     GBufferNormal = "GBufferNormal",
+    GBufferERMO = "GBufferERMO",
     GBufferDepth = "GBufferDepth",
 };
 
@@ -28,8 +29,8 @@ export class RenderingPipeline {
 
     private passes = {
         SetMainCamera: new SetMeshRenderCameraPass({outputs: [PassParams.MainCamera]}),
-        MeshRenderPass: new MeshRenderPass(PassParams.MainCamera, PassParams.GBufferPosition, PassParams.GBufferAlbedo, PassParams.GBufferNormal, PassParams.GBufferDepth),
-        LightingPass: new LightingPass(PassParams.GBufferPosition, PassParams.GBufferAlbedo, PassParams.GBufferNormal, PassParams.GBufferDepth),
+        MeshRenderPass: new MeshRenderPass(PassParams.MainCamera, PassParams.GBufferPosition, PassParams.GBufferAlbedo, PassParams.GBufferNormal, PassParams.GBufferERMO, PassParams.GBufferDepth),
+        LightingPass: new LightingPass(PassParams.GBufferPosition, PassParams.GBufferAlbedo, PassParams.GBufferNormal, PassParams.GBufferERMO, PassParams.GBufferDepth),
     }
     
     constructor(renderer: Renderer) {

@@ -93,7 +93,12 @@ export class Geometry {
             2, 3, 1  // Second triangle
         ]);
 
-        const uvs = new Float32Array([0, 1, 1, 1, 0, 0, 1, 0]);
+        const uvs = new Float32Array([
+            0, 0,  // Bottom-left
+            1, 0,  // Bottom-right
+            0, 1,  // Top-left
+            1, 1   // Top-right
+        ]);
 
         const geometry = new Geometry();
         geometry.attributes.set("position", new VertexAttribute(vertices));

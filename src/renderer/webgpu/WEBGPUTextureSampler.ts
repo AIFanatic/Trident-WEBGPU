@@ -8,6 +8,7 @@ export class WEBGPUTextureSampler implements TextureSampler {
         this.sampler = WEBGPURenderer.device.createSampler({
             magFilter: 'linear',
             minFilter: 'linear',
+            mipmapFilter: "linear",
         });
     }
 

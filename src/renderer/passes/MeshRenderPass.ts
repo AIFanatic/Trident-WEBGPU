@@ -13,10 +13,11 @@ export class MeshRenderPass extends RenderPass {
     private gbufferPositionRT: RenderTexture;
     private gbufferAlbedoRT: RenderTexture;
     private gbufferNormalRT: RenderTexture;
+    private gbufferERMO: RenderTexture;
     private gbufferDepthDT: DepthTexture;
     
-    constructor(inputCamera: string, outputGBufferPosition: string, outputGBufferAlbedo: string, outputGBufferNormal: string, outputGBufferDepth: string) {
-        super({inputs: [inputCamera], outputs: [outputGBufferPosition, outputGBufferAlbedo, outputGBufferNormal, outputGBufferDepth]});
+    constructor(inputCamera: string, outputGBufferPosition: string, outputGBufferAlbedo: string, outputGBufferNormal: string, outputGBufferERMO: string, outputGBufferDepth: string) {
+        super({inputs: [inputCamera], outputs: [outputGBufferPosition, outputGBufferAlbedo, outputGBufferNormal, outputGBufferERMO, outputGBufferDepth]});
 
         EventSystem.on("MeshUpdated", (mesh, type) => {
             MeshRenderCache.AddMesh(mesh);
@@ -29,10 +30,11 @@ export class MeshRenderPass extends RenderPass {
         this.gbufferPositionRT = RenderTexture.Create(Renderer.width, Renderer.height, "rgba16float");
         this.gbufferAlbedoRT = RenderTexture.Create(Renderer.width, Renderer.height, "rgba16float");
         this.gbufferNormalRT = RenderTexture.Create(Renderer.width, Renderer.height, "rgba16float");
-        this.gbufferDepthDT = DepthTexture.Create(Renderer.width, Renderer.height)
+        this.gbufferERMO = RenderTexture.Create(Renderer.width, Renderer.height, "rgba16float");
+        this.gbufferDepthDT = DepthTexture.Create(Renderer.width, Renderer.height);
     }
 
-    public execute(resources: ResourcePool, inputCamera: Camera, outputGBufferPosition: string, outputGBufferAlbedo: string, outputGBufferNormal: string, outputGBufferDepth: string) {
+    public execute(resources: ResourcePool, inputCamera: Camera, outputGBufferPosition: string, outputGBufferAlbedo: string, outputGBufferNormal: string, outputGBufferERMO: string, outputGBufferDepth: string) {
         if (!inputCamera) throw Error(`No inputs passed to ${this.name}`);
         const renderTarget = inputCamera.renderTarget;
         const depthTarget = inputCamera.depthTarget;
@@ -42,9 +44,9 @@ export class MeshRenderPass extends RenderPass {
         
         RendererContext.BeginRenderPass("MeshRenderPass",
             [
-                {target: this.gbufferPositionRT, clear: true, color: backgroundColor},
                 {target: this.gbufferAlbedoRT, clear: true, color: backgroundColor},
                 {target: this.gbufferNormalRT, clear: true, color: backgroundColor},
+                {target: this.gbufferERMO, clear: true, color: backgroundColor},
             ],
             {target: this.gbufferDepthDT, clear: true}
         );
@@ -74,6 +76,7 @@ export class MeshRenderPass extends RenderPass {
         resources.setResource(outputGBufferPosition, this.gbufferPositionRT);
         resources.setResource(outputGBufferAlbedo, this.gbufferAlbedoRT);
         resources.setResource(outputGBufferNormal, this.gbufferNormalRT);
+        resources.setResource(outputGBufferERMO, this.gbufferERMO);
         resources.setResource(outputGBufferDepth, this.gbufferDepthDT);
     }
 }

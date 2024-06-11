@@ -49,6 +49,8 @@ export class Texture {
     public readonly width: number;
     public readonly height: number;
 
+    public GenerateMips() {}
+
     public static Create(width: number, height: number, format: TextureFormat = "rgba32uint"): Texture {
         if (Renderer.type === "webgpu") return new WEBGPUTexture(width, height, format, TextureType.IMAGE);
         throw Error("Renderer type invalid");

@@ -65,9 +65,11 @@ export class WEBGPURendererContext implements RendererContext {
 
         if (!shader.params.topology || shader.params.topology === Topology.Triangles) {
             if (!geometry.index) throw Error("Drawing without indices is not supported yet");
-            const indexBuffer = geometry.index.buffer as WEBGPUBuffer;
-            this.activeRenderPass.setIndexBuffer(indexBuffer.GetBuffer(), "uint32");
-            this.activeRenderPass.drawIndexed(indexBuffer.size / 4, instanceCount);
+            else {
+                const indexBuffer = geometry.index.buffer as WEBGPUBuffer;
+                this.activeRenderPass.setIndexBuffer(indexBuffer.GetBuffer(), "uint32");
+                this.activeRenderPass.drawIndexed(indexBuffer.size / 4, instanceCount);
+            }
         }
         else if (shader.params.topology === Topology.Lines) {
             if (!geometry.index) throw Error("Cannot draw lines without index buffer");

@@ -58,6 +58,7 @@ export class Transform extends Component {
 
     public LookAt(target: Vector3): void {
         this.rotation.lookAt(this.position, target, this.up);
+        this.UpdateMatrices();
         this.onChanged();
     }
 }
