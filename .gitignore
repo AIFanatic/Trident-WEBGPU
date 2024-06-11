@@ -7,5 +7,6 @@ dist/assets
 src/TEST
 research
 src-bak*
+samples*
 *.bak*
 cloc.sh
