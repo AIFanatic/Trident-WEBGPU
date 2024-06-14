@@ -1,5 +1,5 @@
 import { Shader } from "../Shader";
-import { Geometry, IndexAttribute, VertexAttribute } from "../../Geometry";
+import { Geometry } from "../../Geometry";
 import { DepthTexture, RenderTexture } from "../Texture";
 import { TextureSampler } from "../TextureSampler";
 import { Camera } from "../../components/Camera";
@@ -8,7 +8,6 @@ import { RenderPass, ResourcePool } from "../RenderGraph";
 import { Light } from "../../components/Light";
 import { Renderer } from "../Renderer";
 import { Matrix4 } from "../../math/Matrix4";
-import { Vector3 } from "../../math/Vector3";
 
 export class LightingPass extends RenderPass {
     public name: string = "LightingPass";
@@ -29,7 +28,6 @@ export class LightingPass extends RenderPass {
         struct VertexOutput {
             @builtin(position) position : vec4<f32>,
             @location(0) vUv : vec2<f32>,
-            @location(1) normal : vec3<f32>,
         };
 
         @group(0) @binding(0) var textureSampler: sampler;
@@ -52,17 +50,19 @@ export class LightingPass extends RenderPass {
 
 
 
-        @group(0) @binding(9) var<storage, read> projectionOutputSize: vec3<f32>;
-        @group(0) @binding(10) var<storage, read> projectionInverseMatrix: mat4x4<f32>;
-        @group(0) @binding(11) var<storage, read> viewInverseMatrix: mat4x4<f32>;
-        @group(0) @binding(12) var<storage, read> viewPosition: vec3<f32>;
+        struct View {
+            projectionOutputSize: vec4<f32>,
+            viewPosition: vec4<f32>,
+            projectionInverseMatrix: mat4x4<f32>,
+            viewInverseMatrix: mat4x4<f32>,
+        };
+        @group(0) @binding(9) var<storage, read> view: View;
 
         @vertex
         fn vertexMain(input: VertexInput) -> VertexOutput {
             var output: VertexOutput;
             output.position = vec4(input.position, 0.0, 1.0);
             output.vUv = input.uv;
-            output.normal = input.normal;
             return output;
         }
         const PI = 3.141592653589793;
@@ -85,6 +85,7 @@ export class LightingPass extends RenderPass {
             albedo: vec4<f32>,
             metallic: f32,
             roughness: f32,
+            occlusion: f32,
             worldPos: vec4<f32>,
             N: vec3<f32>,
             F0: vec3<f32>,
@@ -212,6 +213,13 @@ export class LightingPass extends RenderPass {
             return pow(linear, vec3(1.0 / 2.2));
         }
 
+        fn PhongSpecular(V: vec3f, L: vec3f, N: vec3f, specular: vec3f, roughness: f32) -> vec3f {
+            let R = reflect(-L, N);
+            let spec = max(0.0, dot(V, R));
+            let k = 1.999 / (roughness * roughness);
+            return min(1.0, 3.0 * 0.0398 * k) * pow(spec, min(10000.0, k)) * specular;
+        }
+
 
 
         @fragment
@@ -221,29 +229,34 @@ export class LightingPass extends RenderPass {
             var positionA = textureSample(positionTexture, textureSampler, uv).xyz;
             var albedo = textureSample(albedoTexture, textureSampler, uv).rgb;
             var normal = textureSample(normalTexture, textureSampler, uv).xyz;
-            var ermo = textureSample(ermoTexture, textureSampler, uv).xyz;
-            var depth = textureSample(depthTexture, textureSampler, uv);
+            var ermo = textureSample(ermoTexture, textureSampler, uv);
+            // var depth = textureSample(depthTexture, textureSampler, uv);
 
 
+
+            if (ermo.w > 0.5) {
+                return vec4(albedo, 1.0);
+            }
 
             var color: vec3f = vec3(0);
 
             let worldPosition = reconstructWorldPosFromZ(
                 input.position.xy,
-                projectionOutputSize.xy,
+                view.projectionOutputSize.xy,
                 depthTexture,
-                projectionInverseMatrix,
-                viewInverseMatrix
+                view.projectionInverseMatrix,
+                view.viewInverseMatrix
             );
 
             var surface: Surface;
             surface.albedo = vec4(albedo, 1.0);
             surface.roughness = ermo.r;
             surface.metallic = ermo.g;
+            surface.occlusion = ermo.b;
             surface.worldPos = worldPosition;
             surface.N = normal;
             surface.F0 = mix(vec3(0.04), surface.albedo.rgb, vec3(surface.metallic));
-            surface.V = normalize(viewPosition - worldPosition.xyz);
+            surface.V = normalize(view.viewPosition.xyz - worldPosition.xyz);
 
             // output luminance to add to
             var Lo = vec3(0.0);
@@ -255,7 +268,7 @@ export class LightingPass extends RenderPass {
                 
                 pointLight.pointToLight = light.position.xyz - worldPosition.xyz;
                 pointLight.color = light.color.rgb;
-                // pointLight.range = 1000.0; // light.range;
+                pointLight.range = 1000.0; // light.range;
 
                 // // Don't calculate if too far away
                 // if (distance(light.position.xyz, worldPosition.xyz) > pointLight.range) {
@@ -263,16 +276,27 @@ export class LightingPass extends RenderPass {
                 // }
                 pointLight.intensity = light.color.a;
                 Lo += PointLightRadiance(pointLight, surface);
+
+                var directionalLight: DirectionalLight;
+                directionalLight.direction = vec3(0.2, 0.2, 0.2);
+                directionalLight.color = light.color.rgb;
+                // Lo += DirectionalLightRadiance(directionalLight, surface);
+
+                // Lo += PhongSpecular(surface.V, normalize(pointLight.pointToLight), surface.N, vec3(surface.roughness) * pointLight.intensity, 0.1);
             }
 
 
-            let ambient = vec3(0.09) * albedo.rgb;
-            color = ambient + Lo;
+            Lo = pow( Lo, vec3(0.4545) );
 
-            // // color = Tonemap_ACES(color);
-            // // color = OECF_sRGBFast(color);
+            let ambient = vec3(0.09) * albedo.rgb;
+            color = ambient + Lo * surface.occlusion;
+
+            // color = Tonemap_ACES(color);
+            // color = OECF_sRGBFast(color);
+
 
             return vec4(color, 1.0);
+            // return vec4(Lo, 1.0);
             // return vec4(albedo, 1.0);
             // return vec4(worldPosition.xyz, 1.0);
             // return vec4(normal, 1.0);
@@ -281,29 +305,22 @@ export class LightingPass extends RenderPass {
         this.shader = Shader.Create({
             code: code,
             attributes: {
-                position: { location: 0, size: 2, type: "vec2" },
+                position: { location: 0, size: 3, type: "vec3" },
                 normal: { location: 1, size: 3, type: "vec3" },
                 uv: { location: 2, size: 2, type: "vec2" }
             },
             uniforms: {
-                textureSampler: { location: 0, type: "storage" },
-                positionTexture: { location: 1, type: "storage" },
-                albedoTexture: { location: 2, type: "storage" },
-                normalTexture: { location: 3, type: "storage" },
-                ermoTexture: { location: 4, type: "storage" },
-                depthTexture: { location: 5, type: "storage" },
+                textureSampler: { location: 0, type: "texture" },
+                positionTexture: { location: 1, type: "texture" },
+                albedoTexture: { location: 2, type: "texture" },
+                normalTexture: { location: 3, type: "texture" },
+                ermoTexture: { location: 4, type: "texture" },
+                depthTexture: { location: 5, type: "depthTexture" },
                 
                 lights: { location: 6, type: "storage" },
                 lightCount: { location: 7, type: "storage" },
 
-                
-                
-                
-                projectionOutputSize: { location: 9, type: "storage" },
-                projectionInverseMatrix: { location: 10, type: "storage" },
-                viewInverseMatrix: { location: 11, type: "storage" },
-                viewPosition: { location: 12, type: "storage" },
-
+                view: { location: 9, type: "storage" },
             },
             colorOutputs: [{format: Renderer.SwapChainFormat}]
         });
@@ -311,45 +328,7 @@ export class LightingPass extends RenderPass {
         this.sampler = TextureSampler.Create();
         this.shader.SetSampler("textureSampler", this.sampler);
 
-        const geometry = new Geometry();
-        const vertices = new Float32Array([
-            -1.0, -1.0,  // Bottom left
-             1.0, -1.0,  // Bottom right
-             1.0,  1.0,  // Top right
-            -1.0,  1.0   // Top left
-        ]);
-        
-        // UV coordinates
-        const uvs = new Float32Array([
-            0.0, 1.0,  // Bottom left (now top left)
-            1.0, 1.0,  // Bottom right (now top right)
-            1.0, 0.0,  // Top right (now bottom right)
-            0.0, 0.0   // Top left (now bottom left)
-        ]);
-        
-        // Indices for two triangles
-        const indices = new Uint32Array([
-            0, 1, 2,  // First triangle (bottom left to top right)
-            2, 3, 0   // Second triangle (top right to top left)
-        ]);
-
-        const normals = new Float32Array([
-            0.0, 0.0, 1.0,  // Normal for bottom left vertex
-            0.0, 0.0, 1.0,  // Normal for bottom right vertex
-            0.0, 0.0, 1.0,  // Normal for top right vertex
-            0.0, 0.0, 1.0   // Normal for top left vertex
-        ]);
-        
-
-        geometry.attributes.set("position", new VertexAttribute(vertices));
-        geometry.attributes.set("normal", new VertexAttribute(normals));
-        geometry.attributes.set("uv", new VertexAttribute(uvs));
-        geometry.index = new IndexAttribute(indices);
-        // geometry.ComputeNormals();
-        this.quadGeometry = geometry;
-
-        console.log(this.shader)
-        // this.quadGeometry = Geometry.Plane();
+        this.quadGeometry = Geometry.Plane();
     }
 
     public execute(resources: ResourcePool, inputGBufferPosition: RenderTexture, inputGBufferAlbedo: RenderTexture, inputGBufferNormal: RenderTexture, inputGbufferERMO: RenderTexture, inputGBufferDepth: DepthTexture) {
@@ -379,15 +358,19 @@ export class LightingPass extends RenderPass {
         this.shader.SetArray("lights", lightBuffer);
         this.shader.SetArray("lightCount", new Uint32Array([lights.length]));
 
-        
+        const view = new Float32Array(4 + 4 + 16 + 16);
+        view.set([Renderer.width, Renderer.height, 0], 0);
+        view.set(camera.transform.position.elements, 4);
+        // console.log(view)
         const tempMatrix = new Matrix4();
-        this.shader.SetVector3("projectionOutputSize", new Vector3(Renderer.width, Renderer.height, 0));
         tempMatrix.copy(camera.projectionMatrix).invert();
-        this.shader.SetMatrix4("projectionInverseMatrix", tempMatrix);
+        view.set(tempMatrix.elements, 8);
         tempMatrix.copy(camera.viewMatrix).invert();
-        this.shader.SetMatrix4("viewInverseMatrix", tempMatrix);
+        view.set(tempMatrix.elements, 24);
+
+        this.shader.SetArray("view", view);
         
-        this.shader.SetVector3("viewPosition", camera.transform.position);
+        // this.shader.SetVector3("viewPosition", camera.transform.position);
 
         RendererContext.DrawGeometry(this.quadGeometry, this.shader);
         RendererContext.EndRenderPass();

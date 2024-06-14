@@ -1,5 +1,6 @@
 import { Utils } from "../Utils";
 import { Color } from "../math/Color";
+import { Renderer } from "./Renderer";
 import { Shader, ShaderCode, ShaderParams } from "./Shader";
 import { Texture } from "./Texture";
 import { TextureSampler } from "./TextureSampler";
@@ -26,6 +27,8 @@ export interface MeshBasicMaterialParams extends ShaderParams {
     emissiveMap?: Texture;
 
     aoMap?: Texture;
+
+    unlit?: boolean;
 }
 
 export function WGSLPreprocess(code: string, defines: {[key: string]: boolean}): string {
@@ -41,7 +44,7 @@ export function WGSLPreprocess(code: string, defines: {[key: string]: boolean}):
     return code;
 }
 
-export class MeshBasicMaterial extends Material {
+export class PBRMaterial extends Material {
     constructor(params?: Partial<MeshBasicMaterialParams>) {
         super();
 
@@ -50,9 +53,9 @@ export class MeshBasicMaterial extends Material {
         let shaderParams: MeshBasicMaterialParams = {
             code: code,
             colorOutputs: [
-                {format: "rgba16float"},
-                {format: "rgba16float"},
-                {format: "rgba16float"},
+                {format: Renderer.SwapChainFormat},
+                {format: Renderer.SwapChainFormat},
+                {format: Renderer.SwapChainFormat},
             ],
             depthOutput: "depth24plus",
             attributes: {
@@ -65,19 +68,17 @@ export class MeshBasicMaterial extends Material {
                 viewMatrix: {location: 1, type: "storage"},
                 modelMatrix: {location: 2, type: "storage"},
 
-                AlbedoColor: {location: 3, type: "storage"},
-                EmissiveColor: {location: 4, type: "storage"},
-                Roughness: {location: 5, type: "storage"},
-                Metalness: {location: 6, type: "storage"},
+                TextureSampler: {location: 4, type: "sampler"},
+                AlbedoMap: {location: 5, type: "texture"},
+                NormalMap: {location: 6, type: "texture"},
+                HeightMap: {location: 7, type: "texture"},
+                RoughnessMap: {location: 8, type: "texture"},
+                MetalnessMap: {location: 9, type: "texture"},
+                EmissiveMap: {location: 10, type: "texture"},
+                AOMap: {location: 11, type: "texture"},
 
-                TextureSampler: {location: 7, type: "sampler"},
-                AlbedoMap: {location: 8, type: "texture"},
-                NormalMap: {location: 9, type: "texture"},
-                HeightMap: {location: 10, type: "texture"},
-                RoughnessMap: {location: 11, type: "texture"},
-                MetalnessMap: {location: 12, type: "texture"},
-                EmissiveMap: {location: 13, type: "texture"},
-                AOMap: {location: 14, type: "texture"},
+                // material: {location: 12, type: "storage"},
+                material: {location: 3, type: "storage"},
             }
         };
         shaderParams = Object.assign({}, shaderParams, params);
@@ -100,23 +101,32 @@ export class MeshBasicMaterial extends Material {
         const emissiveColor = shaderParams?.emissiveColor ? shaderParams.emissiveColor : new Color(0,0,0,0);
         const roughness = shaderParams?.roughness ? shaderParams.roughness : 0;
         const metalness = shaderParams?.metalness ? shaderParams.metalness : 0;
+        const unlit = shaderParams?.unlit && shaderParams.unlit === true ? 1: 0;
 
         if (DEFINES.USE_ALBEDO_MAP || DEFINES.USE_NORMAL_MAP || DEFINES.USE_HEIGHT_MAP || DEFINES.USE_ROUGHNESS_MAP || DEFINES.USE_METALNESS_MAP || DEFINES.USE_EMISSIVE_MAP || DEFINES.USE_AO_MAP) {
             const textureSampler = TextureSampler.Create();
             this.shader.SetSampler("TextureSampler", textureSampler);                
         }
 
-        this.shader.SetArray("AlbedoColor", albedoColor.elements);
-        this.shader.SetArray("EmissiveColor", emissiveColor.elements);
-        this.shader.SetValue("Roughness", roughness);
-        this.shader.SetValue("Metalness", metalness);
+        this.shader.SetArray("material", new Float32Array([
+            albedoColor.r, albedoColor.g, albedoColor.b, albedoColor.a,
+            emissiveColor.r, emissiveColor.g, emissiveColor.b, emissiveColor.a,
+            roughness, metalness, unlit, 0
+        ]));
+
+        // this.shader.SetArray("EmissiveColor", emissiveColor.elements);
+        // this.shader.SetValue("Roughness", roughness);
+        // this.shader.SetValue("Metalness", metalness);
 
         if (DEFINES.USE_ALBEDO_MAP === true && shaderParams.albedoMap) this.shader.SetTexture("AlbedoMap", shaderParams.albedoMap);
         if (DEFINES.USE_NORMAL_MAP === true && shaderParams.normalMap) this.shader.SetTexture("NormalMap", shaderParams.normalMap);
-        if (DEFINES.USE_HEIGHT_MAP === true && shaderParams.heightMap) this.shader.SetTexture("HeightMap", shaderParams.heightMap);
+        if (DEFINES.USE_HEIGHT_MAP === true && shaderParams.heightMap) throw Error("Height mapping not implemented yet");
         if (DEFINES.USE_ROUGHNESS_MAP === true && shaderParams.roughnessMap) this.shader.SetTexture("RoughnessMap", shaderParams.roughnessMap);
         if (DEFINES.USE_METALNESS_MAP === true && shaderParams.metalnessMap) this.shader.SetTexture("MetalnessMap", shaderParams.metalnessMap);
         if (DEFINES.USE_EMISSIVE_MAP === true && shaderParams.emissiveMap) this.shader.SetTexture("EmissiveMap", shaderParams.emissiveMap);
         if (DEFINES.USE_AO_MAP === true && shaderParams.aoMap) this.shader.SetTexture("AOMap", shaderParams.aoMap);
+
+        // if (shaderParams.unlit === true) this.shader.SetValue("materialType", 1);
+        // else this.shader.SetValue("materialType", 0);
     }
 }

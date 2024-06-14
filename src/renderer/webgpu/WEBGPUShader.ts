@@ -59,11 +59,41 @@ export class WEBGPUShader implements Shader {
 
         console.warn("building")
 
+        // Bind group layout
+        const bindGroupLayoutEntries: GPUBindGroupLayoutEntry[] = [];
+        for (const [name, uniform] of this.uniformMap) {
+            if (!uniform.buffer) continue;
+            if (uniform.buffer instanceof GPUBuffer) bindGroupLayoutEntries.push({ binding: uniform.location, visibility: GPUShaderStage.VERTEX | GPUShaderStage.FRAGMENT, buffer: { type: "read-only-storage"}})
+            else if (uniform.buffer instanceof GPUTexture) {
+                const sampleType: GPUTextureSampleType = uniform.type === "depthTexture" ? "depth" : "float";
+                bindGroupLayoutEntries.push({ binding: uniform.location, visibility: GPUShaderStage.VERTEX | GPUShaderStage.FRAGMENT, texture: {sampleType: sampleType}})
+            }
+            else if (uniform.buffer instanceof GPUSampler) bindGroupLayoutEntries.push({ binding: uniform.location, visibility: GPUShaderStage.VERTEX | GPUShaderStage.FRAGMENT, sampler: {}})
+        }
+        const bindGroupLayout = WEBGPURenderer.device.createBindGroupLayout({entries: bindGroupLayoutEntries});
+        const pipelineLayout = WEBGPURenderer.device.createPipelineLayout({
+            bindGroupLayouts: [bindGroupLayout]  // Array of all bind group layouts used
+        });
+
+        // Bind group entries
+        const bindGroupEntries: GPUBindGroupEntry[] = [];
+        for (const [name, uniform] of this.uniformMap) {
+            if (!uniform.buffer) continue;
+            if (!uniform.buffer) throw Error(`Shader has binding (${name}) but no buffer was set`);
+            if (uniform.buffer instanceof GPUBuffer) bindGroupEntries.push({binding: uniform.location, resource: {buffer: uniform.buffer}});
+            else if (uniform.buffer instanceof GPUTexture) bindGroupEntries.push({binding: uniform.location, resource: uniform.buffer.createView()});
+            else if (uniform.buffer instanceof GPUSampler) bindGroupEntries.push({binding: uniform.location, resource: uniform.buffer});
+        }
+        
+        // Bind group
+        this._bindGroup = WEBGPURenderer.device.createBindGroup({ layout: bindGroupLayout, entries: bindGroupEntries });
+        
+        // Pipeline descriptor
         let targets: GPUColorTargetState[] = [];
         for (const output of this.params.colorOutputs) targets.push({format: output.format});
         const pipelineDescriptor: GPURenderPipelineDescriptor = {
-            layout: "auto",
-            vertex: { module: this.module, entryPoint: this.vertexEntrypoint },
+            layout: pipelineLayout,
+            vertex: { module: this.module, entryPoint: this.vertexEntrypoint, buffers: [] },
             fragment: { module: this.module, entryPoint: this.fragmentEntrypoint, targets: targets },
             primitive: {
                 topology: this.params.topology ? this.params.topology : "triangle-list",
@@ -72,29 +102,18 @@ export class WEBGPUShader implements Shader {
             }
         }
 
+        // Pipeline descriptor - Depth target
         if (this.params.depthOutput) pipelineDescriptor.depthStencil = { depthWriteEnabled: true, depthCompare: 'less', format: this.params.depthOutput };
     
+        // Pipeline descript - Vertex buffers (Attributes)
         const buffers: GPUVertexBufferLayout[] = [];
         for (const [_, attribute] of this.attributeMap) {
             buffers.push({arrayStride: attribute.size * 4, attributes: [{ shaderLocation: attribute.location, offset: 0, format: WGSLShaderAttributeFormat[attribute.type] }] })
         }
         pipelineDescriptor.vertex.buffers = buffers;
 
+        // Pipeline
         this._pipeline = WEBGPURenderer.device.createRenderPipeline(pipelineDescriptor);
-
-        const bindGroupEntries: GPUBindGroupEntry[] = [];
-        for (const [name, uniform] of this.uniformMap) {
-            if (!uniform.buffer) continue;
-            // if (!uniform.buffer) throw Error(`Shader has binding (${name}) but no buffer was set`);
-            if (uniform.buffer instanceof GPUBuffer) bindGroupEntries.push({binding: uniform.location, resource: {buffer: uniform.buffer}});
-            else if (uniform.buffer instanceof GPUTexture) bindGroupEntries.push({binding: uniform.location, resource: uniform.buffer.createView()});
-            else if (uniform.buffer instanceof GPUSampler) bindGroupEntries.push({binding: uniform.location, resource: uniform.buffer});
-        }
-        
-        this._bindGroup = WEBGPURenderer.device.createBindGroup({
-            layout: this._pipeline.getBindGroupLayout(0),
-            entries: bindGroupEntries
-        });
 
         this.needsUpdate = false;
     }
@@ -116,7 +135,6 @@ export class WEBGPUShader implements Shader {
             if (uniform.type === "uniform") usage |= GPUBufferUsage.UNIFORM;
             else if (uniform.type === "storage") usage |= GPUBufferUsage.STORAGE;
             uniform.buffer = WEBGPURenderer.device.createBuffer({ size: data.byteLength, usage: usage });
-            // this.RebuildDescriptors();
             this.needsUpdate = true;
         }
 
@@ -126,7 +144,6 @@ export class WEBGPUShader implements Shader {
         const binding = this.GetValidUniform(name);
         if (!binding.buffer || binding.buffer !== data.GetBuffer()) {
             binding.buffer = data.GetBuffer();
-            // this.RebuildDescriptors();
             this.needsUpdate = true;
         }
     }

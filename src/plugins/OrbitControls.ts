@@ -30,20 +30,9 @@ export class OrbitControls {
     private _element: HTMLElement | null = null
     private _pointers = new Map<number, PointerEvent>()
 
-    private get _focused(): boolean {
-        return document.activeElement === this._element
-    }
-
     constructor(camera: Camera) {
         this._camera = camera
         this._camera.transform.LookAt(this.center)
-
-        // Ensure methods don't descope and re-inherit `this`
-        const properties = Object.getOwnPropertyNames(Object.getPrototypeOf(this))
-        for (const property of properties) {
-            // @ts-ignore
-            if (typeof this[property] === 'function') this[property] = this[property].bind(this)
-        }
     }
 
     /**
@@ -98,32 +87,40 @@ export class OrbitControls {
     }
 
     private _onScroll(event: WheelEvent): void {
-        if (!this.enableZoom || !this._focused) return
-
         this.zoom(1 + event.deltaY / 720)
     }
 
     private _onPointerMove(event: PointerEvent): void {
-        if (!this._focused) return
-        const prevPointer = this._pointers.get(event.pointerId)!
+        const prevPointer = this._pointers.get(event.pointerId);
         if (prevPointer) {
-            const deltaX = (event.pageX - prevPointer.pageX) / this._pointers.size
-            const deltaY = (event.pageY - prevPointer.pageY) / this._pointers.size
-
-            const type = event.pointerType === 'touch' ? this._pointers.size : event.buttons
+            const deltaX = (event.pageX - prevPointer.pageX) / this._pointers.size;
+            const deltaY = (event.pageY - prevPointer.pageY) / this._pointers.size;
+    
+            const type = event.pointerType === 'touch' ? this._pointers.size : event.buttons;
             if (type === BUTTONS.LEFT) {
-                this._element!.style.cursor = 'grabbing'
-                this.orbit(deltaX, deltaY)
+                this._element!.style.cursor = 'grabbing';
+                this.orbit(deltaX, deltaY);
             } else if (type === BUTTONS.RIGHT) {
-                this._element!.style.cursor = 'grabbing'
-                if (this.enablePan) this.pan(deltaX, deltaY)
+                this._element!.style.cursor = 'grabbing';
+                if (this.enablePan) this.pan(deltaX, deltaY);
             }
+    
+            if (event.pointerType === 'touch' && this._pointers.size === 2) {
+                // Get the other pointer
+                const otherPointer = Array.from(this._pointers.values()).find(p => p.pointerId !== event.pointerId);
+                if (otherPointer) {
+                    const currentDistance = Math.hypot(event.pageX - otherPointer.pageX, event.pageY - otherPointer.pageY);
+                    const previousDistance = Math.hypot(prevPointer.pageX - otherPointer.pageX, prevPointer.pageY - otherPointer.pageY);
+                    const zoomFactor = currentDistance / previousDistance;
+                    this.zoom(zoomFactor);
+                }
+            }
+    
         } else if (event.pointerType !== 'touch') {
-            this._element!.setPointerCapture(event.pointerId)
+            this._element!.setPointerCapture(event.pointerId);
         }
-
+    
         this._pointers.set(event.pointerId, event);
-
     }
 
     private _onPointerUp(event: PointerEvent): void {
@@ -137,10 +134,10 @@ export class OrbitControls {
      * Connects controls' event handlers, enabling interaction.
      */
     connect(element: HTMLElement): void {
-        element.addEventListener('contextmenu', this._onContextMenu)
-        element.addEventListener('wheel', this._onScroll, { passive: true })
-        element.addEventListener('pointermove', this._onPointerMove)
-        element.addEventListener('pointerup', this._onPointerUp)
+        element.addEventListener('contextmenu', event => { this._onContextMenu(event) })
+        element.addEventListener('wheel', event => { this._onScroll(event) }, { passive: true })
+        element.addEventListener('pointermove', event => { this._onPointerMove(event) })
+        element.addEventListener('pointerup', event => { this._onPointerUp(event) })
         element.tabIndex = 0
         this._element = element
         this._element.style.cursor = 'grab'

@@ -20,7 +20,7 @@ export interface ShaderAttribute {
 
 export interface ShaderUniform {
     location: number;
-    type: "uniform" | "storage" | "texture" | "sampler";
+    type: "uniform" | "storage" | "texture" | "sampler" | "depthTexture";
 };
 
 export enum Topology {

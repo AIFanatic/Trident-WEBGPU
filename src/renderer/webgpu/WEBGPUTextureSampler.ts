@@ -9,6 +9,8 @@ export class WEBGPUTextureSampler implements TextureSampler {
             magFilter: 'linear',
             minFilter: 'linear',
             mipmapFilter: "linear",
+            addressModeU: "repeat",
+            addressModeV: "repeat",
         });
     }
 

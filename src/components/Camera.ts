@@ -8,11 +8,11 @@ export class Camera extends Component {
     public renderTarget: RenderTexture | null = null;
     public depthTarget: DepthTexture | null = null;
 
-    public backgroundColor: Color = new Color(0.2, 0.2, 0.2, 1);
+    public backgroundColor: Color = new Color(0.0, 0.0, 0.0, 1);
 
     public fov = 60;
     public aspect = 1;
-    public near = 0.3;
+    public near = 0.01;
     public far = 100000;
 
     public projectionMatrix = new Matrix4();

@@ -27,10 +27,10 @@ export class MeshRenderPass extends RenderPass {
             if (flag === false && component instanceof Transform) MeshRenderCache.UpdateTransform(component);
         });
 
-        this.gbufferPositionRT = RenderTexture.Create(Renderer.width, Renderer.height, "rgba16float");
-        this.gbufferAlbedoRT = RenderTexture.Create(Renderer.width, Renderer.height, "rgba16float");
-        this.gbufferNormalRT = RenderTexture.Create(Renderer.width, Renderer.height, "rgba16float");
-        this.gbufferERMO = RenderTexture.Create(Renderer.width, Renderer.height, "rgba16float");
+        this.gbufferPositionRT = RenderTexture.Create(Renderer.width, Renderer.height, Renderer.SwapChainFormat);
+        this.gbufferAlbedoRT = RenderTexture.Create(Renderer.width, Renderer.height, Renderer.SwapChainFormat);
+        this.gbufferNormalRT = RenderTexture.Create(Renderer.width, Renderer.height, Renderer.SwapChainFormat);
+        this.gbufferERMO = RenderTexture.Create(Renderer.width, Renderer.height, Renderer.SwapChainFormat);
         this.gbufferDepthDT = DepthTexture.Create(Renderer.width, Renderer.height);
     }
 

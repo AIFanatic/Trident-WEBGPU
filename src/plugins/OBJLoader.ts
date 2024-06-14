@@ -28,8 +28,9 @@ export class OBJLoaderIndexed {
         }
     }
 
-    public static load(url: string, callback: (contents: OBJMesh) => void) {
-        fetch(url).then(response => response.text()).then(contents => callback(OBJLoaderIndexed.parse(contents)));
+    public static async load(url: string): Promise<OBJMesh> {
+        const contents = await fetch(url).then(response => response.text());
+        return OBJLoaderIndexed.parse(contents);
     }
 
     public static parse(contents: string): OBJMesh {

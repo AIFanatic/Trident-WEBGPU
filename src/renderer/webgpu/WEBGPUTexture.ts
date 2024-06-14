@@ -1,7 +1,7 @@
 import { Utils } from "../../Utils";
 import { Renderer } from "../Renderer";
 import { Texture, TextureFormat, TextureType } from "../Texture";
-import { WEBGPUMipsGenerator } from "../WEBGPUMipsGenerator";
+import { WEBGPUMipsGenerator } from "./WEBGPUMipsGenerator";
 import { WEBGPURenderer } from "./WEBGPURenderer";
 
 export class WEBGPUTexture implements Texture {

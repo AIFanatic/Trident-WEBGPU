@@ -82,29 +82,122 @@ export class Geometry {
 
     public static Plane(): Geometry {
         const vertices = new Float32Array([
-            -1.0,  1.0, 0.0, // Top-left
-            1.0,  1.0, 0.0, // Top-right
-           -1.0, -1.0, 0.0, // Bottom-left
-            1.0, -1.0, 0.0  // Bottom-right
+            -1.0, -1.0, 0,  // Bottom left
+             1.0, -1.0, 0,  // Bottom right
+             1.0,  1.0, 0,  // Top right
+            -1.0,  1.0, 0   // Top left
         ])
 
         const indices = new Uint32Array([
-            0, 2, 1, // First triangle
-            2, 3, 1  // Second triangle
+            0, 1, 2,  // First triangle (bottom left to top right)
+            2, 3, 0   // Second triangle (top right to top left)
         ]);
 
         const uvs = new Float32Array([
-            0, 0,  // Bottom-left
-            1, 0,  // Bottom-right
-            0, 1,  // Top-left
-            1, 1   // Top-right
+            0.0, 1.0,  // Bottom left (now top left)
+            1.0, 1.0,  // Bottom right (now top right)
+            1.0, 0.0,  // Top right (now bottom right)
+            0.0, 0.0   // Top left (now bottom left)
+        ]);
+
+        const normals = new Float32Array([
+            0.0, 0.0, 1.0,  // Normal for bottom left vertex
+            0.0, 0.0, 1.0,  // Normal for bottom right vertex
+            0.0, 0.0, 1.0,  // Normal for top right vertex
+            0.0, 0.0, 1.0   // Normal for top left vertex
         ]);
 
         const geometry = new Geometry();
         geometry.attributes.set("position", new VertexAttribute(vertices));
+        geometry.attributes.set("normal", new VertexAttribute(normals));
         geometry.attributes.set("uv", new VertexAttribute(uvs));
         geometry.index = new IndexAttribute(indices);
-        geometry.ComputeNormals();
+        // geometry.ComputeNormals();
+        
+        return geometry;
+    }
+
+    public static Sphere(): Geometry {
+        const radius = 0.5;
+        const phiStart = 0;
+        const phiLength = Math.PI * 2;
+        const thetaStart = 0;
+        const thetaLength = Math.PI;
+
+        let widthSegments = 32;
+        let heightSegments = 16;
+        widthSegments = Math.max( 3, Math.floor( widthSegments ) );
+        heightSegments = Math.max( 2, Math.floor( heightSegments ) );
+
+        const thetaEnd = Math.min( thetaStart + thetaLength, Math.PI );
+
+        let index = 0;
+        const grid: number[][] = [];
+
+        const vertex = new Vector3();
+        const normal = new Vector3();
+
+        // buffers
+
+        const indices: number[] = [];
+        const vertices: number[] = [];
+        const normals: number[] = [];
+        const uvs: number[] = [];
+
+        // generate vertices, normals and uvs
+
+        for ( let iy = 0; iy <= heightSegments; iy ++ ) {
+            const verticesRow: number[] = [];
+
+            const v = iy / heightSegments;
+
+            // special case for the poles
+
+            let uOffset = 0;
+
+            if ( iy === 0 && thetaStart === 0 ) uOffset = 0.5 / widthSegments;
+            else if ( iy === heightSegments && thetaEnd === Math.PI ) uOffset = - 0.5 / widthSegments;
+
+            for ( let ix = 0; ix <= widthSegments; ix ++ ) {
+                const u = ix / widthSegments;
+
+                // vertex
+                vertex.x = - radius * Math.cos( phiStart + u * phiLength ) * Math.sin( thetaStart + v * thetaLength );
+                vertex.y = radius * Math.cos( thetaStart + v * thetaLength );
+                vertex.z = radius * Math.sin( phiStart + u * phiLength ) * Math.sin( thetaStart + v * thetaLength );
+                vertices.push( vertex.x, vertex.y, vertex.z );
+
+                // normal
+                normal.copy( vertex ).normalize();
+                normals.push( normal.x, normal.y, normal.z );
+
+                // uv
+                uvs.push( u + uOffset, 1 - v );
+                verticesRow.push( index ++ );
+            }
+            grid.push( verticesRow );
+        }
+
+        // indices
+
+        for ( let iy = 0; iy < heightSegments; iy ++ ) {
+            for ( let ix = 0; ix < widthSegments; ix ++ ) {
+                const a = grid[ iy ][ ix + 1 ];
+                const b = grid[ iy ][ ix ];
+                const c = grid[ iy + 1 ][ ix ];
+                const d = grid[ iy + 1 ][ ix + 1 ];
+
+                if ( iy !== 0 || thetaStart > 0 ) indices.push( a, b, d );
+                if ( iy !== heightSegments - 1 || thetaEnd < Math.PI ) indices.push( b, c, d );
+            }
+        }
+
+        // build geometry
+        const geometry = new Geometry();
+        geometry.index = new IndexAttribute(new Uint32Array(indices));
+        geometry.attributes.set("position", new VertexAttribute(new Float32Array(vertices)));
+        geometry.attributes.set("normal", new VertexAttribute(new Float32Array(normals)));
+        geometry.attributes.set("uv", new VertexAttribute(new Float32Array(uvs)));
         
         return geometry;
     }
