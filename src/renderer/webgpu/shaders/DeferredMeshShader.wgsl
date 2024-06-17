@@ -87,7 +87,6 @@ fn getNormalFromMap(N: vec3f, p: vec3f, uv: vec2f ) -> mat3x3<f32> {
     return mat3x3( T * invmax, B * invmax, N );
 }
 
-
 @fragment
 fn fragmentMain(input: VertexOutput) -> FragmentOutput {
     var output: FragmentOutput;
@@ -130,13 +129,25 @@ fn fragmentMain(input: VertexOutput) -> FragmentOutput {
         let afterDepth  = currentDepthMapValue - currentLayerDepth;
         let beforeDepth = 1.0 - textureSample(HeightMap, TextureSampler, prevTexCoords).r - currentLayerDepth + layerDepth;
         let weight = afterDepth / (afterDepth - beforeDepth);
-        UVs = prevTexCoords * weight + UVs * (1.0f - weight);
+        // UVs = prevTexCoords * weight + UVs * (1.0f - weight);
+        UVs = mix(UVs, prevTexCoords, weight);
 
         // // Get rid of anything outside the normal range
         // if(UVs.x > 1.0 || UVs.y > 1.0 || UVs.x < 0.0 || UVs.y < 0.0) {
         //     discard;
         // }
         uv = UVs;
+
+
+        // // Parallax occlusion mapping
+        // let prev_uv = UVs + deltaUVs;
+        // let next = currentDepthMapValue - currentLayerDepth;
+        // let prev = textureSampleLevel(HeightMap, TextureSampler, prevTexCoords, 0).r - currentLayerDepth
+        //                 + layer_depth;
+        // let weight = next / (next - prev);
+        // uv = mix(UVs, prev_uv, weight);
+
+        // uv = parallax_uv(uv, viewDirection, 3);
             
     #endif
     
