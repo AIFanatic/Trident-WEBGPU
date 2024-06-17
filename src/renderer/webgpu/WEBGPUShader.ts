@@ -7,6 +7,7 @@ import { WEBGPUBuffer } from "./WEBGPUBuffer";
 import { WEBGPURenderer } from "./WEBGPURenderer";
 import { WEBGPUTexture } from "./WEBGPUTexture";
 import { WEBGPUTextureSampler } from "./WEBGPUTextureSampler";
+import { WEBGPUShaderUtils } from "./shaders/WEBGPUShaderUtils";
 
 // TODO: Make this error!!
 const WGSLShaderAttributeFormat = {
@@ -21,7 +22,6 @@ interface WEBGPUShaderUniform extends ShaderUniform {
 
 export class WEBGPUShader implements Shader {
     public readonly id: string = Utils.UUID();
-    public autoInstancing: boolean = false;
     public needsUpdate = false;
     
     private readonly vertexEntrypoint: string | undefined;
@@ -40,8 +40,9 @@ export class WEBGPUShader implements Shader {
     public get bindGroup() { return this._bindGroup };
 
     constructor(params: ShaderParams) {
+        const code = params.defines ? WEBGPUShaderUtils.WGSLPreprocess(params.code, params.defines) : params.code;
         this.params = params;
-        this.module = WEBGPURenderer.device.createShaderModule({code: this.params.code});
+        this.module = WEBGPURenderer.device.createShaderModule({code: code});
         this.vertexEntrypoint = this.params.vertexEntrypoint;
         this.fragmentEntrypoint = this.params.fragmentEntrypoint;
 
@@ -50,13 +51,6 @@ export class WEBGPUShader implements Shader {
     }
     
     public RebuildDescriptors() {
-        // let uniformsSet = 0;
-        // for (const [_, uniform] of this.uniformMap) {if (uniform.buffer) uniformsSet++;};
-
-        // if (uniformsSet > 0 && (this.params.uniforms && Object.keys(this.params.uniforms).length !== uniformsSet)) return;
-
-        // if (!this.needsUpdate && this.pipeline && this.bindGroup) return;
-
         console.warn("building")
 
         // Bind group layout
@@ -68,7 +62,10 @@ export class WEBGPUShader implements Shader {
                 const sampleType: GPUTextureSampleType = uniform.type === "depthTexture" ? "depth" : "float";
                 bindGroupLayoutEntries.push({ binding: uniform.location, visibility: GPUShaderStage.VERTEX | GPUShaderStage.FRAGMENT, texture: {sampleType: sampleType}})
             }
-            else if (uniform.buffer instanceof GPUSampler) bindGroupLayoutEntries.push({ binding: uniform.location, visibility: GPUShaderStage.VERTEX | GPUShaderStage.FRAGMENT, sampler: {}})
+            else if (uniform.buffer instanceof GPUSampler) {
+                const type: GPUSamplerBindingType = uniform.type === "sampler" ? "filtering" : "comparison";
+                bindGroupLayoutEntries.push({ binding: uniform.location, visibility: GPUShaderStage.VERTEX | GPUShaderStage.FRAGMENT, sampler: {type: type}})
+            }
         }
         const bindGroupLayout = WEBGPURenderer.device.createBindGroupLayout({entries: bindGroupLayoutEntries});
         const pipelineLayout = WEBGPURenderer.device.createPipelineLayout({
@@ -84,7 +81,7 @@ export class WEBGPUShader implements Shader {
             else if (uniform.buffer instanceof GPUTexture) bindGroupEntries.push({binding: uniform.location, resource: uniform.buffer.createView()});
             else if (uniform.buffer instanceof GPUSampler) bindGroupEntries.push({binding: uniform.location, resource: uniform.buffer});
         }
-        
+
         // Bind group
         this._bindGroup = WEBGPURenderer.device.createBindGroup({ layout: bindGroupLayout, entries: bindGroupEntries });
         
@@ -145,6 +142,7 @@ export class WEBGPUShader implements Shader {
         if (!binding.buffer || binding.buffer !== data.GetBuffer()) {
             binding.buffer = data.GetBuffer();
             this.needsUpdate = true;
+
         }
     }
 

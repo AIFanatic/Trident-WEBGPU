@@ -96,15 +96,15 @@ export class Vector3 {
         return this.div(this.length() || 1)
     }
 
-    distanceTo(v: Vector3): number {
+    public distanceTo(v: Vector3): number {
         return Math.hypot(this.x - v.x, this.y - v.y, this.z - v.z)
     }
 
-    dot(v: Vector3): number {
+    public dot(v: Vector3): number {
         return this.x * v.x + this.y * v.y + this.z * v.z
     }
 
-    cross(v: Vector3): Vector3 {
+    public cross(v: Vector3): Vector3 {
         return this.set(this.y * v.z - this.z * v.y, this.z * v.x - this.x * v.z, this.x * v.y - this.y * v.x)
     }
 }

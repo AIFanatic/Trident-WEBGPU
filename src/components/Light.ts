@@ -12,7 +12,11 @@ export class Light extends Component {
 
     public Start(): void {
         this.camera = this.gameObject.AddComponent(Camera);
-        this.camera.renderTarget = RenderTexture.Create(Renderer.width, Renderer.height);
-        this.camera.depthTarget = DepthTexture.Create(Renderer.width, Renderer.height);
+        const value = 1;
+
+        // this.camera.SetOrthographic( -value, value, -value, value, 0.1, 1 );
+        this.camera.SetPerspective(60, Renderer.width / Renderer.height, 0.01, 1000);
+        // this.camera.renderTarget = RenderTexture.Create(Renderer.width, Renderer.height);
+        // this.camera.depthTarget = DepthTexture.Create(Renderer.width, Renderer.height);
     }
 }

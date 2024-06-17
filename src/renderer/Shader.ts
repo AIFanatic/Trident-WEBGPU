@@ -20,7 +20,7 @@ export interface ShaderAttribute {
 
 export interface ShaderUniform {
     location: number;
-    type: "uniform" | "storage" | "texture" | "sampler" | "depthTexture";
+    type: "uniform" | "storage" | "texture" | "sampler" | "sampler-compare" | "depthTexture";
 };
 
 export enum Topology {
@@ -31,6 +31,7 @@ export enum Topology {
 
 export interface ShaderParams {
     code: string;
+    defines?: {[key: string]: boolean};
     attributes?: {[key: string]: ShaderAttribute};
     uniforms?: {[key: string]: ShaderUniform};
     vertexEntrypoint?: string;
@@ -45,7 +46,6 @@ export interface ShaderParams {
 export class Shader {
     public readonly id: string;
     public readonly params: ShaderParams;
-    public autoInstancing: boolean = false;
 
     public static Create(params: ShaderParams): Shader {
         if (Renderer.type === "webgpu") return new WEBGPUShader(params);
@@ -65,8 +65,23 @@ export class Shader {
 }
 
 export class ShaderCode {
-    public static MeshBasicMaterial(): string {
-        if (Renderer.type === "webgpu") return WEBGPUShaders.BasicShaderCode;
-        throw Error("Unknown api");
+    public static get DeferredMeshShader(): string {
+        if (Renderer.type === "webgpu") return WEBGPUShaders.DeferredMeshShaderCode;
+        throw Error("Unknown api");        
+    }
+
+    public static get DeferredLightingPBRShader(): string {
+        if (Renderer.type === "webgpu") return WEBGPUShaders.DeferredLightingPBRShaderCode;
+        throw Error("Unknown api");        
+    }
+
+    public static get ShadowShader(): string {
+        if (Renderer.type === "webgpu") return WEBGPUShaders.ShadowShaderCode;
+        throw Error("Unknown api");        
+    }
+
+    public static get QuadShader(): string {
+        if (Renderer.type === "webgpu") return WEBGPUShaders.QuadShaderCode;
+        throw Error("Unknown api");        
     }
 }

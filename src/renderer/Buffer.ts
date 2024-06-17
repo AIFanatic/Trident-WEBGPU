@@ -8,7 +8,6 @@ export enum BufferType {
 };
 
 export class Buffer {
-    public data: ArrayBuffer;
     public readonly size: number;
     public static Create(size: number, type: BufferType) {
         if (Renderer.type === "webgpu") return new WEBGPUBuffer(size, type);

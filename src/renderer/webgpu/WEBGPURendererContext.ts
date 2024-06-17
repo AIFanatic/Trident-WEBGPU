@@ -87,4 +87,11 @@ export class WEBGPURendererContext implements RendererContext {
         if (!this.activeRenderPass) throw Error("No active render pass");
         this.activeRenderPass.setScissorRect(x, y, width, height);
     }
+
+    public static CopyBufferToBuffer(source: WEBGPUBuffer, destination: WEBGPUBuffer) {
+        const activeCommandEncoder = WEBGPURenderer.GetActiveCommandEncoder();
+        if (!activeCommandEncoder) throw Error("No active command encoder!!");
+
+        activeCommandEncoder.copyBufferToBuffer(source.GetBuffer(), 0, destination.GetBuffer(), 0, source.size);
+    }
 }

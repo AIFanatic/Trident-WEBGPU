@@ -124,8 +124,8 @@ export class Geometry {
         const thetaStart = 0;
         const thetaLength = Math.PI;
 
-        let widthSegments = 32;
-        let heightSegments = 16;
+        let widthSegments = 16;
+        let heightSegments = 8;
         widthSegments = Math.max( 3, Math.floor( widthSegments ) );
         heightSegments = Math.max( 2, Math.floor( heightSegments ) );
 
@@ -138,21 +138,18 @@ export class Geometry {
         const normal = new Vector3();
 
         // buffers
-
         const indices: number[] = [];
         const vertices: number[] = [];
         const normals: number[] = [];
         const uvs: number[] = [];
 
         // generate vertices, normals and uvs
-
         for ( let iy = 0; iy <= heightSegments; iy ++ ) {
             const verticesRow: number[] = [];
 
             const v = iy / heightSegments;
 
             // special case for the poles
-
             let uOffset = 0;
 
             if ( iy === 0 && thetaStart === 0 ) uOffset = 0.5 / widthSegments;
@@ -179,7 +176,6 @@ export class Geometry {
         }
 
         // indices
-
         for ( let iy = 0; iy < heightSegments; iy ++ ) {
             for ( let ix = 0; ix < widthSegments; ix ++ ) {
                 const a = grid[ iy ][ ix + 1 ];
@@ -199,6 +195,7 @@ export class Geometry {
         geometry.attributes.set("normal", new VertexAttribute(new Float32Array(normals)));
         geometry.attributes.set("uv", new VertexAttribute(new Float32Array(uvs)));
         
+        console.log("sphere", geometry)
         return geometry;
     }
 }

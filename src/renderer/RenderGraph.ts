@@ -57,7 +57,7 @@ export class RenderGraph {
                 tempMark[pass.name] = true;
 
                 this.passes.filter(p => {
-                    return pass.outputs && p.inputs?.some(input => pass.outputs!.includes(input))
+                    return pass.outputs && p.inputs?.some(input => pass.outputs!.includes(input));
                 }
                 ).forEach(visit);
 

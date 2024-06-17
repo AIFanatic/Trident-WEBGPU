@@ -35,13 +35,6 @@ export class Transform extends Component {
         EventSystem.emit("CallUpdate", this, true);
     }
 
-    private onRotationChanged() {
-        // TODO: Hacky hacky, otherwise would get Maximum call stack
-        const c = this._rotation.toEuler(undefined, true);
-        this._eulerAngles = new ObservableVector3(() => { this.onEulerChanged() }, c.x, c.y, c.z);
-        EventSystem.emit("CallUpdate", this, true);
-    }
-
     private onChanged() {
         EventSystem.emit("CallUpdate", this, true);
     }
@@ -57,7 +50,8 @@ export class Transform extends Component {
     }
 
     public LookAt(target: Vector3): void {
-        this.rotation.lookAt(this.position, target, this.up);
+        // Target and eye at 0 causes issues
+        this.rotation.lookAt(this.position, target.add(0.0000001), this.up);
         this.UpdateMatrices();
         this.onChanged();
     }

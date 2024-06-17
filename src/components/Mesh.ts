@@ -1,23 +1,20 @@
 import { Component } from "./Component";
 import { Geometry } from "../Geometry";
-import { EventSystem } from "../Events";
 import { Material } from "../renderer/Material";
 
 export class Mesh extends Component {
     private geometry: Geometry;
-    private materials: Material[] = [];
+    private materialsMapped: Map<string, Material[]> = new Map();
 
     public AddMaterial(material: Material) {
-        if (this.materials.includes(material)) return;
-        this.materials.push(material);
-        EventSystem.emit("MeshUpdated", this, "shader");
+        if (!this.materialsMapped.has(material.constructor.name)) this.materialsMapped.set(material.constructor.name, []);
+        this.materialsMapped.get(material.constructor.name)?.push(material);
     }
-    public GetMaterials(): Material[] { return this.materials};
 
-    public SetGeometry(geometry: Geometry) {
-        this.geometry = geometry;
-        EventSystem.emit("MeshUpdated", this, "geometry");
-    };
+    public GetMaterials<T extends Material>(type: new(...args: any[]) => T): T[] {
+        return this.materialsMapped.get(type.name) as T[] || [];
+    }
 
-    public GetGeometry(): Geometry { return this.geometry};
+    public SetGeometry(geometry: Geometry) { this.geometry = geometry }
+    public GetGeometry(): Geometry { return this.geometry}
 }

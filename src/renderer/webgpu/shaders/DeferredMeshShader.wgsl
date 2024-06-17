@@ -29,6 +29,9 @@ struct VertexOutput {
 @group(0) @binding(11) var AOMap: texture_2d<f32>;
 
 
+@group(0) @binding(12) var<storage, read> cameraPosition: vec3<f32>;
+
+
 struct Material {
     AlbedoColor: vec4<f32>,
     EmissiveColor: vec4<f32>,
@@ -84,6 +87,7 @@ fn getNormalFromMap(N: vec3f, p: vec3f, uv: vec2f ) -> mat3x3<f32> {
     return mat3x3( T * invmax, B * invmax, N );
 }
 
+
 @fragment
 fn fragmentMain(input: VertexOutput) -> FragmentOutput {
     var output: FragmentOutput;
@@ -91,12 +95,51 @@ fn fragmentMain(input: VertexOutput) -> FragmentOutput {
     let mat = material;
 
     var uv = input.vUv;// * vec2(4.0, 2.0);
-
-    // #if USE_HEIGHT_MAP
-    // #endif
-    
     let tbn = getNormalFromMap(input.vNormal, input.vPosition, uv);
-    var modelMatrixInstance = modelMatrix[u32(input.instance)];
+    var modelMatrixInstance = modelMatrix[input.instance];
+
+    #if USE_HEIGHT_MAP
+        var viewDirection = normalize(cameraPosition - (modelMatrixInstance * vec4(input.vPosition, 1.0)).xyz);
+        // var viewDirection = normalize(cameraPosition - input.vPosition);
+
+        // Variables that control parallax occlusion mapping quality
+        let heightScale = 0.05;
+        let minLayers = 8.0;
+        let maxLayers = 64.0;
+        let numLayers = mix(maxLayers, minLayers, abs(dot(vec3(0.0, 1.0, 0.0), viewDirection)));
+        let layerDepth = 1.0f / numLayers;
+        var currentLayerDepth = 0.0;
+        
+        // Remove the z division if you want less aberated results
+        let S = viewDirection.xz  * heightScale; 
+        let deltaUVs = S / numLayers;
+        
+        var UVs = uv;
+        var currentDepthMapValue = 1.0 - textureSample(HeightMap, TextureSampler, UVs).r;
+        
+        // Loop till the point on the heightmap is "hit"
+        while(currentLayerDepth < currentDepthMapValue) {
+            UVs -= deltaUVs;
+            currentDepthMapValue = 1.0 - textureSampleLevel(HeightMap, TextureSampler, UVs, 0).r;
+            currentLayerDepth += layerDepth;
+        }
+
+
+        // Apply Occlusion (interpolation with prev value)
+        let prevTexCoords = UVs + deltaUVs;
+        let afterDepth  = currentDepthMapValue - currentLayerDepth;
+        let beforeDepth = 1.0 - textureSample(HeightMap, TextureSampler, prevTexCoords).r - currentLayerDepth + layerDepth;
+        let weight = afterDepth / (afterDepth - beforeDepth);
+        UVs = prevTexCoords * weight + UVs * (1.0f - weight);
+
+        // // Get rid of anything outside the normal range
+        // if(UVs.x > 1.0 || UVs.y > 1.0 || UVs.x < 0.0 || UVs.y < 0.0) {
+        //     discard;
+        // }
+        uv = UVs;
+            
+    #endif
+    
 
     var albedo = mat.AlbedoColor;
     var roughness = mat.Roughness;
@@ -117,7 +160,8 @@ fn fragmentMain(input: VertexOutput) -> FragmentOutput {
         // let normalSample = textureSample(NormalMap, TextureSampler, uv).xyz * 2.0 - 1.0;
         // normal = normalSample.xyz;
     #endif
-    normal = normalize(modelMatrixInstance * vec4(normal, 1.0)).xyz;
+    // Should be normal matrix
+    normal = normalize(modelMatrixInstance * vec4(vec3(normal), 0.0)).xyz;
 
     #if USE_ROUGHNESS_MAP
         roughness *= textureSample(RoughnessMap, TextureSampler, uv).r;
@@ -140,5 +184,10 @@ fn fragmentMain(input: VertexOutput) -> FragmentOutput {
     output.normal = vec4(normal, 1.0);
     output.albedo = albedo;
     output.RMO = vec4(roughness, metalness, occlusion, unlit);
+    
+    output.albedo = vec4(albedo.rgb, roughness);
+    output.normal = vec4(normal.xyz, metalness);
+    output.RMO = vec4(emissive.rgb, unlit);
+
     return output;
 }

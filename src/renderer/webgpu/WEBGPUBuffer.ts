@@ -4,8 +4,6 @@ import { WEBGPURenderer } from "./WEBGPURenderer";
 
 export class WEBGPUBuffer implements Buffer {
     private buffer: GPUBuffer;
-
-    public data: ArrayBuffer
     public readonly size: number;
 
     constructor(sizeInBytes: number, type: BufferType) {
@@ -19,7 +17,6 @@ export class WEBGPUBuffer implements Buffer {
     public GetBuffer(): GPUBuffer { return this.buffer };
 
     public SetArray(array: ArrayBuffer, bufferOffset: number = 0, dataOffset?: number | undefined, size?: number | undefined) {
-        this.data = array;
         WEBGPURenderer.device.queue.writeBuffer(this.buffer, bufferOffset, array, dataOffset, size);
     }
 }

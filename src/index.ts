@@ -5,7 +5,8 @@
 // import * as TEST from "./TEST/Grass";
 
 // import * as TEST from "./TEST/Lighting";
-// import * as TEST from "./TEST/Cornell";
-import * as TEST from "./TEST/PBR";
+import * as TEST from "./TEST/Cornell";
+// import * as TEST from "./TEST/PBR";
+// import * as TEST from "./TEST/AST";
 // import * as TEST from "./TEST/Stadium";
 TEST

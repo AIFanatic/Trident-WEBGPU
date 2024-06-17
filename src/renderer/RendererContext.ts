@@ -1,5 +1,6 @@
 import { Geometry } from "../Geometry";
 import { Color } from "../math/Color";
+import { Buffer } from "./Buffer";
 import { Renderer } from "./Renderer";
 import { Shader } from "./Shader";
 import { DepthTexture, RenderTexture } from "./Texture";
@@ -18,6 +19,8 @@ export interface DepthTarget {
 };
 
 export class RendererContext {
+    private constructor() {}
+    
     public static BeginRenderPass(name: string, renderTargets: RenderTarget[], depthTarget?: DepthTarget) {
         if (Renderer.type === "webgpu") WEBGPURendererContext.BeginRenderPass(name, renderTargets, depthTarget);
         else throw Error("Unknown render api type.");
@@ -40,6 +43,11 @@ export class RendererContext {
 
     public static DrawGeometry(geometry: Geometry, shader: Shader, instanceCount?: number) {
         if (Renderer.type === "webgpu") WEBGPURendererContext.DrawGeometry(geometry, shader as WEBGPUShader, instanceCount);
+        else throw Error("Unknown render api type.");
+    }
+
+    public static CopyBufferToBuffer(source: Buffer, destination: Buffer) {
+        if (Renderer.type === "webgpu") WEBGPURendererContext.CopyBufferToBuffer(source, destination);
         else throw Error("Unknown render api type.");
     }
 }

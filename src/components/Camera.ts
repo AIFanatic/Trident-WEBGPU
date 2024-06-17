@@ -10,23 +10,26 @@ export class Camera extends Component {
 
     public backgroundColor: Color = new Color(0.0, 0.0, 0.0, 1);
 
-    public fov = 60;
-    public aspect = 1;
-    public near = 0.01;
-    public far = 100000;
-
     public projectionMatrix = new Matrix4();
 
     public viewMatrix = new Matrix4();
 
     public static mainCamera: Camera;
+
+    public SetPerspective(fov: number, aspect: number, near: number, far: number) {
+        this.projectionMatrix.perspective(fov, aspect, near, far).transpose();
+    }
+
+    public SetOrthographic(left: number, right: number, top: number, bottom: number, near: number, far: number) {
+        this.projectionMatrix.orthogonal(left, right, top, bottom, near, far);
+    }
     
     public Start() {
         if (Camera.mainCamera === this) this.depthTarget = DepthTexture.Create(Renderer.width, Renderer.height);
     }
 
     public Update() {
-        this.projectionMatrix.perspective(this.fov, this.aspect, this.near, this.far).transpose();
+        // this.projectionMatrix.perspective(this.fov, this.aspect, this.near, this.far).transpose();
         this.viewMatrix.copy(this.transform.worldToLocalMatrix)
     }
 }

@@ -2,17 +2,20 @@ import { Scene } from "../Scene";
 import { Camera } from "../components/Camera";
 import { Renderer } from "./Renderer";
 import { RenderGraph, ResourcePool } from "./RenderGraph";
-import { MeshRenderPass } from "./passes/MeshRenderPass";
+import { DeferredMeshRenderPass } from "./passes/DeferredMeshRenderPass";
 import { RenderPass } from "./RenderGraph";
-import { LightingPass } from "./passes/LightingPass";
+import { DeferredLightingPass } from "./passes/DeferredLightingPass";
+import { ShadowPass } from "./passes/ShadowPass";
+import { DebuggerPass } from "./passes/DebuggerPass";
 
-enum PassParams {
+export enum PassParams {
     MainCamera = "MainCamera",
-    GBufferPosition = "GBufferPosition",
     GBufferAlbedo = "GBufferAlbedo",
     GBufferNormal = "GBufferNormal",
     GBufferERMO = "GBufferERMO",
     GBufferDepth = "GBufferDepth",
+
+    ShadowPassDepth = "ShadowPassDepth",
 };
 
 class SetMeshRenderCameraPass extends RenderPass {
@@ -27,10 +30,13 @@ export class RenderingPipeline {
     private renderer: Renderer;
     private renderGraph: RenderGraph;
 
+    private debuggerPass: DebuggerPass;
+
     private passes = {
         SetMainCamera: new SetMeshRenderCameraPass({outputs: [PassParams.MainCamera]}),
-        MeshRenderPass: new MeshRenderPass(PassParams.MainCamera, PassParams.GBufferPosition, PassParams.GBufferAlbedo, PassParams.GBufferNormal, PassParams.GBufferERMO, PassParams.GBufferDepth),
-        LightingPass: new LightingPass(PassParams.GBufferPosition, PassParams.GBufferAlbedo, PassParams.GBufferNormal, PassParams.GBufferERMO, PassParams.GBufferDepth),
+        DeferredMeshRenderPass: new DeferredMeshRenderPass(PassParams.MainCamera, PassParams.GBufferAlbedo, PassParams.GBufferNormal, PassParams.GBufferERMO, PassParams.GBufferDepth),
+        ShadowPass: new ShadowPass(PassParams.ShadowPassDepth),
+        DeferredLightingPass: new DeferredLightingPass(PassParams.GBufferAlbedo, PassParams.GBufferNormal, PassParams.GBufferERMO, PassParams.GBufferDepth, PassParams.ShadowPassDepth)
     }
     
     constructor(renderer: Renderer) {
@@ -40,11 +46,14 @@ export class RenderingPipeline {
         for (const pass of Object.keys(this.passes)) {
             this.renderGraph.addPass(this.passes[pass]);
         }
+
+        this.debuggerPass = new DebuggerPass();
     }
 
     public Render(scene: Scene) {
         this.renderer.BeginRenderFrame();
         this.renderGraph.execute();
+        this.debuggerPass.execute(this.renderGraph.resourcePool);
         this.renderer.EndRenderFrame();
     }
 }
