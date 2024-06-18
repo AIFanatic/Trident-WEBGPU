@@ -25,7 +25,7 @@ export class Camera extends Component {
     }
     
     public Start() {
-        if (Camera.mainCamera === this) this.depthTarget = DepthTexture.Create(Renderer.width, Renderer.height);
+        if (Camera.mainCamera === this) this.depthTarget = DepthTexture.Create(Renderer.width, Renderer.height, 1);
     }
 
     public Update() {

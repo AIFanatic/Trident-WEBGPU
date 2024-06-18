@@ -3,6 +3,7 @@ import { WEBGPUBuffer } from "./webgpu/WEBGPUBuffer";
 
 export enum BufferType {
     STORAGE,
+    UNIFORM,
     VERTEX,
     INDEX
 };

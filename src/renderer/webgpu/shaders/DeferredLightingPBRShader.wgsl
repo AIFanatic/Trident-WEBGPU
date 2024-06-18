@@ -15,7 +15,9 @@ struct VertexOutput {
 @group(0) @binding(2) var normalTexture: texture_2d<f32>;
 @group(0) @binding(3) var ermoTexture: texture_2d<f32>;
 @group(0) @binding(4) var depthTexture: texture_depth_2d;
-@group(0) @binding(5) var shadowPassDepth: texture_depth_2d;
+// @group(0) @binding(5) var shadowPassDepth: texture_depth_2d;
+
+@group(0) @binding(5) var shadowPassDepth: texture_depth_2d_array;
 
 
 
@@ -206,6 +208,55 @@ fn OECF_sRGBFast(linear: vec3f) -> vec3f {
     return pow(linear, vec3(0.454545));
 }
 
+struct Shadow {
+    inRange: bool,
+    visibility: f32
+};
+
+fn CalculateShadow(worldPosition: vec3f, normal: vec3f, light: Light, lightIndex: u32) -> Shadow {
+    var posFromLight = light.projectionMatrix * light.viewMatrix * vec4(worldPosition, 1.0);
+    posFromLight = vec4(posFromLight.xyz / posFromLight.w, 1.0);
+    let shadowPos = vec3(posFromLight.xy * vec2(0.5,-0.5) + vec2(0.5, 0.5), posFromLight.z);
+    let inRange = shadowPos.x >= 0.0 && shadowPos.x <= 1.0 && shadowPos.y >= 0.0 && shadowPos.y <= 1.0 && shadowPos.z >= 0.0 && shadowPos.z <= 1.0;
+    var visibility = 0.0;
+
+    let shadowIndex = lightIndex;
+
+    let lightDirection = normalize(light.position.xyz - worldPosition);
+    
+    if (shadowPos.z <= 1.0) {
+        let sampleRadius = 2.0;
+        let pixelSize = 1.0 / vec2f(textureDimensions(shadowPassDepth));
+        // let pixelSize = 1.0 / vec2f(1024);
+
+		let bias = max(0.00025 * (1.0 - dot(normal, lightDirection)), 0.00009);
+        // let bias = 0.0009;
+
+        // // Naive Soft shadows
+        // for (var y = -sampleRadius; y <= sampleRadius; y+=1.0) {
+        //     for (var x = -sampleRadius; x <= sampleRadius; x+=1.0) {
+        //         let projectedDepth = textureSampleLevel(shadowPassDepth, shadowSampler, shadowPos.xy + vec2(x,y) * pixelSize, shadowIndex, 0);
+        //         // if (projectedDepth <= posFromLight.z - bias) {
+        //         if (posFromLight.z > projectedDepth + bias) {
+        //             visibility += 1.0;
+        //         }
+        //     }
+        // }
+        // visibility /= pow((sampleRadius * 2.0 + 1.0), 2.0);
+        
+        // Hard shadows
+        let projectedDepth = textureSampleLevel(shadowPassDepth, shadowSampler, shadowPos.xy, lightIndex, 0);
+        if (posFromLight.z > projectedDepth + bias) {
+            visibility = 1.0;
+        }
+    }
+    
+    var shadow: Shadow;
+    shadow.inRange = inRange;
+    shadow.visibility = visibility;
+    return shadow;
+}
+
 @fragment
 fn fragmentMain(input: VertexOutput) -> @location(0) vec4<f32> {
     let uv = input.vUv;
@@ -234,39 +285,8 @@ fn fragmentMain(input: VertexOutput) -> @location(0) vec4<f32> {
     surface.F0 = mix(vec3(0.04), surface.albedo.rgb, vec3(surface.metallic));
     surface.V = normalize(view.viewPosition.xyz - surface.worldPosition);
 
-    let light2 = lights[0];
-    var posFromLight = light2.projectionMatrix * light2.viewMatrix * vec4(surface.worldPosition, 1.0);
-    posFromLight = vec4(posFromLight.xyz / posFromLight.w, 1.0);
-    let shadowPos = vec3(posFromLight.xy * vec2(0.5,-0.5) + vec2(0.5, 0.5), posFromLight.z);
-    let inRange = shadowPos.x >= 0.0 && shadowPos.x <= 1.0 && shadowPos.y >= 0.0 && shadowPos.y <= 1.0 && shadowPos.z >= 0.0 && shadowPos.z <= 1.0;
-    var visibility = 0.0;
-
-    let lightDirection = normalize(light2.position.xyz - surface.worldPosition);
-    
-    if (shadowPos.z <= 1.0) {
-        let sampleRadius = 2.0;
-        let pixelSize = 1.0 / vec2f(textureDimensions(shadowPassDepth));
-
-		let bias = max(0.00025 * (1.0 - dot(surface.N, lightDirection)), 0.00009);
-
-        // Naive Soft shadows
-        for (var y = -sampleRadius; y <= sampleRadius; y+=1.0) {
-            for (var x = -sampleRadius; x <= sampleRadius; x+=1.0) {
-                let projectedDepth = textureSampleLevel(shadowPassDepth, shadowSampler, shadowPos.xy + vec2(x,y) * pixelSize, 0);
-                // if (projectedDepth <= posFromLight.z - bias) {
-                if (posFromLight.z > projectedDepth + bias) {
-                    visibility += 1.0;
-                }
-            }
-        }
-        visibility /= pow((sampleRadius * 2.0 + 1.0), 2.0);
-        
-        // // Hard shadows
-        // let projectedDepth = textureSampleLevel(shadowPassDepth, shadowSampler, shadowPos.xy, 0);
-        // if (posFromLight.z > projectedDepth + bias) {
-        //     visibility = 1.0;
-        // }
-    }
+    // let light2 = lights[0];
+    let visibility = 1.0;
 
     if (ermo.w > 0.5) {
         return vec4(surface.albedo.rgb, 1.0);
@@ -288,12 +308,14 @@ fn fragmentMain(input: VertexOutput) -> @location(0) vec4<f32> {
         let V = normalize(-P);
         let F0 = mix(vec3(0.04), surface.albedo, surface.metallic);
 
-        if (!inRange) {
+        let shadow: Shadow = CalculateShadow(surface.worldPosition, surface.N, light, i);
+        if (!shadow.inRange) {
             continue;
         }
 
+
         // Lo += visibility * PointLightRadiance(pointLight, surface);
-        Lo += (1.0 - visibility) * PointLightRadiance(pointLight, surface);
+        Lo += (1.0 - shadow.visibility) * PointLightRadiance(pointLight, surface);
         // Lo += (1.0 - shadow) * PointLightRadiance(pointLight, surface);
 
         // var directionalLight: DirectionalLight;

@@ -31,7 +31,8 @@ export class DebuggerPass extends RenderPass {
 
         @group(0) @binding(0) var textureSampler: sampler;
         @group(0) @binding(1) var albedoTexture: texture_2d<f32>;
-        @group(0) @binding(2) var shadowMapTexture: texture_depth_2d;
+        // @group(0) @binding(2) var shadowMapTexture: texture_depth_2d;
+        @group(0) @binding(2) var shadowMapTexture: texture_depth_2d_array;
         
         @vertex fn vertexMain(input: VertexInput) -> VertexOutput {
             var output: VertexOutput;
@@ -47,9 +48,12 @@ export class DebuggerPass extends RenderPass {
             let quadrant = step(threshold, uv);
             let baseCoords = uv * 2.0 - quadrant;
         
-            let albedo = textureSample(albedoTexture, textureSampler, baseCoords) * (1.0 - quadrant.x) * quadrant.y;
-            let shadowMap = textureSample(shadowMapTexture, textureSampler, baseCoords) * quadrant.x * quadrant.y;
-            return albedo + vec4(pow(shadowMap, 1000));
+            // let albedo = textureSample(albedoTexture, textureSampler, baseCoords) * (1.0 - quadrant.x) * quadrant.y;
+
+            let shadowMap2 = textureSample(shadowMapTexture, textureSampler, baseCoords, 0) * quadrant.x * quadrant.y;
+            let shadowMap3 = textureSample(shadowMapTexture, textureSampler, baseCoords, 1) * quadrant.x * (1.0 - quadrant.y);
+            
+            return vec4(pow(shadowMap2, 1000)) + vec4(pow(shadowMap3, 1000));
         }
         `;
 
@@ -74,7 +78,7 @@ export class DebuggerPass extends RenderPass {
 
     public execute(resources: ResourcePool) {
         
-        this.shader.SetTexture("albedoTexture", resources.getResource(PassParams.GBufferAlbedo));
+        // this.shader.SetTexture("albedoTexture", resources.getResource(PassParams.GBufferAlbedo));
         this.shader.SetTexture("shadowMapTexture", resources.getResource(PassParams.ShadowPassDepth));
 
         RendererContext.BeginRenderPass("DebuggerPass", [{clear: false}]);

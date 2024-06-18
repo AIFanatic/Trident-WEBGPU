@@ -16,7 +16,13 @@ const WGSLShaderAttributeFormat = {
     vec4: "float32x4",
 };
 
+const UniformTypeToWGSL = {
+    "uniform": "uniform",
+    "storage": "read-only-storage"
+}
+
 interface WEBGPUShaderUniform extends ShaderUniform {
+    ref?: WEBGPUBuffer | WEBGPUTexture | WEBGPUTextureSampler;
     buffer?: GPUBuffer | GPUTexture | GPUSampler;
 }
 
@@ -57,10 +63,11 @@ export class WEBGPUShader implements Shader {
         const bindGroupLayoutEntries: GPUBindGroupLayoutEntry[] = [];
         for (const [name, uniform] of this.uniformMap) {
             if (!uniform.buffer) continue;
-            if (uniform.buffer instanceof GPUBuffer) bindGroupLayoutEntries.push({ binding: uniform.location, visibility: GPUShaderStage.VERTEX | GPUShaderStage.FRAGMENT, buffer: { type: "read-only-storage"}})
+            if (uniform.buffer instanceof GPUBuffer) bindGroupLayoutEntries.push({ binding: uniform.location, visibility: GPUShaderStage.VERTEX | GPUShaderStage.FRAGMENT, buffer: { type: UniformTypeToWGSL[uniform.type]}})
             else if (uniform.buffer instanceof GPUTexture) {
                 const sampleType: GPUTextureSampleType = uniform.type === "depthTexture" ? "depth" : "float";
-                bindGroupLayoutEntries.push({ binding: uniform.location, visibility: GPUShaderStage.VERTEX | GPUShaderStage.FRAGMENT, texture: {sampleType: sampleType}})
+                const viewDimension: GPUTextureViewDimension = uniform.buffer.depthOrArrayLayers > 1 ? "2d-array" : "2d";
+                bindGroupLayoutEntries.push({ binding: uniform.location, visibility: GPUShaderStage.VERTEX | GPUShaderStage.FRAGMENT, texture: {sampleType: sampleType, viewDimension: viewDimension}})
             }
             else if (uniform.buffer instanceof GPUSampler) {
                 const type: GPUSamplerBindingType = uniform.type === "sampler" ? "filtering" : "comparison";
@@ -78,7 +85,15 @@ export class WEBGPUShader implements Shader {
             if (!uniform.buffer) continue;
             if (!uniform.buffer) throw Error(`Shader has binding (${name}) but no buffer was set`);
             if (uniform.buffer instanceof GPUBuffer) bindGroupEntries.push({binding: uniform.location, resource: {buffer: uniform.buffer}});
-            else if (uniform.buffer instanceof GPUTexture) bindGroupEntries.push({binding: uniform.location, resource: uniform.buffer.createView()});
+            else if (uniform.buffer instanceof GPUTexture) {
+                const viewDimension: GPUTextureViewDimension = uniform.buffer.depthOrArrayLayers > 1 ? "2d-array" : "2d";
+                const view: GPUTextureViewDescriptor = {
+                    dimension: viewDimension,
+                    arrayLayerCount: uniform.buffer.depthOrArrayLayers,
+                    baseArrayLayer: 0
+                };
+                bindGroupEntries.push({binding: uniform.location, resource: uniform.buffer.createView(view)});
+            }
             else if (uniform.buffer instanceof GPUSampler) bindGroupEntries.push({binding: uniform.location, resource: uniform.buffer});
         }
 
@@ -102,7 +117,7 @@ export class WEBGPUShader implements Shader {
         // Pipeline descriptor - Depth target
         if (this.params.depthOutput) pipelineDescriptor.depthStencil = { depthWriteEnabled: true, depthCompare: 'less', format: this.params.depthOutput };
     
-        // Pipeline descript - Vertex buffers (Attributes)
+        // Pipeline descriptor - Vertex buffers (Attributes)
         const buffers: GPUVertexBufferLayout[] = [];
         for (const [_, attribute] of this.attributeMap) {
             buffers.push({arrayStride: attribute.size * 4, attributes: [{ shaderLocation: attribute.location, offset: 0, format: WGSLShaderAttributeFormat[attribute.type] }] })
@@ -141,6 +156,7 @@ export class WEBGPUShader implements Shader {
         const binding = this.GetValidUniform(name);
         if (!binding.buffer || binding.buffer !== data.GetBuffer()) {
             binding.buffer = data.GetBuffer();
+            binding.ref = data;
             this.needsUpdate = true;
 
         }
@@ -148,12 +164,12 @@ export class WEBGPUShader implements Shader {
 
     public SetArray(name: string, array: ArrayBuffer, bufferOffset: number = 0, dataOffset?: number, size?: number) { this.SetUniformDataFromArray(name, array, bufferOffset, dataOffset, size) }
     public SetValue(name: string, value: number) {this.valueArray[0] = value; this.SetUniformDataFromArray(name, this.valueArray)}
-    public SetMatrix4(name: string, matrix: Matrix4): void { this.SetUniformDataFromArray(name, matrix.elements) }
+    public SetMatrix4(name: string, matrix: Matrix4) { this.SetUniformDataFromArray(name, matrix.elements) }
     public SetVector3(name: string, vector: Vector3) { this.SetUniformDataFromArray(name, vector.elements) }
     
     public SetTexture(name: string, texture: WEBGPUTexture) { this.SetUniformDataFromBuffer(name, texture) }
     public SetSampler(name: string, sampler: WEBGPUTextureSampler) { this.SetUniformDataFromBuffer(name, sampler) }
-    public SetBuffer(name: string, buffer: WEBGPUBuffer): void { this.SetUniformDataFromBuffer(name, buffer) }
+    public SetBuffer(name: string, buffer: WEBGPUBuffer) { this.SetUniformDataFromBuffer(name, buffer) }
 
     public HasBuffer(name: string): boolean { return this.uniformMap.get(name)?.buffer ? true : false }
 

@@ -19,10 +19,10 @@ export class DeferredMeshRenderPass extends RenderPass {
     constructor(inputCamera: string, outputGBufferAlbedo: string, outputGBufferNormal: string, outputGBufferERMO: string, outputGBufferDepth: string) {
         super({inputs: [inputCamera], outputs: [outputGBufferAlbedo, outputGBufferNormal, outputGBufferERMO, outputGBufferDepth]});
 
-        this.gbufferAlbedoRT = RenderTexture.Create(Renderer.width, Renderer.height, "rgba16float");
-        this.gbufferNormalRT = RenderTexture.Create(Renderer.width, Renderer.height, "rgba16float");
-        this.gbufferERMO = RenderTexture.Create(Renderer.width, Renderer.height, "rgba16float");
-        this.gbufferDepthDT = DepthTexture.Create(Renderer.width, Renderer.height);
+        this.gbufferAlbedoRT = RenderTexture.Create(Renderer.width, Renderer.height, 1, "rgba16float");
+        this.gbufferNormalRT = RenderTexture.Create(Renderer.width, Renderer.height, 1, "rgba16float");
+        this.gbufferERMO = RenderTexture.Create(Renderer.width, Renderer.height, 1, "rgba16float");
+        this.gbufferDepthDT = DepthTexture.Create(Renderer.width, Renderer.height, 1);
     }
 
     public execute(resources: ResourcePool, inputCamera: Camera, outputGBufferAlbedo: string, outputGBufferNormal: string, outputGBufferERMO: string, outputGBufferDepth: string) {

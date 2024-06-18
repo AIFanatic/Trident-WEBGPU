@@ -1,3 +1,4 @@
+import { Light } from "../components/Light";
 import { Color } from "../math/Color";
 import { Renderer } from "./Renderer";
 import { Shader, ShaderCode, ShaderParams } from "./Shader";
@@ -113,8 +114,12 @@ export class DeferredMeshMaterial extends Material {
 
 
 export class ShadowMaterial extends Material {
-    constructor() {
+    public readonly light: Light;
+
+    constructor(light: Light) {
         super();
+
+        this.light = light;
 
         let shaderParams: ShaderParams = {
             code: ShaderCode.ShadowShader,

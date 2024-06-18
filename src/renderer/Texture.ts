@@ -51,8 +51,8 @@ export class Texture {
 
     public GenerateMips() {}
 
-    public static Create(width: number, height: number, format: TextureFormat = Renderer.SwapChainFormat): Texture {
-        if (Renderer.type === "webgpu") return new WEBGPUTexture(width, height, format, TextureType.IMAGE);
+    public static Create(width: number, height: number, depth: number, format: TextureFormat = Renderer.SwapChainFormat): Texture {
+        if (Renderer.type === "webgpu") return new WEBGPUTexture(width, height, depth, format, TextureType.IMAGE);
         throw Error("Renderer type invalid");
     }
 
@@ -66,15 +66,15 @@ export class Texture {
 }
 
 export class DepthTexture extends Texture {
-    public static Create(width: number, height: number, format: TextureFormat = "depth24plus"): Texture {
-        if (Renderer.type === "webgpu") return new WEBGPUTexture(width, height, format, TextureType.DEPTH);
+    public static Create(width: number, height: number, depth: number, format: TextureFormat = "depth24plus"): Texture {
+        if (Renderer.type === "webgpu") return new WEBGPUTexture(width, height, depth, format, TextureType.DEPTH);
         throw Error("Renderer type invalid");
     }
 }
 
 export class RenderTexture extends Texture {
-    public static Create(width: number, height: number, format: TextureFormat = Renderer.SwapChainFormat): Texture {
-        if (Renderer.type === "webgpu") return new WEBGPUTexture(width, height, format, TextureType.RENDER_TARGET);
+    public static Create(width: number, height: number, depth: number, format: TextureFormat = Renderer.SwapChainFormat): Texture {
+        if (Renderer.type === "webgpu") return new WEBGPUTexture(width, height, depth, format, TextureType.RENDER_TARGET);
         throw Error("Renderer type invalid");
     }
 }

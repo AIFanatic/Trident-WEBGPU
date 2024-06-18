@@ -1,4 +1,5 @@
 import { ShaderCode } from "../Shader";
+import { RenderTexture } from "../Texture";
 import { WEBGPURenderer } from "./WEBGPURenderer";
 import { WEBGPUTexture } from "./WEBGPUTexture";
 
@@ -40,7 +41,7 @@ export class WEBGPUMipsGenerator {
         const destinationBuffer = device.createTexture({
         format: sourceBuffer.format,
         mipLevelCount: this.numMipLevels(source.width, source.height),
-        size: [source.width, source.height],
+        size: [source.width, source.height, 1],
         usage: GPUTextureUsage.TEXTURE_BINDING |
                 GPUTextureUsage.COPY_DST |
                 GPUTextureUsage.RENDER_ATTACHMENT,
@@ -70,7 +71,7 @@ export class WEBGPUMipsGenerator {
                 label: 'WEBGPUMipsGenerator',
                 colorAttachments: [
                     {
-                        view: destinationBuffer.createView({ baseMipLevel, mipLevelCount: 1 }),
+                        view: destinationBuffer.createView({ baseMipLevel: baseMipLevel, mipLevelCount: 1 }),
                         loadOp: 'clear',
                         storeOp: 'store',
                     },

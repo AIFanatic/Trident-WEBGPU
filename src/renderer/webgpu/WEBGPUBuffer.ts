@@ -10,6 +10,7 @@ export class WEBGPUBuffer implements Buffer {
         let usage = GPUBufferUsage.STORAGE;
         if (type == BufferType.VERTEX) usage = GPUBufferUsage.VERTEX;
         else if (type == BufferType.INDEX) usage = GPUBufferUsage.INDEX;
+        else if (type == BufferType.UNIFORM) usage = GPUBufferUsage.UNIFORM;
         this.buffer = WEBGPURenderer.device.createBuffer({ size: sizeInBytes, usage: usage | GPUBufferUsage.COPY_DST });
         this.size = sizeInBytes;
     }

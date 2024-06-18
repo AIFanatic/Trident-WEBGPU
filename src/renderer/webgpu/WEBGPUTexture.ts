@@ -12,9 +12,11 @@ export class WEBGPUTexture implements Texture {
 
     private buffer: GPUTexture;
 
-    private view: GPUTextureView;
+    private view: GPUTextureView[] = [];
 
-    constructor(width: number, height: number, format: TextureFormat, type: TextureType) {
+    public currentLayer: number = 0;
+
+    constructor(width: number, height: number, depth: number, format: TextureFormat, type: TextureType) {
         this.type = type;
         let textureUsage: GPUTextureUsageFlags = GPUTextureUsage.COPY_DST;
         let textureType: GPUTextureUsageFlags = GPUTextureUsage.TEXTURE_BINDING;
@@ -26,10 +28,9 @@ export class WEBGPUTexture implements Texture {
         else throw Error(`Unknown texture format ${format}`);
 
         this.buffer = WEBGPURenderer.device.createTexture({
-            size: [width, height],
+            size: [width, height, depth],
             format: format,
             usage: textureUsage | textureType,
-            label: "My texture"
         });
 
         this.width = width;
@@ -39,8 +40,16 @@ export class WEBGPUTexture implements Texture {
     public GetBuffer(): GPUTexture { return this.buffer }
 
     public GetView(): GPUTextureView {
-        if (!this.view) this.view = this.buffer.createView();
-        return this.view;
+        if (!this.view[this.currentLayer]) {
+            const viewDimension: GPUTextureViewDimension = this.buffer.depthOrArrayLayers > 1 ? "2d-array" : "2d";
+            this.view[this.currentLayer] = this.buffer.createView({
+                dimension: viewDimension,
+                baseArrayLayer: this.currentLayer,
+                arrayLayerCount: 1
+            });
+        }
+
+        return this.view[this.currentLayer];
     }
 
     public GenerateMips() {
@@ -50,7 +59,7 @@ export class WEBGPUTexture implements Texture {
     // Format and types are very limited for now
     // https://github.com/gpuweb/gpuweb/issues/2322
     public static FromImageBitmap(imageBitmap: ImageBitmap, width: number, height: number): WEBGPUTexture {
-        const texture = new WEBGPUTexture(width, height, Renderer.SwapChainFormat, TextureType.RENDER_TARGET);
+        const texture = new WEBGPUTexture(width, height, 1, Renderer.SwapChainFormat, TextureType.RENDER_TARGET);
 
         WEBGPURenderer.device.queue.copyExternalImageToTexture(
             { source: imageBitmap },

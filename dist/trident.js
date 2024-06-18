@@ -746,6 +746,10 @@ var WGSLShaderAttributeFormat = {
   vec3: "float32x3",
   vec4: "float32x4"
 };
+var UniformTypeToWGSL = {
+  "uniform": "uniform",
+  "storage": "read-only-storage"
+};
 var WEBGPUShader = class {
   id = Utils.UUID();
   needsUpdate = false;
@@ -778,10 +782,11 @@ var WEBGPUShader = class {
     const bindGroupLayoutEntries = [];
     for (const [name, uniform] of this.uniformMap) {
       if (!uniform.buffer) continue;
-      if (uniform.buffer instanceof GPUBuffer) bindGroupLayoutEntries.push({ binding: uniform.location, visibility: GPUShaderStage.VERTEX | GPUShaderStage.FRAGMENT, buffer: { type: "read-only-storage" } });
+      if (uniform.buffer instanceof GPUBuffer) bindGroupLayoutEntries.push({ binding: uniform.location, visibility: GPUShaderStage.VERTEX | GPUShaderStage.FRAGMENT, buffer: { type: UniformTypeToWGSL[uniform.type] } });
       else if (uniform.buffer instanceof GPUTexture) {
         const sampleType = uniform.type === "depthTexture" ? "depth" : "float";
-        bindGroupLayoutEntries.push({ binding: uniform.location, visibility: GPUShaderStage.VERTEX | GPUShaderStage.FRAGMENT, texture: { sampleType } });
+        const viewDimension = uniform.buffer.depthOrArrayLayers > 1 ? "2d-array" : "2d";
+        bindGroupLayoutEntries.push({ binding: uniform.location, visibility: GPUShaderStage.VERTEX | GPUShaderStage.FRAGMENT, texture: { sampleType, viewDimension } });
       } else if (uniform.buffer instanceof GPUSampler) {
         const type = uniform.type === "sampler" ? "filtering" : "comparison";
         bindGroupLayoutEntries.push({ binding: uniform.location, visibility: GPUShaderStage.VERTEX | GPUShaderStage.FRAGMENT, sampler: { type } });
@@ -797,8 +802,15 @@ var WEBGPUShader = class {
       if (!uniform.buffer) continue;
       if (!uniform.buffer) throw Error(`Shader has binding (${name}) but no buffer was set`);
       if (uniform.buffer instanceof GPUBuffer) bindGroupEntries.push({ binding: uniform.location, resource: { buffer: uniform.buffer } });
-      else if (uniform.buffer instanceof GPUTexture) bindGroupEntries.push({ binding: uniform.location, resource: uniform.buffer.createView() });
-      else if (uniform.buffer instanceof GPUSampler) bindGroupEntries.push({ binding: uniform.location, resource: uniform.buffer });
+      else if (uniform.buffer instanceof GPUTexture) {
+        const viewDimension = uniform.buffer.depthOrArrayLayers > 1 ? "2d-array" : "2d";
+        const view = {
+          dimension: viewDimension,
+          arrayLayerCount: uniform.buffer.depthOrArrayLayers,
+          baseArrayLayer: 0
+        };
+        bindGroupEntries.push({ binding: uniform.location, resource: uniform.buffer.createView(view) });
+      } else if (uniform.buffer instanceof GPUSampler) bindGroupEntries.push({ binding: uniform.location, resource: uniform.buffer });
     }
     this._bindGroup = WEBGPURenderer.device.createBindGroup({ layout: bindGroupLayout, entries: bindGroupEntries });
     let targets = [];
@@ -845,6 +857,7 @@ var WEBGPUShader = class {
     const binding = this.GetValidUniform(name);
     if (!binding.buffer || binding.buffer !== data.GetBuffer()) {
       binding.buffer = data.GetBuffer();
+      binding.ref = data;
       this.needsUpdate = true;
     }
   }
@@ -885,7 +898,7 @@ var DeferredMeshShader_default = 'struct VertexInput {\n    @builtin(instance_in
 var WireframeShader_default = "struct VertexInput {\n    @builtin(instance_index) instanceID : u32,\n	@builtin(vertex_index) vertexID : u32,\n};\n\nstruct VertexOutput {\n    @builtin(position) position : vec4<f32>,\n};\n\n@group(0) @binding(0) var<storage, read> projectionMatrix: mat4x4<f32>;\n@group(0) @binding(1) var<storage, read> viewMatrix: mat4x4<f32>;\n@group(0) @binding(2) var<storage, read> modelMatrix: array<mat4x4<f32>>;\n@group(0) @binding(3) var<storage, read> indices: array<u32>;\n@group(0) @binding(4) var<storage, read> positions: array<f32>;\n\n@vertex\nfn vertexMain(input: VertexInput) -> VertexOutput {\n	var localToElement = array<u32, 6>(0u, 1u, 1u, 2u, 2u, 0u);\n\n	var triangleIndex = input.vertexID / 6u;\n	var localVertexIndex = input.vertexID % 6u;\n\n	var elementIndexIndex = 3u * triangleIndex + localToElement[localVertexIndex];\n	var elementIndex = indices[elementIndexIndex];\n\n	var position = vec4<f32>(\n		positions[3u * elementIndex + 0u],\n		positions[3u * elementIndex + 1u],\n		positions[3u * elementIndex + 2u],\n		1.0\n	);\n\n	var output : VertexOutput;\n    var modelMatrixInstance = modelMatrix[input.instanceID];\n    var modelViewMatrix = viewMatrix * modelMatrixInstance;\n	output.position = projectionMatrix * modelViewMatrix * position;\n\n	return output;\n}\n\n@fragment\nfn fragmentMain(fragData: VertexOutput) -> @location(0) vec4<f32> {\n    return vec4(1.0, 0.0, 0.0, 1.0);\n}";
 
 // src/renderer/webgpu/shaders/DeferredLightingPBRShader.wgsl
-var DeferredLightingPBRShader_default = 'struct VertexInput {\n    @location(0) position : vec2<f32>,\n    @location(1) normal : vec3<f32>,\n    @location(2) uv : vec2<f32>,\n};\n\nstruct VertexOutput {\n    @builtin(position) position : vec4<f32>,\n    @location(0) vUv : vec2<f32>,\n};\n\n@group(0) @binding(0) var textureSampler: sampler;\n\n@group(0) @binding(1) var albedoTexture: texture_2d<f32>;\n@group(0) @binding(2) var normalTexture: texture_2d<f32>;\n@group(0) @binding(3) var ermoTexture: texture_2d<f32>;\n@group(0) @binding(4) var depthTexture: texture_depth_2d;\n@group(0) @binding(5) var shadowPassDepth: texture_depth_2d;\n\n\n\nstruct Light {\n    position: vec4<f32>,\n    projectionMatrix: mat4x4<f32>,\n    viewMatrix: mat4x4<f32>,\n    color: vec3<f32>,\n    intensity: f32,\n};\n\n@group(0) @binding(6) var<storage, read> lights: array<Light>;\n@group(0) @binding(7) var<storage, read> lightCount: u32;\n\n\n\n\n\n\nstruct View {\n    projectionOutputSize: vec4<f32>,\n    viewPosition: vec4<f32>,\n    projectionInverseMatrix: mat4x4<f32>,\n    viewInverseMatrix: mat4x4<f32>,\n};\n@group(0) @binding(8) var<storage, read> view: View;\n\n\n@group(0) @binding(9) var shadowSampler: sampler;\n\n\n// @group(0) @binding(10) var shadowMaps: array<texture_depth_2d, 4>;\n@group(0) @binding(10) var textures: texture_2d_array<f32>;\n\n@vertex\nfn vertexMain(input: VertexInput) -> VertexOutput {\n    var output: VertexOutput;\n    output.position = vec4(input.position, 0.0, 1.0);\n    output.vUv = input.uv;\n    return output;\n}\nconst PI = 3.141592653589793;\n\n\n\nstruct PointLight {\n    pointToLight: vec3<f32>,\n    color: vec3<f32>,\n    range: f32,\n    intensity: f32,\n}\n\nstruct DirectionalLight {\n    direction: vec3<f32>,\n    color: vec3<f32>,\n}\n\nstruct Surface {\n    albedo: vec3<f32>,\n    emissive: vec3<f32>,\n    metallic: f32,\n    roughness: f32,\n    occlusion: f32,\n    worldPosition: vec3<f32>,\n    N: vec3<f32>,\n    F0: vec3<f32>,\n    V: vec3<f32>,\n};\n\nfn reconstructWorldPosFromZ(\n    coords: vec2<f32>,\n    size: vec2<f32>,\n    depthTexture: texture_depth_2d,\n    projInverse: mat4x4<f32>,\n    viewInverse: mat4x4<f32>\n    ) -> vec4<f32> {\n    let uv = coords.xy / size;\n    var depth = textureLoad(depthTexture, vec2<i32>(floor(coords)), 0);\n        let x = uv.x * 2.0 - 1.0;\n        let y = (1.0 - uv.y) * 2.0 - 1.0;\n        let projectedPos = vec4(x, y, depth, 1.0);\n        var worldPosition = projInverse * projectedPos;\n        worldPosition = vec4(worldPosition.xyz / worldPosition.w, 1.0);\n        worldPosition = viewInverse * worldPosition;\n    return worldPosition;\n}\n\nfn DistributionGGX(N: vec3<f32>, H: vec3<f32>, roughness: f32) -> f32 {\n    let a      = roughness*roughness;\n    let a2     = a*a;\n    let NdotH  = max(dot(N, H), 0.0);\n    let NdotH2 = NdotH*NdotH;\n\n    let num   = a2;\n    var denom = (NdotH2 * (a2 - 1.0) + 1.0);\n    denom = PI * denom * denom;\n    return num / denom;\n}\n\nfn GeometrySchlickGGX(NdotV: f32, roughness: f32) -> f32 {\n    let r = (roughness + 1.0);\n    let k = (r*r) / 8.0;\n\n    let num   = NdotV;\n    let denom = NdotV * (1.0 - k) + k;\n\n    return num / denom;\n}\n\nfn GeometrySmith(N: vec3<f32>, V: vec3<f32>, L: vec3<f32>, roughness: f32) -> f32 {\n    let NdotV = max(dot(N, V), 0.0);\n    let NdotL = max(dot(N, L), 0.0);\n    let ggx2  = GeometrySchlickGGX(NdotV, roughness);\n    let ggx1  = GeometrySchlickGGX(NdotL, roughness);\n\n    return ggx1 * ggx2;\n}\n\nfn FresnelSchlick(cosTheta: f32, F0: vec3<f32>) -> vec3<f32> {\n    return F0 + (1.0 - F0) * pow(clamp(1.0 - cosTheta, 0.0, 1.0), 5.0);\n} \n\nfn rangeAttenuation(range : f32, distance : f32) -> f32 {\n    if (range <= 0.0) {\n        // Negative range means no cutoff\n        return 1.0 / pow(distance, 2.0);\n    }\n    return clamp(1.0 - pow(distance / range, 4.0), 0.0, 1.0) / pow(distance, 2.0);\n}\n\nfn PointLightRadiance(light : PointLight, surface : Surface) -> vec3<f32> {\n    let L = normalize(light.pointToLight);\n    let H = normalize(surface.V + L);\n    let distance = length(light.pointToLight);\n\n    // cook-torrance brdf\n    let NDF = DistributionGGX(surface.N, H, surface.roughness);\n    let G = GeometrySmith(surface.N, surface.V, L, surface.roughness);\n    let F = FresnelSchlick(max(dot(H, surface.V), 0.0), surface.F0);\n\n    let kD = (vec3(1.0, 1.0, 1.0) - F) * (1.0 - surface.metallic);\n\n    let NdotL = max(dot(surface.N, L), 0.0);\n\n    let numerator = NDF * G * F;\n    let denominator = max(4.0 * max(dot(surface.N, surface.V), 0.0) * NdotL, 0.001);\n    let specular = numerator / vec3(denominator, denominator, denominator);\n\n    // add to outgoing radiance Lo\n    let attenuation = rangeAttenuation(light.range, distance);\n    let radiance = light.color * light.intensity * attenuation;\n    return (kD * surface.albedo.rgb / vec3(PI, PI, PI) + specular) * radiance * NdotL;\n}\n\nfn DirectionalLightRadiance(light: DirectionalLight, surface : Surface) -> vec3<f32> {\n    let L = normalize(light.direction);\n    let H = normalize(surface.V + L);\n\n    // cook-torrance brdf\n    let NDF = DistributionGGX(surface.N, H, surface.roughness);\n    let G = GeometrySmith(surface.N, surface.V, L, surface.roughness);\n    let F = FresnelSchlick(max(dot(H, surface.V), 0.0), surface.F0);\n\n    let kD = (vec3(1.0, 1.0, 1.0) - F) * (1.0 - surface.metallic);\n\n    let NdotL = max(dot(surface.N, L), 0.0);\n\n    let numerator = NDF * G * F;\n    let denominator = max(4.0 * max(dot(surface.N, surface.V), 0.0) * NdotL, 0.001);\n    let specular = numerator / vec3(denominator, denominator, denominator);\n\n    // add to outgoing radiance Lo\n    let radiance = light.color;\n    return (kD * surface.albedo.rgb / vec3(PI, PI, PI) + specular) * radiance * NdotL;\n}\n\nfn Tonemap_ACES(x: vec3f) -> vec3f {\n    // Narkowicz 2015, "ACES Filmic Tone Mapping Curve"\n    let a = 2.51;\n    let b = 0.03;\n    let c = 2.43;\n    let d = 0.59;\n    let e = 0.14;\n    return (x * (a * x + b)) / (x * (c * x + d) + e);\n}\n\nfn OECF_sRGBFast(linear: vec3f) -> vec3f {\n    return pow(linear, vec3(0.454545));\n}\n\n@fragment\nfn fragmentMain(input: VertexOutput) -> @location(0) vec4<f32> {\n    let uv = input.vUv;\n    let albedo = textureSample(albedoTexture, textureSampler, uv);\n    let normal = textureSample(normalTexture, textureSampler, uv);\n    let ermo = textureSample(ermoTexture, textureSampler, uv);\n\n    var color: vec3f = vec3(0);\n\n    let worldPosition = reconstructWorldPosFromZ(\n        input.position.xy,\n        view.projectionOutputSize.xy,\n        depthTexture,\n        view.projectionInverseMatrix,\n        view.viewInverseMatrix\n    );\n\n    var surface: Surface;\n    surface.albedo = albedo.rgb;\n    surface.roughness = albedo.a;\n    surface.metallic = normal.a;\n    surface.emissive = ermo.rgb;\n    surface.occlusion = 1.0;\n    surface.worldPosition = worldPosition.xyz;\n    surface.N = normalize(normal.rgb);\n    surface.F0 = mix(vec3(0.04), surface.albedo.rgb, vec3(surface.metallic));\n    surface.V = normalize(view.viewPosition.xyz - surface.worldPosition);\n\n    let light2 = lights[0];\n    var posFromLight = light2.projectionMatrix * light2.viewMatrix * vec4(surface.worldPosition, 1.0);\n    posFromLight = vec4(posFromLight.xyz / posFromLight.w, 1.0);\n    let shadowPos = vec3(posFromLight.xy * vec2(0.5,-0.5) + vec2(0.5, 0.5), posFromLight.z);\n    let inRange = shadowPos.x >= 0.0 && shadowPos.x <= 1.0 && shadowPos.y >= 0.0 && shadowPos.y <= 1.0 && shadowPos.z >= 0.0 && shadowPos.z <= 1.0;\n    var visibility = 0.0;\n\n    let lightDirection = normalize(light2.position.xyz - surface.worldPosition);\n    \n    if (shadowPos.z <= 1.0) {\n        let sampleRadius = 2.0;\n        let pixelSize = 1.0 / vec2f(textureDimensions(shadowPassDepth));\n\n		let bias = max(0.00025 * (1.0 - dot(surface.N, lightDirection)), 0.00009);\n\n        // Naive Soft shadows\n        for (var y = -sampleRadius; y <= sampleRadius; y+=1.0) {\n            for (var x = -sampleRadius; x <= sampleRadius; x+=1.0) {\n                let projectedDepth = textureSampleLevel(shadowPassDepth, shadowSampler, shadowPos.xy + vec2(x,y) * pixelSize, 0);\n                // if (projectedDepth <= posFromLight.z - bias) {\n                if (posFromLight.z > projectedDepth + bias) {\n                    visibility += 1.0;\n                }\n            }\n        }\n        visibility /= pow((sampleRadius * 2.0 + 1.0), 2.0);\n        \n        // // Hard shadows\n        // let projectedDepth = textureSampleLevel(shadowPassDepth, shadowSampler, shadowPos.xy, 0);\n        // if (posFromLight.z > projectedDepth + bias) {\n        //     visibility = 1.0;\n        // }\n    }\n\n    if (ermo.w > 0.5) {\n        return vec4(surface.albedo.rgb, 1.0);\n    }\n    \n    var Lo = vec3(0.0);\n    for (var i : u32 = 0u; i < lightCount; i = i + 1u) {\n        let light = lights[i];\n        var pointLight: PointLight;\n        \n        pointLight.pointToLight = light.position.xyz - surface.worldPosition;\n        pointLight.color = light.color.rgb;\n        pointLight.range = 100.0; // light.range;\n        pointLight.intensity = light.intensity;\n\n        // Lighting\n        let P = surface.worldPosition;\n        let N = normal;\n        let V = normalize(-P);\n        let F0 = mix(vec3(0.04), surface.albedo, surface.metallic);\n\n        if (!inRange) {\n            continue;\n        }\n\n        // Lo += visibility * PointLightRadiance(pointLight, surface);\n        Lo += (1.0 - visibility) * PointLightRadiance(pointLight, surface);\n        // Lo += (1.0 - shadow) * PointLightRadiance(pointLight, surface);\n\n        // var directionalLight: DirectionalLight;\n        // directionalLight.direction = vec3(0.2, 0.2, 0.2);\n        // directionalLight.color = light.color.rgb;\n        // Lo += DirectionalLightRadiance(directionalLight, surface);\n    }\n\n\n    let ambientColor = vec3(0.01);\n    color = ambientColor * surface.albedo + Lo * surface.occlusion;\n\n    color += surface.emissive;\n\n    color = Tonemap_ACES(color);\n    color = OECF_sRGBFast(color);\n\n\n    return vec4(color, 1.0);\n    // return vec4(pow(projectedDepth, 20.0));\n    // return vec4(shadowPos, 1.0);\n    // return vec4(Lo, 1.0);\n    // return vec4(surface.albedo.rgb, 1.0);\n    // return vec4(worldPosition.xyz, 1.0);\n    // return vec4(surface.N, 1.0);\n}';
+var DeferredLightingPBRShader_default = 'struct VertexInput {\n    @location(0) position : vec2<f32>,\n    @location(1) normal : vec3<f32>,\n    @location(2) uv : vec2<f32>,\n};\n\nstruct VertexOutput {\n    @builtin(position) position : vec4<f32>,\n    @location(0) vUv : vec2<f32>,\n};\n\n@group(0) @binding(0) var textureSampler: sampler;\n\n@group(0) @binding(1) var albedoTexture: texture_2d<f32>;\n@group(0) @binding(2) var normalTexture: texture_2d<f32>;\n@group(0) @binding(3) var ermoTexture: texture_2d<f32>;\n@group(0) @binding(4) var depthTexture: texture_depth_2d;\n// @group(0) @binding(5) var shadowPassDepth: texture_depth_2d;\n\n@group(0) @binding(5) var shadowPassDepth: texture_depth_2d_array;\n\n\n\nstruct Light {\n    position: vec4<f32>,\n    projectionMatrix: mat4x4<f32>,\n    viewMatrix: mat4x4<f32>,\n    color: vec3<f32>,\n    intensity: f32,\n};\n\n@group(0) @binding(6) var<storage, read> lights: array<Light>;\n@group(0) @binding(7) var<storage, read> lightCount: u32;\n\n\n\n\n\n\nstruct View {\n    projectionOutputSize: vec4<f32>,\n    viewPosition: vec4<f32>,\n    projectionInverseMatrix: mat4x4<f32>,\n    viewInverseMatrix: mat4x4<f32>,\n};\n@group(0) @binding(8) var<storage, read> view: View;\n\n\n@group(0) @binding(9) var shadowSampler: sampler;\n\n\n// @group(0) @binding(10) var shadowMaps: array<texture_depth_2d, 4>;\n@group(0) @binding(10) var textures: texture_2d_array<f32>;\n\n@vertex\nfn vertexMain(input: VertexInput) -> VertexOutput {\n    var output: VertexOutput;\n    output.position = vec4(input.position, 0.0, 1.0);\n    output.vUv = input.uv;\n    return output;\n}\nconst PI = 3.141592653589793;\n\n\n\nstruct PointLight {\n    pointToLight: vec3<f32>,\n    color: vec3<f32>,\n    range: f32,\n    intensity: f32,\n}\n\nstruct DirectionalLight {\n    direction: vec3<f32>,\n    color: vec3<f32>,\n}\n\nstruct Surface {\n    albedo: vec3<f32>,\n    emissive: vec3<f32>,\n    metallic: f32,\n    roughness: f32,\n    occlusion: f32,\n    worldPosition: vec3<f32>,\n    N: vec3<f32>,\n    F0: vec3<f32>,\n    V: vec3<f32>,\n};\n\nfn reconstructWorldPosFromZ(\n    coords: vec2<f32>,\n    size: vec2<f32>,\n    depthTexture: texture_depth_2d,\n    projInverse: mat4x4<f32>,\n    viewInverse: mat4x4<f32>\n    ) -> vec4<f32> {\n    let uv = coords.xy / size;\n    var depth = textureLoad(depthTexture, vec2<i32>(floor(coords)), 0);\n        let x = uv.x * 2.0 - 1.0;\n        let y = (1.0 - uv.y) * 2.0 - 1.0;\n        let projectedPos = vec4(x, y, depth, 1.0);\n        var worldPosition = projInverse * projectedPos;\n        worldPosition = vec4(worldPosition.xyz / worldPosition.w, 1.0);\n        worldPosition = viewInverse * worldPosition;\n    return worldPosition;\n}\n\nfn DistributionGGX(N: vec3<f32>, H: vec3<f32>, roughness: f32) -> f32 {\n    let a      = roughness*roughness;\n    let a2     = a*a;\n    let NdotH  = max(dot(N, H), 0.0);\n    let NdotH2 = NdotH*NdotH;\n\n    let num   = a2;\n    var denom = (NdotH2 * (a2 - 1.0) + 1.0);\n    denom = PI * denom * denom;\n    return num / denom;\n}\n\nfn GeometrySchlickGGX(NdotV: f32, roughness: f32) -> f32 {\n    let r = (roughness + 1.0);\n    let k = (r*r) / 8.0;\n\n    let num   = NdotV;\n    let denom = NdotV * (1.0 - k) + k;\n\n    return num / denom;\n}\n\nfn GeometrySmith(N: vec3<f32>, V: vec3<f32>, L: vec3<f32>, roughness: f32) -> f32 {\n    let NdotV = max(dot(N, V), 0.0);\n    let NdotL = max(dot(N, L), 0.0);\n    let ggx2  = GeometrySchlickGGX(NdotV, roughness);\n    let ggx1  = GeometrySchlickGGX(NdotL, roughness);\n\n    return ggx1 * ggx2;\n}\n\nfn FresnelSchlick(cosTheta: f32, F0: vec3<f32>) -> vec3<f32> {\n    return F0 + (1.0 - F0) * pow(clamp(1.0 - cosTheta, 0.0, 1.0), 5.0);\n} \n\nfn rangeAttenuation(range : f32, distance : f32) -> f32 {\n    if (range <= 0.0) {\n        // Negative range means no cutoff\n        return 1.0 / pow(distance, 2.0);\n    }\n    return clamp(1.0 - pow(distance / range, 4.0), 0.0, 1.0) / pow(distance, 2.0);\n}\n\nfn PointLightRadiance(light : PointLight, surface : Surface) -> vec3<f32> {\n    let L = normalize(light.pointToLight);\n    let H = normalize(surface.V + L);\n    let distance = length(light.pointToLight);\n\n    // cook-torrance brdf\n    let NDF = DistributionGGX(surface.N, H, surface.roughness);\n    let G = GeometrySmith(surface.N, surface.V, L, surface.roughness);\n    let F = FresnelSchlick(max(dot(H, surface.V), 0.0), surface.F0);\n\n    let kD = (vec3(1.0, 1.0, 1.0) - F) * (1.0 - surface.metallic);\n\n    let NdotL = max(dot(surface.N, L), 0.0);\n\n    let numerator = NDF * G * F;\n    let denominator = max(4.0 * max(dot(surface.N, surface.V), 0.0) * NdotL, 0.001);\n    let specular = numerator / vec3(denominator, denominator, denominator);\n\n    // add to outgoing radiance Lo\n    let attenuation = rangeAttenuation(light.range, distance);\n    let radiance = light.color * light.intensity * attenuation;\n    return (kD * surface.albedo.rgb / vec3(PI, PI, PI) + specular) * radiance * NdotL;\n}\n\nfn DirectionalLightRadiance(light: DirectionalLight, surface : Surface) -> vec3<f32> {\n    let L = normalize(light.direction);\n    let H = normalize(surface.V + L);\n\n    // cook-torrance brdf\n    let NDF = DistributionGGX(surface.N, H, surface.roughness);\n    let G = GeometrySmith(surface.N, surface.V, L, surface.roughness);\n    let F = FresnelSchlick(max(dot(H, surface.V), 0.0), surface.F0);\n\n    let kD = (vec3(1.0, 1.0, 1.0) - F) * (1.0 - surface.metallic);\n\n    let NdotL = max(dot(surface.N, L), 0.0);\n\n    let numerator = NDF * G * F;\n    let denominator = max(4.0 * max(dot(surface.N, surface.V), 0.0) * NdotL, 0.001);\n    let specular = numerator / vec3(denominator, denominator, denominator);\n\n    // add to outgoing radiance Lo\n    let radiance = light.color;\n    return (kD * surface.albedo.rgb / vec3(PI, PI, PI) + specular) * radiance * NdotL;\n}\n\nfn Tonemap_ACES(x: vec3f) -> vec3f {\n    // Narkowicz 2015, "ACES Filmic Tone Mapping Curve"\n    let a = 2.51;\n    let b = 0.03;\n    let c = 2.43;\n    let d = 0.59;\n    let e = 0.14;\n    return (x * (a * x + b)) / (x * (c * x + d) + e);\n}\n\nfn OECF_sRGBFast(linear: vec3f) -> vec3f {\n    return pow(linear, vec3(0.454545));\n}\n\nstruct Shadow {\n    inRange: bool,\n    visibility: f32\n};\n\nfn CalculateShadow(worldPosition: vec3f, normal: vec3f, light: Light, lightIndex: u32) -> Shadow {\n    var posFromLight = light.projectionMatrix * light.viewMatrix * vec4(worldPosition, 1.0);\n    posFromLight = vec4(posFromLight.xyz / posFromLight.w, 1.0);\n    let shadowPos = vec3(posFromLight.xy * vec2(0.5,-0.5) + vec2(0.5, 0.5), posFromLight.z);\n    let inRange = shadowPos.x >= 0.0 && shadowPos.x <= 1.0 && shadowPos.y >= 0.0 && shadowPos.y <= 1.0 && shadowPos.z >= 0.0 && shadowPos.z <= 1.0;\n    var visibility = 0.0;\n\n    let shadowIndex = lightIndex;\n\n    let lightDirection = normalize(light.position.xyz - worldPosition);\n    \n    if (shadowPos.z <= 1.0) {\n        let sampleRadius = 2.0;\n        let pixelSize = 1.0 / vec2f(textureDimensions(shadowPassDepth));\n        // let pixelSize = 1.0 / vec2f(1024);\n\n		let bias = max(0.00025 * (1.0 - dot(normal, lightDirection)), 0.00009);\n        // let bias = 0.0009;\n\n        // // Naive Soft shadows\n        // for (var y = -sampleRadius; y <= sampleRadius; y+=1.0) {\n        //     for (var x = -sampleRadius; x <= sampleRadius; x+=1.0) {\n        //         let projectedDepth = textureSampleLevel(shadowPassDepth, shadowSampler, shadowPos.xy + vec2(x,y) * pixelSize, shadowIndex, 0);\n        //         // if (projectedDepth <= posFromLight.z - bias) {\n        //         if (posFromLight.z > projectedDepth + bias) {\n        //             visibility += 1.0;\n        //         }\n        //     }\n        // }\n        // visibility /= pow((sampleRadius * 2.0 + 1.0), 2.0);\n        \n        // Hard shadows\n        let projectedDepth = textureSampleLevel(shadowPassDepth, shadowSampler, shadowPos.xy, lightIndex, 0);\n        if (posFromLight.z > projectedDepth + bias) {\n            visibility = 1.0;\n        }\n    }\n    \n    var shadow: Shadow;\n    shadow.inRange = inRange;\n    shadow.visibility = visibility;\n    return shadow;\n}\n\n@fragment\nfn fragmentMain(input: VertexOutput) -> @location(0) vec4<f32> {\n    let uv = input.vUv;\n    let albedo = textureSample(albedoTexture, textureSampler, uv);\n    let normal = textureSample(normalTexture, textureSampler, uv);\n    let ermo = textureSample(ermoTexture, textureSampler, uv);\n\n    var color: vec3f = vec3(0);\n\n    let worldPosition = reconstructWorldPosFromZ(\n        input.position.xy,\n        view.projectionOutputSize.xy,\n        depthTexture,\n        view.projectionInverseMatrix,\n        view.viewInverseMatrix\n    );\n\n    var surface: Surface;\n    surface.albedo = albedo.rgb;\n    surface.roughness = albedo.a;\n    surface.metallic = normal.a;\n    surface.emissive = ermo.rgb;\n    surface.occlusion = 1.0;\n    surface.worldPosition = worldPosition.xyz;\n    surface.N = normalize(normal.rgb);\n    surface.F0 = mix(vec3(0.04), surface.albedo.rgb, vec3(surface.metallic));\n    surface.V = normalize(view.viewPosition.xyz - surface.worldPosition);\n\n    // let light2 = lights[0];\n    let visibility = 1.0;\n\n    if (ermo.w > 0.5) {\n        return vec4(surface.albedo.rgb, 1.0);\n    }\n    \n    var Lo = vec3(0.0);\n    for (var i : u32 = 0u; i < lightCount; i = i + 1u) {\n        let light = lights[i];\n        var pointLight: PointLight;\n        \n        pointLight.pointToLight = light.position.xyz - surface.worldPosition;\n        pointLight.color = light.color.rgb;\n        pointLight.range = 100.0; // light.range;\n        pointLight.intensity = light.intensity;\n\n        // Lighting\n        let P = surface.worldPosition;\n        let N = normal;\n        let V = normalize(-P);\n        let F0 = mix(vec3(0.04), surface.albedo, surface.metallic);\n\n        let shadow: Shadow = CalculateShadow(surface.worldPosition, surface.N, light, i);\n        if (!shadow.inRange) {\n            continue;\n        }\n\n\n        // Lo += visibility * PointLightRadiance(pointLight, surface);\n        Lo += (1.0 - shadow.visibility) * PointLightRadiance(pointLight, surface);\n        // Lo += (1.0 - shadow) * PointLightRadiance(pointLight, surface);\n\n        // var directionalLight: DirectionalLight;\n        // directionalLight.direction = vec3(0.2, 0.2, 0.2);\n        // directionalLight.color = light.color.rgb;\n        // Lo += DirectionalLightRadiance(directionalLight, surface);\n    }\n\n\n    let ambientColor = vec3(0.01);\n    color = ambientColor * surface.albedo + Lo * surface.occlusion;\n\n    color += surface.emissive;\n\n    color = Tonemap_ACES(color);\n    color = OECF_sRGBFast(color);\n\n\n    return vec4(color, 1.0);\n    // return vec4(pow(projectedDepth, 20.0));\n    // return vec4(shadowPos, 1.0);\n    // return vec4(Lo, 1.0);\n    // return vec4(surface.albedo.rgb, 1.0);\n    // return vec4(worldPosition.xyz, 1.0);\n    // return vec4(surface.N, 1.0);\n}';
 
 // src/renderer/webgpu/shaders/QuadShader.wgsl
 var QuadShader_default = "struct VSOutput {\n    @builtin(position) position: vec4f,\n    @location(0) vUv: vec2f,\n};\n\n@vertex fn vs(@builtin(vertex_index) vertexIndex : u32) -> VSOutput {\n    const pos = array(\n        vec2f( 0.0,  0.0),  // center\n        vec2f( 1.0,  0.0),  // right, center\n        vec2f( 0.0,  1.0),  // center, top\n\n        // 2st triangle\n        vec2f( 0.0,  1.0),  // center, top\n        vec2f( 1.0,  0.0),  // right, center\n        vec2f( 1.0,  1.0),  // right, top\n    );\n\n    var vsOutput: VSOutput;\n    let xy = pos[vertexIndex];\n    vsOutput.position = vec4f(xy * 2.0 - 1.0, 0.0, 1.0);\n    vsOutput.vUv = vec2f(xy.x, 1.0 - xy.y);\n    return vsOutput;\n}\n\n@group(0) @binding(0) var ourSampler: sampler;\n@group(0) @binding(1) var ourTexture: texture_2d<f32>;\n\n@fragment fn fs(fsInput: VSOutput) -> @location(0) vec4f {\n    return textureSample(ourTexture, ourSampler, fsInput.vUv);\n}";
@@ -982,7 +995,7 @@ var WEBGPUMipsGenerator = class {
     const destinationBuffer = device2.createTexture({
       format: sourceBuffer.format,
       mipLevelCount: this.numMipLevels(source.width, source.height),
-      size: [source.width, source.height],
+      size: [source.width, source.height, 1],
       usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST | GPUTextureUsage.RENDER_ATTACHMENT
     });
     let width = sourceBuffer.width;
@@ -1029,8 +1042,9 @@ var WEBGPUTexture = class _WEBGPUTexture {
   height;
   type;
   buffer;
-  view;
-  constructor(width, height, format, type) {
+  view = [];
+  currentLayer = 0;
+  constructor(width, height, depth, format, type) {
     this.type = type;
     let textureUsage = GPUTextureUsage.COPY_DST;
     let textureType = GPUTextureUsage.TEXTURE_BINDING;
@@ -1039,10 +1053,9 @@ var WEBGPUTexture = class _WEBGPUTexture {
     else if (type === 2 /* RENDER_TARGET */) textureType = GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_SRC;
     else throw Error(`Unknown texture format ${format}`);
     this.buffer = WEBGPURenderer.device.createTexture({
-      size: [width, height],
+      size: [width, height, depth],
       format,
-      usage: textureUsage | textureType,
-      label: "My texture"
+      usage: textureUsage | textureType
     });
     this.width = width;
     this.height = height;
@@ -1051,8 +1064,15 @@ var WEBGPUTexture = class _WEBGPUTexture {
     return this.buffer;
   }
   GetView() {
-    if (!this.view) this.view = this.buffer.createView();
-    return this.view;
+    if (!this.view[this.currentLayer]) {
+      const viewDimension = this.buffer.depthOrArrayLayers > 1 ? "2d-array" : "2d";
+      this.view[this.currentLayer] = this.buffer.createView({
+        dimension: viewDimension,
+        baseArrayLayer: this.currentLayer,
+        arrayLayerCount: 1
+      });
+    }
+    return this.view[this.currentLayer];
   }
   GenerateMips() {
     this.buffer = WEBGPUMipsGenerator.generateMips(this);
@@ -1060,7 +1080,7 @@ var WEBGPUTexture = class _WEBGPUTexture {
   // Format and types are very limited for now
   // https://github.com/gpuweb/gpuweb/issues/2322
   static FromImageBitmap(imageBitmap, width, height) {
-    const texture = new _WEBGPUTexture(width, height, Renderer.SwapChainFormat, 2 /* RENDER_TARGET */);
+    const texture = new _WEBGPUTexture(width, height, 1, Renderer.SwapChainFormat, 2 /* RENDER_TARGET */);
     WEBGPURenderer.device.queue.copyExternalImageToTexture(
       { source: imageBitmap },
       { texture: texture.GetBuffer() },
@@ -1077,8 +1097,8 @@ var Texture2 = class {
   height;
   GenerateMips() {
   }
-  static Create(width, height, format = Renderer.SwapChainFormat) {
-    if (Renderer.type === "webgpu") return new WEBGPUTexture(width, height, format, 0 /* IMAGE */);
+  static Create(width, height, depth, format = Renderer.SwapChainFormat) {
+    if (Renderer.type === "webgpu") return new WEBGPUTexture(width, height, depth, format, 0 /* IMAGE */);
     throw Error("Renderer type invalid");
   }
   static async Load(url) {
@@ -1089,14 +1109,14 @@ var Texture2 = class {
   }
 };
 var DepthTexture = class extends Texture2 {
-  static Create(width, height, format = "depth24plus") {
-    if (Renderer.type === "webgpu") return new WEBGPUTexture(width, height, format, 1 /* DEPTH */);
+  static Create(width, height, depth, format = "depth24plus") {
+    if (Renderer.type === "webgpu") return new WEBGPUTexture(width, height, depth, format, 1 /* DEPTH */);
     throw Error("Renderer type invalid");
   }
 };
 var RenderTexture = class extends Texture2 {
-  static Create(width, height, format = Renderer.SwapChainFormat) {
-    if (Renderer.type === "webgpu") return new WEBGPUTexture(width, height, format, 2 /* RENDER_TARGET */);
+  static Create(width, height, depth, format = Renderer.SwapChainFormat) {
+    if (Renderer.type === "webgpu") return new WEBGPUTexture(width, height, depth, format, 2 /* RENDER_TARGET */);
     throw Error("Renderer type invalid");
   }
 };
@@ -1116,7 +1136,7 @@ var Camera = class _Camera extends Component {
     this.projectionMatrix.orthogonal(left, right, top, bottom, near, far);
   }
   Start() {
-    if (_Camera.mainCamera === this) this.depthTarget = DepthTexture.Create(Renderer.width, Renderer.height);
+    if (_Camera.mainCamera === this) this.depthTarget = DepthTexture.Create(Renderer.width, Renderer.height, 1);
   }
   Update() {
     this.viewMatrix.copy(this.transform.worldToLocalMatrix);
@@ -1461,8 +1481,10 @@ var DeferredMeshMaterial = class extends Material {
   }
 };
 var ShadowMaterial = class extends Material {
-  constructor() {
+  light;
+  constructor(light) {
     super();
+    this.light = light;
     let shaderParams = {
       code: ShaderCode.ShadowShader,
       attributes: {
@@ -1488,8 +1510,9 @@ var WEBGPUBuffer = class {
   size;
   constructor(sizeInBytes, type) {
     let usage = GPUBufferUsage.STORAGE;
-    if (type == 1 /* VERTEX */) usage = GPUBufferUsage.VERTEX;
-    else if (type == 2 /* INDEX */) usage = GPUBufferUsage.INDEX;
+    if (type == 2 /* VERTEX */) usage = GPUBufferUsage.VERTEX;
+    else if (type == 3 /* INDEX */) usage = GPUBufferUsage.INDEX;
+    else if (type == 1 /* UNIFORM */) usage = GPUBufferUsage.UNIFORM;
     this.buffer = WEBGPURenderer.device.createBuffer({ size: sizeInBytes, usage: usage | GPUBufferUsage.COPY_DST });
     this.size = sizeInBytes;
   }
@@ -1547,10 +1570,10 @@ var DeferredMeshRenderPass = class extends RenderPass {
   gbufferDepthDT;
   constructor(inputCamera, outputGBufferAlbedo, outputGBufferNormal, outputGBufferERMO, outputGBufferDepth) {
     super({ inputs: [inputCamera], outputs: [outputGBufferAlbedo, outputGBufferNormal, outputGBufferERMO, outputGBufferDepth] });
-    this.gbufferAlbedoRT = RenderTexture.Create(Renderer.width, Renderer.height, "rgba16float");
-    this.gbufferNormalRT = RenderTexture.Create(Renderer.width, Renderer.height, "rgba16float");
-    this.gbufferERMO = RenderTexture.Create(Renderer.width, Renderer.height, "rgba16float");
-    this.gbufferDepthDT = DepthTexture.Create(Renderer.width, Renderer.height);
+    this.gbufferAlbedoRT = RenderTexture.Create(Renderer.width, Renderer.height, 1, "rgba16float");
+    this.gbufferNormalRT = RenderTexture.Create(Renderer.width, Renderer.height, 1, "rgba16float");
+    this.gbufferERMO = RenderTexture.Create(Renderer.width, Renderer.height, 1, "rgba16float");
+    this.gbufferDepthDT = DepthTexture.Create(Renderer.width, Renderer.height, 1);
   }
   execute(resources, inputCamera, outputGBufferAlbedo, outputGBufferNormal, outputGBufferERMO, outputGBufferDepth) {
     if (!inputCamera) throw Error(`No inputs passed to ${this.name}`);
@@ -1616,12 +1639,12 @@ var GeometryAttribute = class {
 };
 var VertexAttribute = class extends GeometryAttribute {
   constructor(array) {
-    super(array, 1 /* VERTEX */);
+    super(array, 2 /* VERTEX */);
   }
 };
 var IndexAttribute = class extends GeometryAttribute {
   constructor(array) {
-    super(array, 2 /* INDEX */);
+    super(array, 3 /* INDEX */);
   }
 };
 var Geometry = class _Geometry {
@@ -1802,7 +1825,6 @@ var Light = class extends Component {
   radius = 1;
   Start() {
     this.camera = this.gameObject.AddComponent(Camera);
-    const value = 1;
     this.camera.SetPerspective(60, Renderer.width / Renderer.height, 0.01, 1e3);
   }
 };
@@ -1886,38 +1908,6 @@ var DeferredLightingPass = class extends RenderPass {
   }
 };
 
-// src/renderer/passes/SceneRenderer.ts
-var SceneRenderer = class {
-  static Render(scene, camera, material) {
-    const projectionMatrix = camera.projectionMatrix;
-    const viewMatrix = camera.viewMatrix;
-    const meshes = scene.GetComponents(Mesh);
-    for (const mesh of meshes) {
-      const geometry = mesh.GetGeometry();
-      const materials = mesh.GetMaterials(material);
-      for (const material2 of materials) {
-        const shader = material2.shader;
-        shader.SetMatrix4("projectionMatrix", projectionMatrix);
-        shader.SetMatrix4("viewMatrix", viewMatrix);
-        shader.SetMatrix4("modelMatrix", mesh.transform.localToWorldMatrix);
-        RendererContext.DrawGeometry(geometry, shader, 1);
-      }
-    }
-    const instancedMeshes = scene.GetComponents(InstancedMesh);
-    for (const instancedMesh of instancedMeshes) {
-      const geometry = instancedMesh.GetGeometry();
-      const materials = instancedMesh.GetMaterials(material);
-      for (const material2 of materials) {
-        const shader = material2.shader;
-        shader.SetMatrix4("projectionMatrix", projectionMatrix);
-        shader.SetMatrix4("viewMatrix", viewMatrix);
-        shader.SetBuffer("modelMatrix", instancedMesh.matricesBuffer);
-        RendererContext.DrawGeometry(geometry, shader, instancedMesh.instanceCount + 1);
-      }
-    }
-  }
-};
-
 // src/renderer/passes/ShadowPass.ts
 var ShadowPass = class extends RenderPass {
   name = "ShadowPass";
@@ -1926,21 +1916,44 @@ var ShadowPass = class extends RenderPass {
   shadowHeight = 1024;
   constructor(outputDepthDT) {
     super({ outputs: [outputDepthDT] });
-    this.shadowDepthDT = DepthTexture.Create(this.shadowWidth, this.shadowHeight);
+    this.shadowDepthDT = DepthTexture.Create(this.shadowWidth, this.shadowHeight, 2);
   }
   execute(resources, outputDepthDT) {
-    const lights = Camera.mainCamera.gameObject.scene.GetComponents(Light);
-    const light = lights[0];
-    const inputCamera = light.camera;
-    RendererContext.BeginRenderPass(
-      "DeferredMeshRenderPass",
-      [],
-      { target: this.shadowDepthDT, clear: true }
-    );
-    RendererContext.SetViewport(0, 0, this.shadowWidth, this.shadowHeight);
-    SceneRenderer.Render(Camera.mainCamera.gameObject.scene, inputCamera, ShadowMaterial);
+    const scene = Camera.mainCamera.gameObject.scene;
+    const lights = scene.GetComponents(Light);
+    const meshes = scene.GetComponents(Mesh);
+    const instancedMeshes = scene.GetComponents(InstancedMesh);
+    this.shadowDepthDT.currentLayer = 0;
+    for (const sceneLight of lights) {
+      RendererContext.BeginRenderPass("ShadowPass", [], { target: this.shadowDepthDT, clear: true });
+      for (const mesh of meshes) {
+        const shadowMaterials = mesh.GetMaterials(ShadowMaterial);
+        for (const shadowMaterial of shadowMaterials) {
+          const light = shadowMaterial.light;
+          if (light !== sceneLight) continue;
+          const shader = shadowMaterial.shader;
+          shader.SetMatrix4("projectionMatrix", light.camera.projectionMatrix);
+          shader.SetMatrix4("viewMatrix", light.camera.viewMatrix);
+          shader.SetMatrix4("modelMatrix", mesh.transform.localToWorldMatrix);
+          RendererContext.DrawGeometry(mesh.GetGeometry(), shader, 1);
+        }
+      }
+      for (const instancedMesh of instancedMeshes) {
+        const shadowMaterials = instancedMesh.GetMaterials(ShadowMaterial);
+        for (const shadowMaterial of shadowMaterials) {
+          const light = shadowMaterial.light;
+          if (light !== sceneLight) continue;
+          const shader = shadowMaterial.shader;
+          shader.SetMatrix4("projectionMatrix", light.camera.projectionMatrix);
+          shader.SetMatrix4("viewMatrix", light.camera.viewMatrix);
+          shader.SetBuffer("modelMatrix", instancedMesh.matricesBuffer);
+          RendererContext.DrawGeometry(instancedMesh.GetGeometry(), shader, instancedMesh.instanceCount);
+        }
+      }
+      this.shadowDepthDT.currentLayer++;
+      RendererContext.EndRenderPass();
+    }
     resources.setResource(outputDepthDT, this.shadowDepthDT);
-    RendererContext.EndRenderPass();
   }
 };
 
@@ -1964,7 +1977,8 @@ var DebuggerPass = class extends RenderPass {
 
         @group(0) @binding(0) var textureSampler: sampler;
         @group(0) @binding(1) var albedoTexture: texture_2d<f32>;
-        @group(0) @binding(2) var shadowMapTexture: texture_depth_2d;
+        // @group(0) @binding(2) var shadowMapTexture: texture_depth_2d;
+        @group(0) @binding(2) var shadowMapTexture: texture_depth_2d_array;
         
         @vertex fn vertexMain(input: VertexInput) -> VertexOutput {
             var output: VertexOutput;
@@ -1980,9 +1994,12 @@ var DebuggerPass = class extends RenderPass {
             let quadrant = step(threshold, uv);
             let baseCoords = uv * 2.0 - quadrant;
         
-            let albedo = textureSample(albedoTexture, textureSampler, baseCoords) * (1.0 - quadrant.x) * quadrant.y;
-            let shadowMap = textureSample(shadowMapTexture, textureSampler, baseCoords) * quadrant.x * quadrant.y;
-            return albedo + vec4(pow(shadowMap, 1000));
+            // let albedo = textureSample(albedoTexture, textureSampler, baseCoords) * (1.0 - quadrant.x) * quadrant.y;
+
+            let shadowMap2 = textureSample(shadowMapTexture, textureSampler, baseCoords, 0) * quadrant.x * quadrant.y;
+            let shadowMap3 = textureSample(shadowMapTexture, textureSampler, baseCoords, 1) * quadrant.x * (1.0 - quadrant.y);
+            
+            return vec4(pow(shadowMap2, 1000)) + vec4(pow(shadowMap3, 1000));
         }
         `;
     this.shader = Shader.Create({
@@ -2003,7 +2020,6 @@ var DebuggerPass = class extends RenderPass {
     this.shader.SetSampler("textureSampler", sampler);
   }
   execute(resources) {
-    this.shader.SetTexture("albedoTexture", resources.getResource("GBufferAlbedo" /* GBufferAlbedo */));
     this.shader.SetTexture("shadowMapTexture", resources.getResource("ShadowPassDepth" /* ShadowPassDepth */));
     RendererContext.BeginRenderPass("DebuggerPass", [{ clear: false }]);
     RendererContext.SetViewport(Renderer.width - 250, 0, 250, 250);
@@ -2267,20 +2283,36 @@ async function Application() {
   const planeGeometry = Geometry.Plane();
   const cubeGeometry = Geometry.Cube();
   const lightGameObject = new GameObject(scene);
-  lightGameObject.transform.position.set(0, 4, 0);
+  lightGameObject.transform.position.set(4, 4, 0);
   lightGameObject.transform.LookAt(new Vector3(0.01, 0, 0));
   const light = lightGameObject.AddComponent(Light);
   light.intensity = 50;
-  light.color.set(255 / 255, 241 / 255, 224 / 255, 1);
+  light.color.set(0, 1, 0, 1);
+  const lightGameObject2 = new GameObject(scene);
+  lightGameObject2.transform.position.set(-4, 4, 0);
+  lightGameObject2.transform.LookAt(new Vector3(0.01, 0, 0));
+  const light2 = lightGameObject2.AddComponent(Light);
+  light2.intensity = 50;
+  light2.color.set(1, 0, 0, 1);
   const lightHelperGameObject = new GameObject(scene);
   lightHelperGameObject.transform.position.copy(lightGameObject.transform.position);
   const lightGeometry = Geometry.Sphere();
   const lightHelperMesh = lightHelperGameObject.AddComponent(Mesh);
   lightHelperMesh.SetGeometry(lightGeometry);
   lightHelperMesh.AddMaterial(new DeferredMeshMaterial({ unlit: true, albedoColor: light.color }));
+  const lightHelperGameObject2 = new GameObject(scene);
+  lightHelperGameObject2.transform.position.copy(lightGameObject2.transform.position);
+  const lightGeometry2 = Geometry.Sphere();
+  const lightHelperMesh2 = lightHelperGameObject2.AddComponent(Mesh);
+  lightHelperMesh2.SetGeometry(lightGeometry2);
+  lightHelperMesh2.AddMaterial(new DeferredMeshMaterial({ unlit: true, albedoColor: light2.color }));
   function updateLight() {
     lightGameObject.transform.LookAt(new Vector3(0.01, 0, 0));
     lightHelperMesh.transform.position.copy(lightGameObject.transform.position);
+  }
+  function updateLight2() {
+    lightGameObject2.transform.LookAt(new Vector3(0.01, 0, 0));
+    lightHelperMesh2.transform.position.copy(lightGameObject2.transform.position);
   }
   ui.AddSlider("Light X", -10, 10, 0.1, light.transform.position.x, (value) => {
     lightGameObject.transform.position.x = value;
@@ -2298,6 +2330,18 @@ async function Application() {
     light.camera.SetPerspective(value, Renderer.width / Renderer.height, 0.01, 1e3);
     updateLight();
   });
+  ui.AddSlider("Light2 X", -10, 10, 0.1, light2.transform.position.x, (value) => {
+    lightGameObject2.transform.position.x = value;
+    updateLight2();
+  });
+  ui.AddSlider("Light2 Y", -10, 10, 0.1, light2.transform.position.y, (value) => {
+    lightGameObject2.transform.position.y = value;
+    updateLight2();
+  });
+  ui.AddSlider("Light2 Z", -10, 10, 0.1, light2.transform.position.z, (value) => {
+    lightGameObject2.transform.position.z = value;
+    updateLight2();
+  });
   const roughness = 0.7;
   const metalness = 0.1;
   const topMaterial = new DeferredMeshMaterial({ albedoColor: new Color(1, 1, 1, 1), roughness, metalness });
@@ -2312,7 +2356,8 @@ async function Application() {
   const meshbottom = floor.AddComponent(Mesh);
   meshbottom.SetGeometry(planeGeometry);
   meshbottom.AddMaterial(floorMaterial);
-  meshbottom.AddMaterial(new ShadowMaterial());
+  meshbottom.AddMaterial(new ShadowMaterial(light));
+  meshbottom.AddMaterial(new ShadowMaterial(light2));
   const left = new GameObject(scene);
   left.transform.scale.set(5, 5, 5);
   left.transform.position.x = -5;
@@ -2320,7 +2365,8 @@ async function Application() {
   const meshleft = left.AddComponent(Mesh);
   meshleft.SetGeometry(planeGeometry);
   meshleft.AddMaterial(leftMaterial);
-  meshleft.AddMaterial(new ShadowMaterial());
+  meshleft.AddMaterial(new ShadowMaterial(light));
+  meshleft.AddMaterial(new ShadowMaterial(light2));
   const right = new GameObject(scene);
   right.transform.scale.set(5, 5, 5);
   right.transform.position.x = 5;
@@ -2328,14 +2374,16 @@ async function Application() {
   const meshright = right.AddComponent(Mesh);
   meshright.SetGeometry(planeGeometry);
   meshright.AddMaterial(rightMaterial);
-  meshright.AddMaterial(new ShadowMaterial());
+  meshright.AddMaterial(new ShadowMaterial(light));
+  meshright.AddMaterial(new ShadowMaterial(light2));
   const back = new GameObject(scene);
   back.transform.scale.set(5, 5, 5);
   back.transform.position.z = -5;
   const meshback = back.AddComponent(Mesh);
   meshback.SetGeometry(planeGeometry);
   meshback.AddMaterial(backMaterial);
-  meshback.AddMaterial(new ShadowMaterial());
+  meshback.AddMaterial(new ShadowMaterial(light));
+  meshback.AddMaterial(new ShadowMaterial(light2));
   const top = new GameObject(scene);
   top.transform.scale.set(5, 5, 5);
   top.transform.position.y = 5;
@@ -2343,30 +2391,48 @@ async function Application() {
   const meshtop = top.AddComponent(Mesh);
   meshtop.SetGeometry(planeGeometry);
   meshtop.AddMaterial(topMaterial);
-  meshtop.AddMaterial(new ShadowMaterial());
+  meshtop.AddMaterial(new ShadowMaterial(light));
+  meshtop.AddMaterial(new ShadowMaterial(light2));
   const cube = new GameObject(scene);
   cube.transform.scale.set(2, 4, 2);
   cube.transform.position.set(-2, -3, -2);
   cube.transform.eulerAngles.y = 20;
   const cubeMesh = cube.AddComponent(Mesh);
   cubeMesh.SetGeometry(cubeGeometry);
-  const cubeMaterial = new DeferredMeshMaterial({ albedoColor: new Color(1, 1, 1, 1), roughness, metalness });
-  cubeMesh.AddMaterial(cubeMaterial);
-  cubeMesh.AddMaterial(new ShadowMaterial());
+  cubeMesh.AddMaterial(new DeferredMeshMaterial({ albedoColor: new Color(1, 1, 1, 1), roughness, metalness }));
+  cubeMesh.AddMaterial(new ShadowMaterial(light));
+  cubeMesh.AddMaterial(new ShadowMaterial(light2));
   const cube2 = new GameObject(scene);
   cube2.transform.scale.set(2, 2, 2);
   cube2.transform.position.set(2, -4, 2);
   cube2.transform.eulerAngles.y = 65;
   const cubeMesh2 = cube2.AddComponent(Mesh);
   cubeMesh2.SetGeometry(cubeGeometry);
-  const cubeMaterial2 = new DeferredMeshMaterial({ albedoColor: new Color(1, 1, 1, 1), roughness, metalness });
   cubeMesh2.AddMaterial(new DeferredMeshMaterial({ albedoColor: new Color(1, 1, 1, 1), roughness, metalness }));
-  cubeMesh2.AddMaterial(new ShadowMaterial());
+  cubeMesh2.AddMaterial(new ShadowMaterial(light));
+  cubeMesh2.AddMaterial(new ShadowMaterial(light2));
   const instancedCubeGameObject = new GameObject(scene);
   const instancedCubeMesh = instancedCubeGameObject.AddComponent(InstancedMesh);
   instancedCubeMesh.SetGeometry(cubeGeometry);
   instancedCubeMesh.AddMaterial(new DeferredMeshMaterial({ roughness: 0.1, metalness: 0.3 }));
-  instancedCubeMesh.AddMaterial(new ShadowMaterial());
+  instancedCubeMesh.AddMaterial(new ShadowMaterial(light));
+  instancedCubeMesh.AddMaterial(new ShadowMaterial(light2));
+  const tempMatrix = new Matrix4();
+  const tempPosition = new Vector3();
+  const tempRotation = new Quaternion();
+  const tempScale = new Vector3(1, 1, 1);
+  const n = 50;
+  let i = 0;
+  for (let x = 0; x < n; x++) {
+    for (let y = 0; y < n; y++) {
+      for (let z = 0; z < n; z++) {
+        tempPosition.set(x * 2, y * 2, z * 2);
+        tempMatrix.compose(tempPosition, tempRotation, tempScale);
+        instancedCubeMesh.SetMatrixAt(i, tempMatrix);
+        i++;
+      }
+    }
+  }
   scene.Start();
 }
 Application();
