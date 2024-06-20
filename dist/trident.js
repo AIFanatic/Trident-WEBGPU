@@ -838,7 +838,6 @@ var WEBGPUShader = class {
   BuildBindGroupLayouts() {
     const bindGroup = [];
     for (const [name, uniform] of this.uniformMap) {
-      if (!uniform.buffer) console.warn(`Shader has binding (${name}) but no buffer was set`);
       if (!bindGroup[uniform.group]) bindGroup[uniform.group] = { layoutEntries: [], entries: [] };
       const group = bindGroup[uniform.group];
       if (uniform.buffer instanceof WEBGPUBuffer) {
@@ -1941,8 +1940,8 @@ var DeferredLightingPass = class extends RenderPass {
 var ShadowPass = class extends RenderPass {
   name = "ShadowPass";
   shadowDepthDT;
-  shadowWidth = 128;
-  shadowHeight = 128;
+  shadowWidth = 1024;
+  shadowHeight = 1024;
   shader;
   instancedShader;
   lightViewMatricesBuffer;
@@ -2354,49 +2353,121 @@ async function Application() {
   controls.connect(canvas);
   const planeGeometry = Geometry.Plane();
   const cubeGeometry = Geometry.Cube();
-  const size = 200 * 2;
-  for (let i2 = 0; i2 < 16; i2++) {
-    const lightGameObject = new GameObject(scene);
-    lightGameObject.transform.position.set(Math.random() * size - size * 0.5, 4, Math.random() * size - size * 0.5);
-    const light = lightGameObject.AddComponent(Light);
-    lightGameObject.transform.eulerAngles.x = -90;
-    light.intensity = 50;
-    light.color.set(Math.random(), Math.random(), Math.random(), 1);
-    const lightHelperGameObject = new GameObject(scene);
-    lightHelperGameObject.transform.position.copy(lightGameObject.transform.position);
-    const lightGeometry = Geometry.Sphere();
-    const lightHelperMesh = lightHelperGameObject.AddComponent(Mesh);
-    lightHelperMesh.SetGeometry(lightGeometry);
-    lightHelperMesh.AddMaterial(new DeferredMeshMaterial({ unlit: true, albedoColor: light.color }));
+  const lightGameObject = new GameObject(scene);
+  lightGameObject.transform.position.set(4, 4, 0);
+  lightGameObject.transform.LookAt(new Vector3(0.01, 0, 0));
+  const light = lightGameObject.AddComponent(Light);
+  light.intensity = 50;
+  light.color.set(0, 1, 0, 1);
+  const lightGameObject2 = new GameObject(scene);
+  lightGameObject2.transform.position.set(-4, 4, 0);
+  lightGameObject2.transform.LookAt(new Vector3(0.01, 0, 0));
+  const light2 = lightGameObject2.AddComponent(Light);
+  light2.intensity = 50;
+  light2.color.set(1, 0, 0, 1);
+  const lightHelperGameObject = new GameObject(scene);
+  lightHelperGameObject.transform.position.copy(lightGameObject.transform.position);
+  const lightGeometry = Geometry.Sphere();
+  const lightHelperMesh = lightHelperGameObject.AddComponent(Mesh);
+  lightHelperMesh.SetGeometry(lightGeometry);
+  lightHelperMesh.AddMaterial(new DeferredMeshMaterial({ unlit: true, albedoColor: light.color }));
+  const lightHelperGameObject2 = new GameObject(scene);
+  lightHelperGameObject2.transform.position.copy(lightGameObject2.transform.position);
+  const lightGeometry2 = Geometry.Sphere();
+  const lightHelperMesh2 = lightHelperGameObject2.AddComponent(Mesh);
+  lightHelperMesh2.SetGeometry(lightGeometry2);
+  lightHelperMesh2.AddMaterial(new DeferredMeshMaterial({ unlit: true, albedoColor: light2.color }));
+  function updateLight() {
+    lightGameObject.transform.LookAt(new Vector3(0.01, 0, 0));
+    lightHelperMesh.transform.position.copy(lightGameObject.transform.position);
   }
+  function updateLight2() {
+    lightGameObject2.transform.LookAt(new Vector3(0.01, 0, 0));
+    lightHelperMesh2.transform.position.copy(lightGameObject2.transform.position);
+  }
+  ui.AddSlider("Light X", -10, 10, 0.1, light.transform.position.x, (value) => {
+    lightGameObject.transform.position.x = value;
+    updateLight();
+  });
+  ui.AddSlider("Light Y", -10, 10, 0.1, light.transform.position.y, (value) => {
+    lightGameObject.transform.position.y = value;
+    updateLight();
+  });
+  ui.AddSlider("Light Z", -10, 10, 0.1, light.transform.position.z, (value) => {
+    lightGameObject.transform.position.z = value;
+    updateLight();
+  });
+  ui.AddSlider("FOV", 1, 120, 0.1, 60, (value) => {
+    light.camera.SetPerspective(value, Renderer.width / Renderer.height, 0.01, 1e3);
+    updateLight();
+  });
+  ui.AddSlider("Light2 X", -10, 10, 0.1, light2.transform.position.x, (value) => {
+    lightGameObject2.transform.position.x = value;
+    updateLight2();
+  });
+  ui.AddSlider("Light2 Y", -10, 10, 0.1, light2.transform.position.y, (value) => {
+    lightGameObject2.transform.position.y = value;
+    updateLight2();
+  });
+  ui.AddSlider("Light2 Z", -10, 10, 0.1, light2.transform.position.z, (value) => {
+    lightGameObject2.transform.position.z = value;
+    updateLight2();
+  });
   const roughness = 0.7;
   const metalness = 0.1;
+  const topMaterial = new DeferredMeshMaterial({ albedoColor: new Color(1, 1, 1, 1), roughness, metalness });
   const floorMaterial = new DeferredMeshMaterial({ albedoColor: new Color(1, 1, 1, 1), roughness, metalness });
+  const backMaterial = new DeferredMeshMaterial({ albedoColor: new Color(1, 1, 1, 1), roughness, metalness });
+  const leftMaterial = new DeferredMeshMaterial({ albedoColor: new Color(1, 0, 0, 1), roughness, metalness });
+  const rightMaterial = new DeferredMeshMaterial({ albedoColor: new Color(0, 1, 0, 1), roughness, metalness });
   const floor = new GameObject(scene);
-  floor.transform.scale.set(200, 200, 200);
+  floor.transform.scale.set(5, 5, 5);
   floor.transform.position.y = -5;
   floor.transform.eulerAngles.x = -90;
   const meshbottom = floor.AddComponent(Mesh);
-  meshbottom.SetGeometry(Geometry.Plane());
+  meshbottom.SetGeometry(planeGeometry);
   meshbottom.AddMaterial(floorMaterial);
-  const instancedCubeGameObject = new GameObject(scene);
-  const instancedCubeMesh = instancedCubeGameObject.AddComponent(InstancedMesh);
-  instancedCubeMesh.SetGeometry(cubeGeometry);
-  instancedCubeMesh.AddMaterial(new DeferredMeshMaterial({ roughness: 0.1, metalness: 0.3 }));
-  const tempMatrix = new Matrix4();
-  const tempPosition = new Vector3();
-  const tempRotation = new Quaternion();
-  const tempScale = new Vector3(1, 1, 1);
-  const n = 100;
-  let i = 0;
-  for (let x = -n; x < n; x++) {
-    for (let z = -n; z < n; z++) {
-      tempPosition.set(x * 2, Math.random(), z * 2);
-      tempMatrix.compose(tempPosition, tempRotation, tempScale);
-      instancedCubeMesh.SetMatrixAt(i, tempMatrix);
-      i++;
-    }
-  }
+  const left = new GameObject(scene);
+  left.transform.scale.set(5, 5, 5);
+  left.transform.position.x = -5;
+  left.transform.eulerAngles.y = 90;
+  const meshleft = left.AddComponent(Mesh);
+  meshleft.SetGeometry(planeGeometry);
+  meshleft.AddMaterial(leftMaterial);
+  const right = new GameObject(scene);
+  right.transform.scale.set(5, 5, 5);
+  right.transform.position.x = 5;
+  right.transform.eulerAngles.y = -90;
+  const meshright = right.AddComponent(Mesh);
+  meshright.SetGeometry(planeGeometry);
+  meshright.AddMaterial(rightMaterial);
+  const back = new GameObject(scene);
+  back.transform.scale.set(5, 5, 5);
+  back.transform.position.z = -5;
+  const meshback = back.AddComponent(Mesh);
+  meshback.SetGeometry(planeGeometry);
+  meshback.AddMaterial(backMaterial);
+  const top = new GameObject(scene);
+  top.transform.scale.set(5, 5, 5);
+  top.transform.position.y = 5;
+  top.transform.eulerAngles.x = 90;
+  const meshtop = top.AddComponent(Mesh);
+  meshtop.SetGeometry(planeGeometry);
+  meshtop.AddMaterial(topMaterial);
+  const cube = new GameObject(scene);
+  cube.transform.scale.set(2, 4, 2);
+  cube.transform.position.set(-2, -3, -2);
+  cube.transform.eulerAngles.y = 20;
+  const cubeMesh = cube.AddComponent(Mesh);
+  cubeMesh.SetGeometry(cubeGeometry);
+  cubeMesh.AddMaterial(new DeferredMeshMaterial({ albedoColor: new Color(1, 1, 1, 1), roughness, metalness }));
+  const cube2 = new GameObject(scene);
+  cube2.transform.scale.set(2, 2, 2);
+  cube2.transform.position.set(2, -4, 2);
+  cube2.transform.eulerAngles.y = 65;
+  const cubeMesh2 = cube2.AddComponent(Mesh);
+  cubeMesh2.SetGeometry(cubeGeometry);
+  cubeMesh2.AddMaterial(new DeferredMeshMaterial({ albedoColor: new Color(1, 1, 1, 1), roughness, metalness }));
   scene.Start();
 }
 Application();

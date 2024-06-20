@@ -107,36 +107,3 @@ export class DeferredMeshMaterial extends Material {
         if (DEFINES.USE_AO_MAP === true && shaderParams.aoMap) this.shader.SetTexture("AOMap", shaderParams.aoMap);
     }
 }
-
-
-
-
-
-
-export class ShadowMaterial extends Material {
-    public readonly light: Light;
-
-    constructor(light: Light) {
-        super();
-
-        this.light = light;
-
-        let shaderParams: ShaderParams = {
-            code: ShaderCode.ShadowShader,
-            attributes: {
-                position: { location: 0, size: 3, type: "vec3" },
-                normal: { location: 1, size: 3, type: "vec3" },
-                uv: { location: 2, size: 2, type: "vec2" }
-            },
-            uniforms: {
-                projectionMatrix: {group: 0, binding: 0, type: "storage"},
-                viewMatrix: {group: 0, binding: 1, type: "storage"},
-                modelMatrix: {group: 1, binding: 2, type: "storage"},
-            },
-            depthOutput: "depth24plus",
-            colorOutputs: []
-        };
-        
-        this.shader = Shader.Create(shaderParams);
-    }
-}

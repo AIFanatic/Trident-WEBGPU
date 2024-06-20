@@ -66,7 +66,8 @@ export class WEBGPUShader implements Shader {
 
         // Bind group layout
         for (const [name, uniform] of this.uniformMap) {
-            if (!uniform.buffer) console.warn(`Shader has binding (${name}) but no buffer was set`);
+            // // This should be here but it clashes with the preprocessor
+            // if (!uniform.buffer) console.warn(`Shader has binding (${name}) but no buffer was set`);
             
             if (!bindGroup[uniform.group]) bindGroup[uniform.group] = {layoutEntries: [], entries: []};
 

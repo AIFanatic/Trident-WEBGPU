@@ -12,8 +12,8 @@ export class ShadowPass extends RenderPass {
     public name: string = "ShadowPass";
     
     private shadowDepthDT: DepthTexture;
-    private shadowWidth = 128;
-    private shadowHeight = 128;
+    private shadowWidth = 1024;
+    private shadowHeight = 1024;
 
     private shader: Shader;
     private instancedShader: Shader;
