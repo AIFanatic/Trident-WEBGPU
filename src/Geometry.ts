@@ -28,6 +28,8 @@ export class Geometry {
     public index?: IndexAttribute;
     public readonly attributes: Map<string, VertexAttribute> = new Map();
 
+    public enableShadows: boolean = true;
+
     public ComputeNormals() {
         let posAttrData = this.attributes.get("position")?.array;
         let indexAttrData = this.index?.array;

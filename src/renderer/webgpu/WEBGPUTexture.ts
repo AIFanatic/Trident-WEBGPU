@@ -1,6 +1,6 @@
 import { Utils } from "../../Utils";
 import { Renderer } from "../Renderer";
-import { Texture, TextureFormat, TextureType } from "../Texture";
+import { Texture, TextureDimension, TextureFormat, TextureType } from "../Texture";
 import { WEBGPUMipsGenerator } from "./WEBGPUMipsGenerator";
 import { WEBGPURenderer } from "./WEBGPURenderer";
 
@@ -8,16 +8,19 @@ export class WEBGPUTexture implements Texture {
     public readonly id = Utils.UUID();
     public readonly width: number;
     public readonly height: number;
+    public readonly depth: number;
     public readonly type: TextureType;
+    public readonly dimension: TextureDimension;
 
     private buffer: GPUTexture;
 
     private view: GPUTextureView[] = [];
 
-    public currentLayer: number = 0;
+    private currentLayer: number = 0;
 
-    constructor(width: number, height: number, depth: number, format: TextureFormat, type: TextureType) {
+    constructor(width: number, height: number, depth: number, format: TextureFormat, type: TextureType, dimension: TextureDimension) {
         this.type = type;
+        this.dimension = dimension;
         let textureUsage: GPUTextureUsageFlags = GPUTextureUsage.COPY_DST;
         let textureType: GPUTextureUsageFlags = GPUTextureUsage.TEXTURE_BINDING;
 
@@ -35,15 +38,15 @@ export class WEBGPUTexture implements Texture {
 
         this.width = width;
         this.height = height;
+        this.depth = depth;
     }
 
     public GetBuffer(): GPUTexture { return this.buffer }
 
     public GetView(): GPUTextureView {
         if (!this.view[this.currentLayer]) {
-            const viewDimension: GPUTextureViewDimension = this.buffer.depthOrArrayLayers > 1 ? "2d-array" : "2d";
             this.view[this.currentLayer] = this.buffer.createView({
-                dimension: viewDimension,
+                dimension: this.dimension,
                 baseArrayLayer: this.currentLayer,
                 arrayLayerCount: 1
             });
@@ -56,10 +59,19 @@ export class WEBGPUTexture implements Texture {
         this.buffer = WEBGPUMipsGenerator.generateMips(this);
     }
 
+    public SetActiveLayer(layer: number) {
+        if (layer > this.depth) throw Error("Active layer cannot be bigger than depth size");
+        this.currentLayer = layer;
+    }
+
+    public GetActiveLayer(): number {
+        return this.currentLayer;
+    }
+
     // Format and types are very limited for now
     // https://github.com/gpuweb/gpuweb/issues/2322
     public static FromImageBitmap(imageBitmap: ImageBitmap, width: number, height: number): WEBGPUTexture {
-        const texture = new WEBGPUTexture(width, height, 1, Renderer.SwapChainFormat, TextureType.RENDER_TARGET);
+        const texture = new WEBGPUTexture(width, height, 1, Renderer.SwapChainFormat, TextureType.RENDER_TARGET, "2d");
 
         WEBGPURenderer.device.queue.copyExternalImageToTexture(
             { source: imageBitmap },

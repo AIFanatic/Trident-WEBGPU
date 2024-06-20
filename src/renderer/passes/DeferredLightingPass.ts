@@ -26,19 +26,19 @@ export class DeferredLightingPass extends RenderPass {
                 uv: { location: 2, size: 2, type: "vec2" }
             },
             uniforms: {
-                textureSampler: { location: 0, type: "sampler" },
-                albedoTexture: { location: 1, type: "texture" },
-                normalTexture: { location: 2, type: "texture" },
-                ermoTexture: { location: 3, type: "texture" },
-                depthTexture: { location: 4, type: "depthTexture" },
-                shadowPassDepth: { location: 5, type: "depthTexture" },
+                textureSampler: { group: 0, binding: 0, type: "sampler" },
+                albedoTexture: { group: 0, binding: 1, type: "texture" },
+                normalTexture: { group: 0, binding: 2, type: "texture" },
+                ermoTexture: { group: 0, binding: 3, type: "texture" },
+                depthTexture: { group: 0, binding: 4, type: "depthTexture" },
+                shadowPassDepth: { group: 0, binding: 5, type: "depthTexture" },
                 
-                lights: { location: 6, type: "storage" },
-                lightCount: { location: 7, type: "storage" },
+                lights: { group: 0, binding: 6, type: "storage" },
+                lightCount: { group: 0, binding: 7, type: "storage" },
 
-                view: { location: 8, type: "storage" },
+                view: { group: 0, binding: 8, type: "storage" },
                 
-                shadowSampler: { location: 9, type: "sampler"},
+                shadowSampler: { group: 0, binding: 9, type: "sampler"},
             },
             colorOutputs: [{format: Renderer.SwapChainFormat}]
         });
@@ -68,7 +68,7 @@ export class DeferredLightingPass extends RenderPass {
         // TODO: Should be reactive
         const lights = Camera.mainCamera.gameObject.scene.GetComponents(Light);
         const lightBufferSize = 4 + 16 + 16 + 3 + 1;
-        const lightBuffer = new Float32Array(lights.length * lightBufferSize);
+        const lightBuffer = new Float32Array(Math.max(1, lights.length) * lightBufferSize); // Always ensure one light
 
         
         for (let i = 0; i < lights.length; i++) {

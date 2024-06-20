@@ -46,7 +46,7 @@ export class WEBGPURendererContext implements RendererContext {
         this.activeRenderPass = null;
     }
 
-    public static DrawGeometry(geometry: Geometry, shader: WEBGPUShader, instanceCount = 1) {
+    public static DrawGeometry(geometry: Geometry, shader: WEBGPUShader, instanceCount = 1, dynamicOffsets: number[][]) {
         if (!this.activeRenderPass) throw Error("No active render pass");
 
         shader.OnPreRender(geometry);
@@ -54,7 +54,11 @@ export class WEBGPURendererContext implements RendererContext {
         if (!shader.pipeline) throw Error("Shader doesnt have a pipeline");
 
         this.activeRenderPass.setPipeline(shader.pipeline);
-        if (shader.bindGroup) this.activeRenderPass.setBindGroup(0, shader.bindGroup);
+        for (let i = 0; i < shader.bindGroups.length; i++) {
+            const dynamicOffset = dynamicOffsets && dynamicOffsets[i] ? dynamicOffsets[i] : undefined;
+            // console.log("group", i, dynamicOffset)
+            this.activeRenderPass.setBindGroup(i, shader.bindGroups[i], dynamicOffset);
+        }
         
         for (const [name, attribute] of geometry.attributes) {
             const attributeSlot = shader.GetAttributeSlot(name);
@@ -88,10 +92,10 @@ export class WEBGPURendererContext implements RendererContext {
         this.activeRenderPass.setScissorRect(x, y, width, height);
     }
 
-    public static CopyBufferToBuffer(source: WEBGPUBuffer, destination: WEBGPUBuffer) {
+    public static CopyBufferToBuffer(source: WEBGPUBuffer, destination: WEBGPUBuffer, sourceOffset: number, destinationOffset: number, size: number) {
         const activeCommandEncoder = WEBGPURenderer.GetActiveCommandEncoder();
         if (!activeCommandEncoder) throw Error("No active command encoder!!");
 
-        activeCommandEncoder.copyBufferToBuffer(source.GetBuffer(), 0, destination.GetBuffer(), 0, source.size);
+        activeCommandEncoder.copyBufferToBuffer(source.GetBuffer(), sourceOffset, destination.GetBuffer(), destinationOffset, size);
     }
 }

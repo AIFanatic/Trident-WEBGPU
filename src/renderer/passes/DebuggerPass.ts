@@ -65,9 +65,9 @@ export class DebuggerPass extends RenderPass {
                 uv: { location: 1, size: 2, type: "vec2" }
             },
             uniforms: {
-                textureSampler: {location: 0, type: "sampler"},
-                albedoTexture: {location: 1, type: "texture"},
-                shadowMapTexture: {location: 2, type: "depthTexture"},
+                textureSampler: {group: 0, binding: 0, type: "sampler"},
+                albedoTexture: {group: 0, binding: 1, type: "texture"},
+                shadowMapTexture: {group: 0, binding: 2, type: "depthTexture"},
             }
         });
         this.quadGeometry = Geometry.Plane();

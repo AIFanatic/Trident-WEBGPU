@@ -57,23 +57,23 @@ export class DeferredMeshMaterial extends Material {
                 uv: {location: 2, size: 2, type: "vec2"}
             },
             uniforms: {
-                projectionMatrix: {location: 0, type: "storage"},
-                viewMatrix: {location: 1, type: "storage"},
-                modelMatrix: {location: 2, type: "storage"},
+                projectionMatrix: {group: 0, binding: 0, type: "storage"},
+                viewMatrix: {group: 0, binding: 1, type: "storage"},
+                modelMatrix: {group: 0, binding: 2, type: "storage"},
 
-                material: {location: 3, type: "storage"},
+                material: {group: 0, binding: 3, type: "storage"},
 
-                TextureSampler: {location: 4, type: "sampler"},
-                AlbedoMap: {location: 5, type: "texture"},
-                NormalMap: {location: 6, type: "texture"},
-                HeightMap: {location: 7, type: "texture"},
-                RoughnessMap: {location: 8, type: "texture"},
-                MetalnessMap: {location: 9, type: "texture"},
-                EmissiveMap: {location: 10, type: "texture"},
-                AOMap: {location: 11, type: "texture"},
+                TextureSampler: {group: 0, binding: 4, type: "sampler"},
+                AlbedoMap: {group: 0, binding: 5, type: "texture"},
+                NormalMap: {group: 0, binding: 6, type: "texture"},
+                HeightMap: {group: 0, binding: 7, type: "texture"},
+                RoughnessMap: {group: 0, binding: 8, type: "texture"},
+                MetalnessMap: {group: 0, binding: 9, type: "texture"},
+                EmissiveMap: {group: 0, binding: 10, type: "texture"},
+                AOMap: {group: 0, binding: 11, type: "texture"},
 
 
-                cameraPosition: {location: 12, type: "storage"},
+                cameraPosition: {group: 0, binding: 12, type: "storage"},
 
             }
         };
@@ -89,7 +89,7 @@ export class DeferredMeshMaterial extends Material {
 
         if (DEFINES.USE_ALBEDO_MAP || DEFINES.USE_NORMAL_MAP || DEFINES.USE_HEIGHT_MAP || DEFINES.USE_ROUGHNESS_MAP || DEFINES.USE_METALNESS_MAP || DEFINES.USE_EMISSIVE_MAP || DEFINES.USE_AO_MAP) {
             const textureSampler = TextureSampler.Create();
-            this.shader.SetSampler("TextureSampler", textureSampler);                
+            this.shader.SetSampler("TextureSampler", textureSampler);
         }
 
         this.shader.SetArray("material", new Float32Array([
@@ -129,9 +129,9 @@ export class ShadowMaterial extends Material {
                 uv: { location: 2, size: 2, type: "vec2" }
             },
             uniforms: {
-                projectionMatrix: {location: 0, type: "storage"},
-                viewMatrix: {location: 1, type: "storage"},
-                modelMatrix: {location: 2, type: "storage"},
+                projectionMatrix: {group: 0, binding: 0, type: "storage"},
+                viewMatrix: {group: 0, binding: 1, type: "storage"},
+                modelMatrix: {group: 1, binding: 2, type: "storage"},
             },
             depthOutput: "depth24plus",
             colorOutputs: []

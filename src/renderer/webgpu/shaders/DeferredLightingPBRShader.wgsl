@@ -264,6 +264,12 @@ fn fragmentMain(input: VertexOutput) -> @location(0) vec4<f32> {
     let normal = textureSample(normalTexture, textureSampler, uv);
     let ermo = textureSample(ermoTexture, textureSampler, uv);
 
+    let cutoff = 0.0001;
+    let albedoSum = albedo.r + albedo.g + albedo.b;
+    if (albedoSum < cutoff) {
+        discard;
+    }
+
     var color: vec3f = vec3(0);
 
     let worldPosition = reconstructWorldPosFromZ(

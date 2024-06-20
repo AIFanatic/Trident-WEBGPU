@@ -4,6 +4,7 @@ import { Buffer } from "./Buffer";
 import { Renderer } from "./Renderer";
 import { Shader } from "./Shader";
 import { DepthTexture, RenderTexture } from "./Texture";
+import { WEBGPUBuffer } from "./webgpu/WEBGPUBuffer";
 import { WEBGPURendererContext } from "./webgpu/WEBGPURendererContext";
 import { WEBGPUShader } from "./webgpu/WEBGPUShader";
 
@@ -41,13 +42,13 @@ export class RendererContext {
         else throw Error("Unknown render api type.");
     }
 
-    public static DrawGeometry(geometry: Geometry, shader: Shader, instanceCount?: number) {
-        if (Renderer.type === "webgpu") WEBGPURendererContext.DrawGeometry(geometry, shader as WEBGPUShader, instanceCount);
+    public static DrawGeometry(geometry: Geometry, shader: Shader, instanceCount?: number, dynamicOffsets: number[][] = []) {
+        if (Renderer.type === "webgpu") WEBGPURendererContext.DrawGeometry(geometry, shader as WEBGPUShader, instanceCount, dynamicOffsets);
         else throw Error("Unknown render api type.");
     }
 
-    public static CopyBufferToBuffer(source: Buffer, destination: Buffer) {
-        if (Renderer.type === "webgpu") WEBGPURendererContext.CopyBufferToBuffer(source, destination);
+    public static CopyBufferToBuffer(source: Buffer, destination: Buffer, sourceOffset: number = 0, destinationOffset: number = 0, size: number | undefined = undefined) {
+        if (Renderer.type === "webgpu") WEBGPURendererContext.CopyBufferToBuffer(source as WEBGPUBuffer, destination as WEBGPUBuffer, sourceOffset, destinationOffset, size ? size : source.size);
         else throw Error("Unknown render api type.");
     }
 }

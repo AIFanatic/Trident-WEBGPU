@@ -3,6 +3,7 @@ import { WEBGPUBuffer } from "./webgpu/WEBGPUBuffer";
 
 export enum BufferType {
     STORAGE,
+    STORAGE_WRITE,
     UNIFORM,
     VERTEX,
     INDEX
@@ -10,8 +11,10 @@ export enum BufferType {
 
 export class Buffer {
     public readonly size: number;
-    public static Create(size: number, type: BufferType) {
-        if (Renderer.type === "webgpu") return new WEBGPUBuffer(size, type);
+    public readonly minBindingSize: number | undefined;
+
+    public static Create(size: number, type: BufferType, minBindingSize: number | undefined = undefined) {
+        if (Renderer.type === "webgpu") return new WEBGPUBuffer(size, type, minBindingSize);
         else throw Error("Renderer type invalid");
     }
 

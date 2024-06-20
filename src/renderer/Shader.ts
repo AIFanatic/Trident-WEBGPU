@@ -19,7 +19,8 @@ export interface ShaderAttribute {
 };
 
 export interface ShaderUniform {
-    location: number;
+    group: number;
+    binding: number;
     type: "uniform" | "storage" | "texture" | "sampler" | "sampler-compare" | "depthTexture";
 };
 
@@ -48,7 +49,8 @@ export class Shader {
     public readonly params: ShaderParams;
 
     public static Create(params: ShaderParams): Shader {
-        if (Renderer.type === "webgpu") return new WEBGPUShader(params);
+        // StructuredClone permits reusing params across multiple shader instances
+        if (Renderer.type === "webgpu") return new WEBGPUShader(structuredClone(params));
         throw Error("Unknown api");
     }
 

@@ -41,18 +41,32 @@ export type TextureFormat =
 export enum TextureType {
     IMAGE,
     DEPTH,
-    RENDER_TARGET
+    RENDER_TARGET,
 };
+
+export type TextureDimension = 
+    | "1d"
+    | "2d"
+    | "2d-array"
+    | "cube"
+    | "cube-array"
+    | "3d";
 
 export class Texture {
     public readonly id: string;
     public readonly width: number;
     public readonly height: number;
+    public readonly depth: number;
+    public readonly type: TextureType;
+    public readonly dimension: TextureDimension;
+
+    public SetActiveLayer(layer: number) {}
+    public GetActiveLayer(): number {throw Error("Base class.")}
 
     public GenerateMips() {}
 
-    public static Create(width: number, height: number, depth: number, format: TextureFormat = Renderer.SwapChainFormat): Texture {
-        if (Renderer.type === "webgpu") return new WEBGPUTexture(width, height, depth, format, TextureType.IMAGE);
+    public static Create(width: number, height: number, depth: number = 1, format: TextureFormat = Renderer.SwapChainFormat): Texture {
+        if (Renderer.type === "webgpu") return new WEBGPUTexture(width, height, depth, format, TextureType.IMAGE, "2d");
         throw Error("Renderer type invalid");
     }
 
@@ -66,15 +80,36 @@ export class Texture {
 }
 
 export class DepthTexture extends Texture {
-    public static Create(width: number, height: number, depth: number, format: TextureFormat = "depth24plus"): Texture {
-        if (Renderer.type === "webgpu") return new WEBGPUTexture(width, height, depth, format, TextureType.DEPTH);
+    public static Create(width: number, height: number, depth: number = 1, format: TextureFormat = "depth24plus"): Texture {
+        if (Renderer.type === "webgpu") return new WEBGPUTexture(width, height, depth, format, TextureType.DEPTH, "2d");
         throw Error("Renderer type invalid");
     }
 }
 
 export class RenderTexture extends Texture {
-    public static Create(width: number, height: number, depth: number, format: TextureFormat = Renderer.SwapChainFormat): Texture {
-        if (Renderer.type === "webgpu") return new WEBGPUTexture(width, height, depth, format, TextureType.RENDER_TARGET);
+    public static Create(width: number, height: number, depth: number = 1, format: TextureFormat = Renderer.SwapChainFormat): Texture {
+        if (Renderer.type === "webgpu") return new WEBGPUTexture(width, height, depth, format, TextureType.RENDER_TARGET, "2d");
+        throw Error("Renderer type invalid");
+    }
+}
+
+export class TextureArray extends Texture {
+    public static Create(width: number, height: number, depth: number = 1, format: TextureFormat = Renderer.SwapChainFormat): Texture {
+        if (Renderer.type === "webgpu") return new WEBGPUTexture(width, height, depth, format, TextureType.IMAGE, "2d-array");
+        throw Error("Renderer type invalid");
+    }
+}
+
+export class DepthTextureArray extends Texture {
+    public static Create(width: number, height: number, depth: number = 1, format: TextureFormat = "depth24plus"): Texture {
+        if (Renderer.type === "webgpu") return new WEBGPUTexture(width, height, depth, format, TextureType.DEPTH, "2d-array");
+        throw Error("Renderer type invalid");
+    }
+}
+
+export class RenderTextureArray extends Texture {
+    public static Create(width: number, height: number, depth: number = 1, format: TextureFormat = Renderer.SwapChainFormat): Texture {
+        if (Renderer.type === "webgpu") return new WEBGPUTexture(width, height, depth, format, TextureType.RENDER_TARGET, "2d-array");
         throw Error("Renderer type invalid");
     }
 }
