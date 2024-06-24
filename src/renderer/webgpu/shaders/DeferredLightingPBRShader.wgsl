@@ -25,8 +25,10 @@ struct Light {
     position: vec4<f32>,
     projectionMatrix: mat4x4<f32>,
     viewMatrix: mat4x4<f32>,
-    color: vec3<f32>,
-    intensity: f32,
+    viewMatrixInverse: mat4x4<f32>,
+    color: vec4<f32>,
+    params1: vec4<f32>,
+    params2: vec4<f32>,
 };
 
 @group(0) @binding(6) var<storage, read> lights: array<Light>;
@@ -61,7 +63,24 @@ fn vertexMain(input: VertexInput) -> VertexOutput {
 }
 const PI = 3.141592653589793;
 
+const SPOT_LIGHT = 0;
+const DIRECTIONAL_LIGHT = 1;
+const POINT_LIGHT = 2;
+const AREA_LIGHT = 3;
 
+struct SpotLight {
+    pointToLight: vec3<f32>,
+    color: vec3<f32>,
+    direction: vec3<f32>,
+    range: f32,
+    intensity: f32,
+    angle: f32,
+}
+
+struct DirectionalLight {
+    direction: vec3<f32>,
+    color: vec3<f32>,
+}
 
 struct PointLight {
     pointToLight: vec3<f32>,
@@ -70,9 +89,12 @@ struct PointLight {
     intensity: f32,
 }
 
-struct DirectionalLight {
+struct AreaLight {
+    pointToLight: vec3<f32>,
     direction: vec3<f32>,
     color: vec3<f32>,
+    range: f32,
+    intensity: f32,
 }
 
 struct Surface {
@@ -148,12 +170,12 @@ fn rangeAttenuation(range : f32, distance : f32) -> f32 {
     return clamp(1.0 - pow(distance / range, 4.0), 0.0, 1.0) / pow(distance, 2.0);
 }
 
-fn PointLightRadiance(light : PointLight, surface : Surface) -> vec3<f32> {
-    let L = normalize(light.pointToLight);
-    let H = normalize(surface.V + L);
-    let distance = length(light.pointToLight);
-
+fn CalculateBRDF(surface: Surface, pointToLight: vec3<f32>) -> vec3<f32> {
     // cook-torrance brdf
+    let L = normalize(pointToLight);
+    let H = normalize(surface.V + L);
+    let distance = length(pointToLight);
+
     let NDF = DistributionGGX(surface.N, H, surface.roughness);
     let G = GeometrySmith(surface.N, surface.V, L, surface.roughness);
     let F = FresnelSchlick(max(dot(H, surface.V), 0.0), surface.F0);
@@ -166,32 +188,36 @@ fn PointLightRadiance(light : PointLight, surface : Surface) -> vec3<f32> {
     let denominator = max(4.0 * max(dot(surface.N, surface.V), 0.0) * NdotL, 0.001);
     let specular = numerator / vec3(denominator, denominator, denominator);
 
-    // add to outgoing radiance Lo
+    return (kD * surface.albedo.rgb / vec3(PI, PI, PI) + specular) * NdotL;
+}
+
+fn PointLightRadiance(light : PointLight, surface : Surface) -> vec3<f32> {
+    let distance = length(light.pointToLight);
     let attenuation = rangeAttenuation(light.range, distance);
-    let radiance = light.color * light.intensity * attenuation;
-    return (kD * surface.albedo.rgb / vec3(PI, PI, PI) + specular) * radiance * NdotL;
+    let radiance = CalculateBRDF(surface, light.pointToLight) * light.color * light.intensity * attenuation;
+    return radiance;
 }
 
 fn DirectionalLightRadiance(light: DirectionalLight, surface : Surface) -> vec3<f32> {
-    let L = normalize(light.direction);
-    let H = normalize(surface.V + L);
+    return CalculateBRDF(surface, light.direction) * light.color;
+}
 
-    // cook-torrance brdf
-    let NDF = DistributionGGX(surface.N, H, surface.roughness);
-    let G = GeometrySmith(surface.N, surface.V, L, surface.roughness);
-    let F = FresnelSchlick(max(dot(H, surface.V), 0.0), surface.F0);
+fn SpotLightRadiance(light : SpotLight, surface : Surface) -> vec3<f32> {
+    let L = normalize(light.pointToLight);
+    let distance = length(light.pointToLight);
 
-    let kD = (vec3(1.0, 1.0, 1.0) - F) * (1.0 - surface.metallic);
+    let angle = acos(dot(light.direction, L));
 
-    let NdotL = max(dot(surface.N, L), 0.0);
+    // Check if the point is within the light cone
+    if angle > light.angle {
+        return vec3(0.0, 0.0, 0.0); // Outside the outer cone
+    }
 
-    let numerator = NDF * G * F;
-    let denominator = max(4.0 * max(dot(surface.N, surface.V), 0.0) * NdotL, 0.001);
-    let specular = numerator / vec3(denominator, denominator, denominator);
+    let intensity = smoothstep(light.angle, 0.0, angle);
+    let attenuation = rangeAttenuation(light.range, distance) * intensity;
 
-    // add to outgoing radiance Lo
-    let radiance = light.color;
-    return (kD * surface.albedo.rgb / vec3(PI, PI, PI) + specular) * radiance * NdotL;
+    let radiance = CalculateBRDF(surface, light.pointToLight) * light.color * light.intensity * attenuation;
+    return radiance;
 }
 
 fn Tonemap_ACES(x: vec3f) -> vec3f {
@@ -208,16 +234,11 @@ fn OECF_sRGBFast(linear: vec3f) -> vec3f {
     return pow(linear, vec3(0.454545));
 }
 
-struct Shadow {
-    inRange: bool,
-    visibility: f32
-};
-
-fn CalculateShadow(worldPosition: vec3f, normal: vec3f, light: Light, lightIndex: u32) -> Shadow {
+fn CalculateShadow(worldPosition: vec3f, normal: vec3f, light: Light, lightIndex: u32) -> f32 {
     var posFromLight = light.projectionMatrix * light.viewMatrix * vec4(worldPosition, 1.0);
     posFromLight = vec4(posFromLight.xyz / posFromLight.w, 1.0);
     let shadowPos = vec3(posFromLight.xy * vec2(0.5,-0.5) + vec2(0.5, 0.5), posFromLight.z);
-    let inRange = shadowPos.x >= 0.0 && shadowPos.x <= 1.0 && shadowPos.y >= 0.0 && shadowPos.y <= 1.0 && shadowPos.z >= 0.0 && shadowPos.z <= 1.0;
+    // let inRange = shadowPos.x >= 0.0 && shadowPos.x <= 1.0 && shadowPos.y >= 0.0 && shadowPos.y <= 1.0 && shadowPos.z >= 0.0 && shadowPos.z <= 1.0;
     var visibility = 0.0;
 
     let shadowIndex = lightIndex;
@@ -251,10 +272,25 @@ fn CalculateShadow(worldPosition: vec3f, normal: vec3f, light: Light, lightIndex
         }
     }
     
-    var shadow: Shadow;
-    shadow.inRange = inRange;
-    shadow.visibility = visibility;
-    return shadow;
+    return visibility;
+}
+
+fn CalculateDirectionalLightShadow(worldPosition: vec3<f32>, normal: vec3<f32>, light: Light, directionalLight: DirectionalLight, lightIndex: u32) -> f32 {
+    var posFromLight = light.projectionMatrix * light.viewMatrix * vec4(worldPosition, 1.0);
+    posFromLight = vec4(posFromLight.xyz / posFromLight.w, 1.0);
+    let shadowPos = vec3(posFromLight.xy * vec2(0.5,-0.5) + vec2(0.5, 0.5), posFromLight.z);
+    var visibility = 0.0;
+
+    let lightDirection = normalize(light.position.xyz - worldPosition);
+    // let bias = max(0.00025 * (1.0 - dot(normal, directionalLight.direction)), 0.00009);
+    let bias = 0.00009;
+    // Hard shadows
+    let projectedDepth = textureSampleLevel(shadowPassDepth, shadowSampler, shadowPos.xy, lightIndex, 0);
+    if (posFromLight.z > projectedDepth + bias) {
+        visibility = 1.0;
+    }
+    
+    return visibility;
 }
 
 @fragment
@@ -301,33 +337,45 @@ fn fragmentMain(input: VertexOutput) -> @location(0) vec4<f32> {
     var Lo = vec3(0.0);
     for (var i : u32 = 0u; i < lightCount; i = i + 1u) {
         let light = lights[i];
-        var pointLight: PointLight;
-        
-        pointLight.pointToLight = light.position.xyz - surface.worldPosition;
-        pointLight.color = light.color.rgb;
-        pointLight.range = 100.0; // light.range;
-        pointLight.intensity = light.intensity;
+        let lightType = light.color.a;
 
-        // Lighting
-        let P = surface.worldPosition;
-        let N = normal;
-        let V = normalize(-P);
-        let F0 = mix(vec3(0.04), surface.albedo, surface.metallic);
+        if (lightType == SPOT_LIGHT) {
+            var spotLight: SpotLight;
+            
+            let lightViewInverse = light.viewMatrixInverse; // Assuming you can calculate or pass this
+            let lightDir = normalize((lightViewInverse * vec4(0.0, 0.0, 1.0, 0.0)).xyz);
 
-        let shadow: Shadow = CalculateShadow(surface.worldPosition, surface.N, light, i);
-        if (!shadow.inRange) {
-            continue;
+            spotLight.pointToLight = light.position.xyz - surface.worldPosition;
+            spotLight.color = light.color.rgb;
+            spotLight.intensity = light.params1.r;
+            spotLight.range = light.params1.g;
+            spotLight.direction = lightDir;
+            spotLight.angle = light.params1.b;
+
+            let shadow = CalculateShadow(surface.worldPosition, surface.N, light, i);
+            Lo += (1.0 - shadow) * SpotLightRadiance(spotLight, surface);
         }
+        else if (lightType == POINT_LIGHT) {
+            var pointLight: PointLight;
+            
+            pointLight.pointToLight = light.position.xyz - surface.worldPosition;
+            pointLight.color = light.color.rgb;
+            pointLight.intensity = light.params1.x;
+            pointLight.range = light.params1.y;
 
+            let shadow = CalculateShadow(surface.worldPosition, surface.N, light, i);
+            Lo += (1.0 - shadow) * PointLightRadiance(pointLight, surface);
+        }
+        else if (lightType == DIRECTIONAL_LIGHT) {
+            var directionalLight: DirectionalLight;
+            let lightViewInverse = light.viewMatrixInverse; // Assuming you can calculate or pass this
+            let lightDir = normalize((lightViewInverse * vec4(0.0, 0.0, 1.0, 0.0)).xyz);
+            directionalLight.direction = lightDir;
+            directionalLight.color = light.color.rgb;
 
-        // Lo += visibility * PointLightRadiance(pointLight, surface);
-        Lo += (1.0 - shadow.visibility) * PointLightRadiance(pointLight, surface);
-        // Lo += (1.0 - shadow) * PointLightRadiance(pointLight, surface);
-
-        // var directionalLight: DirectionalLight;
-        // directionalLight.direction = vec3(0.2, 0.2, 0.2);
-        // directionalLight.color = light.color.rgb;
-        // Lo += DirectionalLightRadiance(directionalLight, surface);
+            let shadow = CalculateShadow(surface.worldPosition, surface.N, light, i);
+            Lo += (1.0 - shadow) * DirectionalLightRadiance(directionalLight, surface);
+        }
     }
 
 

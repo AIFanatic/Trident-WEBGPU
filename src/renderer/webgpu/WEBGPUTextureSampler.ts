@@ -10,13 +10,13 @@ export class WEBGPUTextureSampler implements TextureSampler {
         this.params = params;
 
         const samplerDescriptor: GPUSamplerDescriptor = {}
-        if (params?.minFilter) samplerDescriptor.minFilter = params.minFilter;
-        if (params?.magFilter) samplerDescriptor.minFilter = params.magFilter;
-        if (params?.mipmapFilter) samplerDescriptor.minFilter = params.mipmapFilter;
-        if (params?.addressModeU) samplerDescriptor.addressModeU = params.addressModeU;
-        if (params?.addressModeV) samplerDescriptor.addressModeV = params.addressModeV;
-        if (params?.compare) samplerDescriptor.compare = params.compare;
-        if (params?.maxAnisotropy) samplerDescriptor.maxAnisotropy = params.maxAnisotropy;
+        if (params && params.minFilter) samplerDescriptor.minFilter = params.minFilter;
+        if (params && params.magFilter) samplerDescriptor.minFilter = params.magFilter;
+        if (params && params.mipmapFilter) samplerDescriptor.mipmapFilter = params.mipmapFilter;
+        if (params && params.addressModeU) samplerDescriptor.addressModeU = params.addressModeU;
+        if (params && params.addressModeV) samplerDescriptor.addressModeV = params.addressModeV;
+        if (params && params.compare) samplerDescriptor.compare = params.compare;
+        if (params && params.maxAnisotropy) samplerDescriptor.maxAnisotropy = params.maxAnisotropy;
         this.sampler = WEBGPURenderer.device.createSampler(samplerDescriptor);
     }
 

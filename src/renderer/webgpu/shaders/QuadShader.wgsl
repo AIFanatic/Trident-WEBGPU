@@ -1,6 +1,6 @@
 struct VSOutput {
     @builtin(position) position: vec4f,
-    @location(0) vUv: vec2f,
+    @location(0) texcoord: vec2f,
 };
 
 @vertex fn vs(@builtin(vertex_index) vertexIndex : u32) -> VSOutput {
@@ -18,7 +18,7 @@ struct VSOutput {
     var vsOutput: VSOutput;
     let xy = pos[vertexIndex];
     vsOutput.position = vec4f(xy * 2.0 - 1.0, 0.0, 1.0);
-    vsOutput.vUv = vec2f(xy.x, 1.0 - xy.y);
+    vsOutput.texcoord = vec2f(xy.x, 1.0 - xy.y);
     return vsOutput;
 }
 
@@ -26,5 +26,5 @@ struct VSOutput {
 @group(0) @binding(1) var ourTexture: texture_2d<f32>;
 
 @fragment fn fs(fsInput: VSOutput) -> @location(0) vec4f {
-    return textureSample(ourTexture, ourSampler, fsInput.vUv);
+    return textureSample(ourTexture, ourSampler, fsInput.texcoord);
 }

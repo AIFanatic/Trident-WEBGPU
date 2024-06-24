@@ -60,6 +60,14 @@ var Component = class _Component {
 var Mesh = class extends Component {
   geometry;
   materialsMapped = /* @__PURE__ */ new Map();
+  enableShadows = true;
+  Start() {
+    EventSystem.on("TransformUpdated", (transform) => {
+      if (this.transform === transform) {
+        EventSystem.emit("MeshUpdated", this);
+      }
+    });
+  }
   AddMaterial(material) {
     if (!this.materialsMapped.has(material.constructor.name)) this.materialsMapped.set(material.constructor.name, []);
     this.materialsMapped.get(material.constructor.name)?.push(material);
@@ -76,7 +84,7 @@ var Mesh = class extends Component {
 };
 
 // src/math/Matrix4.ts
-var Matrix4 = class {
+var Matrix4 = class _Matrix4 {
   elements;
   constructor(n11 = 1, n12 = 0, n13 = 0, n14 = 0, n21 = 0, n22 = 1, n23 = 0, n24 = 0, n31 = 0, n32 = 0, n33 = 1, n34 = 0, n41 = 0, n42 = 0, n43 = 0, n44 = 1) {
     this.elements = new Float32Array(16);
@@ -143,6 +151,9 @@ var Matrix4 = class {
   setFromArray(array) {
     this.elements.set(array);
     return this;
+  }
+  clone() {
+    return new _Matrix4().setFromArray(this.elements);
   }
   compose(position, quaternion, scale) {
     const te = this.elements;
@@ -621,6 +632,7 @@ var Transform = class extends Component {
   }
   onChanged() {
     EventSystem.emit("CallUpdate", this, true);
+    EventSystem.emit("TransformUpdated", this);
   }
   UpdateMatrices() {
     this._localToWorldMatrix.compose(this.position, this.rotation, this.scale);
@@ -730,7 +742,29 @@ var Renderer = class _Renderer {
 var WEBGPUBuffer = class {
   buffer;
   size;
+  constructor(sizeInBytes, type) {
+    let usage = void 0;
+    if (type == 0 /* STORAGE */) usage = GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC | GPUBufferUsage.COPY_DST;
+    else if (type == 1 /* STORAGE_WRITE */) usage = GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC | GPUBufferUsage.COPY_DST;
+    else if (type == 3 /* VERTEX */) usage = GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_SRC | GPUBufferUsage.COPY_DST;
+    else if (type == 4 /* INDEX */) usage = GPUBufferUsage.INDEX | GPUBufferUsage.COPY_SRC | GPUBufferUsage.COPY_DST;
+    else if (type == 2 /* UNIFORM */) usage = GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_SRC | GPUBufferUsage.COPY_DST;
+    if (!usage) throw Error("Invalid buffer usage");
+    this.buffer = WEBGPURenderer.device.createBuffer({ size: sizeInBytes, usage });
+    this.size = sizeInBytes;
+  }
+  GetBuffer() {
+    return this.buffer;
+  }
+  SetArray(array, bufferOffset = 0, dataOffset, size) {
+    WEBGPURenderer.device.queue.writeBuffer(this.buffer, bufferOffset, array, dataOffset, size);
+  }
+};
+var WEBGPUDynamicBuffer = class {
+  buffer;
+  size;
   minBindingSize;
+  dynamicOffset = 0;
   constructor(sizeInBytes, type, minBindingSize) {
     this.minBindingSize = minBindingSize;
     let usage = void 0;
@@ -754,9 +788,19 @@ var WEBGPUBuffer = class {
 // src/renderer/Buffer.ts
 var Buffer2 = class {
   size;
+  static Create(size, type) {
+    if (Renderer.type === "webgpu") return new WEBGPUBuffer(size, type);
+    else throw Error("Renderer type invalid");
+  }
+  SetArray(array, bufferOffset = 0, dataOffset, size) {
+  }
+};
+var DynamicBuffer2 = class {
+  size;
   minBindingSize;
-  static Create(size, type, minBindingSize = void 0) {
-    if (Renderer.type === "webgpu") return new WEBGPUBuffer(size, type, minBindingSize);
+  dynamicOffset = 0;
+  static Create(size, type, minBindingSize) {
+    if (Renderer.type === "webgpu") return new WEBGPUDynamicBuffer(size, type, minBindingSize);
     else throw Error("Renderer type invalid");
   }
   SetArray(array, bufferOffset = 0, dataOffset, size) {
@@ -770,13 +814,13 @@ var WEBGPUTextureSampler = class {
   constructor(params) {
     this.params = params;
     const samplerDescriptor = {};
-    if (params?.minFilter) samplerDescriptor.minFilter = params.minFilter;
-    if (params?.magFilter) samplerDescriptor.minFilter = params.magFilter;
-    if (params?.mipmapFilter) samplerDescriptor.minFilter = params.mipmapFilter;
-    if (params?.addressModeU) samplerDescriptor.addressModeU = params.addressModeU;
-    if (params?.addressModeV) samplerDescriptor.addressModeV = params.addressModeV;
-    if (params?.compare) samplerDescriptor.compare = params.compare;
-    if (params?.maxAnisotropy) samplerDescriptor.maxAnisotropy = params.maxAnisotropy;
+    if (params && params.minFilter) samplerDescriptor.minFilter = params.minFilter;
+    if (params && params.magFilter) samplerDescriptor.minFilter = params.magFilter;
+    if (params && params.mipmapFilter) samplerDescriptor.mipmapFilter = params.mipmapFilter;
+    if (params && params.addressModeU) samplerDescriptor.addressModeU = params.addressModeU;
+    if (params && params.addressModeV) samplerDescriptor.addressModeV = params.addressModeV;
+    if (params && params.compare) samplerDescriptor.compare = params.compare;
+    if (params && params.maxAnisotropy) samplerDescriptor.maxAnisotropy = params.maxAnisotropy;
     this.sampler = WEBGPURenderer.device.createSampler(samplerDescriptor);
   }
   GetBuffer() {
@@ -820,11 +864,15 @@ var WEBGPUShader = class {
   valueArray = new Float32Array(1);
   _pipeline = null;
   _bindGroups = [];
+  _bindGroupsInfo = [];
   get pipeline() {
     return this._pipeline;
   }
   get bindGroups() {
     return this._bindGroups;
+  }
+  get bindGroupsInfo() {
+    return this._bindGroupsInfo;
   }
   constructor(params) {
     const code = params.defines ? WEBGPUShaderUtils.WGSLPreprocess(params.code, params.defines) : params.code;
@@ -836,48 +884,54 @@ var WEBGPUShader = class {
     if (this.params.uniforms) this.uniformMap = new Map(Object.entries(this.params.uniforms));
   }
   BuildBindGroupLayouts() {
-    const bindGroup = [];
+    const bindGroupsInfo = [];
     for (const [name, uniform] of this.uniformMap) {
-      if (!bindGroup[uniform.group]) bindGroup[uniform.group] = { layoutEntries: [], entries: [] };
-      const group = bindGroup[uniform.group];
+      if (!bindGroupsInfo[uniform.group]) bindGroupsInfo[uniform.group] = { layoutEntries: [], entries: [], buffers: [] };
+      const group = bindGroupsInfo[uniform.group];
       if (uniform.buffer instanceof WEBGPUBuffer) {
+        group.layoutEntries.push({ binding: uniform.binding, visibility: GPUShaderStage.VERTEX | GPUShaderStage.FRAGMENT, buffer: { type: UniformTypeToWGSL[uniform.type] } });
+        group.entries.push({ binding: uniform.binding, resource: { buffer: uniform.buffer.GetBuffer() } });
+        group.buffers.push(uniform.buffer);
+      } else if (uniform.buffer instanceof WEBGPUDynamicBuffer) {
         group.layoutEntries.push({
           binding: uniform.binding,
           visibility: GPUShaderStage.VERTEX | GPUShaderStage.FRAGMENT,
           buffer: {
             type: UniformTypeToWGSL[uniform.type],
-            hasDynamicOffset: uniform.buffer.minBindingSize ? true : false,
-            minBindingSize: uniform.buffer.minBindingSize ? uniform.buffer.minBindingSize : void 0
+            hasDynamicOffset: true,
+            minBindingSize: uniform.buffer.minBindingSize
           }
         });
-        const buffer = group.layoutEntries[group.layoutEntries.length - 1];
         group.entries.push({
           binding: uniform.binding,
           resource: {
             buffer: uniform.buffer.GetBuffer(),
             offset: 0,
-            size: uniform.buffer.minBindingSize ? uniform.buffer.minBindingSize : void 0
+            size: uniform.buffer.minBindingSize
           }
         });
+        group.buffers.push(uniform.buffer);
       } else if (uniform.buffer instanceof WEBGPUTexture) {
         const sampleType = uniform.type === "depthTexture" ? "depth" : "float";
         group.layoutEntries.push({ binding: uniform.binding, visibility: GPUShaderStage.VERTEX | GPUShaderStage.FRAGMENT, texture: { sampleType, viewDimension: uniform.buffer.dimension } });
         const view = { dimension: uniform.buffer.dimension, arrayLayerCount: uniform.buffer.GetBuffer().depthOrArrayLayers, baseArrayLayer: 0 };
         group.entries.push({ binding: uniform.binding, resource: uniform.buffer.GetBuffer().createView(view) });
+        group.buffers.push(uniform.buffer);
       } else if (uniform.buffer instanceof WEBGPUTextureSampler) {
         const type = uniform.type === "sampler" ? "filtering" : "comparison";
         group.layoutEntries.push({ binding: uniform.binding, visibility: GPUShaderStage.VERTEX | GPUShaderStage.FRAGMENT, sampler: { type } });
         group.entries.push({ binding: uniform.binding, resource: uniform.buffer.GetBuffer() });
+        group.buffers.push(uniform.buffer);
       }
     }
-    return bindGroup;
+    return bindGroupsInfo;
   }
   RebuildDescriptors() {
     console.warn("Compiling shader");
-    const bindGroupsInfo = this.BuildBindGroupLayouts();
+    this._bindGroupsInfo = this.BuildBindGroupLayouts();
     const bindGroupLayouts = [];
     this._bindGroups = [];
-    for (const bindGroupInfo of bindGroupsInfo) {
+    for (const bindGroupInfo of this._bindGroupsInfo) {
       const bindGroupLayout = WEBGPURenderer.device.createBindGroupLayout({ entries: bindGroupInfo.layoutEntries });
       bindGroupLayouts.push(bindGroupLayout);
       const bindGroup = WEBGPURenderer.device.createBindGroup({ layout: bindGroupLayout, entries: bindGroupInfo.entries });
@@ -973,13 +1027,28 @@ var DeferredMeshShader_default = 'struct VertexInput {\n    @builtin(instance_in
 var WireframeShader_default = "struct VertexInput {\n    @builtin(instance_index) instanceID : u32,\n	@builtin(vertex_index) vertexID : u32,\n};\n\nstruct VertexOutput {\n    @builtin(position) position : vec4<f32>,\n};\n\n@group(0) @binding(0) var<storage, read> projectionMatrix: mat4x4<f32>;\n@group(0) @binding(1) var<storage, read> viewMatrix: mat4x4<f32>;\n@group(0) @binding(2) var<storage, read> modelMatrix: array<mat4x4<f32>>;\n@group(0) @binding(3) var<storage, read> indices: array<u32>;\n@group(0) @binding(4) var<storage, read> positions: array<f32>;\n\n@vertex\nfn vertexMain(input: VertexInput) -> VertexOutput {\n	var localToElement = array<u32, 6>(0u, 1u, 1u, 2u, 2u, 0u);\n\n	var triangleIndex = input.vertexID / 6u;\n	var localVertexIndex = input.vertexID % 6u;\n\n	var elementIndexIndex = 3u * triangleIndex + localToElement[localVertexIndex];\n	var elementIndex = indices[elementIndexIndex];\n\n	var position = vec4<f32>(\n		positions[3u * elementIndex + 0u],\n		positions[3u * elementIndex + 1u],\n		positions[3u * elementIndex + 2u],\n		1.0\n	);\n\n	var output : VertexOutput;\n    var modelMatrixInstance = modelMatrix[input.instanceID];\n    var modelViewMatrix = viewMatrix * modelMatrixInstance;\n	output.position = projectionMatrix * modelViewMatrix * position;\n\n	return output;\n}\n\n@fragment\nfn fragmentMain(fragData: VertexOutput) -> @location(0) vec4<f32> {\n    return vec4(1.0, 0.0, 0.0, 1.0);\n}";
 
 // src/renderer/webgpu/shaders/DeferredLightingPBRShader.wgsl
-var DeferredLightingPBRShader_default = 'struct VertexInput {\n    @location(0) position : vec2<f32>,\n    @location(1) normal : vec3<f32>,\n    @location(2) uv : vec2<f32>,\n};\n\nstruct VertexOutput {\n    @builtin(position) position : vec4<f32>,\n    @location(0) vUv : vec2<f32>,\n};\n\n@group(0) @binding(0) var textureSampler: sampler;\n\n@group(0) @binding(1) var albedoTexture: texture_2d<f32>;\n@group(0) @binding(2) var normalTexture: texture_2d<f32>;\n@group(0) @binding(3) var ermoTexture: texture_2d<f32>;\n@group(0) @binding(4) var depthTexture: texture_depth_2d;\n// @group(0) @binding(5) var shadowPassDepth: texture_depth_2d;\n\n@group(0) @binding(5) var shadowPassDepth: texture_depth_2d_array;\n\n\n\nstruct Light {\n    position: vec4<f32>,\n    projectionMatrix: mat4x4<f32>,\n    viewMatrix: mat4x4<f32>,\n    color: vec3<f32>,\n    intensity: f32,\n};\n\n@group(0) @binding(6) var<storage, read> lights: array<Light>;\n@group(0) @binding(7) var<storage, read> lightCount: u32;\n\n\n\n\n\n\nstruct View {\n    projectionOutputSize: vec4<f32>,\n    viewPosition: vec4<f32>,\n    projectionInverseMatrix: mat4x4<f32>,\n    viewInverseMatrix: mat4x4<f32>,\n};\n@group(0) @binding(8) var<storage, read> view: View;\n\n\n@group(0) @binding(9) var shadowSampler: sampler;\n\n\n// @group(0) @binding(10) var shadowMaps: array<texture_depth_2d, 4>;\n@group(0) @binding(10) var textures: texture_2d_array<f32>;\n\n@vertex\nfn vertexMain(input: VertexInput) -> VertexOutput {\n    var output: VertexOutput;\n    output.position = vec4(input.position, 0.0, 1.0);\n    output.vUv = input.uv;\n    return output;\n}\nconst PI = 3.141592653589793;\n\n\n\nstruct PointLight {\n    pointToLight: vec3<f32>,\n    color: vec3<f32>,\n    range: f32,\n    intensity: f32,\n}\n\nstruct DirectionalLight {\n    direction: vec3<f32>,\n    color: vec3<f32>,\n}\n\nstruct Surface {\n    albedo: vec3<f32>,\n    emissive: vec3<f32>,\n    metallic: f32,\n    roughness: f32,\n    occlusion: f32,\n    worldPosition: vec3<f32>,\n    N: vec3<f32>,\n    F0: vec3<f32>,\n    V: vec3<f32>,\n};\n\nfn reconstructWorldPosFromZ(\n    coords: vec2<f32>,\n    size: vec2<f32>,\n    depthTexture: texture_depth_2d,\n    projInverse: mat4x4<f32>,\n    viewInverse: mat4x4<f32>\n    ) -> vec4<f32> {\n    let uv = coords.xy / size;\n    var depth = textureLoad(depthTexture, vec2<i32>(floor(coords)), 0);\n        let x = uv.x * 2.0 - 1.0;\n        let y = (1.0 - uv.y) * 2.0 - 1.0;\n        let projectedPos = vec4(x, y, depth, 1.0);\n        var worldPosition = projInverse * projectedPos;\n        worldPosition = vec4(worldPosition.xyz / worldPosition.w, 1.0);\n        worldPosition = viewInverse * worldPosition;\n    return worldPosition;\n}\n\nfn DistributionGGX(N: vec3<f32>, H: vec3<f32>, roughness: f32) -> f32 {\n    let a      = roughness*roughness;\n    let a2     = a*a;\n    let NdotH  = max(dot(N, H), 0.0);\n    let NdotH2 = NdotH*NdotH;\n\n    let num   = a2;\n    var denom = (NdotH2 * (a2 - 1.0) + 1.0);\n    denom = PI * denom * denom;\n    return num / denom;\n}\n\nfn GeometrySchlickGGX(NdotV: f32, roughness: f32) -> f32 {\n    let r = (roughness + 1.0);\n    let k = (r*r) / 8.0;\n\n    let num   = NdotV;\n    let denom = NdotV * (1.0 - k) + k;\n\n    return num / denom;\n}\n\nfn GeometrySmith(N: vec3<f32>, V: vec3<f32>, L: vec3<f32>, roughness: f32) -> f32 {\n    let NdotV = max(dot(N, V), 0.0);\n    let NdotL = max(dot(N, L), 0.0);\n    let ggx2  = GeometrySchlickGGX(NdotV, roughness);\n    let ggx1  = GeometrySchlickGGX(NdotL, roughness);\n\n    return ggx1 * ggx2;\n}\n\nfn FresnelSchlick(cosTheta: f32, F0: vec3<f32>) -> vec3<f32> {\n    return F0 + (1.0 - F0) * pow(clamp(1.0 - cosTheta, 0.0, 1.0), 5.0);\n} \n\nfn rangeAttenuation(range : f32, distance : f32) -> f32 {\n    if (range <= 0.0) {\n        // Negative range means no cutoff\n        return 1.0 / pow(distance, 2.0);\n    }\n    return clamp(1.0 - pow(distance / range, 4.0), 0.0, 1.0) / pow(distance, 2.0);\n}\n\nfn PointLightRadiance(light : PointLight, surface : Surface) -> vec3<f32> {\n    let L = normalize(light.pointToLight);\n    let H = normalize(surface.V + L);\n    let distance = length(light.pointToLight);\n\n    // cook-torrance brdf\n    let NDF = DistributionGGX(surface.N, H, surface.roughness);\n    let G = GeometrySmith(surface.N, surface.V, L, surface.roughness);\n    let F = FresnelSchlick(max(dot(H, surface.V), 0.0), surface.F0);\n\n    let kD = (vec3(1.0, 1.0, 1.0) - F) * (1.0 - surface.metallic);\n\n    let NdotL = max(dot(surface.N, L), 0.0);\n\n    let numerator = NDF * G * F;\n    let denominator = max(4.0 * max(dot(surface.N, surface.V), 0.0) * NdotL, 0.001);\n    let specular = numerator / vec3(denominator, denominator, denominator);\n\n    // add to outgoing radiance Lo\n    let attenuation = rangeAttenuation(light.range, distance);\n    let radiance = light.color * light.intensity * attenuation;\n    return (kD * surface.albedo.rgb / vec3(PI, PI, PI) + specular) * radiance * NdotL;\n}\n\nfn DirectionalLightRadiance(light: DirectionalLight, surface : Surface) -> vec3<f32> {\n    let L = normalize(light.direction);\n    let H = normalize(surface.V + L);\n\n    // cook-torrance brdf\n    let NDF = DistributionGGX(surface.N, H, surface.roughness);\n    let G = GeometrySmith(surface.N, surface.V, L, surface.roughness);\n    let F = FresnelSchlick(max(dot(H, surface.V), 0.0), surface.F0);\n\n    let kD = (vec3(1.0, 1.0, 1.0) - F) * (1.0 - surface.metallic);\n\n    let NdotL = max(dot(surface.N, L), 0.0);\n\n    let numerator = NDF * G * F;\n    let denominator = max(4.0 * max(dot(surface.N, surface.V), 0.0) * NdotL, 0.001);\n    let specular = numerator / vec3(denominator, denominator, denominator);\n\n    // add to outgoing radiance Lo\n    let radiance = light.color;\n    return (kD * surface.albedo.rgb / vec3(PI, PI, PI) + specular) * radiance * NdotL;\n}\n\nfn Tonemap_ACES(x: vec3f) -> vec3f {\n    // Narkowicz 2015, "ACES Filmic Tone Mapping Curve"\n    let a = 2.51;\n    let b = 0.03;\n    let c = 2.43;\n    let d = 0.59;\n    let e = 0.14;\n    return (x * (a * x + b)) / (x * (c * x + d) + e);\n}\n\nfn OECF_sRGBFast(linear: vec3f) -> vec3f {\n    return pow(linear, vec3(0.454545));\n}\n\nstruct Shadow {\n    inRange: bool,\n    visibility: f32\n};\n\nfn CalculateShadow(worldPosition: vec3f, normal: vec3f, light: Light, lightIndex: u32) -> Shadow {\n    var posFromLight = light.projectionMatrix * light.viewMatrix * vec4(worldPosition, 1.0);\n    posFromLight = vec4(posFromLight.xyz / posFromLight.w, 1.0);\n    let shadowPos = vec3(posFromLight.xy * vec2(0.5,-0.5) + vec2(0.5, 0.5), posFromLight.z);\n    let inRange = shadowPos.x >= 0.0 && shadowPos.x <= 1.0 && shadowPos.y >= 0.0 && shadowPos.y <= 1.0 && shadowPos.z >= 0.0 && shadowPos.z <= 1.0;\n    var visibility = 0.0;\n\n    let shadowIndex = lightIndex;\n\n    let lightDirection = normalize(light.position.xyz - worldPosition);\n    \n    if (shadowPos.z <= 1.0) {\n        let sampleRadius = 2.0;\n        let pixelSize = 1.0 / vec2f(textureDimensions(shadowPassDepth));\n        // let pixelSize = 1.0 / vec2f(1024);\n\n		let bias = max(0.00025 * (1.0 - dot(normal, lightDirection)), 0.00009);\n        // let bias = 0.0009;\n\n        // // Naive Soft shadows\n        // for (var y = -sampleRadius; y <= sampleRadius; y+=1.0) {\n        //     for (var x = -sampleRadius; x <= sampleRadius; x+=1.0) {\n        //         let projectedDepth = textureSampleLevel(shadowPassDepth, shadowSampler, shadowPos.xy + vec2(x,y) * pixelSize, shadowIndex, 0);\n        //         // if (projectedDepth <= posFromLight.z - bias) {\n        //         if (posFromLight.z > projectedDepth + bias) {\n        //             visibility += 1.0;\n        //         }\n        //     }\n        // }\n        // visibility /= pow((sampleRadius * 2.0 + 1.0), 2.0);\n        \n        // Hard shadows\n        let projectedDepth = textureSampleLevel(shadowPassDepth, shadowSampler, shadowPos.xy, lightIndex, 0);\n        if (posFromLight.z > projectedDepth + bias) {\n            visibility = 1.0;\n        }\n    }\n    \n    var shadow: Shadow;\n    shadow.inRange = inRange;\n    shadow.visibility = visibility;\n    return shadow;\n}\n\n@fragment\nfn fragmentMain(input: VertexOutput) -> @location(0) vec4<f32> {\n    let uv = input.vUv;\n    let albedo = textureSample(albedoTexture, textureSampler, uv);\n    let normal = textureSample(normalTexture, textureSampler, uv);\n    let ermo = textureSample(ermoTexture, textureSampler, uv);\n\n    let cutoff = 0.0001;\n    let albedoSum = albedo.r + albedo.g + albedo.b;\n    if (albedoSum < cutoff) {\n        discard;\n    }\n\n    var color: vec3f = vec3(0);\n\n    let worldPosition = reconstructWorldPosFromZ(\n        input.position.xy,\n        view.projectionOutputSize.xy,\n        depthTexture,\n        view.projectionInverseMatrix,\n        view.viewInverseMatrix\n    );\n\n    var surface: Surface;\n    surface.albedo = albedo.rgb;\n    surface.roughness = albedo.a;\n    surface.metallic = normal.a;\n    surface.emissive = ermo.rgb;\n    surface.occlusion = 1.0;\n    surface.worldPosition = worldPosition.xyz;\n    surface.N = normalize(normal.rgb);\n    surface.F0 = mix(vec3(0.04), surface.albedo.rgb, vec3(surface.metallic));\n    surface.V = normalize(view.viewPosition.xyz - surface.worldPosition);\n\n    // let light2 = lights[0];\n    let visibility = 1.0;\n\n    if (ermo.w > 0.5) {\n        return vec4(surface.albedo.rgb, 1.0);\n    }\n    \n    var Lo = vec3(0.0);\n    for (var i : u32 = 0u; i < lightCount; i = i + 1u) {\n        let light = lights[i];\n        var pointLight: PointLight;\n        \n        pointLight.pointToLight = light.position.xyz - surface.worldPosition;\n        pointLight.color = light.color.rgb;\n        pointLight.range = 100.0; // light.range;\n        pointLight.intensity = light.intensity;\n\n        // Lighting\n        let P = surface.worldPosition;\n        let N = normal;\n        let V = normalize(-P);\n        let F0 = mix(vec3(0.04), surface.albedo, surface.metallic);\n\n        let shadow: Shadow = CalculateShadow(surface.worldPosition, surface.N, light, i);\n        if (!shadow.inRange) {\n            continue;\n        }\n\n\n        // Lo += visibility * PointLightRadiance(pointLight, surface);\n        Lo += (1.0 - shadow.visibility) * PointLightRadiance(pointLight, surface);\n        // Lo += (1.0 - shadow) * PointLightRadiance(pointLight, surface);\n\n        // var directionalLight: DirectionalLight;\n        // directionalLight.direction = vec3(0.2, 0.2, 0.2);\n        // directionalLight.color = light.color.rgb;\n        // Lo += DirectionalLightRadiance(directionalLight, surface);\n    }\n\n\n    let ambientColor = vec3(0.01);\n    color = ambientColor * surface.albedo + Lo * surface.occlusion;\n\n    color += surface.emissive;\n\n    color = Tonemap_ACES(color);\n    color = OECF_sRGBFast(color);\n\n\n    return vec4(color, 1.0);\n    // return vec4(pow(projectedDepth, 20.0));\n    // return vec4(shadowPos, 1.0);\n    // return vec4(Lo, 1.0);\n    // return vec4(surface.albedo.rgb, 1.0);\n    // return vec4(worldPosition.xyz, 1.0);\n    // return vec4(surface.N, 1.0);\n}';
+var DeferredLightingPBRShader_default = 'struct VertexInput {\n    @location(0) position : vec2<f32>,\n    @location(1) normal : vec3<f32>,\n    @location(2) uv : vec2<f32>,\n};\n\nstruct VertexOutput {\n    @builtin(position) position : vec4<f32>,\n    @location(0) vUv : vec2<f32>,\n};\n\n@group(0) @binding(0) var textureSampler: sampler;\n\n@group(0) @binding(1) var albedoTexture: texture_2d<f32>;\n@group(0) @binding(2) var normalTexture: texture_2d<f32>;\n@group(0) @binding(3) var ermoTexture: texture_2d<f32>;\n@group(0) @binding(4) var depthTexture: texture_depth_2d;\n// @group(0) @binding(5) var shadowPassDepth: texture_depth_2d;\n\n@group(0) @binding(5) var shadowPassDepth: texture_depth_2d_array;\n\n\n\nstruct Light {\n    position: vec4<f32>,\n    projectionMatrix: mat4x4<f32>,\n    viewMatrix: mat4x4<f32>,\n    viewMatrixInverse: mat4x4<f32>,\n    color: vec4<f32>,\n    params1: vec4<f32>,\n    params2: vec4<f32>,\n};\n\n@group(0) @binding(6) var<storage, read> lights: array<Light>;\n@group(0) @binding(7) var<storage, read> lightCount: u32;\n\n\n\n\n\n\nstruct View {\n    projectionOutputSize: vec4<f32>,\n    viewPosition: vec4<f32>,\n    projectionInverseMatrix: mat4x4<f32>,\n    viewInverseMatrix: mat4x4<f32>,\n};\n@group(0) @binding(8) var<storage, read> view: View;\n\n\n@group(0) @binding(9) var shadowSampler: sampler;\n\n\n// @group(0) @binding(10) var shadowMaps: array<texture_depth_2d, 4>;\n@group(0) @binding(10) var textures: texture_2d_array<f32>;\n\n@vertex\nfn vertexMain(input: VertexInput) -> VertexOutput {\n    var output: VertexOutput;\n    output.position = vec4(input.position, 0.0, 1.0);\n    output.vUv = input.uv;\n    return output;\n}\nconst PI = 3.141592653589793;\n\nconst SPOT_LIGHT = 0;\nconst DIRECTIONAL_LIGHT = 1;\nconst POINT_LIGHT = 2;\nconst AREA_LIGHT = 3;\n\nstruct SpotLight {\n    pointToLight: vec3<f32>,\n    color: vec3<f32>,\n    direction: vec3<f32>,\n    range: f32,\n    intensity: f32,\n    angle: f32,\n}\n\nstruct DirectionalLight {\n    direction: vec3<f32>,\n    color: vec3<f32>,\n}\n\nstruct PointLight {\n    pointToLight: vec3<f32>,\n    color: vec3<f32>,\n    range: f32,\n    intensity: f32,\n}\n\nstruct AreaLight {\n    pointToLight: vec3<f32>,\n    direction: vec3<f32>,\n    color: vec3<f32>,\n    range: f32,\n    intensity: f32,\n}\n\nstruct Surface {\n    albedo: vec3<f32>,\n    emissive: vec3<f32>,\n    metallic: f32,\n    roughness: f32,\n    occlusion: f32,\n    worldPosition: vec3<f32>,\n    N: vec3<f32>,\n    F0: vec3<f32>,\n    V: vec3<f32>,\n};\n\nfn reconstructWorldPosFromZ(\n    coords: vec2<f32>,\n    size: vec2<f32>,\n    depthTexture: texture_depth_2d,\n    projInverse: mat4x4<f32>,\n    viewInverse: mat4x4<f32>\n    ) -> vec4<f32> {\n    let uv = coords.xy / size;\n    var depth = textureLoad(depthTexture, vec2<i32>(floor(coords)), 0);\n        let x = uv.x * 2.0 - 1.0;\n        let y = (1.0 - uv.y) * 2.0 - 1.0;\n        let projectedPos = vec4(x, y, depth, 1.0);\n        var worldPosition = projInverse * projectedPos;\n        worldPosition = vec4(worldPosition.xyz / worldPosition.w, 1.0);\n        worldPosition = viewInverse * worldPosition;\n    return worldPosition;\n}\n\nfn DistributionGGX(N: vec3<f32>, H: vec3<f32>, roughness: f32) -> f32 {\n    let a      = roughness*roughness;\n    let a2     = a*a;\n    let NdotH  = max(dot(N, H), 0.0);\n    let NdotH2 = NdotH*NdotH;\n\n    let num   = a2;\n    var denom = (NdotH2 * (a2 - 1.0) + 1.0);\n    denom = PI * denom * denom;\n    return num / denom;\n}\n\nfn GeometrySchlickGGX(NdotV: f32, roughness: f32) -> f32 {\n    let r = (roughness + 1.0);\n    let k = (r*r) / 8.0;\n\n    let num   = NdotV;\n    let denom = NdotV * (1.0 - k) + k;\n\n    return num / denom;\n}\n\nfn GeometrySmith(N: vec3<f32>, V: vec3<f32>, L: vec3<f32>, roughness: f32) -> f32 {\n    let NdotV = max(dot(N, V), 0.0);\n    let NdotL = max(dot(N, L), 0.0);\n    let ggx2  = GeometrySchlickGGX(NdotV, roughness);\n    let ggx1  = GeometrySchlickGGX(NdotL, roughness);\n\n    return ggx1 * ggx2;\n}\n\nfn FresnelSchlick(cosTheta: f32, F0: vec3<f32>) -> vec3<f32> {\n    return F0 + (1.0 - F0) * pow(clamp(1.0 - cosTheta, 0.0, 1.0), 5.0);\n} \n\nfn rangeAttenuation(range : f32, distance : f32) -> f32 {\n    if (range <= 0.0) {\n        // Negative range means no cutoff\n        return 1.0 / pow(distance, 2.0);\n    }\n    return clamp(1.0 - pow(distance / range, 4.0), 0.0, 1.0) / pow(distance, 2.0);\n}\n\nfn CalculateBRDF(surface: Surface, pointToLight: vec3<f32>) -> vec3<f32> {\n    // cook-torrance brdf\n    let L = normalize(pointToLight);\n    let H = normalize(surface.V + L);\n    let distance = length(pointToLight);\n\n    let NDF = DistributionGGX(surface.N, H, surface.roughness);\n    let G = GeometrySmith(surface.N, surface.V, L, surface.roughness);\n    let F = FresnelSchlick(max(dot(H, surface.V), 0.0), surface.F0);\n\n    let kD = (vec3(1.0, 1.0, 1.0) - F) * (1.0 - surface.metallic);\n\n    let NdotL = max(dot(surface.N, L), 0.0);\n\n    let numerator = NDF * G * F;\n    let denominator = max(4.0 * max(dot(surface.N, surface.V), 0.0) * NdotL, 0.001);\n    let specular = numerator / vec3(denominator, denominator, denominator);\n\n    return (kD * surface.albedo.rgb / vec3(PI, PI, PI) + specular) * NdotL;\n}\n\nfn PointLightRadiance(light : PointLight, surface : Surface) -> vec3<f32> {\n    let distance = length(light.pointToLight);\n    let attenuation = rangeAttenuation(light.range, distance);\n    let radiance = CalculateBRDF(surface, light.pointToLight) * light.color * light.intensity * attenuation;\n    return radiance;\n}\n\nfn DirectionalLightRadiance(light: DirectionalLight, surface : Surface) -> vec3<f32> {\n    return CalculateBRDF(surface, light.direction) * light.color;\n}\n\nfn SpotLightRadiance(light : SpotLight, surface : Surface) -> vec3<f32> {\n    let L = normalize(light.pointToLight);\n    let distance = length(light.pointToLight);\n\n    let angle = acos(dot(light.direction, L));\n\n    // Check if the point is within the light cone\n    if angle > light.angle {\n        return vec3(0.0, 0.0, 0.0); // Outside the outer cone\n    }\n\n    let intensity = smoothstep(light.angle, 0.0, angle);\n    let attenuation = rangeAttenuation(light.range, distance) * intensity;\n\n    let radiance = CalculateBRDF(surface, light.pointToLight) * light.color * light.intensity * attenuation;\n    return radiance;\n}\n\nfn Tonemap_ACES(x: vec3f) -> vec3f {\n    // Narkowicz 2015, "ACES Filmic Tone Mapping Curve"\n    let a = 2.51;\n    let b = 0.03;\n    let c = 2.43;\n    let d = 0.59;\n    let e = 0.14;\n    return (x * (a * x + b)) / (x * (c * x + d) + e);\n}\n\nfn OECF_sRGBFast(linear: vec3f) -> vec3f {\n    return pow(linear, vec3(0.454545));\n}\n\nfn CalculateShadow(worldPosition: vec3f, normal: vec3f, light: Light, lightIndex: u32) -> f32 {\n    var posFromLight = light.projectionMatrix * light.viewMatrix * vec4(worldPosition, 1.0);\n    posFromLight = vec4(posFromLight.xyz / posFromLight.w, 1.0);\n    let shadowPos = vec3(posFromLight.xy * vec2(0.5,-0.5) + vec2(0.5, 0.5), posFromLight.z);\n    // let inRange = shadowPos.x >= 0.0 && shadowPos.x <= 1.0 && shadowPos.y >= 0.0 && shadowPos.y <= 1.0 && shadowPos.z >= 0.0 && shadowPos.z <= 1.0;\n    var visibility = 0.0;\n\n    let shadowIndex = lightIndex;\n\n    let lightDirection = normalize(light.position.xyz - worldPosition);\n    \n    if (shadowPos.z <= 1.0) {\n        let sampleRadius = 2.0;\n        let pixelSize = 1.0 / vec2f(textureDimensions(shadowPassDepth));\n        // let pixelSize = 1.0 / vec2f(1024);\n\n		let bias = max(0.00025 * (1.0 - dot(normal, lightDirection)), 0.00009);\n        // let bias = 0.0009;\n\n        // // Naive Soft shadows\n        // for (var y = -sampleRadius; y <= sampleRadius; y+=1.0) {\n        //     for (var x = -sampleRadius; x <= sampleRadius; x+=1.0) {\n        //         let projectedDepth = textureSampleLevel(shadowPassDepth, shadowSampler, shadowPos.xy + vec2(x,y) * pixelSize, shadowIndex, 0);\n        //         // if (projectedDepth <= posFromLight.z - bias) {\n        //         if (posFromLight.z > projectedDepth + bias) {\n        //             visibility += 1.0;\n        //         }\n        //     }\n        // }\n        // visibility /= pow((sampleRadius * 2.0 + 1.0), 2.0);\n        \n        // Hard shadows\n        let projectedDepth = textureSampleLevel(shadowPassDepth, shadowSampler, shadowPos.xy, lightIndex, 0);\n        if (posFromLight.z > projectedDepth + bias) {\n            visibility = 1.0;\n        }\n    }\n    \n    return visibility;\n}\n\nfn CalculateDirectionalLightShadow(worldPosition: vec3<f32>, normal: vec3<f32>, light: Light, directionalLight: DirectionalLight, lightIndex: u32) -> f32 {\n    var posFromLight = light.projectionMatrix * light.viewMatrix * vec4(worldPosition, 1.0);\n    posFromLight = vec4(posFromLight.xyz / posFromLight.w, 1.0);\n    let shadowPos = vec3(posFromLight.xy * vec2(0.5,-0.5) + vec2(0.5, 0.5), posFromLight.z);\n    var visibility = 0.0;\n\n    let lightDirection = normalize(light.position.xyz - worldPosition);\n    // let bias = max(0.00025 * (1.0 - dot(normal, directionalLight.direction)), 0.00009);\n    let bias = 0.00009;\n    // Hard shadows\n    let projectedDepth = textureSampleLevel(shadowPassDepth, shadowSampler, shadowPos.xy, lightIndex, 0);\n    if (posFromLight.z > projectedDepth + bias) {\n        visibility = 1.0;\n    }\n    \n    return visibility;\n}\n\n@fragment\nfn fragmentMain(input: VertexOutput) -> @location(0) vec4<f32> {\n    let uv = input.vUv;\n    let albedo = textureSample(albedoTexture, textureSampler, uv);\n    let normal = textureSample(normalTexture, textureSampler, uv);\n    let ermo = textureSample(ermoTexture, textureSampler, uv);\n\n    let cutoff = 0.0001;\n    let albedoSum = albedo.r + albedo.g + albedo.b;\n    if (albedoSum < cutoff) {\n        discard;\n    }\n\n    var color: vec3f = vec3(0);\n\n    let worldPosition = reconstructWorldPosFromZ(\n        input.position.xy,\n        view.projectionOutputSize.xy,\n        depthTexture,\n        view.projectionInverseMatrix,\n        view.viewInverseMatrix\n    );\n\n    var surface: Surface;\n    surface.albedo = albedo.rgb;\n    surface.roughness = albedo.a;\n    surface.metallic = normal.a;\n    surface.emissive = ermo.rgb;\n    surface.occlusion = 1.0;\n    surface.worldPosition = worldPosition.xyz;\n    surface.N = normalize(normal.rgb);\n    surface.F0 = mix(vec3(0.04), surface.albedo.rgb, vec3(surface.metallic));\n    surface.V = normalize(view.viewPosition.xyz - surface.worldPosition);\n\n    // let light2 = lights[0];\n    let visibility = 1.0;\n\n    if (ermo.w > 0.5) {\n        return vec4(surface.albedo.rgb, 1.0);\n    }\n    \n    var Lo = vec3(0.0);\n    for (var i : u32 = 0u; i < lightCount; i = i + 1u) {\n        let light = lights[i];\n        let lightType = light.color.a;\n\n        if (lightType == SPOT_LIGHT) {\n            var spotLight: SpotLight;\n            \n            let lightViewInverse = light.viewMatrixInverse; // Assuming you can calculate or pass this\n            let lightDir = normalize((lightViewInverse * vec4(0.0, 0.0, 1.0, 0.0)).xyz);\n\n            spotLight.pointToLight = light.position.xyz - surface.worldPosition;\n            spotLight.color = light.color.rgb;\n            spotLight.intensity = light.params1.r;\n            spotLight.range = light.params1.g;\n            spotLight.direction = lightDir;\n            spotLight.angle = light.params1.b;\n\n            let shadow = CalculateShadow(surface.worldPosition, surface.N, light, i);\n            Lo += (1.0 - shadow) * SpotLightRadiance(spotLight, surface);\n        }\n        else if (lightType == POINT_LIGHT) {\n            var pointLight: PointLight;\n            \n            pointLight.pointToLight = light.position.xyz - surface.worldPosition;\n            pointLight.color = light.color.rgb;\n            pointLight.intensity = light.params1.x;\n            pointLight.range = light.params1.y;\n\n            let shadow = CalculateShadow(surface.worldPosition, surface.N, light, i);\n            Lo += (1.0 - shadow) * PointLightRadiance(pointLight, surface);\n        }\n        else if (lightType == DIRECTIONAL_LIGHT) {\n            var directionalLight: DirectionalLight;\n            let lightViewInverse = light.viewMatrixInverse; // Assuming you can calculate or pass this\n            let lightDir = normalize((lightViewInverse * vec4(0.0, 0.0, 1.0, 0.0)).xyz);\n            directionalLight.direction = lightDir;\n            directionalLight.color = light.color.rgb;\n\n            let shadow = CalculateShadow(surface.worldPosition, surface.N, light, i);\n            Lo += (1.0 - shadow) * DirectionalLightRadiance(directionalLight, surface);\n        }\n    }\n\n\n    let ambientColor = vec3(0.01);\n    color = ambientColor * surface.albedo + Lo * surface.occlusion;\n\n    color += surface.emissive;\n\n    color = Tonemap_ACES(color);\n    color = OECF_sRGBFast(color);\n\n\n    return vec4(color, 1.0);\n    // return vec4(pow(projectedDepth, 20.0));\n    // return vec4(shadowPos, 1.0);\n    // return vec4(Lo, 1.0);\n    // return vec4(surface.albedo.rgb, 1.0);\n    // return vec4(worldPosition.xyz, 1.0);\n    // return vec4(surface.N, 1.0);\n}';
 
 // src/renderer/webgpu/shaders/QuadShader.wgsl
-var QuadShader_default = "struct VSOutput {\n    @builtin(position) position: vec4f,\n    @location(0) vUv: vec2f,\n};\n\n@vertex fn vs(@builtin(vertex_index) vertexIndex : u32) -> VSOutput {\n    const pos = array(\n        vec2f( 0.0,  0.0),  // center\n        vec2f( 1.0,  0.0),  // right, center\n        vec2f( 0.0,  1.0),  // center, top\n\n        // 2st triangle\n        vec2f( 0.0,  1.0),  // center, top\n        vec2f( 1.0,  0.0),  // right, center\n        vec2f( 1.0,  1.0),  // right, top\n    );\n\n    var vsOutput: VSOutput;\n    let xy = pos[vertexIndex];\n    vsOutput.position = vec4f(xy * 2.0 - 1.0, 0.0, 1.0);\n    vsOutput.vUv = vec2f(xy.x, 1.0 - xy.y);\n    return vsOutput;\n}\n\n@group(0) @binding(0) var ourSampler: sampler;\n@group(0) @binding(1) var ourTexture: texture_2d<f32>;\n\n@fragment fn fs(fsInput: VSOutput) -> @location(0) vec4f {\n    return textureSample(ourTexture, ourSampler, fsInput.vUv);\n}";
+var QuadShader_default = "struct VSOutput {\n    @builtin(position) position: vec4f,\n    @location(0) texcoord: vec2f,\n};\n\n@vertex fn vs(@builtin(vertex_index) vertexIndex : u32) -> VSOutput {\n    const pos = array(\n        vec2f( 0.0,  0.0),  // center\n        vec2f( 1.0,  0.0),  // right, center\n        vec2f( 0.0,  1.0),  // center, top\n\n        // 2st triangle\n        vec2f( 0.0,  1.0),  // center, top\n        vec2f( 1.0,  0.0),  // right, center\n        vec2f( 1.0,  1.0),  // right, top\n    );\n\n    var vsOutput: VSOutput;\n    let xy = pos[vertexIndex];\n    vsOutput.position = vec4f(xy * 2.0 - 1.0, 0.0, 1.0);\n    vsOutput.texcoord = vec2f(xy.x, 1.0 - xy.y);\n    return vsOutput;\n}\n\n@group(0) @binding(0) var ourSampler: sampler;\n@group(0) @binding(1) var ourTexture: texture_2d<f32>;\n\n@fragment fn fs(fsInput: VSOutput) -> @location(0) vec4f {\n    return textureSample(ourTexture, ourSampler, fsInput.texcoord);\n}";
 
 // src/renderer/webgpu/shaders/ShadowPass.wgsl
 var ShadowPass_default = "struct VertexInput {\n    @builtin(instance_index) instanceIdx : u32, \n    @location(0) position : vec3<f32>,\n    @location(1) normal : vec3<f32>,\n    @location(2) uv : vec2<f32>,\n};\n\n\nstruct VertexOutput {\n    @builtin(position) position : vec4<f32>,\n};\n\n@group(0) @binding(0) var<storage, read> projectionMatrix: mat4x4<f32>;\n@group(0) @binding(1) var<storage, read> viewMatrix: mat4x4<f32>;\n@group(1) @binding(2) var<storage, read> modelMatrix: array<mat4x4<f32>>;\n\n@vertex\nfn vertexMain(input: VertexInput) -> @builtin(position) vec4<f32> {\n    var output : VertexOutput;\n\n    var modelMatrixInstance = modelMatrix[input.instanceIdx];\n    var modelViewMatrix = viewMatrix * modelMatrixInstance;\n\n    return projectionMatrix * modelViewMatrix * vec4(input.position, 1.0);\n}\n\n@fragment\nfn fragmentMain() -> @location(0) vec4<f32> {\n    return vec4(1.0);\n}";
+
+// src/renderer/webgpu/shaders/SSGI.wgsl
+var SSGI_default = "struct VertexInput {\n    @location(0) position : vec2<f32>,\n    @location(1) normal : vec3<f32>,\n    @location(2) uv : vec2<f32>,\n};\n\n\nstruct VertexOutput {\n    @builtin(position) position : vec4<f32>,\n    @location(0) vUv : vec2<f32>,\n};\n\n@group(0) @binding(0) var lightingTexture: texture_2d<f32>;\n@group(0) @binding(1) var albedoTexture: texture_2d<f32>;\n@group(0) @binding(2) var normalTexture: texture_2d<f32>;\n@group(0) @binding(3) var depthTexture: texture_depth_2d;\n@group(0) @binding(4) var lightingSampler: sampler;\n\nstruct View {\n    projectionOutputSize: vec4<f32>,\n    viewPosition: vec4<f32>,\n    projectionMatrix: mat4x4<f32>,\n    projectionInverseMatrix: mat4x4<f32>,\n    viewMatrix: mat4x4<f32>,\n    viewInverseMatrix: mat4x4<f32>,\n};\n@group(0) @binding(5) var<storage, read> view: View;\n\n@vertex\nfn vertexMain(input: VertexInput) -> VertexOutput {\n    var output: VertexOutput;\n    output.position = vec4(input.position, 0.0, 1.0);\n    output.vUv = input.uv;\n    return output;\n}\n\nfn GetPerpendicularVector(v: vec3f) -> vec3f {\n    let epsilon = 0.00000001; // For float equality checks\n\n    // if (v == Vector3.zero) {\n    //     return Vector3.zero;\n    // }\n    if (abs(v.x) < epsilon) {\n        return vec3f(1, 0, 0);\n    }\n    else if (abs(v.y) < epsilon) {\n        return vec3f(0, 1, 0);\n    }\n    else if (abs(v.z) < epsilon) {\n        return vec3f(0, 0, 1);\n    }\n    else {\n        return vec3f(1, 1, -(v.x + v.y) / v.z);\n    }\n}\n\n// Get a cosine-weighted random vector centered around a specified normal direction.\nfn GetCosHemisphereSample(rand1 : f32, rand2 : f32, hitNorm : vec3<f32>) -> vec3<f32> {\n    // Get 2 random numbers to select our sample with\n    let randVal = vec2<f32>(rand1, rand2);\n\n    // Cosine weighted hemisphere sample from RNG\n    let bitangent = GetPerpendicularVector(hitNorm);\n    let tangent = cross(bitangent, hitNorm);\n    let r = sqrt(randVal.x);\n    let phi = 2.0 * 3.14159265 * randVal.y;\n\n    // Get our cosine-weighted hemisphere lobe sample direction\n    return tangent * (r * cos(phi)) + bitangent * (r * sin(phi)) + hitNorm * sqrt(max(0.0, 1.0 - randVal.x));\n}\n\nfn GetNormal(uv: vec2f) -> vec3f {\n    return textureSample(normalTexture, lightingSampler, uv).rgb;\n}\nconst frameCount = 1;\n\nfn IGN(x: f32, y: f32, t: u32) -> f32 {\n    let frame = t;\n    \n    //frame += WellonsHash2(WeylHash(uvec2(uv)/4u)) % 4u;\n    \n    var uv = vec2f(x, y);\n    if((frame & 2u) != 0u) {\n        uv = vec2(-uv.y, uv.x);\n    }\n    if((frame & 1u) != 0u) {\n        uv.x = -uv.x;\n    }\n\n    //return fract(52.9829189 * fract(dot(uv, vec2(0.06711056, 0.00583715))) + float(frame)*0.41421356);\n    //return fract(52.9829189 * fract(dot(uv, vec2(0.06711056, 0.00583715))));\n    //return fract(IGN(uv)+float(frame)*0.41421356*1.0);\n    \n    // http://extremelearning.com.au/unreasonable-effectiveness-of-quasirandom-sequences/#dither\n    return fract(uv.x*0.7548776662 + uv.y*0.56984029 + f32(frame)*0.41421356*1.0);\n}\n\n\nfn reconstructWorldPosFromZ(coords: vec2<f32>) -> vec4<f32> {\n    let uv = coords.xy / vec2f(textureDimensions(depthTexture).xy);\n    var depth = textureLoad(depthTexture, vec2<i32>(floor(coords)), 0);\n        let x = uv.x * 2.0 - 1.0;\n        let y = (1.0 - uv.y) * 2.0 - 1.0;\n        let projectedPos = vec4(x, y, depth, 1.0);\n        var worldPosition = view.projectionInverseMatrix * projectedPos;\n        worldPosition = vec4(worldPosition.xyz / worldPosition.w, 1.0);\n        worldPosition = view.viewInverseMatrix * worldPosition;\n    return worldPosition;\n}\n\nfn hash(b: vec3f) -> vec3f {\n    var a = b;\n    a = fract(a * vec3(.8) );\n    a += dot(a, a.yxz + 19.19);\n    return fract((a.xxy + a.yxx)*a.zyx);\n}\n\nstruct BinarySearchOutput {\n    dir: vec3f,\n    hitCoord: vec3f,\n    output: vec3f,\n    depth: f32\n};\n\nfn ProjectedCoordThingy(iprojectedCoord: vec4f) -> vec4f {\n    var projectedCoord = iprojectedCoord;\n    projectedCoord.x /= projectedCoord.w;\n    projectedCoord.y /= projectedCoord.w;\n    projectedCoord.x = projectedCoord.x * 0.5 + 0.5;\n    projectedCoord.y = projectedCoord.y * 0.5 + 0.5;\n    return projectedCoord;\n}\n\nfn BinarySearch(idir: vec3f, ihitCoord: vec3f) -> BinarySearchOutput {\n    var output: BinarySearchOutput;\n    output.dir = idir;\n    output.hitCoord = ihitCoord;\n    let SEARCH_STEPS = 7;\n\n    var projectedCoord = vec4f(0.0);\n    let Q = SEARCH_STEPS;\n    var depth = 0.0;\n\n    for(var i = 0; i < Q; i++){\n        projectedCoord = view.projectionMatrix * vec4(output.hitCoord, 1.0);\n        projectedCoord = ProjectedCoordThingy(projectedCoord);\n\n        depth = getViewPos(projectedCoord.xy).z;\n        \n        output.depth = output.hitCoord.z - depth;\n        if(output.depth > 0.0) {\n            output.hitCoord += output.dir;\n        }\n        else {\n            output.hitCoord -= output.dir;\n        }\n    }\n\n    projectedCoord = view.projectionMatrix * vec4(output.hitCoord, 1.0);\n    projectedCoord = ProjectedCoordThingy(projectedCoord);\n\n    output.output = vec3(projectedCoord.xy, depth);\n    return output;\n}\n\nstruct Ray {\n    hitCoord: vec3f,\n    dir: vec3f,\n    coords: vec4f\n};\n\nfn RayMarch(maxSteps: i32, idir: vec3f, ihitCoord: vec3f, stepSize: f32) -> Ray {\n    var ray: Ray;\n    var depth = 0.0;\n    var steps = 0;\n    var projectedCoord: vec4f = vec4f(0.0);\n\n    ray.hitCoord = ihitCoord;\n    ray.dir = idir * stepSize;\n\n    var raymarcherDepth = 0.0;\n\n    for(var i = 0; i < maxSteps; i++)   {\n        ray.hitCoord += ray.dir;\n        projectedCoord = view.projectionMatrix * vec4(ray.hitCoord, 1.0);\n        projectedCoord = ProjectedCoordThingy(projectedCoord);\n\n        // depth = getViewPosition(projectedCoord.xy, quadUV).z;\n        depth = getViewPos(projectedCoord.xy).z;\n        if(depth > 1000.0) {\n            continue;\n        }\n\n        raymarcherDepth = ray.hitCoord.z - depth;\n        if((ray.dir.z - raymarcherDepth) < 1.2) {\n            if(raymarcherDepth <= 0.0) {\n                let ResultBinSearch = BinarySearch(ray.dir, ray.hitCoord);\n\n                ray.coords = vec4(ResultBinSearch.output, 1.0);\n                ray.hitCoord = ResultBinSearch.hitCoord;\n                ray.dir = ResultBinSearch.dir;\n                raymarcherDepth = ResultBinSearch.depth;\n                return ray;\n            }\n        }\n        steps++;\n    }\n\n    ray.coords = vec4(projectedCoord.xy, depth, 0.0);\n    return ray;\n}\n\nfn getViewPos(coord: vec2f) -> vec3f {\n	let depth = textureSampleLevel(depthTexture, lightingSampler, coord, 0);\n	\n	//Turn the current pixel from ndc to world coordinates\n	let pixel_pos_ndc = vec3(coord*2.0-1.0, depth*2.0-1.0); \n    let pixel_pos_clip = view.projectionInverseMatrix * vec4(pixel_pos_ndc,1.0);\n    let pixel_pos_cam = pixel_pos_clip.xyz / pixel_pos_clip.w;\n	return pixel_pos_cam;\n}\n\nfn getViewNormal(coord: vec2f) -> vec3f {\n    let texSize = textureDimensions(depthTexture, 0);\n\n    let pW = 1.0/f32(texSize.x);\n    let pH = 1.0/f32(texSize.y);\n    \n    let p1 = getViewPos(coord+vec2(pW,0.0)).xyz;\n    let p2 = getViewPos(coord+vec2(0.0,pH)).xyz;\n    let p3 = getViewPos(coord+vec2(-pW,0.0)).xyz;\n    let p4 = getViewPos(coord+vec2(0.0,-pH)).xyz;\n\n    let vP = getViewPos(coord);\n    \n    var dx = vP-p1;\n    var dy = p2-vP;\n    let dx2 = p3-vP;\n    let dy2 = vP-p4;\n    \n    // if(length(dx2) < length(dx) && coord.x - pW >= 0.0 || coord.x + pW > 1.0) {\n    //     dx = dx2;\n    // }\n    // if(length(dy2) < length(dy) && coord.y - pH >= 0.0 || coord.y + pH > 1.0) {\n    //     dy = dy2;\n    // }\n    if(length(dx2) < length(dx) && (coord.x - pW >= 0.0 || coord.x + pW > 1.0)) {\n        dx = dx2;\n    }\n    if(length(dy2) < length(dy) && (coord.y - pH >= 0.0 || coord.y + pH > 1.0)) {\n        dy = dy2;\n    }\n    \n    return normalize(-cross( dx , dy ).xyz);\n}\n\nfn getLogDepth(uv: vec2f) -> f32 {\n    return textureSampleLevel(depthTexture, lightingSampler, uv, 0);\n}\n\nfn viewSpacePositionFromDepth(logarithimicDepth: f32, texCoords: vec2f) -> vec3f {\n    let z = logarithimicDepth * 2.0 - 1.0;\n\n    let clipSpacePosition = vec4(texCoords * 2.0 - 1.0, z, 1.0);\n    var viewSpacePosition = view.projectionInverseMatrix * clipSpacePosition;\n    viewSpacePosition /= viewSpacePosition.w;\n\n    return viewSpacePosition.rgb;\n}\n\nfn normalFromDepth(logarithimicDepth: f32, texCoords: vec2f) -> vec3f {\n    let bufferResolution = vec2f(textureDimensions(depthTexture, 0));\n    let texelSize = 1. / bufferResolution;\n    let texCoords1 = texCoords + vec2(0., 1.) * texelSize;\n    let texCoords2 = texCoords + vec2(1., 0.) * texelSize;\n\n    let depth1 = getLogDepth(texCoords1);\n    let depth2 = getLogDepth(texCoords2);\n\n    let P0 = viewSpacePositionFromDepth(logarithimicDepth, texCoords);\n    let P1 = viewSpacePositionFromDepth(depth1, texCoords1);\n    let P2 = viewSpacePositionFromDepth(depth2, texCoords2);\n\n    return normalize(cross(P2 - P0, P1 - P0));\n}\n\nfn getViewPosition(coords: vec2f, quadUV: vec2f) -> vec3f {\n    let depth = getLogDepth(coords);\n    return viewSpacePositionFromDepth(depth, quadUV);\n}\n\n@fragment\nfn fragmentMain(input: VertexOutput) -> @location(0) vec4<f32> {\n    let uv = input.vUv;\n    let pixelDepth = getLogDepth(uv);\n    if (pixelDepth == 0.) {\n        discard;\n    }\n\n\n    let worldNormal = GetNormal(uv);\n\n\n\n    let screenResolution = vec2f(960, 609);\n    let pos = uv * screenResolution;\n    let normalLength : f32 = length(worldNormal);\n\n    let noise : f32 = IGN(pos.x, pos.y, frameCount); // Animated Interleaved Gradient Noise\n    var stochasticNormal = GetCosHemisphereSample(noise, noise, worldNormal);\n    stochasticNormal = normalize(stochasticNormal);\n\n\n\n    let viewPos = getViewPos(uv).xyz;\n    let viewDir = stochasticNormal;\n    let dir = normalize(vec4(viewDir, 1.0) * view.viewMatrix).xyz;\n\n    let stepSize = 1.0;\n    let maxSteps = 10;\n    let intensity = 1.0;\n    var jitt = vec3(hash(viewPos));\n    let step = stepSize * (clamp(jitt.x, 0., 1.) + clamp(jitt.y, 0., 1.)) + stepSize;\n\n    let ray = RayMarch(maxSteps, dir, viewPos, step);\n\n    let tracedAlbedo = textureSample(albedoTexture, lightingSampler, ray.coords.xy); // previousFrame\n\n    let CLAMP_MIN = 0.1;\n    let CLAMP_MAX = 0.9;\n    let dCoords = smoothstep(vec2(CLAMP_MIN), vec2(CLAMP_MAX), abs(vec2(0.5) - ray.coords.xy));\n    let screenEdgefactor = clamp(1.0 - (dCoords.x + dCoords.y), 0.0, 1.0);\n\n    let reflected = normalize(reflect(normalize(ray.hitCoord), ray.dir));\n    let reflectionMultiplier = screenEdgefactor * -reflected.z;\n\n    return vec4(tracedAlbedo.rgb * clamp(reflectionMultiplier, 0.0, 1.) * intensity, 1.);\n\n    // return textureSample(albedoTexture, lightingSampler, uv);\n    // return vec4(viewPos.xyz, 1.0);\n}";
+
+// src/renderer/webgpu/shaders/DownSample.wgsl
+var DownSample_default = "struct VertexInput {\n    @location(0) position : vec2<f32>,\n    @location(1) normal : vec3<f32>,\n    @location(2) uv : vec2<f32>,\n};\n\n\nstruct VertexOutput {\n    @builtin(position) position : vec4<f32>,\n    @location(0) vUv : vec2<f32>,\n};\n\n@group(0) @binding(0) var texture: texture_2d<f32>;\n@group(0) @binding(1) var textureSampler: sampler;\n@group(0) @binding(2) var<storage, read> multiplier: f32;\n\n@vertex\nfn vertexMain(input: VertexInput) -> VertexOutput {\n    var output: VertexOutput;\n    output.position = vec4(input.position, 0.0, 1.0);\n    output.vUv = input.uv;\n    return output;\n}\n\nfn texture2D_bilinear(t: texture_2d<f32>, uv: vec2f, textureSize: vec2f, texelSize: vec2f) -> vec4f {\n    let tl = textureSample(t, textureSampler, uv);\n    let tr = textureSample(t, textureSampler, uv + vec2(texelSize.x, 0.0));\n    let bl = textureSample(t, textureSampler, uv + vec2(0.0, texelSize.y));\n    let br = textureSample(t, textureSampler, uv + vec2(texelSize.x, texelSize.y));\n    let f = fract( uv * textureSize );\n    let tA = mix( tl, tr, f.x );\n    let tB = mix( bl, br, f.x );\n    return mix( tA, tB, f.y );\n}\n\nfn texture2D_bilinear_v2(t: texture_2d<f32>, iuv: vec2f, textureSize: vec2f, texelSize: vec2f) -> vec4f {\n    var uv = iuv;\n    let f = fract( uv * textureSize );\n    uv += ( .5 - f ) * texelSize;    // move uv to texel centre\n    let tl = textureSample(t, textureSampler, uv);\n    let tr = textureSample(t, textureSampler, uv + vec2(texelSize.x, 0.0));\n    let bl = textureSample(t, textureSampler, uv + vec2(0.0, texelSize.y));\n    let br = textureSample(t, textureSampler, uv + vec2(texelSize.x, texelSize.y));\n    let tA = mix( tl, tr, f.x );\n    let tB = mix( bl, br, f.x );\n    return mix( tA, tB, f.y );\n}\n\n\n@fragment\nfn fragmentMain(input: VertexOutput) -> @location(0) vec4<f32> {\n    let uv = input.vUv;\n    let color = textureSample(texture, textureSampler, uv);\n    return color;\n\n    // let res = vec2f(textureDimensions(texture, 0)) * 2.0;\n\n    // var col = textureSample(texture, textureSampler, uv).rgb / 2.0;\n    // col += textureSample(texture, textureSampler, uv + vec2(1., 1.) / res).rgb / 8.0;\n    // col += textureSample(texture, textureSampler, uv + vec2(1., -1.) / res).rgb / 8.0;\n    // col += textureSample(texture, textureSampler, uv + vec2(-1., 1.) / res).rgb / 8.0;\n    // col += textureSample(texture, textureSampler, uv + vec2(-1., -1.) / res).rgb / 8.0;\n    // return vec4(col, 1.0);\n\n    // let dim = vec2f(textureDimensions(texture));\n    // let texelSize = 1.0 / dim;\n    // return texture2D_bilinear_v2(texture, uv, dim, texelSize);\n}";
+
+// src/renderer/webgpu/shaders/UpSample.wgsl
+var UpSample_default = "struct VertexInput {\n    @location(0) position : vec2<f32>,\n    @location(1) normal : vec3<f32>,\n    @location(2) uv : vec2<f32>,\n};\n\n\nstruct VertexOutput {\n    @builtin(position) position : vec4<f32>,\n    @location(0) vUv : vec2<f32>,\n};\n\n@group(0) @binding(0) var texture: texture_2d<f32>;\n@group(0) @binding(1) var textureSampler: sampler;\n@group(0) @binding(2) var<storage, read> multiplier: f32;\n\n@vertex\nfn vertexMain(input: VertexInput) -> VertexOutput {\n    var output: VertexOutput;\n    output.position = vec4(input.position, 0.0, 1.0);\n    output.vUv = input.uv;\n    return output;\n}\n\n@fragment\nfn fragmentMain(input: VertexOutput) -> @location(0) vec4<f32> {\n    let uv = input.vUv;\n    // let color = textureSample(texture, textureSampler, uv);\n\n    // let res = vec2f(textureDimensions(texture, 0)) * multiplier;\n\n    // var col = textureSample(texture, textureSampler, uv).rgb / 2.0;\n    // col += textureSample(texture, textureSampler, uv + vec2(1., 1.) / res).rgb / 8.0;\n    // col += textureSample(texture, textureSampler, uv + vec2(1., -1.) / res).rgb / 8.0;\n    // col += textureSample(texture, textureSampler, uv + vec2(-1., 1.) / res).rgb / 8.0;\n    // col += textureSample(texture, textureSampler, uv + vec2(-1., -1.) / res).rgb / 8.0;\n\n    // return vec4(col, 1.0);\n\n\n    let sampleScale = 2.0;\n\n    let texelSize = 1.0 / vec2f(textureDimensions(texture, 0));\n    let d = texelSize.xyxy * vec4f(-1, -1, 1, 1);\n\n    var s = vec4f(0);\n    s = textureSample(texture, textureSampler, uv + d.xy);\n    s += textureSample(texture, textureSampler, uv + d.zy);\n    s += textureSample(texture, textureSampler, uv + d.xw);\n    s += textureSample(texture, textureSampler, uv + d.zw);\n\n    return vec4(vec3(s.rgb * 0.25), 1.0);\n}";
+
+// src/renderer/webgpu/shaders/Blur.wgsl
+var Blur_default = "struct VertexInput {\n    @builtin(vertex_index) VertexIndex : u32,\n    @location(0) position : vec2<f32>,\n};\n\n\nstruct VertexOutput {\n    @builtin(position) position : vec4<f32>,\n    @location(0) vUv : vec2<f32>,\n};\n\n@group(0) @binding(0) var textureSampler: sampler;\n\nstruct View {\n    gProj: mat4x4<f32>\n};\n\n@group(0) @binding(1) var<storage, read> view: View;\n\n@group(0) @binding(2) var<storage, read> gBlurWeights: array<vec4f, 3>;\n@group(0) @binding(3) var<storage, read> gInvRenderTargetSize: vec2<f32>;\n\n\n@group(0) @binding(4) var gNormalMap: texture_2d<f32>;\n@group(0) @binding(5) var gDepthMap: texture_depth_2d;\n@group(0) @binding(6) var gInputMap: texture_2d<f32>;\n\n@group(0) @binding(7) var<storage, read> blurHorizontal: f32;\n@group(0) @binding(8) var<storage, read> blurRadius: f32;\n\n\n@vertex\nfn vertexMain(input: VertexInput) -> VertexOutput {\n    let gTexCoords = array<vec2f, 6>(\n        vec2(0.0, 1.0),\n        vec2(0.0, 0.0),\n        vec2(1.0, 0.0),\n        vec2(0.0, 1.0),\n        vec2(1.0, 0.0),\n        vec2(1.0, 1.0)\n    );\n\n    var output: VertexOutput;\n    // output.vUv = input.uv;\n    output.vUv = vec2(gTexCoords[input.VertexIndex].x, 1.0 - gTexCoords[input.VertexIndex].y);\n    // output.position = vec4(2.0 * output.vUv.x - 1.0, 1.0 - 2.0 * output.vUv.y, 0.0, 1.0);\n    output.position = vec4(2 * output.vUv.x - 1.0, 1.0 - 2 * output.vUv.y, 0.0, 1.0);\n    return output;\n}\n\nfn NdcDepthToViewDepth(z_ndc: f32) -> f32 {\n    // z_ndc = A + B/viewZ, where gProj[2,2]=A and gProj[3,2]=B.\n    let viewZ = view.gProj[3][2] / (z_ndc - view.gProj[2][2]);\n    return viewZ;\n}\n\n@fragment\nfn fragmentMain(input: VertexOutput) -> @location(0) vec4<f32> {\n    // return vec4f(1.0);\n    let uv = input.vUv;\n\n\n    // unpack into float array.\n    let blurWeights = array<f32, 12>(\n        gBlurWeights[0].x, gBlurWeights[0].y, gBlurWeights[0].z, gBlurWeights[0].w,\n        gBlurWeights[1].x, gBlurWeights[1].y, gBlurWeights[1].z, gBlurWeights[1].w,\n        gBlurWeights[2].x, gBlurWeights[2].y, gBlurWeights[2].z, gBlurWeights[2].w,\n    );\n\n    let gBlurRadius = i32(blurRadius);\n    let gHorizontalBlur = bool(blurHorizontal);\n\n    var texOffset = vec2f(0);\n    if(gHorizontalBlur) {\n        texOffset = vec2f(gInvRenderTargetSize.x, 0.0);\n    }\n    else {\n        texOffset = vec2f(0.0, gInvRenderTargetSize.y);\n    }\n\n    let TexC = input.vUv;\n    var color = blurWeights[gBlurRadius] * textureSample(gInputMap, textureSampler, TexC);\n    var totalWeight = blurWeights[gBlurRadius];\n\n    let centerNormal = textureSample(gNormalMap, textureSampler, TexC).xyz;\n    let centerDepth = NdcDepthToViewDepth(textureSample(gDepthMap, textureSampler, TexC));\n    // let centerDepth = textureSample(gDepthMap, textureSampler, TexC);\n\n    for(var i = -gBlurRadius; i <=gBlurRadius; i++) {\n        // We already added in the center weight.\n        if( i == 0 ) {\n            continue;\n        }\n\n        let tex = TexC + f32(i) * texOffset;\n\n        let neighborNormal = textureSample(gNormalMap, textureSampler, tex).xyz;\n        let neighborDepth = NdcDepthToViewDepth(textureSample(gDepthMap, textureSampler, tex));\n        // let neighborDepth = textureSample(gDepthMap, textureSampler, tex);\n\n        //\n        // If the center value and neighbor values differ too much (either in\n        // normal or depth), then we assume we are sampling across a discontinuity.\n        // We discard such samples from the blur.\n        //\n        if( dot(neighborNormal, centerNormal) >= 0.8f &&\n            abs(neighborDepth - centerDepth) <= 0.2f )\n        {\n            let weight = blurWeights[i + gBlurRadius];\n\n            // Add neighbor pixel to blur.\n            color += weight * textureSampleLevel(gInputMap, textureSampler, tex, 0);\n\n            totalWeight += weight;\n        }\n    }\n    return color;\n    // return vec4(centerNormal, 1.0);\n    // return vec4(pow(centerDepth, 100));\n}";
+
+// src/renderer/webgpu/shaders/Blit.wgsl
+var Blit_default = "struct VertexInput {\n    @location(0) position : vec2<f32>,\n    @location(1) normal : vec3<f32>,\n    @location(2) uv : vec2<f32>,\n};\n\nstruct VertexOutput {\n    @builtin(position) position : vec4<f32>,\n    @location(0) vUv : vec2<f32>,\n};\n\n@group(0) @binding(0) var texture: texture_2d<f32>;\n@group(0) @binding(1) var textureSampler: sampler;\n@group(0) @binding(2) var<storage, read> mip: f32;\n\n@vertex\nfn vertexMain(input: VertexInput) -> VertexOutput {\n    var output: VertexOutput;\n    output.position = vec4(input.position, 0.0, 1.0);\n    output.vUv = input.uv;\n    return output;\n}\n\n@fragment\nfn fragmentMain(input: VertexOutput) -> @location(0) vec4<f32> {\n    let uv = input.vUv;\n    let color = textureSampleLevel(texture, textureSampler, uv, mip);\n    return color;\n}";
 
 // src/renderer/webgpu/shaders/WEBGPUShaders.ts
 var WEBGPUShaders = class {
@@ -988,6 +1057,11 @@ var WEBGPUShaders = class {
   static ShadowShaderCode = ShadowPass_default;
   static WireframeShaderCode = WireframeShader_default;
   static QuadShaderCode = QuadShader_default;
+  static SSGICode = SSGI_default;
+  static DownSampleCode = DownSample_default;
+  static UpSampleCode = UpSample_default;
+  static BlurCode = Blur_default;
+  static BlitCode = Blit_default;
 };
 
 // src/renderer/Shader.ts
@@ -995,7 +1069,7 @@ var Shader = class {
   id;
   params;
   static Create(params) {
-    if (Renderer.type === "webgpu") return new WEBGPUShader(structuredClone(params));
+    if (Renderer.type === "webgpu") return new WEBGPUShader(params);
     throw Error("Unknown api");
   }
   SetValue(name, value) {
@@ -1033,6 +1107,26 @@ var ShaderCode = class {
   }
   static get QuadShader() {
     if (Renderer.type === "webgpu") return WEBGPUShaders.QuadShaderCode;
+    throw Error("Unknown api");
+  }
+  static get SSGI() {
+    if (Renderer.type === "webgpu") return WEBGPUShaders.SSGICode;
+    throw Error("Unknown api");
+  }
+  static get DownSample() {
+    if (Renderer.type === "webgpu") return WEBGPUShaders.DownSampleCode;
+    throw Error("Unknown api");
+  }
+  static get UpSample() {
+    if (Renderer.type === "webgpu") return WEBGPUShaders.UpSampleCode;
+    throw Error("Unknown api");
+  }
+  static get Blur() {
+    if (Renderer.type === "webgpu") return WEBGPUShaders.BlurCode;
+    throw Error("Unknown api");
+  }
+  static get Blit() {
+    if (Renderer.type === "webgpu") return WEBGPUShaders.BlitCode;
     throw Error("Unknown api");
   }
 };
@@ -1388,14 +1482,19 @@ var WEBGPURendererContext = class {
     this.activeRenderPass.end();
     this.activeRenderPass = null;
   }
-  static DrawGeometry(geometry, shader, instanceCount = 1, dynamicOffsets) {
+  static DrawGeometry(geometry, shader, instanceCount = 1) {
     if (!this.activeRenderPass) throw Error("No active render pass");
     shader.OnPreRender(geometry);
     if (!shader.pipeline) throw Error("Shader doesnt have a pipeline");
     this.activeRenderPass.setPipeline(shader.pipeline);
     for (let i = 0; i < shader.bindGroups.length; i++) {
-      const dynamicOffset = dynamicOffsets && dynamicOffsets[i] ? dynamicOffsets[i] : void 0;
-      this.activeRenderPass.setBindGroup(i, shader.bindGroups[i], dynamicOffset);
+      let dynamicOffsetsV2 = [];
+      for (const buffer of shader.bindGroupsInfo[i].buffers) {
+        if (buffer instanceof WEBGPUDynamicBuffer) {
+          dynamicOffsetsV2.push(buffer.dynamicOffset);
+        }
+      }
+      this.activeRenderPass.setBindGroup(i, shader.bindGroups[i], dynamicOffsetsV2);
     }
     for (const [name, attribute] of geometry.attributes) {
       const attributeSlot = shader.GetAttributeSlot(name);
@@ -1404,8 +1503,11 @@ var WEBGPURendererContext = class {
       this.activeRenderPass.setVertexBuffer(attributeSlot, attributeBuffer.GetBuffer());
     }
     if (!shader.params.topology || shader.params.topology === "triangle-list" /* Triangles */) {
-      if (!geometry.index) throw Error("Drawing without indices is not supported yet");
-      else {
+      if (!geometry.index) {
+        const positions = geometry.attributes.get("position");
+        positions.GetBuffer().size;
+        this.activeRenderPass.draw(positions.GetBuffer().size / 3 / 4, instanceCount);
+      } else {
         const indexBuffer = geometry.index.buffer;
         this.activeRenderPass.setIndexBuffer(indexBuffer.GetBuffer(), "uint32");
         this.activeRenderPass.drawIndexed(indexBuffer.size / 4, instanceCount);
@@ -1429,6 +1531,11 @@ var WEBGPURendererContext = class {
     if (!activeCommandEncoder) throw Error("No active command encoder!!");
     activeCommandEncoder.copyBufferToBuffer(source.GetBuffer(), sourceOffset, destination.GetBuffer(), destinationOffset, size);
   }
+  static CopyTextureToTexture(source, destination) {
+    const activeCommandEncoder = WEBGPURenderer.GetActiveCommandEncoder();
+    if (!activeCommandEncoder) throw Error("No active command encoder!!");
+    activeCommandEncoder.copyTextureToTexture({ texture: source.GetBuffer() }, { texture: destination.GetBuffer() }, [source.width, source.height, source.depth]);
+  }
 };
 
 // src/renderer/RendererContext.ts
@@ -1451,12 +1558,16 @@ var RendererContext = class {
     if (Renderer.type === "webgpu") WEBGPURendererContext.SetScissor(x, y, width, height);
     else throw Error("Unknown render api type.");
   }
-  static DrawGeometry(geometry, shader, instanceCount, dynamicOffsets = []) {
-    if (Renderer.type === "webgpu") WEBGPURendererContext.DrawGeometry(geometry, shader, instanceCount, dynamicOffsets);
+  static DrawGeometry(geometry, shader, instanceCount) {
+    if (Renderer.type === "webgpu") WEBGPURendererContext.DrawGeometry(geometry, shader, instanceCount);
     else throw Error("Unknown render api type.");
   }
   static CopyBufferToBuffer(source, destination, sourceOffset = 0, destinationOffset = 0, size = void 0) {
     if (Renderer.type === "webgpu") WEBGPURendererContext.CopyBufferToBuffer(source, destination, sourceOffset, destinationOffset, size ? size : source.size);
+    else throw Error("Unknown render api type.");
+  }
+  static CopyTextureToTexture(source, destination) {
+    if (Renderer.type === "webgpu") WEBGPURendererContext.CopyTextureToTexture(source, destination);
     else throw Error("Unknown render api type.");
   }
 };
@@ -1588,6 +1699,88 @@ var InstancedMesh = class extends Mesh {
   }
 };
 
+// src/plugins/UIStats.ts
+var UISliderStat = class {
+  constructor(container, label, min, max, step, defaultValue, callback) {
+    const labelElement = document.createElement("label");
+    labelElement.textContent = label;
+    const sliderElement = document.createElement("input");
+    sliderElement.type = "range";
+    sliderElement.min = `${min}`;
+    sliderElement.max = `${max}`;
+    sliderElement.step = `${step}`;
+    sliderElement.value = `${defaultValue}`;
+    sliderElement.addEventListener("input", (event) => {
+      callback(parseFloat(sliderElement.value));
+    });
+    container.append(labelElement, sliderElement);
+  }
+};
+var UITextStat = class {
+  textElement;
+  constructor(container, label, defaultValue) {
+    const labelElement = document.createElement("label");
+    labelElement.textContent = label;
+    this.textElement = document.createElement("pre");
+    this.textElement.textContent = defaultValue;
+    container.append(labelElement, this.textElement);
+  }
+  SetValue(value) {
+    this.textElement.textContent = value;
+  }
+};
+var UIStats = class {
+  container;
+  stats = [];
+  constructor() {
+    this.container = document.createElement("div");
+    this.container.style.position = "absolute";
+    this.container.style.top = "0px";
+    this.container.style.color = "white";
+    this.container.style.display = "grid";
+    this.container.style.backgroundColor = "#222222";
+    this.container.style.fontSize = "10px";
+    document.body.appendChild(this.container);
+  }
+  SetPosition(position) {
+    if (position.left) this.container.style.left = `${position.left}px`;
+    if (position.right) this.container.style.right = `${position.right}px`;
+    if (position.top) this.container.style.top = `${position.top}px`;
+    if (position.bottom) this.container.style.bottom = `${position.bottom}px`;
+  }
+  AddSlider(label, min, max, step, defaultValue, callback) {
+    const stat = new UISliderStat(this.container, label, min, max, step, defaultValue, callback);
+    this.stats.push(stat);
+    return stat;
+  }
+  AddTextStat(label, defaultValue) {
+    const stat = new UITextStat(this.container, label, defaultValue);
+    this.stats.push(stat);
+    return stat;
+  }
+};
+
+// src/plugins/Debugger.ts
+var _Debugger = class {
+  ui;
+  frameRenderPassesStat;
+  frameRenderPasses = [];
+  constructor() {
+    this.ui = new UIStats();
+    this.frameRenderPassesStat = this.ui.AddTextStat("Render passes: ", "");
+  }
+  ResetFrame() {
+    this.frameRenderPasses = [];
+    this.frameRenderPassesStat.SetValue("");
+  }
+  AddFrameRenderPass(name) {
+    if (this.frameRenderPasses.includes(name)) return;
+    this.frameRenderPasses.push(name);
+    this.frameRenderPassesStat.SetValue(this.frameRenderPasses.join("\n"));
+  }
+};
+var Debugger = new _Debugger();
+
 // src/renderer/passes/DeferredMeshRenderPass.ts
 var DeferredMeshRenderPass = class extends RenderPass {
   name = "DeferredMeshRenderPass";
@@ -1603,6 +1796,7 @@ var DeferredMeshRenderPass = class extends RenderPass {
     this.gbufferDepthDT = DepthTexture.Create(Renderer.width, Renderer.height, 1);
   }
   execute(resources, inputCamera, outputGBufferAlbedo, outputGBufferNormal, outputGBufferERMO, outputGBufferDepth) {
+    Debugger.AddFrameRenderPass("DeferredMeshRenderPass");
     if (!inputCamera) throw Error(`No inputs passed to ${this.name}`);
     const backgroundColor = inputCamera.backgroundColor;
     RendererContext.BeginRenderPass(
@@ -1850,10 +2044,44 @@ var Light = class extends Component {
   camera;
   color = new Color(1, 1, 1);
   intensity = 1;
-  radius = 1;
+  range = 1e3;
   Start() {
+    EventSystem.on("TransformUpdated", (transform) => {
+      if (this.transform === transform) {
+        EventSystem.emit("LightUpdated", this);
+      }
+    });
+  }
+};
+var SpotLight = class extends Light {
+  direction = new Vector3(0, -1, 0);
+  angle = 1;
+  Start() {
+    super.Start();
+    this.camera = this.gameObject.AddComponent(Camera);
+    this.camera.SetPerspective(this.angle / Math.PI * 180 * 2, Renderer.width / Renderer.height, 0.01, 1e3);
+  }
+};
+var PointLight = class extends Light {
+  Start() {
+    super.Start();
     this.camera = this.gameObject.AddComponent(Camera);
     this.camera.SetPerspective(60, Renderer.width / Renderer.height, 0.01, 1e3);
+  }
+};
+var AreaLight = class extends Light {
+  Start() {
+    super.Start();
+    this.camera = this.gameObject.AddComponent(Camera);
+    this.camera.SetPerspective(60, Renderer.width / Renderer.height, 0.01, 1e3);
+  }
+};
+var DirectionalLight = class extends Light {
+  direction = new Vector3(0, 1, 0);
+  Start() {
+    super.Start();
+    this.camera = this.gameObject.AddComponent(Camera);
+    this.camera.SetOrthographic(-1, 1, -1, 1, 0.1, 100);
   }
 };
 
@@ -1863,8 +2091,12 @@ var DeferredLightingPass = class extends RenderPass {
   shader;
   sampler;
   quadGeometry;
-  constructor(inputGBufferAlbedo, inputGBufferNormal, inputGbufferERMO, inputGBufferDepth, inputShadowPassDepth) {
-    super({ inputs: [inputGBufferAlbedo, inputGBufferNormal, inputGbufferERMO, inputGBufferDepth, inputShadowPassDepth] });
+  lightsBuffer;
+  lightsCountBuffer;
+  outputLightingPass;
+  needsUpdate = false;
+  constructor(inputGBufferAlbedo, inputGBufferNormal, inputGbufferERMO, inputGBufferDepth, inputShadowPassDepth, outputLightingPass) {
+    super({ inputs: [inputGBufferAlbedo, inputGBufferNormal, inputGbufferERMO, inputGBufferDepth, inputShadowPassDepth], outputs: [outputLightingPass] });
     this.shader = Shader.Create({
       code: ShaderCode.DeferredLightingPBRShader,
       attributes: {
@@ -1891,22 +2123,32 @@ var DeferredLightingPass = class extends RenderPass {
     const shadowSampler = TextureSampler.Create({ minFilter: "nearest", magFilter: "nearest", addressModeU: "clamp-to-edge", addressModeV: "clamp-to-edge" });
     this.shader.SetSampler("shadowSampler", shadowSampler);
     this.quadGeometry = Geometry.Plane();
+    this.lightsCountBuffer = Buffer2.Create(1 * 4, 0 /* STORAGE */);
+    this.outputLightingPass = RenderTexture.Create(Renderer.width, Renderer.height);
+    EventSystem.on("LightUpdated", (component) => {
+      this.needsUpdate = true;
+    });
   }
-  execute(resources, inputGBufferAlbedo, inputGBufferNormal, inputGbufferERMO, inputGBufferDepth, inputShadowPassDepth) {
-    const camera = Camera.mainCamera;
-    const renderTarget = camera.renderTarget;
-    const backgroundColor = camera.backgroundColor;
-    RendererContext.BeginRenderPass("DeferredLightingPass", [{ clear: true, color: backgroundColor }]);
-    this.shader.SetTexture("albedoTexture", inputGBufferAlbedo);
-    this.shader.SetTexture("normalTexture", inputGBufferNormal);
-    this.shader.SetTexture("ermoTexture", inputGbufferERMO);
-    this.shader.SetTexture("depthTexture", inputGBufferDepth);
-    this.shader.SetTexture("shadowPassDepth", inputShadowPassDepth);
-    const lights = Camera.mainCamera.gameObject.scene.GetComponents(Light);
-    const lightBufferSize = 4 + 16 + 16 + 3 + 1;
+  updateLightsBuffer() {
+    const scene = Camera.mainCamera.gameObject.scene;
+    const lights = [...scene.GetComponents(SpotLight), ...scene.GetComponents(PointLight), ...scene.GetComponents(DirectionalLight), ...scene.GetComponents(AreaLight)];
+    const lightBufferSize = 4 + 16 + 16 + 16 + 3 + 1 + 4 + 4;
     const lightBuffer = new Float32Array(Math.max(1, lights.length) * lightBufferSize);
     for (let i = 0; i < lights.length; i++) {
       const light = lights[i];
+      const params1 = new Float32Array([light.intensity, light.range, 0, 0]);
+      const params2 = new Float32Array(4);
+      if (light instanceof DirectionalLight) {
+        params2.set(light.direction.elements);
+      } else if (light instanceof SpotLight) {
+        params1.set([light.intensity, light.range, light.angle, 0]);
+        params2.set(light.direction.elements);
+      }
+      let lightType = 0 /* SPOT_LIGHT */;
+      if (light instanceof SpotLight) lightType = 0 /* SPOT_LIGHT */;
+      else if (light instanceof DirectionalLight) lightType = 1 /* DIRECTIONAL_LIGHT */;
+      else if (light instanceof PointLight) lightType = 2 /* POINT_LIGHT */;
+      else if (light instanceof AreaLight) lightType = 3 /* AREA_LIGHT */;
       lightBuffer.set([
         light.transform.position.x,
         light.transform.position.y,
@@ -1914,14 +2156,37 @@ var DeferredLightingPass = class extends RenderPass {
         1,
         ...light.camera.projectionMatrix.elements,
         ...light.camera.viewMatrix.elements,
+        ...light.camera.viewMatrix.clone().invert().elements,
         light.color.r,
         light.color.g,
         light.color.b,
-        light.intensity
+        lightType,
+        ...params1,
+        ...params2
       ], i * lightBufferSize);
     }
-    this.shader.SetArray("lights", lightBuffer);
-    this.shader.SetArray("lightCount", new Uint32Array([lights.length]));
+    if (!this.lightsBuffer || this.lightsBuffer.size !== lightBufferSize * 4) {
+      this.lightsBuffer = Buffer2.Create(lightBufferSize * 4, 0 /* STORAGE */);
+      this.lightsCountBuffer = Buffer2.Create(lightBufferSize * 4, 0 /* STORAGE */);
+    }
+    this.lightsBuffer.SetArray(lightBuffer);
+    this.lightsCountBuffer.SetArray(new Uint32Array([lights.length]));
+    this.shader.SetBuffer("lights", this.lightsBuffer);
+    this.shader.SetBuffer("lightCount", this.lightsCountBuffer);
+    this.needsUpdate = false;
+  }
+  execute(resources, inputGBufferAlbedo, inputGBufferNormal, inputGbufferERMO, inputGBufferDepth, inputShadowPassDepth, outputLightingPass) {
+    Debugger.AddFrameRenderPass("DeferredLightingPass");
+    const camera = Camera.mainCamera;
+    if (!this.lightsBuffer || !this.lightsCountBuffer || this.needsUpdate) {
+      this.updateLightsBuffer();
+    }
+    RendererContext.BeginRenderPass("DeferredLightingPass", [{ target: this.outputLightingPass, clear: true }]);
+    this.shader.SetTexture("albedoTexture", inputGBufferAlbedo);
+    this.shader.SetTexture("normalTexture", inputGBufferNormal);
+    this.shader.SetTexture("ermoTexture", inputGbufferERMO);
+    this.shader.SetTexture("depthTexture", inputGBufferDepth);
+    this.shader.SetTexture("shadowPassDepth", inputShadowPassDepth);
     const view = new Float32Array(4 + 4 + 16 + 16);
     view.set([Renderer.width, Renderer.height, 0], 0);
     view.set(camera.transform.position.elements, 4);
@@ -1933,6 +2198,7 @@ var DeferredLightingPass = class extends RenderPass {
     this.shader.SetArray("view", view);
     RendererContext.DrawGeometry(this.quadGeometry, this.shader);
     RendererContext.EndRenderPass();
+    resources.setResource(outputLightingPass, this.outputLightingPass);
   }
 };
 
@@ -1949,9 +2215,10 @@ var ShadowPass = class extends RenderPass {
   modelMatrices;
   lightViewMatrixBuffer;
   lightProjectionMatrixBuffer;
+  needsUpdate = true;
   constructor(outputDepthDT) {
     super({ outputs: [outputDepthDT] });
-    let shaderParams = {
+    this.shader = Shader.Create({
       code: ShaderCode.ShadowShader,
       attributes: {
         position: { location: 0, size: 3, type: "vec3" },
@@ -1965,9 +2232,22 @@ var ShadowPass = class extends RenderPass {
       },
       depthOutput: "depth24plus",
       colorOutputs: []
-    };
-    this.shader = Shader.Create(shaderParams);
-    this.instancedShader = Shader.Create(shaderParams);
+    });
+    this.instancedShader = Shader.Create({
+      code: ShaderCode.ShadowShader,
+      attributes: {
+        position: { location: 0, size: 3, type: "vec3" },
+        normal: { location: 1, size: 3, type: "vec3" },
+        uv: { location: 2, size: 2, type: "vec2" }
+      },
+      uniforms: {
+        projectionMatrix: { group: 0, binding: 0, type: "storage" },
+        viewMatrix: { group: 0, binding: 1, type: "storage" },
+        modelMatrix: { group: 1, binding: 2, type: "storage" }
+      },
+      depthOutput: "depth24plus",
+      colorOutputs: []
+    });
     this.shadowDepthDT = DepthTextureArray.Create(this.shadowWidth, this.shadowHeight, 1);
     this.lightViewMatrixBuffer = Buffer2.Create(4 * 16, 0 /* STORAGE */);
     this.lightProjectionMatrixBuffer = Buffer2.Create(4 * 16, 0 /* STORAGE */);
@@ -1975,10 +2255,18 @@ var ShadowPass = class extends RenderPass {
     this.shader.SetBuffer("projectionMatrix", this.lightProjectionMatrixBuffer);
     this.instancedShader.SetBuffer("viewMatrix", this.lightViewMatrixBuffer);
     this.instancedShader.SetBuffer("projectionMatrix", this.lightProjectionMatrixBuffer);
+    EventSystem.on("LightUpdated", (component) => {
+      this.needsUpdate = true;
+    });
+    EventSystem.on("MeshUpdated", (component) => {
+      this.needsUpdate = true;
+    });
   }
   execute(resources, outputDepthDT) {
+    if (!this.needsUpdate) return;
+    Debugger.AddFrameRenderPass("ShadowPass");
     const scene = Camera.mainCamera.gameObject.scene;
-    const lights = scene.GetComponents(Light);
+    const lights = [...scene.GetComponents(SpotLight), ...scene.GetComponents(PointLight), ...scene.GetComponents(DirectionalLight), ...scene.GetComponents(AreaLight)];
     if (lights.length === 0) {
       resources.setResource(outputDepthDT, this.shadowDepthDT);
       return;
@@ -1995,7 +2283,7 @@ var ShadowPass = class extends RenderPass {
       this.lightProjectionMatricesBuffer = Buffer2.Create(lights.length * 4 * 16, 0 /* STORAGE */);
     }
     if (!this.modelMatrices || this.modelMatrices.size / 256 !== meshes.length) {
-      this.modelMatrices = Buffer2.Create(meshes.length * 256, 0 /* STORAGE */, 256);
+      this.modelMatrices = DynamicBuffer2.Create(meshes.length * 256, 0 /* STORAGE */, 256);
     }
     for (let i = 0; i < lights.length; i++) {
       this.lightViewMatricesBuffer.SetArray(lights[i].camera.viewMatrix.elements, i * 4 * 16);
@@ -2013,8 +2301,10 @@ var ShadowPass = class extends RenderPass {
       RendererContext.BeginRenderPass("ShadowPass", [], { target: this.shadowDepthDT, clear: true });
       for (let i2 = 0; i2 < meshes.length; i2++) {
         const mesh = meshes[i2];
+        if (!mesh.enableShadows) continue;
         const uniform_offset = i2 * 256;
-        RendererContext.DrawGeometry(mesh.GetGeometry(), this.shader, 1, [[], [uniform_offset]]);
+        this.modelMatrices.dynamicOffset = uniform_offset;
+        RendererContext.DrawGeometry(mesh.GetGeometry(), this.shader, 1);
       }
       for (let instancedMesh of instancedMeshes) {
         if (instancedMesh.instanceCount === 0) continue;
@@ -2025,6 +2315,7 @@ var ShadowPass = class extends RenderPass {
       this.shadowDepthDT.SetActiveLayer(this.shadowDepthDT.GetActiveLayer() + 1);
     }
     resources.setResource(outputDepthDT, this.shadowDepthDT);
+    this.needsUpdate = false;
   }
 };
 
@@ -2099,6 +2390,295 @@ var DebuggerPass = class extends RenderPass {
   }
 };
 
+// src/renderer/passes/SSGI.ts
+var DownSampler = class {
+  shader;
+  quadGeometry;
+  outputTexture;
+  constructor(outputWidth, outputHeight) {
+    this.shader = Shader.Create({
+      code: ShaderCode.DownSample,
+      attributes: {
+        position: { location: 0, size: 3, type: "vec3" },
+        normal: { location: 1, size: 3, type: "vec3" },
+        uv: { location: 2, size: 2, type: "vec2" }
+      },
+      uniforms: {
+        texture: { group: 0, binding: 0, type: "texture" },
+        textureSampler: { group: 0, binding: 1, type: "sampler" },
+        multiplier: { group: 0, binding: 2, type: "storage" }
+      },
+      colorOutputs: [{ format: Renderer.SwapChainFormat }]
+    });
+    const lightingSampler = TextureSampler.Create({ magFilter: "linear", minFilter: "linear" });
+    this.shader.SetSampler("textureSampler", lightingSampler);
+    this.quadGeometry = Geometry.Plane();
+    this.outputTexture = RenderTexture.Create(Math.ceil(outputWidth), Math.ceil(outputHeight));
+  }
+  run(inputTexture, debug = false) {
+    this.shader.SetTexture("texture", inputTexture);
+    Debugger.AddFrameRenderPass("SSGI Downsample 1");
+    RendererContext.BeginRenderPass("DownsamplePass", [{ target: debug ? void 0 : this.outputTexture, clear: true }]);
+    RendererContext.DrawGeometry(this.quadGeometry, this.shader);
+    RendererContext.EndRenderPass();
+    return this.outputTexture;
+  }
+};
+var UpSampler = class {
+  shader;
+  quadGeometry;
+  outputTexture;
+  constructor(outputWidth, outputHeight) {
+    this.shader = Shader.Create({
+      code: ShaderCode.UpSample,
+      attributes: {
+        position: { location: 0, size: 3, type: "vec3" },
+        normal: { location: 1, size: 3, type: "vec3" },
+        uv: { location: 2, size: 2, type: "vec2" }
+      },
+      uniforms: {
+        texture: { group: 0, binding: 0, type: "texture" },
+        textureSampler: { group: 0, binding: 1, type: "sampler" },
+        multiplier: { group: 0, binding: 2, type: "storage" }
+      },
+      colorOutputs: [{ format: Renderer.SwapChainFormat }]
+    });
+    const lightingSampler = TextureSampler.Create();
+    this.shader.SetSampler("textureSampler", lightingSampler);
+    this.quadGeometry = Geometry.Plane();
+    this.outputTexture = RenderTexture.Create(Math.ceil(outputWidth), Math.ceil(outputHeight));
+  }
+  run(inputTexture, debug = false) {
+    this.shader.SetTexture("texture", inputTexture);
+    Debugger.AddFrameRenderPass("SSGI Upsample 1");
+    RendererContext.BeginRenderPass("UpsamplePass", [{ target: debug ? void 0 : this.outputTexture, clear: true }]);
+    RendererContext.DrawGeometry(this.quadGeometry, this.shader);
+    RendererContext.EndRenderPass();
+    return this.outputTexture;
+  }
+};
+var Blur = class {
+  shader;
+  quadGeometry;
+  outputTexture;
+  constructor() {
+    this.shader = Shader.Create({
+      code: ShaderCode.Blur,
+      attributes: {
+        position: { location: 0, size: 2, type: "vec2" }
+      },
+      uniforms: {
+        textureSampler: { group: 0, binding: 0, type: "sampler" },
+        view: { group: 0, binding: 1, type: "storage" },
+        blurWeights: { group: 0, binding: 2, type: "storage" },
+        gInvRenderTargetSize: { group: 0, binding: 3, type: "storage" },
+        gNormalMap: { group: 0, binding: 4, type: "texture" },
+        gDepthMap: { group: 0, binding: 5, type: "depthTexture" },
+        gInputMap: { group: 0, binding: 6, type: "texture" },
+        blurHorizontal: { group: 0, binding: 7, type: "storage" },
+        blurRadius: { group: 0, binding: 8, type: "storage" }
+      },
+      colorOutputs: [{ format: Renderer.SwapChainFormat }]
+    });
+    const lightingSampler = TextureSampler.Create();
+    this.shader.SetSampler("textureSampler", lightingSampler);
+    this.quadGeometry = new Geometry();
+    this.quadGeometry.attributes.set("position", new VertexAttribute(new Float32Array(6 * 3)));
+    console.log(this.quadGeometry);
+    console.log(this.quadGeometry);
+  }
+  CalcGaussWeights(sigma) {
+    const twoSigma2 = 2 * sigma * sigma;
+    const blurRadius = Math.ceil(2 * sigma);
+    const MaxBlurRadius = 5;
+    if (blurRadius > MaxBlurRadius) throw Error("if (blurRadius > MaxBlurRadius)");
+    let weightSum = 0;
+    let weights = new Float32Array(12);
+    for (let i = -blurRadius; i <= blurRadius; i++) {
+      const x = i;
+      weights[i + blurRadius] = Math.exp(-x * x / twoSigma2);
+      weightSum += weights[i + blurRadius];
+    }
+    for (let i = 0; i < weights.length; i++) {
+      weights[i] /= weightSum;
+    }
+    return weights;
+  }
+  run(blurHorizontal, blurRadius, gInputMap, gNormalMap, gDepthMap, debug = false) {
+    if (!this.outputTexture) {
+      this.outputTexture = RenderTexture.Create(Math.ceil(gInputMap.width), Math.ceil(gInputMap.height));
+    }
+    this.shader.SetArray("blurWeights", this.CalcGaussWeights(2.5));
+    const SsaoMapWidth = this.outputTexture.width / 2;
+    const SsaoMapHeight = this.outputTexture.height / 2;
+    const InvRenderTargetSize = new Float32Array([1 / SsaoMapWidth, 1 / SsaoMapHeight]);
+    this.shader.SetArray("gInvRenderTargetSize", InvRenderTargetSize);
+    this.shader.SetTexture("gNormalMap", gNormalMap);
+    this.shader.SetTexture("gDepthMap", gDepthMap);
+    this.shader.SetTexture("gInputMap", gInputMap);
+    this.shader.SetValue("blurHorizontal", blurHorizontal === true ? 1 : 0);
+    this.shader.SetValue("blurRadius", blurRadius);
+    const camera = Camera.mainCamera;
+    const view = new Float32Array(16);
+    const tempMatrix = new Matrix4();
+    tempMatrix.copy(camera.projectionMatrix);
+    view.set(tempMatrix.elements, 0);
+    this.shader.SetArray("view", view);
+    Debugger.AddFrameRenderPass("Blur");
+    RendererContext.BeginRenderPass("BlurPass", [{ target: debug ? void 0 : this.outputTexture, clear: true }]);
+    RendererContext.DrawGeometry(this.quadGeometry, this.shader);
+    RendererContext.EndRenderPass();
+    return this.outputTexture;
+  }
+};
+var SSGI = class extends RenderPass {
+  name = "SSGI";
+  shader;
+  quadGeometry;
+  outputRt;
+  ssgiOutput;
+  blendShader;
+  downsampler1;
+  downsampler2;
+  upsampler1;
+  upsampler2;
+  blur1;
+  blur2;
+  blur3;
+  blur4;
+  constructor(inputGBufferDepth, inputGBufferNormal, inputDeferredLighting, inputAlbedoTexture) {
+    super({ inputs: [inputGBufferDepth, inputGBufferNormal, inputDeferredLighting, inputAlbedoTexture] });
+    this.shader = Shader.Create({
+      code: ShaderCode.SSGI,
+      attributes: {
+        position: { location: 0, size: 3, type: "vec3" },
+        normal: { location: 1, size: 3, type: "vec3" },
+        uv: { location: 2, size: 2, type: "vec2" }
+      },
+      uniforms: {
+        lightingTexture: { group: 0, binding: 0, type: "texture" },
+        albedoTexture: { group: 0, binding: 1, type: "texture" },
+        normalTexture: { group: 0, binding: 2, type: "texture" },
+        depthTexture: { group: 0, binding: 3, type: "depthTexture" },
+        lightingSampler: { group: 0, binding: 4, type: "sampler" },
+        view: { group: 0, binding: 5, type: "storage" }
+      },
+      colorOutputs: [{ format: Renderer.SwapChainFormat }]
+    });
+    const blendShaderCode = `
+            struct VertexInput {
+                @location(0) position : vec2<f32>,
+                @location(1) normal : vec3<f32>,
+                @location(2) uv : vec2<f32>,
+            };
+            
+            
+            struct VertexOutput {
+                @builtin(position) position : vec4<f32>,
+                @location(0) vUv : vec2<f32>,
+            };
+            
+            @group(0) @binding(0) var blurredTexture: texture_2d<f32>;
+            @group(0) @binding(1) var albedoTexture: texture_2d<f32>;
+            @group(0) @binding(2) var lightingTexture: texture_2d<f32>;
+            @group(0) @binding(3) var textureSampler: sampler;
+            
+            @vertex
+            fn vertexMain(input: VertexInput) -> VertexOutput {
+                var output: VertexOutput;
+                output.position = vec4(input.position, 0.0, 1.0);
+                output.vUv = input.uv;
+                return output;
+            }
+            
+            @fragment
+            fn fragmentMain(input: VertexOutput) -> @location(0) vec4<f32> {
+                let uv = input.vUv;
+                
+                let indirect = textureSample(blurredTexture, textureSampler, uv);
+                let albedo = textureSample(albedoTexture, textureSampler, uv);
+                let lighting = textureSample(lightingTexture, textureSampler, uv);
+                // return vec4((indirect.rgb + albedo.rgb * 0.5) + lighting.rgb, 1.0);
+                // return vec4(lighting.rgb, 1.0);
+                return vec4(indirect.rgb * albedo.rgb + lighting.rgb, 1.0);
+                return vec4(lighting.rgb + indirect.rgb * albedo.rgb, 1.0);
+            }
+        `;
+    this.blendShader = Shader.Create({
+      code: blendShaderCode,
+      attributes: {
+        position: { location: 0, size: 3, type: "vec3" },
+        normal: { location: 1, size: 3, type: "vec3" },
+        uv: { location: 2, size: 2, type: "vec2" }
+      },
+      uniforms: {
+        blurredTexture: { group: 0, binding: 0, type: "texture" },
+        albedoTexture: { group: 0, binding: 1, type: "texture" },
+        lightingTexture: { group: 0, binding: 2, type: "texture" },
+        textureSampler: { group: 0, binding: 3, type: "sampler" }
+      },
+      colorOutputs: [{ format: Renderer.SwapChainFormat }]
+    });
+    this.quadGeometry = Geometry.Plane();
+    const lightingSampler = TextureSampler.Create();
+    this.shader.SetSampler("lightingSampler", lightingSampler);
+    this.blendShader.SetSampler("textureSampler", lightingSampler);
+    this.downsampler1 = new DownSampler(Renderer.width * 0.5, Renderer.height * 0.5);
+    this.downsampler2 = new DownSampler(Renderer.width * 0.25, Renderer.height * 0.25);
+    this.upsampler1 = new UpSampler(Renderer.width * 0.5, Renderer.height * 0.5);
+    this.upsampler2 = new UpSampler(Renderer.width, Renderer.height);
+    this.blur1 = new Blur();
+    this.blur2 = new Blur();
+    this.blur3 = new Blur();
+    this.blur4 = new Blur();
+  }
+  execute(resources, inputGBufferDepth, inputGBufferNormal, outputLightingPass, inputAlbedoTexture) {
+    Debugger.AddFrameRenderPass("SSGI");
+    this.shader.SetTexture("lightingTexture", outputLightingPass);
+    this.shader.SetTexture("albedoTexture", inputAlbedoTexture);
+    this.shader.SetTexture("normalTexture", inputGBufferNormal);
+    this.shader.SetTexture("depthTexture", inputGBufferDepth);
+    const camera = Camera.mainCamera;
+    const view = new Float32Array(4 + 4 + 16 + 16 + 16 + 16);
+    view.set([Renderer.width, Renderer.height, 0, 0], 0);
+    view.set(camera.transform.position.elements, 4);
+    const tempMatrix = new Matrix4();
+    tempMatrix.copy(camera.projectionMatrix);
+    view.set(tempMatrix.elements, 8);
+    tempMatrix.invert();
+    view.set(tempMatrix.elements, 24);
+    tempMatrix.copy(camera.viewMatrix);
+    view.set(tempMatrix.elements, 40);
+    tempMatrix.invert();
+    view.set(tempMatrix.elements, 56);
+    this.shader.SetArray("view", view);
+    if (!this.ssgiOutput) {
+      this.ssgiOutput = RenderTexture.Create(inputAlbedoTexture.width, inputAlbedoTexture.height);
+    }
+    RendererContext.BeginRenderPass("SSGIPass", [{ target: this.ssgiOutput, clear: true }]);
+    RendererContext.DrawGeometry(this.quadGeometry, this.shader);
+    RendererContext.EndRenderPass();
+    if (!this.outputRt) {
+      this.outputRt = RenderTexture.Create(inputAlbedoTexture.width, inputAlbedoTexture.height);
+    }
+    const output1 = this.downsampler1.run(this.ssgiOutput);
+    const output2 = this.downsampler2.run(output1);
+    const output3 = this.upsampler1.run(output2);
+    const output2BlurH = this.blur1.run(true, 3, output3, inputGBufferNormal, inputGBufferDepth);
+    const output2BlurV = this.blur2.run(false, 3, output2BlurH, inputGBufferNormal, inputGBufferDepth);
+    const output4 = this.upsampler2.run(output2BlurV);
+    const output4BlurH = this.blur3.run(true, 3, output4, inputGBufferNormal, inputGBufferDepth);
+    const output4BlurV = this.blur4.run(false, 3, output4BlurH, inputGBufferNormal, inputGBufferDepth);
+    this.blendShader.SetTexture("blurredTexture", output4BlurV);
+    this.blendShader.SetTexture("albedoTexture", inputAlbedoTexture);
+    this.blendShader.SetTexture("lightingTexture", outputLightingPass);
+    Debugger.AddFrameRenderPass("SSGI Blend");
+    RendererContext.BeginRenderPass("BlendPass", [{ clear: true }]);
+    RendererContext.DrawGeometry(this.quadGeometry, this.blendShader);
+    RendererContext.EndRenderPass();
+  }
+};
+
 // src/renderer/RenderingPipeline.ts
 var SetMeshRenderCameraPass = class extends RenderPass {
   name = "SetMeshRenderCameraPass";
@@ -2110,11 +2690,13 @@ var RenderingPipeline = class {
   renderer;
   renderGraph;
   debuggerPass;
+  frame = 0;
   passes = {
     SetMainCamera: new SetMeshRenderCameraPass({ outputs: ["MainCamera" /* MainCamera */] }),
     DeferredMeshRenderPass: new DeferredMeshRenderPass("MainCamera" /* MainCamera */, "GBufferAlbedo" /* GBufferAlbedo */, "GBufferNormal" /* GBufferNormal */, "GBufferERMO" /* GBufferERMO */, "GBufferDepth" /* GBufferDepth */),
     ShadowPass: new ShadowPass("ShadowPassDepth" /* ShadowPassDepth */),
-    DeferredLightingPass: new DeferredLightingPass("GBufferAlbedo" /* GBufferAlbedo */, "GBufferNormal" /* GBufferNormal */, "GBufferERMO" /* GBufferERMO */, "GBufferDepth" /* GBufferDepth */, "ShadowPassDepth" /* ShadowPassDepth */)
+    DeferredLightingPass: new DeferredLightingPass("GBufferAlbedo" /* GBufferAlbedo */, "GBufferNormal" /* GBufferNormal */, "GBufferERMO" /* GBufferERMO */, "GBufferDepth" /* GBufferDepth */, "ShadowPassDepth" /* ShadowPassDepth */, "LightingPassOutput" /* LightingPassOutput */),
+    SSGI: new SSGI("GBufferDepth" /* GBufferDepth */, "GBufferNormal" /* GBufferNormal */, "LightingPassOutput" /* LightingPassOutput */, "GBufferAlbedo" /* GBufferAlbedo */)
   };
   constructor(renderer) {
     this.renderer = renderer;
@@ -2125,10 +2707,14 @@ var RenderingPipeline = class {
     this.debuggerPass = new DebuggerPass();
   }
   Render(scene) {
+    if (this.frame % 100 == 0) {
+      Debugger.ResetFrame();
+    }
     this.renderer.BeginRenderFrame();
     this.renderGraph.execute();
     this.debuggerPass.execute(this.renderGraph.resourcePool);
     this.renderer.EndRenderFrame();
+    this.frame++;
   }
 };
 
@@ -2297,50 +2883,14 @@ var OrbitControls = class {
   }
 };
 
-// src/plugins/UIStats.ts
-var UISliderStat = class {
-  constructor(container, label, min, max, step, defaultValue, callback) {
-    const labelElement = document.createElement("label");
-    labelElement.textContent = label;
-    const sliderElement = document.createElement("input");
-    sliderElement.type = "range";
-    sliderElement.min = `${min}`;
-    sliderElement.max = `${max}`;
-    sliderElement.step = `${step}`;
-    sliderElement.value = `${defaultValue}`;
-    sliderElement.addEventListener("input", (event) => {
-      callback(parseFloat(sliderElement.value));
-    });
-    container.append(labelElement, sliderElement);
-  }
-};
-var UIStats = class {
-  container;
-  stats = [];
-  constructor() {
-    this.container = document.createElement("div");
-    this.container.style.position = "absolute";
-    this.container.style.top = "0px";
-    this.container.style.color = "white";
-    this.container.style.display = "grid";
-    this.container.style.backgroundColor = "#222222";
-    this.container.style.fontSize = "10px";
-    document.body.appendChild(this.container);
-  }
-  AddSlider(label, min, max, step, defaultValue, callback) {
-    this.stats.push(new UISliderStat(this.container, label, min, max, step, defaultValue, callback));
-  }
-};
-
 // src/TEST/Floor.ts
 var canvas = document.createElement("canvas");
-var aspectRatio = window.devicePixelRatio;
+var aspectRatio = 1;
 canvas.width = window.innerWidth * aspectRatio;
 canvas.height = window.innerHeight * aspectRatio;
 canvas.style.width = `${window.innerWidth}px`;
 canvas.style.height = `${window.innerHeight}px`;
 document.body.appendChild(canvas);
-var ui = new UIStats();
 async function Application() {
   const renderer = Renderer.Create(canvas, "webgpu");
   const scene = new Scene(renderer);
@@ -2355,73 +2905,83 @@ async function Application() {
   const cubeGeometry = Geometry.Cube();
   const lightGameObject = new GameObject(scene);
   lightGameObject.transform.position.set(4, 4, 0);
-  lightGameObject.transform.LookAt(new Vector3(0.01, 0, 0));
-  const light = lightGameObject.AddComponent(Light);
-  light.intensity = 50;
-  light.color.set(0, 1, 0, 1);
-  const lightGameObject2 = new GameObject(scene);
-  lightGameObject2.transform.position.set(-4, 4, 0);
-  lightGameObject2.transform.LookAt(new Vector3(0.01, 0, 0));
-  const light2 = lightGameObject2.AddComponent(Light);
-  light2.intensity = 50;
-  light2.color.set(1, 0, 0, 1);
+  lightGameObject.transform.LookAt(new Vector3(0, 0, 0));
+  const light = lightGameObject.AddComponent(SpotLight);
+  light.intensity = 10;
+  light.range = 100;
+  light.color.set(1, 1, 1, 1);
   const lightHelperGameObject = new GameObject(scene);
   lightHelperGameObject.transform.position.copy(lightGameObject.transform.position);
-  const lightGeometry = Geometry.Sphere();
+  lightHelperGameObject.transform.eulerAngles.x = 90;
   const lightHelperMesh = lightHelperGameObject.AddComponent(Mesh);
-  lightHelperMesh.SetGeometry(lightGeometry);
-  lightHelperMesh.AddMaterial(new DeferredMeshMaterial({ unlit: true, albedoColor: light.color }));
-  const lightHelperGameObject2 = new GameObject(scene);
-  lightHelperGameObject2.transform.position.copy(lightGameObject2.transform.position);
-  const lightGeometry2 = Geometry.Sphere();
-  const lightHelperMesh2 = lightHelperGameObject2.AddComponent(Mesh);
-  lightHelperMesh2.SetGeometry(lightGeometry2);
-  lightHelperMesh2.AddMaterial(new DeferredMeshMaterial({ unlit: true, albedoColor: light2.color }));
+  lightHelperMesh.SetGeometry(Geometry.Plane());
+  lightHelperMesh.AddMaterial(new DeferredMeshMaterial({ unlit: true, cullMode: "none", albedoColor: light.color }));
+  lightHelperMesh.enableShadows = false;
   function updateLight() {
-    lightGameObject.transform.LookAt(new Vector3(0.01, 0, 0));
+    const lookAtPositon = new Vector3(0.01, 0, 0);
+    lightGameObject.transform.LookAt(lookAtPositon);
     lightHelperMesh.transform.position.copy(lightGameObject.transform.position);
+    lightHelperMesh.transform.LookAt(lookAtPositon);
   }
-  function updateLight2() {
-    lightGameObject2.transform.LookAt(new Vector3(0.01, 0, 0));
-    lightHelperMesh2.transform.position.copy(lightGameObject2.transform.position);
-  }
-  ui.AddSlider("Light X", -10, 10, 0.1, light.transform.position.x, (value) => {
+  Debugger.ui.AddSlider("Light X", -10, 10, 0.1, light.transform.position.x, (value) => {
     lightGameObject.transform.position.x = value;
     updateLight();
   });
-  ui.AddSlider("Light Y", -10, 10, 0.1, light.transform.position.y, (value) => {
+  Debugger.ui.AddSlider("Light Y", -10, 10, 0.1, light.transform.position.y, (value) => {
     lightGameObject.transform.position.y = value;
     updateLight();
   });
-  ui.AddSlider("Light Z", -10, 10, 0.1, light.transform.position.z, (value) => {
+  Debugger.ui.AddSlider("Light Z", -10, 10, 0.1, light.transform.position.z, (value) => {
     lightGameObject.transform.position.z = value;
     updateLight();
   });
-  ui.AddSlider("FOV", 1, 120, 0.1, 60, (value) => {
-    light.camera.SetPerspective(value, Renderer.width / Renderer.height, 0.01, 1e3);
+  let fov = 60;
+  let near = 0.01;
+  let far = 1e3;
+  Debugger.ui.AddSlider("FOV", 1, 120, 0.1, 60, (value) => {
+    fov = value;
+    light.camera.SetPerspective(fov, Renderer.width / Renderer.height, near, far);
     updateLight();
   });
-  ui.AddSlider("Light2 X", -10, 10, 0.1, light2.transform.position.x, (value) => {
-    lightGameObject2.transform.position.x = value;
-    updateLight2();
+  Debugger.ui.AddSlider("Near", 1e-3, 0.01, 1e-3, 0.01, (value) => {
+    near = value;
+    light.camera.SetPerspective(fov, Renderer.width / Renderer.height, near, far);
+    updateLight();
   });
-  ui.AddSlider("Light2 Y", -10, 10, 0.1, light2.transform.position.y, (value) => {
-    lightGameObject2.transform.position.y = value;
-    updateLight2();
+  Debugger.ui.AddSlider("Far", 1, 1e3, 0.01, 1e3, (value) => {
+    far = value;
+    light.camera.SetPerspective(fov, Renderer.width / Renderer.height, near, far);
+    updateLight();
   });
-  ui.AddSlider("Light2 Z", -10, 10, 0.1, light2.transform.position.z, (value) => {
-    lightGameObject2.transform.position.z = value;
-    updateLight2();
+  Debugger.ui.AddSlider("Scale X", 1, 100, 0.1, 1, (value) => {
+    lightGameObject.transform.scale.x = value;
+    lightHelperMesh.transform.scale.x = value;
   });
+  Debugger.ui.AddSlider("Scale Y", 1, 100, 0.1, 1, (value) => {
+    lightGameObject.transform.scale.y = value;
+    lightHelperMesh.transform.scale.y = value;
+  });
+  Debugger.ui.AddSlider("Scale Z", 1, 100, 0.1, 1, (value) => {
+    lightGameObject.transform.scale.z = value;
+    lightHelperMesh.transform.scale.z = value;
+  });
+  const albedo = await Texture2.Load("./assets/textures/metal-compartments-unity/metal-compartments_albedo.png");
+  const normal = await Texture2.Load("./assets/textures/metal-compartments-unity/metal-compartments_normal-ogl.png");
+  const ao = await Texture2.Load("./assets/textures/metal-compartments-unity/metal-compartments_ao.png");
+  const height = await Texture2.Load("./assets/textures/metal-compartments-unity/metal-compartments_height.png");
+  albedo.GenerateMips();
+  normal.GenerateMips();
+  ao.GenerateMips();
+  height.GenerateMips();
   const roughness = 0.7;
   const metalness = 0.1;
+  const floorMaterial = new DeferredMeshMaterial({ albedoColor: new Color(1, 1, 1, 1), albedoMap: albedo, normalMap: normal, heightMap: height, roughness, metalness });
   const topMaterial = new DeferredMeshMaterial({ albedoColor: new Color(1, 1, 1, 1), roughness, metalness });
-  const floorMaterial = new DeferredMeshMaterial({ albedoColor: new Color(1, 1, 1, 1), roughness, metalness });
   const backMaterial = new DeferredMeshMaterial({ albedoColor: new Color(1, 1, 1, 1), roughness, metalness });
   const leftMaterial = new DeferredMeshMaterial({ albedoColor: new Color(1, 0, 0, 1), roughness, metalness });
   const rightMaterial = new DeferredMeshMaterial({ albedoColor: new Color(0, 1, 0, 1), roughness, metalness });
   const floor = new GameObject(scene);
-  floor.transform.scale.set(5, 5, 5);
+  floor.transform.scale.set(50, 50, 50);
   floor.transform.position.y = -5;
   floor.transform.eulerAngles.x = -90;
   const meshbottom = floor.AddComponent(Mesh);
@@ -2468,6 +3028,9 @@ async function Application() {
   const cubeMesh2 = cube2.AddComponent(Mesh);
   cubeMesh2.SetGeometry(cubeGeometry);
   cubeMesh2.AddMaterial(new DeferredMeshMaterial({ albedoColor: new Color(1, 1, 1, 1), roughness, metalness }));
+  Debugger.ui.AddSlider("Cube X", -10, 10, 0.1, light.transform.position.x, (value) => {
+    cube2.transform.position.x = value;
+  });
   scene.Start();
 }
 Application();

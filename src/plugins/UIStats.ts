@@ -1,4 +1,4 @@
-class UISliderStat {
+export class UISliderStat {
     constructor(container: HTMLDivElement, label: string, min: number, max: number, step: number, defaultValue: number, callback: (value: number) => void) {
 
         const labelElement = document.createElement("label");
@@ -13,6 +13,23 @@ class UISliderStat {
         sliderElement.addEventListener("input" , event => { callback(parseFloat(sliderElement.value)) });
 
         container.append(labelElement, sliderElement);
+    }
+}
+
+export class UITextStat {
+    private textElement: HTMLPreElement;
+    constructor(container: HTMLDivElement, label: string, defaultValue: string) {
+        const labelElement = document.createElement("label");
+        labelElement.textContent = label;
+
+        this.textElement = document.createElement("pre");
+        this.textElement.textContent = defaultValue;
+
+        container.append(labelElement, this.textElement);
+    }
+
+    public SetValue(value: string) {
+        this.textElement.textContent = value;
     }
 }
 
@@ -32,7 +49,22 @@ export class UIStats {
         document.body.appendChild(this.container);
     }
 
-    public AddSlider(label: string, min: number, max: number, step: number, defaultValue: number, callback: (value: number) => void) {
-        this.stats.push(new UISliderStat(this.container, label, min, max, step, defaultValue, callback));
+    public SetPosition(position: {left?: number, right?: number, top?: number, bottom?: number}) {
+        if (position.left) this.container.style.left = `${position.left}px`;
+        if (position.right) this.container.style.right = `${position.right}px`;
+        if (position.top) this.container.style.top = `${position.top}px`;
+        if (position.bottom) this.container.style.bottom = `${position.bottom}px`;
+    }
+
+    public AddSlider(label: string, min: number, max: number, step: number, defaultValue: number, callback: (value: number) => void): UISliderStat {
+        const stat = new UISliderStat(this.container, label, min, max, step, defaultValue, callback);
+        this.stats.push(stat);
+        return stat;
+    }
+
+    public AddTextStat(label: string, defaultValue: string): UITextStat {
+        const stat = new UITextStat(this.container, label, defaultValue);
+        this.stats.push(stat);
+        return stat;
     }
 }

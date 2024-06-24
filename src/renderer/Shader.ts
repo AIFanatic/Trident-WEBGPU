@@ -1,7 +1,7 @@
 import { Geometry } from "../Geometry";
 import { Matrix4 } from "../math/Matrix4";
 import { Vector3 } from "../math/Vector3";
-import { Buffer } from "./Buffer";
+import { Buffer, DynamicBuffer } from "./Buffer";
 import { Renderer } from "./Renderer";
 import { DepthTexture, RenderTexture, Texture, TextureFormat } from "./Texture";
 import { TextureSampler } from "./TextureSampler";
@@ -49,8 +49,7 @@ export class Shader {
     public readonly params: ShaderParams;
 
     public static Create(params: ShaderParams): Shader {
-        // StructuredClone permits reusing params across multiple shader instances
-        if (Renderer.type === "webgpu") return new WEBGPUShader(structuredClone(params));
+        if (Renderer.type === "webgpu") return new WEBGPUShader(params);
         throw Error("Unknown api");
     }
 
@@ -60,7 +59,7 @@ export class Shader {
     public SetArray(name: string, array: ArrayBuffer, bufferOffset?: number, dataOffset?: number | undefined, size?: number | undefined) {}
     public SetTexture(name: string, texture: Texture | DepthTexture | RenderTexture) {}
     public SetSampler(name: string, texture: TextureSampler) {}
-    public SetBuffer(name: string, buffer: Buffer) {}
+    public SetBuffer(name: string, buffer: Buffer | DynamicBuffer) {}
     public HasBuffer(name: string): boolean { return false }
 
     public OnPreRender(geometry: Geometry) {};
@@ -84,6 +83,31 @@ export class ShaderCode {
 
     public static get QuadShader(): string {
         if (Renderer.type === "webgpu") return WEBGPUShaders.QuadShaderCode;
+        throw Error("Unknown api");        
+    }
+
+    public static get SSGI(): string {
+        if (Renderer.type === "webgpu") return WEBGPUShaders.SSGICode;
+        throw Error("Unknown api");        
+    }
+
+    public static get DownSample(): string {
+        if (Renderer.type === "webgpu") return WEBGPUShaders.DownSampleCode;
+        throw Error("Unknown api");        
+    }
+
+    public static get UpSample(): string {
+        if (Renderer.type === "webgpu") return WEBGPUShaders.UpSampleCode;
+        throw Error("Unknown api");        
+    }
+
+    public static get Blur(): string {
+        if (Renderer.type === "webgpu") return WEBGPUShaders.BlurCode;
+        throw Error("Unknown api");        
+    }
+
+    public static get Blit(): string {
+        if (Renderer.type === "webgpu") return WEBGPUShaders.BlitCode;
         throw Error("Unknown api");        
     }
 }

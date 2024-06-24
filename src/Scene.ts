@@ -28,11 +28,31 @@ export class Scene {
 
         EventSystem.on("AddedComponent", (component, scene) => {
             if (scene !== this) return;
+            
             let componentsArray = this.componentsByType.get(component.name) || [];
             componentsArray.push(component);
             this.componentsByType.set(component.name, componentsArray);
-        });
 
+            // let i =0;
+            // while (component) {
+            //     if (!this.componentsByType.has(component.name)) this.componentsByType.set(component.name, []);
+            //     this.componentsByType.get(component.name)?.push(component);
+                
+            //     console.log(component.name, Component.name)
+            //     component = Object.getPrototypeOf(component.constructor);
+            //     console.log(component.name, Component.name)
+            //     console.log("proto", component)
+            //     if (component.name === Component.name) break;
+            //     if (component.name === "") break;
+
+            //     if (i === 100) {
+            //         alert("HEREEE")
+            //         break;
+            //     }
+            //     i++;
+            // }
+
+        });
     }
 
     public AddGameObject(gameObject: GameObject) { this.gameObjects.push(gameObject) }

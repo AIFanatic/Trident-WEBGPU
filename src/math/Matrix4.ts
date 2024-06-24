@@ -41,9 +41,13 @@ export class Matrix4 {
 		return this;
 	}
 
-	public setFromArray(array: number[]): Matrix4 {
+	public setFromArray(array: ArrayLike<number>): Matrix4 {
 		this.elements.set(array);
 		return this;
+	}
+
+	public clone() {
+		return new Matrix4().setFromArray(this.elements);
 	}
 
 	public compose(position: Vector3, quaternion: Quaternion, scale: Vector3) {

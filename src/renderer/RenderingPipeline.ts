@@ -7,6 +7,8 @@ import { RenderPass } from "./RenderGraph";
 import { DeferredLightingPass } from "./passes/DeferredLightingPass";
 import { ShadowPass } from "./passes/ShadowPass";
 import { DebuggerPass } from "./passes/DebuggerPass";
+import { Debugger } from "../plugins/Debugger";
+import { SSGI } from "./passes/SSGI";
 
 export enum PassParams {
     MainCamera = "MainCamera",
@@ -16,6 +18,8 @@ export enum PassParams {
     GBufferDepth = "GBufferDepth",
 
     ShadowPassDepth = "ShadowPassDepth",
+    
+    LightingPassOutput = "LightingPassOutput",
 };
 
 class SetMeshRenderCameraPass extends RenderPass {
@@ -31,12 +35,14 @@ export class RenderingPipeline {
     private renderGraph: RenderGraph;
 
     private debuggerPass: DebuggerPass;
+    private frame: number = 0;
 
     private passes = {
         SetMainCamera: new SetMeshRenderCameraPass({outputs: [PassParams.MainCamera]}),
         DeferredMeshRenderPass: new DeferredMeshRenderPass(PassParams.MainCamera, PassParams.GBufferAlbedo, PassParams.GBufferNormal, PassParams.GBufferERMO, PassParams.GBufferDepth),
         ShadowPass: new ShadowPass(PassParams.ShadowPassDepth),
-        DeferredLightingPass: new DeferredLightingPass(PassParams.GBufferAlbedo, PassParams.GBufferNormal, PassParams.GBufferERMO, PassParams.GBufferDepth, PassParams.ShadowPassDepth)
+        DeferredLightingPass: new DeferredLightingPass(PassParams.GBufferAlbedo, PassParams.GBufferNormal, PassParams.GBufferERMO, PassParams.GBufferDepth, PassParams.ShadowPassDepth, PassParams.LightingPassOutput),
+        SSGI: new SSGI(PassParams.GBufferDepth, PassParams.GBufferNormal, PassParams.LightingPassOutput, PassParams.GBufferAlbedo)
     }
     
     constructor(renderer: Renderer) {
@@ -51,9 +57,15 @@ export class RenderingPipeline {
     }
 
     public Render(scene: Scene) {
+        if (this.frame % 100 == 0) {
+            Debugger.ResetFrame();
+        }
+        
         this.renderer.BeginRenderFrame();
         this.renderGraph.execute();
         this.debuggerPass.execute(this.renderGraph.resourcePool);
         this.renderer.EndRenderFrame();
+
+        this.frame++;
     }
 }

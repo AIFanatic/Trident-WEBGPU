@@ -1,5 +1,5 @@
 import { Renderer } from "./Renderer";
-import { WEBGPUBuffer } from "./webgpu/WEBGPUBuffer";
+import { WEBGPUBuffer, WEBGPUDynamicBuffer } from "./webgpu/WEBGPUBuffer";
 
 export enum BufferType {
     STORAGE,
@@ -11,10 +11,22 @@ export enum BufferType {
 
 export class Buffer {
     public readonly size: number;
-    public readonly minBindingSize: number | undefined;
 
-    public static Create(size: number, type: BufferType, minBindingSize: number | undefined = undefined) {
-        if (Renderer.type === "webgpu") return new WEBGPUBuffer(size, type, minBindingSize);
+    public static Create(size: number, type: BufferType) {
+        if (Renderer.type === "webgpu") return new WEBGPUBuffer(size, type);
+        else throw Error("Renderer type invalid");
+    }
+
+    public SetArray(array: ArrayBuffer, bufferOffset: number = 0, dataOffset?: number | undefined, size?: number | undefined) {}
+}
+
+export class DynamicBuffer {
+    public readonly size: number;
+    public readonly minBindingSize: number | undefined;
+    public dynamicOffset: number = 0;
+
+    public static Create(size: number, type: BufferType, minBindingSize: number) {
+        if (Renderer.type === "webgpu") return new WEBGPUDynamicBuffer(size, type, minBindingSize);
         else throw Error("Renderer type invalid");
     }
 

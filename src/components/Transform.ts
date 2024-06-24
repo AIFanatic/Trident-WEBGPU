@@ -37,6 +37,7 @@ export class Transform extends Component {
 
     private onChanged() {
         EventSystem.emit("CallUpdate", this, true);
+        EventSystem.emit("TransformUpdated", this);
     }
 
     private UpdateMatrices() {

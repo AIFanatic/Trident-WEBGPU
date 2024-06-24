@@ -1,7 +1,7 @@
-import { Geometry } from "../../Geometry";
+import { Geometry, VertexAttribute } from "../../Geometry";
 import { DepthTarget, RenderTarget, RendererContext } from "../RendererContext";
 import { Topology } from "../Shader";
-import { WEBGPUBuffer } from "./WEBGPUBuffer";
+import { WEBGPUBuffer, WEBGPUDynamicBuffer } from "./WEBGPUBuffer";
 import { WEBGPURenderer } from "./WEBGPURenderer";
 import { WEBGPUShader } from "./WEBGPUShader";
 import { WEBGPUTexture } from "./WEBGPUTexture";
@@ -46,7 +46,7 @@ export class WEBGPURendererContext implements RendererContext {
         this.activeRenderPass = null;
     }
 
-    public static DrawGeometry(geometry: Geometry, shader: WEBGPUShader, instanceCount = 1, dynamicOffsets: number[][]) {
+    public static DrawGeometry(geometry: Geometry, shader: WEBGPUShader, instanceCount = 1) {
         if (!this.activeRenderPass) throw Error("No active render pass");
 
         shader.OnPreRender(geometry);
@@ -55,9 +55,13 @@ export class WEBGPURendererContext implements RendererContext {
 
         this.activeRenderPass.setPipeline(shader.pipeline);
         for (let i = 0; i < shader.bindGroups.length; i++) {
-            const dynamicOffset = dynamicOffsets && dynamicOffsets[i] ? dynamicOffsets[i] : undefined;
-            // console.log("group", i, dynamicOffset)
-            this.activeRenderPass.setBindGroup(i, shader.bindGroups[i], dynamicOffset);
+            let dynamicOffsetsV2: number[] = [];
+            for (const buffer of shader.bindGroupsInfo[i].buffers) {
+                if (buffer instanceof WEBGPUDynamicBuffer)  {
+                    dynamicOffsetsV2.push(buffer.dynamicOffset);
+                }
+            }
+            this.activeRenderPass.setBindGroup(i, shader.bindGroups[i], dynamicOffsetsV2);
         }
         
         for (const [name, attribute] of geometry.attributes) {
@@ -68,7 +72,11 @@ export class WEBGPURendererContext implements RendererContext {
         }
 
         if (!shader.params.topology || shader.params.topology === Topology.Triangles) {
-            if (!geometry.index) throw Error("Drawing without indices is not supported yet");
+            if (!geometry.index) {
+                const positions = geometry.attributes.get("position") as VertexAttribute;
+                positions.GetBuffer().size;
+                this.activeRenderPass.draw(positions.GetBuffer().size / 3 / 4, instanceCount);
+            }
             else {
                 const indexBuffer = geometry.index.buffer as WEBGPUBuffer;
                 this.activeRenderPass.setIndexBuffer(indexBuffer.GetBuffer(), "uint32");
@@ -97,5 +105,12 @@ export class WEBGPURendererContext implements RendererContext {
         if (!activeCommandEncoder) throw Error("No active command encoder!!");
 
         activeCommandEncoder.copyBufferToBuffer(source.GetBuffer(), sourceOffset, destination.GetBuffer(), destinationOffset, size);
+    }
+
+    public static CopyTextureToTexture(source: WEBGPUTexture, destination: WEBGPUTexture) {
+        const activeCommandEncoder = WEBGPURenderer.GetActiveCommandEncoder();
+        if (!activeCommandEncoder) throw Error("No active command encoder!!");
+
+        activeCommandEncoder.copyTextureToTexture({texture: source.GetBuffer()}, {texture: destination.GetBuffer()}, [source.width, source.height, source.depth]);
     }
 }

@@ -7,6 +7,7 @@ import { DeferredMeshMaterial } from "../Material";
 import { SceneRenderer } from "./SceneRenderer";
 import { Mesh } from "../../components/Mesh";
 import { InstancedMesh } from "../../components/InstancedMesh";
+import { Debugger } from "../../plugins/Debugger";
 
 export class DeferredMeshRenderPass extends RenderPass {
     public name: string = "DeferredMeshRenderPass";
@@ -26,6 +27,8 @@ export class DeferredMeshRenderPass extends RenderPass {
     }
 
     public execute(resources: ResourcePool, inputCamera: Camera, outputGBufferAlbedo: string, outputGBufferNormal: string, outputGBufferERMO: string, outputGBufferDepth: string) {
+        Debugger.AddFrameRenderPass("DeferredMeshRenderPass");
+        
         if (!inputCamera) throw Error(`No inputs passed to ${this.name}`);
         const backgroundColor = inputCamera.backgroundColor;
         
