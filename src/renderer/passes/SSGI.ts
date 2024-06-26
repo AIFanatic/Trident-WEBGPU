@@ -223,6 +223,8 @@ export class SSGI extends RenderPass {
     private blur3: Blur;
     private blur4: Blur;
 
+    private lastFrame: RenderTexture;
+
     constructor(inputGBufferDepth: string, inputGBufferNormal: string, inputDeferredLighting: string, inputAlbedoTexture: string) {
         super({inputs: [inputGBufferDepth, inputGBufferNormal, inputDeferredLighting, inputAlbedoTexture]});
 
@@ -239,7 +241,10 @@ export class SSGI extends RenderPass {
                 normalTexture: {group: 0, binding: 2, type: "texture"},
                 depthTexture: {group: 0, binding: 3, type: "depthTexture"},
                 lightingSampler: {group: 0, binding: 4, type: "sampler"},
-                view: {group: 0, binding: 5, type: "storage"},
+                lastFrameTexture: {group: 0, binding: 5, type: "texture"},
+                view: {group: 0, binding: 6, type: "storage"},
+                hasLastFrame: {group: 0, binding: 7, type: "storage"},
+                frame: {group: 0, binding: 8, type: "storage"},
             },
             colorOutputs: [{format: Renderer.SwapChainFormat}]
         });
@@ -260,7 +265,7 @@ export class SSGI extends RenderPass {
             @group(0) @binding(0) var blurredTexture: texture_2d<f32>;
             @group(0) @binding(1) var albedoTexture: texture_2d<f32>;
             @group(0) @binding(2) var lightingTexture: texture_2d<f32>;
-            @group(0) @binding(3) var textureSampler: sampler;
+            @group(0) @binding(4) var textureSampler: sampler;
             
             @vertex
             fn vertexMain(input: VertexInput) -> VertexOutput {
@@ -279,8 +284,9 @@ export class SSGI extends RenderPass {
                 let lighting = textureSample(lightingTexture, textureSampler, uv);
                 // return vec4((indirect.rgb + albedo.rgb * 0.5) + lighting.rgb, 1.0);
                 // return vec4(lighting.rgb, 1.0);
-                return vec4(indirect.rgb * albedo.rgb + lighting.rgb, 1.0);
                 return vec4(lighting.rgb + indirect.rgb * albedo.rgb, 1.0);
+
+                // return vec4(lighting.rgb, 1.0);
             }
         `
         this.blendShader = Shader.Create({
@@ -294,7 +300,7 @@ export class SSGI extends RenderPass {
                 blurredTexture: {group: 0, binding: 0, type: "texture"},
                 albedoTexture: {group: 0, binding: 1, type: "texture"},
                 lightingTexture: {group: 0, binding: 2, type: "texture"},
-                textureSampler: {group: 0, binding: 3, type: "sampler"},
+                textureSampler: {group: 0, binding: 4, type: "sampler"},
             },
             colorOutputs: [{format: Renderer.SwapChainFormat}]
         });
@@ -319,13 +325,22 @@ export class SSGI extends RenderPass {
         this.blur4 = new Blur();
     }
 
+    private frame = 0;
     public execute(resources: ResourcePool, inputGBufferDepth: DepthTexture, inputGBufferNormal: RenderTexture, outputLightingPass: RenderTexture, inputAlbedoTexture: RenderTexture) {
+        let firstFrame = this.lastFrame ? 1.0 : 0.0;
+        if (!this.lastFrame) {
+            this.lastFrame = RenderTexture.Create(Renderer.width, Renderer.height, 1);
+        }
+
         Debugger.AddFrameRenderPass("SSGI");
 
         this.shader.SetTexture("lightingTexture", outputLightingPass);
         this.shader.SetTexture("albedoTexture", inputAlbedoTexture);
         this.shader.SetTexture("normalTexture", inputGBufferNormal);
         this.shader.SetTexture("depthTexture", inputGBufferDepth);
+        this.shader.SetTexture("lastFrameTexture", this.lastFrame);
+        this.shader.SetValue("hasLastFrame", firstFrame);
+        this.shader.SetValue("frame", this.frame);
 
         const camera = Camera.mainCamera;
         const view = new Float32Array(4 + 4 + 16 + 16 + 16 + 16);
@@ -351,7 +366,7 @@ export class SSGI extends RenderPass {
         if (!this.outputRt) {
             this.outputRt = RenderTexture.Create(inputAlbedoTexture.width, inputAlbedoTexture.height);
         }
-
+        
         const output1 = this.downsampler1.run(this.ssgiOutput);
         const output2 = this.downsampler2.run(output1);
         
@@ -363,6 +378,10 @@ export class SSGI extends RenderPass {
         const output4BlurH = this.blur3.run(true, 3, output4, inputGBufferNormal, inputGBufferDepth);
         const output4BlurV = this.blur4.run(false, 3, output4BlurH, inputGBufferNormal, inputGBufferDepth);
 
+        // if (this.lastFrame) {
+        //     output4BlurV = this.lastFrame
+        // }
+
         // Blend
         this.blendShader.SetTexture("blurredTexture", output4BlurV);
         this.blendShader.SetTexture("albedoTexture", inputAlbedoTexture);
@@ -372,5 +391,9 @@ export class SSGI extends RenderPass {
         RendererContext.BeginRenderPass("BlendPass", [{clear: true}]);
         RendererContext.DrawGeometry(this.quadGeometry, this.blendShader);
         RendererContext.EndRenderPass();
+        
+        RendererContext.CopyTextureToTexture(this.ssgiOutput, this.lastFrame);
+        this.frame++;
+
     }
 }

@@ -113,7 +113,10 @@ export class WEBGPUShader implements Shader {
                 group.buffers.push(uniform.buffer);
             }
             else if (uniform.buffer instanceof WEBGPUTextureSampler) {
-                const type: GPUSamplerBindingType = uniform.type === "sampler" ? "filtering" : "comparison";
+                // const type: GPUSamplerBindingType = uniform.type === "sampler" ? "filtering" : "comparison";
+                let type: GPUSamplerBindingType | undefined = undefined;
+                if (uniform.type === "sampler") type = "filtering";
+                else if (uniform.type === "sampler-compare") type = "comparison";
                 group.layoutEntries.push({ binding: uniform.binding, visibility: GPUShaderStage.VERTEX | GPUShaderStage.FRAGMENT, sampler: {type: type}})
                 group.entries.push({binding: uniform.binding, resource: uniform.buffer.GetBuffer()});
                 group.buffers.push(uniform.buffer);

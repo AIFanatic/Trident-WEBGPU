@@ -11,6 +11,7 @@ import { Matrix4 } from "../../math/Matrix4";
 import { EventSystem } from "../../Events";
 import { Buffer, BufferType } from "../Buffer";
 import { Debugger } from "../../plugins/Debugger";
+import { lightsCSMProjectionMatrix } from "./ShadowPass";
 
 enum LightType {
     SPOT_LIGHT,
@@ -56,15 +57,20 @@ export class DeferredLightingPass extends RenderPass {
                 view: { group: 0, binding: 8, type: "storage" },
                 
                 shadowSampler: { group: 0, binding: 9, type: "sampler"},
+
+                shadowSamplerComp: { group: 0, binding: 10, type: "sampler-compare"},
             },
             colorOutputs: [{format: Renderer.SwapChainFormat}]
         });
 
-        this.sampler = TextureSampler.Create({minFilter: "linear", magFilter: "linear"});
+        this.sampler = TextureSampler.Create({minFilter: "linear", magFilter: "linear", addressModeU: "clamp-to-edge", addressModeV: "clamp-to-edge"});
         this.shader.SetSampler("textureSampler", this.sampler);
 
         const shadowSampler = TextureSampler.Create({minFilter: "nearest", magFilter: "nearest", addressModeU: "clamp-to-edge", addressModeV: "clamp-to-edge"});
         this.shader.SetSampler("shadowSampler", shadowSampler);
+
+        const shadowSamplerComp = TextureSampler.Create({minFilter: "linear", magFilter: "linear", compare: "less"});
+        this.shader.SetSampler("shadowSamplerComp", shadowSamplerComp);
 
         this.quadGeometry = Geometry.Plane();
 
@@ -75,13 +81,17 @@ export class DeferredLightingPass extends RenderPass {
         EventSystem.on("LightUpdated", component => {
             this.needsUpdate = true;
         })
+
+        EventSystem.on("MainCameraUpdated", component => {
+            this.needsUpdate = true;
+        })
     }
 
     private updateLightsBuffer() {
         const scene = Camera.mainCamera.gameObject.scene;
         // TODO: Fix, GetComponents(Light)
         const lights = [...scene.GetComponents(SpotLight), ...scene.GetComponents(PointLight), ...scene.GetComponents(DirectionalLight), ...scene.GetComponents(AreaLight)];
-        const lightBufferSize = 4 + 16 + 16 + 16 + 3 + 1 + 4 + 4;
+        const lightBufferSize = 4 + 16 + (4 * 16) + 16 + 16 + 3 + 1 + 4 + 4;
         const lightBuffer = new Float32Array(Math.max(1, lights.length) * lightBufferSize); // Always ensure one light
 
         for (let i = 0; i < lights.length; i++) {
@@ -106,6 +116,7 @@ export class DeferredLightingPass extends RenderPass {
             lightBuffer.set([
                 light.transform.position.x, light.transform.position.y, light.transform.position.z, 1.0,
                 ...light.camera.projectionMatrix.elements,
+                ...lightsCSMProjectionMatrix[i],
                 ...light.camera.viewMatrix.elements,
                 ...light.camera.viewMatrix.clone().invert().elements,
                 light.color.r, light.color.g, light.color.b, lightType,
@@ -114,9 +125,10 @@ export class DeferredLightingPass extends RenderPass {
             ], i * lightBufferSize);
         }
 
-        if (!this.lightsBuffer || this.lightsBuffer.size !== lightBufferSize * 4) {
-            this.lightsBuffer = Buffer.Create(lightBufferSize * 4, BufferType.STORAGE);
-            this.lightsCountBuffer = Buffer.Create(lightBufferSize * 4, BufferType.STORAGE);
+        if (!this.lightsBuffer || this.lightsBuffer.size !== lights.length * lightBufferSize * 4) {
+            console.log("HERE")
+            this.lightsBuffer = Buffer.Create(lights.length * lightBufferSize * 4, BufferType.STORAGE);
+            this.lightsCountBuffer = Buffer.Create(1 * 4, BufferType.STORAGE);
         }
         this.lightsBuffer.SetArray(lightBuffer);
         this.lightsCountBuffer.SetArray(new Uint32Array([lights.length]));
@@ -135,15 +147,13 @@ export class DeferredLightingPass extends RenderPass {
             this.updateLightsBuffer();
         }
 
-        RendererContext.BeginRenderPass("DeferredLightingPass", [{ target: this.outputLightingPass, clear: true }]);
+        RendererContext.BeginRenderPass("DeferredLightingPass", [{ clear: true }]);
 
         this.shader.SetTexture("albedoTexture", inputGBufferAlbedo);
         this.shader.SetTexture("normalTexture", inputGBufferNormal);
         this.shader.SetTexture("ermoTexture", inputGbufferERMO);
         this.shader.SetTexture("depthTexture", inputGBufferDepth);
         this.shader.SetTexture("shadowPassDepth", inputShadowPassDepth);
-        
-
 
         const view = new Float32Array(4 + 4 + 16 + 16);
         view.set([Renderer.width, Renderer.height, 0], 0);

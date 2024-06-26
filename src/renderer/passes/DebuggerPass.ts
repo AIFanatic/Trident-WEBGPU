@@ -53,7 +53,7 @@ export class DebuggerPass extends RenderPass {
             let shadowMap2 = textureSample(shadowMapTexture, textureSampler, baseCoords, 0) * quadrant.x * quadrant.y;
             let shadowMap3 = textureSample(shadowMapTexture, textureSampler, baseCoords, 1) * quadrant.x * (1.0 - quadrant.y);
             
-            return vec4(pow(shadowMap2, 1000)) + vec4(pow(shadowMap3, 1000));
+            return vec4(shadowMap2) + vec4(shadowMap3);
         }
         `;
 

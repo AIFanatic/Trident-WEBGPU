@@ -1,4 +1,5 @@
 import { Scene } from "./Scene";
+import { Camera } from "./components/Camera";
 import { Component } from "./components/Component";
 import { Light } from "./components/Light";
 import { Mesh } from "./components/Mesh";
@@ -10,6 +11,7 @@ export interface Events {
     TransformUpdated: (component: Transform) => void;
     LightUpdated: (light: Light) => void;
     MeshUpdated: (mesh: Mesh) => void;
+    MainCameraUpdated: (camera: Camera) => void;
 };
 
 interface EventMap {

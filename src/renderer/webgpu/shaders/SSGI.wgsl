@@ -15,6 +15,7 @@ struct VertexOutput {
 @group(0) @binding(2) var normalTexture: texture_2d<f32>;
 @group(0) @binding(3) var depthTexture: texture_depth_2d;
 @group(0) @binding(4) var lightingSampler: sampler;
+@group(0) @binding(5) var lastFrameTexture: texture_2d<f32>;
 
 struct View {
     projectionOutputSize: vec4<f32>,
@@ -24,7 +25,10 @@ struct View {
     viewMatrix: mat4x4<f32>,
     viewInverseMatrix: mat4x4<f32>,
 };
-@group(0) @binding(5) var<storage, read> view: View;
+@group(0) @binding(6) var<storage, read> view: View;
+
+@group(0) @binding(7) var<storage, read> hasLastFrame: f32;
+@group(0) @binding(8) var<storage, read> frame: f32;
 
 @vertex
 fn vertexMain(input: VertexInput) -> VertexOutput {
@@ -324,7 +328,7 @@ fn fragmentMain(input: VertexOutput) -> @location(0) vec4<f32> {
 
     let ray = RayMarch(maxSteps, dir, viewPos, step);
 
-    let tracedAlbedo = textureSample(albedoTexture, lightingSampler, ray.coords.xy); // previousFrame
+    var tracedAlbedo = textureSample(albedoTexture, lightingSampler, ray.coords.xy); // previousFrame
 
     let CLAMP_MIN = 0.1;
     let CLAMP_MAX = 0.9;
@@ -334,7 +338,13 @@ fn fragmentMain(input: VertexOutput) -> @location(0) vec4<f32> {
     let reflected = normalize(reflect(normalize(ray.hitCoord), ray.dir));
     let reflectionMultiplier = screenEdgefactor * -reflected.z;
 
-    return vec4(tracedAlbedo.rgb * clamp(reflectionMultiplier, 0.0, 1.) * intensity, 1.);
+    var color = vec4(tracedAlbedo.rgb * clamp(reflectionMultiplier, 0.0, 1.) * intensity, 1.);
+
+    if (hasLastFrame > 0.5) {
+        let lf = textureSample(lastFrameTexture, lightingSampler, uv);
+        color = mix(color, lf, 1.0 - fract(frame * 0.001));
+    }
+    return color;
 
     // return textureSample(albedoTexture, lightingSampler, uv);
     // return vec4(viewPos.xyz, 1.0);

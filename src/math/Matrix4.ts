@@ -192,11 +192,166 @@ export class Matrix4 {
 		return this.set(f / aspect, 0, 0, 0, 0, f, 0, 0, 0, 0, (far + near) * depth, -1, 0, 0, 2 * far * near * depth, 0);
 	}
 
+	public perspectiveZO(fovy: number, aspect: number, near: number, far: number): Matrix4 {
+		const f = 1.0 / Math.tan((fovy * (Math.PI / 180)) / 2);
+		this.elements[0] = f / aspect;
+		this.elements[1] = 0;
+		this.elements[2] = 0;
+		this.elements[3] = 0;
+		this.elements[4] = 0;
+		this.elements[5] = f;
+		this.elements[6] = 0;
+		this.elements[7] = 0;
+		this.elements[8] = 0;
+		this.elements[9] = 0;
+		this.elements[11] = -1;
+		this.elements[12] = 0;
+		this.elements[13] = 0;
+		this.elements[15] = 0;
+		if (far != null && far !== Infinity) {
+		  const nf = 1 / (near - far);
+		  this.elements[10] = far * nf;
+		  this.elements[14] = far * near * nf;
+		} else {
+		  this.elements[10] = -1;
+		  this.elements[14] = -near;
+		}
+		return this;
+	}
+
 	public orthogonal(left: number, right: number, bottom: number, top: number, near: number, far: number): Matrix4 {
 		const horizontal = 1 / (left - right)
 		const vertical = 1 / (bottom - top)
 		const depth = 1 / (near - far)
 
 		return this.set(-2 * horizontal, 0, 0, 0, 0, -2 * vertical, 0, 0, 0, 0, 2 * depth, 0, (left + right) * horizontal, (top + bottom) * vertical, (far + near) * depth, 1);
+	}
+
+	// public orthoZO(left: number, right: number, bottom: number, top: number, near: number, far: number): Matrix4 {
+	// 	const horizontal = 1 / (left - right);
+	// 	const vertical = 1 / (bottom - top);
+	// 	const depth = 1 / (near - far);
+	// 	return this.set(-2 * horizontal, 0, 0, 0, 0, -2 * vertical, 0, 0, 0, 0, depth, 0, (left + right) * horizontal, (top + bottom) * vertical, near * depth, 1);
+	// }
+
+	public orthoZO(left: number, right: number, bottom: number, top: number, near: number, far: number): Matrix4 {
+		var lr = 1 / (left - right);
+		var bt = 1 / (bottom - top);
+		var nf = 1 / (near - far);
+		const out = new Float32Array(16);
+		out[0] = -2 * lr;
+		out[1] = 0;
+		out[2] = 0;
+		out[3] = 0;
+		out[4] = 0;
+		out[5] = -2 * bt;
+		out[6] = 0;
+		out[7] = 0;
+		out[8] = 0;
+		out[9] = 0;
+		out[10] = nf;
+		out[11] = 0;
+		out[12] = (left + right) * lr;
+		out[13] = (top + bottom) * bt;
+		out[14] = near * nf;
+		out[15] = 1;
+		return this.setFromArray(out);
+	}
+
+	public identity(): Matrix4 {
+		this.elements[0] = 1;
+		this.elements[1] = 0;
+		this.elements[2] = 0;
+		this.elements[3] = 0;
+		this.elements[4] = 0;
+		this.elements[5] = 1;
+		this.elements[6] = 0;
+		this.elements[7] = 0;
+		this.elements[8] = 0;
+		this.elements[9] = 0;
+		this.elements[10] = 1;
+		this.elements[11] = 0;
+		this.elements[12] = 0;
+		this.elements[13] = 0;
+		this.elements[14] = 0;
+		this.elements[15] = 1;
+		return this;
+	}
+
+	public lookAt(eye: Vector3, center: Vector3, up: Vector3): Matrix4 {
+		let x0, x1, x2, y0, y1, y2, z0, z1, z2, len;
+		let eyex = eye.x;
+		let eyey = eye.y;
+		let eyez = eye.z;
+		let upx = up.x;
+		let upy = up.y;
+		let upz = up.z;
+		let centerx = center.x;
+		let centery = center.y;
+		let centerz = center.z;
+	
+		const EPSILON = 0.000001;
+		if (Math.abs(eyex - centerx) < EPSILON && Math.abs(eyey - centery) < EPSILON && Math.abs(eyez - centerz) < EPSILON) {
+			return this.identity();
+		}
+	
+		z0 = eyex - centerx;
+		z1 = eyey - centery;
+		z2 = eyez - centerz;
+	
+		len = 1 / Math.sqrt(z0 * z0 + z1 * z1 + z2 * z2);
+		z0 *= len;
+		z1 *= len;
+		z2 *= len;
+	
+		x0 = upy * z2 - upz * z1;
+		x1 = upz * z0 - upx * z2;
+		x2 = upx * z1 - upy * z0;
+		len = Math.sqrt(x0 * x0 + x1 * x1 + x2 * x2);
+		if (!len) {
+			x0 = 0;
+			x1 = 0;
+			x2 = 0;
+		} else {
+			len = 1 / len;
+			x0 *= len;
+			x1 *= len;
+			x2 *= len;
+		}
+	
+		y0 = z1 * x2 - z2 * x1;
+		y1 = z2 * x0 - z0 * x2;
+		y2 = z0 * x1 - z1 * x0;
+	
+		len = Math.sqrt(y0 * y0 + y1 * y1 + y2 * y2);
+		if (!len) {
+			y0 = 0;
+			y1 = 0;
+			y2 = 0;
+		} else {
+			len = 1 / len;
+			y0 *= len;
+			y1 *= len;
+			y2 *= len;
+		}
+	
+		this.elements[0] = x0;
+		this.elements[1] = y0;
+		this.elements[2] = z0;
+		this.elements[3] = 0;
+		this.elements[4] = x1;
+		this.elements[5] = y1;
+		this.elements[6] = z1;
+		this.elements[7] = 0;
+		this.elements[8] = x2;
+		this.elements[9] = y2;
+		this.elements[10] = z2;
+		this.elements[11] = 0;
+		this.elements[12] = -(x0 * eyex + x1 * eyey + x2 * eyez);
+		this.elements[13] = -(y0 * eyex + y1 * eyey + y2 * eyez);
+		this.elements[14] = -(z0 * eyex + z1 * eyey + z2 * eyez);
+		this.elements[15] = 1;
+	
+		return this;
 	}
 }

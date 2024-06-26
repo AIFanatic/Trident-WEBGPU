@@ -24,6 +24,7 @@ struct VertexOutput {
 struct Light {
     position: vec4<f32>,
     projectionMatrix: mat4x4<f32>,
+    csmProjectionMatrix: array<mat4x4<f32>, numCascades>,
     viewMatrix: mat4x4<f32>,
     viewMatrixInverse: mat4x4<f32>,
     color: vec4<f32>,
@@ -51,8 +52,20 @@ struct View {
 @group(0) @binding(9) var shadowSampler: sampler;
 
 
-// @group(0) @binding(10) var shadowMaps: array<texture_depth_2d, 4>;
-@group(0) @binding(10) var textures: texture_2d_array<f32>;
+
+
+
+
+const numCascades = 4;
+const debug_cascadeColors = array<vec4<f32>, 5>(
+    vec4<f32>(1.0, 0.0, 0.0, 1.0),
+    vec4<f32>(0.0, 1.0, 0.0, 1.0),
+    vec4<f32>(0.0, 0.0, 1.0, 1.0),
+    vec4<f32>(1.0, 1.0, 0.0, 1.0),
+    vec4<f32>(0.0, 0.0, 0.0, 1.0)
+);
+@group(0) @binding(10) var shadowSamplerComp: sampler_comparison;
+
 
 @vertex
 fn vertexMain(input: VertexInput) -> VertexOutput {
@@ -293,6 +306,81 @@ fn CalculateDirectionalLightShadow(worldPosition: vec3<f32>, normal: vec3<f32>, 
     return visibility;
 }
 
+struct ShadowCSM {
+    visibility: f32,
+    selectedCascade: i32
+};
+
+fn CalculateShadowCSM(surface: Surface, light: Light, lightIndex: u32) -> ShadowCSM {
+    var selectedCascade = numCascades;
+    var hasNextCascade = false;
+    var shadowMapCoords = vec3<f32>(-1.0);
+    for (var i = 0; i < numCascades; i += 1) {
+        // ideally these operations should be performed in the vs
+        var csmShadowMapCoords = light.csmProjectionMatrix[i] * vec4(surface.worldPosition, 1.0);
+        csmShadowMapCoords = csmShadowMapCoords / csmShadowMapCoords.w;
+        shadowMapCoords = vec3<f32>(csmShadowMapCoords.xy * vec2<f32>(0.5, -0.5) + vec2<f32>(0.5, 0.5), csmShadowMapCoords.z);
+
+        if (all(shadowMapCoords > vec3<f32>(0.0)) && all(shadowMapCoords < vec3<f32>(1.0))) {
+            selectedCascade = i;
+            if (i < numCascades - 1) {
+                var nextShadowCoords = light.csmProjectionMatrix[i + 1] * vec4(surface.worldPosition, 1.0);
+                nextShadowCoords = nextShadowCoords / nextShadowCoords.w;
+                let uvShadowMapCoords = vec3<f32>(csmShadowMapCoords.xy * vec2<f32>(0.5, -0.5) + vec2<f32>(0.5, 0.5), csmShadowMapCoords.z);
+                hasNextCascade = all(uvShadowMapCoords > vec3<f32>(0.0)) && all(uvShadowMapCoords < vec3<f32>(1.0));
+            }
+            break;
+        }
+    }
+
+    let lightViewInverse = light.viewMatrixInverse;
+    let lightDirection = normalize((lightViewInverse * vec4(0.0, 0.0, 1.0, 0.0)).xyz);
+    
+    let pcfResolution = 2;
+    let minBias = 0.0005;
+    let maxBias = 0.001;
+
+    let bias = max(minBias, maxBias * (1.0 - dot(lightDirection, surface.N)));
+    
+    let threshold = vec3<f32>(0.2);
+    var edgeAdditionalVisibility = clamp((shadowMapCoords.xyz - (1.0 - threshold)) / threshold, vec3<f32>(0.0), vec3<f32>(1.0));
+    edgeAdditionalVisibility = max(edgeAdditionalVisibility, 1.0 - clamp(shadowMapCoords.xyz / threshold, vec3<f32>(0.0), vec3<f32>(1.0)));
+    
+    var cascadeShadowMapCoords = shadowMapCoords;
+
+    if (selectedCascade >= 2) {
+        cascadeShadowMapCoords.x = cascadeShadowMapCoords.x + 1.0;
+    }
+    if (selectedCascade % 2 != 0) {
+        cascadeShadowMapCoords.y = cascadeShadowMapCoords.y + 1.0;
+    }
+    cascadeShadowMapCoords.x = cascadeShadowMapCoords.x / 2.0;
+    cascadeShadowMapCoords.y = cascadeShadowMapCoords.y / 2.0;
+
+
+    // PCF
+    var visibility: f32 = 0.0;
+    let offset = 1.0 / vec2<f32>(textureDimensions(shadowPassDepth));
+    for (var i = -pcfResolution; i <= pcfResolution; i = i + 1) {
+        for (var j = -pcfResolution; j <= pcfResolution; j = j + 1) {
+            visibility = visibility + textureSampleCompareLevel(
+                shadowPassDepth,
+                shadowSamplerComp,
+                cascadeShadowMapCoords.xy + vec2<f32>(f32(i), f32(j)) * offset, lightIndex, cascadeShadowMapCoords.z - bias
+            );
+        }
+    }
+
+    let fadeOut = select(max(max(edgeAdditionalVisibility.x, edgeAdditionalVisibility.y), edgeAdditionalVisibility.z), 0.0, hasNextCascade);
+    visibility = visibility / f32((pcfResolution + pcfResolution + 1) * (pcfResolution + pcfResolution + 1)) + fadeOut;
+
+    var shadow: ShadowCSM;
+    shadow.visibility = clamp(visibility, 0.0, 1.0);
+    shadow.selectedCascade = selectedCascade;
+    
+    return shadow;
+}
+
 @fragment
 fn fragmentMain(input: VertexOutput) -> @location(0) vec4<f32> {
     let uv = input.vUv;
@@ -327,13 +415,11 @@ fn fragmentMain(input: VertexOutput) -> @location(0) vec4<f32> {
     surface.F0 = mix(vec3(0.04), surface.albedo.rgb, vec3(surface.metallic));
     surface.V = normalize(view.viewPosition.xyz - surface.worldPosition);
 
-    // let light2 = lights[0];
-    let visibility = 1.0;
-
     if (ermo.w > 0.5) {
         return vec4(surface.albedo.rgb, 1.0);
     }
     
+    var selectedCascade = 0;
     var Lo = vec3(0.0);
     for (var i : u32 = 0u; i < lightCount; i = i + 1u) {
         let light = lights[i];
@@ -373,8 +459,15 @@ fn fragmentMain(input: VertexOutput) -> @location(0) vec4<f32> {
             directionalLight.direction = lightDir;
             directionalLight.color = light.color.rgb;
 
-            let shadow = CalculateShadow(surface.worldPosition, surface.N, light, i);
-            Lo += (1.0 - shadow) * DirectionalLightRadiance(directionalLight, surface);
+            // var shadow = CalculateShadow(surface.worldPosition, surface.N, light, i);
+            let shadowCSM = CalculateShadowCSM(surface, light, i);
+            let shadow = shadowCSM.visibility;
+            selectedCascade = shadowCSM.selectedCascade;
+
+            Lo += (shadow) * DirectionalLightRadiance(directionalLight, surface);
+
+            // let finalColor = shadow * DirectionalLightRadiance(directionalLight, surface);
+            // Lo += mix(finalColor, debug_cascadeColors[selectedCascade].rgb, 0.01);
         }
     }
 
@@ -382,6 +475,7 @@ fn fragmentMain(input: VertexOutput) -> @location(0) vec4<f32> {
     let ambientColor = vec3(0.01);
     color = ambientColor * surface.albedo + Lo * surface.occlusion;
 
+    // color += debug_cascadeColors[selectedCascade].rgb * 0.05;
     color += surface.emissive;
 
     color = Tonemap_ACES(color);
