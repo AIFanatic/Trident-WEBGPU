@@ -3036,17 +3036,9 @@ async function Application() {
     lightGameObject.transform.scale.z = value;
     lightHelperMesh.transform.scale.z = value;
   });
-  const albedo = await Texture2.Load("./assets/textures/metal-compartments-unity/metal-compartments_albedo.png");
-  const normal = await Texture2.Load("./assets/textures/metal-compartments-unity/metal-compartments_normal-ogl.png");
-  const ao = await Texture2.Load("./assets/textures/metal-compartments-unity/metal-compartments_ao.png");
-  const height = await Texture2.Load("./assets/textures/metal-compartments-unity/metal-compartments_height.png");
-  albedo.GenerateMips();
-  normal.GenerateMips();
-  ao.GenerateMips();
-  height.GenerateMips();
   const roughness = 0.7;
   const metalness = 0.1;
-  const floorMaterial = new DeferredMeshMaterial({ albedoColor: new Color(1, 1, 1, 1), albedoMap: albedo, normalMap: normal, heightMap: height, roughness, metalness });
+  const floorMaterial = new DeferredMeshMaterial({ albedoColor: new Color(1, 1, 1, 1), roughness, metalness });
   const topMaterial = new DeferredMeshMaterial({ albedoColor: new Color(1, 1, 1, 1), roughness, metalness });
   const backMaterial = new DeferredMeshMaterial({ albedoColor: new Color(1, 1, 1, 1), roughness, metalness });
   const leftMaterial = new DeferredMeshMaterial({ albedoColor: new Color(1, 0, 0, 1), roughness, metalness });
