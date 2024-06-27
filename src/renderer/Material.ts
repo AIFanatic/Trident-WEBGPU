@@ -1,9 +1,8 @@
-import { Light } from "../components/Light";
 import { Color } from "../math/Color";
-import { Renderer } from "./Renderer";
-import { Shader, ShaderCode, ShaderParams } from "./Shader";
+import { Shader, ShaderParams } from "./Shader";
 import { Texture } from "./Texture";
 import { TextureSampler } from "./TextureSampler";
+import { ShaderCode } from "./ShaderCode";
 
 export class Material {
     public shader: Shader;

@@ -1,4 +1,4 @@
-import { Shader, ShaderCode } from "../Shader";
+import { Shader } from "../Shader";
 import { Geometry } from "../../Geometry";
 import { DepthTexture, RenderTexture } from "../Texture";
 import { TextureSampler } from "../TextureSampler";
@@ -12,6 +12,7 @@ import { EventSystem } from "../../Events";
 import { Buffer, BufferType } from "../Buffer";
 import { Debugger } from "../../plugins/Debugger";
 import { lightsCSMProjectionMatrix } from "./ShadowPass";
+import { ShaderCode } from "../ShaderCode";
 
 enum LightType {
     SPOT_LIGHT,

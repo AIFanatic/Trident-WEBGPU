@@ -3,7 +3,7 @@ import { DepthTarget, RenderTarget, RendererContext } from "../RendererContext";
 import { Topology } from "../Shader";
 import { WEBGPUBuffer, WEBGPUDynamicBuffer } from "./WEBGPUBuffer";
 import { WEBGPURenderer } from "./WEBGPURenderer";
-import { WEBGPUShader } from "./WEBGPUShader";
+import { WEBGPUShader } from "./shader/WEBGPUShader";
 import { WEBGPUTexture } from "./WEBGPUTexture";
 
 export class WEBGPURendererContext implements RendererContext {
@@ -49,7 +49,7 @@ export class WEBGPURendererContext implements RendererContext {
     public static DrawGeometry(geometry: Geometry, shader: WEBGPUShader, instanceCount = 1) {
         if (!this.activeRenderPass) throw Error("No active render pass");
 
-        shader.OnPreRender(geometry);
+        shader.OnPreRender();
 
         if (!shader.pipeline) throw Error("Shader doesnt have a pipeline");
 

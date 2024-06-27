@@ -1,14 +1,14 @@
 import { RenderPass, ResourcePool } from "../RenderGraph";
 import { Debugger } from "../../plugins/Debugger";
-import { Shader, ShaderCode } from "../Shader";
+import { Shader } from "../Shader";
 import { Geometry, VertexAttribute } from "../../Geometry";
 import { RendererContext } from "../RendererContext";
 import { TextureSampler } from "../TextureSampler";
-import { DepthTexture, RenderTexture, Texture, TextureType } from "../Texture";
+import { DepthTexture, RenderTexture } from "../Texture";
 import { Renderer } from "../Renderer";
 import { Camera } from "../../components/Camera";
 import { Matrix4 } from "../../math/Matrix4";
-import { WEBGPUTexture } from "../webgpu/WEBGPUTexture";
+import { ShaderCode } from "../webgpu/ShaderCode";
 
 class DownSampler {
     private shader: Shader;

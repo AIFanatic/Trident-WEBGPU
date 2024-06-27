@@ -9,4 +9,5 @@ research
 src-bak*
 samples*
 *.bak*
+backups
 cloc.sh

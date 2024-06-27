@@ -5,13 +5,14 @@ import { RendererContext } from "../RendererContext";
 import { AreaLight, DirectionalLight, Light, PointLight, SpotLight } from "../../components/Light";
 import { Mesh } from "../../components/Mesh";
 import { InstancedMesh } from "../../components/InstancedMesh";
-import { Shader, ShaderCode, ShaderParams } from "../Shader";
+import { Shader, ShaderParams } from "../Shader";
 import { Buffer, BufferType, DynamicBuffer } from "../Buffer";
 import { EventSystem } from "../../Events";
 import { Debugger } from "../../plugins/Debugger";
 import { Vector3 } from "../../math/Vector3";
 import { Vector4 } from "../../math/Vector4";
 import { Matrix4 } from "../../math/Matrix4";
+import { ShaderCode } from "../ShaderCode";
 
 export let lightsCSMProjectionMatrix: Float32Array[] = [];
 

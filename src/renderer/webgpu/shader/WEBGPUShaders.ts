@@ -1,13 +1,13 @@
-import DeferredMeshShader from "./DeferredMeshShader.wgsl";
-import WireframeShaderWGSL from "./WireframeShader.wgsl";
-import DeferredLightingPBRShader from "./DeferredLightingPBRShader.wgsl";
-import QuadShader from "./QuadShader.wgsl";
-import ShadowPass from "./ShadowPass.wgsl";
-import SSGI from "./SSGI.wgsl";
-import DownSample from "./DownSample.wgsl";
-import UpSample from "./UpSample.wgsl";
-import Blur from "./Blur.wgsl";
-import Blit from "./Blit.wgsl";
+import DeferredMeshShader from "./wgsl/DeferredMeshShader.wgsl";
+import WireframeShaderWGSL from "./wgsl/WireframeShader.wgsl";
+import DeferredLightingPBRShader from "./wgsl/DeferredLightingPBRShader.wgsl";
+import QuadShader from "./wgsl/QuadShader.wgsl";
+import ShadowPass from "./wgsl/ShadowPass.wgsl";
+import SSGI from "./wgsl/SSGI.wgsl";
+import DownSample from "./wgsl/DownSample.wgsl";
+import UpSample from "./wgsl/UpSample.wgsl";
+import Blur from "./wgsl/Blur.wgsl";
+import Blit from "./wgsl/Blit.wgsl";
 
 export class WEBGPUShaders {
     public static DeferredMeshShaderCode = DeferredMeshShader;

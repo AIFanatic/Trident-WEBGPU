@@ -18,6 +18,7 @@ export class Buffer {
     }
 
     public SetArray(array: ArrayBuffer, bufferOffset: number = 0, dataOffset?: number | undefined, size?: number | undefined) {}
+    public async GetData(sourceOffset?: number, destinationOffset?: number, size?: number): Promise<ArrayBuffer> {return new ArrayBuffer(1)}
 }
 
 export class DynamicBuffer {
@@ -31,4 +32,5 @@ export class DynamicBuffer {
     }
 
     public SetArray(array: ArrayBuffer, bufferOffset: number = 0, dataOffset?: number | undefined, size?: number | undefined) {}
+    public async GetData(sourceOffset?: number, destinationOffset?: number, size?: number): Promise<ArrayBuffer> {return new ArrayBuffer(1)}
 }

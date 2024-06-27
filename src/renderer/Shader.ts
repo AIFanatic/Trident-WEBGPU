@@ -5,8 +5,8 @@ import { Buffer, DynamicBuffer } from "./Buffer";
 import { Renderer } from "./Renderer";
 import { DepthTexture, RenderTexture, Texture, TextureFormat } from "./Texture";
 import { TextureSampler } from "./TextureSampler";
-import { WEBGPUShader } from "./webgpu/WEBGPUShader";
-import { WEBGPUShaders } from "./webgpu/shaders/WEBGPUShaders";
+import { WEBGPUComputeShader } from "./webgpu/shader/WEBGPUComputeShader";
+import { WEBGPUShader } from "./webgpu/shader/WEBGPUShader";
 
 export interface ShaderColorOutput {
     format: TextureFormat;
@@ -21,7 +21,7 @@ export interface ShaderAttribute {
 export interface ShaderUniform {
     group: number;
     binding: number;
-    type: "uniform" | "storage" | "texture" | "sampler" | "sampler-compare" | "depthTexture";
+    type: "uniform" | "storage" | "storage-write" | "texture" | "sampler" | "sampler-compare" | "depthTexture";
 };
 
 export enum Topology {
@@ -44,14 +44,16 @@ export interface ShaderParams {
     cullMode?: "back" | "front" | "none"
 };
 
-export class Shader {
-    public readonly id: string;
-    public readonly params: ShaderParams;
+export interface ComputeShaderParams {
+    code: string;
+    defines?: {[key: string]: boolean};
+    uniforms?: {[key: string]: ShaderUniform};
+    computeEntrypoint?: string;
+};
 
-    public static Create(params: ShaderParams): Shader {
-        if (Renderer.type === "webgpu") return new WEBGPUShader(params);
-        throw Error("Unknown api");
-    }
+export class BaseShader {
+    public readonly id: string;
+    public readonly params: ShaderParams | ComputeShaderParams;
 
     public SetValue(name: string, value: number) {}
     public SetMatrix4(name: string, matrix: Matrix4) {}
@@ -65,49 +67,21 @@ export class Shader {
     public OnPreRender(geometry: Geometry) {};
 }
 
-export class ShaderCode {
-    public static get DeferredMeshShader(): string {
-        if (Renderer.type === "webgpu") return WEBGPUShaders.DeferredMeshShaderCode;
-        throw Error("Unknown api");        
-    }
+export class Shader extends BaseShader {
+    public readonly id: string;
+    public readonly params: ShaderParams;
 
-    public static get DeferredLightingPBRShader(): string {
-        if (Renderer.type === "webgpu") return WEBGPUShaders.DeferredLightingPBRShaderCode;
-        throw Error("Unknown api");        
+    public static Create(params: ShaderParams): Shader {
+        if (Renderer.type === "webgpu") return new WEBGPUShader(params);
+        throw Error("Unknown api");
     }
+}
 
-    public static get ShadowShader(): string {
-        if (Renderer.type === "webgpu") return WEBGPUShaders.ShadowShaderCode;
-        throw Error("Unknown api");        
-    }
+export class Compute extends BaseShader {
+    public readonly params: ComputeShaderParams;
 
-    public static get QuadShader(): string {
-        if (Renderer.type === "webgpu") return WEBGPUShaders.QuadShaderCode;
-        throw Error("Unknown api");        
-    }
-
-    public static get SSGI(): string {
-        if (Renderer.type === "webgpu") return WEBGPUShaders.SSGICode;
-        throw Error("Unknown api");        
-    }
-
-    public static get DownSample(): string {
-        if (Renderer.type === "webgpu") return WEBGPUShaders.DownSampleCode;
-        throw Error("Unknown api");        
-    }
-
-    public static get UpSample(): string {
-        if (Renderer.type === "webgpu") return WEBGPUShaders.UpSampleCode;
-        throw Error("Unknown api");        
-    }
-
-    public static get Blur(): string {
-        if (Renderer.type === "webgpu") return WEBGPUShaders.BlurCode;
-        throw Error("Unknown api");        
-    }
-
-    public static get Blit(): string {
-        if (Renderer.type === "webgpu") return WEBGPUShaders.BlitCode;
-        throw Error("Unknown api");        
+    public static Create(params: ComputeShaderParams): Compute {
+        if (Renderer.type === "webgpu") return new WEBGPUComputeShader(params);
+        throw Error("Unknown api");
     }
 }
