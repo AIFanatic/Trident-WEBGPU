@@ -2958,6 +2958,7 @@ async function Application() {
     const cubeMesh = cube.AddComponent(Mesh);
     cubeMesh.SetGeometry(sphereGeometry);
   }
+  console.log("TEST");
   const n = 30;
   for (let x = 0; x < n; x++) {
     for (let y = 0; y < n; y++) {
