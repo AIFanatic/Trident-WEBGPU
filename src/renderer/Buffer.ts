@@ -6,7 +6,8 @@ export enum BufferType {
     STORAGE_WRITE,
     UNIFORM,
     VERTEX,
-    INDEX
+    INDEX,
+    INDIRECT
 };
 
 export class Buffer {

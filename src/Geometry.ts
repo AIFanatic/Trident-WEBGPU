@@ -1,4 +1,5 @@
 import { Utils } from "./Utils";
+import { AABB } from "./math/AABB";
 import { Vector3 } from "./math/Vector3";
 import { Buffer, BufferType } from "./renderer/Buffer";
 
@@ -29,6 +30,14 @@ export class Geometry {
     public readonly attributes: Map<string, VertexAttribute> = new Map();
 
     public enableShadows: boolean = true;
+    
+    public _aabb: AABB;
+    public get aabb(): AABB {
+        const positions = this.attributes.get("position");
+        if (!positions) throw Error("Geometry has no position attribute");
+        if (!this._aabb) this._aabb = AABB.FromVertexArray(positions.array as Float32Array);
+        return this._aabb;
+    }
 
     public ComputeNormals() {
         let posAttrData = this.attributes.get("position")?.array;
@@ -126,8 +135,8 @@ export class Geometry {
         const thetaStart = 0;
         const thetaLength = Math.PI;
 
-        let widthSegments = 16;
-        let heightSegments = 8;
+        let widthSegments = 3; // 16;
+        let heightSegments = 3; // 8;
         widthSegments = Math.max( 3, Math.floor( widthSegments ) );
         heightSegments = Math.max( 2, Math.floor( heightSegments ) );
 

@@ -1,14 +1,9 @@
 import { Color } from "../math/Color";
 import { Matrix4 } from "../math/Matrix4";
-import { DepthTexture, RenderTexture } from "../renderer/Texture";
-import { Renderer } from "../renderer/Renderer";
 import { Component } from "./Component";
 import { EventSystem } from "../Events";
 
 export class Camera extends Component {
-    public renderTarget: RenderTexture | null = null;
-    public depthTarget: DepthTexture | null = null;
-
     public backgroundColor: Color = new Color(0.0, 0.0, 0.0, 1);
 
     public projectionMatrix = new Matrix4();
@@ -23,19 +18,16 @@ export class Camera extends Component {
     public SetPerspective(fov: number, aspect: number, near: number, far: number) {
         this.near = near;
         this.far = far;
-        // this.projectionMatrix.perspective(fov, aspect, near, far).transpose();
         this.projectionMatrix.perspectiveZO(fov, aspect, near, far);
     }
 
     public SetOrthographic(left: number, right: number, top: number, bottom: number, near: number, far: number) {
         this.near = near;
         this.far = far;
-        this.projectionMatrix.orthogonal(left, right, top, bottom, near, far);
+        this.projectionMatrix.orthoZO(left, right, top, bottom, near, far);
     }
     
     public Start() {
-        if (Camera.mainCamera === this) this.depthTarget = DepthTexture.Create(Renderer.width, Renderer.height, 1);
-
         EventSystem.on("TransformUpdated", transform => {
             if (this.transform === transform && Camera.mainCamera === this) {
                 EventSystem.emit("MainCameraUpdated", this);
@@ -44,7 +36,6 @@ export class Camera extends Component {
     }
 
     public Update() {
-        // this.projectionMatrix.perspective(this.fov, this.aspect, this.near, this.far).transpose();
         this.viewMatrix.copy(this.transform.worldToLocalMatrix)
     }
 }

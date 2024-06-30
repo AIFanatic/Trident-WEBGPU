@@ -3,7 +3,7 @@
 import { Renderer } from "../Renderer";
 
 const adapter = navigator ? await navigator.gpu.requestAdapter() : null;
-const device = adapter ? await adapter.requestDevice() : null;
+const device = adapter ? await adapter.requestDevice({requiredFeatures: ["indirect-first-instance"]}) : null;
 
 export class WEBGPURenderer implements Renderer {
     public static adapter: GPUAdapter;
@@ -20,6 +20,7 @@ export class WEBGPURenderer implements Renderer {
         if (!context) throw Error("Could not get WEBGPU context");
         
         WEBGPURenderer.adapter = adapter;
+        console.log(adapter)
         WEBGPURenderer.device = device;
         WEBGPURenderer.presentationFormat = navigator.gpu.getPreferredCanvasFormat();
 

@@ -8,7 +8,7 @@ import { DepthTexture, RenderTexture } from "../Texture";
 import { Renderer } from "../Renderer";
 import { Camera } from "../../components/Camera";
 import { Matrix4 } from "../../math/Matrix4";
-import { ShaderCode } from "../webgpu/ShaderCode";
+import { ShaderCode } from "../ShaderCode";
 
 class DownSampler {
     private shader: Shader;

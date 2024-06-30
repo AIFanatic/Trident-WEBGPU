@@ -6,9 +6,12 @@ class _Debugger {
     private frameRenderPassesStat: UITextStat;
     private frameRenderPasses: string[] = [];
 
+    private visibleMeshes: UITextStat;
+
     constructor() {
         this.ui = new UIStats();
         this.frameRenderPassesStat = this.ui.AddTextStat("Render passes: ", "");
+        this.visibleMeshes = this.ui.AddTextStat("Visible: ", "");
     }
 
     public ResetFrame() {
@@ -20,6 +23,10 @@ class _Debugger {
         if (this.frameRenderPasses.includes(name)) return;
         this.frameRenderPasses.push(name);
         this.frameRenderPassesStat.SetValue(this.frameRenderPasses.join("\n"));
+    }
+
+    public SetVisibleMeshes(count: number) {
+        this.visibleMeshes.SetValue(count.toString());
     }
 }
 

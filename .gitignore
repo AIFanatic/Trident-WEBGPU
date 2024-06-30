@@ -11,3 +11,4 @@ samples*
 *.bak*
 backups
 cloc.sh
+./plugins/meshoptimizer

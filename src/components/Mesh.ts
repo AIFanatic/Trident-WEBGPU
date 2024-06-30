@@ -10,11 +10,11 @@ export class Mesh extends Component {
     public enableShadows: boolean = true;
 
     public Start(): void {
-        EventSystem.on("TransformUpdated", transform => {
-            if (this.transform === transform) {
-                EventSystem.emit("MeshUpdated", this);
-            }
-        })
+        // EventSystem.on("TransformUpdated", transform => {
+        //     if (this.transform === transform) {
+        //         EventSystem.emit("MeshUpdated", this);
+        //     }
+        // })
     }
 
     public AddMaterial(material: Material) {

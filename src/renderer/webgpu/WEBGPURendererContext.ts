@@ -90,6 +90,41 @@ export class WEBGPURendererContext implements RendererContext {
         }
     }
 
+    public static DrawIndirect(geometry: Geometry, shader: WEBGPUShader, indirectBuffer: WEBGPUBuffer, indirectOffset: number) {
+        if (!this.activeRenderPass) throw Error("No active render pass");
+
+        shader.OnPreRender();
+
+        if (!shader.pipeline) throw Error("Shader doesnt have a pipeline");
+
+        this.activeRenderPass.setPipeline(shader.pipeline);
+        for (let i = 0; i < shader.bindGroups.length; i++) {
+            let dynamicOffsetsV2: number[] = [];
+            for (const buffer of shader.bindGroupsInfo[i].buffers) {
+                if (buffer instanceof WEBGPUDynamicBuffer)  {
+                    dynamicOffsetsV2.push(buffer.dynamicOffset);
+                }
+            }
+            this.activeRenderPass.setBindGroup(i, shader.bindGroups[i], dynamicOffsetsV2);
+        }
+        
+        for (const [name, attribute] of geometry.attributes) {
+            const attributeSlot = shader.GetAttributeSlot(name);
+            if (attributeSlot === undefined) continue;
+            const attributeBuffer = attribute.buffer as WEBGPUBuffer;
+            this.activeRenderPass.setVertexBuffer(attributeSlot, attributeBuffer.GetBuffer());
+        }
+
+        if (!geometry.index) {
+            this.activeRenderPass.drawIndirect(indirectBuffer.GetBuffer(), indirectOffset);
+        }
+        else {
+            const indexBuffer = geometry.index.buffer as WEBGPUBuffer;
+            this.activeRenderPass.setIndexBuffer(indexBuffer.GetBuffer(), "uint32");
+            this.activeRenderPass.drawIndexedIndirect(indirectBuffer.GetBuffer(), indirectOffset);
+        }
+    }
+
     public static SetViewport(x: number, y: number, width: number, height: number, minDepth: number, maxDepth: number) {
         if (!this.activeRenderPass) throw Error("No active render pass");
         this.activeRenderPass.setViewport(x, y, width, height, minDepth, maxDepth);
@@ -112,5 +147,12 @@ export class WEBGPURendererContext implements RendererContext {
         if (!activeCommandEncoder) throw Error("No active command encoder!!");
 
         activeCommandEncoder.copyTextureToTexture({texture: source.GetBuffer()}, {texture: destination.GetBuffer()}, [source.width, source.height, source.depth]);
+    }
+
+    public static ClearBuffer(buffer: WEBGPUBuffer, offset: number, size: number) {
+        const activeCommandEncoder = WEBGPURenderer.GetActiveCommandEncoder();
+        if (!activeCommandEncoder) throw Error("No active command encoder!!");
+
+        activeCommandEncoder.clearBuffer(buffer.GetBuffer(), offset, size);
     }
 }

@@ -4,7 +4,6 @@ import { RenderPass, ResourcePool } from "../RenderGraph";
 import { DepthTexture, RenderTexture } from "../Texture";
 import { Renderer } from "../Renderer";
 import { DeferredMeshMaterial } from "../Material";
-import { SceneRenderer } from "./SceneRenderer";
 import { Mesh } from "../../components/Mesh";
 import { InstancedMesh } from "../../components/InstancedMesh";
 import { Debugger } from "../../plugins/Debugger";

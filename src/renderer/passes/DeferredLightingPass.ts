@@ -126,9 +126,9 @@ export class DeferredLightingPass extends RenderPass {
             ], i * lightBufferSize);
         }
 
-        if (!this.lightsBuffer || this.lightsBuffer.size !== lights.length * lightBufferSize * 4) {
-            console.log("HERE")
-            this.lightsBuffer = Buffer.Create(lights.length * lightBufferSize * 4, BufferType.STORAGE);
+        const lightsLength = Math.max(lights.length, 1);
+        if (!this.lightsBuffer || this.lightsBuffer.size !== lightsLength * lightBufferSize * 4) {
+            this.lightsBuffer = Buffer.Create(lightsLength * lightBufferSize * 4, BufferType.STORAGE);
             this.lightsCountBuffer = Buffer.Create(1 * 4, BufferType.STORAGE);
         }
         this.lightsBuffer.SetArray(lightBuffer);

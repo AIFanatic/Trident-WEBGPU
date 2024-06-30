@@ -340,7 +340,8 @@ fn CalculateShadowCSM(surface: Surface, light: Light, lightIndex: u32) -> Shadow
     let minBias = 0.0005;
     let maxBias = 0.001;
 
-    let bias = max(minBias, maxBias * (1.0 - dot(lightDirection, surface.N)));
+    // let bias = max(minBias, maxBias * (1.0 - dot(lightDirection, surface.N)));
+    let bias = max(0.0025 * (1.0 - dot(surface.N, lightDirection)), 0.0009);
     
     let threshold = vec3<f32>(0.2);
     var edgeAdditionalVisibility = clamp((shadowMapCoords.xyz - (1.0 - threshold)) / threshold, vec3<f32>(0.0), vec3<f32>(1.0));
