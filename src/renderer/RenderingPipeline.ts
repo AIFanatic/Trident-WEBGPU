@@ -61,16 +61,21 @@ export class RenderingPipeline {
     }
 
     public async Render(scene: Scene) {
-        if (this.frame % 100 == 0) {
-            Debugger.ResetFrame();
-        }
+        // if (this.frame % 100 == 0) {
+        //     Debugger.ResetFrame();
+        // }
         
         this.renderer.BeginRenderFrame();
         this.renderGraph.execute();
         // this.debuggerPass.execute(this.renderGraph.resourcePool);
         this.renderer.EndRenderFrame();
 
-        await WEBGPUTimestampQuery.GetResult();
+        const frameTimes = await WEBGPUTimestampQuery.GetResult();
+        if (frameTimes) {
+            for (const [name, time] of frameTimes) {
+                Debugger.SetPassTime(name, time);
+            }
+        }
 
         this.frame++;
     }

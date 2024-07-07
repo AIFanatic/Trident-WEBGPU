@@ -1,4 +1,3 @@
-import { Debugger } from "../../plugins/Debugger";
 import { WEBGPURenderer } from "./WEBGPURenderer";
 
 export class WEBGPUTimestampQuery {
@@ -59,28 +58,23 @@ export class WEBGPUTimestampQuery {
         const arrayBuffer = this.resultBuffer.getMappedRange().slice(0);
         const times = new BigInt64Array(arrayBuffer);
 
-        // console.log(times)
-
         let visited = {};
-        let str = ``;
+        let frameTimes: Map<string, number> = new Map();
         for (let i = 0; i < this.currentLinkIndex; i+=2) {
             const link = this.links.get(i);
             if (!link) throw Error("ERGERG");
             if (visited[link] === true) continue;
 
-            // console.log(times)
             const duration = Number(times[i+1] - times[i]);
-            
-
-            str += `${link}: ${(duration / 1000).toFixed(1)}µs\n`;
+            frameTimes.set(link, duration);
             visited[link] = true;
-            // console.log(`${(duration / 1000).toFixed(1)}µs`);
         }
-        Debugger.SetGPUTime(str)
 
         this.resultBuffer.unmap();
 
         this.currentLinkIndex = 0;
         this.links.clear();
+
+        return frameTimes;
     }
 }

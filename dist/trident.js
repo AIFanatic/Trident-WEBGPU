@@ -1699,122 +1699,6 @@ var Compute = class extends BaseShader {
   }
 };
 
-// src/plugins/UIStats.ts
-var Stat = class {
-  statContainer;
-  constructor(container) {
-    this.statContainer = document.createElement("div");
-    container.appendChild(this.statContainer);
-  }
-};
-var UISliderStat = class {
-  constructor(container, label, min, max, step, defaultValue, callback) {
-    const labelElement = document.createElement("label");
-    labelElement.textContent = label;
-    const sliderElement = document.createElement("input");
-    sliderElement.type = "range";
-    sliderElement.min = `${min}`;
-    sliderElement.max = `${max}`;
-    sliderElement.step = `${step}`;
-    sliderElement.value = `${defaultValue}`;
-    sliderElement.addEventListener("input", (event) => {
-      callback(parseFloat(sliderElement.value));
-    });
-    container.append(labelElement, sliderElement);
-  }
-};
-var UITextStat = class extends Stat {
-  textElement;
-  constructor(container, label, defaultValue) {
-    super(container);
-    const labelElement = document.createElement("label");
-    labelElement.textContent = label;
-    this.textElement = document.createElement("pre");
-    this.textElement.textContent = defaultValue;
-    this.statContainer.append(labelElement, this.textElement);
-  }
-  SetValue(value) {
-    this.textElement.textContent = value;
-  }
-};
-var UIStats = class {
-  container;
-  stats = [];
-  constructor() {
-    this.container = document.createElement("div");
-    this.container.style.position = "absolute";
-    this.container.style.top = "0px";
-    this.container.style.color = "white";
-    this.container.style.display = "grid";
-    this.container.style.backgroundColor = "#222222";
-    this.container.style.fontSize = "10px";
-    this.container.style.minWidth = "200px";
-    document.body.appendChild(this.container);
-  }
-  SetPosition(position) {
-    if (position.left) this.container.style.left = `${position.left}px`;
-    if (position.right) this.container.style.right = `${position.right}px`;
-    if (position.top) this.container.style.top = `${position.top}px`;
-    if (position.bottom) this.container.style.bottom = `${position.bottom}px`;
-  }
-  AddSlider(label, min, max, step, defaultValue, callback) {
-    const stat = new UISliderStat(this.container, label, min, max, step, defaultValue, callback);
-    this.stats.push(stat);
-    return stat;
-  }
-  AddTextStat(label, defaultValue) {
-    const stat = new UITextStat(this.container, label, defaultValue);
-    this.stats.push(stat);
-    return stat;
-  }
-};
-
-// src/plugins/Debugger.ts
-var _Debugger = class {
-  ui;
-  frameRenderPassesStat;
-  frameRenderPasses = [];
-  totalMeshlets;
-  visibleMeshes;
-  gpuTime;
-  triangleCount;
-  visibleTriangles;
-  constructor() {
-    this.ui = new UIStats();
-    this.frameRenderPassesStat = this.ui.AddTextStat("Render passes: ", "");
-    this.totalMeshlets = this.ui.AddTextStat("Total meshlets: ", "");
-    this.visibleMeshes = this.ui.AddTextStat("Visible meshlets: ", "");
-    this.gpuTime = this.ui.AddTextStat("GPU time: ", "");
-    this.triangleCount = this.ui.AddTextStat("Triangles: ", "");
-    this.visibleTriangles = this.ui.AddTextStat("Visible triangles: ", "");
-  }
-  ResetFrame() {
-    this.frameRenderPasses = [];
-    this.frameRenderPassesStat.SetValue("");
-  }
-  AddFrameRenderPass(name) {
-    if (this.frameRenderPasses.includes(name)) return;
-    this.frameRenderPasses.push(name);
-    this.frameRenderPassesStat.SetValue(this.frameRenderPasses.join("\n"));
-  }
-  SetTotalMeshlets(count) {
-    this.totalMeshlets.SetValue(count.toString());
-  }
-  SetVisibleMeshes(count) {
-    this.visibleMeshes.SetValue(count.toString());
-  }
-  SetGPUTime(time) {
-    this.gpuTime.SetValue(time.toString());
-  }
-  SetTriangleCount(count) {
-    this.triangleCount.SetValue(count.toString());
-  }
-  SetVisibleTriangleCount(count) {
-    this.visibleTriangles.SetValue(count.toString());
-  }
-};
-var Debugger = new _Debugger();
-
 // src/renderer/webgpu/WEBGPUTimestampQuery.ts
 var WEBGPUTimestampQuery = class {
   static querySet;
@@ -1865,20 +1749,19 @@ var WEBGPUTimestampQuery = class {
     const arrayBuffer = this.resultBuffer.getMappedRange().slice(0);
     const times = new BigInt64Array(arrayBuffer);
     let visited = {};
-    let str = ``;
+    let frameTimes = /* @__PURE__ */ new Map();
     for (let i = 0; i < this.currentLinkIndex; i += 2) {
       const link = this.links.get(i);
       if (!link) throw Error("ERGERG");
       if (visited[link] === true) continue;
       const duration = Number(times[i + 1] - times[i]);
-      str += `${link}: ${(duration / 1e3).toFixed(1)}\xB5s
-`;
+      frameTimes.set(link, duration);
       visited[link] = true;
     }
-    Debugger.SetGPUTime(str);
     this.resultBuffer.unmap();
     this.currentLinkIndex = 0;
     this.links.clear();
+    return frameTimes;
   }
 };
 
@@ -2423,6 +2306,112 @@ var DebuggerPass = class extends RenderPass {
     RendererContext.EndRenderPass();
   }
 };
+
+// src/plugins/ui/UIStats.ts
+var Stat = class {
+  statContainer;
+  constructor(container) {
+    this.statContainer = document.createElement("div");
+    this.statContainer.classList.add("stat");
+    container.appendChild(this.statContainer);
+  }
+};
+var UITextStat = class extends Stat {
+  textElement;
+  previousValue;
+  precision;
+  unit;
+  rolling;
+  constructor(folder, label, defaultValue = 0, precision = 0, unit = "", rolling = false) {
+    super(folder.container);
+    const labelElement = document.createElement("label");
+    labelElement.classList.add("title");
+    labelElement.textContent = label;
+    this.previousValue = defaultValue;
+    this.precision = precision;
+    this.unit = unit;
+    this.rolling = rolling;
+    this.textElement = document.createElement("pre");
+    this.textElement.classList.add("value");
+    this.textElement.textContent = defaultValue.toFixed(precision);
+    this.statContainer.append(labelElement, this.textElement);
+  }
+  SetValue(value) {
+    if (this.rolling === true) {
+      value = this.previousValue * 0.95 + value * 0.05;
+    }
+    const valueStr = this.precision === 0 ? value.toString() : value.toFixed(this.precision);
+    this.textElement.textContent = valueStr + this.unit;
+    this.previousValue = value;
+  }
+};
+var UIFolder = class extends Stat {
+  folderElement;
+  container;
+  constructor(container, title) {
+    super(container instanceof HTMLDivElement ? container : container.container);
+    this.folderElement = document.createElement("details");
+    const folderTitle = document.createElement("summary");
+    folderTitle.textContent = title;
+    this.container = document.createElement("div");
+    this.folderElement.append(folderTitle, this.container);
+    this.statContainer.append(this.folderElement);
+  }
+  SetPosition(position) {
+    if (position.left) this.container.style.left = `${position.left}px`;
+    if (position.right) this.container.style.right = `${position.right}px`;
+    if (position.top) this.container.style.top = `${position.top}px`;
+    if (position.bottom) this.container.style.bottom = `${position.bottom}px`;
+  }
+  Open() {
+    this.folderElement.setAttribute("open", "");
+  }
+};
+
+// src/plugins/Debugger.ts
+var _Debugger = class {
+  ui;
+  renderPassesFolder;
+  framePassesStats = /* @__PURE__ */ new Map();
+  totalMeshlets;
+  visibleMeshes;
+  triangleCount;
+  visibleTriangles;
+  constructor() {
+    const container = document.createElement("div");
+    container.classList.add("stats-panel");
+    this.ui = new UIFolder(container, "Debugger");
+    this.ui.Open();
+    document.body.append(container);
+    this.totalMeshlets = new UITextStat(this.ui, "Total meshlets");
+    this.visibleMeshes = new UITextStat(this.ui, "Visible meshlets: ");
+    this.triangleCount = new UITextStat(this.ui, "Triangles: ");
+    this.visibleTriangles = new UITextStat(this.ui, "Visible triangles: ");
+    this.renderPassesFolder = new UIFolder(this.ui, "Frame passes");
+    this.renderPassesFolder.Open();
+  }
+  SetPassTime(name, time) {
+    let framePass = this.framePassesStats.get(name);
+    if (!framePass) {
+      framePass = new UITextStat(this.renderPassesFolder, name, 0, 2, "ms", true);
+      this.framePassesStats.set(name, framePass);
+    }
+    framePass.SetValue(time / 1e6);
+  }
+  SetTotalMeshlets(count) {
+    this.totalMeshlets.SetValue(count);
+  }
+  SetVisibleMeshes(count) {
+    this.visibleMeshes.SetValue(count);
+  }
+  SetTriangleCount(count) {
+    this.triangleCount.SetValue(count);
+  }
+  SetVisibleTriangleCount(count) {
+    this.visibleTriangles.SetValue(count);
+  }
+};
+var Debugger = new _Debugger();
 
 // src/renderer/webgpu/WEBGPUComputeContext.ts
 var WEBGPUComputeContext = class {
@@ -7270,13 +7259,15 @@ var RenderingPipeline = class {
     this.debuggerPass = new DebuggerPass();
   }
   async Render(scene) {
-    if (this.frame % 100 == 0) {
-      Debugger.ResetFrame();
-    }
     this.renderer.BeginRenderFrame();
     this.renderGraph.execute();
     this.renderer.EndRenderFrame();
-    await WEBGPUTimestampQuery.GetResult();
+    const frameTimes = await WEBGPUTimestampQuery.GetResult();
+    if (frameTimes) {
+      for (const [name, time] of frameTimes) {
+        Debugger.SetPassTime(name, time);
+      }
+    }
     this.frame++;
   }
 };

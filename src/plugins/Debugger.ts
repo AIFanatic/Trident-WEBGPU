@@ -1,56 +1,57 @@
-import { UIStats, UITextStat } from "./UIStats";
+import { UIFolder, UITextStat } from "./ui/UIStats";
 
 class _Debugger {
-    public readonly ui: UIStats;
+    public readonly ui: UIFolder;
+    private renderPassesFolder: UIFolder;
 
-    private frameRenderPassesStat: UITextStat;
-    private frameRenderPasses: string[] = [];
+    private framePassesStats: Map<string, UITextStat> = new Map();
 
     private totalMeshlets: UITextStat;
     private visibleMeshes: UITextStat;
-    private gpuTime: UITextStat;
     private triangleCount: UITextStat;
     private visibleTriangles: UITextStat;
 
     constructor() {
-        this.ui = new UIStats();
-        this.frameRenderPassesStat = this.ui.AddTextStat("Render passes: ", "");
-        this.totalMeshlets = this.ui.AddTextStat("Total meshlets: ", "");
-        this.visibleMeshes = this.ui.AddTextStat("Visible meshlets: ", "");
-        this.gpuTime = this.ui.AddTextStat("GPU time: ", "");
-        this.triangleCount = this.ui.AddTextStat("Triangles: ", "");
-        this.visibleTriangles = this.ui.AddTextStat("Visible triangles: ", "");
+        const container = document.createElement("div");
+        container.classList.add("stats-panel");
+
+        this.ui = new UIFolder(container, "Debugger");
+        this.ui.Open();
+        document.body.append(container);
+
+        this.totalMeshlets = new UITextStat(this.ui, "Total meshlets");
+        this.visibleMeshes = new UITextStat(this.ui, "Visible meshlets: ");
+        this.triangleCount = new UITextStat(this.ui, "Triangles: ");
+        this.visibleTriangles = new UITextStat(this.ui, "Visible triangles: ");
+
+        this.renderPassesFolder = new UIFolder(this.ui, "Frame passes");
+        this.renderPassesFolder.Open();
     }
 
-    public ResetFrame() {
-        this.frameRenderPasses = [];
-        this.frameRenderPassesStat.SetValue("");
-    }
+    public SetPassTime(name: string, time: number) {
+        let framePass = this.framePassesStats.get(name);
+        if (!framePass) {
+            framePass = new UITextStat(this.renderPassesFolder, name, 0, 2, "ms", true);
+            this.framePassesStats.set(name, framePass);
+        }
 
-    public AddFrameRenderPass(name: string) {
-        if (this.frameRenderPasses.includes(name)) return;
-        this.frameRenderPasses.push(name);
-        this.frameRenderPassesStat.SetValue(this.frameRenderPasses.join("\n"));
+        framePass.SetValue(time / 1e6);
     }
 
     public SetTotalMeshlets(count: number) {
-        this.totalMeshlets.SetValue(count.toString());
+        this.totalMeshlets.SetValue(count);
     }
 
     public SetVisibleMeshes(count: number) {
-        this.visibleMeshes.SetValue(count.toString());
-    }
-
-    public SetGPUTime(time: number | string) {
-        this.gpuTime.SetValue(time.toString());
+        this.visibleMeshes.SetValue(count);
     }
 
     public SetTriangleCount(count: number) {
-        this.triangleCount.SetValue(count.toString());
+        this.triangleCount.SetValue(count);
     }
 
     public SetVisibleTriangleCount(count: number) {
-        this.visibleTriangles.SetValue(count.toString());
+        this.visibleTriangles.SetValue(count);
     }
 }
 
