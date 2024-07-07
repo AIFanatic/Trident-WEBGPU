@@ -12,6 +12,8 @@ export enum BufferType {
 
 export class Buffer {
     public readonly size: number;
+    public set name(name: string) {};
+    public get name(): string { return "Buffer" };
 
     public static Create(size: number, type: BufferType) {
         if (Renderer.type === "webgpu") return new WEBGPUBuffer(size, type);

@@ -5,6 +5,9 @@ class BaseBuffer {
     private buffer: GPUBuffer;
     public readonly size: number;
 
+    public set name(name: string) { this.buffer.label = name};
+    public get name(): string { return this.buffer.label };
+
     constructor(sizeInBytes: number, type: BufferType) {
         let usage: GPUBufferUsageFlags | undefined = undefined;
         if (type == BufferType.STORAGE) usage = GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC | GPUBufferUsage.COPY_DST;

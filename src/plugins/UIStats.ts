@@ -1,3 +1,11 @@
+class Stat {
+    protected statContainer: HTMLDivElement;
+    constructor(container: HTMLDivElement) {
+        this.statContainer = document.createElement("div");
+        container.appendChild(this.statContainer);
+    }
+}
+
 export class UISliderStat {
     constructor(container: HTMLDivElement, label: string, min: number, max: number, step: number, defaultValue: number, callback: (value: number) => void) {
 
@@ -16,16 +24,17 @@ export class UISliderStat {
     }
 }
 
-export class UITextStat {
+export class UITextStat extends Stat {
     private textElement: HTMLPreElement;
     constructor(container: HTMLDivElement, label: string, defaultValue: string) {
+        super(container);
         const labelElement = document.createElement("label");
         labelElement.textContent = label;
 
         this.textElement = document.createElement("pre");
         this.textElement.textContent = defaultValue;
 
-        container.append(labelElement, this.textElement);
+        this.statContainer.append(labelElement, this.textElement);
     }
 
     public SetValue(value: string) {
@@ -45,6 +54,7 @@ export class UIStats {
         this.container.style.display = "grid";
         this.container.style.backgroundColor = "#222222";
         this.container.style.fontSize = "10px";
+        this.container.style.minWidth = "200px";
 
         document.body.appendChild(this.container);
     }

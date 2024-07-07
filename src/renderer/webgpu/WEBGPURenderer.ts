@@ -3,7 +3,15 @@
 import { Renderer } from "../Renderer";
 
 const adapter = navigator ? await navigator.gpu.requestAdapter() : null;
-const device = adapter ? await adapter.requestDevice({requiredFeatures: ["indirect-first-instance"]}) : null;
+if (!adapter) throw Error("WEBGPU not supported");
+
+const requiredLimits = {};
+for (const key in adapter.limits) requiredLimits[key] = adapter.limits[key];
+
+const device = adapter ? await adapter.requestDevice({
+    requiredFeatures: ["timestamp-query"],
+    requiredLimits: requiredLimits
+}) : null;
 
 export class WEBGPURenderer implements Renderer {
     public static adapter: GPUAdapter;

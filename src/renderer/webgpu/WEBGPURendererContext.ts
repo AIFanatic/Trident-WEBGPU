@@ -5,16 +5,19 @@ import { WEBGPUBuffer, WEBGPUDynamicBuffer } from "./WEBGPUBuffer";
 import { WEBGPURenderer } from "./WEBGPURenderer";
 import { WEBGPUShader } from "./shader/WEBGPUShader";
 import { WEBGPUTexture } from "./WEBGPUTexture";
+import { WEBGPUTimestampQuery } from "./WEBGPUTimestampQuery";
 
 export class WEBGPURendererContext implements RendererContext {
     private static activeRenderPass: GPURenderPassEncoder | null = null;
 
-    public static BeginRenderPass(name: string, renderTargets: RenderTarget[], depthTarget?: DepthTarget) {
+    public static BeginRenderPass(name: string, renderTargets: RenderTarget[], depthTarget?: DepthTarget, timestamp?: boolean) {
         const activeCommandEncoder = WEBGPURenderer.GetActiveCommandEncoder();
         if (!activeCommandEncoder) throw Error("No active command encoder!!");
         if (this.activeRenderPass) throw Error("There is already an active render pass");
 
         const renderPassDescriptor: GPURenderPassDescriptor = { colorAttachments: [], label: "RenderPassDescriptor: " + name};
+
+        if (timestamp === true) renderPassDescriptor.timestampWrites = WEBGPUTimestampQuery.BeginRenderTimestamp(name);
 
         const attachments: GPURenderPassColorAttachment[] = [];
         for (const renderTarget of renderTargets) {
@@ -43,7 +46,10 @@ export class WEBGPURendererContext implements RendererContext {
     public static EndRenderPass() {
         if (!this.activeRenderPass) throw Error("No active render pass");
         this.activeRenderPass.end();
+
         this.activeRenderPass = null;
+        
+        WEBGPUTimestampQuery.EndRenderTimestamp();
     }
 
     public static DrawGeometry(geometry: Geometry, shader: WEBGPUShader, instanceCount = 1) {

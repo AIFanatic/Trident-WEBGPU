@@ -10,6 +10,7 @@ import { DebuggerPass } from "./passes/DebuggerPass";
 import { Debugger } from "../plugins/Debugger";
 import { SSGI } from "./passes/SSGI";
 import { GPUDriven } from "./passes/GPUDriven";
+import { WEBGPUTimestampQuery } from "./webgpu/WEBGPUTimestampQuery";
 
 export enum PassParams {
     MainCamera = "MainCamera",
@@ -59,7 +60,7 @@ export class RenderingPipeline {
         this.debuggerPass = new DebuggerPass();
     }
 
-    public Render(scene: Scene) {
+    public async Render(scene: Scene) {
         if (this.frame % 100 == 0) {
             Debugger.ResetFrame();
         }
@@ -68,6 +69,8 @@ export class RenderingPipeline {
         this.renderGraph.execute();
         // this.debuggerPass.execute(this.renderGraph.resourcePool);
         this.renderer.EndRenderFrame();
+
+        await WEBGPUTimestampQuery.GetResult();
 
         this.frame++;
     }

@@ -23,8 +23,8 @@ export interface DepthTarget {
 export class RendererContext {
     private constructor() {}
     
-    public static BeginRenderPass(name: string, renderTargets: RenderTarget[], depthTarget?: DepthTarget) {
-        if (Renderer.type === "webgpu") WEBGPURendererContext.BeginRenderPass(name, renderTargets, depthTarget);
+    public static BeginRenderPass(name: string, renderTargets: RenderTarget[], depthTarget?: DepthTarget, timestamp: boolean = false) {
+        if (Renderer.type === "webgpu") WEBGPURendererContext.BeginRenderPass(name, renderTargets, depthTarget, timestamp);
         else throw Error("Unknown render api type.");
     }
 

@@ -77,9 +77,37 @@ export class Geometry {
         this.attributes.set("normal", normals);
     }
 
+    public static ToNonIndexed(vertices: Float32Array, indices: Uint32Array): Float32Array {
+        const itemSize = 3;
+        const array2 = new Float32Array(indices.length * itemSize);
+    
+        let index = 0, index2 = 0;
+        for ( let i = 0, l = indices.length; i < l; i ++ ) {
+            index = indices[ i ] * itemSize;
+            for ( let j = 0; j < itemSize; j ++ ) {
+                array2[ index2 ++ ] = vertices[ index ++ ];
+            }
+        }
+    
+        return array2;
+    }
+
     public static Cube(): Geometry {
         const vertices = new Float32Array([0.5, 0.5, 0.5, 0.5, 0.5, -0.5, 0.5, -0.5, 0.5, 0.5, -0.5, -0.5, -0.5, 0.5, -0.5, -0.5, 0.5, 0.5, -0.5, -0.5, -0.5, -0.5, -0.5, 0.5, -0.5, 0.5, -0.5, 0.5, 0.5, -0.5, -0.5, 0.5, 0.5, 0.5, 0.5, 0.5, -0.5, -0.5, 0.5, 0.5, -0.5, 0.5, -0.5, -0.5, -0.5, 0.5, -0.5, -0.5, -0.5, 0.5, 0.5, 0.5, 0.5, 0.5, -0.5, -0.5, 0.5, 0.5, -0.5, 0.5, 0.5, 0.5, -0.5, -0.5, 0.5, -0.5, 0.5, -0.5, -0.5, -0.5, -0.5, -0.5]);
-        const indices = new Uint32Array([0, 2, 1, 2, 3, 1, 4, 6, 5, 6, 7, 5, 8, 10, 9, 10, 11, 9, 12, 14, 13, 14, 15, 13, 16, 18, 17, 18, 19, 17, 20, 22, 21, 22, 23, 21]);
+        const indices = new Uint32Array([
+            0, 2, 1, 
+            2, 3, 1, 
+            4, 6, 5,
+            6, 7, 5,
+            8, 10, 9,
+            10, 11, 9,
+            12, 14, 13,
+            14, 15, 13,
+            16, 18, 17, 
+            18, 19, 17,
+            20, 22, 21,
+            22, 23, 21
+        ]);
         const uvs = new Float32Array([0, 1, 1, 1, 0, 0, 1, 0, 0, 1, 1, 1, 0, 0, 1, 0, 0, 1, 1, 1, 0, 0, 1, 0, 0, 1, 1, 1, 0, 0, 1, 0, 0, 1, 1, 1, 0, 0, 1, 0, 0, 1, 1, 1, 0, 0, 1, 0]);
         
         const geometry = new Geometry();
@@ -135,8 +163,8 @@ export class Geometry {
         const thetaStart = 0;
         const thetaLength = Math.PI;
 
-        let widthSegments = 3; // 16;
-        let heightSegments = 3; // 8;
+        let widthSegments = 16; // 16;
+        let heightSegments = 8; // 8;
         widthSegments = Math.max( 3, Math.floor( widthSegments ) );
         heightSegments = Math.max( 2, Math.floor( heightSegments ) );
 
@@ -206,7 +234,6 @@ export class Geometry {
         geometry.attributes.set("normal", new VertexAttribute(new Float32Array(normals)));
         geometry.attributes.set("uv", new VertexAttribute(new Float32Array(uvs)));
         
-        console.log("sphere", geometry)
         return geometry;
     }
 }

@@ -5,45 +5,21 @@ import { Compute, Shader } from "../Shader";
 import { Geometry, IndexAttribute, VertexAttribute } from "../../Geometry";
 import { Buffer, BufferType } from "../Buffer";
 import { Camera } from "../../components/Camera";
-import { Mesh } from "../../components/Mesh";
 import { ComputeContext } from "../ComputeContext";
 import { DepthTexture } from "../Texture";
 import { Frustum } from "../../math/Frustum";
 import { Debugger } from "../../plugins/Debugger";
+import { InstancedMeshlet } from "../../components/InstancedMeshlet";
+import { MeshletMeshV3 } from "../../components/MeshletV3";
+import { Meshlet } from "../../plugins/meshlets/Meshlet";
 
+interface SceneMesh {
+    geometry: Meshlet;
+    mesh: MeshletMeshV3;
+};
 
-const toNonIndexed = (geometry: Geometry): Geometry => {
-    function convertBufferAttribute(attribute: VertexAttribute, indices: Uint32Array ) {
-        const array = attribute.array;
-        const itemSize = 3;
-        const array2 = new Float32Array(indices.length * itemSize);
-
-        let index = 0, index2 = 0;
-        for ( let i = 0, l = indices.length; i < l; i ++ ) {
-            index = indices[ i ] * itemSize;
-            for ( let j = 0; j < itemSize; j ++ ) {
-                array2[ index2 ++ ] = array[ index ++ ];
-            }
-        }
-
-        return new VertexAttribute(array2);
-    }
-
-    if (!geometry.index || geometry.index === null) {
-        throw Error('THREE.BufferGeometry.toNonIndexed(): BufferGeometry is already non-indexed.');
-    }
-
-    const geometry2 = new Geometry();
-    const indices = geometry.index.array;
-    const attributes = geometry.attributes;
-
-    for (const [name, attribute] of attributes ) {
-        const newAttribute = convertBufferAttribute( attribute, indices as Uint32Array );
-        geometry2.attributes.set( name, newAttribute );
-    }
-
-    return geometry2;
-}
+const vertexSize = 128 * 3;
+const workgroupSize = 64;
 
 export class GPUDriven extends RenderPass {
     public name: string = "GPUDriven";
@@ -63,7 +39,7 @@ export class GPUDriven extends RenderPass {
 
     private cullData: Buffer;
     private frustum: Frustum = new Frustum();
-
+    
     constructor() {
         super({});
 
@@ -91,11 +67,19 @@ export class GPUDriven extends RenderPass {
         @group(0) @binding(4) var<storage, read> instanceInfo: array<InstanceInfo>;
 
         struct MeshInfo {
-            startVertex: vec4<f32>,
-            objectID: vec4<f32>,
+            objectID: f32,
             modelMatrix: mat4x4<f32>,
             sphereBounds: vec4<f32>,
+            cone_apex: vec4<f32>,
+            cone_axis: vec4<f32>,
+            cone_cutoff: f32,
+
+            boundingSphere: vec4<f32>,
+            parentBoundingSphere: vec4<f32>,
+            error: vec4<f32>,
+            parentError: vec4<f32>
         };
+
         @group(0) @binding(5) var<storage, read> meshInfo: array<MeshInfo>;
 
         @vertex fn vertexMain(input: VertexInput) -> VertexOutput {
@@ -104,7 +88,7 @@ export class GPUDriven extends RenderPass {
             let mesh = meshInfo[meshID];
             let modelMatrix = mesh.modelMatrix;
             
-            let vertexID = input.vertexIndex + u32(mesh.objectID.x) * 128;
+            let vertexID = input.vertexIndex + u32(mesh.objectID) * ${vertexSize};
             let position = vertices[vertexID];
             
             let modelViewMatrix = viewMatrix * modelMatrix;
@@ -159,10 +143,17 @@ export class GPUDriven extends RenderPass {
                 @group(0) @binding(0) var<storage, read_write> drawBuffer: DrawBuffer;
 
                 struct MeshInfo {
-                    startVertex: vec4<f32>,
-                    objectID: vec4<f32>,
+                    objectID: f32,
                     modelMatrix: mat4x4<f32>,
                     sphereBounds: vec4<f32>,
+                    cone_apex: vec4<f32>,
+                    cone_axis: vec4<f32>,
+                    cone_cutoff: f32,
+
+                    boundingSphere: vec4<f32>,
+                    parentBoundingSphere: vec4<f32>,
+                    error: vec4<f32>,
+                    parentError: vec4<f32>
                 };
 
                 @group(0) @binding(1) var<storage, read> meshInfo: array<MeshInfo>;
@@ -177,6 +168,7 @@ export class GPUDriven extends RenderPass {
                 struct CullData {
                     projectionMatrix: mat4x4<f32>,
                     viewMatrix: mat4x4<f32>,
+                    cameraPosition: vec4<f32>,
                     frustum: array<vec4<f32>, 6>,
                     meshCount: vec4<f32>
                 };
@@ -184,74 +176,90 @@ export class GPUDriven extends RenderPass {
                 @group(0) @binding(3) var<storage, read> cullData: CullData;
                 
 
+                // assume a fixed resolution and fov
+                const PI = 3.141592653589793;
+                const testFOV = PI * 0.5;
+                const cotHalfFov = 1.0 / tan(testFOV / 2.0);
+
+                // TODO: Pass these
+                const screenHeight = 609.0;
+                const lodErrorThreshold = 2.0;
+                
+                fn transformSphere(sphere: vec4<f32>, transform: mat4x4<f32>) -> vec4<f32> {
+                    var hCenter = vec4(sphere.xyz, 1.0);
+                    hCenter = transform * hCenter;
+                    let center = hCenter.xyz / hCenter.w;
+                    return vec4(center, length((transform * vec4(sphere.w, 0, 0, 0)).xyz));
+                }
+
+                // project given transformed (ie in view space) sphere to an error value in pixels
+                // xyz is center of sphere
+                // w is radius of sphere
+                fn projectErrorToScreen(transformedSphere: vec4<f32>) -> f32 {
+                    // https://stackoverflow.com/questions/21648630/radius-of-projected-sphere-in-screen-space
+                    if (transformedSphere.w > 1000000.0) {
+                        return transformedSphere.w;
+                    }
+                    let d2 = dot(transformedSphere.xyz, transformedSphere.xyz);
+                    let r = transformedSphere.w;
+                    return screenHeight * cotHalfFov * r / sqrt(d2 - r*r);
+                }
+
+
+                fn cull(clusterID: u32, modelview: mat4x4<f32>) -> bool {
+                    var projectedBounds = vec4(meshInfo[clusterID].boundingSphere.xyz, max(meshInfo[clusterID].error.x, 10e-10f));
+                    projectedBounds = transformSphere(projectedBounds, modelview);
+            
+                    var parentProjectedBounds = vec4(meshInfo[clusterID].parentBoundingSphere.xyz, max(meshInfo[clusterID].parentError.x, 10e-10f));
+                    parentProjectedBounds = transformSphere(parentProjectedBounds, modelview);
+            
+                    let clusterError = projectErrorToScreen(projectedBounds);
+                    let parentError = projectErrorToScreen(parentProjectedBounds);
+                    let render = clusterError <= lodErrorThreshold && parentError > lodErrorThreshold;
+                    return render;
+
+                    // // Disable culling
+                    // return meshInfo[clusterID].lod != uint(push.forcedLOD);
+                }
+
+
+
                 fn planeDistanceToPoint(normal: vec3f, constant: f32, point: vec3f) -> f32 {
                     return dot(normal, point) + constant;
-                    // return this.normal.dot( point ) + this.constant;
                 }
 
                 fn IsVisible(objectIndex: u32) -> bool {
-                    let sphereBounds = meshInfo[objectIndex].sphereBounds;
+                    let mesh = meshInfo[objectIndex];
+                    let v = cull(objectIndex, cullData.viewMatrix * mesh.modelMatrix);
+                    if (!v) {
+                        return false;
+                    }
+                    // return v;
+
+                    // Backface
+                    if (dot(normalize(mesh.cone_apex.xyz - cullData.cameraPosition.xyz), mesh.cone_axis.xyz) >= mesh.cone_cutoff) {
+                        return false;
+                    }
+                    
+                    // Camera frustum
+                    let sphereBounds = mesh.sphereBounds;
                     // var center = sphereBounds.xyz;
-                    var center = sphereBounds.xyz;
-                    center = (cullData.viewMatrix * vec4(center, 1.0)).xyz;
+                    let center = (cullData.viewMatrix * vec4(sphereBounds.xyz, 1.0)).xyz;
+                    // Radius is not accounting for mesh scale
                     let negRadius = -sphereBounds.w;
-                    var visible = true;
 
                     for (var i = 0; i < 6; i++) {
                         let distance = planeDistanceToPoint(cullData.frustum[i].xyz, cullData.frustum[i].w, center);
 
                         if (distance < negRadius) {
-                            visible = false;
-                            break;
+                            return false;
                         }
                     }
 
-                    // var center = sphereBounds.xyz;
-                    // center = (cullData.viewMatrix * vec4(center, 1.0)).xyz;
-                    // let radius = sphereBounds.w;
-                    
-                    // let visible = true;
-
-
-                
-                    // the left/top/right/bottom plane culling utilizes frustum symmetry to cull against two planes at the same time
-                    // visible = visible && center.z * cullData.frustum[1] - abs(center.x) * cullData.frustum[0] > -radius;
-                    // visible = visible && center.z * cullData.frustum[3] - abs(center.y) * cullData.frustum[2] > -radius;
-                
-                    // if(cullData.distCull != 0)
-                    // {// the near/far plane culling uses camera space Z directly
-                    //     visible = visible && center.z + radius > cullData.znear && center.z - radius < cullData.zfar;
-                    // }
-                    
-                
-                    // // visible = visible || cullData.cullingEnabled == 0;
-                
-                    // // //flip Y because we access depth texture that way
-                    // // center.y *= -1;
-                
-                    // // if(visible && cullData.occlusionEnabled != 0)
-                    // // {
-                    // //     vec4 aabb;
-                    // //     if (projectSphere(center, radius, cullData.znear, cullData.P00, cullData.P11, aabb))
-                    // //     {
-                    // //         float width = (aabb.z - aabb.x) * cullData.pyramidWidth;
-                    // //         float height = (aabb.w - aabb.y) * cullData.pyramidHeight;
-                
-                    // //         float level = floor(log2(max(width, height)));
-                
-                    // //         // Sampler is set up to do min reduction, so this computes the minimum depth of a 2x2 texel quad
-                            
-                    // //         float depth = textureLod(depthPyramid, (aabb.xy + aabb.zw) * 0.5, level).x;
-                    // //         float depthSphere =cullData.znear / (center.z - radius);
-                
-                    // //         visible = visible && depthSphere >= depth;
-                    // //     }
-                    // // }
-                
-                    return visible;
+                    return true;
                 }
 
-                override blockSizeX: u32 = 32;
+                override blockSizeX: u32 = ${workgroupSize};
                 override blockSizeY: u32 = 1;
                 override blockSizeZ: u32 = 1;
                 
@@ -262,20 +270,13 @@ export class GPUDriven extends RenderPass {
                         let visible = IsVisible(gID);
                             
                         if (visible) {
-
                             let mesh = meshInfo[gID];
                             
-                            
-                            
-                            drawBuffer.vertexCount = 128;
+                            drawBuffer.vertexCount = ${vertexSize};
                             let countIndex = atomicAdd(&drawBuffer.instanceCount, 1);
-                            
-        
                             instanceInfo[countIndex].meshID = gID;
                         }
-                        
                     }
-
                 } 
             
             `,
@@ -287,93 +288,121 @@ export class GPUDriven extends RenderPass {
                 cullData: {group: 0, binding: 3, type: "storage"},
             }
         });
+
+        this.drawIndirectBuffer = Buffer.Create(4 * 4, BufferType.INDIRECT);
+        this.drawIndirectBuffer.name = "drawIndirectBuffer";
+
+        this.geometry = new Geometry();
+        this.geometry.attributes.set("position", new VertexAttribute(new Float32Array(vertexSize)));
     }
 
-    public execute(resources: ResourcePool) {
+    private buildMeshletData() {
         const mainCamera = Camera.mainCamera;
         const scene = mainCamera.gameObject.scene;
-        const sceneMeshes = scene.GetComponents(Mesh);
+        const sceneMeshlets = [...scene.GetComponents(MeshletMeshV3)];
+        // const sceneMeshletsInstanced = scene.GetComponents(InstancedMeshlet);
 
+        if (this.currentMeshCount !== sceneMeshlets.length) {
 
-        if (this.currentMeshCount !== sceneMeshes.length) {
+            const meshlets: SceneMesh[] = [];
+            for (const meshlet of sceneMeshlets) {
+                for (const geometry of meshlet.meshlets) {
+                    meshlets.push({mesh: meshlet, geometry: geometry});
+                }
+            }
+            console.time("buildMeshletData");
 
+            console.log("meshlets", meshlets.length);
+            console.log("sceneMeshes", sceneMeshlets.length);
 
             console.time("GGGG");
+
             let vertices: number[] = [];
-
-            const vsT = new Float32Array(128 * 3);
-
             let meshInfoData: number[][] = [];
-            const indexedCache: Map<string, number> = new Map();
-            for (let i = 0; i < sceneMeshes.length; i++) {
-                const mesh = sceneMeshes[i];
-                const meshGeometry = mesh.GetGeometry();
-                let geometryIndex = indexedCache.get(meshGeometry.id);
+            const indexedCache: Map<number, number> = new Map();
+            for (let i = 0; i < meshlets.length; i++) {
+                const sceneMesh = meshlets[i];
+                let geometryIndex = indexedCache.get(sceneMesh.geometry.crc);
                 if (geometryIndex === undefined) {
+                    console.log("Not found");
                     geometryIndex = indexedCache.size;
-                    indexedCache.set(meshGeometry.id, geometryIndex);
-
-                    const indexedGeometry = toNonIndexed(meshGeometry);
-                    const geometryVertices = indexedGeometry.attributes.get("position");
-                    if (!geometryVertices) throw Error("Need mesh to have vertices");
-    
-                    vsT.set(geometryVertices.array);
-    
-                    vertices.push(...vsT);
+                    indexedCache.set(sceneMesh.geometry.crc, geometryIndex);
+                    // verticesArray.set(sceneMesh.geometry.vertices, geometryIndex * vertexSize * 4);
+                    vertices.push(...sceneMesh.geometry.vertices_gpu)
                 }
 
-                const aabbMin = Math.min(...meshGeometry.aabb.min.elements);
-                const aabbMax = Math.max(...meshGeometry.aabb.max.elements);
-                const aabbExtents = Math.abs(aabbMin) + Math.abs(aabbMax);
-                const sphereDiameter = aabbExtents;
+                // struct MeshInfo {
+                //     objectID: f32,
+                //     modelMatrix: mat4x4<f32>,
+                //     sphereBounds: vec4<f32>,
+                //     cone_apex: vec4<f32>,
+                //     cone_axis: vec4<f32>,
+                //     cone_cutoff: f32,
+
+                //     boundingSphere: vec4<f32>,
+                //     parentBoundingSphere: vec4<f32>,
+                //     error: f32,
+                //     parentError: f32
+                // };
+                const bv = sceneMesh.geometry.boundingVolume;
+                const pbv = sceneMesh.geometry.boundingVolume;
                 meshInfoData.push([
-                    i * 384, 0, 0, 0,
                     geometryIndex, 0, 0, 0,
-                    ...sceneMeshes[i].transform.localToWorldMatrix.elements,
-                    ...sceneMeshes[i].transform.position.elements, sphereDiameter
+                    ...sceneMesh.mesh.transform.localToWorldMatrix.elements,
+                    ...sceneMesh.mesh.transform.position.elements, sceneMesh.geometry.bounds.radius,
+                    ...sceneMesh.geometry.bounds.cone_apex.elements, 0,
+                    ...sceneMesh.geometry.bounds.cone_axis.elements, 0,
+                    sceneMesh.geometry.bounds.cone_cutoff, 0, 0, 0,
+                    bv.center.x, bv.center.y, bv.center.z, bv.radius,
+                    pbv.center.x, pbv.center.y, pbv.center.z, pbv.radius,
+                    sceneMesh.geometry.clusterError, 0, 0, 0,
+                    sceneMesh.geometry.parentError, 0, 0, 0
                 ]);
             }
+
             // console.log(indexedCache)
-            // console.log(vertices)
-            // console.log(meshInfoData)
-            const meshInfoBuffer = Buffer.Create(sceneMeshes.length * (4 + 4 + 16 + 4) * 4, BufferType.STORAGE);
-            meshInfoBuffer.SetArray(new Float32Array(meshInfoData.flat()));
+            const verticesArray = new Float32Array(vertices);
+            console.log("verticesArray", verticesArray.length);
+            console.log("meshInfoData", meshInfoData.length * (4 + 16 + 4 + 4 + 4 + 4 + 4 + 4 + 4 + 4));
+            const meshInfoDataArray = new Float32Array(meshInfoData.flat());
+            console.log("meshInfoData", meshInfoDataArray.byteLength);
+            const meshInfoBuffer = Buffer.Create(meshInfoDataArray.byteLength, BufferType.STORAGE);
+            meshInfoBuffer.name = "meshInfoBuffer";
+            meshInfoBuffer.SetArray(meshInfoDataArray);
             this.compute.SetBuffer("meshInfo", meshInfoBuffer);
             this.shader.SetBuffer("meshInfo", meshInfoBuffer);
 
             console.timeEnd("GGGG");
 
-            console.warn(`
-            TODO: You are passing each individual mesh as a unique mesh which kinda defeats the purpose of all of this,
-                  each mesh if its repeated (vertices already loaded) can just pass the baseVertex id
-            `)
-
-
-            this.drawIndirectBuffer = Buffer.Create(4 * 4, BufferType.INDIRECT);
-
-
-            this.geometry = new Geometry();
-            this.geometry.attributes.set("position", new VertexAttribute(new Float32Array(128)));
-
+            console.log("verticesArray", verticesArray.length)
             // Vertices buffer
-            const verticesArray = new Float32Array(sceneMeshes.length * 128 * 4);
-
-            let j = 0;
-            for (let i = 0; i < vertices.length; i+=3) {
-                verticesArray[j] = vertices[i + 0];
-                verticesArray[++j] = vertices[i + 1];
-                verticesArray[++j] = vertices[i + 2];
-                verticesArray[++j] = vertices[i + 3];
-                verticesArray[++j] = 0;
-            }
-
-            // console.log(verticesArray)
             this.vertexBuffer = Buffer.Create(verticesArray.byteLength, BufferType.STORAGE);
+            this.vertexBuffer.name = "vertexBuffer"
             this.vertexBuffer.SetArray(verticesArray);
             this.shader.SetBuffer("vertices", this.vertexBuffer);
             
-            this.currentMeshCount = sceneMeshes.length;
+            this.currentMeshCount = sceneMeshlets.length;
+            console.timeEnd("buildMeshletData");
+
+            Debugger.SetTotalMeshlets(meshlets.length);
         }
+
+    }
+    
+    public execute(resources: ResourcePool) {
+        const mainCamera = Camera.mainCamera;
+        const scene = mainCamera.gameObject.scene;
+        const sceneMeshlets = [...scene.GetComponents(MeshletMeshV3)];
+        // const sceneMeshletsInstanced = scene.GetComponents(InstancedMeshlet);
+        
+        let meshletsCount = 0;
+        for (const meshlet of sceneMeshlets) {
+            meshletsCount += meshlet.meshlets.length;
+        }
+        
+        if (meshletsCount === 0) return;
+        
+        this.buildMeshletData();
 
         this.shader.SetMatrix4("viewMatrix", mainCamera.viewMatrix);
 
@@ -383,34 +412,35 @@ export class GPUDriven extends RenderPass {
         // projectionMatrix: mat4x4<f32>,
         // viewMatrix: mat4x4<f32>,
         // frustum: array<vec4<f32>, 4>
-        if (!this.cullData) {
-            this.cullData = Buffer.Create((16 + 16 + (6 * 4) + 4) * 4, BufferType.STORAGE);
-            this.compute.SetBuffer("cullData", this.cullData);
-        }
-
-        // projectionMatrix: mat4x4<f32>,
-        // viewMatrix: mat4x4<f32>,
-        // frustum: array<vec4<f32>, 4>
-        this.cullData.SetArray(new Float32Array([
+        const cullDataArray = new Float32Array([
             ...mainCamera.projectionMatrix.elements,
             ...mainCamera.viewMatrix.elements,
+            ...mainCamera.transform.position.elements, 0,
             ...this.frustum.planes[0].normal.elements, this.frustum.planes[0].constant,
             ...this.frustum.planes[1].normal.elements, this.frustum.planes[1].constant,
             ...this.frustum.planes[2].normal.elements, this.frustum.planes[2].constant,
             ...this.frustum.planes[3].normal.elements, this.frustum.planes[3].constant,
             ...this.frustum.planes[4].normal.elements, this.frustum.planes[4].constant,
             ...this.frustum.planes[5].normal.elements, this.frustum.planes[5].constant,
-            sceneMeshes.length, 0, 0, 0
-        ]))
+            meshletsCount, 0, 0, 0
+        ])
+        if (!this.cullData) {
+            this.cullData = Buffer.Create(cullDataArray.byteLength, BufferType.STORAGE);
+            this.cullData.name = "cullData";
+            this.compute.SetBuffer("cullData", this.cullData);
+        }
+        this.cullData.SetArray(cullDataArray);
 
 
         if (!this.computeDrawBuffer) {
             // Draw indirect buffer
             this.computeDrawBuffer = Buffer.Create(4 * 4, BufferType.STORAGE_WRITE);
+            this.computeDrawBuffer.name = "computeDrawBuffer";
             this.compute.SetBuffer("drawBuffer", this.computeDrawBuffer);
 
             // InstanceBuffer
-            this.instanceInfoBuffer = Buffer.Create(sceneMeshes.length * 1 * 4, BufferType.STORAGE_WRITE);
+            this.instanceInfoBuffer = Buffer.Create(meshletsCount * 1 * 4, BufferType.STORAGE_WRITE);
+            this.instanceInfoBuffer.name = "instanceInfoBuffer"
             this.compute.SetBuffer("instanceInfo", this.instanceInfoBuffer);
             this.shader.SetBuffer("instanceInfo", this.instanceInfoBuffer);
 
@@ -418,21 +448,24 @@ export class GPUDriven extends RenderPass {
         RendererContext.ClearBuffer(this.computeDrawBuffer);
 
 
-        ComputeContext.BeginComputePass("GPUDriven");
-        const workgroupSizeX = Math.floor((sceneMeshes.length + 31) / 32);
+        ComputeContext.BeginComputePass("GPUDriven - Culling", true);
+        const workgroupSizeX = Math.floor((meshletsCount + workgroupSize-1) / workgroupSize);
         ComputeContext.Dispatch(this.compute, workgroupSizeX);
         ComputeContext.EndComputePass();
 
         RendererContext.CopyBufferToBuffer(this.computeDrawBuffer, this.drawIndirectBuffer);
 
-        RendererContext.BeginRenderPass("GPUDriven", [{clear: true}], {target: this.depthTarget, clear: true});
+        RendererContext.BeginRenderPass("GPUDriven - Indirect", [{clear: true}], {target: this.depthTarget, clear: true}, true);
         RendererContext.DrawIndirect(this.geometry, this.shader, this.drawIndirectBuffer);
         RendererContext.EndRenderPass();
 
 
         this.computeDrawBuffer.GetData().then(v => {
-            Debugger.SetVisibleMeshes(new Uint32Array(v)[1]);
-            // console.log(new Uint32Array(v))
+            const visibleMeshCount = new Uint32Array(v)[1];
+            Debugger.SetVisibleMeshes(visibleMeshCount);
+
+            Debugger.SetTriangleCount(vertexSize / 3* meshletsCount);
+            Debugger.SetVisibleTriangleCount(vertexSize / 3 * visibleMeshCount);
         })
     }
 }

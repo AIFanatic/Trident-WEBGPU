@@ -1,13 +1,13 @@
 import { Renderer } from "./Renderer";
 import { Compute } from "./Shader";
-import { WEBGPUCompute } from "./webgpu/WEBGPUCompute";
+import { WEBGPUComputeShader } from "./webgpu/shader/WEBGPUComputeShader";
 import { WEBGPUComputeContext } from "./webgpu/WEBGPUComputeContext";
 
 export class ComputeContext {
     private constructor() {}
     
-    public static BeginComputePass(name: string) {
-        if (Renderer.type === "webgpu") WEBGPUComputeContext.BeginComputePass(name);
+    public static BeginComputePass(name: string, timestamp = false) {
+        if (Renderer.type === "webgpu") WEBGPUComputeContext.BeginComputePass(name, timestamp);
         else throw Error("Unknown render api type.");
     }
 
@@ -17,7 +17,7 @@ export class ComputeContext {
     }
 
     public static Dispatch(computeShader: Compute, workgroupCountX: number, workgroupCountY: number = 1, workgroupCountZ: number = 1) {
-        if (Renderer.type === "webgpu") WEBGPUComputeContext.Dispatch(computeShader as WEBGPUCompute, workgroupCountX, workgroupCountY, workgroupCountZ);
+        if (Renderer.type === "webgpu") WEBGPUComputeContext.Dispatch(computeShader as WEBGPUComputeShader, workgroupCountX, workgroupCountY, workgroupCountZ);
         else throw Error("Unknown render api type.");
     }
 }

@@ -10,8 +10,5 @@
     "@webgpu/types": "^0.1.40",
     "esbuild": "^0.21.2"
   },
-  "dependencies": {
-    "dat.gui": "^0.7.9",
-    "wgpu-matrix": "^3.0.1"
-  }
+  "dependencies": {}
 }
