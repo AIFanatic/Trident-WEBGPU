@@ -2049,32 +2049,39 @@ var RendererContext = class {
   }
 };
 
-// src/math/AABB.ts
-var AABB = class _AABB {
+// src/math/BoundingVolume.ts
+var BoundingVolume = class _BoundingVolume {
   min;
   max;
-  constructor(min = new Vector3(Infinity, Infinity, Infinity), max = new Vector3(-Infinity, -Infinity, -Infinity)) {
+  center;
+  radius;
+  constructor(min = new Vector3(Infinity, Infinity, Infinity), max = new Vector3(-Infinity, -Infinity, -Infinity), center = new Vector3(), radius) {
     this.min = min;
     this.max = max;
+    this.center = center;
+    this.radius = radius;
   }
-  ExpandByVector(vector) {
-    this.min.sub(vector);
-    this.max.add(vector);
-    return this;
-  }
-  ExpandByPoint(vector) {
-    this.min.min(vector);
-    this.max.max(vector);
-    return this;
-  }
-  static FromVertexArray(vertexArray) {
-    const aabb = new _AABB();
-    const tempVector = new Vector3();
-    for (let i = 0; i < vertexArray.length; i += 3) {
-      tempVector.set(vertexArray[i + 0], vertexArray[i + 1], vertexArray[i + 2]);
-      aabb.ExpandByPoint(tempVector);
+  static FromVertices(vertices) {
+    let maxX = -Infinity;
+    let maxY = -Infinity;
+    let maxZ = -Infinity;
+    let minX = Infinity;
+    let minY = Infinity;
+    let minZ = Infinity;
+    for (let i = 0; i < vertices.length; i += 3) {
+      maxX = Math.max(maxX, vertices[i + 0]);
+      minX = Math.min(minX, vertices[i + 0]);
+      maxY = Math.max(maxY, vertices[i + 1]);
+      minY = Math.min(minY, vertices[i + 1]);
+      maxZ = Math.max(maxZ, vertices[i + 2]);
+      minZ = Math.min(minZ, vertices[i + 2]);
     }
-    return aabb;
+    return new _BoundingVolume(
+      new Vector3(minX, minY, minZ),
+      new Vector3(maxX, maxY, maxZ),
+      new Vector3(minX + (maxX - minX) / 2, minY + (maxY - minY) / 2, minZ + (maxZ - minZ) / 2),
+      Math.max((maxX - minX) / 2, (maxY - minY) / 2, (maxZ - minZ) / 2)
+    );
   }
 };
 
@@ -2106,12 +2113,12 @@ var Geometry = class _Geometry {
   index;
   attributes = /* @__PURE__ */ new Map();
   enableShadows = true;
-  _aabb;
-  get aabb() {
+  _boundingVolume;
+  get boundingVolume() {
     const positions = this.attributes.get("position");
     if (!positions) throw Error("Geometry has no position attribute");
-    if (!this._aabb) this._aabb = AABB.FromVertexArray(positions.array);
-    return this._aabb;
+    if (!this._boundingVolume) this._boundingVolume = BoundingVolume.FromVertices(positions.array);
+    return this._boundingVolume;
   }
   ComputeNormals() {
     let posAttrData = this.attributes.get("position")?.array;
@@ -2515,799 +2522,23 @@ var Frustum = class {
   }
 };
 
-// src/components/MeshletV3.ts
-var MeshletMeshV3 = class extends Component {
-  materialsMapped = /* @__PURE__ */ new Map();
-  enableShadows = true;
-  meshlets = [];
-  Start() {
-  }
-  AddMaterial(material) {
-    if (!this.materialsMapped.has(material.constructor.name)) this.materialsMapped.set(material.constructor.name, []);
-    this.materialsMapped.get(material.constructor.name)?.push(material);
-  }
-  GetMaterials(type) {
-    return this.materialsMapped.get(type.name) || [];
-  }
-};
-
-// src/renderer/passes/GPUDriven.ts
-var vertexSize = 128 * 3;
-var workgroupSize = 64;
-var GPUDriven = class extends RenderPass {
-  name = "GPUDriven";
-  shader;
-  geometry;
-  currentMeshCount = 0;
-  drawIndirectBuffer;
-  compute;
-  computeDrawBuffer;
-  instanceInfoBuffer;
-  vertexBuffer;
-  depthTarget;
-  cullData;
-  frustum = new Frustum();
-  constructor() {
-    super({});
-    const code = `
-        struct VertexInput {
-            @builtin(instance_index) instanceIndex : u32,
-            @builtin(vertex_index) vertexIndex : u32,
-            @location(0) position : vec3<f32>,
-        };
-
-        struct VertexOutput {
-            @builtin(position) position : vec4<f32>,
-            @location(0) @interpolate(flat) instance : u32,
-        };
-
-        @group(0) @binding(0) var<storage, read> viewMatrix: mat4x4<f32>;
-        @group(0) @binding(1) var<storage, read> projectionMatrix: mat4x4<f32>;
-
-        @group(0) @binding(3) var<storage, read> vertices: array<vec4<f32>>;
-
-        struct InstanceInfo {
-            meshID: u32
-        };
-
-        @group(0) @binding(4) var<storage, read> instanceInfo: array<InstanceInfo>;
-
-        struct MeshInfo {
-            objectID: f32,
-            modelMatrix: mat4x4<f32>,
-            sphereBounds: vec4<f32>,
-            cone_apex: vec4<f32>,
-            cone_axis: vec4<f32>,
-            cone_cutoff: f32,
-
-            boundingSphere: vec4<f32>,
-            parentBoundingSphere: vec4<f32>,
-            error: vec4<f32>,
-            parentError: vec4<f32>
-        };
-
-        @group(0) @binding(5) var<storage, read> meshInfo: array<MeshInfo>;
-
-        @vertex fn vertexMain(input: VertexInput) -> VertexOutput {
-            var output: VertexOutput;
-            let meshID = instanceInfo[input.instanceIndex].meshID;
-            let mesh = meshInfo[meshID];
-            let modelMatrix = mesh.modelMatrix;
-            
-            let vertexID = input.vertexIndex + u32(mesh.objectID) * ${vertexSize};
-            let position = vertices[vertexID];
-            
-            let modelViewMatrix = viewMatrix * modelMatrix;
-            output.position = projectionMatrix * modelViewMatrix * vec4(position.xyz, 1.0);
-            output.instance = meshID;
-
-            return output;
-        }
-        
-
-        fn rand(co: f32) -> f32 {
-            return fract(sin((co + 1.0) * 12.9898) * 43758.5453);
-        }
-
-        @fragment fn fragmentMain(input: VertexOutput) -> @location(0) vec4f {
-            let r = rand(f32(input.instance) + 12.1212);
-            let g = rand(f32(input.instance) + 22.1212);
-            let b = rand(f32(input.instance) + 32.1212);
-
-            return vec4(r, g, b, 1.0);
-        }
-        `;
-    this.shader = Shader.Create({
-      code,
-      colorOutputs: [{ format: Renderer.SwapChainFormat }],
-      depthOutput: "depth24plus",
-      attributes: {
-        position: { location: 0, size: 3, type: "vec3" }
-      },
-      uniforms: {
-        viewMatrix: { group: 0, binding: 0, type: "storage" },
-        projectionMatrix: { group: 0, binding: 1, type: "storage" },
-        vertices: { group: 0, binding: 3, type: "storage" },
-        instanceInfo: { group: 0, binding: 4, type: "storage" },
-        meshInfo: { group: 0, binding: 5, type: "storage" }
-      }
-    });
-    this.depthTarget = DepthTexture.Create(Renderer.width, Renderer.height);
-    this.compute = Compute.Create({
-      code: `
-                struct DrawBuffer {
-                    vertexCount: u32,
-                    instanceCount: atomic<u32>,
-                    firstVertex: u32,
-                    firstInstance: u32,
-                };
-
-                @group(0) @binding(0) var<storage, read_write> drawBuffer: DrawBuffer;
-
-                struct MeshInfo {
-                    objectID: f32,
-                    modelMatrix: mat4x4<f32>,
-                    sphereBounds: vec4<f32>,
-                    cone_apex: vec4<f32>,
-                    cone_axis: vec4<f32>,
-                    cone_cutoff: f32,
-
-                    boundingSphere: vec4<f32>,
-                    parentBoundingSphere: vec4<f32>,
-                    error: vec4<f32>,
-                    parentError: vec4<f32>
-                };
-
-                @group(0) @binding(1) var<storage, read> meshInfo: array<MeshInfo>;
-
-                struct InstanceInfo {
-                    meshID: u32
-                };
-
-                @group(0) @binding(2) var<storage, read_write> instanceInfo: array<InstanceInfo>;
-
-
-                struct CullData {
-                    projectionMatrix: mat4x4<f32>,
-                    viewMatrix: mat4x4<f32>,
-                    cameraPosition: vec4<f32>,
-                    frustum: array<vec4<f32>, 6>,
-                    meshCount: vec4<f32>
-                };
-
-                @group(0) @binding(3) var<storage, read> cullData: CullData;
-                
-
-                // assume a fixed resolution and fov
-                const PI = 3.141592653589793;
-                const testFOV = PI * 0.5;
-                const cotHalfFov = 1.0 / tan(testFOV / 2.0);
-
-                // TODO: Pass these
-                const screenHeight = 609.0;
-                const lodErrorThreshold = 2.0;
-                
-                fn transformSphere(sphere: vec4<f32>, transform: mat4x4<f32>) -> vec4<f32> {
-                    var hCenter = vec4(sphere.xyz, 1.0);
-                    hCenter = transform * hCenter;
-                    let center = hCenter.xyz / hCenter.w;
-                    return vec4(center, length((transform * vec4(sphere.w, 0, 0, 0)).xyz));
-                }
-
-                // project given transformed (ie in view space) sphere to an error value in pixels
-                // xyz is center of sphere
-                // w is radius of sphere
-                fn projectErrorToScreen(transformedSphere: vec4<f32>) -> f32 {
-                    // https://stackoverflow.com/questions/21648630/radius-of-projected-sphere-in-screen-space
-                    if (transformedSphere.w > 1000000.0) {
-                        return transformedSphere.w;
-                    }
-                    let d2 = dot(transformedSphere.xyz, transformedSphere.xyz);
-                    let r = transformedSphere.w;
-                    return screenHeight * cotHalfFov * r / sqrt(d2 - r*r);
-                }
-
-
-                fn cull(clusterID: u32, modelview: mat4x4<f32>) -> bool {
-                    var projectedBounds = vec4(meshInfo[clusterID].boundingSphere.xyz, max(meshInfo[clusterID].error.x, 10e-10f));
-                    projectedBounds = transformSphere(projectedBounds, modelview);
-            
-                    var parentProjectedBounds = vec4(meshInfo[clusterID].parentBoundingSphere.xyz, max(meshInfo[clusterID].parentError.x, 10e-10f));
-                    parentProjectedBounds = transformSphere(parentProjectedBounds, modelview);
-            
-                    let clusterError = projectErrorToScreen(projectedBounds);
-                    let parentError = projectErrorToScreen(parentProjectedBounds);
-                    let render = clusterError <= lodErrorThreshold && parentError > lodErrorThreshold;
-                    return render;
-
-                    // // Disable culling
-                    // return meshInfo[clusterID].lod != uint(push.forcedLOD);
-                }
-
-
-
-                fn planeDistanceToPoint(normal: vec3f, constant: f32, point: vec3f) -> f32 {
-                    return dot(normal, point) + constant;
-                }
-
-                fn IsVisible(objectIndex: u32) -> bool {
-                    let mesh = meshInfo[objectIndex];
-                    let v = cull(objectIndex, cullData.viewMatrix * mesh.modelMatrix);
-                    if (!v) {
-                        return false;
-                    }
-                    // return v;
-
-                    // Backface
-                    if (dot(normalize(mesh.cone_apex.xyz - cullData.cameraPosition.xyz), mesh.cone_axis.xyz) >= mesh.cone_cutoff) {
-                        return false;
-                    }
-                    
-                    // Camera frustum
-                    let sphereBounds = mesh.sphereBounds;
-                    // var center = sphereBounds.xyz;
-                    let center = (cullData.viewMatrix * vec4(sphereBounds.xyz, 1.0)).xyz;
-                    // Radius is not accounting for mesh scale
-                    let negRadius = -sphereBounds.w;
-
-                    for (var i = 0; i < 6; i++) {
-                        let distance = planeDistanceToPoint(cullData.frustum[i].xyz, cullData.frustum[i].w, center);
-
-                        if (distance < negRadius) {
-                            return false;
-                        }
-                    }
-
-                    return true;
-                }
-
-                override blockSizeX: u32 = ${workgroupSize};
-                override blockSizeY: u32 = 1;
-                override blockSizeZ: u32 = 1;
-                
-                @compute @workgroup_size(blockSizeX, blockSizeY, blockSizeZ)
-                fn main(@builtin(global_invocation_id) grid: vec3<u32>) {
-                    let gID = grid.z * (blockSizeX * blockSizeY) + grid.y * blockSizeX + grid.x;
-                    if (gID < u32(cullData.meshCount.x)) {
-                        let visible = IsVisible(gID);
-                            
-                        if (visible) {
-                            let mesh = meshInfo[gID];
-                            
-                            drawBuffer.vertexCount = ${vertexSize};
-                            let countIndex = atomicAdd(&drawBuffer.instanceCount, 1);
-                            instanceInfo[countIndex].meshID = gID;
-                        }
-                    }
-                } 
-            
-            `,
-      computeEntrypoint: "main",
-      uniforms: {
-        drawBuffer: { group: 0, binding: 0, type: "storage-write" },
-        meshInfo: { group: 0, binding: 1, type: "storage" },
-        instanceInfo: { group: 0, binding: 2, type: "storage-write" },
-        cullData: { group: 0, binding: 3, type: "storage" }
-      }
-    });
-    this.drawIndirectBuffer = Buffer3.Create(4 * 4, 5 /* INDIRECT */);
-    this.drawIndirectBuffer.name = "drawIndirectBuffer";
-    this.geometry = new Geometry();
-    this.geometry.attributes.set("position", new VertexAttribute(new Float32Array(vertexSize)));
-  }
-  buildMeshletData() {
-    const mainCamera = Camera.mainCamera;
-    const scene = mainCamera.gameObject.scene;
-    const sceneMeshlets = [...scene.GetComponents(MeshletMeshV3)];
-    if (this.currentMeshCount !== sceneMeshlets.length) {
-      const meshlets = [];
-      for (const meshlet of sceneMeshlets) {
-        for (const geometry of meshlet.meshlets) {
-          meshlets.push({ mesh: meshlet, geometry });
-        }
-      }
-      console.time("buildMeshletData");
-      console.log("meshlets", meshlets.length);
-      console.log("sceneMeshes", sceneMeshlets.length);
-      console.time("GGGG");
-      let vertices = [];
-      let meshInfoData = [];
-      const indexedCache = /* @__PURE__ */ new Map();
-      for (let i = 0; i < meshlets.length; i++) {
-        const sceneMesh = meshlets[i];
-        let geometryIndex = indexedCache.get(sceneMesh.geometry.crc);
-        if (geometryIndex === void 0) {
-          console.log("Not found");
-          geometryIndex = indexedCache.size;
-          indexedCache.set(sceneMesh.geometry.crc, geometryIndex);
-          vertices.push(...sceneMesh.geometry.vertices_gpu);
-        }
-        const bv = sceneMesh.geometry.boundingVolume;
-        const pbv = sceneMesh.geometry.boundingVolume;
-        meshInfoData.push([
-          geometryIndex,
-          0,
-          0,
-          0,
-          ...sceneMesh.mesh.transform.localToWorldMatrix.elements,
-          ...sceneMesh.mesh.transform.position.elements,
-          sceneMesh.geometry.bounds.radius,
-          ...sceneMesh.geometry.bounds.cone_apex.elements,
-          0,
-          ...sceneMesh.geometry.bounds.cone_axis.elements,
-          0,
-          sceneMesh.geometry.bounds.cone_cutoff,
-          0,
-          0,
-          0,
-          bv.center.x,
-          bv.center.y,
-          bv.center.z,
-          bv.radius,
-          pbv.center.x,
-          pbv.center.y,
-          pbv.center.z,
-          pbv.radius,
-          sceneMesh.geometry.clusterError,
-          0,
-          0,
-          0,
-          sceneMesh.geometry.parentError,
-          0,
-          0,
-          0
-        ]);
-      }
-      const verticesArray = new Float32Array(vertices);
-      console.log("verticesArray", verticesArray.length);
-      console.log("meshInfoData", meshInfoData.length * (4 + 16 + 4 + 4 + 4 + 4 + 4 + 4 + 4 + 4));
-      const meshInfoDataArray = new Float32Array(meshInfoData.flat());
-      console.log("meshInfoData", meshInfoDataArray.byteLength);
-      const meshInfoBuffer = Buffer3.Create(meshInfoDataArray.byteLength, 0 /* STORAGE */);
-      meshInfoBuffer.name = "meshInfoBuffer";
-      meshInfoBuffer.SetArray(meshInfoDataArray);
-      this.compute.SetBuffer("meshInfo", meshInfoBuffer);
-      this.shader.SetBuffer("meshInfo", meshInfoBuffer);
-      console.timeEnd("GGGG");
-      console.log("verticesArray", verticesArray.length);
-      this.vertexBuffer = Buffer3.Create(verticesArray.byteLength, 0 /* STORAGE */);
-      this.vertexBuffer.name = "vertexBuffer";
-      this.vertexBuffer.SetArray(verticesArray);
-      this.shader.SetBuffer("vertices", this.vertexBuffer);
-      this.currentMeshCount = sceneMeshlets.length;
-      console.timeEnd("buildMeshletData");
-      Debugger.SetTotalMeshlets(meshlets.length);
-    }
-  }
-  execute(resources) {
-    const mainCamera = Camera.mainCamera;
-    const scene = mainCamera.gameObject.scene;
-    const sceneMeshlets = [...scene.GetComponents(MeshletMeshV3)];
-    let meshletsCount = 0;
-    for (const meshlet of sceneMeshlets) {
-      meshletsCount += meshlet.meshlets.length;
-    }
-    if (meshletsCount === 0) return;
-    this.buildMeshletData();
-    this.shader.SetMatrix4("viewMatrix", mainCamera.viewMatrix);
-    this.frustum.setFromProjectionMatrix(mainCamera.projectionMatrix);
-    this.shader.SetMatrix4("projectionMatrix", mainCamera.projectionMatrix);
-    const cullDataArray = new Float32Array([
-      ...mainCamera.projectionMatrix.elements,
-      ...mainCamera.viewMatrix.elements,
-      ...mainCamera.transform.position.elements,
-      0,
-      ...this.frustum.planes[0].normal.elements,
-      this.frustum.planes[0].constant,
-      ...this.frustum.planes[1].normal.elements,
-      this.frustum.planes[1].constant,
-      ...this.frustum.planes[2].normal.elements,
-      this.frustum.planes[2].constant,
-      ...this.frustum.planes[3].normal.elements,
-      this.frustum.planes[3].constant,
-      ...this.frustum.planes[4].normal.elements,
-      this.frustum.planes[4].constant,
-      ...this.frustum.planes[5].normal.elements,
-      this.frustum.planes[5].constant,
-      meshletsCount,
-      0,
-      0,
-      0
-    ]);
-    if (!this.cullData) {
-      this.cullData = Buffer3.Create(cullDataArray.byteLength, 0 /* STORAGE */);
-      this.cullData.name = "cullData";
-      this.compute.SetBuffer("cullData", this.cullData);
-    }
-    this.cullData.SetArray(cullDataArray);
-    if (!this.computeDrawBuffer) {
-      this.computeDrawBuffer = Buffer3.Create(4 * 4, 1 /* STORAGE_WRITE */);
-      this.computeDrawBuffer.name = "computeDrawBuffer";
-      this.compute.SetBuffer("drawBuffer", this.computeDrawBuffer);
-      this.instanceInfoBuffer = Buffer3.Create(meshletsCount * 1 * 4, 1 /* STORAGE_WRITE */);
-      this.instanceInfoBuffer.name = "instanceInfoBuffer";
-      this.compute.SetBuffer("instanceInfo", this.instanceInfoBuffer);
-      this.shader.SetBuffer("instanceInfo", this.instanceInfoBuffer);
-    }
-    RendererContext.ClearBuffer(this.computeDrawBuffer);
-    ComputeContext.BeginComputePass("GPUDriven - Culling", true);
-    const workgroupSizeX = Math.floor((meshletsCount + workgroupSize - 1) / workgroupSize);
-    ComputeContext.Dispatch(this.compute, workgroupSizeX);
-    ComputeContext.EndComputePass();
-    RendererContext.CopyBufferToBuffer(this.computeDrawBuffer, this.drawIndirectBuffer);
-    RendererContext.BeginRenderPass("GPUDriven - Indirect", [{ clear: true }], { target: this.depthTarget, clear: true }, true);
-    RendererContext.DrawIndirect(this.geometry, this.shader, this.drawIndirectBuffer);
-    RendererContext.EndRenderPass();
-    this.computeDrawBuffer.GetData().then((v) => {
-      const visibleMeshCount = new Uint32Array(v)[1];
-      Debugger.SetVisibleMeshes(visibleMeshCount);
-      Debugger.SetTriangleCount(vertexSize / 3 * meshletsCount);
-      Debugger.SetVisibleTriangleCount(vertexSize / 3 * visibleMeshCount);
-    });
-  }
-};
-
-// src/renderer/RenderingPipeline.ts
-var RenderingPipeline = class {
-  renderer;
-  renderGraph;
-  debuggerPass;
-  frame = 0;
-  passes = {
-    // SetMainCamera: new SetMeshRenderCameraPass({outputs: [PassParams.MainCamera]}),
-    // DeferredMeshRenderPass: new DeferredMeshRenderPass(PassParams.MainCamera, PassParams.GBufferAlbedo, PassParams.GBufferNormal, PassParams.GBufferERMO, PassParams.GBufferDepth),
-    // ShadowPass: new ShadowPass(PassParams.ShadowPassDepth),
-    // DeferredLightingPass: new DeferredLightingPass(PassParams.GBufferAlbedo, PassParams.GBufferNormal, PassParams.GBufferERMO, PassParams.GBufferDepth, PassParams.ShadowPassDepth, PassParams.LightingPassOutput),
-    // SSGI: new SSGI(PassParams.GBufferDepth, PassParams.GBufferNormal, PassParams.LightingPassOutput, PassParams.GBufferAlbedo)
-    GPUDriven: new GPUDriven()
-  };
-  constructor(renderer) {
-    this.renderer = renderer;
-    this.renderGraph = new RenderGraph();
-    for (const pass of Object.keys(this.passes)) {
-      this.renderGraph.addPass(this.passes[pass]);
-    }
-    this.debuggerPass = new DebuggerPass();
-  }
-  async Render(scene) {
-    if (this.frame % 100 == 0) {
-      Debugger.ResetFrame();
-    }
-    this.renderer.BeginRenderFrame();
-    this.renderGraph.execute();
-    this.renderer.EndRenderFrame();
-    await WEBGPUTimestampQuery.GetResult();
-    this.frame++;
-  }
-};
-
-// src/Scene.ts
-var Scene = class {
-  renderer;
-  name = "Default scene";
-  _hasStarted = false;
-  get hasStarted() {
-    return this._hasStarted;
-  }
-  gameObjects = [];
-  toUpdate = /* @__PURE__ */ new Map();
-  componentsByType = /* @__PURE__ */ new Map();
-  renderPipeline;
-  constructor(renderer) {
-    this.renderer = renderer;
-    this.renderPipeline = new RenderingPipeline(this.renderer);
-    EventSystem.on("CallUpdate", (component, flag) => {
-      if (flag) this.toUpdate.set(component, true);
-      else this.toUpdate.delete(component);
-    });
-    EventSystem.on("AddedComponent", (component, scene) => {
-      if (scene !== this) return;
-      let componentsArray = this.componentsByType.get(component.name) || [];
-      componentsArray.push(component);
-      this.componentsByType.set(component.name, componentsArray);
-    });
-  }
-  AddGameObject(gameObject) {
-    this.gameObjects.push(gameObject);
-  }
-  GetGameObjects() {
-    return this.gameObjects;
-  }
-  GetComponents(type) {
-    return this.componentsByType.get(type.name) || [];
-  }
-  Start() {
-    if (this.hasStarted) return;
-    for (const gameObject of this.gameObjects) gameObject.Start();
-    this._hasStarted = true;
-    this.Tick();
-  }
-  Tick() {
-    for (const [component, _] of this.toUpdate) component.Update();
-    this.renderPipeline.Render(this);
-    requestAnimationFrame(() => this.Tick());
-  }
-};
-
-// src/plugins/OrbitControls.ts
-var _v = new Vector3();
-var OrbitControls = class {
-  /** The center point to orbit around. Default is `0, 0, 0` */
-  center = new Vector3();
-  orbitSpeed = 1;
-  panSpeed = 10;
-  enableZoom = true;
-  enablePan = true;
-  minRadius = 0;
-  maxRadius = Infinity;
-  minTheta = -Infinity;
-  maxTheta = Infinity;
-  minPhi = 0;
-  maxPhi = Math.PI;
-  _camera;
-  _element = null;
-  _pointers = /* @__PURE__ */ new Map();
-  constructor(camera) {
-    this._camera = camera;
-    this._camera.transform.LookAt(this.center);
-  }
-  /**
-   * Adjusts camera orbital zoom.
-   */
-  zoom(scale) {
-    const radius = this._camera.transform.position.sub(this.center).length();
-    this._camera.transform.position.mul(
-      scale * (Math.min(this.maxRadius, Math.max(this.minRadius, radius * scale)) / (radius * scale))
-    );
-    this._camera.transform.position.add(this.center);
-  }
-  /**
-   * Adjusts camera orbital position.
-   */
-  orbit(deltaX, deltaY) {
-    const offset = this._camera.transform.position.sub(this.center);
-    const radius = offset.length();
-    const deltaPhi = deltaY * (this.orbitSpeed / this._element.clientHeight);
-    const deltaTheta = deltaX * (this.orbitSpeed / this._element.clientHeight);
-    const phi = Math.min(this.maxPhi, Math.max(this.minPhi, Math.acos(offset.y / radius) - deltaPhi)) || Number.EPSILON;
-    const theta = Math.min(this.maxTheta, Math.max(this.minTheta, Math.atan2(offset.z, offset.x) + deltaTheta)) || Number.EPSILON;
-    this._camera.transform.position.set(Math.sin(phi) * Math.cos(theta), Math.cos(phi), Math.sin(phi) * Math.sin(theta)).mul(radius);
-    this._camera.transform.position.add(this.center);
-    this._camera.transform.LookAt(this.center);
-  }
-  /**
-   * Adjusts orthogonal camera pan.
-   */
-  pan(deltaX, deltaY) {
-    this._camera.transform.position.sub(this.center);
-    this.center.add(
-      _v.set(-deltaX, deltaY, 0).applyQuaternion(this._camera.transform.rotation).mul(this.panSpeed / this._element.clientHeight)
-    );
-    this._camera.transform.position.add(this.center);
-  }
-  _onContextMenu(event) {
-    event.preventDefault();
-  }
-  _onScroll(event) {
-    this.zoom(1 + event.deltaY / 720);
-  }
-  _onPointerMove(event) {
-    const prevPointer = this._pointers.get(event.pointerId);
-    if (prevPointer) {
-      const deltaX = (event.pageX - prevPointer.pageX) / this._pointers.size;
-      const deltaY = (event.pageY - prevPointer.pageY) / this._pointers.size;
-      const type = event.pointerType === "touch" ? this._pointers.size : event.buttons;
-      if (type === 1 /* LEFT */) {
-        this._element.style.cursor = "grabbing";
-        this.orbit(deltaX, deltaY);
-      } else if (type === 2 /* RIGHT */) {
-        this._element.style.cursor = "grabbing";
-        if (this.enablePan) this.pan(deltaX, deltaY);
-      }
-      if (event.pointerType === "touch" && this._pointers.size === 2) {
-        const otherPointer = Array.from(this._pointers.values()).find((p) => p.pointerId !== event.pointerId);
-        if (otherPointer) {
-          const currentDistance = Math.hypot(event.pageX - otherPointer.pageX, event.pageY - otherPointer.pageY);
-          const previousDistance = Math.hypot(prevPointer.pageX - otherPointer.pageX, prevPointer.pageY - otherPointer.pageY);
-          const zoomFactor = currentDistance / previousDistance;
-          this.zoom(zoomFactor);
-        }
-      }
-    } else if (event.pointerType !== "touch") {
-      this._element.setPointerCapture(event.pointerId);
-    }
-    this._pointers.set(event.pointerId, event);
-  }
-  _onPointerUp(event) {
-    this._element.style.cursor = "grab";
-    this._element.style.touchAction = this.enableZoom || this.enablePan ? "none" : "pinch-zoom";
-    if (event.pointerType !== "touch") this._element.releasePointerCapture(event.pointerId);
-    this._pointers.delete(event.pointerId);
-  }
-  /**
-   * Connects controls' event handlers, enabling interaction.
-   */
-  connect(element) {
-    element.addEventListener("contextmenu", (event) => {
-      this._onContextMenu(event);
-    });
-    element.addEventListener("wheel", (event) => {
-      this._onScroll(event);
-    }, { passive: true });
-    element.addEventListener("pointermove", (event) => {
-      this._onPointerMove(event);
-    });
-    element.addEventListener("pointerup", (event) => {
-      this._onPointerUp(event);
-    });
-    element.tabIndex = 0;
-    this._element = element;
-    this._element.style.cursor = "grab";
-  }
-};
-
-// backups/src-bak-20/plugins/OBJLoader.ts
-var OBJLoaderIndexed = class _OBJLoaderIndexed {
-  static *triangulate(elements) {
-    if (elements.length <= 3) {
-      yield elements;
-    } else if (elements.length === 4) {
-      yield [elements[0], elements[1], elements[2]];
-      yield [elements[2], elements[3], elements[0]];
-    } else {
-      for (let i = 1; i < elements.length - 1; i++) {
-        yield [elements[0], elements[i], elements[i + 1]];
-      }
-    }
-  }
-  static async load(url) {
-    const contents = await fetch(url).then((response) => response.text());
-    return _OBJLoaderIndexed.parse(contents);
-  }
-  static parse(contents) {
-    const indices = [];
-    const verts = [];
-    const vertNormals = [];
-    const uvs = [];
-    let currentMaterialIndex = -1;
-    let currentObjectByMaterialIndex = 0;
-    const unpacked = {
-      verts: [],
-      norms: [],
-      uvs: [],
-      hashindices: {},
-      indices: [[]],
-      index: 0
-    };
-    const VERTEX_RE = /^v\s/;
-    const NORMAL_RE = /^vn\s/;
-    const UV_RE = /^vt\s/;
-    const FACE_RE = /^f\s/;
-    const WHITESPACE_RE = /\s+/;
-    const lines = contents.split("\n");
-    for (let line of lines) {
-      line = line.trim();
-      if (!line || line.startsWith("#")) {
-        continue;
-      }
-      const elements = line.split(WHITESPACE_RE);
-      elements.shift();
-      if (VERTEX_RE.test(line)) {
-        verts.push(...elements);
-      } else if (NORMAL_RE.test(line)) {
-        vertNormals.push(...elements);
-      } else if (UV_RE.test(line)) {
-        uvs.push(...elements);
-      } else if (FACE_RE.test(line)) {
-        const triangles = _OBJLoaderIndexed.triangulate(elements);
-        for (const triangle of triangles) {
-          for (let j = 0, eleLen = triangle.length; j < eleLen; j++) {
-            const hash2 = triangle[j] + "," + currentMaterialIndex;
-            if (hash2 in unpacked.hashindices) {
-              unpacked.indices[currentObjectByMaterialIndex].push(unpacked.hashindices[hash2]);
-            } else {
-              const vertex = triangle[j].split("/");
-              unpacked.verts.push(+verts[(+vertex[0] - 1) * 3 + 0]);
-              unpacked.verts.push(+verts[(+vertex[0] - 1) * 3 + 1]);
-              unpacked.verts.push(+verts[(+vertex[0] - 1) * 3 + 2]);
-              if (vertNormals.length > 0) {
-                unpacked.norms.push(+vertNormals[(+vertex[2] - 1) * 3 + 0]);
-                unpacked.norms.push(+vertNormals[(+vertex[2] - 1) * 3 + 1]);
-                unpacked.norms.push(+vertNormals[(+vertex[2] - 1) * 3 + 2]);
-              }
-              if (uvs.length > 0) {
-                unpacked.uvs.push(+uvs[(+vertex[1] - 1) * 2 + 0]);
-                unpacked.uvs.push(+uvs[(+vertex[1] - 1) * 2 + 1]);
-              }
-              unpacked.hashindices[hash2] = unpacked.index;
-              unpacked.indices[currentObjectByMaterialIndex].push(unpacked.hashindices[hash2]);
-              unpacked.index += 1;
-            }
-          }
-        }
-      }
-    }
-    return {
-      vertices: new Float32Array(unpacked.verts),
-      normals: new Float32Array(unpacked.norms),
-      uvs: new Float32Array(unpacked.uvs),
-      indices: new Uint32Array(unpacked.indices[currentObjectByMaterialIndex])
-    };
-  }
-};
-
 // src/plugins/meshlets/Meshlet.ts
-function hash(co) {
-  function fract(n) {
-    return n % 1;
-  }
-  return fract(Math.sin((co + 1) * 12.9898) * 43758.5453);
-}
-var seed = 0;
-function seedRandom() {
-  return Math.abs(hash(seed += 1));
-}
-var Vertex = class _Vertex {
-  x;
-  y;
-  z;
-  constructor(x, y, z) {
-    this.x = x;
-    this.y = y;
-    this.z = z;
-  }
-  static dot(a, b) {
-    return a.x * b.x + a.y * b.y + a.z * b.z;
-  }
-  static applyMatrix4(a, m) {
-    const x = a.x, y = a.y, z = a.z;
-    const e = m;
-    const w = 1 / (e[3] * x + e[7] * y + e[11] * z + e[15]);
-    let x1 = (e[0] * x + e[4] * y + e[8] * z + e[12]) * w;
-    let y1 = (e[1] * x + e[5] * y + e[9] * z + e[13]) * w;
-    let z1 = (e[2] * x + e[6] * y + e[10] * z + e[14]) * w;
-    return new _Vertex(x1, y1, z1);
-  }
-  hash() {
-    return `${this.x.toFixed(5)},${this.y.toFixed(5)},${this.z.toFixed(5)}`;
-  }
-};
-var Triangle = class {
-  a;
-  b;
-  c;
-  constructor(a, b, c) {
-    this.a = a;
-    this.b = b;
-    this.c = c;
-  }
-};
-var Edge = class {
-  fromIndex;
-  toIndex;
-  constructor(fromIndex, toIndex) {
-    this.fromIndex = fromIndex;
-    this.toIndex = toIndex;
-  }
-  equal(other) {
-    return this.fromIndex === other.fromIndex && this.toIndex === other.toIndex;
-  }
-  isAdjacent(other) {
-    return this.fromIndex === other.fromIndex || this.fromIndex === other.toIndex || this.toIndex === other.fromIndex || this.toIndex === other.toIndex;
-  }
-};
-var Meshlet = class _Meshlet {
-  vertices_raw;
-  indices_raw;
+var Meshlet = class {
   vertices;
-  triangles;
-  edges;
-  boundaryEdges;
-  id;
+  indices;
+  id = Utils.UUID();
   lod;
   children;
   parents;
-  boundingVolume;
+  _boundingVolume;
+  get boundingVolume() {
+    if (!this._boundingVolume) this._boundingVolume = Meshoptimizer.meshopt_computeClusterBounds(this.vertices, this.indices);
+    return this._boundingVolume;
+  }
+  set boundingVolume(boundingVolume) {
+    this._boundingVolume = boundingVolume;
+  }
+  // public boundingVolume: meshopt_Bounds;
   parentBoundingVolume;
   parentError = Infinity;
   clusterError = 0;
@@ -3315,20 +2546,14 @@ var Meshlet = class _Meshlet {
   crc;
   bounds;
   constructor(vertices, indices) {
-    this.vertices_raw = vertices;
-    this.indices_raw = indices;
-    this.vertices = this.buildVertexMap(vertices);
-    this.triangles = this.buildTriangleMap(indices);
-    this.edges = this.buildEdgeMap(this.triangles);
-    this.boundaryEdges = this.getBoundary(this.edges);
-    this.id = Math.floor(seedRandom() * 1e7);
-    this.boundingVolume = this.computeBoundingSphere(this.vertices);
+    this.vertices = vertices;
+    this.indices = indices;
     this.lod = 0;
     this.children = [];
     this.parents = [];
+    this.bounds = BoundingVolume.FromVertices(this.vertices);
     const max_vertices = 128;
-    if (this.vertices_raw.length > max_vertices * 4 * 3) throw Error(`Vertices error ${this.vertices_raw.length}!!`);
-    const verticesNonIndexed = Geometry.ToNonIndexed(this.vertices_raw, this.indices_raw);
+    const verticesNonIndexed = Geometry.ToNonIndexed(this.vertices, this.indices);
     const verticesGPU = [];
     for (let i = 0; i < verticesNonIndexed.length; i += 3) {
       verticesGPU.push(verticesNonIndexed[i + 0], verticesNonIndexed[i + 1], verticesNonIndexed[i + 2], 0);
@@ -3336,104 +2561,6 @@ var Meshlet = class _Meshlet {
     this.vertices_gpu = new Float32Array(max_vertices * 4 * 3);
     this.vertices_gpu.set(verticesGPU.slice(0, max_vertices * 4 * 3));
     this.crc = CRC32.forBytes(new Uint8Array(this.vertices_gpu.buffer));
-    this.bounds = Meshoptimizer.meshopt_computeClusterBounds(vertices, indices);
-  }
-  buildVertexMap(vertices) {
-    let vertex = [];
-    for (let i = 0; i < vertices.length; i += 3) {
-      vertex.push(new Vertex(vertices[i + 0], vertices[i + 1], vertices[i + 2]));
-    }
-    return vertex;
-  }
-  buildTriangleMap(indices) {
-    let triangles = [];
-    for (let i = 0; i < indices.length; i += 3) {
-      triangles.push(new Triangle(indices[i + 0], indices[i + 1], indices[i + 2]));
-    }
-    return triangles;
-  }
-  buildEdgeMap(triangles) {
-    let edges = [];
-    for (let i = 0; i < triangles.length; i++) {
-      const triangle = triangles[i];
-      const face = [triangle.a, triangle.b, triangle.c];
-      for (let i2 = 0; i2 < 3; i2++) {
-        const startIndex = face[i2];
-        const endIndex = face[(i2 + 1) % 3];
-        edges.push(new Edge(
-          Math.min(startIndex, endIndex),
-          Math.max(startIndex, endIndex)
-        ));
-      }
-    }
-    return edges;
-  }
-  getBoundary(edges) {
-    let counts = new Array(edges.length).fill(0);
-    for (let i = 0; i < edges.length; i++) {
-      const a = edges[i];
-      for (let j = 0; j < edges.length; j++) {
-        const b = edges[j];
-        if (a.fromIndex === b.fromIndex && a.toIndex === b.toIndex) {
-          counts[i]++;
-        }
-      }
-    }
-    let boundaryEdges = [];
-    for (let i = 0; i < counts.length; i++) {
-      if (counts[i] == 1) {
-        boundaryEdges.push(edges[i]);
-      }
-    }
-    return boundaryEdges;
-  }
-  getEdgeVertices(edge) {
-    const from = edge.fromIndex;
-    const to = edge.toIndex;
-    return [this.vertices[from], this.vertices[to]];
-  }
-  // TODO: Clean this
-  getEdgeHash(edge) {
-    function hashVertex(vertex) {
-      return `${vertex.x},${vertex.y},${vertex.z}`;
-    }
-    const edgeVertices = this.getEdgeVertices(edge);
-    const fromVertexHash = hashVertex(edgeVertices[0]);
-    const toVertexHash = hashVertex(edgeVertices[1]);
-    const edgeHash = `${fromVertexHash}:${toVertexHash}`;
-    return edgeHash;
-  }
-  computeBoundingSphere(vertices) {
-    let maxX = -Infinity;
-    let maxY = -Infinity;
-    let maxZ = -Infinity;
-    let minX = Infinity;
-    let minY = Infinity;
-    let minZ = Infinity;
-    for (let vertex of vertices) {
-      if (vertex.x > maxX) maxX = vertex.x;
-      if (vertex.x < minX) minX = vertex.x;
-      if (vertex.y > maxY) maxY = vertex.y;
-      if (vertex.y < minY) minY = vertex.y;
-      if (vertex.z > maxZ) maxZ = vertex.z;
-      if (vertex.z < minZ) minZ = vertex.z;
-    }
-    return {
-      AABB: {
-        min: new Vertex(minX, minY, minZ),
-        max: new Vertex(maxX, maxY, maxZ)
-      },
-      center: new Vertex(minX + (maxX - minX) / 2, minY + (maxY - minY) / 2, minZ + (maxZ - minZ) / 2),
-      radius: Math.max((maxX - minX) / 2, (maxY - minY) / 2, (maxZ - minZ) / 2)
-    };
-  }
-  clone() {
-    return new _Meshlet(this.vertices_raw, this.indices_raw);
-  }
-  getGroupMeshlets() {
-    if (this.parents.length === 0) return [];
-    const parent = this.parents[0];
-    return parent.children;
   }
 };
 
@@ -4510,28 +3637,28 @@ var Meshoptimizer = class _Meshoptimizer {
   }
   static clean(meshlet) {
     const MeshOptmizer = _Meshoptimizer.module;
-    const remap = new WASMPointer(new Uint32Array(meshlet.indices_raw.length * 3), "out");
-    const indices = new WASMPointer(new Uint32Array(meshlet.indices_raw), "in");
-    const vertices = new WASMPointer(new Float32Array(meshlet.vertices_raw), "in");
+    const remap = new WASMPointer(new Uint32Array(meshlet.indices.length * 3), "out");
+    const indices = new WASMPointer(new Uint32Array(meshlet.indices), "in");
+    const vertices = new WASMPointer(new Float32Array(meshlet.vertices), "in");
     const vertex_count = WASMHelper.call(
       MeshOptmizer,
       "meshopt_generateVertexRemap",
       "number",
       remap,
       indices,
-      meshlet.indices_raw.length,
+      meshlet.indices.length,
       vertices,
-      meshlet.vertices_raw.length,
+      meshlet.vertices.length,
       3 * Float32Array.BYTES_PER_ELEMENT
     );
-    const indices_remapped = new WASMPointer(new Uint32Array(meshlet.indices_raw.length), "out");
+    const indices_remapped = new WASMPointer(new Uint32Array(meshlet.indices.length), "out");
     WASMHelper.call(
       MeshOptmizer,
       "meshopt_remapIndexBuffer",
       "number",
       indices_remapped,
       indices,
-      meshlet.indices_raw.length,
+      meshlet.indices.length,
       remap
     );
     const vertices_remapped = new WASMPointer(new Float32Array(vertex_count * 3), "out");
@@ -4541,7 +3668,7 @@ var Meshoptimizer = class _Meshoptimizer {
       "number",
       vertices_remapped,
       vertices,
-      meshlet.vertices.length,
+      meshlet.vertices.length / 3,
       3 * Float32Array.BYTES_PER_ELEMENT,
       remap
     );
@@ -4549,7 +3676,7 @@ var Meshoptimizer = class _Meshoptimizer {
   }
   static meshopt_simplify(meshlet, target_count) {
     const MeshOptmizer = _Meshoptimizer.module;
-    const destination = new WASMPointer(new Uint32Array(meshlet.indices_raw.length), "out");
+    const destination = new WASMPointer(new Uint32Array(meshlet.indices.length), "out");
     const result_error = new WASMPointer(new Float32Array(1), "out");
     const simplified_index_count = WASMHelper.call(
       MeshOptmizer,
@@ -4557,13 +3684,13 @@ var Meshoptimizer = class _Meshoptimizer {
       "number",
       destination,
       // unsigned int* destination,
-      new WASMPointer(new Uint32Array(meshlet.indices_raw)),
+      new WASMPointer(new Uint32Array(meshlet.indices)),
       // const unsigned int* indices,
-      meshlet.indices_raw.length,
+      meshlet.indices.length,
       // size_t index_count,
-      new WASMPointer(new Float32Array(meshlet.vertices_raw)),
+      new WASMPointer(new Float32Array(meshlet.vertices)),
       // const float* vertex_positions,
-      meshlet.vertices.length,
+      meshlet.vertices.length / 3,
       // size_t vertex_count,
       3 * Float32Array.BYTES_PER_ELEMENT,
       // size_t vertex_positions_stride,
@@ -4579,18 +3706,18 @@ var Meshoptimizer = class _Meshoptimizer {
     const destination_resized = destination.data.slice(0, simplified_index_count);
     return {
       error: result_error.data[0],
-      meshlet: new Meshlet(meshlet.vertices_raw, destination_resized)
+      meshlet: new Meshlet(meshlet.vertices, destination_resized)
     };
   }
   static meshopt_simplifyScale(meshlet) {
     const MeshOptmizer = _Meshoptimizer.module;
-    const vertices = new WASMPointer(new Float32Array(meshlet.vertices_raw), "in");
+    const vertices = new WASMPointer(new Float32Array(meshlet.vertices), "in");
     const scale = WASMHelper.call(
       MeshOptmizer,
       "meshopt_simplifyScale",
       "number",
       vertices,
-      meshlet.vertices.length,
+      meshlet.vertices.length / 3,
       3 * Float32Array.BYTES_PER_ELEMENT
     );
     return scale;
@@ -5524,21 +4651,21 @@ var Module2 = (() => {
         node = node.parent;
       }
     }, hashName: (parentid, name) => {
-      var hash2 = 0;
+      var hash = 0;
       for (var i = 0; i < name.length; i++) {
-        hash2 = (hash2 << 5) - hash2 + name.charCodeAt(i) | 0;
+        hash = (hash << 5) - hash + name.charCodeAt(i) | 0;
       }
-      return (parentid + hash2 >>> 0) % FS.nameTable.length;
+      return (parentid + hash >>> 0) % FS.nameTable.length;
     }, hashAddNode: (node) => {
-      var hash2 = FS.hashName(node.parent.id, node.name);
-      node.name_next = FS.nameTable[hash2];
-      FS.nameTable[hash2] = node;
+      var hash = FS.hashName(node.parent.id, node.name);
+      node.name_next = FS.nameTable[hash];
+      FS.nameTable[hash] = node;
     }, hashRemoveNode: (node) => {
-      var hash2 = FS.hashName(node.parent.id, node.name);
-      if (FS.nameTable[hash2] === node) {
-        FS.nameTable[hash2] = node.name_next;
+      var hash = FS.hashName(node.parent.id, node.name);
+      if (FS.nameTable[hash] === node) {
+        FS.nameTable[hash] = node.name_next;
       } else {
-        var current = FS.nameTable[hash2];
+        var current = FS.nameTable[hash];
         while (current) {
           if (current.name_next === node) {
             current.name_next = node.name_next;
@@ -5552,8 +4679,8 @@ var Module2 = (() => {
       if (errCode) {
         throw new FS.ErrnoError(errCode, parent);
       }
-      var hash2 = FS.hashName(parent.id, name);
-      for (var node = FS.nameTable[hash2]; node; node = node.name_next) {
+      var hash = FS.hashName(parent.id, name);
+      for (var node = FS.nameTable[hash]; node; node = node.name_next) {
         var nodeName = node.name;
         if (node.parent.id === parent.id && nodeName === name) {
           return node;
@@ -5786,8 +4913,8 @@ var Module2 = (() => {
       var node = lookup.node;
       var mount = node.mounted;
       var mounts = FS.getMounts(mount);
-      Object.keys(FS.nameTable).forEach((hash2) => {
-        var current = FS.nameTable[hash2];
+      Object.keys(FS.nameTable).forEach((hash) => {
+        var current = FS.nameTable[hash];
         while (current) {
           var next = current.name_next;
           if (mounts.includes(current.mount)) {
@@ -7469,18 +6596,17 @@ var MeshletGrouper = class _MeshletGrouper {
     let vertexHashToMeshletMap = /* @__PURE__ */ new Map();
     for (let i = 0; i < meshlets.length; i++) {
       const meshlet = meshlets[i];
-      for (let j = 0; j < meshlet.boundaryEdges.length; j++) {
-        const boundaryEdge = meshlet.boundaryEdges[j];
-        const edgeHash = meshlet.getEdgeHash(boundaryEdge);
-        let meshletList = vertexHashToMeshletMap.get(edgeHash);
-        if (!meshletList) meshletList = [];
-        meshletList.push(i);
-        vertexHashToMeshletMap.set(edgeHash, meshletList);
+      for (let j = 0; j < meshlet.vertices.length; j += 3) {
+        const hash = `${meshlet.vertices[j + 0]},${meshlet.vertices[j + 1]},${meshlet.vertices[j + 2]}`;
+        let meshletList = vertexHashToMeshletMap.get(hash);
+        if (!meshletList) meshletList = /* @__PURE__ */ new Set();
+        meshletList.add(i);
+        vertexHashToMeshletMap.set(hash, meshletList);
       }
     }
     const adjacencyList = /* @__PURE__ */ new Map();
     for (let [_, indices] of vertexHashToMeshletMap) {
-      if (indices.length === 1) continue;
+      if (indices.size === 1) continue;
       for (let index of indices) {
         if (!adjacencyList.has(index)) {
           adjacencyList.set(index, /* @__PURE__ */ new Set());
@@ -7492,7 +6618,7 @@ var MeshletGrouper = class _MeshletGrouper {
         }
       }
     }
-    let adjacencyListArray = [];
+    let adjacencyListArray = new Array(meshlets.length).fill(0).map((v) => []);
     for (let [key, adjacents] of adjacencyList) {
       if (!adjacencyListArray[key]) adjacencyListArray[key] = [];
       adjacencyListArray[key].push(...Array.from(adjacents));
@@ -7526,15 +6652,15 @@ var MeshletMerger = class {
     let indexOffset = 0;
     const mergedIndices = [];
     for (let i = 0; i < meshlets.length; ++i) {
-      const indices2 = meshlets[i].indices_raw;
+      const indices2 = meshlets[i].indices;
       for (let j = 0; j < indices2.length; j++) {
         mergedIndices.push(indices2[j] + indexOffset);
       }
-      indexOffset += meshlets[i].vertices.length;
+      indexOffset += meshlets[i].vertices.length / 3;
     }
     indices.push(...mergedIndices);
     for (let i = 0; i < meshlets.length; ++i) {
-      vertices.push(...meshlets[i].vertices_raw);
+      vertices.push(...meshlets[i].vertices);
     }
     const merged = new Meshlet(new Float32Array(vertices), new Uint32Array(indices));
     return merged;
@@ -7543,14 +6669,6 @@ var MeshletMerger = class {
 
 // src/plugins/meshlets/Meshletizer.ts
 var Meshletizer = class {
-  static appendMeshlets(simplifiedGroup, bounds, error) {
-    const split = MeshletCreator.build(simplifiedGroup.vertices_raw, simplifiedGroup.indices_raw, 255, 128);
-    for (let s of split) {
-      s.clusterError = error;
-      s.boundingVolume = bounds;
-    }
-    return split;
-  }
   static step(meshlets, lod, previousMeshlets) {
     if (previousMeshlets.size === 0) {
       for (let m of meshlets) previousMeshlets.set(m.id, m);
@@ -7560,13 +6678,12 @@ var Meshletizer = class {
     if (nparts > 1) {
       grouped = MeshletGrouper.group(meshlets, nparts);
     }
-    let x = 0;
     let splitOutputs = [];
     for (let i = 0; i < grouped.length; i++) {
       const group = grouped[i];
       const mergedGroup = MeshletMerger.merge(group);
       const cleanedMergedGroup = Meshoptimizer.clean(mergedGroup);
-      const simplified = Meshoptimizer.meshopt_simplify(cleanedMergedGroup, cleanedMergedGroup.indices_raw.length / 2);
+      const simplified = Meshoptimizer.meshopt_simplify(cleanedMergedGroup, cleanedMergedGroup.indices.length / 2);
       const localScale = Meshoptimizer.meshopt_simplifyScale(simplified.meshlet);
       let meshSpaceError = simplified.error * localScale;
       let childrenError = 0;
@@ -7576,23 +6693,21 @@ var Meshletizer = class {
         childrenError = Math.max(childrenError, previousMeshlet.clusterError);
       }
       meshSpaceError += childrenError;
+      const splits = MeshletCreator.build(simplified.meshlet.vertices, simplified.meshlet.indices, 255, 128);
+      for (let split of splits) {
+        split.clusterError = meshSpaceError;
+        split.boundingVolume = simplified.meshlet.boundingVolume;
+        previousMeshlets.set(split.id, split);
+        splitOutputs.push(split);
+        split.parents.push(...group);
+      }
       for (let m of group) {
+        m.children.push(...splits);
+        m.lod = lod;
         const previousMeshlet = previousMeshlets.get(m.id);
-        if (!previousMeshlet) throw Error("Could not find previous meshler");
+        if (!previousMeshlet) throw Error("Could not find previous meshlet");
         previousMeshlet.parentError = meshSpaceError;
         previousMeshlet.parentBoundingVolume = simplified.meshlet.boundingVolume;
-      }
-      const out = this.appendMeshlets(simplified.meshlet, simplified.meshlet.boundingVolume, meshSpaceError);
-      for (let o of out) {
-        previousMeshlets.set(o.id, o);
-        splitOutputs.push(o);
-      }
-      for (let m of group) {
-        m.children.push(...out);
-        m.lod = lod;
-      }
-      for (let s of out) {
-        s.parents.push(...group);
       }
     }
     return splitOutputs;
@@ -7621,6 +6736,806 @@ var Meshletizer = class {
   }
 };
 
+// src/components/MeshletMesh.ts
+var meshletsCache = /* @__PURE__ */ new Map();
+var MeshletMesh = class extends Component {
+  materialsMapped = /* @__PURE__ */ new Map();
+  enableShadows = true;
+  meshlets = [];
+  AddMaterial(material) {
+    if (!this.materialsMapped.has(material.constructor.name)) this.materialsMapped.set(material.constructor.name, []);
+    this.materialsMapped.get(material.constructor.name)?.push(material);
+  }
+  GetMaterials(type) {
+    return this.materialsMapped.get(type.name) || [];
+  }
+  async SetGeometry(geometry) {
+    const cached = meshletsCache.get(geometry);
+    if (cached) {
+      this.meshlets.push(...cached);
+      return;
+    }
+    const vertices = geometry.attributes.get("position");
+    const indices = geometry.index;
+    if (!vertices || !indices) throw Error("Needs vertices and indices");
+    const geometryVertices = vertices.array;
+    const geometryIndices = indices.array;
+    const rootMeshlet = await Meshletizer.Build(geometryVertices, geometryIndices);
+    function traverse(meshlet, fn, visited = []) {
+      if (visited.indexOf(meshlet.id) !== -1) return;
+      fn(meshlet);
+      visited.push(meshlet.id);
+      for (let child of meshlet.parents) {
+        traverse(child, fn, visited);
+      }
+    }
+    const allMeshlets = [];
+    traverse(rootMeshlet, (m) => allMeshlets.push(m));
+    this.meshlets = allMeshlets;
+    meshletsCache.set(geometry, this.meshlets);
+  }
+};
+
+// src/renderer/passes/GPUDriven.ts
+var vertexSize = 128 * 3;
+var workgroupSize = 64;
+var GPUDriven = class extends RenderPass {
+  name = "GPUDriven";
+  shader;
+  geometry;
+  currentMeshCount = 0;
+  drawIndirectBuffer;
+  compute;
+  computeDrawBuffer;
+  instanceInfoBuffer;
+  vertexBuffer;
+  depthTarget;
+  cullData;
+  frustum = new Frustum();
+  constructor() {
+    super({});
+    const code = `
+        struct VertexInput {
+            @builtin(instance_index) instanceIndex : u32,
+            @builtin(vertex_index) vertexIndex : u32,
+            @location(0) position : vec3<f32>,
+        };
+
+        struct VertexOutput {
+            @builtin(position) position : vec4<f32>,
+            @location(0) @interpolate(flat) instance : u32,
+        };
+
+        @group(0) @binding(0) var<storage, read> viewMatrix: mat4x4<f32>;
+        @group(0) @binding(1) var<storage, read> projectionMatrix: mat4x4<f32>;
+
+        @group(0) @binding(2) var<storage, read> vertices: array<vec4<f32>>;
+
+        struct InstanceInfo {
+            meshID: u32
+        };
+
+        @group(0) @binding(3) var<storage, read> instanceInfo: array<InstanceInfo>;
+
+
+
+        struct MeshInfo {
+            modelMatrix: mat4x4<f32>,
+            position: vec4<f32>,
+            scale: vec4<f32>
+        };
+
+        struct ObjectInfo {
+            meshID: f32,
+            meshletID: f32,
+            padding: vec2<f32>,
+        };
+
+        @group(0) @binding(4) var<storage, read> meshInfo: array<MeshInfo>;
+        @group(0) @binding(5) var<storage, read> objectInfo: array<ObjectInfo>;
+
+        @vertex fn vertexMain(input: VertexInput) -> VertexOutput {
+            var output: VertexOutput;
+            let meshID = instanceInfo[input.instanceIndex].meshID;
+            // let mesh = meshInfo[meshID];
+            let object = objectInfo[meshID];
+            let mesh = meshInfo[u32(object.meshID)];
+            let modelMatrix = mesh.modelMatrix;
+            
+            let vertexID = input.vertexIndex + u32(object.meshletID) * ${vertexSize};
+            let position = vertices[vertexID];
+            
+            let modelViewMatrix = viewMatrix * modelMatrix;
+            output.position = projectionMatrix * modelViewMatrix * vec4(position.xyz, 1.0);
+            output.instance = meshID;
+
+            return output;
+        }
+        
+
+        fn rand(co: f32) -> f32 {
+            return fract(sin((co + 1.0) * 12.9898) * 43758.5453);
+        }
+
+        @fragment fn fragmentMain(input: VertexOutput) -> @location(0) vec4f {
+            let r = rand(f32(input.instance) + 12.1212);
+            let g = rand(f32(input.instance) + 22.1212);
+            let b = rand(f32(input.instance) + 32.1212);
+
+            return vec4(r, g, b, 1.0);
+        }
+        `;
+    this.shader = Shader.Create({
+      code,
+      colorOutputs: [{ format: Renderer.SwapChainFormat }],
+      depthOutput: "depth24plus",
+      attributes: {
+        position: { location: 0, size: 3, type: "vec3" }
+      },
+      uniforms: {
+        viewMatrix: { group: 0, binding: 0, type: "storage" },
+        projectionMatrix: { group: 0, binding: 1, type: "storage" },
+        vertices: { group: 0, binding: 2, type: "storage" },
+        instanceInfo: { group: 0, binding: 3, type: "storage" },
+        meshInfo: { group: 0, binding: 4, type: "storage" },
+        objectInfo: { group: 0, binding: 5, type: "storage" }
+      }
+    });
+    this.depthTarget = DepthTexture.Create(Renderer.width, Renderer.height);
+    this.compute = Compute.Create({
+      code: `
+                struct DrawBuffer {
+                    vertexCount: u32,
+                    instanceCount: atomic<u32>,
+                    firstVertex: u32,
+                    firstInstance: u32,
+                };
+
+                @group(0) @binding(0) var<storage, read_write> drawBuffer: DrawBuffer;
+
+                struct InstanceInfo {
+                    meshID: u32
+                };
+
+                @group(0) @binding(1) var<storage, read_write> instanceInfo: array<InstanceInfo>;
+
+
+                struct CullData {
+                    projectionMatrix: mat4x4<f32>,
+                    viewMatrix: mat4x4<f32>,
+                    cameraPosition: vec4<f32>,
+                    frustum: array<vec4<f32>, 6>,
+                    meshCount: vec4<f32>,
+                    screenSize: vec4<f32>
+                };
+
+                @group(0) @binding(2) var<storage, read> cullData: CullData;
+                
+
+                struct MeshletInfo {
+                    cone_apex: vec4<f32>,
+                    cone_axis: vec4<f32>,
+                    cone_cutoff: f32,
+
+                    boundingSphere: vec4<f32>,
+                    parentBoundingSphere: vec4<f32>,
+                    error: vec4<f32>,
+                    parentError: vec4<f32>,
+                    lod: vec4<f32>
+                };
+
+                struct MeshInfo {
+                    modelMatrix: mat4x4<f32>,
+                    position: vec4<f32>,
+                    scale: vec4<f32>
+                };
+
+                struct ObjectInfo {
+                    meshID: f32,
+                    meshletID: f32,
+                    padding: vec2<f32>,
+                };
+
+                @group(0) @binding(3) var<storage, read> meshletInfo: array<MeshletInfo>;
+                @group(0) @binding(4) var<storage, read> meshInfo: array<MeshInfo>;
+                @group(0) @binding(5) var<storage, read> objectInfo: array<ObjectInfo>;
+
+
+                // assume a fixed resolution and fov
+                const PI = 3.141592653589793;
+                const testFOV = PI * 0.5;
+                const cotHalfFov = 1.0 / tan(testFOV / 2.0);
+
+                // TODO: Pass these
+                const screenHeight = 609.0;
+                const lodErrorThreshold = 1.0;
+                const forcedLOD = 0;
+                
+                fn transformSphere(sphere: vec4<f32>, transform: mat4x4<f32>) -> vec4<f32> {
+                    var hCenter = vec4(sphere.xyz, 1.0);
+                    hCenter = transform * hCenter;
+                    let center = hCenter.xyz / hCenter.w;
+                    return vec4(center, length((transform * vec4(sphere.w, 0, 0, 0)).xyz));
+                }
+
+                // project given transformed (ie in view space) sphere to an error value in pixels
+                // xyz is center of sphere
+                // w is radius of sphere
+                fn projectErrorToScreen(transformedSphere: vec4<f32>) -> f32 {
+                    // https://stackoverflow.com/questions/21648630/radius-of-projected-sphere-in-screen-space
+                    if (transformedSphere.w > 1000000.0) {
+                        return transformedSphere.w;
+                    }
+                    let d2 = dot(transformedSphere.xyz, transformedSphere.xyz);
+                    let r = transformedSphere.w;
+                    return cullData.screenSize.y * cotHalfFov * r / sqrt(d2 - r*r);
+                }
+
+
+                fn cull(meshlet: MeshletInfo, modelview: mat4x4<f32>) -> bool {
+                    var projectedBounds = vec4(meshlet.boundingSphere.xyz, max(meshlet.error.x, 10e-10f));
+                    projectedBounds = transformSphere(projectedBounds, modelview);
+            
+                    var parentProjectedBounds = vec4(meshlet.parentBoundingSphere.xyz, max(meshlet.parentError.x, 10e-10f));
+                    parentProjectedBounds = transformSphere(parentProjectedBounds, modelview);
+            
+                    let clusterError = projectErrorToScreen(projectedBounds);
+                    let parentError = projectErrorToScreen(parentProjectedBounds);
+                    let render = clusterError <= lodErrorThreshold && parentError > lodErrorThreshold;
+                    return render;
+
+                    // // Disable culling
+                    // return u32(meshlet.lod.x) == u32(forcedLOD);
+                }
+
+
+
+                fn planeDistanceToPoint(normal: vec3f, constant: f32, point: vec3f) -> f32 {
+                    return dot(normal, point) + constant;
+                }
+
+                fn IsVisible(objectIndex: u32) -> bool {
+                    let a = objectInfo[objectIndex];
+                    let mesh = meshInfo[u32(a.meshID)];
+                    let meshlet = meshletInfo[u32(a.meshletID)];
+
+                    let v = cull(meshlet, cullData.viewMatrix * mesh.modelMatrix);
+                    if (!v) {
+                        return false;
+                    }
+
+                    // Backface
+                    if (dot(normalize(meshlet.cone_apex.xyz - cullData.cameraPosition.xyz), meshlet.cone_axis.xyz) >= meshlet.cone_cutoff) {
+                        return false;
+                    }
+                    
+                    // Camera frustum
+                    let scale = mesh.scale.x;
+                    let boundingSphere = meshlet.boundingSphere * scale;
+                    let center = (cullData.viewMatrix * vec4(boundingSphere.xyz + mesh.position.xyz, 1.0)).xyz;
+                    let negRadius = -boundingSphere.w;
+
+                    for (var i = 0; i < 6; i++) {
+                        let distance = planeDistanceToPoint(cullData.frustum[i].xyz, cullData.frustum[i].w, center);
+
+                        if (distance < negRadius) {
+                            return false;
+                        }
+                    }
+
+                    return true;
+                }
+
+                override blockSizeX: u32 = ${workgroupSize};
+                override blockSizeY: u32 = 1;
+                override blockSizeZ: u32 = 1;
+                
+                @compute @workgroup_size(blockSizeX, blockSizeY, blockSizeZ)
+                fn main(@builtin(global_invocation_id) grid: vec3<u32>) {
+                    let gID = grid.z * (blockSizeX * blockSizeY) + grid.y * blockSizeX + grid.x;
+                    if (gID < u32(cullData.meshCount.x)) {
+                        let visible = IsVisible(gID);
+                            
+                        if (visible) {
+                            drawBuffer.vertexCount = ${vertexSize};
+                            let countIndex = atomicAdd(&drawBuffer.instanceCount, 1);
+                            instanceInfo[countIndex].meshID = gID;
+                        }
+                    }
+                } 
+            
+            `,
+      computeEntrypoint: "main",
+      uniforms: {
+        drawBuffer: { group: 0, binding: 0, type: "storage-write" },
+        instanceInfo: { group: 0, binding: 1, type: "storage-write" },
+        cullData: { group: 0, binding: 2, type: "storage" },
+        meshletInfo: { group: 0, binding: 3, type: "storage" },
+        meshInfo: { group: 0, binding: 4, type: "storage" },
+        objectInfo: { group: 0, binding: 5, type: "storage" }
+      }
+    });
+    this.drawIndirectBuffer = Buffer3.Create(4 * 4, 5 /* INDIRECT */);
+    this.drawIndirectBuffer.name = "drawIndirectBuffer";
+    this.geometry = new Geometry();
+    this.geometry.attributes.set("position", new VertexAttribute(new Float32Array(vertexSize)));
+  }
+  buildMeshletData() {
+    const mainCamera = Camera.mainCamera;
+    const scene = mainCamera.gameObject.scene;
+    const sceneMeshlets = [...scene.GetComponents(MeshletMesh)];
+    if (this.currentMeshCount !== sceneMeshlets.length) {
+      const meshlets = [];
+      for (const meshlet of sceneMeshlets) {
+        for (const geometry of meshlet.meshlets) {
+          meshlets.push({ mesh: meshlet, geometry });
+        }
+      }
+      console.time("buildMeshletData");
+      console.log("meshlets", meshlets.length);
+      console.log("sceneMeshes", sceneMeshlets.length);
+      console.time("GGGG");
+      let meshletInfo = [];
+      let meshInfo = [];
+      let objectInfo = [];
+      let vertices = [];
+      const indexedCache = /* @__PURE__ */ new Map();
+      const meshCache = /* @__PURE__ */ new Map();
+      for (let i = 0; i < meshlets.length; i++) {
+        const sceneMesh = meshlets[i];
+        let geometryIndex = indexedCache.get(sceneMesh.geometry.crc);
+        if (geometryIndex === void 0) {
+          console.log("Not found");
+          geometryIndex = indexedCache.size;
+          indexedCache.set(sceneMesh.geometry.crc, geometryIndex);
+          vertices.push(...sceneMesh.geometry.vertices_gpu);
+          const meshlet = sceneMesh.geometry;
+          const bv = meshlet.boundingVolume;
+          const pbv = meshlet.boundingVolume;
+          meshletInfo.push(
+            ...bv.cone_apex.elements,
+            0,
+            ...bv.cone_axis.elements,
+            0,
+            bv.cone_cutoff,
+            0,
+            0,
+            0,
+            bv.center.x,
+            bv.center.y,
+            bv.center.z,
+            bv.radius,
+            pbv.center.x,
+            pbv.center.y,
+            pbv.center.z,
+            pbv.radius,
+            meshlet.clusterError,
+            0,
+            0,
+            0,
+            meshlet.parentError,
+            0,
+            0,
+            0,
+            meshlet.lod,
+            0,
+            0,
+            0
+          );
+        }
+        let meshIndex = meshCache.get(sceneMesh.mesh.id);
+        if (meshIndex === void 0) {
+          meshIndex = meshCache.size;
+          meshCache.set(sceneMesh.mesh.id, meshIndex);
+          meshInfo.push(
+            ...sceneMesh.mesh.transform.localToWorldMatrix.elements,
+            ...sceneMesh.mesh.transform.position.elements,
+            0,
+            ...sceneMesh.mesh.transform.scale.elements,
+            0
+          );
+        }
+        objectInfo.push(
+          meshIndex,
+          geometryIndex,
+          0,
+          0
+        );
+      }
+      const verticesArray = new Float32Array(vertices);
+      console.log("verticesArray", verticesArray.length);
+      const meshletInfoArray = new Float32Array(meshletInfo);
+      const meshletInfoBuffer = Buffer3.Create(meshletInfoArray.byteLength, 0 /* STORAGE */);
+      meshletInfoBuffer.name = "meshletInfoBuffer";
+      meshletInfoBuffer.SetArray(meshletInfoArray);
+      this.compute.SetBuffer("meshletInfo", meshletInfoBuffer);
+      const meshInfoBufferArray = new Float32Array(meshInfo);
+      const meshInfoBuffer = Buffer3.Create(meshInfoBufferArray.byteLength, 0 /* STORAGE */);
+      meshInfoBuffer.name = "meshInfoBuffer";
+      meshInfoBuffer.SetArray(meshInfoBufferArray);
+      this.compute.SetBuffer("meshInfo", meshInfoBuffer);
+      const objectInfoBufferArray = new Float32Array(objectInfo);
+      const objectInfoBuffer = Buffer3.Create(objectInfoBufferArray.byteLength, 0 /* STORAGE */);
+      objectInfoBuffer.name = "objectInfoBuffer";
+      objectInfoBuffer.SetArray(objectInfoBufferArray);
+      this.compute.SetBuffer("objectInfo", objectInfoBuffer);
+      this.shader.SetBuffer("meshInfo", meshInfoBuffer);
+      this.shader.SetBuffer("objectInfo", objectInfoBuffer);
+      console.log("meshletInfoBuffer", meshletInfoArray.byteLength);
+      console.log("meshInfoBufferArray", meshInfoBufferArray.byteLength);
+      console.log("objectInfoBufferArray", objectInfoBufferArray.byteLength);
+      console.timeEnd("GGGG");
+      console.log("verticesArray", verticesArray.length);
+      this.vertexBuffer = Buffer3.Create(verticesArray.byteLength, 0 /* STORAGE */);
+      this.vertexBuffer.name = "vertexBuffer";
+      this.vertexBuffer.SetArray(verticesArray);
+      this.shader.SetBuffer("vertices", this.vertexBuffer);
+      this.currentMeshCount = sceneMeshlets.length;
+      console.timeEnd("buildMeshletData");
+      Debugger.SetTotalMeshlets(meshlets.length);
+    }
+  }
+  execute(resources) {
+    const mainCamera = Camera.mainCamera;
+    const scene = mainCamera.gameObject.scene;
+    const sceneMeshlets = [...scene.GetComponents(MeshletMesh)];
+    let meshletsCount = 0;
+    for (const meshlet of sceneMeshlets) {
+      meshletsCount += meshlet.meshlets.length;
+    }
+    if (meshletsCount === 0) return;
+    this.buildMeshletData();
+    this.shader.SetMatrix4("viewMatrix", mainCamera.viewMatrix);
+    this.frustum.setFromProjectionMatrix(mainCamera.projectionMatrix);
+    this.shader.SetMatrix4("projectionMatrix", mainCamera.projectionMatrix);
+    const cullDataArray = new Float32Array([
+      ...mainCamera.projectionMatrix.elements,
+      ...mainCamera.viewMatrix.elements,
+      ...mainCamera.transform.position.elements,
+      0,
+      ...this.frustum.planes[0].normal.elements,
+      this.frustum.planes[0].constant,
+      ...this.frustum.planes[1].normal.elements,
+      this.frustum.planes[1].constant,
+      ...this.frustum.planes[2].normal.elements,
+      this.frustum.planes[2].constant,
+      ...this.frustum.planes[3].normal.elements,
+      this.frustum.planes[3].constant,
+      ...this.frustum.planes[4].normal.elements,
+      this.frustum.planes[4].constant,
+      ...this.frustum.planes[5].normal.elements,
+      this.frustum.planes[5].constant,
+      meshletsCount,
+      0,
+      0,
+      0,
+      Renderer.width,
+      Renderer.height,
+      0,
+      0
+    ]);
+    if (!this.cullData) {
+      this.cullData = Buffer3.Create(cullDataArray.byteLength, 0 /* STORAGE */);
+      this.cullData.name = "cullData";
+      this.compute.SetBuffer("cullData", this.cullData);
+    }
+    this.cullData.SetArray(cullDataArray);
+    if (!this.computeDrawBuffer) {
+      this.computeDrawBuffer = Buffer3.Create(4 * 4, 1 /* STORAGE_WRITE */);
+      this.computeDrawBuffer.name = "computeDrawBuffer";
+      this.compute.SetBuffer("drawBuffer", this.computeDrawBuffer);
+      this.instanceInfoBuffer = Buffer3.Create(meshletsCount * 1 * 4, 1 /* STORAGE_WRITE */);
+      this.instanceInfoBuffer.name = "instanceInfoBuffer";
+      this.compute.SetBuffer("instanceInfo", this.instanceInfoBuffer);
+      this.shader.SetBuffer("instanceInfo", this.instanceInfoBuffer);
+    }
+    RendererContext.ClearBuffer(this.computeDrawBuffer);
+    ComputeContext.BeginComputePass("GPUDriven - Culling", true);
+    const workgroupSizeX = Math.floor((meshletsCount + workgroupSize - 1) / workgroupSize);
+    ComputeContext.Dispatch(this.compute, workgroupSizeX);
+    ComputeContext.EndComputePass();
+    RendererContext.CopyBufferToBuffer(this.computeDrawBuffer, this.drawIndirectBuffer);
+    RendererContext.BeginRenderPass("GPUDriven - Indirect", [{ clear: true }], { target: this.depthTarget, clear: true }, true);
+    RendererContext.DrawIndirect(this.geometry, this.shader, this.drawIndirectBuffer);
+    RendererContext.EndRenderPass();
+    this.computeDrawBuffer.GetData().then((v) => {
+      const visibleMeshCount = new Uint32Array(v)[1];
+      Debugger.SetVisibleMeshes(visibleMeshCount);
+      Debugger.SetTriangleCount(vertexSize / 3 * meshletsCount);
+      Debugger.SetVisibleTriangleCount(vertexSize / 3 * visibleMeshCount);
+    });
+  }
+};
+
+// src/renderer/RenderingPipeline.ts
+var RenderingPipeline = class {
+  renderer;
+  renderGraph;
+  debuggerPass;
+  frame = 0;
+  passes = {
+    // SetMainCamera: new SetMeshRenderCameraPass({outputs: [PassParams.MainCamera]}),
+    // DeferredMeshRenderPass: new DeferredMeshRenderPass(PassParams.MainCamera, PassParams.GBufferAlbedo, PassParams.GBufferNormal, PassParams.GBufferERMO, PassParams.GBufferDepth),
+    // ShadowPass: new ShadowPass(PassParams.ShadowPassDepth),
+    // DeferredLightingPass: new DeferredLightingPass(PassParams.GBufferAlbedo, PassParams.GBufferNormal, PassParams.GBufferERMO, PassParams.GBufferDepth, PassParams.ShadowPassDepth, PassParams.LightingPassOutput),
+    // SSGI: new SSGI(PassParams.GBufferDepth, PassParams.GBufferNormal, PassParams.LightingPassOutput, PassParams.GBufferAlbedo)
+    GPUDriven: new GPUDriven()
+  };
+  constructor(renderer) {
+    this.renderer = renderer;
+    this.renderGraph = new RenderGraph();
+    for (const pass of Object.keys(this.passes)) {
+      this.renderGraph.addPass(this.passes[pass]);
+    }
+    this.debuggerPass = new DebuggerPass();
+  }
+  async Render(scene) {
+    if (this.frame % 100 == 0) {
+      Debugger.ResetFrame();
+    }
+    this.renderer.BeginRenderFrame();
+    this.renderGraph.execute();
+    this.renderer.EndRenderFrame();
+    await WEBGPUTimestampQuery.GetResult();
+    this.frame++;
+  }
+};
+
+// src/Scene.ts
+var Scene = class {
+  renderer;
+  name = "Default scene";
+  _hasStarted = false;
+  get hasStarted() {
+    return this._hasStarted;
+  }
+  gameObjects = [];
+  toUpdate = /* @__PURE__ */ new Map();
+  componentsByType = /* @__PURE__ */ new Map();
+  renderPipeline;
+  constructor(renderer) {
+    this.renderer = renderer;
+    this.renderPipeline = new RenderingPipeline(this.renderer);
+    EventSystem.on("CallUpdate", (component, flag) => {
+      if (flag) this.toUpdate.set(component, true);
+      else this.toUpdate.delete(component);
+    });
+    EventSystem.on("AddedComponent", (component, scene) => {
+      if (scene !== this) return;
+      let componentsArray = this.componentsByType.get(component.name) || [];
+      componentsArray.push(component);
+      this.componentsByType.set(component.name, componentsArray);
+    });
+  }
+  AddGameObject(gameObject) {
+    this.gameObjects.push(gameObject);
+  }
+  GetGameObjects() {
+    return this.gameObjects;
+  }
+  GetComponents(type) {
+    return this.componentsByType.get(type.name) || [];
+  }
+  Start() {
+    if (this.hasStarted) return;
+    for (const gameObject of this.gameObjects) gameObject.Start();
+    this._hasStarted = true;
+    this.Tick();
+  }
+  Tick() {
+    for (const [component, _] of this.toUpdate) component.Update();
+    this.renderPipeline.Render(this);
+    requestAnimationFrame(() => this.Tick());
+  }
+};
+
+// src/plugins/OrbitControls.ts
+var _v = new Vector3();
+var OrbitControls = class {
+  /** The center point to orbit around. Default is `0, 0, 0` */
+  center = new Vector3();
+  orbitSpeed = 1;
+  panSpeed = 10;
+  enableZoom = true;
+  enablePan = true;
+  minRadius = 0;
+  maxRadius = Infinity;
+  minTheta = -Infinity;
+  maxTheta = Infinity;
+  minPhi = 0;
+  maxPhi = Math.PI;
+  _camera;
+  _element = null;
+  _pointers = /* @__PURE__ */ new Map();
+  constructor(camera) {
+    this._camera = camera;
+    this._camera.transform.LookAt(this.center);
+  }
+  /**
+   * Adjusts camera orbital zoom.
+   */
+  zoom(scale) {
+    const radius = this._camera.transform.position.sub(this.center).length();
+    this._camera.transform.position.mul(
+      scale * (Math.min(this.maxRadius, Math.max(this.minRadius, radius * scale)) / (radius * scale))
+    );
+    this._camera.transform.position.add(this.center);
+  }
+  /**
+   * Adjusts camera orbital position.
+   */
+  orbit(deltaX, deltaY) {
+    const offset = this._camera.transform.position.sub(this.center);
+    const radius = offset.length();
+    const deltaPhi = deltaY * (this.orbitSpeed / this._element.clientHeight);
+    const deltaTheta = deltaX * (this.orbitSpeed / this._element.clientHeight);
+    const phi = Math.min(this.maxPhi, Math.max(this.minPhi, Math.acos(offset.y / radius) - deltaPhi)) || Number.EPSILON;
+    const theta = Math.min(this.maxTheta, Math.max(this.minTheta, Math.atan2(offset.z, offset.x) + deltaTheta)) || Number.EPSILON;
+    this._camera.transform.position.set(Math.sin(phi) * Math.cos(theta), Math.cos(phi), Math.sin(phi) * Math.sin(theta)).mul(radius);
+    this._camera.transform.position.add(this.center);
+    this._camera.transform.LookAt(this.center);
+  }
+  /**
+   * Adjusts orthogonal camera pan.
+   */
+  pan(deltaX, deltaY) {
+    this._camera.transform.position.sub(this.center);
+    this.center.add(
+      _v.set(-deltaX, deltaY, 0).applyQuaternion(this._camera.transform.rotation).mul(this.panSpeed / this._element.clientHeight)
+    );
+    this._camera.transform.position.add(this.center);
+  }
+  _onContextMenu(event) {
+    event.preventDefault();
+  }
+  _onScroll(event) {
+    this.zoom(1 + event.deltaY / 720);
+  }
+  _onPointerMove(event) {
+    const prevPointer = this._pointers.get(event.pointerId);
+    if (prevPointer) {
+      const deltaX = (event.pageX - prevPointer.pageX) / this._pointers.size;
+      const deltaY = (event.pageY - prevPointer.pageY) / this._pointers.size;
+      const type = event.pointerType === "touch" ? this._pointers.size : event.buttons;
+      if (type === 1 /* LEFT */) {
+        this._element.style.cursor = "grabbing";
+        this.orbit(deltaX, deltaY);
+      } else if (type === 2 /* RIGHT */) {
+        this._element.style.cursor = "grabbing";
+        if (this.enablePan) this.pan(deltaX, deltaY);
+      }
+      if (event.pointerType === "touch" && this._pointers.size === 2) {
+        const otherPointer = Array.from(this._pointers.values()).find((p) => p.pointerId !== event.pointerId);
+        if (otherPointer) {
+          const currentDistance = Math.hypot(event.pageX - otherPointer.pageX, event.pageY - otherPointer.pageY);
+          const previousDistance = Math.hypot(prevPointer.pageX - otherPointer.pageX, prevPointer.pageY - otherPointer.pageY);
+          const zoomFactor = currentDistance / previousDistance;
+          this.zoom(zoomFactor);
+        }
+      }
+    } else if (event.pointerType !== "touch") {
+      this._element.setPointerCapture(event.pointerId);
+    }
+    this._pointers.set(event.pointerId, event);
+  }
+  _onPointerUp(event) {
+    this._element.style.cursor = "grab";
+    this._element.style.touchAction = this.enableZoom || this.enablePan ? "none" : "pinch-zoom";
+    if (event.pointerType !== "touch") this._element.releasePointerCapture(event.pointerId);
+    this._pointers.delete(event.pointerId);
+  }
+  /**
+   * Connects controls' event handlers, enabling interaction.
+   */
+  connect(element) {
+    element.addEventListener("contextmenu", (event) => {
+      this._onContextMenu(event);
+    });
+    element.addEventListener("wheel", (event) => {
+      this._onScroll(event);
+    }, { passive: true });
+    element.addEventListener("pointermove", (event) => {
+      this._onPointerMove(event);
+    });
+    element.addEventListener("pointerup", (event) => {
+      this._onPointerUp(event);
+    });
+    element.tabIndex = 0;
+    this._element = element;
+    this._element.style.cursor = "grab";
+  }
+};
+
+// src/plugins/OBJLoader.ts
+var OBJLoaderIndexed = class _OBJLoaderIndexed {
+  static *triangulate(elements) {
+    if (elements.length <= 3) {
+      yield elements;
+    } else if (elements.length === 4) {
+      yield [elements[0], elements[1], elements[2]];
+      yield [elements[2], elements[3], elements[0]];
+    } else {
+      for (let i = 1; i < elements.length - 1; i++) {
+        yield [elements[0], elements[i], elements[i + 1]];
+      }
+    }
+  }
+  static async load(url) {
+    const contents = await fetch(url).then((response) => response.text());
+    return _OBJLoaderIndexed.parse(contents);
+  }
+  static parse(contents) {
+    const indices = [];
+    const verts = [];
+    const vertNormals = [];
+    const uvs = [];
+    let currentMaterialIndex = -1;
+    let currentObjectByMaterialIndex = 0;
+    const unpacked = {
+      verts: [],
+      norms: [],
+      uvs: [],
+      hashindices: {},
+      indices: [[]],
+      index: 0
+    };
+    const VERTEX_RE = /^v\s/;
+    const NORMAL_RE = /^vn\s/;
+    const UV_RE = /^vt\s/;
+    const FACE_RE = /^f\s/;
+    const WHITESPACE_RE = /\s+/;
+    const lines = contents.split("\n");
+    for (let line of lines) {
+      line = line.trim();
+      if (!line || line.startsWith("#")) {
+        continue;
+      }
+      const elements = line.split(WHITESPACE_RE);
+      elements.shift();
+      if (VERTEX_RE.test(line)) {
+        verts.push(...elements);
+      } else if (NORMAL_RE.test(line)) {
+        vertNormals.push(...elements);
+      } else if (UV_RE.test(line)) {
+        uvs.push(...elements);
+      } else if (FACE_RE.test(line)) {
+        const triangles = _OBJLoaderIndexed.triangulate(elements);
+        for (const triangle of triangles) {
+          for (let j = 0, eleLen = triangle.length; j < eleLen; j++) {
+            const hash = triangle[j] + "," + currentMaterialIndex;
+            if (hash in unpacked.hashindices) {
+              unpacked.indices[currentObjectByMaterialIndex].push(unpacked.hashindices[hash]);
+            } else {
+              const vertex = triangle[j].split("/");
+              unpacked.verts.push(+verts[(+vertex[0] - 1) * 3 + 0]);
+              unpacked.verts.push(+verts[(+vertex[0] - 1) * 3 + 1]);
+              unpacked.verts.push(+verts[(+vertex[0] - 1) * 3 + 2]);
+              if (vertNormals.length > 0) {
+                unpacked.norms.push(+vertNormals[(+vertex[2] - 1) * 3 + 0]);
+                unpacked.norms.push(+vertNormals[(+vertex[2] - 1) * 3 + 1]);
+                unpacked.norms.push(+vertNormals[(+vertex[2] - 1) * 3 + 2]);
+              }
+              if (uvs.length > 0) {
+                unpacked.uvs.push(+uvs[(+vertex[1] - 1) * 2 + 0]);
+                unpacked.uvs.push(+uvs[(+vertex[1] - 1) * 2 + 1]);
+              }
+              unpacked.hashindices[hash] = unpacked.index;
+              unpacked.indices[currentObjectByMaterialIndex].push(unpacked.hashindices[hash]);
+              unpacked.index += 1;
+            }
+          }
+        }
+      }
+    }
+    return {
+      vertices: new Float32Array(unpacked.verts),
+      normals: new Float32Array(unpacked.norms),
+      uvs: new Float32Array(unpacked.uvs),
+      indices: new Uint32Array(unpacked.indices[currentObjectByMaterialIndex])
+    };
+  }
+};
+
 // src/TEST/GPUDriven.ts
 var canvas = document.createElement("canvas");
 var aspectRatio = 1;
@@ -7645,38 +7560,16 @@ async function Application() {
   const bunnyGeometry = new Geometry();
   bunnyGeometry.attributes.set("position", new VertexAttribute(bunnyObj.vertices));
   bunnyGeometry.index = new IndexAttribute(bunnyObj.indices);
-  const rootMeshlet = await Meshletizer.Build(bunnyObj.vertices, bunnyObj.indices);
-  console.log(rootMeshlet);
-  function traverse(meshlet, fn, visited = []) {
-    if (visited.indexOf(meshlet.id) !== -1) return;
-    fn(meshlet);
-    visited.push(meshlet.id);
-    for (let child of meshlet.parents) {
-      traverse(child, fn, visited);
-    }
-  }
-  const allMeshlets = [];
-  traverse(rootMeshlet, (m) => allMeshlets.push(m));
-  console.log("total meshlets", allMeshlets.length);
-  let meshletsPerLod = /* @__PURE__ */ new Map();
-  for (const meshlet of allMeshlets) {
-    let arr = meshletsPerLod.get(meshlet.lod);
-    if (!arr) arr = [];
-    arr.push(meshlet);
-    meshletsPerLod.set(meshlet.lod, arr);
-  }
-  let x = 0;
-  let y = 0;
-  let z = 0;
-  const n = 10;
-  for (let x2 = 0; x2 < n; x2++) {
-    for (let y2 = 0; y2 < n; y2++) {
-      for (let z2 = 0; z2 < n; z2++) {
+  console.log(bunnyObj);
+  const n = 20;
+  for (let x = 0; x < n; x++) {
+    for (let y = 0; y < n; y++) {
+      for (let z = 0; z < n; z++) {
         const cube = new GameObject(scene);
         cube.transform.scale.set(20, 20, 20);
-        cube.transform.position.set(x2 * 10, y2 * 10, z2 * 10);
-        const cubeMesh = cube.AddComponent(MeshletMeshV3);
-        cubeMesh.meshlets = allMeshlets;
+        cube.transform.position.set(x * 10, y * 10, z * 10);
+        const cubeMesh = cube.AddComponent(MeshletMesh);
+        await cubeMesh.SetGeometry(bunnyGeometry);
       }
     }
   }

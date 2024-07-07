@@ -11,19 +11,19 @@ export class MeshletMerger {
         const mergedIndices: number[] = [];
     
         for (let i = 0; i < meshlets.length; ++i) {
-            const indices = meshlets[i].indices_raw;
+            const indices = meshlets[i].indices;
     
             for (let j = 0; j < indices.length; j++) {
                 mergedIndices.push(indices[j] + indexOffset);
             }
-            indexOffset += meshlets[i].vertices.length;
+            indexOffset += meshlets[i].vertices.length / 3;
         }
     
         indices.push(...mergedIndices);
     
         // merge attributes
         for (let i = 0; i < meshlets.length; ++i) {
-            vertices.push(...meshlets[i].vertices_raw);
+            vertices.push(...meshlets[i].vertices);
         }
     
         const merged = new Meshlet(new Float32Array(vertices), new Uint32Array(indices));

@@ -194,24 +194,24 @@ export class Meshoptimizer {
     public static clean(meshlet: Meshlet): Meshlet {
         const MeshOptmizer = Meshoptimizer.module;
 
-        const remap = new WASMPointer(new Uint32Array(meshlet.indices_raw.length * 3), "out");
-        const indices = new WASMPointer(new Uint32Array(meshlet.indices_raw), "in");
-        const vertices = new WASMPointer(new Float32Array(meshlet.vertices_raw), "in");
+        const remap = new WASMPointer(new Uint32Array(meshlet.indices.length * 3), "out");
+        const indices = new WASMPointer(new Uint32Array(meshlet.indices), "in");
+        const vertices = new WASMPointer(new Float32Array(meshlet.vertices), "in");
 
         const vertex_count = WASMHelper.call(MeshOptmizer, "meshopt_generateVertexRemap", "number", 
             remap,
             indices,
-            meshlet.indices_raw.length,
+            meshlet.indices.length,
             vertices,
-            meshlet.vertices_raw.length,
+            meshlet.vertices.length,
             3 * Float32Array.BYTES_PER_ELEMENT
         );
         
-        const indices_remapped = new WASMPointer(new Uint32Array(meshlet.indices_raw.length), "out");
+        const indices_remapped = new WASMPointer(new Uint32Array(meshlet.indices.length), "out");
         WASMHelper.call(MeshOptmizer, "meshopt_remapIndexBuffer", "number", 
             indices_remapped,
             indices,
-            meshlet.indices_raw.length,
+            meshlet.indices.length,
             remap
         );
         
@@ -219,7 +219,7 @@ export class Meshoptimizer {
         WASMHelper.call(MeshOptmizer, "meshopt_remapVertexBuffer", "number", 
             vertices_remapped,
             vertices,
-            meshlet.vertices.length,
+            meshlet.vertices.length / 3,
             3 * Float32Array.BYTES_PER_ELEMENT,
             remap
         );
@@ -230,15 +230,15 @@ export class Meshoptimizer {
     public static meshopt_simplify(meshlet: Meshlet, target_count: number): {meshlet: Meshlet, error: number} {
         const MeshOptmizer = Meshoptimizer.module;
 
-        const destination = new WASMPointer(new Uint32Array(meshlet.indices_raw.length), "out");
+        const destination = new WASMPointer(new Uint32Array(meshlet.indices.length), "out");
         const result_error = new WASMPointer(new Float32Array(1), "out");
         
         const simplified_index_count = WASMHelper.call(MeshOptmizer, "meshopt_simplify", "number",
             destination, // unsigned int* destination,
-            new WASMPointer(new Uint32Array(meshlet.indices_raw)), // const unsigned int* indices,
-            meshlet.indices_raw.length, // size_t index_count,
-            new WASMPointer(new Float32Array(meshlet.vertices_raw)), // const float* vertex_positions,
-            meshlet.vertices.length, // size_t vertex_count,
+            new WASMPointer(new Uint32Array(meshlet.indices)), // const unsigned int* indices,
+            meshlet.indices.length, // size_t index_count,
+            new WASMPointer(new Float32Array(meshlet.vertices)), // const float* vertex_positions,
+            meshlet.vertices.length / 3, // size_t vertex_count,
             3 * Float32Array.BYTES_PER_ELEMENT, // size_t vertex_positions_stride,
             target_count, // size_t target_index_count,
             0.05, // float target_error, Should be 0.01 but cant reach 128 triangles with it
@@ -250,19 +250,19 @@ export class Meshoptimizer {
 
         return {
             error: result_error.data[0],
-            meshlet: new Meshlet(meshlet.vertices_raw, destination_resized)
+            meshlet: new Meshlet(meshlet.vertices, destination_resized)
         }
     }
 
     public static meshopt_simplifyScale(meshlet: Meshlet): number {
         const MeshOptmizer = Meshoptimizer.module;
 
-        const vertices = new WASMPointer(new Float32Array(meshlet.vertices_raw), "in");
+        const vertices = new WASMPointer(new Float32Array(meshlet.vertices), "in");
 
         // float meshopt_simplifyScale(const float* vertex_positions, size_t vertex_count, size_t vertex_positions_stride)
         const scale = WASMHelper.call(MeshOptmizer, "meshopt_simplifyScale", "number", 
             vertices,
-            meshlet.vertices.length,
+            meshlet.vertices.length / 3,
             3 * Float32Array.BYTES_PER_ELEMENT
         );
         

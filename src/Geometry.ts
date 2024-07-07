@@ -1,5 +1,5 @@
 import { Utils } from "./Utils";
-import { AABB } from "./math/AABB";
+import { BoundingVolume } from "./math/BoundingVolume";
 import { Vector3 } from "./math/Vector3";
 import { Buffer, BufferType } from "./renderer/Buffer";
 
@@ -31,12 +31,12 @@ export class Geometry {
 
     public enableShadows: boolean = true;
     
-    public _aabb: AABB;
-    public get aabb(): AABB {
+    public _boundingVolume: BoundingVolume;
+    public get boundingVolume(): BoundingVolume {
         const positions = this.attributes.get("position");
         if (!positions) throw Error("Geometry has no position attribute");
-        if (!this._aabb) this._aabb = AABB.FromVertexArray(positions.array as Float32Array);
-        return this._aabb;
+        if (!this._boundingVolume) this._boundingVolume = BoundingVolume.FromVertices(positions.array as Float32Array);
+        return this._boundingVolume;
     }
 
     public ComputeNormals() {
