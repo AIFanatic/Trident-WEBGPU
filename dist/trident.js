@@ -7641,7 +7641,7 @@ async function Application() {
   controls.connect(canvas);
   const sphereGeometry = Geometry.Sphere();
   const cubeGeometry = Geometry.Cube();
-  const bunnyObj = await OBJLoaderIndexed.load("./assets/bunny.obj");
+  const bunnyObj = await OBJLoaderIndexed.load("./bunny.obj");
   const bunnyGeometry = new Geometry();
   bunnyGeometry.attributes.set("position", new VertexAttribute(bunnyObj.vertices));
   bunnyGeometry.index = new IndexAttribute(bunnyObj.indices);
@@ -7668,7 +7668,7 @@ async function Application() {
   let x = 0;
   let y = 0;
   let z = 0;
-  const n = 2;
+  const n = 10;
   for (let x2 = 0; x2 < n; x2++) {
     for (let y2 = 0; y2 < n; y2++) {
       for (let z2 = 0; z2 < n; z2++) {
