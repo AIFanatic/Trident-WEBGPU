@@ -9,24 +9,27 @@ export class WEBGPUTexture implements Texture {
     public readonly width: number;
     public readonly height: number;
     public readonly depth: number;
+    public readonly format: TextureFormat;
     public readonly type: TextureType;
     public readonly dimension: TextureDimension;
-
+    public readonly mipLevels: number;
+    
     private buffer: GPUTexture;
-
-    private view: GPUTextureView[] = [];
-
+    
+    private viewCache: Map<string, GPUTextureView> = new Map();
+    
     private currentLayer: number = 0;
+    private currentMip: number = 0;
+    private activeMipCount: number = 1;
 
-    constructor(width: number, height: number, depth: number, format: TextureFormat, type: TextureType, dimension: TextureDimension) {
-        this.type = type;
-        this.dimension = dimension;
+    constructor(width: number, height: number, depth: number, format: TextureFormat, type: TextureType, dimension: TextureDimension, mipLevels: number) {
         let textureUsage: GPUTextureUsageFlags = GPUTextureUsage.COPY_DST;
         let textureType: GPUTextureUsageFlags = GPUTextureUsage.TEXTURE_BINDING;
 
         if (!type) textureType = GPUTextureUsage.TEXTURE_BINDING;
         else if (type === TextureType.DEPTH) textureType = GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING;
         else if (type === TextureType.RENDER_TARGET) textureType = GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_SRC;
+        else if (type === TextureType.RENDER_TARGET_STORAGE) textureType = GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.STORAGE_BINDING;
 
         else throw Error(`Unknown texture format ${format}`);
 
@@ -34,25 +37,35 @@ export class WEBGPUTexture implements Texture {
             size: [width, height, depth],
             format: format,
             usage: textureUsage | textureType,
+            mipLevelCount: mipLevels
         });
 
         this.width = width;
         this.height = height;
         this.depth = depth;
+        this.format = format;
+        this.type = type;
+        this.dimension = dimension;
+        this.mipLevels = mipLevels;
     }
 
     public GetBuffer(): GPUTexture { return this.buffer }
 
     public GetView(): GPUTextureView {
-        if (!this.view[this.currentLayer]) {
-            this.view[this.currentLayer] = this.buffer.createView({
+        const key = `${this.currentLayer}-${this.currentMip}`;
+        let view = this.viewCache.get(key);
+        if (!view) {
+            view = this.buffer.createView({
                 dimension: this.dimension,
                 baseArrayLayer: this.currentLayer,
-                arrayLayerCount: 1
+                arrayLayerCount: 1,
+                baseMipLevel: this.currentMip,
+                mipLevelCount: this.activeMipCount
             });
+            this.viewCache.set(key, view);
         }
 
-        return this.view[this.currentLayer];
+        return view;
     }
 
     public GenerateMips() {
@@ -68,10 +81,27 @@ export class WEBGPUTexture implements Texture {
         return this.currentLayer;
     }
 
+    public SetActiveMip(mip: number) {
+        if (mip > this.mipLevels) throw Error("Active mip cannot be bigger than mip levels size");
+        this.currentMip = mip;
+    }
+
+    public GetActiveMip(): number {
+        return this.currentMip;
+    }
+
+    public SetActiveMipCount(mipCount: number) {
+        return this.activeMipCount = mipCount;
+    }
+
+    public GetActiveMipCount(): number {
+        return this.activeMipCount;
+    }
+
     // Format and types are very limited for now
     // https://github.com/gpuweb/gpuweb/issues/2322
     public static FromImageBitmap(imageBitmap: ImageBitmap, width: number, height: number): WEBGPUTexture {
-        const texture = new WEBGPUTexture(width, height, 1, Renderer.SwapChainFormat, TextureType.RENDER_TARGET, "2d");
+        const texture = new WEBGPUTexture(width, height, 1, Renderer.SwapChainFormat, TextureType.RENDER_TARGET, "2d", 1);
 
         WEBGPURenderer.device.queue.copyExternalImageToTexture(
             { source: imageBitmap },

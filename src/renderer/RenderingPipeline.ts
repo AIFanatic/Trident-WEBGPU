@@ -11,6 +11,8 @@ import { Debugger } from "../plugins/Debugger";
 import { SSGI } from "./passes/SSGI";
 import { GPUDriven } from "./passes/GPUDriven";
 import { WEBGPUTimestampQuery } from "./webgpu/WEBGPUTimestampQuery";
+import { DepthViewer } from "./passes/DepthViewer";
+import { TextureViewer } from "./passes/TextureViewer";
 
 export enum PassParams {
     MainCamera = "MainCamera",
@@ -37,7 +39,10 @@ export class RenderingPipeline {
     private renderGraph: RenderGraph;
 
     private debuggerPass: DebuggerPass;
+    private depthViewer: DepthViewer;
+    private textureViewer: TextureViewer;
     private frame: number = 0;
+    private previousTime: number = 0;
 
     private passes = {
         // SetMainCamera: new SetMeshRenderCameraPass({outputs: [PassParams.MainCamera]}),
@@ -58,6 +63,8 @@ export class RenderingPipeline {
         }
 
         this.debuggerPass = new DebuggerPass();
+        this.depthViewer = new DepthViewer();
+        this.textureViewer = new TextureViewer();
     }
 
     public async Render(scene: Scene) {
@@ -68,14 +75,23 @@ export class RenderingPipeline {
         this.renderer.BeginRenderFrame();
         this.renderGraph.execute();
         // this.debuggerPass.execute(this.renderGraph.resourcePool);
+        // this.depthViewer.execute(this.renderGraph.resourcePool, this.passes.GPUDriven.depthPyramidTarget);
+        this.textureViewer.execute(this.renderGraph.resourcePool, this.passes.GPUDriven.depthPyramidTargetTexture);
         this.renderer.EndRenderFrame();
 
-        const frameTimes = await WEBGPUTimestampQuery.GetResult();
-        if (frameTimes) {
-            for (const [name, time] of frameTimes) {
-                Debugger.SetPassTime(name, time);
+        WEBGPUTimestampQuery.GetResult().then(frameTimes => {
+            if (frameTimes) {
+                for (const [name, time] of frameTimes) {
+                    Debugger.SetPassTime(name, time);
+                }
             }
-        }
+            
+        });
+
+        const currentTime = performance.now();
+        const elapsed = currentTime - this.previousTime;
+        this.previousTime = currentTime;
+        Debugger.SetFPS(1 / elapsed * 1000);
 
         this.frame++;
     }

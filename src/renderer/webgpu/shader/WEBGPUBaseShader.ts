@@ -3,6 +3,7 @@ import { Matrix4 } from "../../../math/Matrix4";
 import { Vector3 } from "../../../math/Vector3";
 import { Buffer, BufferType } from "../../Buffer";
 import { ComputeShaderParams, ShaderParams, ShaderUniform } from "../../Shader";
+import { TextureType } from "../../Texture";
 import { WEBGPUBuffer, WEBGPUDynamicBuffer } from "../WEBGPUBuffer";
 import { WEBGPURenderer } from "../WEBGPURenderer";
 import { WEBGPUTexture } from "../WEBGPUTexture";
@@ -17,6 +18,9 @@ export const UniformTypeToWGSL = {
 
 interface WEBGPUShaderUniform extends ShaderUniform {
     buffer?: WEBGPUBuffer | WEBGPUDynamicBuffer | WEBGPUTexture | WEBGPUTextureSampler;
+    textureDimension?: number;
+    textureMip?: number;
+    activeMipCount?: number;
 }
 
 interface BindGroup {
@@ -56,6 +60,7 @@ export class WEBGPUBaseShader {
 
         // Bind group layout
         for (const [name, uniform] of this.uniformMap) {
+            console.log(name, uniform.binding, uniform)
             // // This should be here but it clashes with the preprocessor
             // if (!uniform.buffer) console.warn(`Shader has binding (${name}) but no buffer was set`);
             
@@ -93,11 +98,33 @@ export class WEBGPUBaseShader {
             }
             else if (uniform.buffer instanceof WEBGPUTexture) {
                 const sampleType: GPUTextureSampleType = uniform.type === "depthTexture" ? "depth" : "float";
-                group.layoutEntries.push({ binding: uniform.binding, visibility: GPUShaderStage.COMPUTE | GPUShaderStage.VERTEX | GPUShaderStage.FRAGMENT, texture: {sampleType: sampleType, viewDimension: uniform.buffer.dimension}})
+                if (uniform.buffer.type === TextureType.RENDER_TARGET_STORAGE) {
+                    group.layoutEntries.push({
+                        binding: uniform.binding,
+                        visibility: GPUShaderStage.COMPUTE | GPUShaderStage.FRAGMENT,
+                        storageTexture: {
+                            format: uniform.buffer.format,
+                            viewDimension: uniform.buffer.dimension,
+                            access: "read-write",
+                        }
+                    })
+                }
+                else {
+                    group.layoutEntries.push({ binding: uniform.binding, visibility: GPUShaderStage.COMPUTE | GPUShaderStage.VERTEX | GPUShaderStage.FRAGMENT, texture: {sampleType: sampleType, viewDimension: uniform.buffer.dimension}})
+                }
 
                 // TODO: Can this use WEBGPUTexture.GetView()?
                 // Remember this is for binding textures not color/depth outputs
-                const view: GPUTextureViewDescriptor = { dimension: uniform.buffer.dimension, arrayLayerCount: uniform.buffer.GetBuffer().depthOrArrayLayers, baseArrayLayer: 0 };
+                const view: GPUTextureViewDescriptor = {
+                    dimension: uniform.buffer.dimension,
+                    arrayLayerCount: uniform.buffer.GetBuffer().depthOrArrayLayers,
+                    baseArrayLayer: 0,
+                    baseMipLevel: uniform.textureMip,
+                    mipLevelCount: uniform.activeMipCount
+                };
+                // if (uniform.textureDimension) uniform.buffer.SetActiveLayer(uniform.textureDimension);
+                // if (uniform.textureMip) uniform.buffer.SetCurrentMip(uniform.textureMip);
+                // group.entries.push({binding: uniform.binding, resource: uniform.buffer.GetView()});
                 group.entries.push({binding: uniform.binding, resource: uniform.buffer.GetBuffer().createView(view)});
                 group.buffers.push(uniform.buffer);
             }
@@ -139,6 +166,11 @@ export class WEBGPUBaseShader {
         if (!binding.buffer || binding.buffer.GetBuffer() !== data.GetBuffer()) {
             binding.buffer = data;
             this.needsUpdate = true;
+        }
+        if (data instanceof WEBGPUTexture) {
+            binding.textureDimension = data.GetActiveLayer();
+            binding.textureMip = data.GetActiveMip();
+            binding.activeMipCount = data.GetActiveMipCount();
         }
     }
 

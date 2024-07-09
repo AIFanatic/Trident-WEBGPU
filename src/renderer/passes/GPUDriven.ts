@@ -6,11 +6,13 @@ import { Geometry, VertexAttribute } from "../../Geometry";
 import { Buffer, BufferType } from "../Buffer";
 import { Camera } from "../../components/Camera";
 import { ComputeContext } from "../ComputeContext";
-import { DepthTexture } from "../Texture";
+import { DepthTexture, RenderTexture, RenderTextureStorage } from "../Texture";
 import { Frustum } from "../../math/Frustum";
 import { Debugger } from "../../plugins/Debugger";
 import { MeshletMesh } from "../../components/MeshletMesh";
 import { Meshlet } from "../../plugins/meshlets/Meshlet";
+import { TextureSampler } from "../TextureSampler";
+import { Color } from "../../math/Color";
 
 interface SceneMesh {
     geometry: Meshlet;
@@ -35,9 +37,15 @@ export class GPUDriven extends RenderPass {
     private vertexBuffer: Buffer;
 
     private depthTarget: DepthTexture;
-
+    
     private cullData: Buffer;
     private frustum: Frustum = new Frustum();
+    
+    private depthPyramidShader: Shader;
+    private depthPyramidCompute: Shader;
+    public depthPyramidTargetTexture: RenderTexture;
+
+    private depthPyramidGeometry: Geometry;
     
     constructor() {
         super({});
@@ -309,6 +317,178 @@ export class GPUDriven extends RenderPass {
             }
         });
 
+
+        const depthPyramidShaderCode = `
+        struct VertexInput {
+            @builtin(instance_index) instanceIndex : u32,
+            @builtin(vertex_index) vertexIndex : u32,
+            @location(0) position : vec3<f32>,
+        };
+
+        struct VertexOutput {
+            @builtin(position) position : vec4<f32>,
+            @location(0) @interpolate(flat) instance : u32,
+        };
+
+        @group(0) @binding(0) var<storage, read> viewMatrix: mat4x4<f32>;
+        @group(0) @binding(1) var<storage, read> projectionMatrix: mat4x4<f32>;
+
+        @group(0) @binding(2) var<storage, read> vertices: array<vec4<f32>>;
+
+        struct InstanceInfo {
+            meshID: u32
+        };
+
+        @group(0) @binding(3) var<storage, read> instanceInfo: array<InstanceInfo>;
+
+
+
+        struct MeshInfo {
+            modelMatrix: mat4x4<f32>,
+            position: vec4<f32>,
+            scale: vec4<f32>
+        };
+
+        struct ObjectInfo {
+            meshID: f32,
+            meshletID: f32,
+            padding: vec2<f32>,
+        };
+
+        @group(0) @binding(4) var<storage, read> meshInfo: array<MeshInfo>;
+        @group(0) @binding(5) var<storage, read> objectInfo: array<ObjectInfo>;
+
+        @vertex fn vertexMain(input: VertexInput) -> VertexOutput {
+            var output: VertexOutput;
+            let meshID = instanceInfo[input.instanceIndex].meshID;
+            // let mesh = meshInfo[meshID];
+            let object = objectInfo[meshID];
+            let mesh = meshInfo[u32(object.meshID)];
+            let modelMatrix = mesh.modelMatrix;
+            
+            let vertexID = input.vertexIndex + u32(object.meshletID) * ${vertexSize};
+            let position = vertices[vertexID];
+            
+            let modelViewMatrix = viewMatrix * modelMatrix;
+            output.position = projectionMatrix * modelViewMatrix * vec4(position.xyz, 1.0);
+            output.instance = meshID;
+
+            return output;
+        }
+        
+
+        fn rand(co: f32) -> f32 {
+            return fract(sin((co + 1.0) * 12.9898) * 43758.5453);
+        }
+
+        @fragment fn fragmentMain(input: VertexOutput) -> @location(0) vec4f {
+            let r = rand(f32(input.instance) + 12.1212);
+            let g = rand(f32(input.instance) + 22.1212);
+            let b = rand(f32(input.instance) + 32.1212);
+
+            return vec4(1.0 - input.position.w);
+            // return vec4(0.0);
+        }
+        `;
+        this.depthPyramidShader = Shader.Create({
+            code: depthPyramidShaderCode,
+            colorOutputs: [{format: "rgba16float"}],
+            attributes: {
+                position: { location: 0, size: 3, type: "vec3" },
+            },
+            uniforms: {
+                viewMatrix: {group: 0, binding: 0, type: "storage"},
+                projectionMatrix: {group: 0, binding: 1, type: "storage"},
+                vertices: {group: 0, binding: 2, type: "storage"},
+                instanceInfo: {group: 0, binding: 3, type: "storage"},
+                meshInfo: {group: 0, binding: 4, type: "storage"},
+                objectInfo: {group: 0, binding: 5, type: "storage"},
+            },
+        });
+
+        this.depthPyramidCompute = Shader.Create({
+            code: `
+                struct VertexInput {
+                    @location(0) position : vec2<f32>,
+                    @location(1) normal : vec3<f32>,
+                    @location(2) uv : vec2<f32>,
+                };
+                
+                struct VertexOutput {
+                    @builtin(position) position : vec4<f32>,
+                    @location(0) vUv : vec2<f32>,
+                };
+                
+                @group(0) @binding(0) var depthTextureInputSampler: sampler;
+                @group(0) @binding(1) var depthTextureInput: texture_2d<f32>;
+                // @group(0) @binding(2) var depthTextureOutput: texture_storage_2d<f32>;
+                
+                @vertex
+                fn vertexMain(input: VertexInput) -> VertexOutput {
+                    var output: VertexOutput;
+                    output.position = vec4(input.position, 0.0, 1.0);
+                    output.vUv = input.uv;
+                    return output;
+                }
+                
+                fn min_vec4(v: vec4<f32>) -> f32 {
+                    let min_ab = min(v.x, v.y);
+                    let min_cd = min(v.z, v.w);
+                    return min(min_ab, min_cd);
+                }
+
+                @fragment
+                fn fragmentMain(input: VertexOutput) -> @location(0) vec4<f32> {
+                    let uv = input.vUv;
+                    // let color = textureSample(depthTextureInput, depthTextureInputSampler, uv);
+                    // return color;
+
+                    
+                    let a = textureGather(0, depthTextureInput, depthTextureInputSampler, uv);
+                    return vec4(min_vec4(a));
+                }
+                
+
+
+                // @group(0) @binding(0) var depthTextureInputSampler: sampler;
+                // @group(0) @binding(1) var depthTextureInput: texture_storage_2d<r32float, read_write>;
+                // @group(0) @binding(2) var depthTextureOutput: texture_storage_2d<r32float, read_write>;
+
+                // override blockSizeX: u32 = 1;
+                // override blockSizeY: u32 = 1;
+                // override blockSizeZ: u32 = 1;
+                
+                // @compute @workgroup_size(blockSizeX, blockSizeY, blockSizeZ)
+                // fn main(@builtin(global_invocation_id) grid: vec3<u32>) {
+                //     let pos = grid.xy;
+
+                //     let depth = textureLoad(depthTextureInput, vec2<i32>(pos.xy));
+                //     textureStore(depthTextureOutput, vec2<i32>(pos.xy), vec4(depth));
+                // } 
+            
+            `,
+            attributes: {
+                position: { location: 0, size: 3, type: "vec3" },
+                normal: { location: 1, size: 3, type: "vec3" },
+                uv: { location: 2, size: 2, type: "vec2" }
+            },
+            colorOutputs: [{format: "rgba16float"}],
+            uniforms: {
+                depthTextureInputSampler: {group: 0, binding: 0, type: "sampler"},
+                depthTextureInput: {group: 0, binding: 1, type: "texture"},
+                // depthTextureOutput: {group: 0, binding: 2, type: "texture"},
+            }
+        });
+
+        const depthPyramidSampler = TextureSampler.Create();
+        this.depthPyramidCompute.SetSampler("depthTextureInputSampler", depthPyramidSampler);
+
+        this.depthTarget = DepthTexture.Create(Renderer.width, Renderer.height);
+
+        this.depthPyramidGeometry = Geometry.Plane();
+
+
+
         this.drawIndirectBuffer = Buffer.Create(4 * 4, BufferType.INDIRECT);
         this.drawIndirectBuffer.name = "drawIndirectBuffer";
 
@@ -419,6 +599,9 @@ export class GPUDriven extends RenderPass {
             this.shader.SetBuffer("meshInfo", meshInfoBuffer);
             this.shader.SetBuffer("objectInfo", objectInfoBuffer);
 
+            this.depthPyramidShader.SetBuffer("meshInfo", meshInfoBuffer);
+            this.depthPyramidShader.SetBuffer("objectInfo", objectInfoBuffer);
+
             console.log("meshletInfoBuffer", meshletInfoArray.byteLength);
             console.log("meshInfoBufferArray", meshInfoBufferArray.byteLength);
             console.log("objectInfoBufferArray", objectInfoBufferArray.byteLength);
@@ -431,6 +614,7 @@ export class GPUDriven extends RenderPass {
             this.vertexBuffer = Buffer.Create(verticesArray.byteLength, BufferType.STORAGE);
             this.vertexBuffer.name = "vertexBuffer"
             this.vertexBuffer.SetArray(verticesArray);
+            this.depthPyramidShader.SetBuffer("vertices", this.vertexBuffer);
             this.shader.SetBuffer("vertices", this.vertexBuffer);
             
             this.currentMeshCount = sceneMeshlets.length;
@@ -441,6 +625,50 @@ export class GPUDriven extends RenderPass {
 
     }
     
+    private buildDepthPyramid() {
+        const miplevels = Math.floor(Math.log2(Math.max(Renderer.width, Renderer.height)));
+        if (!this.depthPyramidTargetTexture) {
+            this.depthPyramidTargetTexture = RenderTexture.Create(Renderer.width, Renderer.height, 1, "rgba16float", miplevels);
+        }
+
+        // Render scene to first mip
+        this.depthPyramidTargetTexture.SetActiveMipCount(1);
+        this.depthPyramidTargetTexture.SetActiveMip(0);
+        RendererContext.BeginRenderPass("GPUDriven - DepthPyramid", [{target: this.depthPyramidTargetTexture, clear: true, color: new Color(1,1,1)}], undefined, true);
+        RendererContext.DrawIndirect(this.geometry, this.depthPyramidShader, this.drawIndirectBuffer);
+        RendererContext.EndRenderPass();
+        
+
+        console.log("build pyramid")
+        for (let i = 0; i < miplevels-1; i++) {
+            // console.log(i)
+            this.depthPyramidTargetTexture.SetActiveMip(i);
+            this.depthPyramidCompute.SetTexture("depthTextureInput", this.depthPyramidTargetTexture);
+            this.depthPyramidTargetTexture.SetActiveMip(i+1);
+            // console.log("GPUDriven - DepthPyramid Building mip for ")
+            // console.log(this.depthPyramidTargetTexture.width, this.depthPyramidTargetTexture.height)
+            RendererContext.BeginRenderPass("GPUDriven - DepthPyramid Build", [{target: this.depthPyramidTargetTexture, clear: true, color: new Color(1,1,1)}], undefined, true);
+            RendererContext.DrawGeometry(this.depthPyramidGeometry, this.depthPyramidCompute);
+            RendererContext.EndRenderPass();
+        }
+
+        // console.log("build pyramid")
+        // this.depthPyramidTargetTexture.SetActiveMip(0);
+        // this.depthPyramidCompute.SetTexture("depthTextureInput", this.depthPyramidTargetTexture);
+        // this.depthPyramidTargetTexture.SetActiveMip(1);
+        // console.log("GPUDriven - DepthPyramid Build")
+        // console.log(this.depthPyramidTargetTexture.width, this.depthPyramidTargetTexture.height)
+        // RendererContext.BeginRenderPass("GPUDriven - DepthPyramid Build", [{target: this.depthPyramidTargetTexture, clear: true, color: new Color(1,1,1)}], undefined, true);
+        // // RendererContext.SetViewport(0, 0, Math.floor(Renderer.width * 0.5 * 0.5), Math.floor(Renderer.height * 0.5 * 0.5))
+        // RendererContext.DrawGeometry(this.depthPyramidGeometry, this.depthPyramidCompute);
+        // RendererContext.EndRenderPass();
+        // console.log("---------\n\n")
+
+        this.depthPyramidTargetTexture.SetActiveMip(0);
+        this.depthPyramidTargetTexture.SetActiveMipCount(miplevels);
+        
+    }
+
     public execute(resources: ResourcePool) {
         const mainCamera = Camera.mainCamera;
         const scene = mainCamera.gameObject.scene;
@@ -456,10 +684,12 @@ export class GPUDriven extends RenderPass {
         
         this.buildMeshletData();
 
-        this.shader.SetMatrix4("viewMatrix", mainCamera.viewMatrix);
-
+        
         this.frustum.setFromProjectionMatrix(mainCamera.projectionMatrix);
+        this.shader.SetMatrix4("viewMatrix", mainCamera.viewMatrix);
         this.shader.SetMatrix4("projectionMatrix", mainCamera.projectionMatrix);
+        this.depthPyramidShader.SetMatrix4("viewMatrix", mainCamera.viewMatrix);
+        this.depthPyramidShader.SetMatrix4("projectionMatrix", mainCamera.projectionMatrix);
 
         const cullDataArray = new Float32Array([
             ...mainCamera.projectionMatrix.elements,
@@ -493,6 +723,7 @@ export class GPUDriven extends RenderPass {
             this.instanceInfoBuffer.name = "instanceInfoBuffer"
             this.compute.SetBuffer("instanceInfo", this.instanceInfoBuffer);
             this.shader.SetBuffer("instanceInfo", this.instanceInfoBuffer);
+            this.depthPyramidShader.SetBuffer("instanceInfo", this.instanceInfoBuffer);
 
         }
         RendererContext.ClearBuffer(this.computeDrawBuffer);
@@ -505,17 +736,19 @@ export class GPUDriven extends RenderPass {
 
         RendererContext.CopyBufferToBuffer(this.computeDrawBuffer, this.drawIndirectBuffer);
 
-        RendererContext.BeginRenderPass("GPUDriven - Indirect", [{clear: true}], {target: this.depthTarget, clear: true}, true);
-        RendererContext.DrawIndirect(this.geometry, this.shader, this.drawIndirectBuffer);
-        RendererContext.EndRenderPass();
+        this.buildDepthPyramid();
+
+        // RendererContext.BeginRenderPass("GPUDriven - Indirect", [{clear: true}], {target: this.depthTarget, clear: true}, true);
+        // RendererContext.DrawIndirect(this.geometry, this.shader, this.drawIndirectBuffer);
+        // RendererContext.EndRenderPass();
 
 
-        this.computeDrawBuffer.GetData().then(v => {
-            const visibleMeshCount = new Uint32Array(v)[1];
-            Debugger.SetVisibleMeshes(visibleMeshCount);
+        // this.computeDrawBuffer.GetData().then(v => {
+        //     const visibleMeshCount = new Uint32Array(v)[1];
+        //     Debugger.SetVisibleMeshes(visibleMeshCount);
 
-            Debugger.SetTriangleCount(vertexSize / 3* meshletsCount);
-            Debugger.SetVisibleTriangleCount(vertexSize / 3 * visibleMeshCount);
-        })
+        //     Debugger.SetTriangleCount(vertexSize / 3* meshletsCount);
+        //     Debugger.SetVisibleTriangleCount(vertexSize / 3 * visibleMeshCount);
+        // })
     }
 }

@@ -1134,39 +1134,6 @@ var Buffer3 = class {
   }
 };
 
-// src/renderer/Texture.ts
-var Texture = class {
-  id;
-  width;
-  height;
-  depth;
-  type;
-  dimension;
-  SetActiveLayer(layer) {
-  }
-  GetActiveLayer() {
-    throw Error("Base class.");
-  }
-  GenerateMips() {
-  }
-  static Create(width, height, depth = 1, format = Renderer.SwapChainFormat) {
-    if (Renderer.type === "webgpu") return new WEBGPUTexture(width, height, depth, format, 0 /* IMAGE */, "2d");
-    throw Error("Renderer type invalid");
-  }
-  static async Load(url) {
-    const response = await fetch(url);
-    const imageBitmap = await createImageBitmap(await response.blob());
-    if (Renderer.type === "webgpu") return WEBGPUTexture.FromImageBitmap(imageBitmap, imageBitmap.width, imageBitmap.height);
-    throw Error("Renderer type invalid");
-  }
-};
-var DepthTexture = class extends Texture {
-  static Create(width, height, depth = 1, format = "depth24plus") {
-    if (Renderer.type === "webgpu") return new WEBGPUTexture(width, height, depth, format, 1 /* DEPTH */, "2d");
-    throw Error("Renderer type invalid");
-  }
-};
-
 // src/renderer/webgpu/shader/wgsl/DeferredMeshShader.wgsl
 var DeferredMeshShader_default = 'struct VertexInput {\n    @builtin(instance_index) instanceIdx : u32, \n    @location(0) position : vec3<f32>,\n    @location(1) normal : vec3<f32>,\n    @location(2) uv : vec2<f32>,\n};\n\nstruct VertexOutput {\n    @builtin(position) position : vec4<f32>,\n    @location(0) vPosition : vec3<f32>,\n    @location(1) vNormal : vec3<f32>,\n    @location(2) vUv : vec2<f32>,\n    @location(3) @interpolate(flat) instance : u32,\n};\n\n@group(0) @binding(0) var<storage, read> projectionMatrix: mat4x4<f32>;\n@group(0) @binding(1) var<storage, read> viewMatrix: mat4x4<f32>;\n@group(0) @binding(2) var<storage, read> modelMatrix: array<mat4x4<f32>>;\n\n@group(0) @binding(4) var TextureSampler: sampler;\n\n// These get optimized out based on "USE*" defines\n@group(0) @binding(5) var AlbedoMap: texture_2d<f32>;\n@group(0) @binding(6) var NormalMap: texture_2d<f32>;\n@group(0) @binding(7) var HeightMap: texture_2d<f32>;\n@group(0) @binding(8) var RoughnessMap: texture_2d<f32>;\n@group(0) @binding(9) var MetalnessMap: texture_2d<f32>;\n@group(0) @binding(10) var EmissiveMap: texture_2d<f32>;\n@group(0) @binding(11) var AOMap: texture_2d<f32>;\n\n\n@group(0) @binding(12) var<storage, read> cameraPosition: vec3<f32>;\n\n\nstruct Material {\n    AlbedoColor: vec4<f32>,\n    EmissiveColor: vec4<f32>,\n    Roughness: f32,\n    Metalness: f32,\n    Unlit: f32\n};\n@group(0) @binding(3) var<storage, read> material: Material;\n\n@vertex\nfn vertexMain(input: VertexInput) -> VertexOutput {\n    var output : VertexOutput;\n\n    var modelMatrixInstance = modelMatrix[input.instanceIdx];\n    var modelViewMatrix = viewMatrix * modelMatrixInstance;\n\n    output.position = projectionMatrix * modelViewMatrix * vec4(input.position, 1.0);\n    \n    output.vPosition = input.position;\n    output.vNormal = input.normal;\n    output.vUv = input.uv;\n\n    output.instance = input.instanceIdx;\n\n    return output;\n}\n\nstruct FragmentOutput {\n    @location(0) albedo : vec4f,\n    @location(1) normal : vec4f,\n    @location(2) RMO : vec4f,\n};\n\nfn inversesqrt(v: f32) -> f32 {\n    return 1.0 / sqrt(v);\n}\n\nfn getNormalFromMap(N: vec3f, p: vec3f, uv: vec2f ) -> mat3x3<f32> {\n    // get edge vectors of the pixel triangle\n    let dp1 = dpdx( p );\n    let dp2 = dpdy( p );\n    let duv1 = dpdx( uv );\n    let duv2 = dpdy( uv );\n\n    // solve the linear system\n    let dp2perp = cross( dp2, N );\n    let dp1perp = cross( N, dp1 );\n    let T = dp2perp * duv1.x + dp1perp * duv2.x;\n    let B = dp2perp * duv1.y + dp1perp * duv2.y;\n\n    // construct a scale-invariant frame \n    let invmax = inversesqrt( max( dot(T,T), dot(B,B) ) );\n    return mat3x3( T * invmax, B * invmax, N );\n}\n\n@fragment\nfn fragmentMain(input: VertexOutput) -> FragmentOutput {\n    var output: FragmentOutput;\n\n    let mat = material;\n\n    var uv = input.vUv;// * vec2(4.0, 2.0);\n    let tbn = getNormalFromMap(input.vNormal, input.vPosition, uv);\n    var modelMatrixInstance = modelMatrix[input.instance];\n\n    #if USE_HEIGHT_MAP\n        var viewDirection = normalize(cameraPosition - (modelMatrixInstance * vec4(input.vPosition, 1.0)).xyz);\n        // var viewDirection = normalize(cameraPosition - input.vPosition);\n\n        // Variables that control parallax occlusion mapping quality\n        let heightScale = 0.05;\n        let minLayers = 8.0;\n        let maxLayers = 64.0;\n        let numLayers = mix(maxLayers, minLayers, abs(dot(vec3(0.0, 1.0, 0.0), viewDirection)));\n        let layerDepth = 1.0f / numLayers;\n        var currentLayerDepth = 0.0;\n        \n        // Remove the z division if you want less aberated results\n        let S = viewDirection.xz  * heightScale; \n        let deltaUVs = S / numLayers;\n        \n        var UVs = uv;\n        var currentDepthMapValue = 1.0 - textureSample(HeightMap, TextureSampler, UVs).r;\n        \n        // Loop till the point on the heightmap is "hit"\n        while(currentLayerDepth < currentDepthMapValue) {\n            UVs -= deltaUVs;\n            currentDepthMapValue = 1.0 - textureSampleLevel(HeightMap, TextureSampler, UVs, 0).r;\n            currentLayerDepth += layerDepth;\n        }\n\n\n        // Apply Occlusion (interpolation with prev value)\n        let prevTexCoords = UVs + deltaUVs;\n        let afterDepth  = currentDepthMapValue - currentLayerDepth;\n        let beforeDepth = 1.0 - textureSample(HeightMap, TextureSampler, prevTexCoords).r - currentLayerDepth + layerDepth;\n        let weight = afterDepth / (afterDepth - beforeDepth);\n        // UVs = prevTexCoords * weight + UVs * (1.0f - weight);\n        UVs = mix(UVs, prevTexCoords, weight);\n\n        // // Get rid of anything outside the normal range\n        // if(UVs.x > 1.0 || UVs.y > 1.0 || UVs.x < 0.0 || UVs.y < 0.0) {\n        //     discard;\n        // }\n        uv = UVs;\n\n\n        // // Parallax occlusion mapping\n        // let prev_uv = UVs + deltaUVs;\n        // let next = currentDepthMapValue - currentLayerDepth;\n        // let prev = textureSampleLevel(HeightMap, TextureSampler, prevTexCoords, 0).r - currentLayerDepth\n        //                 + layer_depth;\n        // let weight = next / (next - prev);\n        // uv = mix(UVs, prev_uv, weight);\n\n        // uv = parallax_uv(uv, viewDirection, 3);\n            \n    #endif\n    \n\n    var albedo = mat.AlbedoColor;\n    var roughness = mat.Roughness;\n    var metalness = mat.Metalness;\n    var occlusion = 1.0;\n    var unlit = mat.Unlit;\n\n    // var albedo = mat.AlbedoColor;\n    #if USE_ALBEDO_MAP\n        albedo *= textureSample(AlbedoMap, TextureSampler, uv);\n    #endif\n\n    var normal: vec3f = input.vNormal;\n    #if USE_NORMAL_MAP\n        let normalSample = textureSample(NormalMap, TextureSampler, uv).xyz * 2.0 - 1.0;\n        normal = tbn * normalSample;\n\n        // let normalSample = textureSample(NormalMap, TextureSampler, uv).xyz * 2.0 - 1.0;\n        // normal = normalSample.xyz;\n    #endif\n    // Should be normal matrix\n    normal = normalize(modelMatrixInstance * vec4(vec3(normal), 0.0)).xyz;\n\n    #if USE_ROUGHNESS_MAP\n        roughness *= textureSample(RoughnessMap, TextureSampler, uv).r;\n    #endif\n\n    #if USE_METALNESS_MAP\n        metalness *= textureSample(MetalnessMap, TextureSampler, uv).r;\n    #endif\n\n    var emissive = mat.EmissiveColor;\n    #if USE_EMISSIVE_MAP\n        emissive *= textureSample(EmissiveMap, TextureSampler, uv);\n    #endif\n\n    #if USE_AO_MAP\n        occlusion = textureSample(AOMap, TextureSampler, uv).r;\n        occlusion = 1.0;\n    #endif\n\n    output.normal = vec4(normal, 1.0);\n    output.albedo = albedo;\n    output.RMO = vec4(roughness, metalness, occlusion, unlit);\n    \n    output.albedo = vec4(albedo.rgb, roughness);\n    output.normal = vec4(normal.xyz, metalness);\n    output.RMO = vec4(emissive.rgb, unlit);\n\n    return output;\n}';
 
@@ -1330,41 +1297,54 @@ var WEBGPUTexture = class _WEBGPUTexture {
   width;
   height;
   depth;
+  format;
   type;
   dimension;
+  mipLevels;
   buffer;
-  view = [];
+  viewCache = /* @__PURE__ */ new Map();
   currentLayer = 0;
-  constructor(width, height, depth, format, type, dimension) {
-    this.type = type;
-    this.dimension = dimension;
+  currentMip = 0;
+  activeMipCount = 1;
+  constructor(width, height, depth, format, type, dimension, mipLevels) {
     let textureUsage = GPUTextureUsage.COPY_DST;
     let textureType = GPUTextureUsage.TEXTURE_BINDING;
     if (!type) textureType = GPUTextureUsage.TEXTURE_BINDING;
     else if (type === 1 /* DEPTH */) textureType = GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING;
     else if (type === 2 /* RENDER_TARGET */) textureType = GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_SRC;
+    else if (type === 3 /* RENDER_TARGET_STORAGE */) textureType = GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.STORAGE_BINDING;
     else throw Error(`Unknown texture format ${format}`);
     this.buffer = WEBGPURenderer.device.createTexture({
       size: [width, height, depth],
       format,
-      usage: textureUsage | textureType
+      usage: textureUsage | textureType,
+      mipLevelCount: mipLevels
     });
     this.width = width;
     this.height = height;
     this.depth = depth;
+    this.format = format;
+    this.type = type;
+    this.dimension = dimension;
+    this.mipLevels = mipLevels;
   }
   GetBuffer() {
     return this.buffer;
   }
   GetView() {
-    if (!this.view[this.currentLayer]) {
-      this.view[this.currentLayer] = this.buffer.createView({
+    const key = `${this.currentLayer}-${this.currentMip}`;
+    let view = this.viewCache.get(key);
+    if (!view) {
+      view = this.buffer.createView({
         dimension: this.dimension,
         baseArrayLayer: this.currentLayer,
-        arrayLayerCount: 1
+        arrayLayerCount: 1,
+        baseMipLevel: this.currentMip,
+        mipLevelCount: this.activeMipCount
       });
+      this.viewCache.set(key, view);
     }
-    return this.view[this.currentLayer];
+    return view;
   }
   GenerateMips() {
     this.buffer = WEBGPUMipsGenerator.generateMips(this);
@@ -1376,16 +1356,78 @@ var WEBGPUTexture = class _WEBGPUTexture {
   GetActiveLayer() {
     return this.currentLayer;
   }
+  SetActiveMip(mip) {
+    if (mip > this.mipLevels) throw Error("Active mip cannot be bigger than mip levels size");
+    this.currentMip = mip;
+  }
+  GetActiveMip() {
+    return this.currentMip;
+  }
+  SetActiveMipCount(mipCount) {
+    return this.activeMipCount = mipCount;
+  }
+  GetActiveMipCount() {
+    return this.activeMipCount;
+  }
   // Format and types are very limited for now
   // https://github.com/gpuweb/gpuweb/issues/2322
   static FromImageBitmap(imageBitmap, width, height) {
-    const texture = new _WEBGPUTexture(width, height, 1, Renderer.SwapChainFormat, 2 /* RENDER_TARGET */, "2d");
+    const texture = new _WEBGPUTexture(width, height, 1, Renderer.SwapChainFormat, 2 /* RENDER_TARGET */, "2d", 1);
     WEBGPURenderer.device.queue.copyExternalImageToTexture(
       { source: imageBitmap },
       { texture: texture.GetBuffer() },
       [imageBitmap.width, imageBitmap.height]
     );
     return texture;
+  }
+};
+
+// src/renderer/Texture.ts
+var Texture2 = class {
+  id;
+  width;
+  height;
+  depth;
+  type;
+  dimension;
+  SetActiveLayer(layer) {
+  }
+  GetActiveLayer() {
+    throw Error("Base class.");
+  }
+  SetActiveMip(layer) {
+  }
+  GetActiveMip() {
+    throw Error("Base class.");
+  }
+  SetActiveMipCount(layer) {
+  }
+  GetActiveMipCount() {
+    throw Error("Base class.");
+  }
+  GenerateMips() {
+  }
+  static Create(width, height, depth = 1, format = Renderer.SwapChainFormat, mipLevels = 1) {
+    if (Renderer.type === "webgpu") return new WEBGPUTexture(width, height, depth, format, 0 /* IMAGE */, "2d", mipLevels);
+    throw Error("Renderer type invalid");
+  }
+  static async Load(url) {
+    const response = await fetch(url);
+    const imageBitmap = await createImageBitmap(await response.blob());
+    if (Renderer.type === "webgpu") return WEBGPUTexture.FromImageBitmap(imageBitmap, imageBitmap.width, imageBitmap.height);
+    throw Error("Renderer type invalid");
+  }
+};
+var DepthTexture = class extends Texture2 {
+  static Create(width, height, depth = 1, format = "depth24plus", mipLevels = 1) {
+    if (Renderer.type === "webgpu") return new WEBGPUTexture(width, height, depth, format, 1 /* DEPTH */, "2d", mipLevels);
+    throw Error("Renderer type invalid");
+  }
+};
+var RenderTexture = class extends Texture2 {
+  static Create(width, height, depth = 1, format = Renderer.SwapChainFormat, mipLevels = 1) {
+    if (Renderer.type === "webgpu") return new WEBGPUTexture(width, height, depth, format, 2 /* RENDER_TARGET */, "2d", mipLevels);
+    throw Error("Renderer type invalid");
   }
 };
 
@@ -1458,6 +1500,7 @@ var WEBGPUBaseShader = class {
   BuildBindGroupLayouts() {
     const bindGroupsInfo = [];
     for (const [name, uniform] of this.uniformMap) {
+      console.log(name, uniform.binding, uniform);
       if (!bindGroupsInfo[uniform.group]) bindGroupsInfo[uniform.group] = { layoutEntries: [], entries: [], buffers: [] };
       const group = bindGroupsInfo[uniform.group];
       if (uniform.buffer instanceof WEBGPUBuffer) {
@@ -1487,8 +1530,26 @@ var WEBGPUBaseShader = class {
         group.buffers.push(uniform.buffer);
       } else if (uniform.buffer instanceof WEBGPUTexture) {
         const sampleType = uniform.type === "depthTexture" ? "depth" : "float";
-        group.layoutEntries.push({ binding: uniform.binding, visibility: GPUShaderStage.COMPUTE | GPUShaderStage.VERTEX | GPUShaderStage.FRAGMENT, texture: { sampleType, viewDimension: uniform.buffer.dimension } });
-        const view = { dimension: uniform.buffer.dimension, arrayLayerCount: uniform.buffer.GetBuffer().depthOrArrayLayers, baseArrayLayer: 0 };
+        if (uniform.buffer.type === 3 /* RENDER_TARGET_STORAGE */) {
+          group.layoutEntries.push({
+            binding: uniform.binding,
+            visibility: GPUShaderStage.COMPUTE | GPUShaderStage.FRAGMENT,
+            storageTexture: {
+              format: uniform.buffer.format,
+              viewDimension: uniform.buffer.dimension,
+              access: "read-write"
+            }
+          });
+        } else {
+          group.layoutEntries.push({ binding: uniform.binding, visibility: GPUShaderStage.COMPUTE | GPUShaderStage.VERTEX | GPUShaderStage.FRAGMENT, texture: { sampleType, viewDimension: uniform.buffer.dimension } });
+        }
+        const view = {
+          dimension: uniform.buffer.dimension,
+          arrayLayerCount: uniform.buffer.GetBuffer().depthOrArrayLayers,
+          baseArrayLayer: 0,
+          baseMipLevel: uniform.textureMip,
+          mipLevelCount: uniform.activeMipCount
+        };
         group.entries.push({ binding: uniform.binding, resource: uniform.buffer.GetBuffer().createView(view) });
         group.buffers.push(uniform.buffer);
       } else if (uniform.buffer instanceof WEBGPUTextureSampler) {
@@ -1523,6 +1584,11 @@ var WEBGPUBaseShader = class {
     if (!binding.buffer || binding.buffer.GetBuffer() !== data.GetBuffer()) {
       binding.buffer = data;
       this.needsUpdate = true;
+    }
+    if (data instanceof WEBGPUTexture) {
+      binding.textureDimension = data.GetActiveLayer();
+      binding.textureMip = data.GetActiveMip();
+      binding.activeMipCount = data.GetActiveMipCount();
     }
   }
   SetArray(name, array, bufferOffset = 0, dataOffset, size) {
@@ -2373,6 +2439,7 @@ var _Debugger = class {
   ui;
   renderPassesFolder;
   framePassesStats = /* @__PURE__ */ new Map();
+  fps;
   totalMeshlets;
   visibleMeshes;
   triangleCount;
@@ -2383,6 +2450,7 @@ var _Debugger = class {
     this.ui = new UIFolder(container, "Debugger");
     this.ui.Open();
     document.body.append(container);
+    this.fps = new UITextStat(this.ui, "FPS", 0, 2, "", true);
     this.totalMeshlets = new UITextStat(this.ui, "Total meshlets");
     this.visibleMeshes = new UITextStat(this.ui, "Visible meshlets: ");
     this.triangleCount = new UITextStat(this.ui, "Triangles: ");
@@ -2409,6 +2477,9 @@ var _Debugger = class {
   }
   SetVisibleTriangleCount(count) {
     this.visibleTriangles.SetValue(count);
+  }
+  SetFPS(count) {
+    this.fps.SetValue(count);
   }
 };
 var Debugger = new _Debugger();
@@ -6781,6 +6852,10 @@ var GPUDriven = class extends RenderPass {
   depthTarget;
   cullData;
   frustum = new Frustum();
+  depthPyramidShader;
+  depthPyramidCompute;
+  depthPyramidTargetTexture;
+  depthPyramidGeometry;
   constructor() {
     super({});
     const code = `
@@ -7044,6 +7119,170 @@ var GPUDriven = class extends RenderPass {
         objectInfo: { group: 0, binding: 5, type: "storage" }
       }
     });
+    const depthPyramidShaderCode = `
+        struct VertexInput {
+            @builtin(instance_index) instanceIndex : u32,
+            @builtin(vertex_index) vertexIndex : u32,
+            @location(0) position : vec3<f32>,
+        };
+
+        struct VertexOutput {
+            @builtin(position) position : vec4<f32>,
+            @location(0) @interpolate(flat) instance : u32,
+        };
+
+        @group(0) @binding(0) var<storage, read> viewMatrix: mat4x4<f32>;
+        @group(0) @binding(1) var<storage, read> projectionMatrix: mat4x4<f32>;
+
+        @group(0) @binding(2) var<storage, read> vertices: array<vec4<f32>>;
+
+        struct InstanceInfo {
+            meshID: u32
+        };
+
+        @group(0) @binding(3) var<storage, read> instanceInfo: array<InstanceInfo>;
+
+
+
+        struct MeshInfo {
+            modelMatrix: mat4x4<f32>,
+            position: vec4<f32>,
+            scale: vec4<f32>
+        };
+
+        struct ObjectInfo {
+            meshID: f32,
+            meshletID: f32,
+            padding: vec2<f32>,
+        };
+
+        @group(0) @binding(4) var<storage, read> meshInfo: array<MeshInfo>;
+        @group(0) @binding(5) var<storage, read> objectInfo: array<ObjectInfo>;
+
+        @vertex fn vertexMain(input: VertexInput) -> VertexOutput {
+            var output: VertexOutput;
+            let meshID = instanceInfo[input.instanceIndex].meshID;
+            // let mesh = meshInfo[meshID];
+            let object = objectInfo[meshID];
+            let mesh = meshInfo[u32(object.meshID)];
+            let modelMatrix = mesh.modelMatrix;
+            
+            let vertexID = input.vertexIndex + u32(object.meshletID) * ${vertexSize};
+            let position = vertices[vertexID];
+            
+            let modelViewMatrix = viewMatrix * modelMatrix;
+            output.position = projectionMatrix * modelViewMatrix * vec4(position.xyz, 1.0);
+            output.instance = meshID;
+
+            return output;
+        }
+        
+
+        fn rand(co: f32) -> f32 {
+            return fract(sin((co + 1.0) * 12.9898) * 43758.5453);
+        }
+
+        @fragment fn fragmentMain(input: VertexOutput) -> @location(0) vec4f {
+            let r = rand(f32(input.instance) + 12.1212);
+            let g = rand(f32(input.instance) + 22.1212);
+            let b = rand(f32(input.instance) + 32.1212);
+
+            return vec4(1.0 - input.position.w);
+            // return vec4(0.0);
+        }
+        `;
+    this.depthPyramidShader = Shader.Create({
+      code: depthPyramidShaderCode,
+      colorOutputs: [{ format: "rgba16float" }],
+      attributes: {
+        position: { location: 0, size: 3, type: "vec3" }
+      },
+      uniforms: {
+        viewMatrix: { group: 0, binding: 0, type: "storage" },
+        projectionMatrix: { group: 0, binding: 1, type: "storage" },
+        vertices: { group: 0, binding: 2, type: "storage" },
+        instanceInfo: { group: 0, binding: 3, type: "storage" },
+        meshInfo: { group: 0, binding: 4, type: "storage" },
+        objectInfo: { group: 0, binding: 5, type: "storage" }
+      }
+    });
+    this.depthPyramidCompute = Shader.Create({
+      code: `
+                struct VertexInput {
+                    @location(0) position : vec2<f32>,
+                    @location(1) normal : vec3<f32>,
+                    @location(2) uv : vec2<f32>,
+                };
+                
+                struct VertexOutput {
+                    @builtin(position) position : vec4<f32>,
+                    @location(0) vUv : vec2<f32>,
+                };
+                
+                @group(0) @binding(0) var depthTextureInputSampler: sampler;
+                @group(0) @binding(1) var depthTextureInput: texture_2d<f32>;
+                // @group(0) @binding(2) var depthTextureOutput: texture_storage_2d<f32>;
+                
+                @vertex
+                fn vertexMain(input: VertexInput) -> VertexOutput {
+                    var output: VertexOutput;
+                    output.position = vec4(input.position, 0.0, 1.0);
+                    output.vUv = input.uv;
+                    return output;
+                }
+                
+                fn min_vec4(v: vec4<f32>) -> f32 {
+                    let min_ab = min(v.x, v.y);
+                    let min_cd = min(v.z, v.w);
+                    return min(min_ab, min_cd);
+                }
+
+                @fragment
+                fn fragmentMain(input: VertexOutput) -> @location(0) vec4<f32> {
+                    let uv = input.vUv;
+                    // let color = textureSample(depthTextureInput, depthTextureInputSampler, uv);
+                    // return color;
+
+                    
+                    let a = textureGather(0, depthTextureInput, depthTextureInputSampler, uv);
+                    return vec4(min_vec4(a));
+                }
+                
+
+
+                // @group(0) @binding(0) var depthTextureInputSampler: sampler;
+                // @group(0) @binding(1) var depthTextureInput: texture_storage_2d<r32float, read_write>;
+                // @group(0) @binding(2) var depthTextureOutput: texture_storage_2d<r32float, read_write>;
+
+                // override blockSizeX: u32 = 1;
+                // override blockSizeY: u32 = 1;
+                // override blockSizeZ: u32 = 1;
+                
+                // @compute @workgroup_size(blockSizeX, blockSizeY, blockSizeZ)
+                // fn main(@builtin(global_invocation_id) grid: vec3<u32>) {
+                //     let pos = grid.xy;
+
+                //     let depth = textureLoad(depthTextureInput, vec2<i32>(pos.xy));
+                //     textureStore(depthTextureOutput, vec2<i32>(pos.xy), vec4(depth));
+                // } 
+            
+            `,
+      attributes: {
+        position: { location: 0, size: 3, type: "vec3" },
+        normal: { location: 1, size: 3, type: "vec3" },
+        uv: { location: 2, size: 2, type: "vec2" }
+      },
+      colorOutputs: [{ format: "rgba16float" }],
+      uniforms: {
+        depthTextureInputSampler: { group: 0, binding: 0, type: "sampler" },
+        depthTextureInput: { group: 0, binding: 1, type: "texture" }
+        // depthTextureOutput: {group: 0, binding: 2, type: "texture"},
+      }
+    });
+    const depthPyramidSampler = TextureSampler.Create();
+    this.depthPyramidCompute.SetSampler("depthTextureInputSampler", depthPyramidSampler);
+    this.depthTarget = DepthTexture.Create(Renderer.width, Renderer.height);
+    this.depthPyramidGeometry = Geometry.Plane();
     this.drawIndirectBuffer = Buffer3.Create(4 * 4, 5 /* INDIRECT */);
     this.drawIndirectBuffer.name = "drawIndirectBuffer";
     this.geometry = new Geometry();
@@ -7150,6 +7389,8 @@ var GPUDriven = class extends RenderPass {
       this.compute.SetBuffer("objectInfo", objectInfoBuffer);
       this.shader.SetBuffer("meshInfo", meshInfoBuffer);
       this.shader.SetBuffer("objectInfo", objectInfoBuffer);
+      this.depthPyramidShader.SetBuffer("meshInfo", meshInfoBuffer);
+      this.depthPyramidShader.SetBuffer("objectInfo", objectInfoBuffer);
       console.log("meshletInfoBuffer", meshletInfoArray.byteLength);
       console.log("meshInfoBufferArray", meshInfoBufferArray.byteLength);
       console.log("objectInfoBufferArray", objectInfoBufferArray.byteLength);
@@ -7158,11 +7399,34 @@ var GPUDriven = class extends RenderPass {
       this.vertexBuffer = Buffer3.Create(verticesArray.byteLength, 0 /* STORAGE */);
       this.vertexBuffer.name = "vertexBuffer";
       this.vertexBuffer.SetArray(verticesArray);
+      this.depthPyramidShader.SetBuffer("vertices", this.vertexBuffer);
       this.shader.SetBuffer("vertices", this.vertexBuffer);
       this.currentMeshCount = sceneMeshlets.length;
       console.timeEnd("buildMeshletData");
       Debugger.SetTotalMeshlets(meshlets.length);
     }
+  }
+  buildDepthPyramid() {
+    const miplevels = Math.floor(Math.log2(Math.max(Renderer.width, Renderer.height)));
+    if (!this.depthPyramidTargetTexture) {
+      this.depthPyramidTargetTexture = RenderTexture.Create(Renderer.width, Renderer.height, 1, "rgba16float", miplevels);
+    }
+    this.depthPyramidTargetTexture.SetActiveMipCount(1);
+    this.depthPyramidTargetTexture.SetActiveMip(0);
+    RendererContext.BeginRenderPass("GPUDriven - DepthPyramid", [{ target: this.depthPyramidTargetTexture, clear: true, color: new Color(1, 1, 1) }], void 0, true);
+    RendererContext.DrawIndirect(this.geometry, this.depthPyramidShader, this.drawIndirectBuffer);
+    RendererContext.EndRenderPass();
+    console.log("build pyramid");
+    for (let i = 0; i < miplevels - 1; i++) {
+      this.depthPyramidTargetTexture.SetActiveMip(i);
+      this.depthPyramidCompute.SetTexture("depthTextureInput", this.depthPyramidTargetTexture);
+      this.depthPyramidTargetTexture.SetActiveMip(i + 1);
+      RendererContext.BeginRenderPass("GPUDriven - DepthPyramid Build", [{ target: this.depthPyramidTargetTexture, clear: true, color: new Color(1, 1, 1) }], void 0, true);
+      RendererContext.DrawGeometry(this.depthPyramidGeometry, this.depthPyramidCompute);
+      RendererContext.EndRenderPass();
+    }
+    this.depthPyramidTargetTexture.SetActiveMip(0);
+    this.depthPyramidTargetTexture.SetActiveMipCount(miplevels);
   }
   execute(resources) {
     const mainCamera = Camera.mainCamera;
@@ -7174,9 +7438,11 @@ var GPUDriven = class extends RenderPass {
     }
     if (meshletsCount === 0) return;
     this.buildMeshletData();
-    this.shader.SetMatrix4("viewMatrix", mainCamera.viewMatrix);
     this.frustum.setFromProjectionMatrix(mainCamera.projectionMatrix);
+    this.shader.SetMatrix4("viewMatrix", mainCamera.viewMatrix);
     this.shader.SetMatrix4("projectionMatrix", mainCamera.projectionMatrix);
+    this.depthPyramidShader.SetMatrix4("viewMatrix", mainCamera.viewMatrix);
+    this.depthPyramidShader.SetMatrix4("projectionMatrix", mainCamera.projectionMatrix);
     const cullDataArray = new Float32Array([
       ...mainCamera.projectionMatrix.elements,
       ...mainCamera.viewMatrix.elements,
@@ -7217,6 +7483,7 @@ var GPUDriven = class extends RenderPass {
       this.instanceInfoBuffer.name = "instanceInfoBuffer";
       this.compute.SetBuffer("instanceInfo", this.instanceInfoBuffer);
       this.shader.SetBuffer("instanceInfo", this.instanceInfoBuffer);
+      this.depthPyramidShader.SetBuffer("instanceInfo", this.instanceInfoBuffer);
     }
     RendererContext.ClearBuffer(this.computeDrawBuffer);
     ComputeContext.BeginComputePass("GPUDriven - Culling", true);
@@ -7224,15 +7491,126 @@ var GPUDriven = class extends RenderPass {
     ComputeContext.Dispatch(this.compute, workgroupSizeX);
     ComputeContext.EndComputePass();
     RendererContext.CopyBufferToBuffer(this.computeDrawBuffer, this.drawIndirectBuffer);
-    RendererContext.BeginRenderPass("GPUDriven - Indirect", [{ clear: true }], { target: this.depthTarget, clear: true }, true);
-    RendererContext.DrawIndirect(this.geometry, this.shader, this.drawIndirectBuffer);
-    RendererContext.EndRenderPass();
-    this.computeDrawBuffer.GetData().then((v) => {
-      const visibleMeshCount = new Uint32Array(v)[1];
-      Debugger.SetVisibleMeshes(visibleMeshCount);
-      Debugger.SetTriangleCount(vertexSize / 3 * meshletsCount);
-      Debugger.SetVisibleTriangleCount(vertexSize / 3 * visibleMeshCount);
+    this.buildDepthPyramid();
+  }
+};
+
+// src/renderer/passes/DepthViewer.ts
+var DepthViewer = class extends RenderPass {
+  name = "DepthViewer";
+  shader;
+  quadGeometry;
+  constructor() {
+    super({});
+    const code = `
+        struct VertexInput {
+            @location(0) position : vec2<f32>,
+            @location(1) uv : vec2<f32>,
+        };
+
+        struct VertexOutput {
+            @builtin(position) position : vec4<f32>,
+            @location(0) vUv : vec2<f32>,
+        };
+
+        @group(0) @binding(0) var textureSampler: sampler;
+        @group(0) @binding(1) var shadowMapTexture: texture_depth_2d;
+        
+        @vertex fn vertexMain(input: VertexInput) -> VertexOutput {
+            var output: VertexOutput;
+            output.position = vec4(input.position, 0.0, 1.0);
+            output.vUv = input.uv;
+            return output;
+        }
+        
+        @fragment fn fragmentMain(input: VertexOutput) -> @location(0) vec4f {
+            let uv = input.vUv;
+
+            let shadowMap = textureSampleLevel(shadowMapTexture, textureSampler, uv, 0);
+            
+            return vec4(shadowMap);
+        }
+        `;
+    this.shader = Shader.Create({
+      code,
+      colorOutputs: [{ format: Renderer.SwapChainFormat }],
+      attributes: {
+        position: { location: 0, size: 3, type: "vec3" },
+        uv: { location: 1, size: 2, type: "vec2" }
+      },
+      uniforms: {
+        textureSampler: { group: 0, binding: 0, type: "sampler" },
+        shadowMapTexture: { group: 0, binding: 1, type: "depthTexture" }
+      }
     });
+    this.quadGeometry = Geometry.Plane();
+    const sampler = TextureSampler.Create();
+    this.shader.SetSampler("textureSampler", sampler);
+  }
+  execute(resources, depthTexture) {
+    this.shader.SetTexture("shadowMapTexture", depthTexture);
+    RendererContext.BeginRenderPass("DepthViewer", [{ clear: false }]);
+    RendererContext.DrawGeometry(this.quadGeometry, this.shader);
+    RendererContext.EndRenderPass();
+  }
+};
+
+// src/renderer/passes/TextureViewer.ts
+var TextureViewer = class extends RenderPass {
+  name = "TextureViewer";
+  shader;
+  quadGeometry;
+  constructor() {
+    super({});
+    const code = `
+        struct VertexInput {
+            @location(0) position : vec2<f32>,
+            @location(1) uv : vec2<f32>,
+        };
+
+        struct VertexOutput {
+            @builtin(position) position : vec4<f32>,
+            @location(0) vUv : vec2<f32>,
+        };
+
+        @group(0) @binding(0) var textureSampler: sampler;
+        @group(0) @binding(1) var texture: texture_2d<f32>;
+        
+        @vertex fn vertexMain(input: VertexInput) -> VertexOutput {
+            var output: VertexOutput;
+            output.position = vec4(input.position, 0.0, 1.0);
+            output.vUv = input.uv;
+            return output;
+        }
+        
+        @fragment fn fragmentMain(input: VertexOutput) -> @location(0) vec4f {
+            let uv = input.vUv;
+
+            let shadowMap = textureSampleLevel(texture, textureSampler, uv, 0);
+            return vec4(shadowMap);
+        }
+        `;
+    this.shader = Shader.Create({
+      code,
+      colorOutputs: [{ format: Renderer.SwapChainFormat }],
+      attributes: {
+        position: { location: 0, size: 3, type: "vec3" },
+        uv: { location: 1, size: 2, type: "vec2" }
+      },
+      uniforms: {
+        textureSampler: { group: 0, binding: 0, type: "sampler" },
+        shadowMapTexture: { group: 0, binding: 1, type: "texture" }
+      }
+    });
+    this.quadGeometry = Geometry.Plane();
+    const sampler = TextureSampler.Create();
+    this.shader.SetSampler("textureSampler", sampler);
+  }
+  execute(resources, depthTexture) {
+    this.shader.SetTexture("shadowMapTexture", depthTexture);
+    RendererContext.BeginRenderPass("TextureViewer", [{ clear: false }]);
+    RendererContext.DrawGeometry(this.quadGeometry, this.shader);
+    RendererContext.EndRenderPass();
   }
 };
 
@@ -7241,7 +7619,10 @@ var RenderingPipeline = class {
   renderer;
   renderGraph;
   debuggerPass;
+  depthViewer;
+  textureViewer;
   frame = 0;
+  previousTime = 0;
   passes = {
     // SetMainCamera: new SetMeshRenderCameraPass({outputs: [PassParams.MainCamera]}),
     // DeferredMeshRenderPass: new DeferredMeshRenderPass(PassParams.MainCamera, PassParams.GBufferAlbedo, PassParams.GBufferNormal, PassParams.GBufferERMO, PassParams.GBufferDepth),
@@ -7257,17 +7638,25 @@ var RenderingPipeline = class {
       this.renderGraph.addPass(this.passes[pass]);
     }
     this.debuggerPass = new DebuggerPass();
+    this.depthViewer = new DepthViewer();
+    this.textureViewer = new TextureViewer();
   }
   async Render(scene) {
     this.renderer.BeginRenderFrame();
     this.renderGraph.execute();
+    this.textureViewer.execute(this.renderGraph.resourcePool, this.passes.GPUDriven.depthPyramidTargetTexture);
     this.renderer.EndRenderFrame();
-    const frameTimes = await WEBGPUTimestampQuery.GetResult();
-    if (frameTimes) {
-      for (const [name, time] of frameTimes) {
-        Debugger.SetPassTime(name, time);
+    WEBGPUTimestampQuery.GetResult().then((frameTimes) => {
+      if (frameTimes) {
+        for (const [name, time] of frameTimes) {
+          Debugger.SetPassTime(name, time);
+        }
       }
-    }
+    });
+    const currentTime = performance.now();
+    const elapsed = currentTime - this.previousTime;
+    this.previousTime = currentTime;
+    Debugger.SetFPS(1 / elapsed * 1e3);
     this.frame++;
   }
 };
@@ -7316,7 +7705,9 @@ var Scene = class {
   Tick() {
     for (const [component, _] of this.toUpdate) component.Update();
     this.renderPipeline.Render(this);
-    requestAnimationFrame(() => this.Tick());
+    setTimeout(() => {
+      this.Tick();
+    }, 1e3);
   }
 };
 
@@ -7552,7 +7943,7 @@ async function Application() {
   bunnyGeometry.attributes.set("position", new VertexAttribute(bunnyObj.vertices));
   bunnyGeometry.index = new IndexAttribute(bunnyObj.indices);
   console.log(bunnyObj);
-  const n = 20;
+  const n = 2;
   for (let x = 0; x < n; x++) {
     for (let y = 0; y < n; y++) {
       for (let z = 0; z < n; z++) {

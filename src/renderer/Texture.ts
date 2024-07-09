@@ -42,6 +42,7 @@ export enum TextureType {
     IMAGE,
     DEPTH,
     RENDER_TARGET,
+    RENDER_TARGET_STORAGE
 };
 
 export type TextureDimension = 
@@ -63,10 +64,16 @@ export class Texture {
     public SetActiveLayer(layer: number) {}
     public GetActiveLayer(): number {throw Error("Base class.")}
 
+    public SetActiveMip(layer: number) {}
+    public GetActiveMip(): number {throw Error("Base class.")}
+
+    public SetActiveMipCount(layer: number) {}
+    public GetActiveMipCount(): number {throw Error("Base class.")}
+
     public GenerateMips() {}
 
-    public static Create(width: number, height: number, depth: number = 1, format: TextureFormat = Renderer.SwapChainFormat): Texture {
-        if (Renderer.type === "webgpu") return new WEBGPUTexture(width, height, depth, format, TextureType.IMAGE, "2d");
+    public static Create(width: number, height: number, depth: number = 1, format: TextureFormat = Renderer.SwapChainFormat, mipLevels = 1): Texture {
+        if (Renderer.type === "webgpu") return new WEBGPUTexture(width, height, depth, format, TextureType.IMAGE, "2d", mipLevels);
         throw Error("Renderer type invalid");
     }
 
@@ -80,36 +87,43 @@ export class Texture {
 }
 
 export class DepthTexture extends Texture {
-    public static Create(width: number, height: number, depth: number = 1, format: TextureFormat = "depth24plus"): Texture {
-        if (Renderer.type === "webgpu") return new WEBGPUTexture(width, height, depth, format, TextureType.DEPTH, "2d");
+    public static Create(width: number, height: number, depth: number = 1, format: TextureFormat = "depth24plus", mipLevels = 1): Texture {
+        if (Renderer.type === "webgpu") return new WEBGPUTexture(width, height, depth, format, TextureType.DEPTH, "2d", mipLevels);
         throw Error("Renderer type invalid");
     }
 }
 
 export class RenderTexture extends Texture {
-    public static Create(width: number, height: number, depth: number = 1, format: TextureFormat = Renderer.SwapChainFormat): Texture {
-        if (Renderer.type === "webgpu") return new WEBGPUTexture(width, height, depth, format, TextureType.RENDER_TARGET, "2d");
+    public static Create(width: number, height: number, depth: number = 1, format: TextureFormat = Renderer.SwapChainFormat, mipLevels = 1): Texture {
+        if (Renderer.type === "webgpu") return new WEBGPUTexture(width, height, depth, format, TextureType.RENDER_TARGET, "2d", mipLevels);
+        throw Error("Renderer type invalid");
+    }
+}
+
+export class RenderTextureStorage extends Texture {
+    public static Create(width: number, height: number, depth: number = 1, format: TextureFormat = Renderer.SwapChainFormat, mipLevels = 1): Texture {
+        if (Renderer.type === "webgpu") return new WEBGPUTexture(width, height, depth, format, TextureType.RENDER_TARGET_STORAGE, "2d", mipLevels);
         throw Error("Renderer type invalid");
     }
 }
 
 export class TextureArray extends Texture {
-    public static Create(width: number, height: number, depth: number = 1, format: TextureFormat = Renderer.SwapChainFormat): Texture {
-        if (Renderer.type === "webgpu") return new WEBGPUTexture(width, height, depth, format, TextureType.IMAGE, "2d-array");
+    public static Create(width: number, height: number, depth: number = 1, format: TextureFormat = Renderer.SwapChainFormat, mipLevels = 1): Texture {
+        if (Renderer.type === "webgpu") return new WEBGPUTexture(width, height, depth, format, TextureType.IMAGE, "2d-array", mipLevels);
         throw Error("Renderer type invalid");
     }
 }
 
 export class DepthTextureArray extends Texture {
-    public static Create(width: number, height: number, depth: number = 1, format: TextureFormat = "depth24plus"): Texture {
-        if (Renderer.type === "webgpu") return new WEBGPUTexture(width, height, depth, format, TextureType.DEPTH, "2d-array");
+    public static Create(width: number, height: number, depth: number = 1, format: TextureFormat = "depth24plus", mipLevels = 1): Texture {
+        if (Renderer.type === "webgpu") return new WEBGPUTexture(width, height, depth, format, TextureType.DEPTH, "2d-array", mipLevels);
         throw Error("Renderer type invalid");
     }
 }
 
 export class RenderTextureArray extends Texture {
-    public static Create(width: number, height: number, depth: number = 1, format: TextureFormat = Renderer.SwapChainFormat): Texture {
-        if (Renderer.type === "webgpu") return new WEBGPUTexture(width, height, depth, format, TextureType.RENDER_TARGET, "2d-array");
+    public static Create(width: number, height: number, depth: number = 1, format: TextureFormat = Renderer.SwapChainFormat, mipLevels = 1): Texture {
+        if (Renderer.type === "webgpu") return new WEBGPUTexture(width, height, depth, format, TextureType.RENDER_TARGET, "2d-array", mipLevels);
         throw Error("Renderer type invalid");
     }
 }

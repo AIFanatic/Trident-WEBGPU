@@ -72,9 +72,9 @@ export class Scene {
 
         this.renderPipeline.Render(this);
 
-        // setTimeout(() => {
-        //     this.Tick()
-        // }, 1000);
-        requestAnimationFrame(() => this.Tick());
+        setTimeout(() => {
+            this.Tick()
+        }, 1000);
+        // requestAnimationFrame(() => this.Tick());
     }
 }

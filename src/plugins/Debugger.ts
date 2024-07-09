@@ -6,6 +6,7 @@ class _Debugger {
 
     private framePassesStats: Map<string, UITextStat> = new Map();
 
+    private fps: UITextStat;
     private totalMeshlets: UITextStat;
     private visibleMeshes: UITextStat;
     private triangleCount: UITextStat;
@@ -19,6 +20,7 @@ class _Debugger {
         this.ui.Open();
         document.body.append(container);
 
+        this.fps = new UITextStat(this.ui, "FPS", 0, 2, "", true);
         this.totalMeshlets = new UITextStat(this.ui, "Total meshlets");
         this.visibleMeshes = new UITextStat(this.ui, "Visible meshlets: ");
         this.triangleCount = new UITextStat(this.ui, "Triangles: ");
@@ -52,6 +54,10 @@ class _Debugger {
 
     public SetVisibleTriangleCount(count: number) {
         this.visibleTriangles.SetValue(count);
+    }
+
+    public SetFPS(count: number) {
+        this.fps.SetValue(count);
     }
 }
 

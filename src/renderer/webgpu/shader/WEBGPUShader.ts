@@ -1,9 +1,6 @@
 import { WEBGPUBaseShader } from "./WEBGPUBaseShader";
-import { WEBGPUBuffer, WEBGPUDynamicBuffer } from "../WEBGPUBuffer";
 import { WEBGPURenderer } from "../WEBGPURenderer";
-import { WEBGPUTexture } from "../WEBGPUTexture";
-import { WEBGPUTextureSampler } from "../WEBGPUTextureSampler";
-import { Shader, ShaderAttribute, ShaderParams, ShaderUniform } from "../../Shader";
+import { Shader, ShaderAttribute, ShaderParams } from "../../Shader";
 
 // TODO: Make this error!!
 const WGSLShaderAttributeFormat = {
