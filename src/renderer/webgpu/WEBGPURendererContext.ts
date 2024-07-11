@@ -35,7 +35,7 @@ export class WEBGPURendererContext implements RendererContext {
                 view: (depthTarget.target as WEBGPUTexture).GetView(),
                 depthClearValue: 1.0,
                 depthLoadOp: depthTarget.clear ? "clear" : "load",
-                depthStoreOp: 'store'
+                depthStoreOp: 'store',
             };
         }
 

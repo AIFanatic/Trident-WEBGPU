@@ -47,7 +47,17 @@ export class WEBGPUShader extends WEBGPUBaseShader implements Shader {
 
         // Pipeline descriptor
         let targets: GPUColorTargetState[] = [];
-        for (const output of this.params.colorOutputs) targets.push({format: output.format});
+        for (const output of this.params.colorOutputs) targets.push({
+            format: output.format,
+            // blend: {
+            //     color: {
+            //         srcFactor: "one",
+            //         dstFactor: "one"
+            //     },
+            //     alpha: {
+
+            //     }}
+        });
         const pipelineDescriptor: GPURenderPipelineDescriptor = {
             layout: pipelineLayout,
             vertex: { module: this.module, entryPoint: this.vertexEntrypoint, buffers: [] },
@@ -60,7 +70,11 @@ export class WEBGPUShader extends WEBGPUBaseShader implements Shader {
         }
 
         // Pipeline descriptor - Depth target
-        if (this.params.depthOutput) pipelineDescriptor.depthStencil = { depthWriteEnabled: true, depthCompare: 'less', format: this.params.depthOutput };
+        if (this.params.depthOutput) pipelineDescriptor.depthStencil = {
+            depthWriteEnabled: true,
+            depthCompare: 'less',
+            format: this.params.depthOutput
+        };
     
         // Pipeline descriptor - Vertex buffers (Attributes)
         const buffers: GPUVertexBufferLayout[] = [];

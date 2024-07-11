@@ -4,7 +4,7 @@ import { Renderer } from "../Renderer";
 import { Shader } from "../Shader";
 import { Geometry } from "../../Geometry";
 import { TextureSampler } from "../TextureSampler";
-import { DepthTexture } from "../Texture";
+import { DepthTexture, RenderTexture } from "../Texture";
 
 export class TextureViewer extends RenderPass {
     public name: string = "TextureViewer";
@@ -61,8 +61,8 @@ export class TextureViewer extends RenderPass {
         this.shader.SetSampler("textureSampler", sampler);
     }
 
-    public execute(resources: ResourcePool, depthTexture: DepthTexture) {
-        this.shader.SetTexture("shadowMapTexture", depthTexture);
+    public execute(resources: ResourcePool, texture: RenderTexture) {
+        this.shader.SetTexture("shadowMapTexture", texture);
 
         RendererContext.BeginRenderPass("TextureViewer", [{clear: false}]);
         RendererContext.DrawGeometry(this.quadGeometry, this.shader);

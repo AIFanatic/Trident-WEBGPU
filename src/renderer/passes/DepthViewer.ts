@@ -6,11 +6,13 @@ import { PassParams } from "../RenderingPipeline";
 import { Geometry } from "../../Geometry";
 import { TextureSampler } from "../TextureSampler";
 import { DepthTexture } from "../Texture";
+import { Buffer, BufferType } from "../Buffer";
 
 export class DepthViewer extends RenderPass {
     public name: string = "DepthViewer";
     private shader: Shader;
     private quadGeometry: Geometry;
+    private debugLevelBuffer: Buffer;
 
     constructor() {
         super({});
@@ -28,6 +30,7 @@ export class DepthViewer extends RenderPass {
 
         @group(0) @binding(0) var textureSampler: sampler;
         @group(0) @binding(1) var shadowMapTexture: texture_depth_2d;
+        @group(0) @binding(2) var<storage, read> debugLevel: f32;
         
         @vertex fn vertexMain(input: VertexInput) -> VertexOutput {
             var output: VertexOutput;
@@ -39,7 +42,7 @@ export class DepthViewer extends RenderPass {
         @fragment fn fragmentMain(input: VertexOutput) -> @location(0) vec4f {
             let uv = input.vUv;
 
-            let shadowMap = textureSampleLevel(shadowMapTexture, textureSampler, uv, 0);
+            let shadowMap = textureSampleLevel(shadowMapTexture, textureSampler, uv, u32(debugLevel));
             
             return vec4(shadowMap);
         }
@@ -55,17 +58,22 @@ export class DepthViewer extends RenderPass {
             uniforms: {
                 textureSampler: {group: 0, binding: 0, type: "sampler"},
                 shadowMapTexture: {group: 0, binding: 1, type: "depthTexture"},
+                debugLevel: {group: 0, binding: 2, type: "storage"},
             }
         });
         this.quadGeometry = Geometry.Plane();
 
-        const sampler = TextureSampler.Create();
+        const sampler = TextureSampler.Create({minFilter: "nearest", magFilter: "nearest"});
         this.shader.SetSampler("textureSampler", sampler);
+
+        this.debugLevelBuffer = Buffer.Create(4, BufferType.STORAGE);
+        this.shader.SetBuffer("debugLevel", this.debugLevelBuffer);
     }
 
-    public execute(resources: ResourcePool, depthTexture: DepthTexture) {
+    public execute(resources: ResourcePool, depthTexture: DepthTexture, debugLevel: number) {
         
         // this.shader.SetTexture("albedoTexture", resources.getResource(PassParams.GBufferAlbedo));
+        this.debugLevelBuffer.SetArray(new Float32Array([debugLevel]));
         this.shader.SetTexture("shadowMapTexture", depthTexture);
 
         RendererContext.BeginRenderPass("DepthViewer", [{clear: false}]);

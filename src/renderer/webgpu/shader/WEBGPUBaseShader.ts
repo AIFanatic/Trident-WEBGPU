@@ -60,7 +60,6 @@ export class WEBGPUBaseShader {
 
         // Bind group layout
         for (const [name, uniform] of this.uniformMap) {
-            console.log(name, uniform.binding, uniform)
             // // This should be here but it clashes with the preprocessor
             // if (!uniform.buffer) console.warn(`Shader has binding (${name}) but no buffer was set`);
             

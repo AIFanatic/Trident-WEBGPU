@@ -39,8 +39,6 @@ export class RenderingPipeline {
     private renderGraph: RenderGraph;
 
     private debuggerPass: DebuggerPass;
-    private depthViewer: DepthViewer;
-    private textureViewer: TextureViewer;
     private frame: number = 0;
     private previousTime: number = 0;
 
@@ -63,8 +61,6 @@ export class RenderingPipeline {
         }
 
         this.debuggerPass = new DebuggerPass();
-        this.depthViewer = new DepthViewer();
-        this.textureViewer = new TextureViewer();
     }
 
     public async Render(scene: Scene) {
@@ -75,8 +71,8 @@ export class RenderingPipeline {
         this.renderer.BeginRenderFrame();
         this.renderGraph.execute();
         // this.debuggerPass.execute(this.renderGraph.resourcePool);
-        // this.depthViewer.execute(this.renderGraph.resourcePool, this.passes.GPUDriven.depthPyramidTarget);
-        this.textureViewer.execute(this.renderGraph.resourcePool, this.passes.GPUDriven.depthPyramidTargetTexture);
+        // this.depthViewer.execute(this.renderGraph.resourcePool, this.passes.GPUDriven.depthPyramidTargetTexture);
+        // this.textureViewer.execute(this.renderGraph.resourcePool, this.passes.GPUDriven.colorTarget);
         this.renderer.EndRenderFrame();
 
         WEBGPUTimestampQuery.GetResult().then(frameTimes => {
