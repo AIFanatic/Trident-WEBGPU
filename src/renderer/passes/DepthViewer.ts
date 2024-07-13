@@ -44,7 +44,7 @@ export class DepthViewer extends RenderPass {
 
             let shadowMap = textureSampleLevel(shadowMapTexture, textureSampler, uv, u32(debugLevel));
             
-            return vec4(shadowMap);
+            return vec4(pow(1.0 - shadowMap, 0.5), vec3(0));
         }
         `;
 
@@ -63,7 +63,7 @@ export class DepthViewer extends RenderPass {
         });
         this.quadGeometry = Geometry.Plane();
 
-        const sampler = TextureSampler.Create({minFilter: "nearest", magFilter: "nearest"});
+        const sampler = TextureSampler.Create();
         this.shader.SetSampler("textureSampler", sampler);
 
         this.debugLevelBuffer = Buffer.Create(4, BufferType.STORAGE);
@@ -78,7 +78,7 @@ export class DepthViewer extends RenderPass {
 
         RendererContext.BeginRenderPass("DepthViewer", [{clear: false}]);
 
-        // RendererContext.SetViewport(Renderer.width - 250, 0, 250, 250);
+        // RendererContext.SetViewport(0, 0, depthTexture.width, depthTexture.height);
         RendererContext.DrawGeometry(this.quadGeometry, this.shader);
         RendererContext.EndRenderPass();
     }

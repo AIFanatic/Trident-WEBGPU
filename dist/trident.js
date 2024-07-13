@@ -1310,7 +1310,7 @@ var WEBGPUTexture = class _WEBGPUTexture {
     let textureUsage = GPUTextureUsage.COPY_DST;
     let textureType = GPUTextureUsage.TEXTURE_BINDING;
     if (!type) textureType = GPUTextureUsage.TEXTURE_BINDING;
-    else if (type === 1 /* DEPTH */) textureType = GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING;
+    else if (type === 1 /* DEPTH */) textureType = GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_SRC;
     else if (type === 2 /* RENDER_TARGET */) textureType = GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_SRC;
     else if (type === 3 /* RENDER_TARGET_STORAGE */) textureType = GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.STORAGE_BINDING;
     else throw Error(`Unknown texture format ${format}`);
@@ -1369,6 +1369,9 @@ var WEBGPUTexture = class _WEBGPUTexture {
   GetActiveMipCount() {
     return this.activeMipCount;
   }
+  Destroy() {
+    this.buffer.destroy();
+  }
   // Format and types are very limited for now
   // https://github.com/gpuweb/gpuweb/issues/2322
   static FromImageBitmap(imageBitmap, width, height) {
@@ -1406,6 +1409,8 @@ var Texture2 = class {
     throw Error("Base class.");
   }
   GenerateMips() {
+  }
+  Destroy() {
   }
   static Create(width, height, depth = 1, format = Renderer.SwapChainFormat, mipLevels = 1) {
     if (Renderer.type === "webgpu") return new WEBGPUTexture(width, height, depth, format, 0 /* IMAGE */, "2d", mipLevels);
@@ -1700,14 +1705,14 @@ var WEBGPUShader = class extends WEBGPUBaseShader {
     });
     let targets = [];
     for (const output of this.params.colorOutputs) targets.push({
-      format: output.format
-      // blend: {
-      //     color: {
-      //         srcFactor: "one",
-      //         dstFactor: "one"
-      //     },
-      //     alpha: {
-      //     }}
+      format: output.format,
+      blend: {
+        color: {
+          srcFactor: "one",
+          dstFactor: "one"
+        },
+        alpha: {}
+      }
     });
     const pipelineDescriptor = {
       layout: pipelineLayout,
@@ -1956,10 +1961,11 @@ var WEBGPURendererContext = class {
     if (!activeCommandEncoder) throw Error("No active command encoder!!");
     activeCommandEncoder.copyBufferToBuffer(source.GetBuffer(), sourceOffset, destination.GetBuffer(), destinationOffset, size);
   }
-  static CopyTextureToTexture(source, destination) {
+  // CopyTexture(Texture src, int srcElement, int srcMip, Texture dst, int dstElement, int dstMip);
+  static CopyTextureToTexture(source, destination, srcMip, dstMip) {
     const activeCommandEncoder = WEBGPURenderer.GetActiveCommandEncoder();
     if (!activeCommandEncoder) throw Error("No active command encoder!!");
-    activeCommandEncoder.copyTextureToTexture({ texture: source.GetBuffer() }, { texture: destination.GetBuffer() }, [source.width, source.height, source.depth]);
+    activeCommandEncoder.copyTextureToTexture({ texture: source.GetBuffer(), mipLevel: srcMip }, { texture: destination.GetBuffer(), mipLevel: dstMip }, [source.width, source.height, source.depth]);
   }
   static ClearBuffer(buffer, offset, size) {
     const activeCommandEncoder = WEBGPURenderer.GetActiveCommandEncoder();
@@ -2000,8 +2006,8 @@ var RendererContext = class {
     if (Renderer.type === "webgpu") WEBGPURendererContext.CopyBufferToBuffer(source, destination, sourceOffset, destinationOffset, size ? size : source.size);
     else throw Error("Unknown render api type.");
   }
-  static CopyTextureToTexture(source, destination) {
-    if (Renderer.type === "webgpu") WEBGPURendererContext.CopyTextureToTexture(source, destination);
+  static CopyTextureToTexture(source, destination, srcMip = 0, dstMip = 0) {
+    if (Renderer.type === "webgpu") WEBGPURendererContext.CopyTextureToTexture(source, destination, srcMip, dstMip);
     else throw Error("Unknown render api type.");
   }
   static ClearBuffer(buffer, offset = 0, size) {
@@ -6742,9 +6748,7 @@ var MeshletMerger = class {
 // src/plugins/meshlets/Meshletizer.ts
 var Meshletizer = class {
   static step(meshlets, lod, previousMeshlets) {
-    if (previousMeshlets.size === 0) {
-      for (let m of meshlets) previousMeshlets.set(m.id, m);
-    }
+    if (meshlets.length === 1 && meshlets[0].vertices.length < 128 * 3) return meshlets;
     let nparts = Math.ceil(meshlets.length / 4);
     let grouped = [meshlets];
     if (nparts > 1) {
@@ -6792,6 +6796,7 @@ var Meshletizer = class {
     let inputs = meshlets;
     let rootMeshlet = null;
     let previousMeshlets = /* @__PURE__ */ new Map();
+    for (let m of meshlets) previousMeshlets.set(m.id, m);
     for (let lod = 0; lod < maxLOD; lod++) {
       const outputs = this.step(inputs, lod, previousMeshlets);
       if (outputs.length === 1) {
@@ -6883,7 +6888,7 @@ var DepthViewer = class extends RenderPass {
 
             let shadowMap = textureSampleLevel(shadowMapTexture, textureSampler, uv, u32(debugLevel));
             
-            return vec4(shadowMap);
+            return vec4(pow(1.0 - shadowMap, 0.5), vec3(0));
         }
         `;
     this.shader = Shader.Create({
@@ -6900,7 +6905,7 @@ var DepthViewer = class extends RenderPass {
       }
     });
     this.quadGeometry = Geometry.Plane();
-    const sampler = TextureSampler.Create({ minFilter: "nearest", magFilter: "nearest" });
+    const sampler = TextureSampler.Create();
     this.shader.SetSampler("textureSampler", sampler);
     this.debugLevelBuffer = Buffer3.Create(4, 0 /* STORAGE */);
     this.shader.SetBuffer("debugLevel", this.debugLevelBuffer);
@@ -6973,8 +6978,468 @@ var TextureViewer = class extends RenderPass {
   }
 };
 
+// src/renderer/passes/OcclusionCullingDebugger.ts
+var OcclusionCullingDebugger = class extends RenderPass {
+  name = "OcclusionCullingDebugger";
+  shader;
+  quadGeometry;
+  fontTexture;
+  constructor() {
+    super({});
+    const code = `
+        struct VertexInput {
+            @location(0) position : vec2<f32>,
+            @location(1) uv : vec2<f32>,
+        };
+
+        struct VertexOutput {
+            @builtin(position) position : vec4<f32>,
+            @location(0) vUv : vec2<f32>,
+        };
+
+        @group(0) @binding(0) var textureSampler: sampler;
+        @group(0) @binding(1) var texture: texture_2d<f32>;
+
+
+
+
+
+
+        struct CullData {
+            projectionMatrix: mat4x4<f32>,
+            viewMatrix: mat4x4<f32>,
+            cameraPosition: vec4<f32>,
+            frustum: array<vec4<f32>, 6>,
+            meshCount: vec4<f32>,
+            screenSize: vec4<f32>,
+            depthPyramidSize: vec4<f32>,
+            cameraNearFar: vec4<f32>,
+            projectionMatrixTransposed: mat4x4<f32>,
+        };
+
+        @group(0) @binding(2) var<storage, read> cullData: CullData;
+        
+
+        struct MeshletInfo {
+            cone_apex: vec4<f32>,
+            cone_axis: vec4<f32>,
+            cone_cutoff: f32,
+
+            boundingSphere: vec4<f32>,
+            parentBoundingSphere: vec4<f32>,
+            error: vec4<f32>,
+            parentError: vec4<f32>,
+            lod: vec4<f32>,
+
+            bboxMin: vec4<f32>,
+            bboxMax: vec4<f32>,
+        };
+
+        struct MeshInfo {
+            modelMatrix: mat4x4<f32>,
+            position: vec4<f32>,
+            scale: vec4<f32>
+        };
+
+        struct ObjectInfo {
+            meshID: f32,
+            meshletID: f32,
+            padding: vec2<f32>,
+        };
+
+        @group(0) @binding(3) var<storage, read> meshletInfo: array<MeshletInfo>;
+        @group(0) @binding(4) var<storage, read> meshInfo: array<MeshInfo>;
+        @group(0) @binding(5) var<storage, read> objectInfo: array<ObjectInfo>;
+
+        @group(0) @binding(6) var depthTexture: texture_depth_2d;
+
+        @group(0) @binding(7) var fontTexture: texture_2d<f32>;
+
+        
+        @vertex fn vertexMain(input: VertexInput) -> VertexOutput {
+            var output: VertexOutput;
+            output.position = vec4(input.position, 0.0, 1.0);
+            output.vUv = input.uv;
+            return output;
+        }
+
+
+        // ---- TEXT STUFF ---- //
+        const _A = 65;
+        const _B = 66;
+        const _C = 67;
+        const _D = 68;
+        const _E = 69;
+        const _F = 70;
+        const _G = 71;
+        const _H = 72;
+        const _I = 73;
+        const _J = 74;
+        const _K = 75;
+        const _L = 76;
+        const _M = 77;
+        const _N = 78;
+        const _O = 79;
+        const _P = 80;
+        const _Q = 81;
+        const _R = 82;
+        const _S = 83;
+        const _T = 84;
+        const _U = 85;
+        const _V = 86;
+        const _W = 87;
+        const _X = 88;
+        const _Y = 89;
+        const _Z = 90;
+
+        const _0 = 48;
+        const _1 = 49;
+        const _2 = 50;
+        const _3 = 51;
+        const _4 = 52;
+        const _5 = 53;
+        const _6 = 54;
+        const _7 = 55;
+        const _8 = 56;
+        const _9 = 57;
+
+        const _SPACE = 127;
+
+        const _SUB = 45; // " - "
+        const _DOT = 46; // " . "
+
+        fn char(p: vec2<f32>, c: u32) -> vec4<f32> {
+            let rowIndex = c / 16;
+            let columnIndex = c % 16;
+
+            var textureCoord = p / 16.0 + vec2<f32>(f32(columnIndex), f32(rowIndex)) / 16.0;
+            let charSize = p / 16.0;
+            // let sample = textureSample(fontTexture, textureSampler, textureCoord);
+            let dims = vec2f(textureDimensions(fontTexture));
+            let sample = textureLoad(fontTexture, vec2u(textureCoord * dims), 0);
+            if (p.x < 0.0 || p.x > 1.0 || p.y < 0.0 || p.y > 1.0) {
+                return vec4<f32>(0.0, 0.0, 0.0, 1e5);
+            }
+            return sample;
+        }
+
+        
+        var<private> text: array<u32, 128>;
+        fn print(p: vec2f) -> f32 {
+            var U = p;
+            var color = 0.0;
+            for (var i = 0u; i < l; i++) {
+                let c = text[i];
+                color += char(U, c).x;
+                U.x -= 0.5;
+            }
+            return color;
+        }
+
+        var<private> l: u32;
+
+        fn C(char: u32) {
+            text[l] = char;
+            l++;
+        }
+
+        // Floating point debug
+        fn F(_n: f32, decimals: u32) {
+            var N = 1.0; // d is the final color, N the number of digits before the decimal
+            var n = _n;
+
+            if (n < 0.) {  // If the number is negative
+                n *= -1.;  // Make it positive
+                C(_SUB);
+            }
+            
+            // Calculate the number of digits before the decimal point
+            for (var x = n; x >= 10.0; x /= 10.0) {
+                N += 1.0;
+            }
+
+            // Print the digits before the decimal point
+            for (var i = 0.0; i < N; i+=1.0) {        
+                let magnitude = pow(10., N-i-1.);
+                let leftDigit = floor(n / magnitude);
+                n -= leftDigit * magnitude;
+                C(48 + u32(leftDigit));
+            }
+
+            if (decimals == 0) {
+                return;
+            }
+
+            C(_DOT);
+            
+            // Print the digits after the decimal point
+            for (var i = 0u; i < decimals; i++) {
+                let firstDecimal = floor((n - floor(n)) * 10.);
+                n *= 10.;
+                C(48 + u32(firstDecimal));
+            }
+        }
+        // -- END TEXT STUFF -- //
+
+        struct Projected {
+            ret: bool,
+            aabb: vec4f,
+        };
+
+        fn projectSphere(C: vec3f, r: f32, nearZ: f32, P00: f32, P11: f32) -> Projected {
+            var projected: Projected;
+
+            let r2 = r;
+
+            if (-C.z < r2 + nearZ) {
+                projected.ret = false;
+                return projected;
+            }
+    
+            let c = vec3f(C.x, C.y, -C.z);
+            let cr = c * r2;
+            let czr2 = c.z * c.z - r2 * r2;
+        
+            let vx = sqrt(c.x * c.x + czr2);
+            let minx = (vx * c.x - cr.z) / (vx * c.z + cr.x);
+            let maxx = (vx * c.x + cr.z) / (vx * c.z - cr.x);
+        
+            let vy = sqrt(c.y * c.y + czr2);
+            let miny = (vy * c.y - cr.z) / (vy * c.z + cr.y);
+            let maxy = (vy * c.y + cr.z) / (vy * c.z - cr.y);
+
+            projected.aabb = vec4(minx * P00, miny * P11, maxx * P00, maxy * P11);
+            projected.aabb = projected.aabb.xwzy * vec4(0.5f, -0.5f, 0.5f, -0.5f) + vec4(0.5f); // clip space -> uv space
+        
+            projected.ret = true;
+            return projected;
+        }
+
+        fn isVisibleV1(uv: vec2f, _color: vec4f, index: i32) -> vec4f {
+            var color = _color;
+
+            let objectIndex = objectInfo[index];
+            let mesh = meshInfo[u32(objectIndex.meshID)];
+            let meshlet = meshletInfo[u32(objectIndex.meshletID)];
+
+            let m = cullData.projectionMatrix;
+            let P00 = m[0][0];
+            let P11 = m[1][1];
+            let zNear = m[3][2];
+
+            let scale = mesh.scale.x;
+            let boundingSphere = meshlet.boundingSphere * scale;
+            let center = (cullData.viewMatrix * vec4(mesh.position.xyz, 1.0)).xyz;
+            // let center = (cullData.viewMatrix * vec4(boundingSphere.xyz + mesh.position.xyz, 1.0)).xyz;
+            let radius = boundingSphere.w * 0.5;
+
+            let projected = projectSphere(center, radius, zNear, P00, P11);
+            let aabb = projected.aabb;
+
+            if (uv.x >= aabb.x && uv.x <= aabb.z && uv.y >= aabb.y && uv.y <= aabb.w) {
+                let width = (aabb.z - aabb.x) * cullData.depthPyramidSize.x;
+                let height = (aabb.w - aabb.y) * cullData.depthPyramidSize.y;
+
+                // let level = u32(ceil(log2(max(width, height))));
+                let level = u32(floor(log2(max(width, height))));
+
+                let depth = textureSampleLevel(depthTexture, textureSampler, (aabb.xy + aabb.zw) * 0.5, level);
+                let depthSphere = zNear / (-center.z - radius);
+
+                let visible = depthSphere + 1.0 > depth;
+                
+                let size = aabb.w;
+                var U = (uv - aabb.xy) * 64.0 / 50.0 * 50.0;
+
+                // let visible = minZ <= maxDepth;
+                U.y -= 1.0;
+                l = 0; C(_V); C(_I); C(_S); C(_I); C(_B); C(_L); C(_E); C(_SPACE); F(f32(visible), 0);
+                color.r += print(U);
+            }
+            return color;
+        }
+
+        fn isVisibleV2(uv: vec2f, _color: vec4f, index: i32) -> vec4f {
+            var color = _color;
+
+            let objectIndex = objectInfo[index];
+            let mesh = meshInfo[u32(objectIndex.meshID)];
+            let meshlet = meshletInfo[u32(objectIndex.meshletID)];
+
+            let bboxMin = (cullData.viewMatrix * vec4(meshlet.bboxMin.xyz + mesh.position.xyz, 1.0)).xyz;
+            let bboxMax = (cullData.viewMatrix * vec4(meshlet.bboxMax.xyz + mesh.position.xyz, 1.0)).xyz;
+
+            let boxSize = bboxMax - bboxMin;
+
+            let boxCorners: array<vec3f, 8> = array(bboxMin.xyz,
+                                    bboxMin.xyz + vec3f(boxSize.x,0,0),
+                                    bboxMin.xyz + vec3f(0, boxSize.y,0),
+                                    bboxMin.xyz + vec3f(0, 0, boxSize.z),
+                                    bboxMin.xyz + vec3f(boxSize.xy,0),
+                                    bboxMin.xyz + vec3f(0, boxSize.yz),
+                                    bboxMin.xyz + vec3f(boxSize.x, 0, boxSize.z),
+                                    bboxMin.xyz + boxSize.xyz
+                                 );
+
+
+            var minZ = 1.0;
+            var minXY = vec2f(1);
+            var maxXY = vec2f(0);
+    
+            for (var i = 0; i < 8; i++) {
+                //transform world space aaBox to NDC
+                var clipPos = cullData.projectionMatrix * vec4f(boxCorners[i], 1);
+    
+                clipPos.z = max(clipPos.z, 0);
+    
+                let _a = clipPos.xyz / clipPos.w;
+                clipPos.x = _a.x;
+                clipPos.y = _a.y;
+                clipPos.z = _a.z;
+    
+                let _b = clamp(clipPos.xy, vec2f(-1.0), vec2f(1.0));
+                clipPos.x = _b.x;
+                clipPos.y = _b.y;
+                
+                let _c = clipPos.xy * vec2f(0.5, -0.5) + vec2f(0.5, 0.5);
+                clipPos.x = _c.x;
+                clipPos.y = _c.y;
+
+                minXY = min(clipPos.xy, minXY);
+                maxXY = max(clipPos.xy, maxXY);
+    
+                minZ = saturate(min(minZ, clipPos.z));
+            }
+
+            let boxUVs = vec4f(minXY, maxXY);
+
+            // Calculate hi-Z buffer mip
+            let RTSize = vec2f(512, 512);
+            let MaxMipLevel = 6;
+
+            let size = vec2((maxXY - minXY)) * RTSize.xy;
+            var mip = ceil(log2(f32(max(size.x, size.y))));
+     
+            mip = clamp(mip, 0, f32(MaxMipLevel));
+
+
+
+            // Texel footprint for the lower (finer-grained) level
+            let level_lower = max(mip - 1, 0);
+            let _scale = exp2(-level_lower);
+            // let _scale = exp2(-level_lower) * 512.0;
+            let a = floor(boxUVs.xy*_scale);
+            let b = ceil(boxUVs.zw*_scale);
+            let dims = b - a;
+
+            // Use the lower level if we only touch <= 2 texels in both dimensions
+            if (dims.x <= 2 && dims.y <= 2) {
+                mip = level_lower;
+            }
+
+            //load depths from high z buffer
+            let depth = vec4f(
+                textureSampleLevel(depthTexture, textureSampler, boxUVs.xy, u32(mip)),
+                textureSampleLevel(depthTexture, textureSampler, boxUVs.zy, u32(mip)),
+                textureSampleLevel(depthTexture, textureSampler, boxUVs.xw, u32(mip)),
+                textureSampleLevel(depthTexture, textureSampler, boxUVs.zw, u32(mip))
+            );
+
+            //find the max depth
+            let maxDepth = max(max(max(depth.x, depth.y), depth.z), depth.w);
+
+            var position = boxUVs.xy;
+            let width = size;
+            var U = (uv - position) * 64.0 / width * 50.0;
+
+            l = 0; C(_L); C(_E); C(_V); C(_E); C(_L); C(_SPACE); F(dims.x, 2);
+            color.r += print(U);
+
+            U.y -= 1.0;
+            l = 0; C(_D); C(_E); C(_P); C(_T); C(_H); C(_SPACE); F(maxDepth, 2);
+            color.r += print(U);
+
+            let visible = minZ <= maxDepth;
+            U.y -= 1.0;
+            l = 0; C(_V); C(_I); C(_S); C(_I); C(_B); C(_L); C(_E); C(_SPACE); F(f32(visible), 0);
+            color.r += print(U);
+
+            return color;
+        }
+
+        fn isVisibleV3(uv: vec2f, _color: vec4f, index: i32) -> vec4f {
+            var color = _color;
+
+            let objectIndex = objectInfo[index];
+            let mesh = meshInfo[u32(objectIndex.meshID)];
+            let meshlet = meshletInfo[u32(objectIndex.meshletID)];
+
+            return color;
+        }
+
+        @fragment fn fragmentMain(input: VertexOutput) -> @location(0) vec4f {
+            let uv = input.vUv;
+
+            var value = textureSampleLevel(texture, textureSampler, uv, 0);
+            var color = value * 0.3;
+            // var color = vec4f(0);
+
+            let s = i32(arrayLength(&objectInfo));
+
+            for (var i = 0; i < s; i++) {
+                // color = isVisibleV1(uv, color, i);
+                color = isVisibleV2(uv, color, i);
+            }
+
+            return color;
+        }
+        `;
+    this.shader = Shader.Create({
+      code,
+      colorOutputs: [{ format: Renderer.SwapChainFormat }],
+      attributes: {
+        position: { location: 0, size: 3, type: "vec3" },
+        uv: { location: 1, size: 2, type: "vec2" }
+      },
+      uniforms: {
+        textureSampler: { group: 0, binding: 0, type: "sampler" },
+        shadowMapTexture: { group: 0, binding: 1, type: "texture" },
+        cullData: { group: 0, binding: 2, type: "storage" },
+        meshletInfo: { group: 0, binding: 3, type: "storage" },
+        meshInfo: { group: 0, binding: 4, type: "storage" },
+        objectInfo: { group: 0, binding: 5, type: "storage" },
+        depthTexture: { group: 0, binding: 6, type: "depthTexture" },
+        fontTexture: { group: 0, binding: 7, type: "texture" }
+      }
+    });
+    this.quadGeometry = Geometry.Plane();
+    const sampler = TextureSampler.Create();
+    this.shader.SetSampler("textureSampler", sampler);
+    Texture2.Load("./assets/font.png").then((fontTexture) => {
+      this.fontTexture = fontTexture;
+    });
+  }
+  // execute(resources, this.colorTarget, this.cullData, this.meshInfoBuffer, this.meshletInfoBuffer, this.objectInfoBuffer
+  async execute(resources, texture, depthTexture, cullData, meshInfoBuffer, meshletInfoBuffer, objectInfoBuffer) {
+    if (!this.fontTexture) {
+      return;
+    }
+    this.shader.SetTexture("fontTexture", this.fontTexture);
+    this.shader.SetTexture("shadowMapTexture", texture);
+    this.shader.SetBuffer("cullData", cullData);
+    this.shader.SetBuffer("meshInfo", meshInfoBuffer);
+    this.shader.SetBuffer("meshletInfo", meshletInfoBuffer);
+    this.shader.SetBuffer("objectInfo", objectInfoBuffer);
+    this.shader.SetTexture("depthTexture", depthTexture);
+    RendererContext.BeginRenderPass("OcclusionCullingDebugger", [{ clear: false }]);
+    RendererContext.DrawGeometry(this.quadGeometry, this.shader);
+    RendererContext.EndRenderPass();
+  }
+};
+
 // src/renderer/passes/GPUDriven.ts
 var vertexSize = 128 * 3;
+var workgroupSize = 64;
 var GPUDriven = class extends RenderPass {
   name = "GPUDriven";
   shader;
@@ -6985,7 +7450,6 @@ var GPUDriven = class extends RenderPass {
   computeDrawBuffer;
   instanceInfoBuffer;
   vertexBuffer;
-  depthTarget;
   cullData;
   frustum = new Frustum();
   depthPyramidShader;
@@ -6999,11 +7463,17 @@ var GPUDriven = class extends RenderPass {
   currentPassBuffer;
   visibleBuffer;
   nonVisibleBuffer;
+  depthTexture;
   debugPyramid = false;
+  depthPyramidDimsBuffer;
   colorTarget;
   depthViewer;
   textureViewer;
+  occlusionCullingDebugger;
   debugLevel = 0;
+  meshInfoBuffer;
+  meshletInfoBuffer;
+  objectInfoBuffer;
   constructor() {
     super({});
     document.body.addEventListener("keypress", (event) => {
@@ -7089,7 +7559,6 @@ var GPUDriven = class extends RenderPass {
     this.shader = Shader.Create({
       code,
       colorOutputs: [{ format: Renderer.SwapChainFormat }],
-      depthOutput: "depth24plus",
       attributes: {
         position: { location: 0, size: 3, type: "vec3" }
       },
@@ -7144,7 +7613,10 @@ var GPUDriven = class extends RenderPass {
                     parentBoundingSphere: vec4<f32>,
                     error: vec4<f32>,
                     parentError: vec4<f32>,
-                    lod: vec4<f32>
+                    lod: vec4<f32>,
+
+                    bboxMin: vec4<f32>,
+                    bboxMax: vec4<f32>,
                 };
 
                 struct MeshInfo {
@@ -7263,32 +7735,150 @@ var GPUDriven = class extends RenderPass {
                 fn projectSphere(C: vec3f, r: f32, nearZ: f32, P00: f32, P11: f32) -> Projected {
                     var projected: Projected;
 
-                    if (-C.z < r + nearZ) {
+                    let r2 = r;
+
+                    if (-C.z < r2 + nearZ) {
                         projected.ret = false;
                         return projected;
                     }
+            
+                    let c = vec3f(C.x, C.y, -C.z);
+                    let cr = c * r2;
+                    let czr2 = c.z * c.z - r2 * r2;
                 
-                    let cx = vec2(-C.x, C.z);
-                    let vX = vec2(sqrt(dot(cx, cx) - r * r), r) / length(cx);
-                    let minX = mat2x2(vX.x, vX.y, -vX.y, vX.x) * cx;
-                    let maxX = mat2x2(vX.x, -vX.y, vX.y, vX.x) * cx;
+                    let vx = sqrt(c.x * c.x + czr2);
+                    let minx = (vx * c.x - cr.z) / (vx * c.z + cr.x);
+                    let maxx = (vx * c.x + cr.z) / (vx * c.z - cr.x);
                 
-                    let cy = vec2(-C.y, C.z);
-                    let vY = vec2(sqrt(dot(cy, cy) - r * r), r) / length(cy);
-                    let minY = mat2x2(vY.x, -vY.y, vY.y, vY.x) * cy;
-                    let maxY = mat2x2(vY.x, vY.y, -vY.y, vY.x) * cy;
+                    let vy = sqrt(c.y * c.y + czr2);
+                    let miny = (vy * c.y - cr.z) / (vy * c.z + cr.y);
+                    let maxy = (vy * c.y + cr.z) / (vy * c.z - cr.y);
 
-                    projected.aabb = vec4(
-                        minX.x / minX.y * P00, minY.x / minY.y * P11,
-                        maxX.x / maxX.y * P00, maxY.x / maxY.y * P11
-                    ) * vec4f(0.5, -0.5, 0.5, -0.5) + vec4(0.5);
+                    projected.aabb = vec4(minx * P00, miny * P11, maxx * P00, maxy * P11);
+                    projected.aabb = projected.aabb.xwzy * vec4(0.5f, -0.5f, 0.5f, -0.5f) + vec4(0.5f); // clip space -> uv space
+
+
+                    // let cx = vec2(-C.x, C.z);
+                    // let vX = vec2(sqrt(dot(cx, cx) - r * r), r) / length(cx);
+                    // let minX = mat2x2(vX.x, vX.y, -vX.y, vX.x) * cx;
+                    // let maxX = mat2x2(vX.x, -vX.y, vX.y, vX.x) * cx;
+                
+                    // let cy = vec2(-C.y, C.z);
+                    // let vY = vec2(sqrt(dot(cy, cy) - r * r), r) / length(cy);
+                    // let minY = mat2x2(vY.x, -vY.y, vY.y, vY.x) * cy;
+                    // let maxY = mat2x2(vY.x, vY.y, -vY.y, vY.x) * cy;
+                    // projected.aabb = vec4(
+                    //     minX.x / minX.y * P00, minY.x / minY.y * P11,
+                    //     maxX.x / maxX.y * P00, maxY.x / maxY.y * P11
+                    // ) * vec4f(0.5, -0.5, 0.5, -0.5) + vec4(0.5);
                 
                     projected.ret = true;
                     return projected;
                 }
 
+
+                fn isVisibleV2(index: i32) -> bool {
+                    let objectIndex = objectInfo[index];
+                    let mesh = meshInfo[u32(objectIndex.meshID)];
+                    let meshlet = meshletInfo[u32(objectIndex.meshletID)];
+        
+                    // let bboxMin = (cullData.viewMatrix * mesh.modelMatrix * vec4(meshlet.bboxMin.xyz, 1.0)).xyz;
+                    // let bboxMax = (cullData.viewMatrix * mesh.modelMatrix * vec4(meshlet.bboxMax.xyz, 1.0)).xyz;
+
+                    let bmin = -vec3f(meshlet.boundingSphere.w);
+                    let bmax = vec3f(meshlet.boundingSphere.w);
+                    let bboxMin = (cullData.viewMatrix * mesh.modelMatrix * vec4(bmin + meshlet.boundingSphere.xyz, 1.0)).xyz;
+                    let bboxMax = (cullData.viewMatrix * mesh.modelMatrix * vec4(bmax + meshlet.boundingSphere.xyz, 1.0)).xyz;
+                    
+                    let boxSize = bboxMax - bboxMin;
+        
+                    let boxCorners: array<vec3f, 8> = array(bboxMin.xyz,
+                        bboxMin.xyz + vec3f(boxSize.x,0,0),
+                        bboxMin.xyz + vec3f(0, boxSize.y,0),
+                        bboxMin.xyz + vec3f(0, 0, boxSize.z),
+                        bboxMin.xyz + vec3f(boxSize.xy,0),
+                        bboxMin.xyz + vec3f(0, boxSize.yz),
+                        bboxMin.xyz + vec3f(boxSize.x, 0, boxSize.z),
+                        bboxMin.xyz + boxSize.xyz
+                    );
+        
+        
+                    var minZ = 1.0;
+                    var minXY = vec2f(1);
+                    var maxXY = vec2f(0);
+            
+                    for (var i = 0; i < 8; i++) {
+                        //transform world space aaBox to NDC
+                        var clipPos = cullData.projectionMatrix * vec4f(boxCorners[i], 1);
+            
+                        clipPos.z = max(clipPos.z, 0);
+            
+                        let _a = clipPos.xyz / clipPos.w;
+                        clipPos.x = _a.x;
+                        clipPos.y = _a.y;
+                        clipPos.z = _a.z;
+            
+                        let _b = clamp(clipPos.xy, vec2f(-1.0), vec2f(1.0));
+                        clipPos.x = _b.x;
+                        clipPos.y = _b.y;
+                        
+                        let _c = clipPos.xy * vec2f(0.5, -0.5) + vec2f(0.5, 0.5);
+                        clipPos.x = _c.x;
+                        clipPos.y = _c.y;
+        
+                        minXY = min(clipPos.xy, minXY);
+                        maxXY = max(clipPos.xy, maxXY);
+            
+                        minZ = saturate(min(minZ, clipPos.z));
+                    }
+        
+                    let boxUVs = vec4f(minXY, maxXY);
+        
+                    // Calculate hi-Z buffer mip
+                    let RTSize = vec2f(512, 512);
+                    let MaxMipLevel = 6;
+        
+                    let size = vec2((maxXY - minXY)) * RTSize.xy;
+                    var mip = ceil(log2(f32(max(size.x, size.y))));
+             
+                    mip = clamp(mip, 0, f32(MaxMipLevel));
+        
+        
+        
+                    // Texel footprint for the lower (finer-grained) level
+                    let level_lower = max(mip - 1, 0);
+                    let _scale = exp2(-level_lower);
+                    // let _scale = exp2(-level_lower) * 512.0;
+                    let a = floor(boxUVs.xy*_scale);
+                    let b = ceil(boxUVs.zw*_scale);
+                    let dims = b - a;
+        
+                    // Use the lower level if we only touch <= 2 texels in both dimensions
+                    if (dims.x <= 2 && dims.y <= 2) {
+                        mip = level_lower;
+                    }
+        
+                    //load depths from high z buffer
+                    let depth = vec4f(
+                        textureSampleLevel(depthTexture, textureSampler, boxUVs.xy, u32(mip)),
+                        textureSampleLevel(depthTexture, textureSampler, boxUVs.zy, u32(mip)),
+                        textureSampleLevel(depthTexture, textureSampler, boxUVs.xw, u32(mip)),
+                        textureSampleLevel(depthTexture, textureSampler, boxUVs.zw, u32(mip))
+                    );
+        
+                    //find the max depth
+                    let maxDepth = max(max(max(depth.x, depth.y), depth.z), depth.w);
+        
+                    return minZ <= maxDepth;
+                }
+
+                // const blockSizeX: u32 = ${workgroupSize};
+                // const blockSizeY: u32 = 1;
+                // const blockSizeZ: u32 = 1;
+
                 const blockSize: u32 = 4;
                 
+                // @compute @workgroup_size(blockSizeX, blockSizeY, blockSizeZ)
                 @compute @workgroup_size(blockSize, blockSize, blockSize)
                 fn main(@builtin(global_invocation_id) grid: vec3<u32>) {
                     // let objectIndex = grid.z * (blockSizeX * blockSizeY) + grid.y * blockSizeX + grid.x;
@@ -7315,33 +7905,36 @@ var GPUDriven = class extends RenderPass {
                         // visible = false;
                         // Do occlusion culling
 
-                        let P00 = cullData.projectionMatrix[0][0];
-                        let P11 = cullData.projectionMatrix[1][1];
-                        let zNear = cullData.projectionMatrix[3][2];
+                        visible = visible && isVisibleV2(i32(objectIndex));
 
-                        let object = objectInfo[objectIndex];
-                        let mesh = meshInfo[u32(object.meshID)];
-                        let meshlet = meshletInfo[u32(object.meshletID)];
-                        let scale = mesh.scale.x;
-                        let boundingSphere = meshlet.boundingSphere * scale;
-                        let center = (cullData.viewMatrix * vec4(boundingSphere.xyz + mesh.position.xyz, 1.0)).xyz;
-                        let radius = boundingSphere.w;
+                        // let m = cullData.projectionMatrix;
+                        // let P00 = m[0][0];
+                        // let P11 = m[1][1];
+                        // let zNear = m[3][2];
 
-                        let projected = projectSphere(center, radius, zNear, P00, P11);
-                        if (projected.ret) {
-                            // visible = false;
-                            let aabb = projected.aabb;
-                            let width = (aabb.z - aabb.x) * cullData.depthPyramidSize.x;
-                            let height = (aabb.w - aabb.y) * cullData.depthPyramidSize.y;
+                        // let object = objectInfo[objectIndex];
+                        // let mesh = meshInfo[u32(object.meshID)];
+                        // let meshlet = meshletInfo[u32(object.meshletID)];
+                        // let scale = mesh.scale.x;
+                        // let boundingSphere = meshlet.boundingSphere * scale;
+                        // let center = (cullData.viewMatrix * vec4(boundingSphere.xyz + mesh.position.xyz, 1.0)).xyz;
+                        // let radius = boundingSphere.w;
 
-                            let level = u32(ceil(log2(max(width, height))));
-                            // let level = u32(floor(log2(max(width, height))));
+                        // let projected = projectSphere(center, radius, zNear, P00, P11);
+                        // if (projected.ret) {
+                        //     // visible = false;
+                        //     let aabb = projected.aabb;
+                        //     let width = (aabb.z - aabb.x) * cullData.depthPyramidSize.x;
+                        //     let height = (aabb.w - aabb.y) * cullData.depthPyramidSize.y;
 
-                            let depth = textureSampleLevel(depthTexture, textureSampler, (aabb.xy + aabb.zw) * 0.5, level);
-                            let depthSphere = zNear / (-center.z - radius);
+                        //     let level = u32(ceil(log2(max(width, height))));
+                        //     // let level = u32(floor(log2(max(width, height))));
 
-                            visible = visible && (depthSphere + 1.0) < depth;
-                        }
+                        //     let depth = textureSampleLevel(depthTexture, textureSampler, (aabb.xy + aabb.zw) * 0.5, level);
+                        //     let depthSphere = zNear / (-center.z - radius);
+
+                        //     // visible = visible && depthSphere + 1.0 < depth;
+                        // }
                     }
 
                     if (visible && (!LATE || visibilityBuffer[objectIndex].x < 0.5)) {
@@ -7414,6 +8007,8 @@ var GPUDriven = class extends RenderPass {
                 
                 @group(0) @binding(0) var depthTextureInputSampler: sampler;
                 @group(0) @binding(1) var depthTextureInput: texture_depth_2d;
+
+                @group(0) @binding(2) var<storage, read> depthTextureInputDims: vec4f;
                 
                 @vertex
                 fn vertexMain(input: VertexInput) -> VertexOutput {
@@ -7429,26 +8024,48 @@ var GPUDriven = class extends RenderPass {
                     return min(min_ab, min_cd);
                 }
 
+                fn max_vec4(v: vec4<f32>) -> f32 {
+                    let min_ab = min(v.x, v.y);
+                    let min_cd = min(v.z, v.w);
+                    return min(min_ab, min_cd);
+                }
+
+                fn HZBReduce(mainTex: texture_depth_2d, inUV: vec2f, invSize: vec2f) -> f32 {
+                    var depth = vec4f(0.0);
+                    let uv0 = inUV + vec2f(-0.25f, -0.25f) * invSize;
+                    let uv1 = inUV + vec2f(0.25f, -0.25f) * invSize;
+                    let uv2 = inUV + vec2f(-0.25f, 0.25f) * invSize;
+                    let uv3 = inUV + vec2f(0.25f, 0.25f) * invSize;
+    
+                    depth.x = textureSample(mainTex, depthTextureInputSampler, uv0);
+                    depth.y = textureSample(mainTex, depthTextureInputSampler, uv1);
+                    depth.z = textureSample(mainTex, depthTextureInputSampler, uv2);
+                    depth.w = textureSample(mainTex, depthTextureInputSampler, uv3);
+
+                    let reversed_z = false;
+                    if (reversed_z) {
+                        return min(min(depth.x, depth.y), min(depth.z, depth.w));
+                    }
+                    else {
+                        return max(max(depth.x, depth.y), max(depth.z, depth.w));
+                    }
+                }
+
                 @fragment
                 fn fragmentMain(input: VertexOutput) -> @builtin(frag_depth) f32 {
                     let uv = input.vUv;
-                    // let color = textureSample(depthTextureInput, depthTextureInputSampler, uv);
-                    // return color;
+                    // let a = textureGather(depthTextureInput, depthTextureInputSampler, uv);
+                    // var depth = max_vec4(a);
+                    // return depth;
 
-                    
-                    let dims = textureDimensions(depthTextureInput);
-                    let p = input.position.xy / vec2f(dims.xy);
-                    let a = textureGather(depthTextureInput, depthTextureInputSampler, uv);
-
-                    var depth = min_vec4(a);
-
-                    // let box0 = vec4f(0.219038, 0.366654, 0.372915, 0.604129);
-
-                    // if (uv.x >= box0.x && uv.x <= box0.z && uv.y >= box0.y && uv.y <= box0.w) {
-                    //     depth = 0.0;
-                    // }
-
+                    // let invSize = 1.0 / (vec2f(textureDimensions(depthTextureInput)));
+                    let invSize = depthTextureInputDims.xy;
+                    let inUV = input.vUv;
+    
+                    let depth = HZBReduce(depthTextureInput, inUV, invSize);
+    
                     return depth;
+
                 }
             `,
       attributes: {
@@ -7460,12 +8077,12 @@ var GPUDriven = class extends RenderPass {
       depthOutput: "depth24plus",
       uniforms: {
         depthTextureInputSampler: { group: 0, binding: 0, type: "sampler" },
-        depthTextureInput: { group: 0, binding: 1, type: "depthTexture" }
+        depthTextureInput: { group: 0, binding: 1, type: "depthTexture" },
+        depthTextureInputDims: { group: 0, binding: 2, type: "storage" }
       }
     });
     const depthPyramidSampler = TextureSampler.Create();
     this.depthPyramidCompute.SetSampler("depthTextureInputSampler", depthPyramidSampler);
-    this.depthTarget = DepthTexture.Create(Renderer.width, Renderer.height);
     this.depthPyramidGeometry = Geometry.Plane();
     this.drawIndirectBuffer = Buffer3.Create(4 * 4, 5 /* INDIRECT */);
     this.drawIndirectBuffer.name = "drawIndirectBuffer";
@@ -7479,18 +8096,21 @@ var GPUDriven = class extends RenderPass {
       while (r * 2 < v) r *= 2;
       return r;
     }
-    this.depthPyramidTargetTextureWidth = previousPow2(Renderer.width);
-    this.depthPyramidTargetTextureHeight = previousPow2(Renderer.height);
+    this.depthPyramidTargetTextureWidth = 1024;
+    this.depthPyramidTargetTextureHeight = 1024;
     this.depthPyramidTargetTextureMipLevels = Math.floor(Math.log2(Math.max(this.depthPyramidTargetTextureWidth, this.depthPyramidTargetTextureHeight)));
     this.depthPyramidTargetTexture = DepthTexture.Create(this.depthPyramidTargetTextureWidth, this.depthPyramidTargetTextureHeight, 1, "depth24plus", this.depthPyramidTargetTextureMipLevels);
+    this.depthTexture = DepthTexture.Create(this.depthPyramidTargetTextureWidth, this.depthPyramidTargetTextureHeight);
+    this.depthPyramidDimsBuffer = Buffer3.Create(4 * 4, 0 /* STORAGE */);
+    this.depthPyramidCompute.SetBuffer("depthTextureInputDims", this.depthPyramidDimsBuffer);
     this.visibleBuffer = Buffer3.Create(4, 0 /* STORAGE */);
     this.visibleBuffer.SetArray(new Float32Array([1]));
     this.nonVisibleBuffer = Buffer3.Create(4, 0 /* STORAGE */);
     this.nonVisibleBuffer.SetArray(new Float32Array([0]));
-    this.compute.SetTexture("depthTexture", this.depthPyramidTargetTexture);
     this.colorTarget = RenderTexture.Create(Renderer.width, Renderer.height);
     this.depthViewer = new DepthViewer();
     this.textureViewer = new TextureViewer();
+    this.occlusionCullingDebugger = new OcclusionCullingDebugger();
   }
   buildMeshletData() {
     const mainCamera = Camera.mainCamera;
@@ -7553,6 +8173,10 @@ var GPUDriven = class extends RenderPass {
             meshlet.lod,
             0,
             0,
+            0,
+            ...meshlet.bounds.min.elements,
+            0,
+            ...meshlet.bounds.max.elements,
             0
           );
         }
@@ -7599,6 +8223,9 @@ var GPUDriven = class extends RenderPass {
       console.log("meshletInfoBuffer", meshletInfoArray.byteLength);
       console.log("meshInfoBufferArray", meshInfoBufferArray.byteLength);
       console.log("objectInfoBufferArray", objectInfoBufferArray.byteLength);
+      this.meshInfoBuffer = meshInfoBuffer;
+      this.meshletInfoBuffer = meshletInfoBuffer;
+      this.objectInfoBuffer = objectInfoBuffer;
       console.timeEnd("GGGG");
       console.log("verticesArray", verticesArray.length);
       this.vertexBuffer = Buffer3.Create(verticesArray.byteLength, 0 /* STORAGE */);
@@ -7623,18 +8250,34 @@ var GPUDriven = class extends RenderPass {
     RendererContext.BeginRenderPass("GPUDriven - DepthPyramid", [], { target: this.depthPyramidTargetTexture, clear: true }, true);
     RendererContext.DrawIndirect(this.geometry, this.depthPyramidShader, this.drawIndirectBuffer);
     RendererContext.EndRenderPass();
+    let w = this.depthPyramidTargetTexture.width;
+    let h = this.depthPyramidTargetTexture.height;
+    let level = 0;
+    while (h > 8) {
+      this.depthPyramidTargetTexture.SetActiveMip(level);
+      this.depthPyramidCompute.SetTexture("depthTextureInput", this.depthPyramidTargetTexture);
+      this.depthPyramidTargetTexture.SetActiveMip(level + 1);
+      this.depthPyramidDimsBuffer.SetArray(new Float32Array([1 / w, 1 / h, 0, 0]));
+      RendererContext.BeginRenderPass("GPUDriven - DepthPyramid Build", [], { target: this.depthPyramidTargetTexture, clear: true }, true);
+      RendererContext.DrawGeometry(this.depthPyramidGeometry, this.depthPyramidCompute);
+      RendererContext.EndRenderPass();
+      w /= 2;
+      h /= 2;
+      level++;
+    }
     this.depthPyramidTargetTexture.SetActiveMip(0);
     this.depthPyramidTargetTexture.SetActiveMipCount(this.depthPyramidTargetTextureMipLevels);
   }
   generateDrawsPass(meshletsCount, prepass) {
     if (prepass === true) RendererContext.CopyBufferToBuffer(this.visibleBuffer, this.currentPassBuffer);
     else RendererContext.CopyBufferToBuffer(this.nonVisibleBuffer, this.currentPassBuffer);
-    const workgroup_size = 64;
-    const workgroupSizeX = Math.ceil(Math.floor((meshletsCount + workgroup_size - 1) / workgroup_size) * 0.5);
-    const workgroupSizeY = Math.ceil(Math.floor((meshletsCount + workgroup_size - 1) / workgroup_size) * 0.5);
+    const workgroupSizeX = Math.floor((meshletsCount + workgroupSize - 1) / workgroupSize);
     const dispatchSizeX = Math.ceil(Math.cbrt(meshletsCount) / 4);
     const dispatchSizeY = Math.ceil(Math.cbrt(meshletsCount) / 4);
     const dispatchSizeZ = Math.ceil(Math.cbrt(meshletsCount) / 4);
+    this.depthPyramidTargetTexture.SetActiveMip(0);
+    this.depthPyramidTargetTexture.SetActiveMipCount(this.depthPyramidTargetTextureMipLevels);
+    this.compute.SetTexture("depthTexture", this.depthPyramidTargetTexture);
     ComputeContext.BeginComputePass("GPUDriven - Culling", true);
     ComputeContext.Dispatch(this.compute, dispatchSizeX, dispatchSizeY, dispatchSizeZ);
     ComputeContext.EndComputePass();
@@ -7642,7 +8285,7 @@ var GPUDriven = class extends RenderPass {
   }
   geometryPass(prepass) {
     const shouldClear = prepass ? true : false;
-    RendererContext.BeginRenderPass("GPUDriven - Indirect", [{ target: this.colorTarget, clear: shouldClear }], { target: this.depthTarget, clear: shouldClear }, true);
+    RendererContext.BeginRenderPass("GPUDriven - Indirect", [{ target: this.colorTarget, clear: shouldClear }], void 0, true);
     RendererContext.DrawIndirect(this.geometry, this.shader, this.drawIndirectBuffer);
     RendererContext.EndRenderPass();
   }
@@ -7721,7 +8364,7 @@ var GPUDriven = class extends RenderPass {
     if (this.debugPyramid) {
       this.depthViewer.execute(resources, this.depthPyramidTargetTexture, this.debugLevel);
     } else {
-      this.textureViewer.execute(resources, this.colorTarget);
+      this.textureViewer.execute(resources, this.colorTarget, this.cullData, this.meshInfoBuffer, this.meshletInfoBuffer, this.objectInfoBuffer);
     }
     this.computeDrawBuffer.GetData().then((v) => {
       const visibleMeshCount = new Uint32Array(v)[1];
@@ -7746,6 +8389,7 @@ var RenderingPipeline = class {
     // DeferredLightingPass: new DeferredLightingPass(PassParams.GBufferAlbedo, PassParams.GBufferNormal, PassParams.GBufferERMO, PassParams.GBufferDepth, PassParams.ShadowPassDepth, PassParams.LightingPassOutput),
     // SSGI: new SSGI(PassParams.GBufferDepth, PassParams.GBufferNormal, PassParams.LightingPassOutput, PassParams.GBufferAlbedo)
     GPUDriven: new GPUDriven()
+    // Forward: new Forward()
   };
   constructor(renderer) {
     this.renderer = renderer;
@@ -8041,46 +8685,35 @@ async function Application() {
   const renderer = Renderer.Create(canvas, "webgpu");
   const scene = new Scene(renderer);
   const mainCameraGameObject = new GameObject(scene);
-  mainCameraGameObject.transform.position.z = 15;
+  mainCameraGameObject.transform.position.set(0, 0, -15);
   mainCameraGameObject.name = "MainCamera";
   const camera = mainCameraGameObject.AddComponent(Camera);
-  camera.SetPerspective(36, canvas.width / canvas.height, 0.5, 5e4);
+  camera.SetPerspective(72, canvas.width / canvas.height, 0.5, 5e4);
+  camera.transform.LookAt(new Vector3(0, 0, 1));
   const controls = new OrbitControls(camera);
   controls.connect(canvas);
   const sphereGeometry = Geometry.Sphere();
   const cubeGeometry = Geometry.Cube();
-  const bunnyObj = await OBJLoaderIndexed.load("./assets/kitten.obj");
+  const bunnyObj = await OBJLoaderIndexed.load("./bunny.obj");
   const bunnyGeometry = new Geometry();
   bunnyGeometry.attributes.set("position", new VertexAttribute(bunnyObj.vertices));
   bunnyGeometry.index = new IndexAttribute(bunnyObj.indices);
+  const kittenObj = await OBJLoaderIndexed.load("./assets/kitten.obj");
+  const kittenGeometry = new Geometry();
+  kittenGeometry.attributes.set("position", new VertexAttribute(kittenObj.vertices));
+  kittenGeometry.index = new IndexAttribute(kittenObj.indices);
   console.log(bunnyObj);
-  {
-    const cube = new GameObject(scene);
-    cube.transform.scale.set(1, 1, 1);
-    cube.transform.position.set(-3, 0, 0);
-    const cubeMesh = cube.AddComponent(MeshletMesh);
-    await cubeMesh.SetGeometry(cubeGeometry);
-  }
-  {
-    const cube = new GameObject(scene);
-    cube.transform.scale.set(1, 1, 1);
-    cube.transform.position.set(0, 0, 0);
-    const cubeMesh = cube.AddComponent(MeshletMesh);
-    await cubeMesh.SetGeometry(cubeGeometry);
-  }
-  {
-    const cube = new GameObject(scene);
-    cube.transform.scale.set(1, 1, 1);
-    cube.transform.position.set(3, 0, 0);
-    const cubeMesh = cube.AddComponent(MeshletMesh);
-    await cubeMesh.SetGeometry(cubeGeometry);
-  }
-  {
-    const cube = new GameObject(scene);
-    cube.transform.scale.set(1, 1, 1);
-    cube.transform.position.set(0, 0, 10);
-    const cubeMesh = cube.AddComponent(MeshletMesh);
-    await cubeMesh.SetGeometry(cubeGeometry);
+  const n = 30;
+  for (let x = 0; x < n; x++) {
+    for (let y = 0; y < n; y++) {
+      for (let z = 0; z < n; z++) {
+        const cube = new GameObject(scene);
+        cube.transform.scale.set(20, 20, 20);
+        cube.transform.position.set(x * 10, y * 10, z * 10);
+        const cubeMesh = cube.AddComponent(MeshletMesh);
+        await cubeMesh.SetGeometry(bunnyGeometry);
+      }
+    }
   }
   scene.Start();
 }

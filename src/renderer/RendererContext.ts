@@ -58,8 +58,8 @@ export class RendererContext {
         else throw Error("Unknown render api type.");
     }
 
-    public static CopyTextureToTexture(source: Texture, destination: Texture) {
-        if (Renderer.type === "webgpu") WEBGPURendererContext.CopyTextureToTexture(source as WEBGPUTexture, destination as WEBGPUTexture);
+    public static CopyTextureToTexture(source: Texture, destination: Texture, srcMip = 0, dstMip = 0) {
+        if (Renderer.type === "webgpu") WEBGPURendererContext.CopyTextureToTexture(source as WEBGPUTexture, destination as WEBGPUTexture, srcMip, dstMip);
         else throw Error("Unknown render api type.");
     }
 

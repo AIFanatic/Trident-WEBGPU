@@ -72,6 +72,8 @@ export class Texture {
 
     public GenerateMips() {}
 
+    public Destroy() {}
+
     public static Create(width: number, height: number, depth: number = 1, format: TextureFormat = Renderer.SwapChainFormat, mipLevels = 1): Texture {
         if (Renderer.type === "webgpu") return new WEBGPUTexture(width, height, depth, format, TextureType.IMAGE, "2d", mipLevels);
         throw Error("Renderer type invalid");
@@ -84,6 +86,7 @@ export class Texture {
         if (Renderer.type === "webgpu") return WEBGPUTexture.FromImageBitmap(imageBitmap, imageBitmap.width, imageBitmap.height);
         throw Error("Renderer type invalid");
     }
+
 }
 
 export class DepthTexture extends Texture {

@@ -148,11 +148,12 @@ export class WEBGPURendererContext implements RendererContext {
         activeCommandEncoder.copyBufferToBuffer(source.GetBuffer(), sourceOffset, destination.GetBuffer(), destinationOffset, size);
     }
 
-    public static CopyTextureToTexture(source: WEBGPUTexture, destination: WEBGPUTexture) {
+    // CopyTexture(Texture src, int srcElement, int srcMip, Texture dst, int dstElement, int dstMip);
+    public static CopyTextureToTexture(source: WEBGPUTexture, destination: WEBGPUTexture, srcMip: number, dstMip: number) {
         const activeCommandEncoder = WEBGPURenderer.GetActiveCommandEncoder();
         if (!activeCommandEncoder) throw Error("No active command encoder!!");
 
-        activeCommandEncoder.copyTextureToTexture({texture: source.GetBuffer()}, {texture: destination.GetBuffer()}, [source.width, source.height, source.depth]);
+        activeCommandEncoder.copyTextureToTexture({texture: source.GetBuffer(), mipLevel: srcMip}, {texture: destination.GetBuffer(), mipLevel: dstMip}, [source.width, source.height, source.depth]);
     }
 
     public static ClearBuffer(buffer: WEBGPUBuffer, offset: number, size: number) {

@@ -27,7 +27,7 @@ export class WEBGPUTexture implements Texture {
         let textureType: GPUTextureUsageFlags = GPUTextureUsage.TEXTURE_BINDING;
 
         if (!type) textureType = GPUTextureUsage.TEXTURE_BINDING;
-        else if (type === TextureType.DEPTH) textureType = GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING;
+        else if (type === TextureType.DEPTH) textureType = GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_SRC;
         else if (type === TextureType.RENDER_TARGET) textureType = GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_SRC;
         else if (type === TextureType.RENDER_TARGET_STORAGE) textureType = GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.STORAGE_BINDING;
 
@@ -96,6 +96,10 @@ export class WEBGPUTexture implements Texture {
 
     public GetActiveMipCount(): number {
         return this.activeMipCount;
+    }
+
+    public Destroy() {
+        this.buffer.destroy();
     }
 
     // Format and types are very limited for now

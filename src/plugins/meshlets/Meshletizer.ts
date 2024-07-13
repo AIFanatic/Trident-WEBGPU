@@ -8,9 +8,11 @@ import { MeshletMerger } from "./utils/MeshletMerger";
 export class Meshletizer {
 
     private static step(meshlets: Meshlet[], lod: number, previousMeshlets: Map<string, Meshlet>): Meshlet[] {
-        if (previousMeshlets.size === 0) {
-            for (let m of meshlets) previousMeshlets.set(m.id, m);
-        }
+        // if (previousMeshlets.size === 0) {
+        //     for (let m of meshlets) previousMeshlets.set(m.id, m);
+        // }
+
+        if (meshlets.length === 1 && meshlets[0].vertices.length < 128 * 3) return meshlets;
 
 
 
@@ -83,6 +85,8 @@ export class Meshletizer {
 
         let rootMeshlet: Meshlet | null = null;
         let previousMeshlets: Map<string, Meshlet> = new Map();
+
+        for (let m of meshlets) previousMeshlets.set(m.id, m);
 
         for (let lod = 0; lod < maxLOD; lod++) {
             const outputs = this.step(inputs, lod, previousMeshlets);
