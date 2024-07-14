@@ -43,7 +43,6 @@ export class OcclusionCullingDebugger extends RenderPass {
             frustum: array<vec4<f32>, 6>,
             meshCount: vec4<f32>,
             screenSize: vec4<f32>,
-            depthPyramidSize: vec4<f32>,
             cameraNearFar: vec4<f32>,
             projectionMatrixTransposed: mat4x4<f32>,
         };
@@ -268,8 +267,8 @@ export class OcclusionCullingDebugger extends RenderPass {
             let aabb = projected.aabb;
 
             if (uv.x >= aabb.x && uv.x <= aabb.z && uv.y >= aabb.y && uv.y <= aabb.w) {
-                let width = (aabb.z - aabb.x) * cullData.depthPyramidSize.x;
-                let height = (aabb.w - aabb.y) * cullData.depthPyramidSize.y;
+                let width = (aabb.z - aabb.x) * 1024; // cullData.depthPyramidSize.x;
+                let height = (aabb.w - aabb.y) * 1024; // cullData.depthPyramidSize.y;
 
                 // let level = u32(ceil(log2(max(width, height))));
                 let level = u32(floor(log2(max(width, height))));
@@ -345,8 +344,8 @@ export class OcclusionCullingDebugger extends RenderPass {
             let boxUVs = vec4f(minXY, maxXY);
 
             // Calculate hi-Z buffer mip
-            let RTSize = vec2f(512, 512);
-            let MaxMipLevel = 6;
+            let RTSize = vec2f(1024, 1024);
+            let MaxMipLevel = 10;
 
             let size = vec2((maxXY - minXY)) * RTSize.xy;
             var mip = ceil(log2(f32(max(size.x, size.y))));
