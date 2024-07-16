@@ -1,5 +1,7 @@
 #!/bin/bash
 
+cd repo
+
 emcc \
 -O3 -s WASM=1 \
 -s ALLOW_MEMORY_GROWTH=1 \
@@ -13,5 +15,7 @@ emcc \
 -I GKlib \
 ./{GKlib,libmetis}/*.c \
 -o Metis.js
+
+cd ..
 
 cp ./Metis.wasm ../../../../dist/Metis.wasm

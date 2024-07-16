@@ -1,3 +1,4 @@
 *.js linguist-detectable=false
 repo/** filter=lfs diff=lfs merge=lfs -text
 src/plugins/meshlets/meshoptimizer/repo/** filter=lfs diff=lfs merge=lfs -text
+src/plugins/meshlets/metis-5.2.1/repo/** filter=lfs diff=lfs merge=lfs -text
