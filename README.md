@@ -6,7 +6,7 @@ https://github.com/user-attachments/assets/af560a58-f40a-4806-8ecc-b420b31985ea
 * Automatic dynamic LOD
 * Frustum culling
 * Backface culling
-* Occlusion culling
+* Occlusion culling (HiZ)
 * Small features culling
 * Render graph
 * Instanced meshes
@@ -82,3 +82,9 @@ for (let x = 0; x < n; x++) {
     }
 }
 ```
+
+
+## Credits
+This was built based on a lot of open source resources online, such as @zeux meshoptimizer/niagara etc.
+<br>
+Credit was not always given and apologies for that, when the project stabilizes a bit it will be updated with the proper sources, if you see some portions of your code feel free to reach out and it will be updated.
