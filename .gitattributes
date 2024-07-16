@@ -1,2 +1,2 @@
 *.js linguist-detectable=false
-repo filter=lfs diff=lfs merge=lfs -text
+repo/** filter=lfs diff=lfs merge=lfs -text
