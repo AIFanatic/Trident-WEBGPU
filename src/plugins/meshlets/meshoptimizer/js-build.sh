@@ -10,7 +10,7 @@ emcc \
 -s ASSERTIONS=1 \
 -s EXPORTED_RUNTIME_METHODS="['cwrap', 'ccall']" \
 -s EXPORTED_FUNCTIONS="['_malloc', '_meshopt_computeClusterBounds', '_meshopt_buildMeshletsBound', '_meshopt_buildMeshlets', '_meshopt_simplify', '_meshopt_generateVertexRemap', '_meshopt_remapIndexBuffer', '_meshopt_remapVertexBuffer', '_meshopt_simplifyScale']" \
-./src/clusterizer.cpp ./src/simplifier.cpp ./src/indexgenerator.cpp \
+./repo/src/clusterizer.cpp ./repo/src/simplifier.cpp ./repo/src/indexgenerator.cpp \
 -o ./MeshOptimizer.js
 
 cp ./MeshOptimizer.wasm ../../../../dist/MeshOptimizer.wasm
