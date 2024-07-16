@@ -861,12 +861,12 @@ export class GPUDriven extends RenderPass {
         RendererContext.ClearBuffer(this.computeDrawBuffer);
 
         this.generateDrawsPass(meshletsCount, true);
-        this.geometryPass(true);
+        // this.geometryPass(true);
 
         this.hizPass.buildDepthPyramid(this.depthTexture, this.vertexBuffer, this.instanceInfoBuffer, this.meshInfoBuffer, this.objectInfoBuffer, this.drawIndirectBuffer);
 
         this.generateDrawsPass(meshletsCount, false);
-        this.drawIndirectBuffer.SetArray(new Uint32Array([128, meshletsCount, 0, 0]))
+        this.drawIndirectBuffer.SetArray(new Uint32Array([Meshlet.max_triangles, meshletsCount, 0, 0]))
         this.geometryPass(true);
 
         if (Debugger.isDebugDepthPassEnabled) {

@@ -3953,8 +3953,8 @@ var Meshlet = class _Meshlet {
     for (let i = 0; i < verticesNonIndexed.length; i += 3) {
       verticesGPU.push(verticesNonIndexed[i + 0], verticesNonIndexed[i + 1], verticesNonIndexed[i + 2], 0);
     }
-    this.vertices_gpu = new Float32Array(_Meshlet.max_triangles * 4);
-    this.vertices_gpu.set(verticesGPU.slice(0, _Meshlet.max_triangles * 4));
+    this.vertices_gpu = new Float32Array(_Meshlet.max_triangles * 4 * 3);
+    this.vertices_gpu.set(verticesGPU.slice(0, _Meshlet.max_triangles * 4 * 3));
     this.crc = CRC32.forBytes(new Uint8Array(this.vertices_gpu.buffer));
   }
 };
@@ -9484,10 +9484,9 @@ var GPUDriven = class extends RenderPass {
     this.shader.SetArray("settings", settings);
     RendererContext.ClearBuffer(this.computeDrawBuffer);
     this.generateDrawsPass(meshletsCount, true);
-    this.geometryPass(true);
     this.hizPass.buildDepthPyramid(this.depthTexture, this.vertexBuffer, this.instanceInfoBuffer, this.meshInfoBuffer, this.objectInfoBuffer, this.drawIndirectBuffer);
     this.generateDrawsPass(meshletsCount, false);
-    this.drawIndirectBuffer.SetArray(new Uint32Array([128, meshletsCount, 0, 0]));
+    this.drawIndirectBuffer.SetArray(new Uint32Array([Meshlet.max_triangles, meshletsCount, 0, 0]));
     this.geometryPass(true);
     if (Debugger.isDebugDepthPassEnabled) {
       this.depthViewer.execute(resources, this.hizPass.debugDepthTexture, Debugger.debugDepthMipLevel, Debugger.debugDepthExposure);
@@ -10021,10 +10020,10 @@ async function Application() {
     for (let y = 0; y < n; y++) {
       for (let z = 0; z < n; z++) {
         const cube = new GameObject(scene);
-        cube.transform.scale.set(1, 1, 1);
+        cube.transform.scale.set(20, 20, 20);
         cube.transform.position.set(x * 10, y * 10, z * 10);
         const cubeMesh = cube.AddComponent(MeshletMesh);
-        await cubeMesh.SetGeometry(cubeGeometry);
+        await cubeMesh.SetGeometry(bunnyGeometry);
       }
     }
   }

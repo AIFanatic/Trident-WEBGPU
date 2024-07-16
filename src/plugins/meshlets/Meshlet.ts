@@ -63,9 +63,9 @@ export class Meshlet {
         // TODO: Force vertices to be always of max_vertices * vec4
         // This is not efficient since vertices that dont fill the whole buffer still get drawn.
         // But again no MDI, explore alternatives
-        this.vertices_gpu = new Float32Array(Meshlet.max_triangles * 4);
+        this.vertices_gpu = new Float32Array(Meshlet.max_triangles * 4 * 3);
         // TODO: This is capping vertices, may lead to errors
-        this.vertices_gpu.set(verticesGPU.slice(0, Meshlet.max_triangles * 4));
+        this.vertices_gpu.set(verticesGPU.slice(0, Meshlet.max_triangles * 4 * 3));
         this.crc = CRC32.forBytes(new Uint8Array(this.vertices_gpu.buffer));
     }
 }
