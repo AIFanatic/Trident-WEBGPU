@@ -16,8 +16,6 @@ interface MeshletBuildOutput {
 }
 
 export class MeshletCreator {
-    private static max_vertices = 255;
-    private static max_triangles = 128;
     private static cone_weight = 0.0;
 
     private static buildMeshletsFromBuildOutput(vertices: Float32Array, output: MeshletBuildOutput): Meshlet[] {

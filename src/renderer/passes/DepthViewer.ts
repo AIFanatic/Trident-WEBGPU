@@ -12,7 +12,6 @@ export class DepthViewer extends RenderPass {
     public name: string = "DepthViewer";
     private shader: Shader;
     private quadGeometry: Geometry;
-    private debugLevelBuffer: Buffer;
 
     constructor() {
         super({});
@@ -31,6 +30,7 @@ export class DepthViewer extends RenderPass {
         @group(0) @binding(0) var textureSampler: sampler;
         @group(0) @binding(1) var shadowMapTexture: texture_depth_2d;
         @group(0) @binding(2) var<storage, read> debugLevel: f32;
+        @group(0) @binding(3) var<storage, read> debugExposure: f32;
         
         @vertex fn vertexMain(input: VertexInput) -> VertexOutput {
             var output: VertexOutput;
@@ -44,7 +44,8 @@ export class DepthViewer extends RenderPass {
 
             let shadowMap = textureSampleLevel(shadowMapTexture, textureSampler, uv, u32(debugLevel));
             
-            return vec4(pow(1.0 - shadowMap, 0.5), vec3(0));
+            let exposureFactor = pow(2.0, debugExposure + 5.0);
+            return vec4((1 - shadowMap) * exposureFactor, vec3(0));
         }
         `;
 
@@ -59,21 +60,21 @@ export class DepthViewer extends RenderPass {
                 textureSampler: {group: 0, binding: 0, type: "sampler"},
                 shadowMapTexture: {group: 0, binding: 1, type: "depthTexture"},
                 debugLevel: {group: 0, binding: 2, type: "storage"},
+                debugExposure: {group: 0, binding: 3, type: "storage"},
             }
         });
         this.quadGeometry = Geometry.Plane();
 
-        const sampler = TextureSampler.Create();
+        const sampler = TextureSampler.Create({magFilter: "nearest", minFilter: "nearest"});
         this.shader.SetSampler("textureSampler", sampler);
-
-        this.debugLevelBuffer = Buffer.Create(4, BufferType.STORAGE);
-        this.shader.SetBuffer("debugLevel", this.debugLevelBuffer);
     }
 
-    public execute(resources: ResourcePool, depthTexture: DepthTexture, debugLevel: number) {
+    public execute(resources: ResourcePool, depthTexture: DepthTexture, debugLevel: number, debugExposure: number) {
         
         // this.shader.SetTexture("albedoTexture", resources.getResource(PassParams.GBufferAlbedo));
-        this.debugLevelBuffer.SetArray(new Float32Array([debugLevel]));
+        // this.debugLevelBuffer.SetArray(new Float32Array([debugLevel]));
+        this.shader.SetValue("debugLevel", debugLevel);
+        this.shader.SetValue("debugExposure", debugExposure);
         this.shader.SetTexture("shadowMapTexture", depthTexture);
 
         RendererContext.BeginRenderPass("DepthViewer", [{clear: false}]);

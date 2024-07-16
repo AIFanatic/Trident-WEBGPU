@@ -6,20 +6,14 @@ import { Geometry, VertexAttribute } from "../../Geometry";
 import { Buffer, BufferType } from "../Buffer";
 import { Camera } from "../../components/Camera";
 import { ComputeContext } from "../ComputeContext";
-import { DepthTexture, RenderTexture, RenderTextureStorage } from "../Texture";
+import { DepthTexture, RenderTexture } from "../Texture";
 import { Frustum } from "../../math/Frustum";
 import { Debugger } from "../../plugins/Debugger";
 import { MeshletMesh } from "../../components/MeshletMesh";
 import { Meshlet } from "../../plugins/meshlets/Meshlet";
 import { TextureSampler } from "../TextureSampler";
-import { Color } from "../../math/Color";
 import { DepthViewer } from "./DepthViewer";
 import { TextureViewer } from "./TextureViewer";
-import { Vector3 } from "../../math/Vector3";
-import { Vector4 } from "../../math/Vector4";
-import { Vector2 } from "../../math/Vector2";
-import { glMatrix, mat2, mat4, vec2, vec4 } from "gl-matrix";
-import { Matrix4 } from "../../math/Matrix4";
 import { OcclusionCullingDebugger } from "./OcclusionCullingDebugger";
 import { HiZPass } from "./HiZPass";
 
@@ -28,57 +22,8 @@ interface SceneMesh {
     mesh: MeshletMesh;
 };
 
-const vertexSize = 128 * 3;
+const vertexSize = Meshlet.max_triangles * 3;
 const workgroupSize = 64;
-
-
-function getAxisAlignedBoundingBoxFast(C: Vector3, r: number, nearZ: number, P00: number, P11: number): Vector4 {
-    if (-C.z < r + nearZ) return new Vector4();
-
-    const cx = vec2.fromValues(-C.x, C.z);
-    let vx = vec2.fromValues(Math.sqrt(vec2.dot(cx, cx) - r * r), r);
-    vx = vec2.div(vx, vec2.clone(vx), vec2.fromValues(vec2.len(cx), vec2.len(cx)));
-
-    // console.log("vx", vx);
-    
-    const minx = vec2.transformMat2(vec2.create(), cx, mat2.fromValues(vx[0], vx[1], -vx[1], vx[0]));
-    const maxx = vec2.transformMat2(vec2.create(), cx, mat2.fromValues(vx[0], -vx[1], vx[1], vx[0]));
-
-    // console.log("minx", minx);
-    // console.log("maxx", maxx);
-
-
-    const cy = vec2.fromValues(-C.y, C.z);
-    let vy = vec2.fromValues(Math.sqrt(vec2.dot(cy, cy) - r * r), r);
-    vy = vec2.div(vy, vec2.clone(vy), vec2.fromValues(vec2.len(cy), vec2.len(cy)));
-
-    const miny = vec2.transformMat2(vec2.create(), cy, mat2.fromValues(vy[0], -vy[1], vy[1], vy[0]));
-    const maxy = vec2.transformMat2(vec2.create(), cy, mat2.fromValues(vy[0], vy[1], -vy[1], vy[0]));
-
-    // console.log("miny", miny);
-    // console.log("maxy", maxy);
-
-    let a = vec4.fromValues(minx[0] / minx[1] * P00, miny[0] / miny[1] * P11, maxx[0] / maxx[1] * P00, maxy[0] / maxy[1] * P11);
-    let b = vec4.fromValues(0.5, -0.5, 0.5, -0.5);
-    let c = vec4.fromValues(0.5, 0.5, 0.5, 0.5);
-
-    let out = vec4.create();
-    vec4.mul(out, a, b);
-    vec4.add(out, out, c);
-
-    return new Vector4(out[0], out[1], out[2], out[3]);
-}
-
-
-// console.log(
-//     getAxisAlignedBoundingBoxFast(
-//         new Vector3(-3.162088394165039, 0.1436321884393692, 15.219886302947998),
-//         1.170837163925171,
-//         0.5,
-//         1.952405,
-//         3.077683
-//     )
-// )
 
 export class GPUDriven extends RenderPass {
     public name: string = "GPUDriven";
@@ -119,7 +64,7 @@ export class GPUDriven extends RenderPass {
     private meshInfoBuffer: Buffer;
     private meshletInfoBuffer: Buffer;
     private objectInfoBuffer: Buffer;
-    
+
     constructor() {
         super({});
 
@@ -174,6 +119,20 @@ export class GPUDriven extends RenderPass {
         @group(0) @binding(4) var<storage, read> meshInfo: array<MeshInfo>;
         @group(0) @binding(5) var<storage, read> objectInfo: array<ObjectInfo>;
 
+        struct Settings {
+            frustumCullingEnabled: f32,
+            backFaceCullingEnabled: f32,
+            occlusionCullingEnabled: f32,
+            smallFeaturesCullingEnabled: f32,
+            staticLOD: f32,
+            dynamicLODErrorThreshold: f32,
+            dynamicLODEnabled: f32,
+            viewInstanceColors: f32,
+        };
+        @group(0) @binding(6) var<storage, read> settings: Settings;
+        
+
+        const modelMatrix = mat4x4<f32>();
         @vertex fn vertexMain(input: VertexInput) -> VertexOutput {
             var output: VertexOutput;
             let meshID = instanceInfo[input.instanceIndex].meshID;
@@ -198,11 +157,14 @@ export class GPUDriven extends RenderPass {
         }
 
         @fragment fn fragmentMain(input: VertexOutput) -> @location(0) vec4f {
-            let r = rand(f32(input.instance) + 12.1212);
-            let g = rand(f32(input.instance) + 22.1212);
-            let b = rand(f32(input.instance) + 32.1212);
-
-            return vec4(r, g, b, 1.0);
+            var color = vec4(0.2);
+            if (bool(settings.viewInstanceColors)) {
+                let r = rand(f32(input.instance) + 12.1212);
+                let g = rand(f32(input.instance) + 22.1212);
+                let b = rand(f32(input.instance) + 32.1212);
+                color = vec4(r, g, b, 1.0);
+            }
+            return color;
         }
         `;
 
@@ -219,6 +181,7 @@ export class GPUDriven extends RenderPass {
                 instanceInfo: {group: 0, binding: 3, type: "storage"},
                 meshInfo: {group: 0, binding: 4, type: "storage"},
                 objectInfo: {group: 0, binding: 5, type: "storage"},
+                settings: {group: 0, binding: 6, type: "storage"},
             },
         });
 
@@ -292,16 +255,24 @@ export class GPUDriven extends RenderPass {
                 @group(0) @binding(9) var depthTexture: texture_depth_2d;
 
 
+                struct Settings {
+                    frustumCullingEnabled: f32,
+                    backFaceCullingEnabled: f32,
+                    occlusionCullingEnabled: f32,
+                    smallFeaturesCullingEnabled: f32,
+                    staticLOD: f32,
+                    dynamicLODErrorThreshold: f32,
+                    dynamicLODEnabled: f32,
+                    viewInstanceColors: f32,
+                };
+                @group(0) @binding(10) var<storage, read> settings: Settings;
+
+
                 // assume a fixed resolution and fov
                 const PI = 3.141592653589793;
                 const testFOV = PI * 0.5;
                 const cotHalfFov = 1.0 / tan(testFOV / 2.0);
 
-                // TODO: Pass these
-                const screenHeight = 609.0;
-                const lodErrorThreshold = 1.0;
-                const forcedLOD = 0;
-                
                 fn transformSphere(sphere: vec4<f32>, transform: mat4x4<f32>) -> vec4<f32> {
                     var hCenter = vec4(sphere.xyz, 1.0);
                     hCenter = transform * hCenter;
@@ -323,7 +294,7 @@ export class GPUDriven extends RenderPass {
                 }
 
 
-                fn cull(meshlet: MeshletInfo, modelview: mat4x4<f32>) -> bool {
+                fn isMeshletVisible(meshlet: MeshletInfo, modelview: mat4x4<f32>) -> bool {
                     var projectedBounds = vec4(meshlet.boundingSphere.xyz, max(meshlet.error.x, 10e-10f));
                     projectedBounds = transformSphere(projectedBounds, modelview);
             
@@ -332,11 +303,7 @@ export class GPUDriven extends RenderPass {
             
                     let clusterError = projectErrorToScreen(projectedBounds);
                     let parentError = projectErrorToScreen(parentProjectedBounds);
-                    let render = clusterError <= lodErrorThreshold && parentError > lodErrorThreshold;
-                    return render;
-
-                    // // Disable culling
-                    // return u32(meshlet.lod.x) == u32(forcedLOD);
+                    return clusterError <= settings.dynamicLODErrorThreshold && parentError > settings.dynamicLODErrorThreshold;
                 }
 
 
@@ -350,90 +317,47 @@ export class GPUDriven extends RenderPass {
                     let mesh = meshInfo[u32(object.meshID)];
                     let meshlet = meshletInfo[u32(object.meshletID)];
 
-                    let v = cull(meshlet, cullData.viewMatrix * mesh.modelMatrix);
-                    if (!v) {
-                        return false;
+                    if (bool(settings.dynamicLODEnabled)) {
+                        if (!isMeshletVisible(meshlet, cullData.viewMatrix * mesh.modelMatrix)) {
+                            return false;
+                        }
+                    }
+                    else {
+                        if (!(u32(meshlet.lod.x) == u32(settings.staticLOD))) {
+                            return false;
+                        }
                     }
 
                     // Backface
-                    if (dot(normalize(meshlet.cone_apex.xyz - cullData.cameraPosition.xyz), meshlet.cone_axis.xyz) >= meshlet.cone_cutoff) {
-                        return false;
-                    }
-                    
-                    // Camera frustum
-                    let scale = mesh.scale.x;
-                    let boundingSphere = meshlet.boundingSphere * scale;
-                    let center = (cullData.viewMatrix * vec4(boundingSphere.xyz + mesh.position.xyz, 1.0)).xyz;
-                    let negRadius = -boundingSphere.w;
-
-                    for (var i = 0; i < 6; i++) {
-                        let distance = planeDistanceToPoint(cullData.frustum[i].xyz, cullData.frustum[i].w, center);
-
-                        if (distance < negRadius) {
+                    if (bool(settings.backFaceCullingEnabled)) {
+                        if (dot(normalize(meshlet.cone_apex.xyz - cullData.cameraPosition.xyz), meshlet.cone_axis.xyz) >= meshlet.cone_cutoff) {
                             return false;
+                        }
+                    }
+
+                    // Camera frustum
+                    if (bool(settings.frustumCullingEnabled)) {
+                        let scale = mesh.scale.x;
+                        let boundingSphere = meshlet.boundingSphere * scale;
+                        let center = (cullData.viewMatrix * vec4(boundingSphere.xyz + mesh.position.xyz, 1.0)).xyz;
+                        let negRadius = -boundingSphere.w;
+
+                        for (var i = 0; i < 6; i++) {
+                            let distance = planeDistanceToPoint(cullData.frustum[i].xyz, cullData.frustum[i].w, center);
+
+                            if (distance < negRadius) {
+                                return false;
+                            }
                         }
                     }
 
                     return true;
                 }
 
-                struct Projected {
-                    ret: bool,
-                    aabb: vec4f,
-                };
-
-                fn projectSphere(C: vec3f, r: f32, nearZ: f32, P00: f32, P11: f32) -> Projected {
-                    var projected: Projected;
-
-                    let r2 = r;
-
-                    if (-C.z < r2 + nearZ) {
-                        projected.ret = false;
-                        return projected;
-                    }
-            
-                    let c = vec3f(C.x, C.y, -C.z);
-                    let cr = c * r2;
-                    let czr2 = c.z * c.z - r2 * r2;
-                
-                    let vx = sqrt(c.x * c.x + czr2);
-                    let minx = (vx * c.x - cr.z) / (vx * c.z + cr.x);
-                    let maxx = (vx * c.x + cr.z) / (vx * c.z - cr.x);
-                
-                    let vy = sqrt(c.y * c.y + czr2);
-                    let miny = (vy * c.y - cr.z) / (vy * c.z + cr.y);
-                    let maxy = (vy * c.y + cr.z) / (vy * c.z - cr.y);
-
-                    projected.aabb = vec4(minx * P00, miny * P11, maxx * P00, maxy * P11);
-                    projected.aabb = projected.aabb.xwzy * vec4(0.5f, -0.5f, 0.5f, -0.5f) + vec4(0.5f); // clip space -> uv space
-
-
-                    // let cx = vec2(-C.x, C.z);
-                    // let vX = vec2(sqrt(dot(cx, cx) - r * r), r) / length(cx);
-                    // let minX = mat2x2(vX.x, vX.y, -vX.y, vX.x) * cx;
-                    // let maxX = mat2x2(vX.x, -vX.y, vX.y, vX.x) * cx;
-                
-                    // let cy = vec2(-C.y, C.z);
-                    // let vY = vec2(sqrt(dot(cy, cy) - r * r), r) / length(cy);
-                    // let minY = mat2x2(vY.x, -vY.y, vY.y, vY.x) * cy;
-                    // let maxY = mat2x2(vY.x, vY.y, -vY.y, vY.x) * cy;
-                    // projected.aabb = vec4(
-                    //     minX.x / minX.y * P00, minY.x / minY.y * P11,
-                    //     maxX.x / maxX.y * P00, maxY.x / maxY.y * P11
-                    // ) * vec4f(0.5, -0.5, 0.5, -0.5) + vec4(0.5);
-                
-                    projected.ret = true;
-                    return projected;
-                }
-
-
-                fn isVisibleV2(index: i32) -> bool {
+                fn isOccluded(index: i32) -> bool {
                     let objectIndex = objectInfo[index];
                     let mesh = meshInfo[u32(objectIndex.meshID)];
                     let meshlet = meshletInfo[u32(objectIndex.meshletID)];
-        
-                    // let bboxMin = (cullData.viewMatrix * mesh.modelMatrix * vec4(meshlet.bboxMin.xyz, 1.0)).xyz;
-                    // let bboxMax = (cullData.viewMatrix * mesh.modelMatrix * vec4(meshlet.bboxMax.xyz, 1.0)).xyz;
 
                     let bmin = -vec3f(meshlet.boundingSphere.w);
                     let bmax = vec3f(meshlet.boundingSphere.w);
@@ -485,13 +409,24 @@ export class GPUDriven extends RenderPass {
                     let boxUVs = vec4f(minXY, maxXY);
         
                     // Calculate hi-Z buffer mip
-                    let RTSize = vec2f(1024, 1024);
-                    let MaxMipLevel = 11;
+                    let depthTextureSize = textureDimensions(depthTexture, 0);
+                    let RTSize = vec2f(depthTextureSize.xy);
+                    let MaxMipLevel = 10;
         
                     let size = vec2((maxXY - minXY)) * RTSize.xy;
                     var mip = ceil(log2(f32(max(size.x, size.y))));
              
                     mip = clamp(mip, 0, f32(MaxMipLevel));
+
+
+                    // small-feature culling
+                    let _size = (maxXY.xy - minXY.xy);
+                    let maxsize = max(_size.x, _size.y) * f32(max(depthTextureSize.x,depthTextureSize.y));
+                    if (bool(settings.smallFeaturesCullingEnabled)) {
+                        if(maxsize <= 1.0f) {
+                            return false;
+                        }
+                    }
         
         
         
@@ -555,36 +490,11 @@ export class GPUDriven extends RenderPass {
                         // visible = false;
                         // Do occlusion culling
 
-                        visible = visible && isVisibleV2(i32(objectIndex));
+                        if (bool(settings.occlusionCullingEnabled)) {
+                            visible = visible && isOccluded(i32(objectIndex));
+                        }
 
-                        // let m = cullData.projectionMatrix;
-                        // let P00 = m[0][0];
-                        // let P11 = m[1][1];
-                        // let zNear = m[3][2];
-
-                        // let object = objectInfo[objectIndex];
-                        // let mesh = meshInfo[u32(object.meshID)];
-                        // let meshlet = meshletInfo[u32(object.meshletID)];
-                        // let scale = mesh.scale.x;
-                        // let boundingSphere = meshlet.boundingSphere * scale;
-                        // let center = (cullData.viewMatrix * vec4(boundingSphere.xyz + mesh.position.xyz, 1.0)).xyz;
-                        // let radius = boundingSphere.w;
-
-                        // let projected = projectSphere(center, radius, zNear, P00, P11);
-                        // if (projected.ret) {
-                        //     // visible = false;
-                        //     let aabb = projected.aabb;
-                        //     let width = (aabb.z - aabb.x) * cullData.depthPyramidSize.x;
-                        //     let height = (aabb.w - aabb.y) * cullData.depthPyramidSize.y;
-
-                        //     let level = u32(ceil(log2(max(width, height))));
-                        //     // let level = u32(floor(log2(max(width, height))));
-
-                        //     let depth = textureSampleLevel(depthTexture, textureSampler, (aabb.xy + aabb.zw) * 0.5, level);
-                        //     let depthSphere = zNear / (-center.z - radius);
-
-                        //     // visible = visible && depthSphere + 1.0 < depth;
-                        // }
+                        
                     }
 
                     if (visible && (!LATE || visibilityBuffer[objectIndex].x < 0.5)) {
@@ -601,14 +511,9 @@ export class GPUDriven extends RenderPass {
 
 
 
-                    // let shouldDraw = IsVisible(objectIndex);
-
-                    // if (shouldDraw) {
-                    //     drawBuffer.vertexCount = ${vertexSize};
-                    //     let countIndex = atomicAdd(&drawBuffer.instanceCount, 1);
-                    //     instanceInfo[countIndex].meshID = objectIndex;
-                    // }
-
+                    // drawBuffer.vertexCount = ${vertexSize};
+                    // let countIndex = atomicAdd(&drawBuffer.instanceCount, 1);
+                    // instanceInfo[countIndex].meshID = objectIndex;
                 } 
             
             `,
@@ -627,6 +532,8 @@ export class GPUDriven extends RenderPass {
 
                 textureSampler: {group: 0, binding: 8, type: "sampler"},
                 depthTexture: {group: 0, binding: 9, type: "depthTexture"},
+
+                settings: {group: 0, binding: 10, type: "storage"},
             }
         });
 
@@ -639,7 +546,7 @@ export class GPUDriven extends RenderPass {
         this.currentPassBuffer = Buffer.Create(1 * 4, BufferType.STORAGE);
 
 
-        const sampler = TextureSampler.Create();
+        const sampler = TextureSampler.Create({magFilter: "nearest", minFilter: "nearest"});
         this.compute.SetSampler("textureSampler", sampler);
         
         function previousPow2(v: number) {
@@ -694,8 +601,6 @@ export class GPUDriven extends RenderPass {
             const indexedCache: Map<number, number> = new Map();
             const meshCache: Map<string, number> = new Map();
 
-            const boxes: Vector4[] = [];
-
             for (let i = 0; i < meshlets.length; i++) {
                 const sceneMesh = meshlets[i];
                 let geometryIndex = indexedCache.get(sceneMesh.geometry.crc);
@@ -705,6 +610,8 @@ export class GPUDriven extends RenderPass {
                     indexedCache.set(sceneMesh.geometry.crc, geometryIndex);
                     // verticesArray.set(sceneMesh.geometry.vertices, geometryIndex * vertexSize * 4);
                     vertices.push(...sceneMesh.geometry.vertices_gpu);
+
+                    console.log("sceneMesh.geometry.vertices_gpu", sceneMesh.geometry.vertices_gpu)
 
                     // Meshlet info
                     const meshlet = sceneMesh.geometry;
@@ -722,6 +629,8 @@ export class GPUDriven extends RenderPass {
                         ...meshlet.bounds.min.elements, 0,
                         ...meshlet.bounds.max.elements, 0
                     )
+
+                    console.log(sceneMesh)
                 }
 
                 // Mesh info
@@ -844,7 +753,7 @@ export class GPUDriven extends RenderPass {
         // console.log(dispatchSizeX, dispatchSizeY, dispatchSizeZ)
 
 
-        ComputeContext.BeginComputePass("GPUDriven - Culling", true);
+        ComputeContext.BeginComputePass(`GPUDriven - Culling prepass: ${prepass}`, true);
         ComputeContext.Dispatch(this.compute, dispatchSizeX, dispatchSizeY, dispatchSizeZ);
         ComputeContext.EndComputePass();
         RendererContext.CopyBufferToBuffer(this.computeDrawBuffer, this.drawIndirectBuffer);
@@ -855,7 +764,7 @@ export class GPUDriven extends RenderPass {
 
     private geometryPass(prepass: boolean) {
         const shouldClear = prepass ? true : false;
-        RendererContext.BeginRenderPass("GPUDriven - Indirect", [{target: this.colorTarget, clear: shouldClear}], undefined, true);
+        RendererContext.BeginRenderPass(`GPUDriven - Indirect prepass: ${prepass}`, [{target: this.colorTarget, clear: shouldClear}], undefined, true);
         RendererContext.DrawIndirect(this.geometry, this.shader, this.drawIndirectBuffer);
         RendererContext.EndRenderPass();
     }
@@ -880,6 +789,14 @@ export class GPUDriven extends RenderPass {
         this.shader.SetMatrix4("viewMatrix", mainCamera.viewMatrix);
         this.shader.SetMatrix4("projectionMatrix", mainCamera.projectionMatrix);
 
+        // projectionMatrix: mat4x4<f32>,
+        // viewMatrix: mat4x4<f32>,
+        // cameraPosition: vec4<f32>,
+        // frustum: array<vec4<f32>, 6>,
+        // meshCount: vec4<f32>,
+        // screenSize: vec4<f32>,
+        // cameraNearFar: vec4<f32>,
+        // projectionMatrixTransposed: mat4x4<f32>,
         const cullDataArray = new Float32Array([
             ...mainCamera.projectionMatrix.elements,
             ...mainCamera.viewMatrix.elements,
@@ -918,19 +835,42 @@ export class GPUDriven extends RenderPass {
             this.shader.SetBuffer("instanceInfo", this.instanceInfoBuffer);
         }
 
+        // Settings
+        // struct Settings {
+        //     frustumCullingEnabled: f32,
+        //     backFaceCullingEnabled: f32,
+        //     occlusionCullingEnabled: f32,
+        //     smallFeaturesCullingEnabled: f32,
+        //     staticLOD: f32,
+        //     dynamicLODErrorThreshold: f32,
+        //     dynamicLODEnabled: f32,
+        // };
+        const settings = new Float32Array([
+            +Debugger.isFrustumCullingEnabled,
+            +Debugger.isBackFaceCullingEnabled,
+            +Debugger.isOcclusionCullingEnabled,
+            +Debugger.isSmallFeaturesCullingEnabled,
+            Debugger.staticLOD,
+            Debugger.dynamicLODErrorThreshold,
+            +Debugger.isDynamicLODEnabled,
+            +Debugger.viewInstanceColors
+        ]);
+        this.compute.SetArray("settings", settings);
+        this.shader.SetArray("settings", settings);
 
         RendererContext.ClearBuffer(this.computeDrawBuffer);
 
         this.generateDrawsPass(meshletsCount, true);
         this.geometryPass(true);
 
-        this.hizPass.buildDepthPyramid(this.vertexBuffer, this.instanceInfoBuffer, this.meshInfoBuffer, this.objectInfoBuffer, this.drawIndirectBuffer);
+        this.hizPass.buildDepthPyramid(this.depthTexture, this.vertexBuffer, this.instanceInfoBuffer, this.meshInfoBuffer, this.objectInfoBuffer, this.drawIndirectBuffer);
 
         this.generateDrawsPass(meshletsCount, false);
-        this.geometryPass(false);
+        this.drawIndirectBuffer.SetArray(new Uint32Array([128, meshletsCount, 0, 0]))
+        this.geometryPass(true);
 
-        if (this.debugPyramid) {
-            this.depthViewer.execute(resources, this.hizPass.debugDepthTexture, this.debugLevel);
+        if (Debugger.isDebugDepthPassEnabled) {
+            this.depthViewer.execute(resources, this.hizPass.debugDepthTexture, Debugger.debugDepthMipLevel, Debugger.debugDepthExposure);
         }
         else {
             this.textureViewer.execute(resources, this.colorTarget);

@@ -81,6 +81,7 @@ export class WEBGPURendererContext implements RendererContext {
             if (!geometry.index) {
                 const positions = geometry.attributes.get("position") as VertexAttribute;
                 positions.GetBuffer().size;
+                console.log(positions.GetBuffer().size / 3 / 4)
                 this.activeRenderPass.draw(positions.GetBuffer().size / 3 / 4, instanceCount);
             }
             else {

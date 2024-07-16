@@ -1,6 +1,21 @@
-import { UIFolder, UITextStat } from "./ui/UIStats";
+import { Camera } from "../components/Camera";
+import { UIButtonStat, UIFolder, UISliderStat, UITextStat } from "./ui/UIStats";
 
 class _Debugger {
+    public isDebugDepthPassEnabled: boolean = false;
+    public debugDepthMipLevel: number = 0;
+    public debugDepthExposure: number = 0;
+
+    public isFrustumCullingEnabled: boolean = true;
+    public isBackFaceCullingEnabled: boolean = true;
+    public isOcclusionCullingEnabled: boolean = true;
+    public isSmallFeaturesCullingEnabled: boolean = true;
+    public dynamicLODErrorThreshold: number = 1;
+    public isDynamicLODEnabled: boolean = true;
+    public staticLOD: number = 9;
+
+    public viewInstanceColors: boolean = true;
+
     public readonly ui: UIFolder;
     private renderPassesFolder: UIFolder;
 
@@ -25,6 +40,50 @@ class _Debugger {
         this.visibleMeshes = new UITextStat(this.ui, "Visible meshlets: ");
         this.triangleCount = new UITextStat(this.ui, "Triangles: ");
         this.visibleTriangles = new UITextStat(this.ui, "Visible triangles: ");
+
+        const hizFolder = new UIFolder(this.ui, "Hierarchical Z depth");
+        hizFolder.Open();
+
+        const debugDepthMipLevel = new UISliderStat(hizFolder, "Depth mip:", 0, 20, 1, 0, value => {this.debugDepthMipLevel = value});
+        const debugDepthExposure = new UISliderStat(hizFolder, "Depth exposure:", -10, 10, 0.01, 0, value => {this.debugDepthExposure = value});
+        debugDepthMipLevel.Disable();
+        debugDepthExposure.Disable();
+        const debugDepth = new UIButtonStat(hizFolder, "View depth:", state => {
+            this.isDebugDepthPassEnabled = state;
+            if (this.isDebugDepthPassEnabled === true) {
+                debugDepthMipLevel.Enable();
+                debugDepthExposure.Enable();
+            }
+            else {
+                debugDepthMipLevel.Disable();
+                debugDepthExposure.Disable();
+            }
+        });
+
+        const cullingFolder = new UIFolder(this.ui, "Culling");
+        const frustumCulling = new UIButtonStat(cullingFolder, "Frustum culling:", state => {this.isFrustumCullingEnabled = state}, this.isFrustumCullingEnabled);
+        const backFaceCulling = new UIButtonStat(cullingFolder, "Backface culling:", state => {this.isBackFaceCullingEnabled = state}, this.isBackFaceCullingEnabled);
+        const occlusionCulling = new UIButtonStat(cullingFolder, "Occlusion culling:", state => {this.isOcclusionCullingEnabled = state}, this.isOcclusionCullingEnabled);
+        const smallFeatureCulling = new UIButtonStat(cullingFolder, "Small features:", state => {this.isSmallFeaturesCullingEnabled = state}, this.isSmallFeaturesCullingEnabled);
+        const staticLOD = new UISliderStat(cullingFolder, "Static LOD:", 0, this.staticLOD, 1, this.staticLOD, state => {this.staticLOD = state});
+        staticLOD.Disable();
+        const dynamicLODErrorThreshold = new UISliderStat(cullingFolder, "Dynamic LOD error:", 0, 10, 0.01, this.dynamicLODErrorThreshold, value => {this.dynamicLODErrorThreshold = value});
+        const dynamicLOD = new UIButtonStat(cullingFolder, "Dynamic LOD:", state => {
+            this.isDynamicLODEnabled = state;
+            if (this.isDynamicLODEnabled === true) {
+                staticLOD.Disable();
+                dynamicLODErrorThreshold.Enable();
+            }
+            else {
+                staticLOD.Enable();
+                dynamicLODErrorThreshold.Disable();
+            }
+        }, this.isDynamicLODEnabled);
+        cullingFolder.Open();
+
+        const rendererFolder = new UIFolder(this.ui, "Renderer");
+        rendererFolder.Open();
+        const instanceColors = new UIButtonStat(rendererFolder, "Instance colors:", state => {this.viewInstanceColors = state}, this.viewInstanceColors);
 
         this.renderPassesFolder = new UIFolder(this.ui, "Frame passes");
         this.renderPassesFolder.Open();

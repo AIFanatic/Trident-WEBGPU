@@ -14,6 +14,7 @@ import { WEBGPUTimestampQuery } from "./webgpu/WEBGPUTimestampQuery";
 import { DepthViewer } from "./passes/DepthViewer";
 import { TextureViewer } from "./passes/TextureViewer";
 import { Forward } from "./passes/Forward";
+import { ForwardInstanced } from "./passes/ForwardInstanced";
 
 export enum PassParams {
     MainCamera = "MainCamera",
@@ -51,7 +52,9 @@ export class RenderingPipeline {
         // SSGI: new SSGI(PassParams.GBufferDepth, PassParams.GBufferNormal, PassParams.LightingPassOutput, PassParams.GBufferAlbedo)
         
         GPUDriven: new GPUDriven(),
-        // Forward: new Forward()
+        
+        Forward: new Forward(),
+        ForwardInstanced: new ForwardInstanced()
     }
     
     constructor(renderer: Renderer) {

@@ -219,6 +219,17 @@ export class Matrix4 {
 		return this;
 	}
 
+	public getInfinitePerspectiveMatrix(_fov: number, _aspect: number, _near: number): Matrix4 {
+		const f = 1.0 / Math.tan((_fov * Math.PI / 180) / 2.0);
+		this.elements.set([
+			f / _aspect, 0.0, 0.0, 0.0,
+			0.0, -f, 0.0, 0.0,
+			0.0, 0.0, 0.0, -1.0,
+			0.0, 0.0, _near, 0.0
+		])
+		return this;
+	}
+
 	public orthogonal(left: number, right: number, bottom: number, top: number, near: number, far: number): Matrix4 {
 		const horizontal = 1 / (left - right)
 		const vertical = 1 / (bottom - top)

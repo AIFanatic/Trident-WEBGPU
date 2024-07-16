@@ -241,7 +241,7 @@ export class Meshoptimizer {
             meshlet.vertices.length / 3, // size_t vertex_count,
             3 * Float32Array.BYTES_PER_ELEMENT, // size_t vertex_positions_stride,
             target_count, // size_t target_index_count,
-            0.05, // float target_error, Should be 0.01 but cant reach 128 triangles with it
+            1, // float target_error, Should be 0.01 but cant reach 128 triangles with it
             1, // unsigned int options, preserve borders
             result_error, // float* result_error
         );

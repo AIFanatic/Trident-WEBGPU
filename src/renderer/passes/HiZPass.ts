@@ -1,13 +1,14 @@
 import { Geometry, VertexAttribute } from "../../Geometry";
 import { Camera } from "../../components/Camera";
 import { Color } from "../../math/Color";
+import { Meshlet } from "../../plugins/meshlets/Meshlet";
 import { Buffer, BufferType } from "../Buffer";
 import { RendererContext } from "../RendererContext";
 import { Shader } from "../Shader";
 import { DepthTexture } from "../Texture";
 import { TextureSampler } from "../TextureSampler";
 
-const vertexSize = 128 * 3;
+const vertexSize = Meshlet.max_triangles * 3;
 
 export class HiZPass {
     private depthPyramidShader: Shader;
@@ -188,9 +189,6 @@ export class HiZPass {
 
             let depth = HZBReduce(depthTextureInput, inUV, invSize);
             return depth;
-
-            // let depth = textureSampleLevel(depthTextureInput, depthTextureInputSampler, input.vUv, u32(currentMip));
-            // return depth;
         }
     `
         this.shader = Shader.Create({
@@ -217,7 +215,7 @@ export class HiZPass {
         let w = this.depthWidth;
         let h = this.depthHeight;
         let level = 0;
-        while (w >= 1) {
+        while (w > 1) {
             this.targetTextures.push(DepthTexture.Create(w, h));
             const passBuffer = Buffer.Create(4 * 4, BufferType.STORAGE);
             passBuffer.SetArray(new Float32Array([level]));
@@ -242,11 +240,10 @@ export class HiZPass {
         console.log("mips", level)
     }
 
-    public buildDepthPyramid(vertices: Buffer, instanceInfo: Buffer, meshInfo: Buffer, objectInfo: Buffer, drawIndirectBuffer: Buffer) {
+    public buildDepthPyramid(depthTexture: DepthTexture, vertices: Buffer, instanceInfo: Buffer, meshInfo: Buffer, objectInfo: Buffer, drawIndirectBuffer: Buffer) {
         const mainCamera = Camera.mainCamera;
 
         
-        // Render scene to first mip
         this.depthPyramidShader.SetMatrix4("projectionMatrix", mainCamera.projectionMatrix);
         this.depthPyramidShader.SetMatrix4("viewMatrix", mainCamera.viewMatrix);
         this.depthPyramidShader.SetBuffer("vertices", vertices);
@@ -257,11 +254,13 @@ export class HiZPass {
         let currentLevel = 0;
         let currentTarget = this.targetTextures[currentLevel];
         
+        // Render scene to first mip
         RendererContext.BeginRenderPass("GPUDriven - DepthPyramid", [], {target: currentTarget, clear: true}, true);
         RendererContext.DrawIndirect(this.depthShaderGeometry, this.depthPyramidShader, drawIndirectBuffer);
         RendererContext.EndRenderPass();
 
         RendererContext.CopyTextureToTexture(currentTarget, this.inputTexture, 0, currentLevel);
+        // RendererContext.CopyTextureToTexture(depthTexture, this.inputTexture, 0, currentLevel);
 
         this.shader.SetBuffer("currentMip", this.currentBuffer);
         

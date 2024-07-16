@@ -6,7 +6,7 @@
     display: grid;
     background-color: #222222;
     font-size: 8px;
-    min-width: 200px;
+    min-width: 250px;
     font-family: monospace;
     border-radius: 5px;
 }
@@ -18,9 +18,36 @@
     padding: 5px;
 }
 
+.stat button, input {
+    height: 15px;
+    font-family: monospace;
+    font-size: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: none;
+    border-radius: 2px;
+    background-color: #ffffff20;
+    color: white;
+    outline: none;
+}
+
+.stat button:hover {
+    background-color: #ffffff30;
+    cursor: pointer;
+}
+.stat button:active {
+    background-color: #ffffff40;
+}
+
 .stat {
     display: flex;
     align-items: center;
+}
+
+.stat .disabled {
+    opacity: 0.1;
+    pointer-events: none;
 }
 
 .slider {

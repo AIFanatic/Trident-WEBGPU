@@ -12,7 +12,7 @@ export class Meshletizer {
         //     for (let m of meshlets) previousMeshlets.set(m.id, m);
         // }
 
-        if (meshlets.length === 1 && meshlets[0].vertices.length < 128 * 3) return meshlets;
+        if (meshlets.length === 1 && meshlets[0].vertices.length < Meshlet.max_triangles * 3) return meshlets;
 
 
 
@@ -49,7 +49,7 @@ export class Meshletizer {
 
             meshSpaceError += childrenError;
 
-            const splits = MeshletCreator.build(simplified.meshlet.vertices, simplified.meshlet.indices, 255, 128);
+            const splits = MeshletCreator.build(simplified.meshlet.vertices, simplified.meshlet.indices, 255, Meshlet.max_triangles);
             for (let split of splits) {
                 split.clusterError = meshSpaceError;
                 split.boundingVolume = simplified.meshlet.boundingVolume;
@@ -77,7 +77,7 @@ export class Meshletizer {
         await Meshoptimizer.load();
         await Metis.load();
 
-        const meshlets = MeshletCreator.build(vertices, indices, 255, 128);
+        const meshlets = MeshletCreator.build(vertices, indices, 255, Meshlet.max_triangles);
 
         const maxLOD = 25;
         let inputs = meshlets;
@@ -91,8 +91,8 @@ export class Meshletizer {
         for (let lod = 0; lod < maxLOD; lod++) {
             const outputs = this.step(inputs, lod, previousMeshlets);
 
-            // console.log("inputs", inputs.map(m => m.indices_raw.length / 3));
-            // console.log("outputs", outputs.map(m => m.indices_raw.length / 3));
+            console.log("inputs", inputs.map(m => m.indices.length / 3));
+            console.log("outputs", outputs.map(m => m.indices.length / 3));
 
             if (outputs.length === 1) {
                 console.log("WE are done at lod", lod)

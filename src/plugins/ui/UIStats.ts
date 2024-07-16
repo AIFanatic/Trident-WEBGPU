@@ -2,30 +2,38 @@ import "./UIStats.css";
 
 class Stat {
     protected statContainer: HTMLDivElement;
-    constructor(container: HTMLDivElement) {
+
+    constructor(container: HTMLDivElement, label: string | null) {
         this.statContainer = document.createElement("div");
         this.statContainer.classList.add("stat")
         container.appendChild(this.statContainer);
+
+        if (label !== null) {
+            const labelElement = document.createElement("label");
+            labelElement.classList.add("title");
+            labelElement.classList.add("title");
+            labelElement.textContent = label;
+            this.statContainer.append(labelElement);
+        }
+
     }
+
+    public Disable() { this.statContainer.classList.add("disabled"); }
+    public Enable() { this.statContainer.classList.remove("disabled"); }
 }
 
 export class UIGraph extends Stat {
-    private label: HTMLSpanElement;
     private canvas: HTMLCanvasElement;
     private ctx: CanvasRenderingContext2D;
     
     private lastValue: number | null;
 
     constructor(folder: UIFolder, name: string, color = "white", lineWidth = 3) {
-        super(folder.container);
-        this.label = document.createElement("span");
-        this.label.classList.add("title");
-        this.label.style.alignItems = "normal";
-        this.label.textContent = name;
+        super(folder.container, name);
         
         this.canvas = document.createElement("canvas");
         this.canvas.classList.add("value");
-        this.statContainer.append(this.label, this.canvas);
+        this.statContainer.append(this.canvas);
 
         // this.canvas.style.width = "100%";
         // this.canvas.style.height = "100%";
@@ -39,14 +47,6 @@ export class UIGraph extends Stat {
         this.ctx.lineWidth = lineWidth;
 
         this.lastValue = null;
-
-        // window.scale = (sx, sy) => {
-        //     this.ctx.scale(sx, sy);
-        // }
-
-        // window.translate = (x, y) => {
-        //     this.ctx.translate(x, y);
-        // }
     }
 
     public addValue(value: number) {
@@ -75,23 +75,69 @@ export class UIGraph extends Stat {
     }
 }
 
+export class UIButtonStat extends Stat {
+    private button: HTMLButtonElement;
+    private state: boolean;
+    private onText: string;
+    private offText: string;
+
+    constructor(folder: UIFolder, label: string, onClicked: (state: boolean) => void, defaultState: boolean = false, onText: string = "Enable", offText: string = "Disable") {
+        super(folder.container, label);
+        this.state = defaultState;
+        this.onText = onText;
+        this.offText = offText;
+
+        this.button = document.createElement("button");
+        this.button.classList.add("value");
+        this.button.textContent = defaultState === true ? offText : onText;
+        this.statContainer.append(this.button);
+
+        this.button.addEventListener("click", event => {
+            this.state = !this.state;
+            if (this.state === true) this.button.textContent = this.offText;
+            else this.button.textContent = this.onText;
+            onClicked(this.state);
+        })
+    }
+}
+
 export class UISliderStat extends Stat {
     constructor(folder: UIFolder, label: string, min: number, max: number, step: number, defaultValue: number, callback: (value: number) => void) {
-        super(folder.container);
-        const labelElement = document.createElement("label");
-        labelElement.classList.add("title");
-        labelElement.textContent = label;
+        super(folder.container, label);
+
+        const container = document.createElement("div");
+        container.classList.add("value");
+        container.style.display = "inline-flex";
+        container.style.alignItems = "center";
+        container.style.padding = "0px";
 
         const sliderElement = document.createElement("input");
-        sliderElement.classList.add("value", "slider");
+        sliderElement.classList.add("slider");
+        sliderElement.style.width = "60px";
+        sliderElement.style.margin = "0px";
         sliderElement.type = "range";
         sliderElement.min = `${min}`;
         sliderElement.max = `${max}`;
         sliderElement.step = `${step}`;
         sliderElement.value = `${defaultValue}`;
-        sliderElement.addEventListener("input" , event => { callback(parseFloat(sliderElement.value)) });
 
-        this.statContainer.append(labelElement, sliderElement);
+        const textElement = document.createElement("input");
+        textElement.style.width = "25px";
+        textElement.style.marginLeft = "5px";
+        textElement.value = defaultValue.toString();
+        textElement.addEventListener("input", event => {
+            sliderElement.value = textElement.value;
+            callback(parseFloat(sliderElement.value));
+            if (textElement.value !== "") textElement.value = sliderElement.value;
+        })
+
+        sliderElement.addEventListener("input" , event => {
+            callback(parseFloat(sliderElement.value));
+            textElement.value = sliderElement.value;
+        });
+
+        container.append(sliderElement, textElement);
+        this.statContainer.append(container);
     }
 }
 
@@ -103,10 +149,7 @@ export class UITextStat extends Stat {
     private rolling: boolean;
 
     constructor(folder: UIFolder, label: string, defaultValue: number = 0, precision = 0, unit = "", rolling = false) {
-        super(folder.container);
-        const labelElement = document.createElement("label");
-        labelElement.classList.add("title");
-        labelElement.textContent = label;
+        super(folder.container, label);
 
         this.previousValue = defaultValue;
         this.precision = precision;
@@ -117,7 +160,7 @@ export class UITextStat extends Stat {
         this.textElement.classList.add("value");
         this.textElement.textContent = defaultValue.toFixed(precision);
 
-        this.statContainer.append(labelElement, this.textElement);
+        this.statContainer.append(this.textElement);
     }
 
     public SetValue(value: number) {
@@ -135,7 +178,7 @@ export class UIFolder extends Stat {
     public readonly container: HTMLDivElement;
 
     constructor(container: HTMLDivElement | UIFolder, title: string) {
-        super(container instanceof HTMLDivElement ? container : container.container);
+        super(container instanceof HTMLDivElement ? container : container.container, null);
         this.folderElement = document.createElement("details");
         const folderTitle = document.createElement("summary");
         folderTitle.textContent = title;
