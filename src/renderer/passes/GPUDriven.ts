@@ -15,7 +15,7 @@ import { TextureSampler } from "../TextureSampler";
 import { DepthViewer } from "./DepthViewer";
 import { TextureViewer } from "./TextureViewer";
 import { HiZPass } from "./HiZPass";
-import { ShaderCode, Shaders } from "../ShaderCode";
+import { ShaderLoader } from "../ShaderUtils";
 
 interface SceneMesh {
     geometry: Meshlet;
@@ -61,7 +61,6 @@ export class GPUDriven extends RenderPass {
     private meshletInfoBuffer: Buffer;
     private objectInfoBuffer: Buffer;
 
-    private depthColorTarget: RenderTexture;
     private depthTexture: DepthTexture;
 
     constructor() {
@@ -71,7 +70,7 @@ export class GPUDriven extends RenderPass {
 
     protected async init() {
         this.shader = await Shader.Create({
-            code: await ShaderCode.Load(Shaders.DrawIndirect),
+            code: await ShaderLoader.DrawIndirect,
             colorOutputs: [{format: Renderer.SwapChainFormat}],
             depthOutput: "depth24plus",
             attributes: {
@@ -89,7 +88,7 @@ export class GPUDriven extends RenderPass {
         });
 
         this.compute = await Compute.Create({
-            code: await ShaderCode.Load(Shaders.Cull),
+            code: await ShaderLoader.Cull,//await ShaderCode.Load(Shaders.Cull),
             computeEntrypoint: "main",
             uniforms: {
                 drawBuffer: {group: 0, binding: 0, type: "storage-write"},
@@ -101,7 +100,7 @@ export class GPUDriven extends RenderPass {
                 objectInfo: {group: 0, binding: 5, type: "storage"},
 
                 visibilityBuffer: {group: 0, binding: 6, type: "storage-write"},
-                currentPass: {group: 0, binding: 7, type: "storage"},
+                bPrepass: {group: 0, binding: 7, type: "storage"},
 
                 textureSampler: {group: 0, binding: 8, type: "sampler"},
                 depthTexture: {group: 0, binding: 9, type: "depthTexture"},
@@ -258,14 +257,13 @@ export class GPUDriven extends RenderPass {
             this.shader.SetBuffer("vertices", this.vertexBuffer);
             
             this.currentMeshCount = sceneMeshlets.length;
-            console.timeEnd("buildMeshletData");
 
             const visibilityBufferArray = new Float32Array(meshlets.length * 4).fill(1);
             this.visibilityBuffer = Buffer.Create(visibilityBufferArray.byteLength, BufferType.STORAGE_WRITE);
             this.visibilityBuffer.SetArray(visibilityBufferArray);
 
             this.compute.SetBuffer("visibilityBuffer", this.visibilityBuffer);
-            this.compute.SetBuffer("currentPass", this.currentPassBuffer);
+            // this.compute.SetBuffer("currentPass", this.currentPassBuffer);
             console.log("visibilityBufferArray", visibilityBufferArray.byteLength)
 
             Debugger.SetTotalMeshlets(meshlets.length);
@@ -275,8 +273,8 @@ export class GPUDriven extends RenderPass {
 
     private generateDrawsPass(meshletsCount: number, prepass: boolean) {
 
-        if (prepass === true) RendererContext.CopyBufferToBuffer(this.visibleBuffer, this.currentPassBuffer);
-        else RendererContext.CopyBufferToBuffer(this.nonVisibleBuffer, this.currentPassBuffer);
+        // if (prepass === true) RendererContext.CopyBufferToBuffer(this.visibleBuffer, this.currentPassBuffer);
+        // else RendererContext.CopyBufferToBuffer(this.nonVisibleBuffer, this.currentPassBuffer);
 
         // const workgroupSizeX = Math.floor((meshletsCount + workgroupSize-1) / workgroupSize);
         // const workgroupSizeX = 4;  // Threads per workgroup along X
@@ -378,16 +376,24 @@ export class GPUDriven extends RenderPass {
         this.shader.SetArray("settings", settings);
         this.compute.SetTexture("depthTexture", this.hizPass.debugDepthTexture);
 
+
+
+        this.compute.SetBuffer("bPrepass", this.currentPassBuffer);
+
+
         RendererContext.ClearBuffer(this.computeDrawBuffer);
-
+        RendererContext.CopyBufferToBuffer(this.visibleBuffer, this.currentPassBuffer);
         this.generateDrawsPass(meshletsCount, true);
-        // this.geometryPass(true);
-
-        this.hizPass.buildDepthPyramid(this.shader, this.geometry, this.drawIndirectBuffer);
-
-        this.generateDrawsPass(meshletsCount, false);
-        this.drawIndirectBuffer.SetArray(new Uint32Array([Meshlet.max_triangles, meshletsCount, 0, 0]))
         this.geometryPass(true);
+
+        this.hizPass.buildDepthPyramid(this.depthTexture);
+
+        RendererContext.CopyBufferToBuffer(this.nonVisibleBuffer, this.currentPassBuffer);
+        this.generateDrawsPass(meshletsCount, false);
+        this.geometryPass(false);
+
+
+
 
         if (Debugger.isDebugDepthPassEnabled) {
             this.depthViewer.execute(resources, this.hizPass.debugDepthTexture, Debugger.debugDepthMipLevel, Debugger.debugDepthExposure);

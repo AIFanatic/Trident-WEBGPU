@@ -1,4 +1,4 @@
-import { ShaderCode } from "../ShaderCode";
+// import { ShaderCode } from "../ShaderCode";
 import { WEBGPURenderer } from "./WEBGPURenderer";
 import { WEBGPUTexture } from "./WEBGPUTexture";
 

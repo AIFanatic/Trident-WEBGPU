@@ -16,7 +16,7 @@ struct DrawBuffer {
 @group(0) @binding(5) var<storage, read> objectInfo: array<ObjectInfo>;
 
 @group(0) @binding(6) var<storage, read_write> visibilityBuffer: array<vec4<f32>>;
-@group(0) @binding(7) var<storage, read> currentPass: f32;
+@group(0) @binding(7) var<storage, read> bPrepass: f32;
 
 @group(0) @binding(8) var textureSampler: sampler;
 @group(0) @binding(9) var depthTexture: texture_depth_2d;
@@ -231,34 +231,75 @@ fn main(@builtin(global_invocation_id) grid: vec3<u32>) {
         return;
     }
 
-    let isFirstPass = currentPass > 0.5;
-
-    let LATE = !isFirstPass;
-
-    if (!LATE && visibilityBuffer[objectIndex].x < 0.5) {
-        return;
+    var bVisible = true;
+    if (bool(bPrepass)) {
+        bVisible = visibilityBuffer[objectIndex].x > 0.5;
     }
 
-    var visible = IsVisible(objectIndex);
-    // var visible = true;
-    if (LATE && visible) {
-        // visible = false;
-        // Do occlusion culling
-
-        if (bool(settings.occlusionCullingEnabled)) {
-            visible = visible && isOccluded(i32(objectIndex));
+    if (bool(settings.frustumCullingEnabled)) {
+        if (bVisible) {
+            bVisible = bVisible && IsVisible(objectIndex);
         }
-
-        
     }
 
-    if (visible && (!LATE || visibilityBuffer[objectIndex].x < 0.5)) {
+    if (!bool(bPrepass)) {
+        if (bool(settings.occlusionCullingEnabled)) {
+            if (bVisible) {
+                // TODO: IsOccluded should be !isOccluded?
+                bVisible = bVisible && isOccluded(i32(objectIndex));
+            }
+        }
+    }
+
+    var bDrawMesh = false;
+    if (bool(bPrepass)) {
+        bDrawMesh = bVisible;
+    }
+    else {
+        bDrawMesh = bVisible && visibilityBuffer[objectIndex].x < 0.5;
+    }
+
+    if (bDrawMesh) {
         drawBuffer.vertexCount = u32(settings.maxTriangles * 3);
         let countIndex = atomicAdd(&drawBuffer.instanceCount, 1);
         instanceInfo[countIndex].meshID = objectIndex;
     }
 
-    if (LATE) {
-        visibilityBuffer[objectIndex].x = f32(visible);
+    if (!bool(bPrepass)) {
+        visibilityBuffer[objectIndex].x = f32(bVisible);
     }
+
+
+
+
+    // let isFirstPass = bPrepass > 0.5;
+
+    // let LATE = !isFirstPass;
+
+    // if (!LATE && visibilityBuffer[objectIndex].x < 0.5) {
+    //     return;
+    // }
+
+    // var visible = IsVisible(objectIndex);
+    // // var visible = true;
+    // if (LATE && visible) {
+    //     // visible = false;
+    //     // Do occlusion culling
+
+    //     if (bool(settings.occlusionCullingEnabled)) {
+    //         visible = visible && isOccluded(i32(objectIndex));
+    //     }
+
+        
+    // }
+
+    // if (visible && (!LATE || visibilityBuffer[objectIndex].x < 0.5)) {
+    //     drawBuffer.vertexCount = u32(settings.maxTriangles * 3);
+    //     let countIndex = atomicAdd(&drawBuffer.instanceCount, 1);
+    //     instanceInfo[countIndex].meshID = objectIndex;
+    // }
+
+    // if (LATE) {
+    //     visibilityBuffer[objectIndex].x = f32(visible);
+    // }
 } 

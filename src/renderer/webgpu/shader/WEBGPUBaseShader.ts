@@ -3,12 +3,12 @@ import { Matrix4 } from "../../../math/Matrix4";
 import { Vector3 } from "../../../math/Vector3";
 import { Buffer, BufferType } from "../../Buffer";
 import { ComputeShaderParams, ShaderParams, ShaderUniform } from "../../Shader";
+import { ShaderPreprocessor } from "../../ShaderUtils";
 import { TextureType } from "../../Texture";
 import { WEBGPUBuffer, WEBGPUDynamicBuffer } from "../WEBGPUBuffer";
 import { WEBGPURenderer } from "../WEBGPURenderer";
 import { WEBGPUTexture } from "../WEBGPUTexture";
 import { WEBGPUTextureSampler } from "../WEBGPUTextureSampler";
-import { WEBGPUShaderUtils } from "./WEBGPUShaderUtils";
 
 export const UniformTypeToWGSL = {
     "uniform": "uniform",
@@ -49,7 +49,7 @@ export class WEBGPUBaseShader {
     public get bindGroupsInfo() { return this._bindGroupsInfo };
 
     constructor(params: ShaderParams | ComputeShaderParams) {
-        const code = params.defines ? WEBGPUShaderUtils.WGSLPreprocess(params.code, params.defines) : params.code;
+        const code = params.defines ? ShaderPreprocessor.ProcessDefines(params.code, params.defines) : params.code;
         this.params = params;
         this.module = WEBGPURenderer.device.createShaderModule({code: code});
         if (this.params.uniforms) this.uniformMap = new Map(Object.entries(this.params.uniforms));

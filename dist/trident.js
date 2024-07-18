@@ -1101,53 +1101,8 @@ var Assets = class _Assets {
   }
 };
 
-// src/renderer/webgpu/shader/wgsl/DeferredMeshShader.wgsl
-var DeferredMeshShader_default = "./resources/renderer/webgpu/shader/wgsl/DeferredMeshShader.wgsl";
-
-// src/renderer/webgpu/shader/wgsl/WireframeShader.wgsl
-var WireframeShader_default = "./resources/renderer/webgpu/shader/wgsl/WireframeShader.wgsl";
-
-// src/renderer/webgpu/shader/wgsl/DeferredLightingPBRShader.wgsl
-var DeferredLightingPBRShader_default = "./resources/renderer/webgpu/shader/wgsl/DeferredLightingPBRShader.wgsl";
-
-// src/renderer/webgpu/shader/wgsl/QuadShader.wgsl
-var QuadShader_default = "./resources/renderer/webgpu/shader/wgsl/QuadShader.wgsl";
-
-// src/renderer/webgpu/shader/wgsl/ShadowPass.wgsl
-var ShadowPass_default = "./resources/renderer/webgpu/shader/wgsl/ShadowPass.wgsl";
-
-// src/renderer/webgpu/shader/wgsl/SSGI.wgsl
-var SSGI_default = "./resources/renderer/webgpu/shader/wgsl/SSGI.wgsl";
-
-// src/renderer/webgpu/shader/wgsl/DownSample.wgsl
-var DownSample_default = "./resources/renderer/webgpu/shader/wgsl/DownSample.wgsl";
-
-// src/renderer/webgpu/shader/wgsl/UpSample.wgsl
-var UpSample_default = "./resources/renderer/webgpu/shader/wgsl/UpSample.wgsl";
-
-// src/renderer/webgpu/shader/wgsl/Blur.wgsl
-var Blur_default = "./resources/renderer/webgpu/shader/wgsl/Blur.wgsl";
-
-// src/renderer/webgpu/shader/wgsl/Blit.wgsl
-var Blit_default = "./resources/renderer/webgpu/shader/wgsl/Blit.wgsl";
-
 // src/renderer/webgpu/shader/wgsl/Cull.wgsl
 var Cull_default = "./resources/renderer/webgpu/shader/wgsl/Cull.wgsl";
-
-// src/renderer/webgpu/shader/WEBGPUShaders.ts
-var WEBGPUShaders = class {
-  static DeferredMeshShaderCode = DeferredMeshShader_default;
-  static DeferredLightingPBRShaderCode = DeferredLightingPBRShader_default;
-  static ShadowShaderCode = ShadowPass_default;
-  static WireframeShaderCode = WireframeShader_default;
-  static QuadShaderCode = QuadShader_default;
-  static SSGICode = SSGI_default;
-  static DownSampleCode = DownSample_default;
-  static UpSampleCode = UpSample_default;
-  static BlurCode = Blur_default;
-  static BlitCode = Blit_default;
-  static CullCode = Cull_default;
-};
 
 // src/renderer/webgpu/shader/wgsl/CullStructs.wgsl
 var CullStructs_default = "./resources/renderer/webgpu/shader/wgsl/CullStructs.wgsl";
@@ -1158,49 +1113,28 @@ var SettingsStructs_default = "./resources/renderer/webgpu/shader/wgsl/SettingsS
 // src/renderer/webgpu/shader/wgsl/DrawIndirect.wgsl
 var DrawIndirect_default = "./resources/renderer/webgpu/shader/wgsl/DrawIndirect.wgsl";
 
-// src/renderer/ShaderCode.ts
-var ShaderCode = class {
-  static get DeferredMeshShader() {
-    if (Renderer.type === "webgpu") return WEBGPUShaders.DeferredMeshShaderCode;
-    throw Error("Unknown api");
-  }
-  static get DeferredLightingPBRShader() {
-    if (Renderer.type === "webgpu") return WEBGPUShaders.DeferredLightingPBRShaderCode;
-    throw Error("Unknown api");
-  }
-  static get ShadowShader() {
-    if (Renderer.type === "webgpu") return WEBGPUShaders.ShadowShaderCode;
-    throw Error("Unknown api");
-  }
-  static get QuadShader() {
-    if (Renderer.type === "webgpu") return WEBGPUShaders.QuadShaderCode;
-    throw Error("Unknown api");
-  }
-  static get SSGI() {
-    if (Renderer.type === "webgpu") return WEBGPUShaders.SSGICode;
-    throw Error("Unknown api");
-  }
-  static get DownSample() {
-    if (Renderer.type === "webgpu") return WEBGPUShaders.DownSampleCode;
-    throw Error("Unknown api");
-  }
-  static get UpSample() {
-    if (Renderer.type === "webgpu") return WEBGPUShaders.UpSampleCode;
-    throw Error("Unknown api");
-  }
-  static get Blur() {
-    if (Renderer.type === "webgpu") return WEBGPUShaders.BlurCode;
-    throw Error("Unknown api");
-  }
-  static get Blit() {
-    if (Renderer.type === "webgpu") return WEBGPUShaders.BlitCode;
-    throw Error("Unknown api");
-  }
-  static get Cull() {
-    if (Renderer.type === "webgpu") return WEBGPUShaders.CullCode;
-    throw Error("Unknown api");
-  }
-  static Preprocess(code, defines) {
+// src/renderer/webgpu/shader/wgsl/Blit.wgsl
+var Blit_default = "./resources/renderer/webgpu/shader/wgsl/Blit.wgsl";
+
+// src/renderer/webgpu/shader/wgsl/BlitDepth.wgsl
+var BlitDepth_default = "./resources/renderer/webgpu/shader/wgsl/BlitDepth.wgsl";
+
+// src/renderer/webgpu/shader/wgsl/DepthDownsample.wgsl
+var DepthDownsample_default = "./resources/renderer/webgpu/shader/wgsl/DepthDownsample.wgsl";
+
+// src/renderer/ShaderUtils.ts
+var Shaders = /* @__PURE__ */ ((Shaders2) => {
+  Shaders2[Shaders2["CullStructs"] = CullStructs_default] = "CullStructs";
+  Shaders2[Shaders2["SettingsStructs"] = SettingsStructs_default] = "SettingsStructs";
+  Shaders2[Shaders2["Cull"] = Cull_default] = "Cull";
+  Shaders2[Shaders2["DrawIndirect"] = DrawIndirect_default] = "DrawIndirect";
+  Shaders2[Shaders2["Blit"] = Blit_default] = "Blit";
+  Shaders2[Shaders2["BlitDepth"] = BlitDepth_default] = "BlitDepth";
+  Shaders2[Shaders2["DepthDownsample"] = DepthDownsample_default] = "DepthDownsample";
+  return Shaders2;
+})(Shaders || {});
+var ShaderPreprocessor = class {
+  static ProcessDefines(code, defines) {
     const coditions = Utils.StringFindAllBetween(code, "#if", "#endif", false);
     for (const condition of coditions) {
       const variable = Utils.StringFindAllBetween(condition, "#if ", "\n")[0];
@@ -1210,7 +1144,7 @@ var ShaderCode = class {
     }
     return code;
   }
-  static async IncludeHandler(code, url = "./") {
+  static async ProcessIncludes(code, url = "./") {
     const basepath = url.substring(url.lastIndexOf("/"), -1) + "/";
     const includes = Utils.StringFindAllBetween(code, "#include", "\n", false);
     for (const includeStr of includes) {
@@ -1221,25 +1155,40 @@ var ShaderCode = class {
       const includeFilename = includeFullPath.substring(includeFullPath.lastIndexOf("/")).slice(1);
       const new_path = basepath + includePath + includeFilename;
       const newCode = await Assets.Load(new_path, "text");
-      const includedCode = await this.IncludeHandler(newCode, new_path);
+      const includedCode = await this.ProcessIncludes(newCode, new_path);
       code = code.replace(includeStr, includedCode + "\n");
     }
     return code;
   }
+};
+var ShaderLoader = class _ShaderLoader {
   static async Load(shader) {
     if (Renderer.type === "webgpu") {
       let shader_url = "";
-      if (shader === 0 /* CullStructs */) shader_url = CullStructs_default;
-      else if (shader === 1 /* SettingsStructs */) shader_url = SettingsStructs_default;
-      else if (shader === 2 /* Cull */) shader_url = Cull_default;
-      else if (shader === 3 /* DrawIndirect */) shader_url = DrawIndirect_default;
+      if (shader === Shaders.Cull) shader_url = Cull_default;
+      else if (shader === Shaders.DrawIndirect) shader_url = DrawIndirect_default;
+      else if (shader === Shaders.Blit) shader_url = Blit_default;
+      else if (shader === Shaders.BlitDepth) shader_url = BlitDepth_default;
+      else if (shader === Shaders.DepthDownsample) shader_url = DepthDownsample_default;
       else throw Error(`Uknown shader ${shader}`);
       if (shader_url === "") throw Error(`Invalid shader ${shader} ${shader_url}`);
       let code = await Assets.Load(shader_url, "text");
-      code = await this.IncludeHandler(code, shader_url);
+      code = await ShaderPreprocessor.ProcessIncludes(code, shader_url);
       return code;
     }
     throw Error("Unknown api");
+  }
+  static get Cull() {
+    return _ShaderLoader.Load(Shaders.Cull);
+  }
+  static get DepthDownsample() {
+    return _ShaderLoader.Load(Shaders.DepthDownsample);
+  }
+  static get DrawIndirect() {
+    return _ShaderLoader.Load(Shaders.DrawIndirect);
+  }
+  static get BlitDepth() {
+    return _ShaderLoader.Load(Shaders.BlitDepth);
   }
 };
 
@@ -1558,20 +1507,6 @@ var WEBGPUTextureSampler = class {
   }
 };
 
-// src/renderer/webgpu/shader/WEBGPUShaderUtils.ts
-var WEBGPUShaderUtils = class {
-  static WGSLPreprocess(code, defines) {
-    const coditions = Utils.StringFindAllBetween(code, "#if", "#endif", false);
-    for (const condition of coditions) {
-      const variable = Utils.StringFindAllBetween(condition, "#if ", "\n")[0];
-      const value = condition.replaceAll(`#if ${variable}`, "").replaceAll("#endif", "");
-      if (defines[variable] === true) code = code.replaceAll(condition, value);
-      else code = code.replaceAll(condition, "");
-    }
-    return code;
-  }
-};
-
 // src/renderer/webgpu/shader/WEBGPUBaseShader.ts
 var UniformTypeToWGSL = {
   "uniform": "uniform",
@@ -1598,7 +1533,7 @@ var WEBGPUBaseShader = class {
     return this._bindGroupsInfo;
   }
   constructor(params) {
-    const code = params.defines ? WEBGPUShaderUtils.WGSLPreprocess(params.code, params.defines) : params.code;
+    const code = params.defines ? ShaderPreprocessor.ProcessDefines(params.code, params.defines) : params.code;
     this.params = params;
     this.module = WEBGPURenderer.device.createShaderModule({ code });
     if (this.params.uniforms) this.uniformMap = new Map(Object.entries(this.params.uniforms));
@@ -1871,7 +1806,7 @@ var Shader = class extends BaseShader {
   id;
   params;
   static async Create(params) {
-    params.code = await ShaderCode.IncludeHandler(params.code);
+    params.code = await ShaderPreprocessor.ProcessIncludes(params.code);
     if (Renderer.type === "webgpu") return new WEBGPUShader(params);
     throw Error("Unknown api");
   }
@@ -1879,7 +1814,7 @@ var Shader = class extends BaseShader {
 var Compute = class extends BaseShader {
   params;
   static async Create(params) {
-    params.code = await ShaderCode.IncludeHandler(params.code);
+    params.code = await ShaderPreprocessor.ProcessIncludes(params.code);
     if (Renderer.type === "webgpu") return new WEBGPUComputeShader(params);
     throw Error("Unknown api");
   }
@@ -7233,80 +7168,26 @@ var TextureViewer = class extends RenderPass {
 };
 
 // src/renderer/passes/HiZPass.ts
-var vertexSize = Meshlet.max_triangles * 3;
 var HiZPass = class {
   shader;
-  geometry;
+  quadGeometry;
   debugDepthTexture;
   inputTexture;
   targetTextures = [];
-  depthWidth = 1024;
-  depthHeight = 1024;
+  // TODO: This should be next powerOf2 for SwapChain dims
+  depthWidth = 512;
+  depthHeight = 512;
   depthLevels;
   passBuffers = [];
   currentBuffer;
   initialized = false;
-  renderTarget;
+  blitShader;
   constructor() {
     this.Init();
   }
   async Init() {
-    const shaderCode = `
-        struct VertexInput {
-            @location(0) position : vec2<f32>,
-            @location(1) normal : vec3<f32>,
-            @location(2) uv : vec2<f32>,
-        };
-        
-        struct VertexOutput {
-            @builtin(position) position : vec4<f32>,
-            @location(0) vUv : vec2<f32>,
-        };
-        
-        @group(0) @binding(0) var depthTextureInputSampler: sampler;
-        @group(0) @binding(1) var depthTextureInput: texture_depth_2d;
-        @group(0) @binding(2) var<storage, read> currentMip: f32;
-        
-        @vertex
-        fn vertexMain(input: VertexInput) -> VertexOutput {
-            var output: VertexOutput;
-            output.position = vec4(input.position, 0.0, 1.0);
-            output.vUv = input.uv;
-            return output;
-        }
-
-        fn HZBReduce(mainTex: texture_depth_2d, inUV: vec2f, invSize: vec2f) -> f32 {
-            var depth = vec4f(0.0);
-            let uv0 = inUV + vec2f(-0.25f, -0.25f) * invSize;
-            let uv1 = inUV + vec2f(0.25f, -0.25f) * invSize;
-            let uv2 = inUV + vec2f(-0.25f, 0.25f) * invSize;
-            let uv3 = inUV + vec2f(0.25f, 0.25f) * invSize;
-
-            depth.x = textureSampleLevel(mainTex, depthTextureInputSampler, uv0, u32(currentMip));
-            depth.y = textureSampleLevel(mainTex, depthTextureInputSampler, uv1, u32(currentMip));
-            depth.z = textureSampleLevel(mainTex, depthTextureInputSampler, uv2, u32(currentMip));
-            depth.w = textureSampleLevel(mainTex, depthTextureInputSampler, uv3, u32(currentMip));
-
-            let reversed_z = false;
-            if (reversed_z) {
-                return min(min(depth.x, depth.y), min(depth.z, depth.w));
-            }
-            else {
-                return max(max(depth.x, depth.y), max(depth.z, depth.w));
-            }
-        }
-
-        @fragment
-        fn fragmentMain(input: VertexOutput) -> @builtin(frag_depth) f32 {
-            let invSize = 1.0 / (vec2f(textureDimensions(depthTextureInput, u32(currentMip))));
-            let inUV = input.vUv;
-
-            let depth = HZBReduce(depthTextureInput, inUV, invSize);
-            return depth;
-        }
-    `;
     this.shader = await Shader.Create({
-      code: shaderCode,
+      code: await ShaderLoader.DepthDownsample,
       attributes: {
         position: { location: 0, size: 3, type: "vec3" },
         normal: { location: 1, size: 3, type: "vec3" },
@@ -7320,7 +7201,7 @@ var HiZPass = class {
         currentMip: { group: 0, binding: 2, type: "storage" }
       }
     });
-    this.geometry = Geometry.Plane();
+    this.quadGeometry = Geometry.Plane();
     let w = this.depthWidth;
     let h = this.depthHeight;
     let level = 0;
@@ -7343,15 +7224,34 @@ var HiZPass = class {
     this.debugDepthTexture = this.inputTexture;
     this.currentBuffer = Buffer3.Create(4 * 4, 0 /* STORAGE */);
     console.log("mips", level);
-    this.renderTarget = RenderTexture.Create(this.depthWidth, this.depthHeight);
+    this.blitShader = await Shader.Create({
+      code: await ShaderLoader.BlitDepth,
+      colorOutputs: [],
+      depthOutput: "depth24plus",
+      attributes: {
+        position: { location: 0, size: 3, type: "vec3" },
+        normal: { location: 1, size: 3, type: "vec3" },
+        uv: { location: 2, size: 2, type: "vec2" }
+      },
+      uniforms: {
+        texture: { group: 0, binding: 0, type: "depthTexture" },
+        textureSampler: { group: 0, binding: 1, type: "sampler" },
+        mip: { group: 0, binding: 2, type: "storage" }
+      }
+    });
+    const blitSampler = TextureSampler.Create();
+    this.blitShader.SetSampler("textureSampler", blitSampler);
+    this.blitShader.SetValue("mip", 0);
     this.initialized = true;
   }
-  buildDepthPyramid(drawIndirectShader, drawIndirectGeometry, drawIndirectBuffer) {
+  // , this.shader, this.geometry, this.drawIndirectBuffer
+  buildDepthPyramid(depthTexture) {
     if (this.initialized === false) return;
     let currentLevel = 0;
     let currentTarget = this.targetTextures[currentLevel];
-    RendererContext.BeginRenderPass("GPUDriven - DepthPyramid", [{ target: this.renderTarget, clear: true }], { target: currentTarget, clear: true }, true);
-    RendererContext.DrawIndirect(drawIndirectGeometry, drawIndirectShader, drawIndirectBuffer);
+    this.blitShader.SetTexture("texture", depthTexture);
+    RendererContext.BeginRenderPass("GPUDriven - DepthPyramid First mip", [], { target: currentTarget, clear: true }, true);
+    RendererContext.DrawGeometry(this.quadGeometry, this.blitShader);
     RendererContext.EndRenderPass();
     RendererContext.CopyTextureToTexture(currentTarget, this.inputTexture, 0, currentLevel);
     this.shader.SetBuffer("currentMip", this.currentBuffer);
@@ -7361,7 +7261,7 @@ var HiZPass = class {
       currentTarget = this.targetTextures[currentLevel];
       RendererContext.CopyBufferToBuffer(levelBuffer, this.currentBuffer);
       RendererContext.BeginRenderPass("GPUDriven - DepthPyramid Build", [], { target: currentTarget, clear: true }, true);
-      RendererContext.DrawGeometry(this.geometry, this.shader);
+      RendererContext.DrawGeometry(this.quadGeometry, this.shader);
       RendererContext.EndRenderPass();
       RendererContext.CopyTextureToTexture(currentTarget, this.inputTexture, 0, currentLevel);
     }
@@ -7369,7 +7269,7 @@ var HiZPass = class {
 };
 
 // src/renderer/passes/GPUDriven.ts
-var vertexSize2 = Meshlet.max_triangles * 3;
+var vertexSize = Meshlet.max_triangles * 3;
 var GPUDriven = class extends RenderPass {
   name = "GPUDriven";
   shader;
@@ -7393,7 +7293,6 @@ var GPUDriven = class extends RenderPass {
   meshInfoBuffer;
   meshletInfoBuffer;
   objectInfoBuffer;
-  depthColorTarget;
   depthTexture;
   constructor() {
     super({});
@@ -7401,7 +7300,7 @@ var GPUDriven = class extends RenderPass {
   }
   async init() {
     this.shader = await Shader.Create({
-      code: await ShaderCode.Load(3 /* DrawIndirect */),
+      code: await ShaderLoader.DrawIndirect,
       colorOutputs: [{ format: Renderer.SwapChainFormat }],
       depthOutput: "depth24plus",
       attributes: {
@@ -7418,7 +7317,8 @@ var GPUDriven = class extends RenderPass {
       }
     });
     this.compute = await Compute.Create({
-      code: await ShaderCode.Load(2 /* Cull */),
+      code: await ShaderLoader.Cull,
+      //await ShaderCode.Load(Shaders.Cull),
       computeEntrypoint: "main",
       uniforms: {
         drawBuffer: { group: 0, binding: 0, type: "storage-write" },
@@ -7428,7 +7328,7 @@ var GPUDriven = class extends RenderPass {
         meshInfo: { group: 0, binding: 4, type: "storage" },
         objectInfo: { group: 0, binding: 5, type: "storage" },
         visibilityBuffer: { group: 0, binding: 6, type: "storage-write" },
-        currentPass: { group: 0, binding: 7, type: "storage" },
+        bPrepass: { group: 0, binding: 7, type: "storage" },
         textureSampler: { group: 0, binding: 8, type: "sampler" },
         depthTexture: { group: 0, binding: 9, type: "depthTexture" },
         settings: { group: 0, binding: 10, type: "storage" }
@@ -7437,7 +7337,7 @@ var GPUDriven = class extends RenderPass {
     this.drawIndirectBuffer = Buffer3.Create(4 * 4, 5 /* INDIRECT */);
     this.drawIndirectBuffer.name = "drawIndirectBuffer";
     this.geometry = new Geometry();
-    this.geometry.attributes.set("position", new VertexAttribute(new Float32Array(vertexSize2)));
+    this.geometry.attributes.set("position", new VertexAttribute(new Float32Array(vertexSize)));
     this.currentPassBuffer = Buffer3.Create(1 * 4, 0 /* STORAGE */);
     const sampler = TextureSampler.Create({ magFilter: "nearest", minFilter: "nearest" });
     this.compute.SetSampler("textureSampler", sampler);
@@ -7569,19 +7469,15 @@ var GPUDriven = class extends RenderPass {
       this.vertexBuffer.SetArray(verticesArray);
       this.shader.SetBuffer("vertices", this.vertexBuffer);
       this.currentMeshCount = sceneMeshlets.length;
-      console.timeEnd("buildMeshletData");
       const visibilityBufferArray = new Float32Array(meshlets.length * 4).fill(1);
       this.visibilityBuffer = Buffer3.Create(visibilityBufferArray.byteLength, 1 /* STORAGE_WRITE */);
       this.visibilityBuffer.SetArray(visibilityBufferArray);
       this.compute.SetBuffer("visibilityBuffer", this.visibilityBuffer);
-      this.compute.SetBuffer("currentPass", this.currentPassBuffer);
       console.log("visibilityBufferArray", visibilityBufferArray.byteLength);
       Debugger.SetTotalMeshlets(meshlets.length);
     }
   }
   generateDrawsPass(meshletsCount, prepass) {
-    if (prepass === true) RendererContext.CopyBufferToBuffer(this.visibleBuffer, this.currentPassBuffer);
-    else RendererContext.CopyBufferToBuffer(this.nonVisibleBuffer, this.currentPassBuffer);
     const dispatchSizeX = Math.ceil(Math.cbrt(meshletsCount) / 4);
     const dispatchSizeY = Math.ceil(Math.cbrt(meshletsCount) / 4);
     const dispatchSizeZ = Math.ceil(Math.cbrt(meshletsCount) / 4);
@@ -7669,12 +7565,15 @@ var GPUDriven = class extends RenderPass {
     this.compute.SetArray("settings", settings);
     this.shader.SetArray("settings", settings);
     this.compute.SetTexture("depthTexture", this.hizPass.debugDepthTexture);
+    this.compute.SetBuffer("bPrepass", this.currentPassBuffer);
     RendererContext.ClearBuffer(this.computeDrawBuffer);
+    RendererContext.CopyBufferToBuffer(this.visibleBuffer, this.currentPassBuffer);
     this.generateDrawsPass(meshletsCount, true);
-    this.hizPass.buildDepthPyramid(this.shader, this.geometry, this.drawIndirectBuffer);
-    this.generateDrawsPass(meshletsCount, false);
-    this.drawIndirectBuffer.SetArray(new Uint32Array([Meshlet.max_triangles, meshletsCount, 0, 0]));
     this.geometryPass(true);
+    this.hizPass.buildDepthPyramid(this.depthTexture);
+    RendererContext.CopyBufferToBuffer(this.nonVisibleBuffer, this.currentPassBuffer);
+    this.generateDrawsPass(meshletsCount, false);
+    this.geometryPass(false);
     if (Debugger.isDebugDepthPassEnabled) {
       this.depthViewer.execute(resources, this.hizPass.debugDepthTexture, Debugger.debugDepthMipLevel, Debugger.debugDepthExposure);
     } else {
@@ -7683,8 +7582,8 @@ var GPUDriven = class extends RenderPass {
     this.computeDrawBuffer.GetData().then((v) => {
       const visibleMeshCount = new Uint32Array(v)[1];
       Debugger.SetVisibleMeshes(visibleMeshCount);
-      Debugger.SetTriangleCount(vertexSize2 / 3 * meshletsCount);
-      Debugger.SetVisibleTriangleCount(vertexSize2 / 3 * visibleMeshCount);
+      Debugger.SetTriangleCount(vertexSize / 3 * meshletsCount);
+      Debugger.SetVisibleTriangleCount(vertexSize / 3 * visibleMeshCount);
     });
   }
 };
