@@ -8,6 +8,7 @@ import DownSample from "./wgsl/DownSample.wgsl";
 import UpSample from "./wgsl/UpSample.wgsl";
 import Blur from "./wgsl/Blur.wgsl";
 import Blit from "./wgsl/Blit.wgsl";
+import Cull from "./wgsl/Cull.wgsl";
 
 export class WEBGPUShaders {
     public static DeferredMeshShaderCode = DeferredMeshShader;
@@ -20,4 +21,5 @@ export class WEBGPUShaders {
     public static UpSampleCode = UpSample;
     public static BlurCode = Blur;
     public static BlitCode = Blit;
+    public static CullCode = Cull;
 }

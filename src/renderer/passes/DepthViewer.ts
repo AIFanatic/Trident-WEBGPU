@@ -16,6 +16,10 @@ export class DepthViewer extends RenderPass {
     constructor() {
         super({});
 
+        this.init();
+    }
+
+    protected async init() {
         const code = `
         struct VertexInput {
             @location(0) position : vec2<f32>,
@@ -49,7 +53,7 @@ export class DepthViewer extends RenderPass {
         }
         `;
 
-        this.shader = Shader.Create({
+        this.shader = await Shader.Create({
             code: code,
             colorOutputs: [{format: Renderer.SwapChainFormat}],
             attributes: {
@@ -67,10 +71,13 @@ export class DepthViewer extends RenderPass {
 
         const sampler = TextureSampler.Create({magFilter: "nearest", minFilter: "nearest"});
         this.shader.SetSampler("textureSampler", sampler);
+
+        this.initialized = true;
     }
 
     public execute(resources: ResourcePool, depthTexture: DepthTexture, debugLevel: number, debugExposure: number) {
-        
+        if (this.initialized === false) return;
+
         // this.shader.SetTexture("albedoTexture", resources.getResource(PassParams.GBufferAlbedo));
         // this.debugLevelBuffer.SetArray(new Float32Array([debugLevel]));
         this.shader.SetValue("debugLevel", debugLevel);

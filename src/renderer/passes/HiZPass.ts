@@ -1,127 +1,40 @@
-import { Geometry, VertexAttribute } from "../../Geometry";
+import { Geometry } from "../../Geometry";
 import { Camera } from "../../components/Camera";
 import { Color } from "../../math/Color";
 import { Meshlet } from "../../plugins/meshlets/Meshlet";
 import { Buffer, BufferType } from "../Buffer";
 import { RendererContext } from "../RendererContext";
 import { Shader } from "../Shader";
-import { DepthTexture } from "../Texture";
+import { DepthTexture, RenderTexture } from "../Texture";
 import { TextureSampler } from "../TextureSampler";
 
 const vertexSize = Meshlet.max_triangles * 3;
 
 export class HiZPass {
-    private depthPyramidShader: Shader;
-
     private shader: Shader;
     private geometry: Geometry;
     public debugDepthTexture: DepthTexture;
-    private depthShaderGeometry: Geometry;
     
     private inputTexture: DepthTexture;
     private targetTextures: DepthTexture[] = [];
 
-    private depthWidth = 1024;
-    private depthHeight = 1024;
+    public depthWidth = 1024;
+    public depthHeight = 1024;
     
     private depthLevels;
 
     private passBuffers: Buffer[] = [];
     private currentBuffer: Buffer;
 
+    private initialized: boolean = false;
+
+    private renderTarget: RenderTexture;
+
     constructor() {
-        const code = `
-        struct VertexInput {
-            @builtin(instance_index) instanceIndex : u32,
-            @builtin(vertex_index) vertexIndex : u32,
-            @location(0) position : vec3<f32>,
-        };
+        this.Init();
+    }
 
-        struct VertexOutput {
-            @builtin(position) position : vec4<f32>,
-            @location(0) @interpolate(flat) instance : u32,
-        };
-
-        @group(0) @binding(0) var<storage, read> viewMatrix: mat4x4<f32>;
-        @group(0) @binding(1) var<storage, read> projectionMatrix: mat4x4<f32>;
-
-        @group(0) @binding(2) var<storage, read> vertices: array<vec4<f32>>;
-
-        struct InstanceInfo {
-            meshID: u32
-        };
-
-        @group(0) @binding(3) var<storage, read> instanceInfo: array<InstanceInfo>;
-
-
-
-        struct MeshInfo {
-            modelMatrix: mat4x4<f32>,
-            position: vec4<f32>,
-            scale: vec4<f32>
-        };
-
-        struct ObjectInfo {
-            meshID: f32,
-            meshletID: f32,
-            padding: vec2<f32>,
-        };
-
-        @group(0) @binding(4) var<storage, read> meshInfo: array<MeshInfo>;
-        @group(0) @binding(5) var<storage, read> objectInfo: array<ObjectInfo>;
-
-        @vertex fn vertexMain(input: VertexInput) -> VertexOutput {
-            var output: VertexOutput;
-            let meshID = instanceInfo[input.instanceIndex].meshID;
-            // let mesh = meshInfo[meshID];
-            let object = objectInfo[meshID];
-            let mesh = meshInfo[u32(object.meshID)];
-            let modelMatrix = mesh.modelMatrix;
-            
-            let vertexID = input.vertexIndex + u32(object.meshletID) * ${vertexSize};
-            let position = vertices[vertexID];
-            
-            let modelViewMatrix = viewMatrix * modelMatrix;
-            output.position = projectionMatrix * modelViewMatrix * vec4(position.xyz, 1.0);
-            output.instance = meshID;
-
-            return output;
-        }
-        
-
-        fn rand(co: f32) -> f32 {
-            return fract(sin((co + 1.0) * 12.9898) * 43758.5453);
-        }
-
-        @fragment fn fragmentMain(input: VertexOutput) -> @location(0) vec4f {
-            let r = rand(f32(input.instance) + 12.1212);
-            let g = rand(f32(input.instance) + 22.1212);
-            let b = rand(f32(input.instance) + 32.1212);
-
-            return vec4(r, g, b, 1.0);
-        }
-        `;
-
-        this.depthPyramidShader = Shader.Create({
-            code: code,
-            colorOutputs: [],
-            depthOutput: "depth24plus",
-            attributes: {
-                position: { location: 0, size: 3, type: "vec3" },
-            },
-            uniforms: {
-                viewMatrix: {group: 0, binding: 0, type: "storage"},
-                projectionMatrix: {group: 0, binding: 1, type: "storage"},
-                vertices: {group: 0, binding: 2, type: "storage"},
-                instanceInfo: {group: 0, binding: 3, type: "storage"},
-                meshInfo: {group: 0, binding: 4, type: "storage"},
-                objectInfo: {group: 0, binding: 5, type: "storage"},
-            },
-        });
-
-        this.depthShaderGeometry = new Geometry();
-        this.depthShaderGeometry.attributes.set("position", new VertexAttribute(new Float32Array(vertexSize)));
-
+    private async Init() {
         const shaderCode = `
         struct VertexInput {
             @location(0) position : vec2<f32>,
@@ -136,9 +49,7 @@ export class HiZPass {
         
         @group(0) @binding(0) var depthTextureInputSampler: sampler;
         @group(0) @binding(1) var depthTextureInput: texture_depth_2d;
-
-        @group(0) @binding(2) var<storage, read> depthTextureInputDims: vec3f;
-        @group(0) @binding(3) var<storage, read> currentMip: f32;
+        @group(0) @binding(2) var<storage, read> currentMip: f32;
         
         @vertex
         fn vertexMain(input: VertexInput) -> VertexOutput {
@@ -147,18 +58,6 @@ export class HiZPass {
             output.vUv = input.uv;
             return output;
         }
-        
-        // fn min_vec4(v: vec4<f32>) -> f32 {
-        //     let min_ab = min(v.x, v.y);
-        //     let min_cd = min(v.z, v.w);
-        //     return min(min_ab, min_cd);
-        // }
-
-        // fn max_vec4(v: vec4<f32>) -> f32 {
-        //     let min_ab = min(v.x, v.y);
-        //     let min_cd = min(v.z, v.w);
-        //     return min(min_ab, min_cd);
-        // }
 
         fn HZBReduce(mainTex: texture_depth_2d, inUV: vec2f, invSize: vec2f) -> f32 {
             var depth = vec4f(0.0);
@@ -184,14 +83,13 @@ export class HiZPass {
         @fragment
         fn fragmentMain(input: VertexOutput) -> @builtin(frag_depth) f32 {
             let invSize = 1.0 / (vec2f(textureDimensions(depthTextureInput, u32(currentMip))));
-            // let invSize = depthTextureInputDims.xy;
             let inUV = input.vUv;
 
             let depth = HZBReduce(depthTextureInput, inUV, invSize);
             return depth;
         }
     `
-        this.shader = Shader.Create({
+        this.shader = await Shader.Create({
             code: shaderCode,
             attributes: {
                 position: { location: 0, size: 3, type: "vec3" },
@@ -203,8 +101,7 @@ export class HiZPass {
             uniforms: {
                 depthTextureInputSampler: {group: 0, binding: 0, type: "sampler"},
                 depthTextureInput: {group: 0, binding: 1, type: "depthTexture"},
-                depthTextureInputDims: {group: 0, binding: 2, type: "storage"},
-                currentMip: {group: 0, binding: 3, type: "storage"},
+                currentMip: {group: 0, binding: 2, type: "storage"},
             }
         });
         
@@ -238,25 +135,20 @@ export class HiZPass {
         this.currentBuffer = Buffer.Create(4 * 4, BufferType.STORAGE);
 
         console.log("mips", level)
+
+        this.renderTarget = RenderTexture.Create(this.depthWidth, this.depthHeight);
+        this.initialized = true;
     }
 
-    public buildDepthPyramid(depthTexture: DepthTexture, vertices: Buffer, instanceInfo: Buffer, meshInfo: Buffer, objectInfo: Buffer, drawIndirectBuffer: Buffer) {
-        const mainCamera = Camera.mainCamera;
-
-        
-        this.depthPyramidShader.SetMatrix4("projectionMatrix", mainCamera.projectionMatrix);
-        this.depthPyramidShader.SetMatrix4("viewMatrix", mainCamera.viewMatrix);
-        this.depthPyramidShader.SetBuffer("vertices", vertices);
-        this.depthPyramidShader.SetBuffer("instanceInfo", instanceInfo);
-        this.depthPyramidShader.SetBuffer("meshInfo", meshInfo);
-        this.depthPyramidShader.SetBuffer("objectInfo", objectInfo);
+    public buildDepthPyramid(drawIndirectShader: Shader, drawIndirectGeometry: Geometry, drawIndirectBuffer: Buffer) {
+        if(this.initialized === false) return;
 
         let currentLevel = 0;
         let currentTarget = this.targetTextures[currentLevel];
         
         // Render scene to first mip
-        RendererContext.BeginRenderPass("GPUDriven - DepthPyramid", [], {target: currentTarget, clear: true}, true);
-        RendererContext.DrawIndirect(this.depthShaderGeometry, this.depthPyramidShader, drawIndirectBuffer);
+        RendererContext.BeginRenderPass("GPUDriven - DepthPyramid", [{target: this.renderTarget, clear: true}], {target: currentTarget, clear: true}, true);
+        RendererContext.DrawIndirect(drawIndirectGeometry, drawIndirectShader, drawIndirectBuffer);
         RendererContext.EndRenderPass();
 
         RendererContext.CopyTextureToTexture(currentTarget, this.inputTexture, 0, currentLevel);

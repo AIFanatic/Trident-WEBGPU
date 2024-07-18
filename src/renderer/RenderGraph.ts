@@ -2,12 +2,15 @@ export class RenderPass {
     public name: string;
     public inputs: string[] = []
     public outputs: string[] = [];
+
+    protected initialized: boolean = false;
     
     constructor(params: {inputs?: string[], outputs?: string[]}) {
         if (params.inputs) this.inputs = params.inputs;
         if (params.outputs) this.outputs = params.outputs;
     }
 
+    protected async init() {};
     public execute(resources: ResourcePool, ...args: any) {};
     public set(data: {inputs?: string[], outputs?: string[]}) {
         if (data.inputs) this.inputs = data.inputs;

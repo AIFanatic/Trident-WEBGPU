@@ -3,6 +3,7 @@ import { Matrix4 } from "../math/Matrix4";
 import { Vector3 } from "../math/Vector3";
 import { Buffer, DynamicBuffer } from "./Buffer";
 import { Renderer } from "./Renderer";
+import { ShaderCode } from "./ShaderCode";
 import { DepthTexture, RenderTexture, Texture, TextureFormat } from "./Texture";
 import { TextureSampler } from "./TextureSampler";
 import { WEBGPUComputeShader } from "./webgpu/shader/WEBGPUComputeShader";
@@ -71,7 +72,8 @@ export class Shader extends BaseShader {
     public readonly id: string;
     public readonly params: ShaderParams;
 
-    public static Create(params: ShaderParams): Shader {
+    public static async Create(params: ShaderParams): Promise<Shader> {
+        params.code = await ShaderCode.IncludeHandler(params.code);
         if (Renderer.type === "webgpu") return new WEBGPUShader(params);
         throw Error("Unknown api");
     }
@@ -80,7 +82,8 @@ export class Shader extends BaseShader {
 export class Compute extends BaseShader {
     public readonly params: ComputeShaderParams;
 
-    public static Create(params: ComputeShaderParams): Compute {
+    public static async Create(params: ComputeShaderParams): Promise<Compute> {
+        params.code = await ShaderCode.IncludeHandler(params.code);
         if (Renderer.type === "webgpu") return new WEBGPUComputeShader(params);
         throw Error("Unknown api");
     }

@@ -13,7 +13,10 @@ export class DebuggerPass extends RenderPass {
 
     constructor() {
         super({});
+        this.init();
+    }
 
+    protected async init() {
         const code = `
         struct VertexInput {
             @location(0) position : vec2<f32>,
@@ -53,7 +56,7 @@ export class DebuggerPass extends RenderPass {
         }
         `;
 
-        this.shader = Shader.Create({
+        this.shader = await Shader.Create({
             code: code,
             colorOutputs: [{format: Renderer.SwapChainFormat}],
             attributes: {
@@ -70,10 +73,13 @@ export class DebuggerPass extends RenderPass {
 
         const sampler = TextureSampler.Create();
         this.shader.SetSampler("textureSampler", sampler);
+
+        this.initialized = true;
     }
 
     public execute(resources: ResourcePool) {
-        
+        if (this.initialized === false) return;
+
         // this.shader.SetTexture("albedoTexture", resources.getResource(PassParams.GBufferAlbedo));
         this.shader.SetTexture("shadowMapTexture", resources.getResource(PassParams.ShadowPassDepth));
 
