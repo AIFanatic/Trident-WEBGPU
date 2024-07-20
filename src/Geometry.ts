@@ -8,6 +8,7 @@ export class GeometryAttribute {
     buffer: Buffer;
 
     constructor(array: Float32Array | Uint32Array, type: BufferType) {
+        if (array.length === 0) throw Error("GeometryAttribute data is empty");
         this.array = array;
         this.buffer = Buffer.Create(array.byteLength, type);
         this.buffer.SetArray(this.array);
@@ -20,6 +21,40 @@ export class VertexAttribute extends GeometryAttribute {
     constructor(array: Float32Array) { super(array, BufferType.VERTEX) }
 }
 
+export class InterleavedVertexAttribute extends GeometryAttribute {
+    public stride: number;
+    constructor(array: Float32Array, stride: number) {
+        super(array, BufferType.VERTEX);
+        this.stride = stride;
+    }
+
+    public static fromArrays(attributes: Float32Array[], strides: number[]): InterleavedVertexAttribute {
+        function stridedCopy(target: Float32Array, values: ArrayLike<number>, offset: number, count: number, stride: number) {
+            for (let i = 0; i < values.length; i += count) {
+                for (let j = 0; j < count && i + j < values.length && offset < target.length; j++) {
+                    target[offset + j] = values[i + j];
+                }
+                offset += stride;
+            }
+        }
+
+        let totalLength = 0;
+        for (const attribute of attributes) totalLength += attribute.length;
+        const interleavedLength = strides.reduce((a, b) => a + b);
+        const interleavedArray = new Float32Array(totalLength);
+
+        let offset = 0;
+        for (let i = 0; i < attributes.length; i++) {
+            const attribute = attributes[i];
+            const stride = strides[i];
+
+            stridedCopy(interleavedArray, attribute, offset, stride, interleavedLength);
+            offset += stride;
+        }
+        return new InterleavedVertexAttribute(interleavedArray, interleavedLength);
+    }
+}
+
 export class IndexAttribute extends GeometryAttribute {
     constructor(array: Uint32Array) { super(array, BufferType.INDEX) }
 }
@@ -27,7 +62,7 @@ export class IndexAttribute extends GeometryAttribute {
 export class Geometry {
     public id = Utils.UUID();
     public index?: IndexAttribute;
-    public readonly attributes: Map<string, VertexAttribute> = new Map();
+    public readonly attributes: Map<string, VertexAttribute | InterleavedVertexAttribute> = new Map();
 
     public enableShadows: boolean = true;
     
@@ -93,7 +128,87 @@ export class Geometry {
     }
 
     public static Cube(): Geometry {
-        const vertices = new Float32Array([0.5, 0.5, 0.5, 0.5, 0.5, -0.5, 0.5, -0.5, 0.5, 0.5, -0.5, -0.5, -0.5, 0.5, -0.5, -0.5, 0.5, 0.5, -0.5, -0.5, -0.5, -0.5, -0.5, 0.5, -0.5, 0.5, -0.5, 0.5, 0.5, -0.5, -0.5, 0.5, 0.5, 0.5, 0.5, 0.5, -0.5, -0.5, 0.5, 0.5, -0.5, 0.5, -0.5, -0.5, -0.5, 0.5, -0.5, -0.5, -0.5, 0.5, 0.5, 0.5, 0.5, 0.5, -0.5, -0.5, 0.5, 0.5, -0.5, 0.5, 0.5, 0.5, -0.5, -0.5, 0.5, -0.5, 0.5, -0.5, -0.5, -0.5, -0.5, -0.5]);
+        const vertices = new Float32Array([
+            0.5, 0.5, 0.5,
+            0.5, 0.5, -0.5,
+            0.5, -0.5, 0.5,
+            0.5, -0.5, -0.5,
+            -0.5, 0.5, -0.5,
+            -0.5, 0.5, 0.5,
+            -0.5, -0.5, -0.5,
+            -0.5, -0.5, 0.5,
+            -0.5, 0.5, -0.5,
+            0.5, 0.5, -0.5,
+            -0.5, 0.5, 0.5,
+            0.5, 0.5, 0.5,
+            -0.5, -0.5, 0.5,
+            0.5, -0.5, 0.5,
+            -0.5, -0.5, -0.5,
+            0.5, -0.5, -0.5,
+            -0.5, 0.5, 0.5,
+            0.5, 0.5, 0.5,
+            -0.5, -0.5, 0.5,
+            0.5, -0.5, 0.5,
+            0.5, 0.5, -0.5,
+            -0.5, 0.5, -0.5,
+            0.5, -0.5, -0.5,
+            -0.5, -0.5, -0.5
+        ]);
+
+        const uvs = new Float32Array([
+            0, 1,
+            1, 1,
+            0, 0,
+            1, 0,
+            0, 1,
+            1, 1,
+            0, 0,
+            1, 0,
+            0, 1,
+            1, 1,
+            0, 0,
+            1, 0,
+            0, 1,
+            1, 1,
+            0, 0,
+            1, 0,
+            0, 1,
+            1, 1,
+            0, 0,
+            1, 0,
+            0, 1,
+            1, 1,
+            0, 0,
+            1, 0
+        ]);
+
+        const normals = new Float32Array([
+            1, 0, 0,
+            1, 0, -0,
+            1, 0, -0,
+            1, 0, -0,
+            -1, 0, 0,
+            -1, 0, -0,
+            -1, 0, -0,
+            -1, 0, -0,
+            0, 1, 0,
+            0, 1, 0,
+            0, 1, 0,
+            0, 1, 0,
+            0, -1, 0,
+            -0, -1, 0,
+            -0, -1, 0,
+            -0, -1, 0,
+            0, -0, 1,
+            0, 0, 1,
+            0, 0, 1,
+            0, 0, 1,
+            0, 0, -1,
+            0, 0, -1,
+            0, 0, -1,
+            0, 0, -1
+        ]);
+
         const indices = new Uint32Array([
             0, 2, 1, 
             2, 3, 1, 
@@ -108,13 +223,12 @@ export class Geometry {
             20, 22, 21,
             22, 23, 21
         ]);
-        const uvs = new Float32Array([0, 1, 1, 1, 0, 0, 1, 0, 0, 1, 1, 1, 0, 0, 1, 0, 0, 1, 1, 1, 0, 0, 1, 0, 0, 1, 1, 1, 0, 0, 1, 0, 0, 1, 1, 1, 0, 0, 1, 0, 0, 1, 1, 1, 0, 0, 1, 0]);
         
         const geometry = new Geometry();
         geometry.attributes.set("position", new VertexAttribute(vertices));
         geometry.attributes.set("uv", new VertexAttribute(uvs));
+        geometry.attributes.set("normal", new VertexAttribute(normals));
         geometry.index = new IndexAttribute(indices);
-        geometry.ComputeNormals();
 
         return geometry;
     }

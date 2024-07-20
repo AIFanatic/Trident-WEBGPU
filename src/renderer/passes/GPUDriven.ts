@@ -6,7 +6,7 @@ import { Geometry, VertexAttribute } from "../../Geometry";
 import { Buffer, BufferType } from "../Buffer";
 import { Camera } from "../../components/Camera";
 import { ComputeContext } from "../ComputeContext";
-import { DepthTexture, RenderTexture } from "../Texture";
+import { DepthTexture, RenderTexture, Texture, TextureArray } from "../Texture";
 import { Frustum } from "../../math/Frustum";
 import { Debugger } from "../../plugins/Debugger";
 import { MeshletMesh } from "../../components/MeshletMesh";
@@ -16,6 +16,7 @@ import { DepthViewer } from "./DepthViewer";
 import { TextureViewer } from "./TextureViewer";
 import { HiZPass } from "./HiZPass";
 import { ShaderLoader } from "../ShaderUtils";
+import { DeferredMeshMaterial } from "../Material";
 
 interface SceneMesh {
     geometry: Meshlet;
@@ -79,11 +80,17 @@ export class GPUDriven extends RenderPass {
             uniforms: {
                 viewMatrix: {group: 0, binding: 0, type: "storage"},
                 projectionMatrix: {group: 0, binding: 1, type: "storage"},
-                vertices: {group: 0, binding: 2, type: "storage"},
-                instanceInfo: {group: 0, binding: 3, type: "storage"},
-                meshInfo: {group: 0, binding: 4, type: "storage"},
-                objectInfo: {group: 0, binding: 5, type: "storage"},
-                settings: {group: 0, binding: 6, type: "storage"},
+                instanceInfo: {group: 0, binding: 2, type: "storage"},
+                meshInfo: {group: 0, binding: 3, type: "storage"},
+                objectInfo: {group: 0, binding: 4, type: "storage"},
+                settings: {group: 0, binding: 5, type: "storage"},
+
+                vertices: {group: 0, binding: 6, type: "storage"},
+                uvs: {group: 0, binding: 7, type: "storage"},
+                normals: {group: 0, binding: 8, type: "storage"},
+
+                textureSampler: {group: 0, binding: 9, type: "sampler"},
+                albedoMaps: {group: 0, binding: 10, type: "texture"},
             },
         });
 
@@ -120,6 +127,9 @@ export class GPUDriven extends RenderPass {
 
         const sampler = TextureSampler.Create({magFilter: "nearest", minFilter: "nearest"});
         this.compute.SetSampler("textureSampler", sampler);
+
+        const materialSampler = TextureSampler.Create();
+        this.shader.SetSampler("textureSampler", materialSampler);
         
         function previousPow2(v: number) {
             let r = 1;
@@ -149,6 +159,8 @@ export class GPUDriven extends RenderPass {
         const sceneMeshlets = [...scene.GetComponents(MeshletMesh)];
 
         if (this.currentMeshCount !== sceneMeshlets.length) {
+            let albedoMaps: Texture[] = [];
+
             const meshlets: SceneMesh[] = [];
             for (const meshlet of sceneMeshlets) {
                 for (const geometry of meshlet.meshlets) {
@@ -161,8 +173,12 @@ export class GPUDriven extends RenderPass {
             let objectInfo: number[] = [];
 
             let vertices: number[] = [];
+            let uvs: number[] = [];
+            let normals: number[] = [];
+
             const indexedCache: Map<number, number> = new Map();
             const meshCache: Map<string, number> = new Map();
+            const materialCache: Map<string, number> = new Map();
 
             for (let i = 0; i < meshlets.length; i++) {
                 const sceneMesh = meshlets[i];
@@ -197,10 +213,33 @@ export class GPUDriven extends RenderPass {
                     meshIndex = meshCache.size;
                     meshCache.set(sceneMesh.mesh.id, meshIndex);
 
+
+                    let materials = sceneMesh.mesh.GetMaterials(DeferredMeshMaterial);
+                    if (materials.length > 1) throw Error("Multiple materials not supported");
+    
+                    let albedoIndex = -1;
+                    for (const material of materials) {
+                        const albedoMap = material.params.albedoMap;
+                        if (albedoMap) {
+                            let albedoIndexCached = materialCache.get(albedoMap.id);
+                            if (albedoIndexCached === undefined) {
+                                albedoIndexCached = materialCache.size;
+                                materialCache.set(albedoMap.id, albedoIndexCached);
+                                albedoMaps.push(albedoMap);
+                            }
+                            albedoIndex = albedoIndexCached;
+                        }
+                    }
+    
+                    // console.log(materialCache);
+                    // console.log(albedoMaps);
+                    // console.log(albedoIndex);
+
                     meshInfo.push(
                         ...sceneMesh.mesh.transform.localToWorldMatrix.elements,
                         ...sceneMesh.mesh.transform.position.elements, 0,
                         ...sceneMesh.mesh.transform.scale.elements, 0,
+                        albedoIndex, 0, 0, 0
                     );
                 }
 
@@ -212,6 +251,7 @@ export class GPUDriven extends RenderPass {
 
             // Vertex buffer
             const verticesArray = new Float32Array(vertices);
+            console.log("vertices", vertices.length);
             console.log("verticesArray", verticesArray.length);
 
 
@@ -221,6 +261,19 @@ export class GPUDriven extends RenderPass {
             meshletInfoBuffer.name = "meshletInfoBuffer";
             meshletInfoBuffer.SetArray(meshletInfoArray);
             this.compute.SetBuffer("meshletInfo", meshletInfoBuffer);
+
+            // Mesh materials
+            if (albedoMaps.length > 0) {
+                const w = albedoMaps[0].width;
+                const h = albedoMaps[0].height;
+                const albedoMapTexture = TextureArray.Create(w, h, albedoMaps.length);
+
+                for (let i = 0; i < albedoMaps.length; i++) {
+                    RendererContext.CopyTextureToTexture(albedoMaps[i], albedoMapTexture, 0, 0, [w, h, i+1]);
+                }
+                albedoMapTexture.SetActiveLayer(0);
+                this.shader.SetTexture("albedoMaps", albedoMapTexture);
+            }
 
             // Mesh info buffer
             const meshInfoBufferArray = new Float32Array(meshInfo);
@@ -301,6 +354,7 @@ export class GPUDriven extends RenderPass {
 
     public execute(resources: ResourcePool) {
         if (this.initialized === false) return;
+        if (this.hizPass.initialized === false) return;
         
 
         const mainCamera = Camera.mainCamera;

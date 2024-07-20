@@ -1485,6 +1485,12 @@ var RenderTexture = class extends Texture2 {
     throw Error("Renderer type invalid");
   }
 };
+var TextureArray = class extends Texture2 {
+  static Create(width, height, depth = 1, format = Renderer.SwapChainFormat, mipLevels = 1) {
+    if (Renderer.type === "webgpu") return new WEBGPUTexture(width, height, depth, format, 0 /* IMAGE */, "2d-array", mipLevels);
+    throw Error("Renderer type invalid");
+  }
+};
 
 // src/renderer/webgpu/WEBGPUTextureSampler.ts
 var WEBGPUTextureSampler = class {
@@ -2097,6 +2103,7 @@ var GeometryAttribute = class {
   array;
   buffer;
   constructor(array, type) {
+    if (array.length === 0) throw Error("GeometryAttribute data is empty");
     this.array = array;
     this.buffer = Buffer3.Create(array.byteLength, type);
     this.buffer.SetArray(this.array);
@@ -2108,6 +2115,35 @@ var GeometryAttribute = class {
 var VertexAttribute = class extends GeometryAttribute {
   constructor(array) {
     super(array, 3 /* VERTEX */);
+  }
+};
+var InterleavedVertexAttribute = class _InterleavedVertexAttribute extends GeometryAttribute {
+  stride;
+  constructor(array, stride) {
+    super(array, 3 /* VERTEX */);
+    this.stride = stride;
+  }
+  static fromArrays(attributes, strides) {
+    function stridedCopy(target, values, offset2, count, stride) {
+      for (let i = 0; i < values.length; i += count) {
+        for (let j = 0; j < count && i + j < values.length && offset2 < target.length; j++) {
+          target[offset2 + j] = values[i + j];
+        }
+        offset2 += stride;
+      }
+    }
+    let totalLength = 0;
+    for (const attribute of attributes) totalLength += attribute.length;
+    const interleavedLength = strides.reduce((a, b) => a + b);
+    const interleavedArray = new Float32Array(totalLength);
+    let offset = 0;
+    for (let i = 0; i < attributes.length; i++) {
+      const attribute = attributes[i];
+      const stride = strides[i];
+      stridedCopy(interleavedArray, attribute, offset, stride, interleavedLength);
+      offset += stride;
+    }
+    return new _InterleavedVertexAttribute(interleavedArray, interleavedLength);
   }
 };
 var IndexAttribute = class extends GeometryAttribute {
@@ -2169,7 +2205,204 @@ var Geometry = class _Geometry {
     return array2;
   }
   static Cube() {
-    const vertices = new Float32Array([0.5, 0.5, 0.5, 0.5, 0.5, -0.5, 0.5, -0.5, 0.5, 0.5, -0.5, -0.5, -0.5, 0.5, -0.5, -0.5, 0.5, 0.5, -0.5, -0.5, -0.5, -0.5, -0.5, 0.5, -0.5, 0.5, -0.5, 0.5, 0.5, -0.5, -0.5, 0.5, 0.5, 0.5, 0.5, 0.5, -0.5, -0.5, 0.5, 0.5, -0.5, 0.5, -0.5, -0.5, -0.5, 0.5, -0.5, -0.5, -0.5, 0.5, 0.5, 0.5, 0.5, 0.5, -0.5, -0.5, 0.5, 0.5, -0.5, 0.5, 0.5, 0.5, -0.5, -0.5, 0.5, -0.5, 0.5, -0.5, -0.5, -0.5, -0.5, -0.5]);
+    const vertices = new Float32Array([
+      0.5,
+      0.5,
+      0.5,
+      0.5,
+      0.5,
+      -0.5,
+      0.5,
+      -0.5,
+      0.5,
+      0.5,
+      -0.5,
+      -0.5,
+      -0.5,
+      0.5,
+      -0.5,
+      -0.5,
+      0.5,
+      0.5,
+      -0.5,
+      -0.5,
+      -0.5,
+      -0.5,
+      -0.5,
+      0.5,
+      -0.5,
+      0.5,
+      -0.5,
+      0.5,
+      0.5,
+      -0.5,
+      -0.5,
+      0.5,
+      0.5,
+      0.5,
+      0.5,
+      0.5,
+      -0.5,
+      -0.5,
+      0.5,
+      0.5,
+      -0.5,
+      0.5,
+      -0.5,
+      -0.5,
+      -0.5,
+      0.5,
+      -0.5,
+      -0.5,
+      -0.5,
+      0.5,
+      0.5,
+      0.5,
+      0.5,
+      0.5,
+      -0.5,
+      -0.5,
+      0.5,
+      0.5,
+      -0.5,
+      0.5,
+      0.5,
+      0.5,
+      -0.5,
+      -0.5,
+      0.5,
+      -0.5,
+      0.5,
+      -0.5,
+      -0.5,
+      -0.5,
+      -0.5,
+      -0.5
+    ]);
+    const uvs = new Float32Array([
+      0,
+      1,
+      1,
+      1,
+      0,
+      0,
+      1,
+      0,
+      0,
+      1,
+      1,
+      1,
+      0,
+      0,
+      1,
+      0,
+      0,
+      1,
+      1,
+      1,
+      0,
+      0,
+      1,
+      0,
+      0,
+      1,
+      1,
+      1,
+      0,
+      0,
+      1,
+      0,
+      0,
+      1,
+      1,
+      1,
+      0,
+      0,
+      1,
+      0,
+      0,
+      1,
+      1,
+      1,
+      0,
+      0,
+      1,
+      0
+    ]);
+    const normals = new Float32Array([
+      1,
+      0,
+      0,
+      1,
+      0,
+      -0,
+      1,
+      0,
+      -0,
+      1,
+      0,
+      -0,
+      -1,
+      0,
+      0,
+      -1,
+      0,
+      -0,
+      -1,
+      0,
+      -0,
+      -1,
+      0,
+      -0,
+      0,
+      1,
+      0,
+      0,
+      1,
+      0,
+      0,
+      1,
+      0,
+      0,
+      1,
+      0,
+      0,
+      -1,
+      0,
+      -0,
+      -1,
+      0,
+      -0,
+      -1,
+      0,
+      -0,
+      -1,
+      0,
+      0,
+      -0,
+      1,
+      0,
+      0,
+      1,
+      0,
+      0,
+      1,
+      0,
+      0,
+      1,
+      0,
+      0,
+      -1,
+      0,
+      0,
+      -1,
+      0,
+      0,
+      -1,
+      0,
+      0,
+      -1
+    ]);
     const indices = new Uint32Array([
       0,
       2,
@@ -2208,12 +2441,11 @@ var Geometry = class _Geometry {
       23,
       21
     ]);
-    const uvs = new Float32Array([0, 1, 1, 1, 0, 0, 1, 0, 0, 1, 1, 1, 0, 0, 1, 0, 0, 1, 1, 1, 0, 0, 1, 0, 0, 1, 1, 1, 0, 0, 1, 0, 0, 1, 1, 1, 0, 0, 1, 0, 0, 1, 1, 1, 0, 0, 1, 0]);
     const geometry = new _Geometry();
     geometry.attributes.set("position", new VertexAttribute(vertices));
     geometry.attributes.set("uv", new VertexAttribute(uvs));
+    geometry.attributes.set("normal", new VertexAttribute(normals));
     geometry.index = new IndexAttribute(indices);
-    geometry.ComputeNormals();
     return geometry;
   }
   static Plane() {
@@ -3723,31 +3955,6 @@ var Meshoptimizer = class _Meshoptimizer {
       this.isLoaded = true;
     }
   }
-  static buildMeshletsFromBuildOutput(vertices, output) {
-    let meshlets = [];
-    for (let i = 0; i < output.meshlets_count; i++) {
-      const meshlet = output.meshlets_result[i];
-      let meshlet_positions = [];
-      let meshlet_indices = [];
-      for (let v = 0; v < meshlet.vertex_count; ++v) {
-        const o = 3 * output.meshlet_vertices_result[meshlet.vertex_offset + v];
-        const x = vertices[o];
-        const y = vertices[o + 1];
-        const z = vertices[o + 2];
-        meshlet_positions.push(x);
-        meshlet_positions.push(y);
-        meshlet_positions.push(z);
-      }
-      for (let t = 0; t < meshlet.triangle_count; ++t) {
-        const o = meshlet.triangle_offset + 3 * t;
-        meshlet_indices.push(output.meshlet_triangles_result[o + 0]);
-        meshlet_indices.push(output.meshlet_triangles_result[o + 1]);
-        meshlet_indices.push(output.meshlet_triangles_result[o + 2]);
-      }
-      meshlets.push(new Meshlet(new Float32Array(meshlet_positions), new Uint32Array(meshlet_indices)));
-    }
-    return meshlets;
-  }
   static buildNeighbors(meshlets, meshlet_vertices_result) {
     const vertex_to_meshlets = [];
     for (let i = 0; i < meshlets.length; i++) {
@@ -3800,8 +4007,8 @@ var Meshoptimizer = class _Meshoptimizer {
       new WASMPointer(Uint32Array.from(indices)),
       indices.length,
       new WASMPointer(Float32Array.from(vertices)),
-      vertices.length,
-      3 * Float32Array.BYTES_PER_ELEMENT,
+      vertices.length / 8,
+      8 * Float32Array.BYTES_PER_ELEMENT,
       max_vertices,
       max_triangles,
       cone_weight
@@ -3828,7 +4035,7 @@ var Meshoptimizer = class _Meshoptimizer {
       indices.length,
       new WASMPointer(Float32Array.from(vertices)),
       vertices.length,
-      3 * Float32Array.BYTES_PER_ELEMENT
+      8 * Float32Array.BYTES_PER_ELEMENT
     );
     const boundsData = boundsDataPtr.data;
     return {
@@ -3851,7 +4058,7 @@ var Meshoptimizer = class _Meshoptimizer {
   }
   static clean(meshlet) {
     const MeshOptmizer = _Meshoptimizer.module;
-    const remap = new WASMPointer(new Uint32Array(meshlet.indices.length * 3), "out");
+    const remap = new WASMPointer(new Uint32Array(meshlet.indices.length * 8), "out");
     const indices = new WASMPointer(new Uint32Array(meshlet.indices), "in");
     const vertices = new WASMPointer(new Float32Array(meshlet.vertices), "in");
     const vertex_count = WASMHelper.call(
@@ -3862,8 +4069,8 @@ var Meshoptimizer = class _Meshoptimizer {
       indices,
       meshlet.indices.length,
       vertices,
-      meshlet.vertices.length,
-      3 * Float32Array.BYTES_PER_ELEMENT
+      meshlet.vertices.length / 8,
+      8 * Float32Array.BYTES_PER_ELEMENT
     );
     const indices_remapped = new WASMPointer(new Uint32Array(meshlet.indices.length), "out");
     WASMHelper.call(
@@ -3875,15 +4082,15 @@ var Meshoptimizer = class _Meshoptimizer {
       meshlet.indices.length,
       remap
     );
-    const vertices_remapped = new WASMPointer(new Float32Array(vertex_count * 3), "out");
+    const vertices_remapped = new WASMPointer(new Float32Array(vertex_count * 8), "out");
     WASMHelper.call(
       MeshOptmizer,
       "meshopt_remapVertexBuffer",
       "number",
       vertices_remapped,
       vertices,
-      meshlet.vertices.length / 3,
-      3 * Float32Array.BYTES_PER_ELEMENT,
+      meshlet.vertices.length / 8,
+      8 * Float32Array.BYTES_PER_ELEMENT,
       remap
     );
     return new Meshlet(new Float32Array(vertices_remapped.data), new Uint32Array(indices_remapped.data));
@@ -3904,9 +4111,9 @@ var Meshoptimizer = class _Meshoptimizer {
       // size_t index_count,
       new WASMPointer(new Float32Array(meshlet.vertices)),
       // const float* vertex_positions,
-      meshlet.vertices.length / 3,
+      meshlet.vertices.length / 8,
       // size_t vertex_count,
-      3 * Float32Array.BYTES_PER_ELEMENT,
+      8 * Float32Array.BYTES_PER_ELEMENT,
       // size_t vertex_positions_stride,
       target_count,
       // size_t target_index_count,
@@ -3931,8 +4138,8 @@ var Meshoptimizer = class _Meshoptimizer {
       "meshopt_simplifyScale",
       "number",
       vertices,
-      meshlet.vertices.length / 3,
-      3 * Float32Array.BYTES_PER_ELEMENT
+      meshlet.vertices.length / 8,
+      8 * Float32Array.BYTES_PER_ELEMENT
     );
     return scale;
   }
@@ -3969,14 +4176,44 @@ var Meshlet = class _Meshlet {
     this.children = [];
     this.parents = [];
     this.bounds = BoundingVolume.FromVertices(this.vertices);
-    const verticesNonIndexed = Geometry.ToNonIndexed(this.vertices, this.indices);
+    const verticesNonIndexed = _Meshlet.convertBufferAttributeToNonIndexed(this.vertices, this.indices, 3, true, 8, 0);
+    const normalsNonIndexed = _Meshlet.convertBufferAttributeToNonIndexed(this.vertices, this.indices, 3, true, 8, 3);
+    const uvsNonIndexed = _Meshlet.convertBufferAttributeToNonIndexed(this.vertices, this.indices, 2, true, 8, 6);
+    const interleaved = InterleavedVertexAttribute.fromArrays([verticesNonIndexed, normalsNonIndexed, uvsNonIndexed], [3, 3, 2]);
     const verticesGPU = [];
-    for (let i = 0; i < verticesNonIndexed.length; i += 3) {
-      verticesGPU.push(verticesNonIndexed[i + 0], verticesNonIndexed[i + 1], verticesNonIndexed[i + 2], 0);
+    for (let i = 0; i < interleaved.array.length; i += 8) {
+      verticesGPU.push(
+        interleaved.array[i + 0],
+        interleaved.array[i + 1],
+        interleaved.array[i + 2],
+        0,
+        interleaved.array[i + 3],
+        interleaved.array[i + 4],
+        interleaved.array[i + 5],
+        0,
+        interleaved.array[i + 6],
+        interleaved.array[i + 7],
+        0,
+        0
+      );
     }
-    this.vertices_gpu = new Float32Array(_Meshlet.max_triangles * 4 * 3);
-    this.vertices_gpu.set(verticesGPU.slice(0, _Meshlet.max_triangles * 4 * 3));
+    this.vertices_gpu = new Float32Array(_Meshlet.max_triangles * (4 + 4 + 4) * 3);
+    this.vertices_gpu.set(verticesGPU.slice(0, _Meshlet.max_triangles * (4 + 4 + 4) * 3));
     this.crc = CRC32.forBytes(new Uint8Array(this.vertices_gpu.buffer));
+  }
+  static convertBufferAttributeToNonIndexed(attribute, indices, itemSize, isInterleaved = false, stride = 3, offset = 0) {
+    if (!attribute) throw Error("Invalid attribute");
+    const array = attribute;
+    const array2 = new Float32Array(indices.length * itemSize);
+    let index = 0, index2 = 0;
+    for (let i = 0, l = indices.length; i < l; i++) {
+      if (isInterleaved === true) index = indices[i] * stride + offset;
+      else index = indices[i] * itemSize;
+      for (let j = 0; j < itemSize; j++) {
+        array2[index2++] = array[index++];
+      }
+    }
+    return array2;
   }
 };
 
@@ -6812,13 +7049,18 @@ var MeshletCreator = class _MeshletCreator {
       let meshlet_positions = [];
       let meshlet_indices = [];
       for (let v = 0; v < meshlet.vertex_count; ++v) {
-        const o = 3 * output.meshlet_vertices_result[meshlet.vertex_offset + v];
-        const x = vertices[o];
-        const y = vertices[o + 1];
-        const z = vertices[o + 2];
-        meshlet_positions.push(x);
-        meshlet_positions.push(y);
-        meshlet_positions.push(z);
+        const o = 8 * output.meshlet_vertices_result[meshlet.vertex_offset + v];
+        const vx = vertices[o + 0];
+        const vy = vertices[o + 1];
+        const vz = vertices[o + 2];
+        const nx = vertices[o + 3];
+        const ny = vertices[o + 4];
+        const nz = vertices[o + 5];
+        const uvx = vertices[o + 6];
+        const uvy = vertices[o + 7];
+        meshlet_positions.push(vx, vy, vz);
+        meshlet_positions.push(nx, ny, nz);
+        meshlet_positions.push(uvx, uvy);
       }
       for (let t = 0; t < meshlet.triangle_count; ++t) {
         const o = meshlet.triangle_offset + 3 * t;
@@ -6839,6 +7081,7 @@ var MeshletCreator = class _MeshletCreator {
       meshlet_vertices_result: output.meshlet_vertices_result,
       meshlet_triangles_result: output.meshlet_triangles_result
     };
+    console.log("m", m);
     const meshlets = _MeshletCreator.buildMeshletsFromBuildOutput(vertices, m);
     return meshlets;
   }
@@ -6910,21 +7153,18 @@ var MeshletMerger = class {
       for (let j = 0; j < indices2.length; j++) {
         mergedIndices.push(indices2[j] + indexOffset);
       }
-      indexOffset += meshlets[i].vertices.length / 3;
+      indexOffset += meshlets[i].vertices.length / 8;
     }
     indices.push(...mergedIndices);
-    for (let i = 0; i < meshlets.length; ++i) {
-      vertices.push(...meshlets[i].vertices);
-    }
-    const merged = new Meshlet(new Float32Array(vertices), new Uint32Array(indices));
-    return merged;
+    for (let i = 0; i < meshlets.length; ++i) vertices.push(...meshlets[i].vertices);
+    return new Meshlet(new Float32Array(vertices), new Uint32Array(indices));
   }
 };
 
 // src/plugins/meshlets/Meshletizer.ts
 var Meshletizer = class {
   static step(meshlets, lod, previousMeshlets) {
-    if (meshlets.length === 1 && meshlets[0].vertices.length < Meshlet.max_triangles * 3) return meshlets;
+    if (meshlets.length === 1 && meshlets[0].vertices.length < Meshlet.max_triangles * 8) return meshlets;
     let nparts = Math.ceil(meshlets.length / 4);
     let grouped = [meshlets];
     if (nparts > 1) {
@@ -6968,6 +7208,7 @@ var Meshletizer = class {
     await Meshoptimizer.load();
     await Metis.load();
     const meshlets = MeshletCreator.build(vertices, indices, 255, Meshlet.max_triangles);
+    console.log("starting with", meshlets);
     const maxLOD = 25;
     let inputs = meshlets;
     let rootMeshlet = null;
@@ -6975,8 +7216,10 @@ var Meshletizer = class {
     for (let m of meshlets) previousMeshlets.set(m.id, m);
     for (let lod = 0; lod < maxLOD; lod++) {
       const outputs = this.step(inputs, lod, previousMeshlets);
-      console.log("inputs", inputs.map((m) => m.indices.length / 3));
-      console.log("outputs", outputs.map((m) => m.indices.length / 3));
+      console.log("inputs", inputs.map((m) => m.vertices.length / 8));
+      console.log("outputs", outputs.map((m) => m.vertices.length / 8));
+      console.log(`lod ${lod} has`, outputs);
+      if (lod === 7) throw Error("Stop");
       if (outputs.length === 1) {
         console.log("WE are done at lod", lod);
         rootMeshlet = outputs[0];
@@ -7010,12 +7253,20 @@ var MeshletMesh = class extends Component {
       this.meshlets.push(...cached);
       return;
     }
-    const vertices = geometry.attributes.get("position");
-    const indices = geometry.index;
-    if (!vertices || !indices) throw Error("Needs vertices and indices");
-    const geometryVertices = vertices.array;
-    const geometryIndices = indices.array;
-    const rootMeshlet = await Meshletizer.Build(geometryVertices, geometryIndices);
+    const pa = geometry.attributes.get("position");
+    const na = geometry.attributes.get("normal");
+    const ua = geometry.attributes.get("uv");
+    const ia = geometry.index;
+    if (!pa || !na || !ua || !ia) throw Error("To create meshlets need indices, position, normal and uv attributes");
+    const p = pa.array;
+    const n = na.array;
+    const u = ua.array;
+    const indices = ia.array;
+    const interleavedBufferAttribute = InterleavedVertexAttribute.fromArrays([p, n, u], [3, 3, 2]);
+    const interleavedVertices = interleavedBufferAttribute.array;
+    await Meshoptimizer.load();
+    console.log("interleaved", interleavedVertices);
+    const rootMeshlet = await Meshletizer.Build(interleavedVertices, indices);
     function traverse(meshlet, fn, visited = []) {
       if (visited.indexOf(meshlet.id) !== -1) return;
       fn(meshlet);
@@ -7028,6 +7279,7 @@ var MeshletMesh = class extends Component {
     traverse(rootMeshlet, (m) => allMeshlets.push(m));
     this.meshlets = allMeshlets;
     meshletsCache.set(geometry, this.meshlets);
+    console.log("meshlets", this.meshlets);
   }
 };
 
@@ -7268,6 +7520,35 @@ var HiZPass = class {
   }
 };
 
+// src/renderer/Material.ts
+var Material = class {
+};
+var DeferredMeshMaterial = class extends Material {
+  params;
+  constructor(params) {
+    super();
+    const albedoColor = params?.albedoColor ? params.albedoColor : new Color(1, 1, 1, 1);
+    const emissiveColor = params?.emissiveColor ? params.emissiveColor : new Color(0, 0, 0, 0);
+    const roughness = params?.roughness ? params.roughness : 0;
+    const metalness = params?.metalness ? params.metalness : 0;
+    const unlit = params?.unlit && params.unlit === true ? 1 : 0;
+    this.params = {
+      albedoColor: params?.albedoColor ? params.albedoColor : new Color(1, 1, 1, 1),
+      emissiveColor: params?.emissiveColor ? params.emissiveColor : new Color(0, 0, 0, 0),
+      roughness: params?.roughness ? params.roughness : 0,
+      metalness: params?.metalness ? params.metalness : 0,
+      albedoMap: params?.albedoMap ? params.albedoMap : void 0,
+      normalMap: params?.normalMap ? params.normalMap : void 0,
+      heightMap: params?.heightMap ? params.heightMap : void 0,
+      roughnessMap: params?.roughnessMap ? params.roughnessMap : void 0,
+      metalnessMap: params?.metalnessMap ? params.metalnessMap : void 0,
+      emissiveMap: params?.emissiveMap ? params.emissiveMap : void 0,
+      aoMap: params?.aoMap ? params.aoMap : void 0,
+      unlit: params?.unlit ? params.unlit : false
+    };
+  }
+};
+
 // src/renderer/passes/GPUDriven.ts
 var vertexSize = Meshlet.max_triangles * 3;
 var GPUDriven = class extends RenderPass {
@@ -7309,11 +7590,15 @@ var GPUDriven = class extends RenderPass {
       uniforms: {
         viewMatrix: { group: 0, binding: 0, type: "storage" },
         projectionMatrix: { group: 0, binding: 1, type: "storage" },
-        vertices: { group: 0, binding: 2, type: "storage" },
-        instanceInfo: { group: 0, binding: 3, type: "storage" },
-        meshInfo: { group: 0, binding: 4, type: "storage" },
-        objectInfo: { group: 0, binding: 5, type: "storage" },
-        settings: { group: 0, binding: 6, type: "storage" }
+        instanceInfo: { group: 0, binding: 2, type: "storage" },
+        meshInfo: { group: 0, binding: 3, type: "storage" },
+        objectInfo: { group: 0, binding: 4, type: "storage" },
+        settings: { group: 0, binding: 5, type: "storage" },
+        vertices: { group: 0, binding: 6, type: "storage" },
+        uvs: { group: 0, binding: 7, type: "storage" },
+        normals: { group: 0, binding: 8, type: "storage" },
+        textureSampler: { group: 0, binding: 9, type: "sampler" },
+        albedoMaps: { group: 0, binding: 10, type: "texture" }
       }
     });
     this.compute = await Compute.Create({
@@ -7341,6 +7626,8 @@ var GPUDriven = class extends RenderPass {
     this.currentPassBuffer = Buffer3.Create(1 * 4, 0 /* STORAGE */);
     const sampler = TextureSampler.Create({ magFilter: "nearest", minFilter: "nearest" });
     this.compute.SetSampler("textureSampler", sampler);
+    const materialSampler = TextureSampler.Create();
+    this.shader.SetSampler("textureSampler", materialSampler);
     function previousPow2(v) {
       let r = 1;
       while (r * 2 < v) r *= 2;
@@ -7362,6 +7649,7 @@ var GPUDriven = class extends RenderPass {
     const scene = mainCamera.gameObject.scene;
     const sceneMeshlets = [...scene.GetComponents(MeshletMesh)];
     if (this.currentMeshCount !== sceneMeshlets.length) {
+      let albedoMaps = [];
       const meshlets = [];
       for (const meshlet of sceneMeshlets) {
         for (const geometry of meshlet.meshlets) {
@@ -7372,8 +7660,11 @@ var GPUDriven = class extends RenderPass {
       let meshInfo = [];
       let objectInfo = [];
       let vertices = [];
+      let uvs = [];
+      let normals = [];
       const indexedCache = /* @__PURE__ */ new Map();
       const meshCache = /* @__PURE__ */ new Map();
+      const materialCache = /* @__PURE__ */ new Map();
       for (let i = 0; i < meshlets.length; i++) {
         const sceneMesh = meshlets[i];
         let geometryIndex = indexedCache.get(sceneMesh.geometry.crc);
@@ -7423,11 +7714,30 @@ var GPUDriven = class extends RenderPass {
         if (meshIndex === void 0) {
           meshIndex = meshCache.size;
           meshCache.set(sceneMesh.mesh.id, meshIndex);
+          let materials = sceneMesh.mesh.GetMaterials(DeferredMeshMaterial);
+          if (materials.length > 1) throw Error("Multiple materials not supported");
+          let albedoIndex = -1;
+          for (const material of materials) {
+            const albedoMap = material.params.albedoMap;
+            if (albedoMap) {
+              let albedoIndexCached = materialCache.get(albedoMap.id);
+              if (albedoIndexCached === void 0) {
+                albedoIndexCached = materialCache.size;
+                materialCache.set(albedoMap.id, albedoIndexCached);
+                albedoMaps.push(albedoMap);
+              }
+              albedoIndex = albedoIndexCached;
+            }
+          }
           meshInfo.push(
             ...sceneMesh.mesh.transform.localToWorldMatrix.elements,
             ...sceneMesh.mesh.transform.position.elements,
             0,
             ...sceneMesh.mesh.transform.scale.elements,
+            0,
+            albedoIndex,
+            0,
+            0,
             0
           );
         }
@@ -7439,12 +7749,23 @@ var GPUDriven = class extends RenderPass {
         );
       }
       const verticesArray = new Float32Array(vertices);
+      console.log("vertices", vertices.length);
       console.log("verticesArray", verticesArray.length);
       const meshletInfoArray = new Float32Array(meshletInfo);
       const meshletInfoBuffer = Buffer3.Create(meshletInfoArray.byteLength, 0 /* STORAGE */);
       meshletInfoBuffer.name = "meshletInfoBuffer";
       meshletInfoBuffer.SetArray(meshletInfoArray);
       this.compute.SetBuffer("meshletInfo", meshletInfoBuffer);
+      if (albedoMaps.length > 0) {
+        const w = albedoMaps[0].width;
+        const h = albedoMaps[0].height;
+        const albedoMapTexture = TextureArray.Create(w, h, albedoMaps.length);
+        for (let i = 0; i < albedoMaps.length; i++) {
+          RendererContext.CopyTextureToTexture(albedoMaps[i], albedoMapTexture, 0, 0, [w, h, i + 1]);
+        }
+        albedoMapTexture.SetActiveLayer(0);
+        this.shader.SetTexture("albedoMaps", albedoMapTexture);
+      }
       const meshInfoBufferArray = new Float32Array(meshInfo);
       const meshInfoBuffer = Buffer3.Create(meshInfoBufferArray.byteLength, 0 /* STORAGE */);
       meshInfoBuffer.name = "meshInfoBuffer";
@@ -7494,6 +7815,7 @@ var GPUDriven = class extends RenderPass {
   }
   execute(resources) {
     if (this.initialized === false) return;
+    if (this.hizPass.initialized === false) return;
     const mainCamera = Camera.mainCamera;
     const scene = mainCamera.gameObject.scene;
     const sceneMeshlets = [...scene.GetComponents(MeshletMesh)];
@@ -8095,20 +8417,25 @@ async function Application() {
   const bunnyObj = await OBJLoaderIndexed.load("./bunny.obj");
   const bunnyGeometry = new Geometry();
   bunnyGeometry.attributes.set("position", new VertexAttribute(bunnyObj.vertices));
+  bunnyGeometry.attributes.set("normal", new VertexAttribute(bunnyObj.normals));
+  bunnyGeometry.attributes.set("uv", new VertexAttribute(bunnyObj.uvs));
   bunnyGeometry.index = new IndexAttribute(bunnyObj.indices);
-  const kittenObj = await OBJLoaderIndexed.load("./assets/kitten.obj");
-  const kittenGeometry = new Geometry();
-  kittenGeometry.attributes.set("position", new VertexAttribute(kittenObj.vertices));
-  kittenGeometry.index = new IndexAttribute(kittenObj.indices);
+  console.log("bunnyObj", bunnyObj);
+  console.log("bunnyGeometry", bunnyGeometry);
+  const albedo = await Texture2.Load("./assets/textures/brick-wall-unity/brick-wall_albedo.png");
+  const mat = new DeferredMeshMaterial({
+    albedoMap: albedo
+  });
   const n = 10;
   for (let x = 0; x < n; x++) {
     for (let y = 0; y < n; y++) {
       for (let z = 0; z < n; z++) {
         const cube = new GameObject(scene);
-        cube.transform.scale.set(1, 1, 1);
-        cube.transform.position.set(x * 10, y * 10, z * 10);
+        cube.transform.scale.set(0.1, 0.1, 0.1);
+        cube.transform.position.set(x * 20, y * 20, z * 20);
         const cubeMesh = cube.AddComponent(MeshletMesh);
-        await cubeMesh.SetGeometry(cubeGeometry);
+        await cubeMesh.SetGeometry(bunnyGeometry);
+        await cubeMesh.AddMaterial(mat);
       }
     }
   }

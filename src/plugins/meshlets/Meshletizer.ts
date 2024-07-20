@@ -8,11 +8,8 @@ import { MeshletMerger } from "./utils/MeshletMerger";
 export class Meshletizer {
 
     private static step(meshlets: Meshlet[], lod: number, previousMeshlets: Map<string, Meshlet>): Meshlet[] {
-        // if (previousMeshlets.size === 0) {
-        //     for (let m of meshlets) previousMeshlets.set(m.id, m);
-        // }
 
-        if (meshlets.length === 1 && meshlets[0].vertices.length < Meshlet.max_triangles * 3) return meshlets;
+        if (meshlets.length === 1 && meshlets[0].vertices.length < Meshlet.max_triangles * 8) return meshlets;
 
 
 
@@ -29,6 +26,7 @@ export class Meshletizer {
             // merge
             const mergedGroup = MeshletMerger.merge(group);
             const cleanedMergedGroup = Meshoptimizer.clean(mergedGroup);
+            // const cleanedMergedGroup = mergedGroup;
 
             // simplify
             const simplified = Meshoptimizer.meshopt_simplify(cleanedMergedGroup, cleanedMergedGroup.indices.length / 2);
@@ -79,6 +77,8 @@ export class Meshletizer {
 
         const meshlets = MeshletCreator.build(vertices, indices, 255, Meshlet.max_triangles);
 
+        console.log("starting with", meshlets);
+
         const maxLOD = 25;
         let inputs = meshlets;
 
@@ -90,9 +90,11 @@ export class Meshletizer {
 
         for (let lod = 0; lod < maxLOD; lod++) {
             const outputs = this.step(inputs, lod, previousMeshlets);
-
-            console.log("inputs", inputs.map(m => m.indices.length / 3));
-            console.log("outputs", outputs.map(m => m.indices.length / 3));
+            
+            console.log("inputs", inputs.map(m => m.vertices.length / 8));
+            console.log("outputs", outputs.map(m => m.vertices.length / 8));
+            console.log(`lod ${lod} has`, outputs);
+            if (lod === 7) throw Error("Stop");
 
             if (outputs.length === 1) {
                 console.log("WE are done at lod", lod)
@@ -109,6 +111,8 @@ export class Meshletizer {
             // console.log("\n");
         }
         if (rootMeshlet === null) throw Error("Root meshlet is invalid!");
+
+        // if (rootMeshlet === null) rootMeshlet = inputs[0]
 
         return rootMeshlet;
     }

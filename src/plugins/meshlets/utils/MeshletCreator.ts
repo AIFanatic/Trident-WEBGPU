@@ -28,14 +28,22 @@ export class MeshletCreator {
             let meshlet_indices: number[] = [];
 
             for (let v = 0; v < meshlet.vertex_count; ++v) {
-                const o = 3 * output.meshlet_vertices_result[meshlet.vertex_offset + v];
-                const x = vertices[o];
-                const y = vertices[o + 1];
-                const z = vertices[o + 2];
+                const o = 8 * output.meshlet_vertices_result[meshlet.vertex_offset + v];
+                const vx = vertices[o + 0];
+                const vy = vertices[o + 1];
+                const vz = vertices[o + 2];
+                // console.log("o", 8 * output.meshlet_vertices_result[meshlet.vertex_offset + v], 8, meshlet.vertex_offset, v, vx, vy, vz);
 
-                meshlet_positions.push(x);
-                meshlet_positions.push(y);
-                meshlet_positions.push(z);
+                const nx = vertices[o + 3];
+                const ny = vertices[o + 4];
+                const nz = vertices[o + 5];
+
+                const uvx = vertices[o + 6];
+                const uvy = vertices[o + 7];
+
+                meshlet_positions.push(vx, vy, vz);
+                meshlet_positions.push(nx, ny, nz);
+                meshlet_positions.push(uvx, uvy);
             }
             for (let t = 0; t < meshlet.triangle_count; ++t) {
                 const o = meshlet.triangle_offset + 3 * t;
@@ -43,6 +51,9 @@ export class MeshletCreator {
                 meshlet_indices.push(output.meshlet_triangles_result[o + 1]);
                 meshlet_indices.push(output.meshlet_triangles_result[o + 2]);
             }
+
+            // console.log("vertices", vertices);
+            // console.log("output", output);
 
             meshlets.push(new Meshlet(new Float32Array(meshlet_positions), new Uint32Array(meshlet_indices)));
         }
@@ -60,6 +71,7 @@ export class MeshletCreator {
             meshlet_triangles_result: output.meshlet_triangles_result
         }
 
+        console.log("m", m)
 
         const meshlets = MeshletCreator.buildMeshletsFromBuildOutput(vertices, m);
         

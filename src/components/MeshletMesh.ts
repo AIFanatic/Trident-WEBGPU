@@ -1,8 +1,10 @@
 import { Component } from "./Component";
 import { Material } from "../renderer/Material";
 import { Meshlet } from "../plugins/meshlets/Meshlet";
-import { Geometry } from "../Geometry";
+import { Geometry, InterleavedVertexAttribute } from "../Geometry";
 import { Meshletizer } from "../plugins/meshlets/Meshletizer";
+import { Meshoptimizer } from "../plugins/meshlets/Meshoptimizer";
+import { MeshletCreator } from "../plugins/meshlets/utils/MeshletCreator";
 
 const meshletsCache: Map<Geometry, Meshlet[]> = new Map();
 
@@ -29,14 +31,23 @@ export class MeshletMesh extends Component {
             return;
         }
 
-        const vertices = geometry.attributes.get("position");
-        const indices = geometry.index;
-        if (!vertices || !indices) throw Error("Needs vertices and indices");
+        const pa = geometry.attributes.get("position");
+        const na = geometry.attributes.get("normal");
+        const ua = geometry.attributes.get("uv");
+        const ia = geometry.index;
+        if (!pa || !na || !ua || !ia) throw Error("To create meshlets need indices, position, normal and uv attributes");
+        
+        const p = pa.array as Float32Array;
+        const n = na.array as Float32Array;
+        const u = ua.array as Float32Array;
+        const indices = ia.array as Uint32Array;
 
-        const geometryVertices = vertices.array as Float32Array;
-        const geometryIndices = indices.array as Uint32Array
+        const interleavedBufferAttribute = InterleavedVertexAttribute.fromArrays([p, n, u], [3, 3, 2]);
+        const interleavedVertices = interleavedBufferAttribute.array as Float32Array;
 
-        const rootMeshlet = await Meshletizer.Build(geometryVertices, geometryIndices);
+        await Meshoptimizer.load();
+        console.log("interleaved", interleavedVertices)
+        const rootMeshlet = await Meshletizer.Build(interleavedVertices, indices);
 
         function traverse(meshlet: Meshlet, fn: (meshlet: Meshlet) => void, visited: string[] = []) {
             if (visited.indexOf(meshlet.id) !== -1) return;
@@ -54,5 +65,12 @@ export class MeshletMesh extends Component {
 
         this.meshlets = allMeshlets;
         meshletsCache.set(geometry, this.meshlets);
+
+        // this.meshlets = [new Meshlet(interleavedVertices, indices)];
+        // console.log("original meshlet", this.meshlets);
+        // const output = MeshletCreator.build(interleavedVertices, indices, 255, Meshlet.max_triangles);
+        // // console.log(output)
+        // this.meshlets = output;
+        console.log("meshlets", this.meshlets)
     }
 }

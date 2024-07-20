@@ -43,37 +43,6 @@ export class Meshoptimizer {
         }
     }
 
-    public static buildMeshletsFromBuildOutput(vertices: Float32Array, output: MeshletBuildOutput): Meshlet[] {
-        let meshlets: Meshlet[] = [];
-
-        for (let i = 0; i < output.meshlets_count; i++) {
-            const meshlet = output.meshlets_result[i];
-
-            let meshlet_positions: number[] = [];
-            let meshlet_indices: number[] = [];
-
-            for (let v = 0; v < meshlet.vertex_count; ++v) {
-                const o = 3 * output.meshlet_vertices_result[meshlet.vertex_offset + v];
-                const x = vertices[o];
-                const y = vertices[o + 1];
-                const z = vertices[o + 2];
-
-                meshlet_positions.push(x);
-                meshlet_positions.push(y);
-                meshlet_positions.push(z);
-            }
-            for (let t = 0; t < meshlet.triangle_count; ++t) {
-                const o = meshlet.triangle_offset + 3 * t;
-                meshlet_indices.push(output.meshlet_triangles_result[o + 0]);
-                meshlet_indices.push(output.meshlet_triangles_result[o + 1]);
-                meshlet_indices.push(output.meshlet_triangles_result[o + 2]);
-            }
-
-            meshlets.push(new Meshlet(new Float32Array(meshlet_positions), new Uint32Array(meshlet_indices)));
-        }
-        return meshlets;
-    }
-
     public static buildNeighbors(meshlets: meshopt_Meshlet[], meshlet_vertices_result: Uint32Array): number[][] {
         const vertex_to_meshlets: {count: number, meshlets: number[]}[] = [];
         
@@ -138,8 +107,8 @@ export class Meshoptimizer {
             new WASMPointer(Uint32Array.from(indices)),
             indices.length,
             new WASMPointer(Float32Array.from(vertices)),
-            vertices.length,
-            3 * Float32Array.BYTES_PER_ELEMENT,
+            vertices.length / 8,
+            8 * Float32Array.BYTES_PER_ELEMENT,
             max_vertices,
             max_triangles,
             cone_weight
@@ -169,7 +138,7 @@ export class Meshoptimizer {
             indices.length,
             new WASMPointer(Float32Array.from(vertices)),
             vertices.length,
-            3 * Float32Array.BYTES_PER_ELEMENT,
+            8 * Float32Array.BYTES_PER_ELEMENT,
         );
 
         const boundsData = boundsDataPtr.data;
@@ -194,7 +163,7 @@ export class Meshoptimizer {
     public static clean(meshlet: Meshlet): Meshlet {
         const MeshOptmizer = Meshoptimizer.module;
 
-        const remap = new WASMPointer(new Uint32Array(meshlet.indices.length * 3), "out");
+        const remap = new WASMPointer(new Uint32Array(meshlet.indices.length * 8), "out");
         const indices = new WASMPointer(new Uint32Array(meshlet.indices), "in");
         const vertices = new WASMPointer(new Float32Array(meshlet.vertices), "in");
 
@@ -203,8 +172,8 @@ export class Meshoptimizer {
             indices,
             meshlet.indices.length,
             vertices,
-            meshlet.vertices.length,
-            3 * Float32Array.BYTES_PER_ELEMENT
+            meshlet.vertices.length / 8,
+            8 * Float32Array.BYTES_PER_ELEMENT
         );
         
         const indices_remapped = new WASMPointer(new Uint32Array(meshlet.indices.length), "out");
@@ -215,12 +184,12 @@ export class Meshoptimizer {
             remap
         );
         
-        const vertices_remapped = new WASMPointer(new Float32Array(vertex_count * 3), "out");
+        const vertices_remapped = new WASMPointer(new Float32Array(vertex_count * 8), "out");
         WASMHelper.call(MeshOptmizer, "meshopt_remapVertexBuffer", "number", 
             vertices_remapped,
             vertices,
-            meshlet.vertices.length / 3,
-            3 * Float32Array.BYTES_PER_ELEMENT,
+            meshlet.vertices.length / 8,
+            8 * Float32Array.BYTES_PER_ELEMENT,
             remap
         );
 
@@ -238,8 +207,8 @@ export class Meshoptimizer {
             new WASMPointer(new Uint32Array(meshlet.indices)), // const unsigned int* indices,
             meshlet.indices.length, // size_t index_count,
             new WASMPointer(new Float32Array(meshlet.vertices)), // const float* vertex_positions,
-            meshlet.vertices.length / 3, // size_t vertex_count,
-            3 * Float32Array.BYTES_PER_ELEMENT, // size_t vertex_positions_stride,
+            meshlet.vertices.length / 8, // size_t vertex_count,
+            8 * Float32Array.BYTES_PER_ELEMENT, // size_t vertex_positions_stride,
             target_count, // size_t target_index_count,
             1, // float target_error, Should be 0.01 but cant reach 128 triangles with it
             1, // unsigned int options, preserve borders
@@ -262,8 +231,8 @@ export class Meshoptimizer {
         // float meshopt_simplifyScale(const float* vertex_positions, size_t vertex_count, size_t vertex_positions_stride)
         const scale = WASMHelper.call(MeshOptmizer, "meshopt_simplifyScale", "number", 
             vertices,
-            meshlet.vertices.length / 3,
-            3 * Float32Array.BYTES_PER_ELEMENT
+            meshlet.vertices.length / 8,
+            8 * Float32Array.BYTES_PER_ELEMENT
         );
         
         return scale;

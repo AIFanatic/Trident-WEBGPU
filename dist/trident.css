@@ -10,6 +10,21 @@
   min-width: 250px;
   font-family: monospace;
   border-radius: 5px;
+  max-height: calc(100% - 10px);
+  overflow: auto;
+}
+.stats-panel::-webkit-scrollbar {
+  width: 5px;
+}
+.stats-panel::-webkit-scrollbar-track {
+  background: transparent;
+}
+.stats-panel::-webkit-scrollbar-thumb {
+  background: #333;
+  border-radius: 5px;
+}
+.stats-panel::-webkit-scrollbar-thumb:hover {
+  background: #444;
 }
 .title,
 .value {

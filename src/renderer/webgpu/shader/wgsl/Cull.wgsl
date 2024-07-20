@@ -67,26 +67,26 @@ fn planeDistanceToPoint(normal: vec3f, constant: f32, point: vec3f) -> f32 {
     return dot(normal, point) + constant;
 }
 
-fn IsVisible(objectIndex: u32) -> bool {
+fn IsFrustumCulled(objectIndex: u32) -> bool {
     let object = objectInfo[objectIndex];
     let mesh = meshInfo[u32(object.meshID)];
     let meshlet = meshletInfo[u32(object.meshletID)];
 
     if (bool(settings.dynamicLODEnabled)) {
         if (!isMeshletVisible(meshlet, cullData.viewMatrix * mesh.modelMatrix)) {
-            return false;
+            return true;
         }
     }
     else {
         if (!(u32(meshlet.lod.x) == u32(settings.staticLOD))) {
-            return false;
+            return true;
         }
     }
 
     // Backface
     if (bool(settings.backFaceCullingEnabled)) {
         if (dot(normalize(meshlet.cone_apex.xyz - cullData.cameraPosition.xyz), meshlet.cone_axis.xyz) >= meshlet.cone_cutoff) {
-            return false;
+            return true;
         }
     }
 
@@ -101,15 +101,15 @@ fn IsVisible(objectIndex: u32) -> bool {
             let distance = planeDistanceToPoint(cullData.frustum[i].xyz, cullData.frustum[i].w, center);
 
             if (distance < negRadius) {
-                return false;
+                return true;
             }
         }
     }
 
-    return true;
+    return false;
 }
 
-fn isOccluded(index: i32) -> bool {
+fn IsOccluded(index: i32) -> bool {
     let objectIndex = objectInfo[index];
     let mesh = meshInfo[u32(objectIndex.meshID)];
     let meshlet = meshletInfo[u32(objectIndex.meshletID)];
@@ -179,7 +179,7 @@ fn isOccluded(index: i32) -> bool {
     let maxsize = max(_size.x, _size.y) * f32(max(depthTextureSize.x,depthTextureSize.y));
     if (bool(settings.smallFeaturesCullingEnabled)) {
         if(maxsize <= 1.0f) {
-            return false;
+            return true;
         }
     }
 
@@ -209,7 +209,7 @@ fn isOccluded(index: i32) -> bool {
     //find the max depth
     let maxDepth = max(max(max(depth.x, depth.y), depth.z), depth.w);
 
-    return minZ <= maxDepth;
+    return minZ > maxDepth;
 }
 
 // const blockSizeX: u32 = ${workgroupSize};
@@ -238,7 +238,7 @@ fn main(@builtin(global_invocation_id) grid: vec3<u32>) {
 
     if (bool(settings.frustumCullingEnabled)) {
         if (bVisible) {
-            bVisible = bVisible && IsVisible(objectIndex);
+            bVisible = bVisible && !IsFrustumCulled(objectIndex);
         }
     }
 
@@ -246,7 +246,7 @@ fn main(@builtin(global_invocation_id) grid: vec3<u32>) {
         if (bool(settings.occlusionCullingEnabled)) {
             if (bVisible) {
                 // TODO: IsOccluded should be !isOccluded?
-                bVisible = bVisible && isOccluded(i32(objectIndex));
+                bVisible = bVisible && !IsOccluded(i32(objectIndex));
             }
         }
     }
@@ -268,38 +268,4 @@ fn main(@builtin(global_invocation_id) grid: vec3<u32>) {
     if (!bool(bPrepass)) {
         visibilityBuffer[objectIndex].x = f32(bVisible);
     }
-
-
-
-
-    // let isFirstPass = bPrepass > 0.5;
-
-    // let LATE = !isFirstPass;
-
-    // if (!LATE && visibilityBuffer[objectIndex].x < 0.5) {
-    //     return;
-    // }
-
-    // var visible = IsVisible(objectIndex);
-    // // var visible = true;
-    // if (LATE && visible) {
-    //     // visible = false;
-    //     // Do occlusion culling
-
-    //     if (bool(settings.occlusionCullingEnabled)) {
-    //         visible = visible && isOccluded(i32(objectIndex));
-    //     }
-
-        
-    // }
-
-    // if (visible && (!LATE || visibilityBuffer[objectIndex].x < 0.5)) {
-    //     drawBuffer.vertexCount = u32(settings.maxTriangles * 3);
-    //     let countIndex = atomicAdd(&drawBuffer.instanceCount, 1);
-    //     instanceInfo[countIndex].meshID = objectIndex;
-    // }
-
-    // if (LATE) {
-    //     visibilityBuffer[objectIndex].x = f32(visible);
-    // }
 } 

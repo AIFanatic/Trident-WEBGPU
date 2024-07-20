@@ -31,7 +31,8 @@ struct MeshletInfo {
 struct MeshInfo {
     modelMatrix: mat4x4<f32>,
     position: vec4<f32>,
-    scale: vec4<f32>
+    scale: vec4<f32>,
+    albedoMapIndex: vec4<f32>
 };
 
 struct ObjectInfo {
