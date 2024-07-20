@@ -137,7 +137,7 @@ export class Meshoptimizer {
             new WASMPointer(Uint32Array.from(indices)),
             indices.length,
             new WASMPointer(Float32Array.from(vertices)),
-            vertices.length,
+            vertices.length / 8,
             8 * Float32Array.BYTES_PER_ELEMENT,
         );
 

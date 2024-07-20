@@ -14,10 +14,8 @@ export class MeshletMerger {
             const indices = meshlets[i].indices;
     
             for (let j = 0; j < indices.length; j++) {
-                // mergedIndices.push(getX(indices, j, 3) + indexOffset);
                 mergedIndices.push(indices[j] + indexOffset);
             }
-            // indexOffset += meshlets[i].vertices.length / 3;
             indexOffset += meshlets[i].vertices.length / 8;
         }
     

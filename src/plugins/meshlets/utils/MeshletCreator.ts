@@ -52,9 +52,6 @@ export class MeshletCreator {
                 meshlet_indices.push(output.meshlet_triangles_result[o + 2]);
             }
 
-            // console.log("vertices", vertices);
-            // console.log("output", output);
-
             meshlets.push(new Meshlet(new Float32Array(meshlet_positions), new Uint32Array(meshlet_indices)));
         }
         return meshlets;
@@ -70,8 +67,6 @@ export class MeshletCreator {
             meshlet_vertices_result: output.meshlet_vertices_result,
             meshlet_triangles_result: output.meshlet_triangles_result
         }
-
-        console.log("m", m)
 
         const meshlets = MeshletCreator.buildMeshletsFromBuildOutput(vertices, m);
         

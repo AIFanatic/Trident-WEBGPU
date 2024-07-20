@@ -4034,7 +4034,7 @@ var Meshoptimizer = class _Meshoptimizer {
       new WASMPointer(Uint32Array.from(indices)),
       indices.length,
       new WASMPointer(Float32Array.from(vertices)),
-      vertices.length,
+      vertices.length / 8,
       8 * Float32Array.BYTES_PER_ELEMENT
     );
     const boundsData = boundsDataPtr.data;
@@ -7081,7 +7081,6 @@ var MeshletCreator = class _MeshletCreator {
       meshlet_vertices_result: output.meshlet_vertices_result,
       meshlet_triangles_result: output.meshlet_triangles_result
     };
-    console.log("m", m);
     const meshlets = _MeshletCreator.buildMeshletsFromBuildOutput(vertices, m);
     return meshlets;
   }
@@ -8422,10 +8421,6 @@ async function Application() {
   bunnyGeometry.index = new IndexAttribute(bunnyObj.indices);
   console.log("bunnyObj", bunnyObj);
   console.log("bunnyGeometry", bunnyGeometry);
-  const albedo = await Texture2.Load("./assets/textures/brick-wall-unity/brick-wall_albedo.png");
-  const mat = new DeferredMeshMaterial({
-    albedoMap: albedo
-  });
   const n = 10;
   for (let x = 0; x < n; x++) {
     for (let y = 0; y < n; y++) {
@@ -8435,7 +8430,6 @@ async function Application() {
         cube.transform.position.set(x * 20, y * 20, z * 20);
         const cubeMesh = cube.AddComponent(MeshletMesh);
         await cubeMesh.SetGeometry(bunnyGeometry);
-        await cubeMesh.AddMaterial(mat);
       }
     }
   }
