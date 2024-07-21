@@ -171,6 +171,8 @@ export class UITextStat extends Stat {
         this.textElement.textContent = valueStr + this.unit;
         this.previousValue = value;
     }
+
+    public GetValue(): number { return this.previousValue; } // TODO: Current value
 }
 
 export class UIFolder extends Stat {

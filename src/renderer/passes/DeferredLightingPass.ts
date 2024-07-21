@@ -11,8 +11,9 @@ import { Matrix4 } from "../../math/Matrix4";
 import { EventSystem } from "../../Events";
 import { Buffer, BufferType } from "../Buffer";
 import { Debugger } from "../../plugins/Debugger";
-import { lightsCSMProjectionMatrix } from "./ShadowPass";
-import { ShaderCode } from "../ShaderCode";
+// import { lightsCSMProjectionMatrix } from "./ShadowPass";
+import { ShaderLoader } from "../ShaderUtils";
+import { PassParams } from "../RenderingPipeline";
 
 enum LightType {
     SPOT_LIGHT,
@@ -34,11 +35,25 @@ export class DeferredLightingPass extends RenderPass {
 
     private needsUpdate: boolean = false;
 
-    constructor(inputGBufferAlbedo: string, inputGBufferNormal: string, inputGbufferERMO: string, inputGBufferDepth: string, inputShadowPassDepth: string, outputLightingPass: string) {
-        super({ inputs: [inputGBufferAlbedo, inputGBufferNormal, inputGbufferERMO, inputGBufferDepth, inputShadowPassDepth], outputs: [outputLightingPass] });
+    public initialized = false;
 
-        this.shader = Shader.Create({
-            code: ShaderCode.DeferredLightingPBRShader,
+    // constructor(inputGBufferAlbedo: string, inputGBufferNormal: string, inputGbufferERMO: string, inputGBufferDepth: string, inputShadowPassDepth: string, outputLightingPass: string) {
+    constructor() {
+        super({
+            inputs: [
+                PassParams.GBufferAlbedo,
+                PassParams.GBufferNormal,
+                PassParams.GBufferERMO,
+                PassParams.GBufferDepth,
+                PassParams.GBufferDepth
+            ],
+            outputs: [PassParams.LightingPassOutput] });
+        this.init();
+    }
+
+    public async init() {
+        this.shader = await Shader.Create({
+            code: await ShaderLoader.DeferredLighting,
             attributes: {
                 position: { location: 0, size: 3, type: "vec3" },
                 normal: { location: 1, size: 3, type: "vec3" },
@@ -86,6 +101,7 @@ export class DeferredLightingPass extends RenderPass {
         EventSystem.on("MainCameraUpdated", component => {
             this.needsUpdate = true;
         })
+        this.initialized = true;
     }
 
     private updateLightsBuffer() {
@@ -117,7 +133,7 @@ export class DeferredLightingPass extends RenderPass {
             lightBuffer.set([
                 light.transform.position.x, light.transform.position.y, light.transform.position.z, 1.0,
                 ...light.camera.projectionMatrix.elements,
-                ...lightsCSMProjectionMatrix[i],
+                ...new Array(16 * 4).fill(0), // ...lightsCSMProjectionMatrix[i],
                 ...light.camera.viewMatrix.elements,
                 ...light.camera.viewMatrix.clone().invert().elements,
                 light.color.r, light.color.g, light.color.b, lightType,
@@ -125,6 +141,7 @@ export class DeferredLightingPass extends RenderPass {
                 ...params2
             ], i * lightBufferSize);
         }
+
 
         const lightsLength = Math.max(lights.length, 1);
         if (!this.lightsBuffer || this.lightsBuffer.size !== lightsLength * lightBufferSize * 4) {
@@ -137,18 +154,21 @@ export class DeferredLightingPass extends RenderPass {
         this.shader.SetBuffer("lights", this.lightsBuffer);
         this.shader.SetBuffer("lightCount", this.lightsCountBuffer);
         this.needsUpdate = false;
+        console.log("Updating light buffer");
     }
 
     public execute(resources: ResourcePool, inputGBufferAlbedo: RenderTexture, inputGBufferNormal: RenderTexture, inputGbufferERMO: RenderTexture, inputGBufferDepth: DepthTexture, inputShadowPassDepth: DepthTexture, outputLightingPass: string) {
-        Debugger.AddFrameRenderPass("DeferredLightingPass");
+        if (!this.initialized) return;
+        // Debugger.AddFrameRenderPass("DeferredLightingPass");
         
+        // console.log(inputGBufferAlbedo)
         const camera = Camera.mainCamera;
 
         if (!this.lightsBuffer || !this.lightsCountBuffer || this.needsUpdate) {
             this.updateLightsBuffer();
         }
 
-        RendererContext.BeginRenderPass("DeferredLightingPass", [{ clear: true }]);
+        RendererContext.BeginRenderPass("DeferredLightingPass", [{ target: this.outputLightingPass, clear: true }], undefined, true);
 
         this.shader.SetTexture("albedoTexture", inputGBufferAlbedo);
         this.shader.SetTexture("normalTexture", inputGBufferNormal);

@@ -26,6 +26,7 @@ class _Debugger {
     private visibleMeshes: UITextStat;
     private triangleCount: UITextStat;
     private visibleTriangles: UITextStat;
+    private gpuTime: UITextStat;
 
     constructor() {
         const container = document.createElement("div");
@@ -40,6 +41,7 @@ class _Debugger {
         this.visibleMeshes = new UITextStat(this.ui, "Visible meshlets: ");
         this.triangleCount = new UITextStat(this.ui, "Triangles: ");
         this.visibleTriangles = new UITextStat(this.ui, "Visible triangles: ");
+        this.gpuTime = new UITextStat(this.ui, "GPU: ", 0, 2, "ms", true);
 
         const hizFolder = new UIFolder(this.ui, "Hierarchical Z depth");
         hizFolder.Open();
@@ -117,6 +119,12 @@ class _Debugger {
 
     public SetFPS(count: number) {
         this.fps.SetValue(count);
+
+        let totalGPUTime = 0;
+        for (const [_, framePass] of this.framePassesStats) {
+            totalGPUTime += framePass.GetValue();
+        }
+        this.gpuTime.SetValue(totalGPUTime);
     }
 }
 

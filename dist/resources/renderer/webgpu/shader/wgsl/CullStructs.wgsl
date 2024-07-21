@@ -32,7 +32,13 @@ struct MeshInfo {
     modelMatrix: mat4x4<f32>,
     position: vec4<f32>,
     scale: vec4<f32>,
-    albedoMapIndex: vec4<f32>
+    mapIndex: vec4<f32>,
+
+    AlbedoColor: vec4<f32>,
+    EmissiveColor: vec4<f32>,
+    Roughness: f32,
+    Metalness: f32,
+    Unlit: f32
 };
 
 struct ObjectInfo {

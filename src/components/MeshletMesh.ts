@@ -46,31 +46,9 @@ export class MeshletMesh extends Component {
         const interleavedVertices = interleavedBufferAttribute.array as Float32Array;
 
         await Meshoptimizer.load();
-        console.log("interleaved", interleavedVertices)
-        const rootMeshlet = await Meshletizer.Build(interleavedVertices, indices);
-
-        function traverse(meshlet: Meshlet, fn: (meshlet: Meshlet) => void, visited: string[] = []) {
-            if (visited.indexOf(meshlet.id) !== -1) return;
-    
-            fn(meshlet);
-            visited.push(meshlet.id);
-    
-            for (let child of meshlet.parents) {
-                traverse(child, fn, visited);
-            }
-        }
-    
-        const allMeshlets: Meshlet[] = [];
-        traverse(rootMeshlet, m => allMeshlets.push(m));
+        const allMeshlets = await Meshletizer.Build(interleavedVertices, indices);
 
         this.meshlets = allMeshlets;
         meshletsCache.set(geometry, this.meshlets);
-
-        // this.meshlets = [new Meshlet(interleavedVertices, indices)];
-        // console.log("original meshlet", this.meshlets);
-        // const output = MeshletCreator.build(interleavedVertices, indices, 255, Meshlet.max_triangles);
-        // // console.log(output)
-        // this.meshlets = output;
-        console.log("meshlets", this.meshlets)
     }
 }

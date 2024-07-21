@@ -159,7 +159,7 @@ export class WEBGPUBaseShader {
         WEBGPURenderer.device.queue.writeBuffer(uniform.buffer.GetBuffer() as GPUBuffer, bufferOffset, data, dataOffset, size);
     }
     private SetUniformDataFromBuffer(name: string, data: WEBGPUTexture | WEBGPUTextureSampler | WEBGPUBuffer | WEBGPUDynamicBuffer) {
-        if (!data) throw Error("Invalid buffer");
+        if (!data) throw Error(`Invalid buffer ${name}`);
 
         const binding = this.GetValidUniform(name);
         if (!binding.buffer || binding.buffer.GetBuffer() !== data.GetBuffer()) {

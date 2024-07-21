@@ -196,7 +196,7 @@ export class Meshoptimizer {
         return new Meshlet(new Float32Array(vertices_remapped.data), new Uint32Array(indices_remapped.data));
     }
 
-    public static meshopt_simplify(meshlet: Meshlet, target_count: number): {meshlet: Meshlet, error: number} {
+    public static meshopt_simplify(meshlet: Meshlet, target_count: number, target_error: number = 1): {meshlet: Meshlet, error: number} {
         const MeshOptmizer = Meshoptimizer.module;
 
         const destination = new WASMPointer(new Uint32Array(meshlet.indices.length), "out");
@@ -210,7 +210,7 @@ export class Meshoptimizer {
             meshlet.vertices.length / 8, // size_t vertex_count,
             8 * Float32Array.BYTES_PER_ELEMENT, // size_t vertex_positions_stride,
             target_count, // size_t target_index_count,
-            1, // float target_error, Should be 0.01 but cant reach 128 triangles with it
+            target_error, // float target_error, Should be 0.01 but cant reach 128 triangles with it
             1, // unsigned int options, preserve borders
             result_error, // float* result_error
         );

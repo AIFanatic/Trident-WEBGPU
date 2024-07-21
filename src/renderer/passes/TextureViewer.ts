@@ -5,6 +5,7 @@ import { Shader } from "../Shader";
 import { Geometry } from "../../Geometry";
 import { TextureSampler } from "../TextureSampler";
 import { DepthTexture, RenderTexture } from "../Texture";
+import { PassParams } from "../RenderingPipeline";
 
 export class TextureViewer extends RenderPass {
     public name: string = "TextureViewer";
@@ -12,7 +13,7 @@ export class TextureViewer extends RenderPass {
     private quadGeometry: Geometry;
 
     constructor() {
-        super({});
+        super({inputs: [PassParams.LightingPassOutput]});
         this.init();
     }
 
@@ -71,7 +72,7 @@ export class TextureViewer extends RenderPass {
 
         this.shader.SetTexture("shadowMapTexture", texture);
 
-        RendererContext.BeginRenderPass("TextureViewer", [{clear: false}]);
+        RendererContext.BeginRenderPass("TextureViewer", [{clear: false}], undefined, true);
         RendererContext.DrawGeometry(this.quadGeometry, this.shader);
         RendererContext.EndRenderPass();
     }

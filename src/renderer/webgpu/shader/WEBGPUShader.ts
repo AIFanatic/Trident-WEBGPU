@@ -49,14 +49,14 @@ export class WEBGPUShader extends WEBGPUBaseShader implements Shader {
         let targets: GPUColorTargetState[] = [];
         for (const output of this.params.colorOutputs) targets.push({
             format: output.format,
-            blend: {
-                color: {
-                    srcFactor: "one",
-                    dstFactor: "one"
-                },
-                alpha: {
+            // blend: {
+            //     color: {
+            //         srcFactor: "one",
+            //         dstFactor: "one"
+            //     },
+            //     alpha: {
 
-                }}
+            //     }}
         });
         const pipelineDescriptor: GPURenderPipelineDescriptor = {
             layout: pipelineLayout,

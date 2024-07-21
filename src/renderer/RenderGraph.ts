@@ -33,12 +33,13 @@ export class ResourcePool {
 export class RenderGraph {
     private passes: RenderPass[] = [];
     private resourcePool: ResourcePool = new ResourcePool();
+    private hasInitialized = false;
 
-    addPass(pass: RenderPass): void {
+    public addPass(pass: RenderPass): void {
         this.passes.push(pass);
     }
 
-    execute(): void {
+    public execute(): void {
         const sortedPasses = this.topologicalSort();
         for (const pass of sortedPasses) {
             const inputs = pass.inputs.map(value => this.resourcePool.getResource(value));

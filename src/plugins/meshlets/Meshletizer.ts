@@ -30,7 +30,6 @@ export class Meshletizer {
 
             // simplify
             const simplified = Meshoptimizer.meshopt_simplify(cleanedMergedGroup, cleanedMergedGroup.indices.length / 2);
-
             const localScale = Meshoptimizer.meshopt_simplifyScale(simplified.meshlet);
             // console.log(localScale, simplified.error)
 
@@ -66,18 +65,19 @@ export class Meshletizer {
 
                 previousMeshlet.parentError = meshSpaceError;
                 previousMeshlet.parentBoundingVolume = simplified.meshlet.boundingVolume;
+                previousMeshlet.lod++;
             }
         }
 
         return splitOutputs;
     }
-    public static async Build(vertices: Float32Array, indices: Uint32Array): Promise<Meshlet> {
+    public static async Build(vertices: Float32Array, indices: Uint32Array): Promise<Meshlet[]> {
         await Meshoptimizer.load();
         await Metis.load();
 
         const meshlets = MeshletCreator.build(vertices, indices, 255, Meshlet.max_triangles);
 
-        console.log("starting with", meshlets);
+        console.log(`starting with ${meshlets.length} meshlets`);
 
         const maxLOD = 25;
         let inputs = meshlets;
@@ -91,10 +91,26 @@ export class Meshletizer {
         for (let lod = 0; lod < maxLOD; lod++) {
             const outputs = this.step(inputs, lod, previousMeshlets);
             
-            console.log("inputs", inputs.map(m => m.vertices.length / 8));
-            console.log("outputs", outputs.map(m => m.vertices.length / 8));
-            console.log(`lod ${lod} has`, outputs);
-            if (lod === 7) throw Error("Stop");
+            const inputTriangleCount = inputs.map(m => m.indices.length / 3);
+            const outputTriangleCount = outputs.map(m => m.indices.length / 3);
+            const inputVertexCount = inputTriangleCount.reduce((a, b) => a + b);
+            const outputVertexCount = outputTriangleCount.reduce((a, b) => a + b);
+            console.log("inputs", inputTriangleCount, inputVertexCount);
+            console.log("outputs", outputTriangleCount, outputVertexCount);
+            console.log(`lod ${lod} has ${outputs.length} meshlets`);
+            if (outputVertexCount >= inputVertexCount) {
+                for (const input of inputs) {
+                    if (input.indices.length / 3 > Meshlet.max_triangles) {
+                        throw Error(`Output meshlet triangle count ${inputVertexCount} >= input triangle count ${inputVertexCount}`)
+                    }
+                }
+                break;
+                // throw Error(`ERROR Output meshlet triangle count ${inputVertexCount} >= input triangle count ${inputVertexCount}`)
+            }
+            // if (outputTriangleCount.length === inputTriangleCount.length) {
+            //     throw Error(`Output meshlets triangles ${outputTriangleCount.length} == input meshlets triangles ${inputTriangleCount.length}`);
+            // }
+            // if (lod === 7) throw Error("Stop");
 
             if (outputs.length === 1) {
                 console.log("WE are done at lod", lod)
@@ -110,10 +126,15 @@ export class Meshletizer {
             inputs = outputs;
             // console.log("\n");
         }
-        if (rootMeshlet === null) throw Error("Root meshlet is invalid!");
+        // if (rootMeshlet === null) throw Error("Root meshlet is invalid!");
 
         // if (rootMeshlet === null) rootMeshlet = inputs[0]
 
-        return rootMeshlet;
+        let meshletsOut: Meshlet[] = [];
+        for (const [_, meshlet] of previousMeshlets) {
+            meshletsOut.push(meshlet);
+        }
+
+        return meshletsOut;
     }
 }

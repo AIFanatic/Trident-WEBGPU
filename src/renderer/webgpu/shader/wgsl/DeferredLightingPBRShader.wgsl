@@ -93,6 +93,7 @@ struct SpotLight {
 struct DirectionalLight {
     direction: vec3<f32>,
     color: vec3<f32>,
+    intensity: f32
 }
 
 struct PointLight {
@@ -212,7 +213,7 @@ fn PointLightRadiance(light : PointLight, surface : Surface) -> vec3<f32> {
 }
 
 fn DirectionalLightRadiance(light: DirectionalLight, surface : Surface) -> vec3<f32> {
-    return CalculateBRDF(surface, light.direction) * light.color;
+    return CalculateBRDF(surface, light.direction) * light.color * light.intensity;
 }
 
 fn SpotLightRadiance(light : SpotLight, surface : Surface) -> vec3<f32> {
@@ -424,7 +425,7 @@ fn fragmentMain(input: VertexOutput) -> @location(0) vec4<f32> {
     var Lo = vec3(0.0);
     for (var i : u32 = 0u; i < lightCount; i = i + 1u) {
         let light = lights[i];
-        let lightType = light.color.a;
+        let lightType = u32(light.color.a);
 
         if (lightType == SPOT_LIGHT) {
             var spotLight: SpotLight;
@@ -439,7 +440,8 @@ fn fragmentMain(input: VertexOutput) -> @location(0) vec4<f32> {
             spotLight.direction = lightDir;
             spotLight.angle = light.params1.b;
 
-            let shadow = CalculateShadow(surface.worldPosition, surface.N, light, i);
+            // let shadow = CalculateShadow(surface.worldPosition, surface.N, light, i);
+            let shadow = 0.0;
             Lo += (1.0 - shadow) * SpotLightRadiance(spotLight, surface);
         }
         else if (lightType == POINT_LIGHT) {
@@ -450,25 +452,26 @@ fn fragmentMain(input: VertexOutput) -> @location(0) vec4<f32> {
             pointLight.intensity = light.params1.x;
             pointLight.range = light.params1.y;
 
-            let shadow = CalculateShadow(surface.worldPosition, surface.N, light, i);
+            // let shadow = CalculateShadow(surface.worldPosition, surface.N, light, i);
+            let shadow = 0.0;
             Lo += (1.0 - shadow) * PointLightRadiance(pointLight, surface);
         }
         else if (lightType == DIRECTIONAL_LIGHT) {
             var directionalLight: DirectionalLight;
-            let lightViewInverse = light.viewMatrixInverse; // Assuming you can calculate or pass this
+            let lightViewInverse = light.viewMatrixInverse;
             let lightDir = normalize((lightViewInverse * vec4(0.0, 0.0, 1.0, 0.0)).xyz);
             directionalLight.direction = lightDir;
             directionalLight.color = light.color.rgb;
+            directionalLight.intensity = light.params1.x;
 
-            // var shadow = CalculateShadow(surface.worldPosition, surface.N, light, i);
-            let shadowCSM = CalculateShadowCSM(surface, light, i);
-            let shadow = shadowCSM.visibility;
-            selectedCascade = shadowCSM.selectedCascade;
+            // // var shadow = CalculateShadow(surface.worldPosition, surface.N, light, i);
+            // let shadowCSM = CalculateShadowCSM(surface, light, i);
+            // let shadow = shadowCSM.visibility;
+            // selectedCascade = shadowCSM.selectedCascade;
+
+            let shadow = 1.0;
 
             Lo += (shadow) * DirectionalLightRadiance(directionalLight, surface);
-
-            // let finalColor = shadow * DirectionalLightRadiance(directionalLight, surface);
-            // Lo += mix(finalColor, debug_cascadeColors[selectedCascade].rgb, 0.01);
         }
     }
 

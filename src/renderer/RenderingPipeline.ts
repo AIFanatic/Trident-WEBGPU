@@ -9,23 +9,42 @@ import { ShadowPass } from "./passes/ShadowPass";
 import { DebuggerPass } from "./passes/DebuggerPass";
 import { Debugger } from "../plugins/Debugger";
 import { SSGI } from "./passes/SSGI";
-import { GPUDriven } from "./passes/GPUDriven";
+import { CullingPass } from "./passes/CullingPass";
 import { WEBGPUTimestampQuery } from "./webgpu/WEBGPUTimestampQuery";
 import { DepthViewer } from "./passes/DepthViewer";
 import { TextureViewer } from "./passes/TextureViewer";
 import { Forward } from "./passes/Forward";
 import { ForwardInstanced } from "./passes/ForwardInstanced";
+import { PrepareSceneData } from "./passes/PrepareSceneData";
+import { IndirectGBufferPass } from "./passes/IndirectGBufferPass";
+import { HiZPass } from "./passes/HiZPass";
 
-export enum PassParams {
-    MainCamera = "MainCamera",
-    GBufferAlbedo = "GBufferAlbedo",
-    GBufferNormal = "GBufferNormal",
-    GBufferERMO = "GBufferERMO",
-    GBufferDepth = "GBufferDepth",
+export const PassParams = {
+    MainCamera: "MainCamera",
 
-    ShadowPassDepth = "ShadowPassDepth",
+    indirectVertices: "indirectVertices",
+    indirectMeshInfo: "indirectMeshInfo",
+    indirectMeshletInfo: "indirectMeshletInfo",
+    indirectObjectInfo: "indirectObjectInfo",
+    indirectInstanceInfo: "indirectInstanceInfo",
+    indirectDrawBuffer: "indirectDrawBuffer",
+    meshletsCount: "meshletsCount",
+    textureMaps: "textureMaps",
+
+    isCullingPrepass: "isCullingPrepass",
+
+    depthTexture: "depthTexture",
+    depthTexturePyramid: "depthTexturePyramid",
+
+
+    GBufferAlbedo: "GBufferAlbedo",
+    GBufferNormal: "GBufferNormal",
+    GBufferERMO: "GBufferERMO",
+    GBufferDepth: "GBufferDepth",
+
+    ShadowPassDepth: "ShadowPassDepth",
     
-    LightingPassOutput = "LightingPassOutput",
+    LightingPassOutput: "LightingPassOutput",
 };
 
 class SetMeshRenderCameraPass extends RenderPass {
@@ -44,28 +63,61 @@ export class RenderingPipeline {
     private frame: number = 0;
     private previousTime: number = 0;
 
-    private passes = {
-        // SetMainCamera: new SetMeshRenderCameraPass({outputs: [PassParams.MainCamera]}),
-        // DeferredMeshRenderPass: new DeferredMeshRenderPass(PassParams.MainCamera, PassParams.GBufferAlbedo, PassParams.GBufferNormal, PassParams.GBufferERMO, PassParams.GBufferDepth),
-        // ShadowPass: new ShadowPass(PassParams.ShadowPassDepth),
-        // DeferredLightingPass: new DeferredLightingPass(PassParams.GBufferAlbedo, PassParams.GBufferNormal, PassParams.GBufferERMO, PassParams.GBufferDepth, PassParams.ShadowPassDepth, PassParams.LightingPassOutput),
-        // SSGI: new SSGI(PassParams.GBufferDepth, PassParams.GBufferNormal, PassParams.LightingPassOutput, PassParams.GBufferAlbedo)
+    // private passes = {
+    //     // SetMainCamera: new SetMeshRenderCameraPass({outputs: [PassParams.MainCamera]}),
+    //     // DeferredMeshRenderPass: new DeferredMeshRenderPass(PassParams.MainCamera, PassParams.GBufferAlbedo, PassParams.GBufferNormal, PassParams.GBufferERMO, PassParams.GBufferDepth),
+    //     // ShadowPass: new ShadowPass(PassParams.ShadowPassDepth),
+    //     // DeferredLightingPass: new DeferredLightingPass(PassParams.GBufferAlbedo, PassParams.GBufferNormal, PassParams.GBufferERMO, PassParams.GBufferDepth, PassParams.ShadowPassDepth, PassParams.LightingPassOutput),
+    //     // SSGI: new SSGI(PassParams.GBufferDepth, PassParams.GBufferNormal, PassParams.LightingPassOutput, PassParams.GBufferAlbedo)
         
-        GPUDriven: new GPUDriven(),
+    //     PrepareSceneData: new PrepareSceneData(),
         
-        Forward: new Forward(),
-        ForwardInstanced: new ForwardInstanced()
-    }
+    //     CullingFirstPass: new CullingPass(),
+    //     IndirectGBufferFirstPass: new IndirectGBufferPass(),
+    //     BuildDepthPyramid: new HiZPass(),
+    //     CullingSecondPass: new CullingPass(),
+    //     IndirectGBufferSecondPass: new IndirectGBufferPass(),
+        
+    //     // Forward: new Forward(),
+    //     // ForwardInstanced: new ForwardInstanced()
+    // }
     
     constructor(renderer: Renderer) {
         this.renderer = renderer;
 
+        const passes = {
+            // SetMainCamera: new SetMeshRenderCameraPass({outputs: [PassParams.MainCamera]}),
+            // DeferredMeshRenderPass: new DeferredMeshRenderPass(PassParams.MainCamera, PassParams.GBufferAlbedo, PassParams.GBufferNormal, PassParams.GBufferERMO, PassParams.GBufferDepth),
+            // ShadowPass: new ShadowPass(PassParams.ShadowPassDepth),
+            // DeferredLightingPass: new DeferredLightingPass(PassParams.GBufferAlbedo, PassParams.GBufferNormal, PassParams.GBufferERMO, PassParams.GBufferDepth, PassParams.ShadowPassDepth, PassParams.LightingPassOutput),
+            // SSGI: new SSGI(PassParams.GBufferDepth, PassParams.GBufferNormal, PassParams.LightingPassOutput, PassParams.GBufferAlbedo)
+            
+            PrepareSceneData: new PrepareSceneData(),
+            
+            CullingFirstPass: new CullingPass(),
+
+            DeferredLightingPass: new DeferredLightingPass(),
+
+            OutputPass: new TextureViewer()
+            // IndirectGBufferFirstPass: gbuffer,
+            // BuildDepthPyramid: new HiZPass(),
+            // CullingSecondPass: culling,
+            // IndirectGBufferSecondPass: gbuffer,
+            
+            // Forward: new Forward(),
+            // ForwardInstanced: new ForwardInstanced()
+        }
+
         this.renderGraph = new RenderGraph();
-        for (const pass of Object.keys(this.passes)) {
-            this.renderGraph.addPass(this.passes[pass]);
+        for (const pass of Object.keys(passes)) {
+            this.renderGraph.addPass(passes[pass]);
         }
 
         this.debuggerPass = new DebuggerPass();
+
+        console.log(this.renderGraph)
+
+        // throw Error("HERE")
     }
 
     public async Render(scene: Scene) {

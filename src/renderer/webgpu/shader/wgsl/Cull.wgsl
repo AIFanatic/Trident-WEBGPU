@@ -85,7 +85,7 @@ fn IsFrustumCulled(objectIndex: u32) -> bool {
 
     // Backface
     if (bool(settings.backFaceCullingEnabled)) {
-        if (dot(normalize(meshlet.cone_apex.xyz - cullData.cameraPosition.xyz), meshlet.cone_axis.xyz) >= meshlet.cone_cutoff) {
+        if (dot(normalize(meshlet.cone_apex.xyz - cullData.cameraPosition.xyz), meshlet.cone_axis.xyz) * mesh.scale.x >= meshlet.cone_cutoff) {
             return true;
         }
     }
@@ -236,10 +236,8 @@ fn main(@builtin(global_invocation_id) grid: vec3<u32>) {
         bVisible = visibilityBuffer[objectIndex].x > 0.5;
     }
 
-    if (bool(settings.frustumCullingEnabled)) {
-        if (bVisible) {
-            bVisible = bVisible && !IsFrustumCulled(objectIndex);
-        }
+    if (bVisible) {
+        bVisible = bVisible && !IsFrustumCulled(objectIndex);
     }
 
     if (!bool(bPrepass)) {

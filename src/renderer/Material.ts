@@ -5,10 +5,10 @@ export class Material {
 }
 
 export interface DeferredMeshMaterialParams {
-    albedoColor?: Color;
-    emissiveColor?: Color;
-    roughness?: number;
-    metalness?: number;
+    albedoColor: Color;
+    emissiveColor: Color;
+    roughness: number;
+    metalness: number;
 
     albedoMap?: Texture;
     normalMap?: Texture;
@@ -18,7 +18,7 @@ export interface DeferredMeshMaterialParams {
     emissiveMap?: Texture;
     aoMap?: Texture;
 
-    unlit?: boolean;
+    unlit: boolean;
 }
 
 export class DeferredMeshMaterial extends Material {

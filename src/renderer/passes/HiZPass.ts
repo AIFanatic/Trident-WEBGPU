@@ -1,12 +1,15 @@
 import { Geometry } from "../../Geometry";
 import { Buffer, BufferType } from "../Buffer";
+import { RenderPass, ResourcePool } from "../RenderGraph";
 import { RendererContext } from "../RendererContext";
+import { PassParams } from "../RenderingPipeline";
 import { Shader } from "../Shader";
 import { ShaderLoader } from "../ShaderUtils";
 import { DepthTexture } from "../Texture";
 import { TextureSampler } from "../TextureSampler";
 
-export class HiZPass {
+export class HiZPass extends RenderPass {
+    public name: string = "HiZPass";
     private shader: Shader;
     private quadGeometry: Geometry;
     public debugDepthTexture: DepthTexture;
@@ -23,15 +26,19 @@ export class HiZPass {
     private passBuffers: Buffer[] = [];
     private currentBuffer: Buffer;
 
-    private initialized: boolean = false;
+    public initialized: boolean = false;
 
     private blitShader: Shader;
 
     constructor() {
-        this.Init();
+        super({
+            inputs: [PassParams.depthTexture],
+            outputs: [PassParams.depthTexturePyramid]
+        });
+        this.init();
     }
 
-    private async Init() {
+    public async init() {
         this.shader = await Shader.Create({
             code: await ShaderLoader.DepthDownsample,
             attributes: {
@@ -102,8 +109,7 @@ export class HiZPass {
         this.initialized = true;
     }
 
-    // , this.shader, this.geometry, this.drawIndirectBuffer
-    public buildDepthPyramid(depthTexture: DepthTexture) {
+    public execute(resources: ResourcePool, inputDepthTexture: DepthTexture, outputDepthTexturePyramid: string) {
         if(this.initialized === false) return;
 
         let currentLevel = 0;
@@ -111,8 +117,8 @@ export class HiZPass {
 
         // Copy depth to first mip of inputTexture
         // Need to use BlitDepth because webgpu doesn't support CopyTextureToTexture with unequal sizes for depth textures
-        this.blitShader.SetTexture("texture", depthTexture);
-        RendererContext.BeginRenderPass("GPUDriven - DepthPyramid First mip", [], {target: currentTarget, clear: true}, true);
+        this.blitShader.SetTexture("texture", inputDepthTexture);
+        RendererContext.BeginRenderPass("HiZ - First mip", [], {target: currentTarget, clear: true}, true);
         RendererContext.DrawGeometry(this.quadGeometry, this.blitShader);
         RendererContext.EndRenderPass();
         RendererContext.CopyTextureToTexture(currentTarget, this.inputTexture, 0, currentLevel);
@@ -125,11 +131,13 @@ export class HiZPass {
             currentTarget = this.targetTextures[currentLevel];
             RendererContext.CopyBufferToBuffer(levelBuffer, this.currentBuffer);
             
-            RendererContext.BeginRenderPass("GPUDriven - DepthPyramid Build", [], {target: currentTarget, clear: true}, true);
+            RendererContext.BeginRenderPass("HiZ - DepthPyramid", [], {target: currentTarget, clear: true}, true);
             RendererContext.DrawGeometry(this.quadGeometry, this.shader);
             RendererContext.EndRenderPass();
     
             RendererContext.CopyTextureToTexture(currentTarget, this.inputTexture, 0, currentLevel);            
         }
+
+        resources.setResource(outputDepthTexturePyramid, this.inputTexture);
     }
 }
