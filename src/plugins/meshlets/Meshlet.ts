@@ -1,7 +1,8 @@
 import { Geometry, IndexAttribute, InterleavedVertexAttribute, VertexAttribute } from "../../Geometry";
 import { CRC32, Utils } from "../../Utils";
 import { BoundingVolume } from "../../math/BoundingVolume";
-import { Meshoptimizer, meshopt_Bounds } from "./Meshoptimizer";
+import { Sphere } from "../../math/Sphere";
+import { Meshoptimizer } from "./Meshoptimizer";
 
 
 
@@ -18,17 +19,18 @@ export class Meshlet {
     public parents: Meshlet[];
 
 
-    public _boundingVolume: meshopt_Bounds;
-    public get boundingVolume(): meshopt_Bounds {
-        if (!this._boundingVolume) this._boundingVolume = Meshoptimizer.meshopt_computeClusterBounds(this.vertices, this.indices);
+    public _boundingVolume: Sphere;
+    public get boundingVolume(): Sphere {
+        // if (!this._boundingVolume) this._boundingVolume = Meshoptimizer.meshopt_computeClusterBounds(this.vertices, this.indices);
+        if (!this._boundingVolume) this._boundingVolume = Sphere.fromVertices(this.vertices, this.indices, 8);
         return this._boundingVolume;
     }
-    public set boundingVolume(boundingVolume: meshopt_Bounds) {
+    public set boundingVolume(boundingVolume: Sphere) {
         this._boundingVolume = boundingVolume;
     }
 
-    // public boundingVolume: meshopt_Bounds;
-    public parentBoundingVolume: meshopt_Bounds;
+    // public boundingVolume: Sphere;
+    public parentBoundingVolume: Sphere;
     public parentError: number = Infinity;
     public clusterError: number = 0;
 
@@ -41,8 +43,6 @@ export class Meshlet {
         this.vertices = vertices;
         this.indices = indices;
 
-        // this.boundingVolume = Meshoptimizer.meshopt_computeClusterBounds(vertices, indices);
-        
         this.lod = 0;
         this.children = [];
         this.parents = [];

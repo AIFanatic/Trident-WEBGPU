@@ -54,8 +54,8 @@ export class Metis {
         options_array.fill(-1);
 
         // options_array[0] = // METIS_OPTION_PTYPE,
-        // options_array[1] = 0 // METIS_OPTION_OBJTYPE,
-        // options_array[2] = // METIS_OPTION_CTYPE,
+        // options_array[1] = // METIS_OPTION_OBJTYPE, // 0 = METIS_OBJTYPE_CUT
+        options_array[2] = 0 // METIS_OPTION_CTYPE / METIS_OPTION_OBJTYPE?,
         // options_array[3] = // METIS_OPTION_IPTYPE,
         // options_array[4] = // METIS_OPTION_RTYPE,
         // options_array[5] = // METIS_OPTION_DBGLVL,
@@ -65,17 +65,20 @@ export class Metis {
         // options_array[9] = // METIS_OPTION_SEED,
         // options_array[10] = // METIS_OPTION_ONDISK,
         // options_array[11] = // METIS_OPTION_MINCONN,
-        // options_array[12] = 1// METIS_OPTION_CONTIG,
-        // options_array[13] = // METIS_OPTION_COMPRESS,
-        // options_array[14] = 1// METIS_OPTION_CCORDER,
+        options_array[12] = 1// METIS_OPTION_CONTIG,
+        // options_array[13] // METIS_OPTION_COMPRESS / METIS_OPTION_CCORDER?,
+        options_array[14] = 1// METIS_OPTION_CCORDER,
         // options_array[15] = // METIS_OPTION_PFACTOR,
         // options_array[16] = // METIS_OPTION_NSEPS,
         // options_array[17] = // METIS_OPTION_UFACTOR,
-        // options_array[18] = 0 // METIS_OPTION_NUMBERING,
+        options_array[18] = 0 // METIS_OPTION_NUMBERING,
         // options_array[19] = // METIS_OPTION_DROPEDGES,
         // options_array[20] = // METIS_OPTION_NO2HOP,
         // options_array[21] = // METIS_OPTION_TWOHOP,
         // options_array[22] = // METIS_OPTION_FAST,
+        // options[METIS_OPTION_OBJTYPE] = METIS_OBJTYPE_CUT;
+        // options[METIS_OPTION_CCORDER] = 1; // identify connected components first
+        // options[METIS_OPTION_NUMBERING] = 0;
 
         // options[METIS_OPTION_OBJTYPE] = 0 // METIS_OBJTYPE_CUT;
         // options[METIS_OPTION_CCORDER] = 1; // identify connected components first

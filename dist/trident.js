@@ -948,7 +948,7 @@ var RenderPass = class {
     if (params.inputs) this.inputs = params.inputs;
     if (params.outputs) this.outputs = params.outputs;
   }
-  async init() {
+  async init(resources) {
   }
   execute(resources, ...args) {
   }
@@ -969,13 +969,24 @@ var ResourcePool = class {
 var RenderGraph = class {
   passes = [];
   resourcePool = new ResourcePool();
-  hasInitialized = false;
   addPass(pass) {
     this.passes.push(pass);
+  }
+  async init() {
+    const sortedPasses = this.topologicalSort();
+    for (const pass of sortedPasses) {
+      if (pass.initialized) continue;
+      await pass.init(this.resourcePool);
+      pass.initialized = true;
+    }
   }
   execute() {
     const sortedPasses = this.topologicalSort();
     for (const pass of sortedPasses) {
+      if (!pass.initialized) {
+        console.log(`didnt execute ${pass.name} because its not initialized`);
+        return;
+      }
       const inputs = pass.inputs.map((value) => this.resourcePool.getResource(value));
       pass.execute(this.resourcePool, ...inputs, ...pass.outputs);
     }
@@ -1005,7 +1016,7 @@ var RenderGraph = class {
         visit(pass);
       }
     });
-    return order;
+    return this.passes;
   }
 };
 
@@ -2374,6 +2385,7 @@ var WEBGPUTimestampQuery = class {
   static links = /* @__PURE__ */ new Map();
   static currentLinkIndex = 0;
   static BeginRenderTimestamp(name) {
+    if (!navigator.userAgent.toLowerCase().includes("chrome")) return void 0;
     if (this.isTimestamping === true) throw Error("Already timestamping");
     if (!this.querySet) {
       this.querySet = WEBGPURenderer.device.createQuerySet({
@@ -3002,12 +3014,12 @@ var _Debugger = class {
   debugDepthMipLevel = 0;
   debugDepthExposure = 0;
   isFrustumCullingEnabled = true;
-  isBackFaceCullingEnabled = true;
+  isBackFaceCullingEnabled = false;
   isOcclusionCullingEnabled = true;
   isSmallFeaturesCullingEnabled = true;
   dynamicLODErrorThreshold = 1;
   isDynamicLODEnabled = true;
-  staticLOD = 9;
+  staticLOD = 20;
   viewInstanceColors = true;
   ui;
   renderPassesFolder;
@@ -3063,11 +3075,11 @@ var _Debugger = class {
     const smallFeatureCulling = new UIButtonStat(cullingFolder, "Small features:", (state) => {
       this.isSmallFeaturesCullingEnabled = state;
     }, this.isSmallFeaturesCullingEnabled);
-    const staticLOD = new UISliderStat(cullingFolder, "Static LOD:", 0, this.staticLOD, 1, this.staticLOD, (state) => {
+    const staticLOD = new UISliderStat(cullingFolder, "Static LOD:", 0, this.staticLOD, 1, 0, (state) => {
       this.staticLOD = state;
     });
     staticLOD.Disable();
-    const dynamicLODErrorThreshold = new UISliderStat(cullingFolder, "Dynamic LOD error:", 0, 10, 0.01, this.dynamicLODErrorThreshold, (value) => {
+    const dynamicLODErrorThreshold = new UISliderStat(cullingFolder, "Dynamic LOD error:", 0, 20, 0.01, this.dynamicLODErrorThreshold, (value) => {
       this.dynamicLODErrorThreshold = value;
     });
     const dynamicLOD = new UIButtonStat(cullingFolder, "Dynamic LOD:", (state) => {
@@ -3215,6 +3227,426 @@ var Frustum = class {
     planes[4].setComponents(me3 - me2, me7 - me6, me11 - me10, me15 - me14).normalize();
     planes[5].setComponents(me2, me6, me10, me14).normalize();
     return this;
+  }
+};
+
+// src/math/Sphere.ts
+var Sphere = class _Sphere {
+  center;
+  radius;
+  constructor(center = new Vector3(0, 0, 0), radius = 0) {
+    this.center = center;
+    this.radius = radius;
+  }
+  static fromAABB(minBounds, maxBounds) {
+    const center = maxBounds.clone().add(minBounds).mul(0.5);
+    const radius = maxBounds.distanceTo(minBounds) * 0.5;
+    return new _Sphere(center, radius);
+  }
+  static fromVertices(vertices, indices, vertex_positions_stride) {
+    let min = new Vector3(Infinity, Infinity, Infinity);
+    let max = new Vector3(-Infinity, -Infinity, -Infinity);
+    let vertex = new Vector3();
+    for (const index of indices) {
+      const x = vertices[index * vertex_positions_stride + 0];
+      const y = vertices[index * vertex_positions_stride + 1];
+      const z = vertices[index * vertex_positions_stride + 2];
+      if (isNaN(x) || isNaN(y) || isNaN(z)) throw Error("Invalid vertex");
+      vertex.set(x, y, z);
+      min.min(vertex);
+      max.max(vertex);
+    }
+    return _Sphere.fromAABB(min, max);
+  }
+};
+
+// src/plugins/meshlets/Meshlet.ts
+var Meshlet = class _Meshlet {
+  static max_triangles = 128;
+  vertices;
+  indices;
+  id = Utils.UUID();
+  lod;
+  children;
+  parents;
+  _boundingVolume;
+  get boundingVolume() {
+    if (!this._boundingVolume) this._boundingVolume = Sphere.fromVertices(this.vertices, this.indices, 8);
+    return this._boundingVolume;
+  }
+  set boundingVolume(boundingVolume) {
+    this._boundingVolume = boundingVolume;
+  }
+  // public boundingVolume: Sphere;
+  parentBoundingVolume;
+  parentError = Infinity;
+  clusterError = 0;
+  vertices_gpu;
+  crc;
+  bounds;
+  constructor(vertices, indices) {
+    this.vertices = vertices;
+    this.indices = indices;
+    this.lod = 0;
+    this.children = [];
+    this.parents = [];
+    this.bounds = BoundingVolume.FromVertices(this.vertices);
+    const verticesNonIndexed = _Meshlet.convertBufferAttributeToNonIndexed(this.vertices, this.indices, 3, true, 8, 0);
+    const normalsNonIndexed = _Meshlet.convertBufferAttributeToNonIndexed(this.vertices, this.indices, 3, true, 8, 3);
+    const uvsNonIndexed = _Meshlet.convertBufferAttributeToNonIndexed(this.vertices, this.indices, 2, true, 8, 6);
+    const interleaved = InterleavedVertexAttribute.fromArrays([verticesNonIndexed, normalsNonIndexed, uvsNonIndexed], [3, 3, 2]);
+    const verticesGPU = [];
+    for (let i = 0; i < interleaved.array.length; i += 8) {
+      verticesGPU.push(
+        interleaved.array[i + 0],
+        interleaved.array[i + 1],
+        interleaved.array[i + 2],
+        0,
+        interleaved.array[i + 3],
+        interleaved.array[i + 4],
+        interleaved.array[i + 5],
+        0,
+        interleaved.array[i + 6],
+        interleaved.array[i + 7],
+        0,
+        0
+      );
+    }
+    this.vertices_gpu = new Float32Array(_Meshlet.max_triangles * (4 + 4 + 4) * 3);
+    this.vertices_gpu.set(verticesGPU.slice(0, _Meshlet.max_triangles * (4 + 4 + 4) * 3));
+    this.crc = CRC32.forBytes(new Uint8Array(this.vertices_gpu.buffer));
+  }
+  static convertBufferAttributeToNonIndexed(attribute, indices, itemSize, isInterleaved = false, stride = 3, offset = 0) {
+    if (!attribute) throw Error("Invalid attribute");
+    const array = attribute;
+    const array2 = new Float32Array(indices.length * itemSize);
+    let index = 0, index2 = 0;
+    for (let i = 0, l = indices.length; i < l; i++) {
+      if (isInterleaved === true) index = indices[i] * stride + offset;
+      else index = indices[i] * itemSize;
+      for (let j = 0; j < itemSize; j++) {
+        array2[index2++] = array[index++];
+      }
+    }
+    return array2;
+  }
+};
+
+// src/renderer/passes/CullingPass.ts
+var CullingPass = class extends RenderPass {
+  name = "CullingPass";
+  drawIndirectBuffer;
+  compute;
+  cullData;
+  frustum = new Frustum();
+  currentPassBuffer;
+  visibleBuffer;
+  nonVisibleBuffer;
+  visibilityBuffer;
+  instanceInfoBuffer;
+  isPrePass = true;
+  debugBuffer;
+  constructor() {
+    super({
+      inputs: [
+        PassParams.indirectMeshInfo,
+        PassParams.indirectMeshletInfo,
+        PassParams.indirectObjectInfo,
+        PassParams.meshletsCount
+      ],
+      outputs: [
+        PassParams.indirectDrawBuffer,
+        PassParams.indirectInstanceInfo,
+        PassParams.isCullingPrepass,
+        PassParams.GBufferAlbedo,
+        PassParams.GBufferNormal,
+        PassParams.GBufferERMO,
+        PassParams.GBufferDepth,
+        PassParams.GBufferDepth
+      ]
+    });
+  }
+  async init(resources) {
+    this.compute = await Compute.Create({
+      code: await ShaderLoader.Cull,
+      computeEntrypoint: "main",
+      uniforms: {
+        drawBuffer: { group: 0, binding: 0, type: "storage-write" },
+        instanceInfo: { group: 0, binding: 1, type: "storage-write" },
+        cullData: { group: 0, binding: 2, type: "storage" },
+        meshletInfo: { group: 0, binding: 3, type: "storage" },
+        meshInfo: { group: 0, binding: 4, type: "storage" },
+        objectInfo: { group: 0, binding: 5, type: "storage" },
+        visibilityBuffer: { group: 0, binding: 6, type: "storage-write" },
+        bPrepass: { group: 0, binding: 7, type: "storage" },
+        textureSampler: { group: 0, binding: 8, type: "sampler" },
+        depthTexture: { group: 0, binding: 9, type: "depthTexture" },
+        settings: { group: 0, binding: 10, type: "storage" }
+      }
+    });
+    this.drawIndirectBuffer = Buffer3.Create(4 * 4, 5 /* INDIRECT */);
+    this.drawIndirectBuffer.name = "drawIndirectBuffer";
+    this.compute.SetBuffer("drawBuffer", this.drawIndirectBuffer);
+    this.currentPassBuffer = Buffer3.Create(1 * 4, 0 /* STORAGE */);
+    const sampler = TextureSampler.Create({ magFilter: "nearest", minFilter: "nearest" });
+    this.compute.SetSampler("textureSampler", sampler);
+    this.visibleBuffer = Buffer3.Create(4, 0 /* STORAGE */);
+    this.visibleBuffer.SetArray(new Float32Array([1]));
+    this.nonVisibleBuffer = Buffer3.Create(4, 0 /* STORAGE */);
+    this.nonVisibleBuffer.SetArray(new Float32Array([0]));
+    this.debugBuffer = Buffer3.Create(4 * 4, 0 /* STORAGE */);
+  }
+  execute(resources, inputIndirectMeshInfo, inputIndirectMeshletInfo, inputIndirectObjectInfo, inputMeshletsCount, outputIndirectDrawBuffer, outputIndirectInstanceInfo, outputIsCullingPrepass) {
+    const mainCamera = Camera.mainCamera;
+    if (inputMeshletsCount === 0) return;
+    if (!this.visibilityBuffer) {
+      const visibilityBufferArray = new Float32Array(inputMeshletsCount * 4).fill(1);
+      this.visibilityBuffer = Buffer3.Create(visibilityBufferArray.byteLength, 1 /* STORAGE_WRITE */);
+      this.visibilityBuffer.SetArray(visibilityBufferArray);
+    }
+    if (!this.instanceInfoBuffer) {
+      console.log("inputMeshletsCount", inputMeshletsCount);
+      this.instanceInfoBuffer = Buffer3.Create(inputMeshletsCount * 1 * 4, 1 /* STORAGE_WRITE */);
+      this.instanceInfoBuffer.name = "instanceInfoBuffer";
+    }
+    this.compute.SetBuffer("meshletInfo", inputIndirectMeshletInfo);
+    this.compute.SetBuffer("meshInfo", inputIndirectMeshInfo);
+    this.compute.SetBuffer("objectInfo", inputIndirectObjectInfo);
+    this.compute.SetBuffer("instanceInfo", this.instanceInfoBuffer);
+    this.compute.SetBuffer("visibilityBuffer", this.visibilityBuffer);
+    this.frustum.setFromProjectionMatrix(mainCamera.projectionMatrix);
+    const cullDataArray = new Float32Array([
+      ...mainCamera.projectionMatrix.elements,
+      ...mainCamera.viewMatrix.elements,
+      ...mainCamera.transform.position.elements,
+      0,
+      ...this.frustum.planes[0].normal.elements,
+      this.frustum.planes[0].constant,
+      ...this.frustum.planes[1].normal.elements,
+      this.frustum.planes[1].constant,
+      ...this.frustum.planes[2].normal.elements,
+      this.frustum.planes[2].constant,
+      ...this.frustum.planes[3].normal.elements,
+      this.frustum.planes[3].constant,
+      ...this.frustum.planes[4].normal.elements,
+      this.frustum.planes[4].constant,
+      ...this.frustum.planes[5].normal.elements,
+      this.frustum.planes[5].constant,
+      inputMeshletsCount,
+      0,
+      Renderer.width,
+      Renderer.height,
+      0,
+      0,
+      mainCamera.near,
+      mainCamera.far,
+      ...mainCamera.projectionMatrix.clone().transpose().elements
+    ]);
+    if (!this.cullData) {
+      this.cullData = Buffer3.Create(cullDataArray.byteLength, 0 /* STORAGE */);
+      this.cullData.name = "cullData";
+      this.compute.SetBuffer("cullData", this.cullData);
+    }
+    this.cullData.SetArray(cullDataArray);
+    const settings = new Float32Array([
+      +Debugger.isFrustumCullingEnabled,
+      +Debugger.isBackFaceCullingEnabled,
+      +Debugger.isOcclusionCullingEnabled,
+      +Debugger.isSmallFeaturesCullingEnabled,
+      Debugger.staticLOD,
+      Debugger.dynamicLODErrorThreshold,
+      +Debugger.isDynamicLODEnabled,
+      +Debugger.viewInstanceColors,
+      Meshlet.max_triangles,
+      0,
+      0,
+      0
+    ]);
+    this.compute.SetArray("settings", settings);
+    const depthTexturePyramid = resources.getResource(PassParams.depthTexturePyramid);
+    this.compute.SetTexture("depthTexture", depthTexturePyramid);
+    this.compute.SetBuffer("bPrepass", this.currentPassBuffer);
+    RendererContext.CopyBufferToBuffer(this.drawIndirectBuffer, this.debugBuffer);
+    RendererContext.ClearBuffer(this.drawIndirectBuffer);
+    if (this.isPrePass === true) RendererContext.CopyBufferToBuffer(this.visibleBuffer, this.currentPassBuffer);
+    else RendererContext.CopyBufferToBuffer(this.nonVisibleBuffer, this.currentPassBuffer);
+    const dispatchSizeX = Math.ceil(Math.cbrt(inputMeshletsCount) / 4);
+    const dispatchSizeY = Math.ceil(Math.cbrt(inputMeshletsCount) / 4);
+    const dispatchSizeZ = Math.ceil(Math.cbrt(inputMeshletsCount) / 4);
+    ComputeContext.BeginComputePass(`Culling - prepass: ${+this.isPrePass}`, true);
+    ComputeContext.Dispatch(this.compute, dispatchSizeX, dispatchSizeY, dispatchSizeZ);
+    ComputeContext.EndComputePass();
+    resources.setResource(outputIsCullingPrepass, this.isPrePass);
+    this.isPrePass = !this.isPrePass;
+    resources.setResource(outputIndirectDrawBuffer, this.drawIndirectBuffer);
+    resources.setResource(outputIndirectInstanceInfo, this.instanceInfoBuffer);
+    this.debugBuffer.GetData().then((v) => {
+      const visibleMeshCount = new Uint32Array(v)[1];
+      Debugger.SetVisibleMeshes(visibleMeshCount);
+      Debugger.SetTriangleCount(Meshlet.max_triangles * inputMeshletsCount);
+      Debugger.SetVisibleTriangleCount(Meshlet.max_triangles * visibleMeshCount);
+    });
+  }
+};
+
+// src/renderer/passes/TextureViewer.ts
+var TextureViewer = class extends RenderPass {
+  name = "TextureViewer";
+  shader;
+  quadGeometry;
+  constructor() {
+    super({ inputs: [PassParams.LightingPassOutput] });
+    this.init();
+  }
+  async init() {
+    const code = `
+        struct VertexInput {
+            @location(0) position : vec2<f32>,
+            @location(1) uv : vec2<f32>,
+        };
+
+        struct VertexOutput {
+            @builtin(position) position : vec4<f32>,
+            @location(0) vUv : vec2<f32>,
+        };
+
+        @group(0) @binding(0) var textureSampler: sampler;
+        @group(0) @binding(1) var texture: texture_2d<f32>;
+        
+        @vertex fn vertexMain(input: VertexInput) -> VertexOutput {
+            var output: VertexOutput;
+            output.position = vec4(input.position, 0.0, 1.0);
+            output.vUv = input.uv;
+            return output;
+        }
+        
+        @fragment fn fragmentMain(input: VertexOutput) -> @location(0) vec4f {
+            let uv = input.vUv;
+
+            let shadowMap = textureSampleLevel(texture, textureSampler, uv, 0);
+            return vec4(shadowMap);
+        }
+        `;
+    this.shader = await Shader.Create({
+      code,
+      colorOutputs: [{ format: Renderer.SwapChainFormat }],
+      attributes: {
+        position: { location: 0, size: 3, type: "vec3" },
+        uv: { location: 1, size: 2, type: "vec2" }
+      },
+      uniforms: {
+        textureSampler: { group: 0, binding: 0, type: "sampler" },
+        shadowMapTexture: { group: 0, binding: 1, type: "texture" }
+      }
+    });
+    this.quadGeometry = Geometry.Plane();
+    const sampler = TextureSampler.Create();
+    this.shader.SetSampler("textureSampler", sampler);
+    this.initialized = true;
+  }
+  execute(resources, texture) {
+    if (this.initialized === false) return;
+    this.shader.SetTexture("shadowMapTexture", texture);
+    RendererContext.BeginRenderPass("TextureViewer", [{ clear: false }], void 0, true);
+    RendererContext.DrawGeometry(this.quadGeometry, this.shader);
+    RendererContext.EndRenderPass();
+  }
+};
+
+// src/components/Mesh.ts
+var Mesh = class extends Component {
+  geometry;
+  materialsMapped = /* @__PURE__ */ new Map();
+  enableShadows = true;
+  Start() {
+  }
+  AddMaterial(material) {
+    if (!this.materialsMapped.has(material.constructor.name)) this.materialsMapped.set(material.constructor.name, []);
+    this.materialsMapped.get(material.constructor.name)?.push(material);
+  }
+  GetMaterials(type) {
+    return this.materialsMapped.get(type.name) || [];
+  }
+  SetGeometry(geometry) {
+    this.geometry = geometry;
+  }
+  GetGeometry() {
+    return this.geometry;
+  }
+};
+
+// src/renderer/passes/Forward.ts
+var Forward = class extends RenderPass {
+  name = "Forward";
+  params;
+  forwardMeshes = /* @__PURE__ */ new Map();
+  constructor() {
+    super({});
+    const code = `
+        struct VertexInput {
+            @location(0) position : vec3<f32>,
+        };
+
+        struct VertexOutput {
+            @builtin(position) position : vec4<f32>,
+        };
+
+        @group(0) @binding(0) var<storage, read> projectionMatrix: mat4x4<f32>;
+        @group(0) @binding(1) var<storage, read> viewMatrix: mat4x4<f32>;
+        @group(0) @binding(2) var<storage, read> modelMatrix: mat4x4<f32>;
+
+        @vertex fn vertexMain(input: VertexInput) -> VertexOutput {
+            var output: VertexOutput;
+            output.position = projectionMatrix * viewMatrix * modelMatrix * vec4(input.position, 1.0);
+            return output;
+        }
+        
+        @fragment fn fragmentMain(input: VertexOutput) -> @location(0) vec4f {
+            return vec4(1.0, 0.0, 0.0, 1.0);
+        }
+        `;
+    this.params = {
+      code,
+      colorOutputs: [{ format: Renderer.SwapChainFormat }],
+      attributes: {
+        position: { location: 0, size: 3, type: "vec3" }
+      },
+      uniforms: {
+        projectionMatrix: { group: 0, binding: 0, type: "storage" },
+        viewMatrix: { group: 0, binding: 1, type: "storage" },
+        modelMatrix: { group: 0, binding: 2, type: "storage" }
+      }
+    };
+  }
+  execute(resources) {
+    const mainCamera = Camera.mainCamera;
+    const scene = mainCamera.gameObject.scene;
+    const sceneMeshlets = [...scene.GetComponents(Mesh)];
+    let drawCount = 0;
+    RendererContext.BeginRenderPass("Forward", [{ clear: false }], void 0, true);
+    for (const meshlet of sceneMeshlets) {
+      let forwardMesh = this.forwardMeshes.get(meshlet.id);
+      if (!forwardMesh) {
+        const newForwardMesh = {
+          shader: void 0,
+          modelMatrix: Buffer3.Create(4 * 16, 0 /* STORAGE */)
+        };
+        Shader.Create(this.params).then((shader) => {
+          newForwardMesh.shader = shader;
+          newForwardMesh.shader.SetBuffer("modelMatrix", newForwardMesh.modelMatrix);
+        });
+        this.forwardMeshes.set(meshlet.id, newForwardMesh);
+        forwardMesh = newForwardMesh;
+      }
+      if (forwardMesh?.shader) {
+        forwardMesh.shader.SetMatrix4("projectionMatrix", mainCamera.projectionMatrix);
+        forwardMesh.shader.SetMatrix4("viewMatrix", mainCamera.viewMatrix);
+        forwardMesh.modelMatrix.SetArray(meshlet.transform.localToWorldMatrix.elements);
+        RendererContext.DrawGeometry(meshlet.GetGeometry(), forwardMesh.shader);
+      }
+      drawCount++;
+    }
+    RendererContext.EndRenderPass();
   }
 };
 
@@ -4350,533 +4782,6 @@ var Meshoptimizer = class _Meshoptimizer {
       8 * Float32Array.BYTES_PER_ELEMENT
     );
     return scale;
-  }
-};
-
-// src/plugins/meshlets/Meshlet.ts
-var Meshlet = class _Meshlet {
-  static max_triangles = 128;
-  vertices;
-  indices;
-  id = Utils.UUID();
-  lod;
-  children;
-  parents;
-  _boundingVolume;
-  get boundingVolume() {
-    if (!this._boundingVolume) this._boundingVolume = Meshoptimizer.meshopt_computeClusterBounds(this.vertices, this.indices);
-    return this._boundingVolume;
-  }
-  set boundingVolume(boundingVolume) {
-    this._boundingVolume = boundingVolume;
-  }
-  // public boundingVolume: meshopt_Bounds;
-  parentBoundingVolume;
-  parentError = Infinity;
-  clusterError = 0;
-  vertices_gpu;
-  crc;
-  bounds;
-  constructor(vertices, indices) {
-    this.vertices = vertices;
-    this.indices = indices;
-    this.lod = 0;
-    this.children = [];
-    this.parents = [];
-    this.bounds = BoundingVolume.FromVertices(this.vertices);
-    const verticesNonIndexed = _Meshlet.convertBufferAttributeToNonIndexed(this.vertices, this.indices, 3, true, 8, 0);
-    const normalsNonIndexed = _Meshlet.convertBufferAttributeToNonIndexed(this.vertices, this.indices, 3, true, 8, 3);
-    const uvsNonIndexed = _Meshlet.convertBufferAttributeToNonIndexed(this.vertices, this.indices, 2, true, 8, 6);
-    const interleaved = InterleavedVertexAttribute.fromArrays([verticesNonIndexed, normalsNonIndexed, uvsNonIndexed], [3, 3, 2]);
-    const verticesGPU = [];
-    for (let i = 0; i < interleaved.array.length; i += 8) {
-      verticesGPU.push(
-        interleaved.array[i + 0],
-        interleaved.array[i + 1],
-        interleaved.array[i + 2],
-        0,
-        interleaved.array[i + 3],
-        interleaved.array[i + 4],
-        interleaved.array[i + 5],
-        0,
-        interleaved.array[i + 6],
-        interleaved.array[i + 7],
-        0,
-        0
-      );
-    }
-    this.vertices_gpu = new Float32Array(_Meshlet.max_triangles * (4 + 4 + 4) * 3);
-    this.vertices_gpu.set(verticesGPU.slice(0, _Meshlet.max_triangles * (4 + 4 + 4) * 3));
-    this.crc = CRC32.forBytes(new Uint8Array(this.vertices_gpu.buffer));
-  }
-  static convertBufferAttributeToNonIndexed(attribute, indices, itemSize, isInterleaved = false, stride = 3, offset = 0) {
-    if (!attribute) throw Error("Invalid attribute");
-    const array = attribute;
-    const array2 = new Float32Array(indices.length * itemSize);
-    let index = 0, index2 = 0;
-    for (let i = 0, l = indices.length; i < l; i++) {
-      if (isInterleaved === true) index = indices[i] * stride + offset;
-      else index = indices[i] * itemSize;
-      for (let j = 0; j < itemSize; j++) {
-        array2[index2++] = array[index++];
-      }
-    }
-    return array2;
-  }
-};
-
-// src/renderer/passes/HiZPass.ts
-var HiZPass = class extends RenderPass {
-  name = "HiZPass";
-  shader;
-  quadGeometry;
-  debugDepthTexture;
-  inputTexture;
-  targetTextures = [];
-  // TODO: This should be next powerOf2 for SwapChain dims
-  depthWidth = 512;
-  depthHeight = 512;
-  depthLevels;
-  passBuffers = [];
-  currentBuffer;
-  initialized = false;
-  blitShader;
-  constructor() {
-    super({
-      inputs: [PassParams.depthTexture],
-      outputs: [PassParams.depthTexturePyramid]
-    });
-    this.init();
-  }
-  async init() {
-    this.shader = await Shader.Create({
-      code: await ShaderLoader.DepthDownsample,
-      attributes: {
-        position: { location: 0, size: 3, type: "vec3" },
-        normal: { location: 1, size: 3, type: "vec3" },
-        uv: { location: 2, size: 2, type: "vec2" }
-      },
-      colorOutputs: [],
-      depthOutput: "depth24plus",
-      uniforms: {
-        depthTextureInputSampler: { group: 0, binding: 0, type: "sampler" },
-        depthTextureInput: { group: 0, binding: 1, type: "depthTexture" },
-        currentMip: { group: 0, binding: 2, type: "storage" }
-      }
-    });
-    this.quadGeometry = Geometry.Plane();
-    let w = this.depthWidth;
-    let h = this.depthHeight;
-    let level = 0;
-    while (w > 1) {
-      this.targetTextures.push(DepthTexture.Create(w, h));
-      const passBuffer = Buffer3.Create(4 * 4, 0 /* STORAGE */);
-      passBuffer.SetArray(new Float32Array([level]));
-      this.passBuffers.push(passBuffer);
-      w /= 2;
-      h /= 2;
-      level++;
-    }
-    this.depthLevels = level;
-    this.inputTexture = DepthTexture.Create(this.depthWidth, this.depthHeight, 1, "depth24plus", level);
-    this.inputTexture.SetActiveMip(0);
-    this.inputTexture.SetActiveMipCount(level);
-    const Sampler = TextureSampler.Create({ magFilter: "nearest", minFilter: "nearest" });
-    this.shader.SetSampler("depthTextureInputSampler", Sampler);
-    this.shader.SetTexture("depthTextureInput", this.inputTexture);
-    this.debugDepthTexture = this.inputTexture;
-    this.currentBuffer = Buffer3.Create(4 * 4, 0 /* STORAGE */);
-    console.log("mips", level);
-    this.blitShader = await Shader.Create({
-      code: await ShaderLoader.BlitDepth,
-      colorOutputs: [],
-      depthOutput: "depth24plus",
-      attributes: {
-        position: { location: 0, size: 3, type: "vec3" },
-        normal: { location: 1, size: 3, type: "vec3" },
-        uv: { location: 2, size: 2, type: "vec2" }
-      },
-      uniforms: {
-        texture: { group: 0, binding: 0, type: "depthTexture" },
-        textureSampler: { group: 0, binding: 1, type: "sampler" },
-        mip: { group: 0, binding: 2, type: "storage" }
-      }
-    });
-    const blitSampler = TextureSampler.Create();
-    this.blitShader.SetSampler("textureSampler", blitSampler);
-    this.blitShader.SetValue("mip", 0);
-    this.initialized = true;
-  }
-  execute(resources, inputDepthTexture, outputDepthTexturePyramid) {
-    if (this.initialized === false) return;
-    let currentLevel = 0;
-    let currentTarget = this.targetTextures[currentLevel];
-    this.blitShader.SetTexture("texture", inputDepthTexture);
-    RendererContext.BeginRenderPass("HiZ - First mip", [], { target: currentTarget, clear: true }, true);
-    RendererContext.DrawGeometry(this.quadGeometry, this.blitShader);
-    RendererContext.EndRenderPass();
-    RendererContext.CopyTextureToTexture(currentTarget, this.inputTexture, 0, currentLevel);
-    this.shader.SetBuffer("currentMip", this.currentBuffer);
-    for (let i = 0; i < this.targetTextures.length - 1; i++) {
-      let levelBuffer = this.passBuffers[currentLevel];
-      currentLevel++;
-      currentTarget = this.targetTextures[currentLevel];
-      RendererContext.CopyBufferToBuffer(levelBuffer, this.currentBuffer);
-      RendererContext.BeginRenderPass("HiZ - DepthPyramid", [], { target: currentTarget, clear: true }, true);
-      RendererContext.DrawGeometry(this.quadGeometry, this.shader);
-      RendererContext.EndRenderPass();
-      RendererContext.CopyTextureToTexture(currentTarget, this.inputTexture, 0, currentLevel);
-    }
-    resources.setResource(outputDepthTexturePyramid, this.inputTexture);
-  }
-};
-
-// src/renderer/passes/IndirectGBufferPass.ts
-var IndirectGBufferPass = class extends RenderPass {
-  name = "IndirectGBufferPass";
-  shader;
-  geometry;
-  initialized;
-  gBufferAlbedoRT;
-  gBufferNormalRT;
-  gBufferERMORT;
-  depthTexture;
-  constructor() {
-    super({
-      inputs: [
-        PassParams.indirectVertices,
-        PassParams.indirectInstanceInfo,
-        PassParams.indirectMeshInfo,
-        PassParams.indirectObjectInfo,
-        PassParams.indirectDrawBuffer,
-        PassParams.textureMaps,
-        PassParams.isCullingPrepass
-      ],
-      outputs: [
-        PassParams.depthTexture,
-        PassParams.GBufferAlbedo,
-        PassParams.GBufferNormal,
-        PassParams.GBufferERMO,
-        PassParams.GBufferDepth
-      ]
-    });
-    this.init();
-  }
-  async init() {
-    this.shader = await Shader.Create({
-      code: await ShaderLoader.DrawIndirect,
-      colorOutputs: [
-        { format: "rgba16float" },
-        { format: "rgba16float" },
-        { format: "rgba16float" }
-      ],
-      depthOutput: "depth24plus",
-      attributes: {
-        position: { location: 0, size: 3, type: "vec3" }
-      },
-      uniforms: {
-        viewMatrix: { group: 0, binding: 0, type: "storage" },
-        projectionMatrix: { group: 0, binding: 1, type: "storage" },
-        instanceInfo: { group: 0, binding: 2, type: "storage" },
-        meshInfo: { group: 0, binding: 3, type: "storage" },
-        objectInfo: { group: 0, binding: 4, type: "storage" },
-        settings: { group: 0, binding: 5, type: "storage" },
-        vertices: { group: 0, binding: 6, type: "storage" },
-        textureSampler: { group: 0, binding: 7, type: "sampler" },
-        albedoMaps: { group: 0, binding: 8, type: "texture" },
-        normalMaps: { group: 0, binding: 9, type: "texture" },
-        heightMaps: { group: 0, binding: 10, type: "texture" }
-      }
-    });
-    this.geometry = new Geometry();
-    this.geometry.attributes.set("position", new VertexAttribute(new Float32Array(Meshlet.max_triangles * 3)));
-    const materialSampler = TextureSampler.Create();
-    this.shader.SetSampler("textureSampler", materialSampler);
-    this.depthTexture = DepthTexture.Create(Renderer.width, Renderer.height);
-    this.gBufferAlbedoRT = RenderTexture.Create(Renderer.width, Renderer.height, 1, "rgba16float");
-    this.gBufferNormalRT = RenderTexture.Create(Renderer.width, Renderer.height, 1, "rgba16float");
-    this.gBufferERMORT = RenderTexture.Create(Renderer.width, Renderer.height, 1, "rgba16float");
-    this.initialized = true;
-  }
-  execute(resources, inputIndirectVertices, inputIndirectInstanceInfo, inputIndirectMeshInfo, inputIndirectObjectInfo, inputIndirectDrawBuffer, textureMaps, inputIsCullingPrepass, outputDepthTexture, outputGBufferAlbedo, outputGBufferNormal, outputGBufferERMO, outputGBufferDepth) {
-    if (!this.initialized) return;
-    const mainCamera = Camera.mainCamera;
-    this.shader.SetMatrix4("viewMatrix", mainCamera.viewMatrix);
-    this.shader.SetMatrix4("projectionMatrix", mainCamera.projectionMatrix);
-    this.shader.SetBuffer("vertices", inputIndirectVertices);
-    this.shader.SetBuffer("meshInfo", inputIndirectMeshInfo);
-    this.shader.SetBuffer("objectInfo", inputIndirectObjectInfo);
-    this.shader.SetBuffer("instanceInfo", inputIndirectInstanceInfo);
-    this.shader.SetTexture("albedoMaps", textureMaps.albedo);
-    this.shader.SetTexture("normalMaps", textureMaps.normal);
-    this.shader.SetTexture("heightMaps", textureMaps.height);
-    const settings = new Float32Array([
-      +Debugger.isFrustumCullingEnabled,
-      +Debugger.isBackFaceCullingEnabled,
-      +Debugger.isOcclusionCullingEnabled,
-      +Debugger.isSmallFeaturesCullingEnabled,
-      Debugger.staticLOD,
-      Debugger.dynamicLODErrorThreshold,
-      +Debugger.isDynamicLODEnabled,
-      +Debugger.viewInstanceColors,
-      Meshlet.max_triangles,
-      0,
-      0,
-      0
-    ]);
-    this.shader.SetArray("settings", settings);
-    const colorTargets = [
-      { target: this.gBufferAlbedoRT, clear: inputIsCullingPrepass },
-      { target: this.gBufferNormalRT, clear: inputIsCullingPrepass },
-      { target: this.gBufferERMORT, clear: inputIsCullingPrepass }
-    ];
-    RendererContext.BeginRenderPass(`IGBuffer - prepass: ${+inputIsCullingPrepass}`, colorTargets, { target: this.depthTexture, clear: inputIsCullingPrepass }, true);
-    RendererContext.DrawIndirect(this.geometry, this.shader, inputIndirectDrawBuffer);
-    RendererContext.EndRenderPass();
-    resources.setResource(outputDepthTexture, this.depthTexture);
-    resources.setResource(outputDepthTexture, this.depthTexture);
-    resources.setResource(outputGBufferDepth, this.depthTexture);
-    resources.setResource(outputGBufferAlbedo, this.gBufferAlbedoRT);
-    resources.setResource(outputGBufferNormal, this.gBufferNormalRT);
-    resources.setResource(outputGBufferERMO, this.gBufferERMORT);
-  }
-};
-
-// src/renderer/passes/CullingPass.ts
-var CullingPass = class extends RenderPass {
-  name = "CullingPass";
-  drawIndirectBuffer;
-  compute;
-  cullData;
-  frustum = new Frustum();
-  currentPassBuffer;
-  visibleBuffer;
-  nonVisibleBuffer;
-  visibilityBuffer;
-  instanceInfoBuffer;
-  // TODO: To split this ones (into RenderPipeline) need to change the RenderGraph to have a setup phase
-  // because the HiZPass depthPyramid only runs after CullingPass has run.
-  hizPass;
-  indirectGBufferPass;
-  constructor() {
-    super({
-      inputs: [
-        PassParams.indirectVertices,
-        PassParams.indirectMeshInfo,
-        PassParams.indirectMeshletInfo,
-        PassParams.indirectObjectInfo,
-        PassParams.meshletsCount
-      ],
-      outputs: [
-        PassParams.indirectDrawBuffer,
-        PassParams.indirectInstanceInfo,
-        PassParams.isCullingPrepass,
-        PassParams.GBufferAlbedo,
-        PassParams.GBufferNormal,
-        PassParams.GBufferERMO,
-        PassParams.GBufferDepth,
-        PassParams.GBufferDepth
-      ]
-    });
-    this.init();
-  }
-  async init() {
-    this.compute = await Compute.Create({
-      code: await ShaderLoader.Cull,
-      computeEntrypoint: "main",
-      uniforms: {
-        drawBuffer: { group: 0, binding: 0, type: "storage-write" },
-        instanceInfo: { group: 0, binding: 1, type: "storage-write" },
-        cullData: { group: 0, binding: 2, type: "storage" },
-        meshletInfo: { group: 0, binding: 3, type: "storage" },
-        meshInfo: { group: 0, binding: 4, type: "storage" },
-        objectInfo: { group: 0, binding: 5, type: "storage" },
-        visibilityBuffer: { group: 0, binding: 6, type: "storage-write" },
-        bPrepass: { group: 0, binding: 7, type: "storage" },
-        textureSampler: { group: 0, binding: 8, type: "sampler" },
-        depthTexture: { group: 0, binding: 9, type: "depthTexture" },
-        settings: { group: 0, binding: 10, type: "storage" }
-      }
-    });
-    this.drawIndirectBuffer = Buffer3.Create(4 * 4, 5 /* INDIRECT */);
-    this.drawIndirectBuffer.name = "drawIndirectBuffer";
-    this.compute.SetBuffer("drawBuffer", this.drawIndirectBuffer);
-    this.currentPassBuffer = Buffer3.Create(1 * 4, 0 /* STORAGE */);
-    const sampler = TextureSampler.Create({ magFilter: "nearest", minFilter: "nearest" });
-    this.compute.SetSampler("textureSampler", sampler);
-    this.hizPass = new HiZPass();
-    this.indirectGBufferPass = new IndirectGBufferPass();
-    this.visibleBuffer = Buffer3.Create(4, 0 /* STORAGE */);
-    this.visibleBuffer.SetArray(new Float32Array([1]));
-    this.nonVisibleBuffer = Buffer3.Create(4, 0 /* STORAGE */);
-    this.nonVisibleBuffer.SetArray(new Float32Array([0]));
-    this.initialized = true;
-  }
-  generateDrawsPass(meshletsCount, prepass) {
-    const dispatchSizeX = Math.ceil(Math.cbrt(meshletsCount) / 4);
-    const dispatchSizeY = Math.ceil(Math.cbrt(meshletsCount) / 4);
-    const dispatchSizeZ = Math.ceil(Math.cbrt(meshletsCount) / 4);
-    ComputeContext.BeginComputePass(`Culling - prepass: ${+prepass}`, true);
-    ComputeContext.Dispatch(this.compute, dispatchSizeX, dispatchSizeY, dispatchSizeZ);
-    ComputeContext.EndComputePass();
-  }
-  execute(resources, inputIndirectVertices, inputIndirectMeshInfo, inputIndirectMeshletInfo, inputIndirectObjectInfo, inputMeshletsCount, outputIndirectDrawBuffer, outputIndirectInstanceInfo, outputIsCullingPrepass) {
-    if (this.initialized === false) return;
-    if (this.hizPass.initialized === false) return;
-    if (this.indirectGBufferPass.initialized === false) return;
-    const mainCamera = Camera.mainCamera;
-    if (inputMeshletsCount === 0) return;
-    if (!this.visibilityBuffer) {
-      const visibilityBufferArray = new Float32Array(inputMeshletsCount * 4).fill(1);
-      this.visibilityBuffer = Buffer3.Create(visibilityBufferArray.byteLength, 1 /* STORAGE_WRITE */);
-      this.visibilityBuffer.SetArray(visibilityBufferArray);
-    }
-    if (!this.instanceInfoBuffer) {
-      this.instanceInfoBuffer = Buffer3.Create(inputMeshletsCount * 1 * 4, 1 /* STORAGE_WRITE */);
-      this.instanceInfoBuffer.name = "instanceInfoBuffer";
-    }
-    this.compute.SetBuffer("meshletInfo", inputIndirectMeshletInfo);
-    this.compute.SetBuffer("meshInfo", inputIndirectMeshInfo);
-    this.compute.SetBuffer("objectInfo", inputIndirectObjectInfo);
-    this.compute.SetBuffer("instanceInfo", this.instanceInfoBuffer);
-    this.compute.SetBuffer("visibilityBuffer", this.visibilityBuffer);
-    this.frustum.setFromProjectionMatrix(mainCamera.projectionMatrix);
-    const cullDataArray = new Float32Array([
-      ...mainCamera.projectionMatrix.elements,
-      ...mainCamera.viewMatrix.elements,
-      ...mainCamera.transform.position.elements,
-      0,
-      ...this.frustum.planes[0].normal.elements,
-      this.frustum.planes[0].constant,
-      ...this.frustum.planes[1].normal.elements,
-      this.frustum.planes[1].constant,
-      ...this.frustum.planes[2].normal.elements,
-      this.frustum.planes[2].constant,
-      ...this.frustum.planes[3].normal.elements,
-      this.frustum.planes[3].constant,
-      ...this.frustum.planes[4].normal.elements,
-      this.frustum.planes[4].constant,
-      ...this.frustum.planes[5].normal.elements,
-      this.frustum.planes[5].constant,
-      inputMeshletsCount,
-      0,
-      Renderer.width,
-      Renderer.height,
-      0,
-      0,
-      mainCamera.near,
-      mainCamera.far,
-      ...mainCamera.projectionMatrix.clone().transpose().elements
-    ]);
-    if (!this.cullData) {
-      this.cullData = Buffer3.Create(cullDataArray.byteLength, 0 /* STORAGE */);
-      this.cullData.name = "cullData";
-      this.compute.SetBuffer("cullData", this.cullData);
-    }
-    this.cullData.SetArray(cullDataArray);
-    const settings = new Float32Array([
-      +Debugger.isFrustumCullingEnabled,
-      +Debugger.isBackFaceCullingEnabled,
-      +Debugger.isOcclusionCullingEnabled,
-      +Debugger.isSmallFeaturesCullingEnabled,
-      Debugger.staticLOD,
-      Debugger.dynamicLODErrorThreshold,
-      +Debugger.isDynamicLODEnabled,
-      +Debugger.viewInstanceColors,
-      Meshlet.max_triangles,
-      0,
-      0,
-      0
-    ]);
-    this.compute.SetArray("settings", settings);
-    this.compute.SetTexture("depthTexture", this.hizPass.debugDepthTexture);
-    this.compute.SetBuffer("bPrepass", this.currentPassBuffer);
-    const textureMaps = resources.getResource(PassParams.textureMaps);
-    RendererContext.ClearBuffer(this.drawIndirectBuffer);
-    RendererContext.CopyBufferToBuffer(this.visibleBuffer, this.currentPassBuffer);
-    this.generateDrawsPass(inputMeshletsCount, true);
-    this.indirectGBufferPass.execute(resources, inputIndirectVertices, this.instanceInfoBuffer, inputIndirectMeshInfo, inputIndirectObjectInfo, this.drawIndirectBuffer, textureMaps, true, PassParams.depthTexture, PassParams.GBufferAlbedo, PassParams.GBufferNormal, PassParams.GBufferERMO, PassParams.GBufferDepth);
-    this.hizPass.execute(resources, this.indirectGBufferPass.depthTexture, PassParams.depthTexturePyramid);
-    RendererContext.ClearBuffer(this.drawIndirectBuffer);
-    RendererContext.CopyBufferToBuffer(this.nonVisibleBuffer, this.currentPassBuffer);
-    this.generateDrawsPass(inputMeshletsCount, false);
-    this.indirectGBufferPass.execute(resources, inputIndirectVertices, this.instanceInfoBuffer, inputIndirectMeshInfo, inputIndirectObjectInfo, this.drawIndirectBuffer, textureMaps, false, PassParams.depthTexture, PassParams.GBufferAlbedo, PassParams.GBufferNormal, PassParams.GBufferERMO, PassParams.GBufferDepth);
-    resources.setResource(outputIndirectDrawBuffer, this.drawIndirectBuffer);
-    resources.setResource(outputIndirectInstanceInfo, this.instanceInfoBuffer);
-    let prepass = resources.getResource(outputIsCullingPrepass);
-    if (prepass === void 0) prepass = false;
-    else prepass = !prepass;
-    resources.setResource(outputIsCullingPrepass, prepass);
-    this.drawIndirectBuffer.GetData().then((v) => {
-      const visibleMeshCount = new Uint32Array(v)[1];
-      Debugger.SetVisibleMeshes(visibleMeshCount);
-      Debugger.SetTriangleCount(Meshlet.max_triangles * inputMeshletsCount);
-      Debugger.SetVisibleTriangleCount(Meshlet.max_triangles * visibleMeshCount);
-    });
-  }
-};
-
-// src/renderer/passes/TextureViewer.ts
-var TextureViewer = class extends RenderPass {
-  name = "TextureViewer";
-  shader;
-  quadGeometry;
-  constructor() {
-    super({ inputs: [PassParams.LightingPassOutput] });
-    this.init();
-  }
-  async init() {
-    const code = `
-        struct VertexInput {
-            @location(0) position : vec2<f32>,
-            @location(1) uv : vec2<f32>,
-        };
-
-        struct VertexOutput {
-            @builtin(position) position : vec4<f32>,
-            @location(0) vUv : vec2<f32>,
-        };
-
-        @group(0) @binding(0) var textureSampler: sampler;
-        @group(0) @binding(1) var texture: texture_2d<f32>;
-        
-        @vertex fn vertexMain(input: VertexInput) -> VertexOutput {
-            var output: VertexOutput;
-            output.position = vec4(input.position, 0.0, 1.0);
-            output.vUv = input.uv;
-            return output;
-        }
-        
-        @fragment fn fragmentMain(input: VertexOutput) -> @location(0) vec4f {
-            let uv = input.vUv;
-
-            let shadowMap = textureSampleLevel(texture, textureSampler, uv, 0);
-            return vec4(shadowMap);
-        }
-        `;
-    this.shader = await Shader.Create({
-      code,
-      colorOutputs: [{ format: Renderer.SwapChainFormat }],
-      attributes: {
-        position: { location: 0, size: 3, type: "vec3" },
-        uv: { location: 1, size: 2, type: "vec2" }
-      },
-      uniforms: {
-        textureSampler: { group: 0, binding: 0, type: "sampler" },
-        shadowMapTexture: { group: 0, binding: 1, type: "texture" }
-      }
-    });
-    this.quadGeometry = Geometry.Plane();
-    const sampler = TextureSampler.Create();
-    this.shader.SetSampler("textureSampler", sampler);
-    this.initialized = true;
-  }
-  execute(resources, texture) {
-    if (this.initialized === false) return;
-    this.shader.SetTexture("shadowMapTexture", texture);
-    RendererContext.BeginRenderPass("TextureViewer", [{ clear: false }], void 0, true);
-    RendererContext.DrawGeometry(this.quadGeometry, this.shader);
-    RendererContext.EndRenderPass();
   }
 };
 
@@ -7640,6 +7545,10 @@ var Metis = class _Metis {
     const parts = new WASMPointer(new Uint32Array(_xadj.length - 1), "out");
     const options_array = new Int32Array(40);
     options_array.fill(-1);
+    options_array[2] = 0;
+    options_array[12] = 1;
+    options_array[14] = 1;
+    options_array[18] = 0;
     WASMHelper.call(
       _Metis.METIS,
       "METIS_PartGraphKway",
@@ -7804,7 +7713,48 @@ var MeshletGrouper = class _MeshletGrouper {
 };
 
 // src/plugins/meshlets/utils/MeshletMerger.ts
+var Vertex = class {
+  position;
+  normal;
+  uv;
+  constructor(position, normal, uv) {
+    this.position = position;
+    this.normal = normal;
+    this.uv = uv;
+  }
+};
 var MeshletMerger = class {
+  static removeDuplicateVertices(vertexData, indexData) {
+    const vertexMap = /* @__PURE__ */ new Map();
+    const uniqueVertices = [];
+    const newIndices = [];
+    var precisionPoints = 4;
+    var precision = Math.pow(10, precisionPoints);
+    for (let i = 0; i < indexData.length; i++) {
+      const index = indexData[i];
+      const pos = vertexData.subarray(index * 8, index * 8 + 3);
+      const norm = vertexData.subarray(index * 8 + 3, index * 8 + 6);
+      const uv = vertexData.subarray(index * 8 + 6, index * 8 + 8);
+      const vertex = new Vertex(Array.from(pos), Array.from(norm), Array.from(uv));
+      const vertexKey = Math.round(vertex.position[0] * precision) + "_" + Math.round(vertex.position[1] * precision) + "_" + Math.round(vertex.position[2] * precision);
+      if (vertexMap.has(vertexKey)) {
+        newIndices.push(vertexMap.get(vertexKey));
+      } else {
+        const newIndex = uniqueVertices.length;
+        uniqueVertices.push(vertex);
+        vertexMap.set(vertexKey, newIndex);
+        newIndices.push(newIndex);
+      }
+    }
+    const newVertexData = new Float32Array(uniqueVertices.length * 8);
+    uniqueVertices.forEach((v, index) => {
+      newVertexData.set([...v.position, ...v.normal, ...v.uv], index * 8);
+    });
+    return {
+      vertices: newVertexData,
+      indices: new Uint32Array(newIndices)
+    };
+  }
   static merge(meshlets) {
     const vertices = [];
     const indices = [];
@@ -7819,7 +7769,8 @@ var MeshletMerger = class {
     }
     indices.push(...mergedIndices);
     for (let i = 0; i < meshlets.length; ++i) vertices.push(...meshlets[i].vertices);
-    return new Meshlet(new Float32Array(vertices), new Uint32Array(indices));
+    const { vertices: newVertices, indices: newIndices } = this.removeDuplicateVertices(new Float32Array(vertices), new Uint32Array(indices));
+    return new Meshlet(newVertices, newIndices);
   }
 };
 
@@ -7828,6 +7779,7 @@ var Meshletizer = class {
   static step(meshlets, lod, previousMeshlets) {
     if (meshlets.length === 1 && meshlets[0].vertices.length < Meshlet.max_triangles * 8) return meshlets;
     let nparts = Math.ceil(meshlets.length / 4);
+    if (nparts > 8) nparts = 8;
     let grouped = [meshlets];
     if (nparts > 1) {
       grouped = MeshletGrouper.group(meshlets, nparts);
@@ -7837,7 +7789,9 @@ var Meshletizer = class {
       const group = grouped[i];
       const mergedGroup = MeshletMerger.merge(group);
       const cleanedMergedGroup = Meshoptimizer.clean(mergedGroup);
-      const simplified = Meshoptimizer.meshopt_simplify(cleanedMergedGroup, cleanedMergedGroup.indices.length / 2);
+      const tLod = (lod + 1) / 25;
+      const targetError = 0.1 * tLod + 0.01 * (1 - tLod);
+      const simplified = Meshoptimizer.meshopt_simplify(cleanedMergedGroup, Meshlet.max_triangles, targetError);
       const localScale = Meshoptimizer.meshopt_simplifyScale(simplified.meshlet);
       let meshSpaceError = simplified.error * localScale;
       let childrenError = 0;
@@ -7851,18 +7805,17 @@ var Meshletizer = class {
       for (let split of splits) {
         split.clusterError = meshSpaceError;
         split.boundingVolume = simplified.meshlet.boundingVolume;
+        split.lod = lod + 1;
         previousMeshlets.set(split.id, split);
         splitOutputs.push(split);
         split.parents.push(...group);
       }
       for (let m of group) {
         m.children.push(...splits);
-        m.lod = lod;
         const previousMeshlet = previousMeshlets.get(m.id);
         if (!previousMeshlet) throw Error("Could not find previous meshlet");
         previousMeshlet.parentError = meshSpaceError;
         previousMeshlet.parentBoundingVolume = simplified.meshlet.boundingVolume;
-        previousMeshlet.lod++;
       }
     }
     return splitOutputs;
@@ -7883,9 +7836,6 @@ var Meshletizer = class {
       const outputTriangleCount = outputs.map((m) => m.indices.length / 3);
       const inputVertexCount = inputTriangleCount.reduce((a, b) => a + b);
       const outputVertexCount = outputTriangleCount.reduce((a, b) => a + b);
-      console.log("inputs", inputTriangleCount, inputVertexCount);
-      console.log("outputs", outputTriangleCount, outputVertexCount);
-      console.log(`lod ${lod} has ${outputs.length} meshlets`);
       if (outputVertexCount >= inputVertexCount) {
         for (const input of inputs) {
           if (input.indices.length / 3 > Meshlet.max_triangles) {
@@ -7894,6 +7844,7 @@ var Meshletizer = class {
         }
         break;
       }
+      inputs = outputs;
       if (outputs.length === 1) {
         console.log("WE are done at lod", lod);
         rootMeshlet = outputs[0];
@@ -7901,8 +7852,8 @@ var Meshletizer = class {
         rootMeshlet.parentBoundingVolume = rootMeshlet.boundingVolume;
         break;
       }
-      inputs = outputs;
     }
+    if (inputs.length !== 1) throw Error("Could not simplify up to one root node");
     let meshletsOut = [];
     for (const [_, meshlet] of previousMeshlets) {
       meshletsOut.push(meshlet);
@@ -8011,14 +7962,21 @@ var PrepareSceneData = class extends RenderPass {
     const bv = meshlet.boundingVolume;
     const pbv = meshlet.boundingVolume;
     return [
-      ...bv.cone_apex.elements,
-      0,
-      ...bv.cone_axis.elements,
-      0,
-      bv.cone_cutoff,
       0,
       0,
       0,
+      0,
+      // ...bv.cone_apex.elements, 0,
+      0,
+      0,
+      0,
+      0,
+      // ...bv.cone_axis.elements, 0,
+      0,
+      0,
+      0,
+      0,
+      // bv.cone_cutoff, 0, 0, 0,
       bv.center.x,
       bv.center.y,
       bv.center.z,
@@ -8096,7 +8054,7 @@ var PrepareSceneData = class extends RenderPass {
     return -1;
   }
   createMaterialMap(textures, type) {
-    if (textures.length === 0) return;
+    if (textures.length === 0) return TextureArray.Create(1, 1, 1);
     const w = textures[0].width;
     const h = textures[0].height;
     let materialMap = this.materialMaps.get(type);
@@ -8190,6 +8148,225 @@ var PrepareSceneData = class extends RenderPass {
   }
 };
 
+// src/renderer/passes/IndirectGBufferPass.ts
+var IndirectGBufferPass = class extends RenderPass {
+  name = "IndirectGBufferPass";
+  shader;
+  geometry;
+  gBufferAlbedoRT;
+  gBufferNormalRT;
+  gBufferERMORT;
+  depthTexture;
+  constructor() {
+    super({
+      inputs: [
+        PassParams.indirectVertices,
+        PassParams.indirectInstanceInfo,
+        PassParams.indirectMeshInfo,
+        PassParams.indirectObjectInfo,
+        PassParams.indirectDrawBuffer,
+        PassParams.textureMaps,
+        PassParams.isCullingPrepass
+      ],
+      outputs: [
+        PassParams.depthTexture,
+        PassParams.GBufferAlbedo,
+        PassParams.GBufferNormal,
+        PassParams.GBufferERMO,
+        PassParams.GBufferDepth
+      ]
+    });
+  }
+  async init(resources) {
+    this.shader = await Shader.Create({
+      code: await ShaderLoader.DrawIndirect,
+      colorOutputs: [
+        { format: "rgba16float" },
+        { format: "rgba16float" },
+        { format: "rgba16float" }
+      ],
+      depthOutput: "depth24plus",
+      attributes: {
+        position: { location: 0, size: 3, type: "vec3" }
+      },
+      uniforms: {
+        viewMatrix: { group: 0, binding: 0, type: "storage" },
+        projectionMatrix: { group: 0, binding: 1, type: "storage" },
+        instanceInfo: { group: 0, binding: 2, type: "storage" },
+        meshInfo: { group: 0, binding: 3, type: "storage" },
+        objectInfo: { group: 0, binding: 4, type: "storage" },
+        settings: { group: 0, binding: 5, type: "storage" },
+        vertices: { group: 0, binding: 6, type: "storage" },
+        textureSampler: { group: 0, binding: 7, type: "sampler" },
+        albedoMaps: { group: 0, binding: 8, type: "texture" },
+        normalMaps: { group: 0, binding: 9, type: "texture" },
+        heightMaps: { group: 0, binding: 10, type: "texture" }
+      }
+    });
+    this.geometry = new Geometry();
+    this.geometry.attributes.set("position", new VertexAttribute(new Float32Array(Meshlet.max_triangles * 3)));
+    const materialSampler = TextureSampler.Create();
+    this.shader.SetSampler("textureSampler", materialSampler);
+    this.depthTexture = DepthTexture.Create(Renderer.width, Renderer.height);
+    this.gBufferAlbedoRT = RenderTexture.Create(Renderer.width, Renderer.height, 1, "rgba16float");
+    this.gBufferNormalRT = RenderTexture.Create(Renderer.width, Renderer.height, 1, "rgba16float");
+    this.gBufferERMORT = RenderTexture.Create(Renderer.width, Renderer.height, 1, "rgba16float");
+    resources.setResource(PassParams.depthTexture, this.depthTexture);
+    resources.setResource(PassParams.GBufferDepth, this.depthTexture);
+    resources.setResource(PassParams.GBufferAlbedo, this.gBufferAlbedoRT);
+    resources.setResource(PassParams.GBufferNormal, this.gBufferNormalRT);
+    resources.setResource(PassParams.GBufferERMO, this.gBufferERMORT);
+  }
+  execute(resources, inputIndirectVertices, inputIndirectInstanceInfo, inputIndirectMeshInfo, inputIndirectObjectInfo, inputIndirectDrawBuffer, textureMaps, inputIsCullingPrepass, outputDepthTexture, outputGBufferAlbedo, outputGBufferNormal, outputGBufferERMO, outputGBufferDepth) {
+    if (!this.initialized) return;
+    if (!inputIndirectVertices) return;
+    const mainCamera = Camera.mainCamera;
+    this.shader.SetMatrix4("viewMatrix", mainCamera.viewMatrix);
+    this.shader.SetMatrix4("projectionMatrix", mainCamera.projectionMatrix);
+    this.shader.SetBuffer("vertices", inputIndirectVertices);
+    this.shader.SetBuffer("meshInfo", inputIndirectMeshInfo);
+    this.shader.SetBuffer("objectInfo", inputIndirectObjectInfo);
+    this.shader.SetBuffer("instanceInfo", inputIndirectInstanceInfo);
+    if (textureMaps.albedo) this.shader.SetTexture("albedoMaps", textureMaps.albedo);
+    if (textureMaps.normal) this.shader.SetTexture("normalMaps", textureMaps.normal);
+    if (textureMaps.height) this.shader.SetTexture("heightMaps", textureMaps.height);
+    const settings = new Float32Array([
+      +Debugger.isFrustumCullingEnabled,
+      +Debugger.isBackFaceCullingEnabled,
+      +Debugger.isOcclusionCullingEnabled,
+      +Debugger.isSmallFeaturesCullingEnabled,
+      Debugger.staticLOD,
+      Debugger.dynamicLODErrorThreshold,
+      +Debugger.isDynamicLODEnabled,
+      +Debugger.viewInstanceColors,
+      Meshlet.max_triangles,
+      0,
+      0,
+      0
+    ]);
+    this.shader.SetArray("settings", settings);
+    const colorTargets = [
+      { target: this.gBufferAlbedoRT, clear: inputIsCullingPrepass },
+      { target: this.gBufferNormalRT, clear: inputIsCullingPrepass },
+      { target: this.gBufferERMORT, clear: inputIsCullingPrepass }
+    ];
+    RendererContext.BeginRenderPass(`IGBuffer - prepass: ${+inputIsCullingPrepass}`, colorTargets, { target: this.depthTexture, clear: inputIsCullingPrepass }, true);
+    RendererContext.DrawIndirect(this.geometry, this.shader, inputIndirectDrawBuffer);
+    RendererContext.EndRenderPass();
+    resources.setResource(outputDepthTexture, this.depthTexture);
+    resources.setResource(outputDepthTexture, this.depthTexture);
+    resources.setResource(outputGBufferDepth, this.depthTexture);
+    resources.setResource(outputGBufferAlbedo, this.gBufferAlbedoRT);
+    resources.setResource(outputGBufferNormal, this.gBufferNormalRT);
+    resources.setResource(outputGBufferERMO, this.gBufferERMORT);
+  }
+};
+
+// src/renderer/passes/HiZPass.ts
+var HiZPass = class extends RenderPass {
+  name = "HiZPass";
+  shader;
+  quadGeometry;
+  debugDepthTexture;
+  inputTexture;
+  targetTextures = [];
+  // TODO: This should be next powerOf2 for SwapChain dims
+  depthWidth = 512;
+  depthHeight = 512;
+  depthLevels;
+  passBuffers = [];
+  currentBuffer;
+  initialized = false;
+  blitShader;
+  constructor() {
+    super({
+      inputs: [PassParams.depthTexture],
+      outputs: [PassParams.depthTexturePyramid]
+    });
+  }
+  async init(resources) {
+    this.shader = await Shader.Create({
+      code: await ShaderLoader.DepthDownsample,
+      attributes: {
+        position: { location: 0, size: 3, type: "vec3" },
+        normal: { location: 1, size: 3, type: "vec3" },
+        uv: { location: 2, size: 2, type: "vec2" }
+      },
+      colorOutputs: [],
+      depthOutput: "depth24plus",
+      uniforms: {
+        depthTextureInputSampler: { group: 0, binding: 0, type: "sampler" },
+        depthTextureInput: { group: 0, binding: 1, type: "depthTexture" },
+        currentMip: { group: 0, binding: 2, type: "storage" }
+      }
+    });
+    this.quadGeometry = Geometry.Plane();
+    let w = this.depthWidth;
+    let h = this.depthHeight;
+    let level = 0;
+    while (w > 1) {
+      this.targetTextures.push(DepthTexture.Create(w, h));
+      const passBuffer = Buffer3.Create(4 * 4, 0 /* STORAGE */);
+      passBuffer.SetArray(new Float32Array([level]));
+      this.passBuffers.push(passBuffer);
+      w /= 2;
+      h /= 2;
+      level++;
+    }
+    this.depthLevels = level;
+    this.inputTexture = DepthTexture.Create(this.depthWidth, this.depthHeight, 1, "depth24plus", level);
+    this.inputTexture.SetActiveMip(0);
+    this.inputTexture.SetActiveMipCount(level);
+    const Sampler = TextureSampler.Create({ magFilter: "nearest", minFilter: "nearest" });
+    this.shader.SetSampler("depthTextureInputSampler", Sampler);
+    this.shader.SetTexture("depthTextureInput", this.inputTexture);
+    this.debugDepthTexture = this.inputTexture;
+    this.currentBuffer = Buffer3.Create(4 * 4, 0 /* STORAGE */);
+    console.log("mips", level);
+    this.blitShader = await Shader.Create({
+      code: await ShaderLoader.BlitDepth,
+      colorOutputs: [],
+      depthOutput: "depth24plus",
+      attributes: {
+        position: { location: 0, size: 3, type: "vec3" },
+        normal: { location: 1, size: 3, type: "vec3" },
+        uv: { location: 2, size: 2, type: "vec2" }
+      },
+      uniforms: {
+        texture: { group: 0, binding: 0, type: "depthTexture" },
+        textureSampler: { group: 0, binding: 1, type: "sampler" },
+        mip: { group: 0, binding: 2, type: "storage" }
+      }
+    });
+    const blitSampler = TextureSampler.Create();
+    this.blitShader.SetSampler("textureSampler", blitSampler);
+    this.blitShader.SetValue("mip", 0);
+    resources.setResource(PassParams.depthTexturePyramid, this.inputTexture);
+  }
+  execute(resources, inputDepthTexture, outputDepthTexturePyramid) {
+    if (this.initialized === false) return;
+    let currentLevel = 0;
+    let currentTarget = this.targetTextures[currentLevel];
+    this.blitShader.SetTexture("texture", inputDepthTexture);
+    RendererContext.BeginRenderPass("HiZ - First mip", [], { target: currentTarget, clear: true }, true);
+    RendererContext.DrawGeometry(this.quadGeometry, this.blitShader);
+    RendererContext.EndRenderPass();
+    RendererContext.CopyTextureToTexture(currentTarget, this.inputTexture, 0, currentLevel);
+    this.shader.SetBuffer("currentMip", this.currentBuffer);
+    for (let i = 0; i < this.targetTextures.length - 1; i++) {
+      let levelBuffer = this.passBuffers[currentLevel];
+      currentLevel++;
+      currentTarget = this.targetTextures[currentLevel];
+      RendererContext.CopyBufferToBuffer(levelBuffer, this.currentBuffer);
+      RendererContext.BeginRenderPass("HiZ - DepthPyramid", [], { target: currentTarget, clear: true }, true);
+      RendererContext.DrawGeometry(this.quadGeometry, this.shader);
+      RendererContext.EndRenderPass();
+      RendererContext.CopyTextureToTexture(currentTarget, this.inputTexture, 0, currentLevel);
+    }
+    resources.setResource(outputDepthTexturePyramid, this.inputTexture);
+  }
+};
+
 // src/renderer/RenderingPipeline.ts
 var PassParams = {
   MainCamera: "MainCamera",
@@ -8234,6 +8411,9 @@ var RenderingPipeline = class {
   // }
   constructor(renderer) {
     this.renderer = renderer;
+    const cullingPass = new CullingPass();
+    const hizPass = new HiZPass();
+    const indirectGBufferPass = new IndirectGBufferPass();
     const passes = {
       // SetMainCamera: new SetMeshRenderCameraPass({outputs: [PassParams.MainCamera]}),
       // DeferredMeshRenderPass: new DeferredMeshRenderPass(PassParams.MainCamera, PassParams.GBufferAlbedo, PassParams.GBufferNormal, PassParams.GBufferERMO, PassParams.GBufferDepth),
@@ -8241,20 +8421,22 @@ var RenderingPipeline = class {
       // DeferredLightingPass: new DeferredLightingPass(PassParams.GBufferAlbedo, PassParams.GBufferNormal, PassParams.GBufferERMO, PassParams.GBufferDepth, PassParams.ShadowPassDepth, PassParams.LightingPassOutput),
       // SSGI: new SSGI(PassParams.GBufferDepth, PassParams.GBufferNormal, PassParams.LightingPassOutput, PassParams.GBufferAlbedo)
       PrepareSceneData: new PrepareSceneData(),
-      CullingFirstPass: new CullingPass(),
+      // CullingFirstPass: new CullingPass(),
+      CullingFirstPass: cullingPass,
+      IndirectGBufferFirstPass: indirectGBufferPass,
+      HiZPass: hizPass,
+      CullingSecondPass: cullingPass,
+      IndirectGBufferSecondPass: indirectGBufferPass,
       DeferredLightingPass: new DeferredLightingPass(),
-      OutputPass: new TextureViewer()
-      // IndirectGBufferFirstPass: gbuffer,
-      // BuildDepthPyramid: new HiZPass(),
-      // CullingSecondPass: culling,
-      // IndirectGBufferSecondPass: gbuffer,
-      // Forward: new Forward(),
+      OutputPass: new TextureViewer(),
+      Forward: new Forward()
       // ForwardInstanced: new ForwardInstanced()
     };
     this.renderGraph = new RenderGraph();
     for (const pass of Object.keys(passes)) {
       this.renderGraph.addPass(passes[pass]);
     }
+    this.renderGraph.init();
     this.debuggerPass = new DebuggerPass();
     console.log(this.renderGraph);
   }
@@ -8566,12 +8748,6 @@ async function Application() {
   bunnyGeometry.attributes.set("normal", new VertexAttribute(bunnyObj.normals));
   bunnyGeometry.attributes.set("uv", new VertexAttribute(bunnyObj.uvs));
   bunnyGeometry.index = new IndexAttribute(bunnyObj.indices);
-  const kittenObj = await OBJLoaderIndexed.load("./bunny.obj");
-  const kittenGeometry = new Geometry();
-  kittenGeometry.attributes.set("position", new VertexAttribute(kittenObj.vertices));
-  kittenGeometry.attributes.set("normal", new VertexAttribute(kittenObj.normals));
-  kittenGeometry.attributes.set("uv", new VertexAttribute(kittenObj.uvs));
-  kittenGeometry.index = new IndexAttribute(kittenObj.indices);
   console.log("bunnyObj", bunnyObj);
   console.log("bunnyGeometry", bunnyGeometry);
   const albedoMap = await Texture2.Load("./brick-wall-unity/brick-wall_albedo.png");

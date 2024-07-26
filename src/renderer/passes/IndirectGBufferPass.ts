@@ -19,8 +19,6 @@ export class IndirectGBufferPass extends RenderPass {
     private shader: Shader;
     private geometry: Geometry;
 
-    public initialized: boolean;
-
     public gBufferAlbedoRT: RenderTexture;
     public gBufferNormalRT: RenderTexture;
     public gBufferERMORT: RenderTexture;
@@ -47,11 +45,9 @@ export class IndirectGBufferPass extends RenderPass {
                 PassParams.GBufferDepth,
             ]
         });
-
-        this.init();
     }
 
-    protected async init() {
+    public async init(resources: ResourcePool) {
         this.shader = await Shader.Create({
             code: await ShaderLoader.DrawIndirect,
             colorOutputs: [
@@ -89,8 +85,12 @@ export class IndirectGBufferPass extends RenderPass {
         this.gBufferAlbedoRT = RenderTexture.Create(Renderer.width, Renderer.height, 1, "rgba16float");
         this.gBufferNormalRT = RenderTexture.Create(Renderer.width, Renderer.height, 1, "rgba16float");
         this.gBufferERMORT = RenderTexture.Create(Renderer.width, Renderer.height, 1, "rgba16float");
-        
-        this.initialized = true;
+
+        resources.setResource(PassParams.depthTexture, this.depthTexture);
+        resources.setResource(PassParams.GBufferDepth, this.depthTexture);
+        resources.setResource(PassParams.GBufferAlbedo, this.gBufferAlbedoRT);
+        resources.setResource(PassParams.GBufferNormal, this.gBufferNormalRT);
+        resources.setResource(PassParams.GBufferERMO, this.gBufferERMORT);
     }
     
     public execute(
@@ -99,6 +99,8 @@ export class IndirectGBufferPass extends RenderPass {
         outputDepthTexture: string, outputGBufferAlbedo: string, outputGBufferNormal: string, outputGBufferERMO: string, outputGBufferDepth: string
     ) {
         if (!this.initialized) return;
+
+        if (!inputIndirectVertices) return;
         
         const mainCamera = Camera.mainCamera;
         this.shader.SetMatrix4("viewMatrix", mainCamera.viewMatrix);
@@ -108,9 +110,9 @@ export class IndirectGBufferPass extends RenderPass {
         this.shader.SetBuffer("meshInfo", inputIndirectMeshInfo);
         this.shader.SetBuffer("objectInfo", inputIndirectObjectInfo);
         this.shader.SetBuffer("instanceInfo", inputIndirectInstanceInfo);
-        this.shader.SetTexture("albedoMaps", textureMaps.albedo);
-        this.shader.SetTexture("normalMaps", textureMaps.normal);
-        this.shader.SetTexture("heightMaps", textureMaps.height);
+        if (textureMaps.albedo) this.shader.SetTexture("albedoMaps", textureMaps.albedo);
+        if (textureMaps.normal) this.shader.SetTexture("normalMaps", textureMaps.normal);
+        if (textureMaps.height) this.shader.SetTexture("heightMaps", textureMaps.height);
 
         // Temp
         const settings = new Float32Array([

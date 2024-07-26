@@ -14,10 +14,12 @@ export class Meshletizer {
 
 
         let nparts = Math.ceil(meshlets.length / 4);
+        if (nparts > 8) nparts = 8;
         let grouped = [meshlets];
         if (nparts > 1) {
             grouped = MeshletGrouper.group(meshlets, nparts);
         }
+        // console.log("nparts", nparts, "grouped", grouped);
 
 
         let splitOutputs: Meshlet[] = [];
@@ -28,10 +30,12 @@ export class Meshletizer {
             const cleanedMergedGroup = Meshoptimizer.clean(mergedGroup);
             // const cleanedMergedGroup = mergedGroup;
 
+            const tLod = (lod+1) / 25;
+            const targetError = (0.1 * tLod + 0.01 * (1-tLod));
             // simplify
-            const simplified = Meshoptimizer.meshopt_simplify(cleanedMergedGroup, cleanedMergedGroup.indices.length / 2);
+            const simplified = Meshoptimizer.meshopt_simplify(cleanedMergedGroup, Meshlet.max_triangles, targetError);
+            // const simplified = Meshoptimizer.meshopt_simplify(cleanedMergedGroup, 128, 100000);
             const localScale = Meshoptimizer.meshopt_simplifyScale(simplified.meshlet);
-            // console.log(localScale, simplified.error)
 
             let meshSpaceError = simplified.error * localScale;
             let childrenError = 0.0;
@@ -40,7 +44,6 @@ export class Meshletizer {
                 const previousMeshlet = previousMeshlets.get(m.id);
                 if (!previousMeshlet) throw Error("Could not find previous meshler");
 
-                // console.log("previousMeshlet.clusterError", previousMeshlet.clusterError)
                 childrenError = Math.max(childrenError, previousMeshlet.clusterError);
             }
 
@@ -50,6 +53,7 @@ export class Meshletizer {
             for (let split of splits) {
                 split.clusterError = meshSpaceError;
                 split.boundingVolume = simplified.meshlet.boundingVolume;
+                split.lod = lod + 1;
 
                 previousMeshlets.set(split.id, split);
                 splitOutputs.push(split);
@@ -58,14 +62,14 @@ export class Meshletizer {
 
             for (let m of group) {
                 m.children.push(...splits);
-                m.lod = lod;
+                // m.lod = lod;
 
                 const previousMeshlet = previousMeshlets.get(m.id);
                 if (!previousMeshlet) throw Error("Could not find previous meshlet");
 
                 previousMeshlet.parentError = meshSpaceError;
                 previousMeshlet.parentBoundingVolume = simplified.meshlet.boundingVolume;
-                previousMeshlet.lod++;
+                // previousMeshlet.lod++;
             }
         }
 
@@ -76,7 +80,6 @@ export class Meshletizer {
         await Metis.load();
 
         const meshlets = MeshletCreator.build(vertices, indices, 255, Meshlet.max_triangles);
-
         console.log(`starting with ${meshlets.length} meshlets`);
 
         const maxLOD = 25;
@@ -95,9 +98,7 @@ export class Meshletizer {
             const outputTriangleCount = outputs.map(m => m.indices.length / 3);
             const inputVertexCount = inputTriangleCount.reduce((a, b) => a + b);
             const outputVertexCount = outputTriangleCount.reduce((a, b) => a + b);
-            console.log("inputs", inputTriangleCount, inputVertexCount);
-            console.log("outputs", outputTriangleCount, outputVertexCount);
-            console.log(`lod ${lod} has ${outputs.length} meshlets`);
+
             if (outputVertexCount >= inputVertexCount) {
                 for (const input of inputs) {
                     if (input.indices.length / 3 > Meshlet.max_triangles) {
@@ -111,6 +112,7 @@ export class Meshletizer {
             //     throw Error(`Output meshlets triangles ${outputTriangleCount.length} == input meshlets triangles ${inputTriangleCount.length}`);
             // }
             // if (lod === 7) throw Error("Stop");
+            inputs = outputs;
 
             if (outputs.length === 1) {
                 console.log("WE are done at lod", lod)
@@ -123,9 +125,9 @@ export class Meshletizer {
                 break;
             }
 
-            inputs = outputs;
             // console.log("\n");
         }
+        if (inputs.length !== 1) throw Error("Could not simplify up to one root node");
         // if (rootMeshlet === null) throw Error("Root meshlet is invalid!");
 
         // if (rootMeshlet === null) rootMeshlet = inputs[0]

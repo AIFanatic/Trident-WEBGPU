@@ -35,10 +35,9 @@ export class HiZPass extends RenderPass {
             inputs: [PassParams.depthTexture],
             outputs: [PassParams.depthTexturePyramid]
         });
-        this.init();
     }
 
-    public async init() {
+    public async init(resources: ResourcePool) {
         this.shader = await Shader.Create({
             code: await ShaderLoader.DepthDownsample,
             attributes: {
@@ -106,7 +105,7 @@ export class HiZPass extends RenderPass {
         this.blitShader.SetSampler("textureSampler", blitSampler);
         this.blitShader.SetValue("mip", 0);
 
-        this.initialized = true;
+        resources.setResource(PassParams.depthTexturePyramid, this.inputTexture);
     }
 
     public execute(resources: ResourcePool, inputDepthTexture: DepthTexture, outputDepthTexturePyramid: string) {

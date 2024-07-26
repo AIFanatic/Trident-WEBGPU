@@ -9,11 +9,8 @@ import { Frustum } from "../../math/Frustum";
 import { Debugger } from "../../plugins/Debugger";
 import { Meshlet } from "../../plugins/meshlets/Meshlet";
 import { TextureSampler } from "../TextureSampler";
-import { HiZPass } from "./HiZPass";
 import { ShaderLoader } from "../ShaderUtils";
 import { PassParams } from "../RenderingPipeline";
-import { IndirectGBufferPass } from "./IndirectGBufferPass";
-import { TextureMaps } from "./PrepareSceneData";
 
 export class CullingPass extends RenderPass {
     public name: string = "CullingPass";
@@ -32,16 +29,14 @@ export class CullingPass extends RenderPass {
     private visibilityBuffer: Buffer;
     private instanceInfoBuffer: Buffer;
 
+    private isPrePass = true;
 
-    // TODO: To split this ones (into RenderPipeline) need to change the RenderGraph to have a setup phase
-    // because the HiZPass depthPyramid only runs after CullingPass has run.
-    private hizPass: HiZPass;
-    private indirectGBufferPass: IndirectGBufferPass;
+    private debugBuffer: Buffer;
 
     constructor() {
         super({
             inputs: [
-                PassParams.indirectVertices, PassParams.indirectMeshInfo, PassParams.indirectMeshletInfo,
+                PassParams.indirectMeshInfo, PassParams.indirectMeshletInfo,
                 PassParams.indirectObjectInfo, PassParams.meshletsCount
             ],
             outputs: [
@@ -56,10 +51,9 @@ export class CullingPass extends RenderPass {
                 PassParams.GBufferDepth
             ]
         });
-        this.init();
     }
 
-    protected async init() {
+    public async init(resources: ResourcePool) {
         this.compute = await Compute.Create({
             code: await ShaderLoader.Cull,
             computeEntrypoint: "main",
@@ -92,47 +86,17 @@ export class CullingPass extends RenderPass {
         const sampler = TextureSampler.Create({magFilter: "nearest", minFilter: "nearest"});
         this.compute.SetSampler("textureSampler", sampler);
 
-        this.hizPass = new HiZPass();
-        this.indirectGBufferPass = new IndirectGBufferPass();
-
         this.visibleBuffer = Buffer.Create(4, BufferType.STORAGE);
         this.visibleBuffer.SetArray(new Float32Array([1]));
         this.nonVisibleBuffer = Buffer.Create(4, BufferType.STORAGE);
         this.nonVisibleBuffer.SetArray(new Float32Array([0]));
 
-        this.initialized = true;
+        this.debugBuffer = Buffer.Create(4 * 4, BufferType.STORAGE);
     }
 
-    private generateDrawsPass(meshletsCount: number, prepass: boolean) {
-
-        // if (prepass === true) RendererContext.CopyBufferToBuffer(this.visibleBuffer, this.currentPassBuffer);
-        // else RendererContext.CopyBufferToBuffer(this.nonVisibleBuffer, this.currentPassBuffer);
-
-        // const workgroupSizeX = Math.floor((meshletsCount + workgroupSize-1) / workgroupSize);
-        // const workgroupSizeX = 4;  // Threads per workgroup along X
-        // const workgroupSizeY = 4;  // Threads per workgroup along Y
-        // const workgroupSizeZ = 1;  // Threads per workgroup along Z
-
-        // Calculate dispatch sizes based on the cube root approximation
-        const dispatchSizeX = Math.ceil(Math.cbrt(meshletsCount) / 4);
-        const dispatchSizeY = Math.ceil(Math.cbrt(meshletsCount) / 4);
-        const dispatchSizeZ = Math.ceil(Math.cbrt(meshletsCount) / 4);
-
-        ComputeContext.BeginComputePass(`Culling - prepass: ${+prepass}`, true);
-        ComputeContext.Dispatch(this.compute, dispatchSizeX, dispatchSizeY, dispatchSizeZ);
-        ComputeContext.EndComputePass();
-    }
-
-    public execute(resources: ResourcePool, inputIndirectVertices: Buffer, inputIndirectMeshInfo: Buffer, inputIndirectMeshletInfo: Buffer, inputIndirectObjectInfo: Buffer, inputMeshletsCount: number, outputIndirectDrawBuffer: string, outputIndirectInstanceInfo: string, outputIsCullingPrepass: string) {
-        // const argsK: typeof PassParams = Object.fromEntries(args.map(item => [item, item]))
-        if (this.initialized === false) return;
-        if (this.hizPass.initialized === false) return;
-        if (this.indirectGBufferPass.initialized === false) return;
-        
-
+    public execute(resources: ResourcePool, inputIndirectMeshInfo: Buffer, inputIndirectMeshletInfo: Buffer, inputIndirectObjectInfo: Buffer, inputMeshletsCount: number, outputIndirectDrawBuffer: string, outputIndirectInstanceInfo: string, outputIsCullingPrepass: string) {
         const mainCamera = Camera.mainCamera;
         
-        // const meshletsCount = this.gpuDrivenDataManager.processSceneMeshes();
         if (inputMeshletsCount === 0) return;
 
         if (!this.visibilityBuffer) {
@@ -141,6 +105,7 @@ export class CullingPass extends RenderPass {
             this.visibilityBuffer.SetArray(visibilityBufferArray);
         }
         if (!this.instanceInfoBuffer) {
+            console.log("inputMeshletsCount", inputMeshletsCount)
             this.instanceInfoBuffer = Buffer.Create(inputMeshletsCount * 1 * 4, BufferType.STORAGE_WRITE);
             this.instanceInfoBuffer.name = "instanceInfoBuffer"
         }
@@ -199,41 +164,42 @@ export class CullingPass extends RenderPass {
 
 
 
-
-
-        this.compute.SetTexture("depthTexture", this.hizPass.debugDepthTexture);
-
-
-
+        const depthTexturePyramid = resources.getResource(PassParams.depthTexturePyramid);
+        this.compute.SetTexture("depthTexture", depthTexturePyramid);
         this.compute.SetBuffer("bPrepass", this.currentPassBuffer);
 
+        RendererContext.CopyBufferToBuffer(this.drawIndirectBuffer, this.debugBuffer);
 
-        const textureMaps: TextureMaps = resources.getResource(PassParams.textureMaps);
-        RendererContext.ClearBuffer(this.drawIndirectBuffer);
-        RendererContext.CopyBufferToBuffer(this.visibleBuffer, this.currentPassBuffer);
-        this.generateDrawsPass(inputMeshletsCount, true);
-        this.indirectGBufferPass.execute(resources, inputIndirectVertices, this.instanceInfoBuffer, inputIndirectMeshInfo, inputIndirectObjectInfo, this.drawIndirectBuffer, textureMaps, true, PassParams.depthTexture, PassParams.GBufferAlbedo, PassParams.GBufferNormal, PassParams.GBufferERMO, PassParams.GBufferDepth);
 
-        this.hizPass.execute(resources, this.indirectGBufferPass.depthTexture, PassParams.depthTexturePyramid);
         RendererContext.ClearBuffer(this.drawIndirectBuffer);
-        RendererContext.CopyBufferToBuffer(this.nonVisibleBuffer, this.currentPassBuffer);
-        this.generateDrawsPass(inputMeshletsCount, false);
-        this.indirectGBufferPass.execute(resources, inputIndirectVertices, this.instanceInfoBuffer, inputIndirectMeshInfo, inputIndirectObjectInfo, this.drawIndirectBuffer, textureMaps, false, PassParams.depthTexture, PassParams.GBufferAlbedo, PassParams.GBufferNormal, PassParams.GBufferERMO, PassParams.GBufferDepth);
+        if (this.isPrePass === true) RendererContext.CopyBufferToBuffer(this.visibleBuffer, this.currentPassBuffer);
+        else RendererContext.CopyBufferToBuffer(this.nonVisibleBuffer, this.currentPassBuffer);
+
+        // const workgroupSizeX = Math.floor((meshletsCount + workgroupSize-1) / workgroupSize);
+        // const workgroupSizeX = 4;  // Threads per workgroup along X
+        // const workgroupSizeY = 4;  // Threads per workgroup along Y
+        // const workgroupSizeZ = 1;  // Threads per workgroup along Z
+
+        // Calculate dispatch sizes based on the cube root approximation
+        const dispatchSizeX = Math.ceil(Math.cbrt(inputMeshletsCount) / 4);
+        const dispatchSizeY = Math.ceil(Math.cbrt(inputMeshletsCount) / 4);
+        const dispatchSizeZ = Math.ceil(Math.cbrt(inputMeshletsCount) / 4);
+
+        ComputeContext.BeginComputePass(`Culling - prepass: ${+this.isPrePass}`, true);
+        ComputeContext.Dispatch(this.compute, dispatchSizeX, dispatchSizeY, dispatchSizeZ);
+        ComputeContext.EndComputePass();
+
+
+        resources.setResource(outputIsCullingPrepass, this.isPrePass);
+        this.isPrePass = !this.isPrePass;
 
 
         resources.setResource(outputIndirectDrawBuffer, this.drawIndirectBuffer);
         resources.setResource(outputIndirectInstanceInfo, this.instanceInfoBuffer);
 
-        let prepass = resources.getResource(outputIsCullingPrepass);
-        if (prepass === undefined) prepass = false;
-        else prepass = !prepass;
-        resources.setResource(outputIsCullingPrepass, prepass);
-        // resources.setResource(outputIsCullingPrepass, outputIsCullingPrepass);
-
-        this.drawIndirectBuffer.GetData().then(v => {
+        this.debugBuffer.GetData().then(v => {
             const visibleMeshCount = new Uint32Array(v)[1];
             Debugger.SetVisibleMeshes(visibleMeshCount);
-
             Debugger.SetTriangleCount(Meshlet.max_triangles * inputMeshletsCount);
             Debugger.SetVisibleTriangleCount(Meshlet.max_triangles * visibleMeshCount);
         })

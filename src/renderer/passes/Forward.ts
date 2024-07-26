@@ -68,19 +68,26 @@ export class Forward extends RenderPass {
         for (const meshlet of sceneMeshlets) {
             let forwardMesh = this.forwardMeshes.get(meshlet.id);
             if (!forwardMesh) {
-                forwardMesh = {
-                    shader: Shader.Create(this.params),
+                const newForwardMesh: {shader: undefined | Shader, modelMatrix: Buffer} = {
+                    shader: undefined,
                     modelMatrix: Buffer.Create(4 * 16, BufferType.STORAGE)
                 }
-                this.forwardMeshes.set(meshlet.id, forwardMesh);
-                forwardMesh.shader.SetBuffer("modelMatrix", forwardMesh.modelMatrix);
+
+                Shader.Create(this.params).then(shader => {
+                    newForwardMesh.shader = shader;
+                    newForwardMesh.shader.SetBuffer("modelMatrix", newForwardMesh.modelMatrix);
+                })
+                this.forwardMeshes.set(meshlet.id, newForwardMesh);
+                forwardMesh = newForwardMesh;
             }
 
-            forwardMesh.shader.SetMatrix4("projectionMatrix", mainCamera.projectionMatrix);
-            forwardMesh.shader.SetMatrix4("viewMatrix", mainCamera.viewMatrix);
-            forwardMesh.modelMatrix.SetArray(meshlet.transform.localToWorldMatrix.elements)
+            if (forwardMesh?.shader) {
+                forwardMesh.shader.SetMatrix4("projectionMatrix", mainCamera.projectionMatrix);
+                forwardMesh.shader.SetMatrix4("viewMatrix", mainCamera.viewMatrix);
+                forwardMesh.modelMatrix.SetArray(meshlet.transform.localToWorldMatrix.elements)
+                RendererContext.DrawGeometry(meshlet.GetGeometry(), forwardMesh.shader);
+            }
 
-            RendererContext.DrawGeometry(meshlet.GetGeometry(), forwardMesh.shader);
             
             drawCount++;
         }

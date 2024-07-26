@@ -61,9 +61,9 @@ export class PrepareSceneData extends RenderPass {
         const bv = meshlet.boundingVolume;
         const pbv = meshlet.boundingVolume;
         return [
-            ...bv.cone_apex.elements, 0,
-            ...bv.cone_axis.elements, 0,
-            bv.cone_cutoff, 0, 0, 0,
+            0, 0, 0, 0, // ...bv.cone_apex.elements, 0,
+            0, 0, 0, 0, // ...bv.cone_axis.elements, 0,
+            0, 0, 0, 0, // bv.cone_cutoff, 0, 0, 0,
             bv.center.x, bv.center.y, bv.center.z, bv.radius,
             pbv.center.x, pbv.center.y, pbv.center.z, pbv.radius,
             meshlet.clusterError, 0, 0, 0,
@@ -133,8 +133,8 @@ export class PrepareSceneData extends RenderPass {
         return -1;
     }
 
-    private createMaterialMap(textures: Texture[], type: "albedo" | "normal" | "height"): Texture | undefined {
-        if (textures.length === 0) return;
+    private createMaterialMap(textures: Texture[], type: "albedo" | "normal" | "height"): Texture {
+        if (textures.length === 0) return TextureArray.Create(1, 1, 1);
         
         const w = textures[0].width;
         const h = textures[0].height;

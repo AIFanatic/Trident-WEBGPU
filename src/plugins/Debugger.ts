@@ -7,12 +7,12 @@ class _Debugger {
     public debugDepthExposure: number = 0;
 
     public isFrustumCullingEnabled: boolean = true;
-    public isBackFaceCullingEnabled: boolean = true;
+    public isBackFaceCullingEnabled: boolean = false;
     public isOcclusionCullingEnabled: boolean = true;
     public isSmallFeaturesCullingEnabled: boolean = true;
     public dynamicLODErrorThreshold: number = 1;
     public isDynamicLODEnabled: boolean = true;
-    public staticLOD: number = 9;
+    public staticLOD: number = 20;
 
     public viewInstanceColors: boolean = true;
 
@@ -67,9 +67,9 @@ class _Debugger {
         const backFaceCulling = new UIButtonStat(cullingFolder, "Backface culling:", state => {this.isBackFaceCullingEnabled = state}, this.isBackFaceCullingEnabled);
         const occlusionCulling = new UIButtonStat(cullingFolder, "Occlusion culling:", state => {this.isOcclusionCullingEnabled = state}, this.isOcclusionCullingEnabled);
         const smallFeatureCulling = new UIButtonStat(cullingFolder, "Small features:", state => {this.isSmallFeaturesCullingEnabled = state}, this.isSmallFeaturesCullingEnabled);
-        const staticLOD = new UISliderStat(cullingFolder, "Static LOD:", 0, this.staticLOD, 1, this.staticLOD, state => {this.staticLOD = state});
+        const staticLOD = new UISliderStat(cullingFolder, "Static LOD:", 0, this.staticLOD, 1, 0, state => {this.staticLOD = state});
         staticLOD.Disable();
-        const dynamicLODErrorThreshold = new UISliderStat(cullingFolder, "Dynamic LOD error:", 0, 10, 0.01, this.dynamicLODErrorThreshold, value => {this.dynamicLODErrorThreshold = value});
+        const dynamicLODErrorThreshold = new UISliderStat(cullingFolder, "Dynamic LOD error:", 0, 20, 0.01, this.dynamicLODErrorThreshold, value => {this.dynamicLODErrorThreshold = value});
         const dynamicLOD = new UIButtonStat(cullingFolder, "Dynamic LOD:", state => {
             this.isDynamicLODEnabled = state;
             if (this.isDynamicLODEnabled === true) {

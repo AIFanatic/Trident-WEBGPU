@@ -85,6 +85,10 @@ export class RenderingPipeline {
     constructor(renderer: Renderer) {
         this.renderer = renderer;
 
+        const cullingPass = new CullingPass();
+        const hizPass = new HiZPass();
+        const indirectGBufferPass = new IndirectGBufferPass();
+
         const passes = {
             // SetMainCamera: new SetMeshRenderCameraPass({outputs: [PassParams.MainCamera]}),
             // DeferredMeshRenderPass: new DeferredMeshRenderPass(PassParams.MainCamera, PassParams.GBufferAlbedo, PassParams.GBufferNormal, PassParams.GBufferERMO, PassParams.GBufferDepth),
@@ -94,17 +98,20 @@ export class RenderingPipeline {
             
             PrepareSceneData: new PrepareSceneData(),
             
-            CullingFirstPass: new CullingPass(),
+            // CullingFirstPass: new CullingPass(),
+
+            CullingFirstPass: cullingPass,
+            IndirectGBufferFirstPass: indirectGBufferPass,
+            HiZPass: hizPass,
+
+            CullingSecondPass: cullingPass,
+            IndirectGBufferSecondPass: indirectGBufferPass,
+
 
             DeferredLightingPass: new DeferredLightingPass(),
+            OutputPass: new TextureViewer(),
 
-            OutputPass: new TextureViewer()
-            // IndirectGBufferFirstPass: gbuffer,
-            // BuildDepthPyramid: new HiZPass(),
-            // CullingSecondPass: culling,
-            // IndirectGBufferSecondPass: gbuffer,
-            
-            // Forward: new Forward(),
+            Forward: new Forward(),
             // ForwardInstanced: new ForwardInstanced()
         }
 
@@ -113,6 +120,8 @@ export class RenderingPipeline {
             this.renderGraph.addPass(passes[pass]);
         }
 
+        this.renderGraph.init();
+        
         this.debuggerPass = new DebuggerPass();
 
         console.log(this.renderGraph)

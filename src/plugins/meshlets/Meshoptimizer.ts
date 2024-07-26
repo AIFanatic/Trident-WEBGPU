@@ -160,7 +160,14 @@ export class Meshoptimizer {
 
     }
 
+    
+ 
+    
+ 
+
+
     public static clean(meshlet: Meshlet): Meshlet {
+
         const MeshOptmizer = Meshoptimizer.module;
 
         const remap = new WASMPointer(new Uint32Array(meshlet.indices.length * 8), "out");

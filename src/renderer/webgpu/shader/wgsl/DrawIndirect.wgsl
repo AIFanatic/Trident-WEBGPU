@@ -9,9 +9,10 @@ struct VertexInput {
 struct VertexOutput {
     @builtin(position) position : vec4<f32>,
     @location(0) @interpolate(flat) meshID : u32,
-    @location(1) vPosition : vec3<f32>,
-    @location(2) vNormal : vec3<f32>,
-    @location(3) vUv : vec2<f32>,
+    @location(1) @interpolate(flat) vertexID : u32,
+    @location(2) vPosition : vec3<f32>,
+    @location(3) vNormal : vec3<f32>,
+    @location(4) vUv : vec2<f32>,
 };
 
 @group(0) @binding(0) var<storage, read> viewMatrix: mat4x4<f32>;
@@ -49,6 +50,7 @@ const modelMatrix = mat4x4<f32>();
     let modelViewMatrix = viewMatrix * modelMatrix;
     output.position = projectionMatrix * modelViewMatrix * vec4(position.xyz, 1.0);
     output.meshID = u32(meshID);
+    output.vertexID = u32(vertexID);
     output.vPosition = vertex.position;
     output.vNormal = vertex.normal;
     output.vUv = vertex.uv;
@@ -169,6 +171,28 @@ struct FragmentOutput {
     output.albedo = vec4(albedo.rgb, roughness);
     output.normal = vec4(normal.xyz, metalness);
     output.RMO = vec4(emissive.rgb, unlit);
+
+
+    if (bool(settings.viewInstanceColors)) {
+        // output.albedo = vec4(albedo.rgb, roughness);
+
+        let vertexColor = vec3f(
+            rand(f32(input.vertexID) + 12.1212),
+            rand(f32(input.vertexID) + 22.1212),
+            rand(f32(input.vertexID) + 32.1212),
+        );
+        let instanceColor = vec3f(
+            rand(f32(input.meshID) + 12.1212),
+            rand(f32(input.meshID) + 22.1212),
+            rand(f32(input.meshID) + 32.1212),
+        );
+        // let r = rand(f32(input.meshID) + 12.1212);
+        // let g = rand(f32(input.meshID) + 22.1212);
+        // let b = rand(f32(input.meshID) + 32.1212);
+        let c = instanceColor * 0.5;// + vertexColor * 0.1;
+        output.albedo = vec4(c, 1.0);
+        output.RMO = vec4(emissive.rgb, 1);
+    }
 
     return output;
     // return vec4f(1);

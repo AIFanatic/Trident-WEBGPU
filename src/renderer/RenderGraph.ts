@@ -3,14 +3,14 @@ export class RenderPass {
     public inputs: string[] = []
     public outputs: string[] = [];
 
-    protected initialized: boolean = false;
+    public initialized: boolean = false;
     
     constructor(params: {inputs?: string[], outputs?: string[]}) {
         if (params.inputs) this.inputs = params.inputs;
         if (params.outputs) this.outputs = params.outputs;
     }
 
-    protected async init() {};
+    public async init(resources: ResourcePool) {};
     public execute(resources: ResourcePool, ...args: any) {};
     public set(data: {inputs?: string[], outputs?: string[]}) {
         if (data.inputs) this.inputs = data.inputs;
@@ -33,15 +33,28 @@ export class ResourcePool {
 export class RenderGraph {
     private passes: RenderPass[] = [];
     private resourcePool: ResourcePool = new ResourcePool();
-    private hasInitialized = false;
 
     public addPass(pass: RenderPass): void {
         this.passes.push(pass);
     }
 
+    public async init() {
+        const sortedPasses = this.topologicalSort();
+        for (const pass of sortedPasses) {
+            if (pass.initialized) continue;
+            await pass.init(this.resourcePool);
+            pass.initialized = true;
+        }
+    }
     public execute(): void {
         const sortedPasses = this.topologicalSort();
         for (const pass of sortedPasses) {
+            // If on pass is not initialized skip everything else
+            // this is because subsequent passes may depend on the current pass
+            if (!pass.initialized) {
+                console.log(`didnt execute ${pass.name} because its not initialized`);
+                return;
+            }
             const inputs = pass.inputs.map(value => this.resourcePool.getResource(value));
             pass.execute(this.resourcePool, ...inputs, ...pass.outputs);
         }
@@ -77,6 +90,7 @@ export class RenderGraph {
             }
         });
 
-        return order;
+        // return order;
+        return this.passes;
     }
 }
