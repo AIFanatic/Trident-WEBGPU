@@ -1,3 +1,9 @@
+struct Vertex {
+    position: vec3<f32>,
+    normal: vec3<f32>,
+    uv: vec2<f32>
+};
+
 struct InstanceInfo {
     meshID: u32
 };
@@ -28,10 +34,7 @@ struct MeshletInfo {
     bboxMax: vec4<f32>,
 };
 
-struct MeshInfo {
-    modelMatrix: mat4x4<f32>,
-    position: vec4<f32>,
-    scale: vec4<f32>,
+struct MeshMaterialInfo {
     mapIndex: vec4<f32>,
 
     AlbedoColor: vec4<f32>,
@@ -39,6 +42,10 @@ struct MeshInfo {
     Roughness: f32,
     Metalness: f32,
     Unlit: f32
+};
+
+struct MeshMatrixInfo {
+    modelMatrix: mat4x4<f32>,
 };
 
 struct ObjectInfo {

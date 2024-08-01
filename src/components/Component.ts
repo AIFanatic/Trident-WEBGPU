@@ -1,6 +1,6 @@
 import { EventSystem } from "../Events";
 import { GameObject } from "../GameObject";
-import { Utils } from "../Utils";
+import { Utils } from "../utils/Utils";
 import { Transform } from "./Transform";
 
 export class Component {

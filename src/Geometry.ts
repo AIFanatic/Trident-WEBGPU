@@ -1,4 +1,4 @@
-import { Utils } from "./Utils";
+import { Utils } from "./utils/Utils";
 import { BoundingVolume } from "./math/BoundingVolume";
 import { Vector3 } from "./math/Vector3";
 import { Buffer, BufferType } from "./renderer/Buffer";

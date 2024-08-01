@@ -21,7 +21,7 @@ var EventSystem = class {
   }
 };
 
-// src/Utils.ts
+// src/utils/Utils.ts
 var Utils = class {
   static UUID() {
     return Math.floor(Math.random() * 1e6).toString();
@@ -36,34 +36,6 @@ var Utils = class {
       else matches.push(start + match[1] + end);
     }
     return matches;
-  }
-};
-var CRC32 = class {
-  /**
-   * Lookup table calculated for 0xEDB88320 divisor
-   */
-  static lookupTable = [0, 1996959894, 3993919788, 2567524794, 124634137, 1886057615, 3915621685, 2657392035, 249268274, 2044508324, 3772115230, 2547177864, 162941995, 2125561021, 3887607047, 2428444049, 498536548, 1789927666, 4089016648, 2227061214, 450548861, 1843258603, 4107580753, 2211677639, 325883990, 1684777152, 4251122042, 2321926636, 335633487, 1661365465, 4195302755, 2366115317, 997073096, 1281953886, 3579855332, 2724688242, 1006888145, 1258607687, 3524101629, 2768942443, 901097722, 1119000684, 3686517206, 2898065728, 853044451, 1172266101, 3705015759, 2882616665, 651767980, 1373503546, 3369554304, 3218104598, 565507253, 1454621731, 3485111705, 3099436303, 671266974, 1594198024, 3322730930, 2970347812, 795835527, 1483230225, 3244367275, 3060149565, 1994146192, 31158534, 2563907772, 4023717930, 1907459465, 112637215, 2680153253, 3904427059, 2013776290, 251722036, 2517215374, 3775830040, 2137656763, 141376813, 2439277719, 3865271297, 1802195444, 476864866, 2238001368, 4066508878, 1812370925, 453092731, 2181625025, 4111451223, 1706088902, 314042704, 2344532202, 4240017532, 1658658271, 366619977, 2362670323, 4224994405, 1303535960, 984961486, 2747007092, 3569037538, 1256170817, 1037604311, 2765210733, 3554079995, 1131014506, 879679996, 2909243462, 3663771856, 1141124467, 855842277, 2852801631, 3708648649, 1342533948, 654459306, 3188396048, 3373015174, 1466479909, 544179635, 3110523913, 3462522015, 1591671054, 702138776, 2966460450, 3352799412, 1504918807, 783551873, 3082640443, 3233442989, 3988292384, 2596254646, 62317068, 1957810842, 3939845945, 2647816111, 81470997, 1943803523, 3814918930, 2489596804, 225274430, 2053790376, 3826175755, 2466906013, 167816743, 2097651377, 4027552580, 2265490386, 503444072, 1762050814, 4150417245, 2154129355, 426522225, 1852507879, 4275313526, 2312317920, 282753626, 1742555852, 4189708143, 2394877945, 397917763, 1622183637, 3604390888, 2714866558, 953729732, 1340076626, 3518719985, 2797360999, 1068828381, 1219638859, 3624741850, 2936675148, 906185462, 1090812512, 3747672003, 2825379669, 829329135, 1181335161, 3412177804, 3160834842, 628085408, 1382605366, 3423369109, 3138078467, 570562233, 1426400815, 3317316542, 2998733608, 733239954, 1555261956, 3268935591, 3050360625, 752459403, 1541320221, 2607071920, 3965973030, 1969922972, 40735498, 2617837225, 3943577151, 1913087877, 83908371, 2512341634, 3803740692, 2075208622, 213261112, 2463272603, 3855990285, 2094854071, 198958881, 2262029012, 4057260610, 1759359992, 534414190, 2176718541, 4139329115, 1873836001, 414664567, 2282248934, 4279200368, 1711684554, 285281116, 2405801727, 4167216745, 1634467795, 376229701, 2685067896, 3608007406, 1308918612, 956543938, 2808555105, 3495958263, 1231636301, 1047427035, 2932959818, 3654703836, 1088359270, 936918e3, 2847714899, 3736837829, 1202900863, 817233897, 3183342108, 3401237130, 1404277552, 615818150, 3134207493, 3453421203, 1423857449, 601450431, 3009837614, 3294710456, 1567103746, 711928724, 3020668471, 3272380065, 1510334235, 755167117];
-  static calculateBytes(bytes, accumulator) {
-    let crc = accumulator;
-    for (const byte of bytes) {
-      const tableIndex = (crc ^ byte) & 255;
-      const tableVal = this.lookupTable[tableIndex];
-      crc = crc >>> 8 ^ tableVal;
-    }
-    return crc;
-  }
-  static crcToUint(crc) {
-    return this.toUint32(crc ^ 4294967295);
-  }
-  static toUint32(num) {
-    if (num >= 0) {
-      return num;
-    }
-    return 4294967295 - num * -1 + 1;
-  }
-  static forBytes(bytes) {
-    const crc = this.calculateBytes(bytes, 4294967295);
-    return this.crcToUint(crc);
   }
 };
 
@@ -915,6 +887,7 @@ var GameObject = class {
       this.componentsMapped.get(component.name)?.push(componentInstance);
       this.componentsArray.push(componentInstance);
       if (componentInstance instanceof Camera && !Camera.mainCamera) Camera.mainCamera = componentInstance;
+      if (this.scene.hasStarted) componentInstance.Start();
       return componentInstance;
     } catch (error) {
       throw Error(`Error creating component` + error);
@@ -1113,17 +1086,17 @@ var Assets = class _Assets {
   }
 };
 
-// src/renderer/webgpu/shader/wgsl/Cull.wgsl
-var Cull_default = "./resources/renderer/webgpu/shader/wgsl/Cull.wgsl";
+// src/renderer/webgpu/shader/wgsl/deferred/Cull.wgsl
+var Cull_default = "./resources/renderer/webgpu/shader/wgsl/deferred/Cull.wgsl";
 
-// src/renderer/webgpu/shader/wgsl/CullStructs.wgsl
-var CullStructs_default = "./resources/renderer/webgpu/shader/wgsl/CullStructs.wgsl";
+// src/renderer/webgpu/shader/wgsl/deferred/CullStructs.wgsl
+var CullStructs_default = "./resources/renderer/webgpu/shader/wgsl/deferred/CullStructs.wgsl";
 
-// src/renderer/webgpu/shader/wgsl/SettingsStructs.wgsl
-var SettingsStructs_default = "./resources/renderer/webgpu/shader/wgsl/SettingsStructs.wgsl";
+// src/renderer/webgpu/shader/wgsl/deferred/SettingsStructs.wgsl
+var SettingsStructs_default = "./resources/renderer/webgpu/shader/wgsl/deferred/SettingsStructs.wgsl";
 
-// src/renderer/webgpu/shader/wgsl/DrawIndirect.wgsl
-var DrawIndirect_default = "./resources/renderer/webgpu/shader/wgsl/DrawIndirect.wgsl";
+// src/renderer/webgpu/shader/wgsl/deferred/DrawIndirectGBuffer.wgsl
+var DrawIndirectGBuffer_default = "./resources/renderer/webgpu/shader/wgsl/deferred/DrawIndirectGBuffer.wgsl";
 
 // src/renderer/webgpu/shader/wgsl/Blit.wgsl
 var Blit_default = "./resources/renderer/webgpu/shader/wgsl/Blit.wgsl";
@@ -1134,19 +1107,19 @@ var BlitDepth_default = "./resources/renderer/webgpu/shader/wgsl/BlitDepth.wgsl"
 // src/renderer/webgpu/shader/wgsl/DepthDownsample.wgsl
 var DepthDownsample_default = "./resources/renderer/webgpu/shader/wgsl/DepthDownsample.wgsl";
 
-// src/renderer/webgpu/shader/wgsl/DeferredLightingPBRShader.wgsl
-var DeferredLightingPBRShader_default = "./resources/renderer/webgpu/shader/wgsl/DeferredLightingPBRShader.wgsl";
+// src/renderer/webgpu/shader/wgsl/deferred/DeferredLightingPBR.wgsl
+var DeferredLightingPBR_default = "./resources/renderer/webgpu/shader/wgsl/deferred/DeferredLightingPBR.wgsl";
 
 // src/renderer/ShaderUtils.ts
 var Shaders = /* @__PURE__ */ ((Shaders2) => {
   Shaders2[Shaders2["CullStructs"] = CullStructs_default] = "CullStructs";
   Shaders2[Shaders2["SettingsStructs"] = SettingsStructs_default] = "SettingsStructs";
   Shaders2[Shaders2["Cull"] = Cull_default] = "Cull";
-  Shaders2[Shaders2["DrawIndirect"] = DrawIndirect_default] = "DrawIndirect";
+  Shaders2[Shaders2["DrawIndirect"] = DrawIndirectGBuffer_default] = "DrawIndirect";
   Shaders2[Shaders2["Blit"] = Blit_default] = "Blit";
   Shaders2[Shaders2["BlitDepth"] = BlitDepth_default] = "BlitDepth";
   Shaders2[Shaders2["DepthDownsample"] = DepthDownsample_default] = "DepthDownsample";
-  Shaders2[Shaders2["DeferredLighting"] = DeferredLightingPBRShader_default] = "DeferredLighting";
+  Shaders2[Shaders2["DeferredLighting"] = DeferredLightingPBR_default] = "DeferredLighting";
   return Shaders2;
 })(Shaders || {});
 var ShaderPreprocessor = class {
@@ -1182,11 +1155,11 @@ var ShaderLoader = class _ShaderLoader {
     if (Renderer.type === "webgpu") {
       let shader_url = "";
       if (shader === Shaders.Cull) shader_url = Cull_default;
-      else if (shader === Shaders.DrawIndirect) shader_url = DrawIndirect_default;
+      else if (shader === Shaders.DrawIndirect) shader_url = DrawIndirectGBuffer_default;
       else if (shader === Shaders.Blit) shader_url = Blit_default;
       else if (shader === Shaders.BlitDepth) shader_url = BlitDepth_default;
       else if (shader === Shaders.DepthDownsample) shader_url = DepthDownsample_default;
-      else if (shader === Shaders.DeferredLighting) shader_url = DeferredLightingPBRShader_default;
+      else if (shader === Shaders.DeferredLighting) shader_url = DeferredLightingPBR_default;
       else throw Error(`Uknown shader ${shader}`);
       if (shader_url === "") throw Error(`Invalid shader ${shader} ${shader_url}`);
       let code = await Assets.Load(shader_url, "text");
@@ -1212,8 +1185,315 @@ var ShaderLoader = class _ShaderLoader {
   }
 };
 
+// src/plugins/ui/UIStats.ts
+var Stat = class {
+  statContainer;
+  constructor(container, label) {
+    this.statContainer = document.createElement("div");
+    this.statContainer.classList.add("stat");
+    container.appendChild(this.statContainer);
+    if (label !== null) {
+      const labelElement = document.createElement("label");
+      labelElement.classList.add("title");
+      labelElement.classList.add("title");
+      labelElement.textContent = label;
+      this.statContainer.append(labelElement);
+    }
+  }
+  Disable() {
+    this.statContainer.classList.add("disabled");
+  }
+  Enable() {
+    this.statContainer.classList.remove("disabled");
+  }
+};
+var UIDropdownStat = class extends Stat {
+  selectElement;
+  constructor(folder, label, options, onChanged, defaultIndex = 0) {
+    super(folder.container, label);
+    this.selectElement = document.createElement("select");
+    this.selectElement.classList.add("value");
+    for (let i = 0; i < options.length; i++) {
+      const option = options[i];
+      const optionElement = document.createElement("option");
+      optionElement.value = option;
+      optionElement.textContent = option;
+      this.selectElement.append(optionElement);
+      if (i === defaultIndex) {
+        this.selectElement.value = option;
+      }
+    }
+    this.statContainer.append(this.selectElement);
+    this.selectElement.addEventListener("change", (event) => {
+      onChanged(this.selectElement.selectedIndex, event.target.value);
+    });
+  }
+};
+var UIButtonStat = class extends Stat {
+  button;
+  state;
+  onText;
+  offText;
+  constructor(folder, label, onClicked, defaultState = false, onText = "Enable", offText = "Disable") {
+    super(folder.container, label);
+    this.state = defaultState;
+    this.onText = onText;
+    this.offText = offText;
+    this.button = document.createElement("button");
+    this.button.classList.add("value");
+    this.button.textContent = defaultState === true ? offText : onText;
+    this.statContainer.append(this.button);
+    this.button.addEventListener("click", (event) => {
+      this.state = !this.state;
+      if (this.state === true) this.button.textContent = this.offText;
+      else this.button.textContent = this.onText;
+      onClicked(this.state);
+    });
+  }
+};
+var UISliderStat = class extends Stat {
+  constructor(folder, label, min, max, step, defaultValue, callback) {
+    super(folder.container, label);
+    const container = document.createElement("div");
+    container.classList.add("value");
+    container.style.display = "inline-flex";
+    container.style.alignItems = "center";
+    container.style.padding = "0px";
+    const sliderElement = document.createElement("input");
+    sliderElement.classList.add("slider");
+    sliderElement.style.width = "60px";
+    sliderElement.style.margin = "0px";
+    sliderElement.type = "range";
+    sliderElement.min = `${min}`;
+    sliderElement.max = `${max}`;
+    sliderElement.step = `${step}`;
+    sliderElement.value = `${defaultValue}`;
+    const textElement = document.createElement("input");
+    textElement.style.width = "25px";
+    textElement.style.marginLeft = "5px";
+    textElement.value = defaultValue.toString();
+    textElement.addEventListener("input", (event) => {
+      sliderElement.value = textElement.value;
+      callback(parseFloat(sliderElement.value));
+      if (textElement.value !== "") textElement.value = sliderElement.value;
+    });
+    sliderElement.addEventListener("input", (event) => {
+      callback(parseFloat(sliderElement.value));
+      textElement.value = sliderElement.value;
+    });
+    container.append(sliderElement, textElement);
+    this.statContainer.append(container);
+  }
+};
+var UITextStat = class extends Stat {
+  textElement;
+  previousValue;
+  precision;
+  unit;
+  rolling;
+  constructor(folder, label, defaultValue = 0, precision = 0, unit = "", rolling = false) {
+    super(folder.container, label);
+    this.previousValue = defaultValue;
+    this.precision = precision;
+    this.unit = unit;
+    this.rolling = rolling;
+    this.textElement = document.createElement("pre");
+    this.textElement.classList.add("value");
+    this.textElement.textContent = defaultValue.toFixed(precision);
+    this.statContainer.append(this.textElement);
+  }
+  SetValue(value) {
+    if (this.rolling === true) {
+      value = this.previousValue * 0.95 + value * 0.05;
+    }
+    const valueStr = this.precision === 0 ? value.toString() : value.toFixed(this.precision);
+    this.textElement.textContent = valueStr + this.unit;
+    this.previousValue = value;
+  }
+  GetValue() {
+    return this.previousValue;
+  }
+  // TODO: Current value
+  GetPrecision() {
+    return this.precision;
+  }
+  SetUnit(unit) {
+    this.unit = unit;
+  }
+};
+var UIFolder = class extends Stat {
+  folderElement;
+  container;
+  constructor(container, title) {
+    super(container instanceof HTMLDivElement ? container : container.container, null);
+    this.folderElement = document.createElement("details");
+    const folderTitle = document.createElement("summary");
+    folderTitle.textContent = title;
+    this.container = document.createElement("div");
+    this.folderElement.append(folderTitle, this.container);
+    this.statContainer.append(this.folderElement);
+  }
+  SetPosition(position) {
+    if (position.left) this.container.style.left = `${position.left}px`;
+    if (position.right) this.container.style.right = `${position.right}px`;
+    if (position.top) this.container.style.top = `${position.top}px`;
+    if (position.bottom) this.container.style.bottom = `${position.bottom}px`;
+  }
+  Open() {
+    this.folderElement.setAttribute("open", "");
+  }
+};
+
+// src/plugins/Debugger.ts
+var _Debugger = class {
+  isDebugDepthPassEnabled = false;
+  debugDepthMipLevel = 0;
+  debugDepthExposure = 0;
+  isFrustumCullingEnabled = true;
+  isBackFaceCullingEnabled = false;
+  isOcclusionCullingEnabled = true;
+  isSmallFeaturesCullingEnabled = true;
+  dynamicLODErrorThreshold = 1;
+  isDynamicLODEnabled = true;
+  staticLOD = 20;
+  viewType = 0;
+  heightScale = 0.05;
+  useHeightMap = false;
+  ui;
+  renderPassesFolder;
+  framePassesStats = /* @__PURE__ */ new Map();
+  fps;
+  totalMeshlets;
+  visibleMeshes;
+  triangleCount;
+  visibleTriangles;
+  gpuTime;
+  gpuBufferSizeStat;
+  gpuBufferSizeTotal = 0;
+  constructor() {
+    const container = document.createElement("div");
+    container.classList.add("stats-panel");
+    this.ui = new UIFolder(container, "Debugger");
+    this.ui.Open();
+    document.body.append(container);
+    this.fps = new UITextStat(this.ui, "FPS", 0, 2, "", true);
+    this.totalMeshlets = new UITextStat(this.ui, "Total meshlets");
+    this.visibleMeshes = new UITextStat(this.ui, "Visible meshlets: ");
+    this.triangleCount = new UITextStat(this.ui, "Triangles: ");
+    this.visibleTriangles = new UITextStat(this.ui, "Visible triangles: ");
+    this.gpuTime = new UITextStat(this.ui, "GPU: ", 0, 2, "ms", true);
+    this.gpuBufferSizeStat = new UITextStat(this.ui, "GPU buffer size: ", 0, 2);
+    const hizFolder = new UIFolder(this.ui, "Hierarchical Z depth");
+    hizFolder.Open();
+    const debugDepthMipLevel = new UISliderStat(hizFolder, "Depth mip:", 0, 20, 1, 0, (value) => {
+      this.debugDepthMipLevel = value;
+    });
+    const debugDepthExposure = new UISliderStat(hizFolder, "Depth exposure:", -10, 10, 0.01, 0, (value) => {
+      this.debugDepthExposure = value;
+    });
+    debugDepthMipLevel.Disable();
+    debugDepthExposure.Disable();
+    const debugDepth = new UIButtonStat(hizFolder, "View depth:", (state) => {
+      this.isDebugDepthPassEnabled = state;
+      if (this.isDebugDepthPassEnabled === true) {
+        debugDepthMipLevel.Enable();
+        debugDepthExposure.Enable();
+      } else {
+        debugDepthMipLevel.Disable();
+        debugDepthExposure.Disable();
+      }
+    });
+    const cullingFolder = new UIFolder(this.ui, "Culling");
+    const frustumCulling = new UIButtonStat(cullingFolder, "Frustum culling:", (state) => {
+      this.isFrustumCullingEnabled = state;
+    }, this.isFrustumCullingEnabled);
+    const backFaceCulling = new UIButtonStat(cullingFolder, "Backface culling:", (state) => {
+      this.isBackFaceCullingEnabled = state;
+    }, this.isBackFaceCullingEnabled);
+    const occlusionCulling = new UIButtonStat(cullingFolder, "Occlusion culling:", (state) => {
+      this.isOcclusionCullingEnabled = state;
+    }, this.isOcclusionCullingEnabled);
+    const smallFeatureCulling = new UIButtonStat(cullingFolder, "Small features:", (state) => {
+      this.isSmallFeaturesCullingEnabled = state;
+    }, this.isSmallFeaturesCullingEnabled);
+    const staticLOD = new UISliderStat(cullingFolder, "Static LOD:", 0, this.staticLOD, 1, 0, (state) => {
+      this.staticLOD = state;
+    });
+    staticLOD.Disable();
+    const dynamicLODErrorThreshold = new UISliderStat(cullingFolder, "Dynamic LOD error:", 0, 20, 0.01, this.dynamicLODErrorThreshold, (value) => {
+      this.dynamicLODErrorThreshold = value;
+    });
+    const dynamicLOD = new UIButtonStat(cullingFolder, "Dynamic LOD:", (state) => {
+      this.isDynamicLODEnabled = state;
+      if (this.isDynamicLODEnabled === true) {
+        staticLOD.Disable();
+        dynamicLODErrorThreshold.Enable();
+      } else {
+        staticLOD.Enable();
+        dynamicLODErrorThreshold.Disable();
+      }
+    }, this.isDynamicLODEnabled);
+    cullingFolder.Open();
+    const rendererFolder = new UIFolder(this.ui, "Renderer");
+    rendererFolder.Open();
+    const viewTypeStat = new UIDropdownStat(rendererFolder, "GBuffer:", ["Instances", "Instance+Triangles", "Albedo Map", "Normal Map", "Lighting"], (index, value) => {
+      this.viewType = index;
+    });
+    const heightScale = new UISliderStat(rendererFolder, "Height scale:", 0, 1, 0.01, this.heightScale, (state) => {
+      this.heightScale = state;
+    });
+    const useHeightMapStat = new UIButtonStat(rendererFolder, "Use heightmap:", (state) => {
+      this.useHeightMap = state;
+    }, this.useHeightMap);
+    this.renderPassesFolder = new UIFolder(this.ui, "Frame passes");
+    this.renderPassesFolder.Open();
+  }
+  SetPassTime(name, time) {
+    let framePass = this.framePassesStats.get(name);
+    if (!framePass) {
+      framePass = new UITextStat(this.renderPassesFolder, name, 0, 2, "ms", true);
+      this.framePassesStats.set(name, framePass);
+    }
+    framePass.SetValue(time / 1e6);
+  }
+  IncrementGPUBufferSize(value) {
+    const FormatBytes = (bytes, decimals = 2) => {
+      const k = 1024;
+      const sizes = ["B", "KB", "MB", "GB", "TB", "PB", "EB", "ZB", "YB"];
+      const i = Math.floor(Math.log(bytes) / Math.log(k));
+      return { value: parseFloat((bytes / Math.pow(k, i)).toFixed(decimals)), rank: sizes[i] };
+    };
+    this.gpuBufferSizeTotal += value;
+    const formatted = FormatBytes(this.gpuBufferSizeTotal, this.gpuBufferSizeStat.GetPrecision());
+    this.gpuBufferSizeStat.SetUnit(formatted.rank);
+    this.gpuBufferSizeStat.SetValue(formatted.value);
+  }
+  SetTotalMeshlets(count) {
+    this.totalMeshlets.SetValue(count);
+  }
+  SetVisibleMeshes(count) {
+    this.visibleMeshes.SetValue(count);
+  }
+  SetTriangleCount(count) {
+    this.triangleCount.SetValue(count);
+  }
+  SetVisibleTriangleCount(count) {
+    this.visibleTriangles.SetValue(count);
+  }
+  SetFPS(count) {
+    this.fps.SetValue(count);
+    let totalGPUTime = 0;
+    for (const [_, framePass] of this.framePassesStats) {
+      totalGPUTime += framePass.GetValue();
+    }
+    this.gpuTime.SetValue(totalGPUTime);
+  }
+};
+var Debugger = new _Debugger();
+
 // src/renderer/webgpu/WEBGPUBuffer.ts
 var BaseBuffer = class {
+  id = Utils.UUID();
   buffer;
   size;
   set name(name) {
@@ -1278,6 +1558,8 @@ var Buffer3 = class {
     return "Buffer";
   }
   static Create(size, type) {
+    if (size === 0) throw Error("Tried to create a buffer with size 0");
+    Debugger.IncrementGPUBufferSize(size);
     if (Renderer.type === "webgpu") return new WEBGPUBuffer(size, type);
     else throw Error("Renderer type invalid");
   }
@@ -2877,261 +3159,6 @@ var DebuggerPass = class extends RenderPass {
   }
 };
 
-// src/plugins/ui/UIStats.ts
-var Stat = class {
-  statContainer;
-  constructor(container, label) {
-    this.statContainer = document.createElement("div");
-    this.statContainer.classList.add("stat");
-    container.appendChild(this.statContainer);
-    if (label !== null) {
-      const labelElement = document.createElement("label");
-      labelElement.classList.add("title");
-      labelElement.classList.add("title");
-      labelElement.textContent = label;
-      this.statContainer.append(labelElement);
-    }
-  }
-  Disable() {
-    this.statContainer.classList.add("disabled");
-  }
-  Enable() {
-    this.statContainer.classList.remove("disabled");
-  }
-};
-var UIButtonStat = class extends Stat {
-  button;
-  state;
-  onText;
-  offText;
-  constructor(folder, label, onClicked, defaultState = false, onText = "Enable", offText = "Disable") {
-    super(folder.container, label);
-    this.state = defaultState;
-    this.onText = onText;
-    this.offText = offText;
-    this.button = document.createElement("button");
-    this.button.classList.add("value");
-    this.button.textContent = defaultState === true ? offText : onText;
-    this.statContainer.append(this.button);
-    this.button.addEventListener("click", (event) => {
-      this.state = !this.state;
-      if (this.state === true) this.button.textContent = this.offText;
-      else this.button.textContent = this.onText;
-      onClicked(this.state);
-    });
-  }
-};
-var UISliderStat = class extends Stat {
-  constructor(folder, label, min, max, step, defaultValue, callback) {
-    super(folder.container, label);
-    const container = document.createElement("div");
-    container.classList.add("value");
-    container.style.display = "inline-flex";
-    container.style.alignItems = "center";
-    container.style.padding = "0px";
-    const sliderElement = document.createElement("input");
-    sliderElement.classList.add("slider");
-    sliderElement.style.width = "60px";
-    sliderElement.style.margin = "0px";
-    sliderElement.type = "range";
-    sliderElement.min = `${min}`;
-    sliderElement.max = `${max}`;
-    sliderElement.step = `${step}`;
-    sliderElement.value = `${defaultValue}`;
-    const textElement = document.createElement("input");
-    textElement.style.width = "25px";
-    textElement.style.marginLeft = "5px";
-    textElement.value = defaultValue.toString();
-    textElement.addEventListener("input", (event) => {
-      sliderElement.value = textElement.value;
-      callback(parseFloat(sliderElement.value));
-      if (textElement.value !== "") textElement.value = sliderElement.value;
-    });
-    sliderElement.addEventListener("input", (event) => {
-      callback(parseFloat(sliderElement.value));
-      textElement.value = sliderElement.value;
-    });
-    container.append(sliderElement, textElement);
-    this.statContainer.append(container);
-  }
-};
-var UITextStat = class extends Stat {
-  textElement;
-  previousValue;
-  precision;
-  unit;
-  rolling;
-  constructor(folder, label, defaultValue = 0, precision = 0, unit = "", rolling = false) {
-    super(folder.container, label);
-    this.previousValue = defaultValue;
-    this.precision = precision;
-    this.unit = unit;
-    this.rolling = rolling;
-    this.textElement = document.createElement("pre");
-    this.textElement.classList.add("value");
-    this.textElement.textContent = defaultValue.toFixed(precision);
-    this.statContainer.append(this.textElement);
-  }
-  SetValue(value) {
-    if (this.rolling === true) {
-      value = this.previousValue * 0.95 + value * 0.05;
-    }
-    const valueStr = this.precision === 0 ? value.toString() : value.toFixed(this.precision);
-    this.textElement.textContent = valueStr + this.unit;
-    this.previousValue = value;
-  }
-  GetValue() {
-    return this.previousValue;
-  }
-  // TODO: Current value
-};
-var UIFolder = class extends Stat {
-  folderElement;
-  container;
-  constructor(container, title) {
-    super(container instanceof HTMLDivElement ? container : container.container, null);
-    this.folderElement = document.createElement("details");
-    const folderTitle = document.createElement("summary");
-    folderTitle.textContent = title;
-    this.container = document.createElement("div");
-    this.folderElement.append(folderTitle, this.container);
-    this.statContainer.append(this.folderElement);
-  }
-  SetPosition(position) {
-    if (position.left) this.container.style.left = `${position.left}px`;
-    if (position.right) this.container.style.right = `${position.right}px`;
-    if (position.top) this.container.style.top = `${position.top}px`;
-    if (position.bottom) this.container.style.bottom = `${position.bottom}px`;
-  }
-  Open() {
-    this.folderElement.setAttribute("open", "");
-  }
-};
-
-// src/plugins/Debugger.ts
-var _Debugger = class {
-  isDebugDepthPassEnabled = false;
-  debugDepthMipLevel = 0;
-  debugDepthExposure = 0;
-  isFrustumCullingEnabled = true;
-  isBackFaceCullingEnabled = false;
-  isOcclusionCullingEnabled = true;
-  isSmallFeaturesCullingEnabled = true;
-  dynamicLODErrorThreshold = 1;
-  isDynamicLODEnabled = true;
-  staticLOD = 20;
-  viewInstanceColors = true;
-  ui;
-  renderPassesFolder;
-  framePassesStats = /* @__PURE__ */ new Map();
-  fps;
-  totalMeshlets;
-  visibleMeshes;
-  triangleCount;
-  visibleTriangles;
-  gpuTime;
-  constructor() {
-    const container = document.createElement("div");
-    container.classList.add("stats-panel");
-    this.ui = new UIFolder(container, "Debugger");
-    this.ui.Open();
-    document.body.append(container);
-    this.fps = new UITextStat(this.ui, "FPS", 0, 2, "", true);
-    this.totalMeshlets = new UITextStat(this.ui, "Total meshlets");
-    this.visibleMeshes = new UITextStat(this.ui, "Visible meshlets: ");
-    this.triangleCount = new UITextStat(this.ui, "Triangles: ");
-    this.visibleTriangles = new UITextStat(this.ui, "Visible triangles: ");
-    this.gpuTime = new UITextStat(this.ui, "GPU: ", 0, 2, "ms", true);
-    const hizFolder = new UIFolder(this.ui, "Hierarchical Z depth");
-    hizFolder.Open();
-    const debugDepthMipLevel = new UISliderStat(hizFolder, "Depth mip:", 0, 20, 1, 0, (value) => {
-      this.debugDepthMipLevel = value;
-    });
-    const debugDepthExposure = new UISliderStat(hizFolder, "Depth exposure:", -10, 10, 0.01, 0, (value) => {
-      this.debugDepthExposure = value;
-    });
-    debugDepthMipLevel.Disable();
-    debugDepthExposure.Disable();
-    const debugDepth = new UIButtonStat(hizFolder, "View depth:", (state) => {
-      this.isDebugDepthPassEnabled = state;
-      if (this.isDebugDepthPassEnabled === true) {
-        debugDepthMipLevel.Enable();
-        debugDepthExposure.Enable();
-      } else {
-        debugDepthMipLevel.Disable();
-        debugDepthExposure.Disable();
-      }
-    });
-    const cullingFolder = new UIFolder(this.ui, "Culling");
-    const frustumCulling = new UIButtonStat(cullingFolder, "Frustum culling:", (state) => {
-      this.isFrustumCullingEnabled = state;
-    }, this.isFrustumCullingEnabled);
-    const backFaceCulling = new UIButtonStat(cullingFolder, "Backface culling:", (state) => {
-      this.isBackFaceCullingEnabled = state;
-    }, this.isBackFaceCullingEnabled);
-    const occlusionCulling = new UIButtonStat(cullingFolder, "Occlusion culling:", (state) => {
-      this.isOcclusionCullingEnabled = state;
-    }, this.isOcclusionCullingEnabled);
-    const smallFeatureCulling = new UIButtonStat(cullingFolder, "Small features:", (state) => {
-      this.isSmallFeaturesCullingEnabled = state;
-    }, this.isSmallFeaturesCullingEnabled);
-    const staticLOD = new UISliderStat(cullingFolder, "Static LOD:", 0, this.staticLOD, 1, 0, (state) => {
-      this.staticLOD = state;
-    });
-    staticLOD.Disable();
-    const dynamicLODErrorThreshold = new UISliderStat(cullingFolder, "Dynamic LOD error:", 0, 20, 0.01, this.dynamicLODErrorThreshold, (value) => {
-      this.dynamicLODErrorThreshold = value;
-    });
-    const dynamicLOD = new UIButtonStat(cullingFolder, "Dynamic LOD:", (state) => {
-      this.isDynamicLODEnabled = state;
-      if (this.isDynamicLODEnabled === true) {
-        staticLOD.Disable();
-        dynamicLODErrorThreshold.Enable();
-      } else {
-        staticLOD.Enable();
-        dynamicLODErrorThreshold.Disable();
-      }
-    }, this.isDynamicLODEnabled);
-    cullingFolder.Open();
-    const rendererFolder = new UIFolder(this.ui, "Renderer");
-    rendererFolder.Open();
-    const instanceColors = new UIButtonStat(rendererFolder, "Instance colors:", (state) => {
-      this.viewInstanceColors = state;
-    }, this.viewInstanceColors);
-    this.renderPassesFolder = new UIFolder(this.ui, "Frame passes");
-    this.renderPassesFolder.Open();
-  }
-  SetPassTime(name, time) {
-    let framePass = this.framePassesStats.get(name);
-    if (!framePass) {
-      framePass = new UITextStat(this.renderPassesFolder, name, 0, 2, "ms", true);
-      this.framePassesStats.set(name, framePass);
-    }
-    framePass.SetValue(time / 1e6);
-  }
-  SetTotalMeshlets(count) {
-    this.totalMeshlets.SetValue(count);
-  }
-  SetVisibleMeshes(count) {
-    this.visibleMeshes.SetValue(count);
-  }
-  SetTriangleCount(count) {
-    this.triangleCount.SetValue(count);
-  }
-  SetVisibleTriangleCount(count) {
-    this.visibleTriangles.SetValue(count);
-  }
-  SetFPS(count) {
-    this.fps.SetValue(count);
-    let totalGPUTime = 0;
-    for (const [_, framePass] of this.framePassesStats) {
-      totalGPUTime += framePass.GetValue();
-    }
-    this.gpuTime.SetValue(totalGPUTime);
-  }
-};
-var Debugger = new _Debugger();
-
 // src/renderer/webgpu/WEBGPUComputeContext.ts
 var WEBGPUComputeContext = class {
   static activeComputePass = null;
@@ -3260,6 +3287,36 @@ var Sphere = class _Sphere {
   }
 };
 
+// src/utils/CRC32.ts
+var CRC32 = class {
+  /**
+   * Lookup table calculated for 0xEDB88320 divisor
+   */
+  static lookupTable = [0, 1996959894, 3993919788, 2567524794, 124634137, 1886057615, 3915621685, 2657392035, 249268274, 2044508324, 3772115230, 2547177864, 162941995, 2125561021, 3887607047, 2428444049, 498536548, 1789927666, 4089016648, 2227061214, 450548861, 1843258603, 4107580753, 2211677639, 325883990, 1684777152, 4251122042, 2321926636, 335633487, 1661365465, 4195302755, 2366115317, 997073096, 1281953886, 3579855332, 2724688242, 1006888145, 1258607687, 3524101629, 2768942443, 901097722, 1119000684, 3686517206, 2898065728, 853044451, 1172266101, 3705015759, 2882616665, 651767980, 1373503546, 3369554304, 3218104598, 565507253, 1454621731, 3485111705, 3099436303, 671266974, 1594198024, 3322730930, 2970347812, 795835527, 1483230225, 3244367275, 3060149565, 1994146192, 31158534, 2563907772, 4023717930, 1907459465, 112637215, 2680153253, 3904427059, 2013776290, 251722036, 2517215374, 3775830040, 2137656763, 141376813, 2439277719, 3865271297, 1802195444, 476864866, 2238001368, 4066508878, 1812370925, 453092731, 2181625025, 4111451223, 1706088902, 314042704, 2344532202, 4240017532, 1658658271, 366619977, 2362670323, 4224994405, 1303535960, 984961486, 2747007092, 3569037538, 1256170817, 1037604311, 2765210733, 3554079995, 1131014506, 879679996, 2909243462, 3663771856, 1141124467, 855842277, 2852801631, 3708648649, 1342533948, 654459306, 3188396048, 3373015174, 1466479909, 544179635, 3110523913, 3462522015, 1591671054, 702138776, 2966460450, 3352799412, 1504918807, 783551873, 3082640443, 3233442989, 3988292384, 2596254646, 62317068, 1957810842, 3939845945, 2647816111, 81470997, 1943803523, 3814918930, 2489596804, 225274430, 2053790376, 3826175755, 2466906013, 167816743, 2097651377, 4027552580, 2265490386, 503444072, 1762050814, 4150417245, 2154129355, 426522225, 1852507879, 4275313526, 2312317920, 282753626, 1742555852, 4189708143, 2394877945, 397917763, 1622183637, 3604390888, 2714866558, 953729732, 1340076626, 3518719985, 2797360999, 1068828381, 1219638859, 3624741850, 2936675148, 906185462, 1090812512, 3747672003, 2825379669, 829329135, 1181335161, 3412177804, 3160834842, 628085408, 1382605366, 3423369109, 3138078467, 570562233, 1426400815, 3317316542, 2998733608, 733239954, 1555261956, 3268935591, 3050360625, 752459403, 1541320221, 2607071920, 3965973030, 1969922972, 40735498, 2617837225, 3943577151, 1913087877, 83908371, 2512341634, 3803740692, 2075208622, 213261112, 2463272603, 3855990285, 2094854071, 198958881, 2262029012, 4057260610, 1759359992, 534414190, 2176718541, 4139329115, 1873836001, 414664567, 2282248934, 4279200368, 1711684554, 285281116, 2405801727, 4167216745, 1634467795, 376229701, 2685067896, 3608007406, 1308918612, 956543938, 2808555105, 3495958263, 1231636301, 1047427035, 2932959818, 3654703836, 1088359270, 936918e3, 2847714899, 3736837829, 1202900863, 817233897, 3183342108, 3401237130, 1404277552, 615818150, 3134207493, 3453421203, 1423857449, 601450431, 3009837614, 3294710456, 1567103746, 711928724, 3020668471, 3272380065, 1510334235, 755167117];
+  static calculateBytes(bytes, accumulator) {
+    let crc = accumulator;
+    for (const byte of bytes) {
+      const tableIndex = (crc ^ byte) & 255;
+      const tableVal = this.lookupTable[tableIndex];
+      crc = crc >>> 8 ^ tableVal;
+    }
+    return crc;
+  }
+  static crcToUint(crc) {
+    return this.toUint32(crc ^ 4294967295);
+  }
+  static toUint32(num) {
+    if (num >= 0) {
+      return num;
+    }
+    return 4294967295 - num * -1 + 1;
+  }
+  static forBytes(bytes) {
+    const crc = this.calculateBytes(bytes, 4294967295);
+    return this.crcToUint(crc);
+  }
+};
+
 // src/plugins/meshlets/Meshlet.ts
 var Meshlet = class _Meshlet {
   static max_triangles = 128;
@@ -3349,9 +3406,9 @@ var CullingPass = class extends RenderPass {
   constructor() {
     super({
       inputs: [
-        PassParams.indirectMeshInfo,
         PassParams.indirectMeshletInfo,
         PassParams.indirectObjectInfo,
+        PassParams.indirectMeshMatrixInfo,
         PassParams.meshletsCount
       ],
       outputs: [
@@ -3375,8 +3432,8 @@ var CullingPass = class extends RenderPass {
         instanceInfo: { group: 0, binding: 1, type: "storage-write" },
         cullData: { group: 0, binding: 2, type: "storage" },
         meshletInfo: { group: 0, binding: 3, type: "storage" },
-        meshInfo: { group: 0, binding: 4, type: "storage" },
-        objectInfo: { group: 0, binding: 5, type: "storage" },
+        objectInfo: { group: 0, binding: 4, type: "storage" },
+        meshMatrixInfo: { group: 0, binding: 5, type: "storage" },
         visibilityBuffer: { group: 0, binding: 6, type: "storage-write" },
         bPrepass: { group: 0, binding: 7, type: "storage" },
         textureSampler: { group: 0, binding: 8, type: "sampler" },
@@ -3396,22 +3453,26 @@ var CullingPass = class extends RenderPass {
     this.nonVisibleBuffer.SetArray(new Float32Array([0]));
     this.debugBuffer = Buffer3.Create(4 * 4, 0 /* STORAGE */);
   }
-  execute(resources, inputIndirectMeshInfo, inputIndirectMeshletInfo, inputIndirectObjectInfo, inputMeshletsCount, outputIndirectDrawBuffer, outputIndirectInstanceInfo, outputIsCullingPrepass) {
+  execute(resources) {
     const mainCamera = Camera.mainCamera;
-    if (inputMeshletsCount === 0) return;
+    const meshletCount = resources.getResource(PassParams.meshletsCount);
+    const meshletInfoBuffer = resources.getResource(PassParams.indirectMeshletInfo);
+    const objectInfoBuffer = resources.getResource(PassParams.indirectObjectInfo);
+    const meshMatrixInfoBuffer = resources.getResource(PassParams.indirectMeshMatrixInfo);
+    if (meshletCount === 0) return;
     if (!this.visibilityBuffer) {
-      const visibilityBufferArray = new Float32Array(inputMeshletsCount * 4).fill(1);
+      const visibilityBufferArray = new Float32Array(meshletCount * 4).fill(1);
       this.visibilityBuffer = Buffer3.Create(visibilityBufferArray.byteLength, 1 /* STORAGE_WRITE */);
       this.visibilityBuffer.SetArray(visibilityBufferArray);
     }
     if (!this.instanceInfoBuffer) {
-      console.log("inputMeshletsCount", inputMeshletsCount);
-      this.instanceInfoBuffer = Buffer3.Create(inputMeshletsCount * 1 * 4, 1 /* STORAGE_WRITE */);
+      console.log("meshletCount", meshletCount);
+      this.instanceInfoBuffer = Buffer3.Create(meshletCount * 1 * 4, 1 /* STORAGE_WRITE */);
       this.instanceInfoBuffer.name = "instanceInfoBuffer";
     }
-    this.compute.SetBuffer("meshletInfo", inputIndirectMeshletInfo);
-    this.compute.SetBuffer("meshInfo", inputIndirectMeshInfo);
-    this.compute.SetBuffer("objectInfo", inputIndirectObjectInfo);
+    this.compute.SetBuffer("meshletInfo", meshletInfoBuffer);
+    this.compute.SetBuffer("objectInfo", objectInfoBuffer);
+    this.compute.SetBuffer("meshMatrixInfo", meshMatrixInfoBuffer);
     this.compute.SetBuffer("instanceInfo", this.instanceInfoBuffer);
     this.compute.SetBuffer("visibilityBuffer", this.visibilityBuffer);
     this.frustum.setFromProjectionMatrix(mainCamera.projectionMatrix);
@@ -3432,7 +3493,7 @@ var CullingPass = class extends RenderPass {
       this.frustum.planes[4].constant,
       ...this.frustum.planes[5].normal.elements,
       this.frustum.planes[5].constant,
-      inputMeshletsCount,
+      meshletCount,
       0,
       Renderer.width,
       Renderer.height,
@@ -3456,9 +3517,11 @@ var CullingPass = class extends RenderPass {
       Debugger.staticLOD,
       Debugger.dynamicLODErrorThreshold,
       +Debugger.isDynamicLODEnabled,
-      +Debugger.viewInstanceColors,
+      Debugger.viewType,
+      +Debugger.useHeightMap,
+      Debugger.heightScale,
       Meshlet.max_triangles,
-      0,
+      ...mainCamera.transform.position.elements,
       0,
       0
     ]);
@@ -3470,20 +3533,20 @@ var CullingPass = class extends RenderPass {
     RendererContext.ClearBuffer(this.drawIndirectBuffer);
     if (this.isPrePass === true) RendererContext.CopyBufferToBuffer(this.visibleBuffer, this.currentPassBuffer);
     else RendererContext.CopyBufferToBuffer(this.nonVisibleBuffer, this.currentPassBuffer);
-    const dispatchSizeX = Math.ceil(Math.cbrt(inputMeshletsCount) / 4);
-    const dispatchSizeY = Math.ceil(Math.cbrt(inputMeshletsCount) / 4);
-    const dispatchSizeZ = Math.ceil(Math.cbrt(inputMeshletsCount) / 4);
+    const dispatchSizeX = Math.ceil(Math.cbrt(meshletCount) / 4);
+    const dispatchSizeY = Math.ceil(Math.cbrt(meshletCount) / 4);
+    const dispatchSizeZ = Math.ceil(Math.cbrt(meshletCount) / 4);
     ComputeContext.BeginComputePass(`Culling - prepass: ${+this.isPrePass}`, true);
     ComputeContext.Dispatch(this.compute, dispatchSizeX, dispatchSizeY, dispatchSizeZ);
     ComputeContext.EndComputePass();
-    resources.setResource(outputIsCullingPrepass, this.isPrePass);
+    resources.setResource(PassParams.isCullingPrepass, this.isPrePass);
     this.isPrePass = !this.isPrePass;
-    resources.setResource(outputIndirectDrawBuffer, this.drawIndirectBuffer);
-    resources.setResource(outputIndirectInstanceInfo, this.instanceInfoBuffer);
+    resources.setResource(PassParams.indirectDrawBuffer, this.drawIndirectBuffer);
+    resources.setResource(PassParams.indirectInstanceInfo, this.instanceInfoBuffer);
     this.debugBuffer.GetData().then((v) => {
       const visibleMeshCount = new Uint32Array(v)[1];
       Debugger.SetVisibleMeshes(visibleMeshCount);
-      Debugger.SetTriangleCount(Meshlet.max_triangles * inputMeshletsCount);
+      Debugger.SetTriangleCount(Meshlet.max_triangles * meshletCount);
       Debugger.SetVisibleTriangleCount(Meshlet.max_triangles * visibleMeshCount);
     });
   }
@@ -7775,10 +7838,11 @@ var MeshletMerger = class {
 };
 
 // src/plugins/meshlets/Meshletizer.ts
-var Meshletizer = class {
+var Meshletizer = class _Meshletizer {
+  static MaxLOD = 25;
   static step(meshlets, lod, previousMeshlets) {
     if (meshlets.length === 1 && meshlets[0].vertices.length < Meshlet.max_triangles * 8) return meshlets;
-    let nparts = Math.ceil(meshlets.length / 4);
+    let nparts = Math.ceil(meshlets.length / 8);
     if (nparts > 8) nparts = 8;
     let grouped = [meshlets];
     if (nparts > 1) {
@@ -7789,9 +7853,9 @@ var Meshletizer = class {
       const group = grouped[i];
       const mergedGroup = MeshletMerger.merge(group);
       const cleanedMergedGroup = Meshoptimizer.clean(mergedGroup);
-      const tLod = (lod + 1) / 25;
+      const tLod = (lod + 1) / _Meshletizer.MaxLOD;
       const targetError = 0.1 * tLod + 0.01 * (1 - tLod);
-      const simplified = Meshoptimizer.meshopt_simplify(cleanedMergedGroup, Meshlet.max_triangles, targetError);
+      const simplified = Meshoptimizer.meshopt_simplify(cleanedMergedGroup, cleanedMergedGroup.indices.length / 3 / 2, targetError);
       const localScale = Meshoptimizer.meshopt_simplifyScale(simplified.meshlet);
       let meshSpaceError = simplified.error * localScale;
       let childrenError = 0;
@@ -7825,21 +7889,21 @@ var Meshletizer = class {
     await Metis.load();
     const meshlets = MeshletCreator.build(vertices, indices, 255, Meshlet.max_triangles);
     console.log(`starting with ${meshlets.length} meshlets`);
-    const maxLOD = 25;
     let inputs = meshlets;
     let rootMeshlet = null;
     let previousMeshlets = /* @__PURE__ */ new Map();
     for (let m of meshlets) previousMeshlets.set(m.id, m);
-    for (let lod = 0; lod < maxLOD; lod++) {
+    for (let lod = 0; lod < _Meshletizer.MaxLOD; lod++) {
       const outputs = this.step(inputs, lod, previousMeshlets);
-      const inputTriangleCount = inputs.map((m) => m.indices.length / 3);
-      const outputTriangleCount = outputs.map((m) => m.indices.length / 3);
-      const inputVertexCount = inputTriangleCount.reduce((a, b) => a + b);
-      const outputVertexCount = outputTriangleCount.reduce((a, b) => a + b);
-      if (outputVertexCount >= inputVertexCount) {
+      const inputTriangleArray = inputs.map((m) => m.indices.length / 3);
+      const outputTriangleArray = outputs.map((m) => m.indices.length / 3);
+      const inputTriangleCount = inputTriangleArray.reduce((a, b) => a + b);
+      const outputTriangleCount = outputTriangleArray.reduce((a, b) => a + b);
+      console.log(`LOD: ${lod}: input: [meshlets: ${inputTriangleArray.length}, triangles: ${inputTriangleCount}] -> output: [meshlets: ${outputTriangleArray.length}, triangles: ${outputTriangleCount}]`);
+      if (outputTriangleCount >= inputTriangleCount) {
         for (const input of inputs) {
           if (input.indices.length / 3 > Meshlet.max_triangles) {
-            throw Error(`Output meshlet triangle count ${inputVertexCount} >= input triangle count ${inputVertexCount}`);
+            throw Error(`Output meshlet triangle count ${inputTriangleCount} >= input triangle count ${inputTriangleCount}`);
           }
         }
         break;
@@ -7853,7 +7917,6 @@ var Meshletizer = class {
         break;
       }
     }
-    if (inputs.length !== 1) throw Error("Could not simplify up to one root node");
     let meshletsOut = [];
     for (const [_, meshlet] of previousMeshlets) {
       meshletsOut.push(meshlet);
@@ -7928,13 +7991,90 @@ var DeferredMeshMaterial = class extends Material {
   }
 };
 
+// src/utils/MemoryAllocator.ts
+var MemoryAllocator = class {
+  memorySize;
+  availableMemorySize;
+  freeBlocks = [];
+  usedBlocks = [];
+  constructor(memorySize) {
+    this.memorySize = memorySize;
+    this.availableMemorySize = memorySize;
+    this.freeBlocks.push({ offset: 0, size: memorySize });
+  }
+  allocate(size) {
+    for (let i = 0; i < this.freeBlocks.length; i++) {
+      const block = this.freeBlocks[i];
+      if (block.size >= size) {
+        const offset = block.offset;
+        block.offset += size;
+        block.size -= size;
+        this.availableMemorySize -= size;
+        if (block.size === 0) {
+          this.freeBlocks.splice(i, 1);
+        }
+        this.usedBlocks.push({ offset, size });
+        return offset;
+      }
+    }
+    throw Error("Not enough space.");
+  }
+  free(offset) {
+    for (let i = 0; i < this.usedBlocks.length; i++) {
+      const block = this.usedBlocks[i];
+      if (block.offset === offset) {
+        this.usedBlocks.splice(i, 1);
+        this.freeBlocks.push(block);
+        return;
+      }
+    }
+    throw new Error(`No allocated block found at offset ${offset}`);
+  }
+};
+var BufferMemoryAllocator = class _BufferMemoryAllocator {
+  allocator;
+  buffer;
+  links;
+  static BYTES_PER_ELEMENT = Float32Array.BYTES_PER_ELEMENT;
+  constructor(size) {
+    this.allocator = new MemoryAllocator(size);
+    this.buffer = Buffer3.Create(size * _BufferMemoryAllocator.BYTES_PER_ELEMENT, 0 /* STORAGE */);
+    this.links = /* @__PURE__ */ new Map();
+  }
+  has(link) {
+    return this.links.has(link);
+  }
+  set(link, data) {
+    let bufferOffset = this.links.get(link);
+    if (!bufferOffset) {
+      bufferOffset = this.allocator.allocate(data.length);
+      this.links.set(link, bufferOffset);
+    }
+    this.buffer.SetArray(data, bufferOffset * _BufferMemoryAllocator.BYTES_PER_ELEMENT, 0, data.length);
+    return bufferOffset;
+  }
+  delete(link) {
+    const bufferOffset = this.links.get(link);
+    if (!bufferOffset) throw Error("Link not found");
+    this.allocator.free(bufferOffset);
+    this.links.delete(link);
+  }
+  getBuffer() {
+    return this.buffer;
+  }
+  getAllocator() {
+    return this.allocator;
+  }
+};
+
 // src/renderer/passes/PrepareSceneData.ts
 var PrepareSceneData = class extends RenderPass {
   name = "PrepareSceneData";
-  meshInfoBuffer;
-  meshletInfoBuffer;
-  objectInfoBuffer;
+  objectInfoBufferV2;
   vertexBuffer;
+  meshMaterialInfo;
+  meshMatrixInfoBuffer;
+  meshletInfoBuffer;
   currentMeshCount = 0;
   currentMeshletsCount = 0;
   materialIndexCache = /* @__PURE__ */ new Map();
@@ -7950,10 +8090,17 @@ var PrepareSceneData = class extends RenderPass {
         PassParams.indirectMeshInfo,
         PassParams.indirectMeshletInfo,
         PassParams.indirectObjectInfo,
+        PassParams.indirectMeshMatrixInfo,
         PassParams.meshletsCount,
         PassParams.textureMaps
       ]
     });
+    const meshMatrixBufferSize = 1024 * 1024 * 1;
+    this.meshMatrixInfoBuffer = new BufferMemoryAllocator(meshMatrixBufferSize);
+    this.meshMaterialInfo = new BufferMemoryAllocator(meshMatrixBufferSize);
+    this.meshletInfoBuffer = new BufferMemoryAllocator(meshMatrixBufferSize);
+    this.vertexBuffer = new BufferMemoryAllocator(meshMatrixBufferSize);
+    this.objectInfoBufferV2 = new BufferMemoryAllocator(meshMatrixBufferSize);
   }
   getVertexInfo(meshlet) {
     return meshlet.vertices_gpu;
@@ -7961,7 +8108,7 @@ var PrepareSceneData = class extends RenderPass {
   getMeshletInfo(meshlet) {
     const bv = meshlet.boundingVolume;
     const pbv = meshlet.boundingVolume;
-    return [
+    return new Float32Array([
       0,
       0,
       0,
@@ -8001,7 +8148,7 @@ var PrepareSceneData = class extends RenderPass {
       0,
       ...meshlet.bounds.max.elements,
       0
-    ];
+    ]);
   }
   getMeshMaterialInfo(mesh) {
     let materials = mesh.GetMaterials(DeferredMeshMaterial);
@@ -8015,7 +8162,7 @@ var PrepareSceneData = class extends RenderPass {
     const roughness = material.params.roughness;
     const metalness = material.params.metalness;
     const unlit = material.params.unlit;
-    return [
+    return new Float32Array([
       albedoIndex,
       normalIndex,
       heightIndex,
@@ -8026,18 +8173,7 @@ var PrepareSceneData = class extends RenderPass {
       metalness,
       +unlit,
       0
-    ];
-  }
-  getMeshInfo(mesh) {
-    const materialInfo = this.getMeshMaterialInfo(mesh);
-    return [
-      ...mesh.transform.localToWorldMatrix.elements,
-      ...mesh.transform.position.elements,
-      0,
-      ...mesh.transform.scale.elements,
-      0,
-      ...materialInfo
-    ];
+    ]);
   }
   processMaterialMap(materialMap, type) {
     if (materialMap) {
@@ -8068,7 +8204,7 @@ var PrepareSceneData = class extends RenderPass {
     }
     return materialMap;
   }
-  execute(resources, indirectVertices, indirectMeshInfo, indirectMeshletInfo, indirectObjectInfo, meshletsCount, textureMaps) {
+  execute(resources) {
     const mainCamera = Camera.mainCamera;
     const scene = mainCamera.gameObject.scene;
     const sceneMeshlets = [...scene.GetComponents(MeshletMesh)];
@@ -8079,72 +8215,43 @@ var PrepareSceneData = class extends RenderPass {
           meshlets.push({ mesh: meshlet, geometry });
         }
       }
-      let meshletInfo = [];
-      let meshInfo = [];
-      let objectInfo = [];
-      let vertices = [];
       const indexedCache = /* @__PURE__ */ new Map();
       const meshCache = /* @__PURE__ */ new Map();
-      for (let i = 0; i < meshlets.length; i++) {
-        const sceneMesh = meshlets[i];
-        let geometryIndex = indexedCache.get(sceneMesh.geometry.crc);
-        if (geometryIndex === void 0) {
-          geometryIndex = indexedCache.size;
-          indexedCache.set(sceneMesh.geometry.crc, geometryIndex);
-          const meshletVertexArray = this.getVertexInfo(sceneMesh.geometry);
-          vertices.push(...meshletVertexArray);
-          const meshletInfoArray2 = this.getMeshletInfo(sceneMesh.geometry);
-          meshletInfo.push(...meshletInfoArray2);
-        }
-        let meshIndex = meshCache.get(sceneMesh.mesh.id);
+      for (const mesh of sceneMeshlets) {
+        if (!this.meshMaterialInfo.has(mesh.id)) this.meshMaterialInfo.set(mesh.id, this.getMeshMaterialInfo(mesh));
+        if (!this.meshMatrixInfoBuffer.has(mesh.id)) this.meshMatrixInfoBuffer.set(mesh.id, mesh.transform.localToWorldMatrix.elements);
+        let meshIndex = meshCache.get(mesh.id);
         if (meshIndex === void 0) {
           meshIndex = meshCache.size;
-          meshCache.set(sceneMesh.mesh.id, meshIndex);
-          const meshInfoArray = this.getMeshInfo(sceneMesh.mesh);
-          meshInfo.push(...meshInfoArray);
+          meshCache.set(mesh.id, meshIndex);
         }
-        objectInfo.push(
-          meshIndex,
-          geometryIndex,
-          0,
-          0
-        );
+        for (const meshlet of mesh.meshlets) {
+          if (!this.meshletInfoBuffer.has(meshlet.id)) this.meshletInfoBuffer.set(meshlet.id, this.getMeshletInfo(meshlet));
+          if (!this.vertexBuffer.has(meshlet.id)) this.vertexBuffer.set(meshlet.id, this.getVertexInfo(meshlet));
+          let geometryIndex = indexedCache.get(meshlet.crc);
+          if (geometryIndex === void 0) {
+            geometryIndex = indexedCache.size;
+            indexedCache.set(meshlet.crc, geometryIndex);
+          }
+          this.objectInfoBufferV2.set(`${mesh.id}-${meshlet.id}`, new Float32Array([meshIndex, geometryIndex, 0, 0]));
+        }
       }
       this.textureMaps = {
         albedo: this.createMaterialMap(this.albedoMaps, "albedo"),
         normal: this.createMaterialMap(this.normalMaps, "normal"),
         height: this.createMaterialMap(this.heightMaps, "height")
       };
-      const verticesArray = new Float32Array(vertices);
-      this.vertexBuffer = Buffer3.Create(verticesArray.byteLength, 0 /* STORAGE */);
-      this.vertexBuffer.name = "vertexBuffer";
-      this.vertexBuffer.SetArray(verticesArray);
-      const meshletInfoArray = new Float32Array(meshletInfo);
-      this.meshletInfoBuffer = Buffer3.Create(meshletInfoArray.byteLength, 0 /* STORAGE */);
-      this.meshletInfoBuffer.name = "meshletInfoBuffer";
-      this.meshletInfoBuffer.SetArray(meshletInfoArray);
-      const meshInfoBufferArray = new Float32Array(meshInfo);
-      this.meshInfoBuffer = Buffer3.Create(meshInfoBufferArray.byteLength, 0 /* STORAGE */);
-      this.meshInfoBuffer.name = "meshInfoBuffer";
-      this.meshInfoBuffer.SetArray(meshInfoBufferArray);
-      const objectInfoBufferArray = new Float32Array(objectInfo);
-      this.objectInfoBuffer = Buffer3.Create(objectInfoBufferArray.byteLength, 0 /* STORAGE */);
-      this.objectInfoBuffer.name = "objectInfoBuffer";
-      this.objectInfoBuffer.SetArray(objectInfoBufferArray);
-      console.log("meshletInfoBuffer", meshletInfoArray.byteLength);
-      console.log("meshInfoBufferArray", meshInfoBufferArray.byteLength);
-      console.log("objectInfoBufferArray", objectInfoBufferArray.byteLength);
-      console.log("verticesArray", verticesArray.byteLength);
       this.currentMeshCount = sceneMeshlets.length;
       this.currentMeshletsCount = meshlets.length;
       Debugger.SetTotalMeshlets(meshlets.length);
     }
-    resources.setResource(indirectVertices, this.vertexBuffer);
-    resources.setResource(indirectMeshInfo, this.meshInfoBuffer);
-    resources.setResource(indirectMeshletInfo, this.meshletInfoBuffer);
-    resources.setResource(indirectObjectInfo, this.objectInfoBuffer);
-    resources.setResource(meshletsCount, this.currentMeshletsCount);
-    resources.setResource(textureMaps, this.textureMaps);
+    resources.setResource(PassParams.indirectVertices, this.vertexBuffer.getBuffer());
+    resources.setResource(PassParams.indirectMeshInfo, this.meshMaterialInfo.getBuffer());
+    resources.setResource(PassParams.indirectMeshletInfo, this.meshletInfoBuffer.getBuffer());
+    resources.setResource(PassParams.indirectObjectInfo, this.objectInfoBufferV2.getBuffer());
+    resources.setResource(PassParams.indirectMeshMatrixInfo, this.meshMatrixInfoBuffer.getBuffer());
+    resources.setResource(PassParams.meshletsCount, this.currentMeshletsCount);
+    resources.setResource(PassParams.textureMaps, this.textureMaps);
   }
 };
 
@@ -8164,6 +8271,7 @@ var IndirectGBufferPass = class extends RenderPass {
         PassParams.indirectInstanceInfo,
         PassParams.indirectMeshInfo,
         PassParams.indirectObjectInfo,
+        PassParams.indirectMeshMatrixInfo,
         PassParams.indirectDrawBuffer,
         PassParams.textureMaps,
         PassParams.isCullingPrepass
@@ -8194,13 +8302,14 @@ var IndirectGBufferPass = class extends RenderPass {
         projectionMatrix: { group: 0, binding: 1, type: "storage" },
         instanceInfo: { group: 0, binding: 2, type: "storage" },
         meshInfo: { group: 0, binding: 3, type: "storage" },
-        objectInfo: { group: 0, binding: 4, type: "storage" },
-        settings: { group: 0, binding: 5, type: "storage" },
-        vertices: { group: 0, binding: 6, type: "storage" },
-        textureSampler: { group: 0, binding: 7, type: "sampler" },
-        albedoMaps: { group: 0, binding: 8, type: "texture" },
-        normalMaps: { group: 0, binding: 9, type: "texture" },
-        heightMaps: { group: 0, binding: 10, type: "texture" }
+        meshMatrixInfo: { group: 0, binding: 4, type: "storage" },
+        objectInfo: { group: 0, binding: 5, type: "storage" },
+        settings: { group: 0, binding: 6, type: "storage" },
+        vertices: { group: 0, binding: 7, type: "storage" },
+        textureSampler: { group: 0, binding: 8, type: "sampler" },
+        albedoMaps: { group: 0, binding: 9, type: "texture" },
+        normalMaps: { group: 0, binding: 10, type: "texture" },
+        heightMaps: { group: 0, binding: 11, type: "texture" }
       }
     });
     this.geometry = new Geometry();
@@ -8217,8 +8326,16 @@ var IndirectGBufferPass = class extends RenderPass {
     resources.setResource(PassParams.GBufferNormal, this.gBufferNormalRT);
     resources.setResource(PassParams.GBufferERMO, this.gBufferERMORT);
   }
-  execute(resources, inputIndirectVertices, inputIndirectInstanceInfo, inputIndirectMeshInfo, inputIndirectObjectInfo, inputIndirectDrawBuffer, textureMaps, inputIsCullingPrepass, outputDepthTexture, outputGBufferAlbedo, outputGBufferNormal, outputGBufferERMO, outputGBufferDepth) {
+  execute(resources) {
     if (!this.initialized) return;
+    const inputIndirectVertices = resources.getResource(PassParams.indirectVertices);
+    const inputIndirectMeshInfo = resources.getResource(PassParams.indirectMeshInfo);
+    const inputIndirectObjectInfo = resources.getResource(PassParams.indirectObjectInfo);
+    const inputIndirectMeshMatrixInfo = resources.getResource(PassParams.indirectMeshMatrixInfo);
+    const inputIndirectInstanceInfo = resources.getResource(PassParams.indirectInstanceInfo);
+    const inputIndirectDrawBuffer = resources.getResource(PassParams.indirectDrawBuffer);
+    const textureMaps = resources.getResource(PassParams.textureMaps);
+    const inputIsCullingPrepass = resources.getResource(PassParams.isCullingPrepass);
     if (!inputIndirectVertices) return;
     const mainCamera = Camera.mainCamera;
     this.shader.SetMatrix4("viewMatrix", mainCamera.viewMatrix);
@@ -8226,6 +8343,7 @@ var IndirectGBufferPass = class extends RenderPass {
     this.shader.SetBuffer("vertices", inputIndirectVertices);
     this.shader.SetBuffer("meshInfo", inputIndirectMeshInfo);
     this.shader.SetBuffer("objectInfo", inputIndirectObjectInfo);
+    this.shader.SetBuffer("meshMatrixInfo", inputIndirectMeshMatrixInfo);
     this.shader.SetBuffer("instanceInfo", inputIndirectInstanceInfo);
     if (textureMaps.albedo) this.shader.SetTexture("albedoMaps", textureMaps.albedo);
     if (textureMaps.normal) this.shader.SetTexture("normalMaps", textureMaps.normal);
@@ -8238,9 +8356,11 @@ var IndirectGBufferPass = class extends RenderPass {
       Debugger.staticLOD,
       Debugger.dynamicLODErrorThreshold,
       +Debugger.isDynamicLODEnabled,
-      +Debugger.viewInstanceColors,
+      Debugger.viewType,
+      +Debugger.useHeightMap,
+      Debugger.heightScale,
       Meshlet.max_triangles,
-      0,
+      ...mainCamera.transform.position.elements,
       0,
       0
     ]);
@@ -8253,12 +8373,11 @@ var IndirectGBufferPass = class extends RenderPass {
     RendererContext.BeginRenderPass(`IGBuffer - prepass: ${+inputIsCullingPrepass}`, colorTargets, { target: this.depthTexture, clear: inputIsCullingPrepass }, true);
     RendererContext.DrawIndirect(this.geometry, this.shader, inputIndirectDrawBuffer);
     RendererContext.EndRenderPass();
-    resources.setResource(outputDepthTexture, this.depthTexture);
-    resources.setResource(outputDepthTexture, this.depthTexture);
-    resources.setResource(outputGBufferDepth, this.depthTexture);
-    resources.setResource(outputGBufferAlbedo, this.gBufferAlbedoRT);
-    resources.setResource(outputGBufferNormal, this.gBufferNormalRT);
-    resources.setResource(outputGBufferERMO, this.gBufferERMORT);
+    resources.setResource(PassParams.depthTexture, this.depthTexture);
+    resources.setResource(PassParams.GBufferDepth, this.depthTexture);
+    resources.setResource(PassParams.GBufferAlbedo, this.gBufferAlbedoRT);
+    resources.setResource(PassParams.GBufferNormal, this.gBufferNormalRT);
+    resources.setResource(PassParams.GBufferERMO, this.gBufferERMORT);
   }
 };
 
@@ -8374,6 +8493,7 @@ var PassParams = {
   indirectMeshInfo: "indirectMeshInfo",
   indirectMeshletInfo: "indirectMeshletInfo",
   indirectObjectInfo: "indirectObjectInfo",
+  indirectMeshMatrixInfo: "indirectMeshMatrixInfo",
   indirectInstanceInfo: "indirectInstanceInfo",
   indirectDrawBuffer: "indirectDrawBuffer",
   meshletsCount: "meshletsCount",
@@ -8750,6 +8870,14 @@ async function Application() {
   bunnyGeometry.index = new IndexAttribute(bunnyObj.indices);
   console.log("bunnyObj", bunnyObj);
   console.log("bunnyGeometry", bunnyGeometry);
+  const kittenObj = await OBJLoaderIndexed.load("./assets/PickupCrate.obj");
+  const kittenGeometry = new Geometry();
+  kittenGeometry.attributes.set("position", new VertexAttribute(kittenObj.vertices));
+  kittenGeometry.attributes.set("normal", new VertexAttribute(kittenObj.normals));
+  kittenGeometry.attributes.set("uv", new VertexAttribute(new Float32Array(kittenObj.vertices.length)));
+  kittenGeometry.index = new IndexAttribute(kittenObj.indices);
+  console.log("kittenObj", kittenObj);
+  console.log("kittenGeometry", kittenGeometry);
   const albedoMap = await Texture2.Load("./brick-wall-unity/brick-wall_albedo.png");
   const normalMap = await Texture2.Load("./brick-wall-unity/brick-wall_normal-ogl.png");
   const heightMap = await Texture2.Load("./brick-wall-unity/brick-wall_height.png");
@@ -8758,7 +8886,8 @@ async function Application() {
     normalMap,
     heightMap
   });
-  const n = 20;
+  let lastMesh;
+  const n = 2;
   for (let x = 0; x < n; x++) {
     for (let y = 0; y < n; y++) {
       for (let z = 0; z < n; z++) {
@@ -8766,11 +8895,17 @@ async function Application() {
         cube.transform.scale.set(0.1, 0.1, 0.1);
         cube.transform.position.set(x * 20, y * 20, z * 20);
         const cubeMesh = cube.AddComponent(MeshletMesh);
+        const which = Math.random() > 0.5;
         await cubeMesh.SetGeometry(bunnyGeometry);
         await cubeMesh.AddMaterial(mat);
+        lastMesh = cube;
       }
     }
   }
+  setTimeout(() => {
+    console.log("Updtin");
+    lastMesh.transform.position.x += 2;
+  }, 5e3);
   scene.Start();
 }
 Application();

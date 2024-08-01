@@ -1,3 +1,4 @@
+import { Debugger } from "../plugins/Debugger";
 import { Renderer } from "./Renderer";
 import { WEBGPUBuffer, WEBGPUDynamicBuffer } from "./webgpu/WEBGPUBuffer";
 
@@ -16,6 +17,8 @@ export class Buffer {
     public get name(): string { return "Buffer" };
 
     public static Create(size: number, type: BufferType) {
+        if (size === 0) throw Error("Tried to create a buffer with size 0");
+        Debugger.IncrementGPUBufferSize(size);
         if (Renderer.type === "webgpu") return new WEBGPUBuffer(size, type);
         else throw Error("Renderer type invalid");
     }
@@ -30,6 +33,7 @@ export class DynamicBuffer {
     public dynamicOffset: number = 0;
 
     public static Create(size: number, type: BufferType, minBindingSize: number) {
+        if (size === 0) throw Error("Tried to create a buffer with size 0");
         if (Renderer.type === "webgpu") return new WEBGPUDynamicBuffer(size, type, minBindingSize);
         else throw Error("Renderer type invalid");
     }

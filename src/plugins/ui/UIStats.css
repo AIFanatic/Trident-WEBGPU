@@ -37,7 +37,7 @@
     padding: 5px;
 }
 
-.stat button, input {
+.stat button, input, select {
     height: 15px;
     font-family: monospace;
     font-size: 8px;
@@ -49,6 +49,10 @@
     background-color: #ffffff20;
     color: white;
     outline: none;
+}
+
+.stat select {
+    padding: 0;
 }
 
 .stat button:hover {

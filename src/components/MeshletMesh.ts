@@ -4,7 +4,6 @@ import { Meshlet } from "../plugins/meshlets/Meshlet";
 import { Geometry, InterleavedVertexAttribute } from "../Geometry";
 import { Meshletizer } from "../plugins/meshlets/Meshletizer";
 import { Meshoptimizer } from "../plugins/meshlets/Meshoptimizer";
-import { MeshletCreator } from "../plugins/meshlets/utils/MeshletCreator";
 
 const meshletsCache: Map<Geometry, Meshlet[]> = new Map();
 

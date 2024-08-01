@@ -26,6 +26,7 @@ export const PassParams = {
     indirectMeshInfo: "indirectMeshInfo",
     indirectMeshletInfo: "indirectMeshletInfo",
     indirectObjectInfo: "indirectObjectInfo",
+    indirectMeshMatrixInfo: "indirectMeshMatrixInfo",
     indirectInstanceInfo: "indirectInstanceInfo",
     indirectDrawBuffer: "indirectDrawBuffer",
     meshletsCount: "meshletsCount",

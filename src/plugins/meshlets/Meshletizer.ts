@@ -7,13 +7,15 @@ import { MeshletMerger } from "./utils/MeshletMerger";
 
 export class Meshletizer {
 
+    public static MaxLOD = 25;
+
     private static step(meshlets: Meshlet[], lod: number, previousMeshlets: Map<string, Meshlet>): Meshlet[] {
 
         if (meshlets.length === 1 && meshlets[0].vertices.length < Meshlet.max_triangles * 8) return meshlets;
 
 
 
-        let nparts = Math.ceil(meshlets.length / 4);
+        let nparts = Math.ceil(meshlets.length / 8);
         if (nparts > 8) nparts = 8;
         let grouped = [meshlets];
         if (nparts > 1) {
@@ -30,10 +32,10 @@ export class Meshletizer {
             const cleanedMergedGroup = Meshoptimizer.clean(mergedGroup);
             // const cleanedMergedGroup = mergedGroup;
 
-            const tLod = (lod+1) / 25;
+            const tLod = (lod+1) / Meshletizer.MaxLOD;
             const targetError = (0.1 * tLod + 0.01 * (1-tLod));
             // simplify
-            const simplified = Meshoptimizer.meshopt_simplify(cleanedMergedGroup, Meshlet.max_triangles, targetError);
+            const simplified = Meshoptimizer.meshopt_simplify(cleanedMergedGroup, cleanedMergedGroup.indices.length / 3 / 2, targetError);
             // const simplified = Meshoptimizer.meshopt_simplify(cleanedMergedGroup, 128, 100000);
             const localScale = Meshoptimizer.meshopt_simplifyScale(simplified.meshlet);
 
@@ -82,27 +84,26 @@ export class Meshletizer {
         const meshlets = MeshletCreator.build(vertices, indices, 255, Meshlet.max_triangles);
         console.log(`starting with ${meshlets.length} meshlets`);
 
-        const maxLOD = 25;
         let inputs = meshlets;
-
-
         let rootMeshlet: Meshlet | null = null;
         let previousMeshlets: Map<string, Meshlet> = new Map();
 
         for (let m of meshlets) previousMeshlets.set(m.id, m);
 
-        for (let lod = 0; lod < maxLOD; lod++) {
+        for (let lod = 0; lod < Meshletizer.MaxLOD; lod++) {
             const outputs = this.step(inputs, lod, previousMeshlets);
             
-            const inputTriangleCount = inputs.map(m => m.indices.length / 3);
-            const outputTriangleCount = outputs.map(m => m.indices.length / 3);
-            const inputVertexCount = inputTriangleCount.reduce((a, b) => a + b);
-            const outputVertexCount = outputTriangleCount.reduce((a, b) => a + b);
+            const inputTriangleArray = inputs.map(m => m.indices.length / 3);
+            const outputTriangleArray = outputs.map(m => m.indices.length / 3);
+            const inputTriangleCount = inputTriangleArray.reduce((a, b) => a + b);
+            const outputTriangleCount = outputTriangleArray.reduce((a, b) => a + b);
 
-            if (outputVertexCount >= inputVertexCount) {
+            console.log(`LOD: ${lod}: input: [meshlets: ${inputTriangleArray.length}, triangles: ${inputTriangleCount}] -> output: [meshlets: ${outputTriangleArray.length}, triangles: ${outputTriangleCount}]`);
+
+            if (outputTriangleCount >= inputTriangleCount) {
                 for (const input of inputs) {
                     if (input.indices.length / 3 > Meshlet.max_triangles) {
-                        throw Error(`Output meshlet triangle count ${inputVertexCount} >= input triangle count ${inputVertexCount}`)
+                        throw Error(`Output meshlet triangle count ${inputTriangleCount} >= input triangle count ${inputTriangleCount}`)
                     }
                 }
                 break;
@@ -127,7 +128,7 @@ export class Meshletizer {
 
             // console.log("\n");
         }
-        if (inputs.length !== 1) throw Error("Could not simplify up to one root node");
+        // if (inputs.length !== 1) throw Error("Could not simplify up to one root node");
         // if (rootMeshlet === null) throw Error("Root meshlet is invalid!");
 
         // if (rootMeshlet === null) rootMeshlet = inputs[0]

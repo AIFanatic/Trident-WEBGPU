@@ -36,8 +36,10 @@ export class CullingPass extends RenderPass {
     constructor() {
         super({
             inputs: [
-                PassParams.indirectMeshInfo, PassParams.indirectMeshletInfo,
-                PassParams.indirectObjectInfo, PassParams.meshletsCount
+                PassParams.indirectMeshletInfo,
+                PassParams.indirectObjectInfo,
+                PassParams.indirectMeshMatrixInfo,
+                PassParams.meshletsCount
             ],
             outputs: [
                 PassParams.indirectDrawBuffer,
@@ -63,8 +65,8 @@ export class CullingPass extends RenderPass {
                 cullData: {group: 0, binding: 2, type: "storage"},
 
                 meshletInfo: {group: 0, binding: 3, type: "storage"},
-                meshInfo: {group: 0, binding: 4, type: "storage"},
-                objectInfo: {group: 0, binding: 5, type: "storage"},
+                objectInfo: {group: 0, binding: 4, type: "storage"},
+                meshMatrixInfo: {group: 0, binding: 5, type: "storage"},
 
                 visibilityBuffer: {group: 0, binding: 6, type: "storage-write"},
                 bPrepass: {group: 0, binding: 7, type: "storage"},
@@ -94,28 +96,33 @@ export class CullingPass extends RenderPass {
         this.debugBuffer = Buffer.Create(4 * 4, BufferType.STORAGE);
     }
 
-    public execute(resources: ResourcePool, inputIndirectMeshInfo: Buffer, inputIndirectMeshletInfo: Buffer, inputIndirectObjectInfo: Buffer, inputMeshletsCount: number, outputIndirectDrawBuffer: string, outputIndirectInstanceInfo: string, outputIsCullingPrepass: string) {
+    public execute(resources: ResourcePool) {
         const mainCamera = Camera.mainCamera;
+
+        const meshletCount = resources.getResource(PassParams.meshletsCount) as number;
+        const meshletInfoBuffer = resources.getResource(PassParams.indirectMeshletInfo) as Buffer;
+        const objectInfoBuffer = resources.getResource(PassParams.indirectObjectInfo) as Buffer;
+        const meshMatrixInfoBuffer = resources.getResource(PassParams.indirectMeshMatrixInfo) as Buffer;
         
-        if (inputMeshletsCount === 0) return;
+        if (meshletCount === 0) return;
 
         if (!this.visibilityBuffer) {
-            const visibilityBufferArray = new Float32Array(inputMeshletsCount * 4).fill(1);
+            const visibilityBufferArray = new Float32Array(meshletCount * 4).fill(1);
             this.visibilityBuffer = Buffer.Create(visibilityBufferArray.byteLength, BufferType.STORAGE_WRITE);
             this.visibilityBuffer.SetArray(visibilityBufferArray);
         }
         if (!this.instanceInfoBuffer) {
-            console.log("inputMeshletsCount", inputMeshletsCount)
-            this.instanceInfoBuffer = Buffer.Create(inputMeshletsCount * 1 * 4, BufferType.STORAGE_WRITE);
+            console.log("meshletCount", meshletCount)
+            this.instanceInfoBuffer = Buffer.Create(meshletCount * 1 * 4, BufferType.STORAGE_WRITE);
             this.instanceInfoBuffer.name = "instanceInfoBuffer"
         }
 
         
 
 
-        this.compute.SetBuffer("meshletInfo", inputIndirectMeshletInfo);
-        this.compute.SetBuffer("meshInfo", inputIndirectMeshInfo);
-        this.compute.SetBuffer("objectInfo", inputIndirectObjectInfo);
+        this.compute.SetBuffer("meshletInfo", meshletInfoBuffer);
+        this.compute.SetBuffer("objectInfo", objectInfoBuffer);
+        this.compute.SetBuffer("meshMatrixInfo", meshMatrixInfoBuffer);
         this.compute.SetBuffer("instanceInfo", this.instanceInfoBuffer);
         this.compute.SetBuffer("visibilityBuffer", this.visibilityBuffer);
 
@@ -132,7 +139,7 @@ export class CullingPass extends RenderPass {
             ...this.frustum.planes[3].normal.elements, this.frustum.planes[3].constant,
             ...this.frustum.planes[4].normal.elements, this.frustum.planes[4].constant,
             ...this.frustum.planes[5].normal.elements, this.frustum.planes[5].constant,
-            inputMeshletsCount, 0,
+            meshletCount, 0,
             Renderer.width, Renderer.height,0,0,
             mainCamera.near, mainCamera.far,
             ...mainCamera.projectionMatrix.clone().transpose().elements,
@@ -152,12 +159,14 @@ export class CullingPass extends RenderPass {
             Debugger.staticLOD,
             Debugger.dynamicLODErrorThreshold,
             +Debugger.isDynamicLODEnabled,
-            +Debugger.viewInstanceColors,
+            Debugger.viewType,
+            +Debugger.useHeightMap,
+            Debugger.heightScale,
             Meshlet.max_triangles,
-            0, 0, 0
+            ...mainCamera.transform.position.elements, 0,
+            0
         ]);
         this.compute.SetArray("settings", settings);
-
 
         
 
@@ -181,26 +190,26 @@ export class CullingPass extends RenderPass {
         // const workgroupSizeZ = 1;  // Threads per workgroup along Z
 
         // Calculate dispatch sizes based on the cube root approximation
-        const dispatchSizeX = Math.ceil(Math.cbrt(inputMeshletsCount) / 4);
-        const dispatchSizeY = Math.ceil(Math.cbrt(inputMeshletsCount) / 4);
-        const dispatchSizeZ = Math.ceil(Math.cbrt(inputMeshletsCount) / 4);
+        const dispatchSizeX = Math.ceil(Math.cbrt(meshletCount) / 4);
+        const dispatchSizeY = Math.ceil(Math.cbrt(meshletCount) / 4);
+        const dispatchSizeZ = Math.ceil(Math.cbrt(meshletCount) / 4);
 
         ComputeContext.BeginComputePass(`Culling - prepass: ${+this.isPrePass}`, true);
         ComputeContext.Dispatch(this.compute, dispatchSizeX, dispatchSizeY, dispatchSizeZ);
         ComputeContext.EndComputePass();
 
 
-        resources.setResource(outputIsCullingPrepass, this.isPrePass);
+        resources.setResource(PassParams.isCullingPrepass, this.isPrePass);
         this.isPrePass = !this.isPrePass;
 
 
-        resources.setResource(outputIndirectDrawBuffer, this.drawIndirectBuffer);
-        resources.setResource(outputIndirectInstanceInfo, this.instanceInfoBuffer);
+        resources.setResource(PassParams.indirectDrawBuffer, this.drawIndirectBuffer);
+        resources.setResource(PassParams.indirectInstanceInfo, this.instanceInfoBuffer);
 
         this.debugBuffer.GetData().then(v => {
             const visibleMeshCount = new Uint32Array(v)[1];
             Debugger.SetVisibleMeshes(visibleMeshCount);
-            Debugger.SetTriangleCount(Meshlet.max_triangles * inputMeshletsCount);
+            Debugger.SetTriangleCount(Meshlet.max_triangles * meshletCount);
             Debugger.SetVisibleTriangleCount(Meshlet.max_triangles * visibleMeshCount);
         })
     }

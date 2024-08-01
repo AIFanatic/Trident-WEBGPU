@@ -31,6 +31,8 @@ export class GameObject {
 
             if (componentInstance instanceof Camera && !Camera.mainCamera) Camera.mainCamera = componentInstance;
 
+            if (this.scene.hasStarted) componentInstance.Start();
+
             return componentInstance;
         } catch (error) {
             throw Error(`Error creating component` + error);

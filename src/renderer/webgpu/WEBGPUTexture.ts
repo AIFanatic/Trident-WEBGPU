@@ -1,4 +1,4 @@
-import { Utils } from "../../Utils";
+import { Utils } from "../../utils/Utils";
 import { Renderer } from "../Renderer";
 import { Texture, TextureDimension, TextureFormat, TextureType } from "../Texture";
 import { WEBGPUMipsGenerator } from "./WEBGPUMipsGenerator";

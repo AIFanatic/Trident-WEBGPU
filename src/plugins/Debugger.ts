@@ -1,5 +1,4 @@
-import { Camera } from "../components/Camera";
-import { UIButtonStat, UIFolder, UISliderStat, UITextStat } from "./ui/UIStats";
+import { UIButtonStat, UIDropdownStat, UIFolder, UISliderStat, UITextStat } from "./ui/UIStats";
 
 class _Debugger {
     public isDebugDepthPassEnabled: boolean = false;
@@ -14,7 +13,9 @@ class _Debugger {
     public isDynamicLODEnabled: boolean = true;
     public staticLOD: number = 20;
 
-    public viewInstanceColors: boolean = true;
+    public viewType: number = 0;
+    public heightScale: number = 0.05;
+    public useHeightMap: boolean = false;
 
     public readonly ui: UIFolder;
     private renderPassesFolder: UIFolder;
@@ -27,6 +28,8 @@ class _Debugger {
     private triangleCount: UITextStat;
     private visibleTriangles: UITextStat;
     private gpuTime: UITextStat;
+    private gpuBufferSizeStat: UITextStat;
+    private gpuBufferSizeTotal: number = 0;
 
     constructor() {
         const container = document.createElement("div");
@@ -42,6 +45,7 @@ class _Debugger {
         this.triangleCount = new UITextStat(this.ui, "Triangles: ");
         this.visibleTriangles = new UITextStat(this.ui, "Visible triangles: ");
         this.gpuTime = new UITextStat(this.ui, "GPU: ", 0, 2, "ms", true);
+        this.gpuBufferSizeStat = new UITextStat(this.ui, "GPU buffer size: ", 0, 2);
 
         const hizFolder = new UIFolder(this.ui, "Hierarchical Z depth");
         hizFolder.Open();
@@ -85,7 +89,9 @@ class _Debugger {
 
         const rendererFolder = new UIFolder(this.ui, "Renderer");
         rendererFolder.Open();
-        const instanceColors = new UIButtonStat(rendererFolder, "Instance colors:", state => {this.viewInstanceColors = state}, this.viewInstanceColors);
+        const viewTypeStat = new UIDropdownStat(rendererFolder, "GBuffer:", ["Instances", "Instance+Triangles", "Albedo Map", "Normal Map", "Lighting"], (index, value) => {this.viewType = index});
+        const heightScale = new UISliderStat(rendererFolder, "Height scale:", 0, 1, 0.01, this.heightScale, state => {this.heightScale = state});
+        const useHeightMapStat = new UIButtonStat(rendererFolder, "Use heightmap:", state => {this.useHeightMap = state}, this.useHeightMap);
 
         this.renderPassesFolder = new UIFolder(this.ui, "Frame passes");
         this.renderPassesFolder.Open();
@@ -99,6 +105,20 @@ class _Debugger {
         }
 
         framePass.SetValue(time / 1e6);
+    }
+
+    public IncrementGPUBufferSize(value: number) {
+        const FormatBytes = (bytes: number, decimals = 2): {value: number, rank: string} => {
+            const k = 1024;
+            const sizes = ['B', 'KB', 'MB', 'GB', 'TB', 'PB', 'EB', 'ZB', 'YB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return {value: parseFloat((bytes / Math.pow(k, i)).toFixed(decimals)), rank: sizes[i]};
+        }
+
+        this.gpuBufferSizeTotal += value;
+        const formatted = FormatBytes(this.gpuBufferSizeTotal, this.gpuBufferSizeStat.GetPrecision());
+        this.gpuBufferSizeStat.SetUnit(formatted.rank);
+        this.gpuBufferSizeStat.SetValue(formatted.value);
     }
 
     public SetTotalMeshlets(count: number) {

@@ -1,10 +1,8 @@
-import { Geometry, IndexAttribute, InterleavedVertexAttribute, VertexAttribute } from "../../Geometry";
-import { CRC32, Utils } from "../../Utils";
+import { InterleavedVertexAttribute } from "../../Geometry";
+import { Utils } from "../../utils/Utils";
 import { BoundingVolume } from "../../math/BoundingVolume";
 import { Sphere } from "../../math/Sphere";
-import { Meshoptimizer } from "./Meshoptimizer";
-
-
+import { CRC32 } from "../../utils/CRC32";
 
 export class Meshlet {
     public static max_triangles = 128;

@@ -6,6 +6,10 @@ struct Settings {
     staticLOD: f32,
     dynamicLODErrorThreshold: f32,
     dynamicLODEnabled: f32,
-    viewInstanceColors: f32,
+    viewType: f32,
+    useHeightMap: f32,
+    heightScale: f32,
     maxTriangles: f32,
+
+    cameraPosition: vec4<f32>
 };

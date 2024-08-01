@@ -1,4 +1,4 @@
-import { Utils } from "../../../Utils";
+import { Utils } from "../../../utils/Utils";
 import { Matrix4 } from "../../../math/Matrix4";
 import { Vector3 } from "../../../math/Vector3";
 import { Buffer, BufferType } from "../../Buffer";

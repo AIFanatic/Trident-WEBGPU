@@ -12,8 +12,8 @@ struct DrawBuffer {
 @group(0) @binding(1) var<storage, read_write> instanceInfo: array<InstanceInfo>;
 @group(0) @binding(2) var<storage, read> cullData: CullData;
 @group(0) @binding(3) var<storage, read> meshletInfo: array<MeshletInfo>;
-@group(0) @binding(4) var<storage, read> meshInfo: array<MeshInfo>;
-@group(0) @binding(5) var<storage, read> objectInfo: array<ObjectInfo>;
+@group(0) @binding(4) var<storage, read> objectInfo: array<ObjectInfo>;
+@group(0) @binding(5) var<storage, read> meshMatrixInfo: array<MeshMatrixInfo>;
 
 @group(0) @binding(6) var<storage, read_write> visibilityBuffer: array<vec4<f32>>;
 @group(0) @binding(7) var<storage, read> bPrepass: f32;
@@ -21,6 +21,9 @@ struct DrawBuffer {
 @group(0) @binding(8) var textureSampler: sampler;
 @group(0) @binding(9) var depthTexture: texture_depth_2d;
 @group(0) @binding(10) var<storage, read> settings: Settings;
+
+
+@group(0) @binding(11) var<storage, read> meshMatrixInfoV2: array<MeshMatrixInfo>;
 
 
 // assume a fixed resolution and fov
@@ -67,13 +70,16 @@ fn planeDistanceToPoint(normal: vec3f, constant: f32, point: vec3f) -> f32 {
     return dot(normal, point) + constant;
 }
 
-fn IsFrustumCulled(objectIndex: u32) -> bool {
-    let object = objectInfo[objectIndex];
-    let mesh = meshInfo[u32(object.meshID)];
-    let meshlet = meshletInfo[u32(object.meshletID)];
+fn IsFrustumCulled(meshlet: MeshletInfo, meshModelMatrix: mat4x4<f32>) -> bool {
+    let meshPosition = vec3(meshModelMatrix[3][0], meshModelMatrix[3][1], meshModelMatrix[3][2]);
+
+    let scaleX = length(vec3(meshModelMatrix[0][0], meshModelMatrix[0][1], meshModelMatrix[0][2]));
+    let scaleY = length(vec3(meshModelMatrix[1][0], meshModelMatrix[1][1], meshModelMatrix[1][2]));
+    let scaleZ = length(vec3(meshModelMatrix[2][0], meshModelMatrix[2][1], meshModelMatrix[2][2]));
+    let meshScale = vec3(scaleX, scaleY, scaleZ);
 
     if (bool(settings.dynamicLODEnabled)) {
-        if (!isMeshletVisible(meshlet, cullData.viewMatrix * mesh.modelMatrix)) {
+        if (!isMeshletVisible(meshlet, cullData.viewMatrix * meshModelMatrix)) {
             return true;
         }
     }
@@ -85,16 +91,15 @@ fn IsFrustumCulled(objectIndex: u32) -> bool {
 
     // Backface
     if (bool(settings.backFaceCullingEnabled)) {
-        if (dot(normalize(meshlet.cone_apex.xyz - cullData.cameraPosition.xyz), meshlet.cone_axis.xyz) * mesh.scale.x >= meshlet.cone_cutoff) {
+        if (dot(normalize(meshlet.cone_apex.xyz - cullData.cameraPosition.xyz), meshlet.cone_axis.xyz) * meshScale.x >= meshlet.cone_cutoff) {
             return true;
         }
     }
 
     // Camera frustum
     if (bool(settings.frustumCullingEnabled)) {
-        let scale = mesh.scale.x;
-        let boundingSphere = meshlet.boundingSphere * scale;
-        let center = (cullData.viewMatrix * vec4(boundingSphere.xyz + mesh.position.xyz, 1.0)).xyz;
+        let boundingSphere = meshlet.boundingSphere * meshScale.x;
+        let center = (cullData.viewMatrix * vec4(boundingSphere.xyz + meshPosition.xyz, 1.0)).xyz;
         let negRadius = -boundingSphere.w;
 
         for (var i = 0; i < 6; i++) {
@@ -109,15 +114,11 @@ fn IsFrustumCulled(objectIndex: u32) -> bool {
     return false;
 }
 
-fn IsOccluded(index: i32) -> bool {
-    let objectIndex = objectInfo[index];
-    let mesh = meshInfo[u32(objectIndex.meshID)];
-    let meshlet = meshletInfo[u32(objectIndex.meshletID)];
-
+fn IsOccluded(meshlet: MeshletInfo, meshModelMatrix: mat4x4<f32>) -> bool {
     let bmin = -vec3f(meshlet.boundingSphere.w);
     let bmax = vec3f(meshlet.boundingSphere.w);
-    let bboxMin = (cullData.viewMatrix * mesh.modelMatrix * vec4(bmin + meshlet.boundingSphere.xyz, 1.0)).xyz;
-    let bboxMax = (cullData.viewMatrix * mesh.modelMatrix * vec4(bmax + meshlet.boundingSphere.xyz, 1.0)).xyz;
+    let bboxMin = (cullData.viewMatrix * meshModelMatrix * vec4(bmin + meshlet.boundingSphere.xyz, 1.0)).xyz;
+    let bboxMax = (cullData.viewMatrix * meshModelMatrix * vec4(bmax + meshlet.boundingSphere.xyz, 1.0)).xyz;
     
     let boxSize = bboxMax - bboxMin;
 
@@ -231,20 +232,27 @@ fn main(@builtin(global_invocation_id) grid: vec3<u32>) {
         return;
     }
 
+    let object = objectInfo[objectIndex];
+    let meshlet = meshletInfo[u32(object.meshletID)];
+    var meshMatrixInfo = meshMatrixInfo[u32(object.meshID)];
+    // meshMatrixInfo.modelMatrix = mesh.modelMatrix;
+    // meshMatrixInfo.position = mesh.position;
+    // meshMatrixInfo.scale = mesh.scale;
+
     var bVisible = true;
     if (bool(bPrepass)) {
         bVisible = visibilityBuffer[objectIndex].x > 0.5;
     }
 
     if (bVisible) {
-        bVisible = bVisible && !IsFrustumCulled(objectIndex);
+        bVisible = bVisible && !IsFrustumCulled(meshlet, meshMatrixInfo.modelMatrix);
     }
 
     if (!bool(bPrepass)) {
         if (bool(settings.occlusionCullingEnabled)) {
             if (bVisible) {
                 // TODO: IsOccluded should be !isOccluded?
-                bVisible = bVisible && !IsOccluded(i32(objectIndex));
+                bVisible = bVisible && !IsOccluded(meshlet, meshMatrixInfo.modelMatrix);
             }
         }
     }

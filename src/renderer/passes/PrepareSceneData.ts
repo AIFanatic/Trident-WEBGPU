@@ -1,6 +1,4 @@
 import { RenderPass, ResourcePool } from "../RenderGraph";
-
-import { Buffer, BufferType } from "../Buffer";
 import { Texture, TextureArray } from "../Texture";
 import { Meshlet } from "../../plugins/meshlets/Meshlet";
 import { MeshletMesh } from "../../components/MeshletMesh";
@@ -9,6 +7,7 @@ import { RendererContext } from "../RendererContext";
 import { Camera } from "../../components/Camera";
 import { Debugger } from "../../plugins/Debugger";
 import { PassParams } from "../RenderingPipeline";
+import { BufferMemoryAllocator, MemoryAllocator, MemoryAllocatorViewer } from "../../utils/MemoryAllocator";
 
 interface SceneMesh {
     geometry: Meshlet;
@@ -23,10 +22,12 @@ export interface TextureMaps {
 
 export class PrepareSceneData extends RenderPass {
     public name: string = "PrepareSceneData";
-    public meshInfoBuffer: Buffer;
-    public meshletInfoBuffer: Buffer;
-    public objectInfoBuffer: Buffer;
-    public vertexBuffer: Buffer;
+    private objectInfoBufferV2: BufferMemoryAllocator;
+    private vertexBuffer: BufferMemoryAllocator;
+
+    private meshMaterialInfo: BufferMemoryAllocator;
+    private meshMatrixInfoBuffer: BufferMemoryAllocator;
+    private meshletInfoBuffer: BufferMemoryAllocator;
 
     private currentMeshCount: number = 0;
     private currentMeshletsCount: number = 0;
@@ -46,21 +47,31 @@ export class PrepareSceneData extends RenderPass {
                 PassParams.indirectMeshInfo,
                 PassParams.indirectMeshletInfo,
                 PassParams.indirectObjectInfo,
+                PassParams.indirectMeshMatrixInfo,
                 PassParams.meshletsCount,
                 PassParams.textureMaps
             ]
         });
+
+        const meshMatrixBufferSize = 1024 * 1024 * 1;
+        this.meshMatrixInfoBuffer = new BufferMemoryAllocator(meshMatrixBufferSize);
+        this.meshMaterialInfo = new BufferMemoryAllocator(meshMatrixBufferSize);
+        this.meshletInfoBuffer = new BufferMemoryAllocator(meshMatrixBufferSize);
+        this.vertexBuffer = new BufferMemoryAllocator(meshMatrixBufferSize);
+        this.objectInfoBufferV2 = new BufferMemoryAllocator(meshMatrixBufferSize);
+
+        // new MemoryAllocatorViewer(this.vertexBuffer);
     }
 
     private getVertexInfo(meshlet: Meshlet): Float32Array {
         return meshlet.vertices_gpu;
     }
 
-    private getMeshletInfo(meshlet: Meshlet): number[] {
+    private getMeshletInfo(meshlet: Meshlet): Float32Array {
         // Meshlet info
         const bv = meshlet.boundingVolume;
         const pbv = meshlet.boundingVolume;
-        return [
+        return new Float32Array([
             0, 0, 0, 0, // ...bv.cone_apex.elements, 0,
             0, 0, 0, 0, // ...bv.cone_axis.elements, 0,
             0, 0, 0, 0, // bv.cone_cutoff, 0, 0, 0,
@@ -71,10 +82,10 @@ export class PrepareSceneData extends RenderPass {
             meshlet.lod, 0, 0, 0,
             ...meshlet.bounds.min.elements, 0,
             ...meshlet.bounds.max.elements, 0
-        ]
+        ]);
     }
 
-    private getMeshMaterialInfo(mesh: MeshletMesh): number[] {
+    private getMeshMaterialInfo(mesh: MeshletMesh): Float32Array {
         let materials = mesh.GetMaterials(DeferredMeshMaterial);
         if (materials.length > 1) throw Error("Multiple materials not supported");
 
@@ -95,7 +106,7 @@ export class PrepareSceneData extends RenderPass {
         const metalness = material.params.metalness;
         const unlit = material.params.unlit;
 
-        return [
+        return new Float32Array([
             albedoIndex, normalIndex, heightIndex, 0,
             ...albedoColor.elements,
             ...emissiveColor.elements,
@@ -104,17 +115,7 @@ export class PrepareSceneData extends RenderPass {
             +unlit,
             
             0
-        ];
-    }
-
-    private getMeshInfo(mesh: MeshletMesh): number[] {
-        const materialInfo = this.getMeshMaterialInfo(mesh);
-        return [
-            ...mesh.transform.localToWorldMatrix.elements,
-            ...mesh.transform.position.elements, 0,
-            ...mesh.transform.scale.elements, 0,
-            ...materialInfo
-        ]
+        ]);
     }
 
     private processMaterialMap(materialMap: Texture | undefined, type: "albedo" | "normal" | "height"): number {
@@ -153,7 +154,7 @@ export class PrepareSceneData extends RenderPass {
         
     }
     
-    public execute(resources: ResourcePool, indirectVertices: string, indirectMeshInfo: string, indirectMeshletInfo: string, indirectObjectInfo: string, meshletsCount: string, textureMaps: string) {
+    public execute(resources: ResourcePool) {
         const mainCamera = Camera.mainCamera;
         const scene = mainCamera.gameObject.scene;
         const sceneMeshlets = [...scene.GetComponents(MeshletMesh)];
@@ -166,43 +167,34 @@ export class PrepareSceneData extends RenderPass {
                 }
             }
 
-            let meshletInfo: number[] = [];
-            let meshInfo: number[] = [];
-            let objectInfo: number[] = [];
-
-            let vertices: number[] = [];
-
             const indexedCache: Map<number, number> = new Map();
             const meshCache: Map<string, number> = new Map();
 
-            for (let i = 0; i < meshlets.length; i++) {
-                const sceneMesh = meshlets[i];
-                let geometryIndex = indexedCache.get(sceneMesh.geometry.crc);
-                if (geometryIndex === undefined) {
-                    geometryIndex = indexedCache.size;
-                    indexedCache.set(sceneMesh.geometry.crc, geometryIndex);
+            for (const mesh of sceneMeshlets) {
+                // Mesh material info
+                if (!this.meshMaterialInfo.has(mesh.id)) this.meshMaterialInfo.set(mesh.id, this.getMeshMaterialInfo(mesh));
+                if (!this.meshMatrixInfoBuffer.has(mesh.id)) this.meshMatrixInfoBuffer.set(mesh.id, mesh.transform.localToWorldMatrix.elements);
 
-                    const meshletVertexArray = this.getVertexInfo(sceneMesh.geometry);
-                    vertices.push(...meshletVertexArray);
-
-                    const meshletInfoArray = this.getMeshletInfo(sceneMesh.geometry);
-                    meshletInfo.push(...meshletInfoArray);
-                }
-
-                // Mesh info
-                let meshIndex = meshCache.get(sceneMesh.mesh.id);
+                // Just to get mesh index
+                let meshIndex = meshCache.get(mesh.id);
                 if (meshIndex === undefined) {
                     meshIndex = meshCache.size;
-                    meshCache.set(sceneMesh.mesh.id, meshIndex);
-
-                    const meshInfoArray = this.getMeshInfo(sceneMesh.mesh);
-                    meshInfo.push(...meshInfoArray);
+                    meshCache.set(mesh.id, meshIndex);
                 }
+                
+                for (const meshlet of mesh.meshlets) {
+                    if (!this.meshletInfoBuffer.has(meshlet.id)) this.meshletInfoBuffer.set(meshlet.id, this.getMeshletInfo(meshlet));
+                    if (!this.vertexBuffer.has(meshlet.id)) this.vertexBuffer.set(meshlet.id, this.getVertexInfo(meshlet));
 
-                // Object info
-                objectInfo.push(
-                    meshIndex, geometryIndex, 0, 0,
-                )
+                    // Just to get geometry index
+                    let geometryIndex = indexedCache.get(meshlet.crc);
+                    if (geometryIndex === undefined) {
+                        geometryIndex = indexedCache.size;
+                        indexedCache.set(meshlet.crc, geometryIndex);
+                    }
+
+                    this.objectInfoBufferV2.set(`${mesh.id}-${meshlet.id}`, new Float32Array([meshIndex, geometryIndex, 0, 0]));
+                }
             }
 
             // Mesh materials
@@ -212,46 +204,24 @@ export class PrepareSceneData extends RenderPass {
                 height: this.createMaterialMap(this.heightMaps, "height")
             }
 
-            // Vertex buffer
-            const verticesArray = new Float32Array(vertices);
-            this.vertexBuffer = Buffer.Create(verticesArray.byteLength, BufferType.STORAGE);
-            this.vertexBuffer.name = "vertexBuffer"
-            this.vertexBuffer.SetArray(verticesArray);
-
-            // Meshlet info buffer
-            const meshletInfoArray = new Float32Array(meshletInfo);
-            this.meshletInfoBuffer = Buffer.Create(meshletInfoArray.byteLength, BufferType.STORAGE);
-            this.meshletInfoBuffer.name = "meshletInfoBuffer";
-            this.meshletInfoBuffer.SetArray(meshletInfoArray);
-
-            // Mesh info buffer
-            const meshInfoBufferArray = new Float32Array(meshInfo);
-            this.meshInfoBuffer = Buffer.Create(meshInfoBufferArray.byteLength, BufferType.STORAGE);
-            this.meshInfoBuffer.name = "meshInfoBuffer";
-            this.meshInfoBuffer.SetArray(meshInfoBufferArray);
-
-            // Object info buffer
-            const objectInfoBufferArray = new Float32Array(objectInfo);
-            this.objectInfoBuffer = Buffer.Create(objectInfoBufferArray.byteLength, BufferType.STORAGE);
-            this.objectInfoBuffer.name = "objectInfoBuffer";
-            this.objectInfoBuffer.SetArray(objectInfoBufferArray);
             
-            console.log("meshletInfoBuffer", meshletInfoArray.byteLength);
-            console.log("meshInfoBufferArray", meshInfoBufferArray.byteLength);
-            console.log("objectInfoBufferArray", objectInfoBufferArray.byteLength);
-            console.log("verticesArray", verticesArray.byteLength)
-
             this.currentMeshCount = sceneMeshlets.length;
             this.currentMeshletsCount = meshlets.length;
 
             Debugger.SetTotalMeshlets(meshlets.length);
         }
 
-        resources.setResource(indirectVertices, this.vertexBuffer);
-        resources.setResource(indirectMeshInfo, this.meshInfoBuffer);
-        resources.setResource(indirectMeshletInfo, this.meshletInfoBuffer);
-        resources.setResource(indirectObjectInfo, this.objectInfoBuffer);
-        resources.setResource(meshletsCount, this.currentMeshletsCount);
-        resources.setResource(textureMaps, this.textureMaps);
+        // // Test updating mesh matrices naively
+        // for (const mesh of sceneMeshlets) {
+        //     this.meshMatrixInfoBuffer.set(mesh.id, mesh.transform.localToWorldMatrix.elements);
+        // }
+
+        resources.setResource(PassParams.indirectVertices, this.vertexBuffer.getBuffer());
+        resources.setResource(PassParams.indirectMeshInfo, this.meshMaterialInfo.getBuffer());
+        resources.setResource(PassParams.indirectMeshletInfo, this.meshletInfoBuffer.getBuffer());
+        resources.setResource(PassParams.indirectObjectInfo, this.objectInfoBufferV2.getBuffer());
+        resources.setResource(PassParams.indirectMeshMatrixInfo, this.meshMatrixInfoBuffer.getBuffer());
+        resources.setResource(PassParams.meshletsCount, this.currentMeshletsCount);
+        resources.setResource(PassParams.textureMaps, this.textureMaps);
     }
 }

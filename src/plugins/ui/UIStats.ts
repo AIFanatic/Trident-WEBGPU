@@ -75,6 +75,33 @@ export class UIGraph extends Stat {
     }
 }
 
+export class UIDropdownStat extends Stat {
+    private selectElement: HTMLSelectElement;
+
+    constructor(folder: UIFolder, label: string, options: string[], onChanged: (index: number, value: string) => void, defaultIndex: number = 0) {
+        super(folder.container, label);
+        this.selectElement = document.createElement("select");
+        this.selectElement.classList.add("value");
+        for (let i = 0; i < options.length; i++) {
+            const option = options[i];
+            
+            const optionElement = document.createElement("option");
+            optionElement.value = option;
+            optionElement.textContent = option;
+            this.selectElement.append(optionElement);
+
+            if (i === defaultIndex) {
+                this.selectElement.value = option;
+            }
+        }
+        this.statContainer.append(this.selectElement);
+
+        this.selectElement.addEventListener("change", event => {
+            onChanged(this.selectElement.selectedIndex, (event.target as HTMLOptionElement).value);
+        })
+    }
+}
+
 export class UIButtonStat extends Stat {
     private button: HTMLButtonElement;
     private state: boolean;
@@ -173,6 +200,9 @@ export class UITextStat extends Stat {
     }
 
     public GetValue(): number { return this.previousValue; } // TODO: Current value
+    public GetPrecision(): number { return this.precision; }
+
+    public SetUnit(unit: string) { this.unit = unit };
 }
 
 export class UIFolder extends Stat {

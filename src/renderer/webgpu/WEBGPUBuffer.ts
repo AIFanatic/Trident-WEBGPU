@@ -1,7 +1,9 @@
+import { Utils } from "../../utils/Utils";
 import { Buffer, BufferType, DynamicBuffer } from "../Buffer";
 import { WEBGPURenderer } from "./WEBGPURenderer";
 
 class BaseBuffer {
+    public id = Utils.UUID()
     private buffer: GPUBuffer;
     public readonly size: number;
 
