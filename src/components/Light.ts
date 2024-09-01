@@ -1,4 +1,4 @@
-import { EventSystem } from "../Events";
+import { EventSystem, EventSystemLocal } from "../Events";
 import { Color } from "../math/Color";
 import { Vector3 } from "../math/Vector3";
 import { Renderer } from "../renderer/Renderer";

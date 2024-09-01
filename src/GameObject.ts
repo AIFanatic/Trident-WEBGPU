@@ -2,8 +2,10 @@ import { Component } from "./components/Component";
 import { Scene } from "./Scene";
 import { Transform } from "./components/Transform";
 import { Camera } from "./components/Camera";
+import { Utils } from "./utils/Utils";
 
 export class GameObject {
+    public id = Utils.UUID();
     public name: string = "GameObject";
     public scene: Scene;
 
@@ -56,5 +58,14 @@ export class GameObject {
                 component.hasStarted = true;
             }
         }
+    }
+
+    public Destroy() {
+        for (const component of this.componentsArray) {
+            component.Destroy();
+        }
+        this.componentsArray = [];
+        this.componentsMapped.clear();
+        this.scene.RemoveGameObject(this);
     }
 }

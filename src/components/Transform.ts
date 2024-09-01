@@ -1,4 +1,4 @@
-import { EventSystem } from "../Events";
+import { EventSystem, EventSystemLocal } from "../Events";
 import { Matrix4 } from "../math/Matrix4";
 import { ObservableQuaternion, Quaternion } from "../math/Quaternion";
 import { ObservableVector3, Vector3 } from "../math/Vector3";
@@ -37,12 +37,13 @@ export class Transform extends Component {
 
     private onChanged() {
         EventSystem.emit("CallUpdate", this, true);
-        EventSystem.emit("TransformUpdated", this);
     }
 
     private UpdateMatrices() {
         this._localToWorldMatrix.compose(this.position, this.rotation, this.scale);
         this._worldToLocalMatrix.copy(this._localToWorldMatrix).invert();
+        EventSystem.emit("TransformUpdated", this);
+        EventSystemLocal.emit("TransformUpdated", this.gameObject.id, this);
     }
 
     public Update() {

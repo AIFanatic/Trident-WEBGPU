@@ -4,15 +4,23 @@ import { Meshlet } from "../plugins/meshlets/Meshlet";
 import { Geometry, InterleavedVertexAttribute } from "../Geometry";
 import { Meshletizer } from "../plugins/meshlets/Meshletizer";
 import { Meshoptimizer } from "../plugins/meshlets/Meshoptimizer";
+import { EventSystem, EventSystemLocal } from "../Events";
 
-const meshletsCache: Map<Geometry, Meshlet[]> = new Map();
+const meshletsCache: Map<Geometry, {meshlets: Meshlet[], instanceCount: number}> = new Map();
 
 export class MeshletMesh extends Component {
+    private geometry: Geometry;
     private materialsMapped: Map<string, Material[]> = new Map();
 
     public enableShadows: boolean = true;
 
     public meshlets: Meshlet[] = [];
+
+    public Start(): void {
+        EventSystemLocal.on("TransformUpdated", transform => {
+            EventSystem.emit("MeshletUpdated", this);
+        }, this.gameObject.id)    
+    }
 
     public AddMaterial(material: Material) {
         if (!this.materialsMapped.has(material.constructor.name)) this.materialsMapped.set(material.constructor.name, []);
@@ -24,9 +32,12 @@ export class MeshletMesh extends Component {
     }
 
     public async SetGeometry(geometry: Geometry) {
-        const cached = meshletsCache.get(geometry);
+        this.geometry = geometry;
+        let cached = meshletsCache.get(geometry);
         if (cached) {
-            this.meshlets.push(...cached);
+            cached.instanceCount++;
+            meshletsCache.set(geometry, cached);
+            this.meshlets.push(...cached.meshlets);
             return;
         }
 
@@ -48,6 +59,20 @@ export class MeshletMesh extends Component {
         const allMeshlets = await Meshletizer.Build(interleavedVertices, indices);
 
         this.meshlets = allMeshlets;
-        meshletsCache.set(geometry, this.meshlets);
+        meshletsCache.set(geometry, {meshlets: this.meshlets, instanceCount: 0});
+    }
+
+    public Destroy() {
+        EventSystem.emit("MeshletDeleted", this);
+        const cached = meshletsCache.get(this.geometry);
+        if (!cached) throw Error("Geometry should be in meshletsCache");
+
+        cached.instanceCount--;
+        meshletsCache.set(this.geometry, cached);
+        if (cached.instanceCount <= 0) {
+            meshletsCache.delete(this.geometry);
+        }
+
+        EventSystem.emit("RemovedComponent", this, this.gameObject.scene);
     }
 }

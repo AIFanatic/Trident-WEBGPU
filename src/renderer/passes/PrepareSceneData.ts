@@ -8,6 +8,7 @@ import { Camera } from "../../components/Camera";
 import { Debugger } from "../../plugins/Debugger";
 import { PassParams } from "../RenderingPipeline";
 import { BufferMemoryAllocator, MemoryAllocator, MemoryAllocatorViewer } from "../../utils/MemoryAllocator";
+import { EventSystem } from "../../Events";
 
 interface SceneMesh {
     geometry: Meshlet;
@@ -60,7 +61,22 @@ export class PrepareSceneData extends RenderPass {
         this.vertexBuffer = new BufferMemoryAllocator(meshMatrixBufferSize);
         this.objectInfoBufferV2 = new BufferMemoryAllocator(meshMatrixBufferSize);
 
-        // new MemoryAllocatorViewer(this.vertexBuffer);
+        EventSystem.on("MeshletUpdated", mesh => {
+            console.log("Meshlet updated");
+            if (this.meshMatrixInfoBuffer.has(mesh.id)) {
+                this.meshMatrixInfoBuffer.set(mesh.id, mesh.transform.localToWorldMatrix.elements);
+            }
+        })
+
+        EventSystem.on("MeshletDeleted", mesh => {
+            console.log("Meshlet deleted");
+            if (this.meshMatrixInfoBuffer.has(mesh.id)) this.meshMatrixInfoBuffer.delete(mesh.id);
+            if (this.meshMaterialInfo.has(mesh.id)) this.meshMaterialInfo.delete(mesh.id);
+
+            for (const meshlet of mesh.meshlets) {
+                this.objectInfoBufferV2.delete(`${mesh.id}-${meshlet.id}`);
+            }
+        })
     }
 
     private getVertexInfo(meshlet: Meshlet): Float32Array {
@@ -173,7 +189,10 @@ export class PrepareSceneData extends RenderPass {
             for (const mesh of sceneMeshlets) {
                 // Mesh material info
                 if (!this.meshMaterialInfo.has(mesh.id)) this.meshMaterialInfo.set(mesh.id, this.getMeshMaterialInfo(mesh));
-                if (!this.meshMatrixInfoBuffer.has(mesh.id)) this.meshMatrixInfoBuffer.set(mesh.id, mesh.transform.localToWorldMatrix.elements);
+                if (!this.meshMatrixInfoBuffer.has(mesh.id)) {
+                    console.log(mesh.id, mesh.transform.localToWorldMatrix.elements);
+                    this.meshMatrixInfoBuffer.set(mesh.id, mesh.transform.localToWorldMatrix.elements);
+                }
 
                 // Just to get mesh index
                 let meshIndex = meshCache.get(mesh.id);

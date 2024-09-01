@@ -2,15 +2,17 @@ import { Scene } from "./Scene";
 import { Camera } from "./components/Camera";
 import { Component } from "./components/Component";
 import { Light } from "./components/Light";
-import { Mesh } from "./components/Mesh";
+import { MeshletMesh } from "./components/MeshletMesh";
 import { Transform } from "./components/Transform";
 
 export interface Events {
     AddedComponent: (component: Component, scene: Scene) => void;
+    RemovedComponent: (component: Component, scene: Scene) => void;
     CallUpdate: (component: Component, flag: boolean) => void;
     TransformUpdated: (component: Transform) => void;
     LightUpdated: (light: Light) => void;
-    MeshUpdated: (mesh: Mesh) => void;
+    MeshletUpdated: (meshlet: MeshletMesh) => void;
+    MeshletDeleted: (meshlet: MeshletMesh) => void;
     MainCameraUpdated: (camera: Camera) => void;
 };
 
@@ -31,6 +33,31 @@ export class EventSystem {
         if (!callbacks) return;
         for (let i = 0; i < callbacks.length; i++) {
             callbacks[i](...args);
+        }
+    }
+}
+
+
+
+export class EventSystemLocal {
+    private static events: EventMap = {};
+
+    public static on<K extends keyof Events>(event: K, callback: Events[K], id?: string) {
+        const eventId = id ? `${event}-${id}` : event;
+        if (!this.events[eventId]) this.events[eventId] = [];
+        this.events[eventId].push(callback);
+        console.log(`Registered ${eventId}`);  // Debugging line to confirm registration
+    }
+
+    public static emit<K extends keyof Events>(event: K, id: string, ...args: Parameters<Events[K]>) {
+        const eventId = `${event}-${id}`;
+        if (!this.events[eventId]) {
+            // console.log(`No listeners for ${eventId}`);  // Debugging line to check if listeners are being called
+            return;
+        }
+        console.log(`Listeners for ${this.events[eventId].length}`);  // Debugging line to check if listeners are being called
+        for (let i = 0; i < this.events[eventId].length; i++) {
+            this.events[eventId][i](...args);
         }
     }
 }

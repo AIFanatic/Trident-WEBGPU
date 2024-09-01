@@ -53,11 +53,26 @@ export class Scene {
             // }
 
         });
+
+        EventSystem.on("RemovedComponent", (component, scene) => {
+            let componentsArray = this.componentsByType.get(component.name);
+            if (componentsArray) {
+                const index = componentsArray.indexOf(component);
+                if (index !== -1) {
+                    componentsArray.splice(index, 1);
+                    this.componentsByType.set(component.name, componentsArray);
+                }
+            }
+        });
     }
 
     public AddGameObject(gameObject: GameObject) { this.gameObjects.push(gameObject) }
     public GetGameObjects(): GameObject[] { return this.gameObjects }
     public GetComponents<T extends Component>(type: new(...args: any[]) => T): T[] { return this.componentsByType.get(type.name) as T[] || [] }
+    public RemoveGameObject(gameObject: GameObject) {
+        const index = this.gameObjects.indexOf(gameObject);
+        if (index !== -1) this.gameObjects.splice(index, 1);
+    }
     
     public Start() {
         if (this.hasStarted) return;

@@ -26,4 +26,5 @@ export class Component {
     public Start() {}
     public Update() {}
     public LateUpdate() {}
+    public Destroy() {}
 }

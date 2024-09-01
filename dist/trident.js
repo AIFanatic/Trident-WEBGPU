@@ -20,6 +20,25 @@ var EventSystem = class {
     }
   }
 };
+var EventSystemLocal = class {
+  static events = {};
+  static on(event, callback, id) {
+    const eventId = id ? `${event}-${id}` : event;
+    if (!this.events[eventId]) this.events[eventId] = [];
+    this.events[eventId].push(callback);
+    console.log(`Registered ${eventId}`);
+  }
+  static emit(event, id, ...args) {
+    const eventId = `${event}-${id}`;
+    if (!this.events[eventId]) {
+      return;
+    }
+    console.log(`Listeners for ${this.events[eventId].length}`);
+    for (let i = 0; i < this.events[eventId].length; i++) {
+      this.events[eventId][i](...args);
+    }
+  }
+};
 
 // src/utils/Utils.ts
 var Utils = class {
@@ -60,6 +79,8 @@ var Component = class _Component {
   Update() {
   }
   LateUpdate() {
+  }
+  Destroy() {
   }
 };
 
@@ -797,11 +818,12 @@ var Transform = class extends Component {
   }
   onChanged() {
     EventSystem.emit("CallUpdate", this, true);
-    EventSystem.emit("TransformUpdated", this);
   }
   UpdateMatrices() {
     this._localToWorldMatrix.compose(this.position, this.rotation, this.scale);
     this._worldToLocalMatrix.copy(this._localToWorldMatrix).invert();
+    EventSystem.emit("TransformUpdated", this);
+    EventSystemLocal.emit("TransformUpdated", this.gameObject.id, this);
   }
   Update() {
     this.UpdateMatrices();
@@ -867,6 +889,7 @@ var Camera = class _Camera extends Component {
 
 // src/GameObject.ts
 var GameObject = class {
+  id = Utils.UUID();
   name = "GameObject";
   scene;
   transform;
@@ -908,6 +931,14 @@ var GameObject = class {
         component.hasStarted = true;
       }
     }
+  }
+  Destroy() {
+    for (const component of this.componentsArray) {
+      component.Destroy();
+    }
+    this.componentsArray = [];
+    this.componentsMapped.clear();
+    this.scene.RemoveGameObject(this);
   }
 };
 
@@ -7928,9 +7959,15 @@ var Meshletizer = class _Meshletizer {
 // src/components/MeshletMesh.ts
 var meshletsCache = /* @__PURE__ */ new Map();
 var MeshletMesh = class extends Component {
+  geometry;
   materialsMapped = /* @__PURE__ */ new Map();
   enableShadows = true;
   meshlets = [];
+  Start() {
+    EventSystemLocal.on("TransformUpdated", (transform) => {
+      EventSystem.emit("MeshletUpdated", this);
+    }, this.gameObject.id);
+  }
   AddMaterial(material) {
     if (!this.materialsMapped.has(material.constructor.name)) this.materialsMapped.set(material.constructor.name, []);
     this.materialsMapped.get(material.constructor.name)?.push(material);
@@ -7939,9 +7976,12 @@ var MeshletMesh = class extends Component {
     return this.materialsMapped.get(type.name) || [];
   }
   async SetGeometry(geometry) {
-    const cached = meshletsCache.get(geometry);
+    this.geometry = geometry;
+    let cached = meshletsCache.get(geometry);
     if (cached) {
-      this.meshlets.push(...cached);
+      cached.instanceCount++;
+      meshletsCache.set(geometry, cached);
+      this.meshlets.push(...cached.meshlets);
       return;
     }
     const pa = geometry.attributes.get("position");
@@ -7958,7 +7998,18 @@ var MeshletMesh = class extends Component {
     await Meshoptimizer.load();
     const allMeshlets = await Meshletizer.Build(interleavedVertices, indices);
     this.meshlets = allMeshlets;
-    meshletsCache.set(geometry, this.meshlets);
+    meshletsCache.set(geometry, { meshlets: this.meshlets, instanceCount: 0 });
+  }
+  Destroy() {
+    EventSystem.emit("MeshletDeleted", this);
+    const cached = meshletsCache.get(this.geometry);
+    if (!cached) throw Error("Geometry should be in meshletsCache");
+    cached.instanceCount--;
+    meshletsCache.set(this.geometry, cached);
+    if (cached.instanceCount <= 0) {
+      meshletsCache.delete(this.geometry);
+    }
+    EventSystem.emit("RemovedComponent", this, this.gameObject.scene);
   }
 };
 
@@ -8101,6 +8152,20 @@ var PrepareSceneData = class extends RenderPass {
     this.meshletInfoBuffer = new BufferMemoryAllocator(meshMatrixBufferSize);
     this.vertexBuffer = new BufferMemoryAllocator(meshMatrixBufferSize);
     this.objectInfoBufferV2 = new BufferMemoryAllocator(meshMatrixBufferSize);
+    EventSystem.on("MeshletUpdated", (mesh) => {
+      console.log("Meshlet updated");
+      if (this.meshMatrixInfoBuffer.has(mesh.id)) {
+        this.meshMatrixInfoBuffer.set(mesh.id, mesh.transform.localToWorldMatrix.elements);
+      }
+    });
+    EventSystem.on("MeshletDeleted", (mesh) => {
+      console.log("Meshlet deleted");
+      if (this.meshMatrixInfoBuffer.has(mesh.id)) this.meshMatrixInfoBuffer.delete(mesh.id);
+      if (this.meshMaterialInfo.has(mesh.id)) this.meshMaterialInfo.delete(mesh.id);
+      for (const meshlet of mesh.meshlets) {
+        this.objectInfoBufferV2.delete(`${mesh.id}-${meshlet.id}`);
+      }
+    });
   }
   getVertexInfo(meshlet) {
     return meshlet.vertices_gpu;
@@ -8219,7 +8284,10 @@ var PrepareSceneData = class extends RenderPass {
       const meshCache = /* @__PURE__ */ new Map();
       for (const mesh of sceneMeshlets) {
         if (!this.meshMaterialInfo.has(mesh.id)) this.meshMaterialInfo.set(mesh.id, this.getMeshMaterialInfo(mesh));
-        if (!this.meshMatrixInfoBuffer.has(mesh.id)) this.meshMatrixInfoBuffer.set(mesh.id, mesh.transform.localToWorldMatrix.elements);
+        if (!this.meshMatrixInfoBuffer.has(mesh.id)) {
+          console.log(mesh.id, mesh.transform.localToWorldMatrix.elements);
+          this.meshMatrixInfoBuffer.set(mesh.id, mesh.transform.localToWorldMatrix.elements);
+        }
         let meshIndex = meshCache.get(mesh.id);
         if (meshIndex === void 0) {
           meshIndex = meshCache.size;
@@ -8604,6 +8672,16 @@ var Scene = class {
       componentsArray.push(component);
       this.componentsByType.set(component.name, componentsArray);
     });
+    EventSystem.on("RemovedComponent", (component, scene) => {
+      let componentsArray = this.componentsByType.get(component.name);
+      if (componentsArray) {
+        const index = componentsArray.indexOf(component);
+        if (index !== -1) {
+          componentsArray.splice(index, 1);
+          this.componentsByType.set(component.name, componentsArray);
+        }
+      }
+    });
   }
   AddGameObject(gameObject) {
     this.gameObjects.push(gameObject);
@@ -8613,6 +8691,10 @@ var Scene = class {
   }
   GetComponents(type) {
     return this.componentsByType.get(type.name) || [];
+  }
+  RemoveGameObject(gameObject) {
+    const index = this.gameObjects.indexOf(gameObject);
+    if (index !== -1) this.gameObjects.splice(index, 1);
   }
   Start() {
     if (this.hasStarted) return;
@@ -8903,8 +8985,12 @@ async function Application() {
     }
   }
   setTimeout(() => {
-    console.log("Updtin");
+    console.log("Updating");
     lastMesh.transform.position.x += 2;
+    setTimeout(() => {
+      console.log("Destroying");
+      lastMesh.transform.gameObject.Destroy();
+    }, 5e3);
   }, 5e3);
   scene.Start();
 }
