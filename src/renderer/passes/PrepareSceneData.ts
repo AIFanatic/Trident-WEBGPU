@@ -75,7 +75,12 @@ export class PrepareSceneData extends RenderPass {
 
             for (const meshlet of mesh.meshlets) {
                 this.objectInfoBufferV2.delete(`${mesh.id}-${meshlet.id}`);
+                
+                console.warn("TODO: Deleting meshlet, but since meshlets are shared need to check if any more meshes share this meshlet in order to delete form meshletInfoBuffer and vertexBuffer.");
+                // if (this.meshletInfoBuffer.has(meshlet.id)) this.meshletInfoBuffer.delete(meshlet.id);
+                // if (this.vertexBuffer.has(meshlet.id)) this.vertexBuffer.delete(meshlet.id);
             }
+
         })
     }
 
@@ -190,7 +195,6 @@ export class PrepareSceneData extends RenderPass {
                 // Mesh material info
                 if (!this.meshMaterialInfo.has(mesh.id)) this.meshMaterialInfo.set(mesh.id, this.getMeshMaterialInfo(mesh));
                 if (!this.meshMatrixInfoBuffer.has(mesh.id)) {
-                    console.log(mesh.id, mesh.transform.localToWorldMatrix.elements);
                     this.meshMatrixInfoBuffer.set(mesh.id, mesh.transform.localToWorldMatrix.elements);
                 }
 

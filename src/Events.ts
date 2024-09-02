@@ -46,16 +46,11 @@ export class EventSystemLocal {
         const eventId = id ? `${event}-${id}` : event;
         if (!this.events[eventId]) this.events[eventId] = [];
         this.events[eventId].push(callback);
-        console.log(`Registered ${eventId}`);  // Debugging line to confirm registration
     }
 
     public static emit<K extends keyof Events>(event: K, id: string, ...args: Parameters<Events[K]>) {
         const eventId = `${event}-${id}`;
-        if (!this.events[eventId]) {
-            // console.log(`No listeners for ${eventId}`);  // Debugging line to check if listeners are being called
-            return;
-        }
-        console.log(`Listeners for ${this.events[eventId].length}`);  // Debugging line to check if listeners are being called
+        if (!this.events[eventId]) return;
         for (let i = 0; i < this.events[eventId].length; i++) {
             this.events[eventId][i](...args);
         }

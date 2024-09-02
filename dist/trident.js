@@ -26,14 +26,10 @@ var EventSystemLocal = class {
     const eventId = id ? `${event}-${id}` : event;
     if (!this.events[eventId]) this.events[eventId] = [];
     this.events[eventId].push(callback);
-    console.log(`Registered ${eventId}`);
   }
   static emit(event, id, ...args) {
     const eventId = `${event}-${id}`;
-    if (!this.events[eventId]) {
-      return;
-    }
-    console.log(`Listeners for ${this.events[eventId].length}`);
+    if (!this.events[eventId]) return;
     for (let i = 0; i < this.events[eventId].length; i++) {
       this.events[eventId][i](...args);
     }
@@ -8164,6 +8160,7 @@ var PrepareSceneData = class extends RenderPass {
       if (this.meshMaterialInfo.has(mesh.id)) this.meshMaterialInfo.delete(mesh.id);
       for (const meshlet of mesh.meshlets) {
         this.objectInfoBufferV2.delete(`${mesh.id}-${meshlet.id}`);
+        console.warn("TODO: Deleting meshlet, but since meshlets are shared need to check if any more meshes share this meshlet in order to delete form meshletInfoBuffer and vertexBuffer.");
       }
     });
   }
@@ -8285,7 +8282,6 @@ var PrepareSceneData = class extends RenderPass {
       for (const mesh of sceneMeshlets) {
         if (!this.meshMaterialInfo.has(mesh.id)) this.meshMaterialInfo.set(mesh.id, this.getMeshMaterialInfo(mesh));
         if (!this.meshMatrixInfoBuffer.has(mesh.id)) {
-          console.log(mesh.id, mesh.transform.localToWorldMatrix.elements);
           this.meshMatrixInfoBuffer.set(mesh.id, mesh.transform.localToWorldMatrix.elements);
         }
         let meshIndex = meshCache.get(mesh.id);
@@ -8916,7 +8912,7 @@ var OBJLoaderIndexed = class _OBJLoaderIndexed {
   }
 };
 
-// src/TEST/GPUDriven.ts
+// src/TEST/Benchmark.ts
 var canvas = document.createElement("canvas");
 var aspectRatio = window.devicePixelRatio;
 canvas.width = window.innerWidth * aspectRatio;
@@ -8952,14 +8948,6 @@ async function Application() {
   bunnyGeometry.index = new IndexAttribute(bunnyObj.indices);
   console.log("bunnyObj", bunnyObj);
   console.log("bunnyGeometry", bunnyGeometry);
-  const kittenObj = await OBJLoaderIndexed.load("./assets/PickupCrate.obj");
-  const kittenGeometry = new Geometry();
-  kittenGeometry.attributes.set("position", new VertexAttribute(kittenObj.vertices));
-  kittenGeometry.attributes.set("normal", new VertexAttribute(kittenObj.normals));
-  kittenGeometry.attributes.set("uv", new VertexAttribute(new Float32Array(kittenObj.vertices.length)));
-  kittenGeometry.index = new IndexAttribute(kittenObj.indices);
-  console.log("kittenObj", kittenObj);
-  console.log("kittenGeometry", kittenGeometry);
   const albedoMap = await Texture2.Load("./brick-wall-unity/brick-wall_albedo.png");
   const normalMap = await Texture2.Load("./brick-wall-unity/brick-wall_normal-ogl.png");
   const heightMap = await Texture2.Load("./brick-wall-unity/brick-wall_height.png");
@@ -8969,7 +8957,7 @@ async function Application() {
     heightMap
   });
   let lastMesh;
-  const n = 2;
+  const n = 10;
   for (let x = 0; x < n; x++) {
     for (let y = 0; y < n; y++) {
       for (let z = 0; z < n; z++) {
@@ -8984,14 +8972,6 @@ async function Application() {
       }
     }
   }
-  setTimeout(() => {
-    console.log("Updating");
-    lastMesh.transform.position.x += 2;
-    setTimeout(() => {
-      console.log("Destroying");
-      lastMesh.transform.gameObject.Destroy();
-    }, 5e3);
-  }, 5e3);
   scene.Start();
 }
 Application();
