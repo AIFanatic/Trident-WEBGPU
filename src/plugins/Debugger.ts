@@ -13,7 +13,7 @@ class _Debugger {
     public isDynamicLODEnabled: boolean = true;
     public staticLOD: number = 20;
 
-    public viewType: number = 0;
+    public viewType: number = 7;
     public heightScale: number = 0.05;
     public useHeightMap: boolean = false;
 
@@ -30,13 +30,15 @@ class _Debugger {
     private gpuTime: UITextStat;
     private gpuBufferSizeStat: UITextStat;
     private gpuBufferSizeTotal: number = 0;
+    private gpuTextureSizeStat: UITextStat;
+    private gpuTextureSizeTotal: number = 0;
 
     constructor() {
         const container = document.createElement("div");
         container.classList.add("stats-panel");
 
         this.ui = new UIFolder(container, "Debugger");
-        this.ui.Open();
+        // this.ui.Open();
         document.body.append(container);
 
         this.fps = new UITextStat(this.ui, "FPS", 0, 2, "", true);
@@ -46,6 +48,7 @@ class _Debugger {
         this.visibleTriangles = new UITextStat(this.ui, "Visible triangles: ");
         this.gpuTime = new UITextStat(this.ui, "GPU: ", 0, 2, "ms", true);
         this.gpuBufferSizeStat = new UITextStat(this.ui, "GPU buffer size: ", 0, 2);
+        this.gpuTextureSizeStat = new UITextStat(this.ui, "GPU texture size: ", 0, 2);
 
         const hizFolder = new UIFolder(this.ui, "Hierarchical Z depth");
         hizFolder.Open();
@@ -89,7 +92,7 @@ class _Debugger {
 
         const rendererFolder = new UIFolder(this.ui, "Renderer");
         rendererFolder.Open();
-        const viewTypeStat = new UIDropdownStat(rendererFolder, "GBuffer:", ["Instances", "Instance+Triangles", "Albedo Map", "Normal Map", "Lighting"], (index, value) => {this.viewType = index});
+        const viewTypeStat = new UIDropdownStat(rendererFolder, "GBuffer:", ["Meshlets", "Triangles", "Albedo Map", "Normal Map", "Metalness", "Roughness", "Emissive", "Lighting"], (index, value) => {this.viewType = index}, this.viewType);
         const heightScale = new UISliderStat(rendererFolder, "Height scale:", 0, 1, 0.01, this.heightScale, state => {this.heightScale = state});
         const useHeightMapStat = new UIButtonStat(rendererFolder, "Use heightmap:", state => {this.useHeightMap = state}, this.useHeightMap);
 
@@ -107,18 +110,25 @@ class _Debugger {
         framePass.SetValue(time / 1e6);
     }
 
-    public IncrementGPUBufferSize(value: number) {
-        const FormatBytes = (bytes: number, decimals = 2): {value: number, rank: string} => {
-            const k = 1024;
-            const sizes = ['B', 'KB', 'MB', 'GB', 'TB', 'PB', 'EB', 'ZB', 'YB'];
-            const i = Math.floor(Math.log(bytes) / Math.log(k));
-            return {value: parseFloat((bytes / Math.pow(k, i)).toFixed(decimals)), rank: sizes[i]};
-        }
+    private FormatBytes (bytes: number, decimals = 2): {value: number, rank: string} {
+        const k = 1024;
+        const sizes = ['B', 'KB', 'MB', 'GB', 'TB', 'PB', 'EB', 'ZB', 'YB'];
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        return {value: parseFloat((bytes / Math.pow(k, i)).toFixed(decimals)), rank: sizes[i]};
+    }
 
+    public IncrementGPUBufferSize(value: number) {
         this.gpuBufferSizeTotal += value;
-        const formatted = FormatBytes(this.gpuBufferSizeTotal, this.gpuBufferSizeStat.GetPrecision());
+        const formatted = this.FormatBytes(this.gpuBufferSizeTotal, this.gpuBufferSizeStat.GetPrecision());
         this.gpuBufferSizeStat.SetUnit(formatted.rank);
         this.gpuBufferSizeStat.SetValue(formatted.value);
+    }
+
+    public IncrementGPUTextureSize(value: number) {
+        this.gpuTextureSizeTotal += value;
+        const formatted = this.FormatBytes(this.gpuTextureSizeTotal, this.gpuTextureSizeStat.GetPrecision());
+        this.gpuTextureSizeStat.SetUnit(formatted.rank);
+        this.gpuTextureSizeStat.SetValue(formatted.value);
     }
 
     public SetTotalMeshlets(count: number) {

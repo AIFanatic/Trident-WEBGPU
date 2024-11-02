@@ -18,7 +18,9 @@ export class GeometryAttribute {
 };
 
 export class VertexAttribute extends GeometryAttribute {
-    constructor(array: Float32Array) { super(array, BufferType.VERTEX) }
+    constructor(array: Float32Array) {
+        super(array, BufferType.VERTEX)
+    }
 }
 
 export class InterleavedVertexAttribute extends GeometryAttribute {

@@ -97,6 +97,9 @@ export class CullingPass extends RenderPass {
     }
 
     public execute(resources: ResourcePool) {
+        const depthTexturePyramid = resources.getResource(PassParams.depthTexturePyramid);
+        if (!depthTexturePyramid) return;
+
         const mainCamera = Camera.mainCamera;
 
         const meshletCount = resources.getResource(PassParams.meshletsCount) as number;
@@ -172,8 +175,7 @@ export class CullingPass extends RenderPass {
 
 
 
-
-        const depthTexturePyramid = resources.getResource(PassParams.depthTexturePyramid);
+        
         this.compute.SetTexture("depthTexture", depthTexturePyramid);
         this.compute.SetBuffer("bPrepass", this.currentPassBuffer);
 

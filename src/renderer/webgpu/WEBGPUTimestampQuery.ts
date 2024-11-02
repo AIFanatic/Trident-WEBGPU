@@ -6,10 +6,12 @@ export class WEBGPUTimestampQuery {
     private static resultBuffer: GPUBuffer;
     private static isTimestamping = false;
 
-    private static links: Map<number, string> = new Map();
+    private static links: Map<string, number> = new Map();
     private static currentLinkIndex: number = 0;
 
-    public static BeginRenderTimestamp(name: string): GPURenderPassTimestampWrites | GPUComputePassTimestampWrites {
+    public static BeginRenderTimestamp(name: string): GPURenderPassTimestampWrites | GPUComputePassTimestampWrites | undefined {
+        if (this.links.has(name)) return undefined;
+
         if (!navigator.userAgent.toLowerCase().includes("chrome")) return undefined;
         if (this.isTimestamping === true) throw Error("Already timestamping");
         if (!this.querySet) {
@@ -33,7 +35,8 @@ export class WEBGPUTimestampQuery {
         this.isTimestamping = true;
         const currentLinkIndex = this.currentLinkIndex;
         this.currentLinkIndex+=2;
-        this.links.set(currentLinkIndex, name);
+        this.links.set(name, currentLinkIndex);
+        // console.log(this.currentLinkIndex)
         return {querySet: this.querySet, beginningOfPassWriteIndex: currentLinkIndex, endOfPassWriteIndex: currentLinkIndex+1};
 
     }
@@ -61,15 +64,24 @@ export class WEBGPUTimestampQuery {
 
         let visited = {};
         let frameTimes: Map<string, number> = new Map();
-        for (let i = 0; i < this.currentLinkIndex; i+=2) {
-            const link = this.links.get(i);
-            if (!link) throw Error("ERGERG");
-            if (visited[link] === true) continue;
+        for (const [name, num] of this.links) {
+            // const link = this.links.get();
+            // if (name === undefined) throw Error("ERGERG");
+            if (visited[name] === true) continue;
 
-            const duration = Number(times[i+1] - times[i]);
-            frameTimes.set(link, duration);
-            visited[link] = true;
+            const duration = Number(times[num+1] - times[num]);
+            frameTimes.set(name, duration);
+            visited[name] = true;
         }
+        // for (let i = 0; i < this.currentLinkIndex; i+=2) {
+        //     const link = this.links.get(i);
+        //     if (!link) throw Error("ERGERG");
+        //     if (visited[link] === true) continue;
+
+        //     const duration = Number(times[i+1] - times[i]);
+        //     frameTimes.set(link, duration);
+        //     visited[link] = true;
+        // }
 
         this.resultBuffer.unmap();
 

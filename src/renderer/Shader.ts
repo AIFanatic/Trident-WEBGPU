@@ -6,8 +6,8 @@ import { Renderer } from "./Renderer";
 import { ShaderPreprocessor } from "./ShaderUtils";
 import { DepthTexture, RenderTexture, Texture, TextureFormat } from "./Texture";
 import { TextureSampler } from "./TextureSampler";
-import { WEBGPUComputeShader } from "./webgpu/shader/WEBGPUComputeShader";
-import { WEBGPUShader } from "./webgpu/shader/WEBGPUShader";
+import { WEBGPUComputeShader } from "./webgpu/WEBGPUComputeShader";
+import { WEBGPUShader } from "./webgpu/WEBGPUShader";
 
 export interface ShaderColorOutput {
     format: TextureFormat;

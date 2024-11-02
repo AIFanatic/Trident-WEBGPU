@@ -72,6 +72,13 @@ export class Vector3 {
         return this;
     }
 
+	public subVectors(a: Vector3, b: Vector3): Vector3 {
+		this.x = a.x - b.x;
+		this.y = a.y - b.y;
+		this.z = a.z - b.z;
+		return this;
+	}
+
     public applyQuaternion(q: Quaternion): Vector3 {
         const vx = this.x, vy = this.y, vz = this.z;
         const qx = q.x, qy = q.y, qz = q.z, qw = q.w;
@@ -93,6 +100,10 @@ export class Vector3 {
         return Math.hypot(this.x, this.y, this.z);
     }
 
+	public lengthSq(): number {
+		return this.x * this.x + this.y * this.y + this.z * this.z;
+	}
+
     public normalize(): Vector3 {
         return this.div(this.length() || 1)
     }
@@ -100,6 +111,11 @@ export class Vector3 {
     public distanceTo(v: Vector3): number {
         return Math.hypot(this.x - v.x, this.y - v.y, this.z - v.z)
     }
+
+	public distanceToSquared(v: Vector3): number {
+		const dx = this.x - v.x, dy = this.y - v.y, dz = this.z - v.z;
+		return dx * dx + dy * dy + dz * dz;
+	}
 
     public dot(v: Vector3): number {
         return this.x * v.x + this.y * v.y + this.z * v.z
@@ -136,6 +152,30 @@ export class Vector3 {
 		this.z = Math.max( this.z, v.z );
 
 		return this;
+	}
+
+    public lerp(v: Vector3, t: number): Vector3 {
+        this.x = this.x + t * (v.x - this.x);
+        this.y = this.y + t * (v.y - this.y);
+        this.z = this.z + t * (v.z - this.z);
+        return this;
+    }
+
+	public setFromSphericalCoords(radius: number, phi: number, theta: number) {
+		const sinPhiRadius = Math.sin( phi ) * radius;
+		this.x = sinPhiRadius * Math.sin( theta );
+		this.y = Math.cos( phi ) * radius;
+		this.z = sinPhiRadius * Math.cos( theta );
+		return this;
+	}
+
+    public equals(v: Vector3): boolean {
+        const EPS = 1e-4;
+		return ( 
+            Math.abs(v.x - this.x) < EPS &&
+            Math.abs(v.y - this.y) < EPS &&
+            Math.abs(v.z - this.z) < EPS
+        );
 	}
 }
 

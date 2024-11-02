@@ -3,6 +3,8 @@ import { Meshlet } from "./Meshlet";
 import { WASMHelper, WASMPointer } from "./WASMHelper";
 import MeshOptimizerModule from "./meshoptimizer/MeshOptimizer";
 
+export const attribute_size = 8;
+
 export interface meshopt_Meshlet {
     triangle_offset: number;
     triangle_count: number;
@@ -107,8 +109,8 @@ export class Meshoptimizer {
             new WASMPointer(Uint32Array.from(indices)),
             indices.length,
             new WASMPointer(Float32Array.from(vertices)),
-            vertices.length / 8,
-            8 * Float32Array.BYTES_PER_ELEMENT,
+            vertices.length / attribute_size,
+            attribute_size * Float32Array.BYTES_PER_ELEMENT,
             max_vertices,
             max_triangles,
             cone_weight
@@ -137,8 +139,8 @@ export class Meshoptimizer {
             new WASMPointer(Uint32Array.from(indices)),
             indices.length,
             new WASMPointer(Float32Array.from(vertices)),
-            vertices.length / 8,
-            8 * Float32Array.BYTES_PER_ELEMENT,
+            vertices.length / attribute_size,
+            attribute_size * Float32Array.BYTES_PER_ELEMENT,
         );
 
         const boundsData = boundsDataPtr.data;
@@ -170,7 +172,7 @@ export class Meshoptimizer {
 
         const MeshOptmizer = Meshoptimizer.module;
 
-        const remap = new WASMPointer(new Uint32Array(meshlet.indices.length * 8), "out");
+        const remap = new WASMPointer(new Uint32Array(meshlet.indices.length * attribute_size), "out");
         const indices = new WASMPointer(new Uint32Array(meshlet.indices), "in");
         const vertices = new WASMPointer(new Float32Array(meshlet.vertices), "in");
 
@@ -179,8 +181,8 @@ export class Meshoptimizer {
             indices,
             meshlet.indices.length,
             vertices,
-            meshlet.vertices.length / 8,
-            8 * Float32Array.BYTES_PER_ELEMENT
+            meshlet.vertices.length / attribute_size,
+            attribute_size * Float32Array.BYTES_PER_ELEMENT
         );
         
         const indices_remapped = new WASMPointer(new Uint32Array(meshlet.indices.length), "out");
@@ -191,12 +193,12 @@ export class Meshoptimizer {
             remap
         );
         
-        const vertices_remapped = new WASMPointer(new Float32Array(vertex_count * 8), "out");
+        const vertices_remapped = new WASMPointer(new Float32Array(vertex_count * attribute_size), "out");
         WASMHelper.call(MeshOptmizer, "meshopt_remapVertexBuffer", "number", 
             vertices_remapped,
             vertices,
-            meshlet.vertices.length / 8,
-            8 * Float32Array.BYTES_PER_ELEMENT,
+            meshlet.vertices.length / attribute_size,
+            attribute_size * Float32Array.BYTES_PER_ELEMENT,
             remap
         );
 
@@ -209,13 +211,20 @@ export class Meshoptimizer {
         const destination = new WASMPointer(new Uint32Array(meshlet.indices.length), "out");
         const result_error = new WASMPointer(new Float32Array(1), "out");
         
+        const meshopt_SimplifyLockBorder = 1 << 0;
+        const meshopt_SimplifySparse = 1 << 1;
+        const meshopt_SimplifyErrorAbsolute = 1 << 2;
+
+        const options = meshopt_SimplifyLockBorder | meshopt_SimplifySparse;
+
+
         const simplified_index_count = WASMHelper.call(MeshOptmizer, "meshopt_simplify", "number",
             destination, // unsigned int* destination,
             new WASMPointer(new Uint32Array(meshlet.indices)), // const unsigned int* indices,
             meshlet.indices.length, // size_t index_count,
             new WASMPointer(new Float32Array(meshlet.vertices)), // const float* vertex_positions,
-            meshlet.vertices.length / 8, // size_t vertex_count,
-            8 * Float32Array.BYTES_PER_ELEMENT, // size_t vertex_positions_stride,
+            meshlet.vertices.length / attribute_size, // size_t vertex_count,
+            attribute_size * Float32Array.BYTES_PER_ELEMENT, // size_t vertex_positions_stride,
             target_count, // size_t target_index_count,
             target_error, // float target_error, Should be 0.01 but cant reach 128 triangles with it
             1, // unsigned int options, preserve borders
@@ -230,6 +239,80 @@ export class Meshoptimizer {
         }
     }
 
+
+    public static meshopt_simplifyWithAttributes(meshlet: Meshlet, vertex_lock_array: Uint8Array | null, target_count: number, target_error: number = 1): {meshlet: Meshlet, error: number} {
+        const MeshOptmizer = Meshoptimizer.module;
+
+        const destination = new WASMPointer(new Uint32Array(meshlet.indices.length), "out");
+        const result_error = new WASMPointer(new Float32Array(1), "out");
+
+
+        const vertex_lock = vertex_lock_array === null ? null : new WASMPointer(vertex_lock_array, "in");
+        
+        const simplified_index_count = WASMHelper.call(MeshOptmizer, "meshopt_simplifyWithAttributes", "number",
+            destination, // unsigned int* destination,
+            new WASMPointer(new Uint32Array(meshlet.indices)), // const unsigned int* indices,
+            meshlet.indices.length, // size_t index_count,
+            new WASMPointer(new Float32Array(meshlet.vertices)), // const float* vertex_positions,
+            meshlet.vertices.length / attribute_size, // size_t vertex_count,
+            attribute_size * Float32Array.BYTES_PER_ELEMENT, // size_t vertex_positions_stride,
+
+
+            null,
+            0,
+            null,
+            0,
+            vertex_lock,
+
+
+            target_count, // size_t target_index_count,
+            target_error, // float target_error, Should be 0.01 but cant reach 128 triangles with it
+            1, // unsigned int options, preserve borders
+            result_error, // float* result_error
+        );
+
+        const destination_resized = destination.data.slice(0, simplified_index_count) as Uint32Array;
+
+        return {
+            error: result_error.data[0],
+            meshlet: new Meshlet(meshlet.vertices, destination_resized)
+        }
+    }
+
+    // ib, ib, 24, vb, 9, 12, NULL, 0, NULL, 0, lock, 3, 1e-3f, 0
+    public static meshopt_simplifyWithAttributesRaw(indices: Uint32Array, a: number, vertices: Float32Array, b: number, c: number, d, e: number, f, g: number, lock: Uint32Array, target_count: number, target_error: number, options: number) {
+        const MeshOptmizer = Meshoptimizer.module;
+
+        const destination = new WASMPointer(new Uint32Array(indices.length), "out");
+        const result_error = new WASMPointer(new Float32Array(1), "out");
+        const vertex_lock = new WASMPointer(lock, "in");
+
+        const simplified_index_count = WASMHelper.call(MeshOptmizer, "meshopt_simplifyWithAttributes", "number",
+            destination, // unsigned int* destination,
+            new WASMPointer(new Uint32Array(indices)), // const unsigned int* indices,
+            a, // size_t index_count,
+            new WASMPointer(new Float32Array(vertices)), // const float* vertex_positions,
+            b, // size_t vertex_count,
+            c,
+
+            d,
+            e,
+            f,
+            g,
+            vertex_lock,
+
+
+            target_count, // size_t target_index_count,
+            target_error, // float target_error, Should be 0.01 but cant reach 128 triangles with it
+            options, // unsigned int options, preserve borders
+            result_error, // float* result_error
+        );
+
+        const destination_resized = destination.data.slice(0, simplified_index_count) as Uint32Array;
+
+        return destination_resized;
+    }
+
     public static meshopt_simplifyScale(meshlet: Meshlet): number {
         const MeshOptmizer = Meshoptimizer.module;
 
@@ -238,8 +321,8 @@ export class Meshoptimizer {
         // float meshopt_simplifyScale(const float* vertex_positions, size_t vertex_count, size_t vertex_positions_stride)
         const scale = WASMHelper.call(MeshOptmizer, "meshopt_simplifyScale", "number", 
             vertices,
-            meshlet.vertices.length / 8,
-            8 * Float32Array.BYTES_PER_ELEMENT
+            meshlet.vertices.length / attribute_size,
+            attribute_size * Float32Array.BYTES_PER_ELEMENT
         );
         
         return scale;

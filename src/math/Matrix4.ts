@@ -126,7 +126,7 @@ export class Matrix4 {
 		return this;
 	}
 
-	public invert() {
+	public invert(): Matrix4 {
 		// based on http://www.euclideanspace.com/maths/algebra/matrix/functions/inverse/fourD/index.htm
 		const te = this.elements,
 
@@ -167,6 +167,54 @@ export class Matrix4 {
 		te[15] = (n12 * n23 * n31 - n13 * n22 * n31 + n13 * n21 * n32 - n11 * n23 * n32 - n12 * n21 * n33 + n11 * n22 * n33) * detInv;
 
 		return this;
+	}
+
+	public determinant(): number {
+		const te = this.elements;
+
+		const n11 = te[ 0 ], n12 = te[ 4 ], n13 = te[ 8 ], n14 = te[ 12 ];
+		const n21 = te[ 1 ], n22 = te[ 5 ], n23 = te[ 9 ], n24 = te[ 13 ];
+		const n31 = te[ 2 ], n32 = te[ 6 ], n33 = te[ 10 ], n34 = te[ 14 ];
+		const n41 = te[ 3 ], n42 = te[ 7 ], n43 = te[ 11 ], n44 = te[ 15 ];
+
+		//TODO: make this more efficient
+		//( based on http://www.euclideanspace.com/maths/algebra/matrix/functions/inverse/fourD/index.htm )
+
+		return (
+			n41 * (
+				+ n14 * n23 * n32
+				 - n13 * n24 * n32
+				 - n14 * n22 * n33
+				 + n12 * n24 * n33
+				 + n13 * n22 * n34
+				 - n12 * n23 * n34
+			) +
+			n42 * (
+				+ n11 * n23 * n34
+				 - n11 * n24 * n33
+				 + n14 * n21 * n33
+				 - n13 * n21 * n34
+				 + n13 * n24 * n31
+				 - n14 * n23 * n31
+			) +
+			n43 * (
+				+ n11 * n24 * n32
+				 - n11 * n22 * n34
+				 - n14 * n21 * n32
+				 + n12 * n21 * n34
+				 + n14 * n22 * n31
+				 - n12 * n24 * n31
+			) +
+			n44 * (
+				- n13 * n22 * n31
+				 - n11 * n23 * n32
+				 + n11 * n22 * n33
+				 + n13 * n21 * n32
+				 - n12 * n21 * n33
+				 + n12 * n23 * n31
+			)
+
+		);
 	}
 
 	public transpose() {
@@ -363,6 +411,27 @@ export class Matrix4 {
 		this.elements[14] = -(z0 * eyex + z1 * eyey + z2 * eyez);
 		this.elements[15] = 1;
 	
+		return this;
+	}
+
+	public translate( v: Vector3) {
+		this.set(
+			1, 0, 0, v.x,
+			0, 1, 0, v.y,
+			0, 0, 1, v.z,
+			0, 0, 0, 1
+		);
+		return this;
+	}
+
+	public scale(v: Vector3) {
+		this.set(
+			v.x, 0, 0, 0,
+			0, v.y, 0, 0,
+			0, 0, v.z, 0,
+			0, 0, 0, 1
+		);
+
 		return this;
 	}
 }

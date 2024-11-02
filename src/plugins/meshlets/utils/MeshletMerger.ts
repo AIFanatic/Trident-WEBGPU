@@ -1,4 +1,5 @@
 import { Meshlet } from "../Meshlet";
+import { attribute_size } from "../Meshoptimizer";
 
 
 class Vertex {
@@ -24,9 +25,9 @@ export class MeshletMerger {
         
         for (let i = 0; i < indexData.length; i++) {
             const index = indexData[i];
-            const pos = vertexData.subarray(index * 8, index * 8 + 3);
-            const norm = vertexData.subarray(index * 8 + 3, index * 8 + 6);
-            const uv = vertexData.subarray(index * 8 + 6, index * 8 + 8);
+            const pos = vertexData.subarray(index * attribute_size, index * attribute_size + 3);
+            const norm = vertexData.subarray(index * attribute_size + 3, index * attribute_size + 6);
+            const uv = vertexData.subarray(index * attribute_size + 6, index * attribute_size + 8);
             
             const vertex = new Vertex(Array.from(pos), Array.from(norm), Array.from(uv));
             // const vertexKey = vertex.position.concat(vertex.normal).concat(vertex.uv).join(',');
@@ -42,9 +43,9 @@ export class MeshletMerger {
             }
         }
     
-        const newVertexData = new Float32Array(uniqueVertices.length * 8);
+        const newVertexData = new Float32Array(uniqueVertices.length * attribute_size);
         uniqueVertices.forEach((v, index) => {
-            newVertexData.set([...v.position, ...v.normal, ...v.uv], index * 8);
+            newVertexData.set([...v.position, ...v.normal, ...v.uv], index * attribute_size);
         });
     
         return {
@@ -59,18 +60,19 @@ export class MeshletMerger {
     
         // merge indices
         let indexOffset = 0;
-        const mergedIndices: number[] = [];
+        // const mergedIndices: number[] = [];
     
         for (let i = 0; i < meshlets.length; ++i) {
-            const indices = meshlets[i].indices;
+            const indices2 = meshlets[i].indices;
     
-            for (let j = 0; j < indices.length; j++) {
-                mergedIndices.push(indices[j] + indexOffset);
+            for (let j = 0; j < indices2.length; j++) {
+                // mergedIndices.push(indices2[j] + indexOffset);
+                indices.push(indices2[j] + indexOffset);
             }
-            indexOffset += meshlets[i].vertices.length / 8;
+            indexOffset += meshlets[i].vertices.length / attribute_size;
         }
     
-        indices.push(...mergedIndices);
+        // indices.push(...mergedIndices);
     
         // merge attributes
         for (let i = 0; i < meshlets.length; ++i) vertices.push(...meshlets[i].vertices);
@@ -79,5 +81,20 @@ export class MeshletMerger {
 
         return new Meshlet(newVertices, newIndices);
         // return new Meshlet(new Float32Array(vertices), new Uint32Array(indices));
+    }
+
+    public static mergeV2(meshlets: Meshlet[]): Meshlet {
+        let vertices: number[] = [];
+        let indices: number[] = [];
+
+        let indicesOffset = 0;
+
+        for (const meshlet of meshlets) {
+            for (const vertex of meshlet.vertices) vertices.push(vertex);
+            for (const index of meshlet.indices) indices.push(index + indicesOffset);
+            indicesOffset += meshlet.vertices.length / 3;
+        }
+
+        return new Meshlet(new Float32Array(vertices), new Uint32Array(indices));
     }
 }

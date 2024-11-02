@@ -1,5 +1,5 @@
 import { Meshlet } from "../Meshlet";
-import { Meshoptimizer } from "../Meshoptimizer";
+import { Meshoptimizer, attribute_size } from "../Meshoptimizer";
 
 export interface MeshoptMeshlet {
     triangle_offset: number;
@@ -28,11 +28,10 @@ export class MeshletCreator {
             let meshlet_indices: number[] = [];
 
             for (let v = 0; v < meshlet.vertex_count; ++v) {
-                const o = 8 * output.meshlet_vertices_result[meshlet.vertex_offset + v];
+                const o = attribute_size * output.meshlet_vertices_result[meshlet.vertex_offset + v];
                 const vx = vertices[o + 0];
                 const vy = vertices[o + 1];
                 const vz = vertices[o + 2];
-                // console.log("o", 8 * output.meshlet_vertices_result[meshlet.vertex_offset + v], 8, meshlet.vertex_offset, v, vx, vy, vz);
 
                 const nx = vertices[o + 3];
                 const ny = vertices[o + 4];
@@ -42,8 +41,11 @@ export class MeshletCreator {
                 const uvy = vertices[o + 7];
 
                 meshlet_positions.push(vx, vy, vz);
-                meshlet_positions.push(nx, ny, nz);
-                meshlet_positions.push(uvx, uvy);
+
+                if (attribute_size === 8) {
+                    meshlet_positions.push(nx, ny, nz);
+                    meshlet_positions.push(uvx, uvy);
+                }
             }
             for (let t = 0; t < meshlet.triangle_count; ++t) {
                 const o = meshlet.triangle_offset + 3 * t;

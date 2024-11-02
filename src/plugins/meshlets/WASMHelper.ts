@@ -45,7 +45,8 @@ export class WASMHelper {
             typedArray.length * typedArray.BYTES_PER_ELEMENT
         );
 
-        module[type.heap].set(typedArray, heapPointer >> 2);
+        if (type.heap === "HEAPU8") module[type.heap].set(typedArray, heapPointer);
+        else module[type.heap].set(typedArray, heapPointer >> 2);
 
         return heapPointer;
     }
@@ -55,6 +56,7 @@ export class WASMHelper {
     }
 
     public static getDataFromHeap(module, address: number, type, length: number) {
+        // TODO: Does HEAPU8 work with >> 2?
         return module[type.heap].slice(address >> 2, (address >> 2) + length);
     }
 

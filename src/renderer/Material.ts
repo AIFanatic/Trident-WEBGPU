@@ -1,10 +1,11 @@
 import { Color } from "../math/Color";
+import { Utils } from "../utils/Utils";
 import { Texture } from "./Texture";
 
 export class Material {
 }
 
-export interface DeferredMeshMaterialParams {
+export interface PBRMaterialParams {
     albedoColor: Color;
     emissiveColor: Color;
     roughness: number;
@@ -21,17 +22,12 @@ export interface DeferredMeshMaterialParams {
     unlit: boolean;
 }
 
-export class DeferredMeshMaterial extends Material {
-    public params: DeferredMeshMaterialParams;
+export class PBRMaterial extends Material {
+    public id = Utils.UUID();
+    public params: PBRMaterialParams;
 
-    constructor(params?: Partial<DeferredMeshMaterialParams>) {
+    constructor(params?: Partial<PBRMaterialParams>) {
         super();
-
-        const albedoColor = params?.albedoColor ? params.albedoColor : new Color(1,1,1,1);
-        const emissiveColor = params?.emissiveColor ? params.emissiveColor : new Color(0,0,0,0);
-        const roughness = params?.roughness ? params.roughness : 0;
-        const metalness = params?.metalness ? params.metalness : 0;
-        const unlit = params?.unlit && params.unlit === true ? 1: 0;
 
         this.params = {
             albedoColor: params?.albedoColor ? params.albedoColor : new Color(1,1,1,1),

@@ -14,15 +14,18 @@ export class Meshletizer {
         if (meshlets.length === 1 && meshlets[0].vertices.length < Meshlet.max_triangles * 8) return meshlets;
 
 
+        // let nparts = 2;
 
         let nparts = Math.ceil(meshlets.length / 8);
         if (nparts > 8) nparts = 8;
         let grouped = [meshlets];
         if (nparts > 1) {
             grouped = MeshletGrouper.group(meshlets, nparts);
+            // grouped = MeshletGrouper.groupV2(meshlets, nparts);
         }
         // console.log("nparts", nparts, "grouped", grouped);
 
+        // console.log(meshlets.length, grouped)
 
         let splitOutputs: Meshlet[] = [];
         for (let i = 0; i < grouped.length; i++) {
@@ -35,8 +38,80 @@ export class Meshletizer {
             const tLod = (lod+1) / Meshletizer.MaxLOD;
             const targetError = (0.1 * tLod + 0.01 * (1-tLod));
             // simplify
-            const simplified = Meshoptimizer.meshopt_simplify(cleanedMergedGroup, cleanedMergedGroup.indices.length / 3 / 2, targetError);
+            let simplified = Meshoptimizer.meshopt_simplify(cleanedMergedGroup, cleanedMergedGroup.indices.length / 2, targetError);
             // const simplified = Meshoptimizer.meshopt_simplify(cleanedMergedGroup, 128, 100000);
+            // const simplified2 = FQMR.setSimplifyRebuilt(cleanedMergedGroup, cleanedMergedGroup.indices.length / 3 / 2);
+            // console.log("CMG", cleanedMergedGroup.indices.length / 3, "SM", simplified.meshlet.vertices.length / 8, simplified.meshlet.indices.length / 3, FQMR.getVertexCount(), FQMR.getFaceCount());
+            // const f = new FastQuadric({targetPercentage: 0.5, aggressiveness: 100000});
+            // const simplified3 = f.simplifyMeshlet(cleanedMergedGroup);
+            // console.log(`
+            //     CMG[${cleanedMergedGroup.vertices.length / 8}, ${cleanedMergedGroup.indices.length / 3}]
+            //     MO[${simplified.meshlet.vertices.length / 8}, ${simplified.meshlet.indices.length / 3}]
+            //     S3[${simplified3.vertices.length / 8}, ${simplified3.indices.length / 3}]
+            // `);
+
+            // const f = new FastQuadric({targetPercentage: 0.5, preserveBorders: true});
+            // const simplified3 = f.simplifyMeshlet(cleanedMergedGroup);
+
+
+            // // throw Error("GERGE")
+            // simplified = {meshlet: simplified3, error: 1}
+
+            // if (cleanedMergedGroup.indices.length === simplified.meshlet.indices.length) {
+                // f.forcedRemoveV2();
+            // if (lod === 9) {
+            //     // console.log(`
+            //     //     CMG[${cleanedMergedGroup.vertices.length / 8}, ${cleanedMergedGroup.indices.length / 3}]
+            //     //     MO[${simplified.meshlet.vertices.length / 8}, ${simplified.meshlet.indices.length / 3}]
+            //     //     S3[${simplified3.vertices.length / 8}, ${simplified3.indices.length / 3}]
+            //     // `);
+
+
+
+            //     const renderer = new THREE.WebGLRenderer();
+            //     renderer.setSize( window.innerWidth, window.innerHeight );
+            //     document.body.appendChild( renderer.domElement );
+            
+            //     const scene = new THREE.Scene();
+            //     const camera = new THREE.PerspectiveCamera( 75, window.innerWidth / window.innerHeight, 0.1, 1000 );
+            //     const controls = new OrbitControls(camera, renderer.domElement);
+            
+            //     camera.position.z = 5;
+            
+            //     function animate() {
+            //         renderer.render( scene, camera );
+            //     }
+            //     renderer.setAnimationLoop( animate );
+
+            //     function MeshletToTHREE(meshlet: Meshlet): THREE.Mesh {
+            //         let v: number[] = [];
+            //         for (let i = 0; i < meshlet.vertices.length; i+=8) {
+            //             v.push(meshlet.vertices[i + 0], meshlet.vertices[i + 1], meshlet.vertices[i + 2]);
+
+            //         }
+            //         const g = new THREE.BufferGeometry();
+            //         g.setAttribute("position", new THREE.Float32BufferAttribute(v, 3));
+            //         g.setIndex(new THREE.Uint32BufferAttribute(meshlet.indices, 3));
+            //         const m = new THREE.Mesh(g);
+            //         return m;
+            //     }
+
+            //     for (let i = 0; i < group.length; i++) {
+            //         const tm = MeshletToTHREE(group[i]);
+            //         tm.material.wireframe = true;
+            //         tm.material.side = THREE.DoubleSide;
+            //         tm.material.color = new THREE.Color(Math.random() * 0xffffff)
+            //         // tm.position.copy(position);
+            //         scene.add(tm);
+            //     }
+            //     // const tm = MeshletToTHREE(simplified.meshlet);
+            //     // tm.material.wireframe = true;
+            //     // scene.add(tm);
+
+
+            //     throw Error("Group simplified");
+            // }
+
             const localScale = Meshoptimizer.meshopt_simplifyScale(simplified.meshlet);
 
             let meshSpaceError = simplified.error * localScale;
@@ -51,7 +126,23 @@ export class Meshletizer {
 
             meshSpaceError += childrenError;
 
-            const splits = MeshletCreator.build(simplified.meshlet.vertices, simplified.meshlet.indices, 255, Meshlet.max_triangles);
+            let splits = MeshletCreator.build(simplified.meshlet.vertices, simplified.meshlet.indices, 255, Meshlet.max_triangles);
+            // const p = Math.ceil(group.length / 2);
+            // let splits = [simplified.meshlet];
+            // if (p > 1) {
+            //     splits = MeshletGrouper.split(simplified.meshlet, p);
+            // }
+            // const splits = MeshletGrouper.group([simplified.meshlet], group.length / 2);
+
+
+            // let nparts = group.length / 2;
+            // let splits = [simplified.meshlet];
+            // if (nparts > 1) {
+            //     splits = MeshletGrouper.split(simplified.meshlet, nparts);
+            // }
+
+            // const splits = MeshletGrouper.split(simplified.meshlet, group.length / 2);
+
             for (let split of splits) {
                 split.clusterError = meshSpaceError;
                 split.boundingVolume = simplified.meshlet.boundingVolume;
@@ -75,6 +166,7 @@ export class Meshletizer {
             }
         }
 
+        // console.log(meshlets.length, splitOutputs.length)
         return splitOutputs;
     }
     public static async Build(vertices: Float32Array, indices: Uint32Array): Promise<Meshlet[]> {
@@ -82,6 +174,10 @@ export class Meshletizer {
         await Metis.load();
 
         const meshlets = MeshletCreator.build(vertices, indices, 255, Meshlet.max_triangles);
+        // const npartsFirst = Math.ceil(indices.length / 3 / 128);
+        // const m = new Meshlet(vertices, indices);
+        // const meshlets = MeshletGrouper.split(m, npartsFirst);
+
         console.log(`starting with ${meshlets.length} meshlets`);
 
         let inputs = meshlets;
@@ -115,7 +211,7 @@ export class Meshletizer {
             // if (lod === 7) throw Error("Stop");
             inputs = outputs;
 
-            if (outputs.length === 1) {
+            if (outputs.length === 1 && outputs[0].indices.length / 3 <= 128) {
                 console.log("WE are done at lod", lod)
 
                 rootMeshlet = outputs[0];
@@ -129,7 +225,7 @@ export class Meshletizer {
             // console.log("\n");
         }
         // if (inputs.length !== 1) throw Error("Could not simplify up to one root node");
-        // if (rootMeshlet === null) throw Error("Root meshlet is invalid!");
+        if (rootMeshlet === null) throw Error("Root meshlet is invalid!");
 
         // if (rootMeshlet === null) rootMeshlet = inputs[0]
 

@@ -1,5 +1,5 @@
 import { Geometry, VertexAttribute } from "../../Geometry";
-import { DepthTarget, RenderTarget, RendererContext } from "../RendererContext";
+import { DepthTarget, RenderTarget, RendererContext, TextureCopyParameters } from "../RendererContext";
 import { Topology } from "../Shader";
 import { WEBGPUBuffer, WEBGPUDynamicBuffer } from "./WEBGPUBuffer";
 import { WEBGPURenderer } from "./WEBGPURenderer";
@@ -156,6 +156,28 @@ export class WEBGPURendererContext implements RendererContext {
 
         const extents = size ? size : [source.width, source.height, source.depth];
         activeCommandEncoder.copyTextureToTexture({texture: source.GetBuffer(), mipLevel: srcMip}, {texture: destination.GetBuffer(), mipLevel: dstMip}, extents);
+    }
+
+    public static CopyTextureToTextureV2(source: WEBGPUTexture, destination: WEBGPUTexture, srcMip: number, dstMip: number, size?: number[], depth?: number) {
+        const activeCommandEncoder = WEBGPURenderer.GetActiveCommandEncoder();
+        if (!activeCommandEncoder) throw Error("No active command encoder!!");
+
+        const extents = size ? size : [source.width, source.height, source.depth];
+        activeCommandEncoder.copyTextureToTexture(
+            { texture: source.GetBuffer(), mipLevel: srcMip, origin: {x: 0, y: 0, z: 0}}, 
+            { texture: destination.GetBuffer(), mipLevel: dstMip, origin: {x: 0, y: 0, z: depth ? depth : 0} },
+            extents 
+        );
+    }
+
+    public static CopyTextureToTextureV3(source: TextureCopyParameters, destination: TextureCopyParameters, copySize?: number[]) {
+        const activeCommandEncoder = WEBGPURenderer.GetActiveCommandEncoder();
+        if (!activeCommandEncoder) throw Error("No active command encoder!!");
+
+        const sourceParameters: GPUImageCopyTexture = {texture: (source.texture as WEBGPUTexture).GetBuffer(), mipLevel: source.mipLevel, origin: source.origin};
+        const destinationParameters: GPUImageCopyTexture = {texture: (destination.texture as WEBGPUTexture).GetBuffer(), mipLevel: destination.mipLevel, origin: destination.origin};
+        const extents = copySize ? copySize : [source.texture.width, source.texture.height, source.texture.depth];
+        activeCommandEncoder.copyTextureToTexture(sourceParameters, destinationParameters, extents);
     }
 
     public static ClearBuffer(buffer: WEBGPUBuffer, offset: number, size: number) {

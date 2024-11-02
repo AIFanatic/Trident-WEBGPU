@@ -75,6 +75,8 @@ export class DeferredLightingPass extends RenderPass {
                 shadowSampler: { group: 0, binding: 9, type: "sampler"},
 
                 shadowSamplerComp: { group: 0, binding: 10, type: "sampler-compare"},
+
+                settings: {group: 0, binding: 11, type: "storage"},
             },
             colorOutputs: [{format: Renderer.SwapChainFormat}]
         });
@@ -99,7 +101,7 @@ export class DeferredLightingPass extends RenderPass {
         })
 
         EventSystem.on("MainCameraUpdated", component => {
-            this.needsUpdate = true;
+            // this.needsUpdate = true;
         })
         this.initialized = true;
     }
@@ -187,6 +189,24 @@ export class DeferredLightingPass extends RenderPass {
         view.set(tempMatrix.elements, 24);
 
         this.shader.SetArray("view", view);
+
+        // Temp
+        const settings = new Float32Array([
+            +Debugger.isFrustumCullingEnabled,
+            +Debugger.isBackFaceCullingEnabled,
+            +Debugger.isOcclusionCullingEnabled,
+            +Debugger.isSmallFeaturesCullingEnabled,
+            Debugger.staticLOD,
+            Debugger.dynamicLODErrorThreshold,
+            +Debugger.isDynamicLODEnabled,
+            Debugger.viewType,
+            +Debugger.useHeightMap,
+            Debugger.heightScale,
+            0,
+            ...camera.transform.position.elements, 0,
+            0
+        ]);
+        this.shader.SetArray("settings", settings);
         
         RendererContext.DrawGeometry(this.quadGeometry, this.shader);
         RendererContext.EndRenderPass();

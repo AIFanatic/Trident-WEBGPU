@@ -11,7 +11,6 @@ import { Shader } from "../Shader";
 import { ShaderLoader } from "../ShaderUtils";
 import { DepthTexture, RenderTexture } from "../Texture";
 import { TextureSampler } from "../TextureSampler";
-import { TextureMaps } from "./PrepareSceneData";
 
 export class IndirectGBufferPass extends RenderPass {
     public name: string = "IndirectGBufferPass";
@@ -64,7 +63,7 @@ export class IndirectGBufferPass extends RenderPass {
                 viewMatrix: {group: 0, binding: 0, type: "storage"},
                 projectionMatrix: {group: 0, binding: 1, type: "storage"},
                 instanceInfo: {group: 0, binding: 2, type: "storage"},
-                meshInfo: {group: 0, binding: 3, type: "storage"},
+                meshMaterialInfo: {group: 0, binding: 3, type: "storage"},
                 meshMatrixInfo: {group: 0, binding: 4, type: "storage"},
                 objectInfo: {group: 0, binding: 5, type: "storage"},
                 settings: {group: 0, binding: 6, type: "storage"},
@@ -75,6 +74,8 @@ export class IndirectGBufferPass extends RenderPass {
                 albedoMaps: {group: 0, binding: 9, type: "texture"},
                 normalMaps: {group: 0, binding: 10, type: "texture"},
                 heightMaps: {group: 0, binding: 11, type: "texture"},
+                metalnessMaps: {group: 0, binding: 12, type: "texture"},
+                emissiveMaps: {group: 0, binding: 13, type: "texture"},
             },
         });
         this.geometry = new Geometry();
@@ -108,6 +109,7 @@ export class IndirectGBufferPass extends RenderPass {
         const inputIsCullingPrepass = resources.getResource(PassParams.isCullingPrepass);
 
         if (!inputIndirectVertices) return;
+        if (!inputIndirectInstanceInfo) return;
         
         
         const mainCamera = Camera.mainCamera;
@@ -115,13 +117,15 @@ export class IndirectGBufferPass extends RenderPass {
         this.shader.SetMatrix4("projectionMatrix", mainCamera.projectionMatrix);
 
         this.shader.SetBuffer("vertices", inputIndirectVertices);
-        this.shader.SetBuffer("meshInfo", inputIndirectMeshInfo);
+        this.shader.SetBuffer("meshMaterialInfo", inputIndirectMeshInfo);
         this.shader.SetBuffer("objectInfo", inputIndirectObjectInfo);
         this.shader.SetBuffer("meshMatrixInfo", inputIndirectMeshMatrixInfo);
         this.shader.SetBuffer("instanceInfo", inputIndirectInstanceInfo);
         if (textureMaps.albedo) this.shader.SetTexture("albedoMaps", textureMaps.albedo);
         if (textureMaps.normal) this.shader.SetTexture("normalMaps", textureMaps.normal);
         if (textureMaps.height) this.shader.SetTexture("heightMaps", textureMaps.height);
+        if (textureMaps.metalness) this.shader.SetTexture("metalnessMaps", textureMaps.metalness);
+        if (textureMaps.emissive) this.shader.SetTexture("emissiveMaps", textureMaps.emissive);
 
         // Temp
         const settings = new Float32Array([

@@ -20,6 +20,12 @@ export interface DepthTarget {
     clear: boolean;
 };
 
+export interface TextureCopyParameters {
+    texture: Texture;
+    mipLevel?: number;
+    origin?: number[];
+}
+
 export class RendererContext {
     private constructor() {}
     
@@ -60,6 +66,16 @@ export class RendererContext {
 
     public static CopyTextureToTexture(source: Texture, destination: Texture, srcMip = 0, dstMip = 0, size?: number[]) {
         if (Renderer.type === "webgpu") WEBGPURendererContext.CopyTextureToTexture(source as WEBGPUTexture, destination as WEBGPUTexture, srcMip, dstMip, size);
+        else throw Error("Unknown render api type.");
+    }
+
+    public static CopyTextureToTextureV2(source: Texture, destination: Texture, srcMip = 0, dstMip = 0, size?: number[], depth?: number) {
+        if (Renderer.type === "webgpu") WEBGPURendererContext.CopyTextureToTextureV2(source as WEBGPUTexture, destination as WEBGPUTexture, srcMip, dstMip, size, depth);
+        else throw Error("Unknown render api type.");
+    }
+
+    public static CopyTextureToTextureV3(source: TextureCopyParameters, destination: TextureCopyParameters, copySize?: number[]) {
+        if (Renderer.type === "webgpu") WEBGPURendererContext.CopyTextureToTextureV3(source, destination, copySize);
         else throw Error("Unknown render api type.");
     }
 

@@ -2,13 +2,14 @@ import { RenderPass, ResourcePool } from "../RenderGraph";
 import { Texture, TextureArray } from "../Texture";
 import { Meshlet } from "../../plugins/meshlets/Meshlet";
 import { MeshletMesh } from "../../components/MeshletMesh";
-import { DeferredMeshMaterial } from "../Material";
+import { PBRMaterial } from "../Material";
 import { RendererContext } from "../RendererContext";
 import { Camera } from "../../components/Camera";
 import { Debugger } from "../../plugins/Debugger";
 import { PassParams } from "../RenderingPipeline";
-import { BufferMemoryAllocator, MemoryAllocator, MemoryAllocatorViewer } from "../../utils/MemoryAllocator";
+import { BufferMemoryAllocator } from "../../utils/MemoryAllocator";
 import { EventSystem } from "../../Events";
+import { Mesh } from "../../components/MeshV2";
 
 interface SceneMesh {
     geometry: Meshlet;
@@ -19,6 +20,8 @@ export interface TextureMaps {
     albedo: Texture;
     normal: Texture;
     height: Texture;
+    metalness: Texture;
+    emissive: Texture;
 };
 
 export class PrepareSceneData extends RenderPass {
@@ -37,6 +40,8 @@ export class PrepareSceneData extends RenderPass {
     private albedoMaps: Texture[] = [];
     private normalMaps: Texture[] = [];
     private heightMaps: Texture[] = [];
+    private metalnessMaps: Texture[] = [];
+    private emissiveMaps: Texture[] = [];
     
     private textureMaps: TextureMaps;
     private materialMaps: Map<string, Texture> = new Map();
@@ -54,15 +59,14 @@ export class PrepareSceneData extends RenderPass {
             ]
         });
 
-        const meshMatrixBufferSize = 1024 * 1024 * 1;
-        this.meshMatrixInfoBuffer = new BufferMemoryAllocator(meshMatrixBufferSize);
-        this.meshMaterialInfo = new BufferMemoryAllocator(meshMatrixBufferSize);
-        this.meshletInfoBuffer = new BufferMemoryAllocator(meshMatrixBufferSize);
-        this.vertexBuffer = new BufferMemoryAllocator(meshMatrixBufferSize);
-        this.objectInfoBufferV2 = new BufferMemoryAllocator(meshMatrixBufferSize);
+        const bufferSize = 1024 * 1024 * 10;
+        this.meshMatrixInfoBuffer = new BufferMemoryAllocator(bufferSize);
+        this.meshMaterialInfo = new BufferMemoryAllocator(bufferSize);
+        this.meshletInfoBuffer = new BufferMemoryAllocator(bufferSize);
+        this.vertexBuffer = new BufferMemoryAllocator(bufferSize);
+        this.objectInfoBufferV2 = new BufferMemoryAllocator(bufferSize);
 
         EventSystem.on("MeshletUpdated", mesh => {
-            console.log("Meshlet updated");
             if (this.meshMatrixInfoBuffer.has(mesh.id)) {
                 this.meshMatrixInfoBuffer.set(mesh.id, mesh.transform.localToWorldMatrix.elements);
             }
@@ -106,15 +110,18 @@ export class PrepareSceneData extends RenderPass {
         ]);
     }
 
-    private getMeshMaterialInfo(mesh: MeshletMesh): Float32Array {
-        let materials = mesh.GetMaterials(DeferredMeshMaterial);
+    private getMeshMaterialInfo(mesh: MeshletMesh): Float32Array | null {
+        let materials = mesh.GetMaterials(PBRMaterial);
+        if (materials.length === 0) return null;
         if (materials.length > 1) throw Error("Multiple materials not supported");
 
         const material = materials[0];
 
-        let albedoIndex = this.processMaterialMap(material.params.albedoMap, "albedo");
-        let normalIndex = this.processMaterialMap(material.params.normalMap, "normal");
-        let heightIndex = this.processMaterialMap(material.params.heightMap, "height");
+        const albedoIndex = this.processMaterialMap(material.params.albedoMap, "albedo");
+        const normalIndex = this.processMaterialMap(material.params.normalMap, "normal");
+        const heightIndex = this.processMaterialMap(material.params.heightMap, "height");
+        const metalnessIndex = this.processMaterialMap(material.params.metalnessMap, "metalness");
+        const emissiveIndex = this.processMaterialMap(material.params.emissiveMap, "emissive");
 
         // AlbedoColor: vec4<f32>,
         // EmissiveColor: vec4<f32>,
@@ -128,18 +135,17 @@ export class PrepareSceneData extends RenderPass {
         const unlit = material.params.unlit;
 
         return new Float32Array([
-            albedoIndex, normalIndex, heightIndex, 0,
+            albedoIndex, normalIndex, heightIndex, metalnessIndex, emissiveIndex, 0, 0, 0,
             ...albedoColor.elements,
             ...emissiveColor.elements,
             roughness,
             metalness,
             +unlit,
-            
             0
         ]);
     }
 
-    private processMaterialMap(materialMap: Texture | undefined, type: "albedo" | "normal" | "height"): number {
+    private processMaterialMap(materialMap: Texture | undefined, type: "albedo" | "normal" | "height" | "metalness" | "emissive"): number {
         if (materialMap) {
             let materialIndexCached = this.materialIndexCache.get(materialMap.id);
             if (materialIndexCached === undefined) {
@@ -149,27 +155,29 @@ export class PrepareSceneData extends RenderPass {
                 if (type === "albedo") this.albedoMaps.push(materialMap);
                 else if (type === "normal") this.normalMaps.push(materialMap);
                 else if (type === "height") this.heightMaps.push(materialMap);
+                else if (type === "metalness") this.metalnessMaps.push(materialMap);
+                else if (type === "emissive") this.emissiveMaps.push(materialMap);
             }
             return materialIndexCached;
         }
         return -1;
     }
 
-    private createMaterialMap(textures: Texture[], type: "albedo" | "normal" | "height"): Texture {
+    private createMaterialMap(textures: Texture[], type: "albedo" | "normal" | "height" | "metalness" | "emissive"): Texture {
         if (textures.length === 0) return TextureArray.Create(1, 1, 1);
         
         const w = textures[0].width;
         const h = textures[0].height;
 
         let materialMap = this.materialMaps.get(type);
-        if (!materialMap) {
+        if (materialMap === undefined) {
             materialMap = TextureArray.Create(w, h, textures.length);
             materialMap.SetActiveLayer(0);
             this.materialMaps.set(type, materialMap); // TODO: Doesnt allow expansion
         }
 
         for (let i = 0; i < textures.length; i++) {
-            RendererContext.CopyTextureToTexture(textures[i], materialMap, 0, 0, [w, h, i+1]);
+            RendererContext.CopyTextureToTextureV2(textures[i], materialMap, 0, 0, [w, h, 1], i);
         }
         return materialMap;
         
@@ -178,7 +186,7 @@ export class PrepareSceneData extends RenderPass {
     public execute(resources: ResourcePool) {
         const mainCamera = Camera.mainCamera;
         const scene = mainCamera.gameObject.scene;
-        const sceneMeshlets = [...scene.GetComponents(MeshletMesh)];
+        const sceneMeshlets = [...scene.GetComponents(MeshletMesh), ...scene.GetComponents(Mesh)];
 
         if (this.currentMeshCount !== sceneMeshlets.length) {
             const meshlets: SceneMesh[] = [];
@@ -190,10 +198,25 @@ export class PrepareSceneData extends RenderPass {
 
             const indexedCache: Map<number, number> = new Map();
             const meshCache: Map<string, number> = new Map();
+            const meshMaterialCache: Map<string, number> = new Map();
 
             for (const mesh of sceneMeshlets) {
                 // Mesh material info
-                if (!this.meshMaterialInfo.has(mesh.id)) this.meshMaterialInfo.set(mesh.id, this.getMeshMaterialInfo(mesh));
+                let materialIndex = -1;
+                for (const material of mesh.GetMaterials(PBRMaterial)) {
+                    if (!this.meshMaterialInfo.has(material.id)) {
+                        const meshMaterialInfo = this.getMeshMaterialInfo(mesh);
+                        if (meshMaterialInfo !== null) {
+                            this.meshMaterialInfo.set(mesh.id, meshMaterialInfo);
+
+                            meshMaterialCache.set(material.id, meshMaterialCache.size);
+                        }
+                    }
+
+                    // Just to get material index
+                    let mc = meshMaterialCache.get(material.id);
+                    if (mc !== undefined) materialIndex = mc;
+                }
                 if (!this.meshMatrixInfoBuffer.has(mesh.id)) {
                     this.meshMatrixInfoBuffer.set(mesh.id, mesh.transform.localToWorldMatrix.elements);
                 }
@@ -216,7 +239,7 @@ export class PrepareSceneData extends RenderPass {
                         indexedCache.set(meshlet.crc, geometryIndex);
                     }
 
-                    this.objectInfoBufferV2.set(`${mesh.id}-${meshlet.id}`, new Float32Array([meshIndex, geometryIndex, 0, 0]));
+                    this.objectInfoBufferV2.set(`${mesh.id}-${meshlet.id}`, new Float32Array([meshIndex, geometryIndex, materialIndex, 0]));
                 }
             }
 
@@ -224,7 +247,9 @@ export class PrepareSceneData extends RenderPass {
             this.textureMaps = {
                 albedo: this.createMaterialMap(this.albedoMaps, "albedo"),
                 normal: this.createMaterialMap(this.normalMaps, "normal"),
-                height: this.createMaterialMap(this.heightMaps, "height")
+                height: this.createMaterialMap(this.heightMaps, "height"),
+                metalness: this.createMaterialMap(this.metalnessMaps, "metalness"),
+                emissive: this.createMaterialMap(this.emissiveMaps, "emissive"),
             }
 
             
@@ -236,8 +261,13 @@ export class PrepareSceneData extends RenderPass {
 
         // // Test updating mesh matrices naively
         // for (const mesh of sceneMeshlets) {
-        //     this.meshMatrixInfoBuffer.set(mesh.id, mesh.transform.localToWorldMatrix.elements);
+        //     const i = this.meshMatrixInfoBuffer.set(mesh.id, mesh.transform.localToWorldMatrix.elements);
+        //     console.log("HEREEEEE", i)
         // }
+
+        // this.meshMatrixInfoBuffer.getBuffer().GetData().then(d => {
+        //     console.log(new Float32Array(d))
+        // })
 
         resources.setResource(PassParams.indirectVertices, this.vertexBuffer.getBuffer());
         resources.setResource(PassParams.indirectMeshInfo, this.meshMaterialInfo.getBuffer());

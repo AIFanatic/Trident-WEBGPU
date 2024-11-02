@@ -2,14 +2,14 @@ import { Assets } from "../Assets";
 import { Utils } from "../utils/Utils";
 import { Renderer } from "./Renderer";
 
-import WGSL_Shader_Cull_URL from "./webgpu/shader/wgsl/deferred/Cull.wgsl";
-import WGSL_Shader_CullStructs_URL from "./webgpu/shader/wgsl/deferred/CullStructs.wgsl";
-import WGSL_Shader_SettingsStructs_URL from "./webgpu/shader/wgsl/deferred/SettingsStructs.wgsl";
-import WGSL_Shader_DrawIndirect_URL from "./webgpu/shader/wgsl/deferred/DrawIndirectGBuffer.wgsl";
-import WGSL_Shader_Blit_URL from "./webgpu/shader/wgsl/Blit.wgsl";
-import WGSL_Shader_BlitDepth_URL from "./webgpu/shader/wgsl/BlitDepth.wgsl";
-import WGSL_Shader_DepthDownsample_URL from "./webgpu/shader/wgsl/DepthDownsample.wgsl";
-import WGSL_Shader_DeferredLighting_URL from "./webgpu/shader/wgsl/deferred/DeferredLightingPBR.wgsl";
+import WGSL_Shader_Cull_URL from "./webgpu/shaders/deferred/Cull.wgsl";
+import WGSL_Shader_CullStructs_URL from "./webgpu/shaders/deferred/CullStructs.wgsl";
+import WGSL_Shader_SettingsStructs_URL from "./webgpu/shaders/deferred/SettingsStructs.wgsl";
+import WGSL_Shader_DrawIndirect_URL from "./webgpu/shaders/deferred/DrawIndirectGBuffer.wgsl";
+import WGSL_Shader_Blit_URL from "./webgpu/shaders/Blit.wgsl";
+import WGSL_Shader_BlitDepth_URL from "./webgpu/shaders/BlitDepth.wgsl";
+import WGSL_Shader_DepthDownsample_URL from "./webgpu/shaders/DepthDownsample.wgsl";
+import WGSL_Shader_DeferredLighting_URL from "./webgpu/shaders/deferred/DeferredLightingPBR.wgsl";
 
 enum Shaders {
     CullStructs = WGSL_Shader_CullStructs_URL,
@@ -20,7 +20,7 @@ enum Shaders {
     Blit = WGSL_Shader_Blit_URL,
     BlitDepth = WGSL_Shader_BlitDepth_URL,
     DepthDownsample = WGSL_Shader_DepthDownsample_URL,
-    DeferredLighting = WGSL_Shader_DeferredLighting_URL
+    DeferredLighting = WGSL_Shader_DeferredLighting_URL,
 };
 
 export class ShaderPreprocessor {

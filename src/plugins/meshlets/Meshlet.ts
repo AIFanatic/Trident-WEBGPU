@@ -3,6 +3,7 @@ import { Utils } from "../../utils/Utils";
 import { BoundingVolume } from "../../math/BoundingVolume";
 import { Sphere } from "../../math/Sphere";
 import { CRC32 } from "../../utils/CRC32";
+import { attribute_size } from "./Meshoptimizer";
 
 export class Meshlet {
     public static max_triangles = 128;
@@ -20,7 +21,7 @@ export class Meshlet {
     public _boundingVolume: Sphere;
     public get boundingVolume(): Sphere {
         // if (!this._boundingVolume) this._boundingVolume = Meshoptimizer.meshopt_computeClusterBounds(this.vertices, this.indices);
-        if (!this._boundingVolume) this._boundingVolume = Sphere.fromVertices(this.vertices, this.indices, 8);
+        if (!this._boundingVolume) this._boundingVolume = Sphere.fromVertices(this.vertices, this.indices, attribute_size);
         return this._boundingVolume;
     }
     public set boundingVolume(boundingVolume: Sphere) {
@@ -36,6 +37,9 @@ export class Meshlet {
     public crc: number;
 
     public bounds: BoundingVolume;
+
+    // Temp
+    public interleaved: InterleavedVertexAttribute;
 
     constructor(vertices: Float32Array, indices: Uint32Array) {
         this.vertices = vertices;
@@ -60,6 +64,7 @@ export class Meshlet {
         // console.log("normalsNonIndexed", normalsNonIndexed);
         // console.log("uvsNonIndexed", uvsNonIndexed);
         const interleaved = InterleavedVertexAttribute.fromArrays([verticesNonIndexed, normalsNonIndexed, uvsNonIndexed], [3,3,2]);
+        this.interleaved = this.interleaved;
         // console.log("interleaved", interleaved);
 
         // console.log("verticesNonIndexed", verticesNonIndexed)

@@ -14,10 +14,9 @@ export class TextureViewer extends RenderPass {
 
     constructor() {
         super({inputs: [PassParams.LightingPassOutput]});
-        this.init();
     }
 
-    protected async init() {
+    public async init() {
         const code = `
         struct VertexInput {
             @location(0) position : vec2<f32>,

@@ -1,6 +1,4 @@
 import { Buffer, BufferType } from "../renderer/Buffer";
-import { WEBGPUBuffer } from "../renderer/webgpu/WEBGPUBuffer";
-import { WEBGPURenderer } from "../renderer/webgpu/WEBGPURenderer";
 
 interface MemoryBlock {
     offset: number;
@@ -75,7 +73,7 @@ export class BufferMemoryAllocator {
 
     public set(link: any, data: Float32Array): number {
         let bufferOffset = this.links.get(link);
-        if (!bufferOffset) {
+        if (bufferOffset === undefined) {
             bufferOffset = this.allocator.allocate(data.length);
             this.links.set(link, bufferOffset);
         }
@@ -85,94 +83,11 @@ export class BufferMemoryAllocator {
 
     public delete(link: any) {
         const bufferOffset = this.links.get(link);
-        if (!bufferOffset) throw Error("Link not found");
+        if (bufferOffset === undefined) throw Error("Link not found");
         this.allocator.free(bufferOffset);
         this.links.delete(link);
     }
 
     public getBuffer(): Buffer { return this.buffer; }
     public getAllocator(): MemoryAllocator { return this.allocator; }
-}
-
-export class MemoryAllocatorViewer {
-    private canvas: HTMLCanvasElement;
-    private ctx: CanvasRenderingContext2D;
-    private allocator: BufferMemoryAllocator;
-
-    private offsetData: {[key: number]: Float32Array} = {};
-
-    private table: HTMLTableElement;
-    private tbody: HTMLTableSectionElement;
-
-    private totalScale: number = 1;
-
-    constructor(allocator: BufferMemoryAllocator) {
-        this.allocator = allocator;
-        this.canvas = document.createElement("canvas");
-        this.canvas.width = 512;
-        this.canvas.height = 512;
-        this.canvas.style.position = "absolute";
-        this.canvas.style.top = "0";
-        this.canvas.style.right = "0";
-        this.ctx = this.canvas.getContext("2d") as CanvasRenderingContext2D;
-
-        this.canvas.addEventListener("wheel", event => {
-            let scale = event.deltaY / 10;
-            scale = Math.pow(1.1, scale);
-            this.totalScale += 1 - scale;
-            console.log(scale, this.totalScale);
-            this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
-            this.ctx.scale(scale, scale);
-            this.render();
-        })
-
-        document.body.append(this.canvas);
-
-        const allocatorBuffer = this.allocator.getBuffer();
-        allocatorBuffer.SetArray = (array: ArrayBuffer, bufferOffset: number = 0, dataOffset?: number | undefined, size?: number | undefined) => {
-            const buffer = allocatorBuffer as WEBGPUBuffer;
-            this.offsetData[bufferOffset] = array as Float32Array;
-            WEBGPURenderer.device.queue.writeBuffer(buffer.GetBuffer(), bufferOffset, array, dataOffset, size);
-            this.render();
-        }
-    }
-
-    private rand(co: number) {
-        function fract(n) {
-            return n % 1;
-        }
-
-        return fract(Math.sin((co + 1) * 12.9898) * 43758.5453);
-    }
-
-    private render() {
-        this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
-
-        let x = 0;
-        let y = 0;
-        const blockSize = 32;
-        for (let i = 0; i < this.allocator.getAllocator().usedBlocks.length; i++) {
-            this.ctx.fillStyle = "red";
-            const usedBlock = this.allocator.getAllocator().usedBlocks[i];
-            const offsetData = this.offsetData[usedBlock.offset];
-            if (!offsetData) continue;
-
-            const colorValue = Math.abs(Math.floor(this.rand(usedBlock.offset) * 0xffffff));
-            this.ctx.fillStyle = "#" + colorValue.toString(16);
-
-            for (let j = 0; j < offsetData.length; j++) {
-                if (x >= this.canvas.width) {
-                    x = 0;
-                    y += blockSize;
-                }
-
-
-                // this.ctx.fillRect(x, y, blockSize, blockSize);
-                this.ctx.fillText(offsetData[j].toFixed(2), x, y);
-
-                x += blockSize;
-            }
-        }
-        
-    }
 }

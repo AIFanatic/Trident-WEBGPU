@@ -7,10 +7,9 @@
     "dev": "esbuild src/index.ts --bundle --outfile=dist/trident.js --asset-names=resources/[dir]/[name] --loader:.wgsl=file --loader:.obj=file --loader:.png=file  --target=es2022 --format=esm --watch"
   },
   "devDependencies": {
+    "@types/three": "^0.168.0",
     "@webgpu/types": "^0.1.40",
     "esbuild": "^0.21.2"
   },
-  "dependencies": {
-    "gl-matrix": "^3.4.3"
-  }
+  "dependencies": {}
 }

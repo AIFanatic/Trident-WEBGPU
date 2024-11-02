@@ -1,31 +1,40 @@
-import { Component } from "./Component";
-import { Geometry } from "../Geometry";
-import { Material } from "../renderer/Material";
-import { EventSystem } from "../Events";
+import { Geometry, InterleavedVertexAttribute } from "../Geometry";
+import { Meshlet } from "../plugins/meshlets/Meshlet";
+import { MeshletMesh, meshletsCache } from "./MeshletMesh";
+import { Meshoptimizer } from "../plugins/meshlets/Meshoptimizer";
+import { MeshletCreator } from "../plugins/meshlets/utils/MeshletCreator";
 
-export class Mesh extends Component {
-    private geometry: Geometry;
-    private materialsMapped: Map<string, Material[]> = new Map();
+// A Mesh is just a MeshletMesh with only the initial clusters created.
+// This allows to follow the normal deferred pipeline.
+export class Mesh extends MeshletMesh {
+    public async SetGeometry(geometry: Geometry) {
+        this.geometry = geometry;
+        let cached = meshletsCache.get(geometry);
+        if (cached) {
+            cached.instanceCount++;
+            meshletsCache.set(geometry, cached);
+            this.meshlets.push(...cached.meshlets);
+            return;
+        }
 
-    public enableShadows: boolean = true;
+        const pa = geometry.attributes.get("position");
+        const na = geometry.attributes.get("normal");
+        const ua = geometry.attributes.get("uv");
+        const ia = geometry.index;
+        if (!pa || !na || !ua || !ia) throw Error("To create meshlets need indices, position, normal and uv attributes");
+        
+        const p = pa.array as Float32Array;
+        const n = na.array as Float32Array;
+        const u = ua.array as Float32Array;
+        const indices = ia.array as Uint32Array;
 
-    public Start(): void {
-        // EventSystem.on("TransformUpdated", transform => {
-        //     if (this.transform === transform) {
-        //         EventSystem.emit("MeshUpdated", this);
-        //     }
-        // })
+        const interleavedBufferAttribute = InterleavedVertexAttribute.fromArrays([p, n, u], [3, 3, 2]);
+        const interleavedVertices = interleavedBufferAttribute.array as Float32Array;
+
+        await Meshoptimizer.load();
+        const allMeshlets = MeshletCreator.build(interleavedVertices, indices, 255, Meshlet.max_triangles);
+
+        this.meshlets = allMeshlets;
+        meshletsCache.set(geometry, {meshlets: this.meshlets, instanceCount: 0});
     }
-
-    public AddMaterial(material: Material) {
-        if (!this.materialsMapped.has(material.constructor.name)) this.materialsMapped.set(material.constructor.name, []);
-        this.materialsMapped.get(material.constructor.name)?.push(material);
-    }
-
-    public GetMaterials<T extends Material>(type: new(...args: any[]) => T): T[] {
-        return this.materialsMapped.get(type.name) as T[] || [];
-    }
-
-    public SetGeometry(geometry: Geometry) { this.geometry = geometry }
-    public GetGeometry(): Geometry { return this.geometry}
 }
