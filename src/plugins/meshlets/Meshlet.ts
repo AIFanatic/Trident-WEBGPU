@@ -7,6 +7,7 @@ import { attribute_size } from "./Meshoptimizer";
 
 export class Meshlet {
     public static max_triangles = 128;
+    public static max_vertices = 255;
 
     public vertices: Float32Array;
     public indices: Uint32Array;
@@ -38,7 +39,6 @@ export class Meshlet {
 
     public bounds: BoundingVolume;
 
-    // Temp
     public interleaved: InterleavedVertexAttribute;
 
     constructor(vertices: Float32Array, indices: Uint32Array) {
@@ -51,41 +51,34 @@ export class Meshlet {
 
         this.bounds = BoundingVolume.FromVertices(this.vertices);
 
-
-
-        // if (this.vertices.length > max_vertices * 4 * 3) throw Error(`Vertices error ${this.vertices.length}!!`);
-
         // TODO: Get non indexed vertices, this is because no MDI in webgpu
-        // const verticesNonIndexed = Geometry.ToNonIndexed(this.vertices, this.indices);
         const verticesNonIndexed = Meshlet.convertBufferAttributeToNonIndexed(this.vertices, this.indices, 3, true, 8, 0);
         const normalsNonIndexed = Meshlet.convertBufferAttributeToNonIndexed(this.vertices, this.indices, 3, true, 8, 3);
         const uvsNonIndexed = Meshlet.convertBufferAttributeToNonIndexed(this.vertices, this.indices, 2, true, 8, 6);
-        // console.log("verticesNonIndexed", verticesNonIndexed);
-        // console.log("normalsNonIndexed", normalsNonIndexed);
-        // console.log("uvsNonIndexed", uvsNonIndexed);
         const interleaved = InterleavedVertexAttribute.fromArrays([verticesNonIndexed, normalsNonIndexed, uvsNonIndexed], [3,3,2]);
-        this.interleaved = this.interleaved;
-        // console.log("interleaved", interleaved);
-
-        // console.log("verticesNonIndexed", verticesNonIndexed)
         const verticesGPU: number[] = [] // vec4
         for (let i = 0; i < interleaved.array.length; i+=8) {
+            // verticesGPU.push(
+            //     interleaved.array[i + 0], interleaved.array[i + 1], interleaved.array[i + 2], 0,
+            //     interleaved.array[i + 3], interleaved.array[i + 4], interleaved.array[i + 5], 0,
+            //     interleaved.array[i + 6], interleaved.array[i + 7], 0, 0
+            // );
+
             verticesGPU.push(
-                interleaved.array[i + 0], interleaved.array[i + 1], interleaved.array[i + 2], 0,
-                interleaved.array[i + 3], interleaved.array[i + 4], interleaved.array[i + 5], 0,
-                interleaved.array[i + 6], interleaved.array[i + 7], 0, 0
+                interleaved.array[i + 0], interleaved.array[i + 1], interleaved.array[i + 2],
+                interleaved.array[i + 3], interleaved.array[i + 4], interleaved.array[i + 5],
+                interleaved.array[i + 6], interleaved.array[i + 7],
             );
         }
-        // this.vertices_gpu = new Float32Array(verticesGPU);
-        // const verticesGPU = interleaved.array;
-        // console.log("verticesGPU", verticesGPU)
+        this.interleaved = interleaved
+
 
         // TODO: Force vertices to be always of max_vertices * vec4
         // This is not efficient since vertices that dont fill the whole buffer still get drawn.
         // But again no MDI, explore alternatives
-        this.vertices_gpu = new Float32Array(Meshlet.max_triangles * (4 + 4 + 4) * 3);
+        this.vertices_gpu = new Float32Array(Meshlet.max_triangles * (3 + 3 + 2) * 3);
         // TODO: This is capping vertices, may lead to errors
-        this.vertices_gpu.set(verticesGPU.slice(0, Meshlet.max_triangles * (4 + 4 + 4) * 3));
+        this.vertices_gpu.set(verticesGPU.slice(0, Meshlet.max_triangles * (3 + 3 + 2) * 3));
         this.crc = CRC32.forBytes(new Uint8Array(this.vertices_gpu.buffer));
     }
 

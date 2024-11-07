@@ -23,37 +23,42 @@ export class VertexAttribute extends GeometryAttribute {
     }
 }
 
-export class InterleavedVertexAttribute extends GeometryAttribute {
-    public stride: number;
-    constructor(array: Float32Array, stride: number) {
-        super(array, BufferType.VERTEX);
-        this.stride = stride;
-    }
+export class InterleavedVertexAttribute {
+    constructor(public array: Float32Array, public stride: number) {}
 
-    public static fromArrays(attributes: Float32Array[], strides: number[]): InterleavedVertexAttribute {
-        function stridedCopy(target: Float32Array, values: ArrayLike<number>, offset: number, count: number, stride: number) {
-            for (let i = 0; i < values.length; i += count) {
-                for (let j = 0; j < count && i + j < values.length && offset < target.length; j++) {
-                    target[offset + j] = values[i + j];
+    public static fromArrays(attributes: Float32Array[], inputStrides: number[], outputStrides?: number[]): InterleavedVertexAttribute {
+        function stridedCopy(target: Float32Array, values: ArrayLike<number>, offset: number, inputStride: number, outputStride: number, interleavedStride: number) {
+            let writeIndex = offset;
+            for (let i = 0; i < values.length; i += inputStride) {
+                for (let j = 0; j < inputStride && i + j < values.length; j++) {
+                    target[writeIndex + j] = values[i + j];
                 }
-                offset += stride;
+                for (let j = inputStride; j < outputStride; j++) { // Fill the remaining slots with zeros
+                    target[writeIndex + j] = 0;
+                }
+                writeIndex += interleavedStride;
             }
         }
 
+        if (!outputStrides) outputStrides = inputStrides;
+        const interleavedStride = outputStrides.reduce((a, b) => a + b, 0);
         let totalLength = 0;
-        for (const attribute of attributes) totalLength += attribute.length;
-        const interleavedLength = strides.reduce((a, b) => a + b);
+        for (let i = 0; i < attributes.length; i++) {
+            totalLength += (attributes[i].length / inputStrides[i]) * outputStrides[i];
+        }
         const interleavedArray = new Float32Array(totalLength);
 
         let offset = 0;
         for (let i = 0; i < attributes.length; i++) {
             const attribute = attributes[i];
-            const stride = strides[i];
+            const inputStride = inputStrides[i];
+            const outputStride = outputStrides[i];
 
-            stridedCopy(interleavedArray, attribute, offset, stride, interleavedLength);
-            offset += stride;
+            stridedCopy(interleavedArray, attribute, offset, inputStride, outputStride, interleavedStride);
+            offset += outputStride;
         }
-        return new InterleavedVertexAttribute(interleavedArray, interleavedLength);
+
+        return new InterleavedVertexAttribute(interleavedArray, interleavedStride);
     }
 }
 

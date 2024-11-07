@@ -126,7 +126,7 @@ export class Meshletizer {
 
             meshSpaceError += childrenError;
 
-            let splits = MeshletCreator.build(simplified.meshlet.vertices, simplified.meshlet.indices, 255, Meshlet.max_triangles);
+            let splits = MeshletCreator.build(simplified.meshlet.vertices, simplified.meshlet.indices, Meshlet.max_vertices, Meshlet.max_triangles);
             // const p = Math.ceil(group.length / 2);
             // let splits = [simplified.meshlet];
             // if (p > 1) {
@@ -173,7 +173,7 @@ export class Meshletizer {
         await Meshoptimizer.load();
         await Metis.load();
 
-        const meshlets = MeshletCreator.build(vertices, indices, 255, Meshlet.max_triangles);
+        const meshlets = MeshletCreator.build(vertices, indices, Meshlet.max_vertices, Meshlet.max_triangles);
         // const npartsFirst = Math.ceil(indices.length / 3 / 128);
         // const m = new Meshlet(vertices, indices);
         // const meshlets = MeshletGrouper.split(m, npartsFirst);

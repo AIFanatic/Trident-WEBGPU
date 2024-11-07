@@ -106,6 +106,7 @@ export class HiZPass extends RenderPass {
         this.blitShader.SetValue("mip", 0);
 
         resources.setResource(PassParams.depthTexturePyramid, this.inputTexture);
+        this.initialized = true;
     }
 
     public execute(resources: ResourcePool, inputDepthTexture: DepthTexture, outputDepthTexturePyramid: string) {

@@ -1,13 +1,24 @@
-import { Meshlet } from "../plugins/meshlets/Meshlet";
-import { Geometry, InterleavedVertexAttribute } from "../Geometry";
-import { Meshletizer } from "../plugins/meshlets/Meshletizer";
-import { Meshoptimizer } from "../plugins/meshlets/Meshoptimizer";
-import { Mesh } from "./MeshV2";
+import { Geometry, InterleavedVertexAttribute } from "../../Geometry";
+import { Mesh } from "../../components/Mesh";
+import { Meshlet } from "./Meshlet";
+import { Meshoptimizer } from "./Meshoptimizer";
+import { Meshletizer } from "./Meshletizer";
+import { MeshletCreator } from "./utils/MeshletCreator";
+import { EventSystemLocal, EventSystem } from "../../Events";
+import { TransformEvents } from "../../components/Transform";
+import { MeshletEvents } from "./MeshletEvents";
 
 export const meshletsCache: Map<Geometry, {meshlets: Meshlet[], instanceCount: number}> = new Map();
 
 export class MeshletMesh extends Mesh {
-    public async SetGeometry(geometry: Geometry) {
+    public meshlets: Meshlet[];
+    
+    public Start(): void {
+        EventSystemLocal.on(TransformEvents.Updated, this.transform, () => {
+            EventSystem.emit(MeshletEvents.Updated, this);
+        })
+    }
+    public async SetGeometry(geometry: Geometry, clusterize = true) {
         this.geometry = geometry;
         let cached = meshletsCache.get(geometry);
         if (cached) {
@@ -32,9 +43,15 @@ export class MeshletMesh extends Mesh {
         const interleavedVertices = interleavedBufferAttribute.array as Float32Array;
 
         await Meshoptimizer.load();
-        const allMeshlets = await Meshletizer.Build(interleavedVertices, indices);
+        if (clusterize) {
+            const allMeshlets = await Meshletizer.Build(interleavedVertices, indices);
+            this.meshlets = allMeshlets;
+        }
+        else {
+            const allMeshlets = MeshletCreator.build(interleavedVertices, indices, Meshlet.max_vertices, Meshlet.max_triangles);
+            this.meshlets = allMeshlets;
+        }
 
-        this.meshlets = allMeshlets;
         meshletsCache.set(geometry, {meshlets: this.meshlets, instanceCount: 0});
     }
 }

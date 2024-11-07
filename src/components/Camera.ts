@@ -1,7 +1,6 @@
 import { Color } from "../math/Color";
 import { Matrix4 } from "../math/Matrix4";
 import { Component } from "./Component";
-import { EventSystem } from "../Events";
 
 export class Camera extends Component {
     public backgroundColor: Color = new Color(0.0, 0.0, 0.0, 1);
@@ -29,11 +28,6 @@ export class Camera extends Component {
     }
     
     public Start() {
-        EventSystem.on("TransformUpdated", transform => {
-            if (this.transform === transform && Camera.mainCamera === this) {
-                EventSystem.emit("MainCameraUpdated", this);
-            }
-        })
     }
 
     public Update() {

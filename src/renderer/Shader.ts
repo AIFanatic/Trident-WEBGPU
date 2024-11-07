@@ -22,7 +22,7 @@ export interface ShaderAttribute {
 export interface ShaderUniform {
     group: number;
     binding: number;
-    type: "uniform" | "storage" | "storage-write" | "texture" | "sampler" | "sampler-compare" | "depthTexture";
+    type: "uniform" | "storage" | "storage-write" | "texture" | "sampler" | "sampler-compare" | "sampler-non-filterable" | "depthTexture";
 };
 
 export enum Topology {
@@ -30,6 +30,17 @@ export enum Topology {
     Points = "point-list",
     Lines = "line-list"
 }
+
+export type DepthCompareFunctions =
+
+| "never"
+| "less"
+| "equal"
+| "less-equal"
+| "greater"
+| "not-equal"
+| "greater-equal"
+| "always";
 
 export interface ShaderParams {
     code: string;
@@ -40,6 +51,7 @@ export interface ShaderParams {
     fragmentEntrypoint?: string;
     colorOutputs: ShaderColorOutput[];
     depthOutput?: TextureFormat;
+    depthCompare?: DepthCompareFunctions;
     topology?: Topology;
     frontFace?: "ccw" | "cw",
     cullMode?: "back" | "front" | "none"
@@ -55,6 +67,8 @@ export interface ComputeShaderParams {
 export class BaseShader {
     public readonly id: string;
     public readonly params: ShaderParams | ComputeShaderParams;
+
+    protected constructor() {};
 
     public SetValue(name: string, value: number) {}
     public SetMatrix4(name: string, matrix: Matrix4) {}

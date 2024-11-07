@@ -1,15 +1,15 @@
-import { RenderPass, ResourcePool } from "../RenderGraph";
-import { Texture, TextureArray } from "../Texture";
-import { Meshlet } from "../../plugins/meshlets/Meshlet";
-import { MeshletMesh } from "../../components/MeshletMesh";
-import { PBRMaterial } from "../Material";
-import { RendererContext } from "../RendererContext";
-import { Camera } from "../../components/Camera";
-import { Debugger } from "../../plugins/Debugger";
-import { PassParams } from "../RenderingPipeline";
-import { BufferMemoryAllocator } from "../../utils/MemoryAllocator";
-import { EventSystem } from "../../Events";
-import { Mesh } from "../../components/MeshV2";
+import { EventSystem } from "../../../Events";
+import { Camera } from "../../../components/Camera";
+import { MeshletMesh } from "../MeshletMesh";
+import { PBRMaterial } from "../../../renderer/Material";
+import { RenderPass, ResourcePool } from "../../../renderer/RenderGraph";
+import { RendererContext } from "../../../renderer/RendererContext";
+import { Texture, TextureArray } from "../../../renderer/Texture";
+import { BufferMemoryAllocator } from "../../../utils/MemoryAllocator";
+import { Debugger } from "../../Debugger";
+import { Meshlet } from "../Meshlet";
+import { MeshletPassParams } from "./MeshletDraw";
+import { MeshletEvents } from "../MeshletEvents";
 
 interface SceneMesh {
     geometry: Meshlet;
@@ -26,7 +26,7 @@ export interface TextureMaps {
 
 export class PrepareSceneData extends RenderPass {
     public name: string = "PrepareSceneData";
-    private objectInfoBufferV2: BufferMemoryAllocator;
+    private objectInfoBuffer: BufferMemoryAllocator;
     private vertexBuffer: BufferMemoryAllocator;
 
     private meshMaterialInfo: BufferMemoryAllocator;
@@ -49,13 +49,13 @@ export class PrepareSceneData extends RenderPass {
     constructor() {
         super({
             outputs: [
-                PassParams.indirectVertices,
-                PassParams.indirectMeshInfo,
-                PassParams.indirectMeshletInfo,
-                PassParams.indirectObjectInfo,
-                PassParams.indirectMeshMatrixInfo,
-                PassParams.meshletsCount,
-                PassParams.textureMaps
+                MeshletPassParams.indirectVertices,
+                MeshletPassParams.indirectMeshInfo,
+                MeshletPassParams.indirectMeshletInfo,
+                MeshletPassParams.indirectObjectInfo,
+                MeshletPassParams.indirectMeshMatrixInfo,
+                MeshletPassParams.meshletsCount,
+                MeshletPassParams.textureMaps,
             ]
         });
 
@@ -64,28 +64,28 @@ export class PrepareSceneData extends RenderPass {
         this.meshMaterialInfo = new BufferMemoryAllocator(bufferSize);
         this.meshletInfoBuffer = new BufferMemoryAllocator(bufferSize);
         this.vertexBuffer = new BufferMemoryAllocator(bufferSize);
-        this.objectInfoBufferV2 = new BufferMemoryAllocator(bufferSize);
+        this.objectInfoBuffer = new BufferMemoryAllocator(bufferSize);
 
-        EventSystem.on("MeshletUpdated", mesh => {
-            if (this.meshMatrixInfoBuffer.has(mesh.id)) {
-                this.meshMatrixInfoBuffer.set(mesh.id, mesh.transform.localToWorldMatrix.elements);
+        EventSystem.on(MeshletEvents.Updated, meshlet => {
+            if (this.meshMatrixInfoBuffer.has(meshlet.id)) {
+                this.meshMatrixInfoBuffer.set(meshlet.id, meshlet.transform.localToWorldMatrix.elements);
             }
         })
 
-        EventSystem.on("MeshletDeleted", mesh => {
-            console.log("Meshlet deleted");
-            if (this.meshMatrixInfoBuffer.has(mesh.id)) this.meshMatrixInfoBuffer.delete(mesh.id);
-            if (this.meshMaterialInfo.has(mesh.id)) this.meshMaterialInfo.delete(mesh.id);
+        // EventSystem.on("MeshletDeleted", mesh => {
+        //     console.log("Meshlet deleted");
+        //     if (this.meshMatrixInfoBuffer.has(mesh.id)) this.meshMatrixInfoBuffer.delete(mesh.id);
+        //     if (this.meshMaterialInfo.has(mesh.id)) this.meshMaterialInfo.delete(mesh.id);
 
-            for (const meshlet of mesh.meshlets) {
-                this.objectInfoBufferV2.delete(`${mesh.id}-${meshlet.id}`);
+        //     for (const meshlet of mesh.meshlets) {
+        //         this.objectInfoBuffer.delete(`${mesh.id}-${meshlet.id}`);
                 
-                console.warn("TODO: Deleting meshlet, but since meshlets are shared need to check if any more meshes share this meshlet in order to delete form meshletInfoBuffer and vertexBuffer.");
-                // if (this.meshletInfoBuffer.has(meshlet.id)) this.meshletInfoBuffer.delete(meshlet.id);
-                // if (this.vertexBuffer.has(meshlet.id)) this.vertexBuffer.delete(meshlet.id);
-            }
+        //         console.warn("TODO: Deleting meshlet, but since meshlets are shared need to check if any more meshes share this meshlet in order to delete form meshletInfoBuffer and vertexBuffer.");
+        //         // if (this.meshletInfoBuffer.has(meshlet.id)) this.meshletInfoBuffer.delete(meshlet.id);
+        //         // if (this.vertexBuffer.has(meshlet.id)) this.vertexBuffer.delete(meshlet.id);
+        //     }
 
-        })
+        // })
     }
 
     private getVertexInfo(meshlet: Meshlet): Float32Array {
@@ -180,13 +180,12 @@ export class PrepareSceneData extends RenderPass {
             RendererContext.CopyTextureToTextureV2(textures[i], materialMap, 0, 0, [w, h, 1], i);
         }
         return materialMap;
-        
     }
     
     public execute(resources: ResourcePool) {
         const mainCamera = Camera.mainCamera;
         const scene = mainCamera.gameObject.scene;
-        const sceneMeshlets = [...scene.GetComponents(MeshletMesh), ...scene.GetComponents(Mesh)];
+        const sceneMeshlets = [...scene.GetComponents(MeshletMesh)];
 
         if (this.currentMeshCount !== sceneMeshlets.length) {
             const meshlets: SceneMesh[] = [];
@@ -239,7 +238,7 @@ export class PrepareSceneData extends RenderPass {
                         indexedCache.set(meshlet.crc, geometryIndex);
                     }
 
-                    this.objectInfoBufferV2.set(`${mesh.id}-${meshlet.id}`, new Float32Array([meshIndex, geometryIndex, materialIndex, 0]));
+                    this.objectInfoBuffer.set(`${mesh.id}-${meshlet.id}`, new Float32Array([meshIndex, geometryIndex, materialIndex, 0]));
                 }
             }
 
@@ -269,12 +268,12 @@ export class PrepareSceneData extends RenderPass {
         //     console.log(new Float32Array(d))
         // })
 
-        resources.setResource(PassParams.indirectVertices, this.vertexBuffer.getBuffer());
-        resources.setResource(PassParams.indirectMeshInfo, this.meshMaterialInfo.getBuffer());
-        resources.setResource(PassParams.indirectMeshletInfo, this.meshletInfoBuffer.getBuffer());
-        resources.setResource(PassParams.indirectObjectInfo, this.objectInfoBufferV2.getBuffer());
-        resources.setResource(PassParams.indirectMeshMatrixInfo, this.meshMatrixInfoBuffer.getBuffer());
-        resources.setResource(PassParams.meshletsCount, this.currentMeshletsCount);
-        resources.setResource(PassParams.textureMaps, this.textureMaps);
+        resources.setResource(MeshletPassParams.indirectVertices, this.vertexBuffer.getBuffer());
+        resources.setResource(MeshletPassParams.indirectMeshInfo, this.meshMaterialInfo.getBuffer());
+        resources.setResource(MeshletPassParams.indirectMeshletInfo, this.meshletInfoBuffer.getBuffer());
+        resources.setResource(MeshletPassParams.indirectObjectInfo, this.objectInfoBuffer.getBuffer());
+        resources.setResource(MeshletPassParams.indirectMeshMatrixInfo, this.meshMatrixInfoBuffer.getBuffer());
+        resources.setResource(MeshletPassParams.meshletsCount, this.currentMeshletsCount);
+        resources.setResource(MeshletPassParams.textureMaps, this.textureMaps);
     }
 }

@@ -122,10 +122,34 @@ export class RenderTextureStorage extends Texture {
     }
 }
 
+export class RenderTextureStorage3D extends Texture {
+    public static Create(width: number, height: number, depth: number = 1, format: TextureFormat = Renderer.SwapChainFormat, mipLevels = 1): Texture {
+        Debugger.IncrementGPUTextureSize(width * height * depth * 4); // account for format
+        if (Renderer.type === "webgpu") return new WEBGPUTexture(width, height, depth, format, TextureType.RENDER_TARGET_STORAGE, "3d", mipLevels);
+        throw Error("Renderer type invalid");
+    }
+}
+
 export class TextureArray extends Texture {
     public static Create(width: number, height: number, depth: number = 1, format: TextureFormat = Renderer.SwapChainFormat, mipLevels = 1): Texture {
         Debugger.IncrementGPUTextureSize(width * height * depth * 4); // account for format
         if (Renderer.type === "webgpu") return new WEBGPUTexture(width, height, depth, format, TextureType.IMAGE, "2d-array", mipLevels);
+        throw Error("Renderer type invalid");
+    }
+}
+
+export class Texture3D extends Texture {
+    public static Create(width: number, height: number, depth: number = 1, format: TextureFormat = Renderer.SwapChainFormat, mipLevels = 1): Texture {
+        Debugger.IncrementGPUTextureSize(width * height * depth * 4); // account for format
+        if (Renderer.type === "webgpu") return new WEBGPUTexture(width, height, depth, format, TextureType.IMAGE, "3d", mipLevels);
+        throw Error("Renderer type invalid");
+    }
+}
+
+export class CubeTexture extends Texture {
+    public static Create(width: number, height: number, depth: number = 1, format: TextureFormat = Renderer.SwapChainFormat, mipLevels = 1): Texture {
+        Debugger.IncrementGPUTextureSize(width * height * depth * 4); // account for format
+        if (Renderer.type === "webgpu") return new WEBGPUTexture(width, height, depth, format, TextureType.IMAGE, "cube", mipLevels);
         throw Error("Renderer type invalid");
     }
 }
@@ -142,6 +166,14 @@ export class RenderTextureArray extends Texture {
     public static Create(width: number, height: number, depth: number = 1, format: TextureFormat = Renderer.SwapChainFormat, mipLevels = 1): Texture {
         Debugger.IncrementGPUTextureSize(width * height * depth * 4); // account for format
         if (Renderer.type === "webgpu") return new WEBGPUTexture(width, height, depth, format, TextureType.RENDER_TARGET, "2d-array", mipLevels);
+        throw Error("Renderer type invalid");
+    }
+}
+
+export class RenderTexture3D extends Texture {
+    public static Create(width: number, height: number, depth: number = 1, format: TextureFormat = Renderer.SwapChainFormat, mipLevels = 1): Texture {
+        Debugger.IncrementGPUTextureSize(width * height * depth * 4); // account for format
+        if (Renderer.type === "webgpu") return new WEBGPUTexture(width, height, depth, format, TextureType.RENDER_TARGET, "3d", mipLevels);
         throw Error("Renderer type invalid");
     }
 }

@@ -15,6 +15,12 @@ struct VertexOutput {
     @location(4) vUv : vec2<f32>,
 };
 
+// struct Vertex {
+//     position: vec3<f32>,
+//     normal: vec3<f32>,
+//     uv: vec2<f32>
+// };
+
 @group(0) @binding(0) var<storage, read> viewMatrix: mat4x4<f32>;
 @group(0) @binding(1) var<storage, read> projectionMatrix: mat4x4<f32>;
 @group(0) @binding(2) var<storage, read> instanceInfo: array<InstanceInfo>;
@@ -23,7 +29,7 @@ struct VertexOutput {
 @group(0) @binding(5) var<storage, read> objectInfo: array<ObjectInfo>;
 @group(0) @binding(6) var<storage, read> settings: Settings;
 
-@group(0) @binding(7) var<storage, read> vertices: array<Vertex>;
+@group(0) @binding(7) var<storage, read> vertices: array<f32>;
 
 @group(0) @binding(8) var textureSampler: sampler;
 @group(0) @binding(9) var AlbedoMaps: texture_2d_array<f32>;
@@ -40,15 +46,20 @@ struct VertexOutput {
     
     let vertexID = input.vertexIndex + u32(object.meshletID) * u32(settings.maxTriangles * 3.0);
     let vertex = vertices[vertexID];
-    let position = vertex.position;
+    let position = vec3f(vertices[vertexID * 8 + 0], vertices[vertexID * 8 + 1], vertices[vertexID * 8 + 2]);
+    let normal = vec3f(vertices[vertexID * 8 + 3], vertices[vertexID * 8 + 4], vertices[vertexID * 8 + 5]);
+    let uv = vec2f(vertices[vertexID * 8 + 6], vertices[vertexID * 8 + 7]);
+    // let position = vertex.position;
+    // let normal = vertex.normal;
+    // let uv = vertex.uv;
     
     let modelViewMatrix = viewMatrix * modelMatrix;
     output.position = projectionMatrix * modelViewMatrix * vec4(position.xyz, 1.0);
     output.meshID = u32(meshID);
     output.vertexID = u32(vertexID);
-    output.vPosition = vertex.position;
-    output.vNormal = vertex.normal;
-    output.vUv = vertex.uv;
+    output.vPosition = position;
+    output.vNormal = normal;
+    output.vUv = uv;
 
     return output;
 }
@@ -229,27 +240,6 @@ struct FragmentOutput {
         output.albedo = vec4(c, 1.0);
         output.RMO = vec4(emissive.rgb, 1);
     }
-    else if (u32(settings.viewType) == 2) {
-        output.albedo = vec4(output.albedo.xyz, 1.0);
-        output.RMO = vec4(emissive.rgb, 1);
-    }
-    else if (u32(settings.viewType) == 3) {
-        output.albedo = vec4(output.normal.xyz, 1.0);
-        output.RMO = vec4(emissive.rgb, 1);
-    }
-    else if (u32(settings.viewType) == 4) {
-        output.albedo = vec4(metalness);
-        output.RMO = vec4(emissive.rgb, 1);
-    }
-    else if (u32(settings.viewType) == 5) {
-        output.albedo = vec4(roughness);
-        output.RMO = vec4(emissive.rgb, 1);
-    }
-    else if (u32(settings.viewType) == 6) {
-        output.albedo = vec4(emissive);
-        output.RMO = vec4(emissive.rgb, 1);
-    }
-
+    
     return output;
-    // return vec4f(1);
 }

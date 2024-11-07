@@ -5,15 +5,15 @@ import { TextureSampler } from "../TextureSampler";
 import { Camera } from "../../components/Camera";
 import { RendererContext } from "../RendererContext";
 import { RenderPass, ResourcePool } from "../RenderGraph";
-import { AreaLight, DirectionalLight, Light, PointLight, SpotLight } from "../../components/Light";
+import { AreaLight, DirectionalLight, Light, LightEvents, PointLight, SpotLight } from "../../components/Light";
 import { Renderer } from "../Renderer";
 import { Matrix4 } from "../../math/Matrix4";
-import { EventSystem } from "../../Events";
 import { Buffer, BufferType } from "../Buffer";
 import { Debugger } from "../../plugins/Debugger";
 // import { lightsCSMProjectionMatrix } from "./ShadowPass";
 import { ShaderLoader } from "../ShaderUtils";
 import { PassParams } from "../RenderingPipeline";
+import { EventSystem } from "../../Events";
 
 enum LightType {
     SPOT_LIGHT,
@@ -41,11 +41,11 @@ export class DeferredLightingPass extends RenderPass {
     constructor() {
         super({
             inputs: [
+                PassParams.DebugSettings,
                 PassParams.GBufferAlbedo,
                 PassParams.GBufferNormal,
                 PassParams.GBufferERMO,
                 PassParams.GBufferDepth,
-                PassParams.GBufferDepth
             ],
             outputs: [PassParams.LightingPassOutput] });
         this.init();
@@ -96,13 +96,10 @@ export class DeferredLightingPass extends RenderPass {
 
         this.outputLightingPass = RenderTexture.Create(Renderer.width, Renderer.height);
 
-        EventSystem.on("LightUpdated", component => {
+        EventSystem.on(LightEvents.Updated, component => {
             this.needsUpdate = true;
         })
 
-        EventSystem.on("MainCameraUpdated", component => {
-            // this.needsUpdate = true;
-        })
         this.initialized = true;
     }
 
@@ -159,7 +156,7 @@ export class DeferredLightingPass extends RenderPass {
         console.log("Updating light buffer");
     }
 
-    public execute(resources: ResourcePool, inputGBufferAlbedo: RenderTexture, inputGBufferNormal: RenderTexture, inputGbufferERMO: RenderTexture, inputGBufferDepth: DepthTexture, inputShadowPassDepth: DepthTexture, outputLightingPass: string) {
+    public execute(resources: ResourcePool) {
         if (!this.initialized) return;
         // Debugger.AddFrameRenderPass("DeferredLightingPass");
         
@@ -169,6 +166,12 @@ export class DeferredLightingPass extends RenderPass {
         if (!this.lightsBuffer || !this.lightsCountBuffer || this.needsUpdate) {
             this.updateLightsBuffer();
         }
+
+        const inputGBufferAlbedo = resources.getResource(PassParams.GBufferAlbedo);
+        const inputGBufferNormal = resources.getResource(PassParams.GBufferNormal);
+        const inputGbufferERMO = resources.getResource(PassParams.GBufferERMO);
+        const inputGBufferDepth = resources.getResource(PassParams.GBufferDepth);
+        const inputShadowPassDepth = resources.getResource(PassParams.GBufferDepth);
 
         RendererContext.BeginRenderPass("DeferredLightingPass", [{ target: this.outputLightingPass, clear: true }], undefined, true);
 
@@ -190,27 +193,12 @@ export class DeferredLightingPass extends RenderPass {
 
         this.shader.SetArray("view", view);
 
-        // Temp
-        const settings = new Float32Array([
-            +Debugger.isFrustumCullingEnabled,
-            +Debugger.isBackFaceCullingEnabled,
-            +Debugger.isOcclusionCullingEnabled,
-            +Debugger.isSmallFeaturesCullingEnabled,
-            Debugger.staticLOD,
-            Debugger.dynamicLODErrorThreshold,
-            +Debugger.isDynamicLODEnabled,
-            Debugger.viewType,
-            +Debugger.useHeightMap,
-            Debugger.heightScale,
-            0,
-            ...camera.transform.position.elements, 0,
-            0
-        ]);
+        const settings = resources.getResource(PassParams.DebugSettings);
         this.shader.SetArray("settings", settings);
         
         RendererContext.DrawGeometry(this.quadGeometry, this.shader);
         RendererContext.EndRenderPass();
 
-        resources.setResource(outputLightingPass, this.outputLightingPass);
+        resources.setResource(PassParams.LightingPassOutput, this.outputLightingPass);
     }
 }

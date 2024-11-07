@@ -1,7 +1,4 @@
 struct Settings {
-    debugDepthPass: f32,
-    debugDepthMipLevel: f32,
-    debugDepthExposure: f32,
     frustumCullingEnabled: f32,
     backFaceCullingEnabled: f32,
     occlusionCullingEnabled: f32,

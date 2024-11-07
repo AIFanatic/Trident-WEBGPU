@@ -8,7 +8,10 @@ export class Assets {
 
     public static async Load<T extends "json" | "text" | "binary">(url: string, type: T): Promise<ResponseType<T>> {
         const cached = Assets.cache.get(url);
-        if (cached) return cached;
+        // console.warn("CACHED", cached !== undefined, url)
+        if (cached) {
+            return cached;
+        }
         
         return fetch(url).then(response => {
             if(!response.ok) throw Error(`File not found ${url}`);

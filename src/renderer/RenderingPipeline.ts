@@ -3,27 +3,15 @@ import { Renderer } from "./Renderer";
 import { RenderGraph } from "./RenderGraph";
 import { DeferredLightingPass } from "./passes/DeferredLightingPass";
 import { Debugger } from "../plugins/Debugger";
-import { CullingPass } from "./passes/CullingPass";
 import { WEBGPUTimestampQuery } from "./webgpu/WEBGPUTimestampQuery";
 import { TextureViewer } from "./passes/TextureViewer";
-import { PrepareSceneData } from "./passes/PrepareSceneData";
-import { IndirectGBufferPass } from "./passes/IndirectGBufferPass";
-import { HiZPass } from "./passes/HiZPass";
+import { DeferredGBufferPass } from "./passes/DeferredGBufferPass";
+import { PrepareGBuffers } from "./passes/PrepareGBuffers";
+import { MeshletDraw } from "../plugins/meshlets/passes/MeshletDraw";
 
 export const PassParams = {
+    DebugSettings: "DebugSettings",
     MainCamera: "MainCamera",
-
-    indirectVertices: "indirectVertices",
-    indirectMeshInfo: "indirectMeshInfo",
-    indirectMeshletInfo: "indirectMeshletInfo",
-    indirectObjectInfo: "indirectObjectInfo",
-    indirectMeshMatrixInfo: "indirectMeshMatrixInfo",
-    indirectInstanceInfo: "indirectInstanceInfo",
-    indirectDrawBuffer: "indirectDrawBuffer",
-    meshletsCount: "meshletsCount",
-    textureMaps: "textureMaps",
-
-    isCullingPrepass: "isCullingPrepass",
 
     depthTexture: "depthTexture",
     depthTexturePyramid: "depthTexturePyramid",
@@ -49,19 +37,12 @@ export class RenderingPipeline {
     constructor(renderer: Renderer) {
         this.renderer = renderer;
 
-        const cullingPass = new CullingPass();
-        const hizPass = new HiZPass();
-        const indirectGBufferPass = new IndirectGBufferPass();
-
         const passes = {
-            PrepareSceneData: new PrepareSceneData(),
-            
-            CullingFirstPass: cullingPass,
-            IndirectGBufferFirstPass: indirectGBufferPass,
-            HiZPass: hizPass,
+            PrepareDeferredRender: new PrepareGBuffers(),
 
-            CullingSecondPass: cullingPass,
-            IndirectGBufferSecondPass: indirectGBufferPass,
+            meshletDrawPass: new MeshletDraw(),
+
+            GBufferPass: new DeferredGBufferPass(),
 
             DeferredLightingPass: new DeferredLightingPass(),
             OutputPass: new TextureViewer(),
@@ -73,10 +54,9 @@ export class RenderingPipeline {
         }
 
         this.renderGraph.init();
-        
     }
 
-    public async Render(scene: Scene) {
+    public Render(scene: Scene) {
         this.renderer.BeginRenderFrame();
         this.renderGraph.execute();
         this.renderer.EndRenderFrame();

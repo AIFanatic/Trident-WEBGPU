@@ -15,7 +15,7 @@ struct DrawBuffer {
 @group(0) @binding(4) var<storage, read> objectInfo: array<ObjectInfo>;
 @group(0) @binding(5) var<storage, read> meshMatrixInfo: array<MeshMatrixInfo>;
 
-@group(0) @binding(6) var<storage, read_write> visibilityBuffer: array<f32>;
+@group(0) @binding(6) var<storage, read_write> visibilityBuffer: array<vec4<f32>>;
 @group(0) @binding(7) var<storage, read> bPrepass: f32;
 
 @group(0) @binding(8) var textureSampler: sampler;
@@ -237,7 +237,7 @@ fn main(@builtin(global_invocation_id) grid: vec3<u32>) {
 
     var bVisible = true;
     if (bool(bPrepass)) {
-        bVisible = visibilityBuffer[objectIndex] > 0.5;
+        bVisible = visibilityBuffer[objectIndex].x > 0.5;
     }
 
     if (bVisible) {
@@ -258,7 +258,7 @@ fn main(@builtin(global_invocation_id) grid: vec3<u32>) {
         bDrawMesh = bVisible;
     }
     else {
-        bDrawMesh = bVisible && visibilityBuffer[objectIndex] < 0.5;
+        bDrawMesh = bVisible && visibilityBuffer[objectIndex].x < 0.5;
     }
 
     if (bDrawMesh) {
@@ -268,6 +268,6 @@ fn main(@builtin(global_invocation_id) grid: vec3<u32>) {
     }
 
     if (!bool(bPrepass)) {
-        visibilityBuffer[objectIndex] = f32(bVisible);
+        visibilityBuffer[objectIndex].x = f32(bVisible);
     }
 } 

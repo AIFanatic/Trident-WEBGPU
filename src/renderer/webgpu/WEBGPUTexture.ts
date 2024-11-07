@@ -29,12 +29,17 @@ export class WEBGPUTexture implements Texture {
         if (!type) textureType = GPUTextureUsage.TEXTURE_BINDING;
         else if (type === TextureType.DEPTH) textureType = GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_SRC;
         else if (type === TextureType.RENDER_TARGET) textureType = GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_SRC;
-        else if (type === TextureType.RENDER_TARGET_STORAGE) textureType = GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.STORAGE_BINDING;
+        else if (type === TextureType.RENDER_TARGET_STORAGE) textureType = GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.STORAGE_BINDING | GPUTextureUsage.COPY_SRC;
 
         else throw Error(`Unknown texture format ${format}`);
 
+        let dim: GPUTextureDimension = "2d";
+        if (dimension === "1d") dim = "1d";
+        else if (dimension === "3d") dim = "3d";
+        
         this.buffer = WEBGPURenderer.device.createTexture({
             size: [width, height, depth],
+            dimension: dim,
             format: format,
             usage: textureUsage | textureType,
             mipLevelCount: mipLevels

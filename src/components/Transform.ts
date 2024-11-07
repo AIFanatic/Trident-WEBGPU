@@ -1,8 +1,12 @@
-import { EventSystem, EventSystemLocal } from "../Events";
+import { EventSystemLocal, EventSystem } from "../Events";
 import { Matrix4 } from "../math/Matrix4";
 import { ObservableQuaternion, Quaternion } from "../math/Quaternion";
 import { ObservableVector3, Vector3 } from "../math/Vector3";
-import { Component } from "./Component";
+import { Component, ComponentEvents } from "./Component";
+
+export class TransformEvents {
+    public static Updated = () => {};
+}
 
 export class Transform extends Component {
     public up: Vector3 = new Vector3(0, 1, 0);
@@ -32,23 +36,23 @@ export class Transform extends Component {
 
     private onEulerChanged() {
         this._rotation.fromEuler(this._eulerAngles, true);
-        EventSystem.emit("CallUpdate", this, true);
+        EventSystem.emit(ComponentEvents.CallUpdate, this, true);
     }
 
     private onChanged() {
-        EventSystem.emit("CallUpdate", this, true);
+        EventSystem.emit(ComponentEvents.CallUpdate, this, true);
     }
 
     private UpdateMatrices() {
         this._localToWorldMatrix.compose(this.position, this.rotation, this.scale);
         this._worldToLocalMatrix.copy(this._localToWorldMatrix).invert();
-        EventSystem.emit("TransformUpdated", this);
-        EventSystemLocal.emit("TransformUpdated", this.gameObject.id, this);
+        EventSystem.emit(TransformEvents.Updated);
+        EventSystemLocal.emit(TransformEvents.Updated, this);
     }
 
     public Update() {
         this.UpdateMatrices();
-        EventSystem.emit("CallUpdate", this, false);
+        EventSystem.emit(ComponentEvents.CallUpdate, this, false);
     }
 
     public LookAt(target: Vector3): void {

@@ -489,13 +489,6 @@ fn fragmentMain(input: VertexOutput) -> @location(0) vec4<f32> {
     color = Tonemap_ACES(color);
     color = OECF_sRGBFast(color);
 
-
-    if (u32(settings.viewType) == 2) { color = surface.albedo.rgb; }
-    else if (u32(settings.viewType) == 3) { color = surface.N.xyz; }
-    else if (u32(settings.viewType) == 4) { color = vec3(surface.metallic); }
-    else if (u32(settings.viewType) == 5) { color = vec3(surface.roughness); }
-    else if (u32(settings.viewType) == 6) { color = surface.emissive; }
-    
     return vec4(color, 1.0);
     // return vec4(pow(projectedDepth, 20.0));
     // return vec4(shadowPos, 1.0);

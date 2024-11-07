@@ -6,7 +6,7 @@ import { Shader } from "./Shader";
 import { DepthTexture, RenderTexture, Texture } from "./Texture";
 import { WEBGPUBuffer } from "./webgpu/WEBGPUBuffer";
 import { WEBGPURendererContext } from "./webgpu/WEBGPURendererContext";
-import { WEBGPUShader } from "./webgpu/shader/WEBGPUShader";
+import { WEBGPUShader } from "./webgpu/WEBGPUShader";
 import { WEBGPUTexture } from "./webgpu/WEBGPUTexture";
 
 export interface RenderTarget {
@@ -66,6 +66,11 @@ export class RendererContext {
 
     public static CopyTextureToTexture(source: Texture, destination: Texture, srcMip = 0, dstMip = 0, size?: number[]) {
         if (Renderer.type === "webgpu") WEBGPURendererContext.CopyTextureToTexture(source as WEBGPUTexture, destination as WEBGPUTexture, srcMip, dstMip, size);
+        else throw Error("Unknown render api type.");
+    }
+
+    public static CopyTextureToBuffer(source: Texture, destination: WEBGPUBuffer, srcMip: number, size?: number[]) {
+        if (Renderer.type === "webgpu") WEBGPURendererContext.CopyTextureToBuffer(source as WEBGPUTexture, destination as WEBGPUBuffer, srcMip, size);
         else throw Error("Unknown render api type.");
     }
 

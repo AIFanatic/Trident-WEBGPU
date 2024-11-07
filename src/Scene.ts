@@ -1,6 +1,6 @@
 import { EventSystem } from "./Events";
 import { GameObject } from "./GameObject";
-import { Component } from "./components/Component";
+import { Component, ComponentEvents } from "./components/Component";
 import { Renderer } from "./renderer/Renderer";
 import { RenderingPipeline } from "./renderer/RenderingPipeline";
 
@@ -21,12 +21,12 @@ export class Scene {
         this.renderPipeline = new RenderingPipeline(this.renderer);
 
 
-        EventSystem.on("CallUpdate", (component, flag) => {
+        EventSystem.on(ComponentEvents.CallUpdate, (component, flag) => {
             if (flag) this.toUpdate.set(component, true);
             else this.toUpdate.delete(component);
         });
 
-        EventSystem.on("AddedComponent", (component, scene) => {
+        EventSystem.on(ComponentEvents.AddedComponent, (component, scene) => {
             if (scene !== this) return;
             
             let componentsArray = this.componentsByType.get(component.name) || [];
@@ -54,7 +54,7 @@ export class Scene {
 
         });
 
-        EventSystem.on("RemovedComponent", (component, scene) => {
+        EventSystem.on(ComponentEvents.RemovedComponent, (component, scene) => {
             let componentsArray = this.componentsByType.get(component.name);
             if (componentsArray) {
                 const index = componentsArray.indexOf(component);

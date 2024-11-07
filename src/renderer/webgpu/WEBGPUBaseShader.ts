@@ -96,7 +96,9 @@ export class WEBGPUBaseShader {
                 group.buffers.push(uniform.buffer);
             }
             else if (uniform.buffer instanceof WEBGPUTexture) {
-                const sampleType: GPUTextureSampleType = uniform.type === "depthTexture" ? "depth" : "float";
+                // let sampleType: GPUTextureSampleType = uniform.type === "depthTexture" ? "depth" : "float";
+                let sampleType: GPUTextureSampleType = uniform.type === "depthTexture" ? "depth" : "float";
+                if (uniform.buffer.format === "r32float") sampleType = "unfilterable-float"
                 if (uniform.buffer.type === TextureType.RENDER_TARGET_STORAGE) {
                     group.layoutEntries.push({
                         binding: uniform.binding,
@@ -116,7 +118,8 @@ export class WEBGPUBaseShader {
                 // Remember this is for binding textures not color/depth outputs
                 const view: GPUTextureViewDescriptor = {
                     dimension: uniform.buffer.dimension,
-                    arrayLayerCount: uniform.buffer.GetBuffer().depthOrArrayLayers,
+                    arrayLayerCount: uniform.buffer.dimension != "3d" ? uniform.buffer.GetBuffer().depthOrArrayLayers : 1,
+                    // arrayLayerCount: uniform.buffer.GetBuffer().depthOrArrayLayers,
                     baseArrayLayer: 0,
                     baseMipLevel: uniform.textureMip,
                     mipLevelCount: uniform.activeMipCount
@@ -132,6 +135,7 @@ export class WEBGPUBaseShader {
                 let type: GPUSamplerBindingType | undefined = undefined;
                 if (uniform.type === "sampler") type = "filtering";
                 else if (uniform.type === "sampler-compare") type = "comparison";
+                else if (uniform.type === "sampler-non-filterable") type = "non-filtering";
                 group.layoutEntries.push({ binding: uniform.binding, visibility: GPUShaderStage.COMPUTE | GPUShaderStage.VERTEX | GPUShaderStage.FRAGMENT, sampler: {type: type}})
                 group.entries.push({binding: uniform.binding, resource: uniform.buffer.GetBuffer()});
                 group.buffers.push(uniform.buffer);

@@ -6,22 +6,11 @@ import WGSL_Shader_Cull_URL from "./webgpu/shaders/deferred/Cull.wgsl";
 import WGSL_Shader_CullStructs_URL from "./webgpu/shaders/deferred/CullStructs.wgsl";
 import WGSL_Shader_SettingsStructs_URL from "./webgpu/shaders/deferred/SettingsStructs.wgsl";
 import WGSL_Shader_DrawIndirect_URL from "./webgpu/shaders/deferred/DrawIndirectGBuffer.wgsl";
+import WGSL_Shader_Draw_URL from "./webgpu/shaders/deferred/DrawGBuffer.wgsl";
 import WGSL_Shader_Blit_URL from "./webgpu/shaders/Blit.wgsl";
 import WGSL_Shader_BlitDepth_URL from "./webgpu/shaders/BlitDepth.wgsl";
 import WGSL_Shader_DepthDownsample_URL from "./webgpu/shaders/DepthDownsample.wgsl";
 import WGSL_Shader_DeferredLighting_URL from "./webgpu/shaders/deferred/DeferredLightingPBR.wgsl";
-
-enum Shaders {
-    CullStructs = WGSL_Shader_CullStructs_URL,
-    SettingsStructs = WGSL_Shader_SettingsStructs_URL,
-
-    Cull = WGSL_Shader_Cull_URL,
-    DrawIndirect = WGSL_Shader_DrawIndirect_URL,
-    Blit = WGSL_Shader_Blit_URL,
-    BlitDepth = WGSL_Shader_BlitDepth_URL,
-    DepthDownsample = WGSL_Shader_DepthDownsample_URL,
-    DeferredLighting = WGSL_Shader_DeferredLighting_URL,
-};
 
 export class ShaderPreprocessor {
     public static ProcessDefines(code: string, defines: {[key: string]: boolean}): string {
@@ -56,20 +45,9 @@ export class ShaderPreprocessor {
 }
 
 export class ShaderLoader {
-    private static async Load(shader: Shaders) {
+    private static async Load(shader_url: string) {
         if (Renderer.type === "webgpu") {
-            let shader_url = "";
-            // TODO: Figure out way of not repeating this.
-            if (shader === Shaders.Cull) shader_url = WGSL_Shader_Cull_URL;
-            else if (shader === Shaders.DrawIndirect) shader_url = WGSL_Shader_DrawIndirect_URL;
-            else if (shader === Shaders.Blit) shader_url = WGSL_Shader_Blit_URL;
-            else if (shader === Shaders.BlitDepth) shader_url = WGSL_Shader_BlitDepth_URL;
-            else if (shader === Shaders.DepthDownsample) shader_url = WGSL_Shader_DepthDownsample_URL;
-            else if (shader === Shaders.DeferredLighting) shader_url = WGSL_Shader_DeferredLighting_URL;
-
-            else throw Error(`Uknown shader ${shader}`);
-
-            if (shader_url === "") throw Error(`Invalid shader ${shader} ${shader_url}`);
+            if (shader_url === "") throw Error(`Invalid shader ${shader_url}`);
 
             let code = await Assets.Load(shader_url, "text");
             code = await ShaderPreprocessor.ProcessIncludes(code, shader_url);
@@ -78,9 +56,12 @@ export class ShaderLoader {
         throw Error("Unknown api");
     }
 
-    public static get Cull(): Promise<string> { return ShaderLoader.Load(Shaders.Cull); }
-    public static get DepthDownsample(): Promise<string> { return ShaderLoader.Load(Shaders.DepthDownsample); }
-    public static get DrawIndirect(): Promise<string> { return ShaderLoader.Load(Shaders.DrawIndirect); }
-    public static get BlitDepth(): Promise<string> { return ShaderLoader.Load(Shaders.BlitDepth); }
-    public static get DeferredLighting(): Promise<string> { return ShaderLoader.Load(Shaders.DeferredLighting); }
+    public static get Cull(): Promise<string> { return ShaderLoader.Load(WGSL_Shader_Cull_URL); }
+    public static get CullStructs(): Promise<string> { return ShaderLoader.Load(WGSL_Shader_CullStructs_URL); }
+    public static get SettingsStructs(): Promise<string> { return ShaderLoader.Load(WGSL_Shader_SettingsStructs_URL); }
+    public static get DepthDownsample(): Promise<string> { return ShaderLoader.Load(WGSL_Shader_DepthDownsample_URL); }
+    public static get DrawIndirect(): Promise<string> { return ShaderLoader.Load(WGSL_Shader_DrawIndirect_URL); }
+    public static get Draw(): Promise<string> { return ShaderLoader.Load(WGSL_Shader_Draw_URL); }
+    public static get BlitDepth(): Promise<string> { return ShaderLoader.Load(WGSL_Shader_BlitDepth_URL); }
+    public static get DeferredLighting(): Promise<string> { return ShaderLoader.Load(WGSL_Shader_DeferredLighting_URL); }
 }

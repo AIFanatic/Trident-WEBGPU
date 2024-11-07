@@ -16,6 +16,8 @@ export class Buffer {
     public set name(name: string) {};
     public get name(): string { return "Buffer" };
 
+    protected constructor() {}
+
     public static Create(size: number, type: BufferType) {
         if (size === 0) throw Error("Tried to create a buffer with size 0");
         Debugger.IncrementGPUBufferSize(size);
@@ -32,6 +34,8 @@ export class DynamicBuffer {
     public readonly minBindingSize: number | undefined;
     public dynamicOffset: number = 0;
 
+    protected constructor() {}
+    
     public static Create(size: number, type: BufferType, minBindingSize: number) {
         if (size === 0) throw Error("Tried to create a buffer with size 0");
         if (Renderer.type === "webgpu") return new WEBGPUDynamicBuffer(size, type, minBindingSize);

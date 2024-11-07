@@ -11,6 +11,9 @@
 // import * as TEST from "./TEST/GLTFExample";
 // import * as TEST from "./TEST/GLTFExampleV2";
 import * as TEST from "./TEST/GLTFExample_Mesh";
+// import * as TEST from "./TEST/Custom_Render";
+// import * as TEST from "./TEST/LODPipeline";
+// import * as TEST from "./TEST/SDF";
 // import * as TEST from "./TEST/Meshlet";
 // import * as TEST from "./TEST/MeshletObject";
 // import * as TEST from "./TEST/Simplification";

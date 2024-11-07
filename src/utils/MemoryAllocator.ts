@@ -71,7 +71,7 @@ export class BufferMemoryAllocator {
         return this.links.has(link);
     }
 
-    public set(link: any, data: Float32Array): number {
+    public set(link: any, data: Float32Array | Uint32Array): number {
         let bufferOffset = this.links.get(link);
         if (bufferOffset === undefined) {
             bufferOffset = this.allocator.allocate(data.length);

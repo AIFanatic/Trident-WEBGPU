@@ -72,7 +72,7 @@ export class WEBGPUShader extends WEBGPUBaseShader implements Shader {
         // Pipeline descriptor - Depth target
         if (this.params.depthOutput) pipelineDescriptor.depthStencil = {
             depthWriteEnabled: true,
-            depthCompare: 'less',
+            depthCompare: this.params.depthCompare ? this.params.depthCompare : 'less',
             format: this.params.depthOutput
         };
     

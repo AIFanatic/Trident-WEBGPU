@@ -49,7 +49,7 @@ export class RenderGraph {
     public execute(): void {
         const sortedPasses = this.topologicalSort();
         for (const pass of sortedPasses) {
-            // If on pass is not initialized skip everything else
+            // If a pass is not initialized skip everything else
             // this is because subsequent passes may depend on the current pass
             if (!pass.initialized) {
                 console.log(`didnt execute ${pass.name} because its not initialized`);
@@ -61,34 +61,34 @@ export class RenderGraph {
     }
 
     private topologicalSort(): RenderPass[] {
-        const order: RenderPass[] = [];
-        const visited: { [key: string]: boolean } = {};
-        const tempMark: { [key: string]: boolean } = {};
+        // const order: RenderPass[] = [];
+        // const visited: { [key: string]: boolean } = {};
+        // const tempMark: { [key: string]: boolean } = {};
 
-        const visit = (pass: RenderPass) => {
-            if (tempMark[pass.name]) {
-                throw new Error("Cycle detected in graph");
-            }
+        // const visit = (pass: RenderPass) => {
+        //     if (tempMark[pass.name]) {
+        //         throw new Error("Cycle detected in graph");
+        //     }
 
-            if (!visited[pass.name]) {
-                tempMark[pass.name] = true;
+        //     if (!visited[pass.name]) {
+        //         tempMark[pass.name] = true;
 
-                this.passes.filter(p => {
-                    return pass.outputs && p.inputs?.some(input => pass.outputs!.includes(input));
-                }
-                ).forEach(visit);
+        //         this.passes.filter(p => {
+        //             return pass.outputs && p.inputs?.some(input => pass.outputs!.includes(input));
+        //         }
+        //         ).forEach(visit);
 
-                visited[pass.name] = true;
-                tempMark[pass.name] = false;
-                order.unshift(pass);
-            }
-        };
+        //         visited[pass.name] = true;
+        //         tempMark[pass.name] = false;
+        //         order.unshift(pass);
+        //     }
+        // };
 
-        this.passes.forEach(pass => {
-            if (!visited[pass.name]) {
-                visit(pass);
-            }
-        });
+        // this.passes.forEach(pass => {
+        //     if (!visited[pass.name]) {
+        //         visit(pass);
+        //     }
+        // });
 
         // return order;
         return this.passes;

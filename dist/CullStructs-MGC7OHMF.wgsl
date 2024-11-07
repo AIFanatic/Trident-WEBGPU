@@ -1,3 +1,9 @@
+struct Vertex {
+    position: vec3<f32>,
+    normal: vec3<f32>,
+    uv: vec2<f32>
+};
+
 struct InstanceInfo {
     meshID: u32
 };

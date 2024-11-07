@@ -1,9 +1,14 @@
-import { EventSystem, EventSystemLocal } from "../Events";
+import { EventSystem } from "../Events";
 import { Color } from "../math/Color";
 import { Vector3 } from "../math/Vector3";
 import { Renderer } from "../renderer/Renderer";
 import { Camera } from "./Camera";
 import { Component } from "./Component";
+import { TransformEvents } from "./Transform";
+
+export class LightEvents {
+    public static Updated = (light: Light) => {};
+}
 
 export class Light extends Component {
     public camera: Camera;
@@ -12,9 +17,9 @@ export class Light extends Component {
     public range: number = 1000;
 
     public Start(): void {
-        EventSystem.on("TransformUpdated", transform => {
+        EventSystem.on(TransformEvents.Updated, transform => {
             if (this.transform === transform) {
-                EventSystem.emit("LightUpdated", this);
+                EventSystem.emit(LightEvents.Updated, this);
             }
         })
     }
