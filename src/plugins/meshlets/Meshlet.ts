@@ -3,7 +3,14 @@ import { Utils } from "../../utils/Utils";
 import { BoundingVolume } from "../../math/BoundingVolume";
 import { Sphere } from "../../math/Sphere";
 import { CRC32 } from "../../utils/CRC32";
-import { attribute_size } from "./Meshoptimizer";
+import { Meshoptimizer, attribute_size } from "./Meshoptimizer";
+import { Vector3 } from "../../math/Vector3";
+
+export interface MeshletBounds {
+    cone_apex: Vector3;
+    cone_axis: Vector3;
+    cone_cutoff: number;
+}
 
 export class Meshlet {
     public static max_triangles = 128;
@@ -41,6 +48,8 @@ export class Meshlet {
 
     public interleaved: InterleavedVertexAttribute;
 
+    public coneBounds: MeshletBounds;
+
     constructor(vertices: Float32Array, indices: Uint32Array) {
         this.vertices = vertices;
         this.indices = indices;
@@ -50,6 +59,10 @@ export class Meshlet {
         this.parents = [];
 
         this.bounds = BoundingVolume.FromVertices(this.vertices);
+        if (this.indices.length / 3 < Meshoptimizer.kMeshletMaxTriangles) {
+            const coneBounds = Meshoptimizer.meshopt_computeClusterBounds(this.vertices, this.indices);
+            this.coneBounds = {cone_apex: coneBounds.cone_apex, cone_axis: coneBounds.cone_axis, cone_cutoff: coneBounds.cone_cutoff};
+        }
 
         // TODO: Get non indexed vertices, this is because no MDI in webgpu
         const verticesNonIndexed = Meshlet.convertBufferAttributeToNonIndexed(this.vertices, this.indices, 3, true, 8, 0);

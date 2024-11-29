@@ -71,6 +71,7 @@ export class IndirectGBufferPass extends RenderPass {
                 metalnessMaps: {group: 0, binding: 12, type: "texture"},
                 emissiveMaps: {group: 0, binding: 13, type: "texture"},
             },
+            cullMode: "front"
         });
         this.geometry = new Geometry();
         this.geometry.attributes.set("position", new VertexAttribute(new Float32Array(Meshlet.max_triangles * 3)));

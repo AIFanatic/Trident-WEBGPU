@@ -4,7 +4,7 @@ import { MeshletMesh } from "../MeshletMesh";
 import { PBRMaterial } from "../../../renderer/Material";
 import { RenderPass, ResourcePool } from "../../../renderer/RenderGraph";
 import { RendererContext } from "../../../renderer/RendererContext";
-import { Texture, TextureArray } from "../../../renderer/Texture";
+import { RenderTexture, Texture, TextureArray } from "../../../renderer/Texture";
 import { BufferMemoryAllocator } from "../../../utils/MemoryAllocator";
 import { Debugger } from "../../Debugger";
 import { Meshlet } from "../Meshlet";
@@ -97,9 +97,9 @@ export class PrepareSceneData extends RenderPass {
         const bv = meshlet.boundingVolume;
         const pbv = meshlet.boundingVolume;
         return new Float32Array([
-            0, 0, 0, 0, // ...bv.cone_apex.elements, 0,
-            0, 0, 0, 0, // ...bv.cone_axis.elements, 0,
-            0, 0, 0, 0, // bv.cone_cutoff, 0, 0, 0,
+            ...meshlet.coneBounds.cone_apex.elements, 0,
+            ...meshlet.coneBounds.cone_axis.elements, 0,
+            meshlet.coneBounds.cone_cutoff, 0, 0, 0,
             bv.center.x, bv.center.y, bv.center.z, bv.radius,
             pbv.center.x, pbv.center.y, pbv.center.z, pbv.radius,
             meshlet.clusterError, 0, 0, 0,
@@ -177,6 +177,16 @@ export class PrepareSceneData extends RenderPass {
         }
 
         for (let i = 0; i < textures.length; i++) {
+            if (textures[i].width !== w || textures[i].height !== h) {
+                console.warn(`Creating blank texture because dimensions dont match`, w, h, textures[i].width, textures[i].height);
+                const t = RenderTexture.Create(w, h);
+
+                // Texture.Blit(textures[i], t, w, h);
+                RendererContext.CopyTextureToTextureV2(t, materialMap, 0, 0, [w, h, 1], i);
+                
+                continue;
+            }
+
             RendererContext.CopyTextureToTextureV2(textures[i], materialMap, 0, 0, [w, h, 1], i);
         }
         return materialMap;
@@ -196,7 +206,7 @@ export class PrepareSceneData extends RenderPass {
             }
 
             const indexedCache: Map<number, number> = new Map();
-            const meshCache: Map<string, number> = new Map();
+            const meshMatrixCache: Map<string, number> = new Map();
             const meshMaterialCache: Map<string, number> = new Map();
 
             for (const mesh of sceneMeshlets) {
@@ -206,7 +216,7 @@ export class PrepareSceneData extends RenderPass {
                     if (!this.meshMaterialInfo.has(material.id)) {
                         const meshMaterialInfo = this.getMeshMaterialInfo(mesh);
                         if (meshMaterialInfo !== null) {
-                            this.meshMaterialInfo.set(mesh.id, meshMaterialInfo);
+                            this.meshMaterialInfo.set(material.id, meshMaterialInfo);
 
                             meshMaterialCache.set(material.id, meshMaterialCache.size);
                         }
@@ -221,10 +231,10 @@ export class PrepareSceneData extends RenderPass {
                 }
 
                 // Just to get mesh index
-                let meshIndex = meshCache.get(mesh.id);
-                if (meshIndex === undefined) {
-                    meshIndex = meshCache.size;
-                    meshCache.set(mesh.id, meshIndex);
+                let meshMatrixIndex = meshMatrixCache.get(mesh.id);
+                if (meshMatrixIndex === undefined) {
+                    meshMatrixIndex = meshMatrixCache.size;
+                    meshMatrixCache.set(mesh.id, meshMatrixIndex);
                 }
                 
                 for (const meshlet of mesh.meshlets) {
@@ -238,7 +248,7 @@ export class PrepareSceneData extends RenderPass {
                         indexedCache.set(meshlet.crc, geometryIndex);
                     }
 
-                    this.objectInfoBuffer.set(`${mesh.id}-${meshlet.id}`, new Float32Array([meshIndex, geometryIndex, materialIndex, 0]));
+                    this.objectInfoBuffer.set(`${mesh.id}-${meshlet.id}`, new Float32Array([meshMatrixIndex, geometryIndex, materialIndex, 0]));
                 }
             }
 

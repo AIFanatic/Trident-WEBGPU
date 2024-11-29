@@ -38,6 +38,8 @@ export class Meshoptimizer {
     private static module;
     private static isLoaded: boolean = false;
 
+    public static kMeshletMaxTriangles = 512;
+
     public static async load() {
         if (!Meshoptimizer.module) {
             Meshoptimizer.module = await MeshOptimizerModule();
@@ -246,6 +248,10 @@ export class Meshoptimizer {
         const destination = new WASMPointer(new Uint32Array(meshlet.indices.length), "out");
         const result_error = new WASMPointer(new Float32Array(1), "out");
 
+        const meshopt_SimplifyLockBorder = 1 << 0;
+        const meshopt_SimplifySparse = 1 << 1;
+        const meshopt_SimplifyErrorAbsolute = 1 << 2;
+        const options = meshopt_SimplifySparse;
 
         const vertex_lock = vertex_lock_array === null ? null : new WASMPointer(vertex_lock_array, "in");
         
@@ -267,7 +273,7 @@ export class Meshoptimizer {
 
             target_count, // size_t target_index_count,
             target_error, // float target_error, Should be 0.01 but cant reach 128 triangles with it
-            1, // unsigned int options, preserve borders
+            options, // unsigned int options, preserve borders
             result_error, // float* result_error
         );
 

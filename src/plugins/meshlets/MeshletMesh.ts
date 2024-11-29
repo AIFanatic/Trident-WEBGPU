@@ -7,17 +7,19 @@ import { MeshletCreator } from "./utils/MeshletCreator";
 import { EventSystemLocal, EventSystem } from "../../Events";
 import { TransformEvents } from "../../components/Transform";
 import { MeshletEvents } from "./MeshletEvents";
+import { InstancedMesh } from "../../components/InstancedMesh";
 
 export const meshletsCache: Map<Geometry, {meshlets: Meshlet[], instanceCount: number}> = new Map();
 
 export class MeshletMesh extends Mesh {
-    public meshlets: Meshlet[];
+    public meshlets: Meshlet[] = [];
     
     public Start(): void {
         EventSystemLocal.on(TransformEvents.Updated, this.transform, () => {
             EventSystem.emit(MeshletEvents.Updated, this);
         })
     }
+    
     public async SetGeometry(geometry: Geometry, clusterize = true) {
         this.geometry = geometry;
         let cached = meshletsCache.get(geometry);
@@ -43,13 +45,18 @@ export class MeshletMesh extends Mesh {
         const interleavedVertices = interleavedBufferAttribute.array as Float32Array;
 
         await Meshoptimizer.load();
-        if (clusterize) {
-            const allMeshlets = await Meshletizer.Build(interleavedVertices, indices);
-            this.meshlets = allMeshlets;
+        if (indices.length / 3 <= Meshlet.max_triangles) {
+            this.meshlets.push(new Meshlet(interleavedVertices, indices));
         }
         else {
-            const allMeshlets = MeshletCreator.build(interleavedVertices, indices, Meshlet.max_vertices, Meshlet.max_triangles);
-            this.meshlets = allMeshlets;
+            if (clusterize) {
+                const allMeshlets = await Meshletizer.Build(interleavedVertices, indices);
+                this.meshlets = allMeshlets;
+            }
+            else {
+                const allMeshlets = MeshletCreator.build(interleavedVertices, indices, Meshlet.max_vertices, Meshlet.max_triangles);
+                this.meshlets = allMeshlets;
+            }
         }
 
         meshletsCache.set(geometry, {meshlets: this.meshlets, instanceCount: 0});
