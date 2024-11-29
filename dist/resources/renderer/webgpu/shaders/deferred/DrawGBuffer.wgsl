@@ -23,13 +23,12 @@ struct VertexOutput {
 @group(0) @binding(5) var AlbedoMap: texture_2d<f32>;
 @group(0) @binding(6) var NormalMap: texture_2d<f32>;
 @group(0) @binding(7) var HeightMap: texture_2d<f32>;
-@group(0) @binding(8) var RoughnessMap: texture_2d<f32>;
-@group(0) @binding(9) var MetalnessMap: texture_2d<f32>;
-@group(0) @binding(10) var EmissiveMap: texture_2d<f32>;
-@group(0) @binding(11) var AOMap: texture_2d<f32>;
+@group(0) @binding(8) var MetalnessMap: texture_2d<f32>;
+@group(0) @binding(9) var EmissiveMap: texture_2d<f32>;
+@group(0) @binding(10) var AOMap: texture_2d<f32>;
 
 
-@group(0) @binding(12) var<storage, read> cameraPosition: vec3<f32>;
+@group(0) @binding(11) var<storage, read> cameraPosition: vec3<f32>;
 
 
 struct Material {
@@ -163,6 +162,10 @@ fn fragmentMain(input: VertexOutput) -> FragmentOutput {
         albedo *= textureSample(AlbedoMap, TextureSampler, uv);
     #endif
 
+    if (albedo.r + albedo.g + albedo.b < 0.001) {
+        discard;
+    }
+
     var normal: vec3f = input.vNormal;
     #if USE_NORMAL_MAP
         let normalSample = textureSample(NormalMap, TextureSampler, uv).xyz * 2.0 - 1.0;
@@ -174,12 +177,10 @@ fn fragmentMain(input: VertexOutput) -> FragmentOutput {
     // Should be normal matrix
     normal = normalize(modelMatrixInstance * vec4(vec3(normal), 0.0)).xyz;
 
-    #if USE_ROUGHNESS_MAP
-        roughness *= textureSample(RoughnessMap, TextureSampler, uv).r;
-    #endif
-
     #if USE_METALNESS_MAP
-        metalness *= textureSample(MetalnessMap, TextureSampler, uv).r;
+        let metalnessRoughness = textureSample(MetalnessMap, TextureSampler, uv);
+        metalness *= metalnessRoughness.b;
+        roughness *= metalnessRoughness.g;
     #endif
 
     var emissive = mat.EmissiveColor;
@@ -192,10 +193,6 @@ fn fragmentMain(input: VertexOutput) -> FragmentOutput {
         occlusion = 1.0;
     #endif
 
-    output.normal = vec4(normal, 1.0);
-    output.albedo = albedo;
-    output.RMO = vec4(roughness, metalness, occlusion, unlit);
-    
     output.albedo = vec4(albedo.rgb, roughness);
     output.normal = vec4(normal.xyz, metalness);
     output.RMO = vec4(emissive.rgb, unlit);

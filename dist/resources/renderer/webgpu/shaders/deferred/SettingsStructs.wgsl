@@ -10,9 +10,10 @@ struct Settings {
     dynamicLODErrorThreshold: f32,
     dynamicLODEnabled: f32,
     viewType: f32,
+    meshletsViewType: f32,
     useHeightMap: f32,
     heightScale: f32,
     maxTriangles: f32,
 
-    cameraPosition: vec4<f32>
+    cameraPosition: vec4<f32>,
 };

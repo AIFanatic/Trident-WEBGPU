@@ -3,7 +3,7 @@
 node_modules
 yarn.*
 
-dist/assets
+dist/test-assets
 src/TEST
 research
 src-bak*
