@@ -11,16 +11,17 @@ export class TransformEvents {
 export class Transform extends Component {
     public up: Vector3 = new Vector3(0, 1, 0);
     public forward: Vector3 = new Vector3(0, 0, 1);
+    public right: Vector3 = new Vector3(1, 0, 0);
     
     private _localToWorldMatrix: Matrix4 = new Matrix4();
     private _worldToLocalMatrix: Matrix4 = new Matrix4();
     public get localToWorldMatrix(): Matrix4 { return this._localToWorldMatrix; }
     public get worldToLocalMatrix(): Matrix4 { return this._worldToLocalMatrix; }
 
-    public _position: ObservableVector3 = new ObservableVector3(() => { this.onChanged() }, 0, 0, 0);
-    public _rotation: ObservableQuaternion = new ObservableQuaternion(() => { this.onChanged() });
-    public _scale: ObservableVector3 = new ObservableVector3(() => { this.onChanged() }, 1, 1, 1);
-    public _eulerAngles: ObservableVector3 = new ObservableVector3(() => { this.onEulerChanged() });
+    private _position: ObservableVector3 = new ObservableVector3(() => { this.onChanged() }, 0, 0, 0);
+    private _rotation: ObservableQuaternion = new ObservableQuaternion(() => { this.onChanged() });
+    private _scale: ObservableVector3 = new ObservableVector3(() => { this.onChanged() }, 1, 1, 1);
+    private _eulerAngles: ObservableVector3 = new ObservableVector3(() => { this.onEulerChanged() });
 
     public get position(): Vector3 { return this._position };
     public set position(value: Vector3) { this._position.copy(value); this.onChanged(); };
@@ -34,6 +35,20 @@ export class Transform extends Component {
     public get scale(): Vector3 { return this._scale };
     public set scale(value: Vector3) { this._scale.copy(value); this.onChanged(); };
 
+    private children: Set<Transform> = new Set();
+    private _parent: Transform | null = null;
+    public get parent(): Transform | null { return this._parent };
+    public set parent(parent: Transform | null) {
+        if (parent === null) {
+            if (this._parent !== null) this._parent.children.delete(this);
+        }
+        else {
+            parent.children.add(this);
+        }
+
+        this._parent = parent;
+    }
+
     private onEulerChanged() {
         this._rotation.fromEuler(this._eulerAngles, true);
         EventSystem.emit(ComponentEvents.CallUpdate, this, true);
@@ -46,6 +61,15 @@ export class Transform extends Component {
     private UpdateMatrices() {
         this._localToWorldMatrix.compose(this.position, this.rotation, this.scale);
         this._worldToLocalMatrix.copy(this._localToWorldMatrix).invert();
+
+        if (this.parent !== null) {
+            this._localToWorldMatrix.premultiply(this.parent._localToWorldMatrix);
+        }
+
+        for (const child of this.children) {
+            child.UpdateMatrices();
+        }
+        
         EventSystem.emit(TransformEvents.Updated);
         EventSystemLocal.emit(TransformEvents.Updated, this);
     }
@@ -56,9 +80,18 @@ export class Transform extends Component {
     }
 
     public LookAt(target: Vector3): void {
-        // Target and eye at 0 causes issues
-        this.rotation.lookAt(this.position, target.add(0.0000001), this.up);
+        m1.lookAt(this.position, target, this.up);
+        this.rotation.setFromRotationMatrix(m1);
+        // this.rotation.lookAt(this.position, target, this.up);
+        this.UpdateMatrices();
+        this.onChanged();
+    }
+
+    public LookAtV1(target: Vector3): void {
+        this.rotation.lookAt(this.position, target, this.up);
         this.UpdateMatrices();
         this.onChanged();
     }
 }
+
+const m1 = new Matrix4();
