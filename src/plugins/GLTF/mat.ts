@@ -101,3 +101,12 @@ export const scale = (m: number[], v: number[]) => {
         0, 0, 0, 1
     ]
 }
+
+export const identity = () => {
+    return [
+        1, 0, 0, 0,
+        0, 1, 0, 0,
+        0, 0, 1, 0,
+        0, 0, 0, 1
+    ]
+}

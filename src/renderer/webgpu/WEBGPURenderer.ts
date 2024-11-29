@@ -47,7 +47,7 @@ export class WEBGPURenderer implements Renderer {
 
     public static GetActiveCommandEncoder(): GPUCommandEncoder | null { return WEBGPURenderer.activeCommandEncoder }
 
-    public BeginRenderFrame() {
+    public static BeginRenderFrame() {
         if (WEBGPURenderer.activeCommandEncoder !== null) {
             console.warn("Only one active encoder pipeline is allowed.");
             return;
@@ -56,7 +56,7 @@ export class WEBGPURenderer implements Renderer {
         WEBGPURenderer.activeCommandEncoder = WEBGPURenderer.device.createCommandEncoder();
     }
 
-    public EndRenderFrame() {
+    public static EndRenderFrame() {
         if (WEBGPURenderer.activeCommandEncoder === null) {
             console.log("There is no active render pass.");
             return;
@@ -65,5 +65,9 @@ export class WEBGPURenderer implements Renderer {
         WEBGPURenderer.device.queue.submit([WEBGPURenderer.activeCommandEncoder.finish()]);
 
         WEBGPURenderer.activeCommandEncoder = null;
+    }
+
+    public static HasActiveFrame(): boolean {
+        return WEBGPURenderer.activeCommandEncoder !== null;
     }
 }

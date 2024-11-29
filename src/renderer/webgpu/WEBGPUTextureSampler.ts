@@ -11,7 +11,7 @@ export class WEBGPUTextureSampler implements TextureSampler {
 
         const samplerDescriptor: GPUSamplerDescriptor = {}
         if (params && params.minFilter) samplerDescriptor.minFilter = params.minFilter;
-        if (params && params.magFilter) samplerDescriptor.minFilter = params.magFilter;
+        if (params && params.magFilter) samplerDescriptor.magFilter = params.magFilter;
         if (params && params.mipmapFilter) samplerDescriptor.mipmapFilter = params.mipmapFilter;
         if (params && params.addressModeU) samplerDescriptor.addressModeU = params.addressModeU;
         if (params && params.addressModeV) samplerDescriptor.addressModeV = params.addressModeV;

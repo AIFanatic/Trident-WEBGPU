@@ -81,6 +81,61 @@ export class Geometry {
         return this._boundingVolume;
     }
 
+    public ComputeBoundingVolume() {
+        const positions = this.attributes.get("position");
+        if (!positions) throw Error("Geometry has no position attribute");
+        this._boundingVolume = BoundingVolume.FromVertices(positions.array as Float32Array);
+    }
+
+    public Clone(): Geometry {
+        const clone = new Geometry();
+
+        for (const attribute of this.attributes) {
+            clone.attributes.set(attribute[0], attribute[1]);
+        }
+        if (this.index) {
+            clone.index = new IndexAttribute(this.index.array as Uint32Array);
+        }
+        clone.enableShadows = this.enableShadows;
+        return clone;
+    }
+
+    private ApplyOperationToVertices(operation: "+" | "*", vec: Vector3): Geometry {
+        let verts = this.attributes.get("position");
+        if (!verts) throw Error("No verts");
+
+        if (verts instanceof InterleavedVertexAttribute) throw Error("InterleavedVertexAttribute not implemented.");
+
+        const center = this.boundingVolume.center;
+        let vertsCentered = new Float32Array(verts.array.length);
+        for (let i = 0; i < verts.array.length; i+=3) {
+            if (operation === "+") {
+                vertsCentered[i + 0] = verts.array[i + 0] + vec.x;
+                vertsCentered[i + 1] = verts.array[i + 1] + vec.y;
+                vertsCentered[i + 2] = verts.array[i + 2] + vec.z;
+            }
+            else if (operation === "*") {
+                vertsCentered[i + 0] = verts.array[i + 0] * vec.x;
+                vertsCentered[i + 1] = verts.array[i + 1] * vec.y;
+                vertsCentered[i + 2] = verts.array[i + 2] * vec.z;
+            }
+        }
+        
+        const geometryCentered = this.Clone();
+        geometryCentered.attributes.set("position", new VertexAttribute(vertsCentered));
+        return geometryCentered;
+    }
+
+    public Center(): Geometry {
+        const center = this.boundingVolume.center;
+        console.log("center", center)
+        return this.ApplyOperationToVertices("+", center.mul(-1));
+    }
+
+    public Scale(scale: Vector3): Geometry {
+        return this.ApplyOperationToVertices("*", scale);
+    }
+
     public ComputeNormals() {
         let posAttrData = this.attributes.get("position")?.array;
         let indexAttrData = this.index?.array;

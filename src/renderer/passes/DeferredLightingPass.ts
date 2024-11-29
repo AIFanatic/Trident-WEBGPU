@@ -78,7 +78,7 @@ export class DeferredLightingPass extends RenderPass {
 
                 settings: {group: 0, binding: 11, type: "storage"},
             },
-            colorOutputs: [{format: Renderer.SwapChainFormat}]
+            colorOutputs: [{format: Renderer.SwapChainFormat}],
         });
 
         this.sampler = TextureSampler.Create({minFilter: "linear", magFilter: "linear", addressModeU: "clamp-to-edge", addressModeV: "clamp-to-edge"});

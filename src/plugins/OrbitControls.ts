@@ -1,4 +1,5 @@
 import { Camera } from "../components/Camera"
+import { Quaternion } from "../math/Quaternion";
 import { Vector3 } from "../math/Vector3"
 
 // https://developer.mozilla.org/en-US/docs/Web/API/MouseEvent/buttons
@@ -17,7 +18,7 @@ export class OrbitControls {
     private domElement: HTMLElement;
     /** The center point to orbit around. Default is `0, 0, 0` */
     readonly center = new Vector3()
-    public orbitSpeed = 1
+    public orbitSpeed = 0.01
     public panSpeed = 10
     public enableZoom = true
     public enablePan = true
@@ -53,23 +54,19 @@ export class OrbitControls {
     /**
      * Adjusts camera orbital position.
      */
+
+    private x: number = 0;
+    private y: number = 0;
     private orbit(deltaX: number, deltaY: number): void {
-        const offset = this._camera.transform.position.sub(this.center)
-        const radius = offset.length()
+        const distance = this._camera.transform.position.distanceTo(this.center);
 
-        const deltaPhi = deltaY * (this.orbitSpeed / this._element.clientHeight)
-        const deltaTheta = deltaX * (this.orbitSpeed / this._element.clientHeight)
+        this.x += deltaX * this.orbitSpeed;
+        this.y += deltaY * this.orbitSpeed;
+        const rotation = new Quaternion().fromEuler(new Vector3(this.y, this.x, 0));
+        const position = new Vector3(0.0, 0.0, -distance).applyQuaternion(rotation).add(this.center);
 
-        const phi = Math.min(this.maxPhi, Math.max(this.minPhi, Math.acos(offset.y / radius) - deltaPhi)) || Number.EPSILON
-        const theta =
-            Math.min(this.maxTheta, Math.max(this.minTheta, Math.atan2(offset.z, offset.x) + deltaTheta)) || Number.EPSILON
-
-        this._camera.transform.position
-            .set(Math.sin(phi) * Math.cos(theta), Math.cos(phi), Math.sin(phi) * Math.sin(theta))
-            .mul(radius)
-
-        this._camera.transform.position.add(this.center)
-        this._camera.transform.LookAt(this.center)
+        this._camera.transform.rotation.copy(rotation);
+        this._camera.transform.position.copy(position);
     }
 
     /**

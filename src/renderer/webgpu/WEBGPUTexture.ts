@@ -1,7 +1,7 @@
 import { Utils } from "../../utils/Utils";
 import { Renderer } from "../Renderer";
 import { Texture, TextureDimension, TextureFormat, TextureType } from "../Texture";
-import { WEBGPUMipsGenerator } from "./WEBGPUMipsGenerator";
+import { WEBGPUMipsGenerator } from "./utils/WEBGPUMipsGenerator";
 import { WEBGPURenderer } from "./WEBGPURenderer";
 
 export class WEBGPUTexture implements Texture {
@@ -109,11 +109,11 @@ export class WEBGPUTexture implements Texture {
 
     // Format and types are very limited for now
     // https://github.com/gpuweb/gpuweb/issues/2322
-    public static FromImageBitmap(imageBitmap: ImageBitmap, width: number, height: number): WEBGPUTexture {
-        const texture = new WEBGPUTexture(width, height, 1, Renderer.SwapChainFormat, TextureType.RENDER_TARGET, "2d", 1);
+    public static FromImageBitmap(imageBitmap: ImageBitmap, width: number, height: number, format: TextureFormat, flipY: boolean): WEBGPUTexture {
+        const texture = new WEBGPUTexture(width, height, 1, format, TextureType.RENDER_TARGET, "2d", 1);
 
         WEBGPURenderer.device.queue.copyExternalImageToTexture(
-            { source: imageBitmap },
+            { source: imageBitmap, flipY: flipY},
             { texture: texture.GetBuffer() },
             [imageBitmap.width, imageBitmap.height]
         );

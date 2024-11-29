@@ -62,6 +62,7 @@ export class ShaderLoader {
     public static get DepthDownsample(): Promise<string> { return ShaderLoader.Load(WGSL_Shader_DepthDownsample_URL); }
     public static get DrawIndirect(): Promise<string> { return ShaderLoader.Load(WGSL_Shader_DrawIndirect_URL); }
     public static get Draw(): Promise<string> { return ShaderLoader.Load(WGSL_Shader_Draw_URL); }
+    public static get Blit(): Promise<string> { return ShaderLoader.Load(WGSL_Shader_Blit_URL); }
     public static get BlitDepth(): Promise<string> { return ShaderLoader.Load(WGSL_Shader_BlitDepth_URL); }
     public static get DeferredLighting(): Promise<string> { return ShaderLoader.Load(WGSL_Shader_DeferredLighting_URL); }
 }

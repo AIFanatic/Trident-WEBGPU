@@ -17,8 +17,7 @@ export class Camera extends Component {
     public SetPerspective(fov: number, aspect: number, near: number, far: number) {
         this.near = near;
         this.far = far;
-        this.projectionMatrix.perspectiveZO(fov, aspect, near, far);
-        // this.projectionMatrix.getInfinitePerspectiveMatrix(fov, aspect, near);
+        this.projectionMatrix.perspectiveLH(fov * (Math.PI / 180), aspect, near, far);
     }
 
     public SetOrthographic(left: number, right: number, top: number, bottom: number, near: number, far: number) {

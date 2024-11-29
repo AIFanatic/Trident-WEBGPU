@@ -80,7 +80,6 @@ export class WEBGPURendererContext implements RendererContext {
         if (!shader.params.topology || shader.params.topology === Topology.Triangles) {
             if (!geometry.index) {
                 const positions = geometry.attributes.get("position") as VertexAttribute;
-                positions.GetBuffer().size;
                 this.activeRenderPass.draw(positions.GetBuffer().size / 3 / 4, instanceCount);
             }
             else {
@@ -90,9 +89,12 @@ export class WEBGPURendererContext implements RendererContext {
             }
         }
         else if (shader.params.topology === Topology.Lines) {
-            if (!geometry.index) throw Error("Cannot draw lines without index buffer");
-            const numTriangles = geometry.index.array.length / 3;
-            this.activeRenderPass.draw(6 * numTriangles, instanceCount);
+            // if (!geometry.index) throw Error("Cannot draw lines without index buffer");
+            // const numTriangles = geometry.index.array.length / 3;
+            // this.activeRenderPass.draw(6 * numTriangles, instanceCount);
+
+            const positions = geometry.attributes.get("position") as VertexAttribute;
+            this.activeRenderPass.draw(positions.GetBuffer().size / 3 / 4, instanceCount);
         }
     }
 
@@ -162,7 +164,8 @@ export class WEBGPURendererContext implements RendererContext {
         if (!activeCommandEncoder) throw Error("No active command encoder!!");
 
         const extents = size ? size : [source.width, source.height, source.depth];
-        activeCommandEncoder.copyTextureToBuffer({texture: source.GetBuffer(), mipLevel: srcMip}, {buffer: destination.GetBuffer()}, extents);
+        // TODO: Handle format in bytesPerRow or allow param
+        activeCommandEncoder.copyTextureToBuffer({texture: source.GetBuffer(), mipLevel: srcMip}, {buffer: destination.GetBuffer(), bytesPerRow: source.width * 4}, extents);
     }    
 
     public static CopyTextureToTextureV2(source: WEBGPUTexture, destination: WEBGPUTexture, srcMip: number, dstMip: number, size?: number[], depth?: number) {

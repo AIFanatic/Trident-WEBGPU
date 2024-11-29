@@ -84,8 +84,57 @@ export class Matrix4 {
 		return this;
 	}
 
+	public decompose( position: Vector3, quaternion: Quaternion, scale: Vector3 ) {
+
+		const te = this.elements;
+
+		let sx = _v1.set( te[ 0 ], te[ 1 ], te[ 2 ] ).length();
+		const sy = _v1.set( te[ 4 ], te[ 5 ], te[ 6 ] ).length();
+		const sz = _v1.set( te[ 8 ], te[ 9 ], te[ 10 ] ).length();
+
+		// if determine is negative, we need to invert one scale
+		const det = this.determinant();
+		if ( det < 0 ) sx = - sx;
+
+		position.x = te[ 12 ];
+		position.y = te[ 13 ];
+		position.z = te[ 14 ];
+
+		// scale the rotation part
+		_m1.copy( this );
+
+		const invSX = 1 / sx;
+		const invSY = 1 / sy;
+		const invSZ = 1 / sz;
+
+		_m1.elements[ 0 ] *= invSX;
+		_m1.elements[ 1 ] *= invSX;
+		_m1.elements[ 2 ] *= invSX;
+
+		_m1.elements[ 4 ] *= invSY;
+		_m1.elements[ 5 ] *= invSY;
+		_m1.elements[ 6 ] *= invSY;
+
+		_m1.elements[ 8 ] *= invSZ;
+		_m1.elements[ 9 ] *= invSZ;
+		_m1.elements[ 10 ] *= invSZ;
+
+		quaternion.setFromRotationMatrix( _m1 );
+
+		scale.x = sx;
+		scale.y = sy;
+		scale.z = sz;
+
+		return this;
+
+	}
+
 	public mul(m: Matrix4) {
 		return this.multiplyMatrices(this, m);
+	}
+
+	public premultiply(m: Matrix4) {
+		return this.multiplyMatrices(m, this);
 	}
 
 	public multiplyMatrices(a: Matrix4, b: Matrix4) {
@@ -232,66 +281,31 @@ export class Matrix4 {
 		return this;
 	}
 
-	public perspective(fov: number, aspect: number, near: number, far: number): Matrix4 {
-		const fovRad = fov * (Math.PI / 180);
-		const f = 1 / Math.tan(fovRad / 2);
-		const depth = 1 / (near - far);
+	public perspectiveLH(fovy: number, aspect: number, near: number, far: number): Matrix4 {
+		const out = this.elements;
+		const f = 1.0 / Math.tan(fovy / 2);
+		out[0] = f / aspect;
+		out[1] = 0;
+		out[2] = 0;
+		out[3] = 0;
 
-		return this.set(f / aspect, 0, 0, 0, 0, f, 0, 0, 0, 0, (far + near) * depth, -1, 0, 0, 2 * far * near * depth, 0);
-	}
+		out[4] = 0;
+		out[5] = f;
+		out[6] = 0;
+		out[7] = 0;
 
-	public perspectiveZO(fovy: number, aspect: number, near: number, far: number): Matrix4 {
-		const f = 1.0 / Math.tan((fovy * (Math.PI / 180)) / 2);
-		this.elements[0] = f / aspect;
-		this.elements[1] = 0;
-		this.elements[2] = 0;
-		this.elements[3] = 0;
-		this.elements[4] = 0;
-		this.elements[5] = f;
-		this.elements[6] = 0;
-		this.elements[7] = 0;
-		this.elements[8] = 0;
-		this.elements[9] = 0;
-		this.elements[11] = -1;
-		this.elements[12] = 0;
-		this.elements[13] = 0;
-		this.elements[15] = 0;
-		if (far != null && far !== Infinity) {
-		  const nf = 1 / (near - far);
-		  this.elements[10] = far * nf;
-		  this.elements[14] = far * near * nf;
-		} else {
-		  this.elements[10] = -1;
-		  this.elements[14] = -near;
-		}
+		out[8] = 0;
+		out[9] = 0;
+		out[10] = far / (far - near);
+		out[11] = 1;
+
+		out[12] = 0;
+		out[13] = 0;
+		out[14] = (-near * far) / (far - near);
+		out[15] = 0;
+
 		return this;
 	}
-
-	public getInfinitePerspectiveMatrix(_fov: number, _aspect: number, _near: number): Matrix4 {
-		const f = 1.0 / Math.tan((_fov * Math.PI / 180) / 2.0);
-		this.elements.set([
-			f / _aspect, 0.0, 0.0, 0.0,
-			0.0, -f, 0.0, 0.0,
-			0.0, 0.0, 0.0, -1.0,
-			0.0, 0.0, _near, 0.0
-		])
-		return this;
-	}
-
-	public orthogonal(left: number, right: number, bottom: number, top: number, near: number, far: number): Matrix4 {
-		const horizontal = 1 / (left - right)
-		const vertical = 1 / (bottom - top)
-		const depth = 1 / (near - far)
-
-		return this.set(-2 * horizontal, 0, 0, 0, 0, -2 * vertical, 0, 0, 0, 0, 2 * depth, 0, (left + right) * horizontal, (top + bottom) * vertical, (far + near) * depth, 1);
-	}
-
-	// public orthoZO(left: number, right: number, bottom: number, top: number, near: number, far: number): Matrix4 {
-	// 	const horizontal = 1 / (left - right);
-	// 	const vertical = 1 / (bottom - top);
-	// 	const depth = 1 / (near - far);
-	// 	return this.set(-2 * horizontal, 0, 0, 0, 0, -2 * vertical, 0, 0, 0, 0, depth, 0, (left + right) * horizontal, (top + bottom) * vertical, near * depth, 1);
-	// }
 
 	public orthoZO(left: number, right: number, bottom: number, top: number, near: number, far: number): Matrix4 {
 		var lr = 1 / (left - right);
@@ -337,80 +351,63 @@ export class Matrix4 {
 		return this;
 	}
 
+	// LH
 	public lookAt(eye: Vector3, center: Vector3, up: Vector3): Matrix4 {
 		let x0, x1, x2, y0, y1, y2, z0, z1, z2, len;
-		let eyex = eye.x;
-		let eyey = eye.y;
-		let eyez = eye.z;
-		let upx = up.x;
-		let upy = up.y;
-		let upz = up.z;
-		let centerx = center.x;
-		let centery = center.y;
-		let centerz = center.z;
-	
-		const EPSILON = 0.000001;
-		if (Math.abs(eyex - centerx) < EPSILON && Math.abs(eyey - centery) < EPSILON && Math.abs(eyez - centerz) < EPSILON) {
-			return this.identity();
+
+		// z-axis = center - eye
+		z0 = center.x - eye.x;
+		z1 = center.y - eye.y;
+		z2 = center.z - eye.z;
+
+		len = z0 * z0 + z1 * z1 + z2 * z2;
+		if (len > 0) {
+			len = 1 / Math.sqrt(len);
+			z0 *= len;
+			z1 *= len;
+			z2 *= len;
 		}
-	
-		z0 = eyex - centerx;
-		z1 = eyey - centery;
-		z2 = eyez - centerz;
-	
-		len = 1 / Math.sqrt(z0 * z0 + z1 * z1 + z2 * z2);
-		z0 *= len;
-		z1 *= len;
-		z2 *= len;
-	
-		x0 = upy * z2 - upz * z1;
-		x1 = upz * z0 - upx * z2;
-		x2 = upx * z1 - upy * z0;
-		len = Math.sqrt(x0 * x0 + x1 * x1 + x2 * x2);
-		if (!len) {
-			x0 = 0;
-			x1 = 0;
-			x2 = 0;
-		} else {
-			len = 1 / len;
+
+		// x-axis = up cross z
+		x0 = up.y * z2 - up.z * z1;
+		x1 = up.z * z0 - up.x * z2;
+		x2 = up.x * z1 - up.y * z0;
+
+		len = x0 * x0 + x1 * x1 + x2 * x2;
+		if (len > 0) {
+			len = 1 / Math.sqrt(len);
 			x0 *= len;
 			x1 *= len;
 			x2 *= len;
 		}
-	
+
+		// y-axis = z cross x
 		y0 = z1 * x2 - z2 * x1;
 		y1 = z2 * x0 - z0 * x2;
 		y2 = z0 * x1 - z1 * x0;
-	
-		len = Math.sqrt(y0 * y0 + y1 * y1 + y2 * y2);
-		if (!len) {
-			y0 = 0;
-			y1 = 0;
-			y2 = 0;
-		} else {
-			len = 1 / len;
-			y0 *= len;
-			y1 *= len;
-			y2 *= len;
-		}
-	
-		this.elements[0] = x0;
-		this.elements[1] = y0;
-		this.elements[2] = z0;
-		this.elements[3] = 0;
-		this.elements[4] = x1;
-		this.elements[5] = y1;
-		this.elements[6] = z1;
-		this.elements[7] = 0;
-		this.elements[8] = x2;
-		this.elements[9] = y2;
-		this.elements[10] = z2;
-		this.elements[11] = 0;
-		this.elements[12] = -(x0 * eyex + x1 * eyey + x2 * eyez);
-		this.elements[13] = -(y0 * eyex + y1 * eyey + y2 * eyez);
-		this.elements[14] = -(z0 * eyex + z1 * eyey + z2 * eyez);
-		this.elements[15] = 1;
-	
+
+		// Set matrix
+		const out = this.elements;
+		out[0] = x0;
+		out[1] = y0;
+		out[2] = z0;
+		out[3] = 0;
+
+		out[4] = x1;
+		out[5] = y1;
+		out[6] = z1;
+		out[7] = 0;
+
+		out[8] = x2;
+		out[9] = y2;
+		out[10] = z2;
+		out[11] = 0;
+
+		out[12] = - (x0 * eye.x + x1 * eye.y + x2 * eye.z);
+		out[13] = - (y0 * eye.x + y1 * eye.y + y2 * eye.z);
+		out[14] = - (z0 * eye.x + z1 * eye.y + z2 * eye.z);
+		out[15] = 1;
+
 		return this;
 	}
 
@@ -425,13 +422,17 @@ export class Matrix4 {
 	}
 
 	public scale(v: Vector3) {
-		this.set(
-			v.x, 0, 0, 0,
-			0, v.y, 0, 0,
-			0, 0, v.z, 0,
-			0, 0, 0, 1
-		);
+		const te = this.elements;
+		const x = v.x, y = v.y, z = v.z;
+
+		te[ 0 ] *= x; te[ 4 ] *= y; te[ 8 ] *= z;
+		te[ 1 ] *= x; te[ 5 ] *= y; te[ 9 ] *= z;
+		te[ 2 ] *= x; te[ 6 ] *= y; te[ 10 ] *= z;
+		te[ 3 ] *= x; te[ 7 ] *= y; te[ 11 ] *= z;
 
 		return this;
 	}
 }
+
+const _v1 = new Vector3();
+const _m1 = new Matrix4();

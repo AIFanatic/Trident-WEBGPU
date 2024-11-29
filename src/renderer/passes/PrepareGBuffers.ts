@@ -52,7 +52,24 @@ export class PrepareGBuffers extends RenderPass {
         resources.setResource(PassParams.GBufferNormal, this.gBufferNormalRT);
         resources.setResource(PassParams.GBufferERMO, this.gBufferERMORT);
 
-
+        // debugDepthPass: f32,
+        // debugDepthMipLevel: f32,
+        // debugDepthExposure: f32,
+        // frustumCullingEnabled: f32,
+        // backFaceCullingEnabled: f32,
+        // occlusionCullingEnabled: f32,
+        // smallFeaturesCullingEnabled: f32,
+        // staticLOD: f32,
+        // dynamicLODErrorThreshold: f32,
+        // dynamicLODEnabled: f32,
+        // viewType: f32,
+        // useHeightMap: f32,
+        // heightScale: f32,
+        // maxTriangles: f32,
+    
+        // cameraPosition: vec4<f32>,
+        
+        // meshletsViewType: f32,
 
         const settings = new Float32Array([
             +Debugger.isDebugDepthPassEnabled,
@@ -66,11 +83,13 @@ export class PrepareGBuffers extends RenderPass {
             Debugger.dynamicLODErrorThreshold,
             +Debugger.isDynamicLODEnabled,
             Debugger.viewType,
+            Debugger.meshletsViewType,
             +Debugger.useHeightMap,
             Debugger.heightScale,
             Meshlet.max_triangles,
             ...Camera.mainCamera.transform.position.elements, 0,
-            0, 0
+            0,
+            
         ]);
 
         resources.setResource(PassParams.DebugSettings, settings);

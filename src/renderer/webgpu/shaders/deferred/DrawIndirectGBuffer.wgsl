@@ -213,13 +213,17 @@ struct FragmentOutput {
     // Should be normal matrix
     normal = normalize(modelMatrix * vec4(vec3(normal), 0.0)).xyz;
 
+    if (albedo.r + albedo.g + albedo.b < 0.001) {
+        discard;
+    }
+
     output.albedo = vec4(albedo.rgb, roughness);
     output.normal = vec4(normal.xyz, metalness);
     output.RMO = vec4(emissive.rgb, unlit);
 
 
     // Debug
-    if (u32(settings.viewType) == 0) {
+    if (u32(settings.meshletsViewType) == 1) {
         let instanceColor = vec3f(
             rand(f32(input.meshID) + 12.1212),
             rand(f32(input.meshID) + 22.1212),
@@ -229,7 +233,7 @@ struct FragmentOutput {
         output.albedo = vec4(c, 1.0);
         output.RMO = vec4(emissive.rgb, 1);
     }
-    else if (u32(settings.viewType) == 1) {
+    else if (u32(settings.meshletsViewType) == 2) {
         let vertexColor = vec3f(
             rand(f32(input.vertexID) + 12.1212),
             rand(f32(input.vertexID) + 22.1212),

@@ -78,5 +78,9 @@ export class Vector4 {
         this.z = z * len;
         this.w = w * len;
         return this;
-      }
+    }
+
+    public toString(): string {
+        return `(${this.x.toPrecision(2)}, ${this.y.toPrecision(2)}, ${this.z.toPrecision(2)}, ${this.w.toPrecision(2)})`;
+    }
 }

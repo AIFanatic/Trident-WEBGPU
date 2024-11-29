@@ -51,12 +51,16 @@ export class WEBGPUShader extends WEBGPUBaseShader implements Shader {
             format: output.format,
             // blend: {
             //     color: {
-            //         srcFactor: "one",
-            //         dstFactor: "one"
+            //       srcFactor: 'one',
+            //       dstFactor: 'one-minus-src-alpha',
+            //       operation: 'add',
             //     },
             //     alpha: {
-
-            //     }}
+            //       srcFactor: 'one',
+            //       dstFactor: 'one-minus-src-alpha',
+            //       operation: 'add',
+            //     },
+            // }
         });
         const pipelineDescriptor: GPURenderPipelineDescriptor = {
             layout: pipelineLayout,

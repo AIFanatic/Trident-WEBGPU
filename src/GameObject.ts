@@ -20,16 +20,30 @@ export class GameObject {
         this.scene.AddGameObject(this);
     }
 
-    // TODO: Fix: A extends B, B extends Component, GetComponent(A) wont work
     public AddComponent<T extends Component>(component: new(...args: any[]) => T): T {
         try {
             let componentInstance = new component(this);
             if (!(componentInstance instanceof Component)) throw Error("Invalid component");
             if (componentInstance instanceof Transform) throw Error("A GameObject can only have one Transform");
             
-            if (!this.componentsMapped.has(component.name)) this.componentsMapped.set(component.name, []);
-            this.componentsMapped.get(component.name)?.push(componentInstance);
-            this.componentsArray.push(componentInstance);
+            const AddComponentInternal = (component: new(...args: any[]) => T, instance: Component) => {
+                if (!this.componentsMapped.has(component.name)) this.componentsMapped.set(component.name, []);
+                this.componentsMapped.get(component.name)?.push(instance);
+                this.componentsArray.push(instance);
+            }
+            
+            AddComponentInternal(component, componentInstance);
+
+            let currentComponent = component;
+            let i = 0
+            while (i < 10) {
+                currentComponent = Object.getPrototypeOf(currentComponent);
+                if (currentComponent.name === Component.name || currentComponent.name === "") {
+                    break;
+                }
+                AddComponentInternal(currentComponent, componentInstance);
+                i++;
+            }
 
             if (componentInstance instanceof Camera && !Camera.mainCamera) Camera.mainCamera = componentInstance;
 

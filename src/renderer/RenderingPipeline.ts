@@ -57,9 +57,9 @@ export class RenderingPipeline {
     }
 
     public Render(scene: Scene) {
-        this.renderer.BeginRenderFrame();
+        Renderer.BeginRenderFrame();
         this.renderGraph.execute();
-        this.renderer.EndRenderFrame();
+        Renderer.EndRenderFrame();
 
         WEBGPUTimestampQuery.GetResult().then(frameTimes => {
             if (frameTimes) {

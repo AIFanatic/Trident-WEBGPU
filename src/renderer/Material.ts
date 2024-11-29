@@ -1,6 +1,6 @@
 import { Color } from "../math/Color";
 import { Utils } from "../utils/Utils";
-import { Shader, ShaderParams } from "./Shader";
+import { Shader, ShaderParams, Topology } from "./Shader";
 import { ShaderLoader } from "./ShaderUtils";
 import { Texture } from "./Texture";
 import { TextureSampler } from "./TextureSampler";
@@ -22,7 +22,6 @@ export interface PBRMaterialParams {
     albedoMap?: Texture;
     normalMap?: Texture;
     heightMap?: Texture;
-    roughnessMap?: Texture;
     metalnessMap?: Texture;
     emissiveMap?: Texture;
     aoMap?: Texture;
@@ -48,7 +47,6 @@ export class PBRMaterial extends Material {
             albedoMap: params?.albedoMap ? params.albedoMap : undefined,
             normalMap: params?.normalMap ? params.normalMap : undefined,
             heightMap: params?.heightMap ? params.heightMap : undefined,
-            roughnessMap: params?.roughnessMap ? params.roughnessMap : undefined,
             metalnessMap: params?.metalnessMap ? params.metalnessMap : undefined,
             emissiveMap: params?.emissiveMap ? params.emissiveMap : undefined,
             aoMap: params?.aoMap ? params.aoMap : undefined,
@@ -62,7 +60,6 @@ export class PBRMaterial extends Material {
             USE_ALBEDO_MAP: this.initialParams?.albedoMap ? true : false,
             USE_NORMAL_MAP: this.initialParams?.normalMap ? true : false,
             USE_HEIGHT_MAP: this.initialParams?.heightMap ? true : false,
-            USE_ROUGHNESS_MAP: this.initialParams?.roughnessMap ? true : false,
             USE_METALNESS_MAP: this.initialParams?.metalnessMap ? true : false,
             USE_EMISSIVE_MAP: this.initialParams?.emissiveMap ? true : false,
             USE_AO_MAP: this.initialParams?.aoMap ? true : false,
@@ -93,20 +90,19 @@ export class PBRMaterial extends Material {
                 AlbedoMap: {group: 0, binding: 5, type: "texture"},
                 NormalMap: {group: 0, binding: 6, type: "texture"},
                 HeightMap: {group: 0, binding: 7, type: "texture"},
-                RoughnessMap: {group: 0, binding: 8, type: "texture"},
-                MetalnessMap: {group: 0, binding: 9, type: "texture"},
-                EmissiveMap: {group: 0, binding: 10, type: "texture"},
-                AOMap: {group: 0, binding: 11, type: "texture"},
+                MetalnessMap: {group: 0, binding: 8, type: "texture"},
+                EmissiveMap: {group: 0, binding: 9, type: "texture"},
+                AOMap: {group: 0, binding: 10, type: "texture"},
 
-                cameraPosition: {group: 0, binding: 12, type: "storage"},
+                cameraPosition: {group: 0, binding: 11, type: "storage"},
 
-            }
+            },
         };
         shaderParams = Object.assign({}, shaderParams, this.params);
 
         const shader = await Shader.Create(shaderParams);
 
-        if (DEFINES.USE_ALBEDO_MAP || DEFINES.USE_NORMAL_MAP || DEFINES.USE_HEIGHT_MAP || DEFINES.USE_ROUGHNESS_MAP || DEFINES.USE_METALNESS_MAP || DEFINES.USE_EMISSIVE_MAP || DEFINES.USE_AO_MAP) {
+        if (DEFINES.USE_ALBEDO_MAP || DEFINES.USE_NORMAL_MAP || DEFINES.USE_HEIGHT_MAP || DEFINES.USE_METALNESS_MAP || DEFINES.USE_EMISSIVE_MAP || DEFINES.USE_AO_MAP) {
             const textureSampler = TextureSampler.Create();
             shader.SetSampler("TextureSampler", textureSampler);
         }
@@ -120,7 +116,6 @@ export class PBRMaterial extends Material {
         if (DEFINES.USE_ALBEDO_MAP === true && this.params.albedoMap) shader.SetTexture("AlbedoMap", this.params.albedoMap);
         if (DEFINES.USE_NORMAL_MAP === true && this.params.normalMap) shader.SetTexture("NormalMap", this.params.normalMap);
         if (DEFINES.USE_HEIGHT_MAP === true && this.params.heightMap) shader.SetTexture("HeightMap", this.params.heightMap);
-        if (DEFINES.USE_ROUGHNESS_MAP === true && this.params.roughnessMap) shader.SetTexture("RoughnessMap", this.params.roughnessMap);
         if (DEFINES.USE_METALNESS_MAP === true && this.params.metalnessMap) shader.SetTexture("MetalnessMap", this.params.metalnessMap);
         if (DEFINES.USE_EMISSIVE_MAP === true && this.params.emissiveMap) shader.SetTexture("EmissiveMap", this.params.emissiveMap);
         if (DEFINES.USE_AO_MAP === true && this.params.aoMap) shader.SetTexture("AOMap", this.params.aoMap);

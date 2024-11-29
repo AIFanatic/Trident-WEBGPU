@@ -1,3 +1,8 @@
+import { Geometry, IndexAttribute, VertexAttribute } from "../Geometry";
+import { Object3D } from "../Object3D";
+import { Matrix4 } from "../math/Matrix4";
+import { PBRMaterial } from "../renderer/Material";
+
 interface UnpackedAttrs {
     verts: number[];
     norms: number[];
@@ -7,7 +12,7 @@ interface UnpackedAttrs {
     index: number;
 }
 
-export interface OBJMesh {
+interface OBJMesh {
     vertices: Float32Array,
     normals: Float32Array,
     uvs: Float32Array,
@@ -28,9 +33,16 @@ export class OBJLoaderIndexed {
         }
     }
 
-    public static async load(url: string): Promise<OBJMesh> {
+    public static async load(url: string): Promise<Object3D[]> {
         const contents = await fetch(url).then(response => response.text());
-        return OBJLoaderIndexed.parse(contents);
+        const objMesh = OBJLoaderIndexed.parse(contents);
+        return [{
+            geometry: this.toGeometry(objMesh),
+            material: new PBRMaterial(),
+            children: [],
+            localMatrix: new Matrix4()
+        }]
+        // return this.toGeometry(objMesh);
     }
 
     public static parse(contents: string): OBJMesh {
@@ -120,5 +132,15 @@ export class OBJLoaderIndexed {
             uvs: new Float32Array(unpacked.uvs),
             indices: new Uint32Array(unpacked.indices[currentObjectByMaterialIndex])
         };
+    }
+
+    private static toGeometry(objMesh: OBJMesh): Geometry {
+        const geometry = new Geometry();
+        geometry.attributes.set("position", new VertexAttribute(objMesh.vertices));
+        if (objMesh.normals) geometry.attributes.set("normal", new VertexAttribute(objMesh.normals));
+        if (objMesh.uvs) geometry.attributes.set("uv", new VertexAttribute(objMesh.uvs));
+        if (objMesh.indices) geometry.index = new IndexAttribute(new Uint32Array(objMesh.indices));
+
+        return geometry;
     }
 }

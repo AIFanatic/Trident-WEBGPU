@@ -1,6 +1,19 @@
 export class Vector2 {
-    public x: number;
-    public y: number;
+    public _x: number;
+    public _y: number;
+
+    public get x(): number { return this._x};
+    public get y(): number { return this._y};
+
+    public set x(v: number) { this._x = v };
+    public set y(v: number) { this._y = v };
+
+    private _elements = new Float32Array(3);
+    public get elements(): Float32Array {
+        this._elements[0] = this._x;
+        this._elements[1] = this._y;
+        return this._elements;
+    }
 
     constructor(x = 0, y = 0) {
         this.x = x;
@@ -52,5 +65,9 @@ export class Vector2 {
         this.x = v.x;
         this.y = v.y;
         return this;
+    }
+
+    public toString(): string {
+        return `(${this.x.toPrecision(2)}, ${this.y.toPrecision(2)})`;
     }
 }

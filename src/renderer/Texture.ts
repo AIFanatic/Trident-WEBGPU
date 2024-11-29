@@ -1,6 +1,8 @@
+import { Vector2 } from "../math/Vector2";
 import { Debugger } from "../plugins/Debugger";
 import { Renderer } from "./Renderer";
 import { WEBGPUTexture } from "./webgpu/WEBGPUTexture";
+import { WEBGPUBlit } from "./webgpu/utils/WEBGBPUBlit";
 
 export type TextureFormat =
     | "r16uint"
@@ -81,21 +83,25 @@ export class Texture {
         throw Error("Renderer type invalid");
     }
 
-    public static async Load(url: string): Promise<Texture> {
+    public static async Load(url: string, format: TextureFormat = Renderer.SwapChainFormat, flipY: boolean = false): Promise<Texture> {
         const response = await fetch(url);
         const imageBitmap = await createImageBitmap(await response.blob());
 
-        if (Renderer.type === "webgpu") return WEBGPUTexture.FromImageBitmap(imageBitmap, imageBitmap.width, imageBitmap.height);
+        if (Renderer.type === "webgpu") return WEBGPUTexture.FromImageBitmap(imageBitmap, imageBitmap.width, imageBitmap.height, format, flipY);
         throw Error("Renderer type invalid");
     }
 
-    public static async LoadImageSource(imageSource: ImageBitmapSource): Promise<Texture> {
+    public static async LoadImageSource(imageSource: ImageBitmapSource, format: TextureFormat = Renderer.SwapChainFormat, flipY = false): Promise<Texture> {
         const imageBitmap = await createImageBitmap(imageSource);
 
-        if (Renderer.type === "webgpu") return WEBGPUTexture.FromImageBitmap(imageBitmap, imageBitmap.width, imageBitmap.height);
+        if (Renderer.type === "webgpu") return WEBGPUTexture.FromImageBitmap(imageBitmap, imageBitmap.width, imageBitmap.height, format, flipY);
         throw Error("Renderer type invalid");
     }
 
+    public static async Blit(source: Texture, destination: Texture, width: number, height: number, uv_scale = new Vector2(1,1)) {
+        if (Renderer.type === "webgpu") return WEBGPUBlit.Blit(source, destination, width, height, uv_scale);
+        throw Error("Renderer type invalid");
+    }
 }
 
 export class DepthTexture extends Texture {

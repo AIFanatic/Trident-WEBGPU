@@ -1,6 +1,16 @@
 import * as gltf from './types/gltf';
-import { createMat4FromArray, applyRotationFromQuat, translate, scale } from './mat';
+import { createMat4FromArray, applyRotationFromQuat, translate, scale, identity } from './mat';
 import { Channel, Node, Mesh, Model, KeyFrame, Skin, Material, MeshBuffer, Animation, Buffer, BufferType } from './types/model';
+
+import { Mesh as TridentMesh } from '../../components/Mesh';
+import { GameObject } from '../../GameObject';
+import { Geometry, IndexAttribute, VertexAttribute } from '../../Geometry';
+import { Scene } from '../../Scene';
+import { PBRMaterial, PBRMaterialParams } from '../../renderer/Material';
+import { Texture } from '../../renderer/Texture';
+import { Color } from '../../math/Color';
+import { Matrix4 } from '../../math/Matrix4';
+import { Object3D } from '../../Object3D';
 
 const accessorSizes = {
     'SCALAR': 1,
@@ -66,17 +76,17 @@ const readBufferFromFile = (gltf: gltf.GlTf, buffers: ArrayBuffer[], accessor: g
     } as Buffer;
 };
 
-const getAccessor = (gltf: gltf.GlTf, mesh: gltf.Mesh, attributeName: string) => {
-    const attribute = mesh.primitives[0].attributes[attributeName];
+const getAccessor = (gltf: gltf.GlTf, primitive: gltf.MeshPrimitive, attributeName: string) => {
+    const attribute = primitive.attributes[attributeName];
     return gltf.accessors![attribute];
 };
 
-const getBufferFromName = (gltf: gltf.GlTf, buffers: ArrayBuffer[], mesh: gltf.Mesh, name: string) => {
-    if (mesh.primitives[0].attributes[name] === undefined) {
+const getBufferFromName = (gltf: gltf.GlTf, buffers: ArrayBuffer[], primitive: gltf.MeshPrimitive, name: string) => {
+    if (primitive.attributes[name] === undefined) {
         return null;
     }
 
-    const accessor = getAccessor(gltf, mesh, name);
+    const accessor = getAccessor(gltf, primitive, name);
     const bufferData = readBufferFromFile(gltf, buffers, accessor);
 
     // const buffer = gl.createBuffer();
@@ -91,19 +101,19 @@ const getBufferFromName = (gltf: gltf.GlTf, buffers: ArrayBuffer[], mesh: gltf.M
 };
 
 const loadNodes = (index: number, node: gltf.Node): Node => {
-    let transform = new Array(16).fill(0);
+    let transform = identity();
 
     if (node.translation !== undefined) transform = translate(transform, node.translation);
     if (node.rotation !== undefined) transform = applyRotationFromQuat(transform, node.rotation);
     if (node.scale !== undefined) transform = scale(transform, node.scale);
-    if (node.matrix !== undefined) createMat4FromArray(node.matrix);
+    if (node.matrix !== undefined) transform = createMat4FromArray(node.matrix);
 
     return {
         id: index,
         name: node.name,
         children: node.children || [],
         localBindTransform: transform,
-        animatedTransform: new Array(16).fill(0),
+        animatedTransform: identity(),
         skin: node.skin,
         mesh: node.mesh
     } as Node;
@@ -166,32 +176,34 @@ const loadMesh = (gltf: gltf.GlTf, mesh: gltf.Mesh, buffers: ArrayBuffer[]) => {
     let indices: Buffer | null = null;
     let elementCount = 0;
 
-    if (mesh.primitives[0].indices !== undefined) {
-        const indexAccessor = gltf.accessors![mesh.primitives[0].indices!];
-        const indexBuffer = readBufferFromFile(gltf, buffers, indexAccessor);
+    let meshes: Mesh[] = [];
+    for (const primitive of mesh.primitives) {
+        if (primitive.indices !== undefined) {
+            const indexAccessor = gltf.accessors![primitive.indices];
+            const indexBuffer = readBufferFromFile(gltf, buffers, indexAccessor);
+    
+            indices = indexBuffer;
+            elementCount = indexBuffer.data.length;
+        } else {
+            const accessor = getAccessor(gltf, primitive, 'POSITION');
+            elementCount = accessor.count;
+        }
 
-        indices = indexBuffer;
-        // indices = gl.createBuffer();
-        // gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, indices);
-        // gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, indexBuffer.data, gl.STATIC_DRAW);
-
-        elementCount = indexBuffer.data.length;
-    } else {
-        const accessor = getAccessor(gltf, mesh, 'POSITION');
-        elementCount = accessor.count;
+        meshes.push({
+            indices,
+            elementCount,
+            positions: getBufferFromName(gltf, buffers, primitive, 'POSITION'),
+            normals: getBufferFromName(gltf, buffers, primitive, 'NORMAL'),
+            tangents: getBufferFromName(gltf, buffers, primitive, 'TANGENT'),
+            texCoord: getBufferFromName(gltf, buffers, primitive, 'TEXCOORD_0'),
+            joints: getBufferFromName(gltf, buffers, primitive, 'JOINTS_0'),
+            weights: getBufferFromName(gltf, buffers, primitive, 'WEIGHTS_0'),
+            material: primitive.material as number,
+        })
     }
 
-    return {
-        indices,
-        elementCount,
-        positions: getBufferFromName(gltf, buffers, mesh, 'POSITION'),
-        normals: getBufferFromName(gltf, buffers, mesh, 'NORMAL'),
-        tangents: getBufferFromName(gltf, buffers, mesh, 'TANGENT'),
-        texCoord: getBufferFromName(gltf, buffers, mesh, 'TEXCOORD_0'),
-        joints: getBufferFromName(gltf, buffers, mesh, 'JOINTS_0'),
-        weights: getBufferFromName(gltf, buffers, mesh, 'WEIGHTS_0'),
-        material: mesh.primitives[0].material,
-    } as Mesh;
+
+    return meshes;
 };
 
 const loadMaterial = async (material: gltf.Material, path: string, images?: gltf.Image[]): Promise<Material> => {
@@ -204,15 +216,17 @@ const loadMaterial = async (material: gltf.Material, path: string, images?: gltf
     let occlusionTexture: HTMLImageElement | null = null;
 
     let baseColorFactor = [1.0, 1.0, 1.0, 1.0];
-    let roughnessFactor = 0.0;
-    let metallicFactor = 1.0;
-    let emissiveFactor = [1.0, 1.0, 1.0];
+    let roughnessFactor = 0.5;
+    let metallicFactor = 0.0;
+    let emissiveFactor = [0.0, 0.0, 0.0];
 
     const pbr = material.pbrMetallicRoughness;
     if (pbr) {
         if (pbr.baseColorTexture) {
-            const uri = images![pbr.baseColorTexture.index].uri!;
-            baseColorTexture = await getTexture(`${dir}/${uri}`);
+            if (images !== undefined && images.length > pbr.baseColorTexture.index) {
+                const uri = images![pbr.baseColorTexture.index].uri!;
+                baseColorTexture = await getTexture(`${dir}/${uri}`);
+            }
         }
         if (pbr.baseColorFactor) {
             baseColorFactor = pbr.baseColorFactor;
@@ -277,7 +291,7 @@ const loadModel = async (uri: string) => {
     ));
 
     const scene = gltf.scenes![gltf.scene || 0];
-    const meshes = gltf.meshes!.map(m => loadMesh(gltf, m, buffers));
+    const meshes = gltf.meshes!.map(m => loadMesh(gltf, m, buffers)).flat();
     const materials = gltf.materials ? await Promise.all(gltf.materials.map(async (m) => await loadMaterial(m, uri, gltf.images))) : [];
 
     const rootNode = scene.nodes![0];
@@ -308,6 +322,96 @@ const loadModel = async (uri: string) => {
     } as Model;
 };
 
-export {
-    loadModel as GLTFLoad,
-};
+export class GLTFLoader {
+    // GLB
+    // fetch("./assets/GLTFScenes/SketchBook/world.glb").then(v => v.arrayBuffer()).then(arrayBuffer => {
+    //     console.log(arrayBuffer)
+    //     const dataView = new DataView(arrayBuffer);
+    //     const header = new Uint8Array(dataView.buffer.slice(0, 4));
+    //     const headerStr = String.fromCharCode(...header);
+    //     if (headerStr !== "glTF") throw Error("Invalid glb");
+
+    //     const version = dataView.getUint32(4, true);
+    //     const length = dataView.getUint32(8, true);
+    //     console.log(version, length)
+
+    //     // Read the JSON chunk
+    //     const jsonChunkLength = dataView.getUint32(12, true);
+    //     const jsonChunkType = String.fromCharCode(dataView.getUint8(16), dataView.getUint8(17), dataView.getUint8(18), dataView.getUint8(19));
+    //     if (jsonChunkType !== 'JSON') {
+    //         throw new Error('Expected JSON chunk');
+    //     }
+    //     const jsonContent = JSON.parse(new TextDecoder().decode(new Uint8Array(dataView.buffer, dataView.byteOffset + 20, jsonChunkLength)));
+    //     console.log('JSON Content:', jsonContent);
+        
+    //     // Read the binary chunk if exists
+    //     const binaryChunkOffset = 20 + jsonChunkLength;
+    //     if (binaryChunkOffset < length) {
+    //         const binaryChunkLength = dataView.getUint32(binaryChunkOffset, true);
+    //         const binaryChunkType = String.fromCharCode(dataView.getUint8(binaryChunkOffset + 4), dataView.getUint8(binaryChunkOffset + 5), dataView.getUint8(binaryChunkOffset + 6), dataView.getUint8(binaryChunkOffset + 7));
+    //         if (binaryChunkType !== 'BIN\0') {
+    //             throw new Error('Expected BIN chunk');
+    //         }
+    //         console.log(`Binary Chunk Length: ${binaryChunkLength}`);
+    //         // Handle binary data as needed
+    //     }
+    // })
+
+    public static async load(url: string): Promise<Object3D[]> {
+        const gltfModel = await loadModel(url);
+        console.log(gltfModel)
+
+        const groupObject3D: Object3D[] = [];
+
+        for (const node of gltfModel.nodes) {
+            if (node.mesh === undefined) continue;
+
+            const meshId = node.mesh;
+            const gltfMesh = gltfModel.meshes[meshId];
+
+            if (gltfMesh === undefined) continue;
+
+            const geometry = new Geometry();
+            geometry.attributes.set("position", new VertexAttribute(gltfMesh.positions.buffer.data as Float32Array));
+            if (gltfMesh.normals) geometry.attributes.set("normal", new VertexAttribute(gltfMesh.normals.buffer.data as Float32Array));
+            if (gltfMesh.texCoord) geometry.attributes.set("uv", new VertexAttribute(gltfMesh.texCoord.buffer.data as Float32Array));
+            if (gltfMesh.indices) {
+                // geometry.index = new IndexAttribute(new Uint32Array(gltfMesh.indices.data));
+
+                const uint32Array = new Uint32Array(gltfMesh.indices.data.length);
+                for (let i = 0; i < gltfMesh.indices.data.length; i++) {
+                    uint32Array[i] = gltfMesh.indices.data[i] & 0xFFFF; // Convert signed to unsigned
+                }
+
+                geometry.index = new IndexAttribute(uint32Array);
+
+            }
+
+            const materialId = gltfMesh.material;
+            const material = gltfModel.materials[materialId];
+            const params: PBRMaterialParams = {albedoColor: new Color(1,1,1,1), emissiveColor: new Color(0,0,0,0), roughness: 0, metalness: 0, unlit: false};
+            if (material) {
+                params.albedoColor = new Color(material.baseColorFactor[0], material.baseColorFactor[1], material.baseColorFactor[2], material.baseColorFactor[3]);
+                params.emissiveColor = new Color(material.emissiveFactor[0], material.emissiveFactor[1], material.emissiveFactor[2], 0);
+                params.roughness = material.roughnessFactor;
+                params.metalness = material.metallicFactor;
+
+                if (material.baseColorTexture) params.albedoMap = await Texture.LoadImageSource(material.baseColorTexture);
+                if (material.normalTexture) params.normalMap = await Texture.LoadImageSource(material.normalTexture);
+                if (material.metallicRoughnessTexture) params.metalnessMap = await Texture.LoadImageSource(material.metallicRoughnessTexture);
+                if (material.emissiveTexture) params.emissiveMap = await Texture.LoadImageSource(material.emissiveTexture);
+            }
+
+            const mat = new PBRMaterial(params);
+
+            console.log(params)
+            groupObject3D.push({
+                geometry: geometry,
+                material: mat,
+                children: node.children,
+                localMatrix: new Matrix4().setFromArray(node.localBindTransform)
+            });
+        }
+        return groupObject3D;
+    }
+}

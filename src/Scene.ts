@@ -51,7 +51,6 @@ export class Scene {
             //     }
             //     i++;
             // }
-
         });
 
         EventSystem.on(ComponentEvents.RemovedComponent, (component, scene) => {

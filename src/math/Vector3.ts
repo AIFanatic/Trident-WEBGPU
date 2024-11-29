@@ -169,6 +169,14 @@ export class Vector3 {
 		return this;
 	}
 
+	public setFromMatrixPosition(m: Matrix4): Vector3 {
+		const e = m.elements;
+		this.x = e[ 12 ];
+		this.y = e[ 13 ];
+		this.z = e[ 14 ];
+		return this;
+	}
+
     public equals(v: Vector3): boolean {
         const EPS = 1e-4;
 		return ( 
@@ -177,6 +185,24 @@ export class Vector3 {
             Math.abs(v.z - this.z) < EPS
         );
 	}
+
+    public abs(): Vector3 {
+        this.x = Math.abs(this.x);
+        this.y = Math.abs(this.y);
+        this.z = Math.abs(this.z);
+        return this;
+    }
+
+    public sign(): Vector3 {
+        this.x = Math.sign(this.x);
+        this.y = Math.sign(this.y);
+        this.z = Math.sign(this.z);
+        return this;
+    }
+
+    public toString(): string {
+        return `(${this.x.toPrecision(2)}, ${this.y.toPrecision(2)}, ${this.z.toPrecision(2)})`;
+    }
 }
 
 export class ObservableVector3 extends Vector3 {
