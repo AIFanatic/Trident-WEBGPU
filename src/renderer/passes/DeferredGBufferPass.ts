@@ -1,13 +1,10 @@
 import { Camera } from "../../components/Camera";
 import { RendererContext } from "../RendererContext";
 import { RenderPass, ResourcePool } from "../RenderGraph";
-import { DepthTexture, RenderTexture } from "../Texture";
-import { Renderer } from "../Renderer";
-import { Material } from "../Material";
 import { Mesh } from "../../components/Mesh";
+import { PassParams } from "../RenderingPipeline";
 import { InstancedMesh } from "../../components/InstancedMesh";
 import { Debugger } from "../../plugins/Debugger";
-import { PassParams } from "../RenderingPipeline";
 
 export class DeferredGBufferPass extends RenderPass {
     public name: string = "DeferredMeshRenderPass";
@@ -36,7 +33,8 @@ export class DeferredGBufferPass extends RenderPass {
 
         const scene = Camera.mainCamera.gameObject.scene;
         const meshes = scene.GetComponents(Mesh);
-        if (meshes.length === 0) return;
+        const instancedMeshes = scene.GetComponents(InstancedMesh);
+        if (meshes.length === 0 && instancedMeshes.length === 0) return;
 
         const inputCamera = Camera.mainCamera;
         if (!inputCamera) throw Error(`No inputs passed to ${this.name}`);
@@ -63,12 +61,13 @@ export class DeferredGBufferPass extends RenderPass {
         const viewMatrix = inputCamera.viewMatrix;
 
         for (const mesh of meshes) {
-            // console.log(mesh)
             const geometry = mesh.GetGeometry();
             const materials = mesh.GetMaterials();
             for (const material of materials) {
                 if (!material.shader) {
-                    material.createShader();
+                    material.createShader().then(shader => {
+                        shader.params.cullMode = "none"
+                    })
                     continue;
                 }
                 const shader = material.shader;
@@ -80,19 +79,24 @@ export class DeferredGBufferPass extends RenderPass {
             }
         }
 
-        // const instancedMeshes = scene.GetComponents(InstancedMesh);
-        // for (const instancedMesh of instancedMeshes) {
-        //     const geometry = instancedMesh.GetGeometry();
-        //     const materials = instancedMesh.GetMaterials(DeferredMeshMaterial);
-        //     for (const material of materials) {
-        //         const shader = material.shader;
-        //         shader.SetMatrix4("projectionMatrix", projectionMatrix);
-        //         shader.SetMatrix4("viewMatrix", viewMatrix);
-        //         shader.SetBuffer("modelMatrix", instancedMesh.matricesBuffer);
-        //         shader.SetVector3("cameraPosition", inputCamera.transform.position);
-        //         RendererContext.DrawGeometry(geometry, shader, instancedMesh.instanceCount+1);
-        //     }
-        // }
+        for (const instancedMesh of instancedMeshes) {
+            const geometry = instancedMesh.GetGeometry();
+            const materials = instancedMesh.GetMaterials();
+            for (const material of materials) {
+                if (!material.shader) {
+                    material.createShader().then(shader => {
+                        shader.params.cullMode = "none"
+                    })
+                    continue;
+                }
+                const shader = material.shader;
+                shader.SetMatrix4("projectionMatrix", projectionMatrix);
+                shader.SetMatrix4("viewMatrix", viewMatrix);
+                shader.SetBuffer("modelMatrix", instancedMesh.matricesBuffer);
+                shader.SetVector3("cameraPosition", inputCamera.transform.position);
+                RendererContext.DrawGeometry(geometry, shader, instancedMesh.instanceCount+1);
+            }
+        }
 
         // resources.setResource(PassParams.depthTexture, PassParams.depthTexture);
         resources.setResource(PassParams.GBufferDepth, inputGBufferDepth);
