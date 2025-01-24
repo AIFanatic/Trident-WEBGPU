@@ -45,7 +45,7 @@ export class ShaderPreprocessor {
 }
 
 export class ShaderLoader {
-    private static async Load(shader_url: string) {
+    public static async Load(shader_url: string) {
         if (Renderer.type === "webgpu") {
             if (shader_url === "") throw Error(`Invalid shader ${shader_url}`);
 

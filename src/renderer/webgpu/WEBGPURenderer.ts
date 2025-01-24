@@ -8,8 +8,11 @@ if (!adapter) throw Error("WEBGPU not supported");
 const requiredLimits = {};
 for (const key in adapter.limits) requiredLimits[key] = adapter.limits[key];
 
+const features: GPUFeatureName[] = [];
+if (adapter.features.has("timestamp-query")) features.push("timestamp-query");
+
 const device = adapter ? await adapter.requestDevice({
-    requiredFeatures: ["timestamp-query"],
+    requiredFeatures: features,
     requiredLimits: requiredLimits
 }) : null;
 
@@ -28,7 +31,6 @@ export class WEBGPURenderer implements Renderer {
         if (!context) throw Error("Could not get WEBGPU context");
         
         WEBGPURenderer.adapter = adapter;
-        console.log(adapter)
         WEBGPURenderer.device = device;
         WEBGPURenderer.presentationFormat = navigator.gpu.getPreferredCanvasFormat();
 
@@ -69,5 +71,9 @@ export class WEBGPURenderer implements Renderer {
 
     public static HasActiveFrame(): boolean {
         return WEBGPURenderer.activeCommandEncoder !== null;
+    }
+
+    public static OnFrameCompleted(): Promise<undefined> {
+        return WEBGPURenderer.device.queue.onSubmittedWorkDone();
     }
 }

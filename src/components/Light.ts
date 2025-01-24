@@ -1,7 +1,8 @@
-import { EventSystem } from "../Events";
+import { EventSystem, EventSystemLocal } from "../Events";
 import { Color } from "../math/Color";
 import { Vector3 } from "../math/Vector3";
 import { Renderer } from "../renderer/Renderer";
+import { DepthTexture, RenderTexture } from "../renderer/Texture";
 import { Camera } from "./Camera";
 import { Component } from "./Component";
 import { TransformEvents } from "./Transform";
@@ -17,10 +18,8 @@ export class Light extends Component {
     public range: number = 1000;
 
     public Start(): void {
-        EventSystem.on(TransformEvents.Updated, transform => {
-            if (this.transform === transform) {
-                EventSystem.emit(LightEvents.Updated, this);
-            }
+        EventSystemLocal.on(TransformEvents.Updated, this.transform, () => {
+            EventSystem.emit(LightEvents.Updated, this);
         })
     }
 }
@@ -60,6 +59,14 @@ export class DirectionalLight extends Light {
     public Start(): void {
         super.Start();
         this.camera = this.gameObject.AddComponent(Camera);
-        this.camera.SetOrthographic(-1, 1, -1, 1, 0.1, 100);
+        const size = 1;
+        this.camera.SetOrthographic(-size, size, -size, size, 0.1, 100);
+        // this.camera.SetPerspective(30 / Math.PI * 180 * 2, Renderer.width / Renderer.height, 0.01, 1000);
+
+
+        // this.camera.near = 0.01;
+        // this.camera.far = 100;
+        // this.camera.SetPerspective(60, Renderer.width / Renderer.height, this.camera.near, this.camera.far);
+        // this.camera.projectionMatrix.perspectiveLH(60 * (Math.PI / 180), Renderer.width / Renderer.height, this.camera.near, this.camera.far);
     }
 }

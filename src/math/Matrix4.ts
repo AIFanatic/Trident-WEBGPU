@@ -281,6 +281,41 @@ export class Matrix4 {
 		return this;
 	}
 
+	public perspective(fov: number, aspect: number, near: number, far: number): Matrix4 {
+		const fovRad = fov;
+		const f = 1 / Math.tan(fovRad / 2);
+		const depth = 1 / (near - far);
+
+		return this.set(f / aspect, 0, 0, 0, 0, f, 0, 0, 0, 0, (far + near) * depth, -1, 0, 0, 2 * far * near * depth, 0);
+	}
+
+	public perspectiveZO(fovy: number, aspect: number, near: number, far: number): Matrix4 {
+		const f = 1.0 / Math.tan(fovy / 2);
+		this.elements[0] = f / aspect;
+		this.elements[1] = 0;
+		this.elements[2] = 0;
+		this.elements[3] = 0;
+		this.elements[4] = 0;
+		this.elements[5] = f;
+		this.elements[6] = 0;
+		this.elements[7] = 0;
+		this.elements[8] = 0;
+		this.elements[9] = 0;
+		this.elements[11] = -1;
+		this.elements[12] = 0;
+		this.elements[13] = 0;
+		this.elements[15] = 0;
+		if (far != null && far !== Infinity) {
+		  const nf = 1 / (near - far);
+		  this.elements[10] = far * nf;
+		  this.elements[14] = far * near * nf;
+		} else {
+		  this.elements[10] = -1;
+		  this.elements[14] = -near;
+		}
+		return this;
+	}
+
 	public perspectiveLH(fovy: number, aspect: number, near: number, far: number): Matrix4 {
 		const out = this.elements;
 		const f = 1.0 / Math.tan(fovy / 2);
@@ -307,6 +342,40 @@ export class Matrix4 {
 		return this;
 	}
 
+	public perspectiveWGPUMatrix(fieldOfViewYInRadians: number, aspect: number, zNear: number, zFar: number): Matrix4 {
+		const f = Math.tan(Math.PI * 0.5 - 0.5 * fieldOfViewYInRadians);
+	  
+		const te = this.elements;
+		te[0]  = f / aspect;
+		te[1]  = 0;
+		te[2]  = 0;
+		te[3]  = 0;
+	  
+		te[4]  = 0;
+		te[5]  = f;
+		te[6]  = 0;
+		te[7]  = 0;
+	  
+		te[8]  = 0;
+		te[9]  = 0;
+		te[11] = -1;
+	  
+		te[12] = 0;
+		te[13] = 0;
+		te[15] = 0;
+	  
+		if (Number.isFinite(zFar)) {
+		  const rangeInv = 1 / (zNear - zFar);
+		  te[10] = zFar * rangeInv;
+		  te[14] = zFar * zNear * rangeInv;
+		} else {
+		  te[10] = -1;
+		  te[14] = -zNear;
+		}
+	  
+		return this;
+	  }
+
 	public orthoZO(left: number, right: number, bottom: number, top: number, near: number, far: number): Matrix4 {
 		var lr = 1 / (left - right);
 		var bt = 1 / (bottom - top);
@@ -330,6 +399,31 @@ export class Matrix4 {
 		out[15] = 1;
 		return this.setFromArray(out);
 	}
+
+	// public orthoZO(left: number, right: number, bottom: number, top: number, near: number, far: number): Matrix4 {
+	// 	var lr = 1 / (left - right);
+	// 	var bt = 1 / (bottom - top);
+	// 	var nf = 1 / (far - near);
+	// 	const out = new Float32Array(16);
+	// 	out[0] = -2 * lr;
+	// 	out[1] = 0;
+	// 	out[2] = 0;
+	// 	out[3] = 0;
+	// 	out[4] = 0;
+	// 	out[5] = -2 * bt;
+	// 	out[6] = 0;
+	// 	out[7] = 0;
+	// 	out[8] = 0;
+	// 	out[9] = 0;
+	// 	out[10] = nf;
+	// 	out[11] = 0;
+	// 	out[12] = (left + right) * lr;
+	// 	out[13] = (top + bottom) * bt;
+	// 	out[14] = -near * nf;
+	// 	out[15] = 1;
+	// 	return this.setFromArray(out);
+	// }
+	
 
 	public identity(): Matrix4 {
 		this.elements[0] = 1;
@@ -429,6 +523,29 @@ export class Matrix4 {
 		te[ 1 ] *= x; te[ 5 ] *= y; te[ 9 ] *= z;
 		te[ 2 ] *= x; te[ 6 ] *= y; te[ 10 ] *= z;
 		te[ 3 ] *= x; te[ 7 ] *= y; te[ 11 ] *= z;
+
+		return this;
+	}
+
+	public makeTranslation(v: Vector3) {
+		this.set(
+			1, 0, 0, v.x,
+			0, 1, 0, v.y,
+			0, 0, 1, v.z,
+			0, 0, 0, 1
+		);
+
+		return this;
+
+	}
+
+	public makeScale(v: Vector3) {
+		this.set(
+			v.x, 0, 0, 0,
+			0, v.y, 0, 0,
+			0, 0, v.z, 0,
+			0, 0, 0, 1
+		);
 
 		return this;
 	}

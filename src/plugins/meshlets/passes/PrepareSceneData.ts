@@ -5,7 +5,7 @@ import { PBRMaterial } from "../../../renderer/Material";
 import { RenderPass, ResourcePool } from "../../../renderer/RenderGraph";
 import { RendererContext } from "../../../renderer/RendererContext";
 import { RenderTexture, Texture, TextureArray } from "../../../renderer/Texture";
-import { BufferMemoryAllocator } from "../../../utils/MemoryAllocator";
+import { BufferMemoryAllocator, DynamicBufferMemoryAllocator } from "../../../utils/MemoryAllocator";
 import { Debugger } from "../../Debugger";
 import { Meshlet } from "../Meshlet";
 import { MeshletPassParams } from "./MeshletDraw";
@@ -26,12 +26,12 @@ export interface TextureMaps {
 
 export class PrepareSceneData extends RenderPass {
     public name: string = "PrepareSceneData";
-    private objectInfoBuffer: BufferMemoryAllocator;
-    private vertexBuffer: BufferMemoryAllocator;
+    private objectInfoBuffer: DynamicBufferMemoryAllocator;
+    private vertexBuffer: DynamicBufferMemoryAllocator;
 
-    private meshMaterialInfo: BufferMemoryAllocator;
-    private meshMatrixInfoBuffer: BufferMemoryAllocator;
-    private meshletInfoBuffer: BufferMemoryAllocator;
+    private meshMaterialInfo: DynamicBufferMemoryAllocator;
+    private meshMatrixInfoBuffer: DynamicBufferMemoryAllocator;
+    private meshletInfoBuffer: DynamicBufferMemoryAllocator;
 
     private currentMeshCount: number = 0;
     private currentMeshletsCount: number = 0;
@@ -59,12 +59,12 @@ export class PrepareSceneData extends RenderPass {
             ]
         });
 
-        const bufferSize = 1024 * 1024 * 10;
-        this.meshMatrixInfoBuffer = new BufferMemoryAllocator(bufferSize);
-        this.meshMaterialInfo = new BufferMemoryAllocator(bufferSize);
-        this.meshletInfoBuffer = new BufferMemoryAllocator(bufferSize);
-        this.vertexBuffer = new BufferMemoryAllocator(bufferSize);
-        this.objectInfoBuffer = new BufferMemoryAllocator(bufferSize);
+        const bufferSize = 1024 * 100 * 1;
+        this.meshMatrixInfoBuffer = new DynamicBufferMemoryAllocator(bufferSize);
+        this.meshMaterialInfo = new DynamicBufferMemoryAllocator(bufferSize);
+        this.meshletInfoBuffer = new DynamicBufferMemoryAllocator(bufferSize);
+        this.vertexBuffer = new DynamicBufferMemoryAllocator(3072 * 10, 3072 * 10);
+        this.objectInfoBuffer = new DynamicBufferMemoryAllocator(bufferSize);
 
         EventSystem.on(MeshletEvents.Updated, meshlet => {
             if (this.meshMatrixInfoBuffer.has(meshlet.id)) {
@@ -239,7 +239,10 @@ export class PrepareSceneData extends RenderPass {
                 
                 for (const meshlet of mesh.meshlets) {
                     if (!this.meshletInfoBuffer.has(meshlet.id)) this.meshletInfoBuffer.set(meshlet.id, this.getMeshletInfo(meshlet));
-                    if (!this.vertexBuffer.has(meshlet.id)) this.vertexBuffer.set(meshlet.id, this.getVertexInfo(meshlet));
+                    if (!this.vertexBuffer.has(meshlet.id)) {
+                        console.log("Setting vertices")
+                        this.vertexBuffer.set(meshlet.id, this.getVertexInfo(meshlet));
+                    }
 
                     // Just to get geometry index
                     let geometryIndex = indexedCache.get(meshlet.crc);

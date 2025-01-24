@@ -1,11 +1,12 @@
 import { RenderPass, ResourcePool } from "../RenderGraph";
-import { DepthTexture, RenderTexture } from "../Texture";
+import { DepthTexture, DepthTextureArray, RenderTexture } from "../Texture";
 import { PassParams } from "../RenderingPipeline";
 import { Renderer } from "../Renderer";
 import { RenderTarget, RendererContext } from "../RendererContext";
 import { Debugger } from "../../plugins/Debugger";
 import { Meshlet } from "../../plugins/meshlets/Meshlet";
 import { Camera } from "../../components/Camera";
+import { AreaLight, DirectionalLight, PointLight, SpotLight } from "../../components/Light";
 
 export class PrepareGBuffers extends RenderPass {
     public name: string = "PrepareGBuffers";
@@ -15,6 +16,10 @@ export class PrepareGBuffers extends RenderPass {
     public gBufferERMORT: RenderTexture;
 
     public depthTexture: DepthTexture;
+
+    private shadowOutput: DepthTextureArray;
+    private shadowWidth = 4096;
+    private shadowHeight = 4096;
 
     constructor() {
         super({outputs: [
@@ -33,6 +38,8 @@ export class PrepareGBuffers extends RenderPass {
         this.gBufferAlbedoRT = RenderTexture.Create(Renderer.width, Renderer.height, 1, "rgba16float");
         this.gBufferNormalRT = RenderTexture.Create(Renderer.width, Renderer.height, 1, "rgba16float");
         this.gBufferERMORT = RenderTexture.Create(Renderer.width, Renderer.height, 1, "rgba16float");
+        
+        this.shadowOutput = DepthTextureArray.Create(this.shadowWidth, this.shadowHeight, 1);
 
         this.initialized = true;
     }
@@ -91,7 +98,23 @@ export class PrepareGBuffers extends RenderPass {
             0,
             
         ]);
-
         resources.setResource(PassParams.DebugSettings, settings);
+
+
+
+        const scene = Camera.mainCamera.gameObject.scene;
+        const lights = [...scene.GetComponents(SpotLight), ...scene.GetComponents(PointLight), ...scene.GetComponents(DirectionalLight), ...scene.GetComponents(AreaLight)];
+        if (lights.length === 0) {
+            resources.setResource(PassParams.ShadowPassDepth, this.shadowOutput);
+            return;
+        }
+
+        if (lights.length !== this.shadowOutput.depth) {
+            this.shadowOutput = DepthTextureArray.Create(this.shadowWidth, this.shadowHeight, lights.length);
+        }
+
+        RendererContext.BeginRenderPass(`PrepareGBuffers - Shadow clear`, [], {target: this.shadowOutput, clear: true}, true);
+        RendererContext.EndRenderPass();
+        resources.setResource(PassParams.ShadowPassDepth, this.shadowOutput);
     }
 }

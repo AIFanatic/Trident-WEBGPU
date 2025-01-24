@@ -1,6 +1,6 @@
 import { Renderer } from "./Renderer";
 import { Compute } from "./Shader";
-import { WEBGPUComputeShader } from "./webgpu/shader/WEBGPUComputeShader";
+import { WEBGPUComputeShader } from "./webgpu/WEBGPUComputeShader";
 import { WEBGPUComputeContext } from "./webgpu/WEBGPUComputeContext";
 
 export class ComputeContext {

@@ -34,13 +34,31 @@ class _Debugger {
     private gpuTextureSizeStat: UITextStat;
     private gpuTextureSizeTotal: number = 0;
 
+    public objectMove = {x: 0, y: 0, z: 0};
+
+    public shadows = {
+        shadowsUpdate: true,
+        roundToPixelSize: true
+    }
+
     constructor() {
         const container = document.createElement("div");
         container.classList.add("stats-panel");
+        document.body.append(container);
 
         this.ui = new UIFolder(container, "Debugger");
         this.ui.Open();
-        document.body.append(container);
+
+        const shadowsFolder = new UIFolder(this.ui, "CSM Shadows");
+        const shadowsUpdate = new UIButtonStat(shadowsFolder, "Update shadows", value => { this.shadows.shadowsUpdate = value}, this.shadows.shadowsUpdate);
+        const shadowsRoundToPixelSize = new UIButtonStat(shadowsFolder, "RoundToPixelSize", value => { this.shadows.roundToPixelSize = value}, this.shadows.roundToPixelSize);
+        shadowsFolder.Open();
+
+        const objectMove = new UIFolder(this.ui, "Object");
+        const objectMoveX = new UISliderStat(objectMove, "X:", -10, 10, 1, 0, value => {this.objectMove.x = value});
+        const objectMoveY = new UISliderStat(objectMove, "Y:", -10, 10, 1, 0, value => {this.objectMove.y = value});
+        const objectMoveZ = new UISliderStat(objectMove, "Z:", -10, 10, 1, 0, value => {this.objectMove.z = value});
+        objectMove.Open();
 
         this.fps = new UITextStat(this.ui, "FPS", 0, 2, "", true);
         this.triangleCount = new UITextStat(this.ui, "Triangles: ");
@@ -148,6 +166,10 @@ class _Debugger {
 
     public SetTriangleCount(count: number) {
         this.triangleCount.SetValue(count);
+    }
+    
+    public IncrementTriangleCount(count: number) {
+        this.triangleCount.SetValue(this.triangleCount.GetValue() + count);
     }
 
     public SetVisibleTriangleCount(count: number) {

@@ -17,8 +17,6 @@ struct VertexOutput {
 @group(0) @binding(2) var normalTexture: texture_2d<f32>;
 @group(0) @binding(3) var ermoTexture: texture_2d<f32>;
 @group(0) @binding(4) var depthTexture: texture_depth_2d;
-// @group(0) @binding(5) var shadowPassDepth: texture_depth_2d;
-
 @group(0) @binding(5) var shadowPassDepth: texture_depth_2d_array;
 
 
@@ -26,7 +24,13 @@ struct VertexOutput {
 struct Light {
     position: vec4<f32>,
     projectionMatrix: mat4x4<f32>,
-    csmProjectionMatrix: array<mat4x4<f32>, numCascades>,
+    // // Using an array of mat4x4 causes the render time to go from 3ms to 9ms for some reason
+    // csmProjectionMatrix: array<mat4x4<f32>, 4>,
+    csmProjectionMatrix0: mat4x4<f32>,
+    csmProjectionMatrix1: mat4x4<f32>,
+    csmProjectionMatrix2: mat4x4<f32>,
+    csmProjectionMatrix3: mat4x4<f32>,
+    cascadeSplits: vec4<f32>,
     viewMatrix: mat4x4<f32>,
     viewMatrixInverse: mat4x4<f32>,
     color: vec4<f32>,
@@ -47,15 +51,9 @@ struct View {
     viewPosition: vec4<f32>,
     projectionInverseMatrix: mat4x4<f32>,
     viewInverseMatrix: mat4x4<f32>,
+    viewMatrix: mat4x4<f32>,
 };
 @group(0) @binding(8) var<storage, read> view: View;
-
-
-@group(0) @binding(9) var shadowSampler: sampler;
-
-
-
-
 
 
 const numCascades = 4;
@@ -66,9 +64,9 @@ const debug_cascadeColors = array<vec4<f32>, 5>(
     vec4<f32>(1.0, 1.0, 0.0, 1.0),
     vec4<f32>(0.0, 0.0, 0.0, 1.0)
 );
-@group(0) @binding(10) var shadowSamplerComp: sampler_comparison;
+@group(0) @binding(9) var shadowSamplerComp: sampler_comparison;
 
-@group(0) @binding(11) var<storage, read> settings: Settings;
+@group(0) @binding(10) var<storage, read> settings: Settings;
 
 
 @vertex
@@ -125,6 +123,7 @@ struct Surface {
     N: vec3<f32>,
     F0: vec3<f32>,
     V: vec3<f32>,
+    depth: f32
 };
 
 fn reconstructWorldPosFromZ(
@@ -136,12 +135,12 @@ fn reconstructWorldPosFromZ(
     ) -> vec4<f32> {
     let uv = coords.xy / size;
     var depth = textureLoad(depthTexture, vec2<i32>(floor(coords)), 0);
-        let x = uv.x * 2.0 - 1.0;
-        let y = (1.0 - uv.y) * 2.0 - 1.0;
-        let projectedPos = vec4(x, y, depth, 1.0);
-        var worldPosition = projInverse * projectedPos;
-        worldPosition = vec4(worldPosition.xyz / worldPosition.w, 1.0);
-        worldPosition = viewInverse * worldPosition;
+    let x = uv.x * 2.0 - 1.0;
+    let y = (1.0 - uv.y) * 2.0 - 1.0;
+    let projectedPos = vec4(x, y, depth, 1.0);
+    var worldPosition = projInverse * projectedPos;
+    worldPosition = vec4(worldPosition.xyz / worldPosition.w, 1.0);
+    worldPosition = viewInverse * worldPosition;
     return worldPosition;
 }
 
@@ -252,138 +251,146 @@ fn OECF_sRGBFast(linear: vec3f) -> vec3f {
     return pow(linear, vec3(0.454545));
 }
 
-fn CalculateShadow(worldPosition: vec3f, normal: vec3f, light: Light, lightIndex: u32) -> f32 {
-    var posFromLight = light.projectionMatrix * light.viewMatrix * vec4(worldPosition, 1.0);
-    posFromLight = vec4(posFromLight.xyz / posFromLight.w, 1.0);
-    let shadowPos = vec3(posFromLight.xy * vec2(0.5,-0.5) + vec2(0.5, 0.5), posFromLight.z);
-    // let inRange = shadowPos.x >= 0.0 && shadowPos.x <= 1.0 && shadowPos.y >= 0.0 && shadowPos.y <= 1.0 && shadowPos.z >= 0.0 && shadowPos.z <= 1.0;
-    var visibility = 0.0;
-
-    let shadowIndex = lightIndex;
-
-    let lightDirection = normalize(light.position.xyz - worldPosition);
-    
-    if (shadowPos.z <= 1.0) {
-        let sampleRadius = 2.0;
-        let pixelSize = 1.0 / vec2f(textureDimensions(shadowPassDepth));
-        // let pixelSize = 1.0 / vec2f(1024);
-
-		let bias = max(0.00025 * (1.0 - dot(normal, lightDirection)), 0.00009);
-        // let bias = 0.0009;
-
-        // // Naive Soft shadows
-        // for (var y = -sampleRadius; y <= sampleRadius; y+=1.0) {
-        //     for (var x = -sampleRadius; x <= sampleRadius; x+=1.0) {
-        //         let projectedDepth = textureSampleLevel(shadowPassDepth, shadowSampler, shadowPos.xy + vec2(x,y) * pixelSize, shadowIndex, 0);
-        //         // if (projectedDepth <= posFromLight.z - bias) {
-        //         if (posFromLight.z > projectedDepth + bias) {
-        //             visibility += 1.0;
-        //         }
-        //     }
-        // }
-        // visibility /= pow((sampleRadius * 2.0 + 1.0), 2.0);
-        
-        // Hard shadows
-        let projectedDepth = textureSampleLevel(shadowPassDepth, shadowSampler, shadowPos.xy, lightIndex, 0);
-        if (posFromLight.z > projectedDepth + bias) {
-            visibility = 1.0;
-        }
-    }
-    
-    return visibility;
-}
-
-fn CalculateDirectionalLightShadow(worldPosition: vec3<f32>, normal: vec3<f32>, light: Light, directionalLight: DirectionalLight, lightIndex: u32) -> f32 {
-    var posFromLight = light.projectionMatrix * light.viewMatrix * vec4(worldPosition, 1.0);
-    posFromLight = vec4(posFromLight.xyz / posFromLight.w, 1.0);
-    let shadowPos = vec3(posFromLight.xy * vec2(0.5,-0.5) + vec2(0.5, 0.5), posFromLight.z);
-    var visibility = 0.0;
-
-    let lightDirection = normalize(light.position.xyz - worldPosition);
-    // let bias = max(0.00025 * (1.0 - dot(normal, directionalLight.direction)), 0.00009);
-    let bias = 0.00009;
-    // Hard shadows
-    let projectedDepth = textureSampleLevel(shadowPassDepth, shadowSampler, shadowPos.xy, lightIndex, 0);
-    if (posFromLight.z > projectedDepth + bias) {
-        visibility = 1.0;
-    }
-    
-    return visibility;
-}
 
 struct ShadowCSM {
     visibility: f32,
     selectedCascade: i32
 };
 
-fn CalculateShadowCSM(surface: Surface, light: Light, lightIndex: u32) -> ShadowCSM {
-    var selectedCascade = numCascades;
-    var hasNextCascade = false;
-    var shadowMapCoords = vec3<f32>(-1.0);
-    for (var i = 0; i < numCascades; i += 1) {
-        // ideally these operations should be performed in the vs
-        var csmShadowMapCoords = light.csmProjectionMatrix[i] * vec4(surface.worldPosition, 1.0);
-        csmShadowMapCoords = csmShadowMapCoords / csmShadowMapCoords.w;
-        shadowMapCoords = vec3<f32>(csmShadowMapCoords.xy * vec2<f32>(0.5, -0.5) + vec2<f32>(0.5, 0.5), csmShadowMapCoords.z);
+fn ShadowLayerSelection(depthValue: f32, light: Light) -> i32 {
+    var layer = -1;
+    for (var i = 0; i < numCascades; i++) {
+        let splitDist = light.cascadeSplits[i];
 
-        if (all(shadowMapCoords > vec3<f32>(0.0)) && all(shadowMapCoords < vec3<f32>(1.0))) {
-            selectedCascade = i;
-            if (i < numCascades - 1) {
-                var nextShadowCoords = light.csmProjectionMatrix[i + 1] * vec4(surface.worldPosition, 1.0);
-                nextShadowCoords = nextShadowCoords / nextShadowCoords.w;
-                let uvShadowMapCoords = vec3<f32>(csmShadowMapCoords.xy * vec2<f32>(0.5, -0.5) + vec2<f32>(0.5, 0.5), csmShadowMapCoords.z);
-                hasNextCascade = all(uvShadowMapCoords > vec3<f32>(0.0)) && all(uvShadowMapCoords < vec3<f32>(1.0));
-            }
+        if (depthValue < splitDist) {
+            layer = i;
             break;
         }
     }
 
-    let lightViewInverse = light.viewMatrixInverse;
-    let lightDirection = normalize((lightViewInverse * vec4(0.0, 0.0, 1.0, 0.0)).xyz);
-    
-    let pcfResolution = 2;
-    let minBias = 0.0005;
-    let maxBias = 0.001;
-
-    // let bias = max(minBias, maxBias * (1.0 - dot(lightDirection, surface.N)));
-    let bias = max(0.0025 * (1.0 - dot(surface.N, lightDirection)), 0.0009);
-    
-    let threshold = vec3<f32>(0.2);
-    var edgeAdditionalVisibility = clamp((shadowMapCoords.xyz - (1.0 - threshold)) / threshold, vec3<f32>(0.0), vec3<f32>(1.0));
-    edgeAdditionalVisibility = max(edgeAdditionalVisibility, 1.0 - clamp(shadowMapCoords.xyz / threshold, vec3<f32>(0.0), vec3<f32>(1.0)));
-    
-    var cascadeShadowMapCoords = shadowMapCoords;
-
-    if (selectedCascade >= 2) {
-        cascadeShadowMapCoords.x = cascadeShadowMapCoords.x + 1.0;
+    if (layer == -1) {
+        layer = numCascades - 1;
     }
-    if (selectedCascade % 2 != 0) {
-        cascadeShadowMapCoords.y = cascadeShadowMapCoords.y + 1.0;
-    }
-    cascadeShadowMapCoords.x = cascadeShadowMapCoords.x / 2.0;
-    cascadeShadowMapCoords.y = cascadeShadowMapCoords.y / 2.0;
 
+    return layer;
+}
+
+fn SampleCascadeShadowMap(
+    surface: Surface,
+    light: Light,
+    cascadeIndex: i32,
+    lightIndex: u32
+) -> f32 {
+    // 1) Choose correct matrix
+    var csm = light.csmProjectionMatrix0;
+    if (cascadeIndex == 1) {
+        csm = light.csmProjectionMatrix1;
+    } else if (cascadeIndex == 2) {
+        csm = light.csmProjectionMatrix2;
+    } else if (cascadeIndex == 3) {
+        csm = light.csmProjectionMatrix3;
+    }
+
+    // 2) Transform worldPos → Light space
+    let fragPosLightSpace = csm * vec4(surface.worldPosition, 1.0);
+    let projCoords = fragPosLightSpace.xyz / fragPosLightSpace.w;
+    var shadowMapCoords = vec3<f32>(
+        projCoords.xy * vec2<f32>(0.5, -0.5) + vec2<f32>(0.5, 0.5),
+        projCoords.z
+    );
+
+    // 3) Adjust for array layout (your approach of splitting the atlas into 4 quadrants)
+    if (cascadeIndex >= 2) {
+        shadowMapCoords.x += 1.0;
+    }
+    if (cascadeIndex % 2 != 0) {
+        shadowMapCoords.y += 1.0;
+    }
+    shadowMapCoords.x /= 2.0;
+    shadowMapCoords.y /= 2.0;
+
+    // // Example 3x3 PCF or a single sample; up to you:
+    // let visibility = textureSampleCompareLevel(
+    //     shadowPassDepth, 
+    //     shadowSamplerComp, 
+    //     shadowMapCoords.xy, 
+    //     lightIndex,
+    //     shadowMapCoords.z
+    // );
+
+    // let fragPosViewSpace = view.viewMatrix * vec4f(surface.worldPosition, 1.0);
+    // let depthValue = abs(fragPosViewSpace.z);
 
     // PCF
-    var visibility: f32 = 0.0;
+    var visibility = 0.0;
+    let pcfResolution = 1;
     let offset = 1.0 / vec2<f32>(textureDimensions(shadowPassDepth));
     for (var i = -pcfResolution; i <= pcfResolution; i = i + 1) {
         for (var j = -pcfResolution; j <= pcfResolution; j = j + 1) {
-            visibility = visibility + textureSampleCompareLevel(
+            visibility += textureSampleCompareLevel(
                 shadowPassDepth,
                 shadowSamplerComp,
-                cascadeShadowMapCoords.xy + vec2<f32>(f32(i), f32(j)) * offset, lightIndex, cascadeShadowMapCoords.z - bias
+                shadowMapCoords.xy + vec2<f32>(f32(i), f32(j)) * offset,
+                lightIndex,
+                shadowMapCoords.z
             );
+
+            // if (surface.depth <= pcfDepth) {
+            //     visibility += 1.0;
+            // }
         }
     }
-
-    let fadeOut = select(max(max(edgeAdditionalVisibility.x, edgeAdditionalVisibility.y), edgeAdditionalVisibility.z), 0.0, hasNextCascade);
-    visibility = visibility / f32((pcfResolution + pcfResolution + 1) * (pcfResolution + pcfResolution + 1)) + fadeOut;
-
-    var shadow: ShadowCSM;
-    shadow.visibility = clamp(visibility, 0.0, 1.0);
-    shadow.selectedCascade = selectedCascade;
     
+    visibility /= 9.0;
+
+    return clamp(visibility, 0.0, 1.0);
+}
+
+fn lerp(k0: f32, k1: f32, t: f32) -> f32 {
+    return k0 + t * (k1 - k0);
+}
+
+
+fn CalculateShadowCSM(surface: Surface, light: Light, lightIndex: u32) -> ShadowCSM {
+    var shadow: ShadowCSM;
+    
+    let fragPosViewSpace = view.viewMatrix * vec4f(surface.worldPosition, 1.0);
+    let depthValue = abs(fragPosViewSpace.z);
+
+    // 1) Get cascade selection (primary + possibly a secondary to blend with)
+    let selectedCascade = ShadowLayerSelection(depthValue, light);
+    shadow.selectedCascade = selectedCascade;
+
+    // If no valid cascade, return early or assign some fallback:
+    if (selectedCascade == -1) {
+        // No shadow
+        shadow.visibility = 1.0;
+        shadow.selectedCascade = -1;
+        return shadow;
+    }
+
+    // 2) Evaluate shadow from the primary cascade
+    shadow.visibility = SampleCascadeShadowMap(surface, light, selectedCascade, lightIndex);
+
+    // Sample the next cascade, and blend between the two results to
+    // smooth the transition
+    let BlendThreshold = 0.3f;
+
+
+    let nextSplit = light.cascadeSplits[selectedCascade];
+    
+    var splitSize = 0.0;
+    if (selectedCascade == 0) { splitSize = nextSplit; }
+    else { splitSize = nextSplit - light.cascadeSplits[selectedCascade - 1]; }
+
+    let fadeFactor = (nextSplit - depthValue) / splitSize;
+
+    if(fadeFactor <= BlendThreshold && selectedCascade != numCascades - 1) {
+        let nextSplitVisibility = SampleCascadeShadowMap(surface, light, selectedCascade + 1, lightIndex);
+        let lerpAmt = smoothstep(0.0f, BlendThreshold, fadeFactor);
+        shadow.visibility = lerp(nextSplitVisibility, shadow.visibility, lerpAmt);
+    }
+ 
     return shadow;
 }
 
@@ -410,7 +417,10 @@ fn fragmentMain(input: VertexOutput) -> @location(0) vec4<f32> {
         view.viewInverseMatrix
     );
 
+    var depth = textureLoad(depthTexture, vec2<i32>(floor(input.position.xy)), 0);
+
     var surface: Surface;
+    surface.depth = depth;
     surface.albedo = albedo.rgb;
     surface.roughness = albedo.a;
     surface.metallic = normal.a;
@@ -468,12 +478,14 @@ fn fragmentMain(input: VertexOutput) -> @location(0) vec4<f32> {
             directionalLight.color = light.color.rgb;
             directionalLight.intensity = light.params1.x;
 
-            // // var shadow = CalculateShadow(surface.worldPosition, surface.N, light, i);
-            // let shadowCSM = CalculateShadowCSM(surface, light, i);
-            // let shadow = shadowCSM.visibility;
-            // selectedCascade = shadowCSM.selectedCascade;
+            // var shadow = CalculateShadow(surface.worldPosition, surface.N, light, i);
+            // shadow = 1.0 - shadow;
+            // shadow += 0.5;
+            let shadowCSM = CalculateShadowCSM(surface, light, i);
+            let shadow = shadowCSM.visibility;
+            selectedCascade = shadowCSM.selectedCascade;
 
-            let shadow = 1.0;
+            // let shadow = 1.0;
 
             Lo += (shadow) * DirectionalLightRadiance(directionalLight, surface);
         }
@@ -483,8 +495,8 @@ fn fragmentMain(input: VertexOutput) -> @location(0) vec4<f32> {
     let ambientColor = vec3(0.01);
     color = ambientColor * surface.albedo + Lo * surface.occlusion;
 
-    // color += debug_cascadeColors[selectedCascade].rgb * 0.05;
-    color += surface.emissive;
+    color += debug_cascadeColors[selectedCascade].rgb * 0.05;
+    // color += surface.emissive;
 
     color = Tonemap_ACES(color);
     color = OECF_sRGBFast(color);
@@ -499,11 +511,16 @@ fn fragmentMain(input: VertexOutput) -> @location(0) vec4<f32> {
         else if (u32(settings.viewType) == 5) { color = surface.emissive; }
     }
     
+
     return vec4(color, 1.0);
+
     // return vec4(pow(projectedDepth, 20.0));
     // return vec4(shadowPos, 1.0);
     // return vec4(Lo, 1.0);
     // return vec4(surface.albedo.rgb, 1.0);
     // return vec4(worldPosition.xyz, 1.0);
     // return vec4(surface.N, 1.0);
+
+    // var s = textureSampleLevel(shadowPassDepth, shadowSampler, input.vUv, 0);
+    // return vec4(vec3f(s) / 1.0, 1.0);
 }

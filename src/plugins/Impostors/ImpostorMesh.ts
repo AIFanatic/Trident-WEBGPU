@@ -798,39 +798,39 @@ export class ImpostorMesh extends Mesh {
             //     U.x-=.5; O+= char(U,64+c)
             // }
 
-            fn print(p: vec2<f32>, c: i32) -> f32 {
-                if (p.x < 0.0 || p.x > 1.0 || p.y < 0.0 || p.y > 1.0) {
-                    return 0.0;
-                }
-                let texCoord = p / 16.0 + fract(vec2<f32>(f32(c), 15.0 - f32(c / 16)) / 16.0);
-                return textureSampleLevel(textSDFTexture, textureSampler, vec2f(texCoord.x, 1.0 - texCoord.y), 0).r;
-            }
+            // fn print(p: vec2<f32>, c: i32) -> f32 {
+            //     if (p.x < 0.0 || p.x > 1.0 || p.y < 0.0 || p.y > 1.0) {
+            //         return 0.0;
+            //     }
+            //     let texCoord = p / 16.0 + fract(vec2<f32>(f32(c), 15.0 - f32(c / 16)) / 16.0);
+            //     return textureSampleLevel(textSDFTexture, textureSampler, vec2f(texCoord.x, 1.0 - texCoord.y), 0).r;
+            // }
 
-            fn print_num(pos: vec2f, n: f32, before: i32, after: i32, signed: bool) -> f32 {
-                var len = before + after + i32(after > 0) + i32(signed);
-                if (pos.x < 0. || pos.y < 0. || pos.x >= f32(len) || pos.y >= 1.) {
-                    return 0.0;
-                }
-                var ind = i32(pos.x) - i32(signed);
-                var char: i32;
-                if (signed && ind == -1) {
-                    if (n < 0.0) {
-                        char = 45;
-                    }
-                    else {
-                        char = 32;
-                    }
-                    // char = n < 0. ? 45 : 32; // '-' : ' '
-                } else if (ind == before) {
-                    char = 46; // '.'
-                } else {
-                    var rounded = round(abs(n) * pow(10., f32(after)));
-                    var power = ind - (before + after) - i32(ind > before);
-                    var dig = i32(fract(rounded * pow(10., f32(power))) * 10.);
-                    char = dig + 0x30; // '0'
-                }
-                return print(fract(pos), char);
-            }
+            // fn print_num(pos: vec2f, n: f32, before: i32, after: i32, signed: bool) -> f32 {
+            //     var len = before + after + i32(after > 0) + i32(signed);
+            //     if (pos.x < 0. || pos.y < 0. || pos.x >= f32(len) || pos.y >= 1.) {
+            //         return 0.0;
+            //     }
+            //     var ind = i32(pos.x) - i32(signed);
+            //     var char: i32;
+            //     if (signed && ind == -1) {
+            //         if (n < 0.0) {
+            //             char = 45;
+            //         }
+            //         else {
+            //             char = 32;
+            //         }
+            //         // char = n < 0. ? 45 : 32; // '-' : ' '
+            //     } else if (ind == before) {
+            //         char = 46; // '.'
+            //     } else {
+            //         var rounded = round(abs(n) * pow(10., f32(after)));
+            //         var power = ind - (before + after) - i32(ind > before);
+            //         var dig = i32(fract(rounded * pow(10., f32(power))) * 10.);
+            //         char = dig + 0x30; // '0'
+            //     }
+            //     return print(fract(pos), char);
+            // }
 
             fn c1(input: VertexOutput) -> FragmentOutput {
                 var output: FragmentOutput;
@@ -891,17 +891,17 @@ export class ImpostorMesh extends Mesh {
 
 
 
-                var debugVar = out.debugParam;
-                var O = 0.0;
-                var uv = vec2f(imp.uv.xy);
-                var position = vec2f(0);
-                var FontSize = 0.2;
-                var U = ( uv - position)*64.0/FontSize;
+                // var debugVar = out.debugParam;
+                // var O = 0.0;
+                // var uv = vec2f(imp.uv.xy);
+                // var position = vec2f(0);
+                // var FontSize = 0.2;
+                // var U = ( uv - position)*64.0/FontSize;
 
-                U.x-=.5; O += print(U,64 + 8);
-                U.x-=.5; O += print_num(U, debugVar.x, 2, 2, true);
-                U.y-=1.0; O += print_num(U, debugVar.y, 2, 2, true);
-                U.y-=1.0; O += print_num(U, debugVar.z, 2, 2, true);
+                // U.x-=.5; O += print(U,64 + 8);
+                // U.x-=.5; O += print_num(U, debugVar.x, 2, 2, true);
+                // U.y-=1.0; O += print_num(U, debugVar.y, 2, 2, true);
+                // U.y-=1.0; O += print_num(U, debugVar.z, 2, 2, true);
 
 
 
@@ -913,7 +913,7 @@ export class ImpostorMesh extends Mesh {
                 // output.normal = vec4(worldNormal, 1.0);
                 output.RMO = vec4(1.0);
 
-                output.albedo += O;
+                // output.albedo += O;
 
                 output.albedo = vec4(baseTex.rgb, 1.0);
                 output.normal = vec4(worldNormal.xyz, 0.0);
@@ -951,7 +951,7 @@ export class ImpostorMesh extends Mesh {
         shader.SetSampler("textureSampler", TextureSampler.Create({magFilter: "linear", minFilter: "linear", mipmapFilter: "linear", addressModeU: "repeat", addressModeV: "repeat"}));
 
 
-        const textSDFTexture = await Texture.Load("./assets/text_sdf.png");
+        // const textSDFTexture = await Texture.Load("./assets/text_sdf.png");
 
 
         // const impAlbedoTexture = await Texture.Load("./assets/impostors/IMP_NO_DILATE/bunny_ImposterBase.png", Renderer.SwapChainFormat, true);
@@ -980,7 +980,7 @@ export class ImpostorMesh extends Mesh {
         await Texture.Blit(albedoTexture, albedoTextureRotated, albedoTexture.width, albedoTexture.height, new Vector2(-1, 1));
         albedoTexture = albedoTextureRotated;
 
-        shader.SetTexture("textSDFTexture", textSDFTexture);
+        // shader.SetTexture("textSDFTexture", textSDFTexture);
 
         shader.SetTexture("albedoTexture", albedoTexture);
         shader.SetTexture("normalTexture", normalTexture);

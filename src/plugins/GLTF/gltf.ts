@@ -361,15 +361,17 @@ export class GLTFLoader {
         const gltfModel = await loadModel(url);
         console.log(gltfModel)
 
+        const materialCache: Map<number, PBRMaterial> = new Map();
+
         const groupObject3D: Object3D[] = [];
 
-        for (const node of gltfModel.nodes) {
-            if (node.mesh === undefined) continue;
+        for (const gltfMesh of gltfModel.meshes) {
+            // if (node.mesh === undefined) continue;
 
-            const meshId = node.mesh;
-            const gltfMesh = gltfModel.meshes[meshId];
+            // const meshId = node.mesh;
+            // const gltfMesh = gltfModel.meshes[meshId];
 
-            if (gltfMesh === undefined) continue;
+            // if (gltfMesh === undefined) continue;
 
             const geometry = new Geometry();
             geometry.attributes.set("position", new VertexAttribute(gltfMesh.positions.buffer.data as Float32Array));
@@ -389,27 +391,30 @@ export class GLTFLoader {
 
             const materialId = gltfMesh.material;
             const material = gltfModel.materials[materialId];
-            const params: PBRMaterialParams = {albedoColor: new Color(1,1,1,1), emissiveColor: new Color(0,0,0,0), roughness: 0, metalness: 0, unlit: false};
-            if (material) {
+            let mat = materialCache.get(materialId);
+
+            if (material && mat === undefined) {
+                const params: PBRMaterialParams = {albedoColor: new Color(1,1,1,1), emissiveColor: new Color(0,0,0,0), roughness: 0, metalness: 0, unlit: false};
+    
                 params.albedoColor = new Color(material.baseColorFactor[0], material.baseColorFactor[1], material.baseColorFactor[2], material.baseColorFactor[3]);
                 params.emissiveColor = new Color(material.emissiveFactor[0], material.emissiveFactor[1], material.emissiveFactor[2], 0);
                 params.roughness = material.roughnessFactor;
                 params.metalness = material.metallicFactor;
-
+    
                 if (material.baseColorTexture) params.albedoMap = await Texture.LoadImageSource(material.baseColorTexture);
                 if (material.normalTexture) params.normalMap = await Texture.LoadImageSource(material.normalTexture);
                 if (material.metallicRoughnessTexture) params.metalnessMap = await Texture.LoadImageSource(material.metallicRoughnessTexture);
                 if (material.emissiveTexture) params.emissiveMap = await Texture.LoadImageSource(material.emissiveTexture);
+                
+                mat = new PBRMaterial(params);
+                materialCache.set(materialId, mat);
             }
 
-            const mat = new PBRMaterial(params);
-
-            console.log(params)
             groupObject3D.push({
                 geometry: geometry,
                 material: mat,
-                children: node.children,
-                localMatrix: new Matrix4().setFromArray(node.localBindTransform)
+                children: [], // node.children,
+                localMatrix: new Matrix4()//.setFromArray(node.localBindTransform)
             });
         }
         return groupObject3D;

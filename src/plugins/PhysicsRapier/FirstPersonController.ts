@@ -2,6 +2,7 @@ import { Camera } from "../../components/Camera";
 import { Component } from "../../components/Component";
 import { Transform } from "../../components/Transform";
 import { Vector3 } from "../../math/Vector3";
+import { Renderer } from "../../renderer/Renderer";
 import { Line } from "../Line";
 import { PhysicsRapier } from "./PhysicsRapier";
 import { RigidBody } from "./RigidBody";
@@ -25,16 +26,25 @@ export class FirstPersonController extends Component {
     public orbitSpeed = 0.01;
     public rayDistance = 1;
 
-
     private v = new Vector3();
-    private keysPressed = { forward: false, backward: false, left: false, right: false, boost: false, up: false, down: false, jump: false }
+    private keysPressed = {
+        forward: false,
+        backward: false,
+        left: false,
+        right: false,
+        boost: false,
+        up: false,
+        down: false,
+        jump: false,
+        noclip: false
+    }
     private mouse = { deltaX: 0, deltaY: 0, left: false };
 
 
     private line: Line;
     private target: Transform;
 
-    public state: CharacterState = CharacterState.FALLING;
+    public state: CharacterState = CharacterState.NOCLIP;
     private floorY: number = 0;
 
     public async Start() {
@@ -57,6 +67,7 @@ export class FirstPersonController extends Component {
             if (event.key === "q") this.keysPressed.up = true;
             if (event.key === "e") this.keysPressed.down = true;
             if (event.key === " ") this.keysPressed.jump = true;
+            if (event.key === "n") this.keysPressed.noclip = true;
             if (event.key === "Shift") this.keysPressed.boost = true;
         })
         document.addEventListener("keyup", event => {
@@ -67,10 +78,12 @@ export class FirstPersonController extends Component {
             if (event.key === "q") this.keysPressed.up = false;
             if (event.key === "e") this.keysPressed.down = false;
             if (event.key === " ") this.keysPressed.jump = false;
+            if (event.key === "n") this.keysPressed.noclip = false;
             if (event.key === "Shift") this.keysPressed.boost = false;
         })
 
         document.addEventListener("mousedown", event => { 
+            if (!(event.target instanceof HTMLCanvasElement)) return
             document.body.requestPointerLock();
             this.mouse.left = true;
         });
@@ -83,8 +96,8 @@ export class FirstPersonController extends Component {
         document.addEventListener("mousemove", event => {
             if (this.mouse.left === false) return;
 
-            this.mouse.deltaX += event.movementX * this.orbitSpeed;
-            this.mouse.deltaY += event.movementY * this.orbitSpeed;
+            this.mouse.deltaX -= event.movementX * this.orbitSpeed;
+            this.mouse.deltaY -= event.movementY * this.orbitSpeed;
             this.camera.transform.rotation.fromEuler(new Vector3(this.mouse.deltaY, this.mouse.deltaX, 0));
         })
 
@@ -96,6 +109,8 @@ export class FirstPersonController extends Component {
     }
 
     private GroundRayCast() {
+        if (this.state === CharacterState.NOCLIP) return;
+
         const direction = this.target.up.clone().mul(-1);
         const from = this.target.position.clone();
 
@@ -115,7 +130,11 @@ export class FirstPersonController extends Component {
     }
 
     private CanMove(): boolean {
-        return (this.state == CharacterState.GROUNDED || this.state == CharacterState.MOVING || this.state == CharacterState.RUNNING);
+        return (
+            this.state == CharacterState.GROUNDED ||
+            this.state == CharacterState.MOVING ||
+            this.state == CharacterState.RUNNING
+        );
     }
 
     private SetPosition(position: Vector3) {
@@ -125,7 +144,7 @@ export class FirstPersonController extends Component {
     }
 
     private HandleMovement() {
-        if (!this.CanMove()) {
+        if (!this.CanMove() && this.state !== CharacterState.NOCLIP) {
             const g = new Vector3(PhysicsRapier.PhysicsWorld.gravity.x, PhysicsRapier.PhysicsWorld.gravity.y, PhysicsRapier.PhysicsWorld.gravity.z);
             const p = this.target.position.clone().add(g.mul(1/60));
             this.SetPosition(p);
@@ -134,8 +153,8 @@ export class FirstPersonController extends Component {
 
         let speed = this.speed;
         this.v.set(0,0,0);
-        if (this.keysPressed.forward === true) this.v.z = 1;
-        if (this.keysPressed.backward === true) this.v.z = -1;
+        if (this.keysPressed.forward === true) this.v.z = -1;
+        if (this.keysPressed.backward === true) this.v.z = 1;
         if (this.keysPressed.right === true) this.v.x = 1;
         if (this.keysPressed.left === true) this.v.x = -1;
         if (this.keysPressed.up === true) this.v.y = 1;
@@ -148,15 +167,24 @@ export class FirstPersonController extends Component {
         const movement = new Vector3(this.v.x, this.v.y, this.v.z);
         movement.normalize().mul(dt * speed);
         const p = this.transform.position.clone().add(movement);
-        p.y = this.floorY + this.rayDistance;
+        if (this.state !== CharacterState.NOCLIP) {
+            p.y = this.floorY + this.rayDistance;
+            if (this.keysPressed.boost === true) this.state = CharacterState.RUNNING;
+            else this.state = CharacterState.MOVING;
+        }
         this.SetPosition(p);
-
-        if (this.keysPressed.boost === true) this.state = CharacterState.RUNNING;
-        else this.state = CharacterState.MOVING;
     }
 
+    private HandleNoClip() {
+        if (this.keysPressed.noclip === true) {
+            if (this.state === CharacterState.NOCLIP) this.state = CharacterState.FALLING;
+            else this.state = CharacterState.NOCLIP;
+            console.log(this.state)
+        }
+    }
     public Update(): void {
         this.GroundRayCast();
+        this.HandleNoClip();
         this.HandleMovement();
     }
 }

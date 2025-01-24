@@ -8,6 +8,9 @@ import { TextureViewer } from "./passes/TextureViewer";
 import { DeferredGBufferPass } from "./passes/DeferredGBufferPass";
 import { PrepareGBuffers } from "./passes/PrepareGBuffers";
 import { MeshletDraw } from "../plugins/meshlets/passes/MeshletDraw";
+import { DeferredShadowMapPass } from "./passes/DeferredShadowMapPass";
+import { RenderCache } from "./RenderCache";
+import { DebuggerTextureViewer } from "./passes/DebuggerTextureViewer";
 
 export const PassParams = {
     DebugSettings: "DebugSettings",
@@ -40,12 +43,16 @@ export class RenderingPipeline {
         const passes = {
             PrepareDeferredRender: new PrepareGBuffers(),
 
-            meshletDrawPass: new MeshletDraw(),
+            // meshletDrawPass: new MeshletDraw(),
 
             GBufferPass: new DeferredGBufferPass(),
 
+            deferredShadowMapPass: new DeferredShadowMapPass(),
+
             DeferredLightingPass: new DeferredLightingPass(),
             OutputPass: new TextureViewer(),
+
+            DebuggerTextureViewer: new DebuggerTextureViewer(),
         }
 
         this.renderGraph = new RenderGraph();
@@ -57,6 +64,10 @@ export class RenderingPipeline {
     }
 
     public Render(scene: Scene) {
+        RenderCache.Reset();
+        
+        Debugger.SetTriangleCount(0);
+
         Renderer.BeginRenderFrame();
         this.renderGraph.execute();
         Renderer.EndRenderFrame();

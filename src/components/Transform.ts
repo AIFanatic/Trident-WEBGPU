@@ -9,6 +9,8 @@ export class TransformEvents {
 }
 
 export class Transform extends Component {
+    private tempRotation = new Quaternion();
+
     public up: Vector3 = new Vector3(0, 1, 0);
     public forward: Vector3 = new Vector3(0, 0, 1);
     public right: Vector3 = new Vector3(1, 0, 0);
@@ -89,9 +91,23 @@ export class Transform extends Component {
 
     public LookAtV1(target: Vector3): void {
         this.rotation.lookAt(this.position, target, this.up);
-        this.UpdateMatrices();
-        this.onChanged();
+        this.tempRotation.lookAt(this.position, target, this.up);
+        if (!this.tempRotation.equals(this.rotation)) {
+            this.rotation.copy(this.tempRotation);
+            this.UpdateMatrices();
+            this.onChanged();
+        }
+        // this.rotation.lookAt(this.position, target, this.up);
+        // this.UpdateMatrices();
+        // this.onChanged();
     }
+
+    // public LookAtV2(target: Vector3): void {
+    //     m1.lookAtV3(this.position, target, this.up, true);
+    //     this.rotation.setFromRotationMatrix(m1);
+    //     this.UpdateMatrices();
+    //     this.onChanged();
+    // }
 }
 
 const m1 = new Matrix4();

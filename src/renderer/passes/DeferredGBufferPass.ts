@@ -5,6 +5,7 @@ import { Mesh } from "../../components/Mesh";
 import { PassParams } from "../RenderingPipeline";
 import { InstancedMesh } from "../../components/InstancedMesh";
 import { Debugger } from "../../plugins/Debugger";
+import { RenderCache } from "../RenderCache";
 
 export class DeferredGBufferPass extends RenderPass {
     public name: string = "DeferredMeshRenderPass";
@@ -29,7 +30,6 @@ export class DeferredGBufferPass extends RenderPass {
 
     public execute(resources: ResourcePool) {
         if (!this.initialized) return;
-        // Debugger.AddFrameRenderPass("DeferredMeshRenderPass");
 
         const scene = Camera.mainCamera.gameObject.scene;
         const meshes = scene.GetComponents(Mesh);
@@ -45,7 +45,6 @@ export class DeferredGBufferPass extends RenderPass {
         const inputGBufferERMO = resources.getResource(PassParams.GBufferERMO);
         const inputGBufferDepth = resources.getResource(PassParams.GBufferDepth);
 
-        // console.log("shouldClear", shouldClear)
         RendererContext.BeginRenderPass("DeferredMeshRenderPass",
             [
                 {target: inputGBufferAlbedo, clear: false, color: backgroundColor},
@@ -54,8 +53,6 @@ export class DeferredGBufferPass extends RenderPass {
             ],
             {target: inputGBufferDepth, clear: false}
         , true);
-
-        // SceneRenderer.Render(Camera.mainCamera.gameObject.scene, inputCamera, DeferredMeshMaterial);
 
         const projectionMatrix = inputCamera.projectionMatrix;
         const viewMatrix = inputCamera.viewMatrix;
@@ -66,7 +63,7 @@ export class DeferredGBufferPass extends RenderPass {
             for (const material of materials) {
                 if (!material.shader) {
                     material.createShader().then(shader => {
-                        shader.params.cullMode = "none"
+                        // shader.params.cullMode = "back"
                     })
                     continue;
                 }
@@ -76,6 +73,16 @@ export class DeferredGBufferPass extends RenderPass {
                 shader.SetMatrix4("modelMatrix", mesh.transform.localToWorldMatrix);
                 shader.SetVector3("cameraPosition", inputCamera.transform.position);
                 RendererContext.DrawGeometry(geometry, shader, 1);
+                if (geometry.index) {
+                    Debugger.IncrementTriangleCount(geometry.index.array.length / 3);
+                }
+
+                RenderCache.renderableMeshes.push({
+                    type: "Draw",
+                    shader: shader,
+                    geometry: geometry,
+                    mesh: mesh
+                })
             }
         }
 
@@ -85,7 +92,7 @@ export class DeferredGBufferPass extends RenderPass {
             for (const material of materials) {
                 if (!material.shader) {
                     material.createShader().then(shader => {
-                        shader.params.cullMode = "none"
+                        // shader.params.cullMode = "front"
                     })
                     continue;
                 }
@@ -95,10 +102,20 @@ export class DeferredGBufferPass extends RenderPass {
                 shader.SetBuffer("modelMatrix", instancedMesh.matricesBuffer);
                 shader.SetVector3("cameraPosition", inputCamera.transform.position);
                 RendererContext.DrawGeometry(geometry, shader, instancedMesh.instanceCount+1);
+                if (geometry.index) {
+                    Debugger.IncrementTriangleCount(geometry.index.array.length / 3 * (instancedMesh.instanceCount + 1));
+                }
+
+                RenderCache.renderableMeshes.push({
+                    type: "DrawInstanced",
+                    shader: shader,
+                    geometry: geometry,
+                    instances: instancedMesh.instanceCount+1,
+                    instancedMesh: instancedMesh
+                })
             }
         }
 
-        // resources.setResource(PassParams.depthTexture, PassParams.depthTexture);
         resources.setResource(PassParams.GBufferDepth, inputGBufferDepth);
         resources.setResource(PassParams.GBufferAlbedo, inputGBufferAlbedo);
         resources.setResource(PassParams.GBufferNormal, inputGBufferNormal);

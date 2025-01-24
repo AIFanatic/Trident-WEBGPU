@@ -37,4 +37,9 @@ export class Renderer {
         if (Renderer.type === "webgpu") return WEBGPURenderer.HasActiveFrame();
         throw Error("Unknown render api type.");
     }
+
+    public static OnFrameCompleted(): Promise<undefined> {
+        if (Renderer.type === "webgpu") return WEBGPURenderer.OnFrameCompleted();
+        throw Error("Unknown render api type.");
+    }
 }

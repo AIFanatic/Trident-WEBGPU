@@ -33,6 +33,7 @@ export class Scene {
             componentsArray.push(component);
             this.componentsByType.set(component.name, componentsArray);
 
+            
             // let i =0;
             // while (component) {
             //     if (!this.componentsByType.has(component.name)) this.componentsByType.set(component.name, []);
@@ -88,7 +89,7 @@ export class Scene {
 
         // setTimeout(() => {
         //     this.Tick()
-        // }, 1000);
+        // }, 100);
         requestAnimationFrame(() => this.Tick());
     }
 }

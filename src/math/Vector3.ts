@@ -125,6 +125,17 @@ export class Vector3 {
         return this.set(this.y * v.z - this.z * v.y, this.z * v.x - this.x * v.z, this.x * v.y - this.y * v.x)
     }
 
+	public crossVectors(a: Vector3, b: Vector3): Vector3 {
+		const ax = a.x, ay = a.y, az = a.z;
+		const bx = b.x, by = b.y, bz = b.z;
+
+		this.x = ay * bz - az * by;
+		this.y = az * bx - ax * bz;
+		this.z = ax * by - ay * bx;
+
+		return this;
+	}
+
 	public applyMatrix4(m: Matrix4 ): Vector3 {
 		const x = this.x, y = this.y, z = this.z;
 		const e = m.elements;
@@ -200,6 +211,17 @@ export class Vector3 {
         return this;
     }
 
+	public transformDirection( m: Matrix4 ): Vector3 {
+		const x = this.x, y = this.y, z = this.z;
+		const e = m.elements;
+
+		this.x = e[ 0 ] * x + e[ 4 ] * y + e[ 8 ] * z;
+		this.y = e[ 1 ] * x + e[ 5 ] * y + e[ 9 ] * z;
+		this.z = e[ 2 ] * x + e[ 6 ] * y + e[ 10 ] * z;
+
+		return this.normalize();
+	}
+
     public toString(): string {
         return `(${this.x.toPrecision(2)}, ${this.y.toPrecision(2)}, ${this.z.toPrecision(2)})`;
     }
@@ -212,9 +234,26 @@ export class ObservableVector3 extends Vector3 {
     public get y(): number { return this._y};
     public get z(): number { return this._z};
     
-    set x(value: number) { this._x = value; if (this.onChange) this.onChange(); }
-    set y(value: number) { this._y = value; if (this.onChange) this.onChange(); }
-    set z(value: number) { this._z = value; if (this.onChange) this.onChange(); }
+    set x(value: number) {
+        if (value !== this.x) {
+            this._x = value;
+            if (this.onChange) {
+                this.onChange();
+            }
+        }
+    }
+    set y(value: number) {
+        if (value !== this.y) {
+            this._y = value;
+            if (this.onChange) this.onChange();
+        }
+    }
+    set z(value: number) {
+        if (value !== this.z) {
+            this._z = value;
+            if (this.onChange) this.onChange();
+        }
+    }
     
     constructor(onChange: () => void, x = 0, y = 0, z = 0) {
         super(x, y, z);

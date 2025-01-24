@@ -52,6 +52,9 @@ export interface ShaderParams {
     colorOutputs: ShaderColorOutput[];
     depthOutput?: TextureFormat;
     depthCompare?: DepthCompareFunctions;
+    depthBias?: number;
+    depthBiasSlopeScale?: number;
+    depthBiasClamp?: number;
     topology?: Topology;
     frontFace?: "ccw" | "cw",
     cullMode?: "back" | "front" | "none"

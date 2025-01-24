@@ -10,7 +10,7 @@ import { Renderer } from "../Renderer";
 import { Matrix4 } from "../../math/Matrix4";
 import { Buffer, BufferType } from "../Buffer";
 import { Debugger } from "../../plugins/Debugger";
-// import { lightsCSMProjectionMatrix } from "./ShadowPass";
+import { cascadeSplits, lightsCSMProjectionMatrix } from "./DeferredShadowMapPass";
 import { ShaderLoader } from "../ShaderUtils";
 import { PassParams } from "../RenderingPipeline";
 import { EventSystem } from "../../Events";
@@ -46,6 +46,7 @@ export class DeferredLightingPass extends RenderPass {
                 PassParams.GBufferNormal,
                 PassParams.GBufferERMO,
                 PassParams.GBufferDepth,
+                PassParams.ShadowPassDepth,
             ],
             outputs: [PassParams.LightingPassOutput] });
         this.init();
@@ -72,20 +73,15 @@ export class DeferredLightingPass extends RenderPass {
 
                 view: { group: 0, binding: 8, type: "storage" },
                 
-                shadowSampler: { group: 0, binding: 9, type: "sampler"},
+                shadowSamplerComp: { group: 0, binding: 9, type: "sampler-compare"},
 
-                shadowSamplerComp: { group: 0, binding: 10, type: "sampler-compare"},
-
-                settings: {group: 0, binding: 11, type: "storage"},
+                settings: {group: 0, binding: 10, type: "storage"},
             },
             colorOutputs: [{format: Renderer.SwapChainFormat}],
         });
 
         this.sampler = TextureSampler.Create({minFilter: "linear", magFilter: "linear", addressModeU: "clamp-to-edge", addressModeV: "clamp-to-edge"});
         this.shader.SetSampler("textureSampler", this.sampler);
-
-        const shadowSampler = TextureSampler.Create({minFilter: "nearest", magFilter: "nearest", addressModeU: "clamp-to-edge", addressModeV: "clamp-to-edge"});
-        this.shader.SetSampler("shadowSampler", shadowSampler);
 
         const shadowSamplerComp = TextureSampler.Create({minFilter: "linear", magFilter: "linear", compare: "less"});
         this.shader.SetSampler("shadowSamplerComp", shadowSamplerComp);
@@ -106,9 +102,11 @@ export class DeferredLightingPass extends RenderPass {
     private updateLightsBuffer() {
         const scene = Camera.mainCamera.gameObject.scene;
         // TODO: Fix, GetComponents(Light)
-        const lights = [...scene.GetComponents(SpotLight), ...scene.GetComponents(PointLight), ...scene.GetComponents(DirectionalLight), ...scene.GetComponents(AreaLight)];
-        const lightBufferSize = 4 + 16 + (4 * 16) + 16 + 16 + 3 + 1 + 4 + 4;
-        const lightBuffer = new Float32Array(Math.max(1, lights.length) * lightBufferSize); // Always ensure one light
+        const lights = [...scene.GetComponents(Light), ...scene.GetComponents(PointLight), ...scene.GetComponents(DirectionalLight), ...scene.GetComponents(AreaLight)];
+        // const lightBufferSize = 4 + 16 + (4 * 16) + 16 + 16 + 3 + 1 + 4 + 4;
+        // const lightBuffer = new Float32Array(Math.max(1, lights.length) * lightBufferSize); // Always ensure one light
+
+        const lightBuffer: number[] = [];
 
         for (let i = 0; i < lights.length; i++) {
             const light = lights[i];
@@ -129,25 +127,30 @@ export class DeferredLightingPass extends RenderPass {
             else if (light instanceof PointLight) lightType = LightType.POINT_LIGHT;
             else if (light instanceof AreaLight) lightType = LightType.AREA_LIGHT;
 
-            lightBuffer.set([
+            lightBuffer.push(
                 light.transform.position.x, light.transform.position.y, light.transform.position.z, 1.0,
                 ...light.camera.projectionMatrix.elements,
-                ...new Array(16 * 4).fill(0), // ...lightsCSMProjectionMatrix[i],
+                // ...lightsCSMProjectionMatrix[i].slice(0, 16 * 4),
+                ...lightsCSMProjectionMatrix[i].slice(0, 16),
+                ...lightsCSMProjectionMatrix[i].slice(16, 32),
+                ...lightsCSMProjectionMatrix[i].slice(32, 48),
+                ...lightsCSMProjectionMatrix[i].slice(48, 64),
+                ...cascadeSplits.elements,
                 ...light.camera.viewMatrix.elements,
                 ...light.camera.viewMatrix.clone().invert().elements,
                 light.color.r, light.color.g, light.color.b, lightType,
                 ...params1,
                 ...params2
-            ], i * lightBufferSize);
+            );
         }
 
 
         const lightsLength = Math.max(lights.length, 1);
-        if (!this.lightsBuffer || this.lightsBuffer.size !== lightsLength * lightBufferSize * 4) {
-            this.lightsBuffer = Buffer.Create(lightsLength * lightBufferSize * 4, BufferType.STORAGE);
+        if (!this.lightsBuffer || this.lightsBuffer.size !== lightBuffer.length * 4) {
+            this.lightsBuffer = Buffer.Create(lightsLength * lightBuffer.length * 4, BufferType.STORAGE);
             this.lightsCountBuffer = Buffer.Create(1 * 4, BufferType.STORAGE);
         }
-        this.lightsBuffer.SetArray(lightBuffer);
+        this.lightsBuffer.SetArray(new Float32Array(lightBuffer));
         this.lightsCountBuffer.SetArray(new Uint32Array([lights.length]));
 
         this.shader.SetBuffer("lights", this.lightsBuffer);
@@ -171,7 +174,7 @@ export class DeferredLightingPass extends RenderPass {
         const inputGBufferNormal = resources.getResource(PassParams.GBufferNormal);
         const inputGbufferERMO = resources.getResource(PassParams.GBufferERMO);
         const inputGBufferDepth = resources.getResource(PassParams.GBufferDepth);
-        const inputShadowPassDepth = resources.getResource(PassParams.GBufferDepth);
+        const inputShadowPassDepth = resources.getResource(PassParams.ShadowPassDepth);
 
         RendererContext.BeginRenderPass("DeferredLightingPass", [{ target: this.outputLightingPass, clear: true }], undefined, true);
 
@@ -181,7 +184,7 @@ export class DeferredLightingPass extends RenderPass {
         this.shader.SetTexture("depthTexture", inputGBufferDepth);
         this.shader.SetTexture("shadowPassDepth", inputShadowPassDepth);
 
-        const view = new Float32Array(4 + 4 + 16 + 16);
+        const view = new Float32Array(4 + 4 + 16 + 16   + 16);
         view.set([Renderer.width, Renderer.height, 0], 0);
         view.set(camera.transform.position.elements, 4);
         // console.log(view)
@@ -190,6 +193,7 @@ export class DeferredLightingPass extends RenderPass {
         view.set(tempMatrix.elements, 8);
         tempMatrix.copy(camera.viewMatrix).invert();
         view.set(tempMatrix.elements, 24);
+        view.set(camera.viewMatrix.elements, 40);
 
         this.shader.SetArray("view", view);
 

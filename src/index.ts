@@ -12,7 +12,8 @@
 // import * as TEST from "./TEST/GLTFExampleV2";
 // import * as TEST from "./TEST/GLTFExample_Mesh";
 // import * as TEST from "./TEST/Terrain";
-import * as TEST from "./TEST/Physics";
+// import * as TEST from "./TEST/Physics";
+import * as TEST from "./TEST/Shadows";
 // import * as TEST from "./TEST/Impostors";
 // import * as TEST from "./TEST/Custom_Render";
 // import * as TEST from "./TEST/LODPipeline";

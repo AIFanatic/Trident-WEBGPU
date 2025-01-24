@@ -20,13 +20,13 @@ export class Buffer {
 
     public static Create(size: number, type: BufferType) {
         if (size === 0) throw Error("Tried to create a buffer with size 0");
-        Debugger.IncrementGPUBufferSize(size);
         if (Renderer.type === "webgpu") return new WEBGPUBuffer(size, type);
         else throw Error("Renderer type invalid");
     }
 
     public SetArray(array: ArrayBuffer, bufferOffset: number = 0, dataOffset?: number | undefined, size?: number | undefined) {}
     public async GetData(sourceOffset?: number, destinationOffset?: number, size?: number): Promise<ArrayBuffer> {return new ArrayBuffer(1)}
+    public Destroy() {}
 }
 
 export class DynamicBuffer {
@@ -44,4 +44,5 @@ export class DynamicBuffer {
 
     public SetArray(array: ArrayBuffer, bufferOffset: number = 0, dataOffset?: number | undefined, size?: number | undefined) {}
     public async GetData(sourceOffset?: number, destinationOffset?: number, size?: number): Promise<ArrayBuffer> {return new ArrayBuffer(1)}
+    public Destroy() {}
 }

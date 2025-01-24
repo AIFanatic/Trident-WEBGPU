@@ -103,8 +103,6 @@ export class MeshletGrouper {
             }
         }
 
-        console.log("CALLEDsss")
-
         return splitRec(meshlets, nparts);
         // const adj = MeshletGrouper.adjacencyList(meshlets);
         // const groups = Metis.partition(adj, nparts);

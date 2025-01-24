@@ -129,15 +129,14 @@ export class DynamicBufferMemoryAllocator extends BufferMemoryAllocator {
     public set(link: any, data: Float32Array | Uint32Array): number {
         let bufferOffset = this.links.get(link);
         if (bufferOffset === undefined) {
-
             if (this.allocator.availableMemorySize - data.length < 0) {
                 // Increment allocator
                 const o = this.allocator.memorySize;
+                const incrementAmount = this.incrementAmount > data.length ? this.incrementAmount : data.length;
                 const oldMemorySize = this.allocator.memorySize - this.allocator.availableMemorySize;
-                this.allocator.memorySize += this.incrementAmount;
-                this.allocator.availableMemorySize += this.incrementAmount;
-                this.allocator.freeBlocks.push({offset: oldMemorySize, size: this.incrementAmount});
-                
+                this.allocator.memorySize += incrementAmount;
+                this.allocator.availableMemorySize += incrementAmount;
+                this.allocator.freeBlocks.push({offset: oldMemorySize, size: incrementAmount});
                 console.log(`Incrementing DynamicBuffer from ${o} to ${this.allocator.memorySize}`)
 
                 // Create new buffer
@@ -146,6 +145,12 @@ export class DynamicBufferMemoryAllocator extends BufferMemoryAllocator {
                 if (!hasActiveFrame) Renderer.BeginRenderFrame();
                 RendererContext.CopyBufferToBuffer(this.buffer, buffer);
                 if (!hasActiveFrame) Renderer.EndRenderFrame();
+                
+                const oldBuffer = this.buffer;
+                Renderer.OnFrameCompleted().then(() => {
+                    oldBuffer.Destroy();
+                })
+
                 this.buffer = buffer;
             }
             

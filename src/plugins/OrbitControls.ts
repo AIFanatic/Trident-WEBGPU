@@ -36,7 +36,7 @@ export class OrbitControls {
         this.domElement = domElement;
         this.domElement.style.touchAction = 'none';
         this._camera = camera
-        this._camera.transform.LookAt(this.center)
+        this._camera.transform.LookAtV1(this.center)
         this.connect(domElement);
     }
 
@@ -59,11 +59,12 @@ export class OrbitControls {
     private y: number = 0;
     private orbit(deltaX: number, deltaY: number): void {
         const distance = this._camera.transform.position.distanceTo(this.center);
+        // const distance = this.center.distanceTo(this._camera.transform.position);
 
-        this.x += deltaX * this.orbitSpeed;
-        this.y += deltaY * this.orbitSpeed;
+        this.x -= deltaX * this.orbitSpeed;
+        this.y -= deltaY * this.orbitSpeed;
         const rotation = new Quaternion().fromEuler(new Vector3(this.y, this.x, 0));
-        const position = new Vector3(0.0, 0.0, -distance).applyQuaternion(rotation).add(this.center);
+        const position = new Vector3(0.0, 0.0, distance).applyQuaternion(rotation).add(this.center);
 
         this._camera.transform.rotation.copy(rotation);
         this._camera.transform.position.copy(position);

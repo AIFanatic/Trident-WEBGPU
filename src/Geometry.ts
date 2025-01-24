@@ -4,8 +4,8 @@ import { Vector3 } from "./math/Vector3";
 import { Buffer, BufferType } from "./renderer/Buffer";
 
 export class GeometryAttribute {
-    array: Float32Array | Uint32Array;
-    buffer: Buffer;
+    public array: Float32Array | Uint32Array;
+    public buffer: Buffer;
 
     constructor(array: Float32Array | Uint32Array, type: BufferType) {
         if (array.length === 0) throw Error("GeometryAttribute data is empty");
@@ -128,7 +128,6 @@ export class Geometry {
 
     public Center(): Geometry {
         const center = this.boundingVolume.center;
-        console.log("center", center)
         return this.ApplyOperationToVertices("+", center.mul(-1));
     }
 

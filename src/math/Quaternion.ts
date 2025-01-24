@@ -236,10 +236,30 @@ export class ObservableQuaternion extends Quaternion {
     public get z(): number { return this._z};
     public get w(): number { return this._w};
     
-    set x(value: number) { this._x = value; if (this.onChange) this.onChange(); }
-    set y(value: number) { this._y = value; if (this.onChange) this.onChange(); }
-    set z(value: number) { this._z = value; if (this.onChange) this.onChange(); }
-    set w(value: number) { this._w = value; if (this.onChange) this.onChange(); }
+    set x(value: number) {
+        if (value !== this.x) {
+            this._x = value;
+            if (this.onChange) this.onChange();
+        }
+    }
+    set y(value: number) {
+        if (value !== this.y) {
+            this._y = value;
+            if (this.onChange) this.onChange();
+        }
+    }
+    set z(value: number) {
+        if (value !== this.z) {
+            this._z = value;
+            if (this.onChange) this.onChange();
+        }
+    }
+    set w(value: number) {
+        if (value !== this.w) {
+            this._w = value;
+            if (this.onChange) this.onChange();
+        }
+    }
     
     constructor(onChange: () => void, x = 0, y = 0, z = 0, w = 1) {
         super(x, y, z, w);
