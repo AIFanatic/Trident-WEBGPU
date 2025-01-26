@@ -1484,6 +1484,7 @@ var RenderPass = class {
   inputs = [];
   outputs = [];
   initialized = false;
+  initializing = false;
   constructor(params) {
     if (params.inputs) this.inputs = params.inputs;
     if (params.outputs) this.outputs = params.outputs;
@@ -1515,7 +1516,9 @@ var RenderGraph = class {
   async init() {
     const sortedPasses = this.topologicalSort();
     for (const pass of sortedPasses) {
-      if (pass.initialized) continue;
+      if (pass.initialized === true || pass.initializing === true) continue;
+      pass.initializing = true;
+      console.warn("init", pass.name, pass.initialized, pass.initializing);
       await pass.init(this.resourcePool);
       pass.initialized = true;
     }
@@ -1812,139 +1815,56 @@ var UIFolder = class extends Stat {
 
 // src/plugins/Debugger.ts
 var _Debugger = class {
-  isDebugDepthPassEnabled = false;
-  debugDepthMipLevel = 0;
-  debugDepthExposure = 0;
-  isFrustumCullingEnabled = true;
-  isBackFaceCullingEnabled = false;
-  isOcclusionCullingEnabled = true;
-  isSmallFeaturesCullingEnabled = true;
-  dynamicLODErrorThreshold = 1;
-  isDynamicLODEnabled = true;
-  staticLOD = 20;
-  meshletsViewType = 0;
-  viewType = 0;
-  heightScale = 0.05;
-  useHeightMap = false;
   ui;
-  renderPassesFolder;
-  framePassesStats = /* @__PURE__ */ new Map();
-  fps;
-  totalMeshlets;
-  visibleMeshes;
-  triangleCount;
-  visibleTriangles;
-  gpuTime;
-  gpuBufferSizeStat;
-  gpuBufferSizeTotal = 0;
-  gpuTextureSizeStat;
-  gpuTextureSizeTotal = 0;
-  objectMove = { x: 0, y: 0, z: 0 };
-  shadows = {
-    shadowsUpdate: true,
-    roundToPixelSize: true
-  };
   constructor() {
     const container = document.createElement("div");
     container.classList.add("stats-panel");
     document.body.append(container);
     this.ui = new UIFolder(container, "Debugger");
     this.ui.Open();
-    const shadowsFolder = new UIFolder(this.ui, "CSM Shadows");
-    const shadowsUpdate = new UIButtonStat(shadowsFolder, "Update shadows", (value) => {
-      this.shadows.shadowsUpdate = value;
-    }, this.shadows.shadowsUpdate);
-    const shadowsRoundToPixelSize = new UIButtonStat(shadowsFolder, "RoundToPixelSize", (value) => {
-      this.shadows.roundToPixelSize = value;
-    }, this.shadows.roundToPixelSize);
-    shadowsFolder.Open();
-    const objectMove = new UIFolder(this.ui, "Object");
-    const objectMoveX = new UISliderStat(objectMove, "X:", -10, 10, 1, 0, (value) => {
-      this.objectMove.x = value;
+  }
+};
+var Debugger = new _Debugger();
+
+// src/renderer/RendererDebug.ts
+var _RendererDebug = class {
+  isDebugDepthPassEnabled = false;
+  rendererFolder;
+  fps;
+  triangleCount;
+  visibleTriangles;
+  gpuTime;
+  gpuBufferSizeStat;
+  gpuTextureSizeStat;
+  viewTypeStat;
+  heightScale;
+  useHeightMapStat;
+  viewTypeValue = 0;
+  heightScaleValue = 0;
+  useHeightMapValue = false;
+  gpuBufferSizeTotal = 0;
+  gpuTextureSizeTotal = 0;
+  renderPassesFolder;
+  framePassesStats = /* @__PURE__ */ new Map();
+  constructor() {
+    this.rendererFolder = new UIFolder(Debugger.ui, "Renderer");
+    this.rendererFolder.Open();
+    this.fps = new UITextStat(this.rendererFolder, "FPS", 0, 2, "", true);
+    this.triangleCount = new UITextStat(this.rendererFolder, "Triangles: ");
+    this.visibleTriangles = new UITextStat(this.rendererFolder, "Visible triangles: ");
+    this.gpuTime = new UITextStat(this.rendererFolder, "GPU: ", 0, 2, "ms", true);
+    this.gpuBufferSizeStat = new UITextStat(this.rendererFolder, "GPU buffer size: ", 0, 2);
+    this.gpuTextureSizeStat = new UITextStat(this.rendererFolder, "GPU texture size: ", 0, 2);
+    this.viewTypeStat = new UIDropdownStat(this.rendererFolder, "Final output:", ["Lighting", "Albedo Map", "Normal Map", "Metalness", "Roughness", "Emissive"], (index, value) => {
+      this.viewTypeValue = index;
+    }, this.viewTypeValue);
+    this.heightScale = new UISliderStat(this.rendererFolder, "Height scale:", 0, 1, 0.01, this.heightScaleValue, (state) => {
+      this.heightScaleValue = state;
     });
-    const objectMoveY = new UISliderStat(objectMove, "Y:", -10, 10, 1, 0, (value) => {
-      this.objectMove.y = value;
-    });
-    const objectMoveZ = new UISliderStat(objectMove, "Z:", -10, 10, 1, 0, (value) => {
-      this.objectMove.z = value;
-    });
-    objectMove.Open();
-    this.fps = new UITextStat(this.ui, "FPS", 0, 2, "", true);
-    this.triangleCount = new UITextStat(this.ui, "Triangles: ");
-    this.visibleTriangles = new UITextStat(this.ui, "Visible triangles: ");
-    this.gpuTime = new UITextStat(this.ui, "GPU: ", 0, 2, "ms", true);
-    this.gpuBufferSizeStat = new UITextStat(this.ui, "GPU buffer size: ", 0, 2);
-    this.gpuTextureSizeStat = new UITextStat(this.ui, "GPU texture size: ", 0, 2);
-    const meshletsFolder = new UIFolder(this.ui, "Plugin - Meshlets");
-    const viewTypeStat2 = new UIDropdownStat(meshletsFolder, "Show:", ["Default", "Meshlets", "Triangles"], (index, value) => {
-      this.meshletsViewType = index;
-    }, this.meshletsViewType);
-    this.totalMeshlets = new UITextStat(meshletsFolder, "Total meshlets");
-    this.visibleMeshes = new UITextStat(meshletsFolder, "Visible meshlets: ");
-    meshletsFolder.Open();
-    const hizFolder = new UIFolder(meshletsFolder, "- Hierarchical Z depth");
-    hizFolder.Open();
-    const debugDepthMipLevel = new UISliderStat(hizFolder, "Depth mip:", 0, 20, 1, 0, (value) => {
-      this.debugDepthMipLevel = value;
-    });
-    const debugDepthExposure = new UISliderStat(hizFolder, "Depth exposure:", -10, 10, 0.01, 0, (value) => {
-      this.debugDepthExposure = value;
-    });
-    debugDepthMipLevel.Disable();
-    debugDepthExposure.Disable();
-    const debugDepth = new UIButtonStat(hizFolder, "View depth:", (state) => {
-      this.isDebugDepthPassEnabled = state;
-      if (this.isDebugDepthPassEnabled === true) {
-        debugDepthMipLevel.Enable();
-        debugDepthExposure.Enable();
-      } else {
-        debugDepthMipLevel.Disable();
-        debugDepthExposure.Disable();
-      }
-    });
-    const cullingFolder = new UIFolder(meshletsFolder, "- Culling");
-    const frustumCulling = new UIButtonStat(cullingFolder, "Frustum culling:", (state) => {
-      this.isFrustumCullingEnabled = state;
-    }, this.isFrustumCullingEnabled);
-    const backFaceCulling = new UIButtonStat(cullingFolder, "Backface culling:", (state) => {
-      this.isBackFaceCullingEnabled = state;
-    }, this.isBackFaceCullingEnabled);
-    const occlusionCulling = new UIButtonStat(cullingFolder, "Occlusion culling:", (state) => {
-      this.isOcclusionCullingEnabled = state;
-    }, this.isOcclusionCullingEnabled);
-    const smallFeatureCulling = new UIButtonStat(cullingFolder, "Small features:", (state) => {
-      this.isSmallFeaturesCullingEnabled = state;
-    }, this.isSmallFeaturesCullingEnabled);
-    const staticLOD = new UISliderStat(cullingFolder, "Static LOD:", 0, this.staticLOD, 1, 0, (state) => {
-      this.staticLOD = state;
-    });
-    staticLOD.Disable();
-    const dynamicLODErrorThreshold = new UISliderStat(cullingFolder, "Dynamic LOD error:", 0, 20, 0.01, this.dynamicLODErrorThreshold, (value) => {
-      this.dynamicLODErrorThreshold = value;
-    });
-    const dynamicLOD = new UIButtonStat(cullingFolder, "Dynamic LOD:", (state) => {
-      this.isDynamicLODEnabled = state;
-      if (this.isDynamicLODEnabled === true) {
-        staticLOD.Disable();
-        dynamicLODErrorThreshold.Enable();
-      } else {
-        staticLOD.Enable();
-        dynamicLODErrorThreshold.Disable();
-      }
-    }, this.isDynamicLODEnabled);
-    cullingFolder.Open();
-    const rendererFolder = new UIFolder(this.ui, "Renderer");
-    rendererFolder.Open();
-    const viewTypeStat = new UIDropdownStat(rendererFolder, "GBuffer:", ["Lighting", "Albedo Map", "Normal Map", "Metalness", "Roughness", "Emissive"], (index, value) => {
-      this.viewType = index;
-    }, this.viewType);
-    const heightScale = new UISliderStat(rendererFolder, "Height scale:", 0, 1, 0.01, this.heightScale, (state) => {
-      this.heightScale = state;
-    });
-    const useHeightMapStat = new UIButtonStat(rendererFolder, "Use heightmap:", (state) => {
-      this.useHeightMap = state;
-    }, this.useHeightMap);
-    this.renderPassesFolder = new UIFolder(this.ui, "Frame passes");
+    this.useHeightMapStat = new UIButtonStat(this.rendererFolder, "Use heightmap:", (state) => {
+      this.useHeightMapValue = state;
+    }, this.useHeightMapValue);
+    this.renderPassesFolder = new UIFolder(this.rendererFolder, "Frame passes");
     this.renderPassesFolder.Open();
   }
   SetPassTime(name, time) {
@@ -1954,6 +1874,23 @@ var _Debugger = class {
       this.framePassesStats.set(name, framePass);
     }
     framePass.SetValue(time / 1e6);
+  }
+  SetTriangleCount(count) {
+    this.triangleCount.SetValue(count);
+  }
+  IncrementTriangleCount(count) {
+    this.triangleCount.SetValue(this.triangleCount.GetValue() + count);
+  }
+  SetVisibleTriangleCount(count) {
+    this.visibleTriangles.SetValue(count);
+  }
+  SetFPS(count) {
+    this.fps.SetValue(count);
+    let totalGPUTime = 0;
+    for (const [_, framePass] of this.framePassesStats) {
+      totalGPUTime += framePass.GetValue();
+    }
+    this.gpuTime.SetValue(totalGPUTime);
   }
   FormatBytes(bytes, decimals = 2) {
     const k = 1024;
@@ -1973,31 +1910,8 @@ var _Debugger = class {
     this.gpuTextureSizeStat.SetUnit(formatted.rank);
     this.gpuTextureSizeStat.SetValue(formatted.value);
   }
-  SetTotalMeshlets(count) {
-    this.totalMeshlets.SetValue(count);
-  }
-  SetVisibleMeshes(count) {
-    this.visibleMeshes.SetValue(count);
-  }
-  SetTriangleCount(count) {
-    this.triangleCount.SetValue(count);
-  }
-  IncrementTriangleCount(count) {
-    this.triangleCount.SetValue(this.triangleCount.GetValue() + count);
-  }
-  SetVisibleTriangleCount(count) {
-    this.visibleTriangles.SetValue(count);
-  }
-  SetFPS(count) {
-    this.fps.SetValue(count);
-    let totalGPUTime = 0;
-    for (const [_, framePass] of this.framePassesStats) {
-      totalGPUTime += framePass.GetValue();
-    }
-    this.gpuTime.SetValue(totalGPUTime);
-  }
 };
-var Debugger = new _Debugger();
+var RendererDebug = new _RendererDebug();
 
 // src/renderer/webgpu/WEBGPUBuffer.ts
 var BaseBuffer = class {
@@ -2011,7 +1925,7 @@ var BaseBuffer = class {
     return this.buffer.label;
   }
   constructor(sizeInBytes, type) {
-    Debugger.IncrementGPUBufferSize(sizeInBytes);
+    RendererDebug.IncrementGPUBufferSize(sizeInBytes);
     let usage = void 0;
     if (type == 0 /* STORAGE */) usage = GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC | GPUBufferUsage.COPY_DST;
     else if (type == 1 /* STORAGE_WRITE */) usage = GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC | GPUBufferUsage.COPY_DST;
@@ -2045,7 +1959,7 @@ var BaseBuffer = class {
     return arrayBuffer;
   }
   Destroy() {
-    Debugger.IncrementGPUBufferSize(-this.size);
+    RendererDebug.IncrementGPUBufferSize(-this.size);
     this.buffer.destroy();
   }
 };
@@ -3327,7 +3241,7 @@ var Texture2 = class {
   Destroy() {
   }
   static Create(width, height, depth = 1, format = Renderer.SwapChainFormat, mipLevels = 1) {
-    Debugger.IncrementGPUTextureSize(width * height * depth * 4);
+    RendererDebug.IncrementGPUTextureSize(width * height * depth * 4);
     if (Renderer.type === "webgpu") return new WEBGPUTexture(width, height, depth, format, 0 /* IMAGE */, "2d", mipLevels);
     throw Error("Renderer type invalid");
   }
@@ -3349,21 +3263,28 @@ var Texture2 = class {
 };
 var DepthTexture = class extends Texture2 {
   static Create(width, height, depth = 1, format = "depth24plus", mipLevels = 1) {
-    Debugger.IncrementGPUTextureSize(width * height * depth * 1);
+    RendererDebug.IncrementGPUTextureSize(width * height * depth * 1);
     if (Renderer.type === "webgpu") return new WEBGPUTexture(width, height, depth, format, 1 /* DEPTH */, "2d", mipLevels);
     throw Error("Renderer type invalid");
   }
 };
 var RenderTexture = class extends Texture2 {
   static Create(width, height, depth = 1, format = Renderer.SwapChainFormat, mipLevels = 1) {
-    Debugger.IncrementGPUTextureSize(width * height * depth * 4);
+    RendererDebug.IncrementGPUTextureSize(width * height * depth * 4);
     if (Renderer.type === "webgpu") return new WEBGPUTexture(width, height, depth, format, 2 /* RENDER_TARGET */, "2d", mipLevels);
+    throw Error("Renderer type invalid");
+  }
+};
+var TextureArray = class extends Texture2 {
+  static Create(width, height, depth = 1, format = Renderer.SwapChainFormat, mipLevels = 1) {
+    RendererDebug.IncrementGPUTextureSize(width * height * depth * 4);
+    if (Renderer.type === "webgpu") return new WEBGPUTexture(width, height, depth, format, 0 /* IMAGE */, "2d-array", mipLevels);
     throw Error("Renderer type invalid");
   }
 };
 var DepthTextureArray = class extends Texture2 {
   static Create(width, height, depth = 1, format = "depth24plus", mipLevels = 1) {
-    Debugger.IncrementGPUTextureSize(width * height * depth * 1);
+    RendererDebug.IncrementGPUTextureSize(width * height * depth * 1);
     if (Renderer.type === "webgpu") return new WEBGPUTexture(width, height, depth, format, 1 /* DEPTH */, "2d-array", mipLevels);
     throw Error("Renderer type invalid");
   }
@@ -3509,6 +3430,9 @@ var WEBGPUBaseShader = class {
   SetVector3(name, vector) {
     this.SetUniformDataFromArray(name, vector.elements);
   }
+  SetVector2(name, vector) {
+    this.SetUniformDataFromArray(name, vector.elements);
+  }
   SetTexture(name, texture) {
     this.SetUniformDataFromBuffer(name, texture);
   }
@@ -3527,6 +3451,43 @@ var WEBGPUBaseShader = class {
     if (this.needsUpdate || !this.pipeline || !this.bindGroups) {
       this.RebuildDescriptors();
     }
+  }
+};
+
+// src/renderer/webgpu/WEBGPUComputeShader.ts
+var WEBGPUComputeShader = class extends WEBGPUBaseShader {
+  computeEntrypoint;
+  params;
+  _pipeline = null;
+  get pipeline() {
+    return this._pipeline;
+  }
+  constructor(params) {
+    super(params);
+    this.params = params;
+    this.computeEntrypoint = params.computeEntrypoint;
+  }
+  RebuildDescriptors() {
+    console.log("%c Compiling shader", "color: #3498db");
+    this._bindGroupsInfo = this.BuildBindGroupLayouts();
+    const bindGroupLayouts = [];
+    this._bindGroups = [];
+    for (const bindGroupInfo of this._bindGroupsInfo) {
+      const bindGroupLayout = WEBGPURenderer.device.createBindGroupLayout({ entries: bindGroupInfo.layoutEntries });
+      bindGroupLayouts.push(bindGroupLayout);
+      const bindGroup = WEBGPURenderer.device.createBindGroup({ layout: bindGroupLayout, entries: bindGroupInfo.entries });
+      this._bindGroups.push(bindGroup);
+    }
+    const pipelineLayout = WEBGPURenderer.device.createPipelineLayout({
+      bindGroupLayouts
+      // Array of all bind group layouts used
+    });
+    const pipelineDescriptor = {
+      layout: pipelineLayout,
+      compute: { module: this.module, entryPoint: this.computeEntrypoint }
+    };
+    this._pipeline = WEBGPURenderer.device.createComputePipeline(pipelineDescriptor);
+    this.needsUpdate = false;
   }
 };
 
@@ -3553,7 +3514,7 @@ var WEBGPUShader = class extends WEBGPUBaseShader {
     if (this.params.attributes) this.attributeMap = new Map(Object.entries(this.params.attributes));
   }
   RebuildDescriptors() {
-    console.warn("Compiling shader");
+    console.log("%c Compiling shader", "color: #3498db");
     this._bindGroupsInfo = this.BuildBindGroupLayouts();
     const bindGroupLayouts = [];
     this._bindGroups = [];
@@ -3624,6 +3585,8 @@ var BaseShader = class {
   }
   SetMatrix4(name, matrix) {
   }
+  SetVector2(name, vector) {
+  }
   SetVector3(name, vector) {
   }
   SetArray(name, array, bufferOffset, dataOffset, size) {
@@ -3646,6 +3609,14 @@ var Shader = class extends BaseShader {
   static async Create(params) {
     params.code = await ShaderPreprocessor.ProcessIncludes(params.code);
     if (Renderer.type === "webgpu") return new WEBGPUShader(params);
+    throw Error("Unknown api");
+  }
+};
+var Compute = class extends BaseShader {
+  params;
+  static async Create(params) {
+    params.code = await ShaderPreprocessor.ProcessIncludes(params.code);
+    if (Renderer.type === "webgpu") return new WEBGPUComputeShader(params);
     throw Error("Unknown api");
   }
 };
@@ -3883,72 +3854,44 @@ var RenderCache = class {
 // src/renderer/passes/DeferredShadowMapPass.ts
 var lightsCSMProjectionMatrix = [];
 var cascadeSplits = new Vector4();
-function getCornersForCascade(camera, cascadeNear, cascadeFar) {
-  const projectionMatrix = new Matrix4().perspectiveWGPUMatrix(camera.fov * (Math.PI / 180), camera.aspect, cascadeNear, cascadeFar);
-  let frustumCorners = [
-    new Vector3(-1, 1, 0),
-    new Vector3(1, 1, 0),
-    new Vector3(1, -1, 0),
-    new Vector3(-1, -1, 0),
-    new Vector3(-1, 1, 1),
-    new Vector3(1, 1, 1),
-    new Vector3(1, -1, 1),
-    new Vector3(-1, -1, 1)
-  ];
-  const invViewProj = projectionMatrix.clone().mul(camera.viewMatrix).invert();
-  for (let i2 = 0; i2 < 8; i2++) {
-    frustumCorners[i2].applyMatrix4(invViewProj);
-  }
-  return frustumCorners;
-}
-var getCascades = (camera, cascadeCount, light) => {
-  const CASCADE_PERCENTAGES = [0.05, 0.15, 0.5, 1];
-  const CASCADE_DISTANCES = [
-    CASCADE_PERCENTAGES[0] * camera.far,
-    CASCADE_PERCENTAGES[1] * camera.far,
-    CASCADE_PERCENTAGES[2] * camera.far,
-    CASCADE_PERCENTAGES[3] * camera.far
-  ];
-  let cascades = [];
-  for (let i2 = 0; i2 < cascadeCount; i2++) {
-    const cascadeNear = i2 === 0 ? camera.near : CASCADE_DISTANCES[i2 - 1];
-    const cascadeFar = CASCADE_DISTANCES[i2];
-    const frustumCorners = getCornersForCascade(camera, cascadeNear, cascadeFar);
-    const frustumCenter = new Vector3(0, 0, 0);
-    for (let i3 = 0; i3 < frustumCorners.length; i3++) {
-      frustumCenter.add(frustumCorners[i3]);
-    }
-    frustumCenter.mul(1 / frustumCorners.length);
-    const lightDirection = light.transform.position.clone().normalize();
-    const radius = frustumCorners[0].clone().sub(frustumCorners[6]).length() / 2;
-    if (Debugger.shadows.roundToPixelSize === true) {
-      const shadowMapSize = 4096;
-      const texelsPerUnit = shadowMapSize / (radius * 2);
-      const scalar = new Matrix4().makeScale(new Vector3(texelsPerUnit, texelsPerUnit, texelsPerUnit));
-      const baseLookAt = new Vector3(-lightDirection.x, -lightDirection.y, -lightDirection.z);
-      const lookAt = new Matrix4().lookAt(new Vector3(0, 0, 0), baseLookAt, new Vector3(0, 1, 0)).mul(scalar);
-      const lookAtInv = lookAt.clone().invert();
-      frustumCenter.transformDirection(lookAt);
-      frustumCenter.x = Math.floor(frustumCenter.x);
-      frustumCenter.y = Math.floor(frustumCenter.y);
-      frustumCenter.transformDirection(lookAtInv);
-    }
-    const eye = frustumCenter.clone().sub(lightDirection.clone().mul(radius * 2));
-    const lightViewMatrix = new Matrix4();
-    lightViewMatrix.lookAt(
-      eye,
-      frustumCenter,
-      new Vector3(0, 1, 0)
-    );
-    const lightProjMatrix = new Matrix4().orthoZO(-radius, radius, -radius, radius, -radius * 6, radius * 6);
-    const out = lightProjMatrix.mul(lightViewMatrix);
-    cascades.push({
-      viewProjMatrix: out,
-      splitDepth: cascadeFar
+var _DeferredShadowMapPassDebug = class {
+  shadowsFolder;
+  shadowsUpdate;
+  shadowsRoundToPixelSize;
+  debugCascades;
+  pcfResolution;
+  blendThreshold;
+  viewBlendThreshold;
+  shadowsUpdateValue = true;
+  roundToPixelSizeValue = true;
+  debugCascadesValue = false;
+  pcfResolutionValue = 1;
+  blendThresholdValue = 0.3;
+  viewBlendThresholdValue = false;
+  constructor() {
+    this.shadowsFolder = new UIFolder(Debugger.ui, "CSM Shadows");
+    this.shadowsUpdate = new UIButtonStat(this.shadowsFolder, "Update shadows", (value) => {
+      this.shadowsUpdateValue = value;
+    }, this.shadowsUpdateValue);
+    this.shadowsRoundToPixelSize = new UIButtonStat(this.shadowsFolder, "RoundToPixelSize", (value) => {
+      this.roundToPixelSizeValue = value;
+    }, this.roundToPixelSizeValue);
+    this.debugCascades = new UIButtonStat(this.shadowsFolder, "Debug cascades", (value) => {
+      this.debugCascadesValue = value;
+    }, this.debugCascadesValue);
+    this.pcfResolution = new UISliderStat(this.shadowsFolder, "PCF resolution", 0, 7, 1, this.pcfResolutionValue, (value) => {
+      this.pcfResolutionValue = value;
     });
+    this.blendThreshold = new UISliderStat(this.shadowsFolder, "Blend threshold", 0, 1, 0.01, this.blendThresholdValue, (value) => {
+      this.blendThresholdValue = value;
+    });
+    this.viewBlendThreshold = new UIButtonStat(this.shadowsFolder, "View blend threshold", (value) => {
+      this.viewBlendThresholdValue = value;
+    }, this.viewBlendThresholdValue);
+    this.shadowsFolder.Open();
   }
-  return cascades;
 };
+var DeferredShadowMapPassDebug = new _DeferredShadowMapPassDebug();
 var DeferredShadowMapPass = class extends RenderPass {
   name = "DeferredShadowMapPass";
   drawInstancedShadowShader;
@@ -4044,6 +3987,72 @@ var DeferredShadowMapPass = class extends RenderPass {
     });
     this.initialized = true;
   }
+  getCornersForCascade(camera, cascadeNear, cascadeFar) {
+    const projectionMatrix = new Matrix4().perspectiveWGPUMatrix(camera.fov * (Math.PI / 180), camera.aspect, cascadeNear, cascadeFar);
+    let frustumCorners = [
+      new Vector3(-1, 1, 0),
+      new Vector3(1, 1, 0),
+      new Vector3(1, -1, 0),
+      new Vector3(-1, -1, 0),
+      new Vector3(-1, 1, 1),
+      new Vector3(1, 1, 1),
+      new Vector3(1, -1, 1),
+      new Vector3(-1, -1, 1)
+    ];
+    const invViewProj = projectionMatrix.clone().mul(camera.viewMatrix).invert();
+    for (let i2 = 0; i2 < 8; i2++) {
+      frustumCorners[i2].applyMatrix4(invViewProj);
+    }
+    return frustumCorners;
+  }
+  getCascades(camera, cascadeCount, light) {
+    const CASCADE_PERCENTAGES = [0.05, 0.15, 0.5, 1];
+    const CASCADE_DISTANCES = [
+      CASCADE_PERCENTAGES[0] * camera.far,
+      CASCADE_PERCENTAGES[1] * camera.far,
+      CASCADE_PERCENTAGES[2] * camera.far,
+      CASCADE_PERCENTAGES[3] * camera.far
+    ];
+    let cascades = [];
+    for (let i2 = 0; i2 < cascadeCount; i2++) {
+      const cascadeNear = i2 === 0 ? camera.near : CASCADE_DISTANCES[i2 - 1];
+      const cascadeFar = CASCADE_DISTANCES[i2];
+      const frustumCorners = this.getCornersForCascade(camera, cascadeNear, cascadeFar);
+      const frustumCenter = new Vector3(0, 0, 0);
+      for (let i3 = 0; i3 < frustumCorners.length; i3++) {
+        frustumCenter.add(frustumCorners[i3]);
+      }
+      frustumCenter.mul(1 / frustumCorners.length);
+      const lightDirection = light.transform.position.clone().normalize();
+      const radius = frustumCorners[0].clone().sub(frustumCorners[6]).length() / 2;
+      if (DeferredShadowMapPassDebug.roundToPixelSizeValue === true) {
+        const shadowMapSize = 4096;
+        const texelsPerUnit = shadowMapSize / (radius * 2);
+        const scalar = new Matrix4().makeScale(new Vector3(texelsPerUnit, texelsPerUnit, texelsPerUnit));
+        const baseLookAt = new Vector3(-lightDirection.x, -lightDirection.y, -lightDirection.z);
+        const lookAt = new Matrix4().lookAt(new Vector3(0, 0, 0), baseLookAt, new Vector3(0, 1, 0)).mul(scalar);
+        const lookAtInv = lookAt.clone().invert();
+        frustumCenter.transformDirection(lookAt);
+        frustumCenter.x = Math.floor(frustumCenter.x);
+        frustumCenter.y = Math.floor(frustumCenter.y);
+        frustumCenter.transformDirection(lookAtInv);
+      }
+      const eye = frustumCenter.clone().sub(lightDirection.clone().mul(radius * 2));
+      const lightViewMatrix = new Matrix4();
+      lightViewMatrix.lookAt(
+        eye,
+        frustumCenter,
+        new Vector3(0, 1, 0)
+      );
+      const lightProjMatrix = new Matrix4().orthoZO(-radius, radius, -radius, radius, -radius * 6, radius * 6);
+      const out = lightProjMatrix.mul(lightViewMatrix);
+      cascades.push({
+        viewProjMatrix: out,
+        splitDepth: cascadeFar
+      });
+    }
+    return cascades;
+  }
   execute(resources) {
     if (!this.initialized) return;
     const scene = Camera.mainCamera.gameObject.scene;
@@ -4081,7 +4090,7 @@ var DeferredShadowMapPass = class extends RenderPass {
       const light = lights[i2];
       EventSystemLocal.emit(TransformEvents.Updated, light.transform);
       let lightData = [];
-      const cascades = getCascades(Camera.mainCamera, numOfCascades, light);
+      const cascades = this.getCascades(Camera.mainCamera, numOfCascades, light);
       lightData = [];
       for (const cascade of cascades) {
         lightData.push(cascade.viewProjMatrix);
@@ -4353,110 +4362,6 @@ var TextureViewer = class extends RenderPass {
     this.shader.SetTexture("texture", LightingPassOutputTexture);
     RendererContext.BeginRenderPass("TextureViewer", [{ clear: false }], void 0, true);
     RendererContext.DrawGeometry(this.quadGeometry, this.shader);
-    RendererContext.EndRenderPass();
-  }
-};
-
-// src/renderer/passes/DeferredGBufferPass.ts
-var DeferredGBufferPass = class extends RenderPass {
-  name = "DeferredMeshRenderPass";
-  constructor() {
-    super({
-      inputs: [
-        PassParams.MainCamera,
-        PassParams.GBufferAlbedo,
-        PassParams.GBufferNormal,
-        PassParams.GBufferERMO,
-        PassParams.GBufferDepth
-      ],
-      outputs: []
-    });
-  }
-  async init(resources) {
-    this.initialized = true;
-  }
-  execute(resources) {
-    if (!this.initialized) return;
-    const scene = Camera.mainCamera.gameObject.scene;
-    const meshes = scene.GetComponents(Mesh);
-    const instancedMeshes = scene.GetComponents(InstancedMesh);
-    if (meshes.length === 0 && instancedMeshes.length === 0) return;
-    const inputCamera = Camera.mainCamera;
-    if (!inputCamera) throw Error(`No inputs passed to ${this.name}`);
-    const backgroundColor = inputCamera.backgroundColor;
-    const inputGBufferAlbedo = resources.getResource(PassParams.GBufferAlbedo);
-    const inputGBufferNormal = resources.getResource(PassParams.GBufferNormal);
-    const inputGBufferERMO = resources.getResource(PassParams.GBufferERMO);
-    const inputGBufferDepth = resources.getResource(PassParams.GBufferDepth);
-    RendererContext.BeginRenderPass(
-      "DeferredMeshRenderPass",
-      [
-        { target: inputGBufferAlbedo, clear: false, color: backgroundColor },
-        { target: inputGBufferNormal, clear: false, color: backgroundColor },
-        { target: inputGBufferERMO, clear: false, color: backgroundColor }
-      ],
-      { target: inputGBufferDepth, clear: false },
-      true
-    );
-    const projectionMatrix = inputCamera.projectionMatrix;
-    const viewMatrix = inputCamera.viewMatrix;
-    for (const mesh of meshes) {
-      const geometry = mesh.GetGeometry();
-      const materials = mesh.GetMaterials();
-      for (const material of materials) {
-        if (!material.shader) {
-          material.createShader().then((shader2) => {
-          });
-          continue;
-        }
-        const shader = material.shader;
-        shader.SetMatrix4("projectionMatrix", projectionMatrix);
-        shader.SetMatrix4("viewMatrix", viewMatrix);
-        shader.SetMatrix4("modelMatrix", mesh.transform.localToWorldMatrix);
-        shader.SetVector3("cameraPosition", inputCamera.transform.position);
-        RendererContext.DrawGeometry(geometry, shader, 1);
-        if (geometry.index) {
-          Debugger.IncrementTriangleCount(geometry.index.array.length / 3);
-        }
-        RenderCache.renderableMeshes.push({
-          type: "Draw",
-          shader,
-          geometry,
-          mesh
-        });
-      }
-    }
-    for (const instancedMesh of instancedMeshes) {
-      const geometry = instancedMesh.GetGeometry();
-      const materials = instancedMesh.GetMaterials();
-      for (const material of materials) {
-        if (!material.shader) {
-          material.createShader().then((shader2) => {
-          });
-          continue;
-        }
-        const shader = material.shader;
-        shader.SetMatrix4("projectionMatrix", projectionMatrix);
-        shader.SetMatrix4("viewMatrix", viewMatrix);
-        shader.SetBuffer("modelMatrix", instancedMesh.matricesBuffer);
-        shader.SetVector3("cameraPosition", inputCamera.transform.position);
-        RendererContext.DrawGeometry(geometry, shader, instancedMesh.instanceCount + 1);
-        if (geometry.index) {
-          Debugger.IncrementTriangleCount(geometry.index.array.length / 3 * (instancedMesh.instanceCount + 1));
-        }
-        RenderCache.renderableMeshes.push({
-          type: "DrawInstanced",
-          shader,
-          geometry,
-          instances: instancedMesh.instanceCount + 1,
-          instancedMesh
-        });
-      }
-    }
-    resources.setResource(PassParams.GBufferDepth, inputGBufferDepth);
-    resources.setResource(PassParams.GBufferAlbedo, inputGBufferAlbedo);
-    resources.setResource(PassParams.GBufferNormal, inputGBufferNormal);
-    resources.setResource(PassParams.GBufferERMO, inputGBufferERMO);
     RendererContext.EndRenderPass();
   }
 };
@@ -5833,6 +5738,99 @@ var Meshlet = class _Meshlet {
   }
 };
 
+// src/plugins/meshlets/passes/MeshletDebug.ts
+var _MeshletDebug = class {
+  meshletsFolder;
+  viewTypeStat;
+  viewTypeValue = 0;
+  meshletsViewType = 0;
+  totalMeshlets;
+  visibleMeshes;
+  hizFolder;
+  debugDepthMipLevel;
+  debugDepthMipLevelValue = 0;
+  debugDepthExposure;
+  debugDepthExposureValue = 0;
+  debugDepth;
+  isDebugDepthPassEnabled;
+  cullingFolder;
+  frustumCulling;
+  backFaceCulling;
+  occlusionCulling;
+  smallFeatureCulling;
+  dynamicLODErrorThreshold;
+  dynamicLOD;
+  staticLOD;
+  isFrustumCullingEnabled = true;
+  isBackFaceCullingEnabled = false;
+  isOcclusionCullingEnabled = true;
+  isSmallFeaturesCullingEnabled = true;
+  dynamicLODErrorThresholdValue = 1;
+  isDynamicLODEnabled = true;
+  staticLODValue = 20;
+  constructor() {
+    this.meshletsFolder = new UIFolder(Debugger.ui, "Plugin - Meshlets");
+    this.viewTypeStat = new UIDropdownStat(this.meshletsFolder, "Show:", ["Default", "Meshlets", "Triangles"], (index, value) => {
+      this.meshletsViewType = index;
+    }, this.meshletsViewType);
+    this.totalMeshlets = new UITextStat(this.meshletsFolder, "Total meshlets");
+    this.visibleMeshes = new UITextStat(this.meshletsFolder, "Visible meshlets: ");
+    this.meshletsFolder.Open();
+    this.hizFolder = new UIFolder(this.meshletsFolder, "- Hierarchical Z depth");
+    this.hizFolder.Open();
+    this.debugDepthMipLevel = new UISliderStat(this.hizFolder, "Depth mip:", 0, 20, 1, 0, (value) => {
+      this.debugDepthMipLevelValue = value;
+    });
+    this.debugDepthExposure = new UISliderStat(this.hizFolder, "Depth exposure:", -10, 10, 0.01, 0, (value) => {
+      this.debugDepthExposureValue = value;
+    });
+    this.debugDepthMipLevel.Disable();
+    this.debugDepthExposure.Disable();
+    this.debugDepth = new UIButtonStat(this.hizFolder, "View depth:", (state) => {
+      this.isDebugDepthPassEnabled = state;
+      if (this.isDebugDepthPassEnabled === true) {
+        this.debugDepthMipLevel.Enable();
+        this.debugDepthExposure.Enable();
+      } else {
+        this.debugDepthMipLevel.Disable();
+        this.debugDepthExposure.Disable();
+      }
+    });
+    this.cullingFolder = new UIFolder(this.meshletsFolder, "- Culling");
+    this.frustumCulling = new UIButtonStat(this.cullingFolder, "Frustum culling:", (state) => {
+      this.isFrustumCullingEnabled = state;
+    }, this.isFrustumCullingEnabled);
+    this.backFaceCulling = new UIButtonStat(this.cullingFolder, "Backface culling:", (state) => {
+      this.isBackFaceCullingEnabled = state;
+    }, this.isBackFaceCullingEnabled);
+    this.occlusionCulling = new UIButtonStat(this.cullingFolder, "Occlusion culling:", (state) => {
+      this.isOcclusionCullingEnabled = state;
+    }, this.isOcclusionCullingEnabled);
+    this.smallFeatureCulling = new UIButtonStat(this.cullingFolder, "Small features:", (state) => {
+      this.isSmallFeaturesCullingEnabled = state;
+    }, this.isSmallFeaturesCullingEnabled);
+    this.staticLOD = new UISliderStat(this.cullingFolder, "Static LOD:", 0, this.staticLODValue, 1, 0, (state) => {
+      this.staticLODValue = state;
+    });
+    this.staticLOD.Disable();
+    this.dynamicLODErrorThreshold = new UISliderStat(this.cullingFolder, "Dynamic LOD error:", 0, 20, 0.01, this.dynamicLODErrorThresholdValue, (value) => {
+      this.dynamicLODErrorThresholdValue = value;
+    });
+    this.dynamicLOD = new UIButtonStat(this.cullingFolder, "Dynamic LOD:", (state) => {
+      this.isDynamicLODEnabled = state;
+      if (this.isDynamicLODEnabled === true) {
+        this.staticLOD.Disable();
+        this.dynamicLODErrorThreshold.Enable();
+      } else {
+        this.staticLOD.Enable();
+        this.dynamicLODErrorThreshold.Disable();
+      }
+    }, this.isDynamicLODEnabled);
+    this.cullingFolder.Open();
+  }
+};
+var MeshletDebug = new _MeshletDebug();
+
 // src/renderer/passes/PrepareGBuffers.ts
 var PrepareGBuffers = class extends RenderPass {
   name = "PrepareGBuffers";
@@ -5877,19 +5875,24 @@ var PrepareGBuffers = class extends RenderPass {
       +Debugger.isDebugDepthPassEnabled,
       Debugger.debugDepthMipLevel,
       Debugger.debugDepthExposure,
-      +Debugger.isFrustumCullingEnabled,
-      +Debugger.isBackFaceCullingEnabled,
-      +Debugger.isOcclusionCullingEnabled,
-      +Debugger.isSmallFeaturesCullingEnabled,
-      Debugger.staticLOD,
-      Debugger.dynamicLODErrorThreshold,
-      +Debugger.isDynamicLODEnabled,
-      Debugger.viewType,
-      Debugger.meshletsViewType,
-      +Debugger.useHeightMap,
+      +MeshletDebug.isFrustumCullingEnabled,
+      +MeshletDebug.isBackFaceCullingEnabled,
+      +MeshletDebug.isOcclusionCullingEnabled,
+      +MeshletDebug.isSmallFeaturesCullingEnabled,
+      MeshletDebug.staticLODValue,
+      MeshletDebug.dynamicLODErrorThresholdValue,
+      +MeshletDebug.isDynamicLODEnabled,
+      RendererDebug.viewTypeValue,
+      MeshletDebug.meshletsViewType,
+      +RendererDebug.useHeightMapValue,
       Debugger.heightScale,
       Meshlet.max_triangles,
+      +DeferredShadowMapPassDebug.debugCascadesValue,
+      DeferredShadowMapPassDebug.pcfResolutionValue,
+      DeferredShadowMapPassDebug.blendThresholdValue,
+      +DeferredShadowMapPassDebug.viewBlendThresholdValue,
       ...Camera.mainCamera.transform.position.elements,
+      0,
       0,
       0
     ]);
@@ -5996,40 +5999,69 @@ var RenderingPipeline = class {
   renderGraph;
   frame = 0;
   previousTime = 0;
+  beforeGBufferPasses = [];
+  afterGBufferPasses = [];
+  beforeLightingPasses = [];
+  afterLightingPasses = [];
+  beforeScreenOutputPasses = [];
+  renderPasses = [];
   constructor(renderer) {
     this.renderer = renderer;
-    const passes = {
-      PrepareDeferredRender: new PrepareGBuffers(),
-      // meshletDrawPass: new MeshletDraw(),
-      GBufferPass: new DeferredGBufferPass(),
-      deferredShadowMapPass: new DeferredShadowMapPass(),
-      DeferredLightingPass: new DeferredLightingPass(),
-      OutputPass: new TextureViewer(),
-      DebuggerTextureViewer: new DebuggerTextureViewer()
-    };
+    console.warn("this sucks");
     this.renderGraph = new RenderGraph();
-    for (const pass of Object.keys(passes)) {
-      this.renderGraph.addPass(passes[pass]);
-    }
+    this.beforeGBufferPasses = [
+      new PrepareGBuffers()
+      // new DeferredGBufferPass(),
+    ];
+    this.afterGBufferPasses = [
+      new DeferredShadowMapPass()
+    ];
+    this.beforeLightingPasses = [
+      new DeferredLightingPass()
+    ];
+    this.afterLightingPasses = [];
+    this.beforeScreenOutputPasses = [
+      new TextureViewer(),
+      new DebuggerTextureViewer()
+    ];
+    this.UpdateRenderGraphPasses();
+  }
+  UpdateRenderGraphPasses() {
+    this.renderGraph.passes = [];
+    this.renderGraph.passes.push(
+      ...this.beforeGBufferPasses,
+      ...this.afterGBufferPasses,
+      ...this.beforeLightingPasses,
+      ...this.afterLightingPasses,
+      ...this.beforeScreenOutputPasses
+    );
     this.renderGraph.init();
+  }
+  AddPass(pass, order) {
+    if (order === 0 /* BeforeGBuffer */) this.beforeGBufferPasses.push(pass);
+    else if (order === 1 /* AfterGBuffer */) this.afterGBufferPasses.push(pass);
+    else if (order === 2 /* BeforeLighting */) this.beforeLightingPasses.push(pass);
+    else if (order === 3 /* AfterLighting */) this.afterLightingPasses.push(pass);
+    else if (order === 4 /* BeforeScreenOutput */) this.beforeScreenOutputPasses.push(pass);
+    this.UpdateRenderGraphPasses();
   }
   Render(scene) {
     RenderCache.Reset();
-    Debugger.SetTriangleCount(0);
+    RendererDebug.SetTriangleCount(0);
     Renderer.BeginRenderFrame();
     this.renderGraph.execute();
     Renderer.EndRenderFrame();
     WEBGPUTimestampQuery.GetResult().then((frameTimes) => {
       if (frameTimes) {
         for (const [name, time] of frameTimes) {
-          Debugger.SetPassTime(name, time);
+          RendererDebug.SetPassTime(name, time);
         }
       }
     });
     const currentTime = performance.now();
     const elapsed = currentTime - this.previousTime;
     this.previousTime = currentTime;
-    Debugger.SetFPS(1 / elapsed * 1e3);
+    RendererDebug.SetFPS(1 / elapsed * 1e3);
     this.frame++;
   }
 };
@@ -9776,9 +9808,1332 @@ var OBJLoaderIndexed = class _OBJLoaderIndexed {
   }
 };
 
+// src/plugins/PostProcessing/PostProcessingPass.ts
+var PostProcessingPass = class extends RenderPass {
+  name = "PostProcessingPass";
+  effects = [];
+  constructor() {
+    super({
+      inputs: [
+        PassParams.LightingPassOutput
+      ],
+      outputs: [
+        PassParams.LightingPassOutput
+      ]
+    });
+  }
+  async init(resources) {
+    for (const effect of this.effects) {
+      await effect.init(resources);
+    }
+    this.initialized = true;
+  }
+  async execute(resources) {
+    if (this.initialized === false) return;
+    for (const effect of this.effects) {
+      if (!effect.initialized) {
+        await effect.init(resources);
+        continue;
+      }
+      effect.execute(resources);
+    }
+    resources.setResource;
+  }
+};
+
+// src/plugins/PostProcessing/effects/FXAA.ts
+var PostProcessingFXAA = class extends RenderPass {
+  name = "PostProcessingFXAA";
+  shader;
+  quadGeometry;
+  renderTarget;
+  constructor() {
+    super({ inputs: [
+      PassParams.LightingPassOutput
+    ] });
+  }
+  async init() {
+    const code = `
+        struct VertexInput {
+            @location(0) position : vec2<f32>,
+            @location(1) uv : vec2<f32>,
+        };
+
+        struct VertexOutput {
+            @builtin(position) position : vec4<f32>,
+            @location(0) vUv : vec2<f32>,
+        };
+
+        @group(0) @binding(0) var textureSampler: sampler;
+        @group(0) @binding(1) var texture: texture_2d<f32>;
+        @group(0) @binding(2) var<storage, read> resolutionInv: vec2<f32>;
+
+        @vertex fn vertexMain(input: VertexInput) -> VertexOutput {
+            var output: VertexOutput;
+            output.position = vec4(input.position, 0.0, 1.0);
+            output.vUv = input.uv;
+            return output;
+        }
+        
+        // Ported from: https://github.com/mrdoob/three.js/blob/master/examples/jsm/shaders/FXAAShader.js
+        const EDGE_STEP_COUNT: i32 = 6;
+        const EDGE_GUESS: f32 = 8.0;
+        const edgeSteps: array<f32, EDGE_STEP_COUNT> = array(1.0, 1.5, 2.0, 2.0, 2.0, 4.0);
+
+		const _ContrastThreshold = 0.0312;
+		const _RelativeThreshold = 0.063;
+		const _SubpixelBlending = 1.0;
+
+
+		fn Sample(tex2D: texture_2d<f32>, uv: vec2f) -> vec4f {
+			return textureSampleLevel( tex2D, textureSampler, uv, 0);
+		}
+
+		fn SampleLuminance1(tex2D: texture_2d<f32>, uv: vec2f ) -> f32 {
+			return dot( Sample( tex2D, uv ).rgb, vec3( 0.3, 0.59, 0.11 ) );
+		}
+
+		fn SampleLuminance2(tex2D: texture_2d<f32>, texSize: vec2f, uv: vec2f, uOffset: f32, vOffset: f32 ) -> f32 {
+			let _uv = uv + texSize * vec2(uOffset, vOffset);
+			return SampleLuminance1(tex2D, _uv);
+		}
+
+		struct LuminanceData {
+			m: f32, n: f32, e: f32, s: f32, w: f32,
+			ne: f32, nw: f32, se: f32, sw: f32,
+			highest: f32, lowest: f32, contrast: f32
+		};
+
+		fn SampleLuminanceNeighborhood(tex2D: texture_2d<f32>, texSize: vec2f, uv: vec2f ) -> LuminanceData {
+			var l: LuminanceData;
+			l.m = SampleLuminance1( tex2D, uv );
+			l.n = SampleLuminance2( tex2D, texSize, uv,  0.0,  1.0 );
+			l.e = SampleLuminance2( tex2D, texSize, uv,  1.0,  0.0 );
+			l.s = SampleLuminance2( tex2D, texSize, uv,  0.0, -1.0 );
+			l.w = SampleLuminance2( tex2D, texSize, uv, -1.0,  0.0 );
+
+			l.ne = SampleLuminance2( tex2D, texSize, uv,  1.0,  1.0 );
+			l.nw = SampleLuminance2( tex2D, texSize, uv, -1.0,  1.0 );
+			l.se = SampleLuminance2( tex2D, texSize, uv,  1.0, -1.0 );
+			l.sw = SampleLuminance2( tex2D, texSize, uv, -1.0, -1.0 );
+
+			l.highest = max( max( max( max( l.n, l.e ), l.s ), l.w ), l.m );
+			l.lowest = min( min( min( min( l.n, l.e ), l.s ), l.w ), l.m );
+			l.contrast = l.highest - l.lowest;
+			return l;
+		}
+
+		fn ShouldSkipPixel(l: LuminanceData) -> bool {
+			let threshold = max( _ContrastThreshold, _RelativeThreshold * l.highest );
+			return l.contrast < threshold;
+		}
+
+		fn DeterminePixelBlendFactor( l: LuminanceData) -> f32 {
+			var f = 2.0 * ( l.n + l.e + l.s + l.w );
+			f += l.ne + l.nw + l.se + l.sw;
+			f *= 1.0 / 12.0;
+			f = abs( f - l.m );
+			f = clamp( f / l.contrast, 0.0, 1.0 );
+
+			let blendFactor = smoothstep( 0.0, 1.0, f );
+			return blendFactor * blendFactor * _SubpixelBlending;
+		}
+
+		struct EdgeData {
+			isHorizontal: bool,
+			pixelStep: f32,
+			oppositeLuminance: f32, gradient: f32
+		};
+
+		fn DetermineEdge(texSize: vec2f, l: LuminanceData) -> EdgeData {
+			var e: EdgeData;
+			let horizontal =
+				abs( l.n + l.s - 2.0 * l.m ) * 2.0 +
+				abs( l.ne + l.se - 2.0 * l.e ) +
+				abs( l.nw + l.sw - 2.0 * l.w );
+			let vertical =
+				abs( l.e + l.w - 2.0 * l.m ) * 2.0 +
+				abs( l.ne + l.nw - 2.0 * l.n ) +
+				abs( l.se + l.sw - 2.0 * l.s );
+			e.isHorizontal = horizontal >= vertical;
+
+			let pLuminance = select(l.e, l.n, e.isHorizontal);
+			let nLuminance = select(l.w, l.s, e.isHorizontal);
+			let pGradient = abs( pLuminance - l.m );
+			let nGradient = abs( nLuminance - l.m );
+
+			e.pixelStep = select(texSize.x, texSize.y, e.isHorizontal);
+			
+			if (pGradient < nGradient) {
+				e.pixelStep = -e.pixelStep;
+				e.oppositeLuminance = nLuminance;
+				e.gradient = nGradient;
+			} else {
+				e.oppositeLuminance = pLuminance;
+				e.gradient = pGradient;
+			}
+
+			return e;
+		}
+        
+        fn DetermineEdgeBlendFactor(tex2D: texture_2d<f32>, texSize: vec2f, l: LuminanceData, e: EdgeData, uv: vec2f ) -> f32 {
+			var uvEdge: vec2f = uv;
+			var edgeStep: vec2f;
+			if (e.isHorizontal) {
+				uvEdge.y += e.pixelStep * 0.5;
+				edgeStep = vec2( texSize.x, 0.0 );
+			} else {
+				uvEdge.x += e.pixelStep * 0.5;
+				edgeStep = vec2( 0.0, texSize.y );
+			}
+
+			let edgeLuminance: f32 = ( l.m + e.oppositeLuminance ) * 0.5;
+			let gradientThreshold: f32 = e.gradient * 0.25;
+
+			var puv: vec2f = uvEdge + edgeStep * edgeSteps[0];
+			var pLuminanceDelta: f32 = SampleLuminance1( tex2D, puv ) - edgeLuminance;
+			var pAtEnd: bool = abs( pLuminanceDelta ) >= gradientThreshold;
+
+			for (var i = 1; i < EDGE_STEP_COUNT && !pAtEnd; i++) {
+				puv += edgeStep * edgeSteps[i];
+				pLuminanceDelta = SampleLuminance1( tex2D, puv ) - edgeLuminance;
+				pAtEnd = abs( pLuminanceDelta ) >= gradientThreshold;
+			}
+
+			if ( !pAtEnd ) {
+				puv += edgeStep * EDGE_GUESS;
+			}
+
+			var nuv: vec2f = uvEdge - edgeStep * edgeSteps[0];
+			var nLuminanceDelta: f32 = SampleLuminance1( tex2D, nuv ) - edgeLuminance;
+			var nAtEnd: bool = abs( nLuminanceDelta ) >= gradientThreshold;
+
+			for (var i = 1; i < EDGE_STEP_COUNT && !nAtEnd; i++) {
+				nuv -= edgeStep * edgeSteps[i];
+				nLuminanceDelta = SampleLuminance1( tex2D, nuv ) - edgeLuminance;
+				nAtEnd = abs( nLuminanceDelta ) >= gradientThreshold;
+			}
+
+			if ( !nAtEnd ) {
+				nuv -= edgeStep * EDGE_GUESS;
+			}
+
+			var pDistance: f32;
+            var nDistance: f32;
+			if ( e.isHorizontal ) {
+				pDistance = puv.x - uv.x;
+				nDistance = uv.x - nuv.x;
+			} else {
+				pDistance = puv.y - uv.y;
+				nDistance = uv.y - nuv.y;
+			}
+
+			var shortestDistance: f32;
+			var deltaSign: bool;
+			if ( pDistance <= nDistance ) {
+				shortestDistance = pDistance;
+				deltaSign = pLuminanceDelta >= 0.0;
+			} else {
+				shortestDistance = nDistance;
+				deltaSign = nLuminanceDelta >= 0.0;
+			}
+
+			if (deltaSign == ( l.m - edgeLuminance >= 0.0 )) {
+				return 0.0;
+			}
+
+			return 0.5 - shortestDistance / ( pDistance + nDistance );
+		}
+
+		fn ApplyFXAA(tex2D: texture_2d<f32>, texSize: vec2f, _uv: vec2f ) -> vec4f {
+            var uv: vec2f = _uv;
+			let luminance: LuminanceData = SampleLuminanceNeighborhood(tex2D, texSize, uv);
+			if ( ShouldSkipPixel( luminance ) ) {
+				return Sample( tex2D, uv );
+			}
+
+			let pixelBlend: f32 = DeterminePixelBlendFactor( luminance );
+			let edge: EdgeData = DetermineEdge( texSize, luminance );
+			let edgeBlend: f32 = DetermineEdgeBlendFactor( tex2D, texSize, luminance, edge, uv );
+			let finalBlend: f32 = max( pixelBlend, edgeBlend );
+
+			if (edge.isHorizontal) {
+				uv.y += edge.pixelStep * finalBlend;
+			} else {
+				uv.x += edge.pixelStep * finalBlend;
+			}
+
+			return Sample(tex2D, uv);
+		}
+
+        @fragment fn fragmentMain(input: VertexOutput) -> @location(0) vec4f {
+            return ApplyFXAA(texture, resolutionInv, input.vUv );
+        }
+        `;
+    this.shader = await Shader.Create({
+      code,
+      colorOutputs: [{ format: Renderer.SwapChainFormat }],
+      attributes: {
+        position: { location: 0, size: 3, type: "vec3" },
+        uv: { location: 1, size: 2, type: "vec2" }
+      },
+      uniforms: {
+        textureSampler: { group: 0, binding: 0, type: "sampler" },
+        texture: { group: 0, binding: 1, type: "texture" },
+        resolutionInv: { group: 0, binding: 2, type: "storage" }
+      }
+    });
+    this.quadGeometry = Geometry.Plane();
+    const sampler = TextureSampler.Create();
+    this.shader.SetSampler("textureSampler", sampler);
+    this.shader.SetVector2("resolutionInv", new Vector2(1 / Renderer.width, 1 / Renderer.height));
+    this.renderTarget = RenderTexture.Create(Renderer.width, Renderer.height);
+    this.initialized = true;
+  }
+  execute(resources) {
+    if (this.initialized === false) return;
+    const LightingPassOutputTexture = resources.getResource(PassParams.LightingPassOutput);
+    if (!LightingPassOutputTexture) return;
+    this.shader.SetTexture("texture", LightingPassOutputTexture);
+    RendererContext.BeginRenderPass(this.name, [{ clear: false, target: this.renderTarget }], void 0, true);
+    RendererContext.DrawGeometry(this.quadGeometry, this.shader);
+    RendererContext.EndRenderPass();
+    RendererContext.CopyTextureToTexture(this.renderTarget, LightingPassOutputTexture);
+    resources.setResource(PassParams.LightingPassOutput, LightingPassOutputTexture);
+  }
+};
+
+// src/renderer/passes/HiZPass.ts
+var HiZPass = class extends RenderPass {
+  name = "HiZPass";
+  shader;
+  quadGeometry;
+  debugDepthTexture;
+  inputTexture;
+  targetTextures = [];
+  // TODO: This should be next powerOf2 for SwapChain dims
+  depthWidth = 512;
+  depthHeight = 512;
+  depthLevels;
+  passBuffers = [];
+  currentBuffer;
+  initialized = false;
+  blitShader;
+  constructor() {
+    super({
+      inputs: [PassParams.depthTexture],
+      outputs: [PassParams.depthTexturePyramid]
+    });
+  }
+  async init(resources) {
+    this.shader = await Shader.Create({
+      code: await ShaderLoader.DepthDownsample,
+      attributes: {
+        position: { location: 0, size: 3, type: "vec3" },
+        normal: { location: 1, size: 3, type: "vec3" },
+        uv: { location: 2, size: 2, type: "vec2" }
+      },
+      colorOutputs: [],
+      depthOutput: "depth24plus",
+      uniforms: {
+        depthTextureInputSampler: { group: 0, binding: 0, type: "sampler" },
+        depthTextureInput: { group: 0, binding: 1, type: "depthTexture" },
+        currentMip: { group: 0, binding: 2, type: "storage" }
+      }
+    });
+    this.quadGeometry = Geometry.Plane();
+    let w = this.depthWidth;
+    let h = this.depthHeight;
+    let level = 0;
+    while (w > 1) {
+      this.targetTextures.push(DepthTexture.Create(w, h));
+      const passBuffer = Buffer3.Create(4 * 4, 0 /* STORAGE */);
+      passBuffer.SetArray(new Float32Array([level]));
+      this.passBuffers.push(passBuffer);
+      w /= 2;
+      h /= 2;
+      level++;
+    }
+    this.depthLevels = level;
+    this.inputTexture = DepthTexture.Create(this.depthWidth, this.depthHeight, 1, "depth24plus", level);
+    this.inputTexture.SetActiveMip(0);
+    this.inputTexture.SetActiveMipCount(level);
+    const Sampler = TextureSampler.Create({ magFilter: "nearest", minFilter: "nearest" });
+    this.shader.SetSampler("depthTextureInputSampler", Sampler);
+    this.shader.SetTexture("depthTextureInput", this.inputTexture);
+    this.debugDepthTexture = this.inputTexture;
+    this.currentBuffer = Buffer3.Create(4 * 4, 0 /* STORAGE */);
+    console.log("mips", level);
+    this.blitShader = await Shader.Create({
+      code: await ShaderLoader.BlitDepth,
+      colorOutputs: [],
+      depthOutput: "depth24plus",
+      attributes: {
+        position: { location: 0, size: 3, type: "vec3" },
+        normal: { location: 1, size: 3, type: "vec3" },
+        uv: { location: 2, size: 2, type: "vec2" }
+      },
+      uniforms: {
+        texture: { group: 0, binding: 0, type: "depthTexture" },
+        textureSampler: { group: 0, binding: 1, type: "sampler" },
+        mip: { group: 0, binding: 2, type: "storage" }
+      }
+    });
+    const blitSampler = TextureSampler.Create();
+    this.blitShader.SetSampler("textureSampler", blitSampler);
+    this.blitShader.SetValue("mip", 0);
+    resources.setResource(PassParams.depthTexturePyramid, this.inputTexture);
+    this.initialized = true;
+  }
+  execute(resources, inputDepthTexture, outputDepthTexturePyramid) {
+    if (this.initialized === false) return;
+    let currentLevel = 0;
+    let currentTarget = this.targetTextures[currentLevel];
+    this.blitShader.SetTexture("texture", inputDepthTexture);
+    RendererContext.BeginRenderPass("HiZ - First mip", [], { target: currentTarget, clear: true }, true);
+    RendererContext.DrawGeometry(this.quadGeometry, this.blitShader);
+    RendererContext.EndRenderPass();
+    RendererContext.CopyTextureToTexture(currentTarget, this.inputTexture, 0, currentLevel);
+    this.shader.SetBuffer("currentMip", this.currentBuffer);
+    for (let i2 = 0; i2 < this.targetTextures.length - 1; i2++) {
+      let levelBuffer = this.passBuffers[currentLevel];
+      currentLevel++;
+      currentTarget = this.targetTextures[currentLevel];
+      RendererContext.CopyBufferToBuffer(levelBuffer, this.currentBuffer);
+      RendererContext.BeginRenderPass("HiZ - DepthPyramid", [], { target: currentTarget, clear: true }, true);
+      RendererContext.DrawGeometry(this.quadGeometry, this.shader);
+      RendererContext.EndRenderPass();
+      RendererContext.CopyTextureToTexture(currentTarget, this.inputTexture, 0, currentLevel);
+    }
+    resources.setResource(outputDepthTexturePyramid, this.inputTexture);
+  }
+};
+
+// src/math/Plane.ts
+var Plane = class {
+  normal;
+  constant;
+  constructor(normal = new Vector3(1, 0, 0), constant = 0) {
+    this.normal = normal;
+    this.constant = constant;
+  }
+  setComponents(x, y, z, w) {
+    this.normal.set(x, y, z);
+    this.constant = w;
+    return this;
+  }
+  normalize() {
+    const inverseNormalLength = 1 / this.normal.length();
+    this.normal.mul(inverseNormalLength);
+    this.constant *= inverseNormalLength;
+    return this;
+  }
+};
+
+// src/math/Frustum.ts
+var Frustum = class {
+  planes;
+  constructor(p0 = new Plane(), p1 = new Plane(), p2 = new Plane(), p3 = new Plane(), p4 = new Plane(), p5 = new Plane()) {
+    this.planes = [p0, p1, p2, p3, p4, p5];
+  }
+  setFromProjectionMatrix(m) {
+    const planes = this.planes;
+    const me = m.elements;
+    const me0 = me[0], me1 = me[1], me2 = me[2], me3 = me[3];
+    const me4 = me[4], me5 = me[5], me6 = me[6], me7 = me[7];
+    const me8 = me[8], me9 = me[9], me10 = me[10], me11 = me[11];
+    const me12 = me[12], me13 = me[13], me14 = me[14], me15 = me[15];
+    planes[0].setComponents(me3 - me0, me7 - me4, me11 - me8, me15 - me12).normalize();
+    planes[1].setComponents(me3 + me0, me7 + me4, me11 + me8, me15 + me12).normalize();
+    planes[2].setComponents(me3 + me1, me7 + me5, me11 + me9, me15 + me13).normalize();
+    planes[3].setComponents(me3 - me1, me7 - me5, me11 - me9, me15 - me13).normalize();
+    planes[4].setComponents(me3 - me2, me7 - me6, me11 - me10, me15 - me14).normalize();
+    planes[5].setComponents(me2, me6, me10, me14).normalize();
+    return this;
+  }
+};
+
+// src/renderer/webgpu/WEBGPUComputeContext.ts
+var WEBGPUComputeContext = class {
+  static activeComputePass = null;
+  static BeginComputePass(name, timestamp) {
+    const activeCommandEncoder = WEBGPURenderer.GetActiveCommandEncoder();
+    if (!activeCommandEncoder) throw Error("No active command encoder!!");
+    if (this.activeComputePass) throw Error("There is already an active compute pass");
+    const computePassDescriptor = {};
+    if (timestamp === true) computePassDescriptor.timestampWrites = WEBGPUTimestampQuery.BeginRenderTimestamp(name);
+    this.activeComputePass = activeCommandEncoder.beginComputePass(computePassDescriptor);
+    this.activeComputePass.label = "ComputePass: " + name;
+  }
+  static EndComputePass() {
+    if (!this.activeComputePass) throw Error("No active compute pass");
+    this.activeComputePass.end();
+    this.activeComputePass = null;
+    WEBGPUTimestampQuery.EndRenderTimestamp();
+  }
+  static Dispatch(computeShader, workgroupCountX, workgroupCountY, workgroupCountZ) {
+    if (!this.activeComputePass) throw Error("No active render pass");
+    computeShader.OnPreRender();
+    if (!computeShader.pipeline) throw Error("Shader doesnt have a pipeline");
+    this.activeComputePass.setPipeline(computeShader.pipeline);
+    for (let i2 = 0; i2 < computeShader.bindGroups.length; i2++) {
+      let dynamicOffsetsV2 = [];
+      for (const buffer of computeShader.bindGroupsInfo[i2].buffers) {
+        if (buffer instanceof WEBGPUDynamicBuffer) {
+          dynamicOffsetsV2.push(buffer.dynamicOffset);
+        }
+      }
+      this.activeComputePass.setBindGroup(i2, computeShader.bindGroups[i2], dynamicOffsetsV2);
+    }
+    this.activeComputePass.dispatchWorkgroups(workgroupCountX, workgroupCountY, workgroupCountZ);
+  }
+};
+
+// src/renderer/ComputeContext.ts
+var ComputeContext = class {
+  constructor() {
+  }
+  static BeginComputePass(name, timestamp = false) {
+    if (Renderer.type === "webgpu") WEBGPUComputeContext.BeginComputePass(name, timestamp);
+    else throw Error("Unknown render api type.");
+  }
+  static EndComputePass() {
+    if (Renderer.type === "webgpu") WEBGPUComputeContext.EndComputePass();
+    else throw Error("Unknown render api type.");
+  }
+  static Dispatch(computeShader, workgroupCountX, workgroupCountY = 1, workgroupCountZ = 1) {
+    if (Renderer.type === "webgpu") WEBGPUComputeContext.Dispatch(computeShader, workgroupCountX, workgroupCountY, workgroupCountZ);
+    else throw Error("Unknown render api type.");
+  }
+};
+
+// src/plugins/meshlets/passes/CullingPass.ts
+var CullingPass = class extends RenderPass {
+  name = "CullingPass";
+  drawIndirectBuffer;
+  compute;
+  cullData;
+  frustum = new Frustum();
+  currentPassBuffer;
+  visibleBuffer;
+  nonVisibleBuffer;
+  visibilityBuffer;
+  instanceInfoBuffer;
+  isPrePass = true;
+  debugBuffer;
+  constructor() {
+    super({
+      inputs: [
+        PassParams.DebugSettings,
+        MeshletPassParams.indirectMeshletInfo,
+        MeshletPassParams.indirectObjectInfo,
+        MeshletPassParams.indirectMeshMatrixInfo,
+        MeshletPassParams.meshletsCount
+      ],
+      outputs: [
+        MeshletPassParams.indirectDrawBuffer,
+        MeshletPassParams.indirectInstanceInfo,
+        MeshletPassParams.isCullingPrepass,
+        PassParams.GBufferAlbedo,
+        PassParams.GBufferNormal,
+        PassParams.GBufferERMO,
+        PassParams.GBufferDepth,
+        PassParams.GBufferDepth
+      ]
+    });
+  }
+  async init(resources) {
+    this.compute = await Compute.Create({
+      code: await ShaderLoader.Cull,
+      computeEntrypoint: "main",
+      uniforms: {
+        drawBuffer: { group: 0, binding: 0, type: "storage-write" },
+        instanceInfo: { group: 0, binding: 1, type: "storage-write" },
+        cullData: { group: 0, binding: 2, type: "storage" },
+        meshletInfo: { group: 0, binding: 3, type: "storage" },
+        objectInfo: { group: 0, binding: 4, type: "storage" },
+        meshMatrixInfo: { group: 0, binding: 5, type: "storage" },
+        visibilityBuffer: { group: 0, binding: 6, type: "storage-write" },
+        bPrepass: { group: 0, binding: 7, type: "storage" },
+        textureSampler: { group: 0, binding: 8, type: "sampler" },
+        depthTexture: { group: 0, binding: 9, type: "depthTexture" },
+        settings: { group: 0, binding: 10, type: "storage" }
+      }
+    });
+    this.drawIndirectBuffer = Buffer3.Create(4 * 4, 5 /* INDIRECT */);
+    this.drawIndirectBuffer.name = "drawIndirectBuffer";
+    this.compute.SetBuffer("drawBuffer", this.drawIndirectBuffer);
+    this.currentPassBuffer = Buffer3.Create(1 * 4, 0 /* STORAGE */);
+    const sampler = TextureSampler.Create({ magFilter: "nearest", minFilter: "nearest" });
+    this.compute.SetSampler("textureSampler", sampler);
+    this.visibleBuffer = Buffer3.Create(4, 0 /* STORAGE */);
+    this.visibleBuffer.SetArray(new Float32Array([1]));
+    this.nonVisibleBuffer = Buffer3.Create(4, 0 /* STORAGE */);
+    this.nonVisibleBuffer.SetArray(new Float32Array([0]));
+    this.debugBuffer = Buffer3.Create(4 * 4, 0 /* STORAGE */);
+  }
+  execute(resources) {
+    const depthTexturePyramid = resources.getResource(PassParams.depthTexturePyramid);
+    if (!depthTexturePyramid) return;
+    const mainCamera = Camera.mainCamera;
+    const meshletCount = resources.getResource(MeshletPassParams.meshletsCount);
+    const meshletInfoBuffer = resources.getResource(MeshletPassParams.indirectMeshletInfo);
+    const objectInfoBuffer = resources.getResource(MeshletPassParams.indirectObjectInfo);
+    const meshMatrixInfoBuffer = resources.getResource(MeshletPassParams.indirectMeshMatrixInfo);
+    if (meshletCount === 0) return;
+    if (!this.visibilityBuffer) {
+      const visibilityBufferArray = new Float32Array(meshletCount).fill(1);
+      this.visibilityBuffer = Buffer3.Create(visibilityBufferArray.byteLength, 1 /* STORAGE_WRITE */);
+      this.visibilityBuffer.SetArray(visibilityBufferArray);
+    }
+    if (!this.instanceInfoBuffer) {
+      console.log("meshletCount", meshletCount);
+      this.instanceInfoBuffer = Buffer3.Create(meshletCount * 1 * 4, 1 /* STORAGE_WRITE */);
+      this.instanceInfoBuffer.name = "instanceInfoBuffer";
+    }
+    this.compute.SetBuffer("meshletInfo", meshletInfoBuffer);
+    this.compute.SetBuffer("objectInfo", objectInfoBuffer);
+    this.compute.SetBuffer("meshMatrixInfo", meshMatrixInfoBuffer);
+    this.compute.SetBuffer("instanceInfo", this.instanceInfoBuffer);
+    this.compute.SetBuffer("visibilityBuffer", this.visibilityBuffer);
+    this.frustum.setFromProjectionMatrix(mainCamera.projectionMatrix);
+    const cullDataArray = new Float32Array([
+      ...mainCamera.projectionMatrix.elements,
+      ...mainCamera.viewMatrix.elements,
+      ...mainCamera.transform.position.elements,
+      0,
+      ...this.frustum.planes[0].normal.elements,
+      this.frustum.planes[0].constant,
+      ...this.frustum.planes[1].normal.elements,
+      this.frustum.planes[1].constant,
+      ...this.frustum.planes[2].normal.elements,
+      this.frustum.planes[2].constant,
+      ...this.frustum.planes[3].normal.elements,
+      this.frustum.planes[3].constant,
+      ...this.frustum.planes[4].normal.elements,
+      this.frustum.planes[4].constant,
+      ...this.frustum.planes[5].normal.elements,
+      this.frustum.planes[5].constant,
+      meshletCount,
+      0,
+      Renderer.width,
+      Renderer.height,
+      0,
+      0,
+      mainCamera.near,
+      mainCamera.far,
+      ...mainCamera.projectionMatrix.clone().transpose().elements
+    ]);
+    if (!this.cullData) {
+      this.cullData = Buffer3.Create(cullDataArray.byteLength, 0 /* STORAGE */);
+      this.cullData.name = "cullData";
+      this.compute.SetBuffer("cullData", this.cullData);
+    }
+    this.cullData.SetArray(cullDataArray);
+    const settings = resources.getResource(PassParams.DebugSettings);
+    this.compute.SetArray("settings", settings);
+    this.compute.SetTexture("depthTexture", depthTexturePyramid);
+    this.compute.SetBuffer("bPrepass", this.currentPassBuffer);
+    RendererContext.CopyBufferToBuffer(this.drawIndirectBuffer, this.debugBuffer);
+    RendererContext.ClearBuffer(this.drawIndirectBuffer);
+    if (this.isPrePass === true) RendererContext.CopyBufferToBuffer(this.visibleBuffer, this.currentPassBuffer);
+    else RendererContext.CopyBufferToBuffer(this.nonVisibleBuffer, this.currentPassBuffer);
+    const dispatchSizeX = Math.ceil(Math.cbrt(meshletCount) / 4);
+    const dispatchSizeY = Math.ceil(Math.cbrt(meshletCount) / 4);
+    const dispatchSizeZ = Math.ceil(Math.cbrt(meshletCount) / 4);
+    ComputeContext.BeginComputePass(`Culling - prepass: ${+this.isPrePass}`, true);
+    ComputeContext.Dispatch(this.compute, dispatchSizeX, dispatchSizeY, dispatchSizeZ);
+    ComputeContext.EndComputePass();
+    resources.setResource(MeshletPassParams.isCullingPrepass, this.isPrePass);
+    this.isPrePass = !this.isPrePass;
+    resources.setResource(MeshletPassParams.indirectDrawBuffer, this.drawIndirectBuffer);
+    resources.setResource(MeshletPassParams.indirectInstanceInfo, this.instanceInfoBuffer);
+    this.debugBuffer.GetData().then((v) => {
+      const visibleMeshCount = new Uint32Array(v)[1];
+      MeshletDebug.visibleMeshes.SetValue(visibleMeshCount);
+      RendererDebug.SetTriangleCount(Meshlet.max_triangles * meshletCount);
+      RendererDebug.SetVisibleTriangleCount(Meshlet.max_triangles * visibleMeshCount);
+    });
+  }
+};
+
+// src/plugins/meshlets/passes/IndirectGBufferPass.ts
+var IndirectGBufferPass = class extends RenderPass {
+  name = "IndirectGBufferPass";
+  shader;
+  geometry;
+  constructor() {
+    super({
+      inputs: [
+        PassParams.DebugSettings,
+        PassParams.depthTexture,
+        PassParams.GBufferAlbedo,
+        PassParams.GBufferNormal,
+        PassParams.GBufferERMO,
+        PassParams.GBufferDepth,
+        MeshletPassParams.indirectVertices,
+        MeshletPassParams.indirectInstanceInfo,
+        MeshletPassParams.indirectMeshInfo,
+        MeshletPassParams.indirectObjectInfo,
+        MeshletPassParams.indirectMeshMatrixInfo,
+        MeshletPassParams.indirectDrawBuffer,
+        MeshletPassParams.textureMaps,
+        MeshletPassParams.isCullingPrepass
+      ],
+      outputs: []
+    });
+  }
+  async init(resources) {
+    this.shader = await Shader.Create({
+      code: await ShaderLoader.DrawIndirect,
+      colorOutputs: [
+        { format: "rgba16float" },
+        { format: "rgba16float" },
+        { format: "rgba16float" }
+      ],
+      depthOutput: "depth24plus",
+      attributes: {
+        position: { location: 0, size: 3, type: "vec3" }
+      },
+      uniforms: {
+        viewMatrix: { group: 0, binding: 0, type: "storage" },
+        projectionMatrix: { group: 0, binding: 1, type: "storage" },
+        instanceInfo: { group: 0, binding: 2, type: "storage" },
+        meshMaterialInfo: { group: 0, binding: 3, type: "storage" },
+        meshMatrixInfo: { group: 0, binding: 4, type: "storage" },
+        objectInfo: { group: 0, binding: 5, type: "storage" },
+        settings: { group: 0, binding: 6, type: "storage" },
+        vertices: { group: 0, binding: 7, type: "storage" },
+        textureSampler: { group: 0, binding: 8, type: "sampler" },
+        albedoMaps: { group: 0, binding: 9, type: "texture" },
+        normalMaps: { group: 0, binding: 10, type: "texture" },
+        heightMaps: { group: 0, binding: 11, type: "texture" },
+        metalnessMaps: { group: 0, binding: 12, type: "texture" },
+        emissiveMaps: { group: 0, binding: 13, type: "texture" }
+      }
+    });
+    this.geometry = new Geometry();
+    this.geometry.attributes.set("position", new VertexAttribute(new Float32Array(Meshlet.max_triangles * 3)));
+    const materialSampler = TextureSampler.Create();
+    this.shader.SetSampler("textureSampler", materialSampler);
+    this.initialized = true;
+  }
+  execute(resources) {
+    if (!this.initialized) return;
+    const inputIndirectVertices = resources.getResource(MeshletPassParams.indirectVertices);
+    const inputIndirectMeshInfo = resources.getResource(MeshletPassParams.indirectMeshInfo);
+    const inputIndirectObjectInfo = resources.getResource(MeshletPassParams.indirectObjectInfo);
+    const inputIndirectMeshMatrixInfo = resources.getResource(MeshletPassParams.indirectMeshMatrixInfo);
+    const inputIndirectInstanceInfo = resources.getResource(MeshletPassParams.indirectInstanceInfo);
+    const inputIndirectDrawBuffer = resources.getResource(MeshletPassParams.indirectDrawBuffer);
+    const textureMaps = resources.getResource(MeshletPassParams.textureMaps);
+    let inputIsCullingPrepass = resources.getResource(MeshletPassParams.isCullingPrepass);
+    if (!inputIndirectVertices) return;
+    if (!inputIndirectInstanceInfo) return;
+    const mainCamera = Camera.mainCamera;
+    this.shader.SetMatrix4("viewMatrix", mainCamera.viewMatrix);
+    this.shader.SetMatrix4("projectionMatrix", mainCamera.projectionMatrix);
+    this.shader.SetBuffer("vertices", inputIndirectVertices);
+    this.shader.SetBuffer("meshMaterialInfo", inputIndirectMeshInfo);
+    this.shader.SetBuffer("objectInfo", inputIndirectObjectInfo);
+    this.shader.SetBuffer("meshMatrixInfo", inputIndirectMeshMatrixInfo);
+    this.shader.SetBuffer("instanceInfo", inputIndirectInstanceInfo);
+    if (textureMaps.albedo) this.shader.SetTexture("albedoMaps", textureMaps.albedo);
+    if (textureMaps.normal) this.shader.SetTexture("normalMaps", textureMaps.normal);
+    if (textureMaps.height) this.shader.SetTexture("heightMaps", textureMaps.height);
+    if (textureMaps.metalness) this.shader.SetTexture("metalnessMaps", textureMaps.metalness);
+    if (textureMaps.emissive) this.shader.SetTexture("emissiveMaps", textureMaps.emissive);
+    const settings = resources.getResource(PassParams.DebugSettings);
+    this.shader.SetArray("settings", settings);
+    const gBufferAlbedoRT = resources.getResource(PassParams.GBufferAlbedo);
+    const gBufferNormalRT = resources.getResource(PassParams.GBufferNormal);
+    const gBufferERMORT = resources.getResource(PassParams.GBufferERMO);
+    const gBufferDepthRT = resources.getResource(PassParams.GBufferDepth);
+    const colorTargets = [
+      { target: gBufferAlbedoRT, clear: inputIsCullingPrepass },
+      { target: gBufferNormalRT, clear: inputIsCullingPrepass },
+      { target: gBufferERMORT, clear: inputIsCullingPrepass }
+    ];
+    RendererContext.BeginRenderPass(`IGBuffer - prepass: ${+inputIsCullingPrepass}`, colorTargets, { target: gBufferDepthRT, clear: inputIsCullingPrepass }, true);
+    RendererContext.DrawIndirect(this.geometry, this.shader, inputIndirectDrawBuffer);
+    RendererContext.EndRenderPass();
+  }
+};
+
+// src/renderer/webgpu/shaders/deferred/DrawIndirectShadows.wgsl
+var DrawIndirectShadows_default = "./resources/renderer/webgpu/shaders/deferred/DrawIndirectShadows.wgsl";
+
+// src/plugins/meshlets/passes/MeshletsShadowMapPass.ts
+var lightsCSMProjectionMatrix2 = [];
+var getWorldSpaceCorners = (camera, zNearPercentage, zFarPercentage) => {
+  const invViewProj = camera.projectionMatrix.clone().mul(camera.viewMatrix).invert();
+  const result = [];
+  const lerp = (a, b, t) => a + (b - a) * t;
+  const viewSpaceZFarPercentage = new Vector4(0, 0, -lerp(camera.near, camera.far, zFarPercentage), 1).applyMatrix4(camera.projectionMatrix);
+  const scaleFarZ = viewSpaceZFarPercentage.z / viewSpaceZFarPercentage.w;
+  const viewSpaceZNearPercentage = new Vector4(0, 0, -lerp(camera.near, camera.far, zNearPercentage), 1).applyMatrix4(camera.projectionMatrix);
+  const scaleNearZ = viewSpaceZNearPercentage.z / viewSpaceZNearPercentage.w;
+  for (let x = -1; x <= 1; x += 2) {
+    for (let y = -1; y <= 1; y += 2) {
+      for (let z = 0; z <= 1; z += 1) {
+        let corner = new Vector4(x, y, z === 0 ? scaleNearZ : scaleFarZ, 1).applyMatrix4(invViewProj);
+        let v3corner = new Vector3(corner.x / corner.w, corner.y / corner.w, corner.z / corner.w);
+        result.push(v3corner);
+      }
+    }
+  }
+  return result;
+};
+var getLightViewProjections = (camera, lightDirection, numOfCascades, assignmentExponent, shadowDepthPercentage, zMult) => {
+  if (camera == null) {
+    return [new Matrix4()];
+  }
+  let f = (x) => Math.pow(x, assignmentExponent);
+  const cascadesViewProjections = [];
+  for (let i2 = 0; i2 < numOfCascades; ++i2) {
+    let corners = getWorldSpaceCorners(camera, shadowDepthPercentage * f(i2 / (numOfCascades - 1)), shadowDepthPercentage * f((i2 + 1) / (numOfCascades - 1)));
+    const center = corners[0].clone();
+    for (let i3 = 1; i3 < 8; ++i3) {
+      center.add(corners[i3]);
+    }
+    center.mul(1 / 8);
+    const viewPos = center.clone().add(lightDirection);
+    const viewMatrix = new Matrix4().lookAt(center, viewPos, new Vector3(0, 1, 0));
+    let minX = Infinity;
+    let minY = Infinity;
+    let minZ = Infinity;
+    let maxX = -Infinity;
+    let maxY = -Infinity;
+    let maxZ = -Infinity;
+    for (let i3 = 0; i3 < 8; ++i3) {
+      const viewSpaceCorner = corners[i3].clone().applyMatrix4(viewMatrix);
+      minX = Math.min(viewSpaceCorner.x, minX);
+      minY = Math.min(viewSpaceCorner.y, minY);
+      minZ = Math.min(viewSpaceCorner.z, minZ);
+      maxX = Math.max(viewSpaceCorner.x, maxX);
+      maxY = Math.max(viewSpaceCorner.y, maxY);
+      maxZ = Math.max(viewSpaceCorner.z, maxZ);
+    }
+    if (minZ < 0) minZ *= zMult;
+    else minZ /= zMult;
+    if (maxZ < 0) maxZ /= zMult;
+    else maxZ *= zMult;
+    const projMatrix = new Matrix4().orthoZO(minX, maxX, minY, maxY, minZ, maxZ);
+    const result = projMatrix.clone().mul(viewMatrix);
+    cascadesViewProjections.push(result);
+  }
+  return cascadesViewProjections;
+};
+var MeshletsShadowMapPass = class extends RenderPass {
+  name = "MeshletsShadowMapPass";
+  drawIndirectShadowShader;
+  lightProjectionMatrixBuffer;
+  lightProjectionViewMatricesBuffer;
+  cascadeIndexBuffers = [];
+  cascadeCurrentIndexBuffer;
+  meshletGeometry;
+  constructor() {
+    super({
+      inputs: [
+        PassParams.MainCamera,
+        PassParams.GBufferAlbedo,
+        PassParams.GBufferNormal,
+        PassParams.GBufferERMO,
+        PassParams.GBufferDepth,
+        PassParams.ShadowPassDepth
+      ],
+      outputs: []
+    });
+  }
+  async init(resources) {
+    this.drawIndirectShadowShader = await Shader.Create({
+      code: await ShaderLoader.Load(DrawIndirectShadows_default),
+      colorOutputs: [],
+      depthOutput: "depth24plus",
+      attributes: {
+        position: { location: 0, size: 3, type: "vec3" }
+      },
+      uniforms: {
+        projectionMatrix: { group: 0, binding: 1, type: "storage" },
+        instanceInfo: { group: 0, binding: 2, type: "storage" },
+        meshMatrixInfo: { group: 0, binding: 4, type: "storage" },
+        objectInfo: { group: 0, binding: 5, type: "storage" },
+        vertices: { group: 0, binding: 7, type: "storage" },
+        cascadeIndex: { group: 0, binding: 8, type: "storage" }
+      },
+      cullMode: "none"
+    });
+    this.meshletGeometry = new Geometry();
+    this.meshletGeometry.attributes.set("position", new VertexAttribute(new Float32Array(Meshlet.max_triangles * 3)));
+    this.initialized = true;
+  }
+  execute(resources) {
+    if (!this.initialized) return;
+    const scene = Camera.mainCamera.gameObject.scene;
+    const meshlets = scene.GetComponents(MeshletMesh);
+    if (meshlets.length === 0) return;
+    const lights = [...scene.GetComponents(SpotLight), ...scene.GetComponents(PointLight), ...scene.GetComponents(DirectionalLight), ...scene.GetComponents(AreaLight)];
+    if (lights.length === 0) {
+      return;
+    }
+    const numOfCascades = 4;
+    const assignmentExponent = 2.5;
+    const shadowDepthPercentage = 1;
+    const zMult = 10;
+    if (!this.lightProjectionViewMatricesBuffer || this.lightProjectionViewMatricesBuffer.size / 4 / 4 / 16 !== lights.length) {
+      this.lightProjectionViewMatricesBuffer = Buffer3.Create(lights.length * numOfCascades * 4 * 16, 0 /* STORAGE */);
+    }
+    if (!this.cascadeCurrentIndexBuffer) {
+      this.cascadeCurrentIndexBuffer = Buffer3.Create(4, 0 /* STORAGE */);
+    }
+    if (this.cascadeIndexBuffers.length === 0) {
+      for (let i2 = 0; i2 < numOfCascades; i2++) {
+        const buffer = Buffer3.Create(4, 0 /* STORAGE */);
+        buffer.SetArray(new Float32Array([i2]));
+        this.cascadeIndexBuffers.push(buffer);
+      }
+    }
+    lightsCSMProjectionMatrix2 = [];
+    if (!this.lightProjectionMatrixBuffer) {
+      this.lightProjectionMatrixBuffer = Buffer3.Create(lights.length * 4 * 4 * 16, 0 /* STORAGE */);
+      this.drawIndirectShadowShader.SetBuffer("projectionMatrix", this.lightProjectionMatrixBuffer);
+    }
+    if (!this.lightProjectionViewMatricesBuffer || this.lightProjectionViewMatricesBuffer.size / 4 / 4 / 16 !== lights.length) {
+      this.lightProjectionViewMatricesBuffer = Buffer3.Create(lights.length * 4 * 4 * 16, 0 /* STORAGE */);
+    }
+    for (let i2 = 0; i2 < lights.length; i2++) {
+      const lightViewMatrixInverse = lights[i2].camera.viewMatrix.clone().invert();
+      const lightDirection = new Vector3(0, 1, 0).applyMatrix4(lightViewMatrixInverse).mul(-1).normalize();
+      const lightData = getLightViewProjections(Camera.mainCamera, lightDirection, numOfCascades, assignmentExponent, shadowDepthPercentage, zMult);
+      const ld = new Float32Array(lightData.flatMap((v) => v.elements).flatMap((v) => [...v]));
+      this.lightProjectionViewMatricesBuffer.SetArray(ld, i2 * numOfCascades * 4 * 16);
+      lightsCSMProjectionMatrix2.push(ld);
+    }
+    const shadowOutput = resources.getResource(PassParams.ShadowPassDepth);
+    shadowOutput.SetActiveLayer(0);
+    this.drawIndirectShadowShader.SetBuffer("cascadeIndex", this.cascadeCurrentIndexBuffer);
+    for (let i2 = 0; i2 < lights.length; i2++) {
+      RendererContext.CopyBufferToBuffer(this.lightProjectionViewMatricesBuffer, this.lightProjectionMatrixBuffer, i2 * numOfCascades * 4 * 16, 0, numOfCascades * 4 * 16);
+      for (let cascadePass = 0; cascadePass < numOfCascades; cascadePass++) {
+        RendererContext.CopyBufferToBuffer(this.cascadeIndexBuffers[cascadePass], this.cascadeCurrentIndexBuffer);
+        RendererContext.BeginRenderPass("ShadowPass", [], { target: shadowOutput, clear: cascadePass === 0 ? true : false });
+        const width = shadowOutput.width / 2;
+        const height = shadowOutput.height / 2;
+        let x = 0;
+        let y = 0;
+        if (cascadePass >= 2) x += width;
+        if (cascadePass % 2 !== 0) y += height;
+        RendererContext.SetViewport(x, y, width, height, 0, 1);
+        const inputIndirectVertices = resources.getResource(MeshletPassParams.indirectVertices);
+        const inputIndirectObjectInfo = resources.getResource(MeshletPassParams.indirectObjectInfo);
+        const inputIndirectMeshMatrixInfo = resources.getResource(MeshletPassParams.indirectMeshMatrixInfo);
+        const inputIndirectInstanceInfo = resources.getResource(MeshletPassParams.indirectInstanceInfo);
+        const inputIndirectDrawBuffer = resources.getResource(MeshletPassParams.indirectDrawBuffer);
+        this.drawIndirectShadowShader.SetBuffer("vertices", inputIndirectVertices);
+        this.drawIndirectShadowShader.SetBuffer("objectInfo", inputIndirectObjectInfo);
+        this.drawIndirectShadowShader.SetBuffer("meshMatrixInfo", inputIndirectMeshMatrixInfo);
+        this.drawIndirectShadowShader.SetBuffer("instanceInfo", inputIndirectInstanceInfo);
+        RendererContext.DrawIndirect(this.meshletGeometry, this.drawIndirectShadowShader, inputIndirectDrawBuffer);
+        RendererContext.EndRenderPass();
+      }
+      shadowOutput.SetActiveLayer(shadowOutput.GetActiveLayer() + 1);
+    }
+    shadowOutput.SetActiveLayer(0);
+  }
+};
+
+// src/plugins/meshlets/passes/PrepareSceneData.ts
+var PrepareSceneData = class extends RenderPass {
+  name = "PrepareSceneData";
+  objectInfoBuffer;
+  vertexBuffer;
+  meshMaterialInfo;
+  meshMatrixInfoBuffer;
+  meshletInfoBuffer;
+  currentMeshCount = 0;
+  currentMeshletsCount = 0;
+  materialIndexCache = /* @__PURE__ */ new Map();
+  albedoMaps = [];
+  normalMaps = [];
+  heightMaps = [];
+  metalnessMaps = [];
+  emissiveMaps = [];
+  textureMaps;
+  materialMaps = /* @__PURE__ */ new Map();
+  constructor() {
+    super({
+      outputs: [
+        MeshletPassParams.indirectVertices,
+        MeshletPassParams.indirectMeshInfo,
+        MeshletPassParams.indirectMeshletInfo,
+        MeshletPassParams.indirectObjectInfo,
+        MeshletPassParams.indirectMeshMatrixInfo,
+        MeshletPassParams.meshletsCount,
+        MeshletPassParams.textureMaps
+      ]
+    });
+  }
+  async init(resources) {
+    const bufferSize = 1024 * 100 * 1;
+    this.meshMatrixInfoBuffer = new DynamicBufferMemoryAllocator(bufferSize);
+    this.meshMaterialInfo = new DynamicBufferMemoryAllocator(bufferSize);
+    this.meshletInfoBuffer = new DynamicBufferMemoryAllocator(bufferSize);
+    this.vertexBuffer = new DynamicBufferMemoryAllocator(3072 * 10, 3072 * 10);
+    this.objectInfoBuffer = new DynamicBufferMemoryAllocator(bufferSize);
+    EventSystem.on(MeshletEvents.Updated, (meshlet) => {
+      if (this.meshMatrixInfoBuffer.has(meshlet.id)) {
+        this.meshMatrixInfoBuffer.set(meshlet.id, meshlet.transform.localToWorldMatrix.elements);
+      }
+    });
+    this.initialized = true;
+  }
+  getVertexInfo(meshlet) {
+    return meshlet.vertices_gpu;
+  }
+  getMeshletInfo(meshlet) {
+    const bv = meshlet.boundingVolume;
+    const pbv = meshlet.boundingVolume;
+    return new Float32Array([
+      ...meshlet.coneBounds.cone_apex.elements,
+      0,
+      ...meshlet.coneBounds.cone_axis.elements,
+      0,
+      meshlet.coneBounds.cone_cutoff,
+      0,
+      0,
+      0,
+      bv.center.x,
+      bv.center.y,
+      bv.center.z,
+      bv.radius,
+      pbv.center.x,
+      pbv.center.y,
+      pbv.center.z,
+      pbv.radius,
+      meshlet.clusterError,
+      0,
+      0,
+      0,
+      meshlet.parentError,
+      0,
+      0,
+      0,
+      meshlet.lod,
+      0,
+      0,
+      0,
+      ...meshlet.bounds.min.elements,
+      0,
+      ...meshlet.bounds.max.elements,
+      0
+    ]);
+  }
+  getMeshMaterialInfo(mesh) {
+    let materials = mesh.GetMaterials(PBRMaterial);
+    if (materials.length === 0) return null;
+    if (materials.length > 1) throw Error("Multiple materials not supported");
+    const material = materials[0];
+    const albedoIndex = this.processMaterialMap(material.params.albedoMap, "albedo");
+    const normalIndex = this.processMaterialMap(material.params.normalMap, "normal");
+    const heightIndex = this.processMaterialMap(material.params.heightMap, "height");
+    const metalnessIndex = this.processMaterialMap(material.params.metalnessMap, "metalness");
+    const emissiveIndex = this.processMaterialMap(material.params.emissiveMap, "emissive");
+    const albedoColor = material.params.albedoColor;
+    const emissiveColor = material.params.emissiveColor;
+    const roughness = material.params.roughness;
+    const metalness = material.params.metalness;
+    const unlit = material.params.unlit;
+    return new Float32Array([
+      albedoIndex,
+      normalIndex,
+      heightIndex,
+      metalnessIndex,
+      emissiveIndex,
+      0,
+      0,
+      0,
+      ...albedoColor.elements,
+      ...emissiveColor.elements,
+      roughness,
+      metalness,
+      +unlit,
+      0
+    ]);
+  }
+  processMaterialMap(materialMap, type) {
+    if (materialMap) {
+      let materialIndexCached = this.materialIndexCache.get(materialMap.id);
+      if (materialIndexCached === void 0) {
+        materialIndexCached = this.materialIndexCache.size;
+        this.materialIndexCache.set(materialMap.id, materialIndexCached);
+        if (type === "albedo") this.albedoMaps.push(materialMap);
+        else if (type === "normal") this.normalMaps.push(materialMap);
+        else if (type === "height") this.heightMaps.push(materialMap);
+        else if (type === "metalness") this.metalnessMaps.push(materialMap);
+        else if (type === "emissive") this.emissiveMaps.push(materialMap);
+      }
+      return materialIndexCached;
+    }
+    return -1;
+  }
+  createMaterialMap(textures, type) {
+    if (textures.length === 0) return TextureArray.Create(1, 1, 1);
+    const w = textures[0].width;
+    const h = textures[0].height;
+    let materialMap = this.materialMaps.get(type);
+    if (materialMap === void 0) {
+      materialMap = TextureArray.Create(w, h, textures.length);
+      materialMap.SetActiveLayer(0);
+      this.materialMaps.set(type, materialMap);
+    }
+    for (let i2 = 0; i2 < textures.length; i2++) {
+      if (textures[i2].width !== w || textures[i2].height !== h) {
+        console.warn(`Creating blank texture because dimensions dont match`, w, h, textures[i2].width, textures[i2].height);
+        const t = RenderTexture.Create(w, h);
+        RendererContext.CopyTextureToTextureV2(t, materialMap, 0, 0, [w, h, 1], i2);
+        continue;
+      }
+      RendererContext.CopyTextureToTextureV2(textures[i2], materialMap, 0, 0, [w, h, 1], i2);
+    }
+    return materialMap;
+  }
+  execute(resources) {
+    const mainCamera = Camera.mainCamera;
+    const scene = mainCamera.gameObject.scene;
+    const sceneMeshlets = [...scene.GetComponents(MeshletMesh)];
+    if (this.currentMeshCount !== sceneMeshlets.length) {
+      const meshlets = [];
+      for (const meshlet of sceneMeshlets) {
+        for (const geometry of meshlet.meshlets) {
+          meshlets.push({ mesh: meshlet, geometry });
+        }
+      }
+      const indexedCache = /* @__PURE__ */ new Map();
+      const meshMatrixCache = /* @__PURE__ */ new Map();
+      const meshMaterialCache = /* @__PURE__ */ new Map();
+      for (const mesh of sceneMeshlets) {
+        let materialIndex = -1;
+        for (const material of mesh.GetMaterials(PBRMaterial)) {
+          if (!this.meshMaterialInfo.has(material.id)) {
+            const meshMaterialInfo = this.getMeshMaterialInfo(mesh);
+            if (meshMaterialInfo !== null) {
+              this.meshMaterialInfo.set(material.id, meshMaterialInfo);
+              meshMaterialCache.set(material.id, meshMaterialCache.size);
+            }
+          }
+          let mc = meshMaterialCache.get(material.id);
+          if (mc !== void 0) materialIndex = mc;
+        }
+        if (!this.meshMatrixInfoBuffer.has(mesh.id)) {
+          this.meshMatrixInfoBuffer.set(mesh.id, mesh.transform.localToWorldMatrix.elements);
+        }
+        let meshMatrixIndex = meshMatrixCache.get(mesh.id);
+        if (meshMatrixIndex === void 0) {
+          meshMatrixIndex = meshMatrixCache.size;
+          meshMatrixCache.set(mesh.id, meshMatrixIndex);
+        }
+        for (const meshlet of mesh.meshlets) {
+          if (!this.meshletInfoBuffer.has(meshlet.id)) this.meshletInfoBuffer.set(meshlet.id, this.getMeshletInfo(meshlet));
+          if (!this.vertexBuffer.has(meshlet.id)) {
+            console.log("Setting vertices");
+            this.vertexBuffer.set(meshlet.id, this.getVertexInfo(meshlet));
+          }
+          let geometryIndex = indexedCache.get(meshlet.crc);
+          if (geometryIndex === void 0) {
+            geometryIndex = indexedCache.size;
+            indexedCache.set(meshlet.crc, geometryIndex);
+          }
+          this.objectInfoBuffer.set(`${mesh.id}-${meshlet.id}`, new Float32Array([meshMatrixIndex, geometryIndex, materialIndex, 0]));
+        }
+      }
+      this.textureMaps = {
+        albedo: this.createMaterialMap(this.albedoMaps, "albedo"),
+        normal: this.createMaterialMap(this.normalMaps, "normal"),
+        height: this.createMaterialMap(this.heightMaps, "height"),
+        metalness: this.createMaterialMap(this.metalnessMaps, "metalness"),
+        emissive: this.createMaterialMap(this.emissiveMaps, "emissive")
+      };
+      this.currentMeshCount = sceneMeshlets.length;
+      this.currentMeshletsCount = meshlets.length;
+      MeshletDebug.totalMeshlets.SetValue(meshlets.length);
+    }
+    resources.setResource(MeshletPassParams.indirectVertices, this.vertexBuffer.getBuffer());
+    resources.setResource(MeshletPassParams.indirectMeshInfo, this.meshMaterialInfo.getBuffer());
+    resources.setResource(MeshletPassParams.indirectMeshletInfo, this.meshletInfoBuffer.getBuffer());
+    resources.setResource(MeshletPassParams.indirectObjectInfo, this.objectInfoBuffer.getBuffer());
+    resources.setResource(MeshletPassParams.indirectMeshMatrixInfo, this.meshMatrixInfoBuffer.getBuffer());
+    resources.setResource(MeshletPassParams.meshletsCount, this.currentMeshletsCount);
+    resources.setResource(MeshletPassParams.textureMaps, this.textureMaps);
+  }
+};
+
+// src/plugins/meshlets/passes/MeshletDraw.ts
+var MeshletPassParams = {
+  indirectVertices: "indirectVertices",
+  indirectMeshInfo: "indirectMeshInfo",
+  indirectMeshletInfo: "indirectMeshletInfo",
+  indirectObjectInfo: "indirectObjectInfo",
+  indirectMeshMatrixInfo: "indirectMeshMatrixInfo",
+  indirectInstanceInfo: "indirectInstanceInfo",
+  indirectDrawBuffer: "indirectDrawBuffer",
+  meshletsCount: "meshletsCount",
+  textureMaps: "textureMaps",
+  isCullingPrepass: "isCullingPrepass"
+};
+var MeshletDraw = class extends RenderPass {
+  name = "MeshletDraw";
+  prepareSceneData;
+  cullingPass;
+  HiZ;
+  indirectRender;
+  shadows;
+  constructor() {
+    super({
+      inputs: [
+        PassParams.depthTexture,
+        PassParams.depthTexturePyramid,
+        PassParams.DebugSettings,
+        PassParams.depthTexture,
+        PassParams.GBufferAlbedo,
+        PassParams.GBufferNormal,
+        PassParams.GBufferERMO,
+        PassParams.GBufferDepth
+      ],
+      outputs: []
+    });
+  }
+  async init(resources) {
+    this.prepareSceneData = new PrepareSceneData();
+    this.cullingPass = new CullingPass();
+    this.HiZ = new HiZPass();
+    this.indirectRender = new IndirectGBufferPass();
+    this.shadows = new MeshletsShadowMapPass();
+    await this.prepareSceneData.init(resources);
+    await this.cullingPass.init(resources);
+    await this.HiZ.init(resources);
+    await this.indirectRender.init(resources);
+    await this.shadows.init(resources);
+    this.initialized = true;
+  }
+  execute(resources) {
+    this.prepareSceneData.execute(resources);
+    this.cullingPass.execute(resources);
+    this.indirectRender.execute(resources);
+    const depthTexture = resources.getResource(PassParams.depthTexture);
+    const outputDepthTexturePyramid = PassParams.depthTexturePyramid;
+    this.HiZ.execute(resources, depthTexture, outputDepthTexturePyramid);
+    this.cullingPass.execute(resources);
+    this.indirectRender.execute(resources);
+  }
+};
+
+// src/renderer/passes/DeferredGBufferPass.ts
+var DeferredGBufferPass = class extends RenderPass {
+  name = "DeferredMeshRenderPass";
+  constructor() {
+    super({
+      inputs: [
+        PassParams.MainCamera,
+        PassParams.GBufferAlbedo,
+        PassParams.GBufferNormal,
+        PassParams.GBufferERMO,
+        PassParams.GBufferDepth
+      ],
+      outputs: []
+    });
+  }
+  async init(resources) {
+    this.initialized = true;
+  }
+  execute(resources) {
+    if (!this.initialized) return;
+    const scene = Camera.mainCamera.gameObject.scene;
+    const meshes = scene.GetComponents(Mesh);
+    const instancedMeshes = scene.GetComponents(InstancedMesh);
+    if (meshes.length === 0 && instancedMeshes.length === 0) return;
+    const inputCamera = Camera.mainCamera;
+    if (!inputCamera) throw Error(`No inputs passed to ${this.name}`);
+    const backgroundColor = inputCamera.backgroundColor;
+    const inputGBufferAlbedo = resources.getResource(PassParams.GBufferAlbedo);
+    const inputGBufferNormal = resources.getResource(PassParams.GBufferNormal);
+    const inputGBufferERMO = resources.getResource(PassParams.GBufferERMO);
+    const inputGBufferDepth = resources.getResource(PassParams.GBufferDepth);
+    RendererContext.BeginRenderPass(
+      "DeferredMeshRenderPass",
+      [
+        { target: inputGBufferAlbedo, clear: false, color: backgroundColor },
+        { target: inputGBufferNormal, clear: false, color: backgroundColor },
+        { target: inputGBufferERMO, clear: false, color: backgroundColor }
+      ],
+      { target: inputGBufferDepth, clear: false },
+      true
+    );
+    const projectionMatrix = inputCamera.projectionMatrix;
+    const viewMatrix = inputCamera.viewMatrix;
+    for (const mesh of meshes) {
+      const geometry = mesh.GetGeometry();
+      const materials = mesh.GetMaterials();
+      for (const material of materials) {
+        if (!material.shader) {
+          material.createShader().then((shader2) => {
+          });
+          continue;
+        }
+        const shader = material.shader;
+        shader.SetMatrix4("projectionMatrix", projectionMatrix);
+        shader.SetMatrix4("viewMatrix", viewMatrix);
+        shader.SetMatrix4("modelMatrix", mesh.transform.localToWorldMatrix);
+        shader.SetVector3("cameraPosition", inputCamera.transform.position);
+        RendererContext.DrawGeometry(geometry, shader, 1);
+        if (geometry.index) {
+          RendererDebug.IncrementTriangleCount(geometry.index.array.length / 3);
+        }
+        RenderCache.renderableMeshes.push({
+          type: "Draw",
+          shader,
+          geometry,
+          mesh
+        });
+      }
+    }
+    for (const instancedMesh of instancedMeshes) {
+      const geometry = instancedMesh.GetGeometry();
+      const materials = instancedMesh.GetMaterials();
+      for (const material of materials) {
+        if (!material.shader) {
+          material.createShader().then((shader2) => {
+          });
+          continue;
+        }
+        const shader = material.shader;
+        shader.SetMatrix4("projectionMatrix", projectionMatrix);
+        shader.SetMatrix4("viewMatrix", viewMatrix);
+        shader.SetBuffer("modelMatrix", instancedMesh.matricesBuffer);
+        shader.SetVector3("cameraPosition", inputCamera.transform.position);
+        RendererContext.DrawGeometry(geometry, shader, instancedMesh.instanceCount + 1);
+        if (geometry.index) {
+          RendererDebug.IncrementTriangleCount(geometry.index.array.length / 3 * (instancedMesh.instanceCount + 1));
+        }
+        RenderCache.renderableMeshes.push({
+          type: "DrawInstanced",
+          shader,
+          geometry,
+          instances: instancedMesh.instanceCount + 1,
+          instancedMesh
+        });
+      }
+    }
+    resources.setResource(PassParams.GBufferDepth, inputGBufferDepth);
+    resources.setResource(PassParams.GBufferAlbedo, inputGBufferAlbedo);
+    resources.setResource(PassParams.GBufferNormal, inputGBufferNormal);
+    resources.setResource(PassParams.GBufferERMO, inputGBufferERMO);
+    RendererContext.EndRenderPass();
+  }
+};
+
 // src/TEST/Shadows.ts
 var canvas = document.createElement("canvas");
-var aspectRatio = window.devicePixelRatio;
+var aspectRatio = 1;
 canvas.width = window.innerWidth * aspectRatio;
 canvas.height = window.innerHeight * aspectRatio;
 canvas.style.width = `${window.innerWidth}px`;
@@ -9806,15 +11161,18 @@ async function Application() {
     sphereMesh.enableShadows = false;
     await sphereMesh.SetGeometry(Geometry.Sphere());
     sphereMesh.AddMaterial(new PBRMaterial({ unlit: true }));
-    Debugger.objectMove.x = lightGameObject.transform.position.x;
-    Debugger.objectMove.y = lightGameObject.transform.position.y;
-    Debugger.objectMove.z = lightGameObject.transform.position.z;
+    const lightPositionDebug = new UIFolder(Debugger.ui, "Light position");
+    const lightPositionDebugX = new UISliderStat(lightPositionDebug, "X:", -10, 10, 1, 0, (value) => {
+      lightGameObject.transform.position.x = value;
+    });
+    const lightPositionDebugY = new UISliderStat(lightPositionDebug, "Y:", -10, 10, 1, 0, (value) => {
+      lightGameObject.transform.position.y = value;
+    });
+    const lightPositionDebugZ = new UISliderStat(lightPositionDebug, "Z:", -10, 10, 1, 0, (value) => {
+      lightGameObject.transform.position.z = value;
+    });
+    lightPositionDebug.Open();
     setInterval(() => {
-      lightGameObject.transform.position.set(
-        Debugger.objectMove.x,
-        Debugger.objectMove.y,
-        Debugger.objectMove.z
-      );
       lightGameObject.transform.LookAtV1(new Vector3(0, 0, 0));
     }, 100);
   }
@@ -9859,6 +11217,8 @@ async function Application() {
       instances++;
     }
   }
+  scene.renderPipeline.AddPass(new MeshletDraw(), 0 /* BeforeGBuffer */);
+  scene.renderPipeline.AddPass(new DeferredGBufferPass(), 0 /* BeforeGBuffer */);
   {
     const bunnyGeometry = await OBJLoaderIndexed.load("./assets/bunny.obj");
     const pinesGO2 = new GameObject(scene);
@@ -9868,6 +11228,9 @@ async function Application() {
     await instancedMesh2.SetGeometry(bunnyGeometry[0].geometry);
     instancedMesh2.AddMaterial(bunnyGeometry[0].material);
   }
+  const postProcessing = new PostProcessingPass();
+  postProcessing.effects.push(new PostProcessingFXAA());
+  scene.renderPipeline.AddPass(postProcessing, 3 /* AfterLighting */);
   scene.Start();
 }
 Application();

@@ -15,5 +15,10 @@ struct Settings {
     heightScale: f32,
     maxTriangles: f32,
 
+    debugShadowCascades: f32,
+    pcfResolution: f32,
+    blendThreshold: f32,
+    viewBlendThreshold: f32,
+
     cameraPosition: vec4<f32>,
 };

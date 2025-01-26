@@ -323,7 +323,7 @@ fn SampleCascadeShadowMap(
 
     // PCF
     var visibility = 0.0;
-    let pcfResolution = 1;
+    let pcfResolution = i32(settings.pcfResolution);
     let offset = 1.0 / vec2<f32>(textureDimensions(shadowPassDepth));
     for (var i = -pcfResolution; i <= pcfResolution; i = i + 1) {
         for (var j = -pcfResolution; j <= pcfResolution; j = j + 1) {
@@ -341,7 +341,8 @@ fn SampleCascadeShadowMap(
         }
     }
     
-    visibility /= 9.0;
+    visibility /= pow(f32(pcfResolution * 2 + 1), 2);
+    // visibility /= 9.0;
 
     return clamp(visibility, 0.0, 1.0);
 }
@@ -374,7 +375,7 @@ fn CalculateShadowCSM(surface: Surface, light: Light, lightIndex: u32) -> Shadow
 
     // Sample the next cascade, and blend between the two results to
     // smooth the transition
-    let BlendThreshold = 0.3f;
+    let BlendThreshold = settings.blendThreshold;
 
 
     let nextSplit = light.cascadeSplits[selectedCascade];
@@ -389,7 +390,12 @@ fn CalculateShadowCSM(surface: Surface, light: Light, lightIndex: u32) -> Shadow
         let nextSplitVisibility = SampleCascadeShadowMap(surface, light, selectedCascade + 1, lightIndex);
         let lerpAmt = smoothstep(0.0f, BlendThreshold, fadeFactor);
         shadow.visibility = lerp(nextSplitVisibility, shadow.visibility, lerpAmt);
+        
+        if (u32(settings.viewBlendThreshold) == 1) {
+            shadow.visibility *= fadeFactor;
+        }
     }
+
  
     return shadow;
 }
@@ -495,7 +501,9 @@ fn fragmentMain(input: VertexOutput) -> @location(0) vec4<f32> {
     let ambientColor = vec3(0.01);
     color = ambientColor * surface.albedo + Lo * surface.occlusion;
 
-    color += debug_cascadeColors[selectedCascade].rgb * 0.05;
+    if (u32(settings.debugShadowCascades) == 1) {
+        color += debug_cascadeColors[selectedCascade].rgb * 0.05;
+    }
     // color += surface.emissive;
 
     color = Tonemap_ACES(color);
