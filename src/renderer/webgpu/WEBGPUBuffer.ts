@@ -1,6 +1,7 @@
 import { Debugger } from "../../plugins/Debugger";
 import { Utils } from "../../utils/Utils";
 import { Buffer, BufferType, DynamicBuffer } from "../Buffer";
+import { RendererDebug } from "../RendererDebug";
 import { WEBGPURenderer } from "./WEBGPURenderer";
 
 class BaseBuffer {
@@ -12,7 +13,7 @@ class BaseBuffer {
     public get name(): string { return this.buffer.label };
 
     constructor(sizeInBytes: number, type: BufferType) {
-        Debugger.IncrementGPUBufferSize(sizeInBytes);
+        RendererDebug.IncrementGPUBufferSize(sizeInBytes);
         let usage: GPUBufferUsageFlags | undefined = undefined;
         if (type == BufferType.STORAGE) usage = GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC | GPUBufferUsage.COPY_DST;
         else if (type == BufferType.STORAGE_WRITE) usage = GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC | GPUBufferUsage.COPY_DST;
@@ -53,7 +54,7 @@ class BaseBuffer {
     }
 
     public Destroy() {
-        Debugger.IncrementGPUBufferSize(-this.size);
+        RendererDebug.IncrementGPUBufferSize(-this.size);
         this.buffer.destroy();
     }
 }

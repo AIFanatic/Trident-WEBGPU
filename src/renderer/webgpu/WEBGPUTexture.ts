@@ -42,7 +42,7 @@ export class WEBGPUTexture implements Texture {
             dimension: dim,
             format: format,
             usage: textureUsage | textureType,
-            mipLevelCount: mipLevels
+            mipLevelCount: mipLevels,
         });
 
         this.width = width;

@@ -9,6 +9,7 @@ import { WEBGPUBuffer, WEBGPUDynamicBuffer } from "./WEBGPUBuffer";
 import { WEBGPURenderer } from "./WEBGPURenderer";
 import { WEBGPUTexture } from "./WEBGPUTexture";
 import { WEBGPUTextureSampler } from "./WEBGPUTextureSampler";
+import { Vector2 } from "../../math/Vector2";
 
 export const UniformTypeToWGSL = {
     "uniform": "uniform",
@@ -181,6 +182,7 @@ export class WEBGPUBaseShader {
     public SetValue(name: string, value: number) {this.valueArray[0] = value; this.SetUniformDataFromArray(name, this.valueArray)}
     public SetMatrix4(name: string, matrix: Matrix4) { this.SetUniformDataFromArray(name, matrix.elements) }
     public SetVector3(name: string, vector: Vector3) { this.SetUniformDataFromArray(name, vector.elements) }
+    public SetVector2(name: string, vector: Vector2) { this.SetUniformDataFromArray(name, vector.elements) }
     
     public SetTexture(name: string, texture: WEBGPUTexture) { this.SetUniformDataFromBuffer(name, texture) }
     public SetSampler(name: string, sampler: WEBGPUTextureSampler) { this.SetUniformDataFromBuffer(name, sampler) }

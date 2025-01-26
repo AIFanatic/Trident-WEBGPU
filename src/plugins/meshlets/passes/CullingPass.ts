@@ -13,6 +13,8 @@ import { RendererContext } from "../../../renderer/RendererContext";
 import { ComputeContext } from "../../../renderer/ComputeContext";
 import { Debugger } from "../../Debugger";
 import { Meshlet } from "../Meshlet";
+import { MeshletDebug } from "./MeshletDebug";
+import { RendererDebug } from "../../../renderer/RendererDebug";
 
 export class CullingPass extends RenderPass {
     public name: string = "CullingPass";
@@ -195,9 +197,9 @@ export class CullingPass extends RenderPass {
 
         this.debugBuffer.GetData().then(v => {
             const visibleMeshCount = new Uint32Array(v)[1];
-            Debugger.SetVisibleMeshes(visibleMeshCount);
-            Debugger.SetTriangleCount(Meshlet.max_triangles * meshletCount);
-            Debugger.SetVisibleTriangleCount(Meshlet.max_triangles * visibleMeshCount);
+            MeshletDebug.visibleMeshes.SetValue(visibleMeshCount);
+            RendererDebug.SetTriangleCount(Meshlet.max_triangles * meshletCount);
+            RendererDebug.SetVisibleTriangleCount(Meshlet.max_triangles * visibleMeshCount);
         })
     }
 }

@@ -14,7 +14,7 @@ export class Scene {
     private toUpdate: Map<Component, boolean> = new Map();
     private componentsByType: Map<string, Component[]> = new Map();
 
-    private renderPipeline: RenderingPipeline;
+    public readonly renderPipeline: RenderingPipeline;
 
     constructor(renderer: Renderer) {
         this.renderer = renderer;

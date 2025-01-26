@@ -28,7 +28,8 @@ export class WEBGPUShader extends WEBGPUBaseShader implements Shader {
     }
 
     public RebuildDescriptors() {
-        console.warn("Compiling shader")
+        // console.warn("Compiling shader");
+        console.log('%c Compiling shader', 'color: #3498db');
 
         this._bindGroupsInfo = this.BuildBindGroupLayouts();
         const bindGroupLayouts: GPUBindGroupLayout[] = [];

@@ -1,5 +1,6 @@
 import { Geometry } from "../Geometry";
 import { Matrix4 } from "../math/Matrix4";
+import { Vector2 } from "../math/Vector2";
 import { Vector3 } from "../math/Vector3";
 import { Buffer, DynamicBuffer } from "./Buffer";
 import { Renderer } from "./Renderer";
@@ -75,6 +76,7 @@ export class BaseShader {
 
     public SetValue(name: string, value: number) {}
     public SetMatrix4(name: string, matrix: Matrix4) {}
+    public SetVector2(name: string, vector: Vector2) {}
     public SetVector3(name: string, vector: Vector3) {}
     public SetArray(name: string, array: ArrayBuffer, bufferOffset?: number, dataOffset?: number | undefined, size?: number | undefined) {}
     public SetTexture(name: string, texture: Texture | DepthTexture | RenderTexture) {}

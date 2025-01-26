@@ -1,123 +1,59 @@
-import { Camera, CameraEvents } from "../../components/Camera";
+import { Camera } from "../../components/Camera";
 import { RendererContext } from "../RendererContext";
 import { RenderPass, ResourcePool } from "../RenderGraph";
 import { Mesh } from "../../components/Mesh";
 import { PassParams } from "../RenderingPipeline";
 import { InstancedMesh } from "../../components/InstancedMesh";
-import { AreaLight, DirectionalLight, Light, LightEvents, PointLight, SpotLight } from "../../components/Light";
+import { AreaLight, DirectionalLight, Light, PointLight, SpotLight } from "../../components/Light";
 import { Shader, Topology } from "../Shader";
 import { RenderCache } from "../RenderCache";
 
 import { Buffer, BufferType, DynamicBuffer } from "../Buffer";
 import { Matrix4 } from "../../math/Matrix4";
-import { Line } from "../../plugins/Line";
-import { EventSystem, EventSystemLocal } from "../../Events";
+import { EventSystemLocal } from "../../Events";
 import { TransformEvents } from "../../components/Transform";
 import { Vector3 } from "../../math/Vector3";
 import { Vector4 } from "../../math/Vector4";
 import { Debugger } from "../../plugins/Debugger";
+import { UIButtonStat, UIFolder, UISliderStat } from "../../plugins/ui/UIStats";
 
 export let lightsCSMProjectionMatrix: Float32Array[] = [];
 export let cascadeSplits: Vector4 = new Vector4();
-
-let lines: Line[] = [];
 
 interface Cascade {
     splitDepth: number;
     viewProjMatrix: Matrix4;
 }
 
+class _DeferredShadowMapPassDebug {
+    private shadowsFolder: UIFolder;
+    private shadowsUpdate: UIButtonStat;
+    private shadowsRoundToPixelSize: UIButtonStat;
+    private debugCascades: UIButtonStat;
+    private pcfResolution: UISliderStat;
+    private blendThreshold: UISliderStat;
+    private viewBlendThreshold: UIButtonStat;
+    
+    public shadowsUpdateValue = true;
+    public roundToPixelSizeValue = true;
+    public debugCascadesValue = false;
+    public pcfResolutionValue: number = 1;
+    public blendThresholdValue: number = 0.3;
+    public viewBlendThresholdValue = false;
 
-function getCornersForCascade(camera: Camera, cascadeNear: number, cascadeFar: number): Vector3[] {
-    const projectionMatrix = new Matrix4().perspectiveWGPUMatrix(camera.fov * (Math.PI / 180), camera.aspect, cascadeNear, cascadeFar);
-
-    let frustumCorners: Vector3[] = [
-        new Vector3(-1.0, 1.0, 0.0),
-        new Vector3(1.0, 1.0, 0.0),
-        new Vector3(1.0, -1.0, 0.0),
-        new Vector3(-1.0, -1.0, 0.0),
-        new Vector3(-1.0, 1.0, 1.0),
-        new Vector3(1.0, 1.0, 1.0),
-        new Vector3(1.0, -1.0, 1.0),
-        new Vector3(-1.0, -1.0, 1.0),
-    ];
-
-    // Project frustum corners into world space
-    const invViewProj = projectionMatrix.clone().mul(camera.viewMatrix).invert();
-    for (let i = 0; i < 8; i++) {
-        frustumCorners[i].applyMatrix4(invViewProj);
+    constructor() {
+        this.shadowsFolder = new UIFolder(Debugger.ui, "CSM Shadows");
+        this.shadowsUpdate = new UIButtonStat(this.shadowsFolder, "Update shadows", value => { this.shadowsUpdateValue = value}, this.shadowsUpdateValue);
+        this.shadowsRoundToPixelSize = new UIButtonStat(this.shadowsFolder, "RoundToPixelSize", value => { this.roundToPixelSizeValue = value}, this.roundToPixelSizeValue);
+        this.debugCascades = new UIButtonStat(this.shadowsFolder, "Debug cascades", value => { this.debugCascadesValue = value}, this.debugCascadesValue);
+        this.pcfResolution = new UISliderStat(this.shadowsFolder, "PCF resolution", 0, 7, 1, this.pcfResolutionValue, value => { this.pcfResolutionValue = value} );
+        this.blendThreshold = new UISliderStat(this.shadowsFolder, "Blend threshold", 0, 1, 0.01, this.blendThresholdValue, value => { this.blendThresholdValue = value} );
+        this.viewBlendThreshold = new UIButtonStat(this.shadowsFolder, "View blend threshold", value => { this.viewBlendThresholdValue = value}, this.viewBlendThresholdValue);
+        this.shadowsFolder.Open();
     }
-
-    return frustumCorners;
 }
 
-const getCascades = (camera: Camera, cascadeCount: number, light: Light): Cascade[] => {
-    const CASCADE_PERCENTAGES: number[] = [0.05, 0.15, 0.5, 1];
-    const CASCADE_DISTANCES: number[] = [
-        CASCADE_PERCENTAGES[0] * camera.far,
-        CASCADE_PERCENTAGES[1] * camera.far,
-        CASCADE_PERCENTAGES[2] * camera.far,
-        CASCADE_PERCENTAGES[3] * camera.far,
-    ];
-
-    // console.log(CASCADE_DISTANCES)
-
-    // const CASCADE_DISTANCES: number[] = [20, 80, 400, 1000];
-
-    let cascades: Cascade[] = [];
-
-    for (let i = 0; i < cascadeCount; i++) {
-
-        const cascadeNear = i === 0 ? camera.near : CASCADE_DISTANCES[i - 1];
-        const cascadeFar = CASCADE_DISTANCES[i];
-        const frustumCorners = getCornersForCascade(camera, cascadeNear, cascadeFar);
-        const frustumCenter = new Vector3(0, 0, 0);
-
-        // Compute center of frustum corners
-        for (let i = 0; i < frustumCorners.length; i++) {
-            frustumCenter.add(frustumCorners[i]);
-        }
-        frustumCenter.mul(1 / frustumCorners.length);
-
-        const lightDirection = light.transform.position.clone().normalize();
-
-        const radius = frustumCorners[0].clone().sub(frustumCorners[6]).length() / 2;
-        if (Debugger.shadows.roundToPixelSize === true) {
-            const shadowMapSize = 4096;
-            const texelsPerUnit = shadowMapSize / (radius * 2.0);
-            const scalar = new Matrix4().makeScale(new Vector3(texelsPerUnit, texelsPerUnit, texelsPerUnit));
-            const baseLookAt = new Vector3(-lightDirection.x, -lightDirection.y, -lightDirection.z);
-    
-            const lookAt = new Matrix4().lookAt(new Vector3(0, 0, 0), baseLookAt, new Vector3(0, 1, 0)).mul(scalar);
-            const lookAtInv = lookAt.clone().invert();
-    
-            frustumCenter.transformDirection(lookAt);
-            frustumCenter.x = Math.floor(frustumCenter.x);
-            frustumCenter.y = Math.floor(frustumCenter.y);
-            frustumCenter.transformDirection(lookAtInv);
-        }
-
-        const eye = frustumCenter.clone().sub(lightDirection.clone().mul(radius * 2.0));
-        
-        const lightViewMatrix = new Matrix4();
-        lightViewMatrix.lookAt(
-            eye,
-            frustumCenter,
-            new Vector3(0, 1, 0)
-        );
-
-
-        const lightProjMatrix = new Matrix4().orthoZO(-radius, radius, -radius, radius, -radius * 6.0, radius * 6.0);
-        const out = lightProjMatrix.mul(lightViewMatrix);
-
-        cascades.push({
-            viewProjMatrix: out,
-            splitDepth: cascadeFar
-        })
-    }
-
-    return cascades;
-}
+export const DeferredShadowMapPassDebug = new _DeferredShadowMapPassDebug();
 
 export class DeferredShadowMapPass extends RenderPass {
     public name: string = "DeferredShadowMapPass";
@@ -223,6 +159,97 @@ export class DeferredShadowMapPass extends RenderPass {
         this.initialized = true;
     }
 
+    private getCornersForCascade(camera: Camera, cascadeNear: number, cascadeFar: number): Vector3[] {
+        const projectionMatrix = new Matrix4().perspectiveWGPUMatrix(camera.fov * (Math.PI / 180), camera.aspect, cascadeNear, cascadeFar);
+    
+        let frustumCorners: Vector3[] = [
+            new Vector3(-1.0, 1.0, 0.0),
+            new Vector3(1.0, 1.0, 0.0),
+            new Vector3(1.0, -1.0, 0.0),
+            new Vector3(-1.0, -1.0, 0.0),
+            new Vector3(-1.0, 1.0, 1.0),
+            new Vector3(1.0, 1.0, 1.0),
+            new Vector3(1.0, -1.0, 1.0),
+            new Vector3(-1.0, -1.0, 1.0),
+        ];
+    
+        // Project frustum corners into world space
+        const invViewProj = projectionMatrix.clone().mul(camera.viewMatrix).invert();
+        for (let i = 0; i < 8; i++) {
+            frustumCorners[i].applyMatrix4(invViewProj);
+        }
+    
+        return frustumCorners;
+    }
+    
+    private getCascades(camera: Camera, cascadeCount: number, light: Light): Cascade[] {
+        const CASCADE_PERCENTAGES: number[] = [0.05, 0.15, 0.5, 1];
+        const CASCADE_DISTANCES: number[] = [
+            CASCADE_PERCENTAGES[0] * camera.far,
+            CASCADE_PERCENTAGES[1] * camera.far,
+            CASCADE_PERCENTAGES[2] * camera.far,
+            CASCADE_PERCENTAGES[3] * camera.far,
+        ];
+    
+        // console.log(CASCADE_DISTANCES)
+    
+        // const CASCADE_DISTANCES: number[] = [20, 80, 400, 1000];
+    
+        let cascades: Cascade[] = [];
+    
+        for (let i = 0; i < cascadeCount; i++) {
+    
+            const cascadeNear = i === 0 ? camera.near : CASCADE_DISTANCES[i - 1];
+            const cascadeFar = CASCADE_DISTANCES[i];
+            const frustumCorners = this.getCornersForCascade(camera, cascadeNear, cascadeFar);
+            const frustumCenter = new Vector3(0, 0, 0);
+    
+            // Compute center of frustum corners
+            for (let i = 0; i < frustumCorners.length; i++) {
+                frustumCenter.add(frustumCorners[i]);
+            }
+            frustumCenter.mul(1 / frustumCorners.length);
+    
+            const lightDirection = light.transform.position.clone().normalize();
+    
+            const radius = frustumCorners[0].clone().sub(frustumCorners[6]).length() / 2;
+            if (DeferredShadowMapPassDebug.roundToPixelSizeValue === true) {
+                const shadowMapSize = 4096;
+                const texelsPerUnit = shadowMapSize / (radius * 2.0);
+                const scalar = new Matrix4().makeScale(new Vector3(texelsPerUnit, texelsPerUnit, texelsPerUnit));
+                const baseLookAt = new Vector3(-lightDirection.x, -lightDirection.y, -lightDirection.z);
+        
+                const lookAt = new Matrix4().lookAt(new Vector3(0, 0, 0), baseLookAt, new Vector3(0, 1, 0)).mul(scalar);
+                const lookAtInv = lookAt.clone().invert();
+        
+                frustumCenter.transformDirection(lookAt);
+                frustumCenter.x = Math.floor(frustumCenter.x);
+                frustumCenter.y = Math.floor(frustumCenter.y);
+                frustumCenter.transformDirection(lookAtInv);
+            }
+    
+            const eye = frustumCenter.clone().sub(lightDirection.clone().mul(radius * 2.0));
+            
+            const lightViewMatrix = new Matrix4();
+            lightViewMatrix.lookAt(
+                eye,
+                frustumCenter,
+                new Vector3(0, 1, 0)
+            );
+    
+    
+            const lightProjMatrix = new Matrix4().orthoZO(-radius, radius, -radius, radius, -radius * 6.0, radius * 6.0);
+            const out = lightProjMatrix.mul(lightViewMatrix);
+    
+            cascades.push({
+                viewProjMatrix: out,
+                splitDepth: cascadeFar
+            })
+        }
+    
+        return cascades;
+    }
+
     public execute(resources: ResourcePool) {
         if (!this.initialized) return;
 
@@ -286,7 +313,7 @@ export class DeferredShadowMapPass extends RenderPass {
 
             let lightData: Matrix4[] = [];
 
-            const cascades = getCascades(Camera.mainCamera, numOfCascades, light);
+            const cascades = this.getCascades(Camera.mainCamera, numOfCascades, light);
             lightData = [];
             for (const cascade of cascades) {
                 lightData.push(cascade.viewProjMatrix);

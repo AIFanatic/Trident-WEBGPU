@@ -6,6 +6,7 @@ import { PassParams } from "../RenderingPipeline";
 import { InstancedMesh } from "../../components/InstancedMesh";
 import { Debugger } from "../../plugins/Debugger";
 import { RenderCache } from "../RenderCache";
+import { RendererDebug } from "../RendererDebug";
 
 export class DeferredGBufferPass extends RenderPass {
     public name: string = "DeferredMeshRenderPass";
@@ -74,7 +75,7 @@ export class DeferredGBufferPass extends RenderPass {
                 shader.SetVector3("cameraPosition", inputCamera.transform.position);
                 RendererContext.DrawGeometry(geometry, shader, 1);
                 if (geometry.index) {
-                    Debugger.IncrementTriangleCount(geometry.index.array.length / 3);
+                    RendererDebug.IncrementTriangleCount(geometry.index.array.length / 3);
                 }
 
                 RenderCache.renderableMeshes.push({
@@ -103,7 +104,7 @@ export class DeferredGBufferPass extends RenderPass {
                 shader.SetVector3("cameraPosition", inputCamera.transform.position);
                 RendererContext.DrawGeometry(geometry, shader, instancedMesh.instanceCount+1);
                 if (geometry.index) {
-                    Debugger.IncrementTriangleCount(geometry.index.array.length / 3 * (instancedMesh.instanceCount + 1));
+                    RendererDebug.IncrementTriangleCount(geometry.index.array.length / 3 * (instancedMesh.instanceCount + 1));
                 }
 
                 RenderCache.renderableMeshes.push({

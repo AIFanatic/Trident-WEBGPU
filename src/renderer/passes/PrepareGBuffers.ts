@@ -7,6 +7,9 @@ import { Debugger } from "../../plugins/Debugger";
 import { Meshlet } from "../../plugins/meshlets/Meshlet";
 import { Camera } from "../../components/Camera";
 import { AreaLight, DirectionalLight, PointLight, SpotLight } from "../../components/Light";
+import { MeshletDebug } from "../../plugins/meshlets/passes/MeshletDebug";
+import { RendererDebug } from "../RendererDebug";
+import { DeferredShadowMapPassDebug } from "./DeferredShadowMapPass";
 
 export class PrepareGBuffers extends RenderPass {
     public name: string = "PrepareGBuffers";
@@ -59,43 +62,30 @@ export class PrepareGBuffers extends RenderPass {
         resources.setResource(PassParams.GBufferNormal, this.gBufferNormalRT);
         resources.setResource(PassParams.GBufferERMO, this.gBufferERMORT);
 
-        // debugDepthPass: f32,
-        // debugDepthMipLevel: f32,
-        // debugDepthExposure: f32,
-        // frustumCullingEnabled: f32,
-        // backFaceCullingEnabled: f32,
-        // occlusionCullingEnabled: f32,
-        // smallFeaturesCullingEnabled: f32,
-        // staticLOD: f32,
-        // dynamicLODErrorThreshold: f32,
-        // dynamicLODEnabled: f32,
-        // viewType: f32,
-        // useHeightMap: f32,
-        // heightScale: f32,
-        // maxTriangles: f32,
-    
-        // cameraPosition: vec4<f32>,
-        
-        // meshletsViewType: f32,
-
         const settings = new Float32Array([
             +Debugger.isDebugDepthPassEnabled,
             Debugger.debugDepthMipLevel,
             Debugger.debugDepthExposure,
-            +Debugger.isFrustumCullingEnabled,
-            +Debugger.isBackFaceCullingEnabled,
-            +Debugger.isOcclusionCullingEnabled,
-            +Debugger.isSmallFeaturesCullingEnabled,
-            Debugger.staticLOD,
-            Debugger.dynamicLODErrorThreshold,
-            +Debugger.isDynamicLODEnabled,
-            Debugger.viewType,
-            Debugger.meshletsViewType,
-            +Debugger.useHeightMap,
+            +MeshletDebug.isFrustumCullingEnabled,
+            +MeshletDebug.isBackFaceCullingEnabled,
+            +MeshletDebug.isOcclusionCullingEnabled,
+            +MeshletDebug.isSmallFeaturesCullingEnabled,
+            MeshletDebug.staticLODValue,
+            MeshletDebug.dynamicLODErrorThresholdValue,
+            +MeshletDebug.isDynamicLODEnabled,
+            RendererDebug.viewTypeValue,
+            MeshletDebug.meshletsViewType,
+            +RendererDebug.useHeightMapValue,
             Debugger.heightScale,
             Meshlet.max_triangles,
+            
+            +DeferredShadowMapPassDebug.debugCascadesValue,
+            DeferredShadowMapPassDebug.pcfResolutionValue,
+            DeferredShadowMapPassDebug.blendThresholdValue,
+            +DeferredShadowMapPassDebug.viewBlendThresholdValue,
+
             ...Camera.mainCamera.transform.position.elements, 0,
-            0,
+            0, 0
             
         ]);
         resources.setResource(PassParams.DebugSettings, settings);

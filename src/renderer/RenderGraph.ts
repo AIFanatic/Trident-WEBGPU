@@ -4,6 +4,7 @@ export class RenderPass {
     public outputs: string[] = [];
 
     public initialized: boolean = false;
+    public initializing: boolean = false;
     
     constructor(params: {inputs?: string[], outputs?: string[]}) {
         if (params.inputs) this.inputs = params.inputs;
@@ -31,8 +32,8 @@ export class ResourcePool {
 }
 
 export class RenderGraph {
-    private passes: RenderPass[] = [];
-    private resourcePool: ResourcePool = new ResourcePool();
+    public passes: RenderPass[] = [];
+    public resourcePool: ResourcePool = new ResourcePool();
 
     public addPass(pass: RenderPass): void {
         this.passes.push(pass);
@@ -41,7 +42,9 @@ export class RenderGraph {
     public async init() {
         const sortedPasses = this.topologicalSort();
         for (const pass of sortedPasses) {
-            if (pass.initialized) continue;
+            if (pass.initialized === true || pass.initializing === true) continue;
+            pass.initializing = true;
+            console.warn("init", pass.name, pass.initialized, pass.initializing)
             await pass.init(this.resourcePool);
             pass.initialized = true;
         }

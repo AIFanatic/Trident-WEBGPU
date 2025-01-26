@@ -5,11 +5,11 @@ import { PBRMaterial } from "../../../renderer/Material";
 import { RenderPass, ResourcePool } from "../../../renderer/RenderGraph";
 import { RendererContext } from "../../../renderer/RendererContext";
 import { RenderTexture, Texture, TextureArray } from "../../../renderer/Texture";
-import { BufferMemoryAllocator, DynamicBufferMemoryAllocator } from "../../../utils/MemoryAllocator";
-import { Debugger } from "../../Debugger";
+import { DynamicBufferMemoryAllocator } from "../../../utils/MemoryAllocator";
 import { Meshlet } from "../Meshlet";
 import { MeshletPassParams } from "./MeshletDraw";
 import { MeshletEvents } from "../MeshletEvents";
+import { MeshletDebug } from "./MeshletDebug";
 
 interface SceneMesh {
     geometry: Meshlet;
@@ -58,7 +58,9 @@ export class PrepareSceneData extends RenderPass {
                 MeshletPassParams.textureMaps,
             ]
         });
+    }
 
+    public async init(resources: ResourcePool) {
         const bufferSize = 1024 * 100 * 1;
         this.meshMatrixInfoBuffer = new DynamicBufferMemoryAllocator(bufferSize);
         this.meshMaterialInfo = new DynamicBufferMemoryAllocator(bufferSize);
@@ -86,6 +88,8 @@ export class PrepareSceneData extends RenderPass {
         //     }
 
         // })
+        
+        this.initialized = true;
     }
 
     private getVertexInfo(meshlet: Meshlet): Float32Array {
@@ -268,7 +272,7 @@ export class PrepareSceneData extends RenderPass {
             this.currentMeshCount = sceneMeshlets.length;
             this.currentMeshletsCount = meshlets.length;
 
-            Debugger.SetTotalMeshlets(meshlets.length);
+            MeshletDebug.totalMeshlets.SetValue(meshlets.length);
         }
 
         // // Test updating mesh matrices naively
