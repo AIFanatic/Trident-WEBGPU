@@ -36,7 +36,8 @@ struct Material {
     EmissiveColor: vec4<f32>,
     Roughness: f32,
     Metalness: f32,
-    Unlit: f32
+    Unlit: f32,
+    AlphaCutoff: f32
 };
 @group(0) @binding(3) var<storage, read> material: Material;
 
@@ -162,7 +163,7 @@ fn fragmentMain(input: VertexOutput) -> FragmentOutput {
         albedo *= textureSample(AlbedoMap, TextureSampler, uv);
     #endif
 
-    if (albedo.r + albedo.g + albedo.b < 0.001) {
+    if (albedo.r + albedo.g + albedo.b < 0.001 || albedo.a < mat.AlphaCutoff) {
         discard;
     }
 

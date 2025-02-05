@@ -1380,6 +1380,195 @@ var GameObject = class {
   }
 };
 
+// src/plugins/ui/UIStats.ts
+var Stat = class {
+  statContainer;
+  constructor(container, label) {
+    this.statContainer = document.createElement("div");
+    this.statContainer.classList.add("stat");
+    container.appendChild(this.statContainer);
+    if (label !== null) {
+      const labelElement = document.createElement("label");
+      labelElement.classList.add("title");
+      labelElement.classList.add("title");
+      labelElement.textContent = label;
+      this.statContainer.append(labelElement);
+    }
+  }
+  Disable() {
+    this.statContainer.classList.add("disabled");
+  }
+  Enable() {
+    this.statContainer.classList.remove("disabled");
+  }
+};
+var UIDropdownStat = class extends Stat {
+  selectElement;
+  constructor(folder, label, options, onChanged, defaultIndex = 0) {
+    super(folder.container, label);
+    this.selectElement = document.createElement("select");
+    this.selectElement.classList.add("value");
+    for (let i2 = 0; i2 < options.length; i2++) {
+      const option = options[i2];
+      const optionElement = document.createElement("option");
+      optionElement.value = option;
+      optionElement.textContent = option;
+      this.selectElement.append(optionElement);
+      if (i2 === defaultIndex) {
+        this.selectElement.value = option;
+      }
+    }
+    this.statContainer.append(this.selectElement);
+    this.selectElement.addEventListener("change", (event) => {
+      onChanged(this.selectElement.selectedIndex, event.target.value);
+    });
+  }
+};
+var UIButtonStat = class extends Stat {
+  button;
+  state;
+  onText;
+  offText;
+  constructor(folder, label, onClicked, defaultState = false, onText = "Enable", offText = "Disable") {
+    super(folder.container, label);
+    this.state = defaultState;
+    this.onText = onText;
+    this.offText = offText;
+    this.button = document.createElement("button");
+    this.button.classList.add("value");
+    this.button.textContent = defaultState === true ? offText : onText;
+    this.statContainer.append(this.button);
+    this.button.addEventListener("click", (event) => {
+      this.state = !this.state;
+      if (this.state === true) this.button.textContent = this.offText;
+      else this.button.textContent = this.onText;
+      onClicked(this.state);
+    });
+  }
+};
+var UISliderStat = class extends Stat {
+  constructor(folder, label, min, max, step, defaultValue, callback) {
+    super(folder.container, label);
+    const container = document.createElement("div");
+    container.classList.add("value");
+    container.style.display = "inline-flex";
+    container.style.alignItems = "center";
+    container.style.padding = "0px";
+    const sliderElement = document.createElement("input");
+    sliderElement.classList.add("slider");
+    sliderElement.style.width = "60px";
+    sliderElement.style.margin = "0px";
+    sliderElement.type = "range";
+    sliderElement.min = `${min}`;
+    sliderElement.max = `${max}`;
+    sliderElement.step = `${step}`;
+    sliderElement.value = `${defaultValue}`;
+    const textElement = document.createElement("input");
+    textElement.style.width = "25px";
+    textElement.style.marginLeft = "5px";
+    textElement.value = defaultValue.toString();
+    textElement.addEventListener("input", (event) => {
+      sliderElement.value = textElement.value;
+      callback(parseFloat(sliderElement.value));
+      if (textElement.value !== "") textElement.value = sliderElement.value;
+    });
+    sliderElement.addEventListener("input", (event) => {
+      callback(parseFloat(sliderElement.value));
+      textElement.value = sliderElement.value;
+    });
+    container.append(sliderElement, textElement);
+    this.statContainer.append(container);
+  }
+};
+var UITextStat = class extends Stat {
+  textElement;
+  previousValue;
+  precision;
+  unit;
+  rolling;
+  constructor(folder, label, defaultValue = 0, precision = 0, unit = "", rolling = false) {
+    super(folder.container, label);
+    this.previousValue = defaultValue;
+    this.precision = precision;
+    this.unit = unit;
+    this.rolling = rolling;
+    this.textElement = document.createElement("pre");
+    this.textElement.classList.add("value");
+    this.textElement.textContent = defaultValue.toFixed(precision);
+    this.statContainer.append(this.textElement);
+    setInterval(() => {
+      this.Update();
+    }, 100);
+  }
+  SetValue(value) {
+    if (this.rolling === true) {
+      value = this.previousValue * 0.95 + value * 0.05;
+    }
+    this.previousValue = value;
+  }
+  GetValue() {
+    return this.previousValue;
+  }
+  // TODO: Current value
+  GetPrecision() {
+    return this.precision;
+  }
+  SetUnit(unit) {
+    this.unit = unit;
+  }
+  Update() {
+    const valueStr = this.precision === 0 ? this.previousValue.toString() : this.previousValue.toFixed(this.precision);
+    this.textElement.textContent = valueStr + this.unit;
+  }
+};
+var UIFolder = class extends Stat {
+  folderElement;
+  container;
+  constructor(container, title) {
+    super(container instanceof HTMLDivElement ? container : container.container, null);
+    this.folderElement = document.createElement("details");
+    const folderTitle = document.createElement("summary");
+    folderTitle.textContent = title;
+    this.container = document.createElement("div");
+    this.folderElement.append(folderTitle, this.container);
+    this.statContainer.append(this.folderElement);
+  }
+  SetPosition(position) {
+    if (position.left) this.container.style.left = `${position.left}px`;
+    if (position.right) this.container.style.right = `${position.right}px`;
+    if (position.top) this.container.style.top = `${position.top}px`;
+    if (position.bottom) this.container.style.bottom = `${position.bottom}px`;
+  }
+  Open() {
+    this.folderElement.setAttribute("open", "");
+  }
+};
+
+// src/plugins/Debugger.ts
+var _Debugger = class {
+  ui;
+  constructor() {
+    const container = document.createElement("div");
+    container.classList.add("stats-panel");
+    document.body.append(container);
+    this.ui = new UIFolder(container, "Debugger");
+    this.ui.Open();
+  }
+};
+var Debugger = new _Debugger();
+
+// src/EngineDebug.ts
+var _EngineDebug = class {
+  componentUpdate;
+  engineFolder;
+  constructor() {
+    this.engineFolder = new UIFolder(Debugger.ui, "Engine");
+    this.engineFolder.Open();
+    this.componentUpdate = new UITextStat(this.engineFolder, "Component update", 0, 2, "", true);
+  }
+};
+var EngineDebug = new _EngineDebug();
+
 // src/renderer/webgpu/WEBGPURenderer.ts
 var adapter = navigator ? await navigator.gpu.requestAdapter() : null;
 if (!adapter) throw Error("WEBGPU not supported");
@@ -1518,7 +1707,6 @@ var RenderGraph = class {
     for (const pass of sortedPasses) {
       if (pass.initialized === true || pass.initializing === true) continue;
       pass.initializing = true;
-      console.warn("init", pass.name, pass.initialized, pass.initializing);
       await pass.init(this.resourcePool);
       pass.initialized = true;
     }
@@ -1544,18 +1732,23 @@ var Assets = class _Assets {
   static cache = /* @__PURE__ */ new Map();
   static async Load(url, type) {
     const cached = _Assets.cache.get(url);
-    if (cached) {
+    if (cached !== void 0) {
       return cached;
     }
-    return fetch(url).then((response) => {
+    const promise = fetch(url).then((response) => {
       if (!response.ok) throw Error(`File not found ${url}`);
       if (type === "json") return response.json();
       else if (type === "text") return response.text();
       else if (type === "binary") return response.arrayBuffer();
     }).then((result) => {
-      _Assets.cache.set(url, result);
+      _Assets.cache.set(url, Promise.resolve(result));
       return result;
+    }).catch((error) => {
+      _Assets.cache.delete(url);
+      throw error;
     });
+    _Assets.cache.set(url, promise);
+    return promise;
   }
 };
 
@@ -1654,178 +1847,6 @@ var ShaderLoader = class _ShaderLoader {
   }
 };
 
-// src/plugins/ui/UIStats.ts
-var Stat = class {
-  statContainer;
-  constructor(container, label) {
-    this.statContainer = document.createElement("div");
-    this.statContainer.classList.add("stat");
-    container.appendChild(this.statContainer);
-    if (label !== null) {
-      const labelElement = document.createElement("label");
-      labelElement.classList.add("title");
-      labelElement.classList.add("title");
-      labelElement.textContent = label;
-      this.statContainer.append(labelElement);
-    }
-  }
-  Disable() {
-    this.statContainer.classList.add("disabled");
-  }
-  Enable() {
-    this.statContainer.classList.remove("disabled");
-  }
-};
-var UIDropdownStat = class extends Stat {
-  selectElement;
-  constructor(folder, label, options, onChanged, defaultIndex = 0) {
-    super(folder.container, label);
-    this.selectElement = document.createElement("select");
-    this.selectElement.classList.add("value");
-    for (let i2 = 0; i2 < options.length; i2++) {
-      const option = options[i2];
-      const optionElement = document.createElement("option");
-      optionElement.value = option;
-      optionElement.textContent = option;
-      this.selectElement.append(optionElement);
-      if (i2 === defaultIndex) {
-        this.selectElement.value = option;
-      }
-    }
-    this.statContainer.append(this.selectElement);
-    this.selectElement.addEventListener("change", (event) => {
-      onChanged(this.selectElement.selectedIndex, event.target.value);
-    });
-  }
-};
-var UIButtonStat = class extends Stat {
-  button;
-  state;
-  onText;
-  offText;
-  constructor(folder, label, onClicked, defaultState = false, onText = "Enable", offText = "Disable") {
-    super(folder.container, label);
-    this.state = defaultState;
-    this.onText = onText;
-    this.offText = offText;
-    this.button = document.createElement("button");
-    this.button.classList.add("value");
-    this.button.textContent = defaultState === true ? offText : onText;
-    this.statContainer.append(this.button);
-    this.button.addEventListener("click", (event) => {
-      this.state = !this.state;
-      if (this.state === true) this.button.textContent = this.offText;
-      else this.button.textContent = this.onText;
-      onClicked(this.state);
-    });
-  }
-};
-var UISliderStat = class extends Stat {
-  constructor(folder, label, min, max, step, defaultValue, callback) {
-    super(folder.container, label);
-    const container = document.createElement("div");
-    container.classList.add("value");
-    container.style.display = "inline-flex";
-    container.style.alignItems = "center";
-    container.style.padding = "0px";
-    const sliderElement = document.createElement("input");
-    sliderElement.classList.add("slider");
-    sliderElement.style.width = "60px";
-    sliderElement.style.margin = "0px";
-    sliderElement.type = "range";
-    sliderElement.min = `${min}`;
-    sliderElement.max = `${max}`;
-    sliderElement.step = `${step}`;
-    sliderElement.value = `${defaultValue}`;
-    const textElement = document.createElement("input");
-    textElement.style.width = "25px";
-    textElement.style.marginLeft = "5px";
-    textElement.value = defaultValue.toString();
-    textElement.addEventListener("input", (event) => {
-      sliderElement.value = textElement.value;
-      callback(parseFloat(sliderElement.value));
-      if (textElement.value !== "") textElement.value = sliderElement.value;
-    });
-    sliderElement.addEventListener("input", (event) => {
-      callback(parseFloat(sliderElement.value));
-      textElement.value = sliderElement.value;
-    });
-    container.append(sliderElement, textElement);
-    this.statContainer.append(container);
-  }
-};
-var UITextStat = class extends Stat {
-  textElement;
-  previousValue;
-  precision;
-  unit;
-  rolling;
-  constructor(folder, label, defaultValue = 0, precision = 0, unit = "", rolling = false) {
-    super(folder.container, label);
-    this.previousValue = defaultValue;
-    this.precision = precision;
-    this.unit = unit;
-    this.rolling = rolling;
-    this.textElement = document.createElement("pre");
-    this.textElement.classList.add("value");
-    this.textElement.textContent = defaultValue.toFixed(precision);
-    this.statContainer.append(this.textElement);
-  }
-  SetValue(value) {
-    if (this.rolling === true) {
-      value = this.previousValue * 0.95 + value * 0.05;
-    }
-    const valueStr = this.precision === 0 ? value.toString() : value.toFixed(this.precision);
-    this.textElement.textContent = valueStr + this.unit;
-    this.previousValue = value;
-  }
-  GetValue() {
-    return this.previousValue;
-  }
-  // TODO: Current value
-  GetPrecision() {
-    return this.precision;
-  }
-  SetUnit(unit) {
-    this.unit = unit;
-  }
-};
-var UIFolder = class extends Stat {
-  folderElement;
-  container;
-  constructor(container, title) {
-    super(container instanceof HTMLDivElement ? container : container.container, null);
-    this.folderElement = document.createElement("details");
-    const folderTitle = document.createElement("summary");
-    folderTitle.textContent = title;
-    this.container = document.createElement("div");
-    this.folderElement.append(folderTitle, this.container);
-    this.statContainer.append(this.folderElement);
-  }
-  SetPosition(position) {
-    if (position.left) this.container.style.left = `${position.left}px`;
-    if (position.right) this.container.style.right = `${position.right}px`;
-    if (position.top) this.container.style.top = `${position.top}px`;
-    if (position.bottom) this.container.style.bottom = `${position.bottom}px`;
-  }
-  Open() {
-    this.folderElement.setAttribute("open", "");
-  }
-};
-
-// src/plugins/Debugger.ts
-var _Debugger = class {
-  ui;
-  constructor() {
-    const container = document.createElement("div");
-    container.classList.add("stats-panel");
-    document.body.append(container);
-    this.ui = new UIFolder(container, "Debugger");
-    this.ui.Open();
-  }
-};
-var Debugger = new _Debugger();
-
 // src/renderer/RendererDebug.ts
 var _RendererDebug = class {
   isDebugDepthPassEnabled = false;
@@ -1833,9 +1854,14 @@ var _RendererDebug = class {
   fps;
   triangleCount;
   visibleTriangles;
+  cpuTime;
   gpuTime;
   gpuBufferSizeStat;
   gpuTextureSizeStat;
+  bindGroupLayoutsStat;
+  bindGroupsStat;
+  compiledShadersStat;
+  drawCallsStat;
   viewTypeStat;
   heightScale;
   useHeightMapStat;
@@ -1852,9 +1878,14 @@ var _RendererDebug = class {
     this.fps = new UITextStat(this.rendererFolder, "FPS", 0, 2, "", true);
     this.triangleCount = new UITextStat(this.rendererFolder, "Triangles: ");
     this.visibleTriangles = new UITextStat(this.rendererFolder, "Visible triangles: ");
+    this.cpuTime = new UITextStat(this.rendererFolder, "CPU: ", 0, 2, "ms", true);
     this.gpuTime = new UITextStat(this.rendererFolder, "GPU: ", 0, 2, "ms", true);
     this.gpuBufferSizeStat = new UITextStat(this.rendererFolder, "GPU buffer size: ", 0, 2);
     this.gpuTextureSizeStat = new UITextStat(this.rendererFolder, "GPU texture size: ", 0, 2);
+    this.bindGroupLayoutsStat = new UITextStat(this.rendererFolder, "Bind group layouts: ");
+    this.bindGroupsStat = new UITextStat(this.rendererFolder, "Bind groups: ");
+    this.drawCallsStat = new UITextStat(this.rendererFolder, "Draw calls: ");
+    this.compiledShadersStat = new UITextStat(this.rendererFolder, "Compiled shaders: ");
     this.viewTypeStat = new UIDropdownStat(this.rendererFolder, "Final output:", ["Lighting", "Albedo Map", "Normal Map", "Metalness", "Roughness", "Emissive"], (index, value) => {
       this.viewTypeValue = index;
     }, this.viewTypeValue);
@@ -1875,6 +1906,9 @@ var _RendererDebug = class {
     }
     framePass.SetValue(time / 1e6);
   }
+  SetCPUTime(value) {
+    this.cpuTime.SetValue(value);
+  }
   SetTriangleCount(count) {
     this.triangleCount.SetValue(count);
   }
@@ -1891,6 +1925,12 @@ var _RendererDebug = class {
       totalGPUTime += framePass.GetValue();
     }
     this.gpuTime.SetValue(totalGPUTime);
+  }
+  IncrementBindGroupLayouts(value) {
+    this.bindGroupLayoutsStat.SetValue(this.bindGroupLayoutsStat.GetValue() + value);
+  }
+  IncrementBindGroups(value) {
+    this.bindGroupsStat.SetValue(this.bindGroupsStat.GetValue() + value);
   }
   FormatBytes(bytes, decimals = 2) {
     const k = 1024;
@@ -1909,6 +1949,15 @@ var _RendererDebug = class {
     const formatted = this.FormatBytes(this.gpuTextureSizeTotal, this.gpuTextureSizeStat.GetPrecision());
     this.gpuTextureSizeStat.SetUnit(formatted.rank);
     this.gpuTextureSizeStat.SetValue(formatted.value);
+  }
+  IncrementDrawCalls(count) {
+    this.drawCallsStat.SetValue(this.drawCallsStat.GetValue() + count);
+  }
+  IncrementShaderCompiles(count) {
+    this.compiledShadersStat.SetValue(this.compiledShadersStat.GetValue() + count);
+  }
+  ResetFrame() {
+    this.drawCallsStat.SetValue(0);
   }
 };
 var RendererDebug = new _RendererDebug();
@@ -2255,6 +2304,7 @@ var WEBGPUTexture = class _WEBGPUTexture {
   }
   GenerateMips() {
     this.buffer = WEBGPUMipsGenerator.generateMips(this);
+    this.SetActiveMipCount(WEBGPUMipsGenerator.numMipLevels(this.width, this.height));
   }
   SetActiveLayer(layer) {
     if (layer > this.depth) throw Error("Active layer cannot be bigger than depth size");
@@ -2283,11 +2333,15 @@ var WEBGPUTexture = class _WEBGPUTexture {
   // https://github.com/gpuweb/gpuweb/issues/2322
   static FromImageBitmap(imageBitmap, width, height, format, flipY) {
     const texture = new _WEBGPUTexture(width, height, 1, format, 2 /* RENDER_TARGET */, "2d", 1);
-    WEBGPURenderer.device.queue.copyExternalImageToTexture(
-      { source: imageBitmap, flipY },
-      { texture: texture.GetBuffer() },
-      [imageBitmap.width, imageBitmap.height]
-    );
+    try {
+      WEBGPURenderer.device.queue.copyExternalImageToTexture(
+        { source: imageBitmap, flipY },
+        { texture: texture.GetBuffer() },
+        [imageBitmap.width, imageBitmap.height]
+      );
+    } catch (error) {
+      console.warn(error);
+    }
     return texture;
   }
 };
@@ -2968,6 +3022,7 @@ var WEBGPURendererContext = class {
     if (!this.activeRenderPass) throw Error("No active render pass");
     shader.OnPreRender();
     if (!shader.pipeline) throw Error("Shader doesnt have a pipeline");
+    RendererDebug.IncrementDrawCalls(1);
     this.activeRenderPass.setPipeline(shader.pipeline);
     for (let i2 = 0; i2 < shader.bindGroups.length; i2++) {
       let dynamicOffsets = [];
@@ -3133,6 +3188,7 @@ var RendererContext = class {
 
 // src/renderer/webgpu/WEBGPUTextureSampler.ts
 var WEBGPUTextureSampler = class {
+  id = Utils.UUID();
   params;
   sampler;
   constructor(params) {
@@ -3275,13 +3331,6 @@ var RenderTexture = class extends Texture2 {
     throw Error("Renderer type invalid");
   }
 };
-var TextureArray = class extends Texture2 {
-  static Create(width, height, depth = 1, format = Renderer.SwapChainFormat, mipLevels = 1) {
-    RendererDebug.IncrementGPUTextureSize(width * height * depth * 4);
-    if (Renderer.type === "webgpu") return new WEBGPUTexture(width, height, depth, format, 0 /* IMAGE */, "2d-array", mipLevels);
-    throw Error("Renderer type invalid");
-  }
-};
 var DepthTextureArray = class extends Texture2 {
   static Create(width, height, depth = 1, format = "depth24plus", mipLevels = 1) {
     RendererDebug.IncrementGPUTextureSize(width * height * depth * 1);
@@ -3291,6 +3340,8 @@ var DepthTextureArray = class extends Texture2 {
 };
 
 // src/renderer/webgpu/WEBGPUBaseShader.ts
+var BindGroupLayoutCache = /* @__PURE__ */ new Map();
+var BindGroupCache = /* @__PURE__ */ new Map();
 var UniformTypeToWGSL = {
   "uniform": "uniform",
   "storage": "read-only-storage",
@@ -3315,25 +3366,26 @@ var WEBGPUBaseShader = class {
   get bindGroupsInfo() {
     return this._bindGroupsInfo;
   }
+  bindGroupLayouts = [];
   constructor(params) {
     const code = params.defines ? ShaderPreprocessor.ProcessDefines(params.code, params.defines) : params.code;
     this.params = params;
     this.module = WEBGPURenderer.device.createShaderModule({ code });
-    if (this.params.uniforms) this.uniformMap = new Map(Object.entries(this.params.uniforms));
+    if (this.params.uniforms) {
+      this.uniformMap = new Map(Object.entries(this.params.uniforms));
+    }
   }
   BuildBindGroupLayouts() {
-    const bindGroupsInfo = [];
+    const bindGroupsLayoutEntries = [];
     for (const [name, uniform] of this.uniformMap) {
-      if (!bindGroupsInfo[uniform.group]) bindGroupsInfo[uniform.group] = { layoutEntries: [], entries: [], buffers: [] };
-      const group = bindGroupsInfo[uniform.group];
+      if (!bindGroupsLayoutEntries[uniform.group]) bindGroupsLayoutEntries[uniform.group] = [];
+      const layoutEntries = bindGroupsLayoutEntries[uniform.group];
       if (uniform.buffer instanceof WEBGPUBuffer) {
         const visibility = uniform.type === "storage-write" ? GPUShaderStage.FRAGMENT | GPUShaderStage.COMPUTE : GPUShaderStage.VERTEX | GPUShaderStage.FRAGMENT | GPUShaderStage.COMPUTE;
-        group.layoutEntries.push({ binding: uniform.binding, visibility, buffer: { type: UniformTypeToWGSL[uniform.type] } });
-        group.entries.push({ binding: uniform.binding, resource: { buffer: uniform.buffer.GetBuffer() } });
-        group.buffers.push(uniform.buffer);
+        layoutEntries.push({ binding: uniform.binding, visibility, buffer: { type: UniformTypeToWGSL[uniform.type] } });
       } else if (uniform.buffer instanceof WEBGPUDynamicBuffer) {
         const visibility = uniform.type === "storage-write" ? GPUShaderStage.FRAGMENT | GPUShaderStage.COMPUTE : GPUShaderStage.VERTEX | GPUShaderStage.FRAGMENT | GPUShaderStage.COMPUTE;
-        group.layoutEntries.push({
+        layoutEntries.push({
           binding: uniform.binding,
           visibility,
           buffer: {
@@ -3342,6 +3394,62 @@ var WEBGPUBaseShader = class {
             minBindingSize: uniform.buffer.minBindingSize
           }
         });
+      } else if (uniform.buffer instanceof WEBGPUTexture) {
+        let sampleType = uniform.type === "depthTexture" ? "depth" : "float";
+        if (uniform.buffer.format === "r32float") sampleType = "unfilterable-float";
+        if (uniform.buffer.type === 3 /* RENDER_TARGET_STORAGE */) {
+          layoutEntries.push({
+            binding: uniform.binding,
+            visibility: GPUShaderStage.COMPUTE | GPUShaderStage.FRAGMENT,
+            storageTexture: {
+              format: uniform.buffer.format,
+              viewDimension: uniform.buffer.dimension,
+              access: "read-write"
+            }
+          });
+        } else {
+          layoutEntries.push({ binding: uniform.binding, visibility: GPUShaderStage.COMPUTE | GPUShaderStage.VERTEX | GPUShaderStage.FRAGMENT, texture: { sampleType, viewDimension: uniform.buffer.dimension } });
+        }
+      } else if (uniform.buffer instanceof WEBGPUTextureSampler) {
+        let type = void 0;
+        if (uniform.type === "sampler") type = "filtering";
+        else if (uniform.type === "sampler-compare") type = "comparison";
+        else if (uniform.type === "sampler-non-filterable") type = "non-filtering";
+        layoutEntries.push({ binding: uniform.binding, visibility: GPUShaderStage.COMPUTE | GPUShaderStage.VERTEX | GPUShaderStage.FRAGMENT, sampler: { type } });
+      }
+    }
+    let bindGroupLayouts = [];
+    for (const bindGroupsLayoutEntry of bindGroupsLayoutEntries) {
+      const crc = JSON.stringify(bindGroupsLayoutEntry);
+      let bindGroupLayout = BindGroupLayoutCache.get(crc);
+      if (bindGroupLayout === void 0) {
+        bindGroupLayout = WEBGPURenderer.device.createBindGroupLayout({ entries: bindGroupsLayoutEntry });
+        BindGroupLayoutCache.set(crc, bindGroupLayout);
+        RendererDebug.IncrementBindGroupLayouts(1);
+      }
+      bindGroupLayouts.push(bindGroupLayout);
+    }
+    return bindGroupLayouts;
+  }
+  BuildBindGroupsCRC() {
+    const crcs = [];
+    for (const [name, uniform] of this.uniformMap) {
+      if (!crcs[uniform.group]) crcs[uniform.group] = "";
+      if (uniform.buffer) {
+        crcs[uniform.group] += `${uniform.buffer.id},`;
+      }
+    }
+    return crcs;
+  }
+  BuildBindGroups() {
+    const bindGroupsInfo = [];
+    for (const [name, uniform] of this.uniformMap) {
+      if (!bindGroupsInfo[uniform.group]) bindGroupsInfo[uniform.group] = { entries: [], buffers: [] };
+      const group = bindGroupsInfo[uniform.group];
+      if (uniform.buffer instanceof WEBGPUBuffer) {
+        group.entries.push({ binding: uniform.binding, resource: { buffer: uniform.buffer.GetBuffer() } });
+        group.buffers.push(uniform.buffer);
+      } else if (uniform.buffer instanceof WEBGPUDynamicBuffer) {
         group.entries.push({
           binding: uniform.binding,
           resource: {
@@ -3352,21 +3460,6 @@ var WEBGPUBaseShader = class {
         });
         group.buffers.push(uniform.buffer);
       } else if (uniform.buffer instanceof WEBGPUTexture) {
-        let sampleType = uniform.type === "depthTexture" ? "depth" : "float";
-        if (uniform.buffer.format === "r32float") sampleType = "unfilterable-float";
-        if (uniform.buffer.type === 3 /* RENDER_TARGET_STORAGE */) {
-          group.layoutEntries.push({
-            binding: uniform.binding,
-            visibility: GPUShaderStage.COMPUTE | GPUShaderStage.FRAGMENT,
-            storageTexture: {
-              format: uniform.buffer.format,
-              viewDimension: uniform.buffer.dimension,
-              access: "read-write"
-            }
-          });
-        } else {
-          group.layoutEntries.push({ binding: uniform.binding, visibility: GPUShaderStage.COMPUTE | GPUShaderStage.VERTEX | GPUShaderStage.FRAGMENT, texture: { sampleType, viewDimension: uniform.buffer.dimension } });
-        }
         const view = {
           dimension: uniform.buffer.dimension,
           arrayLayerCount: uniform.buffer.dimension != "3d" ? uniform.buffer.GetBuffer().depthOrArrayLayers : 1,
@@ -3378,16 +3471,26 @@ var WEBGPUBaseShader = class {
         group.entries.push({ binding: uniform.binding, resource: uniform.buffer.GetBuffer().createView(view) });
         group.buffers.push(uniform.buffer);
       } else if (uniform.buffer instanceof WEBGPUTextureSampler) {
-        let type = void 0;
-        if (uniform.type === "sampler") type = "filtering";
-        else if (uniform.type === "sampler-compare") type = "comparison";
-        else if (uniform.type === "sampler-non-filterable") type = "non-filtering";
-        group.layoutEntries.push({ binding: uniform.binding, visibility: GPUShaderStage.COMPUTE | GPUShaderStage.VERTEX | GPUShaderStage.FRAGMENT, sampler: { type } });
         group.entries.push({ binding: uniform.binding, resource: uniform.buffer.GetBuffer() });
         group.buffers.push(uniform.buffer);
       }
     }
-    return bindGroupsInfo;
+    this._bindGroupsInfo = bindGroupsInfo;
+    let bindGroupsCRC = this.BuildBindGroupsCRC();
+    let bindGroups = [];
+    for (let i2 = 0; i2 < bindGroupsInfo.length; i2++) {
+      const crc = bindGroupsCRC[i2];
+      const bindGroupInfo = bindGroupsInfo[i2];
+      const bindGroupLayout = this.bindGroupLayouts[i2];
+      let bindGroup = BindGroupCache.get(crc);
+      if (bindGroup === void 0) {
+        bindGroup = WEBGPURenderer.device.createBindGroup({ layout: bindGroupLayout, entries: bindGroupInfo.entries });
+        RendererDebug.IncrementBindGroups(1);
+        BindGroupCache.set(crc, bindGroup);
+      }
+      bindGroups.push(bindGroup);
+    }
+    return bindGroups;
   }
   GetValidUniform(name) {
     const uniform = this.uniformMap.get(name);
@@ -3445,53 +3548,17 @@ var WEBGPUBaseShader = class {
   HasBuffer(name) {
     return this.uniformMap.get(name)?.buffer ? true : false;
   }
-  RebuildDescriptors() {
+  Compile() {
   }
   OnPreRender() {
     if (this.needsUpdate || !this.pipeline || !this.bindGroups) {
-      this.RebuildDescriptors();
+      this.Compile();
     }
-  }
-};
-
-// src/renderer/webgpu/WEBGPUComputeShader.ts
-var WEBGPUComputeShader = class extends WEBGPUBaseShader {
-  computeEntrypoint;
-  params;
-  _pipeline = null;
-  get pipeline() {
-    return this._pipeline;
-  }
-  constructor(params) {
-    super(params);
-    this.params = params;
-    this.computeEntrypoint = params.computeEntrypoint;
-  }
-  RebuildDescriptors() {
-    console.log("%c Compiling shader", "color: #3498db");
-    this._bindGroupsInfo = this.BuildBindGroupLayouts();
-    const bindGroupLayouts = [];
-    this._bindGroups = [];
-    for (const bindGroupInfo of this._bindGroupsInfo) {
-      const bindGroupLayout = WEBGPURenderer.device.createBindGroupLayout({ entries: bindGroupInfo.layoutEntries });
-      bindGroupLayouts.push(bindGroupLayout);
-      const bindGroup = WEBGPURenderer.device.createBindGroup({ layout: bindGroupLayout, entries: bindGroupInfo.entries });
-      this._bindGroups.push(bindGroup);
-    }
-    const pipelineLayout = WEBGPURenderer.device.createPipelineLayout({
-      bindGroupLayouts
-      // Array of all bind group layouts used
-    });
-    const pipelineDescriptor = {
-      layout: pipelineLayout,
-      compute: { module: this.module, entryPoint: this.computeEntrypoint }
-    };
-    this._pipeline = WEBGPURenderer.device.createComputePipeline(pipelineDescriptor);
-    this.needsUpdate = false;
   }
 };
 
 // src/renderer/webgpu/WEBGPUShader.ts
+var pipelineLayoutCache = /* @__PURE__ */ new Map();
 var WGSLShaderAttributeFormat = {
   vec2: "float32x2",
   vec3: "float32x3",
@@ -3513,21 +3580,18 @@ var WEBGPUShader = class extends WEBGPUBaseShader {
     this.fragmentEntrypoint = this.params.fragmentEntrypoint;
     if (this.params.attributes) this.attributeMap = new Map(Object.entries(this.params.attributes));
   }
-  RebuildDescriptors() {
-    console.log("%c Compiling shader", "color: #3498db");
-    this._bindGroupsInfo = this.BuildBindGroupLayouts();
-    const bindGroupLayouts = [];
-    this._bindGroups = [];
-    for (const bindGroupInfo of this._bindGroupsInfo) {
-      const bindGroupLayout = WEBGPURenderer.device.createBindGroupLayout({ entries: bindGroupInfo.layoutEntries });
-      bindGroupLayouts.push(bindGroupLayout);
-      const bindGroup = WEBGPURenderer.device.createBindGroup({ layout: bindGroupLayout, entries: bindGroupInfo.entries });
-      this._bindGroups.push(bindGroup);
+  Compile() {
+    console.warn("%c Compiling shader", "color: #3498db");
+    RendererDebug.IncrementShaderCompiles(1);
+    this.bindGroupLayouts = this.BuildBindGroupLayouts();
+    this._bindGroups = this.BuildBindGroups();
+    let pipelineLayout = pipelineLayoutCache.get(this.bindGroupLayouts);
+    if (pipelineLayout === void 0) {
+      pipelineLayout = WEBGPURenderer.device.createPipelineLayout({
+        bindGroupLayouts: this.bindGroupLayouts
+      });
+      pipelineLayoutCache.set(this.bindGroupLayouts, pipelineLayout);
     }
-    const pipelineLayout = WEBGPURenderer.device.createPipelineLayout({
-      bindGroupLayouts
-      // Array of all bind group layouts used
-    });
     let targets = [];
     for (const output of this.params.colorOutputs) targets.push({
       format: output.format
@@ -3612,14 +3676,6 @@ var Shader = class extends BaseShader {
     throw Error("Unknown api");
   }
 };
-var Compute = class extends BaseShader {
-  params;
-  static async Create(params) {
-    params.code = await ShaderPreprocessor.ProcessIncludes(params.code);
-    if (Renderer.type === "webgpu") return new WEBGPUComputeShader(params);
-    throw Error("Unknown api");
-  }
-};
 
 // src/components/Light.ts
 var LightEvents = class {
@@ -3631,6 +3687,7 @@ var Light = class extends Component {
   color = new Color(1, 1, 1);
   intensity = 1;
   range = 1e3;
+  castShadows = true;
   Start() {
     EventSystemLocal.on(TransformEvents.Updated, this.transform, () => {
       EventSystem.emit(LightEvents.Updated, this);
@@ -3667,29 +3724,6 @@ var DirectionalLight = class extends Light {
     this.camera = this.gameObject.AddComponent(Camera);
     const size = 1;
     this.camera.SetOrthographic(-size, size, -size, size, 0.1, 100);
-  }
-};
-
-// src/components/Mesh.ts
-var Mesh = class extends Component {
-  geometry;
-  materialsMapped = /* @__PURE__ */ new Map();
-  enableShadows = true;
-  Start() {
-  }
-  AddMaterial(material) {
-    if (!this.materialsMapped.has(material.constructor.name)) this.materialsMapped.set(material.constructor.name, []);
-    this.materialsMapped.get(material.constructor.name)?.push(material);
-  }
-  GetMaterials(type) {
-    if (!type) return Array.from(this.materialsMapped, ([name, value]) => value).flat(Infinity);
-    return this.materialsMapped.get(type.name) || [];
-  }
-  SetGeometry(geometry) {
-    this.geometry = geometry;
-  }
-  GetGeometry() {
-    return this.geometry;
   }
 };
 
@@ -3825,332 +3859,6 @@ var DynamicBufferMemoryAllocator = class extends BufferMemoryAllocator {
   }
 };
 
-// src/components/InstancedMesh.ts
-var InstancedMesh = class extends Mesh {
-  incrementInstanceCount = 1e3;
-  _matricesBuffer = new DynamicBufferMemoryAllocator(this.incrementInstanceCount * 16);
-  get matricesBuffer() {
-    return this._matricesBuffer.getBuffer();
-  }
-  _instanceCount = 0;
-  get instanceCount() {
-    return this._instanceCount;
-  }
-  SetMatrixAt(index, matrix) {
-    if (!this._matricesBuffer) throw Error("Matrices buffer not created.");
-    this._instanceCount = Math.max(index, this._instanceCount);
-    this._matricesBuffer.set(index, matrix.elements);
-  }
-};
-
-// src/renderer/RenderCache.ts
-var RenderCache = class {
-  static renderableMeshes = [];
-  static Reset() {
-    this.renderableMeshes = [];
-  }
-};
-
-// src/renderer/passes/DeferredShadowMapPass.ts
-var lightsCSMProjectionMatrix = [];
-var cascadeSplits = new Vector4();
-var _DeferredShadowMapPassDebug = class {
-  shadowsFolder;
-  shadowsUpdate;
-  shadowsRoundToPixelSize;
-  debugCascades;
-  pcfResolution;
-  blendThreshold;
-  viewBlendThreshold;
-  shadowsUpdateValue = true;
-  roundToPixelSizeValue = true;
-  debugCascadesValue = false;
-  pcfResolutionValue = 1;
-  blendThresholdValue = 0.3;
-  viewBlendThresholdValue = false;
-  constructor() {
-    this.shadowsFolder = new UIFolder(Debugger.ui, "CSM Shadows");
-    this.shadowsUpdate = new UIButtonStat(this.shadowsFolder, "Update shadows", (value) => {
-      this.shadowsUpdateValue = value;
-    }, this.shadowsUpdateValue);
-    this.shadowsRoundToPixelSize = new UIButtonStat(this.shadowsFolder, "RoundToPixelSize", (value) => {
-      this.roundToPixelSizeValue = value;
-    }, this.roundToPixelSizeValue);
-    this.debugCascades = new UIButtonStat(this.shadowsFolder, "Debug cascades", (value) => {
-      this.debugCascadesValue = value;
-    }, this.debugCascadesValue);
-    this.pcfResolution = new UISliderStat(this.shadowsFolder, "PCF resolution", 0, 7, 1, this.pcfResolutionValue, (value) => {
-      this.pcfResolutionValue = value;
-    });
-    this.blendThreshold = new UISliderStat(this.shadowsFolder, "Blend threshold", 0, 1, 0.01, this.blendThresholdValue, (value) => {
-      this.blendThresholdValue = value;
-    });
-    this.viewBlendThreshold = new UIButtonStat(this.shadowsFolder, "View blend threshold", (value) => {
-      this.viewBlendThresholdValue = value;
-    }, this.viewBlendThresholdValue);
-    this.shadowsFolder.Open();
-  }
-};
-var DeferredShadowMapPassDebug = new _DeferredShadowMapPassDebug();
-var DeferredShadowMapPass = class extends RenderPass {
-  name = "DeferredShadowMapPass";
-  drawInstancedShadowShader;
-  drawShadowShader;
-  lightProjectionMatrixBuffer;
-  lightProjectionViewMatricesBuffer;
-  modelMatrices;
-  cascadeIndexBuffers = [];
-  cascadeCurrentIndexBuffer;
-  needsUpdate = false;
-  constructor() {
-    super({
-      inputs: [
-        PassParams.MainCamera,
-        PassParams.GBufferAlbedo,
-        PassParams.GBufferNormal,
-        PassParams.GBufferERMO,
-        PassParams.GBufferDepth
-      ],
-      outputs: [
-        PassParams.ShadowPassDepth
-      ]
-    });
-  }
-  async init(resources) {
-    const code = `
-        struct VertexInput {
-            @builtin(instance_index) instanceIdx : u32, 
-            @location(0) position : vec3<f32>,
-            @location(1) normal : vec3<f32>,
-            @location(2) uv : vec2<f32>,
-        };
-        
-        
-        struct VertexOutput {
-            @builtin(position) position : vec4<f32>,
-        };
-        
-        @group(0) @binding(0) var<storage, read> projectionMatrix: array<mat4x4<f32>, 4>;
-        @group(0) @binding(1) var<storage, read> cascadeIndex: f32;
-        
-        @group(1) @binding(0) var<storage, read> modelMatrix: array<mat4x4<f32>>;
-        
-        @vertex
-        fn vertexMain(input: VertexInput) -> @builtin(position) vec4<f32> {
-            var output : VertexOutput;
-
-            let modelMatrixInstance = modelMatrix[input.instanceIdx];
-            let lightProjectionViewMatrix = projectionMatrix[u32(cascadeIndex)];
-        
-            return lightProjectionViewMatrix * modelMatrixInstance * vec4(input.position, 1.0);
-        }
-        
-        @fragment
-        fn fragmentMain() -> @location(0) vec4<f32> {
-            return vec4(1.0);
-        }
-        `;
-    this.drawShadowShader = await Shader.Create({
-      code,
-      attributes: {
-        position: { location: 0, size: 3, type: "vec3" },
-        normal: { location: 1, size: 3, type: "vec3" },
-        uv: { location: 2, size: 2, type: "vec2" }
-      },
-      uniforms: {
-        projectionMatrix: { group: 0, binding: 0, type: "storage" },
-        cascadeIndex: { group: 0, binding: 1, type: "storage" },
-        modelMatrix: { group: 1, binding: 0, type: "storage" }
-      },
-      colorOutputs: [],
-      depthOutput: "depth24plus",
-      // depthBias: 2,              // Constant bias
-      // depthBiasSlopeScale: 3.0,  // Slope-scale bias
-      // depthBiasClamp: 0.0,       // Max clamp for the bias
-      cullMode: "front"
-    });
-    this.drawInstancedShadowShader = await Shader.Create({
-      code,
-      attributes: {
-        position: { location: 0, size: 3, type: "vec3" },
-        normal: { location: 1, size: 3, type: "vec3" },
-        uv: { location: 2, size: 2, type: "vec2" }
-      },
-      uniforms: {
-        projectionMatrix: { group: 0, binding: 0, type: "storage" },
-        cascadeIndex: { group: 0, binding: 1, type: "storage" },
-        modelMatrix: { group: 1, binding: 0, type: "storage" }
-      },
-      colorOutputs: [],
-      depthOutput: "depth24plus",
-      cullMode: "front"
-    });
-    this.initialized = true;
-  }
-  getCornersForCascade(camera, cascadeNear, cascadeFar) {
-    const projectionMatrix = new Matrix4().perspectiveWGPUMatrix(camera.fov * (Math.PI / 180), camera.aspect, cascadeNear, cascadeFar);
-    let frustumCorners = [
-      new Vector3(-1, 1, 0),
-      new Vector3(1, 1, 0),
-      new Vector3(1, -1, 0),
-      new Vector3(-1, -1, 0),
-      new Vector3(-1, 1, 1),
-      new Vector3(1, 1, 1),
-      new Vector3(1, -1, 1),
-      new Vector3(-1, -1, 1)
-    ];
-    const invViewProj = projectionMatrix.clone().mul(camera.viewMatrix).invert();
-    for (let i2 = 0; i2 < 8; i2++) {
-      frustumCorners[i2].applyMatrix4(invViewProj);
-    }
-    return frustumCorners;
-  }
-  getCascades(camera, cascadeCount, light) {
-    const CASCADE_PERCENTAGES = [0.05, 0.15, 0.5, 1];
-    const CASCADE_DISTANCES = [
-      CASCADE_PERCENTAGES[0] * camera.far,
-      CASCADE_PERCENTAGES[1] * camera.far,
-      CASCADE_PERCENTAGES[2] * camera.far,
-      CASCADE_PERCENTAGES[3] * camera.far
-    ];
-    let cascades = [];
-    for (let i2 = 0; i2 < cascadeCount; i2++) {
-      const cascadeNear = i2 === 0 ? camera.near : CASCADE_DISTANCES[i2 - 1];
-      const cascadeFar = CASCADE_DISTANCES[i2];
-      const frustumCorners = this.getCornersForCascade(camera, cascadeNear, cascadeFar);
-      const frustumCenter = new Vector3(0, 0, 0);
-      for (let i3 = 0; i3 < frustumCorners.length; i3++) {
-        frustumCenter.add(frustumCorners[i3]);
-      }
-      frustumCenter.mul(1 / frustumCorners.length);
-      const lightDirection = light.transform.position.clone().normalize();
-      const radius = frustumCorners[0].clone().sub(frustumCorners[6]).length() / 2;
-      if (DeferredShadowMapPassDebug.roundToPixelSizeValue === true) {
-        const shadowMapSize = 4096;
-        const texelsPerUnit = shadowMapSize / (radius * 2);
-        const scalar = new Matrix4().makeScale(new Vector3(texelsPerUnit, texelsPerUnit, texelsPerUnit));
-        const baseLookAt = new Vector3(-lightDirection.x, -lightDirection.y, -lightDirection.z);
-        const lookAt = new Matrix4().lookAt(new Vector3(0, 0, 0), baseLookAt, new Vector3(0, 1, 0)).mul(scalar);
-        const lookAtInv = lookAt.clone().invert();
-        frustumCenter.transformDirection(lookAt);
-        frustumCenter.x = Math.floor(frustumCenter.x);
-        frustumCenter.y = Math.floor(frustumCenter.y);
-        frustumCenter.transformDirection(lookAtInv);
-      }
-      const eye = frustumCenter.clone().sub(lightDirection.clone().mul(radius * 2));
-      const lightViewMatrix = new Matrix4();
-      lightViewMatrix.lookAt(
-        eye,
-        frustumCenter,
-        new Vector3(0, 1, 0)
-      );
-      const lightProjMatrix = new Matrix4().orthoZO(-radius, radius, -radius, radius, -radius * 6, radius * 6);
-      const out = lightProjMatrix.mul(lightViewMatrix);
-      cascades.push({
-        viewProjMatrix: out,
-        splitDepth: cascadeFar
-      });
-    }
-    return cascades;
-  }
-  execute(resources) {
-    if (!this.initialized) return;
-    const scene = Camera.mainCamera.gameObject.scene;
-    const lights = [...scene.GetComponents(SpotLight), ...scene.GetComponents(PointLight), ...scene.GetComponents(DirectionalLight), ...scene.GetComponents(AreaLight)];
-    if (lights.length === 0) {
-      return;
-    }
-    const meshes = scene.GetComponents(Mesh);
-    const instancedMeshes = scene.GetComponents(InstancedMesh);
-    if (meshes.length === 0 && instancedMeshes.length === 0) return;
-    const numOfCascades = 4;
-    if (!this.lightProjectionMatrixBuffer) {
-      this.lightProjectionMatrixBuffer = Buffer3.Create(lights.length * 4 * 4 * 16, 0 /* STORAGE */);
-      this.drawShadowShader.SetBuffer("projectionMatrix", this.lightProjectionMatrixBuffer);
-      this.drawInstancedShadowShader.SetBuffer("projectionMatrix", this.lightProjectionMatrixBuffer);
-    }
-    if (!this.modelMatrices || this.modelMatrices.size / 256 !== meshes.length) {
-      this.modelMatrices = DynamicBuffer2.Create(meshes.length * 256, 0 /* STORAGE */, 256);
-    }
-    if (!this.lightProjectionViewMatricesBuffer || this.lightProjectionViewMatricesBuffer.size / 4 / 4 / 16 !== lights.length) {
-      this.lightProjectionViewMatricesBuffer = Buffer3.Create(lights.length * numOfCascades * 4 * 16, 0 /* STORAGE */);
-    }
-    if (!this.cascadeCurrentIndexBuffer) {
-      this.cascadeCurrentIndexBuffer = Buffer3.Create(4, 0 /* STORAGE */);
-    }
-    if (this.cascadeIndexBuffers.length === 0) {
-      for (let i2 = 0; i2 < numOfCascades; i2++) {
-        const buffer = Buffer3.Create(4, 0 /* STORAGE */);
-        buffer.SetArray(new Float32Array([i2]));
-        this.cascadeIndexBuffers.push(buffer);
-      }
-    }
-    lightsCSMProjectionMatrix = [];
-    for (let i2 = 0; i2 < lights.length; i2++) {
-      const light = lights[i2];
-      EventSystemLocal.emit(TransformEvents.Updated, light.transform);
-      let lightData = [];
-      const cascades = this.getCascades(Camera.mainCamera, numOfCascades, light);
-      lightData = [];
-      for (const cascade of cascades) {
-        lightData.push(cascade.viewProjMatrix);
-      }
-      cascadeSplits.x = cascades[0].splitDepth;
-      cascadeSplits.y = cascades[1].splitDepth;
-      cascadeSplits.z = cascades[2].splitDepth;
-      cascadeSplits.w = cascades[3].splitDepth;
-      const ld = new Float32Array(lightData.flatMap((v) => v.elements).flatMap((v) => [...v]));
-      this.lightProjectionViewMatricesBuffer.SetArray(ld, i2 * numOfCascades * 4 * 16);
-      lightsCSMProjectionMatrix.push(ld);
-    }
-    for (let i2 = 0; i2 < meshes.length; i2++) {
-      const mesh = meshes[i2];
-      if (!mesh.enableShadows) continue;
-      this.modelMatrices.SetArray(mesh.transform.localToWorldMatrix.elements, i2 * 256);
-    }
-    this.drawShadowShader.SetBuffer("modelMatrix", this.modelMatrices);
-    const shadowOutput = resources.getResource(PassParams.ShadowPassDepth);
-    shadowOutput.SetActiveLayer(0);
-    this.drawShadowShader.SetBuffer("cascadeIndex", this.cascadeCurrentIndexBuffer);
-    this.drawInstancedShadowShader.SetBuffer("cascadeIndex", this.cascadeCurrentIndexBuffer);
-    for (let i2 = 0; i2 < lights.length; i2++) {
-      RendererContext.CopyBufferToBuffer(this.lightProjectionViewMatricesBuffer, this.lightProjectionMatrixBuffer, i2 * numOfCascades * 4 * 16, 0, numOfCascades * 4 * 16);
-      for (let cascadePass = 0; cascadePass < numOfCascades; cascadePass++) {
-        RendererContext.CopyBufferToBuffer(this.cascadeIndexBuffers[cascadePass], this.cascadeCurrentIndexBuffer);
-        RendererContext.BeginRenderPass("ShadowPass", [], { target: shadowOutput, clear: cascadePass === 0 ? true : false }, true);
-        const width = shadowOutput.width / 2;
-        const height = shadowOutput.height / 2;
-        let x = 0;
-        let y = 0;
-        if (cascadePass >= 2) x += width;
-        if (cascadePass % 2 !== 0) y += height;
-        RendererContext.SetViewport(x, y, width, height, 0, 1);
-        let meshCount = 0;
-        for (const renderableMesh of RenderCache.renderableMeshes) {
-          if (renderableMesh.shader.params.topology === "line-list" /* Lines */) continue;
-          if (renderableMesh.type === "Draw") {
-            if (renderableMesh.mesh.enableShadows) {
-              const uniform_offset = meshCount * 256;
-              this.modelMatrices.dynamicOffset = uniform_offset;
-              RendererContext.DrawGeometry(renderableMesh.geometry, this.drawShadowShader, 1);
-            }
-            ;
-            meshCount++;
-          } else if (renderableMesh.type === "DrawInstanced") {
-            if (renderableMesh.instances === 0) continue;
-            if (!renderableMesh.instancedMesh.enableShadows) continue;
-            this.drawInstancedShadowShader.SetBuffer("modelMatrix", renderableMesh.instancedMesh.matricesBuffer);
-            RendererContext.DrawGeometry(renderableMesh.geometry, this.drawInstancedShadowShader, renderableMesh.instances);
-          }
-        }
-        RendererContext.EndRenderPass();
-      }
-      shadowOutput.SetActiveLayer(shadowOutput.GetActiveLayer() + 1);
-    }
-    shadowOutput.SetActiveLayer(0);
-  }
-};
-
 // src/renderer/passes/DeferredLightingPass.ts
 var DeferredLightingPass = class extends RenderPass {
   name = "DeferredLightingPass";
@@ -4162,7 +3870,6 @@ var DeferredLightingPass = class extends RenderPass {
   outputLightingPass;
   needsUpdate = false;
   initialized = false;
-  // constructor(inputGBufferAlbedo: string, inputGBufferNormal: string, inputGbufferERMO: string, inputGBufferDepth: string, inputShadowPassDepth: string, outputLightingPass: string) {
   constructor() {
     super({
       inputs: [
@@ -4171,11 +3878,11 @@ var DeferredLightingPass = class extends RenderPass {
         PassParams.GBufferNormal,
         PassParams.GBufferERMO,
         PassParams.GBufferDepth,
-        PassParams.ShadowPassDepth
+        PassParams.ShadowPassDepth,
+        PassParams.ShadowPassCascadeData
       ],
       outputs: [PassParams.LightingPassOutput]
     });
-    this.init();
   }
   async init() {
     this.shader = await Shader.Create({
@@ -4205,20 +3912,22 @@ var DeferredLightingPass = class extends RenderPass {
     const shadowSamplerComp = TextureSampler.Create({ minFilter: "linear", magFilter: "linear", compare: "less" });
     this.shader.SetSampler("shadowSamplerComp", shadowSamplerComp);
     this.quadGeometry = Geometry.Plane();
+    this.lightsBuffer = new DynamicBufferMemoryAllocator(132 * 10);
     this.lightsCountBuffer = Buffer3.Create(1 * 4, 0 /* STORAGE */);
+    this.shader.SetBuffer("lights", this.lightsBuffer.getBuffer());
+    this.shader.SetBuffer("lightCount", this.lightsCountBuffer);
     this.outputLightingPass = RenderTexture.Create(Renderer.width, Renderer.height);
     EventSystem.on(LightEvents.Updated, (component) => {
       this.needsUpdate = true;
     });
     this.initialized = true;
   }
-  updateLightsBuffer() {
+  updateLightsBuffer(resources) {
     const scene = Camera.mainCamera.gameObject.scene;
     const lights = [...scene.GetComponents(Light), ...scene.GetComponents(PointLight), ...scene.GetComponents(DirectionalLight), ...scene.GetComponents(AreaLight)];
-    const lightBuffer = [];
     for (let i2 = 0; i2 < lights.length; i2++) {
       const light = lights[i2];
-      const params1 = new Float32Array([light.intensity, light.range, 0, 0]);
+      const params1 = new Float32Array([light.intensity, light.range, +light.castShadows, -1]);
       const params2 = new Float32Array(4);
       if (light instanceof DirectionalLight) {
         params2.set(light.direction.elements);
@@ -4231,17 +3940,24 @@ var DeferredLightingPass = class extends RenderPass {
       else if (light instanceof DirectionalLight) lightType = 1 /* DIRECTIONAL_LIGHT */;
       else if (light instanceof PointLight) lightType = 2 /* POINT_LIGHT */;
       else if (light instanceof AreaLight) lightType = 3 /* AREA_LIGHT */;
-      lightBuffer.push(
+      let projectionMatrices = new Float32Array(16 * 4);
+      let cascadeSplits = new Float32Array(4);
+      const lightsShadowData = resources.getResource(PassParams.ShadowPassCascadeData);
+      const lightShadowData = lightsShadowData ? lightsShadowData.get(light.id) : void 0;
+      if (lightShadowData !== void 0) {
+        projectionMatrices = lightShadowData.projectionMatrices;
+        cascadeSplits = lightShadowData.cascadeSplits;
+        params1[3] = lightShadowData.shadowMapIndex;
+      }
+      const lightData = new Float32Array([
         light.transform.position.x,
         light.transform.position.y,
         light.transform.position.z,
         1,
         ...light.camera.projectionMatrix.elements,
-        ...lightsCSMProjectionMatrix[i2].slice(0, 16),
-        ...lightsCSMProjectionMatrix[i2].slice(16, 32),
-        ...lightsCSMProjectionMatrix[i2].slice(32, 48),
-        ...lightsCSMProjectionMatrix[i2].slice(48, 64),
-        ...cascadeSplits.elements,
+        // ...lightsCSMProjectionMatrix[i].slice(0, 16 * 4),
+        ...projectionMatrices,
+        ...cascadeSplits,
         ...light.camera.viewMatrix.elements,
         ...light.camera.viewMatrix.clone().invert().elements,
         light.color.r,
@@ -4250,25 +3966,18 @@ var DeferredLightingPass = class extends RenderPass {
         lightType,
         ...params1,
         ...params2
-      );
+      ]);
+      this.lightsBuffer.set(light.id, lightData);
     }
-    const lightsLength = Math.max(lights.length, 1);
-    if (!this.lightsBuffer || this.lightsBuffer.size !== lightBuffer.length * 4) {
-      this.lightsBuffer = Buffer3.Create(lightsLength * lightBuffer.length * 4, 0 /* STORAGE */);
-      this.lightsCountBuffer = Buffer3.Create(1 * 4, 0 /* STORAGE */);
-    }
-    this.lightsBuffer.SetArray(new Float32Array(lightBuffer));
     this.lightsCountBuffer.SetArray(new Uint32Array([lights.length]));
-    this.shader.SetBuffer("lights", this.lightsBuffer);
-    this.shader.SetBuffer("lightCount", this.lightsCountBuffer);
+    this.shader.SetBuffer("lights", this.lightsBuffer.getBuffer());
     this.needsUpdate = false;
-    console.log("Updating light buffer");
   }
   execute(resources) {
     if (!this.initialized) return;
     const camera = Camera.mainCamera;
-    if (!this.lightsBuffer || !this.lightsCountBuffer || this.needsUpdate) {
-      this.updateLightsBuffer();
+    if (this.needsUpdate) {
+      this.updateLightsBuffer(resources);
     }
     const inputGBufferAlbedo = resources.getResource(PassParams.GBufferAlbedo);
     const inputGBufferNormal = resources.getResource(PassParams.GBufferNormal);
@@ -4545,20 +4254,20 @@ var WASMHelper = class _WASMHelper {
 // src/plugins/meshlets/meshoptimizer/MeshOptimizer.js
 var Module = (() => {
   var _scriptDir = import.meta.url;
-  return function(Module3) {
-    Module3 = Module3 || {};
-    var Module3 = typeof Module3 != "undefined" ? Module3 : {};
+  return function(Module2) {
+    Module2 = Module2 || {};
+    var Module2 = typeof Module2 != "undefined" ? Module2 : {};
     var readyPromiseResolve, readyPromiseReject;
-    Module3["ready"] = new Promise(function(resolve, reject) {
+    Module2["ready"] = new Promise(function(resolve, reject) {
       readyPromiseResolve = resolve;
       readyPromiseReject = reject;
     });
     ["_malloc", "_meshopt_computeClusterBounds", "_meshopt_buildMeshletsBound", "_meshopt_buildMeshlets", "_meshopt_simplify", "_meshopt_simplifyWithAttributes", "_meshopt_generateVertexRemap", "_meshopt_remapIndexBuffer", "_meshopt_remapVertexBuffer", "_meshopt_simplifyScale", "_fflush", "onRuntimeInitialized"].forEach((prop) => {
-      if (!Object.getOwnPropertyDescriptor(Module3["ready"], prop)) {
-        Object.defineProperty(Module3["ready"], prop, { get: () => abort("You are getting " + prop + " on the Promise object, instead of the instance. Use .then() to get called back with the instance, see the MODULARIZE docs in src/settings.js"), set: () => abort("You are setting " + prop + " on the Promise object, instead of the instance. Use .then() to get called back with the instance, see the MODULARIZE docs in src/settings.js") });
+      if (!Object.getOwnPropertyDescriptor(Module2["ready"], prop)) {
+        Object.defineProperty(Module2["ready"], prop, { get: () => abort("You are getting " + prop + " on the Promise object, instead of the instance. Use .then() to get called back with the instance, see the MODULARIZE docs in src/settings.js"), set: () => abort("You are setting " + prop + " on the Promise object, instead of the instance. Use .then() to get called back with the instance, see the MODULARIZE docs in src/settings.js") });
       }
     });
-    var moduleOverrides = Object.assign({}, Module3);
+    var moduleOverrides = Object.assign({}, Module2);
     var arguments_ = [];
     var thisProgram = "./this.program";
     var quit_ = (status, toThrow) => {
@@ -4568,13 +4277,13 @@ var Module = (() => {
     var ENVIRONMENT_IS_WORKER = false;
     var ENVIRONMENT_IS_NODE = false;
     var ENVIRONMENT_IS_SHELL = false;
-    if (Module3["ENVIRONMENT"]) {
+    if (Module2["ENVIRONMENT"]) {
       throw new Error("Module.ENVIRONMENT has been deprecated. To force the environment, use the ENVIRONMENT compile-time option (for example, -sENVIRONMENT=web or -sENVIRONMENT=node)");
     }
     var scriptDirectory = "";
     function locateFile(path) {
-      if (Module3["locateFile"]) {
-        return Module3["locateFile"](path, scriptDirectory);
+      if (Module2["locateFile"]) {
+        return Module2["locateFile"](path, scriptDirectory);
       }
       return scriptDirectory + path;
     }
@@ -4672,26 +4381,26 @@ var Module = (() => {
     } else {
       throw new Error("environment detection error");
     }
-    var out = Module3["print"] || console.log.bind(console);
-    var err = Module3["printErr"] || console.warn.bind(console);
-    Object.assign(Module3, moduleOverrides);
+    var out = Module2["print"] || console.log.bind(console);
+    var err = Module2["printErr"] || console.warn.bind(console);
+    Object.assign(Module2, moduleOverrides);
     moduleOverrides = null;
     checkIncomingModuleAPI();
-    if (Module3["arguments"]) arguments_ = Module3["arguments"];
+    if (Module2["arguments"]) arguments_ = Module2["arguments"];
     legacyModuleProp("arguments", "arguments_");
-    if (Module3["thisProgram"]) thisProgram = Module3["thisProgram"];
+    if (Module2["thisProgram"]) thisProgram = Module2["thisProgram"];
     legacyModuleProp("thisProgram", "thisProgram");
-    if (Module3["quit"]) quit_ = Module3["quit"];
+    if (Module2["quit"]) quit_ = Module2["quit"];
     legacyModuleProp("quit", "quit_");
-    assert(typeof Module3["memoryInitializerPrefixURL"] == "undefined", "Module.memoryInitializerPrefixURL option was removed, use Module.locateFile instead");
-    assert(typeof Module3["pthreadMainPrefixURL"] == "undefined", "Module.pthreadMainPrefixURL option was removed, use Module.locateFile instead");
-    assert(typeof Module3["cdInitializerPrefixURL"] == "undefined", "Module.cdInitializerPrefixURL option was removed, use Module.locateFile instead");
-    assert(typeof Module3["filePackagePrefixURL"] == "undefined", "Module.filePackagePrefixURL option was removed, use Module.locateFile instead");
-    assert(typeof Module3["read"] == "undefined", "Module.read option was removed (modify read_ in JS)");
-    assert(typeof Module3["readAsync"] == "undefined", "Module.readAsync option was removed (modify readAsync in JS)");
-    assert(typeof Module3["readBinary"] == "undefined", "Module.readBinary option was removed (modify readBinary in JS)");
-    assert(typeof Module3["setWindowTitle"] == "undefined", "Module.setWindowTitle option was removed (modify setWindowTitle in JS)");
-    assert(typeof Module3["TOTAL_MEMORY"] == "undefined", "Module.TOTAL_MEMORY has been renamed Module.INITIAL_MEMORY");
+    assert(typeof Module2["memoryInitializerPrefixURL"] == "undefined", "Module.memoryInitializerPrefixURL option was removed, use Module.locateFile instead");
+    assert(typeof Module2["pthreadMainPrefixURL"] == "undefined", "Module.pthreadMainPrefixURL option was removed, use Module.locateFile instead");
+    assert(typeof Module2["cdInitializerPrefixURL"] == "undefined", "Module.cdInitializerPrefixURL option was removed, use Module.locateFile instead");
+    assert(typeof Module2["filePackagePrefixURL"] == "undefined", "Module.filePackagePrefixURL option was removed, use Module.locateFile instead");
+    assert(typeof Module2["read"] == "undefined", "Module.read option was removed (modify read_ in JS)");
+    assert(typeof Module2["readAsync"] == "undefined", "Module.readAsync option was removed (modify readAsync in JS)");
+    assert(typeof Module2["readBinary"] == "undefined", "Module.readBinary option was removed (modify readBinary in JS)");
+    assert(typeof Module2["setWindowTitle"] == "undefined", "Module.setWindowTitle option was removed (modify setWindowTitle in JS)");
+    assert(typeof Module2["TOTAL_MEMORY"] == "undefined", "Module.TOTAL_MEMORY has been renamed Module.INITIAL_MEMORY");
     legacyModuleProp("read", "read_");
     legacyModuleProp("readAsync", "readAsync");
     legacyModuleProp("readBinary", "readBinary");
@@ -4701,14 +4410,14 @@ var Module = (() => {
     assert(!ENVIRONMENT_IS_SHELL, "shell environment detected but not enabled at build time.  Add 'shell' to `-sENVIRONMENT` to enable.");
     var POINTER_SIZE = 4;
     function legacyModuleProp(prop, newName) {
-      if (!Object.getOwnPropertyDescriptor(Module3, prop)) {
-        Object.defineProperty(Module3, prop, { configurable: true, get: function() {
+      if (!Object.getOwnPropertyDescriptor(Module2, prop)) {
+        Object.defineProperty(Module2, prop, { configurable: true, get: function() {
           abort("Module." + prop + " has been replaced with plain " + newName + " (the initial value can be provided on Module, but after startup the value is only looked for on a local variable of that name)");
         } });
       }
     }
     function ignoredModuleProp(prop) {
-      if (Object.getOwnPropertyDescriptor(Module3, prop)) {
+      if (Object.getOwnPropertyDescriptor(Module2, prop)) {
         abort("`Module." + prop + "` was supplied but `" + prop + "` not included in INCOMING_MODULE_JS_API");
       }
     }
@@ -4728,8 +4437,8 @@ var Module = (() => {
       }
     }
     function unexportedRuntimeSymbol(sym) {
-      if (!Object.getOwnPropertyDescriptor(Module3, sym)) {
-        Object.defineProperty(Module3, sym, { configurable: true, get: function() {
+      if (!Object.getOwnPropertyDescriptor(Module2, sym)) {
+        Object.defineProperty(Module2, sym, { configurable: true, get: function() {
           var msg = "'" + sym + "' was not exported. add it to EXPORTED_RUNTIME_METHODS (see the FAQ)";
           if (isExportedByForceFilesystem(sym)) {
             msg += ". Alternatively, forcing filesystem support (-sFORCE_FILESYSTEM) can export this for you";
@@ -4739,9 +4448,9 @@ var Module = (() => {
       }
     }
     var wasmBinary;
-    if (Module3["wasmBinary"]) wasmBinary = Module3["wasmBinary"];
+    if (Module2["wasmBinary"]) wasmBinary = Module2["wasmBinary"];
     legacyModuleProp("wasmBinary", "wasmBinary");
-    var noExitRuntime = Module3["noExitRuntime"] || true;
+    var noExitRuntime = Module2["noExitRuntime"] || true;
     legacyModuleProp("noExitRuntime", "noExitRuntime");
     if (typeof WebAssembly != "object") {
       abort("no native wasm support detected");
@@ -4834,22 +4543,22 @@ var Module = (() => {
     var buffer, HEAP8, HEAPU8, HEAP16, HEAPU16, HEAP32, HEAPU32, HEAPF32, HEAPF64;
     function updateGlobalBufferAndViews(buf) {
       buffer = buf;
-      Module3["HEAP8"] = HEAP8 = new Int8Array(buf);
-      Module3["HEAP16"] = HEAP16 = new Int16Array(buf);
-      Module3["HEAP32"] = HEAP32 = new Int32Array(buf);
-      Module3["HEAPU8"] = HEAPU8 = new Uint8Array(buf);
-      Module3["HEAPU16"] = HEAPU16 = new Uint16Array(buf);
-      Module3["HEAPU32"] = HEAPU32 = new Uint32Array(buf);
-      Module3["HEAPF32"] = HEAPF32 = new Float32Array(buf);
-      Module3["HEAPF64"] = HEAPF64 = new Float64Array(buf);
+      Module2["HEAP8"] = HEAP8 = new Int8Array(buf);
+      Module2["HEAP16"] = HEAP16 = new Int16Array(buf);
+      Module2["HEAP32"] = HEAP32 = new Int32Array(buf);
+      Module2["HEAPU8"] = HEAPU8 = new Uint8Array(buf);
+      Module2["HEAPU16"] = HEAPU16 = new Uint16Array(buf);
+      Module2["HEAPU32"] = HEAPU32 = new Uint32Array(buf);
+      Module2["HEAPF32"] = HEAPF32 = new Float32Array(buf);
+      Module2["HEAPF64"] = HEAPF64 = new Float64Array(buf);
     }
     var TOTAL_STACK = 5242880;
-    if (Module3["TOTAL_STACK"]) assert(TOTAL_STACK === Module3["TOTAL_STACK"], "the stack size can no longer be determined at runtime");
-    var INITIAL_MEMORY = Module3["INITIAL_MEMORY"] || 16777216;
+    if (Module2["TOTAL_STACK"]) assert(TOTAL_STACK === Module2["TOTAL_STACK"], "the stack size can no longer be determined at runtime");
+    var INITIAL_MEMORY = Module2["INITIAL_MEMORY"] || 16777216;
     legacyModuleProp("INITIAL_MEMORY", "INITIAL_MEMORY");
     assert(INITIAL_MEMORY >= TOTAL_STACK, "INITIAL_MEMORY should be larger than TOTAL_STACK, was " + INITIAL_MEMORY + "! (TOTAL_STACK=" + TOTAL_STACK + ")");
     assert(typeof Int32Array != "undefined" && typeof Float64Array !== "undefined" && Int32Array.prototype.subarray != void 0 && Int32Array.prototype.set != void 0, "JS engine does not provide full typed array support");
-    assert(!Module3["wasmMemory"], "Use of `wasmMemory` detected.  Use -sIMPORTED_MEMORY to define wasmMemory externally");
+    assert(!Module2["wasmMemory"], "Use of `wasmMemory` detected.  Use -sIMPORTED_MEMORY to define wasmMemory externally");
     assert(INITIAL_MEMORY == 16777216, "Detected runtime INITIAL_MEMORY setting.  Use -sIMPORTED_MEMORY to define wasmMemory dynamically");
     var wasmTable;
     function writeStackCookie() {
@@ -4880,10 +4589,10 @@ var Module = (() => {
     var __ATPOSTRUN__ = [];
     var runtimeInitialized = false;
     function preRun() {
-      if (Module3["preRun"]) {
-        if (typeof Module3["preRun"] == "function") Module3["preRun"] = [Module3["preRun"]];
-        while (Module3["preRun"].length) {
-          addOnPreRun(Module3["preRun"].shift());
+      if (Module2["preRun"]) {
+        if (typeof Module2["preRun"] == "function") Module2["preRun"] = [Module2["preRun"]];
+        while (Module2["preRun"].length) {
+          addOnPreRun(Module2["preRun"].shift());
         }
       }
       callRuntimeCallbacks(__ATPRERUN__);
@@ -4896,10 +4605,10 @@ var Module = (() => {
     }
     function postRun() {
       checkStackCookie();
-      if (Module3["postRun"]) {
-        if (typeof Module3["postRun"] == "function") Module3["postRun"] = [Module3["postRun"]];
-        while (Module3["postRun"].length) {
-          addOnPostRun(Module3["postRun"].shift());
+      if (Module2["postRun"]) {
+        if (typeof Module2["postRun"] == "function") Module2["postRun"] = [Module2["postRun"]];
+        while (Module2["postRun"].length) {
+          addOnPostRun(Module2["postRun"].shift());
         }
       }
       callRuntimeCallbacks(__ATPOSTRUN__);
@@ -4923,8 +4632,8 @@ var Module = (() => {
     var runDependencyTracking = {};
     function addRunDependency(id) {
       runDependencies++;
-      if (Module3["monitorRunDependencies"]) {
-        Module3["monitorRunDependencies"](runDependencies);
+      if (Module2["monitorRunDependencies"]) {
+        Module2["monitorRunDependencies"](runDependencies);
       }
       if (id) {
         assert(!runDependencyTracking[id]);
@@ -4955,8 +4664,8 @@ var Module = (() => {
     }
     function removeRunDependency(id) {
       runDependencies--;
-      if (Module3["monitorRunDependencies"]) {
-        Module3["monitorRunDependencies"](runDependencies);
+      if (Module2["monitorRunDependencies"]) {
+        Module2["monitorRunDependencies"](runDependencies);
       }
       if (id) {
         assert(runDependencyTracking[id]);
@@ -4978,8 +4687,8 @@ var Module = (() => {
     }
     function abort(what) {
       {
-        if (Module3["onAbort"]) {
-          Module3["onAbort"](what);
+        if (Module2["onAbort"]) {
+          Module2["onAbort"](what);
         }
       }
       what = "Aborted(" + what + ")";
@@ -5013,8 +4722,8 @@ var Module = (() => {
     }, ErrnoError: function ErrnoError() {
       FS.error();
     } };
-    Module3["FS_createDataFile"] = FS.createDataFile;
-    Module3["FS_createPreloadedFile"] = FS.createPreloadedFile;
+    Module2["FS_createDataFile"] = FS.createDataFile;
+    Module2["FS_createPreloadedFile"] = FS.createPreloadedFile;
     var dataURIPrefix = "data:application/octet-stream;base64,";
     function isDataURI(filename) {
       return filename.startsWith(dataURIPrefix);
@@ -5027,7 +4736,7 @@ var Module = (() => {
         var displayName = name;
         var asm2 = fixedasm;
         if (!fixedasm) {
-          asm2 = Module3["asm"];
+          asm2 = Module2["asm"];
         }
         assert(runtimeInitialized, "native function `" + displayName + "` called before runtime initialization");
         if (!asm2[name]) {
@@ -5037,7 +4746,7 @@ var Module = (() => {
       };
     }
     var wasmBinaryFile;
-    if (Module3["locateFile"]) {
+    if (Module2["locateFile"]) {
       wasmBinaryFile = "MeshOptimizer.wasm";
       if (!isDataURI(wasmBinaryFile)) {
         wasmBinaryFile = locateFile(wasmBinaryFile);
@@ -5079,19 +4788,19 @@ var Module = (() => {
       var info = { "env": asmLibraryArg, "wasi_snapshot_preview1": asmLibraryArg };
       function receiveInstance(instance, module) {
         var exports2 = instance.exports;
-        Module3["asm"] = exports2;
-        wasmMemory = Module3["asm"]["memory"];
+        Module2["asm"] = exports2;
+        wasmMemory = Module2["asm"]["memory"];
         assert(wasmMemory, "memory not found in wasm exports");
         updateGlobalBufferAndViews(wasmMemory.buffer);
-        wasmTable = Module3["asm"]["__indirect_function_table"];
+        wasmTable = Module2["asm"]["__indirect_function_table"];
         assert(wasmTable, "table not found in wasm exports");
-        addOnInit(Module3["asm"]["__wasm_call_ctors"]);
+        addOnInit(Module2["asm"]["__wasm_call_ctors"]);
         removeRunDependency("wasm-instantiate");
       }
       addRunDependency("wasm-instantiate");
-      var trueModule = Module3;
+      var trueModule = Module2;
       function receiveInstantiationResult(result) {
-        assert(Module3 === trueModule, "the Module object should not be replaced during async compilation - perhaps the order of HTML elements is wrong?");
+        assert(Module2 === trueModule, "the Module object should not be replaced during async compilation - perhaps the order of HTML elements is wrong?");
         trueModule = null;
         receiveInstance(result["instance"]);
       }
@@ -5122,9 +4831,9 @@ var Module = (() => {
           return instantiateArrayBuffer(receiveInstantiationResult);
         }
       }
-      if (Module3["instantiateWasm"]) {
+      if (Module2["instantiateWasm"]) {
         try {
-          var exports = Module3["instantiateWasm"](info, receiveInstance);
+          var exports = Module2["instantiateWasm"](info, receiveInstance);
           return exports;
         } catch (e) {
           err("Module.instantiateWasm callback failed with error: " + e);
@@ -5143,7 +4852,7 @@ var Module = (() => {
     }
     function callRuntimeCallbacks(callbacks) {
       while (callbacks.length > 0) {
-        callbacks.shift()(Module3);
+        callbacks.shift()(Module2);
       }
     }
     function demangle(func) {
@@ -5226,7 +4935,7 @@ var Module = (() => {
       return false;
     }
     function getCFunc(ident) {
-      var func = Module3["_" + ident];
+      var func = Module2["_" + ident];
       assert(func, "Cannot call unknown function " + ident + ", make sure it is exported");
       return func;
     }
@@ -5284,36 +4993,36 @@ var Module = (() => {
     }
     var asmLibraryArg = { "__assert_fail": ___assert_fail, "abort": _abort, "emscripten_memcpy_big": _emscripten_memcpy_big, "emscripten_resize_heap": _emscripten_resize_heap };
     var asm = createWasm();
-    var ___wasm_call_ctors = Module3["___wasm_call_ctors"] = createExportWrapper("__wasm_call_ctors");
-    var _meshopt_buildMeshletsBound = Module3["_meshopt_buildMeshletsBound"] = createExportWrapper("meshopt_buildMeshletsBound");
-    var _meshopt_buildMeshlets = Module3["_meshopt_buildMeshlets"] = createExportWrapper("meshopt_buildMeshlets");
-    var _meshopt_computeClusterBounds = Module3["_meshopt_computeClusterBounds"] = createExportWrapper("meshopt_computeClusterBounds");
-    var _meshopt_simplify = Module3["_meshopt_simplify"] = createExportWrapper("meshopt_simplify");
-    var _meshopt_simplifyWithAttributes = Module3["_meshopt_simplifyWithAttributes"] = createExportWrapper("meshopt_simplifyWithAttributes");
-    var _meshopt_simplifyScale = Module3["_meshopt_simplifyScale"] = createExportWrapper("meshopt_simplifyScale");
-    var _meshopt_generateVertexRemap = Module3["_meshopt_generateVertexRemap"] = createExportWrapper("meshopt_generateVertexRemap");
-    var _meshopt_remapVertexBuffer = Module3["_meshopt_remapVertexBuffer"] = createExportWrapper("meshopt_remapVertexBuffer");
-    var _meshopt_remapIndexBuffer = Module3["_meshopt_remapIndexBuffer"] = createExportWrapper("meshopt_remapIndexBuffer");
-    var ___errno_location = Module3["___errno_location"] = createExportWrapper("__errno_location");
-    var _fflush = Module3["_fflush"] = createExportWrapper("fflush");
-    var _malloc = Module3["_malloc"] = createExportWrapper("malloc");
-    var _emscripten_stack_init = Module3["_emscripten_stack_init"] = function() {
-      return (_emscripten_stack_init = Module3["_emscripten_stack_init"] = Module3["asm"]["emscripten_stack_init"]).apply(null, arguments);
+    var ___wasm_call_ctors = Module2["___wasm_call_ctors"] = createExportWrapper("__wasm_call_ctors");
+    var _meshopt_buildMeshletsBound = Module2["_meshopt_buildMeshletsBound"] = createExportWrapper("meshopt_buildMeshletsBound");
+    var _meshopt_buildMeshlets = Module2["_meshopt_buildMeshlets"] = createExportWrapper("meshopt_buildMeshlets");
+    var _meshopt_computeClusterBounds = Module2["_meshopt_computeClusterBounds"] = createExportWrapper("meshopt_computeClusterBounds");
+    var _meshopt_simplify = Module2["_meshopt_simplify"] = createExportWrapper("meshopt_simplify");
+    var _meshopt_simplifyWithAttributes = Module2["_meshopt_simplifyWithAttributes"] = createExportWrapper("meshopt_simplifyWithAttributes");
+    var _meshopt_simplifyScale = Module2["_meshopt_simplifyScale"] = createExportWrapper("meshopt_simplifyScale");
+    var _meshopt_generateVertexRemap = Module2["_meshopt_generateVertexRemap"] = createExportWrapper("meshopt_generateVertexRemap");
+    var _meshopt_remapVertexBuffer = Module2["_meshopt_remapVertexBuffer"] = createExportWrapper("meshopt_remapVertexBuffer");
+    var _meshopt_remapIndexBuffer = Module2["_meshopt_remapIndexBuffer"] = createExportWrapper("meshopt_remapIndexBuffer");
+    var ___errno_location = Module2["___errno_location"] = createExportWrapper("__errno_location");
+    var _fflush = Module2["_fflush"] = createExportWrapper("fflush");
+    var _malloc = Module2["_malloc"] = createExportWrapper("malloc");
+    var _emscripten_stack_init = Module2["_emscripten_stack_init"] = function() {
+      return (_emscripten_stack_init = Module2["_emscripten_stack_init"] = Module2["asm"]["emscripten_stack_init"]).apply(null, arguments);
     };
-    var _emscripten_stack_get_free = Module3["_emscripten_stack_get_free"] = function() {
-      return (_emscripten_stack_get_free = Module3["_emscripten_stack_get_free"] = Module3["asm"]["emscripten_stack_get_free"]).apply(null, arguments);
+    var _emscripten_stack_get_free = Module2["_emscripten_stack_get_free"] = function() {
+      return (_emscripten_stack_get_free = Module2["_emscripten_stack_get_free"] = Module2["asm"]["emscripten_stack_get_free"]).apply(null, arguments);
     };
-    var _emscripten_stack_get_base = Module3["_emscripten_stack_get_base"] = function() {
-      return (_emscripten_stack_get_base = Module3["_emscripten_stack_get_base"] = Module3["asm"]["emscripten_stack_get_base"]).apply(null, arguments);
+    var _emscripten_stack_get_base = Module2["_emscripten_stack_get_base"] = function() {
+      return (_emscripten_stack_get_base = Module2["_emscripten_stack_get_base"] = Module2["asm"]["emscripten_stack_get_base"]).apply(null, arguments);
     };
-    var _emscripten_stack_get_end = Module3["_emscripten_stack_get_end"] = function() {
-      return (_emscripten_stack_get_end = Module3["_emscripten_stack_get_end"] = Module3["asm"]["emscripten_stack_get_end"]).apply(null, arguments);
+    var _emscripten_stack_get_end = Module2["_emscripten_stack_get_end"] = function() {
+      return (_emscripten_stack_get_end = Module2["_emscripten_stack_get_end"] = Module2["asm"]["emscripten_stack_get_end"]).apply(null, arguments);
     };
-    var stackSave = Module3["stackSave"] = createExportWrapper("stackSave");
-    var stackRestore = Module3["stackRestore"] = createExportWrapper("stackRestore");
-    var stackAlloc = Module3["stackAlloc"] = createExportWrapper("stackAlloc");
-    Module3["ccall"] = ccall;
-    Module3["cwrap"] = cwrap;
+    var stackSave = Module2["stackSave"] = createExportWrapper("stackSave");
+    var stackRestore = Module2["stackRestore"] = createExportWrapper("stackRestore");
+    var stackAlloc = Module2["stackAlloc"] = createExportWrapper("stackAlloc");
+    Module2["ccall"] = ccall;
+    Module2["cwrap"] = cwrap;
     var unexportedRuntimeSymbols = ["run", "UTF8ArrayToString", "UTF8ToString", "stringToUTF8Array", "stringToUTF8", "lengthBytesUTF8", "addOnPreRun", "addOnInit", "addOnPreMain", "addOnExit", "addOnPostRun", "addRunDependency", "removeRunDependency", "FS_createFolder", "FS_createPath", "FS_createDataFile", "FS_createPreloadedFile", "FS_createLazyFile", "FS_createLink", "FS_createDevice", "FS_unlink", "getLEB", "getFunctionTables", "alignFunctionTables", "registerFunctions", "prettyPrint", "getCompilerSetting", "print", "printErr", "callMain", "abort", "keepRuntimeAlive", "wasmMemory", "stackAlloc", "stackSave", "stackRestore", "getTempRet0", "setTempRet0", "writeStackCookie", "checkStackCookie", "ptrToString", "zeroMemory", "stringToNewUTF8", "exitJS", "getHeapMax", "emscripten_realloc_buffer", "ENV", "ERRNO_CODES", "ERRNO_MESSAGES", "setErrNo", "inetPton4", "inetNtop4", "inetPton6", "inetNtop6", "readSockaddr", "writeSockaddr", "DNS", "getHostByName", "Protocols", "Sockets", "getRandomDevice", "warnOnce", "traverseStack", "UNWIND_CACHE", "convertPCtoSourceLocation", "readAsmConstArgsArray", "readAsmConstArgs", "mainThreadEM_ASM", "jstoi_q", "jstoi_s", "getExecutableName", "listenOnce", "autoResumeAudioContext", "dynCallLegacy", "getDynCaller", "dynCall", "handleException", "runtimeKeepalivePush", "runtimeKeepalivePop", "callUserCallback", "maybeExit", "safeSetTimeout", "asmjsMangle", "asyncLoad", "alignMemory", "mmapAlloc", "writeI53ToI64", "writeI53ToI64Clamped", "writeI53ToI64Signaling", "writeI53ToU64Clamped", "writeI53ToU64Signaling", "readI53FromI64", "readI53FromU64", "convertI32PairToI53", "convertI32PairToI53Checked", "convertU32PairToI53", "getCFunc", "uleb128Encode", "sigToWasmTypes", "generateFuncType", "convertJsFunctionToWasm", "freeTableIndexes", "functionsInTableMap", "getEmptyTableSlot", "updateTableMap", "addFunction", "removeFunction", "reallyNegative", "unSign", "strLen", "reSign", "formatString", "setValue", "getValue", "PATH", "PATH_FS", "intArrayFromString", "intArrayToString", "AsciiToString", "stringToAscii", "UTF16Decoder", "UTF16ToString", "stringToUTF16", "lengthBytesUTF16", "UTF32ToString", "stringToUTF32", "lengthBytesUTF32", "allocateUTF8", "allocateUTF8OnStack", "writeStringToMemory", "writeArrayToMemory", "writeAsciiToMemory", "SYSCALLS", "getSocketFromFD", "getSocketAddress", "JSEvents", "registerKeyEventCallback", "specialHTMLTargets", "maybeCStringToJsString", "findEventTarget", "findCanvasEventTarget", "getBoundingClientRect", "fillMouseEventData", "registerMouseEventCallback", "registerWheelEventCallback", "registerUiEventCallback", "registerFocusEventCallback", "fillDeviceOrientationEventData", "registerDeviceOrientationEventCallback", "fillDeviceMotionEventData", "registerDeviceMotionEventCallback", "screenOrientation", "fillOrientationChangeEventData", "registerOrientationChangeEventCallback", "fillFullscreenChangeEventData", "registerFullscreenChangeEventCallback", "JSEvents_requestFullscreen", "JSEvents_resizeCanvasForFullscreen", "registerRestoreOldStyle", "hideEverythingExceptGivenElement", "restoreHiddenElements", "setLetterbox", "currentFullscreenStrategy", "restoreOldWindowedStyle", "softFullscreenResizeWebGLRenderTarget", "doRequestFullscreen", "fillPointerlockChangeEventData", "registerPointerlockChangeEventCallback", "registerPointerlockErrorEventCallback", "requestPointerLock", "fillVisibilityChangeEventData", "registerVisibilityChangeEventCallback", "registerTouchEventCallback", "fillGamepadEventData", "registerGamepadEventCallback", "registerBeforeUnloadEventCallback", "fillBatteryEventData", "battery", "registerBatteryEventCallback", "setCanvasElementSize", "getCanvasElementSize", "demangle", "demangleAll", "jsStackTrace", "stackTrace", "ExitStatus", "getEnvStrings", "checkWasiClock", "flush_NO_FILESYSTEM", "dlopenMissingError", "createDyncallWrapper", "setImmediateWrapped", "clearImmediateWrapped", "polyfillSetImmediate", "uncaughtExceptionCount", "exceptionLast", "exceptionCaught", "ExceptionInfo", "exception_addRef", "exception_decRef", "Browser", "setMainLoop", "wget", "FS", "MEMFS", "TTY", "PIPEFS", "SOCKFS", "_setNetworkCallback", "tempFixedLengthArray", "miniTempWebGLFloatBuffers", "heapObjectForWebGLType", "heapAccessShiftForWebGLHeap", "GL", "emscriptenWebGLGet", "computeUnpackAlignedImageSize", "emscriptenWebGLGetTexPixelData", "emscriptenWebGLGetUniform", "webglGetUniformLocation", "webglPrepareUniformLocationsBeforeFirstUse", "webglGetLeftBracePos", "emscriptenWebGLGetVertexAttrib", "writeGLArray", "AL", "SDL_unicode", "SDL_ttfContext", "SDL_audio", "SDL", "SDL_gfx", "GLUT", "EGL", "GLFW_Window", "GLFW", "GLEW", "IDBStore", "runAndAbortIfError", "ALLOC_NORMAL", "ALLOC_STACK", "allocate"];
     unexportedRuntimeSymbols.forEach(unexportedRuntimeSymbol);
     var missingLibrarySymbols = ["ptrToString", "zeroMemory", "stringToNewUTF8", "exitJS", "setErrNo", "inetPton4", "inetNtop4", "inetPton6", "inetNtop6", "readSockaddr", "writeSockaddr", "getHostByName", "getRandomDevice", "traverseStack", "convertPCtoSourceLocation", "readAsmConstArgs", "mainThreadEM_ASM", "jstoi_q", "jstoi_s", "getExecutableName", "listenOnce", "autoResumeAudioContext", "dynCallLegacy", "getDynCaller", "dynCall", "runtimeKeepalivePush", "runtimeKeepalivePop", "callUserCallback", "maybeExit", "safeSetTimeout", "asmjsMangle", "asyncLoad", "alignMemory", "mmapAlloc", "writeI53ToI64", "writeI53ToI64Clamped", "writeI53ToI64Signaling", "writeI53ToU64Clamped", "writeI53ToU64Signaling", "readI53FromI64", "readI53FromU64", "convertI32PairToI53", "convertI32PairToI53Checked", "convertU32PairToI53", "uleb128Encode", "sigToWasmTypes", "generateFuncType", "convertJsFunctionToWasm", "getEmptyTableSlot", "updateTableMap", "addFunction", "removeFunction", "reallyNegative", "unSign", "strLen", "reSign", "formatString", "intArrayFromString", "intArrayToString", "AsciiToString", "stringToAscii", "UTF16ToString", "stringToUTF16", "lengthBytesUTF16", "UTF32ToString", "stringToUTF32", "lengthBytesUTF32", "allocateUTF8", "allocateUTF8OnStack", "writeStringToMemory", "writeAsciiToMemory", "getSocketFromFD", "getSocketAddress", "registerKeyEventCallback", "maybeCStringToJsString", "findEventTarget", "findCanvasEventTarget", "getBoundingClientRect", "fillMouseEventData", "registerMouseEventCallback", "registerWheelEventCallback", "registerUiEventCallback", "registerFocusEventCallback", "fillDeviceOrientationEventData", "registerDeviceOrientationEventCallback", "fillDeviceMotionEventData", "registerDeviceMotionEventCallback", "screenOrientation", "fillOrientationChangeEventData", "registerOrientationChangeEventCallback", "fillFullscreenChangeEventData", "registerFullscreenChangeEventCallback", "JSEvents_requestFullscreen", "JSEvents_resizeCanvasForFullscreen", "registerRestoreOldStyle", "hideEverythingExceptGivenElement", "restoreHiddenElements", "setLetterbox", "softFullscreenResizeWebGLRenderTarget", "doRequestFullscreen", "fillPointerlockChangeEventData", "registerPointerlockChangeEventCallback", "registerPointerlockErrorEventCallback", "requestPointerLock", "fillVisibilityChangeEventData", "registerVisibilityChangeEventCallback", "registerTouchEventCallback", "fillGamepadEventData", "registerGamepadEventCallback", "registerBeforeUnloadEventCallback", "fillBatteryEventData", "battery", "registerBatteryEventCallback", "setCanvasElementSize", "getCanvasElementSize", "getEnvStrings", "checkWasiClock", "flush_NO_FILESYSTEM", "createDyncallWrapper", "setImmediateWrapped", "clearImmediateWrapped", "polyfillSetImmediate", "ExceptionInfo", "exception_addRef", "exception_decRef", "setMainLoop", "_setNetworkCallback", "heapObjectForWebGLType", "heapAccessShiftForWebGLHeap", "emscriptenWebGLGet", "computeUnpackAlignedImageSize", "emscriptenWebGLGetTexPixelData", "emscriptenWebGLGetUniform", "webglGetUniformLocation", "webglPrepareUniformLocationsBeforeFirstUse", "webglGetLeftBracePos", "emscriptenWebGLGetVertexAttrib", "writeGLArray", "SDL_unicode", "SDL_ttfContext", "SDL_audio", "GLFW_Window", "runAndAbortIfError", "ALLOC_NORMAL", "ALLOC_STACK", "allocate"];
@@ -5340,19 +5049,19 @@ var Module = (() => {
       function doRun() {
         if (calledRun) return;
         calledRun = true;
-        Module3["calledRun"] = true;
+        Module2["calledRun"] = true;
         if (ABORT) return;
         initRuntime();
-        readyPromiseResolve(Module3);
-        if (Module3["onRuntimeInitialized"]) Module3["onRuntimeInitialized"]();
-        assert(!Module3["_main"], 'compiled without a main, but one is present. if you added it from JS, use Module["onRuntimeInitialized"]');
+        readyPromiseResolve(Module2);
+        if (Module2["onRuntimeInitialized"]) Module2["onRuntimeInitialized"]();
+        assert(!Module2["_main"], 'compiled without a main, but one is present. if you added it from JS, use Module["onRuntimeInitialized"]');
         postRun();
       }
-      if (Module3["setStatus"]) {
-        Module3["setStatus"]("Running...");
+      if (Module2["setStatus"]) {
+        Module2["setStatus"]("Running...");
         setTimeout(function() {
           setTimeout(function() {
-            Module3["setStatus"]("");
+            Module2["setStatus"]("");
           }, 1);
           doRun();
         }, 1);
@@ -5361,14 +5070,14 @@ var Module = (() => {
       }
       checkStackCookie();
     }
-    if (Module3["preInit"]) {
-      if (typeof Module3["preInit"] == "function") Module3["preInit"] = [Module3["preInit"]];
-      while (Module3["preInit"].length > 0) {
-        Module3["preInit"].pop()();
+    if (Module2["preInit"]) {
+      if (typeof Module2["preInit"] == "function") Module2["preInit"] = [Module2["preInit"]];
+      while (Module2["preInit"].length > 0) {
+        Module2["preInit"].pop()();
       }
     }
     run();
-    return Module3.ready;
+    return Module2.ready;
   };
 })();
 var MeshOptimizer_default = Module;
@@ -5831,6 +5540,360 @@ var _MeshletDebug = class {
 };
 var MeshletDebug = new _MeshletDebug();
 
+// src/components/Mesh.ts
+var Mesh = class extends Component {
+  geometry;
+  materialsMapped = /* @__PURE__ */ new Map();
+  enableShadows = true;
+  Start() {
+  }
+  AddMaterial(material) {
+    if (!this.materialsMapped.has(material.constructor.name)) this.materialsMapped.set(material.constructor.name, []);
+    this.materialsMapped.get(material.constructor.name)?.push(material);
+  }
+  GetMaterials(type) {
+    if (!type) return Array.from(this.materialsMapped, ([name, value]) => value).flat(Infinity);
+    return this.materialsMapped.get(type.name) || [];
+  }
+  SetGeometry(geometry) {
+    this.geometry = geometry;
+  }
+  GetGeometry() {
+    return this.geometry;
+  }
+};
+
+// src/components/InstancedMesh.ts
+var InstancedMesh = class extends Mesh {
+  incrementInstanceCount = 1e3;
+  _matricesBuffer = new DynamicBufferMemoryAllocator(this.incrementInstanceCount * 16);
+  get matricesBuffer() {
+    return this._matricesBuffer.getBuffer();
+  }
+  _instanceCount = 0;
+  get instanceCount() {
+    return this._instanceCount;
+  }
+  SetMatrixAt(index, matrix) {
+    if (!this._matricesBuffer) throw Error("Matrices buffer not created.");
+    this._instanceCount = Math.max(index, this._instanceCount);
+    this._matricesBuffer.set(index, matrix.elements);
+  }
+};
+
+// src/renderer/passes/DeferredShadowMapPass.ts
+var _DeferredShadowMapPassDebug = class {
+  shadowsFolder;
+  shadowsUpdate;
+  shadowsRoundToPixelSize;
+  debugCascades;
+  pcfResolution;
+  blendThreshold;
+  viewBlendThreshold;
+  shadowsUpdateValue = true;
+  roundToPixelSizeValue = true;
+  debugCascadesValue = false;
+  pcfResolutionValue = 1;
+  blendThresholdValue = 0.3;
+  viewBlendThresholdValue = false;
+  constructor() {
+    this.shadowsFolder = new UIFolder(Debugger.ui, "CSM Shadows");
+    this.shadowsUpdate = new UIButtonStat(this.shadowsFolder, "Update shadows", (value) => {
+      this.shadowsUpdateValue = value;
+    }, this.shadowsUpdateValue);
+    this.shadowsRoundToPixelSize = new UIButtonStat(this.shadowsFolder, "RoundToPixelSize", (value) => {
+      this.roundToPixelSizeValue = value;
+    }, this.roundToPixelSizeValue);
+    this.debugCascades = new UIButtonStat(this.shadowsFolder, "Debug cascades", (value) => {
+      this.debugCascadesValue = value;
+    }, this.debugCascadesValue);
+    this.pcfResolution = new UISliderStat(this.shadowsFolder, "PCF resolution", 0, 7, 1, this.pcfResolutionValue, (value) => {
+      this.pcfResolutionValue = value;
+    });
+    this.blendThreshold = new UISliderStat(this.shadowsFolder, "Blend threshold", 0, 1, 0.01, this.blendThresholdValue, (value) => {
+      this.blendThresholdValue = value;
+    });
+    this.viewBlendThreshold = new UIButtonStat(this.shadowsFolder, "View blend threshold", (value) => {
+      this.viewBlendThresholdValue = value;
+    }, this.viewBlendThresholdValue);
+    this.shadowsFolder.Open();
+  }
+};
+var DeferredShadowMapPassDebug = new _DeferredShadowMapPassDebug();
+var DeferredShadowMapPass = class extends RenderPass {
+  name = "DeferredShadowMapPass";
+  drawInstancedShadowShader;
+  drawShadowShader;
+  lightProjectionMatrixBuffer;
+  lightProjectionViewMatricesBuffer;
+  modelMatrices;
+  cascadeIndexBuffers = [];
+  cascadeCurrentIndexBuffer;
+  numOfCascades = 4;
+  lightShadowData = /* @__PURE__ */ new Map();
+  shadowOutput;
+  shadowWidth = 4096;
+  shadowHeight = 4096;
+  needsUpdate = false;
+  constructor() {
+    super({
+      inputs: [
+        PassParams.MainCamera,
+        PassParams.GBufferAlbedo,
+        PassParams.GBufferNormal,
+        PassParams.GBufferERMO,
+        PassParams.GBufferDepth
+      ],
+      outputs: [
+        PassParams.ShadowPassDepth,
+        PassParams.ShadowPassCascadeData
+      ]
+    });
+  }
+  async init(resources) {
+    const code = `
+        struct VertexInput {
+            @builtin(instance_index) instanceIdx : u32, 
+            @location(0) position : vec3<f32>,
+            @location(1) normal : vec3<f32>,
+            @location(2) uv : vec2<f32>,
+        };
+        
+        
+        struct VertexOutput {
+            @builtin(position) position : vec4<f32>,
+        };
+        
+        @group(0) @binding(0) var<storage, read> projectionMatrix: array<mat4x4<f32>, 4>;
+        @group(0) @binding(1) var<storage, read> cascadeIndex: f32;
+        
+        @group(1) @binding(0) var<storage, read> modelMatrix: array<mat4x4<f32>>;
+
+        alias ptr_mat4x4 = ptr<storage, mat4x4<f32>, read>;
+
+        @vertex
+        fn vertexMain(input: VertexInput) -> @builtin(position) vec4<f32> {
+            var output : VertexOutput;
+
+            let modelMatrixInstance = modelMatrix[input.instanceIdx];
+            let lightProjectionViewMatrix = projectionMatrix[u32(cascadeIndex)];
+        
+            return lightProjectionViewMatrix * modelMatrixInstance * vec4(input.position, 1.0);
+        }
+        
+        @fragment
+        fn fragmentMain() -> @location(0) vec4<f32> {
+            return vec4(1.0);
+        }
+        `;
+    this.drawShadowShader = await Shader.Create({
+      code,
+      attributes: {
+        position: { location: 0, size: 3, type: "vec3" },
+        normal: { location: 1, size: 3, type: "vec3" },
+        uv: { location: 2, size: 2, type: "vec2" }
+      },
+      uniforms: {
+        projectionMatrix: { group: 0, binding: 0, type: "storage" },
+        cascadeIndex: { group: 0, binding: 1, type: "storage" },
+        modelMatrix: { group: 1, binding: 0, type: "storage" }
+      },
+      colorOutputs: [],
+      depthOutput: "depth24plus",
+      // depthBias: 2,              // Constant bias
+      // depthBiasSlopeScale: 3.0,  // Slope-scale bias
+      // depthBiasClamp: 0.0,       // Max clamp for the bias
+      cullMode: "front"
+    });
+    this.drawInstancedShadowShader = await Shader.Create({
+      code,
+      attributes: {
+        position: { location: 0, size: 3, type: "vec3" },
+        normal: { location: 1, size: 3, type: "vec3" },
+        uv: { location: 2, size: 2, type: "vec2" }
+      },
+      uniforms: {
+        projectionMatrix: { group: 0, binding: 0, type: "storage" },
+        cascadeIndex: { group: 0, binding: 1, type: "storage" },
+        modelMatrix: { group: 1, binding: 0, type: "storage" }
+      },
+      colorOutputs: [],
+      depthOutput: "depth24plus",
+      cullMode: "front"
+    });
+    this.shadowOutput = DepthTextureArray.Create(this.shadowWidth, this.shadowHeight, 1);
+    this.initialized = true;
+  }
+  getCornersForCascade(camera, cascadeNear, cascadeFar) {
+    const projectionMatrix = new Matrix4().perspectiveWGPUMatrix(camera.fov * (Math.PI / 180), camera.aspect, cascadeNear, cascadeFar);
+    let frustumCorners = [
+      new Vector3(-1, 1, 0),
+      new Vector3(1, 1, 0),
+      new Vector3(1, -1, 0),
+      new Vector3(-1, -1, 0),
+      new Vector3(-1, 1, 1),
+      new Vector3(1, 1, 1),
+      new Vector3(1, -1, 1),
+      new Vector3(-1, -1, 1)
+    ];
+    const invViewProj = projectionMatrix.clone().mul(camera.viewMatrix).invert();
+    for (let i2 = 0; i2 < 8; i2++) {
+      frustumCorners[i2].applyMatrix4(invViewProj);
+    }
+    return frustumCorners;
+  }
+  getCascades(camera, cascadeCount, light) {
+    const CASCADE_PERCENTAGES = [0.05, 0.15, 0.5, 1];
+    const CASCADE_DISTANCES = [
+      CASCADE_PERCENTAGES[0] * camera.far,
+      CASCADE_PERCENTAGES[1] * camera.far,
+      CASCADE_PERCENTAGES[2] * camera.far,
+      CASCADE_PERCENTAGES[3] * camera.far
+    ];
+    let cascades = [];
+    for (let i2 = 0; i2 < cascadeCount; i2++) {
+      const cascadeNear = i2 === 0 ? camera.near : CASCADE_DISTANCES[i2 - 1];
+      const cascadeFar = CASCADE_DISTANCES[i2];
+      const frustumCorners = this.getCornersForCascade(camera, cascadeNear, cascadeFar);
+      const frustumCenter = new Vector3(0, 0, 0);
+      for (let i3 = 0; i3 < frustumCorners.length; i3++) {
+        frustumCenter.add(frustumCorners[i3]);
+      }
+      frustumCenter.mul(1 / frustumCorners.length);
+      const lightDirection = light.transform.position.clone().normalize();
+      const radius = frustumCorners[0].clone().sub(frustumCorners[6]).length() / 2;
+      if (DeferredShadowMapPassDebug.roundToPixelSizeValue === true) {
+        const shadowMapSize = 4096;
+        const texelsPerUnit = shadowMapSize / (radius * 2);
+        const scalar = new Matrix4().makeScale(new Vector3(texelsPerUnit, texelsPerUnit, texelsPerUnit));
+        const baseLookAt = new Vector3(-lightDirection.x, -lightDirection.y, -lightDirection.z);
+        const lookAt = new Matrix4().lookAt(new Vector3(0, 0, 0), baseLookAt, new Vector3(0, 1, 0)).mul(scalar);
+        const lookAtInv = lookAt.clone().invert();
+        frustumCenter.transformDirection(lookAt);
+        frustumCenter.x = Math.floor(frustumCenter.x);
+        frustumCenter.y = Math.floor(frustumCenter.y);
+        frustumCenter.transformDirection(lookAtInv);
+      }
+      const eye = frustumCenter.clone().sub(lightDirection.clone().mul(radius * 2));
+      const lightViewMatrix = new Matrix4();
+      lightViewMatrix.lookAt(
+        eye,
+        frustumCenter,
+        new Vector3(0, 1, 0)
+      );
+      const lightProjMatrix = new Matrix4().orthoZO(-radius, radius, -radius, radius, -radius * 6, radius * 6);
+      const out = lightProjMatrix.mul(lightViewMatrix);
+      cascades.push({
+        viewProjMatrix: out,
+        splitDepth: cascadeFar
+      });
+    }
+    return cascades;
+  }
+  execute(resources) {
+    if (!this.initialized) return;
+    const scene = Camera.mainCamera.gameObject.scene;
+    this.lightShadowData.clear();
+    const lights = [...scene.GetComponents(SpotLight), ...scene.GetComponents(PointLight), ...scene.GetComponents(DirectionalLight), ...scene.GetComponents(AreaLight)];
+    for (let i2 = lights.length - 1; i2 >= 0; i2--) {
+      if (lights[i2].castShadows === false) {
+        lights.splice(i2, 1);
+      }
+    }
+    if (lights.length === 0) return;
+    const meshes = scene.GetComponents(Mesh);
+    const instancedMeshes = scene.GetComponents(InstancedMesh);
+    if (meshes.length === 0 && instancedMeshes.length === 0) return;
+    if (lights.length !== this.shadowOutput.depth) {
+      this.shadowOutput = DepthTextureArray.Create(this.shadowWidth, this.shadowHeight, lights.length);
+    }
+    RendererContext.BeginRenderPass(`ShadowPass - clear`, [], { target: this.shadowOutput, clear: true }, true);
+    RendererContext.EndRenderPass();
+    resources.setResource(PassParams.ShadowPassDepth, this.shadowOutput);
+    if (!this.lightProjectionMatrixBuffer) {
+      this.lightProjectionMatrixBuffer = Buffer3.Create(lights.length * 4 * 4 * 16, 0 /* STORAGE */);
+      this.drawShadowShader.SetBuffer("projectionMatrix", this.lightProjectionMatrixBuffer);
+      this.drawInstancedShadowShader.SetBuffer("projectionMatrix", this.lightProjectionMatrixBuffer);
+    }
+    if (!this.modelMatrices || this.modelMatrices.size / 256 !== meshes.length) {
+      this.modelMatrices = DynamicBuffer2.Create(meshes.length * 256, 0 /* STORAGE */, 256);
+    }
+    if (!this.lightProjectionViewMatricesBuffer || this.lightProjectionViewMatricesBuffer.size / 4 / 4 / 16 !== lights.length) {
+      this.lightProjectionViewMatricesBuffer = Buffer3.Create(lights.length * this.numOfCascades * 4 * 16, 0 /* STORAGE */);
+    }
+    if (!this.cascadeCurrentIndexBuffer) {
+      this.cascadeCurrentIndexBuffer = Buffer3.Create(4, 0 /* STORAGE */);
+    }
+    if (this.cascadeIndexBuffers.length === 0) {
+      for (let i2 = 0; i2 < this.numOfCascades; i2++) {
+        const buffer = Buffer3.Create(4, 0 /* STORAGE */);
+        buffer.SetArray(new Float32Array([i2]));
+        this.cascadeIndexBuffers.push(buffer);
+      }
+    }
+    for (let i2 = 0; i2 < meshes.length; i2++) {
+      const mesh = meshes[i2];
+      if (!mesh.enableShadows) continue;
+      this.modelMatrices.SetArray(mesh.transform.localToWorldMatrix.elements, i2 * 256);
+    }
+    this.drawShadowShader.SetBuffer("modelMatrix", this.modelMatrices);
+    const shadowOutput = resources.getResource(PassParams.ShadowPassDepth);
+    shadowOutput.SetActiveLayer(0);
+    this.drawShadowShader.SetBuffer("cascadeIndex", this.cascadeCurrentIndexBuffer);
+    this.drawInstancedShadowShader.SetBuffer("cascadeIndex", this.cascadeCurrentIndexBuffer);
+    let shadowMapIndex = 0;
+    for (let i2 = 0; i2 < lights.length; i2++) {
+      const light = lights[i2];
+      EventSystemLocal.emit(TransformEvents.Updated, light.transform);
+      let lightData = [];
+      const cascades = this.getCascades(Camera.mainCamera, this.numOfCascades, light);
+      lightData = [];
+      for (const cascade of cascades) {
+        lightData.push(cascade.viewProjMatrix);
+      }
+      const ld = new Float32Array(lightData.flatMap((v) => v.elements).flatMap((v) => [...v]));
+      this.lightProjectionViewMatricesBuffer.SetArray(ld, i2 * this.numOfCascades * 4 * 16);
+      this.lightShadowData.set(light.id, {
+        cascadeSplits: new Float32Array([cascades[0].splitDepth, cascades[1].splitDepth, cascades[2].splitDepth, cascades[3].splitDepth]),
+        projectionMatrices: ld,
+        shadowMapIndex
+      });
+      RendererContext.CopyBufferToBuffer(this.lightProjectionViewMatricesBuffer, this.lightProjectionMatrixBuffer, i2 * this.numOfCascades * 4 * 16, 0, this.numOfCascades * 4 * 16);
+      for (let cascadePass = 0; cascadePass < this.numOfCascades; cascadePass++) {
+        RendererContext.CopyBufferToBuffer(this.cascadeIndexBuffers[cascadePass], this.cascadeCurrentIndexBuffer);
+        RendererContext.BeginRenderPass("ShadowPass", [], { target: shadowOutput, clear: cascadePass === 0 ? true : false }, true);
+        const width = shadowOutput.width / 2;
+        const height = shadowOutput.height / 2;
+        let x = 0;
+        let y = 0;
+        if (cascadePass >= 2) x += width;
+        if (cascadePass % 2 !== 0) y += height;
+        RendererContext.SetViewport(x, y, width, height, 0, 1);
+        let meshCount = 0;
+        for (const mesh of meshes) {
+          if (mesh.enableShadows) {
+            const uniform_offset = meshCount * 256;
+            this.modelMatrices.dynamicOffset = uniform_offset;
+            RendererContext.DrawGeometry(mesh.GetGeometry(), this.drawShadowShader, 1);
+          }
+          meshCount++;
+        }
+        for (const instance of instancedMeshes) {
+          if (instance.instanceCount === 0) continue;
+          if (!instance.enableShadows) continue;
+          this.drawInstancedShadowShader.SetBuffer("modelMatrix", instance.matricesBuffer);
+          RendererContext.DrawGeometry(instance.GetGeometry(), this.drawInstancedShadowShader, instance.instanceCount + 1);
+        }
+        RendererContext.EndRenderPass();
+      }
+      shadowOutput.SetActiveLayer(shadowMapIndex);
+      shadowMapIndex++;
+    }
+    shadowOutput.SetActiveLayer(0);
+    resources.setResource(PassParams.ShadowPassCascadeData, this.lightShadowData);
+  }
+};
+
 // src/renderer/passes/PrepareGBuffers.ts
 var PrepareGBuffers = class extends RenderPass {
   name = "PrepareGBuffers";
@@ -5838,9 +5901,6 @@ var PrepareGBuffers = class extends RenderPass {
   gBufferNormalRT;
   gBufferERMORT;
   depthTexture;
-  shadowOutput;
-  shadowWidth = 4096;
-  shadowHeight = 4096;
   constructor() {
     super({ outputs: [
       PassParams.depthTexture,
@@ -5855,7 +5915,6 @@ var PrepareGBuffers = class extends RenderPass {
     this.gBufferAlbedoRT = RenderTexture.Create(Renderer.width, Renderer.height, 1, "rgba16float");
     this.gBufferNormalRT = RenderTexture.Create(Renderer.width, Renderer.height, 1, "rgba16float");
     this.gBufferERMORT = RenderTexture.Create(Renderer.width, Renderer.height, 1, "rgba16float");
-    this.shadowOutput = DepthTextureArray.Create(this.shadowWidth, this.shadowHeight, 1);
     this.initialized = true;
   }
   execute(resources) {
@@ -5897,18 +5956,6 @@ var PrepareGBuffers = class extends RenderPass {
       0
     ]);
     resources.setResource(PassParams.DebugSettings, settings);
-    const scene = Camera.mainCamera.gameObject.scene;
-    const lights = [...scene.GetComponents(SpotLight), ...scene.GetComponents(PointLight), ...scene.GetComponents(DirectionalLight), ...scene.GetComponents(AreaLight)];
-    if (lights.length === 0) {
-      resources.setResource(PassParams.ShadowPassDepth, this.shadowOutput);
-      return;
-    }
-    if (lights.length !== this.shadowOutput.depth) {
-      this.shadowOutput = DepthTextureArray.Create(this.shadowWidth, this.shadowHeight, lights.length);
-    }
-    RendererContext.BeginRenderPass(`PrepareGBuffers - Shadow clear`, [], { target: this.shadowOutput, clear: true }, true);
-    RendererContext.EndRenderPass();
-    resources.setResource(PassParams.ShadowPassDepth, this.shadowOutput);
   }
 };
 
@@ -5974,9 +6021,100 @@ var DebuggerTextureViewer = class extends RenderPass {
     const LightingPassOutputTexture = resources.getResource(PassParams.ShadowPassDepth);
     this.shader.SetTexture("texture", LightingPassOutputTexture);
     RendererContext.BeginRenderPass("DebuggerTextureViewer", [{ clear: false }], void 0, true);
-    RendererContext.SetViewport(Renderer.width - 500, 0, 200, 200);
+    RendererContext.SetViewport(Renderer.width - 100, 0, 100, 100);
     RendererContext.DrawGeometry(this.quadGeometry, this.shader);
     RendererContext.SetViewport(0, 0, Renderer.width, Renderer.height);
+    RendererContext.EndRenderPass();
+  }
+};
+
+// src/renderer/passes/DeferredGBufferPass.ts
+var DeferredGBufferPass = class extends RenderPass {
+  name = "DeferredMeshRenderPass";
+  constructor() {
+    super({
+      inputs: [
+        PassParams.MainCamera,
+        PassParams.GBufferAlbedo,
+        PassParams.GBufferNormal,
+        PassParams.GBufferERMO,
+        PassParams.GBufferDepth
+      ],
+      outputs: []
+    });
+  }
+  async init(resources) {
+    this.initialized = true;
+  }
+  execute(resources) {
+    if (!this.initialized) return;
+    const scene = Camera.mainCamera.gameObject.scene;
+    const meshes = scene.GetComponents(Mesh);
+    const instancedMeshes = scene.GetComponents(InstancedMesh);
+    if (meshes.length === 0 && instancedMeshes.length === 0) return;
+    const inputCamera = Camera.mainCamera;
+    if (!inputCamera) throw Error(`No inputs passed to ${this.name}`);
+    const backgroundColor = inputCamera.backgroundColor;
+    const inputGBufferAlbedo = resources.getResource(PassParams.GBufferAlbedo);
+    const inputGBufferNormal = resources.getResource(PassParams.GBufferNormal);
+    const inputGBufferERMO = resources.getResource(PassParams.GBufferERMO);
+    const inputGBufferDepth = resources.getResource(PassParams.GBufferDepth);
+    RendererContext.BeginRenderPass(
+      this.name,
+      [
+        { target: inputGBufferAlbedo, clear: false, color: backgroundColor },
+        { target: inputGBufferNormal, clear: false, color: backgroundColor },
+        { target: inputGBufferERMO, clear: false, color: backgroundColor }
+      ],
+      { target: inputGBufferDepth, clear: false },
+      true
+    );
+    const projectionMatrix = inputCamera.projectionMatrix;
+    const viewMatrix = inputCamera.viewMatrix;
+    for (const mesh of meshes) {
+      const geometry = mesh.GetGeometry();
+      const materials = mesh.GetMaterials();
+      for (const material of materials) {
+        if (!material.shader) {
+          material.createShader().then((shader2) => {
+          });
+          continue;
+        }
+        const shader = material.shader;
+        shader.SetMatrix4("projectionMatrix", projectionMatrix);
+        shader.SetMatrix4("viewMatrix", viewMatrix);
+        shader.SetMatrix4("modelMatrix", mesh.transform.localToWorldMatrix);
+        shader.SetVector3("cameraPosition", inputCamera.transform.position);
+        RendererContext.DrawGeometry(geometry, shader, 1);
+        if (geometry.index) {
+          RendererDebug.IncrementTriangleCount(geometry.index.array.length / 3);
+        }
+      }
+    }
+    for (const instancedMesh of instancedMeshes) {
+      const geometry = instancedMesh.GetGeometry();
+      const materials = instancedMesh.GetMaterials();
+      for (const material of materials) {
+        if (!material.shader) {
+          material.createShader().then((shader2) => {
+          });
+          continue;
+        }
+        const shader = material.shader;
+        shader.SetMatrix4("projectionMatrix", projectionMatrix);
+        shader.SetMatrix4("viewMatrix", viewMatrix);
+        shader.SetBuffer("modelMatrix", instancedMesh.matricesBuffer);
+        shader.SetVector3("cameraPosition", inputCamera.transform.position);
+        RendererContext.DrawGeometry(geometry, shader, instancedMesh.instanceCount + 1);
+        if (geometry.index) {
+          RendererDebug.IncrementTriangleCount(geometry.index.array.length / 3 * (instancedMesh.instanceCount + 1));
+        }
+      }
+    }
+    resources.setResource(PassParams.GBufferDepth, inputGBufferDepth);
+    resources.setResource(PassParams.GBufferAlbedo, inputGBufferAlbedo);
+    resources.setResource(PassParams.GBufferNormal, inputGBufferNormal);
+    resources.setResource(PassParams.GBufferERMO, inputGBufferERMO);
     RendererContext.EndRenderPass();
   }
 };
@@ -5992,6 +6130,7 @@ var PassParams = {
   GBufferERMO: "GBufferERMO",
   GBufferDepth: "GBufferDepth",
   ShadowPassDepth: "ShadowPassDepth",
+  ShadowPassCascadeData: "ShadowPassCascadeData",
   LightingPassOutput: "LightingPassOutput"
 };
 var RenderingPipeline = class {
@@ -6004,14 +6143,12 @@ var RenderingPipeline = class {
   beforeLightingPasses = [];
   afterLightingPasses = [];
   beforeScreenOutputPasses = [];
-  renderPasses = [];
   constructor(renderer) {
     this.renderer = renderer;
-    console.warn("this sucks");
     this.renderGraph = new RenderGraph();
     this.beforeGBufferPasses = [
-      new PrepareGBuffers()
-      // new DeferredGBufferPass(),
+      new PrepareGBuffers(),
+      new DeferredGBufferPass()
     ];
     this.afterGBufferPasses = [
       new DeferredShadowMapPass()
@@ -6046,11 +6183,13 @@ var RenderingPipeline = class {
     this.UpdateRenderGraphPasses();
   }
   Render(scene) {
-    RenderCache.Reset();
+    RendererDebug.ResetFrame();
     RendererDebug.SetTriangleCount(0);
+    const renderPipelineStart = performance.now();
     Renderer.BeginRenderFrame();
     this.renderGraph.execute();
     Renderer.EndRenderFrame();
+    RendererDebug.SetCPUTime(performance.now() - renderPipelineStart);
     WEBGPUTimestampQuery.GetResult().then((frameTimes) => {
       if (frameTimes) {
         for (const [name, time] of frameTimes) {
@@ -6122,7 +6261,9 @@ var Scene = class {
     this.Tick();
   }
   Tick() {
+    const componentUpdateStart = performance.now();
     for (const [component, _] of this.toUpdate) component.Update();
+    EngineDebug.componentUpdate.SetValue(performance.now() - componentUpdateStart);
     this.renderPipeline.Render(this);
     requestAnimationFrame(() => this.Tick());
   }
@@ -6280,6 +6421,8 @@ var PBRMaterial = class extends Material {
       metalnessMap: params?.metalnessMap ? params.metalnessMap : void 0,
       emissiveMap: params?.emissiveMap ? params.emissiveMap : void 0,
       aoMap: params?.aoMap ? params.aoMap : void 0,
+      doubleSided: params?.doubleSided ? params.doubleSided : false,
+      alphaCutoff: params?.alphaCutoff ? params.alphaCutoff : 0,
       unlit: params?.unlit ? params.unlit : false
     };
   }
@@ -6319,7 +6462,8 @@ var PBRMaterial = class extends Material {
         EmissiveMap: { group: 0, binding: 9, type: "texture" },
         AOMap: { group: 0, binding: 10, type: "texture" },
         cameraPosition: { group: 0, binding: 11, type: "storage" }
-      }
+      },
+      cullMode: this.params.doubleSided ? "none" : void 0
     };
     shaderParams = Object.assign({}, shaderParams, this.params);
     const shader = await Shader.Create(shaderParams);
@@ -6339,7 +6483,7 @@ var PBRMaterial = class extends Material {
       this.params.roughness,
       this.params.metalness,
       +this.params.unlit,
-      0
+      this.params.alphaCutoff
     ]));
     if (DEFINES.USE_ALBEDO_MAP === true && this.params.albedoMap) shader.SetTexture("AlbedoMap", this.params.albedoMap);
     if (DEFINES.USE_NORMAL_MAP === true && this.params.normalMap) shader.SetTexture("NormalMap", this.params.normalMap);
@@ -6349,4785 +6493,6 @@ var PBRMaterial = class extends Material {
     if (DEFINES.USE_AO_MAP === true && this.params.aoMap) shader.SetTexture("AOMap", this.params.aoMap);
     this.shader = shader;
     return shader;
-  }
-};
-
-// src/plugins/meshlets/metis-5.2.1/Metis.js
-var Module2 = (() => {
-  var _scriptDir = import.meta.url;
-  return function(Module3) {
-    Module3 = Module3 || {};
-    var Module3 = typeof Module3 != "undefined" ? Module3 : {};
-    var readyPromiseResolve, readyPromiseReject;
-    Module3["ready"] = new Promise(function(resolve, reject) {
-      readyPromiseResolve = resolve;
-      readyPromiseReject = reject;
-    });
-    var moduleOverrides = Object.assign({}, Module3);
-    var arguments_ = [];
-    var thisProgram = "./this.program";
-    var quit_ = (status, toThrow) => {
-      throw toThrow;
-    };
-    var ENVIRONMENT_IS_WEB = true;
-    var ENVIRONMENT_IS_WORKER = false;
-    var scriptDirectory = "";
-    function locateFile(path) {
-      if (Module3["locateFile"]) {
-        return Module3["locateFile"](path, scriptDirectory);
-      }
-      return scriptDirectory + path;
-    }
-    var read_, readAsync, readBinary, setWindowTitle;
-    if (ENVIRONMENT_IS_WEB || ENVIRONMENT_IS_WORKER) {
-      if (ENVIRONMENT_IS_WORKER) {
-        scriptDirectory = self.location.href;
-      } else if (typeof document != "undefined" && document.currentScript) {
-        scriptDirectory = document.currentScript.src;
-      }
-      if (_scriptDir) {
-        scriptDirectory = _scriptDir;
-      }
-      if (scriptDirectory.indexOf("blob:") !== 0) {
-        scriptDirectory = scriptDirectory.substr(0, scriptDirectory.replace(/[?#].*/, "").lastIndexOf("/") + 1);
-      } else {
-        scriptDirectory = "";
-      }
-      {
-        read_ = (url) => {
-          var xhr = new XMLHttpRequest();
-          xhr.open("GET", url, false);
-          xhr.send(null);
-          return xhr.responseText;
-        };
-        if (ENVIRONMENT_IS_WORKER) {
-          readBinary = (url) => {
-            var xhr = new XMLHttpRequest();
-            xhr.open("GET", url, false);
-            xhr.responseType = "arraybuffer";
-            xhr.send(null);
-            return new Uint8Array(xhr.response);
-          };
-        }
-        readAsync = (url, onload, onerror) => {
-          var xhr = new XMLHttpRequest();
-          xhr.open("GET", url, true);
-          xhr.responseType = "arraybuffer";
-          xhr.onload = () => {
-            if (xhr.status == 200 || xhr.status == 0 && xhr.response) {
-              onload(xhr.response);
-              return;
-            }
-            onerror();
-          };
-          xhr.onerror = onerror;
-          xhr.send(null);
-        };
-      }
-      setWindowTitle = (title) => document.title = title;
-    } else {
-    }
-    var out = Module3["print"] || console.log.bind(console);
-    var err = Module3["printErr"] || console.warn.bind(console);
-    Object.assign(Module3, moduleOverrides);
-    moduleOverrides = null;
-    if (Module3["arguments"]) arguments_ = Module3["arguments"];
-    if (Module3["thisProgram"]) thisProgram = Module3["thisProgram"];
-    if (Module3["quit"]) quit_ = Module3["quit"];
-    var wasmBinary;
-    if (Module3["wasmBinary"]) wasmBinary = Module3["wasmBinary"];
-    var noExitRuntime = Module3["noExitRuntime"] || true;
-    if (typeof WebAssembly != "object") {
-      abort("no native wasm support detected");
-    }
-    var wasmMemory;
-    var ABORT = false;
-    var EXITSTATUS;
-    function assert(condition, text) {
-      if (!condition) {
-        abort(text);
-      }
-    }
-    var UTF8Decoder = typeof TextDecoder != "undefined" ? new TextDecoder("utf8") : void 0;
-    function UTF8ArrayToString(heapOrArray, idx, maxBytesToRead) {
-      var endIdx = idx + maxBytesToRead;
-      var endPtr = idx;
-      while (heapOrArray[endPtr] && !(endPtr >= endIdx)) ++endPtr;
-      if (endPtr - idx > 16 && heapOrArray.buffer && UTF8Decoder) {
-        return UTF8Decoder.decode(heapOrArray.subarray(idx, endPtr));
-      }
-      var str = "";
-      while (idx < endPtr) {
-        var u0 = heapOrArray[idx++];
-        if (!(u0 & 128)) {
-          str += String.fromCharCode(u0);
-          continue;
-        }
-        var u1 = heapOrArray[idx++] & 63;
-        if ((u0 & 224) == 192) {
-          str += String.fromCharCode((u0 & 31) << 6 | u1);
-          continue;
-        }
-        var u2 = heapOrArray[idx++] & 63;
-        if ((u0 & 240) == 224) {
-          u0 = (u0 & 15) << 12 | u1 << 6 | u2;
-        } else {
-          u0 = (u0 & 7) << 18 | u1 << 12 | u2 << 6 | heapOrArray[idx++] & 63;
-        }
-        if (u0 < 65536) {
-          str += String.fromCharCode(u0);
-        } else {
-          var ch = u0 - 65536;
-          str += String.fromCharCode(55296 | ch >> 10, 56320 | ch & 1023);
-        }
-      }
-      return str;
-    }
-    function UTF8ToString(ptr, maxBytesToRead) {
-      return ptr ? UTF8ArrayToString(HEAPU8, ptr, maxBytesToRead) : "";
-    }
-    function stringToUTF8Array(str, heap, outIdx, maxBytesToWrite) {
-      if (!(maxBytesToWrite > 0)) return 0;
-      var startIdx = outIdx;
-      var endIdx = outIdx + maxBytesToWrite - 1;
-      for (var i2 = 0; i2 < str.length; ++i2) {
-        var u = str.charCodeAt(i2);
-        if (u >= 55296 && u <= 57343) {
-          var u1 = str.charCodeAt(++i2);
-          u = 65536 + ((u & 1023) << 10) | u1 & 1023;
-        }
-        if (u <= 127) {
-          if (outIdx >= endIdx) break;
-          heap[outIdx++] = u;
-        } else if (u <= 2047) {
-          if (outIdx + 1 >= endIdx) break;
-          heap[outIdx++] = 192 | u >> 6;
-          heap[outIdx++] = 128 | u & 63;
-        } else if (u <= 65535) {
-          if (outIdx + 2 >= endIdx) break;
-          heap[outIdx++] = 224 | u >> 12;
-          heap[outIdx++] = 128 | u >> 6 & 63;
-          heap[outIdx++] = 128 | u & 63;
-        } else {
-          if (outIdx + 3 >= endIdx) break;
-          heap[outIdx++] = 240 | u >> 18;
-          heap[outIdx++] = 128 | u >> 12 & 63;
-          heap[outIdx++] = 128 | u >> 6 & 63;
-          heap[outIdx++] = 128 | u & 63;
-        }
-      }
-      heap[outIdx] = 0;
-      return outIdx - startIdx;
-    }
-    function stringToUTF8(str, outPtr, maxBytesToWrite) {
-      return stringToUTF8Array(str, HEAPU8, outPtr, maxBytesToWrite);
-    }
-    function lengthBytesUTF8(str) {
-      var len = 0;
-      for (var i2 = 0; i2 < str.length; ++i2) {
-        var c = str.charCodeAt(i2);
-        if (c <= 127) {
-          len++;
-        } else if (c <= 2047) {
-          len += 2;
-        } else if (c >= 55296 && c <= 57343) {
-          len += 4;
-          ++i2;
-        } else {
-          len += 3;
-        }
-      }
-      return len;
-    }
-    var buffer, HEAP8, HEAPU8, HEAP16, HEAPU16, HEAP32, HEAPU32, HEAPF32, HEAPF64;
-    function updateGlobalBufferAndViews(buf) {
-      buffer = buf;
-      Module3["HEAP8"] = HEAP8 = new Int8Array(buf);
-      Module3["HEAP16"] = HEAP16 = new Int16Array(buf);
-      Module3["HEAP32"] = HEAP32 = new Int32Array(buf);
-      Module3["HEAPU8"] = HEAPU8 = new Uint8Array(buf);
-      Module3["HEAPU16"] = HEAPU16 = new Uint16Array(buf);
-      Module3["HEAPU32"] = HEAPU32 = new Uint32Array(buf);
-      Module3["HEAPF32"] = HEAPF32 = new Float32Array(buf);
-      Module3["HEAPF64"] = HEAPF64 = new Float64Array(buf);
-    }
-    var INITIAL_MEMORY = Module3["INITIAL_MEMORY"] || 16777216;
-    var wasmTable;
-    var __ATPRERUN__ = [];
-    var __ATINIT__ = [];
-    var __ATPOSTRUN__ = [];
-    var runtimeInitialized = false;
-    function keepRuntimeAlive() {
-      return noExitRuntime;
-    }
-    function preRun() {
-      if (Module3["preRun"]) {
-        if (typeof Module3["preRun"] == "function") Module3["preRun"] = [Module3["preRun"]];
-        while (Module3["preRun"].length) {
-          addOnPreRun(Module3["preRun"].shift());
-        }
-      }
-      callRuntimeCallbacks(__ATPRERUN__);
-    }
-    function initRuntime() {
-      runtimeInitialized = true;
-      if (!Module3["noFSInit"] && !FS.init.initialized) FS.init();
-      FS.ignorePermissions = false;
-      TTY.init();
-      callRuntimeCallbacks(__ATINIT__);
-    }
-    function postRun() {
-      if (Module3["postRun"]) {
-        if (typeof Module3["postRun"] == "function") Module3["postRun"] = [Module3["postRun"]];
-        while (Module3["postRun"].length) {
-          addOnPostRun(Module3["postRun"].shift());
-        }
-      }
-      callRuntimeCallbacks(__ATPOSTRUN__);
-    }
-    function addOnPreRun(cb) {
-      __ATPRERUN__.unshift(cb);
-    }
-    function addOnInit(cb) {
-      __ATINIT__.unshift(cb);
-    }
-    function addOnPostRun(cb) {
-      __ATPOSTRUN__.unshift(cb);
-    }
-    var runDependencies = 0;
-    var runDependencyWatcher = null;
-    var dependenciesFulfilled = null;
-    function getUniqueRunDependency(id) {
-      return id;
-    }
-    function addRunDependency(id) {
-      runDependencies++;
-      if (Module3["monitorRunDependencies"]) {
-        Module3["monitorRunDependencies"](runDependencies);
-      }
-    }
-    function removeRunDependency(id) {
-      runDependencies--;
-      if (Module3["monitorRunDependencies"]) {
-        Module3["monitorRunDependencies"](runDependencies);
-      }
-      if (runDependencies == 0) {
-        if (runDependencyWatcher !== null) {
-          clearInterval(runDependencyWatcher);
-          runDependencyWatcher = null;
-        }
-        if (dependenciesFulfilled) {
-          var callback = dependenciesFulfilled;
-          dependenciesFulfilled = null;
-          callback();
-        }
-      }
-    }
-    function abort(what) {
-      {
-        if (Module3["onAbort"]) {
-          Module3["onAbort"](what);
-        }
-      }
-      what = "Aborted(" + what + ")";
-      err(what);
-      ABORT = true;
-      EXITSTATUS = 1;
-      what += ". Build with -sASSERTIONS for more info.";
-      var e = new WebAssembly.RuntimeError(what);
-      readyPromiseReject(e);
-      throw e;
-    }
-    var dataURIPrefix = "data:application/octet-stream;base64,";
-    function isDataURI(filename) {
-      return filename.startsWith(dataURIPrefix);
-    }
-    var wasmBinaryFile;
-    if (Module3["locateFile"]) {
-      wasmBinaryFile = "Metis.wasm";
-      if (!isDataURI(wasmBinaryFile)) {
-        wasmBinaryFile = locateFile(wasmBinaryFile);
-      }
-    } else {
-      wasmBinaryFile = new URL("Metis.wasm", import.meta.url).toString();
-    }
-    function getBinary(file) {
-      try {
-        if (file == wasmBinaryFile && wasmBinary) {
-          return new Uint8Array(wasmBinary);
-        }
-        if (readBinary) {
-          return readBinary(file);
-        }
-        throw "both async and sync fetching of the wasm failed";
-      } catch (err2) {
-        abort(err2);
-      }
-    }
-    function getBinaryPromise() {
-      if (!wasmBinary && (ENVIRONMENT_IS_WEB || ENVIRONMENT_IS_WORKER)) {
-        if (typeof fetch == "function") {
-          return fetch(wasmBinaryFile, { credentials: "same-origin" }).then(function(response) {
-            if (!response["ok"]) {
-              throw "failed to load wasm binary file at '" + wasmBinaryFile + "'";
-            }
-            return response["arrayBuffer"]();
-          }).catch(function() {
-            return getBinary(wasmBinaryFile);
-          });
-        }
-      }
-      return Promise.resolve().then(function() {
-        return getBinary(wasmBinaryFile);
-      });
-    }
-    function createWasm() {
-      var info = { "a": asmLibraryArg };
-      function receiveInstance(instance, module) {
-        var exports2 = instance.exports;
-        Module3["asm"] = exports2;
-        wasmMemory = Module3["asm"]["x"];
-        updateGlobalBufferAndViews(wasmMemory.buffer);
-        wasmTable = Module3["asm"]["z"];
-        addOnInit(Module3["asm"]["y"]);
-        removeRunDependency("wasm-instantiate");
-      }
-      addRunDependency("wasm-instantiate");
-      function receiveInstantiationResult(result) {
-        receiveInstance(result["instance"]);
-      }
-      function instantiateArrayBuffer(receiver) {
-        return getBinaryPromise().then(function(binary) {
-          return WebAssembly.instantiate(binary, info);
-        }).then(function(instance) {
-          return instance;
-        }).then(receiver, function(reason) {
-          err("failed to asynchronously prepare wasm: " + reason);
-          abort(reason);
-        });
-      }
-      function instantiateAsync() {
-        if (!wasmBinary && typeof WebAssembly.instantiateStreaming == "function" && !isDataURI(wasmBinaryFile) && typeof fetch == "function") {
-          return fetch(wasmBinaryFile, { credentials: "same-origin" }).then(function(response) {
-            var result = WebAssembly.instantiateStreaming(response, info);
-            return result.then(receiveInstantiationResult, function(reason) {
-              err("wasm streaming compile failed: " + reason);
-              err("falling back to ArrayBuffer instantiation");
-              return instantiateArrayBuffer(receiveInstantiationResult);
-            });
-          });
-        } else {
-          return instantiateArrayBuffer(receiveInstantiationResult);
-        }
-      }
-      if (Module3["instantiateWasm"]) {
-        try {
-          var exports = Module3["instantiateWasm"](info, receiveInstance);
-          return exports;
-        } catch (e) {
-          err("Module.instantiateWasm callback failed with error: " + e);
-          readyPromiseReject(e);
-        }
-      }
-      instantiateAsync().catch(readyPromiseReject);
-      return {};
-    }
-    var tempDouble;
-    var tempI64;
-    function ExitStatus(status) {
-      this.name = "ExitStatus";
-      this.message = "Program terminated with exit(" + status + ")";
-      this.status = status;
-    }
-    function callRuntimeCallbacks(callbacks) {
-      while (callbacks.length > 0) {
-        callbacks.shift()(Module3);
-      }
-    }
-    function writeArrayToMemory(array, buffer2) {
-      HEAP8.set(array, buffer2);
-    }
-    function ___assert_fail(condition, filename, line, func) {
-      abort("Assertion failed: " + UTF8ToString(condition) + ", at: " + [filename ? UTF8ToString(filename) : "unknown filename", line, func ? UTF8ToString(func) : "unknown function"]);
-    }
-    var wasmTableMirror = [];
-    function getWasmTableEntry(funcPtr) {
-      var func = wasmTableMirror[funcPtr];
-      if (!func) {
-        if (funcPtr >= wasmTableMirror.length) wasmTableMirror.length = funcPtr + 1;
-        wasmTableMirror[funcPtr] = func = wasmTable.get(funcPtr);
-      }
-      return func;
-    }
-    function ___call_sighandler(fp, sig) {
-      getWasmTableEntry(fp)(sig);
-    }
-    function setErrNo(value) {
-      HEAP32[___errno_location() >> 2] = value;
-      return value;
-    }
-    var PATH = { isAbs: (path) => path.charAt(0) === "/", splitPath: (filename) => {
-      var splitPathRe = /^(\/?|)([\s\S]*?)((?:\.{1,2}|[^\/]+?|)(\.[^.\/]*|))(?:[\/]*)$/;
-      return splitPathRe.exec(filename).slice(1);
-    }, normalizeArray: (parts, allowAboveRoot) => {
-      var up = 0;
-      for (var i2 = parts.length - 1; i2 >= 0; i2--) {
-        var last = parts[i2];
-        if (last === ".") {
-          parts.splice(i2, 1);
-        } else if (last === "..") {
-          parts.splice(i2, 1);
-          up++;
-        } else if (up) {
-          parts.splice(i2, 1);
-          up--;
-        }
-      }
-      if (allowAboveRoot) {
-        for (; up; up--) {
-          parts.unshift("..");
-        }
-      }
-      return parts;
-    }, normalize: (path) => {
-      var isAbsolute = PATH.isAbs(path), trailingSlash = path.substr(-1) === "/";
-      path = PATH.normalizeArray(path.split("/").filter((p) => !!p), !isAbsolute).join("/");
-      if (!path && !isAbsolute) {
-        path = ".";
-      }
-      if (path && trailingSlash) {
-        path += "/";
-      }
-      return (isAbsolute ? "/" : "") + path;
-    }, dirname: (path) => {
-      var result = PATH.splitPath(path), root = result[0], dir = result[1];
-      if (!root && !dir) {
-        return ".";
-      }
-      if (dir) {
-        dir = dir.substr(0, dir.length - 1);
-      }
-      return root + dir;
-    }, basename: (path) => {
-      if (path === "/") return "/";
-      path = PATH.normalize(path);
-      path = path.replace(/\/$/, "");
-      var lastSlash = path.lastIndexOf("/");
-      if (lastSlash === -1) return path;
-      return path.substr(lastSlash + 1);
-    }, join: function() {
-      var paths = Array.prototype.slice.call(arguments);
-      return PATH.normalize(paths.join("/"));
-    }, join2: (l, r) => {
-      return PATH.normalize(l + "/" + r);
-    } };
-    function getRandomDevice() {
-      if (typeof crypto == "object" && typeof crypto["getRandomValues"] == "function") {
-        var randomBuffer = new Uint8Array(1);
-        return () => {
-          crypto.getRandomValues(randomBuffer);
-          return randomBuffer[0];
-        };
-      } else return () => abort("randomDevice");
-    }
-    var PATH_FS = { resolve: function() {
-      var resolvedPath = "", resolvedAbsolute = false;
-      for (var i2 = arguments.length - 1; i2 >= -1 && !resolvedAbsolute; i2--) {
-        var path = i2 >= 0 ? arguments[i2] : FS.cwd();
-        if (typeof path != "string") {
-          throw new TypeError("Arguments to path.resolve must be strings");
-        } else if (!path) {
-          return "";
-        }
-        resolvedPath = path + "/" + resolvedPath;
-        resolvedAbsolute = PATH.isAbs(path);
-      }
-      resolvedPath = PATH.normalizeArray(resolvedPath.split("/").filter((p) => !!p), !resolvedAbsolute).join("/");
-      return (resolvedAbsolute ? "/" : "") + resolvedPath || ".";
-    }, relative: (from, to) => {
-      from = PATH_FS.resolve(from).substr(1);
-      to = PATH_FS.resolve(to).substr(1);
-      function trim(arr) {
-        var start = 0;
-        for (; start < arr.length; start++) {
-          if (arr[start] !== "") break;
-        }
-        var end = arr.length - 1;
-        for (; end >= 0; end--) {
-          if (arr[end] !== "") break;
-        }
-        if (start > end) return [];
-        return arr.slice(start, end - start + 1);
-      }
-      var fromParts = trim(from.split("/"));
-      var toParts = trim(to.split("/"));
-      var length = Math.min(fromParts.length, toParts.length);
-      var samePartsLength = length;
-      for (var i2 = 0; i2 < length; i2++) {
-        if (fromParts[i2] !== toParts[i2]) {
-          samePartsLength = i2;
-          break;
-        }
-      }
-      var outputParts = [];
-      for (var i2 = samePartsLength; i2 < fromParts.length; i2++) {
-        outputParts.push("..");
-      }
-      outputParts = outputParts.concat(toParts.slice(samePartsLength));
-      return outputParts.join("/");
-    } };
-    function intArrayFromString(stringy, dontAddNull, length) {
-      var len = length > 0 ? length : lengthBytesUTF8(stringy) + 1;
-      var u8array = new Array(len);
-      var numBytesWritten = stringToUTF8Array(stringy, u8array, 0, u8array.length);
-      if (dontAddNull) u8array.length = numBytesWritten;
-      return u8array;
-    }
-    var TTY = { ttys: [], init: function() {
-    }, shutdown: function() {
-    }, register: function(dev, ops) {
-      TTY.ttys[dev] = { input: [], output: [], ops };
-      FS.registerDevice(dev, TTY.stream_ops);
-    }, stream_ops: { open: function(stream) {
-      var tty = TTY.ttys[stream.node.rdev];
-      if (!tty) {
-        throw new FS.ErrnoError(43);
-      }
-      stream.tty = tty;
-      stream.seekable = false;
-    }, close: function(stream) {
-      stream.tty.ops.fsync(stream.tty);
-    }, fsync: function(stream) {
-      stream.tty.ops.fsync(stream.tty);
-    }, read: function(stream, buffer2, offset, length, pos) {
-      if (!stream.tty || !stream.tty.ops.get_char) {
-        throw new FS.ErrnoError(60);
-      }
-      var bytesRead = 0;
-      for (var i2 = 0; i2 < length; i2++) {
-        var result;
-        try {
-          result = stream.tty.ops.get_char(stream.tty);
-        } catch (e) {
-          throw new FS.ErrnoError(29);
-        }
-        if (result === void 0 && bytesRead === 0) {
-          throw new FS.ErrnoError(6);
-        }
-        if (result === null || result === void 0) break;
-        bytesRead++;
-        buffer2[offset + i2] = result;
-      }
-      if (bytesRead) {
-        stream.node.timestamp = Date.now();
-      }
-      return bytesRead;
-    }, write: function(stream, buffer2, offset, length, pos) {
-      if (!stream.tty || !stream.tty.ops.put_char) {
-        throw new FS.ErrnoError(60);
-      }
-      try {
-        for (var i2 = 0; i2 < length; i2++) {
-          stream.tty.ops.put_char(stream.tty, buffer2[offset + i2]);
-        }
-      } catch (e) {
-        throw new FS.ErrnoError(29);
-      }
-      if (length) {
-        stream.node.timestamp = Date.now();
-      }
-      return i2;
-    } }, default_tty_ops: { get_char: function(tty) {
-      if (!tty.input.length) {
-        var result = null;
-        if (typeof window != "undefined" && typeof window.prompt == "function") {
-          result = window.prompt("Input: ");
-          if (result !== null) {
-            result += "\n";
-          }
-        } else if (typeof readline == "function") {
-          result = readline();
-          if (result !== null) {
-            result += "\n";
-          }
-        }
-        if (!result) {
-          return null;
-        }
-        tty.input = intArrayFromString(result, true);
-      }
-      return tty.input.shift();
-    }, put_char: function(tty, val) {
-      if (val === null || val === 10) {
-        out(UTF8ArrayToString(tty.output, 0));
-        tty.output = [];
-      } else {
-        if (val != 0) tty.output.push(val);
-      }
-    }, fsync: function(tty) {
-      if (tty.output && tty.output.length > 0) {
-        out(UTF8ArrayToString(tty.output, 0));
-        tty.output = [];
-      }
-    } }, default_tty1_ops: { put_char: function(tty, val) {
-      if (val === null || val === 10) {
-        err(UTF8ArrayToString(tty.output, 0));
-        tty.output = [];
-      } else {
-        if (val != 0) tty.output.push(val);
-      }
-    }, fsync: function(tty) {
-      if (tty.output && tty.output.length > 0) {
-        err(UTF8ArrayToString(tty.output, 0));
-        tty.output = [];
-      }
-    } } };
-    function mmapAlloc(size) {
-      abort();
-    }
-    var MEMFS = { ops_table: null, mount: function(mount) {
-      return MEMFS.createNode(null, "/", 16384 | 511, 0);
-    }, createNode: function(parent, name, mode, dev) {
-      if (FS.isBlkdev(mode) || FS.isFIFO(mode)) {
-        throw new FS.ErrnoError(63);
-      }
-      if (!MEMFS.ops_table) {
-        MEMFS.ops_table = { dir: { node: { getattr: MEMFS.node_ops.getattr, setattr: MEMFS.node_ops.setattr, lookup: MEMFS.node_ops.lookup, mknod: MEMFS.node_ops.mknod, rename: MEMFS.node_ops.rename, unlink: MEMFS.node_ops.unlink, rmdir: MEMFS.node_ops.rmdir, readdir: MEMFS.node_ops.readdir, symlink: MEMFS.node_ops.symlink }, stream: { llseek: MEMFS.stream_ops.llseek } }, file: { node: { getattr: MEMFS.node_ops.getattr, setattr: MEMFS.node_ops.setattr }, stream: { llseek: MEMFS.stream_ops.llseek, read: MEMFS.stream_ops.read, write: MEMFS.stream_ops.write, allocate: MEMFS.stream_ops.allocate, mmap: MEMFS.stream_ops.mmap, msync: MEMFS.stream_ops.msync } }, link: { node: { getattr: MEMFS.node_ops.getattr, setattr: MEMFS.node_ops.setattr, readlink: MEMFS.node_ops.readlink }, stream: {} }, chrdev: { node: { getattr: MEMFS.node_ops.getattr, setattr: MEMFS.node_ops.setattr }, stream: FS.chrdev_stream_ops } };
-      }
-      var node = FS.createNode(parent, name, mode, dev);
-      if (FS.isDir(node.mode)) {
-        node.node_ops = MEMFS.ops_table.dir.node;
-        node.stream_ops = MEMFS.ops_table.dir.stream;
-        node.contents = {};
-      } else if (FS.isFile(node.mode)) {
-        node.node_ops = MEMFS.ops_table.file.node;
-        node.stream_ops = MEMFS.ops_table.file.stream;
-        node.usedBytes = 0;
-        node.contents = null;
-      } else if (FS.isLink(node.mode)) {
-        node.node_ops = MEMFS.ops_table.link.node;
-        node.stream_ops = MEMFS.ops_table.link.stream;
-      } else if (FS.isChrdev(node.mode)) {
-        node.node_ops = MEMFS.ops_table.chrdev.node;
-        node.stream_ops = MEMFS.ops_table.chrdev.stream;
-      }
-      node.timestamp = Date.now();
-      if (parent) {
-        parent.contents[name] = node;
-        parent.timestamp = node.timestamp;
-      }
-      return node;
-    }, getFileDataAsTypedArray: function(node) {
-      if (!node.contents) return new Uint8Array(0);
-      if (node.contents.subarray) return node.contents.subarray(0, node.usedBytes);
-      return new Uint8Array(node.contents);
-    }, expandFileStorage: function(node, newCapacity) {
-      var prevCapacity = node.contents ? node.contents.length : 0;
-      if (prevCapacity >= newCapacity) return;
-      var CAPACITY_DOUBLING_MAX = 1024 * 1024;
-      newCapacity = Math.max(newCapacity, prevCapacity * (prevCapacity < CAPACITY_DOUBLING_MAX ? 2 : 1.125) >>> 0);
-      if (prevCapacity != 0) newCapacity = Math.max(newCapacity, 256);
-      var oldContents = node.contents;
-      node.contents = new Uint8Array(newCapacity);
-      if (node.usedBytes > 0) node.contents.set(oldContents.subarray(0, node.usedBytes), 0);
-    }, resizeFileStorage: function(node, newSize) {
-      if (node.usedBytes == newSize) return;
-      if (newSize == 0) {
-        node.contents = null;
-        node.usedBytes = 0;
-      } else {
-        var oldContents = node.contents;
-        node.contents = new Uint8Array(newSize);
-        if (oldContents) {
-          node.contents.set(oldContents.subarray(0, Math.min(newSize, node.usedBytes)));
-        }
-        node.usedBytes = newSize;
-      }
-    }, node_ops: { getattr: function(node) {
-      var attr = {};
-      attr.dev = FS.isChrdev(node.mode) ? node.id : 1;
-      attr.ino = node.id;
-      attr.mode = node.mode;
-      attr.nlink = 1;
-      attr.uid = 0;
-      attr.gid = 0;
-      attr.rdev = node.rdev;
-      if (FS.isDir(node.mode)) {
-        attr.size = 4096;
-      } else if (FS.isFile(node.mode)) {
-        attr.size = node.usedBytes;
-      } else if (FS.isLink(node.mode)) {
-        attr.size = node.link.length;
-      } else {
-        attr.size = 0;
-      }
-      attr.atime = new Date(node.timestamp);
-      attr.mtime = new Date(node.timestamp);
-      attr.ctime = new Date(node.timestamp);
-      attr.blksize = 4096;
-      attr.blocks = Math.ceil(attr.size / attr.blksize);
-      return attr;
-    }, setattr: function(node, attr) {
-      if (attr.mode !== void 0) {
-        node.mode = attr.mode;
-      }
-      if (attr.timestamp !== void 0) {
-        node.timestamp = attr.timestamp;
-      }
-      if (attr.size !== void 0) {
-        MEMFS.resizeFileStorage(node, attr.size);
-      }
-    }, lookup: function(parent, name) {
-      throw FS.genericErrors[44];
-    }, mknod: function(parent, name, mode, dev) {
-      return MEMFS.createNode(parent, name, mode, dev);
-    }, rename: function(old_node, new_dir, new_name) {
-      if (FS.isDir(old_node.mode)) {
-        var new_node;
-        try {
-          new_node = FS.lookupNode(new_dir, new_name);
-        } catch (e) {
-        }
-        if (new_node) {
-          for (var i2 in new_node.contents) {
-            throw new FS.ErrnoError(55);
-          }
-        }
-      }
-      delete old_node.parent.contents[old_node.name];
-      old_node.parent.timestamp = Date.now();
-      old_node.name = new_name;
-      new_dir.contents[new_name] = old_node;
-      new_dir.timestamp = old_node.parent.timestamp;
-      old_node.parent = new_dir;
-    }, unlink: function(parent, name) {
-      delete parent.contents[name];
-      parent.timestamp = Date.now();
-    }, rmdir: function(parent, name) {
-      var node = FS.lookupNode(parent, name);
-      for (var i2 in node.contents) {
-        throw new FS.ErrnoError(55);
-      }
-      delete parent.contents[name];
-      parent.timestamp = Date.now();
-    }, readdir: function(node) {
-      var entries = [".", ".."];
-      for (var key in node.contents) {
-        if (!node.contents.hasOwnProperty(key)) {
-          continue;
-        }
-        entries.push(key);
-      }
-      return entries;
-    }, symlink: function(parent, newname, oldpath) {
-      var node = MEMFS.createNode(parent, newname, 511 | 40960, 0);
-      node.link = oldpath;
-      return node;
-    }, readlink: function(node) {
-      if (!FS.isLink(node.mode)) {
-        throw new FS.ErrnoError(28);
-      }
-      return node.link;
-    } }, stream_ops: { read: function(stream, buffer2, offset, length, position) {
-      var contents = stream.node.contents;
-      if (position >= stream.node.usedBytes) return 0;
-      var size = Math.min(stream.node.usedBytes - position, length);
-      if (size > 8 && contents.subarray) {
-        buffer2.set(contents.subarray(position, position + size), offset);
-      } else {
-        for (var i2 = 0; i2 < size; i2++) buffer2[offset + i2] = contents[position + i2];
-      }
-      return size;
-    }, write: function(stream, buffer2, offset, length, position, canOwn) {
-      if (buffer2.buffer === HEAP8.buffer) {
-        canOwn = false;
-      }
-      if (!length) return 0;
-      var node = stream.node;
-      node.timestamp = Date.now();
-      if (buffer2.subarray && (!node.contents || node.contents.subarray)) {
-        if (canOwn) {
-          node.contents = buffer2.subarray(offset, offset + length);
-          node.usedBytes = length;
-          return length;
-        } else if (node.usedBytes === 0 && position === 0) {
-          node.contents = buffer2.slice(offset, offset + length);
-          node.usedBytes = length;
-          return length;
-        } else if (position + length <= node.usedBytes) {
-          node.contents.set(buffer2.subarray(offset, offset + length), position);
-          return length;
-        }
-      }
-      MEMFS.expandFileStorage(node, position + length);
-      if (node.contents.subarray && buffer2.subarray) {
-        node.contents.set(buffer2.subarray(offset, offset + length), position);
-      } else {
-        for (var i2 = 0; i2 < length; i2++) {
-          node.contents[position + i2] = buffer2[offset + i2];
-        }
-      }
-      node.usedBytes = Math.max(node.usedBytes, position + length);
-      return length;
-    }, llseek: function(stream, offset, whence) {
-      var position = offset;
-      if (whence === 1) {
-        position += stream.position;
-      } else if (whence === 2) {
-        if (FS.isFile(stream.node.mode)) {
-          position += stream.node.usedBytes;
-        }
-      }
-      if (position < 0) {
-        throw new FS.ErrnoError(28);
-      }
-      return position;
-    }, allocate: function(stream, offset, length) {
-      MEMFS.expandFileStorage(stream.node, offset + length);
-      stream.node.usedBytes = Math.max(stream.node.usedBytes, offset + length);
-    }, mmap: function(stream, length, position, prot, flags) {
-      if (!FS.isFile(stream.node.mode)) {
-        throw new FS.ErrnoError(43);
-      }
-      var ptr;
-      var allocated;
-      var contents = stream.node.contents;
-      if (!(flags & 2) && contents.buffer === buffer) {
-        allocated = false;
-        ptr = contents.byteOffset;
-      } else {
-        if (position > 0 || position + length < contents.length) {
-          if (contents.subarray) {
-            contents = contents.subarray(position, position + length);
-          } else {
-            contents = Array.prototype.slice.call(contents, position, position + length);
-          }
-        }
-        allocated = true;
-        ptr = mmapAlloc(length);
-        if (!ptr) {
-          throw new FS.ErrnoError(48);
-        }
-        HEAP8.set(contents, ptr);
-      }
-      return { ptr, allocated };
-    }, msync: function(stream, buffer2, offset, length, mmapFlags) {
-      MEMFS.stream_ops.write(stream, buffer2, 0, length, offset, false);
-      return 0;
-    } } };
-    function asyncLoad(url, onload, onerror, noRunDep) {
-      var dep = !noRunDep ? getUniqueRunDependency("al " + url) : "";
-      readAsync(url, (arrayBuffer) => {
-        assert(arrayBuffer, 'Loading data file "' + url + '" failed (no arrayBuffer).');
-        onload(new Uint8Array(arrayBuffer));
-        if (dep) removeRunDependency(dep);
-      }, (event) => {
-        if (onerror) {
-          onerror();
-        } else {
-          throw 'Loading data file "' + url + '" failed.';
-        }
-      });
-      if (dep) addRunDependency(dep);
-    }
-    var FS = { root: null, mounts: [], devices: {}, streams: [], nextInode: 1, nameTable: null, currentPath: "/", initialized: false, ignorePermissions: true, ErrnoError: null, genericErrors: {}, filesystems: null, syncFSRequests: 0, lookupPath: (path, opts = {}) => {
-      path = PATH_FS.resolve(FS.cwd(), path);
-      if (!path) return { path: "", node: null };
-      var defaults = { follow_mount: true, recurse_count: 0 };
-      opts = Object.assign(defaults, opts);
-      if (opts.recurse_count > 8) {
-        throw new FS.ErrnoError(32);
-      }
-      var parts = PATH.normalizeArray(path.split("/").filter((p) => !!p), false);
-      var current = FS.root;
-      var current_path = "/";
-      for (var i2 = 0; i2 < parts.length; i2++) {
-        var islast = i2 === parts.length - 1;
-        if (islast && opts.parent) {
-          break;
-        }
-        current = FS.lookupNode(current, parts[i2]);
-        current_path = PATH.join2(current_path, parts[i2]);
-        if (FS.isMountpoint(current)) {
-          if (!islast || islast && opts.follow_mount) {
-            current = current.mounted.root;
-          }
-        }
-        if (!islast || opts.follow) {
-          var count = 0;
-          while (FS.isLink(current.mode)) {
-            var link = FS.readlink(current_path);
-            current_path = PATH_FS.resolve(PATH.dirname(current_path), link);
-            var lookup = FS.lookupPath(current_path, { recurse_count: opts.recurse_count + 1 });
-            current = lookup.node;
-            if (count++ > 40) {
-              throw new FS.ErrnoError(32);
-            }
-          }
-        }
-      }
-      return { path: current_path, node: current };
-    }, getPath: (node) => {
-      var path;
-      while (true) {
-        if (FS.isRoot(node)) {
-          var mount = node.mount.mountpoint;
-          if (!path) return mount;
-          return mount[mount.length - 1] !== "/" ? mount + "/" + path : mount + path;
-        }
-        path = path ? node.name + "/" + path : node.name;
-        node = node.parent;
-      }
-    }, hashName: (parentid, name) => {
-      var hash = 0;
-      for (var i2 = 0; i2 < name.length; i2++) {
-        hash = (hash << 5) - hash + name.charCodeAt(i2) | 0;
-      }
-      return (parentid + hash >>> 0) % FS.nameTable.length;
-    }, hashAddNode: (node) => {
-      var hash = FS.hashName(node.parent.id, node.name);
-      node.name_next = FS.nameTable[hash];
-      FS.nameTable[hash] = node;
-    }, hashRemoveNode: (node) => {
-      var hash = FS.hashName(node.parent.id, node.name);
-      if (FS.nameTable[hash] === node) {
-        FS.nameTable[hash] = node.name_next;
-      } else {
-        var current = FS.nameTable[hash];
-        while (current) {
-          if (current.name_next === node) {
-            current.name_next = node.name_next;
-            break;
-          }
-          current = current.name_next;
-        }
-      }
-    }, lookupNode: (parent, name) => {
-      var errCode = FS.mayLookup(parent);
-      if (errCode) {
-        throw new FS.ErrnoError(errCode, parent);
-      }
-      var hash = FS.hashName(parent.id, name);
-      for (var node = FS.nameTable[hash]; node; node = node.name_next) {
-        var nodeName = node.name;
-        if (node.parent.id === parent.id && nodeName === name) {
-          return node;
-        }
-      }
-      return FS.lookup(parent, name);
-    }, createNode: (parent, name, mode, rdev) => {
-      var node = new FS.FSNode(parent, name, mode, rdev);
-      FS.hashAddNode(node);
-      return node;
-    }, destroyNode: (node) => {
-      FS.hashRemoveNode(node);
-    }, isRoot: (node) => {
-      return node === node.parent;
-    }, isMountpoint: (node) => {
-      return !!node.mounted;
-    }, isFile: (mode) => {
-      return (mode & 61440) === 32768;
-    }, isDir: (mode) => {
-      return (mode & 61440) === 16384;
-    }, isLink: (mode) => {
-      return (mode & 61440) === 40960;
-    }, isChrdev: (mode) => {
-      return (mode & 61440) === 8192;
-    }, isBlkdev: (mode) => {
-      return (mode & 61440) === 24576;
-    }, isFIFO: (mode) => {
-      return (mode & 61440) === 4096;
-    }, isSocket: (mode) => {
-      return (mode & 49152) === 49152;
-    }, flagModes: { "r": 0, "r+": 2, "w": 577, "w+": 578, "a": 1089, "a+": 1090 }, modeStringToFlags: (str) => {
-      var flags = FS.flagModes[str];
-      if (typeof flags == "undefined") {
-        throw new Error("Unknown file open mode: " + str);
-      }
-      return flags;
-    }, flagsToPermissionString: (flag) => {
-      var perms = ["r", "w", "rw"][flag & 3];
-      if (flag & 512) {
-        perms += "w";
-      }
-      return perms;
-    }, nodePermissions: (node, perms) => {
-      if (FS.ignorePermissions) {
-        return 0;
-      }
-      if (perms.includes("r") && !(node.mode & 292)) {
-        return 2;
-      } else if (perms.includes("w") && !(node.mode & 146)) {
-        return 2;
-      } else if (perms.includes("x") && !(node.mode & 73)) {
-        return 2;
-      }
-      return 0;
-    }, mayLookup: (dir) => {
-      var errCode = FS.nodePermissions(dir, "x");
-      if (errCode) return errCode;
-      if (!dir.node_ops.lookup) return 2;
-      return 0;
-    }, mayCreate: (dir, name) => {
-      try {
-        var node = FS.lookupNode(dir, name);
-        return 20;
-      } catch (e) {
-      }
-      return FS.nodePermissions(dir, "wx");
-    }, mayDelete: (dir, name, isdir) => {
-      var node;
-      try {
-        node = FS.lookupNode(dir, name);
-      } catch (e) {
-        return e.errno;
-      }
-      var errCode = FS.nodePermissions(dir, "wx");
-      if (errCode) {
-        return errCode;
-      }
-      if (isdir) {
-        if (!FS.isDir(node.mode)) {
-          return 54;
-        }
-        if (FS.isRoot(node) || FS.getPath(node) === FS.cwd()) {
-          return 10;
-        }
-      } else {
-        if (FS.isDir(node.mode)) {
-          return 31;
-        }
-      }
-      return 0;
-    }, mayOpen: (node, flags) => {
-      if (!node) {
-        return 44;
-      }
-      if (FS.isLink(node.mode)) {
-        return 32;
-      } else if (FS.isDir(node.mode)) {
-        if (FS.flagsToPermissionString(flags) !== "r" || flags & 512) {
-          return 31;
-        }
-      }
-      return FS.nodePermissions(node, FS.flagsToPermissionString(flags));
-    }, MAX_OPEN_FDS: 4096, nextfd: (fd_start = 0, fd_end = FS.MAX_OPEN_FDS) => {
-      for (var fd = fd_start; fd <= fd_end; fd++) {
-        if (!FS.streams[fd]) {
-          return fd;
-        }
-      }
-      throw new FS.ErrnoError(33);
-    }, getStream: (fd) => FS.streams[fd], createStream: (stream, fd_start, fd_end) => {
-      if (!FS.FSStream) {
-        FS.FSStream = function() {
-          this.shared = {};
-        };
-        FS.FSStream.prototype = {};
-        Object.defineProperties(FS.FSStream.prototype, { object: { get: function() {
-          return this.node;
-        }, set: function(val) {
-          this.node = val;
-        } }, isRead: { get: function() {
-          return (this.flags & 2097155) !== 1;
-        } }, isWrite: { get: function() {
-          return (this.flags & 2097155) !== 0;
-        } }, isAppend: { get: function() {
-          return this.flags & 1024;
-        } }, flags: { get: function() {
-          return this.shared.flags;
-        }, set: function(val) {
-          this.shared.flags = val;
-        } }, position: { get: function() {
-          return this.shared.position;
-        }, set: function(val) {
-          this.shared.position = val;
-        } } });
-      }
-      stream = Object.assign(new FS.FSStream(), stream);
-      var fd = FS.nextfd(fd_start, fd_end);
-      stream.fd = fd;
-      FS.streams[fd] = stream;
-      return stream;
-    }, closeStream: (fd) => {
-      FS.streams[fd] = null;
-    }, chrdev_stream_ops: { open: (stream) => {
-      var device2 = FS.getDevice(stream.node.rdev);
-      stream.stream_ops = device2.stream_ops;
-      if (stream.stream_ops.open) {
-        stream.stream_ops.open(stream);
-      }
-    }, llseek: () => {
-      throw new FS.ErrnoError(70);
-    } }, major: (dev) => dev >> 8, minor: (dev) => dev & 255, makedev: (ma, mi) => ma << 8 | mi, registerDevice: (dev, ops) => {
-      FS.devices[dev] = { stream_ops: ops };
-    }, getDevice: (dev) => FS.devices[dev], getMounts: (mount) => {
-      var mounts = [];
-      var check = [mount];
-      while (check.length) {
-        var m = check.pop();
-        mounts.push(m);
-        check.push.apply(check, m.mounts);
-      }
-      return mounts;
-    }, syncfs: (populate, callback) => {
-      if (typeof populate == "function") {
-        callback = populate;
-        populate = false;
-      }
-      FS.syncFSRequests++;
-      if (FS.syncFSRequests > 1) {
-        err("warning: " + FS.syncFSRequests + " FS.syncfs operations in flight at once, probably just doing extra work");
-      }
-      var mounts = FS.getMounts(FS.root.mount);
-      var completed = 0;
-      function doCallback(errCode) {
-        FS.syncFSRequests--;
-        return callback(errCode);
-      }
-      function done(errCode) {
-        if (errCode) {
-          if (!done.errored) {
-            done.errored = true;
-            return doCallback(errCode);
-          }
-          return;
-        }
-        if (++completed >= mounts.length) {
-          doCallback(null);
-        }
-      }
-      mounts.forEach((mount) => {
-        if (!mount.type.syncfs) {
-          return done(null);
-        }
-        mount.type.syncfs(mount, populate, done);
-      });
-    }, mount: (type, opts, mountpoint) => {
-      var root = mountpoint === "/";
-      var pseudo = !mountpoint;
-      var node;
-      if (root && FS.root) {
-        throw new FS.ErrnoError(10);
-      } else if (!root && !pseudo) {
-        var lookup = FS.lookupPath(mountpoint, { follow_mount: false });
-        mountpoint = lookup.path;
-        node = lookup.node;
-        if (FS.isMountpoint(node)) {
-          throw new FS.ErrnoError(10);
-        }
-        if (!FS.isDir(node.mode)) {
-          throw new FS.ErrnoError(54);
-        }
-      }
-      var mount = { type, opts, mountpoint, mounts: [] };
-      var mountRoot = type.mount(mount);
-      mountRoot.mount = mount;
-      mount.root = mountRoot;
-      if (root) {
-        FS.root = mountRoot;
-      } else if (node) {
-        node.mounted = mount;
-        if (node.mount) {
-          node.mount.mounts.push(mount);
-        }
-      }
-      return mountRoot;
-    }, unmount: (mountpoint) => {
-      var lookup = FS.lookupPath(mountpoint, { follow_mount: false });
-      if (!FS.isMountpoint(lookup.node)) {
-        throw new FS.ErrnoError(28);
-      }
-      var node = lookup.node;
-      var mount = node.mounted;
-      var mounts = FS.getMounts(mount);
-      Object.keys(FS.nameTable).forEach((hash) => {
-        var current = FS.nameTable[hash];
-        while (current) {
-          var next = current.name_next;
-          if (mounts.includes(current.mount)) {
-            FS.destroyNode(current);
-          }
-          current = next;
-        }
-      });
-      node.mounted = null;
-      var idx = node.mount.mounts.indexOf(mount);
-      node.mount.mounts.splice(idx, 1);
-    }, lookup: (parent, name) => {
-      return parent.node_ops.lookup(parent, name);
-    }, mknod: (path, mode, dev) => {
-      var lookup = FS.lookupPath(path, { parent: true });
-      var parent = lookup.node;
-      var name = PATH.basename(path);
-      if (!name || name === "." || name === "..") {
-        throw new FS.ErrnoError(28);
-      }
-      var errCode = FS.mayCreate(parent, name);
-      if (errCode) {
-        throw new FS.ErrnoError(errCode);
-      }
-      if (!parent.node_ops.mknod) {
-        throw new FS.ErrnoError(63);
-      }
-      return parent.node_ops.mknod(parent, name, mode, dev);
-    }, create: (path, mode) => {
-      mode = mode !== void 0 ? mode : 438;
-      mode &= 4095;
-      mode |= 32768;
-      return FS.mknod(path, mode, 0);
-    }, mkdir: (path, mode) => {
-      mode = mode !== void 0 ? mode : 511;
-      mode &= 511 | 512;
-      mode |= 16384;
-      return FS.mknod(path, mode, 0);
-    }, mkdirTree: (path, mode) => {
-      var dirs = path.split("/");
-      var d = "";
-      for (var i2 = 0; i2 < dirs.length; ++i2) {
-        if (!dirs[i2]) continue;
-        d += "/" + dirs[i2];
-        try {
-          FS.mkdir(d, mode);
-        } catch (e) {
-          if (e.errno != 20) throw e;
-        }
-      }
-    }, mkdev: (path, mode, dev) => {
-      if (typeof dev == "undefined") {
-        dev = mode;
-        mode = 438;
-      }
-      mode |= 8192;
-      return FS.mknod(path, mode, dev);
-    }, symlink: (oldpath, newpath) => {
-      if (!PATH_FS.resolve(oldpath)) {
-        throw new FS.ErrnoError(44);
-      }
-      var lookup = FS.lookupPath(newpath, { parent: true });
-      var parent = lookup.node;
-      if (!parent) {
-        throw new FS.ErrnoError(44);
-      }
-      var newname = PATH.basename(newpath);
-      var errCode = FS.mayCreate(parent, newname);
-      if (errCode) {
-        throw new FS.ErrnoError(errCode);
-      }
-      if (!parent.node_ops.symlink) {
-        throw new FS.ErrnoError(63);
-      }
-      return parent.node_ops.symlink(parent, newname, oldpath);
-    }, rename: (old_path, new_path) => {
-      var old_dirname = PATH.dirname(old_path);
-      var new_dirname = PATH.dirname(new_path);
-      var old_name = PATH.basename(old_path);
-      var new_name = PATH.basename(new_path);
-      var lookup, old_dir, new_dir;
-      lookup = FS.lookupPath(old_path, { parent: true });
-      old_dir = lookup.node;
-      lookup = FS.lookupPath(new_path, { parent: true });
-      new_dir = lookup.node;
-      if (!old_dir || !new_dir) throw new FS.ErrnoError(44);
-      if (old_dir.mount !== new_dir.mount) {
-        throw new FS.ErrnoError(75);
-      }
-      var old_node = FS.lookupNode(old_dir, old_name);
-      var relative = PATH_FS.relative(old_path, new_dirname);
-      if (relative.charAt(0) !== ".") {
-        throw new FS.ErrnoError(28);
-      }
-      relative = PATH_FS.relative(new_path, old_dirname);
-      if (relative.charAt(0) !== ".") {
-        throw new FS.ErrnoError(55);
-      }
-      var new_node;
-      try {
-        new_node = FS.lookupNode(new_dir, new_name);
-      } catch (e) {
-      }
-      if (old_node === new_node) {
-        return;
-      }
-      var isdir = FS.isDir(old_node.mode);
-      var errCode = FS.mayDelete(old_dir, old_name, isdir);
-      if (errCode) {
-        throw new FS.ErrnoError(errCode);
-      }
-      errCode = new_node ? FS.mayDelete(new_dir, new_name, isdir) : FS.mayCreate(new_dir, new_name);
-      if (errCode) {
-        throw new FS.ErrnoError(errCode);
-      }
-      if (!old_dir.node_ops.rename) {
-        throw new FS.ErrnoError(63);
-      }
-      if (FS.isMountpoint(old_node) || new_node && FS.isMountpoint(new_node)) {
-        throw new FS.ErrnoError(10);
-      }
-      if (new_dir !== old_dir) {
-        errCode = FS.nodePermissions(old_dir, "w");
-        if (errCode) {
-          throw new FS.ErrnoError(errCode);
-        }
-      }
-      FS.hashRemoveNode(old_node);
-      try {
-        old_dir.node_ops.rename(old_node, new_dir, new_name);
-      } catch (e) {
-        throw e;
-      } finally {
-        FS.hashAddNode(old_node);
-      }
-    }, rmdir: (path) => {
-      var lookup = FS.lookupPath(path, { parent: true });
-      var parent = lookup.node;
-      var name = PATH.basename(path);
-      var node = FS.lookupNode(parent, name);
-      var errCode = FS.mayDelete(parent, name, true);
-      if (errCode) {
-        throw new FS.ErrnoError(errCode);
-      }
-      if (!parent.node_ops.rmdir) {
-        throw new FS.ErrnoError(63);
-      }
-      if (FS.isMountpoint(node)) {
-        throw new FS.ErrnoError(10);
-      }
-      parent.node_ops.rmdir(parent, name);
-      FS.destroyNode(node);
-    }, readdir: (path) => {
-      var lookup = FS.lookupPath(path, { follow: true });
-      var node = lookup.node;
-      if (!node.node_ops.readdir) {
-        throw new FS.ErrnoError(54);
-      }
-      return node.node_ops.readdir(node);
-    }, unlink: (path) => {
-      var lookup = FS.lookupPath(path, { parent: true });
-      var parent = lookup.node;
-      if (!parent) {
-        throw new FS.ErrnoError(44);
-      }
-      var name = PATH.basename(path);
-      var node = FS.lookupNode(parent, name);
-      var errCode = FS.mayDelete(parent, name, false);
-      if (errCode) {
-        throw new FS.ErrnoError(errCode);
-      }
-      if (!parent.node_ops.unlink) {
-        throw new FS.ErrnoError(63);
-      }
-      if (FS.isMountpoint(node)) {
-        throw new FS.ErrnoError(10);
-      }
-      parent.node_ops.unlink(parent, name);
-      FS.destroyNode(node);
-    }, readlink: (path) => {
-      var lookup = FS.lookupPath(path);
-      var link = lookup.node;
-      if (!link) {
-        throw new FS.ErrnoError(44);
-      }
-      if (!link.node_ops.readlink) {
-        throw new FS.ErrnoError(28);
-      }
-      return PATH_FS.resolve(FS.getPath(link.parent), link.node_ops.readlink(link));
-    }, stat: (path, dontFollow) => {
-      var lookup = FS.lookupPath(path, { follow: !dontFollow });
-      var node = lookup.node;
-      if (!node) {
-        throw new FS.ErrnoError(44);
-      }
-      if (!node.node_ops.getattr) {
-        throw new FS.ErrnoError(63);
-      }
-      return node.node_ops.getattr(node);
-    }, lstat: (path) => {
-      return FS.stat(path, true);
-    }, chmod: (path, mode, dontFollow) => {
-      var node;
-      if (typeof path == "string") {
-        var lookup = FS.lookupPath(path, { follow: !dontFollow });
-        node = lookup.node;
-      } else {
-        node = path;
-      }
-      if (!node.node_ops.setattr) {
-        throw new FS.ErrnoError(63);
-      }
-      node.node_ops.setattr(node, { mode: mode & 4095 | node.mode & ~4095, timestamp: Date.now() });
-    }, lchmod: (path, mode) => {
-      FS.chmod(path, mode, true);
-    }, fchmod: (fd, mode) => {
-      var stream = FS.getStream(fd);
-      if (!stream) {
-        throw new FS.ErrnoError(8);
-      }
-      FS.chmod(stream.node, mode);
-    }, chown: (path, uid, gid, dontFollow) => {
-      var node;
-      if (typeof path == "string") {
-        var lookup = FS.lookupPath(path, { follow: !dontFollow });
-        node = lookup.node;
-      } else {
-        node = path;
-      }
-      if (!node.node_ops.setattr) {
-        throw new FS.ErrnoError(63);
-      }
-      node.node_ops.setattr(node, { timestamp: Date.now() });
-    }, lchown: (path, uid, gid) => {
-      FS.chown(path, uid, gid, true);
-    }, fchown: (fd, uid, gid) => {
-      var stream = FS.getStream(fd);
-      if (!stream) {
-        throw new FS.ErrnoError(8);
-      }
-      FS.chown(stream.node, uid, gid);
-    }, truncate: (path, len) => {
-      if (len < 0) {
-        throw new FS.ErrnoError(28);
-      }
-      var node;
-      if (typeof path == "string") {
-        var lookup = FS.lookupPath(path, { follow: true });
-        node = lookup.node;
-      } else {
-        node = path;
-      }
-      if (!node.node_ops.setattr) {
-        throw new FS.ErrnoError(63);
-      }
-      if (FS.isDir(node.mode)) {
-        throw new FS.ErrnoError(31);
-      }
-      if (!FS.isFile(node.mode)) {
-        throw new FS.ErrnoError(28);
-      }
-      var errCode = FS.nodePermissions(node, "w");
-      if (errCode) {
-        throw new FS.ErrnoError(errCode);
-      }
-      node.node_ops.setattr(node, { size: len, timestamp: Date.now() });
-    }, ftruncate: (fd, len) => {
-      var stream = FS.getStream(fd);
-      if (!stream) {
-        throw new FS.ErrnoError(8);
-      }
-      if ((stream.flags & 2097155) === 0) {
-        throw new FS.ErrnoError(28);
-      }
-      FS.truncate(stream.node, len);
-    }, utime: (path, atime, mtime) => {
-      var lookup = FS.lookupPath(path, { follow: true });
-      var node = lookup.node;
-      node.node_ops.setattr(node, { timestamp: Math.max(atime, mtime) });
-    }, open: (path, flags, mode) => {
-      if (path === "") {
-        throw new FS.ErrnoError(44);
-      }
-      flags = typeof flags == "string" ? FS.modeStringToFlags(flags) : flags;
-      mode = typeof mode == "undefined" ? 438 : mode;
-      if (flags & 64) {
-        mode = mode & 4095 | 32768;
-      } else {
-        mode = 0;
-      }
-      var node;
-      if (typeof path == "object") {
-        node = path;
-      } else {
-        path = PATH.normalize(path);
-        try {
-          var lookup = FS.lookupPath(path, { follow: !(flags & 131072) });
-          node = lookup.node;
-        } catch (e) {
-        }
-      }
-      var created = false;
-      if (flags & 64) {
-        if (node) {
-          if (flags & 128) {
-            throw new FS.ErrnoError(20);
-          }
-        } else {
-          node = FS.mknod(path, mode, 0);
-          created = true;
-        }
-      }
-      if (!node) {
-        throw new FS.ErrnoError(44);
-      }
-      if (FS.isChrdev(node.mode)) {
-        flags &= ~512;
-      }
-      if (flags & 65536 && !FS.isDir(node.mode)) {
-        throw new FS.ErrnoError(54);
-      }
-      if (!created) {
-        var errCode = FS.mayOpen(node, flags);
-        if (errCode) {
-          throw new FS.ErrnoError(errCode);
-        }
-      }
-      if (flags & 512 && !created) {
-        FS.truncate(node, 0);
-      }
-      flags &= ~(128 | 512 | 131072);
-      var stream = FS.createStream({ node, path: FS.getPath(node), flags, seekable: true, position: 0, stream_ops: node.stream_ops, ungotten: [], error: false });
-      if (stream.stream_ops.open) {
-        stream.stream_ops.open(stream);
-      }
-      if (Module3["logReadFiles"] && !(flags & 1)) {
-        if (!FS.readFiles) FS.readFiles = {};
-        if (!(path in FS.readFiles)) {
-          FS.readFiles[path] = 1;
-        }
-      }
-      return stream;
-    }, close: (stream) => {
-      if (FS.isClosed(stream)) {
-        throw new FS.ErrnoError(8);
-      }
-      if (stream.getdents) stream.getdents = null;
-      try {
-        if (stream.stream_ops.close) {
-          stream.stream_ops.close(stream);
-        }
-      } catch (e) {
-        throw e;
-      } finally {
-        FS.closeStream(stream.fd);
-      }
-      stream.fd = null;
-    }, isClosed: (stream) => {
-      return stream.fd === null;
-    }, llseek: (stream, offset, whence) => {
-      if (FS.isClosed(stream)) {
-        throw new FS.ErrnoError(8);
-      }
-      if (!stream.seekable || !stream.stream_ops.llseek) {
-        throw new FS.ErrnoError(70);
-      }
-      if (whence != 0 && whence != 1 && whence != 2) {
-        throw new FS.ErrnoError(28);
-      }
-      stream.position = stream.stream_ops.llseek(stream, offset, whence);
-      stream.ungotten = [];
-      return stream.position;
-    }, read: (stream, buffer2, offset, length, position) => {
-      if (length < 0 || position < 0) {
-        throw new FS.ErrnoError(28);
-      }
-      if (FS.isClosed(stream)) {
-        throw new FS.ErrnoError(8);
-      }
-      if ((stream.flags & 2097155) === 1) {
-        throw new FS.ErrnoError(8);
-      }
-      if (FS.isDir(stream.node.mode)) {
-        throw new FS.ErrnoError(31);
-      }
-      if (!stream.stream_ops.read) {
-        throw new FS.ErrnoError(28);
-      }
-      var seeking = typeof position != "undefined";
-      if (!seeking) {
-        position = stream.position;
-      } else if (!stream.seekable) {
-        throw new FS.ErrnoError(70);
-      }
-      var bytesRead = stream.stream_ops.read(stream, buffer2, offset, length, position);
-      if (!seeking) stream.position += bytesRead;
-      return bytesRead;
-    }, write: (stream, buffer2, offset, length, position, canOwn) => {
-      if (length < 0 || position < 0) {
-        throw new FS.ErrnoError(28);
-      }
-      if (FS.isClosed(stream)) {
-        throw new FS.ErrnoError(8);
-      }
-      if ((stream.flags & 2097155) === 0) {
-        throw new FS.ErrnoError(8);
-      }
-      if (FS.isDir(stream.node.mode)) {
-        throw new FS.ErrnoError(31);
-      }
-      if (!stream.stream_ops.write) {
-        throw new FS.ErrnoError(28);
-      }
-      if (stream.seekable && stream.flags & 1024) {
-        FS.llseek(stream, 0, 2);
-      }
-      var seeking = typeof position != "undefined";
-      if (!seeking) {
-        position = stream.position;
-      } else if (!stream.seekable) {
-        throw new FS.ErrnoError(70);
-      }
-      var bytesWritten = stream.stream_ops.write(stream, buffer2, offset, length, position, canOwn);
-      if (!seeking) stream.position += bytesWritten;
-      return bytesWritten;
-    }, allocate: (stream, offset, length) => {
-      if (FS.isClosed(stream)) {
-        throw new FS.ErrnoError(8);
-      }
-      if (offset < 0 || length <= 0) {
-        throw new FS.ErrnoError(28);
-      }
-      if ((stream.flags & 2097155) === 0) {
-        throw new FS.ErrnoError(8);
-      }
-      if (!FS.isFile(stream.node.mode) && !FS.isDir(stream.node.mode)) {
-        throw new FS.ErrnoError(43);
-      }
-      if (!stream.stream_ops.allocate) {
-        throw new FS.ErrnoError(138);
-      }
-      stream.stream_ops.allocate(stream, offset, length);
-    }, mmap: (stream, length, position, prot, flags) => {
-      if ((prot & 2) !== 0 && (flags & 2) === 0 && (stream.flags & 2097155) !== 2) {
-        throw new FS.ErrnoError(2);
-      }
-      if ((stream.flags & 2097155) === 1) {
-        throw new FS.ErrnoError(2);
-      }
-      if (!stream.stream_ops.mmap) {
-        throw new FS.ErrnoError(43);
-      }
-      return stream.stream_ops.mmap(stream, length, position, prot, flags);
-    }, msync: (stream, buffer2, offset, length, mmapFlags) => {
-      if (!stream.stream_ops.msync) {
-        return 0;
-      }
-      return stream.stream_ops.msync(stream, buffer2, offset, length, mmapFlags);
-    }, munmap: (stream) => 0, ioctl: (stream, cmd, arg) => {
-      if (!stream.stream_ops.ioctl) {
-        throw new FS.ErrnoError(59);
-      }
-      return stream.stream_ops.ioctl(stream, cmd, arg);
-    }, readFile: (path, opts = {}) => {
-      opts.flags = opts.flags || 0;
-      opts.encoding = opts.encoding || "binary";
-      if (opts.encoding !== "utf8" && opts.encoding !== "binary") {
-        throw new Error('Invalid encoding type "' + opts.encoding + '"');
-      }
-      var ret;
-      var stream = FS.open(path, opts.flags);
-      var stat = FS.stat(path);
-      var length = stat.size;
-      var buf = new Uint8Array(length);
-      FS.read(stream, buf, 0, length, 0);
-      if (opts.encoding === "utf8") {
-        ret = UTF8ArrayToString(buf, 0);
-      } else if (opts.encoding === "binary") {
-        ret = buf;
-      }
-      FS.close(stream);
-      return ret;
-    }, writeFile: (path, data, opts = {}) => {
-      opts.flags = opts.flags || 577;
-      var stream = FS.open(path, opts.flags, opts.mode);
-      if (typeof data == "string") {
-        var buf = new Uint8Array(lengthBytesUTF8(data) + 1);
-        var actualNumBytes = stringToUTF8Array(data, buf, 0, buf.length);
-        FS.write(stream, buf, 0, actualNumBytes, void 0, opts.canOwn);
-      } else if (ArrayBuffer.isView(data)) {
-        FS.write(stream, data, 0, data.byteLength, void 0, opts.canOwn);
-      } else {
-        throw new Error("Unsupported data type");
-      }
-      FS.close(stream);
-    }, cwd: () => FS.currentPath, chdir: (path) => {
-      var lookup = FS.lookupPath(path, { follow: true });
-      if (lookup.node === null) {
-        throw new FS.ErrnoError(44);
-      }
-      if (!FS.isDir(lookup.node.mode)) {
-        throw new FS.ErrnoError(54);
-      }
-      var errCode = FS.nodePermissions(lookup.node, "x");
-      if (errCode) {
-        throw new FS.ErrnoError(errCode);
-      }
-      FS.currentPath = lookup.path;
-    }, createDefaultDirectories: () => {
-      FS.mkdir("/tmp");
-      FS.mkdir("/home");
-      FS.mkdir("/home/web_user");
-    }, createDefaultDevices: () => {
-      FS.mkdir("/dev");
-      FS.registerDevice(FS.makedev(1, 3), { read: () => 0, write: (stream, buffer2, offset, length, pos) => length });
-      FS.mkdev("/dev/null", FS.makedev(1, 3));
-      TTY.register(FS.makedev(5, 0), TTY.default_tty_ops);
-      TTY.register(FS.makedev(6, 0), TTY.default_tty1_ops);
-      FS.mkdev("/dev/tty", FS.makedev(5, 0));
-      FS.mkdev("/dev/tty1", FS.makedev(6, 0));
-      var random_device = getRandomDevice();
-      FS.createDevice("/dev", "random", random_device);
-      FS.createDevice("/dev", "urandom", random_device);
-      FS.mkdir("/dev/shm");
-      FS.mkdir("/dev/shm/tmp");
-    }, createSpecialDirectories: () => {
-      FS.mkdir("/proc");
-      var proc_self = FS.mkdir("/proc/self");
-      FS.mkdir("/proc/self/fd");
-      FS.mount({ mount: () => {
-        var node = FS.createNode(proc_self, "fd", 16384 | 511, 73);
-        node.node_ops = { lookup: (parent, name) => {
-          var fd = +name;
-          var stream = FS.getStream(fd);
-          if (!stream) throw new FS.ErrnoError(8);
-          var ret = { parent: null, mount: { mountpoint: "fake" }, node_ops: { readlink: () => stream.path } };
-          ret.parent = ret;
-          return ret;
-        } };
-        return node;
-      } }, {}, "/proc/self/fd");
-    }, createStandardStreams: () => {
-      if (Module3["stdin"]) {
-        FS.createDevice("/dev", "stdin", Module3["stdin"]);
-      } else {
-        FS.symlink("/dev/tty", "/dev/stdin");
-      }
-      if (Module3["stdout"]) {
-        FS.createDevice("/dev", "stdout", null, Module3["stdout"]);
-      } else {
-        FS.symlink("/dev/tty", "/dev/stdout");
-      }
-      if (Module3["stderr"]) {
-        FS.createDevice("/dev", "stderr", null, Module3["stderr"]);
-      } else {
-        FS.symlink("/dev/tty1", "/dev/stderr");
-      }
-      var stdin = FS.open("/dev/stdin", 0);
-      var stdout = FS.open("/dev/stdout", 1);
-      var stderr = FS.open("/dev/stderr", 1);
-    }, ensureErrnoError: () => {
-      if (FS.ErrnoError) return;
-      FS.ErrnoError = function ErrnoError(errno, node) {
-        this.node = node;
-        this.setErrno = function(errno2) {
-          this.errno = errno2;
-        };
-        this.setErrno(errno);
-        this.message = "FS error";
-      };
-      FS.ErrnoError.prototype = new Error();
-      FS.ErrnoError.prototype.constructor = FS.ErrnoError;
-      [44].forEach((code) => {
-        FS.genericErrors[code] = new FS.ErrnoError(code);
-        FS.genericErrors[code].stack = "<generic error, no stack>";
-      });
-    }, staticInit: () => {
-      FS.ensureErrnoError();
-      FS.nameTable = new Array(4096);
-      FS.mount(MEMFS, {}, "/");
-      FS.createDefaultDirectories();
-      FS.createDefaultDevices();
-      FS.createSpecialDirectories();
-      FS.filesystems = { "MEMFS": MEMFS };
-    }, init: (input, output, error) => {
-      FS.init.initialized = true;
-      FS.ensureErrnoError();
-      Module3["stdin"] = input || Module3["stdin"];
-      Module3["stdout"] = output || Module3["stdout"];
-      Module3["stderr"] = error || Module3["stderr"];
-      FS.createStandardStreams();
-    }, quit: () => {
-      FS.init.initialized = false;
-      for (var i2 = 0; i2 < FS.streams.length; i2++) {
-        var stream = FS.streams[i2];
-        if (!stream) {
-          continue;
-        }
-        FS.close(stream);
-      }
-    }, getMode: (canRead, canWrite) => {
-      var mode = 0;
-      if (canRead) mode |= 292 | 73;
-      if (canWrite) mode |= 146;
-      return mode;
-    }, findObject: (path, dontResolveLastLink) => {
-      var ret = FS.analyzePath(path, dontResolveLastLink);
-      if (!ret.exists) {
-        return null;
-      }
-      return ret.object;
-    }, analyzePath: (path, dontResolveLastLink) => {
-      try {
-        var lookup = FS.lookupPath(path, { follow: !dontResolveLastLink });
-        path = lookup.path;
-      } catch (e) {
-      }
-      var ret = { isRoot: false, exists: false, error: 0, name: null, path: null, object: null, parentExists: false, parentPath: null, parentObject: null };
-      try {
-        var lookup = FS.lookupPath(path, { parent: true });
-        ret.parentExists = true;
-        ret.parentPath = lookup.path;
-        ret.parentObject = lookup.node;
-        ret.name = PATH.basename(path);
-        lookup = FS.lookupPath(path, { follow: !dontResolveLastLink });
-        ret.exists = true;
-        ret.path = lookup.path;
-        ret.object = lookup.node;
-        ret.name = lookup.node.name;
-        ret.isRoot = lookup.path === "/";
-      } catch (e) {
-        ret.error = e.errno;
-      }
-      return ret;
-    }, createPath: (parent, path, canRead, canWrite) => {
-      parent = typeof parent == "string" ? parent : FS.getPath(parent);
-      var parts = path.split("/").reverse();
-      while (parts.length) {
-        var part = parts.pop();
-        if (!part) continue;
-        var current = PATH.join2(parent, part);
-        try {
-          FS.mkdir(current);
-        } catch (e) {
-        }
-        parent = current;
-      }
-      return current;
-    }, createFile: (parent, name, properties, canRead, canWrite) => {
-      var path = PATH.join2(typeof parent == "string" ? parent : FS.getPath(parent), name);
-      var mode = FS.getMode(canRead, canWrite);
-      return FS.create(path, mode);
-    }, createDataFile: (parent, name, data, canRead, canWrite, canOwn) => {
-      var path = name;
-      if (parent) {
-        parent = typeof parent == "string" ? parent : FS.getPath(parent);
-        path = name ? PATH.join2(parent, name) : parent;
-      }
-      var mode = FS.getMode(canRead, canWrite);
-      var node = FS.create(path, mode);
-      if (data) {
-        if (typeof data == "string") {
-          var arr = new Array(data.length);
-          for (var i2 = 0, len = data.length; i2 < len; ++i2) arr[i2] = data.charCodeAt(i2);
-          data = arr;
-        }
-        FS.chmod(node, mode | 146);
-        var stream = FS.open(node, 577);
-        FS.write(stream, data, 0, data.length, 0, canOwn);
-        FS.close(stream);
-        FS.chmod(node, mode);
-      }
-      return node;
-    }, createDevice: (parent, name, input, output) => {
-      var path = PATH.join2(typeof parent == "string" ? parent : FS.getPath(parent), name);
-      var mode = FS.getMode(!!input, !!output);
-      if (!FS.createDevice.major) FS.createDevice.major = 64;
-      var dev = FS.makedev(FS.createDevice.major++, 0);
-      FS.registerDevice(dev, { open: (stream) => {
-        stream.seekable = false;
-      }, close: (stream) => {
-        if (output && output.buffer && output.buffer.length) {
-          output(10);
-        }
-      }, read: (stream, buffer2, offset, length, pos) => {
-        var bytesRead = 0;
-        for (var i2 = 0; i2 < length; i2++) {
-          var result;
-          try {
-            result = input();
-          } catch (e) {
-            throw new FS.ErrnoError(29);
-          }
-          if (result === void 0 && bytesRead === 0) {
-            throw new FS.ErrnoError(6);
-          }
-          if (result === null || result === void 0) break;
-          bytesRead++;
-          buffer2[offset + i2] = result;
-        }
-        if (bytesRead) {
-          stream.node.timestamp = Date.now();
-        }
-        return bytesRead;
-      }, write: (stream, buffer2, offset, length, pos) => {
-        for (var i2 = 0; i2 < length; i2++) {
-          try {
-            output(buffer2[offset + i2]);
-          } catch (e) {
-            throw new FS.ErrnoError(29);
-          }
-        }
-        if (length) {
-          stream.node.timestamp = Date.now();
-        }
-        return i2;
-      } });
-      return FS.mkdev(path, mode, dev);
-    }, forceLoadFile: (obj) => {
-      if (obj.isDevice || obj.isFolder || obj.link || obj.contents) return true;
-      if (typeof XMLHttpRequest != "undefined") {
-        throw new Error("Lazy loading should have been performed (contents set) in createLazyFile, but it was not. Lazy loading only works in web workers. Use --embed-file or --preload-file in emcc on the main thread.");
-      } else if (read_) {
-        try {
-          obj.contents = intArrayFromString(read_(obj.url), true);
-          obj.usedBytes = obj.contents.length;
-        } catch (e) {
-          throw new FS.ErrnoError(29);
-        }
-      } else {
-        throw new Error("Cannot load without read() or XMLHttpRequest.");
-      }
-    }, createLazyFile: (parent, name, url, canRead, canWrite) => {
-      function LazyUint8Array() {
-        this.lengthKnown = false;
-        this.chunks = [];
-      }
-      LazyUint8Array.prototype.get = function LazyUint8Array_get(idx) {
-        if (idx > this.length - 1 || idx < 0) {
-          return void 0;
-        }
-        var chunkOffset = idx % this.chunkSize;
-        var chunkNum = idx / this.chunkSize | 0;
-        return this.getter(chunkNum)[chunkOffset];
-      };
-      LazyUint8Array.prototype.setDataGetter = function LazyUint8Array_setDataGetter(getter) {
-        this.getter = getter;
-      };
-      LazyUint8Array.prototype.cacheLength = function LazyUint8Array_cacheLength() {
-        var xhr = new XMLHttpRequest();
-        xhr.open("HEAD", url, false);
-        xhr.send(null);
-        if (!(xhr.status >= 200 && xhr.status < 300 || xhr.status === 304)) throw new Error("Couldn't load " + url + ". Status: " + xhr.status);
-        var datalength = Number(xhr.getResponseHeader("Content-length"));
-        var header;
-        var hasByteServing = (header = xhr.getResponseHeader("Accept-Ranges")) && header === "bytes";
-        var usesGzip = (header = xhr.getResponseHeader("Content-Encoding")) && header === "gzip";
-        var chunkSize = 1024 * 1024;
-        if (!hasByteServing) chunkSize = datalength;
-        var doXHR = (from, to) => {
-          if (from > to) throw new Error("invalid range (" + from + ", " + to + ") or no bytes requested!");
-          if (to > datalength - 1) throw new Error("only " + datalength + " bytes available! programmer error!");
-          var xhr2 = new XMLHttpRequest();
-          xhr2.open("GET", url, false);
-          if (datalength !== chunkSize) xhr2.setRequestHeader("Range", "bytes=" + from + "-" + to);
-          xhr2.responseType = "arraybuffer";
-          if (xhr2.overrideMimeType) {
-            xhr2.overrideMimeType("text/plain; charset=x-user-defined");
-          }
-          xhr2.send(null);
-          if (!(xhr2.status >= 200 && xhr2.status < 300 || xhr2.status === 304)) throw new Error("Couldn't load " + url + ". Status: " + xhr2.status);
-          if (xhr2.response !== void 0) {
-            return new Uint8Array(xhr2.response || []);
-          }
-          return intArrayFromString(xhr2.responseText || "", true);
-        };
-        var lazyArray2 = this;
-        lazyArray2.setDataGetter((chunkNum) => {
-          var start = chunkNum * chunkSize;
-          var end = (chunkNum + 1) * chunkSize - 1;
-          end = Math.min(end, datalength - 1);
-          if (typeof lazyArray2.chunks[chunkNum] == "undefined") {
-            lazyArray2.chunks[chunkNum] = doXHR(start, end);
-          }
-          if (typeof lazyArray2.chunks[chunkNum] == "undefined") throw new Error("doXHR failed!");
-          return lazyArray2.chunks[chunkNum];
-        });
-        if (usesGzip || !datalength) {
-          chunkSize = datalength = 1;
-          datalength = this.getter(0).length;
-          chunkSize = datalength;
-          out("LazyFiles on gzip forces download of the whole file when length is accessed");
-        }
-        this._length = datalength;
-        this._chunkSize = chunkSize;
-        this.lengthKnown = true;
-      };
-      if (typeof XMLHttpRequest != "undefined") {
-        if (!ENVIRONMENT_IS_WORKER) throw "Cannot do synchronous binary XHRs outside webworkers in modern browsers. Use --embed-file or --preload-file in emcc";
-        var lazyArray = new LazyUint8Array();
-        Object.defineProperties(lazyArray, { length: { get: function() {
-          if (!this.lengthKnown) {
-            this.cacheLength();
-          }
-          return this._length;
-        } }, chunkSize: { get: function() {
-          if (!this.lengthKnown) {
-            this.cacheLength();
-          }
-          return this._chunkSize;
-        } } });
-        var properties = { isDevice: false, contents: lazyArray };
-      } else {
-        var properties = { isDevice: false, url };
-      }
-      var node = FS.createFile(parent, name, properties, canRead, canWrite);
-      if (properties.contents) {
-        node.contents = properties.contents;
-      } else if (properties.url) {
-        node.contents = null;
-        node.url = properties.url;
-      }
-      Object.defineProperties(node, { usedBytes: { get: function() {
-        return this.contents.length;
-      } } });
-      var stream_ops = {};
-      var keys = Object.keys(node.stream_ops);
-      keys.forEach((key) => {
-        var fn = node.stream_ops[key];
-        stream_ops[key] = function forceLoadLazyFile() {
-          FS.forceLoadFile(node);
-          return fn.apply(null, arguments);
-        };
-      });
-      function writeChunks(stream, buffer2, offset, length, position) {
-        var contents = stream.node.contents;
-        if (position >= contents.length) return 0;
-        var size = Math.min(contents.length - position, length);
-        if (contents.slice) {
-          for (var i2 = 0; i2 < size; i2++) {
-            buffer2[offset + i2] = contents[position + i2];
-          }
-        } else {
-          for (var i2 = 0; i2 < size; i2++) {
-            buffer2[offset + i2] = contents.get(position + i2);
-          }
-        }
-        return size;
-      }
-      stream_ops.read = (stream, buffer2, offset, length, position) => {
-        FS.forceLoadFile(node);
-        return writeChunks(stream, buffer2, offset, length, position);
-      };
-      stream_ops.mmap = (stream, length, position, prot, flags) => {
-        FS.forceLoadFile(node);
-        var ptr = mmapAlloc(length);
-        if (!ptr) {
-          throw new FS.ErrnoError(48);
-        }
-        writeChunks(stream, HEAP8, ptr, length, position);
-        return { ptr, allocated: true };
-      };
-      node.stream_ops = stream_ops;
-      return node;
-    }, createPreloadedFile: (parent, name, url, canRead, canWrite, onload, onerror, dontCreateFile, canOwn, preFinish) => {
-      var fullname = name ? PATH_FS.resolve(PATH.join2(parent, name)) : parent;
-      var dep = getUniqueRunDependency("cp " + fullname);
-      function processData(byteArray) {
-        function finish(byteArray2) {
-          if (preFinish) preFinish();
-          if (!dontCreateFile) {
-            FS.createDataFile(parent, name, byteArray2, canRead, canWrite, canOwn);
-          }
-          if (onload) onload();
-          removeRunDependency(dep);
-        }
-        if (Browser.handledByPreloadPlugin(byteArray, fullname, finish, () => {
-          if (onerror) onerror();
-          removeRunDependency(dep);
-        })) {
-          return;
-        }
-        finish(byteArray);
-      }
-      addRunDependency(dep);
-      if (typeof url == "string") {
-        asyncLoad(url, (byteArray) => processData(byteArray), onerror);
-      } else {
-        processData(url);
-      }
-    }, indexedDB: () => {
-      return window.indexedDB || window.mozIndexedDB || window.webkitIndexedDB || window.msIndexedDB;
-    }, DB_NAME: () => {
-      return "EM_FS_" + window.location.pathname;
-    }, DB_VERSION: 20, DB_STORE_NAME: "FILE_DATA", saveFilesToDB: (paths, onload, onerror) => {
-      onload = onload || (() => {
-      });
-      onerror = onerror || (() => {
-      });
-      var indexedDB = FS.indexedDB();
-      try {
-        var openRequest = indexedDB.open(FS.DB_NAME(), FS.DB_VERSION);
-      } catch (e) {
-        return onerror(e);
-      }
-      openRequest.onupgradeneeded = () => {
-        out("creating db");
-        var db = openRequest.result;
-        db.createObjectStore(FS.DB_STORE_NAME);
-      };
-      openRequest.onsuccess = () => {
-        var db = openRequest.result;
-        var transaction = db.transaction([FS.DB_STORE_NAME], "readwrite");
-        var files = transaction.objectStore(FS.DB_STORE_NAME);
-        var ok = 0, fail = 0, total = paths.length;
-        function finish() {
-          if (fail == 0) onload();
-          else onerror();
-        }
-        paths.forEach((path) => {
-          var putRequest = files.put(FS.analyzePath(path).object.contents, path);
-          putRequest.onsuccess = () => {
-            ok++;
-            if (ok + fail == total) finish();
-          };
-          putRequest.onerror = () => {
-            fail++;
-            if (ok + fail == total) finish();
-          };
-        });
-        transaction.onerror = onerror;
-      };
-      openRequest.onerror = onerror;
-    }, loadFilesFromDB: (paths, onload, onerror) => {
-      onload = onload || (() => {
-      });
-      onerror = onerror || (() => {
-      });
-      var indexedDB = FS.indexedDB();
-      try {
-        var openRequest = indexedDB.open(FS.DB_NAME(), FS.DB_VERSION);
-      } catch (e) {
-        return onerror(e);
-      }
-      openRequest.onupgradeneeded = onerror;
-      openRequest.onsuccess = () => {
-        var db = openRequest.result;
-        try {
-          var transaction = db.transaction([FS.DB_STORE_NAME], "readonly");
-        } catch (e) {
-          onerror(e);
-          return;
-        }
-        var files = transaction.objectStore(FS.DB_STORE_NAME);
-        var ok = 0, fail = 0, total = paths.length;
-        function finish() {
-          if (fail == 0) onload();
-          else onerror();
-        }
-        paths.forEach((path) => {
-          var getRequest = files.get(path);
-          getRequest.onsuccess = () => {
-            if (FS.analyzePath(path).exists) {
-              FS.unlink(path);
-            }
-            FS.createDataFile(PATH.dirname(path), PATH.basename(path), getRequest.result, true, true, true);
-            ok++;
-            if (ok + fail == total) finish();
-          };
-          getRequest.onerror = () => {
-            fail++;
-            if (ok + fail == total) finish();
-          };
-        });
-        transaction.onerror = onerror;
-      };
-      openRequest.onerror = onerror;
-    } };
-    var SYSCALLS = { DEFAULT_POLLMASK: 5, calculateAt: function(dirfd, path, allowEmpty) {
-      if (PATH.isAbs(path)) {
-        return path;
-      }
-      var dir;
-      if (dirfd === -100) {
-        dir = FS.cwd();
-      } else {
-        var dirstream = SYSCALLS.getStreamFromFD(dirfd);
-        dir = dirstream.path;
-      }
-      if (path.length == 0) {
-        if (!allowEmpty) {
-          throw new FS.ErrnoError(44);
-        }
-        return dir;
-      }
-      return PATH.join2(dir, path);
-    }, doStat: function(func, path, buf) {
-      try {
-        var stat = func(path);
-      } catch (e) {
-        if (e && e.node && PATH.normalize(path) !== PATH.normalize(FS.getPath(e.node))) {
-          return -54;
-        }
-        throw e;
-      }
-      HEAP32[buf >> 2] = stat.dev;
-      HEAP32[buf + 8 >> 2] = stat.ino;
-      HEAP32[buf + 12 >> 2] = stat.mode;
-      HEAPU32[buf + 16 >> 2] = stat.nlink;
-      HEAP32[buf + 20 >> 2] = stat.uid;
-      HEAP32[buf + 24 >> 2] = stat.gid;
-      HEAP32[buf + 28 >> 2] = stat.rdev;
-      tempI64 = [stat.size >>> 0, (tempDouble = stat.size, +Math.abs(tempDouble) >= 1 ? tempDouble > 0 ? (Math.min(+Math.floor(tempDouble / 4294967296), 4294967295) | 0) >>> 0 : ~~+Math.ceil((tempDouble - +(~~tempDouble >>> 0)) / 4294967296) >>> 0 : 0)], HEAP32[buf + 40 >> 2] = tempI64[0], HEAP32[buf + 44 >> 2] = tempI64[1];
-      HEAP32[buf + 48 >> 2] = 4096;
-      HEAP32[buf + 52 >> 2] = stat.blocks;
-      tempI64 = [Math.floor(stat.atime.getTime() / 1e3) >>> 0, (tempDouble = Math.floor(stat.atime.getTime() / 1e3), +Math.abs(tempDouble) >= 1 ? tempDouble > 0 ? (Math.min(+Math.floor(tempDouble / 4294967296), 4294967295) | 0) >>> 0 : ~~+Math.ceil((tempDouble - +(~~tempDouble >>> 0)) / 4294967296) >>> 0 : 0)], HEAP32[buf + 56 >> 2] = tempI64[0], HEAP32[buf + 60 >> 2] = tempI64[1];
-      HEAPU32[buf + 64 >> 2] = 0;
-      tempI64 = [Math.floor(stat.mtime.getTime() / 1e3) >>> 0, (tempDouble = Math.floor(stat.mtime.getTime() / 1e3), +Math.abs(tempDouble) >= 1 ? tempDouble > 0 ? (Math.min(+Math.floor(tempDouble / 4294967296), 4294967295) | 0) >>> 0 : ~~+Math.ceil((tempDouble - +(~~tempDouble >>> 0)) / 4294967296) >>> 0 : 0)], HEAP32[buf + 72 >> 2] = tempI64[0], HEAP32[buf + 76 >> 2] = tempI64[1];
-      HEAPU32[buf + 80 >> 2] = 0;
-      tempI64 = [Math.floor(stat.ctime.getTime() / 1e3) >>> 0, (tempDouble = Math.floor(stat.ctime.getTime() / 1e3), +Math.abs(tempDouble) >= 1 ? tempDouble > 0 ? (Math.min(+Math.floor(tempDouble / 4294967296), 4294967295) | 0) >>> 0 : ~~+Math.ceil((tempDouble - +(~~tempDouble >>> 0)) / 4294967296) >>> 0 : 0)], HEAP32[buf + 88 >> 2] = tempI64[0], HEAP32[buf + 92 >> 2] = tempI64[1];
-      HEAPU32[buf + 96 >> 2] = 0;
-      tempI64 = [stat.ino >>> 0, (tempDouble = stat.ino, +Math.abs(tempDouble) >= 1 ? tempDouble > 0 ? (Math.min(+Math.floor(tempDouble / 4294967296), 4294967295) | 0) >>> 0 : ~~+Math.ceil((tempDouble - +(~~tempDouble >>> 0)) / 4294967296) >>> 0 : 0)], HEAP32[buf + 104 >> 2] = tempI64[0], HEAP32[buf + 108 >> 2] = tempI64[1];
-      return 0;
-    }, doMsync: function(addr, stream, len, flags, offset) {
-      if (!FS.isFile(stream.node.mode)) {
-        throw new FS.ErrnoError(43);
-      }
-      if (flags & 2) {
-        return 0;
-      }
-      var buffer2 = HEAPU8.slice(addr, addr + len);
-      FS.msync(stream, buffer2, offset, len, flags);
-    }, varargs: void 0, get: function() {
-      SYSCALLS.varargs += 4;
-      var ret = HEAP32[SYSCALLS.varargs - 4 >> 2];
-      return ret;
-    }, getStr: function(ptr) {
-      var ret = UTF8ToString(ptr);
-      return ret;
-    }, getStreamFromFD: function(fd) {
-      var stream = FS.getStream(fd);
-      if (!stream) throw new FS.ErrnoError(8);
-      return stream;
-    } };
-    function ___syscall_fcntl64(fd, cmd, varargs) {
-      SYSCALLS.varargs = varargs;
-      try {
-        var stream = SYSCALLS.getStreamFromFD(fd);
-        switch (cmd) {
-          case 0: {
-            var arg = SYSCALLS.get();
-            if (arg < 0) {
-              return -28;
-            }
-            var newStream;
-            newStream = FS.createStream(stream, arg);
-            return newStream.fd;
-          }
-          case 1:
-          case 2:
-            return 0;
-          case 3:
-            return stream.flags;
-          case 4: {
-            var arg = SYSCALLS.get();
-            stream.flags |= arg;
-            return 0;
-          }
-          case 5: {
-            var arg = SYSCALLS.get();
-            var offset = 0;
-            HEAP16[arg + offset >> 1] = 2;
-            return 0;
-          }
-          case 6:
-          case 7:
-            return 0;
-          case 16:
-          case 8:
-            return -28;
-          case 9:
-            setErrNo(28);
-            return -1;
-          default: {
-            return -28;
-          }
-        }
-      } catch (e) {
-        if (typeof FS == "undefined" || !(e instanceof FS.ErrnoError)) throw e;
-        return -e.errno;
-      }
-    }
-    function ___syscall_ioctl(fd, op, varargs) {
-      SYSCALLS.varargs = varargs;
-      try {
-        var stream = SYSCALLS.getStreamFromFD(fd);
-        switch (op) {
-          case 21509:
-          case 21505: {
-            if (!stream.tty) return -59;
-            return 0;
-          }
-          case 21510:
-          case 21511:
-          case 21512:
-          case 21506:
-          case 21507:
-          case 21508: {
-            if (!stream.tty) return -59;
-            return 0;
-          }
-          case 21519: {
-            if (!stream.tty) return -59;
-            var argp = SYSCALLS.get();
-            HEAP32[argp >> 2] = 0;
-            return 0;
-          }
-          case 21520: {
-            if (!stream.tty) return -59;
-            return -28;
-          }
-          case 21531: {
-            var argp = SYSCALLS.get();
-            return FS.ioctl(stream, op, argp);
-          }
-          case 21523: {
-            if (!stream.tty) return -59;
-            return 0;
-          }
-          case 21524: {
-            if (!stream.tty) return -59;
-            return 0;
-          }
-          default:
-            return -28;
-        }
-      } catch (e) {
-        if (typeof FS == "undefined" || !(e instanceof FS.ErrnoError)) throw e;
-        return -e.errno;
-      }
-    }
-    function ___syscall_openat(dirfd, path, flags, varargs) {
-      SYSCALLS.varargs = varargs;
-      try {
-        path = SYSCALLS.getStr(path);
-        path = SYSCALLS.calculateAt(dirfd, path);
-        var mode = varargs ? SYSCALLS.get() : 0;
-        return FS.open(path, flags, mode).fd;
-      } catch (e) {
-        if (typeof FS == "undefined" || !(e instanceof FS.ErrnoError)) throw e;
-        return -e.errno;
-      }
-    }
-    function __emscripten_throw_longjmp() {
-      throw Infinity;
-    }
-    function _emscripten_memcpy_big(dest, src, num) {
-      HEAPU8.copyWithin(dest, src, src + num);
-    }
-    function getHeapMax() {
-      return 2147483648;
-    }
-    function emscripten_realloc_buffer(size) {
-      try {
-        wasmMemory.grow(size - buffer.byteLength + 65535 >>> 16);
-        updateGlobalBufferAndViews(wasmMemory.buffer);
-        return 1;
-      } catch (e) {
-      }
-    }
-    function _emscripten_resize_heap(requestedSize) {
-      var oldSize = HEAPU8.length;
-      requestedSize = requestedSize >>> 0;
-      var maxHeapSize = getHeapMax();
-      if (requestedSize > maxHeapSize) {
-        return false;
-      }
-      let alignUp = (x, multiple) => x + (multiple - x % multiple) % multiple;
-      for (var cutDown = 1; cutDown <= 4; cutDown *= 2) {
-        var overGrownHeapSize = oldSize * (1 + 0.2 / cutDown);
-        overGrownHeapSize = Math.min(overGrownHeapSize, requestedSize + 100663296);
-        var newSize = Math.min(maxHeapSize, alignUp(Math.max(requestedSize, overGrownHeapSize), 65536));
-        var replacement = emscripten_realloc_buffer(newSize);
-        if (replacement) {
-          return true;
-        }
-      }
-      return false;
-    }
-    function _proc_exit(code) {
-      EXITSTATUS = code;
-      if (!keepRuntimeAlive()) {
-        if (Module3["onExit"]) Module3["onExit"](code);
-        ABORT = true;
-      }
-      quit_(code, new ExitStatus(code));
-    }
-    function exitJS(status, implicit) {
-      EXITSTATUS = status;
-      _proc_exit(status);
-    }
-    var _exit = exitJS;
-    function _fd_close(fd) {
-      try {
-        var stream = SYSCALLS.getStreamFromFD(fd);
-        FS.close(stream);
-        return 0;
-      } catch (e) {
-        if (typeof FS == "undefined" || !(e instanceof FS.ErrnoError)) throw e;
-        return e.errno;
-      }
-    }
-    function doReadv(stream, iov, iovcnt, offset) {
-      var ret = 0;
-      for (var i2 = 0; i2 < iovcnt; i2++) {
-        var ptr = HEAPU32[iov >> 2];
-        var len = HEAPU32[iov + 4 >> 2];
-        iov += 8;
-        var curr = FS.read(stream, HEAP8, ptr, len, offset);
-        if (curr < 0) return -1;
-        ret += curr;
-        if (curr < len) break;
-      }
-      return ret;
-    }
-    function _fd_read(fd, iov, iovcnt, pnum) {
-      try {
-        var stream = SYSCALLS.getStreamFromFD(fd);
-        var num = doReadv(stream, iov, iovcnt);
-        HEAPU32[pnum >> 2] = num;
-        return 0;
-      } catch (e) {
-        if (typeof FS == "undefined" || !(e instanceof FS.ErrnoError)) throw e;
-        return e.errno;
-      }
-    }
-    function convertI32PairToI53Checked(lo, hi) {
-      return hi + 2097152 >>> 0 < 4194305 - !!lo ? (lo >>> 0) + hi * 4294967296 : NaN;
-    }
-    function _fd_seek(fd, offset_low, offset_high, whence, newOffset) {
-      try {
-        var offset = convertI32PairToI53Checked(offset_low, offset_high);
-        if (isNaN(offset)) return 61;
-        var stream = SYSCALLS.getStreamFromFD(fd);
-        FS.llseek(stream, offset, whence);
-        tempI64 = [stream.position >>> 0, (tempDouble = stream.position, +Math.abs(tempDouble) >= 1 ? tempDouble > 0 ? (Math.min(+Math.floor(tempDouble / 4294967296), 4294967295) | 0) >>> 0 : ~~+Math.ceil((tempDouble - +(~~tempDouble >>> 0)) / 4294967296) >>> 0 : 0)], HEAP32[newOffset >> 2] = tempI64[0], HEAP32[newOffset + 4 >> 2] = tempI64[1];
-        if (stream.getdents && offset === 0 && whence === 0) stream.getdents = null;
-        return 0;
-      } catch (e) {
-        if (typeof FS == "undefined" || !(e instanceof FS.ErrnoError)) throw e;
-        return e.errno;
-      }
-    }
-    function doWritev(stream, iov, iovcnt, offset) {
-      var ret = 0;
-      for (var i2 = 0; i2 < iovcnt; i2++) {
-        var ptr = HEAPU32[iov >> 2];
-        var len = HEAPU32[iov + 4 >> 2];
-        iov += 8;
-        var curr = FS.write(stream, HEAP8, ptr, len, offset);
-        if (curr < 0) return -1;
-        ret += curr;
-      }
-      return ret;
-    }
-    function _fd_write(fd, iov, iovcnt, pnum) {
-      try {
-        var stream = SYSCALLS.getStreamFromFD(fd);
-        var num = doWritev(stream, iov, iovcnt);
-        HEAPU32[pnum >> 2] = num;
-        return 0;
-      } catch (e) {
-        if (typeof FS == "undefined" || !(e instanceof FS.ErrnoError)) throw e;
-        return e.errno;
-      }
-    }
-    function _system(command) {
-      if (!command) return 0;
-      setErrNo(52);
-      return -1;
-    }
-    function getCFunc(ident) {
-      var func = Module3["_" + ident];
-      return func;
-    }
-    function ccall(ident, returnType, argTypes, args, opts) {
-      var toC = { "string": (str) => {
-        var ret2 = 0;
-        if (str !== null && str !== void 0 && str !== 0) {
-          var len = (str.length << 2) + 1;
-          ret2 = stackAlloc(len);
-          stringToUTF8(str, ret2, len);
-        }
-        return ret2;
-      }, "array": (arr) => {
-        var ret2 = stackAlloc(arr.length);
-        writeArrayToMemory(arr, ret2);
-        return ret2;
-      } };
-      function convertReturnValue(ret2) {
-        if (returnType === "string") {
-          return UTF8ToString(ret2);
-        }
-        if (returnType === "boolean") return Boolean(ret2);
-        return ret2;
-      }
-      var func = getCFunc(ident);
-      var cArgs = [];
-      var stack = 0;
-      if (args) {
-        for (var i2 = 0; i2 < args.length; i2++) {
-          var converter = toC[argTypes[i2]];
-          if (converter) {
-            if (stack === 0) stack = stackSave();
-            cArgs[i2] = converter(args[i2]);
-          } else {
-            cArgs[i2] = args[i2];
-          }
-        }
-      }
-      var ret = func.apply(null, cArgs);
-      function onDone(ret2) {
-        if (stack !== 0) stackRestore(stack);
-        return convertReturnValue(ret2);
-      }
-      ret = onDone(ret);
-      return ret;
-    }
-    function cwrap(ident, returnType, argTypes, opts) {
-      argTypes = argTypes || [];
-      var numericArgs = argTypes.every((type) => type === "number" || type === "boolean");
-      var numericRet = returnType !== "string";
-      if (numericRet && numericArgs && !opts) {
-        return getCFunc(ident);
-      }
-      return function() {
-        return ccall(ident, returnType, argTypes, arguments, opts);
-      };
-    }
-    var FSNode = function(parent, name, mode, rdev) {
-      if (!parent) {
-        parent = this;
-      }
-      this.parent = parent;
-      this.mount = parent.mount;
-      this.mounted = null;
-      this.id = FS.nextInode++;
-      this.name = name;
-      this.mode = mode;
-      this.node_ops = {};
-      this.stream_ops = {};
-      this.rdev = rdev;
-    };
-    var readMode = 292 | 73;
-    var writeMode = 146;
-    Object.defineProperties(FSNode.prototype, { read: { get: function() {
-      return (this.mode & readMode) === readMode;
-    }, set: function(val) {
-      val ? this.mode |= readMode : this.mode &= ~readMode;
-    } }, write: { get: function() {
-      return (this.mode & writeMode) === writeMode;
-    }, set: function(val) {
-      val ? this.mode |= writeMode : this.mode &= ~writeMode;
-    } }, isFolder: { get: function() {
-      return FS.isDir(this.mode);
-    } }, isDevice: { get: function() {
-      return FS.isChrdev(this.mode);
-    } } });
-    FS.FSNode = FSNode;
-    FS.staticInit();
-    var asmLibraryArg = { "a": ___assert_fail, "r": ___call_sighandler, "j": ___syscall_fcntl64, "t": ___syscall_ioctl, "u": ___syscall_openat, "o": __emscripten_throw_longjmp, "v": _emscripten_memcpy_big, "p": _emscripten_resize_heap, "w": _exit, "h": _fd_close, "s": _fd_read, "n": _fd_seek, "i": _fd_write, "d": invoke_d, "b": invoke_i, "l": invoke_iii, "k": invoke_iiii, "e": invoke_iiiiiii, "g": invoke_iiiiiiiii, "c": invoke_vi, "f": invoke_vii, "m": invoke_viii, "q": _system };
-    var asm = createWasm();
-    var ___wasm_call_ctors = Module3["___wasm_call_ctors"] = function() {
-      return (___wasm_call_ctors = Module3["___wasm_call_ctors"] = Module3["asm"]["y"]).apply(null, arguments);
-    };
-    var _malloc = Module3["_malloc"] = function() {
-      return (_malloc = Module3["_malloc"] = Module3["asm"]["A"]).apply(null, arguments);
-    };
-    var _METIS_PartGraphRecursive = Module3["_METIS_PartGraphRecursive"] = function() {
-      return (_METIS_PartGraphRecursive = Module3["_METIS_PartGraphRecursive"] = Module3["asm"]["B"]).apply(null, arguments);
-    };
-    var _METIS_PartGraphKway = Module3["_METIS_PartGraphKway"] = function() {
-      return (_METIS_PartGraphKway = Module3["_METIS_PartGraphKway"] = Module3["asm"]["C"]).apply(null, arguments);
-    };
-    var ___errno_location = Module3["___errno_location"] = function() {
-      return (___errno_location = Module3["___errno_location"] = Module3["asm"]["D"]).apply(null, arguments);
-    };
-    var _setThrew = Module3["_setThrew"] = function() {
-      return (_setThrew = Module3["_setThrew"] = Module3["asm"]["E"]).apply(null, arguments);
-    };
-    var stackSave = Module3["stackSave"] = function() {
-      return (stackSave = Module3["stackSave"] = Module3["asm"]["F"]).apply(null, arguments);
-    };
-    var stackRestore = Module3["stackRestore"] = function() {
-      return (stackRestore = Module3["stackRestore"] = Module3["asm"]["G"]).apply(null, arguments);
-    };
-    var stackAlloc = Module3["stackAlloc"] = function() {
-      return (stackAlloc = Module3["stackAlloc"] = Module3["asm"]["H"]).apply(null, arguments);
-    };
-    function invoke_i(index) {
-      var sp = stackSave();
-      try {
-        return getWasmTableEntry(index)();
-      } catch (e) {
-        stackRestore(sp);
-        if (e !== e + 0) throw e;
-        _setThrew(1, 0);
-      }
-    }
-    function invoke_iiiiiii(index, a1, a2, a3, a4, a5, a6) {
-      var sp = stackSave();
-      try {
-        return getWasmTableEntry(index)(a1, a2, a3, a4, a5, a6);
-      } catch (e) {
-        stackRestore(sp);
-        if (e !== e + 0) throw e;
-        _setThrew(1, 0);
-      }
-    }
-    function invoke_viii(index, a1, a2, a3) {
-      var sp = stackSave();
-      try {
-        getWasmTableEntry(index)(a1, a2, a3);
-      } catch (e) {
-        stackRestore(sp);
-        if (e !== e + 0) throw e;
-        _setThrew(1, 0);
-      }
-    }
-    function invoke_iiiiiiiii(index, a1, a2, a3, a4, a5, a6, a7, a8) {
-      var sp = stackSave();
-      try {
-        return getWasmTableEntry(index)(a1, a2, a3, a4, a5, a6, a7, a8);
-      } catch (e) {
-        stackRestore(sp);
-        if (e !== e + 0) throw e;
-        _setThrew(1, 0);
-      }
-    }
-    function invoke_vii(index, a1, a2) {
-      var sp = stackSave();
-      try {
-        getWasmTableEntry(index)(a1, a2);
-      } catch (e) {
-        stackRestore(sp);
-        if (e !== e + 0) throw e;
-        _setThrew(1, 0);
-      }
-    }
-    function invoke_iii(index, a1, a2) {
-      var sp = stackSave();
-      try {
-        return getWasmTableEntry(index)(a1, a2);
-      } catch (e) {
-        stackRestore(sp);
-        if (e !== e + 0) throw e;
-        _setThrew(1, 0);
-      }
-    }
-    function invoke_vi(index, a1) {
-      var sp = stackSave();
-      try {
-        getWasmTableEntry(index)(a1);
-      } catch (e) {
-        stackRestore(sp);
-        if (e !== e + 0) throw e;
-        _setThrew(1, 0);
-      }
-    }
-    function invoke_d(index) {
-      var sp = stackSave();
-      try {
-        return getWasmTableEntry(index)();
-      } catch (e) {
-        stackRestore(sp);
-        if (e !== e + 0) throw e;
-        _setThrew(1, 0);
-      }
-    }
-    function invoke_iiii(index, a1, a2, a3) {
-      var sp = stackSave();
-      try {
-        return getWasmTableEntry(index)(a1, a2, a3);
-      } catch (e) {
-        stackRestore(sp);
-        if (e !== e + 0) throw e;
-        _setThrew(1, 0);
-      }
-    }
-    Module3["ccall"] = ccall;
-    Module3["cwrap"] = cwrap;
-    var calledRun;
-    dependenciesFulfilled = function runCaller() {
-      if (!calledRun) run();
-      if (!calledRun) dependenciesFulfilled = runCaller;
-    };
-    function run(args) {
-      args = args || arguments_;
-      if (runDependencies > 0) {
-        return;
-      }
-      preRun();
-      if (runDependencies > 0) {
-        return;
-      }
-      function doRun() {
-        if (calledRun) return;
-        calledRun = true;
-        Module3["calledRun"] = true;
-        if (ABORT) return;
-        initRuntime();
-        readyPromiseResolve(Module3);
-        if (Module3["onRuntimeInitialized"]) Module3["onRuntimeInitialized"]();
-        postRun();
-      }
-      if (Module3["setStatus"]) {
-        Module3["setStatus"]("Running...");
-        setTimeout(function() {
-          setTimeout(function() {
-            Module3["setStatus"]("");
-          }, 1);
-          doRun();
-        }, 1);
-      } else {
-        doRun();
-      }
-    }
-    if (Module3["preInit"]) {
-      if (typeof Module3["preInit"] == "function") Module3["preInit"] = [Module3["preInit"]];
-      while (Module3["preInit"].length > 0) {
-        Module3["preInit"].pop()();
-      }
-    }
-    run();
-    return Module3.ready;
-  };
-})();
-var Metis_default = Module2;
-
-// src/plugins/meshlets/Metis.ts
-var Metis = class _Metis {
-  static METIS;
-  static isLoaded = false;
-  static async load() {
-    if (!_Metis.METIS) {
-      _Metis.METIS = await Metis_default();
-      this.isLoaded = true;
-    }
-  }
-  static partition(groups, nparts) {
-    if (!this.isLoaded) throw Error("Metis library not loaded");
-    function _prepare_graph(adjacency) {
-      function assert(condition) {
-        if (!condition) throw Error("assert");
-      }
-      let xadj = [0];
-      let adjncy = [];
-      for (let i2 = 0; i2 < adjacency.length; i2++) {
-        let adj = adjacency[i2];
-        if (adj !== null && adj.length) {
-          assert(Math.max(...adj) < adjacency.length);
-        }
-        adjncy.push(...adj);
-        xadj.push(adjncy.length);
-      }
-      return [xadj, adjncy];
-    }
-    const [_xadj, _adjncy] = _prepare_graph(groups);
-    const objval = new WASMPointer(new Uint32Array(1), "out");
-    const parts = new WASMPointer(new Uint32Array(_xadj.length - 1), "out");
-    const options_array = new Int32Array(40);
-    options_array.fill(-1);
-    options_array[16 /* METIS_OPTION_UFACTOR */] = 200;
-    WASMHelper.call(
-      _Metis.METIS,
-      "METIS_PartGraphKway",
-      "number",
-      new WASMPointer(new Int32Array([_xadj.length - 1])),
-      // nvtxs
-      new WASMPointer(new Int32Array([1])),
-      // ncon
-      new WASMPointer(new Int32Array(_xadj)),
-      // xadj
-      new WASMPointer(new Int32Array(_adjncy)),
-      // adjncy
-      null,
-      // vwgt
-      null,
-      // vsize
-      null,
-      // adjwgt
-      new WASMPointer(new Int32Array([nparts])),
-      // nparts
-      null,
-      // tpwgts
-      null,
-      // ubvec
-      new WASMPointer(options_array),
-      // options
-      objval,
-      // objval
-      parts
-      // part
-    );
-    const part_num = Math.max(...parts.data);
-    const parts_out = [];
-    for (let i2 = 0; i2 <= part_num; i2++) {
-      const part = [];
-      for (let j = 0; j < parts.data.length; j++) {
-        if (parts.data[j] === i2) {
-          part.push(j);
-        }
-      }
-      if (part.length > 0) parts_out.push(part);
-    }
-    return parts_out;
-  }
-  static rebuildMeshletsFromGroupIndices(meshlets, groups) {
-    let groupedMeshlets = [];
-    for (let i2 = 0; i2 < groups.length; i2++) {
-      if (!groupedMeshlets[i2]) groupedMeshlets[i2] = [];
-      for (let j = 0; j < groups[i2].length; j++) {
-        const meshletId = groups[i2][j];
-        const meshlet = meshlets[meshletId];
-        groupedMeshlets[i2].push(meshlet);
-      }
-    }
-    return groupedMeshlets;
-  }
-  static group(adj, nparts) {
-    const groups = this.partition(adj, nparts);
-    return groups;
-  }
-  // METIS_API(int) METIS_PartGraphRecursive(idx_t *nvtxs, idx_t *ncon, idx_t *xadj, 
-  //     idx_t *adjncy, idx_t *vwgt, idx_t *vsize, idx_t *adjwgt, 
-  //     idx_t *nparts, real_t *tpwgts, real_t *ubvec, idx_t *options, 
-  //     idx_t *edgecut, idx_t *part);
-  static METIS_PartGraphRecursive(nvtxs, ncon, xadj, adjncy, vwgt, vsize, adjwgt, nparts, tpwgts, ubvec, options, edgecut, part) {
-    const parts = new WASMPointer(new Int32Array([...part]), "out");
-    const r = WASMHelper.call(
-      _Metis.METIS,
-      "METIS_PartGraphRecursive",
-      "number",
-      nvtxs ? new WASMPointer(new Int32Array([nvtxs])) : null,
-      // nvtxs
-      ncon ? new WASMPointer(new Int32Array([ncon])) : null,
-      // ncon
-      xadj ? new WASMPointer(new Int32Array([...xadj])) : null,
-      // xadj
-      adjncy ? new WASMPointer(new Int32Array([...adjncy])) : null,
-      // adjncy
-      vwgt ? new WASMPointer(new Int32Array([vwgt])) : null,
-      // vwgt
-      vsize ? new WASMPointer(new Int32Array([vsize])) : null,
-      // vsize
-      adjwgt ? new WASMPointer(new Int32Array([...adjwgt])) : null,
-      // adjwgt
-      nparts ? new WASMPointer(new Int32Array([nparts])) : null,
-      // nparts
-      tpwgts ? new WASMPointer(new Float32Array([...tpwgts])) : null,
-      // tpwgts
-      ubvec ? new WASMPointer(new Int32Array([ubvec])) : null,
-      // ubvec
-      options ? new WASMPointer(new Int32Array([...options])) : null,
-      // options
-      edgecut ? new WASMPointer(new Int32Array([edgecut])) : null,
-      // objval
-      parts
-      // part
-    );
-    for (let i2 = 0; i2 < parts.data.length; i2++) part[i2] = parts.data[i2];
-    return r;
-  }
-};
-
-// src/plugins/meshlets/utils/MeshletCreator.ts
-var MeshletCreator = class _MeshletCreator {
-  static cone_weight = 0;
-  static buildMeshletsFromBuildOutput(vertices, output) {
-    let meshlets = [];
-    for (let i2 = 0; i2 < output.meshlets_count; i2++) {
-      const meshlet = output.meshlets_result[i2];
-      let meshlet_positions = [];
-      let meshlet_indices = [];
-      for (let v = 0; v < meshlet.vertex_count; ++v) {
-        const o = attribute_size * output.meshlet_vertices_result[meshlet.vertex_offset + v];
-        const vx = vertices[o + 0];
-        const vy = vertices[o + 1];
-        const vz = vertices[o + 2];
-        const nx = vertices[o + 3];
-        const ny = vertices[o + 4];
-        const nz = vertices[o + 5];
-        const uvx = vertices[o + 6];
-        const uvy = vertices[o + 7];
-        meshlet_positions.push(vx, vy, vz);
-        if (attribute_size === 8) {
-          meshlet_positions.push(nx, ny, nz);
-          meshlet_positions.push(uvx, uvy);
-        }
-      }
-      for (let t = 0; t < meshlet.triangle_count; ++t) {
-        const o = meshlet.triangle_offset + 3 * t;
-        meshlet_indices.push(output.meshlet_triangles_result[o + 0]);
-        meshlet_indices.push(output.meshlet_triangles_result[o + 1]);
-        meshlet_indices.push(output.meshlet_triangles_result[o + 2]);
-      }
-      meshlets.push(new Meshlet(new Float32Array(meshlet_positions), new Uint32Array(meshlet_indices)));
-    }
-    return meshlets;
-  }
-  static build(vertices, indices, max_vertices, max_triangles) {
-    const cone_weight = _MeshletCreator.cone_weight;
-    const output = Meshoptimizer.meshopt_buildMeshlets(vertices, indices, max_vertices, max_triangles, cone_weight);
-    const m = {
-      meshlets_count: output.meshlets_count,
-      meshlets_result: output.meshlets_result.slice(0, output.meshlets_count),
-      meshlet_vertices_result: output.meshlet_vertices_result,
-      meshlet_triangles_result: output.meshlet_triangles_result
-    };
-    const meshlets = _MeshletCreator.buildMeshletsFromBuildOutput(vertices, m);
-    return meshlets;
-  }
-};
-
-// src/plugins/meshlets/utils/MeshletGrouper.ts
-var MeshletGrouper = class _MeshletGrouper {
-  static adjacencyList(meshlets) {
-    let vertexHashToMeshletMap = /* @__PURE__ */ new Map();
-    for (let i2 = 0; i2 < meshlets.length; i2++) {
-      const meshlet = meshlets[i2];
-      for (let j = 0; j < meshlet.vertices.length; j += attribute_size) {
-        const hash = `${meshlet.vertices[j + 0].toPrecision(6)},${meshlet.vertices[j + 1].toPrecision(6)},${meshlet.vertices[j + 2].toPrecision(6)}`;
-        let meshletList = vertexHashToMeshletMap.get(hash);
-        if (!meshletList) meshletList = /* @__PURE__ */ new Set();
-        meshletList.add(i2);
-        vertexHashToMeshletMap.set(hash, meshletList);
-      }
-    }
-    const adjacencyList = /* @__PURE__ */ new Map();
-    for (let [_, indices] of vertexHashToMeshletMap) {
-      if (indices.size === 1) continue;
-      for (let index of indices) {
-        if (!adjacencyList.has(index)) {
-          adjacencyList.set(index, /* @__PURE__ */ new Set());
-        }
-        for (let otherIndex of indices) {
-          if (otherIndex !== index) {
-            adjacencyList.get(index).add(otherIndex);
-          }
-        }
-      }
-    }
-    let adjacencyListArray = new Array(meshlets.length).fill(0).map((v) => []);
-    for (let [key, adjacents] of adjacencyList) {
-      if (!adjacencyListArray[key]) adjacencyListArray[key] = [];
-      adjacencyListArray[key].push(...Array.from(adjacents));
-    }
-    return adjacencyListArray;
-  }
-  static rebuildMeshletsFromGroupIndices(meshlets, groups) {
-    let groupedMeshlets = [];
-    for (let i2 = 0; i2 < groups.length; i2++) {
-      if (!groupedMeshlets[i2]) groupedMeshlets[i2] = [];
-      for (let j = 0; j < groups[i2].length; j++) {
-        const meshletId = groups[i2][j];
-        const meshlet = meshlets[meshletId];
-        groupedMeshlets[i2].push(meshlet);
-      }
-    }
-    return groupedMeshlets;
-  }
-  static group(meshlets, nparts) {
-    function split(meshlet, parts) {
-      const adj = _MeshletGrouper.adjacencyList(meshlet);
-      const groups = Metis.partition(adj, parts);
-      return _MeshletGrouper.rebuildMeshletsFromGroupIndices(meshlet, groups);
-    }
-    function splitRec(input, partsNeeded) {
-      if (partsNeeded === 1) {
-        return [input];
-      } else {
-        const partsLeft = Math.ceil(partsNeeded / 2);
-        const partsRight = Math.floor(partsNeeded / 2);
-        const [leftInput, rightInput] = split(input, 2);
-        const leftResult = splitRec(leftInput, partsLeft);
-        const rightResult = splitRec(rightInput, partsRight);
-        return [...leftResult, ...rightResult];
-      }
-    }
-    return splitRec(meshlets, nparts);
-  }
-  static groupV2(meshlets, nparts) {
-    const adj = _MeshletGrouper.adjacencyList(meshlets);
-    let adjancecy = /* @__PURE__ */ new Map();
-    for (const arr of adj) {
-      for (let i2 = 0; i2 < arr.length; i2++) {
-        const f = arr[i2];
-        let adjacents = adjancecy.get(f) || [];
-        for (let j = i2 + 1; j < arr.length; j++) {
-          const t = arr[j];
-          if (!adjacents.includes(t)) adjacents.push(t);
-        }
-        adjancecy.set(f, adjacents);
-      }
-    }
-    console.log(adjancecy);
-    console.log(adj);
-  }
-  static buildMetisAdjacencyList(vertices, indices) {
-    let adjacencyList = new Array(vertices.length / attribute_size);
-    for (let i2 = 0; i2 < adjacencyList.length; i2++) {
-      adjacencyList[i2] = /* @__PURE__ */ new Set();
-    }
-    for (let i2 = 0; i2 < indices.length; i2 += 3) {
-      const v1 = indices[i2];
-      const v2 = indices[i2 + 1];
-      const v3 = indices[i2 + 2];
-      adjacencyList[v1].add(v2);
-      adjacencyList[v1].add(v3);
-      adjacencyList[v2].add(v1);
-      adjacencyList[v2].add(v3);
-      adjacencyList[v3].add(v1);
-      adjacencyList[v3].add(v2);
-    }
-    return adjacencyList.map((set) => Array.from(set));
-  }
-  static partitionMeshByMetisOutput(vertices, indices, metisPartitions) {
-    const attribute_size2 = 8;
-    const numPartitions = metisPartitions.length;
-    const vertexToPartitions = /* @__PURE__ */ new Map();
-    metisPartitions.forEach((partition, index) => {
-      partition.forEach((vertex) => {
-        if (!vertexToPartitions.has(vertex)) {
-          vertexToPartitions.set(vertex, []);
-        }
-        vertexToPartitions.get(vertex).push(index);
-      });
-    });
-    const partitionedData = Array.from({ length: numPartitions }, () => ({
-      vertexMap: /* @__PURE__ */ new Map(),
-      vertices: [],
-      indices: []
-    }));
-    for (let i2 = 0; i2 < indices.length; i2 += 3) {
-      const v1 = indices[i2];
-      const v2 = indices[i2 + 1];
-      const v3 = indices[i2 + 2];
-      const v1Parts = vertexToPartitions.get(v1);
-      const v2Parts = vertexToPartitions.get(v2);
-      const v3Parts = vertexToPartitions.get(v3);
-      const commonPartitions = v1Parts.filter(
-        (part) => v2Parts.includes(part) && v3Parts.includes(part)
-      );
-      let assignedPartition;
-      if (commonPartitions.length > 0) {
-        assignedPartition = commonPartitions[0];
-      } else {
-        const vertexPartitions = [
-          { vertex: v1, partitions: v1Parts },
-          { vertex: v2, partitions: v2Parts },
-          { vertex: v3, partitions: v3Parts }
-        ];
-        vertexPartitions.sort((a, b) => a.vertex - b.vertex);
-        assignedPartition = vertexPartitions[0].partitions[0];
-      }
-      const partData = partitionedData[assignedPartition];
-      [v1, v2, v3].forEach((vertex) => {
-        if (!partData.vertexMap.has(vertex)) {
-          const newVertexIndex = partData.vertices.length / attribute_size2;
-          partData.vertexMap.set(vertex, newVertexIndex);
-          for (let j = 0; j < attribute_size2; j++) {
-            partData.vertices.push(vertices[vertex * attribute_size2 + j]);
-          }
-        }
-      });
-      partData.indices.push(
-        partData.vertexMap.get(v1),
-        partData.vertexMap.get(v2),
-        partData.vertexMap.get(v3)
-      );
-    }
-    const meshlets = partitionedData.filter((part) => part.vertices.length > 0).map((part) => new Meshlet(new Float32Array(part.vertices), new Uint32Array(part.indices)));
-    return meshlets;
-  }
-  static split(meshlet, nparts) {
-    function removeSelfLoops(adjacencyList) {
-      return adjacencyList.map((neighbors) => {
-        return neighbors.filter((neighbor) => neighbor !== adjacencyList.indexOf(neighbors));
-      });
-    }
-    const adj = this.buildMetisAdjacencyList(meshlet.vertices, meshlet.indices);
-    const groups = Metis.partition(removeSelfLoops(adj), nparts);
-    return this.partitionMeshByMetisOutput(meshlet.vertices, meshlet.indices, groups);
-  }
-};
-
-// src/plugins/meshlets/utils/MeshletMerger.ts
-var Vertex = class {
-  position;
-  normal;
-  uv;
-  constructor(position, normal, uv) {
-    this.position = position;
-    this.normal = normal;
-    this.uv = uv;
-  }
-};
-var MeshletMerger = class {
-  static removeDuplicateVertices(vertexData, indexData) {
-    const vertexMap = /* @__PURE__ */ new Map();
-    const uniqueVertices = [];
-    const newIndices = [];
-    var precisionPoints = 4;
-    var precision = Math.pow(10, precisionPoints);
-    for (let i2 = 0; i2 < indexData.length; i2++) {
-      const index = indexData[i2];
-      const pos = vertexData.subarray(index * attribute_size, index * attribute_size + 3);
-      const norm = vertexData.subarray(index * attribute_size + 3, index * attribute_size + 6);
-      const uv = vertexData.subarray(index * attribute_size + 6, index * attribute_size + 8);
-      const vertex = new Vertex(Array.from(pos), Array.from(norm), Array.from(uv));
-      const vertexKey = Math.round(vertex.position[0] * precision) + "_" + Math.round(vertex.position[1] * precision) + "_" + Math.round(vertex.position[2] * precision);
-      if (vertexMap.has(vertexKey)) {
-        newIndices.push(vertexMap.get(vertexKey));
-      } else {
-        const newIndex = uniqueVertices.length;
-        uniqueVertices.push(vertex);
-        vertexMap.set(vertexKey, newIndex);
-        newIndices.push(newIndex);
-      }
-    }
-    const newVertexData = new Float32Array(uniqueVertices.length * attribute_size);
-    uniqueVertices.forEach((v, index) => {
-      newVertexData.set([...v.position, ...v.normal, ...v.uv], index * attribute_size);
-    });
-    return {
-      vertices: newVertexData,
-      indices: new Uint32Array(newIndices)
-    };
-  }
-  static merge(meshlets) {
-    const vertices = [];
-    const indices = [];
-    let indexOffset = 0;
-    for (let i2 = 0; i2 < meshlets.length; ++i2) {
-      const indices2 = meshlets[i2].indices;
-      for (let j = 0; j < indices2.length; j++) {
-        indices.push(indices2[j] + indexOffset);
-      }
-      indexOffset += meshlets[i2].vertices.length / attribute_size;
-    }
-    for (let i2 = 0; i2 < meshlets.length; ++i2) vertices.push(...meshlets[i2].vertices);
-    const { vertices: newVertices, indices: newIndices } = this.removeDuplicateVertices(new Float32Array(vertices), new Uint32Array(indices));
-    return new Meshlet(newVertices, newIndices);
-  }
-  static mergeV2(meshlets) {
-    let vertices = [];
-    let indices = [];
-    let indicesOffset = 0;
-    for (const meshlet of meshlets) {
-      for (const vertex of meshlet.vertices) vertices.push(vertex);
-      for (const index of meshlet.indices) indices.push(index + indicesOffset);
-      indicesOffset += meshlet.vertices.length / 3;
-    }
-    return new Meshlet(new Float32Array(vertices), new Uint32Array(indices));
-  }
-};
-
-// src/plugins/meshlets/utils/MeshletBorder.ts
-var MeshletBorder = class {
-  // Returns an array with the shared vertices between meshes
-  static GetSharedVertices(meshes, attribute_size2) {
-    function VertexEncode(vertex) {
-      return `${vertex[0].toPrecision(4)},${vertex[1].toPrecision(4)},${vertex[2].toPrecision(4)}`;
-    }
-    function VertexDecode(vertexKey) {
-      const vertex = vertexKey.split(",");
-      return [parseFloat(vertex[0]), parseFloat(vertex[1]), parseFloat(vertex[2])];
-    }
-    let vertexCountMap = /* @__PURE__ */ new Map();
-    for (const mesh of meshes) {
-      for (let i2 = 0; i2 < mesh.vertices.length; i2 += attribute_size2) {
-        const vKey = VertexEncode([mesh.vertices[i2 + 0], mesh.vertices[i2 + 1], mesh.vertices[i2 + 2]]);
-        let vCounts = vertexCountMap.get(vKey) || 0;
-        vertexCountMap.set(vKey, ++vCounts);
-      }
-    }
-    let sharedVertices = [];
-    for (const [key, vCount] of vertexCountMap) {
-      if (vCount > 1) {
-        sharedVertices.push(VertexDecode(key));
-      }
-    }
-    return sharedVertices;
-  }
-  static getVertexIndicesForVertexKeys(vertexKeys, vertices, attribute_size2) {
-    let matches = [];
-    for (let i2 = 0; i2 < vertexKeys.length; i2++) {
-      const v = vertexKeys[i2];
-      for (let j = 0; j < vertices.length; j += attribute_size2) {
-        const EPS = 1e-3;
-        if (Math.abs(v[0] - vertices[j + 0]) < EPS && Math.abs(v[1] - vertices[j + 1]) < EPS && Math.abs(v[2] - vertices[j + 2]) < EPS) {
-          matches.push(j);
-        }
-      }
-    }
-    return matches;
-  }
-  // For a given mesh returns an array with locked vertices that match sharedVertices
-  static SharedVerticesToLockedArray(sharedVertices, mesh, attribute_size2) {
-    const mergedGroupLockedVertexIds = this.getVertexIndicesForVertexKeys(sharedVertices, mesh.vertices, attribute_size2);
-    const lockedArray = new Uint8Array(mesh.vertices.length).fill(0);
-    for (const lockedVertex of mergedGroupLockedVertexIds) {
-      lockedArray[lockedVertex] = 1;
-    }
-    return lockedArray;
-  }
-};
-
-// src/plugins/meshlets/Meshletizer.ts
-var Meshletizer = class _Meshletizer {
-  static MaxLOD = 25;
-  static step(meshlets, lod, previousMeshlets) {
-    if (meshlets.length === 1 && meshlets[0].vertices.length < Meshlet.max_triangles * 8) return meshlets;
-    let nparts = Math.ceil(meshlets.length / 8);
-    if (nparts > 8) nparts = 8;
-    let grouped = [meshlets];
-    if (nparts > 1) {
-      grouped = MeshletGrouper.group(meshlets, nparts);
-    }
-    let splitOutputs = [];
-    for (let i2 = 0; i2 < grouped.length; i2++) {
-      const group = grouped[i2];
-      const mergedGroup = MeshletMerger.merge(group);
-      const cleanedMergedGroup = Meshoptimizer.clean(mergedGroup);
-      const tLod = (lod + 1) / _Meshletizer.MaxLOD;
-      const targetError = 0.1 * tLod + 0.01 * (1 - tLod);
-      let target_count = cleanedMergedGroup.indices.length / 2;
-      const sharedVertices = MeshletBorder.GetSharedVertices(group, attribute_size);
-      const lockedArray = MeshletBorder.SharedVerticesToLockedArray(sharedVertices, mergedGroup, attribute_size);
-      const simplified = Meshoptimizer.meshopt_simplifyWithAttributes(mergedGroup, lockedArray, target_count, targetError);
-      const localScale = Meshoptimizer.meshopt_simplifyScale(simplified.meshlet);
-      let meshSpaceError = simplified.error * localScale;
-      let childrenError = 0;
-      for (let m of group) {
-        const previousMeshlet = previousMeshlets.get(m.id);
-        if (!previousMeshlet) throw Error("Could not find previous meshler");
-        childrenError = Math.max(childrenError, previousMeshlet.clusterError);
-      }
-      meshSpaceError += childrenError;
-      let splits = MeshletCreator.build(simplified.meshlet.vertices, simplified.meshlet.indices, Meshlet.max_vertices, Meshlet.max_triangles);
-      for (let split of splits) {
-        split.clusterError = meshSpaceError;
-        split.boundingVolume = simplified.meshlet.boundingVolume;
-        split.lod = lod + 1;
-        previousMeshlets.set(split.id, split);
-        splitOutputs.push(split);
-        split.parents.push(...group);
-      }
-      for (let m of group) {
-        m.children.push(...splits);
-        const previousMeshlet = previousMeshlets.get(m.id);
-        if (!previousMeshlet) throw Error("Could not find previous meshlet");
-        previousMeshlet.parentError = meshSpaceError;
-        previousMeshlet.parentBoundingVolume = simplified.meshlet.boundingVolume;
-      }
-    }
-    return splitOutputs;
-  }
-  static async Build(vertices, indices) {
-    await Meshoptimizer.load();
-    await Metis.load();
-    const meshlets = MeshletCreator.build(vertices, indices, Meshlet.max_vertices, Meshlet.max_triangles);
-    console.log(`starting with ${meshlets.length} meshlets`);
-    let inputs = meshlets;
-    let rootMeshlet = null;
-    let previousMeshlets = /* @__PURE__ */ new Map();
-    for (let m of meshlets) previousMeshlets.set(m.id, m);
-    for (let lod = 0; lod < _Meshletizer.MaxLOD; lod++) {
-      const outputs = this.step(inputs, lod, previousMeshlets);
-      const inputTriangleArray = inputs.map((m) => m.indices.length / 3);
-      const outputTriangleArray = outputs.map((m) => m.indices.length / 3);
-      const inputTriangleCount = inputTriangleArray.reduce((a, b) => a + b);
-      const outputTriangleCount = outputTriangleArray.reduce((a, b) => a + b);
-      console.log(`LOD: ${lod}: input: [meshlets: ${inputTriangleArray.length}, triangles: ${inputTriangleCount}] -> output: [meshlets: ${outputTriangleArray.length}, triangles: ${outputTriangleCount}]`);
-      if (outputTriangleCount >= inputTriangleCount) {
-        for (const input of inputs) {
-          if (input.indices.length / 3 > Meshlet.max_triangles) {
-            throw Error(`Output meshlet triangle count ${inputTriangleCount} >= input triangle count ${inputTriangleCount}`);
-          }
-        }
-        break;
-      }
-      inputs = outputs;
-      if (outputs.length === 1 && outputs[0].indices.length / 3 <= 128) {
-        console.log("WE are done at lod", lod);
-        rootMeshlet = outputs[0];
-        rootMeshlet.lod = lod + 1;
-        rootMeshlet.parentBoundingVolume = rootMeshlet.boundingVolume;
-        break;
-      }
-    }
-    if (rootMeshlet === null) throw Error("Root meshlet is invalid!");
-    let meshletsOut = [];
-    for (const [_, meshlet] of previousMeshlets) {
-      meshletsOut.push(meshlet);
-    }
-    return meshletsOut;
-  }
-};
-
-// src/plugins/meshlets/MeshletEvents.ts
-var MeshletEvents = class {
-  static Updated = (meshlet) => {
-  };
-};
-
-// src/plugins/meshlets/MeshletMesh.ts
-var meshletsCache = /* @__PURE__ */ new Map();
-var MeshletMesh = class extends Mesh {
-  meshlets = [];
-  Start() {
-    EventSystemLocal.on(TransformEvents.Updated, this.transform, () => {
-      EventSystem.emit(MeshletEvents.Updated, this);
-    });
-  }
-  async SetGeometry(geometry, clusterize = true) {
-    this.geometry = geometry;
-    let cached = meshletsCache.get(geometry);
-    if (cached) {
-      cached.instanceCount++;
-      meshletsCache.set(geometry, cached);
-      this.meshlets.push(...cached.meshlets);
-      return;
-    }
-    const pa = geometry.attributes.get("position");
-    const na = geometry.attributes.get("normal");
-    const ua = geometry.attributes.get("uv");
-    const ia = geometry.index;
-    if (!pa || !na || !ua || !ia) throw Error("To create meshlets need indices, position, normal and uv attributes");
-    const p = pa.array;
-    const n = na.array;
-    const u = ua.array;
-    const indices = ia.array;
-    const interleavedBufferAttribute = InterleavedVertexAttribute.fromArrays([p, n, u], [3, 3, 2]);
-    const interleavedVertices = interleavedBufferAttribute.array;
-    await Meshoptimizer.load();
-    if (indices.length / 3 <= Meshlet.max_triangles) {
-      this.meshlets.push(new Meshlet(interleavedVertices, indices));
-    } else {
-      if (clusterize) {
-        const allMeshlets = await Meshletizer.Build(interleavedVertices, indices);
-        this.meshlets = allMeshlets;
-      } else {
-        const allMeshlets = MeshletCreator.build(interleavedVertices, indices, Meshlet.max_vertices, Meshlet.max_triangles);
-        this.meshlets = allMeshlets;
-      }
-    }
-    meshletsCache.set(geometry, { meshlets: this.meshlets, instanceCount: 0 });
-  }
-};
-
-// src/plugins/OBJLoader.ts
-var OBJLoaderIndexed = class _OBJLoaderIndexed {
-  static *triangulate(elements) {
-    if (elements.length <= 3) {
-      yield elements;
-    } else if (elements.length === 4) {
-      yield [elements[0], elements[1], elements[2]];
-      yield [elements[2], elements[3], elements[0]];
-    } else {
-      for (let i2 = 1; i2 < elements.length - 1; i2++) {
-        yield [elements[0], elements[i2], elements[i2 + 1]];
-      }
-    }
-  }
-  static async load(url) {
-    const contents = await fetch(url).then((response) => response.text());
-    const objMesh = _OBJLoaderIndexed.parse(contents);
-    return [{
-      geometry: this.toGeometry(objMesh),
-      material: new PBRMaterial(),
-      children: [],
-      localMatrix: new Matrix4()
-    }];
-  }
-  static parse(contents) {
-    const indices = [];
-    const verts = [];
-    const vertNormals = [];
-    const uvs = [];
-    let currentMaterialIndex = -1;
-    let currentObjectByMaterialIndex = 0;
-    const unpacked = {
-      verts: [],
-      norms: [],
-      uvs: [],
-      hashindices: {},
-      indices: [[]],
-      index: 0
-    };
-    const VERTEX_RE = /^v\s/;
-    const NORMAL_RE = /^vn\s/;
-    const UV_RE = /^vt\s/;
-    const FACE_RE = /^f\s/;
-    const WHITESPACE_RE = /\s+/;
-    const lines = contents.split("\n");
-    for (let line of lines) {
-      line = line.trim();
-      if (!line || line.startsWith("#")) {
-        continue;
-      }
-      const elements = line.split(WHITESPACE_RE);
-      elements.shift();
-      if (VERTEX_RE.test(line)) {
-        verts.push(...elements);
-      } else if (NORMAL_RE.test(line)) {
-        vertNormals.push(...elements);
-      } else if (UV_RE.test(line)) {
-        uvs.push(...elements);
-      } else if (FACE_RE.test(line)) {
-        const triangles = _OBJLoaderIndexed.triangulate(elements);
-        for (const triangle of triangles) {
-          for (let j = 0, eleLen = triangle.length; j < eleLen; j++) {
-            const hash = triangle[j] + "," + currentMaterialIndex;
-            if (hash in unpacked.hashindices) {
-              unpacked.indices[currentObjectByMaterialIndex].push(unpacked.hashindices[hash]);
-            } else {
-              const vertex = triangle[j].split("/");
-              unpacked.verts.push(+verts[(+vertex[0] - 1) * 3 + 0]);
-              unpacked.verts.push(+verts[(+vertex[0] - 1) * 3 + 1]);
-              unpacked.verts.push(+verts[(+vertex[0] - 1) * 3 + 2]);
-              if (vertNormals.length > 0) {
-                unpacked.norms.push(+vertNormals[(+vertex[2] - 1) * 3 + 0]);
-                unpacked.norms.push(+vertNormals[(+vertex[2] - 1) * 3 + 1]);
-                unpacked.norms.push(+vertNormals[(+vertex[2] - 1) * 3 + 2]);
-              }
-              if (uvs.length > 0) {
-                unpacked.uvs.push(+uvs[(+vertex[1] - 1) * 2 + 0]);
-                unpacked.uvs.push(+uvs[(+vertex[1] - 1) * 2 + 1]);
-              }
-              unpacked.hashindices[hash] = unpacked.index;
-              unpacked.indices[currentObjectByMaterialIndex].push(unpacked.hashindices[hash]);
-              unpacked.index += 1;
-            }
-          }
-        }
-      }
-    }
-    return {
-      vertices: new Float32Array(unpacked.verts),
-      normals: new Float32Array(unpacked.norms),
-      uvs: new Float32Array(unpacked.uvs),
-      indices: new Uint32Array(unpacked.indices[currentObjectByMaterialIndex])
-    };
-  }
-  static toGeometry(objMesh) {
-    const geometry = new Geometry();
-    geometry.attributes.set("position", new VertexAttribute(objMesh.vertices));
-    if (objMesh.normals) geometry.attributes.set("normal", new VertexAttribute(objMesh.normals));
-    if (objMesh.uvs) geometry.attributes.set("uv", new VertexAttribute(objMesh.uvs));
-    if (objMesh.indices) geometry.index = new IndexAttribute(new Uint32Array(objMesh.indices));
-    return geometry;
-  }
-};
-
-// src/plugins/PostProcessing/PostProcessingPass.ts
-var PostProcessingPass = class extends RenderPass {
-  name = "PostProcessingPass";
-  effects = [];
-  constructor() {
-    super({
-      inputs: [
-        PassParams.LightingPassOutput
-      ],
-      outputs: [
-        PassParams.LightingPassOutput
-      ]
-    });
-  }
-  async init(resources) {
-    for (const effect of this.effects) {
-      await effect.init(resources);
-    }
-    this.initialized = true;
-  }
-  async execute(resources) {
-    if (this.initialized === false) return;
-    for (const effect of this.effects) {
-      if (!effect.initialized) {
-        await effect.init(resources);
-        continue;
-      }
-      effect.execute(resources);
-    }
-    resources.setResource;
-  }
-};
-
-// src/plugins/PostProcessing/effects/FXAA.ts
-var PostProcessingFXAA = class extends RenderPass {
-  name = "PostProcessingFXAA";
-  shader;
-  quadGeometry;
-  renderTarget;
-  constructor() {
-    super({ inputs: [
-      PassParams.LightingPassOutput
-    ] });
-  }
-  async init() {
-    const code = `
-        struct VertexInput {
-            @location(0) position : vec2<f32>,
-            @location(1) uv : vec2<f32>,
-        };
-
-        struct VertexOutput {
-            @builtin(position) position : vec4<f32>,
-            @location(0) vUv : vec2<f32>,
-        };
-
-        @group(0) @binding(0) var textureSampler: sampler;
-        @group(0) @binding(1) var texture: texture_2d<f32>;
-        @group(0) @binding(2) var<storage, read> resolutionInv: vec2<f32>;
-
-        @vertex fn vertexMain(input: VertexInput) -> VertexOutput {
-            var output: VertexOutput;
-            output.position = vec4(input.position, 0.0, 1.0);
-            output.vUv = input.uv;
-            return output;
-        }
-        
-        // Ported from: https://github.com/mrdoob/three.js/blob/master/examples/jsm/shaders/FXAAShader.js
-        const EDGE_STEP_COUNT: i32 = 6;
-        const EDGE_GUESS: f32 = 8.0;
-        const edgeSteps: array<f32, EDGE_STEP_COUNT> = array(1.0, 1.5, 2.0, 2.0, 2.0, 4.0);
-
-		const _ContrastThreshold = 0.0312;
-		const _RelativeThreshold = 0.063;
-		const _SubpixelBlending = 1.0;
-
-
-		fn Sample(tex2D: texture_2d<f32>, uv: vec2f) -> vec4f {
-			return textureSampleLevel( tex2D, textureSampler, uv, 0);
-		}
-
-		fn SampleLuminance1(tex2D: texture_2d<f32>, uv: vec2f ) -> f32 {
-			return dot( Sample( tex2D, uv ).rgb, vec3( 0.3, 0.59, 0.11 ) );
-		}
-
-		fn SampleLuminance2(tex2D: texture_2d<f32>, texSize: vec2f, uv: vec2f, uOffset: f32, vOffset: f32 ) -> f32 {
-			let _uv = uv + texSize * vec2(uOffset, vOffset);
-			return SampleLuminance1(tex2D, _uv);
-		}
-
-		struct LuminanceData {
-			m: f32, n: f32, e: f32, s: f32, w: f32,
-			ne: f32, nw: f32, se: f32, sw: f32,
-			highest: f32, lowest: f32, contrast: f32
-		};
-
-		fn SampleLuminanceNeighborhood(tex2D: texture_2d<f32>, texSize: vec2f, uv: vec2f ) -> LuminanceData {
-			var l: LuminanceData;
-			l.m = SampleLuminance1( tex2D, uv );
-			l.n = SampleLuminance2( tex2D, texSize, uv,  0.0,  1.0 );
-			l.e = SampleLuminance2( tex2D, texSize, uv,  1.0,  0.0 );
-			l.s = SampleLuminance2( tex2D, texSize, uv,  0.0, -1.0 );
-			l.w = SampleLuminance2( tex2D, texSize, uv, -1.0,  0.0 );
-
-			l.ne = SampleLuminance2( tex2D, texSize, uv,  1.0,  1.0 );
-			l.nw = SampleLuminance2( tex2D, texSize, uv, -1.0,  1.0 );
-			l.se = SampleLuminance2( tex2D, texSize, uv,  1.0, -1.0 );
-			l.sw = SampleLuminance2( tex2D, texSize, uv, -1.0, -1.0 );
-
-			l.highest = max( max( max( max( l.n, l.e ), l.s ), l.w ), l.m );
-			l.lowest = min( min( min( min( l.n, l.e ), l.s ), l.w ), l.m );
-			l.contrast = l.highest - l.lowest;
-			return l;
-		}
-
-		fn ShouldSkipPixel(l: LuminanceData) -> bool {
-			let threshold = max( _ContrastThreshold, _RelativeThreshold * l.highest );
-			return l.contrast < threshold;
-		}
-
-		fn DeterminePixelBlendFactor( l: LuminanceData) -> f32 {
-			var f = 2.0 * ( l.n + l.e + l.s + l.w );
-			f += l.ne + l.nw + l.se + l.sw;
-			f *= 1.0 / 12.0;
-			f = abs( f - l.m );
-			f = clamp( f / l.contrast, 0.0, 1.0 );
-
-			let blendFactor = smoothstep( 0.0, 1.0, f );
-			return blendFactor * blendFactor * _SubpixelBlending;
-		}
-
-		struct EdgeData {
-			isHorizontal: bool,
-			pixelStep: f32,
-			oppositeLuminance: f32, gradient: f32
-		};
-
-		fn DetermineEdge(texSize: vec2f, l: LuminanceData) -> EdgeData {
-			var e: EdgeData;
-			let horizontal =
-				abs( l.n + l.s - 2.0 * l.m ) * 2.0 +
-				abs( l.ne + l.se - 2.0 * l.e ) +
-				abs( l.nw + l.sw - 2.0 * l.w );
-			let vertical =
-				abs( l.e + l.w - 2.0 * l.m ) * 2.0 +
-				abs( l.ne + l.nw - 2.0 * l.n ) +
-				abs( l.se + l.sw - 2.0 * l.s );
-			e.isHorizontal = horizontal >= vertical;
-
-			let pLuminance = select(l.e, l.n, e.isHorizontal);
-			let nLuminance = select(l.w, l.s, e.isHorizontal);
-			let pGradient = abs( pLuminance - l.m );
-			let nGradient = abs( nLuminance - l.m );
-
-			e.pixelStep = select(texSize.x, texSize.y, e.isHorizontal);
-			
-			if (pGradient < nGradient) {
-				e.pixelStep = -e.pixelStep;
-				e.oppositeLuminance = nLuminance;
-				e.gradient = nGradient;
-			} else {
-				e.oppositeLuminance = pLuminance;
-				e.gradient = pGradient;
-			}
-
-			return e;
-		}
-        
-        fn DetermineEdgeBlendFactor(tex2D: texture_2d<f32>, texSize: vec2f, l: LuminanceData, e: EdgeData, uv: vec2f ) -> f32 {
-			var uvEdge: vec2f = uv;
-			var edgeStep: vec2f;
-			if (e.isHorizontal) {
-				uvEdge.y += e.pixelStep * 0.5;
-				edgeStep = vec2( texSize.x, 0.0 );
-			} else {
-				uvEdge.x += e.pixelStep * 0.5;
-				edgeStep = vec2( 0.0, texSize.y );
-			}
-
-			let edgeLuminance: f32 = ( l.m + e.oppositeLuminance ) * 0.5;
-			let gradientThreshold: f32 = e.gradient * 0.25;
-
-			var puv: vec2f = uvEdge + edgeStep * edgeSteps[0];
-			var pLuminanceDelta: f32 = SampleLuminance1( tex2D, puv ) - edgeLuminance;
-			var pAtEnd: bool = abs( pLuminanceDelta ) >= gradientThreshold;
-
-			for (var i = 1; i < EDGE_STEP_COUNT && !pAtEnd; i++) {
-				puv += edgeStep * edgeSteps[i];
-				pLuminanceDelta = SampleLuminance1( tex2D, puv ) - edgeLuminance;
-				pAtEnd = abs( pLuminanceDelta ) >= gradientThreshold;
-			}
-
-			if ( !pAtEnd ) {
-				puv += edgeStep * EDGE_GUESS;
-			}
-
-			var nuv: vec2f = uvEdge - edgeStep * edgeSteps[0];
-			var nLuminanceDelta: f32 = SampleLuminance1( tex2D, nuv ) - edgeLuminance;
-			var nAtEnd: bool = abs( nLuminanceDelta ) >= gradientThreshold;
-
-			for (var i = 1; i < EDGE_STEP_COUNT && !nAtEnd; i++) {
-				nuv -= edgeStep * edgeSteps[i];
-				nLuminanceDelta = SampleLuminance1( tex2D, nuv ) - edgeLuminance;
-				nAtEnd = abs( nLuminanceDelta ) >= gradientThreshold;
-			}
-
-			if ( !nAtEnd ) {
-				nuv -= edgeStep * EDGE_GUESS;
-			}
-
-			var pDistance: f32;
-            var nDistance: f32;
-			if ( e.isHorizontal ) {
-				pDistance = puv.x - uv.x;
-				nDistance = uv.x - nuv.x;
-			} else {
-				pDistance = puv.y - uv.y;
-				nDistance = uv.y - nuv.y;
-			}
-
-			var shortestDistance: f32;
-			var deltaSign: bool;
-			if ( pDistance <= nDistance ) {
-				shortestDistance = pDistance;
-				deltaSign = pLuminanceDelta >= 0.0;
-			} else {
-				shortestDistance = nDistance;
-				deltaSign = nLuminanceDelta >= 0.0;
-			}
-
-			if (deltaSign == ( l.m - edgeLuminance >= 0.0 )) {
-				return 0.0;
-			}
-
-			return 0.5 - shortestDistance / ( pDistance + nDistance );
-		}
-
-		fn ApplyFXAA(tex2D: texture_2d<f32>, texSize: vec2f, _uv: vec2f ) -> vec4f {
-            var uv: vec2f = _uv;
-			let luminance: LuminanceData = SampleLuminanceNeighborhood(tex2D, texSize, uv);
-			if ( ShouldSkipPixel( luminance ) ) {
-				return Sample( tex2D, uv );
-			}
-
-			let pixelBlend: f32 = DeterminePixelBlendFactor( luminance );
-			let edge: EdgeData = DetermineEdge( texSize, luminance );
-			let edgeBlend: f32 = DetermineEdgeBlendFactor( tex2D, texSize, luminance, edge, uv );
-			let finalBlend: f32 = max( pixelBlend, edgeBlend );
-
-			if (edge.isHorizontal) {
-				uv.y += edge.pixelStep * finalBlend;
-			} else {
-				uv.x += edge.pixelStep * finalBlend;
-			}
-
-			return Sample(tex2D, uv);
-		}
-
-        @fragment fn fragmentMain(input: VertexOutput) -> @location(0) vec4f {
-            return ApplyFXAA(texture, resolutionInv, input.vUv );
-        }
-        `;
-    this.shader = await Shader.Create({
-      code,
-      colorOutputs: [{ format: Renderer.SwapChainFormat }],
-      attributes: {
-        position: { location: 0, size: 3, type: "vec3" },
-        uv: { location: 1, size: 2, type: "vec2" }
-      },
-      uniforms: {
-        textureSampler: { group: 0, binding: 0, type: "sampler" },
-        texture: { group: 0, binding: 1, type: "texture" },
-        resolutionInv: { group: 0, binding: 2, type: "storage" }
-      }
-    });
-    this.quadGeometry = Geometry.Plane();
-    const sampler = TextureSampler.Create();
-    this.shader.SetSampler("textureSampler", sampler);
-    this.shader.SetVector2("resolutionInv", new Vector2(1 / Renderer.width, 1 / Renderer.height));
-    this.renderTarget = RenderTexture.Create(Renderer.width, Renderer.height);
-    this.initialized = true;
-  }
-  execute(resources) {
-    if (this.initialized === false) return;
-    const LightingPassOutputTexture = resources.getResource(PassParams.LightingPassOutput);
-    if (!LightingPassOutputTexture) return;
-    this.shader.SetTexture("texture", LightingPassOutputTexture);
-    RendererContext.BeginRenderPass(this.name, [{ clear: false, target: this.renderTarget }], void 0, true);
-    RendererContext.DrawGeometry(this.quadGeometry, this.shader);
-    RendererContext.EndRenderPass();
-    RendererContext.CopyTextureToTexture(this.renderTarget, LightingPassOutputTexture);
-    resources.setResource(PassParams.LightingPassOutput, LightingPassOutputTexture);
-  }
-};
-
-// src/renderer/passes/HiZPass.ts
-var HiZPass = class extends RenderPass {
-  name = "HiZPass";
-  shader;
-  quadGeometry;
-  debugDepthTexture;
-  inputTexture;
-  targetTextures = [];
-  // TODO: This should be next powerOf2 for SwapChain dims
-  depthWidth = 512;
-  depthHeight = 512;
-  depthLevels;
-  passBuffers = [];
-  currentBuffer;
-  initialized = false;
-  blitShader;
-  constructor() {
-    super({
-      inputs: [PassParams.depthTexture],
-      outputs: [PassParams.depthTexturePyramid]
-    });
-  }
-  async init(resources) {
-    this.shader = await Shader.Create({
-      code: await ShaderLoader.DepthDownsample,
-      attributes: {
-        position: { location: 0, size: 3, type: "vec3" },
-        normal: { location: 1, size: 3, type: "vec3" },
-        uv: { location: 2, size: 2, type: "vec2" }
-      },
-      colorOutputs: [],
-      depthOutput: "depth24plus",
-      uniforms: {
-        depthTextureInputSampler: { group: 0, binding: 0, type: "sampler" },
-        depthTextureInput: { group: 0, binding: 1, type: "depthTexture" },
-        currentMip: { group: 0, binding: 2, type: "storage" }
-      }
-    });
-    this.quadGeometry = Geometry.Plane();
-    let w = this.depthWidth;
-    let h = this.depthHeight;
-    let level = 0;
-    while (w > 1) {
-      this.targetTextures.push(DepthTexture.Create(w, h));
-      const passBuffer = Buffer3.Create(4 * 4, 0 /* STORAGE */);
-      passBuffer.SetArray(new Float32Array([level]));
-      this.passBuffers.push(passBuffer);
-      w /= 2;
-      h /= 2;
-      level++;
-    }
-    this.depthLevels = level;
-    this.inputTexture = DepthTexture.Create(this.depthWidth, this.depthHeight, 1, "depth24plus", level);
-    this.inputTexture.SetActiveMip(0);
-    this.inputTexture.SetActiveMipCount(level);
-    const Sampler = TextureSampler.Create({ magFilter: "nearest", minFilter: "nearest" });
-    this.shader.SetSampler("depthTextureInputSampler", Sampler);
-    this.shader.SetTexture("depthTextureInput", this.inputTexture);
-    this.debugDepthTexture = this.inputTexture;
-    this.currentBuffer = Buffer3.Create(4 * 4, 0 /* STORAGE */);
-    console.log("mips", level);
-    this.blitShader = await Shader.Create({
-      code: await ShaderLoader.BlitDepth,
-      colorOutputs: [],
-      depthOutput: "depth24plus",
-      attributes: {
-        position: { location: 0, size: 3, type: "vec3" },
-        normal: { location: 1, size: 3, type: "vec3" },
-        uv: { location: 2, size: 2, type: "vec2" }
-      },
-      uniforms: {
-        texture: { group: 0, binding: 0, type: "depthTexture" },
-        textureSampler: { group: 0, binding: 1, type: "sampler" },
-        mip: { group: 0, binding: 2, type: "storage" }
-      }
-    });
-    const blitSampler = TextureSampler.Create();
-    this.blitShader.SetSampler("textureSampler", blitSampler);
-    this.blitShader.SetValue("mip", 0);
-    resources.setResource(PassParams.depthTexturePyramid, this.inputTexture);
-    this.initialized = true;
-  }
-  execute(resources, inputDepthTexture, outputDepthTexturePyramid) {
-    if (this.initialized === false) return;
-    let currentLevel = 0;
-    let currentTarget = this.targetTextures[currentLevel];
-    this.blitShader.SetTexture("texture", inputDepthTexture);
-    RendererContext.BeginRenderPass("HiZ - First mip", [], { target: currentTarget, clear: true }, true);
-    RendererContext.DrawGeometry(this.quadGeometry, this.blitShader);
-    RendererContext.EndRenderPass();
-    RendererContext.CopyTextureToTexture(currentTarget, this.inputTexture, 0, currentLevel);
-    this.shader.SetBuffer("currentMip", this.currentBuffer);
-    for (let i2 = 0; i2 < this.targetTextures.length - 1; i2++) {
-      let levelBuffer = this.passBuffers[currentLevel];
-      currentLevel++;
-      currentTarget = this.targetTextures[currentLevel];
-      RendererContext.CopyBufferToBuffer(levelBuffer, this.currentBuffer);
-      RendererContext.BeginRenderPass("HiZ - DepthPyramid", [], { target: currentTarget, clear: true }, true);
-      RendererContext.DrawGeometry(this.quadGeometry, this.shader);
-      RendererContext.EndRenderPass();
-      RendererContext.CopyTextureToTexture(currentTarget, this.inputTexture, 0, currentLevel);
-    }
-    resources.setResource(outputDepthTexturePyramid, this.inputTexture);
-  }
-};
-
-// src/math/Plane.ts
-var Plane = class {
-  normal;
-  constant;
-  constructor(normal = new Vector3(1, 0, 0), constant = 0) {
-    this.normal = normal;
-    this.constant = constant;
-  }
-  setComponents(x, y, z, w) {
-    this.normal.set(x, y, z);
-    this.constant = w;
-    return this;
-  }
-  normalize() {
-    const inverseNormalLength = 1 / this.normal.length();
-    this.normal.mul(inverseNormalLength);
-    this.constant *= inverseNormalLength;
-    return this;
-  }
-};
-
-// src/math/Frustum.ts
-var Frustum = class {
-  planes;
-  constructor(p0 = new Plane(), p1 = new Plane(), p2 = new Plane(), p3 = new Plane(), p4 = new Plane(), p5 = new Plane()) {
-    this.planes = [p0, p1, p2, p3, p4, p5];
-  }
-  setFromProjectionMatrix(m) {
-    const planes = this.planes;
-    const me = m.elements;
-    const me0 = me[0], me1 = me[1], me2 = me[2], me3 = me[3];
-    const me4 = me[4], me5 = me[5], me6 = me[6], me7 = me[7];
-    const me8 = me[8], me9 = me[9], me10 = me[10], me11 = me[11];
-    const me12 = me[12], me13 = me[13], me14 = me[14], me15 = me[15];
-    planes[0].setComponents(me3 - me0, me7 - me4, me11 - me8, me15 - me12).normalize();
-    planes[1].setComponents(me3 + me0, me7 + me4, me11 + me8, me15 + me12).normalize();
-    planes[2].setComponents(me3 + me1, me7 + me5, me11 + me9, me15 + me13).normalize();
-    planes[3].setComponents(me3 - me1, me7 - me5, me11 - me9, me15 - me13).normalize();
-    planes[4].setComponents(me3 - me2, me7 - me6, me11 - me10, me15 - me14).normalize();
-    planes[5].setComponents(me2, me6, me10, me14).normalize();
-    return this;
-  }
-};
-
-// src/renderer/webgpu/WEBGPUComputeContext.ts
-var WEBGPUComputeContext = class {
-  static activeComputePass = null;
-  static BeginComputePass(name, timestamp) {
-    const activeCommandEncoder = WEBGPURenderer.GetActiveCommandEncoder();
-    if (!activeCommandEncoder) throw Error("No active command encoder!!");
-    if (this.activeComputePass) throw Error("There is already an active compute pass");
-    const computePassDescriptor = {};
-    if (timestamp === true) computePassDescriptor.timestampWrites = WEBGPUTimestampQuery.BeginRenderTimestamp(name);
-    this.activeComputePass = activeCommandEncoder.beginComputePass(computePassDescriptor);
-    this.activeComputePass.label = "ComputePass: " + name;
-  }
-  static EndComputePass() {
-    if (!this.activeComputePass) throw Error("No active compute pass");
-    this.activeComputePass.end();
-    this.activeComputePass = null;
-    WEBGPUTimestampQuery.EndRenderTimestamp();
-  }
-  static Dispatch(computeShader, workgroupCountX, workgroupCountY, workgroupCountZ) {
-    if (!this.activeComputePass) throw Error("No active render pass");
-    computeShader.OnPreRender();
-    if (!computeShader.pipeline) throw Error("Shader doesnt have a pipeline");
-    this.activeComputePass.setPipeline(computeShader.pipeline);
-    for (let i2 = 0; i2 < computeShader.bindGroups.length; i2++) {
-      let dynamicOffsetsV2 = [];
-      for (const buffer of computeShader.bindGroupsInfo[i2].buffers) {
-        if (buffer instanceof WEBGPUDynamicBuffer) {
-          dynamicOffsetsV2.push(buffer.dynamicOffset);
-        }
-      }
-      this.activeComputePass.setBindGroup(i2, computeShader.bindGroups[i2], dynamicOffsetsV2);
-    }
-    this.activeComputePass.dispatchWorkgroups(workgroupCountX, workgroupCountY, workgroupCountZ);
-  }
-};
-
-// src/renderer/ComputeContext.ts
-var ComputeContext = class {
-  constructor() {
-  }
-  static BeginComputePass(name, timestamp = false) {
-    if (Renderer.type === "webgpu") WEBGPUComputeContext.BeginComputePass(name, timestamp);
-    else throw Error("Unknown render api type.");
-  }
-  static EndComputePass() {
-    if (Renderer.type === "webgpu") WEBGPUComputeContext.EndComputePass();
-    else throw Error("Unknown render api type.");
-  }
-  static Dispatch(computeShader, workgroupCountX, workgroupCountY = 1, workgroupCountZ = 1) {
-    if (Renderer.type === "webgpu") WEBGPUComputeContext.Dispatch(computeShader, workgroupCountX, workgroupCountY, workgroupCountZ);
-    else throw Error("Unknown render api type.");
-  }
-};
-
-// src/plugins/meshlets/passes/CullingPass.ts
-var CullingPass = class extends RenderPass {
-  name = "CullingPass";
-  drawIndirectBuffer;
-  compute;
-  cullData;
-  frustum = new Frustum();
-  currentPassBuffer;
-  visibleBuffer;
-  nonVisibleBuffer;
-  visibilityBuffer;
-  instanceInfoBuffer;
-  isPrePass = true;
-  debugBuffer;
-  constructor() {
-    super({
-      inputs: [
-        PassParams.DebugSettings,
-        MeshletPassParams.indirectMeshletInfo,
-        MeshletPassParams.indirectObjectInfo,
-        MeshletPassParams.indirectMeshMatrixInfo,
-        MeshletPassParams.meshletsCount
-      ],
-      outputs: [
-        MeshletPassParams.indirectDrawBuffer,
-        MeshletPassParams.indirectInstanceInfo,
-        MeshletPassParams.isCullingPrepass,
-        PassParams.GBufferAlbedo,
-        PassParams.GBufferNormal,
-        PassParams.GBufferERMO,
-        PassParams.GBufferDepth,
-        PassParams.GBufferDepth
-      ]
-    });
-  }
-  async init(resources) {
-    this.compute = await Compute.Create({
-      code: await ShaderLoader.Cull,
-      computeEntrypoint: "main",
-      uniforms: {
-        drawBuffer: { group: 0, binding: 0, type: "storage-write" },
-        instanceInfo: { group: 0, binding: 1, type: "storage-write" },
-        cullData: { group: 0, binding: 2, type: "storage" },
-        meshletInfo: { group: 0, binding: 3, type: "storage" },
-        objectInfo: { group: 0, binding: 4, type: "storage" },
-        meshMatrixInfo: { group: 0, binding: 5, type: "storage" },
-        visibilityBuffer: { group: 0, binding: 6, type: "storage-write" },
-        bPrepass: { group: 0, binding: 7, type: "storage" },
-        textureSampler: { group: 0, binding: 8, type: "sampler" },
-        depthTexture: { group: 0, binding: 9, type: "depthTexture" },
-        settings: { group: 0, binding: 10, type: "storage" }
-      }
-    });
-    this.drawIndirectBuffer = Buffer3.Create(4 * 4, 5 /* INDIRECT */);
-    this.drawIndirectBuffer.name = "drawIndirectBuffer";
-    this.compute.SetBuffer("drawBuffer", this.drawIndirectBuffer);
-    this.currentPassBuffer = Buffer3.Create(1 * 4, 0 /* STORAGE */);
-    const sampler = TextureSampler.Create({ magFilter: "nearest", minFilter: "nearest" });
-    this.compute.SetSampler("textureSampler", sampler);
-    this.visibleBuffer = Buffer3.Create(4, 0 /* STORAGE */);
-    this.visibleBuffer.SetArray(new Float32Array([1]));
-    this.nonVisibleBuffer = Buffer3.Create(4, 0 /* STORAGE */);
-    this.nonVisibleBuffer.SetArray(new Float32Array([0]));
-    this.debugBuffer = Buffer3.Create(4 * 4, 0 /* STORAGE */);
-  }
-  execute(resources) {
-    const depthTexturePyramid = resources.getResource(PassParams.depthTexturePyramid);
-    if (!depthTexturePyramid) return;
-    const mainCamera = Camera.mainCamera;
-    const meshletCount = resources.getResource(MeshletPassParams.meshletsCount);
-    const meshletInfoBuffer = resources.getResource(MeshletPassParams.indirectMeshletInfo);
-    const objectInfoBuffer = resources.getResource(MeshletPassParams.indirectObjectInfo);
-    const meshMatrixInfoBuffer = resources.getResource(MeshletPassParams.indirectMeshMatrixInfo);
-    if (meshletCount === 0) return;
-    if (!this.visibilityBuffer) {
-      const visibilityBufferArray = new Float32Array(meshletCount).fill(1);
-      this.visibilityBuffer = Buffer3.Create(visibilityBufferArray.byteLength, 1 /* STORAGE_WRITE */);
-      this.visibilityBuffer.SetArray(visibilityBufferArray);
-    }
-    if (!this.instanceInfoBuffer) {
-      console.log("meshletCount", meshletCount);
-      this.instanceInfoBuffer = Buffer3.Create(meshletCount * 1 * 4, 1 /* STORAGE_WRITE */);
-      this.instanceInfoBuffer.name = "instanceInfoBuffer";
-    }
-    this.compute.SetBuffer("meshletInfo", meshletInfoBuffer);
-    this.compute.SetBuffer("objectInfo", objectInfoBuffer);
-    this.compute.SetBuffer("meshMatrixInfo", meshMatrixInfoBuffer);
-    this.compute.SetBuffer("instanceInfo", this.instanceInfoBuffer);
-    this.compute.SetBuffer("visibilityBuffer", this.visibilityBuffer);
-    this.frustum.setFromProjectionMatrix(mainCamera.projectionMatrix);
-    const cullDataArray = new Float32Array([
-      ...mainCamera.projectionMatrix.elements,
-      ...mainCamera.viewMatrix.elements,
-      ...mainCamera.transform.position.elements,
-      0,
-      ...this.frustum.planes[0].normal.elements,
-      this.frustum.planes[0].constant,
-      ...this.frustum.planes[1].normal.elements,
-      this.frustum.planes[1].constant,
-      ...this.frustum.planes[2].normal.elements,
-      this.frustum.planes[2].constant,
-      ...this.frustum.planes[3].normal.elements,
-      this.frustum.planes[3].constant,
-      ...this.frustum.planes[4].normal.elements,
-      this.frustum.planes[4].constant,
-      ...this.frustum.planes[5].normal.elements,
-      this.frustum.planes[5].constant,
-      meshletCount,
-      0,
-      Renderer.width,
-      Renderer.height,
-      0,
-      0,
-      mainCamera.near,
-      mainCamera.far,
-      ...mainCamera.projectionMatrix.clone().transpose().elements
-    ]);
-    if (!this.cullData) {
-      this.cullData = Buffer3.Create(cullDataArray.byteLength, 0 /* STORAGE */);
-      this.cullData.name = "cullData";
-      this.compute.SetBuffer("cullData", this.cullData);
-    }
-    this.cullData.SetArray(cullDataArray);
-    const settings = resources.getResource(PassParams.DebugSettings);
-    this.compute.SetArray("settings", settings);
-    this.compute.SetTexture("depthTexture", depthTexturePyramid);
-    this.compute.SetBuffer("bPrepass", this.currentPassBuffer);
-    RendererContext.CopyBufferToBuffer(this.drawIndirectBuffer, this.debugBuffer);
-    RendererContext.ClearBuffer(this.drawIndirectBuffer);
-    if (this.isPrePass === true) RendererContext.CopyBufferToBuffer(this.visibleBuffer, this.currentPassBuffer);
-    else RendererContext.CopyBufferToBuffer(this.nonVisibleBuffer, this.currentPassBuffer);
-    const dispatchSizeX = Math.ceil(Math.cbrt(meshletCount) / 4);
-    const dispatchSizeY = Math.ceil(Math.cbrt(meshletCount) / 4);
-    const dispatchSizeZ = Math.ceil(Math.cbrt(meshletCount) / 4);
-    ComputeContext.BeginComputePass(`Culling - prepass: ${+this.isPrePass}`, true);
-    ComputeContext.Dispatch(this.compute, dispatchSizeX, dispatchSizeY, dispatchSizeZ);
-    ComputeContext.EndComputePass();
-    resources.setResource(MeshletPassParams.isCullingPrepass, this.isPrePass);
-    this.isPrePass = !this.isPrePass;
-    resources.setResource(MeshletPassParams.indirectDrawBuffer, this.drawIndirectBuffer);
-    resources.setResource(MeshletPassParams.indirectInstanceInfo, this.instanceInfoBuffer);
-    this.debugBuffer.GetData().then((v) => {
-      const visibleMeshCount = new Uint32Array(v)[1];
-      MeshletDebug.visibleMeshes.SetValue(visibleMeshCount);
-      RendererDebug.SetTriangleCount(Meshlet.max_triangles * meshletCount);
-      RendererDebug.SetVisibleTriangleCount(Meshlet.max_triangles * visibleMeshCount);
-    });
-  }
-};
-
-// src/plugins/meshlets/passes/IndirectGBufferPass.ts
-var IndirectGBufferPass = class extends RenderPass {
-  name = "IndirectGBufferPass";
-  shader;
-  geometry;
-  constructor() {
-    super({
-      inputs: [
-        PassParams.DebugSettings,
-        PassParams.depthTexture,
-        PassParams.GBufferAlbedo,
-        PassParams.GBufferNormal,
-        PassParams.GBufferERMO,
-        PassParams.GBufferDepth,
-        MeshletPassParams.indirectVertices,
-        MeshletPassParams.indirectInstanceInfo,
-        MeshletPassParams.indirectMeshInfo,
-        MeshletPassParams.indirectObjectInfo,
-        MeshletPassParams.indirectMeshMatrixInfo,
-        MeshletPassParams.indirectDrawBuffer,
-        MeshletPassParams.textureMaps,
-        MeshletPassParams.isCullingPrepass
-      ],
-      outputs: []
-    });
-  }
-  async init(resources) {
-    this.shader = await Shader.Create({
-      code: await ShaderLoader.DrawIndirect,
-      colorOutputs: [
-        { format: "rgba16float" },
-        { format: "rgba16float" },
-        { format: "rgba16float" }
-      ],
-      depthOutput: "depth24plus",
-      attributes: {
-        position: { location: 0, size: 3, type: "vec3" }
-      },
-      uniforms: {
-        viewMatrix: { group: 0, binding: 0, type: "storage" },
-        projectionMatrix: { group: 0, binding: 1, type: "storage" },
-        instanceInfo: { group: 0, binding: 2, type: "storage" },
-        meshMaterialInfo: { group: 0, binding: 3, type: "storage" },
-        meshMatrixInfo: { group: 0, binding: 4, type: "storage" },
-        objectInfo: { group: 0, binding: 5, type: "storage" },
-        settings: { group: 0, binding: 6, type: "storage" },
-        vertices: { group: 0, binding: 7, type: "storage" },
-        textureSampler: { group: 0, binding: 8, type: "sampler" },
-        albedoMaps: { group: 0, binding: 9, type: "texture" },
-        normalMaps: { group: 0, binding: 10, type: "texture" },
-        heightMaps: { group: 0, binding: 11, type: "texture" },
-        metalnessMaps: { group: 0, binding: 12, type: "texture" },
-        emissiveMaps: { group: 0, binding: 13, type: "texture" }
-      }
-    });
-    this.geometry = new Geometry();
-    this.geometry.attributes.set("position", new VertexAttribute(new Float32Array(Meshlet.max_triangles * 3)));
-    const materialSampler = TextureSampler.Create();
-    this.shader.SetSampler("textureSampler", materialSampler);
-    this.initialized = true;
-  }
-  execute(resources) {
-    if (!this.initialized) return;
-    const inputIndirectVertices = resources.getResource(MeshletPassParams.indirectVertices);
-    const inputIndirectMeshInfo = resources.getResource(MeshletPassParams.indirectMeshInfo);
-    const inputIndirectObjectInfo = resources.getResource(MeshletPassParams.indirectObjectInfo);
-    const inputIndirectMeshMatrixInfo = resources.getResource(MeshletPassParams.indirectMeshMatrixInfo);
-    const inputIndirectInstanceInfo = resources.getResource(MeshletPassParams.indirectInstanceInfo);
-    const inputIndirectDrawBuffer = resources.getResource(MeshletPassParams.indirectDrawBuffer);
-    const textureMaps = resources.getResource(MeshletPassParams.textureMaps);
-    let inputIsCullingPrepass = resources.getResource(MeshletPassParams.isCullingPrepass);
-    if (!inputIndirectVertices) return;
-    if (!inputIndirectInstanceInfo) return;
-    const mainCamera = Camera.mainCamera;
-    this.shader.SetMatrix4("viewMatrix", mainCamera.viewMatrix);
-    this.shader.SetMatrix4("projectionMatrix", mainCamera.projectionMatrix);
-    this.shader.SetBuffer("vertices", inputIndirectVertices);
-    this.shader.SetBuffer("meshMaterialInfo", inputIndirectMeshInfo);
-    this.shader.SetBuffer("objectInfo", inputIndirectObjectInfo);
-    this.shader.SetBuffer("meshMatrixInfo", inputIndirectMeshMatrixInfo);
-    this.shader.SetBuffer("instanceInfo", inputIndirectInstanceInfo);
-    if (textureMaps.albedo) this.shader.SetTexture("albedoMaps", textureMaps.albedo);
-    if (textureMaps.normal) this.shader.SetTexture("normalMaps", textureMaps.normal);
-    if (textureMaps.height) this.shader.SetTexture("heightMaps", textureMaps.height);
-    if (textureMaps.metalness) this.shader.SetTexture("metalnessMaps", textureMaps.metalness);
-    if (textureMaps.emissive) this.shader.SetTexture("emissiveMaps", textureMaps.emissive);
-    const settings = resources.getResource(PassParams.DebugSettings);
-    this.shader.SetArray("settings", settings);
-    const gBufferAlbedoRT = resources.getResource(PassParams.GBufferAlbedo);
-    const gBufferNormalRT = resources.getResource(PassParams.GBufferNormal);
-    const gBufferERMORT = resources.getResource(PassParams.GBufferERMO);
-    const gBufferDepthRT = resources.getResource(PassParams.GBufferDepth);
-    const colorTargets = [
-      { target: gBufferAlbedoRT, clear: inputIsCullingPrepass },
-      { target: gBufferNormalRT, clear: inputIsCullingPrepass },
-      { target: gBufferERMORT, clear: inputIsCullingPrepass }
-    ];
-    RendererContext.BeginRenderPass(`IGBuffer - prepass: ${+inputIsCullingPrepass}`, colorTargets, { target: gBufferDepthRT, clear: inputIsCullingPrepass }, true);
-    RendererContext.DrawIndirect(this.geometry, this.shader, inputIndirectDrawBuffer);
-    RendererContext.EndRenderPass();
-  }
-};
-
-// src/renderer/webgpu/shaders/deferred/DrawIndirectShadows.wgsl
-var DrawIndirectShadows_default = "./resources/renderer/webgpu/shaders/deferred/DrawIndirectShadows.wgsl";
-
-// src/plugins/meshlets/passes/MeshletsShadowMapPass.ts
-var lightsCSMProjectionMatrix2 = [];
-var getWorldSpaceCorners = (camera, zNearPercentage, zFarPercentage) => {
-  const invViewProj = camera.projectionMatrix.clone().mul(camera.viewMatrix).invert();
-  const result = [];
-  const lerp = (a, b, t) => a + (b - a) * t;
-  const viewSpaceZFarPercentage = new Vector4(0, 0, -lerp(camera.near, camera.far, zFarPercentage), 1).applyMatrix4(camera.projectionMatrix);
-  const scaleFarZ = viewSpaceZFarPercentage.z / viewSpaceZFarPercentage.w;
-  const viewSpaceZNearPercentage = new Vector4(0, 0, -lerp(camera.near, camera.far, zNearPercentage), 1).applyMatrix4(camera.projectionMatrix);
-  const scaleNearZ = viewSpaceZNearPercentage.z / viewSpaceZNearPercentage.w;
-  for (let x = -1; x <= 1; x += 2) {
-    for (let y = -1; y <= 1; y += 2) {
-      for (let z = 0; z <= 1; z += 1) {
-        let corner = new Vector4(x, y, z === 0 ? scaleNearZ : scaleFarZ, 1).applyMatrix4(invViewProj);
-        let v3corner = new Vector3(corner.x / corner.w, corner.y / corner.w, corner.z / corner.w);
-        result.push(v3corner);
-      }
-    }
-  }
-  return result;
-};
-var getLightViewProjections = (camera, lightDirection, numOfCascades, assignmentExponent, shadowDepthPercentage, zMult) => {
-  if (camera == null) {
-    return [new Matrix4()];
-  }
-  let f = (x) => Math.pow(x, assignmentExponent);
-  const cascadesViewProjections = [];
-  for (let i2 = 0; i2 < numOfCascades; ++i2) {
-    let corners = getWorldSpaceCorners(camera, shadowDepthPercentage * f(i2 / (numOfCascades - 1)), shadowDepthPercentage * f((i2 + 1) / (numOfCascades - 1)));
-    const center = corners[0].clone();
-    for (let i3 = 1; i3 < 8; ++i3) {
-      center.add(corners[i3]);
-    }
-    center.mul(1 / 8);
-    const viewPos = center.clone().add(lightDirection);
-    const viewMatrix = new Matrix4().lookAt(center, viewPos, new Vector3(0, 1, 0));
-    let minX = Infinity;
-    let minY = Infinity;
-    let minZ = Infinity;
-    let maxX = -Infinity;
-    let maxY = -Infinity;
-    let maxZ = -Infinity;
-    for (let i3 = 0; i3 < 8; ++i3) {
-      const viewSpaceCorner = corners[i3].clone().applyMatrix4(viewMatrix);
-      minX = Math.min(viewSpaceCorner.x, minX);
-      minY = Math.min(viewSpaceCorner.y, minY);
-      minZ = Math.min(viewSpaceCorner.z, minZ);
-      maxX = Math.max(viewSpaceCorner.x, maxX);
-      maxY = Math.max(viewSpaceCorner.y, maxY);
-      maxZ = Math.max(viewSpaceCorner.z, maxZ);
-    }
-    if (minZ < 0) minZ *= zMult;
-    else minZ /= zMult;
-    if (maxZ < 0) maxZ /= zMult;
-    else maxZ *= zMult;
-    const projMatrix = new Matrix4().orthoZO(minX, maxX, minY, maxY, minZ, maxZ);
-    const result = projMatrix.clone().mul(viewMatrix);
-    cascadesViewProjections.push(result);
-  }
-  return cascadesViewProjections;
-};
-var MeshletsShadowMapPass = class extends RenderPass {
-  name = "MeshletsShadowMapPass";
-  drawIndirectShadowShader;
-  lightProjectionMatrixBuffer;
-  lightProjectionViewMatricesBuffer;
-  cascadeIndexBuffers = [];
-  cascadeCurrentIndexBuffer;
-  meshletGeometry;
-  constructor() {
-    super({
-      inputs: [
-        PassParams.MainCamera,
-        PassParams.GBufferAlbedo,
-        PassParams.GBufferNormal,
-        PassParams.GBufferERMO,
-        PassParams.GBufferDepth,
-        PassParams.ShadowPassDepth
-      ],
-      outputs: []
-    });
-  }
-  async init(resources) {
-    this.drawIndirectShadowShader = await Shader.Create({
-      code: await ShaderLoader.Load(DrawIndirectShadows_default),
-      colorOutputs: [],
-      depthOutput: "depth24plus",
-      attributes: {
-        position: { location: 0, size: 3, type: "vec3" }
-      },
-      uniforms: {
-        projectionMatrix: { group: 0, binding: 1, type: "storage" },
-        instanceInfo: { group: 0, binding: 2, type: "storage" },
-        meshMatrixInfo: { group: 0, binding: 4, type: "storage" },
-        objectInfo: { group: 0, binding: 5, type: "storage" },
-        vertices: { group: 0, binding: 7, type: "storage" },
-        cascadeIndex: { group: 0, binding: 8, type: "storage" }
-      },
-      cullMode: "none"
-    });
-    this.meshletGeometry = new Geometry();
-    this.meshletGeometry.attributes.set("position", new VertexAttribute(new Float32Array(Meshlet.max_triangles * 3)));
-    this.initialized = true;
-  }
-  execute(resources) {
-    if (!this.initialized) return;
-    const scene = Camera.mainCamera.gameObject.scene;
-    const meshlets = scene.GetComponents(MeshletMesh);
-    if (meshlets.length === 0) return;
-    const lights = [...scene.GetComponents(SpotLight), ...scene.GetComponents(PointLight), ...scene.GetComponents(DirectionalLight), ...scene.GetComponents(AreaLight)];
-    if (lights.length === 0) {
-      return;
-    }
-    const numOfCascades = 4;
-    const assignmentExponent = 2.5;
-    const shadowDepthPercentage = 1;
-    const zMult = 10;
-    if (!this.lightProjectionViewMatricesBuffer || this.lightProjectionViewMatricesBuffer.size / 4 / 4 / 16 !== lights.length) {
-      this.lightProjectionViewMatricesBuffer = Buffer3.Create(lights.length * numOfCascades * 4 * 16, 0 /* STORAGE */);
-    }
-    if (!this.cascadeCurrentIndexBuffer) {
-      this.cascadeCurrentIndexBuffer = Buffer3.Create(4, 0 /* STORAGE */);
-    }
-    if (this.cascadeIndexBuffers.length === 0) {
-      for (let i2 = 0; i2 < numOfCascades; i2++) {
-        const buffer = Buffer3.Create(4, 0 /* STORAGE */);
-        buffer.SetArray(new Float32Array([i2]));
-        this.cascadeIndexBuffers.push(buffer);
-      }
-    }
-    lightsCSMProjectionMatrix2 = [];
-    if (!this.lightProjectionMatrixBuffer) {
-      this.lightProjectionMatrixBuffer = Buffer3.Create(lights.length * 4 * 4 * 16, 0 /* STORAGE */);
-      this.drawIndirectShadowShader.SetBuffer("projectionMatrix", this.lightProjectionMatrixBuffer);
-    }
-    if (!this.lightProjectionViewMatricesBuffer || this.lightProjectionViewMatricesBuffer.size / 4 / 4 / 16 !== lights.length) {
-      this.lightProjectionViewMatricesBuffer = Buffer3.Create(lights.length * 4 * 4 * 16, 0 /* STORAGE */);
-    }
-    for (let i2 = 0; i2 < lights.length; i2++) {
-      const lightViewMatrixInverse = lights[i2].camera.viewMatrix.clone().invert();
-      const lightDirection = new Vector3(0, 1, 0).applyMatrix4(lightViewMatrixInverse).mul(-1).normalize();
-      const lightData = getLightViewProjections(Camera.mainCamera, lightDirection, numOfCascades, assignmentExponent, shadowDepthPercentage, zMult);
-      const ld = new Float32Array(lightData.flatMap((v) => v.elements).flatMap((v) => [...v]));
-      this.lightProjectionViewMatricesBuffer.SetArray(ld, i2 * numOfCascades * 4 * 16);
-      lightsCSMProjectionMatrix2.push(ld);
-    }
-    const shadowOutput = resources.getResource(PassParams.ShadowPassDepth);
-    shadowOutput.SetActiveLayer(0);
-    this.drawIndirectShadowShader.SetBuffer("cascadeIndex", this.cascadeCurrentIndexBuffer);
-    for (let i2 = 0; i2 < lights.length; i2++) {
-      RendererContext.CopyBufferToBuffer(this.lightProjectionViewMatricesBuffer, this.lightProjectionMatrixBuffer, i2 * numOfCascades * 4 * 16, 0, numOfCascades * 4 * 16);
-      for (let cascadePass = 0; cascadePass < numOfCascades; cascadePass++) {
-        RendererContext.CopyBufferToBuffer(this.cascadeIndexBuffers[cascadePass], this.cascadeCurrentIndexBuffer);
-        RendererContext.BeginRenderPass("ShadowPass", [], { target: shadowOutput, clear: cascadePass === 0 ? true : false });
-        const width = shadowOutput.width / 2;
-        const height = shadowOutput.height / 2;
-        let x = 0;
-        let y = 0;
-        if (cascadePass >= 2) x += width;
-        if (cascadePass % 2 !== 0) y += height;
-        RendererContext.SetViewport(x, y, width, height, 0, 1);
-        const inputIndirectVertices = resources.getResource(MeshletPassParams.indirectVertices);
-        const inputIndirectObjectInfo = resources.getResource(MeshletPassParams.indirectObjectInfo);
-        const inputIndirectMeshMatrixInfo = resources.getResource(MeshletPassParams.indirectMeshMatrixInfo);
-        const inputIndirectInstanceInfo = resources.getResource(MeshletPassParams.indirectInstanceInfo);
-        const inputIndirectDrawBuffer = resources.getResource(MeshletPassParams.indirectDrawBuffer);
-        this.drawIndirectShadowShader.SetBuffer("vertices", inputIndirectVertices);
-        this.drawIndirectShadowShader.SetBuffer("objectInfo", inputIndirectObjectInfo);
-        this.drawIndirectShadowShader.SetBuffer("meshMatrixInfo", inputIndirectMeshMatrixInfo);
-        this.drawIndirectShadowShader.SetBuffer("instanceInfo", inputIndirectInstanceInfo);
-        RendererContext.DrawIndirect(this.meshletGeometry, this.drawIndirectShadowShader, inputIndirectDrawBuffer);
-        RendererContext.EndRenderPass();
-      }
-      shadowOutput.SetActiveLayer(shadowOutput.GetActiveLayer() + 1);
-    }
-    shadowOutput.SetActiveLayer(0);
-  }
-};
-
-// src/plugins/meshlets/passes/PrepareSceneData.ts
-var PrepareSceneData = class extends RenderPass {
-  name = "PrepareSceneData";
-  objectInfoBuffer;
-  vertexBuffer;
-  meshMaterialInfo;
-  meshMatrixInfoBuffer;
-  meshletInfoBuffer;
-  currentMeshCount = 0;
-  currentMeshletsCount = 0;
-  materialIndexCache = /* @__PURE__ */ new Map();
-  albedoMaps = [];
-  normalMaps = [];
-  heightMaps = [];
-  metalnessMaps = [];
-  emissiveMaps = [];
-  textureMaps;
-  materialMaps = /* @__PURE__ */ new Map();
-  constructor() {
-    super({
-      outputs: [
-        MeshletPassParams.indirectVertices,
-        MeshletPassParams.indirectMeshInfo,
-        MeshletPassParams.indirectMeshletInfo,
-        MeshletPassParams.indirectObjectInfo,
-        MeshletPassParams.indirectMeshMatrixInfo,
-        MeshletPassParams.meshletsCount,
-        MeshletPassParams.textureMaps
-      ]
-    });
-  }
-  async init(resources) {
-    const bufferSize = 1024 * 100 * 1;
-    this.meshMatrixInfoBuffer = new DynamicBufferMemoryAllocator(bufferSize);
-    this.meshMaterialInfo = new DynamicBufferMemoryAllocator(bufferSize);
-    this.meshletInfoBuffer = new DynamicBufferMemoryAllocator(bufferSize);
-    this.vertexBuffer = new DynamicBufferMemoryAllocator(3072 * 10, 3072 * 10);
-    this.objectInfoBuffer = new DynamicBufferMemoryAllocator(bufferSize);
-    EventSystem.on(MeshletEvents.Updated, (meshlet) => {
-      if (this.meshMatrixInfoBuffer.has(meshlet.id)) {
-        this.meshMatrixInfoBuffer.set(meshlet.id, meshlet.transform.localToWorldMatrix.elements);
-      }
-    });
-    this.initialized = true;
-  }
-  getVertexInfo(meshlet) {
-    return meshlet.vertices_gpu;
-  }
-  getMeshletInfo(meshlet) {
-    const bv = meshlet.boundingVolume;
-    const pbv = meshlet.boundingVolume;
-    return new Float32Array([
-      ...meshlet.coneBounds.cone_apex.elements,
-      0,
-      ...meshlet.coneBounds.cone_axis.elements,
-      0,
-      meshlet.coneBounds.cone_cutoff,
-      0,
-      0,
-      0,
-      bv.center.x,
-      bv.center.y,
-      bv.center.z,
-      bv.radius,
-      pbv.center.x,
-      pbv.center.y,
-      pbv.center.z,
-      pbv.radius,
-      meshlet.clusterError,
-      0,
-      0,
-      0,
-      meshlet.parentError,
-      0,
-      0,
-      0,
-      meshlet.lod,
-      0,
-      0,
-      0,
-      ...meshlet.bounds.min.elements,
-      0,
-      ...meshlet.bounds.max.elements,
-      0
-    ]);
-  }
-  getMeshMaterialInfo(mesh) {
-    let materials = mesh.GetMaterials(PBRMaterial);
-    if (materials.length === 0) return null;
-    if (materials.length > 1) throw Error("Multiple materials not supported");
-    const material = materials[0];
-    const albedoIndex = this.processMaterialMap(material.params.albedoMap, "albedo");
-    const normalIndex = this.processMaterialMap(material.params.normalMap, "normal");
-    const heightIndex = this.processMaterialMap(material.params.heightMap, "height");
-    const metalnessIndex = this.processMaterialMap(material.params.metalnessMap, "metalness");
-    const emissiveIndex = this.processMaterialMap(material.params.emissiveMap, "emissive");
-    const albedoColor = material.params.albedoColor;
-    const emissiveColor = material.params.emissiveColor;
-    const roughness = material.params.roughness;
-    const metalness = material.params.metalness;
-    const unlit = material.params.unlit;
-    return new Float32Array([
-      albedoIndex,
-      normalIndex,
-      heightIndex,
-      metalnessIndex,
-      emissiveIndex,
-      0,
-      0,
-      0,
-      ...albedoColor.elements,
-      ...emissiveColor.elements,
-      roughness,
-      metalness,
-      +unlit,
-      0
-    ]);
-  }
-  processMaterialMap(materialMap, type) {
-    if (materialMap) {
-      let materialIndexCached = this.materialIndexCache.get(materialMap.id);
-      if (materialIndexCached === void 0) {
-        materialIndexCached = this.materialIndexCache.size;
-        this.materialIndexCache.set(materialMap.id, materialIndexCached);
-        if (type === "albedo") this.albedoMaps.push(materialMap);
-        else if (type === "normal") this.normalMaps.push(materialMap);
-        else if (type === "height") this.heightMaps.push(materialMap);
-        else if (type === "metalness") this.metalnessMaps.push(materialMap);
-        else if (type === "emissive") this.emissiveMaps.push(materialMap);
-      }
-      return materialIndexCached;
-    }
-    return -1;
-  }
-  createMaterialMap(textures, type) {
-    if (textures.length === 0) return TextureArray.Create(1, 1, 1);
-    const w = textures[0].width;
-    const h = textures[0].height;
-    let materialMap = this.materialMaps.get(type);
-    if (materialMap === void 0) {
-      materialMap = TextureArray.Create(w, h, textures.length);
-      materialMap.SetActiveLayer(0);
-      this.materialMaps.set(type, materialMap);
-    }
-    for (let i2 = 0; i2 < textures.length; i2++) {
-      if (textures[i2].width !== w || textures[i2].height !== h) {
-        console.warn(`Creating blank texture because dimensions dont match`, w, h, textures[i2].width, textures[i2].height);
-        const t = RenderTexture.Create(w, h);
-        RendererContext.CopyTextureToTextureV2(t, materialMap, 0, 0, [w, h, 1], i2);
-        continue;
-      }
-      RendererContext.CopyTextureToTextureV2(textures[i2], materialMap, 0, 0, [w, h, 1], i2);
-    }
-    return materialMap;
-  }
-  execute(resources) {
-    const mainCamera = Camera.mainCamera;
-    const scene = mainCamera.gameObject.scene;
-    const sceneMeshlets = [...scene.GetComponents(MeshletMesh)];
-    if (this.currentMeshCount !== sceneMeshlets.length) {
-      const meshlets = [];
-      for (const meshlet of sceneMeshlets) {
-        for (const geometry of meshlet.meshlets) {
-          meshlets.push({ mesh: meshlet, geometry });
-        }
-      }
-      const indexedCache = /* @__PURE__ */ new Map();
-      const meshMatrixCache = /* @__PURE__ */ new Map();
-      const meshMaterialCache = /* @__PURE__ */ new Map();
-      for (const mesh of sceneMeshlets) {
-        let materialIndex = -1;
-        for (const material of mesh.GetMaterials(PBRMaterial)) {
-          if (!this.meshMaterialInfo.has(material.id)) {
-            const meshMaterialInfo = this.getMeshMaterialInfo(mesh);
-            if (meshMaterialInfo !== null) {
-              this.meshMaterialInfo.set(material.id, meshMaterialInfo);
-              meshMaterialCache.set(material.id, meshMaterialCache.size);
-            }
-          }
-          let mc = meshMaterialCache.get(material.id);
-          if (mc !== void 0) materialIndex = mc;
-        }
-        if (!this.meshMatrixInfoBuffer.has(mesh.id)) {
-          this.meshMatrixInfoBuffer.set(mesh.id, mesh.transform.localToWorldMatrix.elements);
-        }
-        let meshMatrixIndex = meshMatrixCache.get(mesh.id);
-        if (meshMatrixIndex === void 0) {
-          meshMatrixIndex = meshMatrixCache.size;
-          meshMatrixCache.set(mesh.id, meshMatrixIndex);
-        }
-        for (const meshlet of mesh.meshlets) {
-          if (!this.meshletInfoBuffer.has(meshlet.id)) this.meshletInfoBuffer.set(meshlet.id, this.getMeshletInfo(meshlet));
-          if (!this.vertexBuffer.has(meshlet.id)) {
-            console.log("Setting vertices");
-            this.vertexBuffer.set(meshlet.id, this.getVertexInfo(meshlet));
-          }
-          let geometryIndex = indexedCache.get(meshlet.crc);
-          if (geometryIndex === void 0) {
-            geometryIndex = indexedCache.size;
-            indexedCache.set(meshlet.crc, geometryIndex);
-          }
-          this.objectInfoBuffer.set(`${mesh.id}-${meshlet.id}`, new Float32Array([meshMatrixIndex, geometryIndex, materialIndex, 0]));
-        }
-      }
-      this.textureMaps = {
-        albedo: this.createMaterialMap(this.albedoMaps, "albedo"),
-        normal: this.createMaterialMap(this.normalMaps, "normal"),
-        height: this.createMaterialMap(this.heightMaps, "height"),
-        metalness: this.createMaterialMap(this.metalnessMaps, "metalness"),
-        emissive: this.createMaterialMap(this.emissiveMaps, "emissive")
-      };
-      this.currentMeshCount = sceneMeshlets.length;
-      this.currentMeshletsCount = meshlets.length;
-      MeshletDebug.totalMeshlets.SetValue(meshlets.length);
-    }
-    resources.setResource(MeshletPassParams.indirectVertices, this.vertexBuffer.getBuffer());
-    resources.setResource(MeshletPassParams.indirectMeshInfo, this.meshMaterialInfo.getBuffer());
-    resources.setResource(MeshletPassParams.indirectMeshletInfo, this.meshletInfoBuffer.getBuffer());
-    resources.setResource(MeshletPassParams.indirectObjectInfo, this.objectInfoBuffer.getBuffer());
-    resources.setResource(MeshletPassParams.indirectMeshMatrixInfo, this.meshMatrixInfoBuffer.getBuffer());
-    resources.setResource(MeshletPassParams.meshletsCount, this.currentMeshletsCount);
-    resources.setResource(MeshletPassParams.textureMaps, this.textureMaps);
-  }
-};
-
-// src/plugins/meshlets/passes/MeshletDraw.ts
-var MeshletPassParams = {
-  indirectVertices: "indirectVertices",
-  indirectMeshInfo: "indirectMeshInfo",
-  indirectMeshletInfo: "indirectMeshletInfo",
-  indirectObjectInfo: "indirectObjectInfo",
-  indirectMeshMatrixInfo: "indirectMeshMatrixInfo",
-  indirectInstanceInfo: "indirectInstanceInfo",
-  indirectDrawBuffer: "indirectDrawBuffer",
-  meshletsCount: "meshletsCount",
-  textureMaps: "textureMaps",
-  isCullingPrepass: "isCullingPrepass"
-};
-var MeshletDraw = class extends RenderPass {
-  name = "MeshletDraw";
-  prepareSceneData;
-  cullingPass;
-  HiZ;
-  indirectRender;
-  shadows;
-  constructor() {
-    super({
-      inputs: [
-        PassParams.depthTexture,
-        PassParams.depthTexturePyramid,
-        PassParams.DebugSettings,
-        PassParams.depthTexture,
-        PassParams.GBufferAlbedo,
-        PassParams.GBufferNormal,
-        PassParams.GBufferERMO,
-        PassParams.GBufferDepth
-      ],
-      outputs: []
-    });
-  }
-  async init(resources) {
-    this.prepareSceneData = new PrepareSceneData();
-    this.cullingPass = new CullingPass();
-    this.HiZ = new HiZPass();
-    this.indirectRender = new IndirectGBufferPass();
-    this.shadows = new MeshletsShadowMapPass();
-    await this.prepareSceneData.init(resources);
-    await this.cullingPass.init(resources);
-    await this.HiZ.init(resources);
-    await this.indirectRender.init(resources);
-    await this.shadows.init(resources);
-    this.initialized = true;
-  }
-  execute(resources) {
-    this.prepareSceneData.execute(resources);
-    this.cullingPass.execute(resources);
-    this.indirectRender.execute(resources);
-    const depthTexture = resources.getResource(PassParams.depthTexture);
-    const outputDepthTexturePyramid = PassParams.depthTexturePyramid;
-    this.HiZ.execute(resources, depthTexture, outputDepthTexturePyramid);
-    this.cullingPass.execute(resources);
-    this.indirectRender.execute(resources);
-  }
-};
-
-// src/renderer/passes/DeferredGBufferPass.ts
-var DeferredGBufferPass = class extends RenderPass {
-  name = "DeferredMeshRenderPass";
-  constructor() {
-    super({
-      inputs: [
-        PassParams.MainCamera,
-        PassParams.GBufferAlbedo,
-        PassParams.GBufferNormal,
-        PassParams.GBufferERMO,
-        PassParams.GBufferDepth
-      ],
-      outputs: []
-    });
-  }
-  async init(resources) {
-    this.initialized = true;
-  }
-  execute(resources) {
-    if (!this.initialized) return;
-    const scene = Camera.mainCamera.gameObject.scene;
-    const meshes = scene.GetComponents(Mesh);
-    const instancedMeshes = scene.GetComponents(InstancedMesh);
-    if (meshes.length === 0 && instancedMeshes.length === 0) return;
-    const inputCamera = Camera.mainCamera;
-    if (!inputCamera) throw Error(`No inputs passed to ${this.name}`);
-    const backgroundColor = inputCamera.backgroundColor;
-    const inputGBufferAlbedo = resources.getResource(PassParams.GBufferAlbedo);
-    const inputGBufferNormal = resources.getResource(PassParams.GBufferNormal);
-    const inputGBufferERMO = resources.getResource(PassParams.GBufferERMO);
-    const inputGBufferDepth = resources.getResource(PassParams.GBufferDepth);
-    RendererContext.BeginRenderPass(
-      "DeferredMeshRenderPass",
-      [
-        { target: inputGBufferAlbedo, clear: false, color: backgroundColor },
-        { target: inputGBufferNormal, clear: false, color: backgroundColor },
-        { target: inputGBufferERMO, clear: false, color: backgroundColor }
-      ],
-      { target: inputGBufferDepth, clear: false },
-      true
-    );
-    const projectionMatrix = inputCamera.projectionMatrix;
-    const viewMatrix = inputCamera.viewMatrix;
-    for (const mesh of meshes) {
-      const geometry = mesh.GetGeometry();
-      const materials = mesh.GetMaterials();
-      for (const material of materials) {
-        if (!material.shader) {
-          material.createShader().then((shader2) => {
-          });
-          continue;
-        }
-        const shader = material.shader;
-        shader.SetMatrix4("projectionMatrix", projectionMatrix);
-        shader.SetMatrix4("viewMatrix", viewMatrix);
-        shader.SetMatrix4("modelMatrix", mesh.transform.localToWorldMatrix);
-        shader.SetVector3("cameraPosition", inputCamera.transform.position);
-        RendererContext.DrawGeometry(geometry, shader, 1);
-        if (geometry.index) {
-          RendererDebug.IncrementTriangleCount(geometry.index.array.length / 3);
-        }
-        RenderCache.renderableMeshes.push({
-          type: "Draw",
-          shader,
-          geometry,
-          mesh
-        });
-      }
-    }
-    for (const instancedMesh of instancedMeshes) {
-      const geometry = instancedMesh.GetGeometry();
-      const materials = instancedMesh.GetMaterials();
-      for (const material of materials) {
-        if (!material.shader) {
-          material.createShader().then((shader2) => {
-          });
-          continue;
-        }
-        const shader = material.shader;
-        shader.SetMatrix4("projectionMatrix", projectionMatrix);
-        shader.SetMatrix4("viewMatrix", viewMatrix);
-        shader.SetBuffer("modelMatrix", instancedMesh.matricesBuffer);
-        shader.SetVector3("cameraPosition", inputCamera.transform.position);
-        RendererContext.DrawGeometry(geometry, shader, instancedMesh.instanceCount + 1);
-        if (geometry.index) {
-          RendererDebug.IncrementTriangleCount(geometry.index.array.length / 3 * (instancedMesh.instanceCount + 1));
-        }
-        RenderCache.renderableMeshes.push({
-          type: "DrawInstanced",
-          shader,
-          geometry,
-          instances: instancedMesh.instanceCount + 1,
-          instancedMesh
-        });
-      }
-    }
-    resources.setResource(PassParams.GBufferDepth, inputGBufferDepth);
-    resources.setResource(PassParams.GBufferAlbedo, inputGBufferAlbedo);
-    resources.setResource(PassParams.GBufferNormal, inputGBufferNormal);
-    resources.setResource(PassParams.GBufferERMO, inputGBufferERMO);
-    RendererContext.EndRenderPass();
   }
 };
 
@@ -11157,22 +6522,33 @@ async function Application() {
     const light = lightGameObject.AddComponent(DirectionalLight);
     light.intensity = 1;
     light.color.set(1, 1, 1, 1);
+    light.castShadows = true;
     const sphereMesh = lightGameObject.AddComponent(Mesh);
     sphereMesh.enableShadows = false;
     await sphereMesh.SetGeometry(Geometry.Sphere());
     sphereMesh.AddMaterial(new PBRMaterial({ unlit: true }));
+    const sunlightAngle = new Vector3(64, 64, 10);
     const lightPositionDebug = new UIFolder(Debugger.ui, "Light position");
-    const lightPositionDebugX = new UISliderStat(lightPositionDebug, "X:", -10, 10, 1, 0, (value) => {
-      lightGameObject.transform.position.x = value;
+    new UISliderStat(lightPositionDebug, "Altitude:", 0, 1e3, 1, sunlightAngle.z, (value) => {
+      sunlightAngle.z = value;
     });
-    const lightPositionDebugY = new UISliderStat(lightPositionDebug, "Y:", -10, 10, 1, 0, (value) => {
-      lightGameObject.transform.position.y = value;
+    new UISliderStat(lightPositionDebug, "Theta:", 0, 360, 1, sunlightAngle.x, (value) => {
+      sunlightAngle.x = value;
     });
-    const lightPositionDebugZ = new UISliderStat(lightPositionDebug, "Z:", -10, 10, 1, 0, (value) => {
-      lightGameObject.transform.position.z = value;
+    new UISliderStat(lightPositionDebug, "Phi:", 0, 360, 1, sunlightAngle.y, (value) => {
+      sunlightAngle.y = value;
     });
+    new UIButtonStat(lightPositionDebug, "Cast shadows:", (value) => {
+      light.castShadows = value;
+    }, light.castShadows);
     lightPositionDebug.Open();
     setInterval(() => {
+      const theta = sunlightAngle.x * Math.PI / 180;
+      const phi = sunlightAngle.y * Math.PI / 180;
+      const x = Math.sin(theta) * Math.cos(phi);
+      const y = Math.sin(theta) * Math.sin(phi);
+      const z = Math.cos(theta);
+      lightGameObject.transform.position.set(x, y, z).mul(sunlightAngle.z);
       lightGameObject.transform.LookAtV1(new Vector3(0, 0, 0));
     }, 100);
   }
@@ -11182,10 +6558,20 @@ async function Application() {
     planeGO.transform.eulerAngles.x = -90;
     const sphereMesh = planeGO.AddComponent(Mesh);
     await sphereMesh.SetGeometry(Geometry.Plane());
+    sphereMesh.AddMaterial(new PBRMaterial({
+      // albedoMap: checkerboard
+    }));
+  }
+  {
+    const sphereGO = new GameObject(scene);
+    sphereGO.transform.position.y = 2;
+    const sphereMesh = sphereGO.AddComponent(Mesh);
+    await sphereMesh.SetGeometry(Geometry.Sphere());
     sphereMesh.AddMaterial(new PBRMaterial());
   }
   {
     const sphereGO = new GameObject(scene);
+    sphereGO.transform.position.x = 50;
     sphereGO.transform.position.y = 2;
     const sphereMesh = sphereGO.AddComponent(Mesh);
     await sphereMesh.SetGeometry(Geometry.Sphere());
@@ -11199,38 +6585,27 @@ async function Application() {
     await sphereMesh.SetGeometry(Geometry.Cube());
     sphereMesh.AddMaterial(new PBRMaterial());
   }
-  const pinesGO = new GameObject(scene);
-  const instancedMesh = pinesGO.AddComponent(InstancedMesh);
-  await instancedMesh.SetGeometry(Geometry.Sphere());
-  instancedMesh.AddMaterial(new PBRMaterial());
-  const m = new Matrix4();
-  const p = new Vector3();
-  const q = new Quaternion();
-  const s = new Vector3(1, 1, 1);
-  let instances = 0;
-  const count = 2;
-  for (let x = 0; x < count; x++) {
-    for (let z = 0; z < count; z++) {
-      p.set(x, 2, z);
-      m.compose(p, q, s);
-      instancedMesh.SetMatrixAt(instances, m);
-      instances++;
+  {
+    const pinesGO = new GameObject(scene);
+    const instancedMesh = pinesGO.AddComponent(InstancedMesh);
+    await instancedMesh.SetGeometry(Geometry.Sphere());
+    instancedMesh.AddMaterial(new PBRMaterial());
+    const m = new Matrix4();
+    const p = new Vector3();
+    const q = new Quaternion();
+    const s = new Vector3(1, 1, 1);
+    const o = 2;
+    let instances = 0;
+    const count = 2;
+    for (let x = 0; x < count; x++) {
+      for (let z = 0; z < count; z++) {
+        p.set(x + o, 2, z + o);
+        m.compose(p, q, s);
+        instancedMesh.SetMatrixAt(instances, m);
+        instances++;
+      }
     }
   }
-  scene.renderPipeline.AddPass(new MeshletDraw(), 0 /* BeforeGBuffer */);
-  scene.renderPipeline.AddPass(new DeferredGBufferPass(), 0 /* BeforeGBuffer */);
-  {
-    const bunnyGeometry = await OBJLoaderIndexed.load("./assets/bunny.obj");
-    const pinesGO2 = new GameObject(scene);
-    pinesGO2.transform.position.set(4, 1, 0);
-    pinesGO2.transform.scale.set(0.01, 0.01, 0.01);
-    const instancedMesh2 = pinesGO2.AddComponent(MeshletMesh);
-    await instancedMesh2.SetGeometry(bunnyGeometry[0].geometry);
-    instancedMesh2.AddMaterial(bunnyGeometry[0].material);
-  }
-  const postProcessing = new PostProcessingPass();
-  postProcessing.effects.push(new PostProcessingFXAA());
-  scene.renderPipeline.AddPass(postProcessing, 3 /* AfterLighting */);
   scene.Start();
 }
 Application();
