@@ -12,6 +12,8 @@
     "esbuild": "^0.21.2"
   },
   "dependencies": {
+    "@gltf-transform/core": "^4.1.1",
+    "gl-matrix": "^3.4.3",
     "wgpu-matrix": "^3.3.0"
   }
 }
