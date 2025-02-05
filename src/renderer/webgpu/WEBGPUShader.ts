@@ -1,6 +1,13 @@
 import { WEBGPUBaseShader } from "./WEBGPUBaseShader";
 import { WEBGPURenderer } from "./WEBGPURenderer";
 import { Shader, ShaderAttribute, ShaderParams } from "../Shader";
+import { RendererDebug } from "../RendererDebug";
+
+const BindGroupCache: Map<string, GPUBindGroup> = new Map();
+
+
+const pipelineLayoutCache: Map<GPUBindGroupLayout[], GPUPipelineLayout> = new Map();
+const pipelineCache: Map<GPURenderPipelineDescriptor, GPURenderPipeline> = new Map();
 
 // TODO: Make this error!!
 const WGSLShaderAttributeFormat = {
@@ -27,24 +34,32 @@ export class WEBGPUShader extends WEBGPUBaseShader implements Shader {
         if (this.params.attributes) this.attributeMap = new Map(Object.entries(this.params.attributes));
     }
 
-    public RebuildDescriptors() {
+    protected Compile() {
         // console.warn("Compiling shader");
-        console.log('%c Compiling shader', 'color: #3498db');
+        console.warn('%c Compiling shader', 'color: #3498db');
 
-        this._bindGroupsInfo = this.BuildBindGroupLayouts();
-        const bindGroupLayouts: GPUBindGroupLayout[] = [];
-        this._bindGroups = [];
-        for (const bindGroupInfo of this._bindGroupsInfo) {
-            const bindGroupLayout = WEBGPURenderer.device.createBindGroupLayout({entries: bindGroupInfo.layoutEntries});
-            bindGroupLayouts.push(bindGroupLayout);
+        RendererDebug.IncrementShaderCompiles(1);
 
-            const bindGroup = WEBGPURenderer.device.createBindGroup({ layout: bindGroupLayout, entries: bindGroupInfo.entries });
-            this._bindGroups.push(bindGroup);
+        this.bindGroupLayouts = this.BuildBindGroupLayouts();
+        this._bindGroups = this.BuildBindGroups();
+
+        // if (this.bindGroupLayouts.length !== this._bindGroupsInfo.length) {
+        //     throw Error(`${this.bindGroupLayouts.length} !== ${this._bindGroupsInfo.length}`);
+        // }
+
+        // this._bindGroups = [];
+        // for (let i = 0; i < this._bindGroupsInfo.length; i++) {
+        //     const bindGroup = WEBGPURenderer.device.createBindGroup({ layout: this.bindGroupLayouts[i], entries: this._bindGroupsInfo[i].entries });
+        //     this._bindGroups.push(bindGroup);
+        // }
+
+        let pipelineLayout = pipelineLayoutCache.get(this.bindGroupLayouts);
+        if (pipelineLayout === undefined) {
+            pipelineLayout = WEBGPURenderer.device.createPipelineLayout({
+                bindGroupLayouts: this.bindGroupLayouts
+            });
+            pipelineLayoutCache.set(this.bindGroupLayouts, pipelineLayout);
         }
-
-        const pipelineLayout = WEBGPURenderer.device.createPipelineLayout({
-            bindGroupLayouts: bindGroupLayouts  // Array of all bind group layouts used
-        });
 
         // Pipeline descriptor
         let targets: GPUColorTargetState[] = [];

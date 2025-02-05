@@ -21,8 +21,6 @@ export class HiZPass extends RenderPass {
     public depthWidth = 512;
     public depthHeight = 512;
     
-    private depthLevels;
-
     private passBuffers: Buffer[] = [];
     private currentBuffer: Buffer;
 
@@ -70,7 +68,6 @@ export class HiZPass extends RenderPass {
             h /= 2;
             level++;
         }
-        this.depthLevels = level;
         this.inputTexture = DepthTexture.Create(this.depthWidth, this.depthHeight, 1, "depth24plus", level);
         this.inputTexture.SetActiveMip(0);
         this.inputTexture.SetActiveMipCount(level);

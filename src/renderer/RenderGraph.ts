@@ -44,7 +44,6 @@ export class RenderGraph {
         for (const pass of sortedPasses) {
             if (pass.initialized === true || pass.initializing === true) continue;
             pass.initializing = true;
-            console.warn("init", pass.name, pass.initialized, pass.initializing)
             await pass.init(this.resourcePool);
             pass.initialized = true;
         }

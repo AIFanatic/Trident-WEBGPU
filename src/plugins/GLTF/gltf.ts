@@ -66,6 +66,7 @@ const readBufferFromFile = (gltf: gltf.GlTf, buffers: ArrayBuffer[], accessor: g
     if (componentType === BufferType.Float) data = new Float32Array(buffers[bufferView.buffer], (accessor.byteOffset || 0) + (bufferView.byteOffset || 0), accessor.count * size);
     else if (componentType === BufferType.Short) data = new Int16Array(buffers[bufferView.buffer], (accessor.byteOffset || 0) + (bufferView.byteOffset || 0), accessor.count * size);
     else if (componentType === BufferType.Int) data = new Int32Array(buffers[bufferView.buffer], (accessor.byteOffset || 0) + (bufferView.byteOffset || 0), accessor.count * size);
+    else if (componentType === BufferType.Byte) data = new Uint8Array(buffers[bufferView.buffer], (accessor.byteOffset || 0) + (bufferView.byteOffset || 0), accessor.count * size);
     else throw Error(`Unknown component type ${componentType}`);
 
     return {
@@ -233,8 +234,10 @@ const loadMaterial = async (material: gltf.Material, path: string, images?: gltf
         }
 
         if (pbr.metallicRoughnessTexture) {
-            const uri = images![pbr.metallicRoughnessTexture.index].uri!;
-            metallicRoughnessTexture = await getTexture(`${dir}/${uri}`);
+            if (images && images![pbr.metallicRoughnessTexture.index] && images![pbr.metallicRoughnessTexture.index]["uri"]) {
+                const uri = images![pbr.metallicRoughnessTexture.index].uri!;
+                metallicRoughnessTexture = await getTexture(`${dir}/${uri}`);
+            }
         }
 
         metallicFactor = pbr.metallicFactor !== undefined ? pbr.metallicFactor : 1.0;
@@ -247,8 +250,10 @@ const loadMaterial = async (material: gltf.Material, path: string, images?: gltf
     }
 
     if (material.normalTexture) {
-        const uri = images![material.normalTexture.index].uri!;
-        normalTexture = await getTexture(`${dir}/${uri}`);
+        if (images && images![material.normalTexture.index] && images![material.normalTexture.index]["uri"]) {
+            const uri = images![material.normalTexture.index].uri!;
+            normalTexture = await getTexture(`${dir}/${uri}`);
+        }
     }
 
     if (material.occlusionTexture) {

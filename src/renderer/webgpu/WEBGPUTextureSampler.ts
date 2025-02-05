@@ -1,7 +1,9 @@
+import { Utils } from "../../utils/Utils";
 import { TextureSampler, TextureSamplerParams } from "../TextureSampler";
 import { WEBGPURenderer } from "./WEBGPURenderer";
 
 export class WEBGPUTextureSampler implements TextureSampler {
+    public readonly id = Utils.UUID();
     public readonly params: TextureSamplerParams;
 
     private sampler: GPUSampler;

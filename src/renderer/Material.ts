@@ -25,6 +25,8 @@ export interface PBRMaterialParams {
     metalnessMap?: Texture;
     emissiveMap?: Texture;
     aoMap?: Texture;
+    doubleSided?: boolean;
+    alphaCutoff: number;
 
     unlit: boolean;
 }
@@ -51,6 +53,8 @@ export class PBRMaterial extends Material {
             emissiveMap: params?.emissiveMap ? params.emissiveMap : undefined,
             aoMap: params?.aoMap ? params.aoMap : undefined,
         
+            doubleSided: params?.doubleSided ? params.doubleSided : false,
+            alphaCutoff: params?.alphaCutoff ? params.alphaCutoff : 0,
             unlit: params?.unlit ? params.unlit : false,
         }
     }
@@ -95,8 +99,8 @@ export class PBRMaterial extends Material {
                 AOMap: {group: 0, binding: 10, type: "texture"},
 
                 cameraPosition: {group: 0, binding: 11, type: "storage"},
-
             },
+            cullMode: this.params.doubleSided ? "none" : undefined
         };
         shaderParams = Object.assign({}, shaderParams, this.params);
 
@@ -110,7 +114,7 @@ export class PBRMaterial extends Material {
         shader.SetArray("material", new Float32Array([
             this.params.albedoColor.r, this.params.albedoColor.g, this.params.albedoColor.b, this.params.albedoColor.a,
             this.params.emissiveColor.r, this.params.emissiveColor.g, this.params.emissiveColor.b, this.params.emissiveColor.a,
-            this.params.roughness, this.params.metalness, +this.params.unlit, 0
+            this.params.roughness, this.params.metalness, +this.params.unlit, this.params.alphaCutoff
         ]));
 
         if (DEFINES.USE_ALBEDO_MAP === true && this.params.albedoMap) shader.SetTexture("AlbedoMap", this.params.albedoMap);

@@ -9,9 +9,14 @@ class _RendererDebug {
     private fps: UITextStat;
     private triangleCount: UITextStat;
     private visibleTriangles: UITextStat;
+    private cpuTime: UITextStat;
     private gpuTime: UITextStat;
     private gpuBufferSizeStat: UITextStat;
     private gpuTextureSizeStat: UITextStat;
+    private bindGroupLayoutsStat: UITextStat;
+    private bindGroupsStat: UITextStat;
+    private compiledShadersStat: UITextStat;
+    private drawCallsStat: UITextStat;
     private viewTypeStat: UIDropdownStat;
     private heightScale: UISliderStat;
     private useHeightMapStat: UIButtonStat;
@@ -33,9 +38,14 @@ class _RendererDebug {
         this.fps = new UITextStat(this.rendererFolder, "FPS", 0, 2, "", true);
         this.triangleCount = new UITextStat(this.rendererFolder, "Triangles: ");
         this.visibleTriangles = new UITextStat(this.rendererFolder, "Visible triangles: ");
+        this.cpuTime = new UITextStat(this.rendererFolder, "CPU: ", 0, 2, "ms", true);
         this.gpuTime = new UITextStat(this.rendererFolder, "GPU: ", 0, 2, "ms", true);
         this.gpuBufferSizeStat = new UITextStat(this.rendererFolder, "GPU buffer size: ", 0, 2);
         this.gpuTextureSizeStat = new UITextStat(this.rendererFolder, "GPU texture size: ", 0, 2);
+        this.bindGroupLayoutsStat = new UITextStat(this.rendererFolder, "Bind group layouts: ");
+        this.bindGroupsStat = new UITextStat(this.rendererFolder, "Bind groups: ");
+        this.drawCallsStat = new UITextStat(this.rendererFolder, "Draw calls: ");
+        this.compiledShadersStat = new UITextStat(this.rendererFolder, "Compiled shaders: ");
 
         this.viewTypeStat = new UIDropdownStat(this.rendererFolder, "Final output:", ["Lighting", "Albedo Map", "Normal Map", "Metalness", "Roughness", "Emissive"], (index, value) => {this.viewTypeValue = index}, this.viewTypeValue);
         this.heightScale = new UISliderStat(this.rendererFolder, "Height scale:", 0, 1, 0.01, this.heightScaleValue, state => {this.heightScaleValue = state});
@@ -53,6 +63,10 @@ class _RendererDebug {
         }
 
         framePass.SetValue(time / 1e6);
+    }
+
+    public SetCPUTime(value: number) {
+        this.cpuTime.SetValue(value);
     }
 
     public SetTriangleCount(count: number) {
@@ -77,6 +91,14 @@ class _RendererDebug {
         this.gpuTime.SetValue(totalGPUTime);
     }
 
+    public IncrementBindGroupLayouts(value: number) {
+        this.bindGroupLayoutsStat.SetValue(this.bindGroupLayoutsStat.GetValue() + value);
+    }
+
+    public IncrementBindGroups(value: number) {
+        this.bindGroupsStat.SetValue(this.bindGroupsStat.GetValue() + value);
+    }
+
     private FormatBytes (bytes: number, decimals = 2): {value: number, rank: string} {
         const k = 1024;
         const sizes = ['B', 'KB', 'MB', 'GB', 'TB', 'PB', 'EB', 'ZB', 'YB'];
@@ -96,6 +118,18 @@ class _RendererDebug {
         const formatted = this.FormatBytes(this.gpuTextureSizeTotal, this.gpuTextureSizeStat.GetPrecision());
         this.gpuTextureSizeStat.SetUnit(formatted.rank);
         this.gpuTextureSizeStat.SetValue(formatted.value);
+    }
+
+    public IncrementDrawCalls(count: number) {
+        this.drawCallsStat.SetValue(this.drawCallsStat.GetValue() + count);
+    }
+
+    public IncrementShaderCompiles(count: number) {
+        this.compiledShadersStat.SetValue(this.compiledShadersStat.GetValue() + count);
+    }
+
+    public ResetFrame() {
+        this.drawCallsStat.SetValue(0);
     }
 }
 

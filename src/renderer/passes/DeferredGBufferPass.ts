@@ -4,8 +4,6 @@ import { RenderPass, ResourcePool } from "../RenderGraph";
 import { Mesh } from "../../components/Mesh";
 import { PassParams } from "../RenderingPipeline";
 import { InstancedMesh } from "../../components/InstancedMesh";
-import { Debugger } from "../../plugins/Debugger";
-import { RenderCache } from "../RenderCache";
 import { RendererDebug } from "../RendererDebug";
 
 export class DeferredGBufferPass extends RenderPass {
@@ -46,7 +44,7 @@ export class DeferredGBufferPass extends RenderPass {
         const inputGBufferERMO = resources.getResource(PassParams.GBufferERMO);
         const inputGBufferDepth = resources.getResource(PassParams.GBufferDepth);
 
-        RendererContext.BeginRenderPass("DeferredMeshRenderPass",
+        RendererContext.BeginRenderPass(this.name,
             [
                 {target: inputGBufferAlbedo, clear: false, color: backgroundColor},
                 {target: inputGBufferNormal, clear: false, color: backgroundColor},
@@ -77,13 +75,6 @@ export class DeferredGBufferPass extends RenderPass {
                 if (geometry.index) {
                     RendererDebug.IncrementTriangleCount(geometry.index.array.length / 3);
                 }
-
-                RenderCache.renderableMeshes.push({
-                    type: "Draw",
-                    shader: shader,
-                    geometry: geometry,
-                    mesh: mesh
-                })
             }
         }
 
@@ -106,14 +97,6 @@ export class DeferredGBufferPass extends RenderPass {
                 if (geometry.index) {
                     RendererDebug.IncrementTriangleCount(geometry.index.array.length / 3 * (instancedMesh.instanceCount + 1));
                 }
-
-                RenderCache.renderableMeshes.push({
-                    type: "DrawInstanced",
-                    shader: shader,
-                    geometry: geometry,
-                    instances: instancedMesh.instanceCount+1,
-                    instancedMesh: instancedMesh
-                })
             }
         }
 

@@ -1,6 +1,8 @@
 import { EventSystem, EventSystemLocal } from "../Events";
 import { Color } from "../math/Color";
+import { Matrix4 } from "../math/Matrix4";
 import { Vector3 } from "../math/Vector3";
+import { Vector4 } from "../math/Vector4";
 import { Renderer } from "../renderer/Renderer";
 import { DepthTexture, RenderTexture } from "../renderer/Texture";
 import { Camera } from "./Camera";
@@ -16,6 +18,7 @@ export class Light extends Component {
     public color: Color = new Color(1,1,1);
     public intensity: number = 1;
     public range: number = 1000;
+    public castShadows: boolean = true;
 
     public Start(): void {
         EventSystemLocal.on(TransformEvents.Updated, this.transform, () => {

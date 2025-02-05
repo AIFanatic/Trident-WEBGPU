@@ -13,11 +13,11 @@ export class WEBGPUTexture implements Texture {
     public readonly type: TextureType;
     public readonly dimension: TextureDimension;
     public readonly mipLevels: number;
-    
+
     private buffer: GPUTexture;
-    
+
     private viewCache: Map<string, GPUTextureView> = new Map();
-    
+
     private currentLayer: number = 0;
     private currentMip: number = 0;
     private activeMipCount: number = 1;
@@ -36,7 +36,7 @@ export class WEBGPUTexture implements Texture {
         let dim: GPUTextureDimension = "2d";
         if (dimension === "1d") dim = "1d";
         else if (dimension === "3d") dim = "3d";
-        
+
         this.buffer = WEBGPURenderer.device.createTexture({
             size: [width, height, depth],
             dimension: dim,
@@ -75,6 +75,8 @@ export class WEBGPUTexture implements Texture {
 
     public GenerateMips() {
         this.buffer = WEBGPUMipsGenerator.generateMips(this);
+        // Needed for mipmapping "mipLevelCount: uniform.activeMipCount"
+        this.SetActiveMipCount(WEBGPUMipsGenerator.numMipLevels(this.width, this.height));
     }
 
     public SetActiveLayer(layer: number) {
@@ -112,11 +114,15 @@ export class WEBGPUTexture implements Texture {
     public static FromImageBitmap(imageBitmap: ImageBitmap, width: number, height: number, format: TextureFormat, flipY: boolean): WEBGPUTexture {
         const texture = new WEBGPUTexture(width, height, 1, format, TextureType.RENDER_TARGET, "2d", 1);
 
-        WEBGPURenderer.device.queue.copyExternalImageToTexture(
-            { source: imageBitmap, flipY: flipY},
-            { texture: texture.GetBuffer() },
-            [imageBitmap.width, imageBitmap.height]
-        );
+        try {
+            WEBGPURenderer.device.queue.copyExternalImageToTexture(
+                { source: imageBitmap, flipY: flipY },
+                { texture: texture.GetBuffer() },
+                [imageBitmap.width, imageBitmap.height]
+            );
+        } catch (error) {
+            console.warn(error)
+        }
 
         return texture;
     }

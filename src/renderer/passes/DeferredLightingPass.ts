@@ -1,6 +1,6 @@
 import { Shader } from "../Shader";
 import { Geometry } from "../../Geometry";
-import { DepthTexture, RenderTexture } from "../Texture";
+import { RenderTexture } from "../Texture";
 import { TextureSampler } from "../TextureSampler";
 import { Camera } from "../../components/Camera";
 import { RendererContext } from "../RendererContext";
@@ -9,11 +9,11 @@ import { AreaLight, DirectionalLight, Light, LightEvents, PointLight, SpotLight 
 import { Renderer } from "../Renderer";
 import { Matrix4 } from "../../math/Matrix4";
 import { Buffer, BufferType } from "../Buffer";
-import { Debugger } from "../../plugins/Debugger";
-import { cascadeSplits, lightsCSMProjectionMatrix } from "./DeferredShadowMapPass";
 import { ShaderLoader } from "../ShaderUtils";
 import { PassParams } from "../RenderingPipeline";
 import { EventSystem } from "../../Events";
+import { LightShadowData } from "./DeferredShadowMapPass";
+import { DynamicBufferMemoryAllocator } from "../../utils/MemoryAllocator";
 
 enum LightType {
     SPOT_LIGHT,
@@ -28,7 +28,7 @@ export class DeferredLightingPass extends RenderPass {
     private sampler: TextureSampler;
     private quadGeometry: Geometry;
 
-    private lightsBuffer: Buffer;
+    private lightsBuffer: DynamicBufferMemoryAllocator;
     private lightsCountBuffer: Buffer;
 
     private outputLightingPass: RenderTexture;
@@ -37,7 +37,6 @@ export class DeferredLightingPass extends RenderPass {
 
     public initialized = false;
 
-    // constructor(inputGBufferAlbedo: string, inputGBufferNormal: string, inputGbufferERMO: string, inputGBufferDepth: string, inputShadowPassDepth: string, outputLightingPass: string) {
     constructor() {
         super({
             inputs: [
@@ -47,9 +46,9 @@ export class DeferredLightingPass extends RenderPass {
                 PassParams.GBufferERMO,
                 PassParams.GBufferDepth,
                 PassParams.ShadowPassDepth,
+                PassParams.ShadowPassCascadeData,
             ],
             outputs: [PassParams.LightingPassOutput] });
-        this.init();
     }
 
     public async init() {
@@ -88,9 +87,14 @@ export class DeferredLightingPass extends RenderPass {
 
         this.quadGeometry = Geometry.Plane();
 
+        this.lightsBuffer = new DynamicBufferMemoryAllocator(132 * 10);
         this.lightsCountBuffer = Buffer.Create(1 * 4, BufferType.STORAGE);
 
+        this.shader.SetBuffer("lights", this.lightsBuffer.getBuffer());
+        this.shader.SetBuffer("lightCount", this.lightsCountBuffer);
+
         this.outputLightingPass = RenderTexture.Create(Renderer.width, Renderer.height);
+
 
         EventSystem.on(LightEvents.Updated, component => {
             this.needsUpdate = true;
@@ -99,18 +103,14 @@ export class DeferredLightingPass extends RenderPass {
         this.initialized = true;
     }
 
-    private updateLightsBuffer() {
+    private updateLightsBuffer(resources: ResourcePool) {
         const scene = Camera.mainCamera.gameObject.scene;
         // TODO: Fix, GetComponents(Light)
         const lights = [...scene.GetComponents(Light), ...scene.GetComponents(PointLight), ...scene.GetComponents(DirectionalLight), ...scene.GetComponents(AreaLight)];
-        // const lightBufferSize = 4 + 16 + (4 * 16) + 16 + 16 + 3 + 1 + 4 + 4;
-        // const lightBuffer = new Float32Array(Math.max(1, lights.length) * lightBufferSize); // Always ensure one light
-
-        const lightBuffer: number[] = [];
 
         for (let i = 0; i < lights.length; i++) {
             const light = lights[i];
-            const params1 = new Float32Array([light.intensity, light.range, 0, 0]);
+            const params1 = new Float32Array([light.intensity, light.range, +light.castShadows, -1]);
             const params2 = new Float32Array(4);
 
             if (light instanceof DirectionalLight) {
@@ -127,36 +127,41 @@ export class DeferredLightingPass extends RenderPass {
             else if (light instanceof PointLight) lightType = LightType.POINT_LIGHT;
             else if (light instanceof AreaLight) lightType = LightType.AREA_LIGHT;
 
-            lightBuffer.push(
+            let projectionMatrices: Float32Array = new Float32Array(16 * 4);
+            let cascadeSplits = new Float32Array(4);
+
+            const lightsShadowData = resources.getResource(PassParams.ShadowPassCascadeData) as Map<string, LightShadowData> | undefined;
+            const lightShadowData = lightsShadowData ? lightsShadowData.get(light.id) : undefined;
+            if (lightShadowData !== undefined) {
+                projectionMatrices = lightShadowData.projectionMatrices;
+                cascadeSplits = lightShadowData.cascadeSplits;
+                params1[3] = lightShadowData.shadowMapIndex;
+
+                // console.log("HERE", light.id, lightsShadowData, params1)
+            }
+
+            const lightData = new Float32Array([
                 light.transform.position.x, light.transform.position.y, light.transform.position.z, 1.0,
                 ...light.camera.projectionMatrix.elements,
                 // ...lightsCSMProjectionMatrix[i].slice(0, 16 * 4),
-                ...lightsCSMProjectionMatrix[i].slice(0, 16),
-                ...lightsCSMProjectionMatrix[i].slice(16, 32),
-                ...lightsCSMProjectionMatrix[i].slice(32, 48),
-                ...lightsCSMProjectionMatrix[i].slice(48, 64),
-                ...cascadeSplits.elements,
+                ...projectionMatrices,
+                ...cascadeSplits,
                 ...light.camera.viewMatrix.elements,
                 ...light.camera.viewMatrix.clone().invert().elements,
                 light.color.r, light.color.g, light.color.b, lightType,
                 ...params1,
                 ...params2
-            );
+            ])
+
+            this.lightsBuffer.set(light.id, lightData);
         }
 
-
-        const lightsLength = Math.max(lights.length, 1);
-        if (!this.lightsBuffer || this.lightsBuffer.size !== lightBuffer.length * 4) {
-            this.lightsBuffer = Buffer.Create(lightsLength * lightBuffer.length * 4, BufferType.STORAGE);
-            this.lightsCountBuffer = Buffer.Create(1 * 4, BufferType.STORAGE);
-        }
-        this.lightsBuffer.SetArray(new Float32Array(lightBuffer));
         this.lightsCountBuffer.SetArray(new Uint32Array([lights.length]));
 
-        this.shader.SetBuffer("lights", this.lightsBuffer);
-        this.shader.SetBuffer("lightCount", this.lightsCountBuffer);
+        // Need to keep rebinding the buffer since its dynamic
+        this.shader.SetBuffer("lights", this.lightsBuffer.getBuffer());
         this.needsUpdate = false;
-        console.log("Updating light buffer");
+        // console.log("Updating light buffer");
     }
 
     public execute(resources: ResourcePool) {
@@ -166,8 +171,9 @@ export class DeferredLightingPass extends RenderPass {
         // console.log(inputGBufferAlbedo)
         const camera = Camera.mainCamera;
 
-        if (!this.lightsBuffer || !this.lightsCountBuffer || this.needsUpdate) {
-            this.updateLightsBuffer();
+        
+        if (this.needsUpdate) {
+            this.updateLightsBuffer(resources);
         }
 
         const inputGBufferAlbedo = resources.getResource(PassParams.GBufferAlbedo);

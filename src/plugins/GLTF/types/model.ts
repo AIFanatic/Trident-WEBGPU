@@ -78,7 +78,8 @@ export interface Buffer {
 export enum BufferType {
     Float = 5126,
     Short = 5123,
-    Int = 5125
+    Int = 5125,
+    Byte = 5121
 }
 
 /**

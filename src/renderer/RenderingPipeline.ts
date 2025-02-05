@@ -2,17 +2,13 @@ import { Scene } from "../Scene";
 import { Renderer } from "./Renderer";
 import { RenderGraph, RenderPass } from "./RenderGraph";
 import { DeferredLightingPass } from "./passes/DeferredLightingPass";
-import { Debugger } from "../plugins/Debugger";
 import { WEBGPUTimestampQuery } from "./webgpu/WEBGPUTimestampQuery";
 import { TextureViewer } from "./passes/TextureViewer";
-import { DeferredGBufferPass } from "./passes/DeferredGBufferPass";
 import { PrepareGBuffers } from "./passes/PrepareGBuffers";
-// import { MeshletDraw } from "../plugins/meshlets/passes/MeshletDraw";
 import { DeferredShadowMapPass } from "./passes/DeferredShadowMapPass";
-import { RenderCache } from "./RenderCache";
 import { DebuggerTextureViewer } from "./passes/DebuggerTextureViewer";
-import { PostProcessingPass } from "../plugins/PostProcessing/PostProcessingPass";
 import { RendererDebug } from "./RendererDebug";
+import { DeferredGBufferPass } from "./passes/DeferredGBufferPass";
 
 export const PassParams = {
     DebugSettings: "DebugSettings",
@@ -21,13 +17,14 @@ export const PassParams = {
     depthTexture: "depthTexture",
     depthTexturePyramid: "depthTexturePyramid",
 
-
     GBufferAlbedo: "GBufferAlbedo",
     GBufferNormal: "GBufferNormal",
     GBufferERMO: "GBufferERMO",
     GBufferDepth: "GBufferDepth",
 
     ShadowPassDepth: "ShadowPassDepth",
+
+    ShadowPassCascadeData: "ShadowPassCascadeData",
     
     LightingPassOutput: "LightingPassOutput",
 };
@@ -55,17 +52,13 @@ export class RenderingPipeline {
 
     private beforeScreenOutputPasses: RenderPass[] = [];
 
-    private renderPasses: RenderPass[] = [];
-
     constructor(renderer: Renderer) {
         this.renderer = renderer;
-
-        console.warn("this sucks")
 
         this.renderGraph = new RenderGraph();
         this.beforeGBufferPasses = [
             new PrepareGBuffers(),
-            // new DeferredGBufferPass(),
+            new DeferredGBufferPass(),
         ];
         
         this.afterGBufferPasses = [
@@ -110,13 +103,14 @@ export class RenderingPipeline {
     }
 
     public Render(scene: Scene) {
-        RenderCache.Reset();
-        
+        RendererDebug.ResetFrame();
         RendererDebug.SetTriangleCount(0);
-
+        
+        const renderPipelineStart = performance.now();
         Renderer.BeginRenderFrame();
         this.renderGraph.execute();
         Renderer.EndRenderFrame();
+        RendererDebug.SetCPUTime(performance.now() - renderPipelineStart);
 
         WEBGPUTimestampQuery.GetResult().then(frameTimes => {
             if (frameTimes) {

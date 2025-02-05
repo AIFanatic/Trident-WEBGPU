@@ -1,7 +1,9 @@
+import { EngineDebug } from "./EngineDebug";
 import { EventSystem } from "./Events";
 import { GameObject } from "./GameObject";
 import { Component, ComponentEvents } from "./components/Component";
 import { Renderer } from "./renderer/Renderer";
+import { RendererDebug } from "./renderer/RendererDebug";
 import { RenderingPipeline } from "./renderer/RenderingPipeline";
 
 export class Scene {
@@ -83,7 +85,9 @@ export class Scene {
     }
 
     private Tick() {
+        const componentUpdateStart = performance.now();
         for (const [component, _] of this.toUpdate) component.Update();
+        EngineDebug.componentUpdate.SetValue(performance.now() - componentUpdateStart);
 
         this.renderPipeline.Render(this);
 

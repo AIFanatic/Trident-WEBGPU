@@ -331,7 +331,8 @@ fn SampleCascadeShadowMap(
                 shadowPassDepth,
                 shadowSamplerComp,
                 shadowMapCoords.xy + vec2<f32>(f32(i), f32(j)) * offset,
-                lightIndex,
+                //lightIndex,
+                i32(light.params1.w), // params1.w == shadowMapIndex
                 shadowMapCoords.z
             );
 
@@ -487,9 +488,14 @@ fn fragmentMain(input: VertexOutput) -> @location(0) vec4<f32> {
             // var shadow = CalculateShadow(surface.worldPosition, surface.N, light, i);
             // shadow = 1.0 - shadow;
             // shadow += 0.5;
-            let shadowCSM = CalculateShadowCSM(surface, light, i);
-            let shadow = shadowCSM.visibility;
-            selectedCascade = shadowCSM.selectedCascade;
+
+            let castShadows = light.params1.z > 0.5;
+            var shadow = 1.0;
+            if (castShadows) {
+                let shadowCSM = CalculateShadowCSM(surface, light, i);
+                shadow = shadowCSM.visibility;
+                selectedCascade = shadowCSM.selectedCascade;
+            }
 
             // let shadow = 1.0;
 

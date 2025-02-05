@@ -76,7 +76,7 @@ export class DebuggerTextureViewer extends RenderPass {
         this.shader.SetTexture("texture", LightingPassOutputTexture);
 
         RendererContext.BeginRenderPass("DebuggerTextureViewer", [{clear: false}], undefined, true);
-        RendererContext.SetViewport(Renderer.width - 500, 0, 200, 200);
+        RendererContext.SetViewport(Renderer.width - 100, 0, 100, 100);
         RendererContext.DrawGeometry(this.quadGeometry, this.shader);
         RendererContext.SetViewport(0, 0, Renderer.width, Renderer.height);
         RendererContext.EndRenderPass();

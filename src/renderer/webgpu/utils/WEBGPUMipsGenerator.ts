@@ -7,7 +7,7 @@ export class WEBGPUMipsGenerator {
     private static module;
     private static pipelineByFormat = {};
 
-    private static numMipLevels (...sizes) { return 1 + Math.log2(Math.max(...sizes)) | 0 }
+    public static numMipLevels (...sizes) { return 1 + Math.log2(Math.max(...sizes)) | 0 }
 
     // TODO: Cannot call this twice because of texture usages
     public static generateMips(source: WEBGPUTexture): GPUTexture {

@@ -188,14 +188,19 @@ export class UITextStat extends Stat {
         this.textElement.textContent = defaultValue.toFixed(precision);
 
         this.statContainer.append(this.textElement);
+
+        // Update the values like this so it doesnt hang the rendering pipeline
+        setInterval(() => {
+            this.Update();
+        }, 100);
     }
 
     public SetValue(value: number) {
         if (this.rolling === true) {
             value = this.previousValue * 0.95 + value * 0.05;
         }
-        const valueStr = this.precision === 0 ? value.toString() : value.toFixed(this.precision);
-        this.textElement.textContent = valueStr + this.unit;
+        // const valueStr = this.precision === 0 ? value.toString() : value.toFixed(this.precision);
+        // this.textElement.textContent = valueStr + this.unit;
         this.previousValue = value;
     }
 
@@ -203,6 +208,11 @@ export class UITextStat extends Stat {
     public GetPrecision(): number { return this.precision; }
 
     public SetUnit(unit: string) { this.unit = unit };
+
+    public Update() {
+        const valueStr = this.precision === 0 ? this.previousValue.toString() : this.previousValue.toFixed(this.precision);
+        this.textElement.textContent = valueStr + this.unit;
+    }
 }
 
 export class UIFolder extends Stat {
