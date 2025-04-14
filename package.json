@@ -4,7 +4,7 @@
   "main": "index.js",
   "license": "MIT",
   "scripts": {
-    "dev": "esbuild src/index.ts --bundle --outfile=dist/trident.js --asset-names=resources/[dir]/[name] --loader:.wgsl=file --loader:.obj=file --loader:.png=file  --target=es2022 --format=esm --watch"
+    "dev": "esbuild src/index.ts --bundle --outfile=dist/trident.js --asset-names=resources/[dir]/[name] --loader:.wgsl=file --loader:.obj=file --loader:.png=file --external:fs --external:path --target=es2022 --format=esm --watch"
   },
   "devDependencies": {
     "@types/three": "^0.168.0",

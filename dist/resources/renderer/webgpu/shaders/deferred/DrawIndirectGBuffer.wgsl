@@ -13,6 +13,7 @@ struct VertexOutput {
     @location(2) vPosition : vec3<f32>,
     @location(3) vNormal : vec3<f32>,
     @location(4) vUv : vec2<f32>,
+    @location(5) barycenticCoord : vec3<f32>,
 };
 
 // struct Vertex {
@@ -38,13 +39,15 @@ struct VertexOutput {
 @group(0) @binding(12) var MetalnessMaps: texture_2d_array<f32>;
 @group(0) @binding(13) var EmissiveMaps: texture_2d_array<f32>;
 
+@group(0) @binding(14) var<storage, read> meshletSettings: MeshletSettings;
+
 @vertex fn vertexMain(input: VertexInput) -> VertexOutput {
     var output: VertexOutput;
     let meshID = instanceInfo[input.instanceIndex].meshID;
     let object = objectInfo[meshID];
     var modelMatrix = meshMatrixInfo[u32(object.meshID)].modelMatrix;
     
-    let vertexID = input.vertexIndex + u32(object.meshletID) * u32(settings.maxTriangles * 3.0);
+    let vertexID = input.vertexIndex + u32(object.meshletID) * u32(meshletSettings.maxTriangles * 3.0);
     let vertex = vertices[vertexID];
     let position = vec3f(vertices[vertexID * 8 + 0], vertices[vertexID * 8 + 1], vertices[vertexID * 8 + 2]);
     let normal = vec3f(vertices[vertexID * 8 + 3], vertices[vertexID * 8 + 4], vertices[vertexID * 8 + 5]);
@@ -60,6 +63,12 @@ struct VertexOutput {
     output.vPosition = position;
     output.vNormal = normal;
     output.vUv = uv;
+
+
+
+    // emit a barycentric coordinate
+    output.barycenticCoord = vec3f(0);
+    output.barycenticCoord[input.vertexIndex % 3] = 1.0;
 
     return output;
 }
@@ -105,6 +114,13 @@ struct FragmentOutput {
     @location(1) normal : vec4f,
     @location(2) RMO : vec4f,
 };
+
+fn edgeFactor(bary: vec3f) -> f32 {
+    let lineThickness = 1.0;
+    let d = fwidth(bary);
+    let a3 = smoothstep(vec3f(0.0), d * lineThickness, bary);
+    return min(min(a3.x, a3.y), a3.z);
+}
 
 @fragment fn fragmentMain(input: VertexOutput) -> FragmentOutput {
     let object = objectInfo[input.meshID];
@@ -221,9 +237,18 @@ struct FragmentOutput {
     output.normal = vec4(normal.xyz, metalness);
     output.RMO = vec4(emissive.rgb, unlit);
 
+    // Wireframe
+    output.albedo *= 1.0 - edgeFactor(input.barycenticCoord) * meshMaterial.Wireframe;
+
+    // // Flat shading
+    // let xTangent: vec3f = dpdx( input.vPosition );
+    // let yTangent: vec3f = dpdy( input.vPosition );
+    // let faceNormal: vec3f = normalize( cross( xTangent, yTangent ) );
+    // output.normal = vec4(faceNormal.xyz, metalness);
+
 
     // Debug
-    if (u32(settings.meshletsViewType) == 1) {
+    if (u32(meshletSettings.meshletsViewType) == 1) {
         let instanceColor = vec3f(
             rand(f32(input.meshID) + 12.1212),
             rand(f32(input.meshID) + 22.1212),
@@ -233,7 +258,7 @@ struct FragmentOutput {
         output.albedo = vec4(c, 1.0);
         output.RMO = vec4(emissive.rgb, 1);
     }
-    else if (u32(settings.meshletsViewType) == 2) {
+    else if (u32(meshletSettings.meshletsViewType) == 2) {
         let vertexColor = vec3f(
             rand(f32(input.vertexID) + 12.1212),
             rand(f32(input.vertexID) + 22.1212),

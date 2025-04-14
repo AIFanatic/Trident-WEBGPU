@@ -46,6 +46,7 @@ struct MeshMaterialInfo {
     Roughness: f32,
     Metalness: f32,
     Unlit: f32,
+    Wireframe: f32,
     padding1: f32
 };
 

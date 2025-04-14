@@ -1,5 +1,6 @@
 struct VertexInput {
     @builtin(instance_index) instanceIdx : u32, 
+    @builtin(vertex_index) vertexIndex : u32,
     @location(0) position : vec3<f32>,
     @location(1) normal : vec3<f32>,
     @location(2) uv : vec2<f32>,
@@ -11,6 +12,7 @@ struct VertexOutput {
     @location(1) vNormal : vec3<f32>,
     @location(2) vUv : vec2<f32>,
     @location(3) @interpolate(flat) instance : u32,
+    @location(4) barycenticCoord : vec3<f32>,
 };
 
 @group(0) @binding(0) var<storage, read> projectionMatrix: mat4x4<f32>;
@@ -37,8 +39,10 @@ struct Material {
     Roughness: f32,
     Metalness: f32,
     Unlit: f32,
-    AlphaCutoff: f32
+    AlphaCutoff: f32,
+    Wireframe: f32
 };
+
 @group(0) @binding(3) var<storage, read> material: Material;
 
 @vertex
@@ -55,6 +59,10 @@ fn vertexMain(input: VertexInput) -> VertexOutput {
     output.vUv = input.uv;
 
     output.instance = input.instanceIdx;
+
+    // emit a barycentric coordinate
+    output.barycenticCoord = vec3f(0);
+    output.barycenticCoord[input.vertexIndex % 3] = 1.0;
 
     return output;
 }
@@ -85,6 +93,13 @@ fn getNormalFromMap(N: vec3f, p: vec3f, uv: vec2f ) -> mat3x3<f32> {
     // construct a scale-invariant frame 
     let invmax = inversesqrt( max( dot(T,T), dot(B,B) ) );
     return mat3x3( T * invmax, B * invmax, N );
+}
+
+fn edgeFactor(bary: vec3f) -> f32 {
+    let lineThickness = 1.0;
+    let d = fwidth(bary);
+    let a3 = smoothstep(vec3f(0.0), d * lineThickness, bary);
+    return min(min(a3.x, a3.y), a3.z);
 }
 
 @fragment
@@ -163,7 +178,7 @@ fn fragmentMain(input: VertexOutput) -> FragmentOutput {
         albedo *= textureSample(AlbedoMap, TextureSampler, uv);
     #endif
 
-    if (albedo.r + albedo.g + albedo.b < 0.001 || albedo.a < mat.AlphaCutoff) {
+    if (albedo.a < mat.AlphaCutoff) {
         discard;
     }
 
@@ -197,6 +212,17 @@ fn fragmentMain(input: VertexOutput) -> FragmentOutput {
     output.albedo = vec4(albedo.rgb, roughness);
     output.normal = vec4(normal.xyz, metalness);
     output.RMO = vec4(emissive.rgb, unlit);
+
+
+    // Wireframe
+    output.albedo *= 1.0 - edgeFactor(input.barycenticCoord) * mat.Wireframe;
+
+    // // Flat shading
+    // let xTangent: vec3f = dpdx( input.vPosition );
+    // let yTangent: vec3f = dpdy( input.vPosition );
+    // let faceNormal: vec3f = normalize( cross( xTangent, yTangent ) );
+
+    // output.normal = vec4(faceNormal.xyz, metalness);
 
     return output;
 }

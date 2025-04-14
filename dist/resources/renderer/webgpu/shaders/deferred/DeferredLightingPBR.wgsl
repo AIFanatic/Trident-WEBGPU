@@ -18,7 +18,7 @@ struct VertexOutput {
 @group(0) @binding(3) var ermoTexture: texture_2d<f32>;
 @group(0) @binding(4) var depthTexture: texture_depth_2d;
 @group(0) @binding(5) var shadowPassDepth: texture_depth_2d_array;
-
+@group(0) @binding(6) var skyboxTexture: texture_cube<f32>;
 
 
 struct Light {
@@ -38,8 +38,8 @@ struct Light {
     params2: vec4<f32>,
 };
 
-@group(0) @binding(6) var<storage, read> lights: array<Light>;
-@group(0) @binding(7) var<storage, read> lightCount: u32;
+@group(0) @binding(7) var<storage, read> lights: array<Light>;
+@group(0) @binding(8) var<storage, read> lightCount: u32;
 
 
 
@@ -53,7 +53,7 @@ struct View {
     viewInverseMatrix: mat4x4<f32>,
     viewMatrix: mat4x4<f32>,
 };
-@group(0) @binding(8) var<storage, read> view: View;
+@group(0) @binding(9) var<storage, read> view: View;
 
 
 const numCascades = 4;
@@ -64,9 +64,9 @@ const debug_cascadeColors = array<vec4<f32>, 5>(
     vec4<f32>(1.0, 1.0, 0.0, 1.0),
     vec4<f32>(0.0, 0.0, 0.0, 1.0)
 );
-@group(0) @binding(9) var shadowSamplerComp: sampler_comparison;
+@group(0) @binding(10) var shadowSamplerComp: sampler_comparison;
 
-@group(0) @binding(10) var<storage, read> settings: Settings;
+@group(0) @binding(11) var<storage, read> settings: Settings;
 
 
 @vertex
@@ -408,11 +408,15 @@ fn fragmentMain(input: VertexOutput) -> @location(0) vec4<f32> {
     let normal = textureSample(normalTexture, textureSampler, uv);
     let ermo = textureSample(ermoTexture, textureSampler, uv);
 
-    let cutoff = 0.0001;
-    let albedoSum = albedo.r + albedo.g + albedo.b;
-    if (albedoSum < cutoff) {
-        discard;
-    }
+    // let cutoff = 0.0001;
+    // let albedoSum = albedo.r + albedo.g + albedo.b;
+    // if (albedoSum < cutoff) {
+    //     discard;
+    // }
+
+    // if (albedo.a < mat.AlphaCutoff) {
+    //     discard;
+    // }
 
     var color: vec3f = vec3(0);
 
@@ -426,8 +430,31 @@ fn fragmentMain(input: VertexOutput) -> @location(0) vec4<f32> {
 
     var depth = textureLoad(depthTexture, vec2<i32>(floor(input.position.xy)), 0);
 
+    // Convert screen coordinate to NDC space [-1, 1]
+    let ndc = vec3<f32>(
+        (input.position.x / view.projectionOutputSize.x) * 2.0 - 1.0,
+        (input.position.y / view.projectionOutputSize.y) * 2.0 - 1.0,
+        1.0
+    );
+    
+    // Reconstruct the view ray in view space
+    let viewRay4 = view.projectionInverseMatrix * vec4(ndc, 1.0);
+    var viewRay = normalize(viewRay4.xyz / viewRay4.w);
+    viewRay.y *= -1.0;
+
+    // Transform the view-space ray to world space using the inverse view matrix
+    var worldRay = normalize((view.viewInverseMatrix * vec4(viewRay, 0.0)).xyz);
+    
+    // Sample the sky cube using the view ray as direction
+    let skyColor = textureSample(skyboxTexture, textureSampler, worldRay);
+    // For example, if the depth is near the far plane, we assume it’s background:
+    if (depth >= 0.9999999) {
+        return skyColor;
+    }
+
     var surface: Surface;
     surface.depth = depth;
+    // surface.albedo = albedo.rgb * skyColor.rgb;
     surface.albedo = albedo.rgb;
     surface.roughness = albedo.a;
     surface.metallic = normal.a;
@@ -462,8 +489,16 @@ fn fragmentMain(input: VertexOutput) -> @location(0) vec4<f32> {
             spotLight.angle = light.params1.b;
 
             // let shadow = CalculateShadow(surface.worldPosition, surface.N, light, i);
-            let shadow = 0.0;
-            Lo += (1.0 - shadow) * SpotLightRadiance(spotLight, surface);
+
+            let castShadows = light.params1.z > 0.5;
+            var shadow = 1.0;
+            if (castShadows) {
+                let shadowCSM = CalculateShadowCSM(surface, light, i);
+                shadow = shadowCSM.visibility;
+                selectedCascade = shadowCSM.selectedCascade;
+            }
+
+            Lo += shadow * SpotLightRadiance(spotLight, surface);
         }
         else if (lightType == POINT_LIGHT) {
             var pointLight: PointLight;
@@ -504,26 +539,24 @@ fn fragmentMain(input: VertexOutput) -> @location(0) vec4<f32> {
     }
 
 
+
     let ambientColor = vec3(0.01);
     color = ambientColor * surface.albedo + Lo * surface.occlusion;
 
     if (u32(settings.debugShadowCascades) == 1) {
         color += debug_cascadeColors[selectedCascade].rgb * 0.05;
     }
-    // color += surface.emissive;
 
+    color += surface.emissive;
     color = Tonemap_ACES(color);
     color = OECF_sRGBFast(color);
 
 
-
-    if (u32(settings.meshletsViewType) == 0) {
-        if (u32(settings.viewType) == 1) { color = surface.albedo.rgb; }
-        else if (u32(settings.viewType) == 2) { color = surface.N.xyz; }
-        else if (u32(settings.viewType) == 3) { color = vec3(surface.metallic); }
-        else if (u32(settings.viewType) == 4) { color = vec3(surface.roughness); }
-        else if (u32(settings.viewType) == 5) { color = surface.emissive; }
-    }
+    if (u32(settings.viewType) == 1) { color = surface.albedo.rgb; }
+    else if (u32(settings.viewType) == 2) { color = surface.N.xyz; }
+    else if (u32(settings.viewType) == 3) { color = vec3(surface.metallic); }
+    else if (u32(settings.viewType) == 4) { color = vec3(surface.roughness); }
+    else if (u32(settings.viewType) == 5) { color = surface.emissive; }
     
 
     return vec4(color, 1.0);
