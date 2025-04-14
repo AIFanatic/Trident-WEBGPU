@@ -225,6 +225,11 @@ export class Vector3 {
     public toString(): string {
         return `(${this.x.toPrecision(2)}, ${this.y.toPrecision(2)}, ${this.z.toPrecision(2)})`;
     }
+
+    public static fromArray(array: number[]): Vector3 {
+        if (array.length < 3) throw Error("Array doesn't have enough data");
+        return new Vector3(array[0], array[1], array[2]);
+    }
 }
 
 export class ObservableVector3 extends Vector3 {

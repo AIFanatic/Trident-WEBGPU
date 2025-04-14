@@ -1,13 +1,10 @@
 import { RenderPass, ResourcePool } from "../RenderGraph";
-import { DepthTexture, DepthTextureArray, RenderTexture } from "../Texture";
+import { CubeTexture, DepthTexture, RenderTexture } from "../Texture";
 import { PassParams } from "../RenderingPipeline";
 import { Renderer } from "../Renderer";
 import { RenderTarget, RendererContext } from "../RendererContext";
 import { Debugger } from "../../plugins/Debugger";
-import { Meshlet } from "../../plugins/meshlets/Meshlet";
 import { Camera } from "../../components/Camera";
-import { AreaLight, DirectionalLight, PointLight, SpotLight } from "../../components/Light";
-import { MeshletDebug } from "../../plugins/meshlets/passes/MeshletDebug";
 import { RendererDebug } from "../RendererDebug";
 import { DeferredShadowMapPassDebug } from "./DeferredShadowMapPass";
 
@@ -19,6 +16,11 @@ export class PrepareGBuffers extends RenderPass {
     public gBufferERMORT: RenderTexture;
 
     public depthTexture: DepthTexture;
+    public depthTextureClone: DepthTexture; // So it can be used on the same pass
+
+    public gBufferAlbedoRTClone: RenderTexture;
+
+    public skybox: CubeTexture;
 
     constructor() {
         super({outputs: [
@@ -33,10 +35,13 @@ export class PrepareGBuffers extends RenderPass {
 
     public async init(resources: ResourcePool) {
         this.depthTexture = DepthTexture.Create(Renderer.width, Renderer.height);
+        this.depthTextureClone = DepthTexture.Create(Renderer.width, Renderer.height);
 
         this.gBufferAlbedoRT = RenderTexture.Create(Renderer.width, Renderer.height, 1, "rgba16float");
+        this.gBufferAlbedoRTClone = RenderTexture.Create(Renderer.width, Renderer.height, 1, "rgba16float");
         this.gBufferNormalRT = RenderTexture.Create(Renderer.width, Renderer.height, 1, "rgba16float");
         this.gBufferERMORT = RenderTexture.Create(Renderer.width, Renderer.height, 1, "rgba16float");
+        this.skybox = CubeTexture.Create(1, 1, 6);
         
         this.initialized = true;
     }
@@ -47,31 +52,29 @@ export class PrepareGBuffers extends RenderPass {
             {target: this.gBufferNormalRT, clear: true},
             {target: this.gBufferERMORT, clear: true},
         ];
+
+        RendererContext.CopyTextureToTexture(this.gBufferAlbedoRT, this.gBufferAlbedoRTClone);
+        RendererContext.CopyTextureToTexture(this.depthTexture, this.depthTextureClone);
+
         RendererContext.BeginRenderPass(`PrepareGBuffers`, colorTargets, {target: this.depthTexture, clear: true}, true);
         RendererContext.EndRenderPass();
 
         resources.setResource(PassParams.depthTexture, this.depthTexture);
         resources.setResource(PassParams.GBufferDepth, this.depthTexture);
+        resources.setResource(PassParams.GBufferDepthClone, this.depthTextureClone);
         resources.setResource(PassParams.GBufferAlbedo, this.gBufferAlbedoRT);
+        resources.setResource(PassParams.GBufferAlbedoClone, this.gBufferAlbedoRTClone);
         resources.setResource(PassParams.GBufferNormal, this.gBufferNormalRT);
         resources.setResource(PassParams.GBufferERMO, this.gBufferERMORT);
+        resources.setResource(PassParams.Skybox, this.skybox);
 
         const settings = new Float32Array([
             +Debugger.isDebugDepthPassEnabled,
             Debugger.debugDepthMipLevel,
             Debugger.debugDepthExposure,
-            +MeshletDebug.isFrustumCullingEnabled,
-            +MeshletDebug.isBackFaceCullingEnabled,
-            +MeshletDebug.isOcclusionCullingEnabled,
-            +MeshletDebug.isSmallFeaturesCullingEnabled,
-            MeshletDebug.staticLODValue,
-            MeshletDebug.dynamicLODErrorThresholdValue,
-            +MeshletDebug.isDynamicLODEnabled,
             RendererDebug.viewTypeValue,
-            MeshletDebug.meshletsViewType,
             +RendererDebug.useHeightMapValue,
             Debugger.heightScale,
-            Meshlet.max_triangles,
             
             +DeferredShadowMapPassDebug.debugCascadesValue,
             DeferredShadowMapPassDebug.pcfResolutionValue,

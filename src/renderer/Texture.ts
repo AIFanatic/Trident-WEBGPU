@@ -39,8 +39,8 @@ export type TextureFormat =
     | "depth16unorm"
     | "depth24plus"
     | "depth24plus-stencil8"
-    | "depth32float"
-    | "depth32float-stencil8"
+    | "depth24plus"
+    | "depth24plus-stencil8"
 
 export enum TextureType {
     IMAGE,
@@ -78,6 +78,8 @@ export class Texture {
 
     public Destroy() {}
 
+    public SetData(data: BufferSource) {}
+
     public static Create(width: number, height: number, depth: number = 1, format: TextureFormat = Renderer.SwapChainFormat, mipLevels = 1): Texture {
         RendererDebug.IncrementGPUTextureSize(width * height * depth * 4); // account for format
         if (Renderer.type === "webgpu") return new WEBGPUTexture(width, height, depth, format, TextureType.IMAGE, "2d", mipLevels);
@@ -87,14 +89,14 @@ export class Texture {
     public static async Load(url: string, format: TextureFormat = Renderer.SwapChainFormat, flipY: boolean = false): Promise<Texture> {
         const response = await fetch(url);
         const imageBitmap = await createImageBitmap(await response.blob());
-
+        RendererDebug.IncrementGPUTextureSize(imageBitmap.width * imageBitmap.height * 1 * 4); // account for format
         if (Renderer.type === "webgpu") return WEBGPUTexture.FromImageBitmap(imageBitmap, imageBitmap.width, imageBitmap.height, format, flipY);
         throw Error("Renderer type invalid");
     }
 
     public static async LoadImageSource(imageSource: ImageBitmapSource, format: TextureFormat = Renderer.SwapChainFormat, flipY = false): Promise<Texture> {
         const imageBitmap = await createImageBitmap(imageSource);
-
+        RendererDebug.IncrementGPUTextureSize(imageBitmap.width * imageBitmap.height * 1 * 4); // account for format
         if (Renderer.type === "webgpu") return WEBGPUTexture.FromImageBitmap(imageBitmap, imageBitmap.width, imageBitmap.height, format, flipY);
         throw Error("Renderer type invalid");
     }
@@ -133,6 +135,14 @@ export class RenderTextureStorage3D extends Texture {
     public static Create(width: number, height: number, depth: number = 1, format: TextureFormat = Renderer.SwapChainFormat, mipLevels = 1): Texture {
         RendererDebug.IncrementGPUTextureSize(width * height * depth * 4); // account for format
         if (Renderer.type === "webgpu") return new WEBGPUTexture(width, height, depth, format, TextureType.RENDER_TARGET_STORAGE, "3d", mipLevels);
+        throw Error("Renderer type invalid");
+    }
+}
+
+export class RenderTextureCube extends Texture {
+    public static Create(width: number, height: number, depth: number = 1, format: TextureFormat = Renderer.SwapChainFormat, mipLevels = 1): Texture {
+        RendererDebug.IncrementGPUTextureSize(width * height * depth * 4); // account for format
+        if (Renderer.type === "webgpu") return new WEBGPUTexture(width, height, depth, format, TextureType.RENDER_TARGET_STORAGE, "cube", mipLevels);
         throw Error("Renderer type invalid");
     }
 }

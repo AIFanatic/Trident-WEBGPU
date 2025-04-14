@@ -8,7 +8,7 @@ import { PrepareGBuffers } from "./passes/PrepareGBuffers";
 import { DeferredShadowMapPass } from "./passes/DeferredShadowMapPass";
 import { DebuggerTextureViewer } from "./passes/DebuggerTextureViewer";
 import { RendererDebug } from "./RendererDebug";
-import { DeferredGBufferPass } from "./passes/DeferredGBufferPass";
+import { CubeTexture } from "./Texture";
 
 export const PassParams = {
     DebugSettings: "DebugSettings",
@@ -18,9 +18,13 @@ export const PassParams = {
     depthTexturePyramid: "depthTexturePyramid",
 
     GBufferAlbedo: "GBufferAlbedo",
+    GBufferAlbedoClone: "GBufferAlbedoClone",
     GBufferNormal: "GBufferNormal",
     GBufferERMO: "GBufferERMO",
     GBufferDepth: "GBufferDepth",
+    GBufferDepthClone: "GBufferDepthClone",
+
+    Skybox: "Skybox",
 
     ShadowPassDepth: "ShadowPassDepth",
 
@@ -52,13 +56,19 @@ export class RenderingPipeline {
 
     private beforeScreenOutputPasses: RenderPass[] = [];
 
+    private prepareGBuffersPass: PrepareGBuffers;
+    public get skybox(): CubeTexture { return this.prepareGBuffersPass.skybox};
+    public set skybox(skybox: CubeTexture) { this.prepareGBuffersPass.skybox = skybox};
+
     constructor(renderer: Renderer) {
         this.renderer = renderer;
 
+        this.prepareGBuffersPass = new PrepareGBuffers();
+        
         this.renderGraph = new RenderGraph();
         this.beforeGBufferPasses = [
-            new PrepareGBuffers(),
-            new DeferredGBufferPass(),
+            this.prepareGBuffersPass,
+            // new DeferredGBufferPass(),
         ];
         
         this.afterGBufferPasses = [
@@ -108,6 +118,7 @@ export class RenderingPipeline {
         
         const renderPipelineStart = performance.now();
         Renderer.BeginRenderFrame();
+        
         this.renderGraph.execute();
         Renderer.EndRenderFrame();
         RendererDebug.SetCPUTime(performance.now() - renderPipelineStart);

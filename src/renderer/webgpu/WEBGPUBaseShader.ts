@@ -11,6 +11,7 @@ import { WEBGPUTexture } from "./WEBGPUTexture";
 import { WEBGPUTextureSampler } from "./WEBGPUTextureSampler";
 import { Vector2 } from "../../math/Vector2";
 import { RendererDebug } from "../RendererDebug";
+import { Vector4 } from "../../math/Vector4";
 
 
 const BindGroupLayoutCache: Map<string, GPUBindGroupLayout> = new Map();
@@ -65,6 +66,7 @@ export class WEBGPUBaseShader {
         }
     }
     
+    // TODO: This needs cleaning
     protected BuildBindGroupLayouts(): GPUBindGroupLayout[] {
         const bindGroupsLayoutEntries: GPUBindGroupLayoutEntry[][] = [];
 
@@ -93,7 +95,7 @@ export class WEBGPUBaseShader {
             else if (uniform.buffer instanceof WEBGPUTexture) {
                 // let sampleType: GPUTextureSampleType = uniform.type === "depthTexture" ? "depth" : "float";
                 let sampleType: GPUTextureSampleType = uniform.type === "depthTexture" ? "depth" : "float";
-                if (uniform.buffer.format === "r32float") sampleType = "unfilterable-float"
+                if (uniform.buffer.format.includes("32float")) sampleType = "unfilterable-float"
                 if (uniform.buffer.type === TextureType.RENDER_TARGET_STORAGE) {
                     layoutEntries.push({
                         binding: uniform.binding,
@@ -130,6 +132,7 @@ export class WEBGPUBaseShader {
                 BindGroupLayoutCache.set(crc, bindGroupLayout);
                 RendererDebug.IncrementBindGroupLayouts(1);
             }
+            bindGroupLayout.label = crc;
             bindGroupLayouts.push(bindGroupLayout);
         }
 
@@ -255,8 +258,9 @@ export class WEBGPUBaseShader {
     public SetArray(name: string, array: ArrayBuffer, bufferOffset: number = 0, dataOffset?: number, size?: number) { this.SetUniformDataFromArray(name, array, bufferOffset, dataOffset, size) }
     public SetValue(name: string, value: number) {this.valueArray[0] = value; this.SetUniformDataFromArray(name, this.valueArray)}
     public SetMatrix4(name: string, matrix: Matrix4) { this.SetUniformDataFromArray(name, matrix.elements) }
-    public SetVector3(name: string, vector: Vector3) { this.SetUniformDataFromArray(name, vector.elements) }
     public SetVector2(name: string, vector: Vector2) { this.SetUniformDataFromArray(name, vector.elements) }
+    public SetVector3(name: string, vector: Vector3) { this.SetUniformDataFromArray(name, vector.elements) }
+    public SetVector4(name: string, vector: Vector4) { this.SetUniformDataFromArray(name, vector.elements) }
     
     public SetTexture(name: string, texture: WEBGPUTexture) { this.SetUniformDataFromBuffer(name, texture) }
     public SetSampler(name: string, sampler: WEBGPUTextureSampler) { this.SetUniformDataFromBuffer(name, sampler) }
@@ -264,10 +268,6 @@ export class WEBGPUBaseShader {
 
     public HasBuffer(name: string): boolean { return this.uniformMap.get(name)?.buffer ? true : false }
 
-    protected Compile() {}
-    public OnPreRender(): void {
-        if (this.needsUpdate || !this.pipeline || !this.bindGroups) {
-            this.Compile();
-        }
-    }
+    public Compile() {}
+    public OnPreRender(): boolean { return true; }
 }

@@ -215,6 +215,89 @@ export class UITextStat extends Stat {
     }
 }
 
+export class UIColorStat extends Stat {
+    private colorElement: HTMLInputElement;
+
+    constructor(folder: UIFolder, label: string, color: string, onChanged: (color: string) => void) {
+        super(folder.container, label);
+        this.colorElement = document.createElement("input");
+        this.colorElement.type = "color";
+        this.colorElement.value = color;
+        this.colorElement.classList.add("value", "color");
+        this.statContainer.append(this.colorElement);
+
+        this.colorElement.addEventListener("change", event => {
+            onChanged((event.target as HTMLOptionElement).value);
+        })
+    }
+}
+
+export interface Vec3 {x: number, y: number, z: number};
+
+export class UIVecStat extends Stat {
+    private value: Vec3;
+    constructor(folder: UIFolder, label: string, value: Vec3, onChanged: (value: Vec3) => void) {
+        super(folder.container, label);
+
+        this.value = {x: value.x, y: value.y, z: value.z };
+
+        const container = document.createElement("div");
+        container.style.display = "flex";
+        container.style.width = "110px";
+        const vecx = this.CreateEntry("X", "#c0392b4a", value => {this.value.x = value; onChanged(this.value)});
+        const vecy = this.CreateEntry("Y", "#39c02b4a", value => {this.value.y = value; onChanged(this.value)});
+        const vecz = this.CreateEntry("Z", "#392bc04a", value => {this.value.z = value; onChanged(this.value)});
+
+        container.append(vecx);
+        container.append(vecy);
+        container.append(vecz);
+
+        this.statContainer.append(container);
+    }
+
+    private CreateEntry(label: string, color: string, callback: (value: number) => void): HTMLDivElement {
+        const container = document.createElement("div");
+        container.classList.add("vec-container");
+
+        const text = document.createElement("span");
+        text.classList.add("vec-label");
+        text.style.backgroundColor = color;
+        text.textContent = label;
+        container.append(text);
+        const inputElement = document.createElement("input");
+        inputElement.classList.add("vec-input");
+        inputElement.value = "10";
+        container.append(inputElement);
+
+        let mouseDown = false;
+        let mousePrevX: number | null = null;
+
+        inputElement.addEventListener("change", event => { callback(parseFloat(inputElement.value)) });
+        inputElement.addEventListener("mousedown", event => { mouseDown = true; });
+        document.body.addEventListener("mouseup", event => { mouseDown = false; });
+
+        document.body.addEventListener("mousemove", event => {
+            if (!mouseDown) return;
+
+            const mouseX = event.clientX;
+            if (mousePrevX === null) {
+                mousePrevX = mouseX;
+                return;
+            }
+
+            const delta = mouseX - mousePrevX;
+
+            inputElement.value = `${parseFloat(inputElement.value) + delta}`;
+
+            mousePrevX = mouseX;
+
+            callback(parseFloat(inputElement.value))
+        });
+
+        return container;
+    }
+}
+
 export class UIFolder extends Stat {
     private folderElement: HTMLDetailsElement;
     public readonly container: HTMLDivElement;

@@ -57,9 +57,12 @@ export class DeferredGBufferPass extends RenderPass {
         const viewMatrix = inputCamera.viewMatrix;
 
         for (const mesh of meshes) {
+            if (!mesh.enabled) continue;
+
             const geometry = mesh.GetGeometry();
             const materials = mesh.GetMaterials();
             for (const material of materials) {
+                if (material.params.isDeferred === false) continue;
                 if (!material.shader) {
                     material.createShader().then(shader => {
                         // shader.params.cullMode = "back"
@@ -82,6 +85,7 @@ export class DeferredGBufferPass extends RenderPass {
             const geometry = instancedMesh.GetGeometry();
             const materials = instancedMesh.GetMaterials();
             for (const material of materials) {
+                if (material.params.isDeferred === false) continue;
                 if (!material.shader) {
                     material.createShader().then(shader => {
                         // shader.params.cullMode = "front"
@@ -96,6 +100,9 @@ export class DeferredGBufferPass extends RenderPass {
                 RendererContext.DrawGeometry(geometry, shader, instancedMesh.instanceCount+1);
                 if (geometry.index) {
                     RendererDebug.IncrementTriangleCount(geometry.index.array.length / 3 * (instancedMesh.instanceCount + 1));
+                }
+                else {
+                    RendererDebug.IncrementTriangleCount(geometry.attributes.get("position").array.length / 3 / 3 * (instancedMesh.instanceCount + 1));
                 }
             }
         }

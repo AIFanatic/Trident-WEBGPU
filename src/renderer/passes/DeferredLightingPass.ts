@@ -1,6 +1,6 @@
 import { Shader } from "../Shader";
 import { Geometry } from "../../Geometry";
-import { RenderTexture } from "../Texture";
+import { CubeTexture, DepthTextureArray, RenderTexture } from "../Texture";
 import { TextureSampler } from "../TextureSampler";
 import { Camera } from "../../components/Camera";
 import { RendererContext } from "../RendererContext";
@@ -37,6 +37,8 @@ export class DeferredLightingPass extends RenderPass {
 
     public initialized = false;
 
+    private dummyShadowPassDepth: RenderTexture;
+
     constructor() {
         super({
             inputs: [
@@ -66,15 +68,16 @@ export class DeferredLightingPass extends RenderPass {
                 ermoTexture: { group: 0, binding: 3, type: "texture" },
                 depthTexture: { group: 0, binding: 4, type: "depthTexture" },
                 shadowPassDepth: { group: 0, binding: 5, type: "depthTexture" },
+                skyboxTexture: { group: 0, binding: 6, type: "texture" },
                 
-                lights: { group: 0, binding: 6, type: "storage" },
-                lightCount: { group: 0, binding: 7, type: "storage" },
+                lights: { group: 0, binding: 7, type: "storage" },
+                lightCount: { group: 0, binding: 8, type: "storage" },
 
-                view: { group: 0, binding: 8, type: "storage" },
+                view: { group: 0, binding: 9, type: "storage" },
                 
-                shadowSamplerComp: { group: 0, binding: 9, type: "sampler-compare"},
+                shadowSamplerComp: { group: 0, binding: 10, type: "sampler-compare"},
 
-                settings: {group: 0, binding: 10, type: "storage"},
+                settings: {group: 0, binding: 11, type: "storage"},
             },
             colorOutputs: [{format: Renderer.SwapChainFormat}],
         });
@@ -95,6 +98,9 @@ export class DeferredLightingPass extends RenderPass {
 
         this.outputLightingPass = RenderTexture.Create(Renderer.width, Renderer.height);
 
+        // If there are no lights in the scene this is used instead
+        this.dummyShadowPassDepth = DepthTextureArray.Create(1, 1, 1);
+
 
         EventSystem.on(LightEvents.Updated, component => {
             this.needsUpdate = true;
@@ -106,7 +112,7 @@ export class DeferredLightingPass extends RenderPass {
     private updateLightsBuffer(resources: ResourcePool) {
         const scene = Camera.mainCamera.gameObject.scene;
         // TODO: Fix, GetComponents(Light)
-        const lights = [...scene.GetComponents(Light), ...scene.GetComponents(PointLight), ...scene.GetComponents(DirectionalLight), ...scene.GetComponents(AreaLight)];
+        const lights = [...scene.GetComponents(Light), ...scene.GetComponents(PointLight), ...scene.GetComponents(DirectionalLight), ...scene.GetComponents(SpotLight), ...scene.GetComponents(AreaLight)];
 
         for (let i = 0; i < lights.length; i++) {
             const light = lights[i];
@@ -180,7 +186,8 @@ export class DeferredLightingPass extends RenderPass {
         const inputGBufferNormal = resources.getResource(PassParams.GBufferNormal);
         const inputGbufferERMO = resources.getResource(PassParams.GBufferERMO);
         const inputGBufferDepth = resources.getResource(PassParams.GBufferDepth);
-        const inputShadowPassDepth = resources.getResource(PassParams.ShadowPassDepth);
+        const inputShadowPassDepth = resources.getResource(PassParams.ShadowPassDepth) || this.dummyShadowPassDepth;
+        const inputSkybox = resources.getResource(PassParams.Skybox) as CubeTexture;
 
         RendererContext.BeginRenderPass("DeferredLightingPass", [{ target: this.outputLightingPass, clear: true }], undefined, true);
 
@@ -189,6 +196,7 @@ export class DeferredLightingPass extends RenderPass {
         this.shader.SetTexture("ermoTexture", inputGbufferERMO);
         this.shader.SetTexture("depthTexture", inputGBufferDepth);
         this.shader.SetTexture("shadowPassDepth", inputShadowPassDepth);
+        this.shader.SetTexture("skyboxTexture", inputSkybox);
 
         const view = new Float32Array(4 + 4 + 16 + 16   + 16);
         view.set([Renderer.width, Renderer.height, 0], 0);

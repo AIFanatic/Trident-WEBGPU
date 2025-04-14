@@ -1,5 +1,5 @@
-import { Geometry, IndexAttribute, VertexAttribute } from "../Geometry";
-import { SimplexNoise } from "./SimplexNoise";
+import { Geometry, IndexAttribute, VertexAttribute } from "../../Geometry";
+import { SimplexNoise } from "../SimplexNoise";
 
 export interface TerrainParams {
     baseScale: number;         // Scale for base terrain (controls size of hills)
@@ -26,7 +26,7 @@ const TerrainParamsDefaults: TerrainParams = {
     centerGeometry: true
 }
 
-export class TerrainGenerator {
+export class TerrainBuilder {
     public readonly geometry: Geometry;
     public readonly heights: Float32Array;
 

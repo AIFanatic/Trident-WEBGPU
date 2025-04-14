@@ -5,15 +5,27 @@ import { ShaderLoader } from "./ShaderUtils";
 import { Texture } from "./Texture";
 import { TextureSampler } from "./TextureSampler";
 
+export interface MaterialParams {
+    isDeferred: boolean;
+}
+
 export class Material {
     public shader: Shader;
+    public params: MaterialParams;
 
     public async createShader(): Promise<Shader> {
         throw Error("Not implemented");
     }
+
+    constructor(params?: Partial<MaterialParams>) {
+        const defaultParams: MaterialParams = {
+            isDeferred: false
+        }
+        this.params = Object.assign({}, defaultParams, params);
+    }
 }
 
-export interface PBRMaterialParams {
+export interface PBRMaterialParams extends MaterialParams {
     albedoColor: Color;
     emissiveColor: Color;
     roughness: number;
@@ -29,6 +41,8 @@ export interface PBRMaterialParams {
     alphaCutoff: number;
 
     unlit: boolean;
+
+    wireframe: boolean;
 }
 
 export class PBRMaterial extends Material {
@@ -37,26 +51,30 @@ export class PBRMaterial extends Material {
     public params: PBRMaterialParams;
 
     constructor(params?: Partial<PBRMaterialParams>) {
-        super();
+        super(params);
 
         this.initialParams = params;
-        this.params = {
-            albedoColor: params?.albedoColor ? params.albedoColor : new Color(1,1,1,1),
-            emissiveColor: params?.emissiveColor ? params.emissiveColor : new Color(0,0,0,0),
-            roughness: params?.roughness ? params.roughness : 0,
-            metalness: params?.metalness ? params.metalness : 0,
+        const defaultParams: PBRMaterialParams = {
+            albedoColor: new Color(1,1,1,1),
+            emissiveColor: new Color(0,0,0,0),
+            roughness: 0,
+            metalness: 0,
         
-            albedoMap: params?.albedoMap ? params.albedoMap : undefined,
-            normalMap: params?.normalMap ? params.normalMap : undefined,
-            heightMap: params?.heightMap ? params.heightMap : undefined,
-            metalnessMap: params?.metalnessMap ? params.metalnessMap : undefined,
-            emissiveMap: params?.emissiveMap ? params.emissiveMap : undefined,
-            aoMap: params?.aoMap ? params.aoMap : undefined,
+            albedoMap: undefined,
+            normalMap: undefined,
+            heightMap: undefined,
+            metalnessMap: undefined,
+            emissiveMap: undefined,
+            aoMap: undefined,
         
-            doubleSided: params?.doubleSided ? params.doubleSided : false,
-            alphaCutoff: params?.alphaCutoff ? params.alphaCutoff : 0,
-            unlit: params?.unlit ? params.unlit : false,
+            doubleSided: false,
+            alphaCutoff: 0,
+            unlit: false,
+
+            wireframe: false,
+            isDeferred: true
         }
+        this.params = Object.assign({}, defaultParams, params);
     }
 
     public async createShader(): Promise<Shader> {
@@ -114,7 +132,8 @@ export class PBRMaterial extends Material {
         shader.SetArray("material", new Float32Array([
             this.params.albedoColor.r, this.params.albedoColor.g, this.params.albedoColor.b, this.params.albedoColor.a,
             this.params.emissiveColor.r, this.params.emissiveColor.g, this.params.emissiveColor.b, this.params.emissiveColor.a,
-            this.params.roughness, this.params.metalness, +this.params.unlit, this.params.alphaCutoff
+            this.params.roughness, this.params.metalness, +this.params.unlit, this.params.alphaCutoff, +this.params.wireframe,
+            0, 0, 0
         ]));
 
         if (DEFINES.USE_ALBEDO_MAP === true && this.params.albedoMap) shader.SetTexture("AlbedoMap", this.params.albedoMap);

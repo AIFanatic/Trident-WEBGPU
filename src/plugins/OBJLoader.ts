@@ -137,9 +137,12 @@ export class OBJLoaderIndexed {
     private static toGeometry(objMesh: OBJMesh): Geometry {
         const geometry = new Geometry();
         geometry.attributes.set("position", new VertexAttribute(objMesh.vertices));
-        if (objMesh.normals) geometry.attributes.set("normal", new VertexAttribute(objMesh.normals));
-        if (objMesh.uvs) geometry.attributes.set("uv", new VertexAttribute(objMesh.uvs));
-        if (objMesh.indices) geometry.index = new IndexAttribute(new Uint32Array(objMesh.indices));
+        if (objMesh.normals.length > 0) geometry.attributes.set("normal", new VertexAttribute(objMesh.normals));
+        if (objMesh.uvs.length > 0) geometry.attributes.set("uv", new VertexAttribute(objMesh.uvs));
+        else {
+            geometry.attributes.set("uv", new VertexAttribute(new Float32Array(objMesh.vertices.length / 3 * 2)))
+        }
+        if (objMesh.indices.length > 0) geometry.index = new IndexAttribute(new Uint32Array(objMesh.indices));
 
         return geometry;
     }

@@ -1,6 +1,6 @@
 import { ComputeContext } from "../ComputeContext";
 import { WEBGPUDynamicBuffer } from "./WEBGPUBuffer";
-import { WEBGPUComputeShader } from "./shader/WEBGPUComputeShader";
+import { WEBGPUComputeShader } from "./WEBGPUComputeShader";
 import { WEBGPURenderer } from "./WEBGPURenderer";
 import { WEBGPUTimestampQuery } from "./WEBGPUTimestampQuery";
 
@@ -33,6 +33,7 @@ export class WEBGPUComputeContext implements ComputeContext {
         if (!this.activeComputePass) throw Error("No active render pass");
 
         computeShader.OnPreRender();
+        computeShader.Compile();
 
         if (!computeShader.pipeline) throw Error("Shader doesnt have a pipeline");
 

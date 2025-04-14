@@ -23,6 +23,15 @@ export class Quaternion {
     public set z(v: number) { this._z = v };
     public set w(v: number) { this._w = v };
 
+    private _elements = new Float32Array(4);
+    public get elements(): Float32Array {
+        this._elements[0] = this._x;
+        this._elements[1] = this._y;
+        this._elements[2] = this._z;
+        this._elements[3] = this._w;
+        return this._elements;
+    }
+
     constructor(x = 0, y = 0, z = 0, w = 1) {
         this.x = x;
         this.y = y;
@@ -226,6 +235,11 @@ export class Quaternion {
 
 		return this;
 	}
+
+    public static fromArray(array: number[]): Quaternion {
+        if (array.length < 4) throw Error("Array doesn't have enough data");
+        return new Quaternion(array[0], array[1], array[2], array[3]);
+    }
 }
 
 export class ObservableQuaternion extends Quaternion {

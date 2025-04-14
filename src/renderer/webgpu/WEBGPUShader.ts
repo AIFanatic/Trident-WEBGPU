@@ -2,12 +2,13 @@ import { WEBGPUBaseShader } from "./WEBGPUBaseShader";
 import { WEBGPURenderer } from "./WEBGPURenderer";
 import { Shader, ShaderAttribute, ShaderParams } from "../Shader";
 import { RendererDebug } from "../RendererDebug";
+import { Utils } from "../../utils/Utils";
 
 const BindGroupCache: Map<string, GPUBindGroup> = new Map();
 
 
-const pipelineLayoutCache: Map<GPUBindGroupLayout[], GPUPipelineLayout> = new Map();
-const pipelineCache: Map<GPURenderPipelineDescriptor, GPURenderPipeline> = new Map();
+export const pipelineLayoutCache: Map<string, GPUPipelineLayout> = new Map();
+const pipelineCache: Map<string, GPURenderPipeline> = new Map();
 
 // TODO: Make this error!!
 const WGSLShaderAttributeFormat = {
@@ -34,31 +35,32 @@ export class WEBGPUShader extends WEBGPUBaseShader implements Shader {
         if (this.params.attributes) this.attributeMap = new Map(Object.entries(this.params.attributes));
     }
 
-    protected Compile() {
-        // console.warn("Compiling shader");
-        console.warn('%c Compiling shader', 'color: #3498db');
+    // TODO: This needs cleaning
+    public Compile() {
+        if (!(this.needsUpdate || !this.pipeline || !this.bindGroups)) {
+            return;
+        }
 
-        RendererDebug.IncrementShaderCompiles(1);
+        // console.warn("Compiling shader");
+        // console.warn('%c Compiling shader', 'color: #3498db');
+
+        let hasCompiled = false;
 
         this.bindGroupLayouts = this.BuildBindGroupLayouts();
         this._bindGroups = this.BuildBindGroups();
 
-        // if (this.bindGroupLayouts.length !== this._bindGroupsInfo.length) {
-        //     throw Error(`${this.bindGroupLayouts.length} !== ${this._bindGroupsInfo.length}`);
-        // }
+        let bindGroupLayoutsCRC = "";
+        for (const b of this.bindGroupLayouts) bindGroupLayoutsCRC += b.label;
 
-        // this._bindGroups = [];
-        // for (let i = 0; i < this._bindGroupsInfo.length; i++) {
-        //     const bindGroup = WEBGPURenderer.device.createBindGroup({ layout: this.bindGroupLayouts[i], entries: this._bindGroupsInfo[i].entries });
-        //     this._bindGroups.push(bindGroup);
-        // }
-
-        let pipelineLayout = pipelineLayoutCache.get(this.bindGroupLayouts);
+        let pipelineLayout = pipelineLayoutCache.get(bindGroupLayoutsCRC);
         if (pipelineLayout === undefined) {
             pipelineLayout = WEBGPURenderer.device.createPipelineLayout({
                 bindGroupLayouts: this.bindGroupLayouts
             });
-            pipelineLayoutCache.set(this.bindGroupLayouts, pipelineLayout);
+            pipelineLayout.label = Utils.UUID();
+            pipelineLayoutCache.set(bindGroupLayoutsCRC, pipelineLayout);
+            hasCompiled = true;
+
         }
 
         // Pipeline descriptor
@@ -90,14 +92,17 @@ export class WEBGPUShader extends WEBGPUBaseShader implements Shader {
         }
 
         // Pipeline descriptor - Depth target
-        if (this.params.depthOutput) pipelineDescriptor.depthStencil = {
-            depthWriteEnabled: true,
-            depthCompare: this.params.depthCompare ? this.params.depthCompare : 'less',
-            depthBias: this.params.depthBias ? this.params.depthBias : undefined,
-            depthBiasSlopeScale: this.params.depthBiasSlopeScale ? this.params.depthBiasSlopeScale : undefined,
-            depthBiasClamp: this.params.depthBiasClamp ? this.params.depthBiasClamp : undefined,
-            format: this.params.depthOutput
-        };
+        if (this.params.depthOutput) {
+            
+            pipelineDescriptor.depthStencil = {
+                depthWriteEnabled: this.params.depthWriteEnabled !== undefined ? this.params.depthWriteEnabled : true,
+                depthCompare: this.params.depthCompare ? this.params.depthCompare : 'less',
+                depthBias: this.params.depthBias ? this.params.depthBias : undefined,
+                depthBiasSlopeScale: this.params.depthBiasSlopeScale ? this.params.depthBiasSlopeScale : undefined,
+                depthBiasClamp: this.params.depthBiasClamp ? this.params.depthBiasClamp : undefined,
+                format: this.params.depthOutput
+            };
+        }
     
         // Pipeline descriptor - Vertex buffers (Attributes)
         const buffers: GPUVertexBufferLayout[] = [];
@@ -106,8 +111,29 @@ export class WEBGPUShader extends WEBGPUBaseShader implements Shader {
         }
         pipelineDescriptor.vertex.buffers = buffers;
 
-        // Pipeline
-        this._pipeline = WEBGPURenderer.device.createRenderPipeline(pipelineDescriptor);
+
+        
+
+        pipelineDescriptor.label += "," + pipelineLayout.label;
+        const pipelineDescriptorKey = JSON.stringify(pipelineDescriptor);
+        let pipeline = pipelineCache.get(pipelineDescriptorKey);
+        if (!pipeline) {
+            pipeline = WEBGPURenderer.device.createRenderPipeline(pipelineDescriptor);
+            pipelineCache.set(pipelineDescriptorKey, pipeline);
+            hasCompiled = true;
+        }
+
+        this._pipeline = pipeline;
+
+
+        
+        if (hasCompiled === true) {
+            console.warn('%c Compiling shader', 'color: #3498db');
+            RendererDebug.IncrementShaderCompiles(1);
+        }
+
+        // // Pipeline
+        // this._pipeline = WEBGPURenderer.device.createRenderPipeline(pipelineDescriptor);
 
         this.needsUpdate = false;
     }

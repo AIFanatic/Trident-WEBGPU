@@ -26,6 +26,13 @@ export interface TextureCopyParameters {
     origin?: number[];
 }
 
+export interface BufferCopyParameters {
+    buffer: Buffer
+    offset?: number;
+    bytesPerRow?: number;
+    rowsPerImage?: number;
+}
+
 export class RendererContext {
     private constructor() {}
     
@@ -64,6 +71,11 @@ export class RendererContext {
         else throw Error("Unknown render api type.");
     }
 
+    public static CopyBufferToTexture(source: BufferCopyParameters, destination: TextureCopyParameters, copySize?: number[]) {
+        if (Renderer.type === "webgpu") WEBGPURendererContext.CopyBufferToTexture(source, destination, copySize);
+        else throw Error("Unknown render api type.");
+    }
+
     public static CopyTextureToTexture(source: Texture, destination: Texture, srcMip = 0, dstMip = 0, size?: number[]) {
         if (Renderer.type === "webgpu") WEBGPURendererContext.CopyTextureToTexture(source as WEBGPUTexture, destination as WEBGPUTexture, srcMip, dstMip, size);
         else throw Error("Unknown render api type.");
@@ -71,6 +83,11 @@ export class RendererContext {
 
     public static CopyTextureToBuffer(source: Texture, destination: WEBGPUBuffer, srcMip: number, size?: number[]) {
         if (Renderer.type === "webgpu") WEBGPURendererContext.CopyTextureToBuffer(source as WEBGPUTexture, destination as WEBGPUBuffer, srcMip, size);
+        else throw Error("Unknown render api type.");
+    }
+
+    public static CopyTextureToBufferV2(source: TextureCopyParameters, destination: BufferCopyParameters, copySize?: number[]) {
+        if (Renderer.type === "webgpu") WEBGPURendererContext.CopyTextureToBufferV2(source, destination, copySize);
         else throw Error("Unknown render api type.");
     }
 

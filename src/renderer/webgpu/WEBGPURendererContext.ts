@@ -1,5 +1,5 @@
 import { Geometry, VertexAttribute } from "../../Geometry";
-import { DepthTarget, RenderTarget, RendererContext, TextureCopyParameters } from "../RendererContext";
+import { BufferCopyParameters, DepthTarget, RenderTarget, RendererContext, TextureCopyParameters } from "../RendererContext";
 import { RendererDebug } from "../RendererDebug";
 import { Topology } from "../Shader";
 import { WEBGPUBuffer, WEBGPUDynamicBuffer } from "./WEBGPUBuffer";
@@ -56,7 +56,8 @@ export class WEBGPURendererContext implements RendererContext {
     public static DrawGeometry(geometry: Geometry, shader: WEBGPUShader, instanceCount = 1) {
         if (!this.activeRenderPass) throw Error("No active render pass");
 
-        shader.OnPreRender();
+        if (!shader.OnPreRender()) return;
+        shader.Compile();
 
         if (!shader.pipeline) throw Error("Shader doesnt have a pipeline");
 
@@ -104,7 +105,7 @@ export class WEBGPURendererContext implements RendererContext {
     public static DrawIndirect(geometry: Geometry, shader: WEBGPUShader, indirectBuffer: WEBGPUBuffer, indirectOffset: number) {
         if (!this.activeRenderPass) throw Error("No active render pass");
 
-        shader.OnPreRender();
+        shader.Compile();
 
         if (!shader.pipeline) throw Error("Shader doesnt have a pipeline");
 
@@ -153,6 +154,17 @@ export class WEBGPURendererContext implements RendererContext {
         activeCommandEncoder.copyBufferToBuffer(source.GetBuffer(), sourceOffset, destination.GetBuffer(), destinationOffset, size);
     }
 
+    public static CopyBufferToTexture(source: BufferCopyParameters, destination: TextureCopyParameters, copySize?: number[]) {
+        const activeCommandEncoder = WEBGPURenderer.GetActiveCommandEncoder();
+        if (!activeCommandEncoder) throw Error("No active command encoder!!");
+
+        const sourceParameters: GPUImageCopyBuffer = {buffer: (source.buffer as WEBGPUBuffer).GetBuffer(), offset: source.offset, bytesPerRow: source.bytesPerRow, rowsPerImage: source.rowsPerImage};
+        const destinationParameters: GPUImageCopyTexture = {texture: (destination.texture as WEBGPUTexture).GetBuffer(), mipLevel: destination.mipLevel, origin: destination.origin};
+        const extents = copySize ? copySize : [destination.texture.width, destination.texture.height, destination.texture.depth];
+
+        activeCommandEncoder.copyBufferToTexture(sourceParameters, destinationParameters, extents);
+    }
+
     // CopyTexture(Texture src, int srcElement, int srcMip, Texture dst, int dstElement, int dstMip);
     public static CopyTextureToTexture(source: WEBGPUTexture, destination: WEBGPUTexture, srcMip: number, dstMip: number, size?: number[]) {
         const activeCommandEncoder = WEBGPURenderer.GetActiveCommandEncoder();
@@ -169,6 +181,16 @@ export class WEBGPURendererContext implements RendererContext {
         const extents = size ? size : [source.width, source.height, source.depth];
         // TODO: Handle format in bytesPerRow or allow param
         activeCommandEncoder.copyTextureToBuffer({texture: source.GetBuffer(), mipLevel: srcMip}, {buffer: destination.GetBuffer(), bytesPerRow: source.width * 4}, extents);
+    }    
+
+    public static CopyTextureToBufferV2(source: TextureCopyParameters, destination: BufferCopyParameters, copySize?: number[]) {
+        const activeCommandEncoder = WEBGPURenderer.GetActiveCommandEncoder();
+        if (!activeCommandEncoder) throw Error("No active command encoder!!");
+
+        const sourceParameters: GPUImageCopyTexture = {texture: (source.texture as WEBGPUTexture).GetBuffer(), mipLevel: source.mipLevel, origin: source.origin};
+        const destinationParameters: GPUImageCopyBuffer = {buffer: (destination.buffer as WEBGPUBuffer).GetBuffer(), offset: destination.offset, bytesPerRow: destination.bytesPerRow, rowsPerImage: destination.rowsPerImage};
+        const extents = copySize ? copySize : [source.texture.width, source.texture.height, source.texture.depth];
+        activeCommandEncoder.copyTextureToBuffer(sourceParameters, destinationParameters, extents);
     }    
 
     public static CopyTextureToTextureV2(source: WEBGPUTexture, destination: WEBGPUTexture, srcMip: number, dstMip: number, size?: number[], depth?: number) {

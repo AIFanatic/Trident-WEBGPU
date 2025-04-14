@@ -3,7 +3,6 @@ import { EventSystem } from "./Events";
 import { GameObject } from "./GameObject";
 import { Component, ComponentEvents } from "./components/Component";
 import { Renderer } from "./renderer/Renderer";
-import { RendererDebug } from "./renderer/RendererDebug";
 import { RenderingPipeline } from "./renderer/RenderingPipeline";
 
 export class Scene {

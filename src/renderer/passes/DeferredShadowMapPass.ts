@@ -5,20 +5,16 @@ import { Mesh } from "../../components/Mesh";
 import { PassParams } from "../RenderingPipeline";
 import { InstancedMesh } from "../../components/InstancedMesh";
 import { AreaLight, DirectionalLight, Light, PointLight, SpotLight } from "../../components/Light";
-import { Shader, Topology } from "../Shader";
+import { Shader } from "../Shader";
 
 import { Buffer, BufferType, DynamicBuffer } from "../Buffer";
 import { Matrix4 } from "../../math/Matrix4";
 import { EventSystemLocal } from "../../Events";
 import { TransformEvents } from "../../components/Transform";
 import { Vector3 } from "../../math/Vector3";
-import { Vector4 } from "../../math/Vector4";
 import { Debugger } from "../../plugins/Debugger";
 import { UIButtonStat, UIFolder, UISliderStat } from "../../plugins/ui/UIStats";
 import { DepthTextureArray } from "../Texture";
-
-// export let lightsCSMProjectionMatrix: Float32Array[] = [];
-// export let cascadeSplits: Vector4 = new Vector4();
 
 export interface LightShadowData {
     cascadeSplits: Float32Array;
@@ -82,8 +78,6 @@ export class DeferredShadowMapPass extends RenderPass {
     private shadowWidth = 4096;
     private shadowHeight = 4096;
 
-    private needsUpdate: boolean = false;
-
     constructor() {
         super({
             inputs: [
@@ -118,6 +112,9 @@ export class DeferredShadowMapPass extends RenderPass {
         @group(0) @binding(1) var<storage, read> cascadeIndex: f32;
         
         @group(1) @binding(0) var<storage, read> modelMatrix: array<mat4x4<f32>>;
+
+        @group(1) @binding(1) var albedoTex: texture_2d<f32>;
+        @group(1) @binding(2) var albedoSampler: sampler;
 
         alias ptr_mat4x4 = ptr<storage, mat4x4<f32>, read>;
 
@@ -170,7 +167,7 @@ export class DeferredShadowMapPass extends RenderPass {
             },
             colorOutputs: [],
             depthOutput: "depth24plus",
-            cullMode: "front"
+            cullMode: "back",
         });
 
         this.shadowOutput = DepthTextureArray.Create(this.shadowWidth, this.shadowHeight, 1);
@@ -298,8 +295,6 @@ export class DeferredShadowMapPass extends RenderPass {
 
         // Lights
 
-
-
         if (lights.length !== this.shadowOutput.depth) {
             this.shadowOutput = DepthTextureArray.Create(this.shadowWidth, this.shadowHeight, lights.length);
         }
@@ -339,7 +334,7 @@ export class DeferredShadowMapPass extends RenderPass {
         // TODO: Only update if model changes
         for (let i = 0; i < meshes.length; i++) {
             const mesh = meshes[i];
-            if (!mesh.enableShadows) continue;
+            if (!mesh.enabled || !mesh.enableShadows) continue;
             this.modelMatrices.SetArray(mesh.transform.localToWorldMatrix.elements, i * 256)
         }
 
@@ -398,7 +393,7 @@ export class DeferredShadowMapPass extends RenderPass {
                 let meshCount = 0; // For dynamic offset
                 for (const mesh of meshes) {
                     // if (mesh.shader.params.topology === Topology.Lines) continue;
-                    if (mesh.enableShadows) {
+                    if (mesh.enableShadows && mesh.enabled) {
                         const uniform_offset = meshCount * 256;
                         this.modelMatrices.dynamicOffset = uniform_offset;
                         RendererContext.DrawGeometry(mesh.GetGeometry(), this.drawShadowShader, 1);

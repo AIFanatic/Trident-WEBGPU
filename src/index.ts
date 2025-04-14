@@ -13,7 +13,15 @@
 // import * as TEST from "./TEST/GLTFExample_Mesh";
 // import * as TEST from "./TEST/Terrain";
 // import * as TEST from "./TEST/Physics";
-import * as TEST from "./TEST/Shadows";
+// import * as TEST from "./TEST/Shadows";
+// import * as TEST from "./TEST/MeshletsV2";
+// import * as TEST from "./TEST/TerrainV2";
+// import * as TEST from "./TEST/MeshletsV3";
+// import * as TEST from "./TEST/MeshletsV4";
+// import * as TEST from "./TEST/BindlessTexture";
+// import * as TEST from "./TEST/Water";
+// import * as TEST from "./TEST/Skybox";
+import * as TEST from "./TEST/VPLS";
 // import * as TEST from "./TEST/deno";
 // import * as TEST from "./TEST/Impostors";
 // import * as TEST from "./TEST/Custom_Render";

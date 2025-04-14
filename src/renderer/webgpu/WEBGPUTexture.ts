@@ -37,8 +37,10 @@ export class WEBGPUTexture implements Texture {
         if (dimension === "1d") dim = "1d";
         else if (dimension === "3d") dim = "3d";
 
+        const textureBindingViewDimension = dimension === "cube" ? "cube": undefined;
         this.buffer = WEBGPURenderer.device.createTexture({
             size: [width, height, depth],
+            textureBindingViewDimension: textureBindingViewDimension,
             dimension: dim,
             format: format,
             usage: textureUsage | textureType,
@@ -107,6 +109,21 @@ export class WEBGPUTexture implements Texture {
 
     public Destroy() {
         this.buffer.destroy();
+    }
+
+    public SetData(data: BufferSource) {
+        // This probably aint perfect
+        const extraBytes = this.format.includes("32float") ? 4 : 1;
+        try {
+            WEBGPURenderer.device.queue.writeTexture(
+                {texture: this.buffer},
+                data,
+                {bytesPerRow: this.width * 4 * extraBytes },
+                {width: this.width, height: this.height, depthOrArrayLayers: this.depth}
+            );
+        } catch (error) {
+            console.warn(error)
+        }
     }
 
     // Format and types are very limited for now

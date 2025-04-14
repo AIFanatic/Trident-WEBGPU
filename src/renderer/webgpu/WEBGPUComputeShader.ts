@@ -1,6 +1,7 @@
 import { Compute, ComputeShaderParams } from "../Shader";
 import { WEBGPURenderer } from "./WEBGPURenderer";
 import { WEBGPUBaseShader } from "./WEBGPUBaseShader";
+import { pipelineLayoutCache } from "./WEBGPUShader";
 
 export class WEBGPUComputeShader extends WEBGPUBaseShader implements Compute {
     private readonly computeEntrypoint: string | undefined;
@@ -15,24 +16,23 @@ export class WEBGPUComputeShader extends WEBGPUBaseShader implements Compute {
         this.computeEntrypoint = params.computeEntrypoint;
     }
 
-    public RebuildDescriptors() {
-        // console.warn("Compiling shader")
-        console.log('%c Compiling shader', 'color: #3498db');
-
-        this._bindGroupsInfo = this.BuildBindGroup();
-        if (this._bindGroupsInfo.length !== this.bindGroupsLayout.length) {
-            throw Error(`BindGroupLayout length (${this.bindGroupsLayout.length}) doesn't match the size of the BindGroup entries (${this._bindGroupsInfo.length})`)
-        }
-        const bindGroupLayouts: GPUBindGroupLayout[] = [];
-        this._bindGroups = [];
-        for (let i = 0; i < this._bindGroupsInfo.length; i++) {
-            const bindGroup = WEBGPURenderer.device.createBindGroup({ layout: this.bindGroupsLayout[i], entries: this._bindGroupsInfo[i].entries });
-            this._bindGroups.push(bindGroup);
+    public Compile() {
+        if (!(this.needsUpdate || !this.pipeline || !this.bindGroups)) {
+            return;
         }
 
-        const pipelineLayout = WEBGPURenderer.device.createPipelineLayout({
-            bindGroupLayouts: bindGroupLayouts  // Array of all bind group layouts used
-        });
+        console.log('%c Compiling shader', 'color: #ff0000');
+
+        this.bindGroupLayouts = this.BuildBindGroupLayouts();
+        this._bindGroups = this.BuildBindGroups();
+
+        let pipelineLayout = pipelineLayoutCache.get(this.bindGroupLayouts);
+        if (pipelineLayout === undefined) {
+            pipelineLayout = WEBGPURenderer.device.createPipelineLayout({
+                bindGroupLayouts: this.bindGroupLayouts
+            });
+            pipelineLayoutCache.set(this.bindGroupLayouts, pipelineLayout);
+        }
 
         // Pipeline descriptor
         const pipelineDescriptor: GPUComputePipelineDescriptor = {

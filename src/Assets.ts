@@ -3,11 +3,6 @@ type ResponseType<T> = T extends 'json' ? object
                       : T extends 'binary' ? ArrayBuffer
                       : never;
 
-interface Asset {
-    status: "loading" | "loaded";
-    asset: any;
-}
-
 export class Assets {
     private static cache: Map<string, Promise<any>> = new Map();
 

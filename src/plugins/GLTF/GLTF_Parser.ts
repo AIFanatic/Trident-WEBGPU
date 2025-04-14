@@ -1,13 +1,36 @@
-import { GameObject } from "../../GameObject";
 import { Geometry, IndexAttribute, VertexAttribute } from "../../Geometry";
 import { Object3D } from "../../Object3D";
 import { Color } from "../../math/Color";
 import { Matrix4 } from "../../math/Matrix4";
+import { Quaternion } from "../../math/Quaternion";
+import { Vector3 } from "../../math/Vector3";
 import { PBRMaterial, PBRMaterialParams } from "../../renderer/Material";
-import {GLTFLoader, MeshPrimitive, Texture, Node, AccessorComponentType} from './GLTFLoader_Minimal'
+import { Texture as TridentTexture } from "../../renderer/Texture";
+import {GLTFLoader, MeshPrimitive, Texture, Node, AccessorComponentType, GLTF, TextureInfo} from './GLTFLoader_Minimal'
 
-export class GLTF {
-    private static parsePrimitive(primitive: MeshPrimitive, textures?: Texture[]): Object3D {
+export class GLTFParser {
+    private static TextureCache: Map<Texture, Promise<TridentTexture>> = new Map();
+
+    private static async getTexture(textures: Texture[] | undefined, textureInfo: TextureInfo | null): Promise<TridentTexture | undefined> {
+        if (!textures || !textureInfo) return undefined;
+
+        let cachedTexture = this.TextureCache.get(textures[textureInfo.index]);
+        
+        if (cachedTexture === undefined) {
+            const source = textures[textureInfo.index].source;
+            if (source === null) throw Error("Invalid texture");
+            cachedTexture = TridentTexture.LoadImageSource(source);
+            cachedTexture.then(texture => {
+                texture.GenerateMips();
+            })
+            this.TextureCache.set(textures[textureInfo.index], cachedTexture);
+        }
+
+
+        return cachedTexture;
+    }
+
+    private static async parsePrimitive(primitive: MeshPrimitive, textures?: Texture[]): Promise<Object3D> {
         const geometry = new Geometry();
 
         function getTypedArray(buffer, componentType) {
@@ -65,23 +88,30 @@ export class GLTF {
 
 
         let materialParams: Partial<PBRMaterialParams> = {};
-        if (primitive.material && textures) {
+        if (primitive.material) {
             if (primitive.material.pbrMetallicRoughness) {
                 materialParams.albedoColor = new Color(...primitive.material.pbrMetallicRoughness.baseColorFactor);
 
-                if (primitive.material.pbrMetallicRoughness.baseColorTexture) materialParams.albedoMap = textures[primitive.material.pbrMetallicRoughness.baseColorTexture.index].texture;
-                if (primitive.material.pbrMetallicRoughness.metallicRoughnessTexture) materialParams.metalnessMap = textures[primitive.material.pbrMetallicRoughness.metallicRoughnessTexture.index].texture;
+                materialParams.albedoMap = await this.getTexture(textures, primitive.material.pbrMetallicRoughness.baseColorTexture);
+                materialParams.metalnessMap = await this.getTexture(textures, primitive.material.pbrMetallicRoughness.metallicRoughnessTexture);
 
                 materialParams.roughness = primitive.material.pbrMetallicRoughness.roughnessFactor;
                 materialParams.metalness = primitive.material.pbrMetallicRoughness.metallicFactor;
             }
 
-            if (primitive.material.normalTexture) materialParams.normalMap = textures[primitive.material.normalTexture.index].texture;
-            if (primitive.material.emissiveFactor) materialParams.emissiveColor = new Color(...primitive.material.emissiveFactor);
-            if (primitive.material.emissiveTexture) materialParams.emissiveMap = textures[primitive.material.emissiveTexture.index].texture;
+            materialParams.normalMap = await this.getTexture(textures, primitive.material.normalTexture);
+            materialParams.emissiveMap = await this.getTexture(textures, primitive.material.emissiveTexture);
+
+            if (primitive.material.emissiveFactor) {
+                materialParams.emissiveColor = new Color(...primitive.material.emissiveFactor);
+                if (primitive.material.extensions && primitive.material.extensions["KHR_materials_emissive_strength"]) {
+                    materialParams.emissiveColor.mul(primitive.material.extensions["KHR_materials_emissive_strength"]["emissiveStrength"]);
+                }
+            }
 
             materialParams.unlit = false;
-            // materialParams.doubleSided = primitive.material.doubleSided;
+            materialParams.doubleSided = primitive.material.doubleSided;
+            materialParams.alphaCutoff = primitive.material.alphaCutoff;
         }
 
         return {
@@ -91,26 +121,61 @@ export class GLTF {
         };
     }
 
-    private static parseNode(node: Node, textures?: Texture[]): Object3D {
+    private static async parseNode(gltf: GLTF, node: Node, textures?: Texture[]): Promise<Object3D> {
         let nodeObject3D: Object3D = {
             name: node.name ? node.name : undefined,
             children: [],
             localMatrix: new Matrix4().setFromArray(node.matrix)
         }
 
+        if (node.extensions) {
+            if (node.extensions.EXT_mesh_gpu_instancing) {
+                console.log(node.extensions.EXT_mesh_gpu_instancing)
+                if (!gltf.accessors) throw Error("No accessors");
+                const attributes = node.extensions.EXT_mesh_gpu_instancing.attributes;
+                const translation = new Float32Array(gltf.accessors[attributes.TRANSLATION].bufferView.data);
+                const rotation = new Float32Array(gltf.accessors[attributes.ROTATION].bufferView.data);
+                const scale = new Float32Array(gltf.accessors[attributes.SCALE].bufferView.data);
+
+                const count = translation.length / 3;
+                let instanceMatrices: Matrix4[] = [];
+                let p = new Vector3();
+                let r = new Quaternion();
+                let s = new Vector3();
+                let m = new Matrix4();
+                let psc = 0;
+                let rc = 0;
+                for (let i = 0; i < count; i++) {
+                    p.set(translation[psc + 0], translation[psc + 1], translation[psc + 2]);
+                    r.set(rotation[rc + 0], rotation[rc + 1], rotation[rc + 2], rotation[rc + 3]);
+                    s.set(scale[psc + 0], scale[psc + 1], scale[psc + 2]);
+                    m.compose(p, r, s);
+
+                    instanceMatrices.push(m.clone());
+
+                    psc += 3;
+                    rc += 4;
+                }
+                nodeObject3D.extensions = [{instanceCount: count, instanceMatrices: instanceMatrices}];
+
+                // console.log(translation, rotation, scale)
+                // throw Error("Got one")
+            }
+        }
+
         for (const childNode of node.children) {
-            nodeObject3D.children.push(this.parseNode(childNode, textures));
+            nodeObject3D.children.push(this.parseNode(gltf, childNode, textures));
         }
 
         if (node.mesh !== null) {
             if (node.mesh.primitives.length === 1) {
-                const object3D = this.parsePrimitive(node.mesh.primitives[0], textures);
+                const object3D = await this.parsePrimitive(node.mesh.primitives[0], textures);
                 nodeObject3D.geometry = object3D.geometry;
                 nodeObject3D.material = object3D.material;
             }
             else {
                 for (const primitive of node.mesh.primitives) {
-                    const object3D = this.parsePrimitive(primitive, textures);
+                    const object3D = await this.parsePrimitive(primitive, textures);
                     object3D.name = node.mesh.name;
                     nodeObject3D.children.push(object3D);
                 }
@@ -119,8 +184,8 @@ export class GLTF {
         return nodeObject3D;
     }
 
-    public static Load(url: string) {
-        new GLTFLoader().loadGLTF(url).then(gltf => {
+    public static async Load(url: string): Promise<Object3D> {
+        return new GLTFLoader().loadGLTF(url).then(async gltf => {
             if (!gltf || !gltf.scenes) throw Error("Invalid gltf");
 
             console.log(gltf)
@@ -132,42 +197,11 @@ export class GLTF {
                 if (!scene) continue;
                 sceneObject3D.name = scene.name ? scene.name : "Scene";
                 for (const node of scene.nodes) {
-                    sceneObject3D.children.push(this.parseNode(node, gltf.textures));
+                    sceneObject3D.children.push(await this.parseNode(gltf, node, gltf.textures));
                 }
             }
 
-            function AddObject3D(obj: Object3D): GameObject {
-                const gameObject = new GameObject(scene);
-                gameObject.name = obj.name ? obj.name : "GameObject";
-
-                if (obj.localMatrix) {
-                    obj.localMatrix.decompose(gameObject.transform.position, gameObject.transform.rotation, gameObject.transform.scale)
-                }
-
-                if (obj.geometry && obj.material) {
-                    const mesh = gameObject.AddComponent(Mesh);
-                    mesh.SetGeometry(obj.geometry);
-                    mesh.AddMaterial(obj.material);
-                }
-
-                return gameObject;
-            }
-
-            function p(obj: Object3D, d = "", parent?: GameObject) {
-                console.log(d, obj.name, obj.geometry ? "G: 1" : "G: 0", parent ? "P: " + parent.name : "P: none");
-                const gameObject = AddObject3D(obj);
-
-                if (parent && gameObject) {
-                    gameObject.transform.parent = parent.transform;
-                }
-
-                for (const child of obj.children) {
-                    p(child, d + "\t", gameObject ? gameObject : undefined);
-                }
-
-                return gameObject;
-            }
-            p(sceneObject3D)
-        })
+            return sceneObject3D;
+        });
     }
 }

@@ -2,6 +2,7 @@ import { Geometry } from "../Geometry";
 import { Matrix4 } from "../math/Matrix4";
 import { Vector2 } from "../math/Vector2";
 import { Vector3 } from "../math/Vector3";
+import { Vector4 } from "../math/Vector4";
 import { Buffer, DynamicBuffer } from "./Buffer";
 import { Renderer } from "./Renderer";
 import { ShaderPreprocessor } from "./ShaderUtils";
@@ -56,6 +57,7 @@ export interface ShaderParams {
     depthBias?: number;
     depthBiasSlopeScale?: number;
     depthBiasClamp?: number;
+    depthWriteEnabled?: boolean;
     topology?: Topology;
     frontFace?: "ccw" | "cw",
     cullMode?: "back" | "front" | "none"
@@ -78,13 +80,14 @@ export class BaseShader {
     public SetMatrix4(name: string, matrix: Matrix4) {}
     public SetVector2(name: string, vector: Vector2) {}
     public SetVector3(name: string, vector: Vector3) {}
+    public SetVector4(name: string, vector: Vector4) {}
     public SetArray(name: string, array: ArrayBuffer, bufferOffset?: number, dataOffset?: number | undefined, size?: number | undefined) {}
     public SetTexture(name: string, texture: Texture | DepthTexture | RenderTexture) {}
     public SetSampler(name: string, texture: TextureSampler) {}
     public SetBuffer(name: string, buffer: Buffer | DynamicBuffer) {}
     public HasBuffer(name: string): boolean { return false }
 
-    public OnPreRender(geometry: Geometry) {};
+    public OnPreRender(geometry: Geometry): boolean { return true; };
 }
 
 export class Shader extends BaseShader {

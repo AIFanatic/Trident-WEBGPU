@@ -72,6 +72,7 @@ export class DebuggerTextureViewer extends RenderPass {
         if (this.initialized === false) return;
 
         const LightingPassOutputTexture = resources.getResource(PassParams.ShadowPassDepth);
+        if (!LightingPassOutputTexture) return;
 
         this.shader.SetTexture("texture", LightingPassOutputTexture);
 

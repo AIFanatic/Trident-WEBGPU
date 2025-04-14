@@ -80,6 +80,10 @@ export class Vector4 {
         return this;
     }
 
+    public length(): number {
+		return Math.sqrt( this.x * this.x + this.y * this.y + this.z * this.z + this.w * this.w );
+	}
+
     public toString(): string {
         return `(${this.x.toPrecision(2)}, ${this.y.toPrecision(2)}, ${this.z.toPrecision(2)}, ${this.w.toPrecision(2)})`;
     }

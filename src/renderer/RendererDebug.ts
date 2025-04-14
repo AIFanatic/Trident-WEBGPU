@@ -81,6 +81,10 @@ class _RendererDebug {
         this.visibleTriangles.SetValue(count);
     }
 
+    public IncrementVisibleTriangleCount(count: number) {
+        this.visibleTriangles.SetValue(this.visibleTriangles.GetValue() + count);
+    }
+
     public SetFPS(count: number) {
         this.fps.SetValue(count);
 

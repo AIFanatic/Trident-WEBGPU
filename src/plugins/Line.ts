@@ -14,7 +14,7 @@ export class Line {
     }
 
     private async Create(scene: Scene, from: Vector3, to: Vector3, color = new Vector3(1,1,1)) {
-        const m = new Material();
+        const m = new Material({isDeferred: true});
         m.shader = await Shader.Create({
             code: `
             struct VertexInput {

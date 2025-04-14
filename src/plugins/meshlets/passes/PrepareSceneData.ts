@@ -89,6 +89,14 @@ export class PrepareSceneData extends RenderPass {
 
         // })
         
+        this.textureMaps = {
+            albedo: TextureArray.Create(1, 1, 1),
+            normal: TextureArray.Create(1, 1, 1),
+            height: TextureArray.Create(1, 1, 1),
+            metalness: TextureArray.Create(1, 1, 1),
+            emissive: TextureArray.Create(1, 1, 1),
+        };
+        
         this.initialized = true;
     }
 
@@ -137,6 +145,7 @@ export class PrepareSceneData extends RenderPass {
         const roughness = material.params.roughness;
         const metalness = material.params.metalness;
         const unlit = material.params.unlit;
+        const wireframe = material.params.wireframe;
 
         return new Float32Array([
             albedoIndex, normalIndex, heightIndex, metalnessIndex, emissiveIndex, 0, 0, 0,
@@ -145,7 +154,7 @@ export class PrepareSceneData extends RenderPass {
             roughness,
             metalness,
             +unlit,
-            0
+            +wireframe
         ]);
     }
 
@@ -260,13 +269,11 @@ export class PrepareSceneData extends RenderPass {
             }
 
             // Mesh materials
-            this.textureMaps = {
-                albedo: this.createMaterialMap(this.albedoMaps, "albedo"),
-                normal: this.createMaterialMap(this.normalMaps, "normal"),
-                height: this.createMaterialMap(this.heightMaps, "height"),
-                metalness: this.createMaterialMap(this.metalnessMaps, "metalness"),
-                emissive: this.createMaterialMap(this.emissiveMaps, "emissive"),
-            }
+            this.textureMaps.albedo = this.createMaterialMap(this.albedoMaps, "albedo");
+            this.textureMaps.normal = this.createMaterialMap(this.normalMaps, "normal");
+            this.textureMaps.height = this.createMaterialMap(this.heightMaps, "height");
+            this.textureMaps.metalness = this.createMaterialMap(this.metalnessMaps, "metalness");
+            this.textureMaps.emissive = this.createMaterialMap(this.emissiveMaps, "emissive");
 
             
             this.currentMeshCount = sceneMeshlets.length;
