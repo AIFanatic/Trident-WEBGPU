@@ -148,7 +148,7 @@ export class DeferredShadowMapPass extends RenderPass {
             colorOutputs: [],
             depthOutput: "depth24plus",
             // depthBias: 2,              // Constant bias
-            // depthBiasSlopeScale: 3.0,  // Slope-scale bias
+            // depthBiasSlopeScale: 2.0,  // Slope-scale bias
             // depthBiasClamp: 0.0,       // Max clamp for the bias
             cullMode: "front",
         })

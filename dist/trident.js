@@ -4415,7 +4415,7 @@ var DeferredShadowMapPass = class extends RenderPass {
       colorOutputs: [],
       depthOutput: "depth24plus",
       // depthBias: 2,              // Constant bias
-      // depthBiasSlopeScale: 3.0,  // Slope-scale bias
+      // depthBiasSlopeScale: 2.0,  // Slope-scale bias
       // depthBiasClamp: 0.0,       // Max clamp for the bias
       cullMode: "front"
     });
@@ -5596,77 +5596,8 @@ var BilateralFilter = class extends RenderPass {
                 return output;
             }
 
-            fn atanVec4(a: vec4f, b: vec4f) -> vec4f {
-                return vec4f(atan2(a.x, b.x), atan2(a.y, b.y), atan2(a.z, b.z), atan2(a.w, b.w));
-            }
-
             @fragment
             fn fragmentMain(input: VertexOutput) -> @location(0) vec4<f32> {
-                // // Sample the center pixel (color, depth, and normal).
-                // let centerColor: vec4f = textureSample(tex, texSampler, input.uv);
-                // let centerDepth: f32 = textureSample(depthTex, depthSampler, input.uv);
-                // let centerNormal: vec3f = normalize(
-                //     textureSample(normalTex, normalSampler, input.uv).rgb * 2.0 - vec3f(1.0)
-                // );
-                
-                // // Sigma parameters for the spatial and range terms.
-                // // You may need to adjust these based on your image and desired blur.
-                // let sigma_space: f32 = 2.0;
-                // let sigma_color: f32 = 0.1;
-                // let sigma_depth: f32 = 0.1;
-                // let sigma_normal: f32 = 0.1;
-                
-                // var sum: vec4f = vec4f(0.0);
-                // var weightSum: f32 = 0.0;
-                
-                // // Define a blur radius in texels (this is along the blur direction).
-                // let radius: i32 = 4;
-                
-                // // Loop over the one-dimensional kernel in the blur direction.
-                // for (var i: i32 = -radius; i <= radius; i = i + 1) {
-                //     // Calculate the offset based on the blur direction.
-                //     // (For horizontal pass, blurDir.xy = (1/width, 0),
-                //     //  for vertical pass, blurDir.xy = (0, 1/height)).
-                //     let offset: vec2f = blurDir.xy * f32(i);
-                //     let sampleUV = input.uv + offset;
-                    
-                //     // Sample the textures at the offset position.
-                //     let sampleColor: vec4f = textureSample(tex, texSampler, sampleUV);
-                //     let sampleDepth: f32 = textureSample(depthTex, depthSampler, sampleUV);
-                //     let sampleNormal: vec3f = normalize(
-                //         textureSample(normalTex, normalSampler, sampleUV).rgb * 2.0 - vec3f(1.0)
-                //     );
-                    
-                //     // --- Compute weights ---
-                //     // Spatial weight based solely on the index (distance along one dimension).
-                //     let spatialWeight: f32 = exp(-0.5 * (f32(i * i)) / (sigma_space * sigma_space));
-                    
-                //     // Color weight based on color difference.
-                //     let colorDiff: f32 = length(sampleColor.rgb - centerColor.rgb);
-                //     let colorWeight: f32 = exp(-0.5 * (colorDiff * colorDiff) / (sigma_color * sigma_color));
-                    
-                //     // Depth weight based on depth difference.
-                //     let depthDiff: f32 = abs(centerDepth - sampleDepth);
-                //     let depthWeight: f32 = exp(-0.5 * (depthDiff * depthDiff) / (sigma_depth * sigma_depth));
-                    
-                //     // Normal weight based on normal difference.
-                //     let normalDiff: f32 = 1.0 - dot(centerNormal, sampleNormal);
-                //     let normalWeight: f32 = exp(-0.5 * (normalDiff * normalDiff) / (sigma_normal * sigma_normal));
-                    
-                //     // Combine the weights.
-                //     let weight: f32 = spatialWeight * colorWeight * depthWeight * normalWeight;
-                    
-                //     sum = sum + sampleColor * weight;
-                //     weightSum = weightSum + weight;
-                // }
-                
-                // // Normalize by the sum of weights.
-                // return sum / weightSum;
-
-
-
-                
-
                 var color: vec3f = textureSampleLevel(tex, texSampler, input.uv, 0.).rgb;
                 var depth: f32 = textureSampleLevel(depthTex, depthSampler, input.uv, 0);
             
@@ -5699,7 +5630,6 @@ var BilateralFilter = class extends RenderPass {
             
                     var r: f32 = dot(coords, coords);
                     var w: f32 = exp(-r / two_sigma2);
-                    // let w: f32 = exp(-0.5 * (f32(x * x)) / (sigma_space * sigma_space));
             
                     var depthDelta: f32 = abs(sampleDepth - depth);
                     var wd: f32 = step(depthDelta, blurDepthThreshold);
@@ -5712,129 +5642,7 @@ var BilateralFilter = class extends RenderPass {
                 }
                 
                 return vec4f(sum / wsum, 1.);
-                // return vec4f(color, 1.0);
             }
-
-
-            // const pi = 3.14159265359;
-            // const pi2 = 2.0 * pi;
-
-            // fn hash(_x: u32) -> u32 {
-            //     var x = _x;
-            //     x ^= x >> 16;
-            //     x *= 0x7feb352d;
-            //     x ^= x >> 15;
-            //     x *= 0x846ca68b;
-            //     x ^= x >> 16;
-                
-            //     return x;
-            // }
-
-            // //https://www.shadertoy.com/view/WsBBR3 
-            // fn randomFloat(state: u32) -> f32 {
-            //     return f32(hash(state)) / 4294967296.0;
-            // } 
-
-            // fn randomDir(state: u32) -> vec2f {
-            //     let z: f32 = randomFloat(state) * 2.0 - 1.0;
-            //     let a: f32 = randomFloat(state) * pi2;
-            //     let r: f32 = sqrt(1.0f - z * z);
-            //     let x: f32 = r * cos(a);
-            //     let y: f32 = r * sin(a);
-            //     return vec2(x, y);
-            // }
-
-            // @fragment
-            // fn fragmentMain(input: VertexOutput) -> @location(0) vec4<f32> {
-            //     let STEPS: i32 = 16;
-            //     let DIFF: f32 = 4.0;
-            //     let RADIUS: f32 = 16.0;
-
-            //     let iResolution: vec2f = vec2f(textureDimensions(tex));
-            //     let radius: vec2f = (RADIUS / iResolution.xy);
-            //     let diff: f32 = DIFF / 255.0;
-            //     let pixel: vec3f = textureSample(tex, texSampler, input.uv).xyz;
-                
-            //     var result: vec3f = vec3(0.0, 0.0, 0.0);
-            //     var totalWeight: f32 = 0.0;
-
-            //     let seed: u32 = 54321;
-
-            //     for(var i: i32 = 0; i < STEPS; i++) {
-            //         let dir: vec2f = randomDir(seed).xy * radius;
-            //         let randomPixel: vec3f = textureSample(tex, texSampler, input.uv + dir).xyz;
-            //         let delta: vec3f = randomPixel - pixel;
-            //         let weight: f32 = exp(-dot(delta, delta) / diff);
-            //         result += randomPixel * weight;
-            //         totalWeight += weight;
-            //     }
-                
-            //     result = result / totalWeight;
-            //     return vec4( result, 1.0);
-
-            //     // var color: vec3f = textureSampleLevel(tex, texSampler, input.uv, 0.).rgb;
-                
-            //     // return vec4f(color, 1.);
-            // }
-
-            // fn normpdf(x: f32, sigma: f32) -> f32 {
-            //     return 0.39894 * exp(-0.5 * x * x / (sigma * sigma)) / sigma;
-            // }
-
-            // fn normpdf3(v: vec3f, sigma: f32) -> f32 {
-            //     return 0.39894 * exp(-0.5 * dot(v, v) / (sigma * sigma)) / sigma;
-            // }
-
-            // // const SIGMA = 10.0;
-            // //#define BSIGMA 0.1
-            // const BSIGMA = 0.3;
-            // const MSIZE = 15;
-
-            // @fragment
-            // fn fragmentMain(input: VertexOutput) -> @location(0) vec4<f32> {
-            //     let c = textureSample(tex, texSampler, input.uv);
-
-
-            //     //declare stuff
-            //     const kSize = (MSIZE-1)/2;
-            //     var kernel: array<f32, MSIZE>;
-            //     var bfinal_colour: vec3f = vec3(0.0);
-            
-            //     var bZ: f32 = 0.0;
-            
-            //     //create the 1-D kernel
-            //     for (var j: i32 = 0; j <= kSize; j++) {
-            //         kernel[kSize-j] = normpdf(f32(j), filterSize);
-            //         kernel[kSize+j] = kernel[kSize-j];
-            //     }
-
-
-            //     let sourceTexelSize = 1.0 / vec2f(textureDimensions(tex));
-            //     var cc: vec3f;
-            //     var gfactor: f32;
-            //     var bfactor: f32;
-            //     let bZnorm: f32 = 1.0/normpdf(0.0, BSIGMA);
-            //     //read out the texels
-            //     for (var i: i32 = -kSize; i <= kSize; i++)
-            //     {
-            //         for (var j: i32 = -kSize; j <= kSize; j++)
-            //         {
-            //             // color at pixel in the neighborhood
-            //             let coord: vec2f = input.uv.xy + vec2(f32(i), f32(j))*sourceTexelSize.xy;
-            //             cc = textureSample(tex, texSampler, coord).rgb;
-                
-            //             // compute both the gaussian smoothed and bilateral
-            //             gfactor = kernel[kSize+j]*kernel[kSize+i];
-            //             bfactor = normpdf3(cc-c.rgb, BSIGMA)*bZnorm*gfactor;
-            //             bZ += bfactor;
-                
-            //             bfinal_colour += bfactor*cc;
-            //         }
-            //     }
-
-            //     return vec4f(bfinal_colour/bZ, 1.0);
-            //     // return c;
-            // }
             `,
       colorOutputs: [
         { format: "rgba16float" }
@@ -5963,15 +5771,84 @@ var TextureBlender = class extends RenderPass {
       throw Error("Not initialized");
     }
     ;
-    if (texA.width !== texB.width || texA.height !== texB.height) {
-      throw Error("Texture dimensions dont match");
-    }
     if (!this.renderTarget || this.renderTarget.width !== texA.width || this.renderTarget.height !== texA.height) {
       this.renderTarget = RenderTexture.Create(texA.width, texA.height, texA.depth, "rgba16float");
     }
     this.shader.SetTexture("texA", texA);
     this.shader.SetTexture("texB", texB);
     RendererContext.BeginRenderPass("Textureblender", [{ target: this.renderTarget, clear: true }], void 0, true);
+    RendererContext.DrawGeometry(this.geometry, this.shader);
+    RendererContext.EndRenderPass();
+    return this.renderTarget;
+  }
+};
+
+// src/plugins/Upscaler.ts
+var Upscaler = class extends RenderPass {
+  shader;
+  geometry;
+  renderTarget;
+  constructor() {
+    super({});
+  }
+  async init(resources) {
+    this.shader = await Shader.Create({
+      code: `
+            @group(0) @binding(0) var tex: texture_2d<f32>;
+            @group(0) @binding(2) var texSampler: sampler;
+
+            struct VertexInput {
+                @location(0) position : vec3<f32>,
+                @location(1) normal : vec3<f32>,
+                @location(2) uv : vec2<f32>,
+            };
+            
+            struct VertexOutput {
+                @builtin(position) position : vec4<f32>,
+                @location(0) uv : vec2<f32>,
+            };
+
+            @vertex
+            fn vertexMain(input: VertexInput) -> VertexOutput {
+                var output : VertexOutput;
+                output.position = vec4(input.position, 1.0);
+                output.uv = input.uv;
+                return output;
+            }
+
+            @fragment
+            fn fragmentMain(input: VertexOutput) -> @location(0) vec4<f32> {
+                let a = textureSample(tex, texSampler, input.uv);
+                return a;
+            }
+            `,
+      colorOutputs: [
+        { format: "rgba16float" }
+      ],
+      attributes: {
+        position: { location: 0, size: 3, type: "vec3" },
+        normal: { location: 1, size: 3, type: "vec3" },
+        uv: { location: 2, size: 2, type: "vec2" }
+      },
+      uniforms: {
+        tex: { group: 0, binding: 0, type: "texture" },
+        texSampler: { group: 0, binding: 2, type: "sampler" }
+      }
+    });
+    this.shader.SetSampler("texSampler", TextureSampler.Create());
+    this.geometry = Geometry.Plane();
+    this.initialized = true;
+  }
+  Process(tex, width, height) {
+    if (this.initialized === false) {
+      throw Error("Not initialized");
+    }
+    ;
+    if (!this.renderTarget || this.renderTarget.width !== width || this.renderTarget.height !== height) {
+      this.renderTarget = RenderTexture.Create(width, height, tex.depth, "rgba16float");
+    }
+    this.shader.SetTexture("tex", tex);
+    RendererContext.BeginRenderPass("Upscaler", [{ target: this.renderTarget, clear: true }], void 0, true);
     RendererContext.DrawGeometry(this.geometry, this.shader);
     RendererContext.EndRenderPass();
     return this.renderTarget;
@@ -5986,8 +5863,11 @@ var RSMIndirectLighting = class extends RenderPass {
   indirectLighting;
   bilateralFilter;
   textureBlender;
+  upscaler;
   geometry;
   shader;
+  enabled = true;
+  showIndirect = false;
   RSM_RES;
   NUM_SAMPLES;
   SAMPLES_TEX_SIZE;
@@ -6001,9 +5881,16 @@ var RSMIndirectLighting = class extends RenderPass {
     this.RSMGenerator = new RSMRenderPass(light, RSM_RES);
     this.bilateralFilter = new BilateralFilter();
     this.textureBlender = new TextureBlender();
+    this.upscaler = new Upscaler();
     this.indirectLighting = RenderTexture.Create(Renderer.width, Renderer.height, 1, "rgba16float");
     const rsmFolder = new UIFolder(Debugger.ui, "RSM");
     rsmFolder.Open();
+    new UIButtonStat(rsmFolder, "Enable", (state) => {
+      this.enabled = state;
+    }, this.enabled);
+    new UIButtonStat(rsmFolder, "Show indirect", (state) => {
+      this.showIndirect = state;
+    }, this.showIndirect);
     new UISliderStat(rsmFolder, "Filter size:", 1, 32, 1, this.bilateralFilter.filterSize, (state) => {
       this.bilateralFilter.filterSize = state;
     });
@@ -6018,10 +5905,9 @@ var RSMIndirectLighting = class extends RenderPass {
     await this.RSMGenerator.init(resources);
     await this.bilateralFilter.init(resources);
     await this.textureBlender.init(resources);
+    await this.upscaler.init(resources);
     this.shader = await Shader.Create({
       code: `
-            @group(0) @binding(0) var lightingTex: texture_2d<f32>;
-
             @group(0) @binding(1) var gDepthTex: texture_depth_2d;
             @group(0) @binding(2) var gNormalTex: texture_2d<f32>;
             
@@ -6120,7 +6006,6 @@ var RSMIndirectLighting = class extends RenderPass {
 
             @fragment    
             fn fragmentMain(input: VertexOutput) -> @location(0) vec4<f32> {
-
                 let P = reconstructWorldPosFromZ(
                     input.position.xy,
                     view.projectionOutputSize.xy,
@@ -6146,7 +6031,6 @@ var RSMIndirectLighting = class extends RenderPass {
                 var c: f32 = cos(angle);
                 var s: f32 = sin(angle);
 
-                
                 for(var i = 0; i < i32(${this.NUM_SAMPLES}); i++) {
                     var rsmSample: vec3f = textureSample(samplesTex, samplerSampler, vec2f(f32(i) / f32(${this.SAMPLES_TEX_SIZE}), 0.0)).xyz;
 
@@ -6169,10 +6053,7 @@ var RSMIndirectLighting = class extends RenderPass {
                     indirect += vplFlux * weight * max(0., dot(N, vplPos - P)) * max(0., dot(vplNormal, P - vplPos)) / (dist2 * dist2);
                 }
 
-                let directLight: vec3f = textureSample(lightingTex, texSampler, input.uv).xyz;
                 let indirectLight = clamp(indirect * indirectLightAmount, vec3f(0.0), vec3f(1.0));
-                // return vec4(directLight + indirectLight, 1.0);
-
                 return vec4(indirectLight, 1.0);
             }
             `,
@@ -6185,7 +6066,6 @@ var RSMIndirectLighting = class extends RenderPass {
         uv: { location: 2, size: 2, type: "vec2" }
       },
       uniforms: {
-        lightingTex: { group: 0, binding: 0, type: "texture" },
         gDepthTex: { group: 0, binding: 1, type: "depthTexture" },
         gNormalTex: { group: 0, binding: 2, type: "texture" },
         rNormalTex: { group: 0, binding: 3, type: "texture" },
@@ -6222,6 +6102,7 @@ var RSMIndirectLighting = class extends RenderPass {
     this.shader.SetSampler("samplerSampler", TextureSampler.Create({ minFilter: "nearest", magFilter: "nearest", mipmapFilter: "nearest", addressModeU: "repeat", addressModeV: "repeat" }));
   }
   async execute(resources, ...args) {
+    if (this.enabled === false) return;
     this.RSMGenerator.execute(resources);
     const lightingTex = resources.getResource(PassParams.LightingPassOutput);
     const gDepthTex = resources.getResource(PassParams.GBufferDepth);
@@ -6229,7 +6110,6 @@ var RSMIndirectLighting = class extends RenderPass {
     const rNormalTex = this.RSMGenerator.rsmNormal;
     const rWorldPosTex = this.RSMGenerator.rsmWorldPosition;
     const rFluxTex = this.RSMGenerator.rsmFlux;
-    this.shader.SetTexture("lightingTex", lightingTex);
     this.shader.SetTexture("gDepthTex", gDepthTex);
     this.shader.SetTexture("gNormalTex", gNormalTex);
     this.shader.SetTexture("rNormalTex", rNormalTex);
@@ -6254,6 +6134,10 @@ var RSMIndirectLighting = class extends RenderPass {
     const indirectBlurred = this.bilateralFilter.Process(this.indirectLighting, gDepthTex, gNormalTex);
     const ta = this.textureBlender.Process(indirectBlurred, lightingTex);
     resources.setResource(PassParams.LightingPassOutput, ta);
+    if (this.showIndirect) {
+      const t = this.upscaler.Process(this.indirectLighting, Renderer.width, Renderer.height);
+      resources.setResource(PassParams.LightingPassOutput, t);
+    }
   }
 };
 
@@ -6317,24 +6201,22 @@ async function Application() {
   meshbottom.SetGeometry(planeGeometry);
   meshbottom.AddMaterial(floorMaterial);
   const left = new GameObject(scene);
-  left.transform.scale.set(5, 5, 5);
+  left.transform.scale.set(0.05, 10, 10);
   left.transform.position.x = -5;
-  left.transform.eulerAngles.y = 90;
   const meshleft = left.AddComponent(Mesh);
-  meshleft.SetGeometry(planeGeometry);
+  meshleft.SetGeometry(cubeGeometry);
   meshleft.AddMaterial(leftMaterial);
   const right = new GameObject(scene);
-  right.transform.scale.set(5, 5, 5);
+  right.transform.scale.set(0.05, 10, 10);
   right.transform.position.x = 5;
-  right.transform.eulerAngles.y = -90;
   const meshright = right.AddComponent(Mesh);
-  meshright.SetGeometry(planeGeometry);
+  meshright.SetGeometry(cubeGeometry);
   meshright.AddMaterial(rightMaterial);
   const back = new GameObject(scene);
-  back.transform.scale.set(5, 5, 5);
+  back.transform.scale.set(10, 10, 0.05);
   back.transform.position.z = -5;
   const meshback = back.AddComponent(Mesh);
-  meshback.SetGeometry(planeGeometry);
+  meshback.SetGeometry(cubeGeometry);
   meshback.AddMaterial(backMaterial);
   const cube = new GameObject(scene);
   cube.transform.scale.set(2, 4, 2);

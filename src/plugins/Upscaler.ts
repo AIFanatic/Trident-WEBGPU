@@ -5,7 +5,7 @@ import { Shader } from "../renderer/Shader";
 import { RenderTexture, Texture } from "../renderer/Texture";
 import { TextureSampler } from "../renderer/TextureSampler";
 
-export class TextureBlender extends RenderPass {
+export class Upscaler extends RenderPass {
     private shader: Shader;
     private geometry: Geometry;
 
@@ -16,8 +16,7 @@ export class TextureBlender extends RenderPass {
     public async init(resources: ResourcePool) {
         this.shader = await Shader.Create({
             code: `
-            @group(0) @binding(0) var texA: texture_2d<f32>;
-            @group(0) @binding(1) var texB: texture_2d<f32>;
+            @group(0) @binding(0) var tex: texture_2d<f32>;
             @group(0) @binding(2) var texSampler: sampler;
 
             struct VertexInput {
@@ -41,9 +40,8 @@ export class TextureBlender extends RenderPass {
 
             @fragment
             fn fragmentMain(input: VertexOutput) -> @location(0) vec4<f32> {
-                let a = textureSample(texA, texSampler, input.uv);
-                let b = textureSample(texB, texSampler, input.uv);
-                return a + b;
+                let a = textureSample(tex, texSampler, input.uv);
+                return a;
             }
             `,
             colorOutputs: [
@@ -55,8 +53,7 @@ export class TextureBlender extends RenderPass {
                 uv: { location: 2, size: 2, type: "vec2" }
             },
             uniforms: {
-                texA: { group: 0, binding: 0, type: "texture" },
-                texB: { group: 0, binding: 1, type: "texture" },
+                tex: { group: 0, binding: 0, type: "texture" },
                 texSampler: { group: 0, binding: 2, type: "sampler" },
             },
         });
@@ -67,23 +64,18 @@ export class TextureBlender extends RenderPass {
         this.initialized = true;
     }
 
-    public Process(texA: Texture, texB: Texture): RenderTexture {
+    public Process(tex: Texture, width: number, height: number): RenderTexture {
         if (this.initialized === false) {
             throw Error("Not initialized")
         };
 
-        // if (texA.width !== texB.width || texA.height !== texB.height) {
-        //     throw Error("Texture dimensions dont match");
-        // }
-
-        if (!this.renderTarget || this.renderTarget.width !== texA.width || this.renderTarget.height !== texA.height) {
-            this.renderTarget = RenderTexture.Create(texA.width, texA.height, texA.depth, "rgba16float");
+        if (!this.renderTarget || this.renderTarget.width !== width || this.renderTarget.height !== height) {
+            this.renderTarget = RenderTexture.Create(width, height, tex.depth, "rgba16float");
         }
 
-        this.shader.SetTexture("texA", texA);
-        this.shader.SetTexture("texB", texB);
+        this.shader.SetTexture("tex", tex);
 
-        RendererContext.BeginRenderPass("Textureblender", [{target: this.renderTarget, clear: true}], undefined, true);
+        RendererContext.BeginRenderPass("Upscaler", [{target: this.renderTarget, clear: true}], undefined, true);
         RendererContext.DrawGeometry(this.geometry, this.shader);
         RendererContext.EndRenderPass();
 

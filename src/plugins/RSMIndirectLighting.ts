@@ -11,10 +11,11 @@ import { Geometry } from "../Geometry";
 import { Renderer } from "../renderer/Renderer";
 
 import { Debugger } from "./Debugger";
-import { UIFolder, UISliderStat } from "./ui/UIStats";
+import { UIButtonStat, UIFolder, UISliderStat } from "./ui/UIStats";
 import { PassParams } from "../renderer/RenderingPipeline";
 import { Camera } from "../components/Camera";
 import { Matrix4 } from "../math/Matrix4";
+import { Upscaler } from "./Upscaler";
 
 export class RSMIndirectLighting extends RenderPass {
     public name: string = "RSMIndirectLighting";
@@ -25,10 +26,13 @@ export class RSMIndirectLighting extends RenderPass {
     public indirectLighting: RenderTexture;
     public bilateralFilter: BilateralFilter;
     public textureBlender: TextureBlender;
+    public upscaler: Upscaler;
 
     private geometry: Geometry;
     private shader: Shader;
     
+    private enabled: boolean = true;
+    private showIndirect: boolean = false;
     private RSM_RES: number;
     private NUM_SAMPLES: number;
     private SAMPLES_TEX_SIZE: number;
@@ -44,12 +48,15 @@ export class RSMIndirectLighting extends RenderPass {
         this.RSMGenerator = new RSMRenderPass(light, RSM_RES);
         this.bilateralFilter = new BilateralFilter();
         this.textureBlender = new TextureBlender();
+        this.upscaler = new Upscaler();
 
         this.indirectLighting = RenderTexture.Create(Renderer.width, Renderer.height, 1, "rgba16float");
 
         const rsmFolder = new UIFolder(Debugger.ui, "RSM");
         rsmFolder.Open();
 
+        new UIButtonStat(rsmFolder, "Enable", state => {this.enabled = state}, this.enabled);
+        new UIButtonStat(rsmFolder, "Show indirect", state => {this.showIndirect = state}, this.showIndirect);
         new UISliderStat(rsmFolder, "Filter size:", 1, 32, 1, this.bilateralFilter.filterSize, state => {this.bilateralFilter.filterSize = state});
         new UISliderStat(rsmFolder, "Depth threshold:", 0, 0.1, 0.001, this.bilateralFilter.blurDepthThreshold, state => {this.bilateralFilter.blurDepthThreshold = state});
         new UISliderStat(rsmFolder, "Normal threshold:", 0, 1, 0.01, this.bilateralFilter.blurNormalThreshold, state => {this.bilateralFilter.blurNormalThreshold = state});
@@ -59,11 +66,10 @@ export class RSMIndirectLighting extends RenderPass {
         await this.RSMGenerator.init(resources);
         await this.bilateralFilter.init(resources);
         await this.textureBlender.init(resources);
+        await this.upscaler.init(resources);
 
         this.shader = await Shader.Create({
             code: `
-            @group(0) @binding(0) var lightingTex: texture_2d<f32>;
-
             @group(0) @binding(1) var gDepthTex: texture_depth_2d;
             @group(0) @binding(2) var gNormalTex: texture_2d<f32>;
             
@@ -162,7 +168,6 @@ export class RSMIndirectLighting extends RenderPass {
 
             @fragment    
             fn fragmentMain(input: VertexOutput) -> @location(0) vec4<f32> {
-
                 let P = reconstructWorldPosFromZ(
                     input.position.xy,
                     view.projectionOutputSize.xy,
@@ -188,7 +193,6 @@ export class RSMIndirectLighting extends RenderPass {
                 var c: f32 = cos(angle);
                 var s: f32 = sin(angle);
 
-                
                 for(var i = 0; i < i32(${this.NUM_SAMPLES}); i++) {
                     var rsmSample: vec3f = textureSample(samplesTex, samplerSampler, vec2f(f32(i) / f32(${this.SAMPLES_TEX_SIZE}), 0.0)).xyz;
 
@@ -211,10 +215,7 @@ export class RSMIndirectLighting extends RenderPass {
                     indirect += vplFlux * weight * max(0., dot(N, vplPos - P)) * max(0., dot(vplNormal, P - vplPos)) / (dist2 * dist2);
                 }
 
-                let directLight: vec3f = textureSample(lightingTex, texSampler, input.uv).xyz;
                 let indirectLight = clamp(indirect * indirectLightAmount, vec3f(0.0), vec3f(1.0));
-                // return vec4(directLight + indirectLight, 1.0);
-
                 return vec4(indirectLight, 1.0);
             }
             `,
@@ -227,7 +228,6 @@ export class RSMIndirectLighting extends RenderPass {
                 uv: { location: 2, size: 2, type: "vec2" }
             },
             uniforms: {
-                lightingTex: { group: 0, binding: 0, type: "texture" },
                 gDepthTex: { group: 0, binding: 1, type: "depthTexture" },
                 gNormalTex: { group: 0, binding: 2, type: "texture" },
 
@@ -287,6 +287,8 @@ export class RSMIndirectLighting extends RenderPass {
     }
 
     public async execute(resources: ResourcePool, ...args: any) {
+        if (this.enabled === false) return;
+
         this.RSMGenerator.execute(resources);
 
 
@@ -298,7 +300,6 @@ export class RSMIndirectLighting extends RenderPass {
         const rWorldPosTex = this.RSMGenerator.rsmWorldPosition;
         const rFluxTex = this.RSMGenerator.rsmFlux;
 
-        this.shader.SetTexture("lightingTex", lightingTex);
         this.shader.SetTexture("gDepthTex", gDepthTex);
         this.shader.SetTexture("gNormalTex", gNormalTex);
         this.shader.SetTexture("rNormalTex", rNormalTex);
@@ -332,6 +333,12 @@ export class RSMIndirectLighting extends RenderPass {
         const ta = this.textureBlender.Process(indirectBlurred, lightingTex);
 
         resources.setResource(PassParams.LightingPassOutput, ta)
+
+        if (this.showIndirect) {
+            const t = this.upscaler.Process(this.indirectLighting, Renderer.width, Renderer.height);
+            resources.setResource(PassParams.LightingPassOutput, t);
+            // resources.setResource(PassParams.LightingPassOutput, this.indirectLighting);
+        }
 
     }
 }

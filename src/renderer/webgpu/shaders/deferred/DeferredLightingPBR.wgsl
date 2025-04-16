@@ -352,7 +352,6 @@ fn lerp(k0: f32, k1: f32, t: f32) -> f32 {
     return k0 + t * (k1 - k0);
 }
 
-
 fn CalculateShadowCSM(surface: Surface, light: Light, lightIndex: u32) -> ShadowCSM {
     var shadow: ShadowCSM;
     
@@ -396,7 +395,6 @@ fn CalculateShadowCSM(surface: Surface, light: Light, lightIndex: u32) -> Shadow
             shadow.visibility *= fadeFactor;
         }
     }
-
  
     return shadow;
 }
