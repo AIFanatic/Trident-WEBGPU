@@ -237,21 +237,6 @@ fn SpotLightRadiance(light : SpotLight, surface : Surface) -> vec3<f32> {
     return radiance;
 }
 
-fn Tonemap_ACES(x: vec3f) -> vec3f {
-    // Narkowicz 2015, "ACES Filmic Tone Mapping Curve"
-    let a = 2.51;
-    let b = 0.03;
-    let c = 2.43;
-    let d = 0.59;
-    let e = 0.14;
-    return (x * (a * x + b)) / (x * (c * x + d) + e);
-}
-
-fn OECF_sRGBFast(linear: vec3f) -> vec3f {
-    return pow(linear, vec3(0.454545));
-}
-
-
 struct ShadowCSM {
     visibility: f32,
     selectedCascade: i32
@@ -484,7 +469,7 @@ fn fragmentMain(input: VertexOutput) -> @location(0) vec4<f32> {
             spotLight.intensity = light.params1.r;
             spotLight.range = light.params1.g;
             spotLight.direction = lightDir;
-            spotLight.angle = light.params1.b;
+            spotLight.angle = light.params2.w;
 
             // let shadow = CalculateShadow(surface.worldPosition, surface.N, light, i);
 
@@ -546,8 +531,6 @@ fn fragmentMain(input: VertexOutput) -> @location(0) vec4<f32> {
     }
 
     color += surface.emissive;
-    color = Tonemap_ACES(color);
-    color = OECF_sRGBFast(color);
 
 
     if (u32(settings.viewType) == 1) { color = surface.albedo.rgb; }

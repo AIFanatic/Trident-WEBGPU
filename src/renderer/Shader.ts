@@ -91,8 +91,8 @@ export class BaseShader {
 }
 
 export class Shader extends BaseShader {
-    public readonly id: string;
-    public readonly params: ShaderParams;
+    declare public readonly id: string;
+    declare public readonly params: ShaderParams;
 
     public static async Create(params: ShaderParams): Promise<Shader> {
         params.code = await ShaderPreprocessor.ProcessIncludes(params.code);
@@ -102,7 +102,7 @@ export class Shader extends BaseShader {
 }
 
 export class Compute extends BaseShader {
-    public readonly params: ComputeShaderParams;
+    declare public readonly params: ComputeShaderParams;
 
     public static async Create(params: ComputeShaderParams): Promise<Compute> {
         params.code = await ShaderPreprocessor.ProcessIncludes(params.code);

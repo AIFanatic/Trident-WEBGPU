@@ -1,19 +1,30 @@
 {
   "name": "trident-webgpu",
   "version": "1.0.0",
-  "main": "index.js",
+  "main": "./dist/trident.js",
+  "types": "dist/esm/index.d.ts",
+  "module": "dist/esm/index.js",
   "license": "MIT",
+  "exports": {
+    ".": {
+      "import": "./dist/esm/index.js",
+      "types": "./dist/esm/index.d.ts"
+    },
+    "./plugins/*": {
+      "import": "./dist/esm/plugins/*.js",
+      "types": "./dist/esm/plugins/*.d.ts"
+    }
+  },
   "scripts": {
-    "dev": "esbuild src/index.ts --bundle --outfile=dist/trident.js --asset-names=resources/[dir]/[name] --loader:.wgsl=file --loader:.obj=file --loader:.png=file --external:fs --external:path --target=es2022 --format=esm --watch"
+    "copy:css": "cpx ./src/plugins/**/*.css dist/esm/plugins",
+    "build:esm": "tsc -m es2022 && node scripts/post-build.js",
+    "build:lib": "esbuild src/index.ts --bundle --outfile=dist/trident.js --asset-names=resources/[dir]/[name] --loader:.wgsl=file --loader:.obj=file --loader:.png=file --external:fs --external:path --target=es2022 --format=esm --watch",
+    "example": "esbuild src/example.ts --bundle --outfile=dist/trident-example.js --asset-names=resources/[dir]/[name] --loader:.wgsl=file --loader:.obj=file --loader:.png=file --external:fs --external:path --target=es2022 --format=esm --watch"
   },
   "devDependencies": {
     "@types/three": "^0.168.0",
     "@webgpu/types": "^0.1.40",
     "esbuild": "^0.21.2"
   },
-  "dependencies": {
-    "@gltf-transform/core": "^4.1.1",
-    "gl-matrix": "^3.4.3",
-    "wgpu-matrix": "^3.3.0"
-  }
+  "dependencies": {}
 }

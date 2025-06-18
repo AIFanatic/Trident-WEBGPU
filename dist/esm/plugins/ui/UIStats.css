@@ -1,0 +1,162 @@
+.stats-panel {
+    position: absolute;
+    top: 5px;
+    left: 5px;
+    color: white;
+    display: grid;
+    background-color: #222222;
+    font-size: 8px;
+    min-width: 250px;
+    font-family: monospace;
+    border-radius: 5px;
+    max-height: calc(100% - 10px);
+    overflow: auto;
+}
+
+.stats-panel::-webkit-scrollbar {
+    width: 5px;
+}
+
+.stats-panel::-webkit-scrollbar-track {
+    background: transparent; 
+}
+
+.stats-panel::-webkit-scrollbar-thumb {
+    background: #333;
+    border-radius: 5px;
+}
+
+.stats-panel::-webkit-scrollbar-thumb:hover {
+    background: #444; 
+}
+
+.title, .value {
+    width: 45%;
+    display: inline-block;
+    margin: 0;
+    padding: 5px;
+}
+
+.stat button, input, select {
+    height: 15px;
+    font-family: monospace;
+    font-size: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: none;
+    border-radius: 2px;
+    background-color: #ffffff20;
+    color: white;
+    outline: none;
+}
+
+.stat select {
+    padding: 0;
+}
+
+.stat button:hover {
+    background-color: #ffffff30;
+    cursor: pointer;
+}
+.stat button:active {
+    background-color: #ffffff40;
+}
+
+.stat {
+    display: flex;
+    align-items: center;
+}
+
+.stat .disabled {
+    opacity: 0.1;
+    pointer-events: none;
+}
+
+.slider {
+    -webkit-appearance: none;
+    height: 2px;
+    background: #d3d3d3;
+    outline: none;
+    opacity: 0.7;
+    -webkit-transition: .2s;
+    transition: opacity .2s;
+    padding: 0;
+}
+
+.slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 10px;
+    height: 10px;
+    background: white;
+    cursor: pointer;
+    border-radius: 2px;
+}
+
+.slider::-moz-range-thumb {
+    width: 10px;
+    height: 10px;
+    background: white;
+    cursor: pointer;
+    border-radius: 2px;
+}
+
+summary {
+    list-style: none;
+    padding: 5px;
+    background-color: #ffffff10;
+}
+summary::after {
+    content: "";
+    margin-top: 2px;
+    border-top: 5px solid white;
+    border-inline: 3px solid transparent;
+    transition: 0.2s;
+    float: right;
+    transform: rotate(-90deg);
+}
+
+details[open] > summary::after {
+    transform: rotate(0deg);
+}
+
+details {
+    width: 100%;
+}
+
+.color {
+	-webkit-appearance: none;
+    appearance: none;
+	border: none;
+}
+.color::-webkit-color-swatch-wrapper {
+	padding: 0;
+}
+.color::-webkit-color-swatch {
+	border: none;
+}
+
+
+.VecStat {
+    width: 100px;
+}
+
+.vec-container {
+    display: contents;
+}
+.vec-container .vec-label {
+    height: 15px;
+    border-right: 1px solid #ffffff20;
+    line-height: 15px;
+    padding-left: 4px;
+    padding-right: 3px;
+    border-top-left-radius: 2px;
+    border-bottom-left-radius: 2px;
+}
+
+.vec-container .vec-input {
+    margin-left: -12px;
+    padding-left: 15px;
+    width: calc(100% / 3);
+}

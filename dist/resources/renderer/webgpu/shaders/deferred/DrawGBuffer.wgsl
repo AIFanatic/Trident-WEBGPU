@@ -112,61 +112,6 @@ fn fragmentMain(input: VertexOutput) -> FragmentOutput {
     let tbn = getNormalFromMap(input.vNormal, input.vPosition, uv);
     var modelMatrixInstance = modelMatrix[input.instance];
 
-    #if USE_HEIGHT_MAP
-        var viewDirection = normalize(cameraPosition - (modelMatrixInstance * vec4(input.vPosition, 1.0)).xyz);
-        // var viewDirection = normalize(cameraPosition - input.vPosition);
-
-        // Variables that control parallax occlusion mapping quality
-        let heightScale = 0.05;
-        let minLayers = 8.0;
-        let maxLayers = 64.0;
-        let numLayers = mix(maxLayers, minLayers, abs(dot(vec3(0.0, 1.0, 0.0), viewDirection)));
-        let layerDepth = 1.0f / numLayers;
-        var currentLayerDepth = 0.0;
-        
-        // Remove the z division if you want less aberated results
-        let S = viewDirection.xz  * heightScale; 
-        let deltaUVs = S / numLayers;
-        
-        var UVs = uv;
-        var currentDepthMapValue = 1.0 - textureSample(HeightMap, TextureSampler, UVs).r;
-        
-        // Loop till the point on the heightmap is "hit"
-        while(currentLayerDepth < currentDepthMapValue) {
-            UVs -= deltaUVs;
-            currentDepthMapValue = 1.0 - textureSampleLevel(HeightMap, TextureSampler, UVs, 0).r;
-            currentLayerDepth += layerDepth;
-        }
-
-
-        // Apply Occlusion (interpolation with prev value)
-        let prevTexCoords = UVs + deltaUVs;
-        let afterDepth  = currentDepthMapValue - currentLayerDepth;
-        let beforeDepth = 1.0 - textureSample(HeightMap, TextureSampler, prevTexCoords).r - currentLayerDepth + layerDepth;
-        let weight = afterDepth / (afterDepth - beforeDepth);
-        // UVs = prevTexCoords * weight + UVs * (1.0f - weight);
-        UVs = mix(UVs, prevTexCoords, weight);
-
-        // // Get rid of anything outside the normal range
-        // if(UVs.x > 1.0 || UVs.y > 1.0 || UVs.x < 0.0 || UVs.y < 0.0) {
-        //     discard;
-        // }
-        uv = UVs;
-
-
-        // // Parallax occlusion mapping
-        // let prev_uv = UVs + deltaUVs;
-        // let next = currentDepthMapValue - currentLayerDepth;
-        // let prev = textureSampleLevel(HeightMap, TextureSampler, prevTexCoords, 0).r - currentLayerDepth
-        //                 + layer_depth;
-        // let weight = next / (next - prev);
-        // uv = mix(UVs, prev_uv, weight);
-
-        // uv = parallax_uv(uv, viewDirection, 3);
-            
-    #endif
-    
-
     var albedo = mat.AlbedoColor;
     var roughness = mat.Roughness;
     var metalness = mat.Metalness;
@@ -192,6 +137,8 @@ fn fragmentMain(input: VertexOutput) -> FragmentOutput {
     #endif
     // Should be normal matrix
     normal = normalize(modelMatrixInstance * vec4(vec3(normal), 0.0)).xyz;
+
+    normal = normalize(normal);
 
     #if USE_METALNESS_MAP
         let metalnessRoughness = textureSample(MetalnessMap, TextureSampler, uv);

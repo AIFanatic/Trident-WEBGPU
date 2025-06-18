@@ -17,7 +17,7 @@ export class Mesh extends Component {
     }
 
     public GetMaterials<T extends Material>(type?: new(...args: any[]) => T): T[] {
-        if (!type) return Array.from(this.materialsMapped, ([name, value]) => value).flat(Infinity)
+        if (!type) return Array.from(this.materialsMapped, ([name, value]) => value).flat(Infinity) as T[];
         return this.materialsMapped.get(type.name) as T[] || [];
     }
 

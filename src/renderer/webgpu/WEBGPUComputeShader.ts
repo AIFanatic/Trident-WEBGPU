@@ -6,7 +6,7 @@ import { pipelineLayoutCache } from "./WEBGPUShader";
 export class WEBGPUComputeShader extends WEBGPUBaseShader implements Compute {
     private readonly computeEntrypoint: string | undefined;
     
-    public readonly params: ComputeShaderParams;
+    declare public readonly params: ComputeShaderParams;
     protected _pipeline: GPUComputePipeline | null = null;
     public get pipeline() { return this._pipeline };
 
@@ -26,13 +26,13 @@ export class WEBGPUComputeShader extends WEBGPUBaseShader implements Compute {
         this.bindGroupLayouts = this.BuildBindGroupLayouts();
         this._bindGroups = this.BuildBindGroups();
 
-        let pipelineLayout = pipelineLayoutCache.get(this.bindGroupLayouts);
-        if (pipelineLayout === undefined) {
-            pipelineLayout = WEBGPURenderer.device.createPipelineLayout({
+        // let pipelineLayout = pipelineLayoutCache.get(this.bindGroupLayouts);
+        // if (pipelineLayout === undefined) {
+            let pipelineLayout = WEBGPURenderer.device.createPipelineLayout({
                 bindGroupLayouts: this.bindGroupLayouts
             });
-            pipelineLayoutCache.set(this.bindGroupLayouts, pipelineLayout);
-        }
+        //     pipelineLayoutCache.set(this.bindGroupLayouts, pipelineLayout);
+        // }
 
         // Pipeline descriptor
         const pipelineDescriptor: GPUComputePipelineDescriptor = {

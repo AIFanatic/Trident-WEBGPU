@@ -65,7 +65,6 @@ export class WEBGPURenderer implements Renderer {
         }
 
         WEBGPURenderer.device.queue.submit([WEBGPURenderer.activeCommandEncoder.finish()]);
-
         WEBGPURenderer.activeCommandEncoder = null;
     }
 

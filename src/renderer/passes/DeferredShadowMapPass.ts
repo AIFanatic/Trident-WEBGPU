@@ -269,6 +269,7 @@ export class DeferredShadowMapPass extends RenderPass {
 
     public execute(resources: ResourcePool) {
         if (!this.initialized) return;
+        // if (!Camera.mainCamera) return;
 
 
         const scene = Camera.mainCamera.gameObject.scene;
@@ -285,7 +286,7 @@ export class DeferredShadowMapPass extends RenderPass {
                 lights.splice(i, 1);
             }
         }
-        
+
         if (lights.length === 0) return;
 
         const meshes = scene.GetComponents(Mesh);

@@ -14,6 +14,7 @@ import { PassParams } from "../RenderingPipeline";
 import { EventSystem } from "../../Events";
 import { LightShadowData } from "./DeferredShadowMapPass";
 import { DynamicBufferMemoryAllocator } from "../../utils/MemoryAllocator";
+import { DataBackedBuffer } from "../../plugins/DataBackedBuffer";
 
 enum LightType {
     SPOT_LIGHT,
@@ -33,7 +34,7 @@ export class DeferredLightingPass extends RenderPass {
 
     private outputLightingPass: RenderTexture;
 
-    private needsUpdate: boolean = false;
+    private needsUpdate: boolean = true;
 
     public initialized = false;
 
@@ -79,7 +80,7 @@ export class DeferredLightingPass extends RenderPass {
 
                 settings: {group: 0, binding: 11, type: "storage"},
             },
-            colorOutputs: [{format: Renderer.SwapChainFormat}],
+            colorOutputs: [{format: "rgba16float"}],
         });
 
         this.sampler = TextureSampler.Create({minFilter: "linear", magFilter: "linear", addressModeU: "clamp-to-edge", addressModeV: "clamp-to-edge"});
@@ -96,7 +97,7 @@ export class DeferredLightingPass extends RenderPass {
         this.shader.SetBuffer("lights", this.lightsBuffer.getBuffer());
         this.shader.SetBuffer("lightCount", this.lightsCountBuffer);
 
-        this.outputLightingPass = RenderTexture.Create(Renderer.width, Renderer.height);
+        this.outputLightingPass = RenderTexture.Create(Renderer.width, Renderer.height, 1, "rgba16float");
 
         // If there are no lights in the scene this is used instead
         this.dummyShadowPassDepth = DepthTextureArray.Create(1, 1, 1);
@@ -123,8 +124,9 @@ export class DeferredLightingPass extends RenderPass {
                 params2.set(light.direction.elements);
             }
             else if (light instanceof SpotLight) {
-                params1.set([light.intensity, light.range, light.angle, 0]);
+                // params1.set([light.intensity, light.range, light.angle, 0]);
                 params2.set(light.direction.elements);
+                params2.set([light.angle], 3);
             }
 
             let lightType: LightType = LightType.SPOT_LIGHT;
@@ -136,6 +138,7 @@ export class DeferredLightingPass extends RenderPass {
             let projectionMatrices: Float32Array = new Float32Array(16 * 4);
             let cascadeSplits = new Float32Array(4);
 
+            
             const lightsShadowData = resources.getResource(PassParams.ShadowPassCascadeData) as Map<string, LightShadowData> | undefined;
             const lightShadowData = lightsShadowData ? lightsShadowData.get(light.id) : undefined;
             if (lightShadowData !== undefined) {
@@ -146,6 +149,22 @@ export class DeferredLightingPass extends RenderPass {
                 // console.log("HERE", light.id, lightsShadowData, params1)
             }
 
+
+            // position: vec4<f32>,
+            // projectionMatrix: mat4x4<f32>,
+            // // // Using an array of mat4x4 causes the render time to go from 3ms to 9ms for some reason
+            // // csmProjectionMatrix: array<mat4x4<f32>, 4>,
+            // csmProjectionMatrix0: mat4x4<f32>,
+            // csmProjectionMatrix1: mat4x4<f32>,
+            // csmProjectionMatrix2: mat4x4<f32>,
+            // csmProjectionMatrix3: mat4x4<f32>,
+            // cascadeSplits: vec4<f32>,
+            // viewMatrix: mat4x4<f32>,
+            // viewMatrixInverse: mat4x4<f32>,
+            // color: vec4<f32>,
+            // params1: vec4<f32>,
+            // params2: vec4<f32>,
+        
             const lightData = new Float32Array([
                 light.transform.position.x, light.transform.position.y, light.transform.position.z, 1.0,
                 ...light.camera.projectionMatrix.elements,
@@ -172,15 +191,15 @@ export class DeferredLightingPass extends RenderPass {
 
     public execute(resources: ResourcePool) {
         if (!this.initialized) return;
+        // if (!Camera.mainCamera) return;
         // Debugger.AddFrameRenderPass("DeferredLightingPass");
         
-        // console.log(inputGBufferAlbedo)
         const camera = Camera.mainCamera;
 
         
         if (this.needsUpdate) {
-            this.updateLightsBuffer(resources);
         }
+        this.updateLightsBuffer(resources);
 
         const inputGBufferAlbedo = resources.getResource(PassParams.GBufferAlbedo);
         const inputGBufferNormal = resources.getResource(PassParams.GBufferNormal);

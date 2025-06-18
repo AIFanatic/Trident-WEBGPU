@@ -47,6 +47,9 @@ export class PrepareGBuffers extends RenderPass {
     }
 
     public execute(resources: ResourcePool) {
+        if (!this.initialized) return;
+        // if (!Camera.mainCamera) return;
+
         const colorTargets: RenderTarget[] = [
             {target: this.gBufferAlbedoRT, clear: true},
             {target: this.gBufferNormalRT, clear: true},
@@ -69,12 +72,12 @@ export class PrepareGBuffers extends RenderPass {
         resources.setResource(PassParams.Skybox, this.skybox);
 
         const settings = new Float32Array([
-            +Debugger.isDebugDepthPassEnabled,
-            Debugger.debugDepthMipLevel,
-            Debugger.debugDepthExposure,
+            0, // +Debugger.isDebugDepthPassEnabled,
+            0, // Debugger.debugDepthMipLevel,
+            0, //Debugger.debugDepthExposure,
             RendererDebug.viewTypeValue,
             +RendererDebug.useHeightMapValue,
-            Debugger.heightScale,
+            0, //Debugger.heightScale,
             
             +DeferredShadowMapPassDebug.debugCascadesValue,
             DeferredShadowMapPassDebug.pcfResolutionValue,

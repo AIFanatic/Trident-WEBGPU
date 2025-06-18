@@ -20,7 +20,7 @@ const WGSLShaderAttributeFormat = {
 export class WEBGPUShader extends WEBGPUBaseShader implements Shader {
     private readonly vertexEntrypoint: string | undefined;
     private readonly fragmentEntrypoint: string | undefined;
-    public readonly params: ShaderParams;
+    declare public readonly params: ShaderParams;
     private attributeMap: Map<string, ShaderAttribute> = new Map();
 
     protected _pipeline: GPURenderPipeline | null = null;

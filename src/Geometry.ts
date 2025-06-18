@@ -19,12 +19,14 @@ export class GeometryAttribute {
 
 export class VertexAttribute extends GeometryAttribute {
     constructor(array: Float32Array) {
-        super(array, BufferType.VERTEX)
+        super(array, BufferType.VERTEX);
     }
 }
 
-export class InterleavedVertexAttribute {
-    constructor(public array: Float32Array, public stride: number) {}
+export class InterleavedVertexAttribute extends GeometryAttribute {
+    constructor(public array: Float32Array, public stride: number) {
+        super(array, BufferType.VERTEX);
+    }
 
     public static fromArrays(attributes: Float32Array[], inputStrides: number[], outputStrides?: number[]): InterleavedVertexAttribute {
         function stridedCopy(target: Float32Array, values: ArrayLike<number>, offset: number, inputStride: number, outputStride: number, interleavedStride: number) {

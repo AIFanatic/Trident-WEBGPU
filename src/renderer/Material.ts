@@ -48,7 +48,7 @@ export interface PBRMaterialParams extends MaterialParams {
 export class PBRMaterial extends Material {
     public id = Utils.UUID();
     public initialParams?: Partial<PBRMaterialParams>;
-    public params: PBRMaterialParams;
+    declare public params: PBRMaterialParams;
 
     constructor(params?: Partial<PBRMaterialParams>) {
         super(params);

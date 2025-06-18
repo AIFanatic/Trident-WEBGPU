@@ -96,6 +96,8 @@ export class WEBGPUBaseShader {
                 // let sampleType: GPUTextureSampleType = uniform.type === "depthTexture" ? "depth" : "float";
                 let sampleType: GPUTextureSampleType = uniform.type === "depthTexture" ? "depth" : "float";
                 if (uniform.buffer.format.includes("32float")) sampleType = "unfilterable-float"
+                else if (uniform.buffer.format.includes("32uint")) sampleType = "uint"
+                else if (uniform.buffer.format.includes("32int")) sampleType = "sint"
                 if (uniform.buffer.type === TextureType.RENDER_TARGET_STORAGE) {
                     layoutEntries.push({
                         binding: uniform.binding,
