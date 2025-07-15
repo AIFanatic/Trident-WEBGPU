@@ -1,0 +1,1 @@
+{"version":3,"file":"ComputeContext.d.ts","sourceRoot":"","sources":["../../src/renderer/ComputeContext.ts"],"names":[],"mappings":"AACA,OAAO,EAAE,OAAO,EAAE,MAAM,UAAU,CAAC;AAInC,qBAAa,cAAc;IACvB,OAAO;WAEO,gBAAgB,CAAC,IAAI,EAAE,MAAM,EAAE,SAAS,UAAQ;WAKhD,cAAc;WAKd,QAAQ,CAAC,aAAa,EAAE,OAAO,EAAE,eAAe,EAAE,MAAM,EAAE,eAAe,GAAE,MAAU,EAAE,eAAe,GAAE,MAAU;CAInI"}

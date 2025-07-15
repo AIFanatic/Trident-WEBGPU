@@ -1,0 +1,1 @@
+{"version":3,"file":"WEBGPUInspector.d.ts","sourceRoot":"","sources":["../src/WEBGPUInspector.ts"],"names":[],"mappings":"AAKA,qBAAa,eAAe;IACxB,OAAO,CAAC,MAAM,CAAC,QAAQ,CAAoB;IAC3C,OAAO,CAAC,MAAM,CAAC,MAAM,CAAoB;WAG3B,IAAI;mBAeG,eAAe;WAsCtB,YAAY;CAS7B"}

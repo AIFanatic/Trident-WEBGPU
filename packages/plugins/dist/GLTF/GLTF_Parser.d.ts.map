@@ -1,0 +1,1 @@
+{"version":3,"file":"GLTF_Parser.d.ts","sourceRoot":"","sources":["../../src/GLTF/GLTF_Parser.ts"],"names":[],"mappings":"AAAA,OAAO,EAEH,QAAQ,EAMX,MAAM,eAAe,CAAC;AAIvB,qBAAa,UAAU;IACnB,OAAO,CAAC,MAAM,CAAC,YAAY,CAAoD;mBAE1D,UAAU;mBAmBV,cAAc;mBA2Fd,SAAS;WA+DV,IAAI,CAAC,GAAG,EAAE,MAAM,GAAG,OAAO,CAAC,QAAQ,CAAC;CAoB3D"}

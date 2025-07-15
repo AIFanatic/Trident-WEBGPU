@@ -1,0 +1,16 @@
+{
+  "compilerOptions": {
+    "outDir": "dist",
+    "module": "es2022",
+    "target": "es2022",
+    "moduleResolution": "node",
+    "baseUrl": ".",                 // paths are relative to this tsconfig
+    "paths": {
+      "@trident/core": ["../core/src"],
+      "@trident/core/*": ["../core/src/*"],
+      "@trident/plugins": ["../plugins/src"],
+      "@trident/plugins/*": ["../plugins/src/*"]
+    }
+  },
+  "include": ["src"]
+}

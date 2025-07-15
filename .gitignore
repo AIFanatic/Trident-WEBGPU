@@ -3,11 +3,5 @@
 node_modules
 yarn.*
 
-dist/test-assets
-src/TEST
-research
-src-bak*
-samples*
-*.bak*
-backups
+extra
 cloc.sh

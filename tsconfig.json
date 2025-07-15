@@ -1,19 +1,11 @@
 {
     "compilerOptions": {
-        "module": "es2022",
-        "target": "es2022",
-        "lib": [ "es2022", "dom" ],
-        "outDir": "dist/esm",
-        "sourceMap": true,
-        "declaration": true,
-        "emitDeclarationOnly": false,
-        "moduleResolution": "node",
-        "experimentalDecorators": true,
-        "baseUrl": ".",
-        "paths": {
-          "trident-webgpu": ["./src/index"]
-        }
+        "strictPropertyInitialization": false,
     },
-    "include": ["./src/**/*.ts"],
-    "exclude": ["./node_modules/**/*", "./src/TEST", "./src/plugins"]
+    "files": [],
+    "references": [
+        { "path": "packages/core" },
+        { "path": "packages/plugins" },
+        { "path": "packages/examples" }
+    ]
 }

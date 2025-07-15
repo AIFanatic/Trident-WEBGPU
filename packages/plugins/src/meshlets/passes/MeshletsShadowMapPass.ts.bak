@@ -1,0 +1,141 @@
+import { RenderPass, ResourcePool } from "../../../renderer/RenderGraph";
+import { Shader } from "../../../renderer/Shader";
+import { Buffer, BufferType, DynamicBuffer } from "../../../renderer/Buffer";
+import { PassParams } from "../../../renderer/RenderingPipeline";
+import { ShaderLoader } from "../../../renderer/ShaderUtils";
+
+import WGSL_Shader_Draw_Indirect_Shadows_URL from "../../../renderer/webgpu/shaders/deferred/DrawIndirectShadows.wgsl";
+import { AreaLight, DirectionalLight, PointLight, SpotLight } from "../../../components/Light";
+import { Camera } from "../../../components/Camera";
+import { RendererContext } from "../../../renderer/RendererContext";
+import { MeshletPassParams } from "./MeshletDraw";
+import { Geometry, VertexAttribute } from "../../../Geometry";
+import { Meshlet } from "../Meshlet";
+import { MeshletMesh } from "../MeshletMesh";
+
+export class MeshletsShadowMapPass extends RenderPass {
+    public name: string = "MeshletsShadowMapPass";
+
+    private drawIndirectShadowShader: Shader;
+
+    private lightProjectionMatrixBuffer: Buffer;
+    private lightProjectionViewMatricesBuffer: Buffer;
+
+    private meshletGeometry: Geometry;
+
+    constructor() {
+        super({
+            inputs: [
+                PassParams.MainCamera,
+                PassParams.GBufferAlbedo,
+                PassParams.GBufferNormal,
+                PassParams.GBufferERMO,
+                PassParams.GBufferDepth,
+                PassParams.ShadowPassDepth
+            ], 
+            outputs: [
+            ]
+        });
+    }
+
+    public async init(resources: ResourcePool) {
+        this.drawIndirectShadowShader = await Shader.Create({
+            code: await ShaderLoader.Load(WGSL_Shader_Draw_Indirect_Shadows_URL),
+            colorOutputs: [],
+            depthOutput: "depth24plus",
+            attributes: {
+                position: { location: 0, size: 3, type: "vec3" },
+            },
+            uniforms: {
+                projectionMatrix: {group: 0, binding: 1, type: "storage"},
+                instanceInfo: {group: 0, binding: 2, type: "storage"},
+                meshMatrixInfo: {group: 0, binding: 4, type: "storage"},
+                objectInfo: {group: 0, binding: 5, type: "storage"},
+
+                vertices: {group: 0, binding: 7, type: "storage"},
+            },
+            cullMode: "none"
+        });
+
+        this.meshletGeometry = new Geometry();
+        this.meshletGeometry.attributes.set("position", new VertexAttribute(new Float32Array(Meshlet.max_triangles * 3)));
+
+        this.initialized = true;
+    }
+
+    public execute(resources: ResourcePool) {
+        if (!this.initialized) return;
+
+
+        const scene = Camera.mainCamera.gameObject.scene;
+
+        const meshlets = scene.GetComponents(MeshletMesh);
+        if (meshlets.length === 0) return;
+
+        // const lights = scene.GetComponents(Light);
+        // TODO: Fix, GetComponents(Light)
+        const lights = [...scene.GetComponents(SpotLight), ...scene.GetComponents(PointLight), ...scene.GetComponents(DirectionalLight), ...scene.GetComponents(AreaLight)];
+        if (lights.length === 0) {
+            return;
+        }
+
+        // Lights
+
+        // if (!this.lightProjectionMatricesBuffer || this.lightProjectionMatricesBuffer.size / 4 / 16 !== lights.length) {
+        //     this.lightProjectionMatricesBuffer = Buffer.Create(lights.length * 4 * 16, BufferType.STORAGE);
+        // }
+
+        const numOfCascades = 1;
+        if (!this.lightProjectionMatrixBuffer) {
+            this.lightProjectionMatrixBuffer = Buffer.Create(lights.length * 4 * 4 * 16, BufferType.STORAGE);
+            this.drawIndirectShadowShader.SetBuffer("projectionMatrix", this.lightProjectionMatrixBuffer);
+        }
+
+        if (!this.lightProjectionViewMatricesBuffer || this.lightProjectionViewMatricesBuffer.size / 4 / 4 / 16 !== lights.length) {
+            this.lightProjectionViewMatricesBuffer = Buffer.Create(lights.length * 4 * 4 * 16, BufferType.STORAGE);
+        }
+
+        for (let i = 0; i < lights.length; i++) {
+            // const lightViewMatrixInverse = lights[i].camera.viewMatrix.clone().invert();
+            // const lightDirection = new Vector3(0.0, 1.0, 0.0).applyMatrix4(lightViewMatrixInverse).mul(-1).normalize();
+            // const lightData = getLightViewProjections(Camera.mainCamera, lightDirection, numOfCascades, assignmentExponent, shadowDepthPercentage, zMult);
+
+            // const ld = new Float32Array(lightData.flatMap(v => v.elements).flatMap(v => [...v]));
+            // const ld = new Float32Array(lightViewMatrixInverse.elements);
+            const ld = new Float32Array(lights[i].camera.projectionMatrix.clone().mul(lights[i].camera.viewMatrix.clone()).elements);
+            this.lightProjectionViewMatricesBuffer.SetArray(ld, i * numOfCascades * 4 * 16);
+            // lightsCSMProjectionMatrix.push(ld);
+        }
+
+        const shadowOutput = resources.getResource(PassParams.ShadowPassDepth)
+        shadowOutput.SetActiveLayer(0);
+        
+        // this.drawShadowShader.SetBuffer("cascadeIndex", this.cascadeCurrentIndexBuffer);
+        // this.drawInstancedShadowShader.SetBuffer("cascadeIndex", this.cascadeCurrentIndexBuffer);
+
+        for (let i = 0; i < lights.length; i++) {
+            RendererContext.CopyBufferToBuffer(this.lightProjectionViewMatricesBuffer, this.lightProjectionMatrixBuffer, i * numOfCascades * 4 * 16, 0, numOfCascades * 4 * 16);
+
+            RendererContext.BeginRenderPass("MeshletsShadowMapPass", [], {target: shadowOutput, clear: false}, true);
+            
+            const inputIndirectVertices = resources.getResource(MeshletPassParams.indirectVertices) as Buffer;
+            const inputIndirectObjectInfo = resources.getResource(MeshletPassParams.indirectObjectInfo) as Buffer;
+            const inputIndirectMeshMatrixInfo = resources.getResource(MeshletPassParams.indirectMeshMatrixInfo) as Buffer;
+            const inputIndirectInstanceInfo = resources.getResource(MeshletPassParams.indirectInstanceInfo) as Buffer;
+            const inputIndirectDrawBuffer = resources.getResource(MeshletPassParams.indirectDrawBuffer) as Buffer;
+            
+            this.drawIndirectShadowShader.SetBuffer("vertices", inputIndirectVertices);
+            this.drawIndirectShadowShader.SetBuffer("objectInfo", inputIndirectObjectInfo);
+            this.drawIndirectShadowShader.SetBuffer("meshMatrixInfo", inputIndirectMeshMatrixInfo);
+            this.drawIndirectShadowShader.SetBuffer("instanceInfo", inputIndirectInstanceInfo);
+            RendererContext.DrawIndirect(this.meshletGeometry, this.drawIndirectShadowShader, inputIndirectDrawBuffer); 
+
+            RendererContext.EndRenderPass();
+
+            shadowOutput.SetActiveLayer(shadowOutput.GetActiveLayer()+1);
+        }
+        shadowOutput.SetActiveLayer(0);
+
+        // resources.setResource(PassParams.ShadowPassDepth, this.shadowOutput);
+    }
+}

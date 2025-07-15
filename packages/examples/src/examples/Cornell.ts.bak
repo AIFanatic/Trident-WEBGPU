@@ -1,0 +1,182 @@
+
+import { Mesh } from "../components/Mesh";
+import { GameObject } from "../GameObject";
+import { Camera } from "../components/Camera";
+import { Scene } from "../Scene";
+import { Geometry, IndexAttribute, VertexAttribute } from "../Geometry";
+import { Renderer } from "../renderer/Renderer";
+import { Shader, Topology } from "../renderer/Shader";
+import { OrbitControls } from "../plugins/OrbitControls";
+import { Light } from "../components/Light";
+import { Vector3 } from "../math/Vector3";
+import { Buffer, BufferType } from "../renderer/Buffer";
+import { OBJLoaderIndexed } from "../plugins/OBJLoader";
+
+import SPONZA from "./assets/sponza.obj";
+import BUNNY from "./assets/bunny.obj";
+import { Texture } from "../renderer/Texture";
+import { MeshBasicMaterial } from "../renderer/Material";
+
+import Di3d from "./assets/textures/Di-3d.png";
+
+const canvas = document.createElement("canvas");
+canvas.width = window.innerWidth;
+canvas.height = window.innerHeight;
+document.body.appendChild(canvas);
+
+async function Application() {
+    const renderer = Renderer.Create(canvas, "webgpu");
+    const scene = new Scene(renderer);
+    const mainCameraGameObject = new GameObject(scene);
+    mainCameraGameObject.transform.position.z = 10;
+    mainCameraGameObject.name = "MainCamera";
+    const camera = mainCameraGameObject.AddComponent(Camera);
+    camera.aspect = canvas.width / canvas.height;
+
+    const controls = new OrbitControls(camera);
+    controls.connect(canvas);
+
+    const planeGeometry = Geometry.Plane();
+    const cubeGeometry = Geometry.Cube();
+
+
+
+    const lightGameObject = new GameObject(scene);
+    lightGameObject.transform.position.set(-2, 0, 0);
+    const light = lightGameObject.AddComponent(Light);
+    light.radius = 10;
+    light.color.set(0, 1, 0, 1);
+
+
+    {
+        const lightGameObject = new GameObject(scene);
+        lightGameObject.transform.position.set(2, 0, 0);
+        const light = lightGameObject.AddComponent(Light);
+        light.radius = 10;
+        light.color.set(1, 0, 0, 1);
+    }
+    
+    // const lightHelper = lightGameObject.AddComponent(Mesh);
+
+    // const lightHelperShader = Shader.WireframeShader();
+    
+    // const lightHelperGeometry = Geometry.Plane();
+    // console.log(lightHelperGeometry)
+    
+    // lightHelper.SetGeometry(lightHelperGeometry);
+    // lightHelper.AddShader(lightHelperShader);
+    
+    
+    
+
+    // OBJLoaderIndexed.load(SPONZA, obj => {
+    //     const floor = new GameObject(scene);
+    //     // floor.transform.scale.set(20, 20, 20);
+    //     const meshbottom = floor.AddComponent(Mesh);
+    //     // mesh.enableGPUInstancing = true
+    //     const geometry = new Geometry();
+    //     geometry.attributes.set("position", new VertexAttribute(obj.vertices));
+    //     geometry.attributes.set("normal", new VertexAttribute(obj.normals));
+    //     geometry.index = new IndexAttribute(obj.indices);
+    //     // geometry.ComputeNormals();
+    //     meshbottom.SetGeometry(geometry);
+    //     meshbottom.AddMaterial(new MeshBasicMaterial());
+    // })
+    
+    // // const floor = new GameObject(scene);
+    // // // floor.transform.scale.set(5, 5, 5);
+    // // // floor.transform.position.y = -5;
+    // // // floor.transform.eulerAngles.x = -45;
+    // // const meshbottom = floor.AddComponent(Mesh);
+    // // console.log(cubeGeometry)
+    // // // mesh.enableGPUInstancing = true
+    // // meshbottom.SetGeometry(cubeGeometry);
+    // // meshbottom.AddShader(Shader.BasicShader());
+
+    
+    // // const floor = new GameObject(scene);
+    // // floor.transform.scale.set(5, 5, 5);
+    // // floor.transform.position.y = -5;
+    // // floor.transform.eulerAngles.x = -90;
+    // // const meshbottom = floor.AddComponent(Mesh);
+    // // // mesh.enableGPUInstancing = true
+    // // meshbottom.SetGeometry(planeGeometry);
+
+    // // const a = new MeshBasicMaterial();
+    // // meshbottom.AddMaterial(a);
+
+
+    const floor = new GameObject(scene);
+    floor.transform.scale.set(5, 5, 5);
+    floor.transform.position.y = -5;
+    floor.transform.eulerAngles.x = -90;
+    const meshbottom = floor.AddComponent(Mesh);
+    meshbottom.SetGeometry(planeGeometry);
+    meshbottom.AddMaterial(new MeshBasicMaterial({cullMode: "none"}));
+
+    const left = new GameObject(scene);
+    left.transform.scale.set(5, 5, 5);
+    left.transform.position.x = -5;
+    left.transform.eulerAngles.y = 90;
+    const meshleft = left.AddComponent(Mesh);
+    meshleft.SetGeometry(planeGeometry);
+    meshleft.AddMaterial(new MeshBasicMaterial());
+
+    const right = new GameObject(scene);
+    right.transform.scale.set(5, 5, 5);
+    right.transform.position.x = 5;
+    right.transform.eulerAngles.y = -90;
+    const meshright = right.AddComponent(Mesh);
+    meshright.SetGeometry(planeGeometry);
+    meshright.AddMaterial(new MeshBasicMaterial());
+
+    const back = new GameObject(scene);
+    back.transform.scale.set(5, 5, 5);
+    back.transform.position.z = -5;
+    const meshback = back.AddComponent(Mesh);
+    meshback.SetGeometry(planeGeometry);
+    meshback.AddMaterial(new MeshBasicMaterial());
+
+    const top = new GameObject(scene);
+    top.transform.scale.set(5, 5, 5);
+    top.transform.position.y = 5;
+    top.transform.eulerAngles.x = 90;
+    const meshtop = top.AddComponent(Mesh);
+    meshtop.SetGeometry(planeGeometry);
+    meshtop.AddMaterial(new MeshBasicMaterial());
+
+    Texture.Load(Di3d).then(texture => {
+
+    const cube = new GameObject(scene);
+        cube.transform.scale.set(2, 2, 2);
+        cube.transform.position.y = -4;
+        // cube.transform.position.set(-1, 0, 0);
+        // floor.transform.eulerAngles.x = -45;
+        const cubeMesh = cube.AddComponent(Mesh);
+        console.log(cubeGeometry)
+        cubeMesh.SetGeometry(cubeGeometry);
+        cubeMesh.AddMaterial(new MeshBasicMaterial({albedoMap: texture}));
+    });
+
+
+    // // const cubeShader = new MeshBasicMaterial();
+    // // cubeShader.shader.autoInstancing = true;
+    // // let lastCube;
+    // // const n = 10;
+    // // for (let x = 0; x < n; x++) {
+    // //     for (let y = 0; y < n; y++) {
+    // //         for (let z = 0; z < n; z++) {
+    // //             const meshGameObject = new GameObject(scene);
+    // //             meshGameObject.transform.position.set(x * 2, y * 2, z * 2);
+    // //             const mesh = meshGameObject.AddComponent(Mesh);
+    // //             mesh.SetGeometry(cubeGeometry);
+    // //             mesh.AddMaterial(cubeShader);
+    // //             lastCube = meshGameObject.transform;
+    // //         }
+    // //     }
+    // // }
+
+    scene.Start();
+}
+
+Application();

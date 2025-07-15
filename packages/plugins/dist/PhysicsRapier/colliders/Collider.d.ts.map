@@ -1,0 +1,1 @@
+{"version":3,"file":"Collider.d.ts","sourceRoot":"","sources":["../../../src/PhysicsRapier/colliders/Collider.ts"],"names":[],"mappings":"AAAA,OAAO,EAAE,SAAS,EAAE,MAAM,+BAA+B,CAAC;AAC1D,OAAO,MAAM,MAAM,kBAAkB,CAAC;AAEtC,qBAAa,QAAS,SAAQ,SAAS;IAC5B,QAAQ,EAAE,MAAM,CAAC,QAAQ,CAAC;IAC1B,YAAY,EAAE,MAAM,CAAC,YAAY,CAAC;CAC5C"}

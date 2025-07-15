@@ -1,0 +1,19 @@
+{
+    "name": "@trident/plugins",
+    "version": "1.0.0",
+    "main": "dist/index.js",
+    "types": "dist/index.d.ts",
+    "scripts": {
+        "build:tsc": "tsc --project tsconfig.json",
+        
+        "build2": "tsc -b",
+        "build:esbuild2": "esbuild src/index.ts --bundle --outfile=dist/trident-plugins.js --target=es2022 --format=esm --watch",
+
+        "build:declarations": "tsc -b",
+        "build:esbuild": "esbuild 'src/**/*.ts' --outdir=dist --target=es2022 --format=esm",
+        "build": "npm run build:esbuild && npm run build:declarations"
+    },
+    "dependencies": {
+        "@trident/core": "^1.0.0"
+    }
+}

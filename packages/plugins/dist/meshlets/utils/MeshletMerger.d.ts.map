@@ -1,0 +1,1 @@
+{"version":3,"file":"MeshletMerger.d.ts","sourceRoot":"","sources":["../../../src/meshlets/utils/MeshletMerger.ts"],"names":[],"mappings":"AAAA,OAAO,EAAE,OAAO,EAAE,MAAM,YAAY,CAAC;AAgBrC,qBAAa,aAAa;IACtB,OAAO,CAAC,MAAM,CAAC,uBAAuB;WAuCxB,KAAK,CAAC,QAAQ,EAAE,OAAO,EAAE,GAAG,OAAO;WA6BnC,OAAO,CAAC,QAAQ,EAAE,OAAO,EAAE,GAAG,OAAO;CActD"}

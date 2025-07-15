@@ -1,0 +1,15 @@
+{
+    "name": "@trident/core",
+    "version": "1.0.0",
+    "main": "dist/index.js",
+    "types": "dist/index.d.ts",
+    "scripts": {
+        "build:tsc": "tsc --project tsconfig.json",
+        "build:post": "node scripts/post-build.js",
+        "build": "npm run build:tsc && npm run build:post"
+    },
+    "devDependencies": {
+        "@webgpu/types": "^0.1.40",
+        "typescript": "^5.8.3"
+    }
+}
