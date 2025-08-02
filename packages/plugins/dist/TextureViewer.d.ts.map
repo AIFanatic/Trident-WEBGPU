@@ -1,1 +1,0 @@
-{"version":3,"file":"TextureViewer.d.ts","sourceRoot":"","sources":["../src/TextureViewer.ts"],"names":[],"mappings":"AAIA,OAAO,EAAE,OAAO,EAAE,MAAM,qBAAqB,CAAC;AAG9C,qBAAa,aAAa;IACf,IAAI,EAAE,MAAM,CAAmB;IACtC,OAAO,CAAC,MAAM,CAAS;IACvB,OAAO,CAAC,YAAY,CAAW;IAE/B,OAAO,CAAC,WAAW,CAAS;IAEf,IAAI;IAiDJ,OAAO,CAAC,OAAO,EAAE,OAAO;CAWxC"}

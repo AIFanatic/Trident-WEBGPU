@@ -1,11 +1,33 @@
 {
     "compilerOptions": {
+        "outDir": "dist",
+        "module": "es2022",
+        "target": "es2022",
+        "moduleResolution": "node",
+        "declaration": false,
+        "emitDeclarationOnly": false,
+        "composite": false,
+        "baseUrl": ".",
         "strictPropertyInitialization": false,
+        "paths": {
+            "@trident/core": [
+                "packages/core/index.ts"
+            ],
+            "@trident/core/*": [
+                "packages/core/*"
+            ],
+            "@trident/plugins": [
+                "packages/plugins/index.ts"
+            ],
+            "@trident/plugins/*": [
+                "packages/plugins/*"
+            ]
+        }
     },
-    "files": [],
-    "references": [
-        { "path": "packages/core" },
-        { "path": "packages/plugins" },
-        { "path": "packages/examples" }
-    ]
+    "files": [
+        "packages/core/resources/shaders.d.ts",
+        "packages/core/index.ts",
+        "packages/plugins/index.ts",
+        "packages/examples/index.ts"
+    ],
 }

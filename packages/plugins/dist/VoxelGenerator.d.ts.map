@@ -1,1 +1,0 @@
-{"version":3,"file":"VoxelGenerator.d.ts","sourceRoot":"","sources":["../src/VoxelGenerator.ts"],"names":[],"mappings":"AAGA,OAAO,EAAE,QAAQ,EAA8B,MAAM,aAAa,CAAC;AAInE,OAAO,EAA0B,OAAO,EAAE,MAAM,qBAAqB,CAAC;AAEtE,qBAAa,cAAc;WACH,QAAQ,CAAC,QAAQ,EAAE,QAAQ,EAAE,KAAK,MAAqB,GAAG,OAAO,CAAC,OAAO,CAAC;CAmLjG"}

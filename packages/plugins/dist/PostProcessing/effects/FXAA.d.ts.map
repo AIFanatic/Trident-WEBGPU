@@ -1,1 +1,0 @@
-{"version":3,"file":"FXAA.d.ts","sourceRoot":"","sources":["../../../src/PostProcessing/effects/FXAA.ts"],"names":[],"mappings":"AAEA,OAAO,EAAE,UAAU,EAAE,YAAY,EAAE,MAAM,+BAA+B,CAAC;AAQzE,qBAAa,kBAAmB,SAAQ,UAAU;IACvC,IAAI,EAAE,MAAM,CAAwB;IAC3C,OAAO,CAAC,MAAM,CAAS;IACvB,OAAO,CAAC,YAAY,CAAW;IAE/B,OAAO,CAAC,YAAY,CAAgB;;IAQvB,IAAI;IAsUV,OAAO,CAAC,SAAS,EAAE,YAAY;CAgBzC"}

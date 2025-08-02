@@ -1,7 +1,20 @@
 {
+    "name": "trident",
+    "version": "0.1.0",
     "private": true,
-    "workspaces": ["packages/*"],
+    "type": "module",
     "scripts": {
-        "build:ts": "tsc -b packages/core && tsc -b packages/plugins"
+        "build:tsc": "tsc --build tsconfig.json",
+        "build:patch-extensions": "node scripts/patch-extensions.js",
+        "build:copy-resources": "cp -r packages/plugins/Water/resources dist/plugins/Water/",
+        "build:all": "rm -rf dist && npm run build:tsc && npm run build:patch-extensions && npm run build:copy-resources && cp index.html dist/examples/",
+        "build:core:types": "tsc packages/core/resources/shaders.d.ts packages/core/index.ts --moduleResolution node --module es2022 --target es2022 --outfile dist/trident-core.js --declaration --emitDeclarationOnly",
+        "build:core:module": "rm -rf ./dist/core && esbuild packages/core/index.ts --bundle --outfile=dist/trident-core.js --target=es2022 --format=esm --loader:.wgsl=text",
+        "build:all2": "npm run build:all && npm run build:core:module && npm run build:core:types"
+    },
+    "devDependencies": {
+        "@webgpu/types": "^0.1.64",
+        "esbuild": "^0.25.8",
+        "typescript": "^5.1.0"
     }
 }

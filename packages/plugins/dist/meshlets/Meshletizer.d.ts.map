@@ -1,1 +1,0 @@
-{"version":3,"file":"Meshletizer.d.ts","sourceRoot":"","sources":["../../src/meshlets/Meshletizer.ts"],"names":[],"mappings":"AAAA,OAAO,EAAE,OAAO,EAAE,MAAM,WAAW,CAAC;AAQpC,qBAAa,WAAW;IAEpB,OAAc,MAAM,SAAM;IAE1B,OAAO,CAAC,MAAM,CAAC,IAAI;WA2EC,KAAK,CAAC,QAAQ,EAAE,YAAY,EAAE,OAAO,EAAE,WAAW,GAAG,OAAO,CAAC,OAAO,EAAE,CAAC;CAmE9F"}

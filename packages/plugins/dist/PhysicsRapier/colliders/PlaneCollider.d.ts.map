@@ -1,1 +1,0 @@
-{"version":3,"file":"PlaneCollider.d.ts","sourceRoot":"","sources":["../../../src/PhysicsRapier/colliders/PlaneCollider.ts"],"names":[],"mappings":"AAAA,OAAO,EAAE,UAAU,EAAE,MAAM,qBAAqB,CAAC;AAEjD,OAAO,EAAE,QAAQ,EAAE,MAAM,YAAY,CAAC;AAEtC,qBAAa,aAAc,SAAQ,QAAQ;gBAC3B,UAAU,EAAE,UAAU;CAOrC"}

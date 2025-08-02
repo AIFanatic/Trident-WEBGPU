@@ -4,5 +4,6 @@ node_modules
 yarn-*
 yarn.*
 
+tsconfig.tsbuildinfo
 extra
 cloc.sh

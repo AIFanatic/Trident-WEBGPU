@@ -1,1 +1,0 @@
-{"version":3,"file":"SDFGenerator.d.ts","sourceRoot":"","sources":["../src/SDFGenerator.ts"],"names":[],"mappings":"AAGA,OAAO,EAAE,QAAQ,EAA8B,MAAM,aAAa,CAAC;AAInE,OAAO,EAA0B,OAAO,EAAE,MAAM,qBAAqB,CAAC;AAEtE,qBAAa,YAAY;WACD,QAAQ,CAAC,QAAQ,EAAE,QAAQ,EAAE,KAAK,MAAqB,GAAG,OAAO,CAAC,OAAO,CAAC;CAkKjG"}

@@ -1,1 +1,0 @@
-{"version":3,"file":"DeferredGBufferPass.d.ts","sourceRoot":"","sources":["../../../src/renderer/passes/DeferredGBufferPass.ts"],"names":[],"mappings":"AAEA,OAAO,EAAE,UAAU,EAAE,YAAY,EAAE,MAAM,gBAAgB,CAAC;AAM1D,qBAAa,mBAAoB,SAAQ,UAAU;IACxC,IAAI,EAAE,MAAM,CAA4B;;IAgBlC,IAAI,CAAC,SAAS,EAAE,YAAY;IAIlC,OAAO,CAAC,SAAS,EAAE,YAAY;CA0FzC"}
