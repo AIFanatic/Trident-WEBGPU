@@ -1,0 +1,76 @@
+<html>
+        <head>
+            <style>
+                html, body {
+                    margin: 0;
+                }
+            </style>
+        </head>
+        <body>
+            <script type="importmap">
+                {
+                    "imports": {
+                        "@trident/core": "../trident-core.js",
+                        "@trident/plugins/": "../plugins/"
+                    }
+                }
+            </script>
+            <script type="module">
+                            import { Renderer, Scene, GameObject, Components, Mathf, Geometry, PBRMaterial } from '@trident/core';
+            import { OrbitControls } from '@trident/plugins/OrbitControls.js';
+            import { Water } from '@trident/plugins/Water/WaterPlugin.js';
+            
+            const canvas = document.createElement("canvas");
+            const aspectRatio = 1;
+            canvas.width = window.innerWidth * aspectRatio;
+            canvas.height = window.innerHeight * aspectRatio;
+            canvas.style.userSelect = `none`;
+            canvas.style.width = `${window.innerWidth}px`;
+            canvas.style.height = `${window.innerHeight}px`;
+            document.body.appendChild(canvas);
+            async function Application() {
+              const renderer = Renderer.Create(canvas, "webgpu");
+              const scene = new Scene(renderer);
+              const mainCameraGameObject = new GameObject(scene);
+              mainCameraGameObject.transform.position.set(0, 0, 20);
+              mainCameraGameObject.name = "MainCamera";
+              const camera = mainCameraGameObject.AddComponent(Components.Camera);
+              camera.SetPerspective(72, canvas.width / canvas.height, 0.05, 512);
+              new OrbitControls(canvas, camera);
+              {
+                const lightGameObject = new GameObject(scene);
+                lightGameObject.transform.position.set(-4, 4, -4);
+                lightGameObject.transform.LookAtV1(new Mathf.Vector3(0, 0, 0));
+                const light = lightGameObject.AddComponent(Components.DirectionalLight);
+                light.intensity = 1;
+                light.color.set(1, 1, 1, 1);
+                light.castShadows = false;
+              }
+              {
+                const planeGO = new GameObject(scene);
+                planeGO.transform.position.set(0, 6, -5);
+                planeGO.transform.scale.set(3, 3, 3);
+                const sphereMesh = planeGO.AddComponent(Components.Mesh);
+                await sphereMesh.SetGeometry(Geometry.Cube());
+                sphereMesh.AddMaterial(new PBRMaterial());
+              }
+              {
+                const planeGO = new GameObject(scene);
+                planeGO.transform.position.set(0, 1, -5);
+                const sphereMesh = planeGO.AddComponent(Components.Mesh);
+                await sphereMesh.SetGeometry(Geometry.Sphere());
+                sphereMesh.AddMaterial(new PBRMaterial());
+              }
+              {
+                const waterGameObject = new GameObject(scene);
+                waterGameObject.transform.eulerAngles.x = -90;
+                waterGameObject.transform.position.y = 5;
+                waterGameObject.AddComponent(Water);
+              }
+              scene.Start();
+            }
+            Application();
+            
+            </script>
+        </body>
+    </html>

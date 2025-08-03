@@ -5,9 +5,9 @@ export { Component } from "./components/Component";
 
 export { Renderer } from "./renderer/Renderer";
 export { Utils } from "./utils/Utils";
-export { PBRMaterial, PBRMaterialParams } from "./renderer/Material";
+export { PBRMaterial } from "./renderer/Material";
 
-export { Object3D } from "./Object3D";
+// export { Object3D } from "./Object3D";
 
 export { Texture } from "./renderer/Texture";
 

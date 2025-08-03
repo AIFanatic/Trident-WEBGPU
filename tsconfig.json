@@ -7,6 +7,7 @@
         "declaration": false,
         "emitDeclarationOnly": false,
         "composite": false,
+        "incremental": true,
         "baseUrl": ".",
         "strictPropertyInitialization": false,
         "paths": {
@@ -28,6 +29,6 @@
         "packages/core/resources/shaders.d.ts",
         "packages/core/index.ts",
         "packages/plugins/index.ts",
-        "packages/examples/index.ts"
     ],
+    "include": ["packages/examples/*.ts"]
 }

@@ -3,6 +3,7 @@
 node_modules
 yarn-*
 yarn.*
+.rollup.cache/
 
 tsconfig.tsbuildinfo
 extra

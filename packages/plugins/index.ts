@@ -5,4 +5,6 @@ export { SimplexNoise } from "./SimplexNoise";
 
 export { DataBackedBuffer } from "./DataBackedBuffer";
 
+export * from "./ui/UIStats";
+
 export * from "./Water/WaterPlugin";

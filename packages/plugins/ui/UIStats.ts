@@ -1,4 +1,4 @@
-import "./UIStats.css";
+import "./resources/UIStats.css";
 
 class Stat {
     protected statContainer: HTMLDivElement;
