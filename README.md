@@ -1,4 +1,4 @@
-[Live demo](https://aifanatic.github.io/Trident-WEBGPU/dist/examples/index.html)
+[Live demo](https://aifanatic.github.io/Trident-WEBGPU/dist/examples/Water.html)
 
 https://github.com/user-attachments/assets/af560a58-f40a-4806-8ecc-b420b31985ea
 

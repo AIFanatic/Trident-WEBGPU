@@ -140,7 +140,10 @@ function wrapJsInHtml() {
         name: 'wrap-js-in-html',
         generateBundle(options, bundle) {
             for (const [fileName, chunkOrAsset] of Object.entries(bundle)) {
-                if (fileName.endsWith('Water.js') && chunkOrAsset.type === 'chunk') {
+                if (fileName === "index.js") {
+                    delete bundle[fileName];
+                }
+                else if (fileName.endsWith('.js') && chunkOrAsset.type === 'chunk') {
                     const htmlFileName = fileName.replace(/\.js$/, '.html');
                     const html = parseCode(HTML_TEMPLATE, chunkOrAsset.code);
 
