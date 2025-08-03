@@ -4641,7 +4641,9 @@ class Scene {
     performance.now();
     for (const [component, _] of this.toUpdate) component.Update();
     this.renderPipeline.Render(this);
-    requestAnimationFrame(() => this.Tick());
+    setTimeout(() => {
+      this.Tick();
+    }, 100);
   }
 }
 

@@ -1,20 +1,8 @@
 {
     "name": "trident",
     "version": "0.1.0",
-    "private": true,
     "type": "module",
     "scripts": {
-        "build:tsc": "tsc --build tsconfig.json",
-        "build:patch-extensions": "node scripts/patch-extensions.js",
-        "build:copy-resources": "cp -r packages/plugins/Water/resources dist/plugins/Water/ && cp -r packages/plugins/ui/resources dist/plugins/ui/",
-        "build:all": "rm -rf dist && npm run build:tsc && npm run build:patch-extensions && npm run build:copy-resources && npm run build:post-examples",
-        "build:post-examples": "node scripts/build-examples.js",
-        "build:core:types": "tsc packages/core/resources/shaders.d.ts packages/core/index.ts --moduleResolution node --module es2022 --target es2022 --outfile dist/trident-core.js --declaration --emitDeclarationOnly",
-        "build:core:module": "rm -rf ./dist/core && esbuild packages/core/index.ts --bundle --outfile=dist/trident-core.js --target=es2022 --format=esm --loader:.wgsl=text",
-        "build:all2": "npm run build:all && npm run build:core:module && npm run build:core:types",
-        "build:dev": "npm run build:tsc && npm run build:patch-extensions && npm run build:copy-resources && npm run build:core:module",
-        "build:dev:watch": "tsc-watch --onSuccess 'npm run build:dev'",
-        "build:esbuild": "node build.js",
         "build:rollup": "rollup -c",
         "build:rollup:dev": "rollup -c --watch"
     },
