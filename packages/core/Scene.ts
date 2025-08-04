@@ -4,12 +4,12 @@ import { GameObject } from "./GameObject";
 import { Component, ComponentEvents } from "./components/Component";
 import { Renderer } from "./renderer/Renderer";
 import { RenderingPipeline } from "./renderer/RenderingPipeline";
-import { Utils } from "./utils/Utils";
+import { UUID } from "./utils";
 
 export class Scene {
     public readonly renderer: Renderer;
     public name: string = "Default scene"
-    public id = Utils.UUID();
+    public id = UUID();
     private _hasStarted = false;
     public get hasStarted(): boolean { return this._hasStarted };
 

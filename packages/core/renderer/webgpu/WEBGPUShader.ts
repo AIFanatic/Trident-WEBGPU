@@ -1,8 +1,8 @@
 import { WEBGPUBaseShader } from "./WEBGPUBaseShader";
 import { WEBGPURenderer } from "./WEBGPURenderer";
 import { Shader, ShaderAttribute, ShaderParams } from "../Shader";
-import { RendererDebug } from "../RendererDebug";
-import { Utils } from "../../utils/Utils";
+import { UUID } from "../../utils";
+import { Renderer } from "../Renderer";
 
 const BindGroupCache: Map<string, GPUBindGroup> = new Map();
 
@@ -57,7 +57,7 @@ export class WEBGPUShader extends WEBGPUBaseShader implements Shader {
             pipelineLayout = WEBGPURenderer.device.createPipelineLayout({
                 bindGroupLayouts: this.bindGroupLayouts
             });
-            pipelineLayout.label = Utils.UUID();
+            pipelineLayout.label = UUID();
             pipelineLayoutCache.set(bindGroupLayoutsCRC, pipelineLayout);
             hasCompiled = true;
 
@@ -130,7 +130,7 @@ export class WEBGPUShader extends WEBGPUBaseShader implements Shader {
         
         if (hasCompiled === true) {
             console.warn('%c Compiling shader', 'color: #3498db');
-            RendererDebug.IncrementShaderCompiles(1);
+            Renderer.info.compiledShadersStat += 1;
         }
 
         // // Pipeline

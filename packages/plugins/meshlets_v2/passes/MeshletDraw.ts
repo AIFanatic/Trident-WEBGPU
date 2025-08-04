@@ -1,11 +1,14 @@
-import { RenderPass, ResourcePool } from "../../../renderer/RenderGraph";
-import { PassParams } from "../../../renderer/RenderingPipeline";
-import { HiZPass } from "../../../renderer/passes/HiZPass";
 import { Meshlet } from "../Meshlet";
 import { CullingPass } from "./CullingPass";
 import { IndirectGBufferPass } from "./IndirectGBufferPass";
 import { MeshletDebug } from "./MeshletDebug";
 import { PrepareSceneData } from "./PrepareSceneData";
+
+import { HiZPass } from "@trident/plugins/HiZPass";
+
+import {
+    GPU
+} from "@trident/core";
 
 export const MeshletPassParams = {
     indirectVertices: "indirectVertices",
@@ -23,7 +26,7 @@ export const MeshletPassParams = {
     isCullingPrepass: "isCullingPrepass",
 };
 
-export class MeshletDraw extends RenderPass {
+export class MeshletDraw extends GPU.RenderPass {
     public name: string = "MeshletDraw";
 
     private prepareSceneData: PrepareSceneData;
@@ -34,22 +37,22 @@ export class MeshletDraw extends RenderPass {
     constructor() {
         super({
             inputs: [
-                PassParams.depthTexture,
-                PassParams.depthTexturePyramid,
-                PassParams.DebugSettings,
+                GPU.PassParams.depthTexture,
+                GPU.PassParams.depthTexturePyramid,
+                GPU.PassParams.DebugSettings,
                 
-                PassParams.depthTexture,
-                PassParams.GBufferAlbedo,
-                PassParams.GBufferNormal,
-                PassParams.GBufferERMO,
-                PassParams.GBufferDepth,
+                GPU.PassParams.depthTexture,
+                GPU.PassParams.GBufferAlbedo,
+                GPU.PassParams.GBufferNormal,
+                GPU.PassParams.GBufferERMO,
+                GPU.PassParams.GBufferDepth,
             ],
             outputs: [
                 MeshletPassParams.meshletSettings
             ]
         });
     }
-    public async init(resources: ResourcePool) {
+    public async init(resources: GPU.ResourcePool) {
         this.prepareSceneData = new PrepareSceneData();
         this.cullingPass = new CullingPass();
         this.HiZ = new HiZPass();
@@ -63,7 +66,7 @@ export class MeshletDraw extends RenderPass {
         this.initialized = true;
     }
 
-    public execute(resources: ResourcePool): void {
+    public execute(resources: GPU.ResourcePool): void {
         this.prepareSceneData.execute(resources);
 
         const settings = new Float32Array([

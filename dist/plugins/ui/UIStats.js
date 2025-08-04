@@ -1,3 +1,5 @@
+import styles from './resources/UIStats.css.js';
+
 class Stat {
   statContainer;
   constructor(container, label) {
@@ -259,6 +261,12 @@ class UIFolder extends Stat {
   container;
   constructor(container, title) {
     super(container instanceof HTMLDivElement ? container : container.container, null);
+    if (!document.head.querySelector("#uistats-styles")) {
+      const styleTag = document.createElement("style");
+      styleTag.id = "uistats-styles";
+      styleTag.textContent = styles;
+      document.head.appendChild(styleTag);
+    }
     this.folderElement = document.createElement("details");
     const folderTitle = document.createElement("summary");
     folderTitle.textContent = title;

@@ -1,5 +1,6 @@
 import { TextureFormat } from "./Texture";
 import { WEBGPURenderer } from "./webgpu/WEBGPURenderer";
+import { RendererInfo } from "./RendererInfo";
 
 export type RendererAPIType = "webgpu";
 
@@ -8,6 +9,8 @@ export class Renderer {
     public static width: number;
     public static height: number;
     public static activeRenderer: Renderer;
+
+    public static info: RendererInfo = new RendererInfo();
 
     public static Create(canvas: HTMLCanvasElement, type: RendererAPIType): Renderer {
         Renderer.type = type;

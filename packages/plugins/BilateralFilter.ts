@@ -1,21 +1,18 @@
-import { Geometry } from "../Geometry";
-import { Buffer, BufferType } from "../renderer/Buffer";
-import { RenderPass, ResourcePool } from "../renderer/RenderGraph";
-import { RendererContext } from "../renderer/RendererContext";
-import { Shader } from "../renderer/Shader";
-import { DepthTexture, RenderTexture, Texture } from "../renderer/Texture";
-import { TextureSampler } from "../renderer/TextureSampler";
+import {
+    Geometry,
+    GPU
+} from "@trident/core";
 
-export class BilateralFilter extends RenderPass {
-    private shader: Shader;
+export class BilateralFilter extends GPU.RenderPass {
+    private shader: GPU.Shader;
     private geometry: Geometry;
 
-    private inputTexture: Texture;
-    private renderTarget: RenderTexture;
+    private inputTexture: GPU.Texture;
+    private renderTarget: GPU.RenderTexture;
 
-    private blurDir: Buffer;
-    private blurDirHorizontal: Buffer;
-    private blurDirVertical: Buffer;
+    private blurDir: GPU.Buffer;
+    private blurDirHorizontal: GPU.Buffer;
+    private blurDirVertical: GPU.Buffer;
 
     private _filterSize: number = 12;
     private _blurDepthThreshold: number = 0.05;
@@ -33,8 +30,8 @@ export class BilateralFilter extends RenderPass {
         super({});
     }
 
-    public async init(resources: ResourcePool) {
-        this.shader = await Shader.Create({
+    public async init(resources: GPU.ResourcePool) {
+        this.shader = await GPU.Shader.Create({
             code: `
             @group(0) @binding(0) var tex: texture_2d<f32>;
             @group(0) @binding(1) var texSampler: sampler;
@@ -145,13 +142,13 @@ export class BilateralFilter extends RenderPass {
             },
         });
 
-        this.shader.SetSampler("texSampler", TextureSampler.Create());
-        this.shader.SetSampler("depthSampler", TextureSampler.Create());
-        this.shader.SetSampler("normalSampler", TextureSampler.Create());
+        this.shader.SetSampler("texSampler", GPU.TextureSampler.Create());
+        this.shader.SetSampler("depthSampler", GPU.TextureSampler.Create());
+        this.shader.SetSampler("normalSampler", GPU.TextureSampler.Create());
 
-        this.blurDir = Buffer.Create(4 * 4, BufferType.STORAGE);
-        this.blurDirHorizontal = Buffer.Create(4 * 4, BufferType.STORAGE);
-        this.blurDirVertical = Buffer.Create(4 * 4, BufferType.STORAGE);
+        this.blurDir = GPU.Buffer.Create(4 * 4, GPU.BufferType.STORAGE);
+        this.blurDirHorizontal = GPU.Buffer.Create(4 * 4, GPU.BufferType.STORAGE);
+        this.blurDirVertical = GPU.Buffer.Create(4 * 4, GPU.BufferType.STORAGE);
 
         this.shader.SetBuffer("blurDir", this.blurDir);
 
@@ -163,14 +160,14 @@ export class BilateralFilter extends RenderPass {
         this.initialized = true;
     }
 
-    public Process(texture: Texture, depthTex: DepthTexture, normalTex: Texture): RenderTexture {
+    public Process(texture: GPU.Texture, depthTex: GPU.DepthTexture, normalTex: GPU.Texture): GPU.RenderTexture {
         if (this.initialized === false) {
             throw Error("Not initialized")
         };
 
         if (!this.renderTarget || this.renderTarget.width !== texture.width || this.renderTarget.height !== texture.height || this.renderTarget.depth !== texture.depth) {
-            this.inputTexture = Texture.Create(texture.width, texture.height, texture.depth, "rgba16float");
-            this.renderTarget = RenderTexture.Create(texture.width, texture.height, texture.depth, "rgba16float");
+            this.inputTexture = GPU.Texture.Create(texture.width, texture.height, texture.depth, "rgba16float");
+            this.renderTarget = GPU.RenderTexture.Create(texture.width, texture.height, texture.depth, "rgba16float");
 
             this.shader.SetTexture("tex", this.inputTexture);
 
@@ -182,19 +179,19 @@ export class BilateralFilter extends RenderPass {
         this.shader.SetTexture("depthTex", depthTex);
         this.shader.SetTexture("normalTex", normalTex);
 
-        RendererContext.CopyTextureToTextureV3({texture: texture}, {texture: this.inputTexture});
+        GPU.RendererContext.CopyTextureToTextureV3({texture: texture}, {texture: this.inputTexture});
 
-        RendererContext.CopyBufferToBuffer(this.blurDirHorizontal, this.blurDir);
-        RendererContext.BeginRenderPass("BilateralFilter - H", [{target: this.renderTarget, clear: true}], undefined, true);
-        RendererContext.DrawGeometry(this.geometry, this.shader);
-        RendererContext.EndRenderPass();
+        GPU.RendererContext.CopyBufferToBuffer(this.blurDirHorizontal, this.blurDir);
+        GPU.RendererContext.BeginRenderPass("BilateralFilter - H", [{target: this.renderTarget, clear: true}], undefined, true);
+        GPU.RendererContext.DrawGeometry(this.geometry, this.shader);
+        GPU.RendererContext.EndRenderPass();
 
-        RendererContext.CopyTextureToTextureV3({texture: this.renderTarget}, {texture: this.inputTexture});
+        GPU.RendererContext.CopyTextureToTextureV3({texture: this.renderTarget}, {texture: this.inputTexture});
 
-        RendererContext.CopyBufferToBuffer(this.blurDirVertical, this.blurDir);
-        RendererContext.BeginRenderPass("BilateralFilter - V", [{target: this.renderTarget, clear: false}], undefined, true);
-        RendererContext.DrawGeometry(this.geometry, this.shader);
-        RendererContext.EndRenderPass();
+        GPU.RendererContext.CopyBufferToBuffer(this.blurDirVertical, this.blurDir);
+        GPU.RendererContext.BeginRenderPass("BilateralFilter - V", [{target: this.renderTarget, clear: false}], undefined, true);
+        GPU.RendererContext.DrawGeometry(this.geometry, this.shader);
+        GPU.RendererContext.EndRenderPass();
 
         return this.renderTarget;
     }

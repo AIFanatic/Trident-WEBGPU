@@ -24,11 +24,5 @@
                 "packages/plugins/*"
             ]
         }
-    },
-    "files": [
-        "packages/core/resources/shaders.d.ts",
-        "packages/core/index.ts",
-        "packages/plugins/index.ts",
-    ],
-    "include": ["packages/examples/*.ts"]
+    }
 }

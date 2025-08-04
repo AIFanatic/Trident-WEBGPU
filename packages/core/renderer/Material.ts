@@ -1,6 +1,6 @@
 import { Color } from "../math/Color";
-import { Utils } from "../utils/Utils";
-import { Shader, ShaderParams, Topology } from "./Shader";
+import { UUID } from "../utils/";
+import { Shader, ShaderParams } from "./Shader";
 import { ShaderLoader } from "./ShaderUtils";
 import { Texture } from "./Texture";
 import { TextureSampler } from "./TextureSampler";
@@ -46,7 +46,7 @@ export interface PBRMaterialParams extends MaterialParams {
 }
 
 export class PBRMaterial extends Material {
-    public id = Utils.UUID();
+    public id = UUID();
     public initialParams?: Partial<PBRMaterialParams>;
     declare public params: PBRMaterialParams;
 

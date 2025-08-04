@@ -198,8 +198,8 @@ export class CullingPass extends RenderPass {
         this.debugBuffer.GetData().then(v => {
             const visibleMeshCount = new Uint32Array(v)[1];
             MeshletDebug.visibleMeshes.SetValue(visibleMeshCount);
-            RendererDebug.SetTriangleCount(Meshlet.max_triangles * meshletCount);
-            RendererDebug.SetVisibleTriangleCount(Meshlet.max_triangles * visibleMeshCount);
+            RendererDebug.triangleCount = Meshlet.max_triangles * meshletCount;
+            RendererDebug.visibleTriangles = Meshlet.max_triangles * visibleMeshCount;
         })
     }
 }

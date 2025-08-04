@@ -1,7 +1,12 @@
-import { GameObject, Scene, Components, Mathf } from "@trident/core";
-import { Geometry, VertexAttribute } from "@trident/core/Geometry";
-import { Material } from "@trident/core/renderer/Material";
-import { Shader, Topology } from "@trident/core/renderer/Shader";
+import {
+    GameObject,
+    Scene,
+    Components,
+    Mathf,
+    Geometry,
+    VertexAttribute,
+    GPU
+} from "@trident/core";
 
 export class Line {
     private geometry: Geometry;
@@ -11,8 +16,8 @@ export class Line {
     }
 
     private async Create(scene: Scene, from: Mathf.Vector3, to: Mathf.Vector3, color = new Mathf.Vector3(1,1,1)) {
-        const m = new Material({isDeferred: true});
-        m.shader = await Shader.Create({
+        const m = new GPU.Material({isDeferred: true});
+        m.shader = await GPU.Shader.Create({
             code: `
             struct VertexInput {
                 @builtin(instance_index) instanceIdx : u32, 
@@ -81,7 +86,7 @@ export class Line {
                 cameraPosition: {group: 0, binding: 3, type: "storage"},
             },
             cullMode: "none",
-            topology: Topology.Lines
+            topology: GPU.Topology.Lines
         })
 
         

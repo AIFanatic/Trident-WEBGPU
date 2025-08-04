@@ -59,12 +59,12 @@ const core = {
     ]
 }
 
-function copyResources() {
+function copyResources(from, to) {
     return {
         name: 'copy-resources',
         buildEnd() {
-            const base = 'packages/plugins';
-            const dest = 'dist/plugins';
+            const base = from;
+            const dest = to;
 
             for (const entry of fs.readdirSync(base)) {
                 const srcDir = path.join(base, entry, 'resources');
@@ -98,7 +98,7 @@ const plugins = {
             include: ["**/*.css", "**/*.wgsl"],
         }),
         addJsExtensionToImports(),
-        copyResources()
+        copyResources('packages/plugins', 'dist/plugins')
     ]
 }
 
@@ -177,10 +177,21 @@ const examples = {
             target: "es2022"
         }),
         string({
-            include: ["**/*.css", "**/*.wgsl"],
+            include: ["**/*.wgsl"],
         }),
         addJsExtensionToImports(),
-        wrapJsInHtml()
+        wrapJsInHtml(),
+        {
+            name: 'copy-example-assets',
+            writeBundle(options, bundle) {
+                const srcDir = "packages/examples/assets";
+                const destDir = "dist/examples/assets";
+                if (fs.existsSync(srcDir)) {
+                    fs.cpSync(srcDir, destDir, { recursive: true });
+                    console.log(`Copied: ${srcDir} -> ${destDir}`);
+                }
+            }
+        }
     ]
 }
 

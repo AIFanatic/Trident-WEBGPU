@@ -1,21 +1,18 @@
-import { Geometry } from "../Geometry";
-import { RenderPass, ResourcePool } from "../renderer/RenderGraph";
-import { Renderer } from "../renderer/Renderer";
-import { RendererContext } from "../renderer/RendererContext";
-import { Shader } from "../renderer/Shader";
-import { RenderTexture, Texture } from "../renderer/Texture";
-import { TextureSampler } from "../renderer/TextureSampler";
+import {
+    Geometry,
+    GPU
+} from "@trident/core";
 
-export class Upscaler extends RenderPass {
-    private shader: Shader;
+export class Upscaler extends GPU.RenderPass {
+    private shader: GPU.Shader;
     private geometry: Geometry;
 
-    private renderTarget: RenderTexture;
+    private renderTarget: GPU.RenderTexture;
 
     constructor() { super({}) }
     
-    public async init(resources: ResourcePool) {
-        this.shader = await Shader.Create({
+    public async init(resources: GPU.ResourcePool) {
+        this.shader = await GPU.Shader.Create({
             code: `
             @group(0) @binding(0) var tex: texture_2d<f32>;
             @group(0) @binding(1) var texSampler: sampler;
@@ -59,26 +56,26 @@ export class Upscaler extends RenderPass {
             },
         });
 
-        this.shader.SetSampler("texSampler", TextureSampler.Create());
+        this.shader.SetSampler("texSampler", GPU.TextureSampler.Create());
 
         this.geometry = Geometry.Plane();
         this.initialized = true;
     }
 
-    public Process(tex: RenderTexture, width: number, height: number): RenderTexture {
+    public Process(tex: GPU.RenderTexture, width: number, height: number): GPU.RenderTexture {
         if (this.initialized === false) {
             throw Error("Not initialized")
         };
 
         if (!this.renderTarget || this.renderTarget.width !== width) {
             console.log("HERE")
-            this.renderTarget = RenderTexture.Create(width, height, tex.depth, "rgba16float");
+            this.renderTarget = GPU.RenderTexture.Create(width, height, tex.depth, "rgba16float");
         }
         this.shader.SetTexture("tex", tex);
 
-        RendererContext.BeginRenderPass("Upscaler", [{target: this.renderTarget, clear: true}], undefined, true);
-        RendererContext.DrawGeometry(this.geometry, this.shader);
-        RendererContext.EndRenderPass();
+        GPU.RendererContext.BeginRenderPass("Upscaler", [{target: this.renderTarget, clear: true}], undefined, true);
+        GPU.RendererContext.DrawGeometry(this.geometry, this.shader);
+        GPU.RendererContext.EndRenderPass();
 
         return this.renderTarget;
     }

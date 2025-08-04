@@ -1,9 +1,14 @@
 export { Renderer } from "./Renderer";
-export { Buffer, BufferType } from "./Buffer";
+export { DynamicBuffer, Buffer, BufferType } from "./Buffer";
 export { RenderPass, ResourcePool } from "./RenderGraph";
 export { RendererContext } from "./RendererContext";
+export { ComputeContext } from "./ComputeContext";
 export { RenderingPipeline, RenderPassOrder, PassParams } from "./RenderingPipeline";
-export { Shader } from "./Shader";
+export { Shader, Compute, Topology } from "./Shader";
 export { ShaderLoader } from "./ShaderUtils";
-export { DepthTexture, RenderTexture, Texture } from "./Texture";
+export { DepthTexture, RenderTexture, Texture, TextureArray } from "./Texture";
+export type { TextureFormat } from "./Texture";
 export { TextureSampler } from "./TextureSampler";
+export { Material } from "./Material";
+export type { RenderTarget } from "./RendererContext";
+export { MemoryAllocator, DynamicBufferMemoryAllocator } from "./MemoryAllocator";

@@ -1,6 +1,6 @@
 import { Geometry, VertexAttribute } from "../../Geometry";
 import { BufferCopyParameters, DepthTarget, RenderTarget, RendererContext, TextureCopyParameters } from "../RendererContext";
-import { RendererDebug } from "../RendererDebug";
+import { Renderer } from "../Renderer";
 import { Topology } from "../Shader";
 import { WEBGPUBuffer, WEBGPUDynamicBuffer } from "./WEBGPUBuffer";
 import { WEBGPURenderer } from "./WEBGPURenderer";
@@ -61,7 +61,7 @@ export class WEBGPURendererContext implements RendererContext {
 
         if (!shader.pipeline) throw Error("Shader doesnt have a pipeline");
 
-        RendererDebug.IncrementDrawCalls(1);
+        Renderer.info.drawCallsStat += 1;
         
         this.activeRenderPass.setPipeline(shader.pipeline);
         for (let i = 0; i < shader.bindGroups.length; i++) {

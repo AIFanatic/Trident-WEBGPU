@@ -13,7 +13,7 @@ import { ShaderLoader } from "../ShaderUtils";
 import { PassParams } from "../RenderingPipeline";
 import { EventSystem } from "../../Events";
 import { LightShadowData } from "./DeferredShadowMapPass";
-import { DynamicBufferMemoryAllocator } from "../../utils/MemoryAllocator";
+import { DynamicBufferMemoryAllocator } from "../MemoryAllocator";
 
 enum LightType {
     SPOT_LIGHT,

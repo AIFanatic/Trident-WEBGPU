@@ -1,11 +1,11 @@
-import { Utils } from "../../utils/Utils";
+import { UUID } from "../../utils";
 import { Renderer } from "../Renderer";
 import { Texture, TextureDimension, TextureFormat, TextureType } from "../Texture";
 import { WEBGPUMipsGenerator } from "./utils/WEBGPUMipsGenerator";
 import { WEBGPURenderer } from "./WEBGPURenderer";
 
 export class WEBGPUTexture implements Texture {
-    public readonly id = Utils.UUID();
+    public readonly id = UUID();
     public readonly width: number;
     public readonly height: number;
     public readonly depth: number;

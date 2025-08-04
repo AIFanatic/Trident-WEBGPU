@@ -1,20 +1,18 @@
-import { Geometry } from "../Geometry";
-import { RenderPass, ResourcePool } from "../renderer/RenderGraph";
-import { RendererContext } from "../renderer/RendererContext";
-import { Shader } from "../renderer/Shader";
-import { RenderTexture, Texture } from "../renderer/Texture";
-import { TextureSampler } from "../renderer/TextureSampler";
+import {
+    Geometry,
+    GPU
+} from "@trident/core";
 
-export class TextureBlender extends RenderPass {
-    private shader: Shader;
+export class TextureBlender extends GPU.RenderPass {
+    private shader: GPU.Shader;
     private geometry: Geometry;
 
-    private renderTarget: RenderTexture;
+    private renderTarget: GPU.RenderTexture;
 
     constructor() { super({}) }
     
-    public async init(resources: ResourcePool) {
-        this.shader = await Shader.Create({
+    public async init(resources: GPU.ResourcePool) {
+        this.shader = await GPU.Shader.Create({
             code: `
             @group(0) @binding(0) var texA: texture_2d<f32>;
             @group(0) @binding(1) var texB: texture_2d<f32>;
@@ -61,13 +59,13 @@ export class TextureBlender extends RenderPass {
             },
         });
 
-        this.shader.SetSampler("texSampler", TextureSampler.Create());
+        this.shader.SetSampler("texSampler", GPU.TextureSampler.Create());
 
         this.geometry = Geometry.Plane();
         this.initialized = true;
     }
 
-    public Process(texA: Texture, texB: Texture): RenderTexture {
+    public Process(texA: GPU.Texture, texB: GPU.Texture): GPU.RenderTexture {
         if (this.initialized === false) {
             throw Error("Not initialized")
         };
@@ -77,15 +75,15 @@ export class TextureBlender extends RenderPass {
         // }
 
         if (!this.renderTarget || this.renderTarget.width !== texA.width || this.renderTarget.height !== texA.height) {
-            this.renderTarget = RenderTexture.Create(texA.width, texA.height, texA.depth, "rgba16float");
+            this.renderTarget = GPU.RenderTexture.Create(texA.width, texA.height, texA.depth, "rgba16float");
         }
 
         this.shader.SetTexture("texA", texA);
         this.shader.SetTexture("texB", texB);
 
-        RendererContext.BeginRenderPass("Textureblender", [{target: this.renderTarget, clear: true}], undefined, true);
-        RendererContext.DrawGeometry(this.geometry, this.shader);
-        RendererContext.EndRenderPass();
+        GPU.RendererContext.BeginRenderPass("Textureblender", [{target: this.renderTarget, clear: true}], undefined, true);
+        GPU.RendererContext.DrawGeometry(this.geometry, this.shader);
+        GPU.RendererContext.EndRenderPass();
 
         return this.renderTarget;
     }

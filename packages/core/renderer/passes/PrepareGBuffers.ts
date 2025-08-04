@@ -4,7 +4,6 @@ import { PassParams } from "../RenderingPipeline";
 import { Renderer } from "../Renderer";
 import { RenderTarget, RendererContext } from "../RendererContext";
 import { Camera } from "../../components/Camera";
-import { RendererDebug } from "../RendererDebug";
 import { DeferredShadowMapPassDebug } from "./DeferredShadowMapPass";
 
 export class PrepareGBuffers extends RenderPass {
@@ -74,8 +73,8 @@ export class PrepareGBuffers extends RenderPass {
             0, // +Debugger.isDebugDepthPassEnabled,
             0, // Debugger.debugDepthMipLevel,
             0, //Debugger.debugDepthExposure,
-            RendererDebug.viewTypeValue,
-            +RendererDebug.useHeightMapValue,
+            Renderer.info.viewTypeValue,
+            0, // +Renderer.info.useHeightMapValue,
             0, //Debugger.heightScale,
             
             +DeferredShadowMapPassDebug.debugCascadesValue,

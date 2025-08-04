@@ -1,38 +1,34 @@
-import { Geometry } from "../Geometry";
-import { BufferType, DynamicBuffer } from "../renderer/Buffer";
-import { RenderPass, ResourcePool } from "../renderer/RenderGraph";
-import { Renderer } from "../renderer/Renderer";
-import { RendererContext } from "../renderer/RendererContext";
-import { PassParams } from "../renderer/RenderingPipeline";
-import { Shader } from "../renderer/Shader";
-import { RenderTexture, Texture, TextureFormat } from "../renderer/Texture";
-import { TextureSampler } from "../renderer/TextureSampler";
-import { Debugger } from "./Debugger";
-import { UIFolder, UISliderStat } from "./ui/UIStats";
+import {
+    Geometry,
+    GPU
+} from "@trident/core";
 
-export class Bloom extends RenderPass {
-    private shader: Shader;
+import { UIFolder, UISliderStat } from "@trident/plugins/ui/UIStats";
+import { Debugger } from "@trident/plugins/Debugger";
+
+export class Bloom extends GPU.RenderPass {
+    private shader: GPU.Shader;
     private geometry: Geometry;
 
-    private renderTarget: RenderTexture;
+    private renderTarget: GPU.RenderTexture;
 
-    public output: RenderTexture;
+    public output: GPU.RenderTexture;
 
-    private currentPassBuffer: DynamicBuffer;
+    private currentPassBuffer: GPU.DynamicBuffer;
 
-    private temporaryTextures: Map<string, RenderTexture> = new Map();
-    private scratchTextures: RenderTexture[] = [];
+    private temporaryTextures: Map<string, GPU.RenderTexture> = new Map();
+    private scratchTextures: GPU.RenderTexture[] = [];
 
     private iterations: number = 1;
 
     constructor() {
         super({})
-        this.renderTarget = RenderTexture.Create(Renderer.width, Renderer.height, 1, "rgba16float");
-        this.output = RenderTexture.Create(Renderer.width, Renderer.height, 1, "rgba16float");
+        this.renderTarget = GPU.RenderTexture.Create(GPU.Renderer.width, GPU.Renderer.height, 1, "rgba16float");
+        this.output = GPU.RenderTexture.Create(GPU.Renderer.width, GPU.Renderer.height, 1, "rgba16float");
     }
     
-    public async init(resources: ResourcePool) {
-        this.shader = await Shader.Create({
+    public async init(resources: GPU.ResourcePool) {
+        this.shader = await GPU.Shader.Create({
             code: `
             @group(0) @binding(0) var tex: texture_2d<f32>;
             @group(0) @binding(2) var texSampler: sampler;
@@ -191,17 +187,17 @@ export class Bloom extends RenderPass {
             },
         });
 
-        this.shader.SetSampler("texSampler", TextureSampler.Create());
+        this.shader.SetSampler("texSampler", GPU.TextureSampler.Create());
 
-        this.shader.SetSampler("_MainTexSampler", TextureSampler.Create());
-        this.shader.SetSampler("_BlendTargetSampler", TextureSampler.Create());
+        this.shader.SetSampler("_MainTexSampler", GPU.TextureSampler.Create());
+        this.shader.SetSampler("_BlendTargetSampler", GPU.TextureSampler.Create());
 
         // this.renderTarget = RenderTexture.Create(Renderer.width, Renderer.height, 1, "rgba16float");
 
         this.geometry = Geometry.Plane();
 
         const minUniformBufferOffsetAlignment = 256;
-        this.currentPassBuffer = DynamicBuffer.Create(minUniformBufferOffsetAlignment * 4 * 4, BufferType.STORAGE, 1 * 4);
+        this.currentPassBuffer = GPU.DynamicBuffer.Create(minUniformBufferOffsetAlignment * 4 * 4, GPU.BufferType.STORAGE, 1 * 4);
         this.currentPassBuffer.SetArray(
             new Float32Array(
                 new Array().concat(
@@ -245,19 +241,19 @@ export class Bloom extends RenderPass {
         this.initialized = true;
     }
 
-    public Blit(source: Texture, destination: RenderTexture, shader: Shader) {
+    public Blit(source: GPU.Texture, destination: GPU.RenderTexture, shader: GPU.Shader) {
         shader.SetTexture("_MainTex", source);
-        RendererContext.BeginRenderPass("Blit", [{target: destination, clear: true}], undefined, true);
-        RendererContext.DrawGeometry(this.geometry, shader);
-        RendererContext.EndRenderPass();        
+        GPU.RendererContext.BeginRenderPass("Blit", [{target: destination, clear: true}], undefined, true);
+        GPU.RendererContext.DrawGeometry(this.geometry, shader);
+        GPU.RendererContext.EndRenderPass();        
     }
 
-    public execute(resources: ResourcePool, ...args: any): void {
+    public execute(resources: GPU.ResourcePool, ...args: any): void {
         if (this.initialized === false) {
             throw Error("Not initialized")
         };
 
-        const lightingTexture = resources.getResource(PassParams.LightingPassOutput) as Texture;
+        const lightingTexture = resources.getResource(GPU.PassParams.LightingPassOutput) as GPU.Texture;
         this.shader.SetTexture("tex", lightingTexture);
 
 
@@ -270,10 +266,10 @@ export class Bloom extends RenderPass {
 
 
 
-        const GetTemporaryTexture = (key: string, width: number, height: number, depth: number, format: TextureFormat): RenderTexture => {
+        const GetTemporaryTexture = (key: string, width: number, height: number, depth: number, format: GPU.TextureFormat): GPU.RenderTexture => {
             let texture = this.temporaryTextures.get(key);
             if (texture === undefined) {
-                texture = RenderTexture.Create(width, height, depth, format);
+                texture = GPU.RenderTexture.Create(width, height, depth, format);
                 this.temporaryTextures.set(key, texture);
             }
             return texture;
@@ -286,13 +282,13 @@ export class Bloom extends RenderPass {
         const minUniformBufferOffsetAlignment = 256;
         this.currentPassBuffer.dynamicOffset = 0 * 4 * minUniformBufferOffsetAlignment;
         
-        let renderTarget: RenderTexture = this.scratchTextures[0] = GetTemporaryTexture("prefilter - source", width, height, 1, "rgba16float");
+        let renderTarget: GPU.RenderTexture = this.scratchTextures[0] = GetTemporaryTexture("prefilter - source", width, height, 1, "rgba16float");
 
-        RendererContext.BeginRenderPass("Bloom - Prefilter", [{target: renderTarget, clear: true}], undefined, true);
-        RendererContext.DrawGeometry(this.geometry, this.shader);
-        RendererContext.EndRenderPass();
+        GPU.RendererContext.BeginRenderPass("Bloom - Prefilter", [{target: renderTarget, clear: true}], undefined, true);
+        GPU.RendererContext.DrawGeometry(this.geometry, this.shader);
+        GPU.RendererContext.EndRenderPass();
 
-        let renderSource: RenderTexture = renderTarget;
+        let renderSource: GPU.RenderTexture = renderTarget;
         
 
         let i = 1;
@@ -313,9 +309,9 @@ export class Bloom extends RenderPass {
             this.shader.SetTexture("_MainTex", renderSource);
 
             this.currentPassBuffer.dynamicOffset = 1 * 4 * minUniformBufferOffsetAlignment;
-            RendererContext.BeginRenderPass("Bloom - Downsample" + i, [{target: renderTarget, clear: true}], undefined, true);
-            RendererContext.DrawGeometry(this.geometry, this.shader);
-            RendererContext.EndRenderPass();
+            GPU.RendererContext.BeginRenderPass("Bloom - Downsample" + i, [{target: renderTarget, clear: true}], undefined, true);
+            GPU.RendererContext.DrawGeometry(this.geometry, this.shader);
+            GPU.RendererContext.EndRenderPass();
             renderSource = renderTarget;
         }
 
@@ -325,20 +321,20 @@ export class Bloom extends RenderPass {
             // this.scratchTextures[i] = undefined;
             this.shader.SetTexture("_MainTex", renderSource);
             this.currentPassBuffer.dynamicOffset = 2 * 4 * minUniformBufferOffsetAlignment;
-            RendererContext.BeginRenderPass("Bloom - Upsample" + i, [{target: renderTarget, clear: true}], undefined, true);
-            RendererContext.DrawGeometry(this.geometry, this.shader);
-            RendererContext.EndRenderPass();
+            GPU.RendererContext.BeginRenderPass("Bloom - Upsample" + i, [{target: renderTarget, clear: true}], undefined, true);
+            GPU.RendererContext.DrawGeometry(this.geometry, this.shader);
+            GPU.RendererContext.EndRenderPass();
 
             renderSource = renderTarget;
         }
 
         this.shader.SetTexture("_MainTex", renderSource);
         this.currentPassBuffer.dynamicOffset = 3 * 4 * minUniformBufferOffsetAlignment;
-        RendererContext.BeginRenderPass("Bloom - Blend", [{target: this.renderTarget, clear: true}], undefined, true);
-        RendererContext.DrawGeometry(this.geometry, this.shader);
-        RendererContext.EndRenderPass();
+        GPU.RendererContext.BeginRenderPass("Bloom - Blend", [{target: this.renderTarget, clear: true}], undefined, true);
+        GPU.RendererContext.DrawGeometry(this.geometry, this.shader);
+        GPU.RendererContext.EndRenderPass();
 
-        RendererContext.CopyTextureToTextureV3({texture: this.renderTarget}, {texture: lightingTexture});
-        RendererContext.CopyTextureToTextureV3({texture: this.scratchTextures[0]}, {texture: this.output});
+        GPU.RendererContext.CopyTextureToTextureV3({texture: this.renderTarget}, {texture: lightingTexture});
+        GPU.RendererContext.CopyTextureToTextureV3({texture: this.scratchTextures[0]}, {texture: this.output});
     }
 }

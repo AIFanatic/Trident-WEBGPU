@@ -1,4 +1,4 @@
-import { Utils } from "../../utils/Utils";
+import { UUID } from "../../utils";
 import { Matrix4 } from "../../math/Matrix4";
 import { Vector3 } from "../../math/Vector3";
 import { Buffer, BufferType } from "../Buffer";
@@ -10,7 +10,7 @@ import { WEBGPURenderer } from "./WEBGPURenderer";
 import { WEBGPUTexture } from "./WEBGPUTexture";
 import { WEBGPUTextureSampler } from "./WEBGPUTextureSampler";
 import { Vector2 } from "../../math/Vector2";
-import { RendererDebug } from "../RendererDebug";
+import { Renderer } from "../Renderer";
 import { Vector4 } from "../../math/Vector4";
 
 
@@ -37,7 +37,7 @@ interface BindGroup {
 
 
 export class WEBGPUBaseShader {
-    public readonly id: string = Utils.UUID();
+    public readonly id: string = UUID();
     public needsUpdate = false;
     
     protected readonly module: GPUShaderModule;
@@ -132,7 +132,7 @@ export class WEBGPUBaseShader {
             if (bindGroupLayout === undefined) {
                 bindGroupLayout = WEBGPURenderer.device.createBindGroupLayout({entries: bindGroupsLayoutEntry});
                 BindGroupLayoutCache.set(crc, bindGroupLayout);
-                RendererDebug.IncrementBindGroupLayouts(1);
+                Renderer.info.bindGroupLayoutsStat += 1;
             }
             bindGroupLayout.label = crc;
             bindGroupLayouts.push(bindGroupLayout);
@@ -215,7 +215,7 @@ export class WEBGPUBaseShader {
             let bindGroup = BindGroupCache.get(crc);
             if (bindGroup === undefined) {
                 bindGroup = WEBGPURenderer.device.createBindGroup({ layout: bindGroupLayout, entries: bindGroupInfo.entries });
-                RendererDebug.IncrementBindGroups(1);
+                Renderer.info.bindGroupsStat += 1;
                 BindGroupCache.set(crc, bindGroup);
             }
             bindGroups.push(bindGroup);

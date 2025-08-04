@@ -3,4 +3,4 @@ export * from "./Component";
 export * from "./InstancedMesh";
 export * from "./Light";
 export * from "./Mesh";
-export * from "./Transform";
+export { Transform, TransformEvents } from "./Transform";

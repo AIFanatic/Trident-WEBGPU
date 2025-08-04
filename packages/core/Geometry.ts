@@ -1,4 +1,4 @@
-import { Utils } from "./utils/Utils";
+import { UUID } from "./utils/";
 import { BoundingVolume } from "./math/BoundingVolume";
 import { Vector3 } from "./math/Vector3";
 import { Buffer, BufferType } from "./renderer/Buffer";
@@ -69,7 +69,7 @@ export class IndexAttribute extends GeometryAttribute {
 }
 
 export class Geometry {
-    public id = Utils.UUID();
+    public id = UUID();
     public index?: IndexAttribute;
     public readonly attributes: Map<string, VertexAttribute | InterleavedVertexAttribute> = new Map();
 

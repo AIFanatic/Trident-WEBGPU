@@ -1,7 +1,13 @@
-import { Geometry, IndexAttribute, VertexAttribute } from "../Geometry";
-import { Object3D } from "../Object3D";
-import { Matrix4 } from "../math/Matrix4";
-import { PBRMaterial } from "../renderer/Material";
+import { Object3D } from "../core/Object3D";
+
+import {
+    Geometry,
+    IndexAttribute,
+    VertexAttribute,
+    PBRMaterial,
+    Mathf
+} from "@trident/core";
+
 
 interface UnpackedAttrs {
     verts: number[];
@@ -40,7 +46,7 @@ export class OBJLoaderIndexed {
             geometry: this.toGeometry(objMesh),
             material: new PBRMaterial(),
             children: [],
-            localMatrix: new Matrix4()
+            localMatrix: new Mathf.Matrix4()
         }]
         // return this.toGeometry(objMesh);
     }

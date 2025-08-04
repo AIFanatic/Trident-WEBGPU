@@ -2,10 +2,10 @@ import { Component } from "./components/Component";
 import { Scene } from "./Scene";
 import { Transform } from "./components/Transform";
 import { Camera } from "./components/Camera";
-import { Utils } from "./utils/Utils";
+import { UUID } from "./utils";
 
 export class GameObject {
-    public id = Utils.UUID();
+    public id = UUID();
     public name: string = "GameObject";
     public scene: Scene;
 

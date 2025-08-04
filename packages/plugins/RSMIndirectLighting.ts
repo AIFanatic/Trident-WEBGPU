@@ -1,35 +1,31 @@
-import { Light } from "../components/Light";
-import { RenderPass, ResourcePool } from "../renderer/RenderGraph";
-import { Shader } from "../renderer/Shader";
-import { RenderTexture, Texture } from "../renderer/Texture";
-import { TextureSampler } from "../renderer/TextureSampler";
-import { RendererContext } from "../renderer/RendererContext";
 import { RSMRenderPass } from "./RSM";
 import { BilateralFilter } from "./BilateralFilter";
-import { TextureBlender } from "./TextureBlender";
-import { Geometry } from "../Geometry";
-import { Renderer } from "../renderer/Renderer";
+import { Debugger } from "@trident/plugins/Debugger";
 
-import { Debugger } from "./Debugger";
-import { UIButtonStat, UIFolder, UISliderStat } from "./ui/UIStats";
-import { PassParams } from "../renderer/RenderingPipeline";
-import { Camera } from "../components/Camera";
-import { Matrix4 } from "../math/Matrix4";
-import { Upscaler } from "./Upscaler";
+import { UIButtonStat, UIFolder, UISliderStat } from "@trident/plugins/ui/UIStats";
+import { TextureBlender } from "@trident/plugins/TextureBlender";
+import { Upscaler } from "@trident/plugins/Upscaler";
 
-export class RSMIndirectLighting extends RenderPass {
+import {
+    Geometry,
+    Components,
+    Mathf,
+    GPU
+} from "@trident/core";
+
+export class RSMIndirectLighting extends GPU.RenderPass {
     public name: string = "RSMIndirectLighting";
 
-    private light: Light;
+    private light: Components.Light;
 
     public RSMGenerator: RSMRenderPass;
-    public indirectLighting: RenderTexture;
+    public indirectLighting: GPU.RenderTexture;
     public bilateralFilter: BilateralFilter;
     public textureBlender: TextureBlender;
     public upscaler: Upscaler;
 
     private geometry: Geometry;
-    private shader: Shader;
+    private shader: GPU.Shader;
     
     private enabled: boolean = true;
     private showIndirect: boolean = false;
@@ -37,7 +33,7 @@ export class RSMIndirectLighting extends RenderPass {
     private NUM_SAMPLES: number;
     private SAMPLES_TEX_SIZE: number;
 
-    constructor(light: Light, RSM_RES: number, NUM_SAMPLES: number) {
+    constructor(light: Components.Light, RSM_RES: number, NUM_SAMPLES: number) {
         super({});
         this.light = light;
         this.RSM_RES = RSM_RES;
@@ -50,7 +46,7 @@ export class RSMIndirectLighting extends RenderPass {
         this.textureBlender = new TextureBlender();
         this.upscaler = new Upscaler();
 
-        this.indirectLighting = RenderTexture.Create(Renderer.width, Renderer.height, 1, "rgba16float");
+        this.indirectLighting = GPU.RenderTexture.Create(GPU.Renderer.width, GPU.Renderer.height, 1, "rgba16float");
 
         const rsmFolder = new UIFolder(Debugger.ui, "RSM");
         rsmFolder.Open();
@@ -62,13 +58,13 @@ export class RSMIndirectLighting extends RenderPass {
         new UISliderStat(rsmFolder, "Normal threshold:", 0, 1, 0.01, this.bilateralFilter.blurNormalThreshold, state => {this.bilateralFilter.blurNormalThreshold = state});
     }
 
-    public async init(resources: ResourcePool) {
+    public async init(resources: GPU.ResourcePool) {
         await this.RSMGenerator.init(resources);
         await this.bilateralFilter.init(resources);
         await this.textureBlender.init(resources);
         await this.upscaler.init(resources);
 
-        this.shader = await Shader.Create({
+        this.shader = await GPU.Shader.Create({
             code: `
             @group(0) @binding(1) var gDepthTex: texture_depth_2d;
             @group(0) @binding(2) var gNormalTex: texture_2d<f32>;
@@ -269,12 +265,12 @@ export class RSMIndirectLighting extends RenderPass {
 
         const dat = generateSampleTexture(this.SAMPLES_TEX_SIZE);
 
-        const samplesTexture = Texture.Create(this.SAMPLES_TEX_SIZE, 1, 1, "rgba32float");
+        const samplesTexture = GPU.Texture.Create(this.SAMPLES_TEX_SIZE, 1, 1, "rgba32float");
         samplesTexture.SetData(new Float32Array(dat));
 
         this.shader.SetTexture("samplesTex", samplesTexture);
-        this.shader.SetSampler("texSampler", TextureSampler.Create());
-        this.shader.SetSampler("samplerSampler", TextureSampler.Create({minFilter: "nearest", magFilter: "nearest", mipmapFilter: "nearest", addressModeU: "repeat", addressModeV: "repeat"}));
+        this.shader.SetSampler("texSampler", GPU.TextureSampler.Create());
+        this.shader.SetSampler("samplerSampler", GPU.TextureSampler.Create({minFilter: "nearest", magFilter: "nearest", mipmapFilter: "nearest", addressModeU: "repeat", addressModeV: "repeat"}));
         // var samplesTexture = regl.texture({
         //     width: SAMPLES_TEX_SIZE,
         //     height: 1,
@@ -286,15 +282,15 @@ export class RSMIndirectLighting extends RenderPass {
         // })
     }
 
-    public async execute(resources: ResourcePool, ...args: any) {
+    public async execute(resources: GPU.ResourcePool, ...args: any) {
         if (this.enabled === false) return;
 
         this.RSMGenerator.execute(resources);
 
 
-        const lightingTex = resources.getResource(PassParams.LightingPassOutput);
-        const gDepthTex = resources.getResource(PassParams.GBufferDepth);
-        const gNormalTex = resources.getResource(PassParams.GBufferNormal);
+        const lightingTex = resources.getResource(GPU.PassParams.LightingPassOutput);
+        const gDepthTex = resources.getResource(GPU.PassParams.GBufferDepth);
+        const gNormalTex = resources.getResource(GPU.PassParams.GBufferNormal);
 
         const rNormalTex = this.RSMGenerator.rsmNormal;
         const rWorldPosTex = this.RSMGenerator.rsmWorldPosition;
@@ -306,12 +302,12 @@ export class RSMIndirectLighting extends RenderPass {
         this.shader.SetTexture("rWorldPosTex", rWorldPosTex);
         this.shader.SetTexture("rFluxTex", rFluxTex);
 
-        const camera = Camera.mainCamera;
+        const camera = Components.Camera.mainCamera;
         const view = new Float32Array(4 + 4 + 16 + 16   + 16);
-        view.set([Renderer.width, Renderer.height, 0], 0);
+        view.set([GPU.Renderer.width, GPU.Renderer.height, 0], 0);
         view.set(camera.transform.position.elements, 4);
         // console.log(view)
-        const tempMatrix = new Matrix4();
+        const tempMatrix = new Mathf.Matrix4();
         tempMatrix.copy(camera.projectionMatrix).invert();
         view.set(tempMatrix.elements, 8);
         tempMatrix.copy(camera.viewMatrix).invert();
@@ -324,19 +320,19 @@ export class RSMIndirectLighting extends RenderPass {
         this.shader.SetMatrix4("lightView", this.light.camera.viewMatrix);
         this.shader.SetValue("indirectLightAmount", this.light.intensity);
 
-        RendererContext.BeginRenderPass(this.name, [{ target: this.indirectLighting, clear: true }], undefined, true);
+        GPU.RendererContext.BeginRenderPass(this.name, [{ target: this.indirectLighting, clear: true }], undefined, true);
 
-        RendererContext.DrawGeometry(this.geometry, this.shader);
+        GPU.RendererContext.DrawGeometry(this.geometry, this.shader);
 
-        RendererContext.EndRenderPass();
+        GPU.RendererContext.EndRenderPass();
 
         const indirectBlurred = this.bilateralFilter.Process(this.indirectLighting, gDepthTex, gNormalTex);
         const ta = this.textureBlender.Process(indirectBlurred, lightingTex);
 
-        resources.setResource(PassParams.LightingPassOutput, ta)
+        resources.setResource(GPU.PassParams.LightingPassOutput, ta)
 
         if (this.showIndirect) {
-            resources.setResource(PassParams.LightingPassOutput, indirectBlurred);
+            resources.setResource(GPU.PassParams.LightingPassOutput, indirectBlurred);
             // resources.setResource(PassParams.LightingPassOutput, this.indirectLighting);
         }
 

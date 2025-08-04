@@ -1,10 +1,10 @@
-import { Utils } from "../../utils/Utils";
+import { UUID } from "../../utils";
 import { Buffer, BufferType, DynamicBuffer } from "../Buffer";
-import { RendererDebug } from "../RendererDebug";
+import { Renderer } from "../Renderer";
 import { WEBGPURenderer } from "./WEBGPURenderer";
 
 class BaseBuffer {
-    public id = Utils.UUID()
+    public id = UUID();
     private buffer: GPUBuffer;
     public readonly size: number;
 
@@ -12,7 +12,7 @@ class BaseBuffer {
     public get name(): string { return this.buffer.label };
 
     constructor(sizeInBytes: number, type: BufferType) {
-        RendererDebug.IncrementGPUBufferSize(sizeInBytes);
+        Renderer.info.gpuBufferSizeTotal += sizeInBytes;
         let usage: GPUBufferUsageFlags | undefined = undefined;
         if (type == BufferType.STORAGE) usage = GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC | GPUBufferUsage.COPY_DST;
         else if (type == BufferType.STORAGE_WRITE) usage = GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC | GPUBufferUsage.COPY_DST;
@@ -53,7 +53,7 @@ class BaseBuffer {
     }
 
     public Destroy() {
-        RendererDebug.IncrementGPUBufferSize(-this.size);
+        Renderer.info.gpuBufferSizeTotal += -this.size;
         this.buffer.destroy();
     }
 }

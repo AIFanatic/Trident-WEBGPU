@@ -1,7 +1,7 @@
 import { Buffer, BufferType } from "../renderer/Buffer";
 import { Matrix4 } from "../math/Matrix4";
 import { Mesh } from "./Mesh";
-import { DynamicBufferMemoryAllocator } from "../utils/MemoryAllocator";
+import { DynamicBufferMemoryAllocator } from "../renderer/MemoryAllocator";
 
 export class InstancedMesh extends Mesh {
     private incrementInstanceCount = 1000;

@@ -1,8 +1,9 @@
-import { InterleavedVertexAttribute } from "@trident/core/Geometry";
-import { Utils } from "@trident/core/utils/Utils";
-import { Mathf } from "@trident/core";
-import { CRC32 } from "@trident/core/utils/CRC32";
-// import { Meshoptimizer, attribute_size } from "./Meshoptimizer";
+import {
+    Geometry, InterleavedVertexAttribute,
+    Mathf,
+    Utils
+}  from "@trident/core";
+
 
 export interface MeshletBounds {
     cone_apex: Mathf.Vector3;
@@ -99,7 +100,7 @@ export class Meshlet {
         this.vertices_gpu = new Float32Array(Meshlet.max_triangles * (3 + 3 + 2) * 3);
         // TODO: This is capping vertices, may lead to errors
         this.vertices_gpu.set(verticesGPU.slice(0, Meshlet.max_triangles * (3 + 3 + 2) * 3));
-        this.crc = CRC32.forBytes(new Uint8Array(this.vertices_gpu.buffer));
+        this.crc = Utils.CRC32.forBytes(new Uint8Array(this.vertices_gpu.buffer));
     }
 
     public static convertBufferAttributeToNonIndexed(attribute: Float32Array, indices: Uint32Array, itemSize: number, isInterleaved: boolean = false, stride: number = 3, offset: number = 0): Float32Array {

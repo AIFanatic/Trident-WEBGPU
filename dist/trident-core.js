@@ -33,22 +33,56 @@ class EventSystemLocal {
   }
 }
 
-class Utils {
-  static UUID() {
-    return Math.floor(Math.random() * 1e6).toString();
+function UUID() {
+  return Math.floor(Math.random() * 1e6).toString();
+}
+function StringFindAllBetween(source, start, end, exclusive = true) {
+  const escapeRegExp = (string) => string.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const regex = new RegExp(`${escapeRegExp(start)}(.*?)${escapeRegExp(end)}`, "gs");
+  const matches = [];
+  let match;
+  while ((match = regex.exec(source)) !== null) {
+    if (exclusive) matches.push(match[1]);
+    else matches.push(start + match[1] + end);
   }
-  static StringFindAllBetween(source, start, end, exclusive = true) {
-    const escapeRegExp = (string) => string.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-    const regex = new RegExp(`${escapeRegExp(start)}(.*?)${escapeRegExp(end)}`, "gs");
-    const matches = [];
-    let match;
-    while ((match = regex.exec(source)) !== null) {
-      if (exclusive) matches.push(match[1]);
-      else matches.push(start + match[1] + end);
+  return matches;
+}
+
+class CRC32 {
+  /**
+   * Lookup table calculated for 0xEDB88320 divisor
+   */
+  static lookupTable = [0, 1996959894, 3993919788, 2567524794, 124634137, 1886057615, 3915621685, 2657392035, 249268274, 2044508324, 3772115230, 2547177864, 162941995, 2125561021, 3887607047, 2428444049, 498536548, 1789927666, 4089016648, 2227061214, 450548861, 1843258603, 4107580753, 2211677639, 325883990, 1684777152, 4251122042, 2321926636, 335633487, 1661365465, 4195302755, 2366115317, 997073096, 1281953886, 3579855332, 2724688242, 1006888145, 1258607687, 3524101629, 2768942443, 901097722, 1119000684, 3686517206, 2898065728, 853044451, 1172266101, 3705015759, 2882616665, 651767980, 1373503546, 3369554304, 3218104598, 565507253, 1454621731, 3485111705, 3099436303, 671266974, 1594198024, 3322730930, 2970347812, 795835527, 1483230225, 3244367275, 3060149565, 1994146192, 31158534, 2563907772, 4023717930, 1907459465, 112637215, 2680153253, 3904427059, 2013776290, 251722036, 2517215374, 3775830040, 2137656763, 141376813, 2439277719, 3865271297, 1802195444, 476864866, 2238001368, 4066508878, 1812370925, 453092731, 2181625025, 4111451223, 1706088902, 314042704, 2344532202, 4240017532, 1658658271, 366619977, 2362670323, 4224994405, 1303535960, 984961486, 2747007092, 3569037538, 1256170817, 1037604311, 2765210733, 3554079995, 1131014506, 879679996, 2909243462, 3663771856, 1141124467, 855842277, 2852801631, 3708648649, 1342533948, 654459306, 3188396048, 3373015174, 1466479909, 544179635, 3110523913, 3462522015, 1591671054, 702138776, 2966460450, 3352799412, 1504918807, 783551873, 3082640443, 3233442989, 3988292384, 2596254646, 62317068, 1957810842, 3939845945, 2647816111, 81470997, 1943803523, 3814918930, 2489596804, 225274430, 2053790376, 3826175755, 2466906013, 167816743, 2097651377, 4027552580, 2265490386, 503444072, 1762050814, 4150417245, 2154129355, 426522225, 1852507879, 4275313526, 2312317920, 282753626, 1742555852, 4189708143, 2394877945, 397917763, 1622183637, 3604390888, 2714866558, 953729732, 1340076626, 3518719985, 2797360999, 1068828381, 1219638859, 3624741850, 2936675148, 906185462, 1090812512, 3747672003, 2825379669, 829329135, 1181335161, 3412177804, 3160834842, 628085408, 1382605366, 3423369109, 3138078467, 570562233, 1426400815, 3317316542, 2998733608, 733239954, 1555261956, 3268935591, 3050360625, 752459403, 1541320221, 2607071920, 3965973030, 1969922972, 40735498, 2617837225, 3943577151, 1913087877, 83908371, 2512341634, 3803740692, 2075208622, 213261112, 2463272603, 3855990285, 2094854071, 198958881, 2262029012, 4057260610, 1759359992, 534414190, 2176718541, 4139329115, 1873836001, 414664567, 2282248934, 4279200368, 1711684554, 285281116, 2405801727, 4167216745, 1634467795, 376229701, 2685067896, 3608007406, 1308918612, 956543938, 2808555105, 3495958263, 1231636301, 1047427035, 2932959818, 3654703836, 1088359270, 936918e3, 2847714899, 3736837829, 1202900863, 817233897, 3183342108, 3401237130, 1404277552, 615818150, 3134207493, 3453421203, 1423857449, 601450431, 3009837614, 3294710456, 1567103746, 711928724, 3020668471, 3272380065, 1510334235, 755167117];
+  static calculateBytes(bytes, accumulator) {
+    let crc = accumulator;
+    for (const byte of bytes) {
+      const tableIndex = (crc ^ byte) & 255;
+      const tableVal = this.lookupTable[tableIndex];
+      crc = crc >>> 8 ^ tableVal;
     }
-    return matches;
+    return crc;
+  }
+  static crcToUint(crc) {
+    return this.toUint32(crc ^ 4294967295);
+  }
+  static toUint32(num) {
+    if (num >= 0) {
+      return num;
+    }
+    return 4294967295 - num * -1 + 1;
+  }
+  static forBytes(bytes) {
+    const crc = this.calculateBytes(bytes, 4294967295);
+    return this.crcToUint(crc);
   }
 }
+
+var index$3 = /*#__PURE__*/Object.freeze({
+    __proto__: null,
+    CRC32: CRC32,
+    StringFindAllBetween: StringFindAllBetween,
+    UUID: UUID
+});
 
 class ComponentEvents {
   static CallUpdate = (component, shouldUpdate) => {
@@ -59,7 +93,7 @@ class ComponentEvents {
   };
 }
 class Component {
-  id = Utils.UUID();
+  id = UUID();
   enabled = true;
   hasStarted = false;
   name;
@@ -142,11 +176,38 @@ class WEBGPURenderer {
   }
 }
 
+class RendererInfo {
+  fps = 0;
+  triangleCount = 0;
+  visibleTriangles = 0;
+  cpuTime = 0;
+  bindGroupLayoutsStat = 0;
+  bindGroupsStat = 0;
+  compiledShadersStat = 0;
+  drawCallsStat = 0;
+  gpuBufferSizeTotal = 0;
+  gpuTextureSizeTotal = 0;
+  framePassesStats = /* @__PURE__ */ new Map();
+  SetPassTime(name, time) {
+    this.framePassesStats.set(name, time / 1e6);
+  }
+  // private FormatBytes (bytes: number, decimals = 2): {value: number, rank: string} {
+  //     const k = 1024;
+  //     const sizes = ['B', 'KB', 'MB', 'GB', 'TB', 'PB', 'EB', 'ZB', 'YB'];
+  //     const i = Math.floor(Math.log(bytes) / Math.log(k));
+  //     return {value: parseFloat((bytes / Math.pow(k, i)).toFixed(decimals)), rank: sizes[i]};
+  // }
+  ResetFrame() {
+    this.drawCallsStat = 0;
+  }
+}
+
 class Renderer {
   static type;
   static width;
   static height;
   static activeRenderer;
+  static info = new RendererInfo();
   static Create(canvas, type) {
     Renderer.type = type;
     Renderer.width = canvas.width;
@@ -292,9 +353,9 @@ var WGSL_Shader_DeferredLighting_URL = "struct Settings {\n    debugDepthPass: f
 
 class ShaderPreprocessor {
   static ProcessDefines(code, defines) {
-    const coditions = Utils.StringFindAllBetween(code, "#if", "#endif", false);
+    const coditions = StringFindAllBetween(code, "#if", "#endif", false);
     for (const condition of coditions) {
-      const variable = Utils.StringFindAllBetween(condition, "#if ", "\n")[0];
+      const variable = StringFindAllBetween(condition, "#if ", "\n")[0];
       const value = condition.replaceAll(`#if ${variable}`, "").replaceAll("#endif", "");
       if (defines[variable] === true) code = code.replaceAll(condition, value);
       else code = code.replaceAll(condition, "");
@@ -303,9 +364,9 @@ class ShaderPreprocessor {
   }
   static async ProcessIncludes(code, url = "./") {
     const basepath = url.substring(url.lastIndexOf("/"), -1) + "/";
-    const includes = Utils.StringFindAllBetween(code, "#include", "\n", false);
+    const includes = StringFindAllBetween(code, "#include", "\n", false);
     for (const includeStr of includes) {
-      const filenameArray = Utils.StringFindAllBetween(includeStr, '"', '"', true);
+      const filenameArray = StringFindAllBetween(includeStr, '"', '"', true);
       if (filenameArray.length !== 1) throw Error(`Invalid include ${filenameArray}`);
       const includeFullPath = filenameArray[0];
       const includePath = includeFullPath.substring(includeFullPath.lastIndexOf("/"), -1) + "/";
@@ -359,89 +420,8 @@ class ShaderLoader {
   }
 }
 
-class _RendererDebug {
-  //     public isDebugDepthPassEnabled: boolean = false;
-  //     private rendererFolder: UIFolder;
-  //     private fps: UITextStat;
-  //     private triangleCount: UITextStat;
-  //     private visibleTriangles: UITextStat;
-  //     private cpuTime: UITextStat;
-  //     private gpuTime: UITextStat;
-  //     private gpuBufferSizeStat: UITextStat;
-  //     private gpuTextureSizeStat: UITextStat;
-  //     private bindGroupLayoutsStat: UITextStat;
-  //     private bindGroupsStat: UITextStat;
-  //     private compiledShadersStat: UITextStat;
-  //     private drawCallsStat: UITextStat;
-  //     private viewTypeStat: UIDropdownStat;
-  //     private heightScale: UISliderStat;
-  //     private useHeightMapStat: UIButtonStat;
-  viewTypeValue = 0;
-  heightScaleValue = 0;
-  useHeightMapValue = false;
-  gpuBufferSizeTotal = 0;
-  gpuTextureSizeTotal = 0;
-  //     private renderPassesFolder: UIFolder;
-  //     private framePassesStats: Map<string, UITextStat> = new Map();
-  //     constructor() {
-  //         this.rendererFolder = new UIFolder(Debugger.ui, "Renderer");
-  //         this.rendererFolder.Open();
-  //         this.fps = new UITextStat(this.rendererFolder, "FPS", 0, 2, "", true);
-  //         this.triangleCount = new UITextStat(this.rendererFolder, "Triangles: ");
-  //         this.visibleTriangles = new UITextStat(this.rendererFolder, "Visible triangles: ");
-  //         this.cpuTime = new UITextStat(this.rendererFolder, "CPU: ", 0, 2, "ms", true);
-  //         this.gpuTime = new UITextStat(this.rendererFolder, "GPU: ", 0, 2, "ms", true);
-  //         this.gpuBufferSizeStat = new UITextStat(this.rendererFolder, "GPU buffer size: ", 0, 2);
-  //         this.gpuTextureSizeStat = new UITextStat(this.rendererFolder, "GPU texture size: ", 0, 2);
-  //         this.bindGroupLayoutsStat = new UITextStat(this.rendererFolder, "Bind group layouts: ");
-  //         this.bindGroupsStat = new UITextStat(this.rendererFolder, "Bind groups: ");
-  //         this.drawCallsStat = new UITextStat(this.rendererFolder, "Draw calls: ");
-  //         this.compiledShadersStat = new UITextStat(this.rendererFolder, "Compiled shaders: ");
-  //         this.viewTypeStat = new UIDropdownStat(this.rendererFolder, "Final output:", ["Lighting", "Albedo Map", "Normal Map", "Metalness", "Roughness", "Emissive"], (index, value) => {this.viewTypeValue = index}, this.viewTypeValue);
-  //         this.heightScale = new UISliderStat(this.rendererFolder, "Height scale:", 0, 1, 0.01, this.heightScaleValue, state => {this.heightScaleValue = state});
-  //         this.useHeightMapStat = new UIButtonStat(this.rendererFolder, "Use heightmap:", state => {this.useHeightMapValue = state}, this.useHeightMapValue);
-  //         this.renderPassesFolder = new UIFolder(this.rendererFolder, "Frame passes");
-  //         this.renderPassesFolder.Open();
-  //     }
-  SetPassTime(name, time) {
-  }
-  SetCPUTime(value) {
-  }
-  SetTriangleCount(count) {
-  }
-  IncrementTriangleCount(count) {
-  }
-  SetVisibleTriangleCount(count) {
-  }
-  IncrementVisibleTriangleCount(count) {
-  }
-  SetFPS(count) {
-  }
-  IncrementBindGroupLayouts(value) {
-  }
-  IncrementBindGroups(value) {
-  }
-  FormatBytes(bytes, decimals = 2) {
-    const k = 1024;
-    const sizes = ["B", "KB", "MB", "GB", "TB", "PB", "EB", "ZB", "YB"];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return { value: parseFloat((bytes / Math.pow(k, i)).toFixed(decimals)), rank: sizes[i] };
-  }
-  IncrementGPUBufferSize(value) {
-  }
-  IncrementGPUTextureSize(value) {
-  }
-  IncrementDrawCalls(count) {
-  }
-  IncrementShaderCompiles(count) {
-  }
-  ResetFrame() {
-  }
-}
-const RendererDebug = new _RendererDebug();
-
 class BaseBuffer {
-  id = Utils.UUID();
+  id = UUID();
   buffer;
   size;
   set name(name) {
@@ -451,7 +431,7 @@ class BaseBuffer {
     return this.buffer.label;
   }
   constructor(sizeInBytes, type) {
-    RendererDebug.IncrementGPUBufferSize(sizeInBytes);
+    Renderer.info.gpuBufferSizeTotal += sizeInBytes;
     let usage = void 0;
     if (type == BufferType.STORAGE) usage = GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC | GPUBufferUsage.COPY_DST;
     else if (type == BufferType.STORAGE_WRITE) usage = GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC | GPUBufferUsage.COPY_DST;
@@ -485,7 +465,7 @@ class BaseBuffer {
     return arrayBuffer;
   }
   Destroy() {
-    RendererDebug.IncrementGPUBufferSize(-this.size);
+    Renderer.info.gpuBufferSizeTotal += -this.size;
     this.buffer.destroy();
   }
 }
@@ -727,7 +707,7 @@ class WEBGPUMipsGenerator {
 }
 
 class WEBGPUTexture {
-  id = Utils.UUID();
+  id = UUID();
   width;
   height;
   depth;
@@ -1186,7 +1166,7 @@ class IndexAttribute extends GeometryAttribute {
   }
 }
 class Geometry {
-  id = Utils.UUID();
+  id = UUID();
   index;
   attributes = /* @__PURE__ */ new Map();
   enableShadows = true;
@@ -1756,7 +1736,7 @@ class WEBGPURendererContext {
     if (!shader.OnPreRender()) return;
     shader.Compile();
     if (!shader.pipeline) throw Error("Shader doesnt have a pipeline");
-    RendererDebug.IncrementDrawCalls(1);
+    Renderer.info.drawCallsStat += 1;
     this.activeRenderPass.setPipeline(shader.pipeline);
     for (let i = 0; i < shader.bindGroups.length; i++) {
       let dynamicOffsets = [];
@@ -1944,7 +1924,7 @@ class RendererContext {
 }
 
 class WEBGPUTextureSampler {
-  id = Utils.UUID();
+  id = UUID();
   params;
   sampler;
   constructor(params) {
@@ -2030,6 +2010,11 @@ var TextureType = /* @__PURE__ */ ((TextureType2) => {
   TextureType2[TextureType2["RENDER_TARGET_STORAGE"] = 3] = "RENDER_TARGET_STORAGE";
   return TextureType2;
 })(TextureType || {});
+function CreateTexture(width, height, depth, format, type, dimension, mipLevels) {
+  Renderer.info.gpuTextureSizeTotal += width * height * depth * 4;
+  if (Renderer.type === "webgpu") return new WEBGPUTexture(width, height, depth, format, type, dimension, mipLevels);
+  throw Error("Renderer type invalid");
+}
 class Texture {
   id;
   width;
@@ -2059,20 +2044,18 @@ class Texture {
   SetData(data) {
   }
   static Create(width, height, depth = 1, format = Renderer.SwapChainFormat, mipLevels = 1) {
-    RendererDebug.IncrementGPUTextureSize(width * height * depth * 4);
-    if (Renderer.type === "webgpu") return new WEBGPUTexture(width, height, depth, format, 0 /* IMAGE */, "2d", mipLevels);
-    throw Error("Renderer type invalid");
+    return CreateTexture(width, height, depth, format, 0 /* IMAGE */, "2d", mipLevels);
   }
   static async Load(url, format = Renderer.SwapChainFormat, flipY = false) {
     const response = await fetch(url);
     const imageBitmap = await createImageBitmap(await response.blob());
-    RendererDebug.IncrementGPUTextureSize(imageBitmap.width * imageBitmap.height * 1 * 4);
+    Renderer.info.gpuTextureSizeTotal += imageBitmap.width * imageBitmap.height * 1 * 4;
     if (Renderer.type === "webgpu") return WEBGPUTexture.FromImageBitmap(imageBitmap, imageBitmap.width, imageBitmap.height, format, flipY);
     throw Error("Renderer type invalid");
   }
   static async LoadImageSource(imageSource, format = Renderer.SwapChainFormat, flipY = false) {
     const imageBitmap = await createImageBitmap(imageSource);
-    RendererDebug.IncrementGPUTextureSize(imageBitmap.width * imageBitmap.height * 1 * 4);
+    Renderer.info.gpuTextureSizeTotal += imageBitmap.width * imageBitmap.height * 1 * 4;
     if (Renderer.type === "webgpu") return WEBGPUTexture.FromImageBitmap(imageBitmap, imageBitmap.width, imageBitmap.height, format, flipY);
     throw Error("Renderer type invalid");
   }
@@ -2083,30 +2066,27 @@ class Texture {
 }
 class DepthTexture extends Texture {
   static Create(width, height, depth = 1, format = "depth24plus", mipLevels = 1) {
-    RendererDebug.IncrementGPUTextureSize(width * height * depth * 1);
-    if (Renderer.type === "webgpu") return new WEBGPUTexture(width, height, depth, format, 1 /* DEPTH */, "2d", mipLevels);
-    throw Error("Renderer type invalid");
+    return CreateTexture(width, height, depth, format, 1 /* DEPTH */, "2d", mipLevels);
   }
 }
 class RenderTexture extends Texture {
   static Create(width, height, depth = 1, format = Renderer.SwapChainFormat, mipLevels = 1) {
-    RendererDebug.IncrementGPUTextureSize(width * height * depth * 4);
-    if (Renderer.type === "webgpu") return new WEBGPUTexture(width, height, depth, format, 2 /* RENDER_TARGET */, "2d", mipLevels);
-    throw Error("Renderer type invalid");
+    return CreateTexture(width, height, depth, format, 2 /* RENDER_TARGET */, "2d", mipLevels);
+  }
+}
+class TextureArray extends Texture {
+  static Create(width, height, depth = 1, format = Renderer.SwapChainFormat, mipLevels = 1) {
+    return CreateTexture(width, height, depth, format, 0 /* IMAGE */, "2d-array", mipLevels);
   }
 }
 class CubeTexture extends Texture {
   static Create(width, height, depth = 1, format = Renderer.SwapChainFormat, mipLevels = 1) {
-    RendererDebug.IncrementGPUTextureSize(width * height * depth * 4);
-    if (Renderer.type === "webgpu") return new WEBGPUTexture(width, height, depth, format, 0 /* IMAGE */, "cube", mipLevels);
-    throw Error("Renderer type invalid");
+    return CreateTexture(width, height, depth, format, 0 /* IMAGE */, "cube", mipLevels);
   }
 }
 class DepthTextureArray extends Texture {
   static Create(width, height, depth = 1, format = "depth24plus", mipLevels = 1) {
-    RendererDebug.IncrementGPUTextureSize(width * height * depth * 1);
-    if (Renderer.type === "webgpu") return new WEBGPUTexture(width, height, depth, format, 1 /* DEPTH */, "2d-array", mipLevels);
-    throw Error("Renderer type invalid");
+    return CreateTexture(width, height, depth, format, 1 /* DEPTH */, "2d-array", mipLevels);
   }
 }
 
@@ -2118,7 +2098,7 @@ const UniformTypeToWGSL = {
   "storage-write": "storage"
 };
 class WEBGPUBaseShader {
-  id = Utils.UUID();
+  id = UUID();
   needsUpdate = false;
   module;
   params;
@@ -2198,7 +2178,7 @@ class WEBGPUBaseShader {
       if (bindGroupLayout === void 0) {
         bindGroupLayout = WEBGPURenderer.device.createBindGroupLayout({ entries: bindGroupsLayoutEntry });
         BindGroupLayoutCache.set(crc, bindGroupLayout);
-        RendererDebug.IncrementBindGroupLayouts(1);
+        Renderer.info.bindGroupLayoutsStat += 1;
       }
       bindGroupLayout.label = crc;
       bindGroupLayouts.push(bindGroupLayout);
@@ -2259,7 +2239,7 @@ class WEBGPUBaseShader {
       let bindGroup = BindGroupCache.get(crc);
       if (bindGroup === void 0) {
         bindGroup = WEBGPURenderer.device.createBindGroup({ layout: bindGroupLayout, entries: bindGroupInfo.entries });
-        RendererDebug.IncrementBindGroups(1);
+        Renderer.info.bindGroupsStat += 1;
         BindGroupCache.set(crc, bindGroup);
       }
       bindGroups.push(bindGroup);
@@ -2332,6 +2312,36 @@ class WEBGPUBaseShader {
   }
 }
 
+class WEBGPUComputeShader extends WEBGPUBaseShader {
+  computeEntrypoint;
+  _pipeline = null;
+  get pipeline() {
+    return this._pipeline;
+  }
+  constructor(params) {
+    super(params);
+    this.params = params;
+    this.computeEntrypoint = params.computeEntrypoint;
+  }
+  Compile() {
+    if (!(this.needsUpdate || !this.pipeline || !this.bindGroups)) {
+      return;
+    }
+    console.log("%c Compiling shader", "color: #ff0000");
+    this.bindGroupLayouts = this.BuildBindGroupLayouts();
+    this._bindGroups = this.BuildBindGroups();
+    let pipelineLayout = WEBGPURenderer.device.createPipelineLayout({
+      bindGroupLayouts: this.bindGroupLayouts
+    });
+    const pipelineDescriptor = {
+      layout: pipelineLayout,
+      compute: { module: this.module, entryPoint: this.computeEntrypoint }
+    };
+    this._pipeline = WEBGPURenderer.device.createComputePipeline(pipelineDescriptor);
+    this.needsUpdate = false;
+  }
+}
+
 const pipelineLayoutCache = /* @__PURE__ */ new Map();
 const pipelineCache = /* @__PURE__ */ new Map();
 const WGSLShaderAttributeFormat = {
@@ -2369,7 +2379,7 @@ class WEBGPUShader extends WEBGPUBaseShader {
       pipelineLayout = WEBGPURenderer.device.createPipelineLayout({
         bindGroupLayouts: this.bindGroupLayouts
       });
-      pipelineLayout.label = Utils.UUID();
+      pipelineLayout.label = UUID();
       pipelineLayoutCache.set(bindGroupLayoutsCRC, pipelineLayout);
       hasCompiled = true;
     }
@@ -2425,7 +2435,7 @@ class WEBGPUShader extends WEBGPUBaseShader {
     this._pipeline = pipeline;
     if (hasCompiled === true) {
       console.warn("%c Compiling shader", "color: #3498db");
-      RendererDebug.IncrementShaderCompiles(1);
+      Renderer.info.compiledShadersStat += 1;
     }
     this.needsUpdate = false;
   }
@@ -2474,6 +2484,13 @@ class Shader extends BaseShader {
   static async Create(params) {
     params.code = await ShaderPreprocessor.ProcessIncludes(params.code);
     if (Renderer.type === "webgpu") return new WEBGPUShader(params);
+    throw Error("Unknown api");
+  }
+}
+class Compute extends BaseShader {
+  static async Create(params) {
+    params.code = await ShaderPreprocessor.ProcessIncludes(params.code);
+    if (Renderer.type === "webgpu") return new WEBGPUComputeShader(params);
     throw Error("Unknown api");
   }
 }
@@ -4294,8 +4311,9 @@ class PrepareGBuffers extends RenderPass {
       // Debugger.debugDepthMipLevel,
       0,
       //Debugger.debugDepthExposure,
-      RendererDebug.viewTypeValue,
-      +RendererDebug.useHeightMapValue,
+      Renderer.info.viewTypeValue,
+      0,
+      // +Renderer.info.useHeightMapValue,
       0,
       //Debugger.heightScale,
       +DeferredShadowMapPassDebug.debugCascadesValue,
@@ -4440,7 +4458,7 @@ class DeferredGBufferPass extends RenderPass {
         shader.SetVector3("cameraPosition", inputCamera.transform.position);
         RendererContext.DrawGeometry(geometry, shader, 1);
         if (geometry.index) {
-          RendererDebug.IncrementTriangleCount(geometry.index.array.length / 3);
+          Renderer.info.triangleCount += geometry.index.array.length / 3;
         }
       }
     }
@@ -4461,11 +4479,11 @@ class DeferredGBufferPass extends RenderPass {
         shader.SetVector3("cameraPosition", inputCamera.transform.position);
         RendererContext.DrawGeometry(geometry, shader, instancedMesh.instanceCount + 1);
         if (geometry.index) {
-          RendererDebug.IncrementTriangleCount(geometry.index.array.length / 3 * (instancedMesh.instanceCount + 1));
+          Renderer.info.triangleCount = geometry.index.array.length / 3 * (instancedMesh.instanceCount + 1);
         } else {
           const position = geometry.attributes.get("position");
           if (position) {
-            RendererDebug.IncrementTriangleCount(position.array.length / 3 / 3 * (instancedMesh.instanceCount + 1));
+            Renderer.info.triangleCount = position.array.length / 3 / 3 * (instancedMesh.instanceCount + 1);
           }
         }
       }
@@ -4524,10 +4542,10 @@ class RenderingPipeline {
     this.prepareGBuffersPass = new PrepareGBuffers();
     this.renderGraph = new RenderGraph();
     this.beforeGBufferPasses = [
-      this.prepareGBuffersPass,
-      new DeferredGBufferPass()
+      this.prepareGBuffersPass
     ];
     this.afterGBufferPasses = [
+      new DeferredGBufferPass(),
       new DeferredShadowMapPass()
     ];
     this.beforeLightingPasses = [
@@ -4560,24 +4578,24 @@ class RenderingPipeline {
     this.UpdateRenderGraphPasses();
   }
   Render(scene) {
-    RendererDebug.ResetFrame();
-    RendererDebug.SetTriangleCount(0);
+    Renderer.info.ResetFrame();
+    Renderer.info.triangleCount = 0;
     const renderPipelineStart = performance.now();
     Renderer.BeginRenderFrame();
     this.renderGraph.execute();
     Renderer.EndRenderFrame();
-    RendererDebug.SetCPUTime(performance.now() - renderPipelineStart);
+    Renderer.info.cpuTime = performance.now() - renderPipelineStart;
     WEBGPUTimestampQuery.GetResult().then((frameTimes) => {
       if (frameTimes) {
         for (const [name, time] of frameTimes) {
-          RendererDebug.SetPassTime(name, time);
+          Renderer.info.SetPassTime(name, time);
         }
       }
     });
     const currentTime = performance.now();
     const elapsed = currentTime - this.previousTime;
     this.previousTime = currentTime;
-    RendererDebug.SetFPS(1 / elapsed * 1e3);
+    Renderer.info.fps = 1 / elapsed * 1e3;
     this.frame++;
   }
 }
@@ -4585,7 +4603,7 @@ class RenderingPipeline {
 class Scene {
   renderer;
   name = "Default scene";
-  id = Utils.UUID();
+  id = UUID();
   _hasStarted = false;
   get hasStarted() {
     return this._hasStarted;
@@ -4641,14 +4659,12 @@ class Scene {
     performance.now();
     for (const [component, _] of this.toUpdate) component.Update();
     this.renderPipeline.Render(this);
-    setTimeout(() => {
-      this.Tick();
-    }, 100);
+    requestAnimationFrame(() => this.Tick());
   }
 }
 
 class GameObject {
-  id = Utils.UUID();
+  id = UUID();
   name = "GameObject";
   scene;
   transform;
@@ -4728,7 +4744,7 @@ class Material {
   }
 }
 class PBRMaterial extends Material {
-  id = Utils.UUID();
+  id = UUID();
   initialParams;
   constructor(params) {
     super(params);
@@ -4941,11 +4957,70 @@ var index$1 = /*#__PURE__*/Object.freeze({
     Vector4: Vector4
 });
 
+class WEBGPUComputeContext {
+  static activeComputePass = null;
+  static BeginComputePass(name, timestamp) {
+    const activeCommandEncoder = WEBGPURenderer.GetActiveCommandEncoder();
+    if (!activeCommandEncoder) throw Error("No active command encoder!!");
+    if (this.activeComputePass) throw Error("There is already an active compute pass");
+    const computePassDescriptor = {};
+    if (timestamp === true) computePassDescriptor.timestampWrites = WEBGPUTimestampQuery.BeginRenderTimestamp(name);
+    this.activeComputePass = activeCommandEncoder.beginComputePass(computePassDescriptor);
+    this.activeComputePass.label = "ComputePass: " + name;
+  }
+  static EndComputePass() {
+    if (!this.activeComputePass) throw Error("No active compute pass");
+    this.activeComputePass.end();
+    this.activeComputePass = null;
+    WEBGPUTimestampQuery.EndRenderTimestamp();
+  }
+  static Dispatch(computeShader, workgroupCountX, workgroupCountY, workgroupCountZ) {
+    if (!this.activeComputePass) throw Error("No active render pass");
+    computeShader.OnPreRender();
+    computeShader.Compile();
+    if (!computeShader.pipeline) throw Error("Shader doesnt have a pipeline");
+    this.activeComputePass.setPipeline(computeShader.pipeline);
+    for (let i = 0; i < computeShader.bindGroups.length; i++) {
+      let dynamicOffsetsV2 = [];
+      for (const buffer of computeShader.bindGroupsInfo[i].buffers) {
+        if (buffer instanceof WEBGPUDynamicBuffer) {
+          dynamicOffsetsV2.push(buffer.dynamicOffset);
+        }
+      }
+      this.activeComputePass.setBindGroup(i, computeShader.bindGroups[i], dynamicOffsetsV2);
+    }
+    this.activeComputePass.dispatchWorkgroups(workgroupCountX, workgroupCountY, workgroupCountZ);
+  }
+}
+
+class ComputeContext {
+  constructor() {
+  }
+  static BeginComputePass(name, timestamp = false) {
+    if (Renderer.type === "webgpu") WEBGPUComputeContext.BeginComputePass(name, timestamp);
+    else throw Error("Unknown render api type.");
+  }
+  static EndComputePass() {
+    if (Renderer.type === "webgpu") WEBGPUComputeContext.EndComputePass();
+    else throw Error("Unknown render api type.");
+  }
+  static Dispatch(computeShader, workgroupCountX, workgroupCountY = 1, workgroupCountZ = 1) {
+    if (Renderer.type === "webgpu") WEBGPUComputeContext.Dispatch(computeShader, workgroupCountX, workgroupCountY, workgroupCountZ);
+    else throw Error("Unknown render api type.");
+  }
+}
+
 var index = /*#__PURE__*/Object.freeze({
     __proto__: null,
     Buffer: Buffer,
     BufferType: BufferType,
+    Compute: Compute,
+    ComputeContext: ComputeContext,
     DepthTexture: DepthTexture,
+    DynamicBuffer: DynamicBuffer,
+    DynamicBufferMemoryAllocator: DynamicBufferMemoryAllocator,
+    Material: Material,
+    MemoryAllocator: MemoryAllocator,
     PassParams: PassParams,
     RenderPass: RenderPass,
     RenderPassOrder: RenderPassOrder,
@@ -4957,7 +5032,9 @@ var index = /*#__PURE__*/Object.freeze({
     Shader: Shader,
     ShaderLoader: ShaderLoader,
     Texture: Texture,
-    TextureSampler: TextureSampler
+    TextureArray: TextureArray,
+    TextureSampler: TextureSampler,
+    Topology: Topology
 });
 
-export { Component, index$2 as Components, index as GPU, GameObject, Geometry, IndexAttribute, index$1 as Mathf, PBRMaterial, Renderer, Scene, Texture, Utils, VertexAttribute };
+export { Component, index$2 as Components, EventSystem, EventSystemLocal, index as GPU, GameObject, Geometry, IndexAttribute, InterleavedVertexAttribute, index$1 as Mathf, PBRMaterial, Renderer, Scene, Texture, index$3 as Utils, VertexAttribute };

@@ -1,4 +1,4 @@
-import "./resources/UIStats.css";
+import styles from "./resources/UIStats.css";
 
 class Stat {
     protected statContainer: HTMLDivElement;
@@ -30,7 +30,7 @@ export class UIGraph extends Stat {
 
     constructor(folder: UIFolder, name: string, color = "white", lineWidth = 3) {
         super(folder.container, name);
-        
+
         this.canvas = document.createElement("canvas");
         this.canvas.classList.add("value");
         this.statContainer.append(this.canvas);
@@ -309,6 +309,14 @@ export class UIFolder extends Stat {
 
     constructor(container: HTMLDivElement | UIFolder, title: string) {
         super(container instanceof HTMLDivElement ? container : container.container, null);
+        // Inject styles
+        if (!document.head.querySelector("#uistats-styles")) {
+            const styleTag = document.createElement('style');
+            styleTag.id = "uistats-styles";
+            styleTag.textContent = styles;
+            document.head.appendChild(styleTag);
+        }
+
         this.folderElement = document.createElement("details");
         const folderTitle = document.createElement("summary");
         folderTitle.textContent = title;

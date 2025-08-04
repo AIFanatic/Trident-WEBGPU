@@ -7,7 +7,6 @@ import { TextureViewer } from "./passes/TextureViewer";
 import { PrepareGBuffers } from "./passes/PrepareGBuffers";
 import { DeferredShadowMapPass } from "./passes/DeferredShadowMapPass";
 import { DebuggerTextureViewer } from "./passes/DebuggerTextureViewer";
-import { RendererDebug } from "./RendererDebug";
 import { CubeTexture } from "./Texture";
 import { DeferredGBufferPass } from "./passes/DeferredGBufferPass";
 
@@ -69,10 +68,10 @@ export class RenderingPipeline {
         this.renderGraph = new RenderGraph();
         this.beforeGBufferPasses = [
             this.prepareGBuffersPass,
-            new DeferredGBufferPass(),
         ];
         
         this.afterGBufferPasses = [
+            new DeferredGBufferPass(),
             new DeferredShadowMapPass(),
         ];
 
@@ -114,20 +113,20 @@ export class RenderingPipeline {
     }
 
     public Render(scene: Scene) {
-        RendererDebug.ResetFrame();
-        RendererDebug.SetTriangleCount(0);
+        Renderer.info.ResetFrame();
+        Renderer.info.triangleCount = 0;
         
         const renderPipelineStart = performance.now();
         Renderer.BeginRenderFrame();
         
         this.renderGraph.execute();
         Renderer.EndRenderFrame();
-        RendererDebug.SetCPUTime(performance.now() - renderPipelineStart);
+        Renderer.info.cpuTime = performance.now() - renderPipelineStart;
 
         WEBGPUTimestampQuery.GetResult().then(frameTimes => {
             if (frameTimes) {
                 for (const [name, time] of frameTimes) {
-                    RendererDebug.SetPassTime(name, time);
+                    Renderer.info.SetPassTime(name, time);
                 }
             }
         });
@@ -135,7 +134,7 @@ export class RenderingPipeline {
         const currentTime = performance.now();
         const elapsed = currentTime - this.previousTime;
         this.previousTime = currentTime;
-        RendererDebug.SetFPS(1 / elapsed * 1000);
+        Renderer.info.fps = 1 / elapsed * 1000;
 
         this.frame++;
     }

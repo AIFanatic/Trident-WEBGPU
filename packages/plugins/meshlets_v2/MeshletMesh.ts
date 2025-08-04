@@ -1,9 +1,11 @@
-import { Geometry, InterleavedVertexAttribute } from "@trident/core/Geometry";
-import { Components } from "@trident/core";
-import { Mathf }  from "@trident/core";
+import {
+    Geometry, InterleavedVertexAttribute,
+    Components,
+    EventSystem, EventSystemLocal,
+    Mathf
+}  from "@trident/core";
 import { Meshlet } from "./Meshlet";
-import { EventSystemLocal, EventSystem } from "@trident/core/Events";
-import { TransformEvents } from "@trident/core/components/Transform";
+
 import { MeshletEvents } from "./MeshletEvents";
 import { Meshoptimizer } from "./nv_cluster_lod_builder/meshoptimizer/Meshoptimizer";
 import { MeshInput, vec3 } from "./nv_cluster_lod_builder/nvclusterlod_mesh";
@@ -19,7 +21,7 @@ export class MeshletMesh extends Components.Mesh {
     public meshlets: Meshlet[] = [];
     
     public Start(): void {
-        EventSystemLocal.on(TransformEvents.Updated, this.transform, () => {
+        EventSystemLocal.on(Components.TransformEvents.Updated, this.transform, () => {
             EventSystem.emit(MeshletEvents.Updated, this);
         })
     }

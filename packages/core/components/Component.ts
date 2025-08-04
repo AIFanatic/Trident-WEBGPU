@@ -1,7 +1,7 @@
 import { EventSystem } from "../Events";
 import { GameObject } from "../GameObject";
 import { Scene } from "../Scene";
-import { Utils } from "../utils/Utils";
+import { UUID } from "../utils";
 import { Transform } from "./Transform";
 
 export class ComponentEvents {
@@ -11,7 +11,7 @@ export class ComponentEvents {
 }
 
 export class Component {
-    public id = Utils.UUID();
+    public id = UUID();
     public enabled: boolean = true;
     public hasStarted: boolean = false;
     public name: string;

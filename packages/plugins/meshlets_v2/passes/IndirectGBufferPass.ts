@@ -1,30 +1,27 @@
-import { Geometry, VertexAttribute } from "../../../Geometry";
-import { Camera } from "../../../components/Camera";
-import { Meshlet } from "../../../plugins/meshlets/Meshlet";
-import { RenderPass, ResourcePool } from "../../../renderer/RenderGraph";
-import { PassParams } from "../../../renderer/RenderingPipeline";
-import { Shader } from "../../../renderer/Shader";
-import { ShaderLoader } from "../../../renderer/ShaderUtils";
-import { TextureSampler } from "../../../renderer/TextureSampler";
-import { MeshletPassParams } from "./MeshletDraw";
-import { Buffer } from "../../../renderer/Buffer";
-import { RenderTarget, RendererContext } from "../../../renderer/RendererContext";
+import {
+    Geometry, VertexAttribute,
+    Components,
+    GPU
+} from "@trident/core";
 
-export class IndirectGBufferPass extends RenderPass {
+import { MeshletPassParams } from "./MeshletDraw";
+import { Meshlet } from "../Meshlet";
+
+export class IndirectGBufferPass extends GPU.RenderPass {
     public name: string = "IndirectGBufferPass";
     
-    private shader: Shader;
+    private shader: GPU.Shader;
     private geometry: Geometry;
 
     constructor() {
         super({
             inputs: [
-                PassParams.DebugSettings,
-                PassParams.depthTexture,
-                PassParams.GBufferAlbedo,
-                PassParams.GBufferNormal,
-                PassParams.GBufferERMO,
-                PassParams.GBufferDepth,
+                GPU.PassParams.DebugSettings,
+                GPU.PassParams.depthTexture,
+                GPU.PassParams.GBufferAlbedo,
+                GPU.PassParams.GBufferNormal,
+                GPU.PassParams.GBufferERMO,
+                GPU.PassParams.GBufferDepth,
 
                 MeshletPassParams.indirectVertices,
                 MeshletPassParams.indirectInstanceInfo,
@@ -41,9 +38,9 @@ export class IndirectGBufferPass extends RenderPass {
         });
     }
 
-    public async init(resources: ResourcePool) {
-        this.shader = await Shader.Create({
-            code: await ShaderLoader.DrawIndirect,
+    public async init(resources: GPU.ResourcePool) {
+        this.shader = await GPU.Shader.Create({
+            code: await GPU.ShaderLoader.LoadURL(new URL("../resources/DrawIndirectGBuffer.wgsl", import.meta.url)),
             colorOutputs: [
                 {format: "rgba16float"},
                 {format: "rgba16float"},
@@ -77,28 +74,28 @@ export class IndirectGBufferPass extends RenderPass {
         this.geometry = new Geometry();
         this.geometry.attributes.set("position", new VertexAttribute(new Float32Array(Meshlet.max_triangles * 3)));
 
-        const materialSampler = TextureSampler.Create();
+        const materialSampler = GPU.TextureSampler.Create();
         this.shader.SetSampler("textureSampler", materialSampler);
         
         this.initialized = true;
     }
     
-    public execute(resources: ResourcePool) {
+    public execute(resources: GPU.ResourcePool) {
         if (!this.initialized) return;
 
-        const inputIndirectVertices = resources.getResource(MeshletPassParams.indirectVertices) as Buffer;
-        const inputIndirectMeshInfo = resources.getResource(MeshletPassParams.indirectMeshInfo) as Buffer;
-        const inputIndirectObjectInfo = resources.getResource(MeshletPassParams.indirectObjectInfo) as Buffer;
-        const inputIndirectMeshMatrixInfo = resources.getResource(MeshletPassParams.indirectMeshMatrixInfo) as Buffer;
-        const inputIndirectInstanceInfo = resources.getResource(MeshletPassParams.indirectInstanceInfo) as Buffer;
-        const inputIndirectDrawBuffer = resources.getResource(MeshletPassParams.indirectDrawBuffer) as Buffer;
+        const inputIndirectVertices = resources.getResource(MeshletPassParams.indirectVertices) as GPU.Buffer;
+        const inputIndirectMeshInfo = resources.getResource(MeshletPassParams.indirectMeshInfo) as GPU.Buffer;
+        const inputIndirectObjectInfo = resources.getResource(MeshletPassParams.indirectObjectInfo) as GPU.Buffer;
+        const inputIndirectMeshMatrixInfo = resources.getResource(MeshletPassParams.indirectMeshMatrixInfo) as GPU.Buffer;
+        const inputIndirectInstanceInfo = resources.getResource(MeshletPassParams.indirectInstanceInfo) as GPU.Buffer;
+        const inputIndirectDrawBuffer = resources.getResource(MeshletPassParams.indirectDrawBuffer) as GPU.Buffer;
         const textureMaps = resources.getResource(MeshletPassParams.textureMaps);
 
         if (!inputIndirectVertices) return;
         if (!inputIndirectInstanceInfo) return;
         
         
-        const mainCamera = Camera.mainCamera;
+        const mainCamera = Components.Camera.mainCamera;
         this.shader.SetMatrix4("viewMatrix", mainCamera.viewMatrix);
         this.shader.SetMatrix4("projectionMatrix", mainCamera.projectionMatrix);
 
@@ -113,21 +110,21 @@ export class IndirectGBufferPass extends RenderPass {
         if (textureMaps.metalness) this.shader.SetTexture("metalnessMaps", textureMaps.metalness);
         if (textureMaps.emissive) this.shader.SetTexture("emissiveMaps", textureMaps.emissive);
 
-        this.shader.SetArray("settings", resources.getResource(PassParams.DebugSettings));
+        this.shader.SetArray("settings", resources.getResource(GPU.PassParams.DebugSettings));
         this.shader.SetArray("meshletSettings", resources.getResource(MeshletPassParams.meshletSettings));
 
-        const gBufferAlbedoRT = resources.getResource(PassParams.GBufferAlbedo);
-        const gBufferNormalRT = resources.getResource(PassParams.GBufferNormal);
-        const gBufferERMORT = resources.getResource(PassParams.GBufferERMO);
-        const gBufferDepthRT = resources.getResource(PassParams.GBufferDepth);
+        const gBufferAlbedoRT = resources.getResource(GPU.PassParams.GBufferAlbedo);
+        const gBufferNormalRT = resources.getResource(GPU.PassParams.GBufferNormal);
+        const gBufferERMORT = resources.getResource(GPU.PassParams.GBufferERMO);
+        const gBufferDepthRT = resources.getResource(GPU.PassParams.GBufferDepth);
 
-        const colorTargets: RenderTarget[] = [
+        const colorTargets: GPU.RenderTarget[] = [
             {target: gBufferAlbedoRT, clear: true},
             {target: gBufferNormalRT, clear: true},
             {target: gBufferERMORT, clear: true},
         ];
-        RendererContext.BeginRenderPass(`IGBuffer - prepass: ${+true}`, colorTargets, {target: gBufferDepthRT, clear: true}, true);
-        RendererContext.DrawIndirect(this.geometry, this.shader, inputIndirectDrawBuffer);
-        RendererContext.EndRenderPass();
+        GPU.RendererContext.BeginRenderPass(`IGBuffer - prepass: ${+true}`, colorTargets, {target: gBufferDepthRT, clear: true}, true);
+        GPU.RendererContext.DrawIndirect(this.geometry, this.shader, inputIndirectDrawBuffer);
+        GPU.RendererContext.EndRenderPass();
     }
 }

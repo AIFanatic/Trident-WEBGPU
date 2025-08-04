@@ -17,12 +17,12 @@
 // import * as TEST from "./examples/MeshletsV2";
 // import * as TEST from "./examples/TerrainV2";
 // import * as TEST from "./examples/MeshletsV3";
-// import * as TEST from "./examples/MeshletsV4";
+import "./Meshlets";
 // import * as TEST from "./examples/BindlessTexture";
-import * as TEST from "./Water";
-// import * as TEST from "./examples/Skybox";
-// import * as TEST from "./examples/VPLS";
-// import * as TEST from "./examples/SSGI";
+import "./Water";
+// import "./Skybox";
+// import "./VPLS";
+import "./Bloom";
 // import * as TEST from "./examples/deno";
 // import * as TEST from "./examples/Impostors";
 // import * as TEST from "./examples/Custom_Render";
@@ -47,7 +47,6 @@ import * as TEST from "./Water";
 // import * as TEST from "./examples/Stadium";
 
 // import * as TEST from "./examples/NanitePort/Nanite";
-TEST
 
 
 // export { OBJLoaderIndexed } from "./plugins/OBJLoader";

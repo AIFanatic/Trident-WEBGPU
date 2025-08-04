@@ -1,12 +1,14 @@
-import { EventSystem } from "../../../Events";
-import { Camera } from "../../../components/Camera";
-import { MeshletMesh } from "../MeshletMesh";
-import { PBRMaterial } from "../../../renderer/Material";
-import { RenderPass, ResourcePool } from "../../../renderer/RenderGraph";
-import { RendererContext } from "../../../renderer/RendererContext";
-import { RenderTexture, Texture, TextureArray } from "../../../renderer/Texture";
-import { DynamicBufferMemoryAllocator } from "../../../utils/MemoryAllocator";
+import {
+    EventSystem,
+    Components,
+    PBRMaterial,
+    Mathf,
+    GPU
+} from "@trident/core";
+
+
 import { Meshlet } from "../Meshlet";
+import { MeshletMesh } from "../MeshletMesh";
 import { MeshletPassParams } from "./MeshletDraw";
 import { MeshletEvents } from "../MeshletEvents";
 import { MeshletDebug } from "./MeshletDebug";
@@ -17,36 +19,36 @@ interface SceneMesh {
 };
 
 export interface TextureMaps {
-    albedo: Texture;
-    normal: Texture;
-    height: Texture;
-    metalness: Texture;
-    emissive: Texture;
+    albedo: GPU.Texture;
+    normal: GPU.Texture;
+    height: GPU.Texture;
+    metalness: GPU.Texture;
+    emissive: GPU.Texture;
 };
 
-export class PrepareSceneData extends RenderPass {
+export class PrepareSceneData extends GPU.RenderPass {
     public name: string = "PrepareSceneData";
-    private objectInfoBuffer: DynamicBufferMemoryAllocator;
-    private vertexBuffer: DynamicBufferMemoryAllocator;
+    private objectInfoBuffer: GPU.DynamicBufferMemoryAllocator;
+    private vertexBuffer: GPU.DynamicBufferMemoryAllocator;
 
-    private meshMaterialInfo: DynamicBufferMemoryAllocator;
-    private meshMatrixInfoBuffer: DynamicBufferMemoryAllocator;
-    private meshletInfoBuffer: DynamicBufferMemoryAllocator;
+    private meshMaterialInfo: GPU.DynamicBufferMemoryAllocator;
+    private meshMatrixInfoBuffer: GPU.DynamicBufferMemoryAllocator;
+    private meshletInfoBuffer: GPU.DynamicBufferMemoryAllocator;
 
     private currentMeshCount: number = 0;
     private currentMeshletsCount: number = 0;
     
     private materialIndexCache: Map<string, number> = new Map();
-    private albedoMaps: Texture[] = [];
-    private normalMaps: Texture[] = [];
-    private heightMaps: Texture[] = [];
-    private metalnessMaps: Texture[] = [];
-    private emissiveMaps: Texture[] = [];
+    private albedoMaps: GPU.Texture[] = [];
+    private normalMaps: GPU.Texture[] = [];
+    private heightMaps: GPU.Texture[] = [];
+    private metalnessMaps: GPU.Texture[] = [];
+    private emissiveMaps: GPU.Texture[] = [];
     
     private textureMaps: TextureMaps;
-    private materialMaps: Map<string, Texture> = new Map();
+    private materialMaps: Map<string, GPU.Texture> = new Map();
 
-    private dummyTexture: TextureArray;
+    private dummyTexture: GPU.TextureArray;
 
     constructor() {
         super({
@@ -62,13 +64,13 @@ export class PrepareSceneData extends RenderPass {
         });
     }
 
-    public async init(resources: ResourcePool) {
+    public async init(resources: GPU.ResourcePool) {
         const bufferSize = 1024 * 100 * 1;
-        this.meshMatrixInfoBuffer = new DynamicBufferMemoryAllocator(bufferSize);
-        this.meshMaterialInfo = new DynamicBufferMemoryAllocator(bufferSize);
-        this.meshletInfoBuffer = new DynamicBufferMemoryAllocator(bufferSize);
-        this.vertexBuffer = new DynamicBufferMemoryAllocator(3072 * 10, 3072 * 10);
-        this.objectInfoBuffer = new DynamicBufferMemoryAllocator(bufferSize);
+        this.meshMatrixInfoBuffer = new GPU.DynamicBufferMemoryAllocator(bufferSize);
+        this.meshMaterialInfo = new GPU.DynamicBufferMemoryAllocator(bufferSize);
+        this.meshletInfoBuffer = new GPU.DynamicBufferMemoryAllocator(bufferSize);
+        this.vertexBuffer = new GPU.DynamicBufferMemoryAllocator(3072 * 10, 3072 * 10);
+        this.objectInfoBuffer = new GPU.DynamicBufferMemoryAllocator(bufferSize);
 
         EventSystem.on(MeshletEvents.Updated, meshlet => {
             if (this.meshMatrixInfoBuffer.has(meshlet.id)) {
@@ -91,7 +93,7 @@ export class PrepareSceneData extends RenderPass {
 
         // })
 
-        this.dummyTexture = TextureArray.Create(1, 1, 1);
+        this.dummyTexture = GPU.TextureArray.Create(1, 1, 1);
         
         this.initialized = true;
     }
@@ -154,7 +156,7 @@ export class PrepareSceneData extends RenderPass {
         ]);
     }
 
-    private processMaterialMap(materialMap: Texture | undefined, type: "albedo" | "normal" | "height" | "metalness" | "emissive"): number {
+    private processMaterialMap(materialMap: GPU.Texture | undefined, type: "albedo" | "normal" | "height" | "metalness" | "emissive"): number {
         if (materialMap) {
             let materialIndexCached = this.materialIndexCache.get(materialMap.id);
             if (materialIndexCached === undefined) {
@@ -172,7 +174,7 @@ export class PrepareSceneData extends RenderPass {
         return -1;
     }
 
-    private createMaterialMap(textures: Texture[], type: "albedo" | "normal" | "height" | "metalness" | "emissive"): Texture {
+    private createMaterialMap(textures: GPU.Texture[], type: "albedo" | "normal" | "height" | "metalness" | "emissive"): GPU.Texture {
         if (textures.length === 0) return this.dummyTexture;
         
         const w = textures[0].width;
@@ -180,7 +182,7 @@ export class PrepareSceneData extends RenderPass {
 
         let materialMap = this.materialMaps.get(type);
         if (materialMap === undefined) {
-            materialMap = TextureArray.Create(w, h, textures.length);
+            materialMap = GPU.TextureArray.Create(w, h, textures.length);
             materialMap.SetActiveLayer(0);
             this.materialMaps.set(type, materialMap); // TODO: Doesnt allow expansion
         }
@@ -188,15 +190,15 @@ export class PrepareSceneData extends RenderPass {
         for (let i = 0; i < textures.length; i++) {
             if (textures[i].width !== w || textures[i].height !== h) {
                 console.warn(`Creating blank texture because dimensions dont match`, w, h, textures[i].width, textures[i].height);
-                const t = RenderTexture.Create(w, h);
+                const t = GPU.RenderTexture.Create(w, h);
 
                 // Texture.Blit(textures[i], t, w, h);
-                RendererContext.CopyTextureToTextureV2(t, materialMap, 0, 0, [w, h, 1], i);
+                GPU.RendererContext.CopyTextureToTextureV2(t, materialMap, 0, 0, [w, h, 1], i);
                 
                 continue;
             }
 
-            RendererContext.CopyTextureToTextureV2(textures[i], materialMap, 0, 0, [w, h, 1], i);
+            GPU.RendererContext.CopyTextureToTextureV2(textures[i], materialMap, 0, 0, [w, h, 1], i);
         }
         return materialMap;
     }
@@ -208,8 +210,8 @@ export class PrepareSceneData extends RenderPass {
     // // Render/compute. No buffer/texture creation of filling is allowed.
     // public execute(resources: ResourcePool) {}
 
-    public execute(resources: ResourcePool) {
-        const mainCamera = Camera.mainCamera;
+    public execute(resources: GPU.ResourcePool) {
+        const mainCamera = Components.Camera.mainCamera;
         const scene = mainCamera.gameObject.scene;
         const sceneMeshlets = [...scene.GetComponents(MeshletMesh)];
 

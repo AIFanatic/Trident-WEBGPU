@@ -1,46 +1,40 @@
-import { Light } from "../components/Light";
-import { RenderPass, ResourcePool } from "../renderer/RenderGraph";
-import { Shader } from "../renderer/Shader";
-import { RenderTexture, Texture } from "../renderer/Texture";
-import { Buffer, BufferType } from "../renderer/Buffer";
-import { TextureSampler } from "../renderer/TextureSampler";
-import { Transform } from "../components/Transform";
-import { Mesh } from "../components/Mesh";
-import { RendererContext } from "../renderer/RendererContext";
-import { PBRMaterial } from "../renderer/Material";
-import { Camera } from "../components/Camera";
+import {
+    Components,
+    GPU,
+    PBRMaterial
+} from "@trident/core";
 
-export class RSMRenderPass extends RenderPass {
+export class RSMRenderPass extends GPU.RenderPass {
     public name: string = "RSMRenderPass";
 
-    private light: Light;
+    private light: Components.Light;
 
-    public rsmDepth: RenderTexture;
-    public rsmNormal: RenderTexture;
-    public rsmFlux: RenderTexture;
-    public rsmWorldPosition: RenderTexture;
+    public rsmDepth: GPU.RenderTexture;
+    public rsmNormal: GPU.RenderTexture;
+    public rsmFlux: GPU.RenderTexture;
+    public rsmWorldPosition: GPU.RenderTexture;
 
-    private shader: Shader;
+    private shader: GPU.Shader;
 
-    private modelMatrixBuffer: Buffer;
-    private colorBuffer: Buffer;
+    private modelMatrixBuffer: GPU.Buffer;
+    private colorBuffer: GPU.Buffer;
 
-    private dummyAlbedo: Texture;
+    private dummyAlbedo: GPU.Texture;
 
-    constructor(light: Light, RSM_RES: number) {
+    constructor(light: Components.Light, RSM_RES: number) {
         super({});
         this.light = light;
 
-        this.rsmDepth = RenderTexture.Create(RSM_RES, RSM_RES, 1, "rgba16float");
-        this.rsmNormal = RenderTexture.Create(RSM_RES, RSM_RES, 1, "rgba16float");
-        this.rsmFlux = RenderTexture.Create(RSM_RES, RSM_RES, 1, "rgba16float");
-        this.rsmWorldPosition = RenderTexture.Create(RSM_RES, RSM_RES, 1, "rgba16float");
-        this.dummyAlbedo = Texture.Create(1,1, 1, "bgra8unorm");
+        this.rsmDepth = GPU.RenderTexture.Create(RSM_RES, RSM_RES, 1, "rgba16float");
+        this.rsmNormal = GPU.RenderTexture.Create(RSM_RES, RSM_RES, 1, "rgba16float");
+        this.rsmFlux = GPU.RenderTexture.Create(RSM_RES, RSM_RES, 1, "rgba16float");
+        this.rsmWorldPosition = GPU.RenderTexture.Create(RSM_RES, RSM_RES, 1, "rgba16float");
+        this.dummyAlbedo = GPU.Texture.Create(1,1, 1, "bgra8unorm");
         this.dummyAlbedo.SetData(new Uint8Array([255, 255, 255, 255]));
     }
 
-    public async init(resources: ResourcePool) {
-        this.shader = await Shader.Create({
+    public async init(resources: GPU.ResourcePool) {
+        this.shader = await GPU.Shader.Create({
             code: `
             struct VertexInput {
                 @builtin(instance_index) instanceIdx : u32, 
@@ -121,29 +115,29 @@ export class RSMRenderPass extends RenderPass {
             },
         })
 
-        this.modelMatrixBuffer = Buffer.Create(16 * 4, BufferType.STORAGE);
-        this.colorBuffer = Buffer.Create(4 * 4, BufferType.STORAGE);
+        this.modelMatrixBuffer = GPU.Buffer.Create(16 * 4, GPU.BufferType.STORAGE);
+        this.colorBuffer = GPU.Buffer.Create(4 * 4, GPU.BufferType.STORAGE);
 
-        this.shader.SetSampler("texSampler", TextureSampler.Create());
+        this.shader.SetSampler("texSampler", GPU.TextureSampler.Create());
 
         this.initialized = true;
     }
 
-    private matrices: Map<Transform, Buffer> = new Map();
-    private modelColors: Map<Transform, Buffer> = new Map();
+    private matrices: Map<Components.Transform, GPU.Buffer> = new Map();
+    private modelColors: Map<Components.Transform, GPU.Buffer> = new Map();
 
-    public execute(resources: ResourcePool, ...args: any): void {
+    public execute(resources: GPU.ResourcePool, ...args: any): void {
         if (!this.initialized) return;
        
-        const scene = Camera.mainCamera.gameObject.scene;
-        const meshes = scene.GetComponents(Mesh);
+        const scene = Components.Camera.mainCamera.gameObject.scene;
+        const meshes = scene.GetComponents(Components.Mesh);
 
         this.shader.SetArray("projectionMatrix", this.light.camera.projectionMatrix.elements);
         this.shader.SetArray("viewMatrix", this.light.camera.viewMatrix.elements);
         this.shader.SetBuffer("modelMatrix", this.modelMatrixBuffer);
         this.shader.SetBuffer("color", this.colorBuffer);
 
-        RendererContext.BeginRenderPass(this.name + " - clear",
+        GPU.RendererContext.BeginRenderPass(this.name + " - clear",
             [
                 { target: this.rsmDepth, clear: true },
                 { target: this.rsmNormal, clear: true },
@@ -153,7 +147,7 @@ export class RSMRenderPass extends RenderPass {
             undefined
             , true);
 
-        RendererContext.EndRenderPass();
+        GPU.RendererContext.EndRenderPass();
 
         for (let i = 0; i < meshes.length; i++) {
             const mesh = meshes[i];
@@ -170,14 +164,14 @@ export class RSMRenderPass extends RenderPass {
 
             let modelMatrixBuffer = this.matrices.get(mesh.transform);
             if (!modelMatrixBuffer) {
-                modelMatrixBuffer = Buffer.Create(16 * 4, BufferType.STORAGE);
+                modelMatrixBuffer = GPU.Buffer.Create(16 * 4, GPU.BufferType.STORAGE);
                 modelMatrixBuffer.SetArray(mesh.transform.localToWorldMatrix.elements);
                 this.matrices.set(mesh.transform, modelMatrixBuffer);
             }
 
             let colorBuffer = this.modelColors.get(mesh.transform);
             if (!colorBuffer) {
-                colorBuffer = Buffer.Create(4 * 4., BufferType.STORAGE);
+                colorBuffer = GPU.Buffer.Create(4 * 4., GPU.BufferType.STORAGE);
                 colorBuffer.SetArray(material.params.albedoColor.elements);
                 this.modelColors.set(mesh.transform, colorBuffer);
             }
@@ -189,10 +183,10 @@ export class RSMRenderPass extends RenderPass {
                 this.shader.SetTexture("albedoMap", this.dummyAlbedo);
             }
 
-            RendererContext.CopyBufferToBuffer(modelMatrixBuffer, this.modelMatrixBuffer);
-            RendererContext.CopyBufferToBuffer(colorBuffer, this.colorBuffer);
+            GPU.RendererContext.CopyBufferToBuffer(modelMatrixBuffer, this.modelMatrixBuffer);
+            GPU.RendererContext.CopyBufferToBuffer(colorBuffer, this.colorBuffer);
 
-            RendererContext.BeginRenderPass(this.name,
+            GPU.RendererContext.BeginRenderPass(this.name,
                 [
                     { target: this.rsmDepth, clear: false },
                     { target: this.rsmNormal, clear: false },
@@ -202,9 +196,9 @@ export class RSMRenderPass extends RenderPass {
                 undefined
                 , true);
 
-            RendererContext.DrawGeometry(geometry, this.shader, 1);
+            GPU.RendererContext.DrawGeometry(geometry, this.shader, 1);
 
-            RendererContext.EndRenderPass();
+            GPU.RendererContext.EndRenderPass();
         }
     }
 }

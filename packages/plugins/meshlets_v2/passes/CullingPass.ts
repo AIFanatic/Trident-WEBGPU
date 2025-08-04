@@ -1,33 +1,25 @@
-import { Frustum } from "../../../math/Frustum";
-import { RenderPass, ResourcePool } from "../../../renderer/RenderGraph";
-import { PassParams } from "../../../renderer/RenderingPipeline";
-import { Compute } from "../../../renderer/Shader";
-import { ShaderLoader } from "../../../renderer/ShaderUtils";
+import {
+    Components,
+    Mathf,
+    GPU
+} from "@trident/core";
+
 import { MeshletPassParams } from "./MeshletDraw";
-
-import { Buffer, BufferType } from "../../../renderer/Buffer";
-import { TextureSampler } from "../../../renderer/TextureSampler";
-import { Camera } from "../../../components/Camera";
-import { Renderer } from "../../../renderer/Renderer";
-import { RendererContext } from "../../../renderer/RendererContext";
-import { ComputeContext } from "../../../renderer/ComputeContext";
-import { Meshlet } from "../Meshlet";
 import { MeshletDebug } from "./MeshletDebug";
-import { RendererDebug } from "../../../renderer/RendererDebug";
 
-export class CullingPass extends RenderPass {
+export class CullingPass extends GPU.RenderPass {
     public name: string = "CullingPass";
 
-    private drawIndirectBuffer: Buffer;
-    private compute: Compute;
+    private drawIndirectBuffer: GPU.Buffer;
+    private compute: GPU.Compute;
 
-    private cullData: Buffer;
-    private frustum: Frustum = new Frustum();
+    private cullData: GPU.Buffer;
+    private frustum: Mathf.Frustum = new Mathf.Frustum();
 
-    private visibilityBuffer: Buffer;
-    private instanceInfoBuffer: Buffer;
+    private visibilityBuffer: GPU.Buffer;
+    private instanceInfoBuffer: GPU.Buffer;
 
-    private debugBuffer: Buffer;
+    private debugBuffer: GPU.Buffer;
 
     constructor() {
         super({
@@ -42,18 +34,18 @@ export class CullingPass extends RenderPass {
                 MeshletPassParams.indirectDrawBuffer,
                 MeshletPassParams.indirectInstanceInfo,
 
-                PassParams.GBufferAlbedo,
-                PassParams.GBufferNormal,
-                PassParams.GBufferERMO,
-                PassParams.GBufferDepth,
-                PassParams.GBufferDepth
+                GPU.PassParams.GBufferAlbedo,
+                GPU.PassParams.GBufferNormal,
+                GPU.PassParams.GBufferERMO,
+                GPU.PassParams.GBufferDepth,
+                GPU.PassParams.GBufferDepth
             ]
         });
     }
 
-    public async init(resources: ResourcePool) {
-        this.compute = await Compute.Create({
-            code: await ShaderLoader.Cull,
+    public async init(resources: GPU.ResourcePool) {
+        this.compute = await GPU.Compute.Create({
+            code: await GPU.ShaderLoader.LoadURL(new URL("../resources/Cull.wgsl", import.meta.url)),
             computeEntrypoint: "main",
             uniforms: {
                 drawBuffer: {group: 0, binding: 0, type: "storage-write"},
@@ -74,35 +66,35 @@ export class CullingPass extends RenderPass {
             }
         });
 
-        this.drawIndirectBuffer = Buffer.Create(4 * 4, BufferType.INDIRECT);
+        this.drawIndirectBuffer = GPU.Buffer.Create(4 * 4, GPU.BufferType.INDIRECT);
         this.drawIndirectBuffer.name = "drawIndirectBuffer";
         this.compute.SetBuffer("drawBuffer", this.drawIndirectBuffer);
 
 
-        const sampler = TextureSampler.Create({magFilter: "nearest", minFilter: "nearest"});
+        const sampler = GPU.TextureSampler.Create({magFilter: "nearest", minFilter: "nearest"});
         this.compute.SetSampler("textureSampler", sampler);
 
-        this.debugBuffer = Buffer.Create(4 * 4, BufferType.STORAGE);
+        this.debugBuffer = GPU.Buffer.Create(4 * 4, GPU.BufferType.STORAGE);
     }
 
-    public execute(resources: ResourcePool) {
-        const mainCamera = Camera.mainCamera;
+    public execute(resources: GPU.ResourcePool) {
+        const mainCamera = Components.Camera.mainCamera;
 
         const meshletCount = resources.getResource(MeshletPassParams.meshletsCount) as number;
-        const meshletInfoBuffer = resources.getResource(MeshletPassParams.indirectMeshletInfo) as Buffer;
-        const objectInfoBuffer = resources.getResource(MeshletPassParams.indirectObjectInfo) as Buffer;
-        const meshMatrixInfoBuffer = resources.getResource(MeshletPassParams.indirectMeshMatrixInfo) as Buffer;
+        const meshletInfoBuffer = resources.getResource(MeshletPassParams.indirectMeshletInfo) as GPU.Buffer;
+        const objectInfoBuffer = resources.getResource(MeshletPassParams.indirectObjectInfo) as GPU.Buffer;
+        const meshMatrixInfoBuffer = resources.getResource(MeshletPassParams.indirectMeshMatrixInfo) as GPU.Buffer;
         
         if (meshletCount === 0) return;
 
         if (!this.visibilityBuffer) {
             const visibilityBufferArray = new Float32Array(meshletCount).fill(1);
-            this.visibilityBuffer = Buffer.Create(visibilityBufferArray.byteLength, BufferType.STORAGE_WRITE);
+            this.visibilityBuffer = GPU.Buffer.Create(visibilityBufferArray.byteLength, GPU.BufferType.STORAGE_WRITE);
             this.visibilityBuffer.SetArray(visibilityBufferArray);
         }
         if (!this.instanceInfoBuffer) {
             console.log("meshletCount", meshletCount)
-            this.instanceInfoBuffer = Buffer.Create(meshletCount * 1 * 4, BufferType.STORAGE_WRITE);
+            this.instanceInfoBuffer = GPU.Buffer.Create(meshletCount * 1 * 4, GPU.BufferType.STORAGE_WRITE);
             this.instanceInfoBuffer.name = "instanceInfoBuffer"
         }
 
@@ -125,12 +117,12 @@ export class CullingPass extends RenderPass {
             ...this.frustum.planes[4].normal.elements, this.frustum.planes[4].constant,
             ...this.frustum.planes[5].normal.elements, this.frustum.planes[5].constant,
             meshletCount, 0,
-            Renderer.width, Renderer.height,0,0,
+            GPU.Renderer.width, GPU.Renderer.height,0,0,
             mainCamera.near, mainCamera.far,
             ...mainCamera.projectionMatrix.clone().transpose().elements,
         ])
         if (!this.cullData) {
-            this.cullData = Buffer.Create(cullDataArray.byteLength, BufferType.STORAGE);
+            this.cullData = GPU.Buffer.Create(cullDataArray.byteLength, GPU.BufferType.STORAGE);
             this.cullData.name = "cullData";
             this.compute.SetBuffer("cullData", this.cullData);
         }
@@ -139,19 +131,19 @@ export class CullingPass extends RenderPass {
         this.compute.SetArray("meshletSettings", resources.getResource(MeshletPassParams.meshletSettings));
 
         
-        RendererContext.CopyBufferToBuffer(this.drawIndirectBuffer, this.debugBuffer);
+        GPU.RendererContext.CopyBufferToBuffer(this.drawIndirectBuffer, this.debugBuffer);
 
 
-        RendererContext.ClearBuffer(this.drawIndirectBuffer);
+        GPU.RendererContext.ClearBuffer(this.drawIndirectBuffer);
 
         // Calculate dispatch sizes based on the cube root approximation
         const dispatchSizeX = Math.ceil(Math.cbrt(meshletCount) / 4);
         const dispatchSizeY = Math.ceil(Math.cbrt(meshletCount) / 4);
         const dispatchSizeZ = Math.ceil(Math.cbrt(meshletCount) / 4);
 
-        ComputeContext.BeginComputePass(`Culling`, true);
-        ComputeContext.Dispatch(this.compute, dispatchSizeX, dispatchSizeY, dispatchSizeZ);
-        ComputeContext.EndComputePass();
+        GPU.ComputeContext.BeginComputePass(`Culling`, true);
+        GPU.ComputeContext.Dispatch(this.compute, dispatchSizeX, dispatchSizeY, dispatchSizeZ);
+        GPU.ComputeContext.EndComputePass();
 
         resources.setResource(MeshletPassParams.indirectDrawBuffer, this.drawIndirectBuffer);
         resources.setResource(MeshletPassParams.indirectInstanceInfo, this.instanceInfoBuffer);
@@ -159,8 +151,8 @@ export class CullingPass extends RenderPass {
         this.debugBuffer.GetData().then(v => {
             const visibleMeshCount = new Uint32Array(v)[1];
             MeshletDebug.visibleMeshes.SetValue(visibleMeshCount);
-            RendererDebug.SetTriangleCount(Meshlet.max_triangles * meshletCount);
-            RendererDebug.SetVisibleTriangleCount(Meshlet.max_triangles * visibleMeshCount);
+            // RendererDebug.SetTriangleCount(Meshlet.max_triangles * meshletCount);
+            // RendererDebug.visibleTriangles = Meshlet.max_triangles * visibleMeshCount;
         })
     }
 }

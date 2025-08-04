@@ -4,7 +4,7 @@ import { RenderPass, ResourcePool } from "../RenderGraph";
 import { Mesh } from "../../components/Mesh";
 import { PassParams } from "../RenderingPipeline";
 import { InstancedMesh } from "../../components/InstancedMesh";
-import { RendererDebug } from "../RendererDebug";
+import { Renderer } from "../Renderer";
 
 export class DeferredGBufferPass extends RenderPass {
     public name: string = "DeferredMeshRenderPass";
@@ -76,7 +76,7 @@ export class DeferredGBufferPass extends RenderPass {
                 shader.SetVector3("cameraPosition", inputCamera.transform.position);
                 RendererContext.DrawGeometry(geometry, shader, 1);
                 if (geometry.index) {
-                    RendererDebug.IncrementTriangleCount(geometry.index.array.length / 3);
+                    Renderer.info.triangleCount += geometry.index.array.length / 3;
                 }
             }
         }
@@ -99,12 +99,12 @@ export class DeferredGBufferPass extends RenderPass {
                 shader.SetVector3("cameraPosition", inputCamera.transform.position);
                 RendererContext.DrawGeometry(geometry, shader, instancedMesh.instanceCount+1);
                 if (geometry.index) {
-                    RendererDebug.IncrementTriangleCount(geometry.index.array.length / 3 * (instancedMesh.instanceCount + 1));
+                    Renderer.info.triangleCount = geometry.index.array.length / 3 * (instancedMesh.instanceCount + 1);
                 }
                 else {
                     const position = geometry.attributes.get("position");
                     if (position) {
-                        RendererDebug.IncrementTriangleCount(position.array.length / 3 / 3 * (instancedMesh.instanceCount + 1));
+                        Renderer.info.triangleCount = position.array.length / 3 / 3 * (instancedMesh.instanceCount + 1);
                     }
                 }
             }

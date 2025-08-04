@@ -1,5 +1,5 @@
 import { Assets } from "../Assets";
-import { Utils } from "../utils/Utils";
+import { StringFindAllBetween } from "../utils";
 import { Renderer } from "./Renderer";
 
 // import WGSL_Shader_Cull_URL from "../resources/webgpu/shaders/deferred/Cull.wgsl";
@@ -24,10 +24,10 @@ import WGSL_Shader_DeferredLighting_URL from "../resources/webgpu/shaders/deferr
 
 export class ShaderPreprocessor {
     public static ProcessDefines(code: string, defines: {[key: string]: boolean}): string {
-        const coditions = Utils.StringFindAllBetween(code, "#if", "#endif", false);
+        const coditions = StringFindAllBetween(code, "#if", "#endif", false);
     
         for (const condition of coditions) {
-            const variable = Utils.StringFindAllBetween(condition, "#if ", "\n")[0];
+            const variable = StringFindAllBetween(condition, "#if ", "\n")[0];
             const value = condition.replaceAll(`#if ${variable}`, "").replaceAll("#endif", "");
     
             if (defines[variable] === true) code = code.replaceAll(condition, value);
@@ -38,9 +38,9 @@ export class ShaderPreprocessor {
 
     public static async ProcessIncludes(code: string, url: string = "./"): Promise<string> {
         const basepath = url.substring(url.lastIndexOf("/"), -1) + "/";
-        const includes = Utils.StringFindAllBetween(code, "#include", "\n", false);
+        const includes = StringFindAllBetween(code, "#include", "\n", false);
         for (const includeStr of includes) {
-            const filenameArray = Utils.StringFindAllBetween(includeStr, '"', '"', true);
+            const filenameArray = StringFindAllBetween(includeStr, '"', '"', true);
             if (filenameArray.length !== 1) throw Error(`Invalid include ${filenameArray}`);
             const includeFullPath = filenameArray[0];
             const includePath = includeFullPath.substring(includeFullPath.lastIndexOf("/"), -1) + "/";
