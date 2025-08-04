@@ -25,3 +25,5 @@ export * from "./Bloom";
 
 export * from "./HiZPass";
 export * from "./meshlets_v2";
+
+export * from "./PhysicsRapier";

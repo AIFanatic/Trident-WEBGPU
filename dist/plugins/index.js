@@ -17,3 +17,8 @@ export { Bloom } from './Bloom.js';
 export { HiZPass } from './HiZPass.js';
 export { MeshletMesh } from './meshlets_v2/MeshletMesh.js';
 export { MeshletDraw } from './meshlets_v2/passes/MeshletDraw.js';
+export { TerrainCollider } from './PhysicsRapier/colliders/TerrainCollider.js';
+export { SphereCollider } from './PhysicsRapier/colliders/SphereCollider.js';
+export { PlaneCollider } from './PhysicsRapier/colliders/PlaneCollider.js';
+export { RigidBody } from './PhysicsRapier/RigidBody.js';
+export { PhysicsRapier } from './PhysicsRapier/PhysicsRapier.js';

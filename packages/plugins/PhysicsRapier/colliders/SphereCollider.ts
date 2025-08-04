@@ -1,4 +1,4 @@
-import { GameObject } from "../../../GameObject";
+import { GameObject } from "@trident/core";
 import { PhysicsRapier } from "../PhysicsRapier";
 import { Collider } from "./Collider";
 
