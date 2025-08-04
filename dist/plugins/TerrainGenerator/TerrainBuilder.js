@@ -1,5 +1,5 @@
 import { Geometry, VertexAttribute, IndexAttribute } from '@trident/core';
-import { SimplexNoise } from '@trident/plugins';
+import { SimplexNoise } from '@trident/plugins/SimplexNoise.js';
 
 const TerrainParamsDefaults = {
   baseScale: 5e-3,

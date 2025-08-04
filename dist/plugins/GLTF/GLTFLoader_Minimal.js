@@ -803,10 +803,7 @@ class GLTFLoader {
           }
         }
         const buffers = await Promise.all(bufferPromises);
-        for (let i = 0; i < buffers.length; i++) {
-          this.glTF.buffers[i] = buffers[i];
-          console.log(`buffer ${i} complete`);
-        }
+        for (let i = 0; i < buffers.length; i++) this.glTF.buffers[i] = buffers[i];
       }
       resolve();
     });
@@ -841,10 +838,7 @@ class GLTFLoader {
           }
         }
         const images = await Promise.all(imagePromises);
-        for (let i = 0; i < images.length; i++) {
-          this.glTF.images[i] = images[i];
-          console.log(`image ${i} complete`);
-        }
+        for (let i = 0; i < images.length; i++) this.glTF.images[i] = images[i];
       }
       resolve();
     });

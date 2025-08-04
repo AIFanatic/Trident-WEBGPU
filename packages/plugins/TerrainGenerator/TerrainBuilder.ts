@@ -1,5 +1,5 @@
 import { Geometry, IndexAttribute, VertexAttribute } from "@trident/core";
-import { SimplexNoise } from "@trident/plugins";
+import { SimplexNoise } from "@trident/plugins/SimplexNoise";
 
 export interface TerrainParams {
     baseScale: number;         // Scale for base terrain (controls size of hills)

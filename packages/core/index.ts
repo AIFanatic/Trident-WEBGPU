@@ -7,6 +7,7 @@ export { Renderer } from "./renderer/Renderer";
 export { EventSystem, EventSystemLocal } from "./Events";
 
 export { PBRMaterial } from "./renderer/Material";
+export type { PBRMaterialParams } from "./renderer/Material";
 
 export type { Object3D } from "./Object3D";
 

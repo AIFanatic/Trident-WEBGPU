@@ -23,6 +23,8 @@ import "./Water";
 // import "./Skybox";
 // import "./VPLS";
 import "./Bloom";
+import "./Terrain";
+import "./GLTF";
 // import * as TEST from "./examples/deno";
 // import * as TEST from "./examples/Impostors";
 // import * as TEST from "./examples/Custom_Render";

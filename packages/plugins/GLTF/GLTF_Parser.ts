@@ -67,7 +67,6 @@ export class GLTFParser {
         if (primitive.attributes.NORMAL) geometry.attributes.set("normal", new VertexAttribute(new Float32Array(primitive.attributes.NORMAL.bufferView.data)));
         if (primitive.attributes.TEXCOORD_0) geometry.attributes.set("uv", new VertexAttribute(new Float32Array(primitive.attributes.TEXCOORD_0.bufferView.data)));
         if (primitive.indices) {
-            console.log("primitive.indices.componentType", primitive.indices.componentType)
 
             // if (primitive.indices.componentType === AccessorComponentType.GL_UNSIGNED_SHORT) {
             //     geometry.index = new IndexAttribute(new Uint32Array(new Uint16Array(primitive.indices.bufferView.data)));
@@ -132,7 +131,6 @@ export class GLTFParser {
 
         if (node.extensions) {
             if (node.extensions.EXT_mesh_gpu_instancing) {
-                console.log(node.extensions.EXT_mesh_gpu_instancing)
                 if (!gltf.accessors) throw Error("No accessors");
                 const attributes = node.extensions.EXT_mesh_gpu_instancing.attributes;
                 const translation = new Float32Array(gltf.accessors[attributes.TRANSLATION].bufferView.data);
@@ -190,7 +188,6 @@ export class GLTFParser {
         return new GLTFLoader().loadGLTF(url).then(async gltf => {
             if (!gltf || !gltf.scenes) throw Error("Invalid gltf");
 
-            console.log(gltf)
             const sceneObject3D: Object3D = {
                 children: []
             }
