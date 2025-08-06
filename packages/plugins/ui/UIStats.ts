@@ -237,30 +237,50 @@ export class UIColorStat extends Stat {
     }
 }
 
-export interface Vec3 {x: number, y: number, z: number};
+type Vec3 = {x: number, y: number, z: number};
+type Vec4 = {x: number, y: number, z: number, w: number};
+
+interface VecEntry {
+    value: number;
+    min: number;
+    max: number;
+    step: number;
+}
 
 export class UIVecStat extends Stat {
-    private value: Vec3;
-    constructor(folder: UIFolder, label: string, value: Vec3, onChanged: (value: Vec3) => void) {
+    private value: Vec4;
+    constructor(folder: UIFolder, label: string, x: VecEntry, y: VecEntry, z: VecEntry, w: VecEntry | undefined, onChanged: (value: Vec4) => void) {
+    // constructor(folder: UIFolder, label: string, value: Vec3 | Vec3Array | Vec4 | Vec4Array, onChanged: (value: Vec3) => void) {
         super(folder.container, label);
 
-        this.value = {x: value.x, y: value.y, z: value.z };
+        this.value = {
+            x: x.value,
+            y: y.value,
+            z: z.value,
+            w: w ? w.value : undefined,
+        };
 
+        console.log(this.value)
         const container = document.createElement("div");
         container.style.display = "flex";
         container.style.width = "110px";
-        const vecx = this.CreateEntry("X", "#c0392b4a", value => {this.value.x = value; onChanged(this.value)});
-        const vecy = this.CreateEntry("Y", "#39c02b4a", value => {this.value.y = value; onChanged(this.value)});
-        const vecz = this.CreateEntry("Z", "#392bc04a", value => {this.value.z = value; onChanged(this.value)});
+        const vecx = this.CreateEntry("X", "#c0392b4a", x, value => {this.value.x = value; onChanged(this.value)});
+        const vecy = this.CreateEntry("Y", "#39c02b4a", y, value => {this.value.y = value; onChanged(this.value)});
+        const vecz = this.CreateEntry("Z", "#392bc04a", z, value => {this.value.z = value; onChanged(this.value)});
 
         container.append(vecx);
         container.append(vecy);
         container.append(vecz);
 
+        if (w !== undefined) {
+            const vecw = this.CreateEntry("W", "#392bc04a", w, value => {this.value.w = value; onChanged(this.value)});
+            container.append(vecw);
+        }
+
         this.statContainer.append(container);
     }
 
-    private CreateEntry(label: string, color: string, callback: (value: number) => void): HTMLDivElement {
+    private CreateEntry(label: string, color: string, entry: VecEntry, callback: (value: number) => void): HTMLDivElement {
         const container = document.createElement("div");
         container.classList.add("vec-container");
 
@@ -271,7 +291,10 @@ export class UIVecStat extends Stat {
         container.append(text);
         const inputElement = document.createElement("input");
         inputElement.classList.add("vec-input");
-        inputElement.value = "10";
+        inputElement.value = entry.value.toString();
+        inputElement.min = entry.min.toString();
+        inputElement.max = entry.max.toString();
+        inputElement.step = entry.step.toString();
         container.append(inputElement);
 
         let mouseDown = false;
@@ -290,9 +313,12 @@ export class UIVecStat extends Stat {
                 return;
             }
 
-            const delta = mouseX - mousePrevX;
+            const delta = (mouseX - mousePrevX) * parseFloat(inputElement.step);
+            const newValue = parseFloat(inputElement.value) + delta;
+            if (newValue < parseFloat(inputElement.min)) return;
+            else if (newValue > parseFloat(inputElement.max)) return;
 
-            inputElement.value = `${parseFloat(inputElement.value) + delta}`;
+            inputElement.value = newValue.toPrecision(2);
 
             mousePrevX = mouseX;
 

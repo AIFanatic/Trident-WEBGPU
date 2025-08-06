@@ -1,6 +1,3 @@
-// import { Debugger } from "../plugins/Debugger";
-// import { UIColorStat, UIFolder, UISliderStat, UIVecStat } from "../plugins/ui/UIStats";
-
 import {
     GameObject,
     Geometry,
@@ -11,16 +8,18 @@ import {
     Renderer
 } from "@trident/core";
 
+import { Debugger } from "@trident/plugins/Debugger";
 import { OrbitControls } from "@trident/plugins/OrbitControls";
 import { Water } from "@trident/plugins/Water/WaterPlugin";
 
+import { UIColorStat, UIFolder, UISliderStat, UIVecStat } from "@trident/plugins/ui/UIStats";
+
 const canvas = document.createElement("canvas");
 const aspectRatio = 1;
-canvas.width = window.innerWidth * aspectRatio;
-canvas.height = window.innerHeight * aspectRatio;
-canvas.style.userSelect = `none`;
-canvas.style.width = `${window.innerWidth}px`;
-canvas.style.height = `${window.innerHeight}px`;
+canvas.width = document.body.clientWidth * aspectRatio;
+canvas.height = document.body.clientHeight * aspectRatio;
+canvas.style.width = `100vw`;
+canvas.style.height = `100vh`;
 document.body.appendChild(canvas);
 
 async function Application() {
@@ -72,23 +71,38 @@ async function Application() {
         waterGameObject.transform.position.y = 5;
         const water = waterGameObject.AddComponent(Water);
 
-        // // Debug
-        // const waterSettingsFolder = new UIFolder(Debugger.ui, "Water");
-        // new UISliderStat(waterSettingsFolder, "Wave speed:", -1, 1, 0.01, water.settings.get("wave_speed")[0], value => water.settings.set("wave_speed", [value, 0, 0, 0]));
-        // new UISliderStat(waterSettingsFolder, "Beers law:", -2, 20, 0.01, water.settings.get("beers_law")[0], value => water.settings.set("beers_law", [value, 0, 0, 0]));
-        // new UISliderStat(waterSettingsFolder, "Depth offset:", -1, 1, 0.01, water.settings.get("depth_offset")[0], value => water.settings.set("depth_offset", [value, 0, 0, 0]));
-        // new UISliderStat(waterSettingsFolder, "Refraction:", -1, 1, 0.01, water.settings.get("refraction")[0], value => water.settings.set("refraction", [value, 0, 0, 0]));
-        // new UISliderStat(waterSettingsFolder, "Foam level:", -10, 10, 0.01, water.settings.get("foam_level")[0], value => water.settings.set("foam_level", [value, 0, 0, 0]));
-        // new UIColorStat(waterSettingsFolder, "Color deep:", new Color(...water.settings.get("color_deep")).toHex().slice(0, 7), value => {
-        //     const c = Color.fromHex(parseInt(value.slice(1, value.length), 16));
-        //     water.settings.set("color_deep", [c.r, c.g, c.b, c.a]);
-        // });
-        // new UIColorStat(waterSettingsFolder, "Color shallow:", new Color(...water.settings.get("color_shallow")).toHex().slice(0, 7), value => {
-        //     const c = Color.fromHex(parseInt(value.slice(1, value.length), 16));
-        //     water.settings.set("color_shallow", [c.r, c.g, c.b, c.a]);
-        // });
+        // Debug
+        const container = document.createElement("div");
+        container.classList.add("stats-panel");
+        document.body.append(container);
 
-        // waterSettingsFolder.Open();
+        const waterSettingsFolder = new UIFolder(Debugger.ui, "Water");
+        new UISliderStat(waterSettingsFolder, "Wave speed:", -1, 1, 0.01, water.settings.get("wave_speed")[0], value => water.settings.set("wave_speed", [value, 0, 0, 0]));
+        new UISliderStat(waterSettingsFolder, "Beers law:", -2, 20, 0.01, water.settings.get("beers_law")[0], value => water.settings.set("beers_law", [value, 0, 0, 0]));
+        new UISliderStat(waterSettingsFolder, "Depth offset:", -1, 1, 0.01, water.settings.get("depth_offset")[0], value => water.settings.set("depth_offset", [value, 0, 0, 0]));
+        new UISliderStat(waterSettingsFolder, "Refraction:", -1, 1, 0.01, water.settings.get("refraction")[0], value => water.settings.set("refraction", [value, 0, 0, 0]));
+        new UISliderStat(waterSettingsFolder, "Foam level:", -10, 10, 0.01, water.settings.get("foam_level")[0], value => water.settings.set("foam_level", [value, 0, 0, 0]));
+        new UIColorStat(waterSettingsFolder, "Color deep:", new Mathf.Color(...water.settings.get("color_deep")).toHex().slice(0, 7), value => {
+            const c = Mathf.Color.fromHex(parseInt(value.slice(1, value.length), 16));
+            water.settings.set("color_deep", [c.r, c.g, c.b, c.a]);
+        });
+        new UIColorStat(waterSettingsFolder, "Color shallow:", new Mathf.Color(...water.settings.get("color_shallow")).toHex().slice(0, 7), value => {
+            const c = Mathf.Color.fromHex(parseInt(value.slice(1, value.length), 16));
+            water.settings.set("color_shallow", [c.r, c.g, c.b, c.a]);
+        });
+
+        const wave_a = water.settings.get("wave_a");
+        new UIVecStat(waterSettingsFolder, "Wave A:",
+            {value: wave_a[0], min: -1, max: 1, step: 0.01},
+            {value: wave_a[1], min: -1, max: 1, step: 0.01},
+            {value: wave_a[2], min: -1, max: 1, step: 0.01},
+            {value: wave_a[3], min: -1, max: 1, step: 0.01},
+            value => {
+                water.settings.set("wave_a", [value.x, value.y, value.z, value.w])
+            }
+        )
+
+        waterSettingsFolder.Open();
     }
 
     scene.Start();

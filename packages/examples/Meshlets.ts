@@ -38,6 +38,7 @@ async function Application() {
 
     const controls = new OrbitControls(canvas, camera);
 
+    // TODO: Should be added automatically from plugin
     scene.renderPipeline.AddPass(new MeshletDraw(), GPU.RenderPassOrder.BeforeGBuffer);
     
     {

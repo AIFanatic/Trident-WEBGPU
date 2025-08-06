@@ -2,25 +2,8 @@ import { Assets } from "../Assets";
 import { StringFindAllBetween } from "../utils";
 import { Renderer } from "./Renderer";
 
-// import WGSL_Shader_Cull_URL from "../resources/webgpu/shaders/deferred/Cull.wgsl";
-// import WGSL_Shader_CullStructs_URL from "../resources/webgpu/shaders/deferred/CullStructs.wgsl";
-// import WGSL_Shader_SettingsStructs_URL from "../resources/webgpu/shaders/deferred/SettingsStructs.wgsl";
-// import WGSL_Shader_DrawIndirect_URL from "../resources/webgpu/shaders/deferred/DrawIndirectGBuffer.wgsl";
 import WGSL_Shader_Draw_URL from "../resources/webgpu/shaders/deferred/DrawGBuffer.wgsl";
-import WGSL_Shader_Blit_URL from "../resources/webgpu/shaders/Blit.wgsl";
-import WGSL_Shader_BlitDepth_URL from "../resources/webgpu/shaders/BlitDepth.wgsl";
-// import WGSL_Shader_DepthDownsample_URL from "../resources/webgpu/shaders/DepthDownsample.wgsl";
 import WGSL_Shader_DeferredLighting_URL from "../resources/webgpu/shaders/deferred/DeferredLightingPBR.wgsl";
-
-// const WGSL_Shader_Cull_URL = "./resources/webgpu/shaders/deferred/Cull.wgsl";
-// const WGSL_Shader_CullStructs_URL = "./resources/webgpu/shaders/deferred/CullStructs.wgsl";
-// const WGSL_Shader_SettingsStructs_URL = "./resources/webgpu/shaders/deferred/SettingsStructs.wgsl";
-// const WGSL_Shader_DrawIndirect_URL = "./resources/webgpu/shaders/deferred/DrawIndirectGBuffer.wgsl";
-// const WGSL_Shader_Draw_URL = "./resources/webgpu/shaders/deferred/DrawGBuffer.wgsl";
-// const WGSL_Shader_Blit_URL = "./resources/webgpu/shaders/Blit.wgsl";
-// const WGSL_Shader_BlitDepth_URL = "./resources/webgpu/shaders/BlitDepth.wgsl";
-// const WGSL_Shader_DepthDownsample_URL = "./resources/webgpu/shaders/DepthDownsample.wgsl";
-// const WGSL_Shader_DeferredLighting_URL = "./resources/webgpu/shaders/deferred/DeferredLightingPBR.wgsl";
 
 export class ShaderPreprocessor {
     public static ProcessDefines(code: string, defines: {[key: string]: boolean}): string {
@@ -75,19 +58,6 @@ export class ShaderLoader {
         throw Error("Unknown api");
     }
 
-    // public static get Cull(): Promise<string> { return ShaderLoader.LoadURL(new URL(WGSL_Shader_Cull_URL, import.meta.url)); }
-    // public static get CullStructs(): Promise<string> { return ShaderLoader.LoadURL(new URL(WGSL_Shader_CullStructs_URL, import.meta.url)); }
-    // public static get SettingsStructs(): Promise<string> { return ShaderLoader.LoadURL(new URL(WGSL_Shader_SettingsStructs_URL, import.meta.url)); }
-    // public static get DepthDownsample(): Promise<string> { return ShaderLoader.LoadURL(new URL(WGSL_Shader_DepthDownsample_URL, import.meta.url)); }
-    // public static get DrawIndirect(): Promise<string> { return ShaderLoader.LoadURL(new URL(WGSL_Shader_DrawIndirect_URL, import.meta.url)); }
-    
-    // public static get Draw(): Promise<string> { return ShaderLoader.LoadURL(new URL(WGSL_Shader_Draw_URL, import.meta.url)); }
-    // public static get Blit(): Promise<string> { return ShaderLoader.LoadURL(new URL(WGSL_Shader_Blit_URL, import.meta.url)); }
-    // public static get BlitDepth(): Promise<string> { return ShaderLoader.LoadURL(new URL(WGSL_Shader_BlitDepth_URL, import.meta.url)); }
-    // public static get DeferredLighting(): Promise<string> { return ShaderLoader.LoadURL(new URL(WGSL_Shader_DeferredLighting_URL, import.meta.url)); }
-
     public static get Draw(): string { return WGSL_Shader_Draw_URL; }
-    public static get Blit(): string { return WGSL_Shader_Blit_URL; }
-    public static get BlitDepth(): string { return WGSL_Shader_BlitDepth_URL; }
     public static get DeferredLighting(): string { return WGSL_Shader_DeferredLighting_URL; }
 }

@@ -55,7 +55,12 @@ async function Application() {
         const lightFolder = new UIFolder(Debugger.ui, "Light");
         lightFolder.Open();
 
-        new UIVecStat(lightFolder, "Position:", light.transform.position, value => {
+        new UIVecStat(lightFolder, "Position:",
+        {value: light.transform.position.x, min: -10, max: 10, step: 0.1},
+        {value: light.transform.position.y, min: -10, max: 10, step: 0.1},
+        {value: light.transform.position.z, min: -10, max: 10, step: 0.1},
+        undefined,
+        value => {
             const p = new Mathf.Vector3(value.x, value.y, value.z)
             light.transform.position.copy(p);
             l.SetFrom(p);

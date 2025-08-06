@@ -195,30 +195,43 @@ class UIColorStat extends Stat {
 }
 class UIVecStat extends Stat {
   value;
-  constructor(folder, label, value, onChanged) {
+  constructor(folder, label, x, y, z, w, onChanged) {
     super(folder.container, label);
-    this.value = { x: value.x, y: value.y, z: value.z };
+    this.value = {
+      x: x.value,
+      y: y.value,
+      z: z.value,
+      w: w ? w.value : void 0
+    };
+    console.log(this.value);
     const container = document.createElement("div");
     container.style.display = "flex";
     container.style.width = "110px";
-    const vecx = this.CreateEntry("X", "#c0392b4a", (value2) => {
-      this.value.x = value2;
+    const vecx = this.CreateEntry("X", "#c0392b4a", x, (value) => {
+      this.value.x = value;
       onChanged(this.value);
     });
-    const vecy = this.CreateEntry("Y", "#39c02b4a", (value2) => {
-      this.value.y = value2;
+    const vecy = this.CreateEntry("Y", "#39c02b4a", y, (value) => {
+      this.value.y = value;
       onChanged(this.value);
     });
-    const vecz = this.CreateEntry("Z", "#392bc04a", (value2) => {
-      this.value.z = value2;
+    const vecz = this.CreateEntry("Z", "#392bc04a", z, (value) => {
+      this.value.z = value;
       onChanged(this.value);
     });
     container.append(vecx);
     container.append(vecy);
     container.append(vecz);
+    if (w !== void 0) {
+      const vecw = this.CreateEntry("W", "#392bc04a", w, (value) => {
+        this.value.w = value;
+        onChanged(this.value);
+      });
+      container.append(vecw);
+    }
     this.statContainer.append(container);
   }
-  CreateEntry(label, color, callback) {
+  CreateEntry(label, color, entry, callback) {
     const container = document.createElement("div");
     container.classList.add("vec-container");
     const text = document.createElement("span");
@@ -228,7 +241,10 @@ class UIVecStat extends Stat {
     container.append(text);
     const inputElement = document.createElement("input");
     inputElement.classList.add("vec-input");
-    inputElement.value = "10";
+    inputElement.value = entry.value.toString();
+    inputElement.min = entry.min.toString();
+    inputElement.max = entry.max.toString();
+    inputElement.step = entry.step.toString();
     container.append(inputElement);
     let mouseDown = false;
     let mousePrevX = null;
@@ -248,8 +264,11 @@ class UIVecStat extends Stat {
         mousePrevX = mouseX;
         return;
       }
-      const delta = mouseX - mousePrevX;
-      inputElement.value = `${parseFloat(inputElement.value) + delta}`;
+      const delta = (mouseX - mousePrevX) * parseFloat(inputElement.step);
+      const newValue = parseFloat(inputElement.value) + delta;
+      if (newValue < parseFloat(inputElement.min)) return;
+      else if (newValue > parseFloat(inputElement.max)) return;
+      inputElement.value = newValue.toPrecision(2);
       mousePrevX = mouseX;
       callback(parseFloat(inputElement.value));
     });

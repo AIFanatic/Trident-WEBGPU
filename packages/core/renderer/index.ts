@@ -5,7 +5,7 @@ export { RendererContext } from "./RendererContext";
 export { ComputeContext } from "./ComputeContext";
 export { RenderingPipeline, RenderPassOrder, PassParams } from "./RenderingPipeline";
 export { Shader, Compute, Topology } from "./Shader";
-export { ShaderLoader } from "./ShaderUtils";
+export { ShaderLoader, ShaderPreprocessor } from "./ShaderUtils";
 export { DepthTexture, RenderTexture, Texture, TextureArray } from "./Texture";
 export { TextureSampler } from "./TextureSampler";
 export { Material } from "./Material";

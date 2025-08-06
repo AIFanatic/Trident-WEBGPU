@@ -44,6 +44,7 @@ export class CullingPass extends GPU.RenderPass {
     }
 
     public async init(resources: GPU.ResourcePool) {
+        console.log(import.meta.url);
         this.compute = await GPU.Compute.Create({
             code: await GPU.ShaderLoader.LoadURL(new URL("../resources/Cull.wgsl", import.meta.url)),
             computeEntrypoint: "main",

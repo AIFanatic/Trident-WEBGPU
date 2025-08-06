@@ -52,11 +52,19 @@
               {
                 const lightFolder = new UIFolder(Debugger.ui, "Light");
                 lightFolder.Open();
-                new UIVecStat(lightFolder, "Position:", light.transform.position, (value) => {
-                  const p = new Mathf.Vector3(value.x, value.y, value.z);
-                  light.transform.position.copy(p);
-                  l.SetFrom(p);
-                });
+                new UIVecStat(
+                  lightFolder,
+                  "Position:",
+                  { value: light.transform.position.x, min: -10, max: 10, step: 0.1 },
+                  { value: light.transform.position.y, min: -10, max: 10, step: 0.1 },
+                  { value: light.transform.position.z, min: -10, max: 10, step: 0.1 },
+                  void 0,
+                  (value) => {
+                    const p = new Mathf.Vector3(value.x, value.y, value.z);
+                    light.transform.position.copy(p);
+                    l.SetFrom(p);
+                  }
+                );
                 new UISliderStat(lightFolder, "Intensity:", 0, 100, 0.1, light.intensity, (state) => {
                   light.intensity = state;
                 });
