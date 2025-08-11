@@ -9,7 +9,7 @@ export * from "./ui/UIStats";
 
 export * from "./Water/WaterPlugin";
 
-export * from "./Line";
+export { LineRenderer } from "./LineRenderer";
 
 export * from "./OBJLoader";
 export * from "./RSMIndirectLighting";
@@ -27,3 +27,6 @@ export * from "./HiZPass";
 export * from "./meshlets_v2";
 
 export * from "./PhysicsRapier";
+
+export * from "./PostProcessing";
+export * from "./VoxelGenerator";

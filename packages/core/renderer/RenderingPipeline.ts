@@ -9,6 +9,7 @@ import { DeferredShadowMapPass } from "./passes/DeferredShadowMapPass";
 import { DebuggerTextureViewer } from "./passes/DebuggerTextureViewer";
 import { CubeTexture } from "./Texture";
 import { DeferredGBufferPass } from "./passes/DeferredGBufferPass";
+import { ForwardPass } from "./passes/ForwardPass";
 
 export const PassParams = {
     DebugSettings: "DebugSettings",
@@ -75,15 +76,15 @@ export class RenderingPipeline {
             new DeferredShadowMapPass(),
         ];
 
-        this.beforeLightingPasses = [
+        this.beforeLightingPasses = [];
+        this.afterLightingPasses = [
             new DeferredLightingPass(),
-        ]
-
-        this.afterLightingPasses = [];
+            new ForwardPass(),
+        ];
         
         this.beforeScreenOutputPasses = [
             new TextureViewer(),
-            new DebuggerTextureViewer(),
+            // new DebuggerTextureViewer(),
         ]
         
         this.UpdateRenderGraphPasses();

@@ -1,4 +1,5 @@
 import { EventSystem, EventSystemLocal } from "../Events";
+import { Frustum } from "../math/Frustum";
 import { Color } from "../math/Color";
 import { Matrix4 } from "../math/Matrix4";
 import { Component } from "./Component";
@@ -12,8 +13,11 @@ export class Camera extends Component {
     public backgroundColor: Color = new Color(0.0, 0.0, 0.0, 1);
 
     public projectionMatrix = new Matrix4();
+    public projectionScreenMatrix = new Matrix4();
+    // public projectionScreenMatrix.multiplyMatrices( camera.projectionMatrix, camera.matrixWorldInverse )
 
     public viewMatrix = new Matrix4();
+    public frustum: Frustum = new Frustum();
 
     public static mainCamera: Camera;
 
@@ -45,5 +49,7 @@ export class Camera extends Component {
 
     public Update() {
         this.viewMatrix.copy(this.transform.worldToLocalMatrix);
+        this.projectionScreenMatrix.multiplyMatrices(this.projectionMatrix, this.transform.worldToLocalMatrix);
+        this.frustum.setFromProjectionMatrix(this.projectionScreenMatrix);
     }
 }

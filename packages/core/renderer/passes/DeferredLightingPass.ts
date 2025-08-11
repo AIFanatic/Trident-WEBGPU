@@ -109,10 +109,8 @@ export class DeferredLightingPass extends RenderPass {
         this.initialized = true;
     }
 
-    private updateLightsBuffer(resources: ResourcePool) {
+    private updateLightsBuffer(lights: Light[], resources: ResourcePool) {
         const scene = Camera.mainCamera.gameObject.scene;
-        // TODO: Fix, GetComponents(Light)
-        const lights = [...scene.GetComponents(Light), ...scene.GetComponents(PointLight), ...scene.GetComponents(DirectionalLight), ...scene.GetComponents(SpotLight), ...scene.GetComponents(AreaLight)];
 
         for (let i = 0; i < lights.length; i++) {
             const light = lights[i];
@@ -198,7 +196,10 @@ export class DeferredLightingPass extends RenderPass {
         
         if (this.needsUpdate) {
         }
-        this.updateLightsBuffer(resources);
+        const scene = camera.gameObject.scene;
+        const lights = [...scene.GetComponents(Light), ...scene.GetComponents(PointLight), ...scene.GetComponents(DirectionalLight), ...scene.GetComponents(SpotLight), ...scene.GetComponents(AreaLight)];
+        if (lights.length === 0) return;
+        this.updateLightsBuffer(lights, resources);
 
         const inputGBufferAlbedo = resources.getResource(PassParams.GBufferAlbedo);
         const inputGBufferNormal = resources.getResource(PassParams.GBufferNormal);

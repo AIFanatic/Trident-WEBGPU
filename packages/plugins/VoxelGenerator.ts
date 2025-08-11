@@ -1,15 +1,12 @@
-import { Renderer } from "../renderer/Renderer";
-
-import { Vector3 } from "../math/Vector3";
-import { Geometry, InterleavedVertexAttribute } from "../Geometry";
-import { Compute } from "../renderer/Shader";
-import { ComputeContext } from "../renderer/ComputeContext";
-import { Buffer, BufferType } from "../renderer/Buffer";
-import { RenderTextureStorage3D, Texture } from "../renderer/Texture";
+import {
+    Geometry, InterleavedVertexAttribute,
+    Mathf,
+    GPU
+} from "@trident/core";
 
 export class VoxelGenerator {
-    public static async Generate(geometry: Geometry, scale = new Vector3(1,1,1)): Promise<Texture> {
-        const compute = await Compute.Create({
+    public static async Generate(geometry: Geometry, scale = new Mathf.Vector3(1,1,1)): Promise<GPU.RenderTexture3D> {
+        const compute = await GPU.Compute.Create({
             code: `
             @group(0) @binding(0) var i_SDF: texture_storage_3d<r32uint, read_write>;
             
@@ -90,23 +87,23 @@ export class VoxelGenerator {
 
                     let cellRadius = 0.5 * length(u_GridStepSize);
 
-                    // // if the true distance is less than cellRadius, we’re on the surface
-                    // let occupied: u32 = select(
-                    //     0u,
-                    //     1u,
-                    //     closest_dist <= cellRadius * cellRadius
-                    // );
+                    // if the true distance is less than cellRadius, we’re on the surface
+                    let occupied: u32 = select(
+                        0u,
+                        1u,
+                        closest_dist <= cellRadius * cellRadius
+                    );
             
-                    // if (front_facing) { textureStore(i_SDF, coord, vec4(closest_dist)); }
-                    // else { textureStore(i_SDF, coord, vec4(-closest_dist)); }
+                    if (front_facing) { textureStore(i_SDF, coord, vec4(u32(closest_dist))); }
+                    else { textureStore(i_SDF, coord, vec4(u32(-closest_dist))); }
 
-                    // textureStore(i_SDF, coord, vec4(f32(occupied)));
-
-
-                    let inside = !front_facing;
-                    let occupied: u32 = select(0u, 1u, inside);
-                
                     textureStore(i_SDF, coord, vec4(u32(occupied)));
+
+
+                    // let inside = !front_facing;
+                    // let occupied: u32 = select(0u, 1u, inside);
+                
+                    // textureStore(i_SDF, coord, vec4(u32(occupied)));
                 }
             } 
             `,
@@ -135,17 +132,17 @@ export class VoxelGenerator {
     
         const padding = 8;
         const resolution = 0.025;
-        const u_GridStepSize = new Vector3(resolution, resolution, resolution);
+        const u_GridStepSize = new Mathf.Vector3(resolution, resolution, resolution);
         const min_extents = geometry.boundingVolume.min.clone().mul(scale).sub(u_GridStepSize.clone().mul(padding));
         const max_extents = geometry.boundingVolume.max.clone().mul(scale).add(u_GridStepSize.clone().mul(padding));
     
         const u_GridOrigin = min_extents.clone().add(u_GridStepSize.clone().div(2));
         const box_size = max_extents.clone().sub(min_extents);
         const t = box_size.clone().div(u_GridStepSize);
-        const u_VolumeSize = new Vector3(Math.ceil(t.x), Math.ceil(t.y), Math.ceil(t.z));
+        const u_VolumeSize = new Mathf.Vector3(Math.ceil(t.x), Math.ceil(t.y), Math.ceil(t.z));
         const u_NumTriangles = indices.length / 3;
     
-        const i_SDF_Texture = RenderTextureStorage3D.Create(u_VolumeSize.x, u_VolumeSize.y, u_VolumeSize.z, "r32uint");
+        const i_SDF_Texture = GPU.RenderTextureStorage3D.Create(u_VolumeSize.x, u_VolumeSize.y, u_VolumeSize.z, "r32uint");
         compute.SetTexture("i_SDF", i_SDF_Texture);
     
         let verticesScaled = vertices.slice();
@@ -155,16 +152,16 @@ export class VoxelGenerator {
             verticesScaled[i + 2] *= scale.z;
         }
         const interleaved = InterleavedVertexAttribute.fromArrays([verticesScaled, normals, uvs], [3,3,2], [4,4,4]);
-        const vertexBuffer = Buffer.Create(interleaved.array.length * 4, BufferType.STORAGE);
+        const vertexBuffer = GPU.Buffer.Create(interleaved.array.length * 4, GPU.BufferType.STORAGE);
         vertexBuffer.SetArray(new Float32Array(interleaved.array));
         compute.SetBuffer("vertices", vertexBuffer);
         
-        const indexBuffer = Buffer.Create(indices.length * 4, BufferType.STORAGE);
+        const indexBuffer = GPU.Buffer.Create(indices.length * 4, GPU.BufferType.STORAGE);
         indexBuffer.SetArray(indices);
         compute.SetBuffer("indices", indexBuffer);
     
-        Renderer.BeginRenderFrame();
-        ComputeContext.BeginComputePass("SDF Gen");
+        GPU.Renderer.BeginRenderFrame();
+        GPU.ComputeContext.BeginComputePass("SDF Gen");
     
         compute.SetArray("u_GridStepSize", new Float32Array([...u_GridStepSize.elements, 0]));
         compute.SetArray("u_GridOrigin", new Float32Array([...u_GridOrigin.elements, 0]));
@@ -180,10 +177,10 @@ export class VoxelGenerator {
         const size_z = Math.ceil(u_VolumeSize.z / NUM_THREADS_Z);
     
         console.log("dispatch", size_x, size_y, size_z)
-        ComputeContext.Dispatch(compute, size_x, size_y, size_z);
-        ComputeContext.EndComputePass();
+        GPU.ComputeContext.Dispatch(compute, size_x, size_y, size_z);
+        GPU.ComputeContext.EndComputePass();
         
-        Renderer.EndRenderFrame();
+        GPU.Renderer.EndRenderFrame();
     
         return i_SDF_Texture;
     }

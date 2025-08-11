@@ -1,23 +1,19 @@
-import { Geometry } from "../../../Geometry";
-import { Vector2 } from "../../../math/Vector2";
-import { RenderPass, ResourcePool } from "../../../renderer/RenderGraph";
-import { Renderer } from "../../../renderer/Renderer";
-import { RendererContext } from "../../../renderer/RendererContext";
-import { PassParams } from "../../../renderer/RenderingPipeline";
-import { Shader } from "../../../renderer/Shader";
-import { RenderTexture } from "../../../renderer/Texture";
-import { TextureSampler } from "../../../renderer/TextureSampler";
+import {
+    Geometry,
+	Mathf,
+    GPU
+}  from "@trident/core";
 
-export class PostProcessingFXAA extends RenderPass {
+export class PostProcessingFXAA extends GPU.RenderPass {
     public name: string = "PostProcessingFXAA";
-    private shader: Shader;
+    private shader: GPU.Shader;
     private quadGeometry: Geometry;
 
-    private renderTarget: RenderTexture;
+    private renderTarget: GPU.RenderTexture;
 
     constructor() {
         super({inputs: [
-            PassParams.LightingPassOutput,
+            GPU.PassParams.LightingPassOutput,
         ]});
     }
 
@@ -323,9 +319,9 @@ export class PostProcessingFXAA extends RenderPass {
 			}
 		`;
 
-        this.shader = await Shader.Create({
+        this.shader = await GPU.Shader.Create({
             code: code,
-            colorOutputs: [{format: Renderer.SwapChainFormat}],
+            colorOutputs: [{format: GPU.Renderer.SwapChainFormat}],
             attributes: {
                 position: { location: 0, size: 3, type: "vec3" },
                 uv: { location: 1, size: 2, type: "vec2" }
@@ -338,29 +334,27 @@ export class PostProcessingFXAA extends RenderPass {
         });
         this.quadGeometry = Geometry.Plane();
 
-        const sampler = TextureSampler.Create();
+        const sampler = GPU.TextureSampler.Create();
         this.shader.SetSampler("textureSampler", sampler);
-        this.shader.SetVector2("resolutionInv", new Vector2(1 / Renderer.width, 1 / Renderer.height));
+        this.shader.SetVector2("resolutionInv", new Mathf.Vector2(1 / GPU.Renderer.width, 1 / GPU.Renderer.height));
 
-        this.renderTarget = RenderTexture.Create(Renderer.width, Renderer.height);
+        this.renderTarget = GPU.RenderTexture.Create(GPU.Renderer.width, GPU.Renderer.height);
 
         this.initialized = true;
     }
 
-    public execute(resources: ResourcePool) {
+    public execute(resources: GPU.ResourcePool) {
         if (this.initialized === false) return;
 
-        const LightingPassOutputTexture = resources.getResource(PassParams.LightingPassOutput);
+        const LightingPassOutputTexture: GPU.Texture = resources.getResource(GPU.PassParams.LightingPassOutput);
         if (!LightingPassOutputTexture) return;
 
         this.shader.SetTexture("texture", LightingPassOutputTexture);
 
-        RendererContext.BeginRenderPass(this.name, [{clear: false, target: this.renderTarget}], undefined, true);
-        RendererContext.DrawGeometry(this.quadGeometry, this.shader);
-        RendererContext.EndRenderPass();
-        
-        RendererContext.CopyTextureToTexture(this.renderTarget, LightingPassOutputTexture);
+        GPU.RendererContext.BeginRenderPass(this.name, [{clear: false, target: this.renderTarget}], undefined, true);
+        GPU.RendererContext.DrawGeometry(this.quadGeometry, this.shader);
+        GPU.RendererContext.EndRenderPass();
 
-        resources.setResource(PassParams.LightingPassOutput, LightingPassOutputTexture);
+		GPU.Texture.Blit(this.renderTarget, LightingPassOutputTexture, this.renderTarget.width, this.renderTarget.height);
     }
 }

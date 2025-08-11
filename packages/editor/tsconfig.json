@@ -1,0 +1,34 @@
+{
+    "compilerOptions": {
+        "outDir": "dist",
+        "module": "es2022",
+        "target": "es2022",
+        "moduleResolution": "node",
+        "declaration": false,
+        "emitDeclarationOnly": false,
+        "composite": false,
+        "incremental": true,
+        "baseUrl": ".",
+        "strictPropertyInitialization": false,
+
+
+        "jsx": "react",
+        "jsxFactory": "createElement",
+        "jsxFragmentFactory": "Fragment",
+
+        "paths": {
+            "@trident/core": [
+                "../packages/core/index.ts"
+            ],
+            "@trident/core/*": [
+                "../packages/core/*"
+            ],
+            "@trident/plugins": [
+                "../packages/plugins/index.ts"
+            ],
+            "@trident/plugins/*": [
+                "../packages/plugins/*"
+            ]
+        }
+    }
+}

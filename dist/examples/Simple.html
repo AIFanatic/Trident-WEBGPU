@@ -1,0 +1,80 @@
+
+    <!DOCTYPE html>
+    <html>
+        <head>
+            <style>
+                html, body {
+                    margin: 0;
+                    overflow: hidden;
+                }
+            </style>
+        </head>
+        <body>
+            <script type="importmap">
+                {
+                    "imports": {
+                        "@trident/core": "../trident-core.js",
+                        "@trident/plugins/": "../plugins/"
+                    }
+                }
+            </script>
+            <script type="module">
+                const canvas = document.createElement("canvas");
+                const aspectRatio = 1;
+                canvas.width = window.innerWidth * aspectRatio;
+                canvas.height = window.innerHeight * aspectRatio;
+                canvas.style.width = "100vw";
+                canvas.style.height = "100vh";
+                canvas.style.userSelect = "none";
+                document.body.appendChild(canvas);
+                            import { GPU, Scene, GameObject, Components, Mathf, Geometry, PBRMaterial } from '@trident/core';
+            import { OrbitControls } from '@trident/plugins/OrbitControls.js';
+            import { Debugger } from '@trident/plugins/Debugger.js';
+            
+            async function Application(canvas) {
+              const renderer = GPU.Renderer.Create(canvas, "webgpu");
+              const scene = new Scene(renderer);
+              const mainCameraGameObject = new GameObject(scene);
+              mainCameraGameObject.name = "MainCamera";
+              const camera = mainCameraGameObject.AddComponent(Components.Camera);
+              camera.SetPerspective(72, canvas.width / canvas.height, 0.5, 500);
+              mainCameraGameObject.transform.position.set(0, 0, 10);
+              mainCameraGameObject.transform.LookAtV1(new Mathf.Vector3(0, 0, 0));
+              new OrbitControls(canvas, camera);
+              const lightGameObject = new GameObject(scene);
+              lightGameObject.transform.position.set(-10, 10, 10);
+              lightGameObject.transform.LookAtV1(new Mathf.Vector3(0, 0, 0));
+              const light = lightGameObject.AddComponent(Components.DirectionalLight);
+              light.castShadows = true;
+              const floorGameObject = new GameObject(scene);
+              floorGameObject.transform.eulerAngles.x = -90;
+              floorGameObject.transform.position.y = -2;
+              floorGameObject.transform.scale.set(100, 100, 100);
+              const floorMesh = floorGameObject.AddComponent(Components.Mesh);
+              floorMesh.SetGeometry(Geometry.Plane());
+              floorMesh.AddMaterial(new PBRMaterial());
+              const i = 10;
+              for (let x = 0; x < i; x++) {
+                for (let y = 0; y < i; y++) {
+                  const sphereGameObject = new GameObject(scene);
+                  sphereGameObject.transform.position.set(x * 2 - i * 0.5 * 2, 0, y * 2 - i * 0.5 * 2);
+                  const sphereMesh = sphereGameObject.AddComponent(Components.Mesh);
+                  sphereMesh.SetGeometry(Geometry.Sphere());
+                  sphereMesh.AddMaterial(new PBRMaterial());
+                  const lightGameObject2 = new GameObject(scene);
+                  lightGameObject2.transform.position.copy(sphereGameObject.transform.position);
+                  lightGameObject2.transform.LookAtV1(new Mathf.Vector3(0, 0, 0));
+                  const light2 = lightGameObject2.AddComponent(Components.SpotLight);
+                  light2.color.set(Math.random(), Math.random(), Math.random(), 1);
+                  light2.angle = 90;
+                  light2.castShadows = false;
+                }
+              }
+              Debugger.Enable();
+              scene.Start();
+            }
+            Application(document.querySelector("canvas"));
+            
+            </script>
+        </body>
+    </html>

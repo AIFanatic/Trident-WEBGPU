@@ -17,7 +17,7 @@ export class Light extends Component {
     public camera: Camera;
     public color: Color = new Color(1,1,1);
     public intensity: number = 1;
-    public range: number = 1000;
+    public range: number = 10;
     public castShadows: boolean = true;
 
     public Start(): void {

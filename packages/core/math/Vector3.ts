@@ -149,6 +149,10 @@ export class Vector3 {
 		return this;
 	}
 
+    public applyEuler(euler: Vector3 ): Vector3 {
+		return this.applyQuaternion( _quaternion.setFromEuler( euler ) );
+	}
+
     public min(v: Vector3): Vector3 {
 		this.x = Math.min( this.x, v.x );
 		this.y = Math.min( this.y, v.y );
@@ -265,3 +269,5 @@ export class ObservableVector3 extends Vector3 {
         this.onChange = onChange;
     }
 }
+
+const _quaternion = new Quaternion();

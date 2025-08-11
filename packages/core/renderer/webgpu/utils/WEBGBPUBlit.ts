@@ -3,13 +3,15 @@ import { Vector2 } from "../../../math/Vector2";
 import { Renderer } from "../../Renderer";
 import { RendererContext } from "../../RendererContext";
 import { Shader } from "../../Shader";
-import { ShaderLoader } from "../../ShaderUtils";
-import { Texture } from "../../Texture";
+import { Texture, TextureFormat } from "../../Texture";
 import { TextureSampler } from "../../TextureSampler";
 import { WEBGPURenderer } from "../WEBGPURenderer";
 
-const i = setInterval(async () => {
-    if (Renderer.type === "webgpu") {
+export class WEBGPUBlit {
+    public static blitShader: Shader;
+    private static blitGeometry: Geometry;
+
+    private static async Init(output: TextureFormat = Renderer.SwapChainFormat) {
         WEBGPUBlit.blitShader = await Shader.Create({
             code: `
             struct VertexInput {
@@ -44,7 +46,7 @@ const i = setInterval(async () => {
                 return color;
             }
             `,
-            colorOutputs: [{format: Renderer.SwapChainFormat}],
+            colorOutputs: [{format: output}],
             attributes: {
                 position: { location: 0, size: 3, type: "vec3" },
                 normal: { location: 1, size: 3, type: "vec3" },
@@ -60,16 +62,10 @@ const i = setInterval(async () => {
         const textureSampler = TextureSampler.Create();
         WEBGPUBlit.blitShader.SetSampler("textureSampler", textureSampler);
         WEBGPUBlit.blitShader.SetValue("mip", 0);
-        clearInterval(i);
     }
-}, 100);
 
-export class WEBGPUBlit {
-    public static blitShader: Shader;
-    private static blitGeometry: Geometry;
-
-    public static Blit(source: Texture, destination: Texture, width: number, height: number, uv_scale: Vector2) {
-        if (!this.blitShader) throw Error("Blit shader not created");
+    public static async Blit(source: Texture, destination: Texture, width: number, height: number, uv_scale: Vector2) {
+        if (!this.blitShader || this.blitShader.params.colorOutputs[0].format !== destination.format) await this.Init(destination.format);
         if (!this.blitGeometry) this.blitGeometry = Geometry.Plane();
 
         this.blitShader.SetTexture("texture", source);

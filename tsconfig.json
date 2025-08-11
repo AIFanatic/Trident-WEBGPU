@@ -10,6 +10,11 @@
         "incremental": true,
         "baseUrl": ".",
         "strictPropertyInitialization": false,
+
+
+        "jsx": "react", // or react-jsx, etc.
+        "jsxFactory": "jsx",
+
         "paths": {
             "@trident/core": [
                 "packages/core/index.ts"

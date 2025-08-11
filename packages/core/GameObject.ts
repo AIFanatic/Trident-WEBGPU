@@ -79,8 +79,6 @@ export class GameObject {
         for (const component of this.componentsArray) {
             component.Destroy();
         }
-        this.componentsArray = [];
-        this.componentsMapped.clear();
         this.scene.RemoveGameObject(this);
     }
 }

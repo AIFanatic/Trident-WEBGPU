@@ -99,10 +99,7 @@ export class DeferredShadowMapPass extends RenderPass {
         struct VertexInput {
             @builtin(instance_index) instanceIdx : u32, 
             @location(0) position : vec3<f32>,
-            @location(1) normal : vec3<f32>,
-            @location(2) uv : vec2<f32>,
         };
-        
         
         struct VertexOutput {
             @builtin(position) position : vec4<f32>,
@@ -137,8 +134,6 @@ export class DeferredShadowMapPass extends RenderPass {
             code: code,
             attributes: {
                 position: { location: 0, size: 3, type: "vec3" },
-                normal: { location: 1, size: 3, type: "vec3" },
-                uv: { location: 2, size: 2, type: "vec2" }
             },
             uniforms: {
                 projectionMatrix: { group: 0, binding: 0, type: "storage" },
@@ -147,8 +142,8 @@ export class DeferredShadowMapPass extends RenderPass {
             },
             colorOutputs: [],
             depthOutput: "depth24plus",
-            // depthBias: 2,              // Constant bias
-            // depthBiasSlopeScale: 2.0,  // Slope-scale bias
+            depthBias: 2,              // Constant bias
+            depthBiasSlopeScale: -1.0,  // Slope-scale bias
             // depthBiasClamp: 0.0,       // Max clamp for the bias
             cullMode: "front",
         })
@@ -157,8 +152,6 @@ export class DeferredShadowMapPass extends RenderPass {
             code: code,
             attributes: {
                 position: { location: 0, size: 3, type: "vec3" },
-                normal: { location: 1, size: 3, type: "vec3" },
-                uv: { location: 2, size: 2, type: "vec2" }
             },
             uniforms: {
                 projectionMatrix: { group: 0, binding: 0, type: "storage" },
@@ -395,9 +388,12 @@ export class DeferredShadowMapPass extends RenderPass {
                 for (const mesh of meshes) {
                     // if (mesh.shader.params.topology === Topology.Lines) continue;
                     if (mesh.enableShadows && mesh.enabled) {
+                        const geometry = mesh.GetGeometry();
+                        if (!geometry) continue;
+                        if (!geometry.attributes.has("position")) continue;
                         const uniform_offset = meshCount * 256;
                         this.modelMatrices.dynamicOffset = uniform_offset;
-                        RendererContext.DrawGeometry(mesh.GetGeometry(), this.drawShadowShader, 1);
+                        RendererContext.DrawGeometry(geometry, this.drawShadowShader, 1);
                     }
                     meshCount++;
                 }

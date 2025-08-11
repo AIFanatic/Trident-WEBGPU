@@ -1,8 +1,11 @@
-<html>
+
+    <!DOCTYPE html>
+    <html>
         <head>
             <style>
                 html, body {
                     margin: 0;
+                    overflow: hidden;
                 }
             </style>
         </head>
@@ -16,25 +19,26 @@
                 }
             </script>
             <script type="module">
-                            import { Renderer, Scene, GameObject, Components, Mathf } from '@trident/core';
+                const canvas = document.createElement("canvas");
+                const aspectRatio = 1;
+                canvas.width = window.innerWidth * aspectRatio;
+                canvas.height = window.innerHeight * aspectRatio;
+                canvas.style.width = "100vw";
+                canvas.style.height = "100vh";
+                canvas.style.userSelect = "none";
+                document.body.appendChild(canvas);
+                            import { GPU, Scene, GameObject, Components, Mathf } from '@trident/core';
             import { OrbitControls } from '@trident/plugins/OrbitControls.js';
             import { GLTFParser } from '@trident/plugins/GLTF/GLTF_Parser.js';
             
-            const canvas = document.createElement("canvas");
-            const aspectRatio = 1;
-            canvas.width = document.body.clientWidth * aspectRatio;
-            canvas.height = document.body.clientHeight * aspectRatio;
-            canvas.style.width = `100vw`;
-            canvas.style.height = `100vh`;
-            document.body.appendChild(canvas);
-            async function Application() {
-              const renderer = Renderer.Create(canvas, "webgpu");
+            async function Application(canvas) {
+              const renderer = GPU.Renderer.Create(canvas, "webgpu");
               const scene = new Scene(renderer);
               const mainCameraGameObject = new GameObject(scene);
               mainCameraGameObject.transform.position.set(0, 0, -15);
               mainCameraGameObject.name = "MainCamera";
               const camera = mainCameraGameObject.AddComponent(Components.Camera);
-              camera.SetPerspective(72, canvas.width / canvas.height, 0.5, 500);
+              camera.SetPerspective(72, canvas.width / canvas.height, 0.5, 10);
               mainCameraGameObject.transform.position.set(0, 0, 2);
               mainCameraGameObject.transform.LookAtV1(new Mathf.Vector3(0, 0, 0));
               new OrbitControls(canvas, camera);
@@ -48,9 +52,20 @@
               const helmetMesh = helmetGameObject.AddComponent(Components.Mesh);
               helmetMesh.SetGeometry(helmet.geometry);
               helmetMesh.AddMaterial(helmet.material);
+              const skybox = await GPU.Texture.Load("./assets/textures/HDR/snowy_forest_1k.png");
+              const skyboxCube = GPU.CubeTexture.Create(1024, 1024, 6);
+              GPU.Renderer.BeginRenderFrame();
+              GPU.RendererContext.CopyTextureToTextureV3({ texture: skybox, origin: [2048, 1024, 0] }, { texture: skyboxCube, origin: [0, 0, 0] }, [1024, 1024, 1]);
+              GPU.RendererContext.CopyTextureToTextureV3({ texture: skybox, origin: [0, 1024, 0] }, { texture: skyboxCube, origin: [0, 0, 1] }, [1024, 1024, 1]);
+              GPU.RendererContext.CopyTextureToTextureV3({ texture: skybox, origin: [1024, 0, 0] }, { texture: skyboxCube, origin: [0, 0, 2] }, [1024, 1024, 1]);
+              GPU.RendererContext.CopyTextureToTextureV3({ texture: skybox, origin: [1024, 2048, 0] }, { texture: skyboxCube, origin: [0, 0, 3] }, [1024, 1024, 1]);
+              GPU.RendererContext.CopyTextureToTextureV3({ texture: skybox, origin: [1024, 1024, 0] }, { texture: skyboxCube, origin: [0, 0, 4] }, [1024, 1024, 1]);
+              GPU.RendererContext.CopyTextureToTextureV3({ texture: skybox, origin: [3072, 1024, 0] }, { texture: skyboxCube, origin: [0, 0, 5] }, [1024, 1024, 1]);
+              GPU.Renderer.EndRenderFrame();
+              scene.renderPipeline.skybox = skyboxCube;
               scene.Start();
             }
-            Application();
+            Application(document.querySelector("canvas"));
             
             </script>
         </body>

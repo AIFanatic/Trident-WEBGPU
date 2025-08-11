@@ -10,6 +10,8 @@ export class RendererInfo {
 
     public gpuBufferSizeTotal: number = 0;
     public gpuTextureSizeTotal: number = 0;
+
+    public visibleObjects: number = 0;
     
     public framePassesStats: Map<string, number> = new Map();
 

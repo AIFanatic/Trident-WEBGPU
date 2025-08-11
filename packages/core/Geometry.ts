@@ -15,6 +15,10 @@ export class GeometryAttribute {
     }
 
     public GetBuffer(): Buffer { return this.buffer };
+
+    public Destroy() {
+        this.buffer.Destroy();
+    }
 };
 
 export class VertexAttribute extends GeometryAttribute {
@@ -173,6 +177,11 @@ export class Geometry {
         let normals = this.attributes.get("normal");
         if (!normals) normals = new VertexAttribute(normalAttrData);
         this.attributes.set("normal", normals);
+    }
+
+    public Destroy() {
+        for (const [_, attribute] of this.attributes) attribute.Destroy();
+        if (this.index) this.index.Destroy();
     }
 
     public static ToNonIndexed(vertices: Float32Array, indices: Uint32Array): Float32Array {

@@ -19,4 +19,8 @@ export class InstancedMesh extends Mesh {
         // this._matricesBuffer.SetArray(matrix.elements, 4 * 16 * index);
         this._matricesBuffer.set(index, matrix.elements);
     }
+
+    public Destroy(): void {
+        this.matricesBuffer.Destroy();
+    }
 }

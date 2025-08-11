@@ -11,6 +11,12 @@ export class RigidBody extends Component {
         super(gameObject);
     }
 
+    public Start(): void {
+        if (!this.rigidBody) {
+            this.Create("dynamic");
+        }
+    }
+
     public Create(type: "fixed" | "dynamic" | "kinematicVelocity" | "kinematicPosition") {
         const collider = this.gameObject.GetComponent(Collider) as Collider;
         if (!collider.collider) throw Error("Rigidbody needs a collider");

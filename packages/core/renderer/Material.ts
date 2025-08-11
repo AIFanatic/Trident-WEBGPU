@@ -23,6 +23,10 @@ export class Material {
         }
         this.params = Object.assign({}, defaultParams, params);
     }
+
+    public Destroy() {
+        this.shader.Destroy();
+    };
 }
 
 export interface PBRMaterialParams extends MaterialParams {

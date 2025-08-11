@@ -88,6 +88,7 @@ export class BaseShader {
     public HasBuffer(name: string): boolean { return false }
 
     public OnPreRender(geometry: Geometry): boolean { return true; };
+    public Destroy() {};
 }
 
 export class Shader extends BaseShader {

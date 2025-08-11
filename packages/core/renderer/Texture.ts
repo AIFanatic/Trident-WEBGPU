@@ -68,6 +68,7 @@ export class Texture {
     public readonly depth: number;
     public readonly type: TextureType;
     public readonly dimension: TextureDimension;
+    public readonly format: TextureFormat;
 
     public SetActiveLayer(layer: number) {}
     public GetActiveLayer(): number {throw Error("Base class.")}

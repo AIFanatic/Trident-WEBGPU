@@ -13,16 +13,9 @@ import { PhysicsRapier } from "@trident/plugins/PhysicsRapier/PhysicsRapier";
 import { SphereCollider } from "@trident/plugins/PhysicsRapier/colliders/SphereCollider";
 import { PlaneCollider } from "@trident/plugins/PhysicsRapier/colliders/PlaneCollider";
 import { RigidBody } from "@trident/plugins/PhysicsRapier/RigidBody";
+import { PhysicsDebugger } from "@trident/plugins/PhysicsRapier/PhysicsDebugger";
 
-const canvas = document.createElement("canvas");
-const aspectRatio = 1;
-canvas.width = document.body.clientWidth * aspectRatio;
-canvas.height = document.body.clientHeight * aspectRatio;
-canvas.style.width = `100vw`;
-canvas.style.height = `100vh`;
-document.body.appendChild(canvas);
-
-async function Application() {
+async function Application(canvas: HTMLCanvasElement) {
     const renderer = Renderer.Create(canvas, "webgpu");
     const scene = new Scene(renderer);
 
@@ -61,9 +54,13 @@ async function Application() {
     floorMesh.AddMaterial(new PBRMaterial());
     floor.AddComponent(PlaneCollider);
     const floorRigidbody = floor.AddComponent(RigidBody);
-    floorRigidbody.Create("fixed")
+    floorRigidbody.Create("fixed");
+
+
+    const physicsDebuggerGO = new GameObject(scene);
+    physicsDebuggerGO.AddComponent(PhysicsDebugger);
 
     scene.Start();
 };
 
-Application();
+Application(document.querySelector("canvas"));

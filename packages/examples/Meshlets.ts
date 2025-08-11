@@ -14,15 +14,7 @@ import { OBJLoaderIndexed } from "@trident/plugins/OBJLoader";
 import { MeshletMesh } from "@trident/plugins/meshlets_v2/MeshletMesh";
 import { MeshletDraw } from "@trident/plugins/meshlets_v2/passes/MeshletDraw";
 
-const canvas = document.createElement("canvas");
-const aspectRatio = 1;
-canvas.width = document.body.clientWidth * aspectRatio;
-canvas.height = document.body.clientHeight * aspectRatio;
-canvas.style.width = `100vw`;
-canvas.style.height = `100vh`;
-document.body.appendChild(canvas);
-
-async function Application() {
+async function Application(canvas: HTMLCanvasElement) {
     const renderer = GPU.Renderer.Create(canvas, "webgpu");
     const scene = new Scene(renderer);
 
@@ -71,4 +63,4 @@ async function Application() {
     scene.Start();
 };
 
-Application();
+Application(document.querySelector("canvas"));

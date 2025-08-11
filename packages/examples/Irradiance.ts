@@ -1,42 +1,33 @@
-import { GameObject } from "../GameObject";
-import { Geometry, IndexAttribute, VertexAttribute } from "../Geometry";
-import { Scene } from "../Scene";
-import { Camera } from "../components/Camera";
-import { DirectionalLight } from "../components/Light";
-import { Mesh } from "../components/Mesh";
-import { Vector3 } from "../math/Vector3";
-import { OrbitControls } from "../plugins/OrbitControls";
-import { BufferType } from "../renderer/Buffer";
-import { Material, PBRMaterial } from "../renderer/Material";
-import { Renderer } from "../renderer/Renderer";
-import { RendererContext } from "../renderer/RendererContext";
-import { PassParams, RenderPassOrder } from "../renderer/RenderingPipeline";
-import { Shader } from "../renderer/Shader";
-import { CubeTexture, DepthTexture, RenderTexture, RenderTextureCube, Texture } from "../renderer/Texture";
-import { TextureSampler } from "../renderer/TextureSampler";
-import { DeferredGBufferPass } from "../renderer/passes/DeferredGBufferPass";
+import {
+    Geometry,
+    Components,
+    Scene,
+    Mathf,
+    GPU,
+    GameObject,
+    PBRMaterial,
+} from "@trident/core";
 
-import { Buffer } from "../renderer/Buffer";
-import { Color } from "../math/Color";
+import { OrbitControls } from "@trident/plugins/OrbitControls";
 
 const canvas = document.createElement("canvas");
 const aspectRatio = 1;
-canvas.width = window.innerWidth * aspectRatio;
-canvas.height = window.innerHeight * aspectRatio;
-canvas.style.width = `${window.innerWidth}px`;
-canvas.style.height = `${window.innerHeight}px`;
+canvas.width = document.body.clientWidth * aspectRatio;
+canvas.height = document.body.clientHeight * aspectRatio;
+canvas.style.width = `100vw`;
+canvas.style.height = `100vh`;
 document.body.appendChild(canvas);
 
 
 async function Application() {
-    const renderer = Renderer.Create(canvas, "webgpu");
+    const renderer = GPU.Renderer.Create(canvas, "webgpu");
 
     const scene = new Scene(renderer);
 
     const mainCameraGameObject = new GameObject(scene);
     mainCameraGameObject.transform.position.set(0, 0, 20);
     mainCameraGameObject.name = "MainCamera";
-    const camera = mainCameraGameObject.AddComponent(Camera);
+    const camera = mainCameraGameObject.AddComponent(Components.Camera);
     camera.SetPerspective(72, canvas.width / canvas.height, 0.05, 512);
 
 
@@ -45,8 +36,8 @@ async function Application() {
     {
         const lightGameObject = new GameObject(scene);
         lightGameObject.transform.position.set(4, 4, 4);
-        lightGameObject.transform.LookAtV1(new Vector3(0, 0, 0));
-        const light = lightGameObject.AddComponent(DirectionalLight);
+        lightGameObject.transform.LookAtV1(new Mathf.Vector3(0, 0, 0));
+        const light = lightGameObject.AddComponent(Components.DirectionalLight);
         light.intensity = 1;
         light.color.set(1, 1, 1, 1);
         light.castShadows = true;
@@ -56,7 +47,7 @@ async function Application() {
         const planeGO = new GameObject(scene);
         planeGO.transform.position.set(0, 6, -5);
         planeGO.transform.scale.set(3, 3, 3);
-        const sphereMesh = planeGO.AddComponent(Mesh);
+        const sphereMesh = planeGO.AddComponent(Components.Mesh);
         await sphereMesh.SetGeometry(Geometry.Cube());
         sphereMesh.AddMaterial(new PBRMaterial());
     }
@@ -64,35 +55,35 @@ async function Application() {
     {
         const planeGO = new GameObject(scene);
         planeGO.transform.position.set(0, 1, -5);
-        const sphereMesh = planeGO.AddComponent(Mesh);
+        const sphereMesh = planeGO.AddComponent(Components.Mesh);
         await sphereMesh.SetGeometry(Geometry.Sphere());
         sphereMesh.AddMaterial(new PBRMaterial());
     }
 
 
     {
-        const t = await Texture.Load("./test-assets/HDR/empty_play_room_1k.png")
-        const c = CubeTexture.Create(1024, 1024, 6);
+        const t = await GPU.Texture.Load("./assets/textures/HDR/empty_play_room_1k.png")
+        const c = GPU.CubeTexture.Create(1024, 1024, 6);
     
-        Renderer.BeginRenderFrame();
+        GPU.Renderer.BeginRenderFrame();
         // +X face (Right)
-        RendererContext.CopyTextureToTextureV3( { texture: t, origin: [2048, 1024, 0] }, { texture: c, origin: [0, 0, 0] }, [1024, 1024, 1]);
+        GPU.RendererContext.CopyTextureToTextureV3( { texture: t, origin: [2048, 1024, 0] }, { texture: c, origin: [0, 0, 0] }, [1024, 1024, 1]);
         // -X face (Left)
-        RendererContext.CopyTextureToTextureV3( { texture: t, origin: [0, 1024, 0] }, { texture: c, origin: [0, 0, 1] }, [1024, 1024, 1]);
+        GPU.RendererContext.CopyTextureToTextureV3( { texture: t, origin: [0, 1024, 0] }, { texture: c, origin: [0, 0, 1] }, [1024, 1024, 1]);
         // +Y face (Top)
-        RendererContext.CopyTextureToTextureV3( { texture: t, origin: [1024, 0, 0] }, { texture: c, origin: [0, 0, 2] }, [1024, 1024, 1]);
+        GPU.RendererContext.CopyTextureToTextureV3( { texture: t, origin: [1024, 0, 0] }, { texture: c, origin: [0, 0, 2] }, [1024, 1024, 1]);
         // -Y face (Bottom)
-        RendererContext.CopyTextureToTextureV3( { texture: t, origin: [1024, 2048, 0] }, { texture: c, origin: [0, 0, 3] }, [1024, 1024, 1]);
+        GPU.RendererContext.CopyTextureToTextureV3( { texture: t, origin: [1024, 2048, 0] }, { texture: c, origin: [0, 0, 3] }, [1024, 1024, 1]);
         // +Z face (Front)
-        RendererContext.CopyTextureToTextureV3( { texture: t, origin: [1024, 1024, 0] }, { texture: c, origin: [0, 0, 4] }, [1024, 1024, 1]);
+        GPU.RendererContext.CopyTextureToTextureV3( { texture: t, origin: [1024, 1024, 0] }, { texture: c, origin: [0, 0, 4] }, [1024, 1024, 1]);
         // -Z face (Back)
-        RendererContext.CopyTextureToTextureV3( { texture: t, origin: [3072, 1024, 0] }, { texture: c, origin: [0, 0, 5] }, [1024, 1024, 1]);
-        Renderer.EndRenderFrame();
+        GPU.RendererContext.CopyTextureToTextureV3( { texture: t, origin: [3072, 1024, 0] }, { texture: c, origin: [0, 0, 5] }, [1024, 1024, 1]);
+        GPU.Renderer.EndRenderFrame();
 
 
         
 
-        const shader = await Shader.Create({
+        const shader = await GPU.Shader.Create({
             code: `
             struct VertexInput {
                 @builtin(instance_index) instanceIdx : u32, 
@@ -211,12 +202,12 @@ async function Application() {
             },
         })
 
-        function random(scale: number): Vector3 {
+        function random(scale: number): Mathf.Vector3 {
             scale = scale || 1.0;
             let r = Math.random() * 2.0 * Math.PI;
             let z = Math.random() * 2.0 - 1.0;
             let zScale = Math.sqrt(1.0 - z * z) * scale;
-            return new Vector3(Math.cos(r) * zScale, Math.sin(r) * zScale, z * scale);
+            return new Mathf.Vector3(Math.cos(r) * zScale, Math.sin(r) * zScale, z * scale);
         }
 
         const opts = {
@@ -232,21 +223,21 @@ async function Application() {
         }
         console.log(sampleDirData)
 
-        const sampleDirBuffer = Buffer.Create(sampleDirData.length * 4, BufferType.STORAGE);
+        const sampleDirBuffer = GPU.Buffer.Create(sampleDirData.length * 4, GPU.BufferType.STORAGE);
         sampleDirBuffer.SetArray(new Float32Array(sampleDirData));
-        const sampleDirTexture = Texture.Create(opts.samples, 1, 1, "rgba32float");
-        Renderer.BeginRenderFrame();
-        RendererContext.CopyBufferToTexture({buffer: sampleDirBuffer}, {texture: sampleDirTexture}, [128, 1, 1]);
-        Renderer.EndRenderFrame();
+        const sampleDirTexture = GPU.Texture.Create(opts.samples, 1, 1, "rgba32float");
+        GPU.Renderer.BeginRenderFrame();
+        GPU.RendererContext.CopyBufferToTexture({buffer: sampleDirBuffer}, {texture: sampleDirTexture}, [128, 1, 1]);
+        GPU.Renderer.EndRenderFrame();
 
         shader.SetArray("projectionMatrix", camera.projectionMatrix.elements);
         // shader.SetArray("modelMatrix", camera.viewMatrix.elements);
         shader.SetArray("viewMatrix", camera.viewMatrix.elements);
         shader.SetTexture("skybox", c);
-        shader.SetSampler("skybox_sampler", TextureSampler.Create());
+        shader.SetSampler("skybox_sampler", GPU.TextureSampler.Create());
         shader.SetTexture("skybox_texture", t);
         shader.SetTexture("sample_dir_texture", sampleDirTexture);
-        shader.SetSampler("sample_dir_texture_sampler", TextureSampler.Create({
+        shader.SetSampler("sample_dir_texture_sampler", GPU.TextureSampler.Create({
             magFilter: "nearest",
             minFilter: "nearest",
             mipmapFilter: "nearest"
@@ -255,8 +246,8 @@ async function Application() {
 
 
         // const irradianceMap = CubeTexture.Create(c.width, c.height, 6, "rgba16float");
-        const irradianceMap = Texture.Create(t.width, t.height, 1, "rgba16float");
-        const renderTarget = RenderTexture.Create(1024, 1024, 1, "rgba16float");
+        const irradianceMap = GPU.Texture.Create(t.width, t.height, 1, "rgba16float");
+        const renderTarget = GPU.RenderTexture.Create(1024, 1024, 1, "rgba16float");
 
         const destinations = [
             [2048, 1024, 0],
@@ -269,14 +260,14 @@ async function Application() {
         for (let i = 0; i < 6; i++) {
             shader.SetValue("envmapFace", i);
 
-            Renderer.BeginRenderFrame();
-            RendererContext.BeginRenderPass("IrradianceMap", [{target: renderTarget, clear: true}], undefined);
-            RendererContext.DrawGeometry(Geometry.Plane(), shader);
-            RendererContext.EndRenderPass();
+            GPU.Renderer.BeginRenderFrame();
+            GPU.RendererContext.BeginRenderPass("IrradianceMap", [{target: renderTarget, clear: true}], undefined);
+            GPU.RendererContext.DrawGeometry(Geometry.Plane(), shader);
+            GPU.RendererContext.EndRenderPass();
 
-            RendererContext.CopyTextureToTextureV3( { texture: renderTarget, origin: [0, 0, 0] }, { texture: irradianceMap, origin: destinations[i] }, [1024, 1024, 1]);
+            GPU.RendererContext.CopyTextureToTextureV3( { texture: renderTarget, origin: [0, 0, 0] }, { texture: irradianceMap, origin: destinations[i] }, [1024, 1024, 1]);
 
-            Renderer.EndRenderFrame();
+            GPU.Renderer.EndRenderFrame();
         }
 
 
@@ -287,7 +278,7 @@ async function Application() {
             // planeGO.transform.position.set(0, 1, -5);
     
             shader.SetMatrix4("modelMatrix", planeGO.transform.localToWorldMatrix);
-            const sphereMesh = planeGO.AddComponent(Mesh);
+            const sphereMesh = planeGO.AddComponent(Components.Mesh);
             await sphereMesh.SetGeometry(Geometry.Plane());
             sphereMesh.AddMaterial(new PBRMaterial({
                 albedoMap: irradianceMap,
@@ -301,7 +292,7 @@ async function Application() {
             planeGO.transform.position.x = 30;
     
             shader.SetMatrix4("modelMatrix", planeGO.transform.localToWorldMatrix);
-            const sphereMesh = planeGO.AddComponent(Mesh);
+            const sphereMesh = planeGO.AddComponent(Components.Mesh);
             await sphereMesh.SetGeometry(Geometry.Plane());
             sphereMesh.AddMaterial(new PBRMaterial({
                 albedoMap: t,
@@ -497,8 +488,6 @@ async function Application() {
         // //     planeGO.transform.position.copy(camera.transform.position)    
         // // }, 100);
     }
-
-    scene.renderPipeline.AddPass(new DeferredGBufferPass(), RenderPassOrder.BeforeGBuffer);
 
     scene.Start();
 };

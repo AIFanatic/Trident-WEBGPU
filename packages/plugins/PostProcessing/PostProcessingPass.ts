@@ -1,25 +1,24 @@
-import { RenderPass, ResourcePool } from "@trident/core/renderer/RenderGraph";
-import { PassParams } from "@trident/core/renderer/RenderingPipeline";
+import { GPU } from "@trident/core";
 
-export class PostProcessingPass extends RenderPass {
+export class PostProcessingPass extends GPU.RenderPass {
     public name: string = "PostProcessingPass";
 
-    public effects: RenderPass[] = []
+    public effects: GPU.RenderPass[] = []
 
     constructor() {
         super({
             inputs: [
-                PassParams.LightingPassOutput,
+                GPU.PassParams.LightingPassOutput,
             ],
             outputs: [
-                PassParams.LightingPassOutput,
+                GPU.PassParams.LightingPassOutput,
             ]
         });
 
         // PostProcessingPasses.push(new PostProcessingFXAA());
     }
 
-    public async init(resources: ResourcePool) {
+    public async init(resources: GPU.ResourcePool) {
         for (const effect of this.effects) {
             await effect.init(resources);
         }
@@ -27,7 +26,7 @@ export class PostProcessingPass extends RenderPass {
         this.initialized = true;
     }
 
-    public async execute(resources: ResourcePool) {
+    public async execute(resources: GPU.ResourcePool) {
         if (this.initialized === false) return;
 
         for (const effect of this.effects) {

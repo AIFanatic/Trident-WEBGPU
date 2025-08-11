@@ -1,3 +1,4 @@
+import { BoundingVolume } from "./BoundingVolume";
 import { Matrix4 } from "./Matrix4";
 import { Plane } from "./Plane";
 
@@ -24,5 +25,18 @@ export class Frustum {
         planes[ 5 ].setComponents( me2, me6, me10, me14 ).normalize();
 
 		return this;
+	}
+
+	public intersectsBoundingVolume(boundingVolume: BoundingVolume): boolean {
+		const planes = this.planes;
+		const center = boundingVolume.center;
+		const negRadius = - boundingVolume.radius * boundingVolume.scale;
+
+		for ( let i = 0; i < 6; i ++ ) {
+			const distance = planes[ i ].distanceToPoint( center );
+			if ( distance < negRadius ) return false;
+		}
+
+		return true;
 	}
 }

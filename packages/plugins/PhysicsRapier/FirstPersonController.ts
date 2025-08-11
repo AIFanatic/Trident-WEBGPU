@@ -1,8 +1,6 @@
 import { Component, Components } from "@trident/core";
 import { Transform } from "@trident/core/components/Transform";
 import { Mathf } from "@trident/core";
-import { Renderer } from "@trident/core";
-import { Line } from "../Line";
 import { PhysicsRapier } from "./PhysicsRapier";
 import { RigidBody } from "./RigidBody";
 import { Collider } from "./colliders/Collider";
@@ -40,7 +38,6 @@ export class FirstPersonController extends Component {
     private mouse = { deltaX: 0, deltaY: 0, left: false };
 
 
-    private line: Line;
     private target: Transform;
 
     public state: CharacterState = CharacterState.NOCLIP;
@@ -57,6 +54,8 @@ export class FirstPersonController extends Component {
         if (!rigidbody) throw Error("FirstPersonController needs a rigidbody attached to it");
         this.rigidbody = rigidbody;
         this.camera.transform.position.copy(this.transform.position)
+
+        this.rigidbody.rigidBody.lockRotations(true, true)
         
         document.addEventListener("keydown", event => {
             if (event.key === "w") this.keysPressed.forward = true;
@@ -100,10 +99,6 @@ export class FirstPersonController extends Component {
             this.camera.transform.rotation.fromEuler(new Mathf.Vector3(this.mouse.deltaY, this.mouse.deltaX, 0));
         })
 
-
-        const scene = Components.Camera.mainCamera.gameObject.scene;
-        this.line = new Line(scene, new Mathf.Vector3(0, 0, 0), new Mathf.Vector3(0, 0, 0));
-        // Temp
         this.target = this.transform;
     }
 
@@ -137,18 +132,19 @@ export class FirstPersonController extends Component {
     }
 
     private SetPosition(position: Mathf.Vector3) {
-        this.transform.position.copy(position);
-        this.rigidbody.rigidBody.setNextKinematicTranslation(position);
+        // this.transform.position.copy(position);
+        // this.rigidbody.rigidBody.setNextKinematicTranslation(position);
+        // this.rigidbody.rigidBody.setLinvel(position);
         this.camera.transform.position.copy(position).add(new Mathf.Vector3(0, 1, 0));
     }
 
     private HandleMovement() {
-        if (!this.CanMove() && this.state !== CharacterState.NOCLIP) {
-            const g = new Mathf.Vector3(PhysicsRapier.PhysicsWorld.gravity.x, PhysicsRapier.PhysicsWorld.gravity.y, PhysicsRapier.PhysicsWorld.gravity.z);
-            const p = this.target.position.clone().add(g.mul(1/60));
-            this.SetPosition(p);
-            return;
-        }
+        // if (!this.CanMove() && this.state !== CharacterState.NOCLIP) {
+        //     const g = new Mathf.Vector3(PhysicsRapier.PhysicsWorld.gravity.x, PhysicsRapier.PhysicsWorld.gravity.y, PhysicsRapier.PhysicsWorld.gravity.z);
+        //     const p = this.target.position.clone().add(g.mul(1/60));
+        //     this.SetPosition(p);
+        //     return;
+        // }
 
         let speed = this.speed;
         this.v.set(0,0,0);
@@ -162,16 +158,30 @@ export class FirstPersonController extends Component {
         
         this.v.applyQuaternion(this.camera.transform.rotation);
 
-        const dt = 1/60;
-        const movement = new Mathf.Vector3(this.v.x, this.v.y, this.v.z);
-        movement.normalize().mul(dt * speed);
-        const p = this.transform.position.clone().add(movement);
-        if (this.state !== CharacterState.NOCLIP) {
-            p.y = this.floorY + this.rayDistance;
-            if (this.keysPressed.boost === true) this.state = CharacterState.RUNNING;
-            else this.state = CharacterState.MOVING;
-        }
-        this.SetPosition(p);
+
+        const forward = this.keysPressed.forward ? 1: 0;
+        const backward = this.keysPressed.backward ? 1: 0;
+        const left = this.keysPressed.left ? 1: 0;
+        const right = this.keysPressed.right ? 1: 0;
+        const r = this.rigidbody.rigidBody;
+        const velocity = r.linvel()
+        // update camera
+        // state.camera.position.set(...ref.current.translation())
+        // movement
+        const frontVector = new Mathf.Vector3(0, 0, backward - forward)
+        const sideVector = new Mathf.Vector3(left - right, 0, 0)
+        const direction = this.v.mul(speed);
+        r.setLinvel({ x: direction.x, y: velocity.y, z: direction.z }, true);
+        // jumping
+        const p = r.translation();
+        const ray = new PhysicsRapier.Physics.Ray(p, { x: 0, y: -1, z: 0 });
+        const rayHit = PhysicsRapier.PhysicsWorld.castRay(ray, this.rayDistance + 2, true, undefined, undefined, this.collider.collider);
+
+        const grounded = rayHit && rayHit.collider && Math.abs(rayHit.timeOfImpact) <= 1.75
+        if (this.keysPressed.jump && grounded) r.setLinvel({ x: 0, y: 7.5, z: 0 }, true);
+
+        this.transform.position.set(p.x, p.y, p.z);
+        this.camera.transform.position.set(p.x, p.y, p.z).add(new Mathf.Vector3(0, 1, 0));
     }
 
     private HandleNoClip() {

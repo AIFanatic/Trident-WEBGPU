@@ -14,15 +14,7 @@ import { Water } from "@trident/plugins/Water/WaterPlugin";
 
 import { UIColorStat, UIFolder, UISliderStat, UIVecStat } from "@trident/plugins/ui/UIStats";
 
-const canvas = document.createElement("canvas");
-const aspectRatio = 1;
-canvas.width = document.body.clientWidth * aspectRatio;
-canvas.height = document.body.clientHeight * aspectRatio;
-canvas.style.width = `100vw`;
-canvas.style.height = `100vh`;
-document.body.appendChild(canvas);
-
-async function Application() {
+async function Application(canvas: HTMLCanvasElement) {
     const renderer = Renderer.Create(canvas, "webgpu");
 
     const scene = new Scene(renderer);
@@ -108,4 +100,4 @@ async function Application() {
     scene.Start();
 };
 
-Application();
+Application(document.querySelector("canvas"));

@@ -9,18 +9,22 @@ export class Plane {
 		this.constant = constant;
 	}
 
-	setComponents( x: number, y: number, z: number, w: number ) {
+	public setComponents( x: number, y: number, z: number, w: number ): Plane {
 		this.normal.set( x, y, z );
 		this.constant = w;
 
 		return this;
 	}
 
-	normalize() {
+	public normalize(): Plane {
 		const inverseNormalLength = 1.0 / this.normal.length();
 		this.normal.mul(inverseNormalLength);
 		this.constant *= inverseNormalLength;
 
 		return this;
+	}
+
+	public distanceToPoint(point: Vector3) {
+		return this.normal.dot( point ) + this.constant;
 	}
 }

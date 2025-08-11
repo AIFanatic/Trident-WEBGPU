@@ -88,7 +88,8 @@ class WaterRenderPass extends GPU.RenderPass {
         SCREEN_TEXTURE: { group: 1, binding: 4, type: "texture" },
         DEPTH_TEXTURE: { group: 1, binding: 5, type: "depthTexture" },
         texture_sampler: { group: 1, binding: 6, type: "sampler" },
-        waveSettings: { group: 1, binding: 7, type: "storage" }
+        depth_texture_sampler: { group: 1, binding: 7, type: "sampler-compare" },
+        waveSettings: { group: 1, binding: 8, type: "storage" }
       }
     });
     const uv_sampler_texture = await GPU.Texture.Load(new URL(uv_sampler_texture_url, import.meta.url));
@@ -100,6 +101,7 @@ class WaterRenderPass extends GPU.RenderPass {
     this.waterShader.SetTexture("normalmap_b_sampler", normalmap_b_sampler_texture);
     this.waterShader.SetTexture("foam_sampler", foam_sampler_texture);
     this.waterShader.SetSampler("texture_sampler", GPU.TextureSampler.Create());
+    this.waterShader.SetSampler("depth_texture_sampler", GPU.TextureSampler.Create({ compare: "less-equal" }));
     this.albedoClone = GPU.RenderTexture.Create(Renderer.width, Renderer.height, 1, "rgba16float");
     this.depthClone = GPU.DepthTexture.Create(Renderer.width, Renderer.height);
     this.waterSettingsBuffer = GPU.Buffer.Create(14 * 4 * 4, GPU.BufferType.STORAGE);

@@ -62,7 +62,7 @@ export class WEBGPURendererContext implements RendererContext {
         if (!shader.pipeline) throw Error("Shader doesnt have a pipeline");
 
         Renderer.info.drawCallsStat += 1;
-        
+
         this.activeRenderPass.setPipeline(shader.pipeline);
         for (let i = 0; i < shader.bindGroups.length; i++) {
             let dynamicOffsets: number[] = [];
@@ -93,10 +93,6 @@ export class WEBGPURendererContext implements RendererContext {
             }
         }
         else if (shader.params.topology === Topology.Lines) {
-            // if (!geometry.index) throw Error("Cannot draw lines without index buffer");
-            // const numTriangles = geometry.index.array.length / 3;
-            // this.activeRenderPass.draw(6 * numTriangles, instanceCount);
-
             const positions = geometry.attributes.get("position") as VertexAttribute;
             this.activeRenderPass.draw(positions.GetBuffer().size / 3 / 4, instanceCount);
         }

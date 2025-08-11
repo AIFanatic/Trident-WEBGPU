@@ -1,6 +1,8 @@
 import { Component } from "./Component";
 import { Geometry } from "../Geometry";
 import { Material } from "../renderer/Material";
+import { EventSystemLocal } from "../Events";
+import { TransformEvents } from "./Transform";
 
 export class Mesh extends Component {
     protected geometry: Geometry;
@@ -9,6 +11,10 @@ export class Mesh extends Component {
     public enableShadows: boolean = true;
 
     public Start(): void {
+        EventSystemLocal.on(TransformEvents.Updated, this.transform, () => {
+            this.geometry.boundingVolume.center.copy(this.transform.position);
+            this.geometry.boundingVolume.scale = Math.max(this.transform.scale.x, this.transform.scale.y, this.transform.scale.z);
+        })
     }
 
     public AddMaterial(material: Material) {
@@ -23,4 +29,9 @@ export class Mesh extends Component {
 
     public SetGeometry(geometry: Geometry) { this.geometry = geometry }
     public GetGeometry(): Geometry { return this.geometry}
+
+    public Destroy(): void {
+        this.geometry.Destroy();
+        for (const material of this.GetMaterials()) material.Destroy();
+    }
 }

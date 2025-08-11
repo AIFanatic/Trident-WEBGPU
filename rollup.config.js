@@ -12,18 +12,16 @@ function addJsExtensionToImports() {
             function replacer(_, p1, p2, p3) {
                 const target = path.resolve(path.dirname(file), p2);
                 let isDirectory = fs.existsSync(target) && fs.lstatSync(target).isDirectory();
-        
-        
+
+
                 if (p2.endsWith('.js')) return _;
                 if (isDirectory) return `${p1}${p2}/index.js${p3}`;
-        
+
                 return `${p1}${p2}.js${p3}`
             }
-        
+
             let updated = code
-                .replace(
-                    /from\s+['"](@trident\/[^'"]+)['"]/g,
-                (_, path) => {
+                .replace(/from\s+['"](@trident\/[^'"]+)['"]/g, (_, path) => {
                     return path == "@trident/core" || path == "@trident/plugins" || path.endsWith("js") ? _ : `from '${path}.js'`;
                 })
                 // static imports
@@ -32,7 +30,7 @@ function addJsExtensionToImports() {
                 .replace(/(export\s+[^'"]+\s+from\s+['"])(\.[.\/][^'"]+?)(['"])/g, replacer)
                 // dynamic imports
                 .replace(/(import\(\s*['"])(\.[.\/][^'"]+?)(['"]\s*\))/g, replacer);
-        
+
             if (updated !== code) {
                 console.log(`Patched imports in ${file}`);
             }
@@ -105,11 +103,14 @@ const plugins = {
 
 function wrapJsInHtml() {
     const HTML_TEMPLATE =
-    `<html>
+        `
+    <!DOCTYPE html>
+    <html>
         <head>
             <style>
                 html, body {
                     margin: 0;
+                    overflow: hidden;
                 }
             </style>
         </head>
@@ -123,17 +124,25 @@ function wrapJsInHtml() {
                 }
             </script>
             <script type="module">
+                const canvas = document.createElement("canvas");
+                const aspectRatio = 1;
+                canvas.width = window.innerWidth * aspectRatio;
+                canvas.height = window.innerHeight * aspectRatio;
+                canvas.style.width = "100vw";
+                canvas.style.height = "100vh";
+                canvas.style.userSelect = "none";
+                document.body.appendChild(canvas);
                 %example_code%
             </script>
         </body>
     </html>`;
 
     const parseCode = (template, code) => {
-        const formattedCode = 
+        const formattedCode =
             code.replace(/\n/g, "\n            ") // Add indentation to code
-            .replace("", "            ") // Add indentation to first line
-        
-        return template .replace("%example_code%", formattedCode);
+                .replace("", "            ") // Add indentation to first line
+
+        return template.replace("%example_code%", formattedCode);
     }
 
     return {
@@ -195,4 +204,72 @@ const examples = {
     ]
 }
 
-export default [core, plugins, examples];
+
+
+function editorHtml() {
+    const HTML_TEMPLATE =
+        `
+    <!DOCTYPE html>
+    <html>
+        <head>
+            <link rel="stylesheet" href="trident-editor.css">
+        </head>
+        <body>
+            <script type="importmap">
+                {
+                    "imports": {
+                        "@trident/core": "../trident-core.js",
+                        "@trident/plugins/": "../plugins/"
+                    }
+                }
+            </script>
+            <script type="module" src="./trident-editor.js"></script>
+        </body>
+    </html>`;
+
+    return {
+        name: 'wrap-js-in-html',
+        generateBundle(options, bundle) {
+            this.emitFile({
+                type: 'asset',
+                fileName: "index.html",
+                source: HTML_TEMPLATE
+            });
+        }
+    };
+}
+
+function cssBundle({ output = 'trident-editor.css' } = {}) {
+    let css = '';
+    return {
+        name: 'css-bundle',
+        transform(code, id) {
+            if (!id.endsWith('.css')) return null;
+            css += code + '\n';
+            return 'export default ""';
+        },
+        generateBundle() {
+            this.emitFile({ type: 'asset', fileName: output, source: css });
+        },
+    };
+}
+
+const editor = {
+    input: 'packages/editor/index.tsx',
+    output: {
+        file: './dist/editor/trident-editor.js',
+        format: "esm"
+    },
+    plugins: [
+        // typescript(),
+        esbuild({
+            target: "es2022",
+            jsxFactory: 'createElement',
+            jsxFragment: 'Fragment',
+        }),
+        editorHtml(),
+        cssBundle()
+    ]
+}
+
+export default [core, plugins, examples, editor];

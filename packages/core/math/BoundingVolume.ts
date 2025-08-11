@@ -5,12 +5,14 @@ export class BoundingVolume {
     public max: Vector3;
     public center: Vector3;
     public radius: number;
+    public scale: number;
 
-    constructor(min = new Vector3(+Infinity, +Infinity, +Infinity), max = new Vector3(-Infinity, -Infinity, -Infinity), center = new Vector3(), radius = 0) {
+    constructor(min = new Vector3(+Infinity, +Infinity, +Infinity), max = new Vector3(-Infinity, -Infinity, -Infinity), center = new Vector3(), radius = 0, scale = 1) {
         this.min = min;
         this.max = max;
         this.center = center;
         this.radius = radius;
+        this.scale = scale;
     }
 
     public static FromVertices(vertices: Float32Array): BoundingVolume {
@@ -43,5 +45,15 @@ export class BoundingVolume {
             newCenter,
             newRadius
         );
+    }
+
+    public copy(boundingVolume: BoundingVolume): BoundingVolume {
+        this.min.copy(boundingVolume.min);
+        this.max.copy(boundingVolume.max);
+        this.center.copy(boundingVolume.center);
+        this.radius = boundingVolume.radius;
+        this.scale = boundingVolume.scale;
+
+        return this;
     }
 }

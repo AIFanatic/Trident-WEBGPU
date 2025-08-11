@@ -28,6 +28,8 @@ class _Debugger {
 
     private gpuBufferSizeTotal: UITextStat;
     private gpuTextureSizeTotal: UITextStat;
+
+    private visibleObjectsStat: UITextStat;
     
     private renderPassesFolder: UIFolder;
     private framePassesStats: Map<string, UITextStat> = new Map();
@@ -54,6 +56,7 @@ class _Debugger {
         this.bindGroupsStat = new UITextStat(this.rendererFolder, "Bind groups: ");
         this.drawCallsStat = new UITextStat(this.rendererFolder, "Draw calls: ");
         this.compiledShadersStat = new UITextStat(this.rendererFolder, "Compiled shaders: ");
+        this.visibleObjectsStat = new UITextStat(this.rendererFolder, "Visible objects: ");
 
         // this.viewTypeStat = new UIDropdownStat(this.rendererFolder, "Final output:", ["Lighting", "Albedo Map", "Normal Map", "Metalness", "Roughness", "Emissive"], (index, value) => {this.viewTypeValue = index}, this.viewTypeValue);
         // this.heightScale = new UISliderStat(this.rendererFolder, "Height scale:", 0, 1, 0.01, this.heightScaleValue, state => {this.heightScaleValue = state});
@@ -78,6 +81,7 @@ class _Debugger {
         this.bindGroupsStat.SetValue(Renderer.info.bindGroupsStat);
         this.drawCallsStat.SetValue(Renderer.info.drawCallsStat);
         this.compiledShadersStat.SetValue(Renderer.info.compiledShadersStat);
+        this.visibleObjectsStat.SetValue(Renderer.info.visibleObjects);
 
         let totalGPUTime = 0;
         for (const [framePassName, framePassValue] of Renderer.info.framePassesStats) {

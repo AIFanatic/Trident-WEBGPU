@@ -5,6 +5,7 @@ import { Mesh } from "../../components/Mesh";
 import { PassParams } from "../RenderingPipeline";
 import { InstancedMesh } from "../../components/InstancedMesh";
 import { Renderer } from "../Renderer";
+import { BoundingVolume } from "../../math/BoundingVolume";
 
 export class DeferredGBufferPass extends RenderPass {
     public name: string = "DeferredMeshRenderPass";
@@ -27,11 +28,26 @@ export class DeferredGBufferPass extends RenderPass {
         this.initialized = true;
     }
 
+    private boundingVolume = new BoundingVolume();
+    private frustumCull(camera: Camera, meshes: Mesh[]): Mesh[] {
+        let nonOccluded: Mesh[] = [];
+        for (const mesh of meshes) {
+            this.boundingVolume.copy(mesh.GetGeometry().boundingVolume);
+            this.boundingVolume
+            if (camera.frustum.intersectsBoundingVolume(mesh.GetGeometry().boundingVolume) === true) {
+                nonOccluded.push(mesh);
+            }
+        }
+        return nonOccluded;
+    }
+
     public execute(resources: ResourcePool) {
         if (!this.initialized) return;
 
         const scene = Camera.mainCamera.gameObject.scene;
         const meshes = scene.GetComponents(Mesh);
+        // const meshes = this.frustumCull(Camera.mainCamera, scene.GetComponents(Mesh));
+        Renderer.info.visibleObjects = meshes.length;
         const instancedMeshes = scene.GetComponents(InstancedMesh);
         if (meshes.length === 0 && instancedMeshes.length === 0) return;
 
@@ -60,6 +76,7 @@ export class DeferredGBufferPass extends RenderPass {
             if (!mesh.enabled) continue;
 
             const geometry = mesh.GetGeometry();
+            if (!geometry) continue;
             const materials = mesh.GetMaterials();
             for (const material of materials) {
                 if (material.params.isDeferred === false) continue;

@@ -79,7 +79,7 @@ export class WEBGPUTexture implements Texture {
     public GenerateMips() {
         this.buffer = WEBGPUMipsGenerator.generateMips(this);
         // Needed for mipmapping "mipLevelCount: uniform.activeMipCount"
-        this.SetActiveMipCount(WEBGPUMipsGenerator.numMipLevels(this.width, this.height));
+        this.SetActiveMipCount(WEBGPUMipsGenerator.numMipLevels(this.width, this.height, this.depth));
     }
 
     public SetActiveLayer(layer: number) {

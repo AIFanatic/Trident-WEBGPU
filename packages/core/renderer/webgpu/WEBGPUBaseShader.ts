@@ -272,4 +272,26 @@ export class WEBGPUBaseShader {
 
     public Compile() {}
     public OnPreRender(): boolean { return true; }
+
+    public Destroy() {
+        const crcs = this.BuildBindGroupsCRC();
+        for (const crc of crcs) {
+            if (BindGroupCache.delete(crc) === true) {
+                Renderer.info.bindGroupsStat -= 1;
+            }
+        }
+
+        // TODO: Efficiency
+        for (const bindGroupLayout of this.bindGroupLayouts) {
+            for (const [cachedBindGroupLayoutName, cachedBindGroupLayout] of BindGroupLayoutCache) {
+                if (bindGroupLayout === cachedBindGroupLayout) {
+                    if (BindGroupLayoutCache.delete(cachedBindGroupLayoutName) === true) {
+                        Renderer.info.bindGroupLayoutsStat -= 1;
+                    }
+                }
+            }
+        }
+
+        Renderer.info.compiledShadersStat -= 1;
+    }
 }

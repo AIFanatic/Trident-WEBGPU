@@ -8,6 +8,11 @@ class RigidBody extends Component {
   constructor(gameObject) {
     super(gameObject);
   }
+  Start() {
+    if (!this.rigidBody) {
+      this.Create("dynamic");
+    }
+  }
   Create(type) {
     const collider = this.gameObject.GetComponent(Collider);
     if (!collider.collider) throw Error("Rigidbody needs a collider");

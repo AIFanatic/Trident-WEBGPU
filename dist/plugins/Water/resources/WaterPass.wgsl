@@ -67,7 +67,8 @@ struct WaveSettings {
 @group(1) @binding(4) var SCREEN_TEXTURE: texture_2d<f32>;
 @group(1) @binding(5) var DEPTH_TEXTURE: texture_depth_2d;
 @group(1) @binding(6) var texture_sampler: sampler;
-@group(1) @binding(7) var<storage, read> waveSettings: WaveSettings;
+@group(1) @binding(7) var depth_texture_sampler: sampler_comparison;
+@group(1) @binding(8) var<storage, read> waveSettings: WaveSettings;
 
 // Wave function:
 struct WaveParams {
@@ -186,7 +187,8 @@ fn fragmentMain(input: VertexOutput) -> FragmentOutput {
     let ref_uv: vec2f = input.SCREEN_UV + (ref_normalmap.xy * waveSettings.refraction[0]) / -input.VERTEX.z;
 
     // Ground depth:
-    let depth_raw: f32 = textureSample(DEPTH_TEXTURE, texture_sampler, input.SCREEN_UV);
+    let ref_value = input.position.z / input.position.w;
+    let depth_raw: f32 = textureSampleCompare(DEPTH_TEXTURE, depth_texture_sampler, input.SCREEN_UV, ref_value);
 
     let ndc = vec4f(ref_uv * 2.0 - 1.0, depth_raw, 1.0);
     let view_pos_h = INV_PROJECTION_MATRIX * ndc;

@@ -398,6 +398,30 @@ fn CalculateShadowCSM(surface: Surface, light: Light, lightIndex: u32) -> Shadow
     return shadow;
 }
 
+fn Tonemap_ACES(x: vec3f) -> vec3f {
+    // Narkowicz 2015, "ACES Filmic Tone Mapping Curve"
+    let a = 2.51;
+    let b = 0.03;
+    let c = 2.43;
+    let d = 0.59;
+    let e = 0.14;
+    return (x * (a * x + b)) / (x * (c * x + d) + e);
+}
+
+fn OECF_sRGBFast(linear: vec3f) -> vec3f {
+    return pow(linear, vec3(0.454545));
+}
+
+// simple Reinhard tone mapping
+fn ToneMap_Reinhard(c: vec3<f32>) -> vec3<f32> {
+    return c / (c + vec3<f32>(1.0));
+}
+
+// gamma (linear → sRGB)
+fn Gamma(c: vec3<f32>) -> vec3<f32> {
+    return pow(c, vec3<f32>(1.0 / 2.2));
+}
+
 @fragment
 fn fragmentMain(input: VertexOutput) -> @location(0) vec4<f32> {
     let uv = input.vUv;
@@ -427,6 +451,29 @@ fn fragmentMain(input: VertexOutput) -> @location(0) vec4<f32> {
 
     var depth = textureLoad(depthTexture, vec2<i32>(floor(input.position.xy)), 0);
 
+    var surface: Surface;
+    surface.depth = depth;
+    // surface.albedo = albedo.rgb * skyColor.rgb;
+    surface.albedo = albedo.rgb;
+    surface.roughness = albedo.a;
+    surface.metallic = normal.a;
+    surface.emissive = ermo.rgb;
+    surface.occlusion = 1.0;
+    surface.worldPosition = worldPosition.xyz;
+    surface.N = normalize(normal.rgb);
+    surface.F0 = mix(vec3(0.04), surface.albedo.rgb, vec3(surface.metallic));
+    surface.V = normalize(view.viewPosition.xyz - surface.worldPosition);
+
+    var worldNormal: vec3f = normalize(surface.N);
+    var eyeToSurfaceDir: vec3f = normalize(surface.worldPosition - view.viewPosition.xyz);
+    var direction: vec3f = reflect(eyeToSurfaceDir, worldNormal);
+    var environmentColor = textureSample(skyboxTexture, textureSampler, direction) * 0.5;
+
+    // let maxMips = /* # of mips in your cubemap */;
+    // let lod    = surface.roughness * f32(maxMips - 1);
+    // let environmentColor = textureSampleLevel(skyboxTexture, textureSampler, direction, lod);
+
+    
     // Convert screen coordinate to NDC space [-1, 1]
     let ndc = vec3<f32>(
         (input.position.x / view.projectionOutputSize.x) * 2.0 - 1.0,
@@ -443,24 +490,12 @@ fn fragmentMain(input: VertexOutput) -> @location(0) vec4<f32> {
     var worldRay = normalize((view.viewInverseMatrix * vec4(viewRay, 0.0)).xyz);
     
     // Sample the sky cube using the view ray as direction
-    let skyColor = textureSample(skyboxTexture, textureSampler, worldRay);
+    let skyColor = textureSample(skyboxTexture, textureSampler, worldRay) * 0.5;
+    
     // For example, if the depth is near the far plane, we assume it’s background:
     if (depth >= 0.9999999) {
         return skyColor;
     }
-
-    var surface: Surface;
-    surface.depth = depth;
-    // surface.albedo = albedo.rgb * skyColor.rgb;
-    surface.albedo = albedo.rgb;
-    surface.roughness = albedo.a;
-    surface.metallic = normal.a;
-    surface.emissive = ermo.rgb;
-    surface.occlusion = 1.0;
-    surface.worldPosition = worldPosition.xyz;
-    surface.N = normalize(normal.rgb);
-    surface.F0 = mix(vec3(0.04), surface.albedo.rgb, vec3(surface.metallic));
-    surface.V = normalize(view.viewPosition.xyz - surface.worldPosition);
 
     if (ermo.w > 0.5) {
         return vec4(surface.albedo.rgb, 1.0);
@@ -475,7 +510,7 @@ fn fragmentMain(input: VertexOutput) -> @location(0) vec4<f32> {
         if (lightType == SPOT_LIGHT) {
             var spotLight: SpotLight;
             
-            let lightViewInverse = light.viewMatrixInverse; // Assuming you can calculate or pass this
+            let lightViewInverse = light.viewMatrixInverse;
             let lightDir = normalize((lightViewInverse * vec4(0.0, 0.0, 1.0, 0.0)).xyz);
 
             spotLight.pointToLight = light.position.xyz - surface.worldPosition;
@@ -484,6 +519,10 @@ fn fragmentMain(input: VertexOutput) -> @location(0) vec4<f32> {
             spotLight.range = light.params1.g;
             spotLight.direction = lightDir;
             spotLight.angle = light.params2.w;
+
+            if (distance(light.position.xyz, surface.worldPosition) > spotLight.range) {
+                continue;
+            }
 
             // let shadow = CalculateShadow(surface.worldPosition, surface.N, light, i);
 
@@ -538,6 +577,9 @@ fn fragmentMain(input: VertexOutput) -> @location(0) vec4<f32> {
 
 
     let ambientColor = vec3(0.01);
+    let specularIBL = environmentColor.rgb * surface.F0;
+    Lo += specularIBL * surface.occlusion;
+    
     color = ambientColor * surface.albedo + Lo * surface.occlusion;
 
     if (u32(settings.debugShadowCascades) == 1) {
@@ -545,6 +587,13 @@ fn fragmentMain(input: VertexOutput) -> @location(0) vec4<f32> {
     }
 
     color += surface.emissive;
+
+    // color = Tonemap_ACES(color);
+    // color = OECF_sRGBFast(color);
+
+    // color *= 0.01;
+    // color = ToneMap_Reinhard(color);
+    // color = Gamma(color);
 
 
     if (u32(settings.viewType) == 1) { color = surface.albedo.rgb; }

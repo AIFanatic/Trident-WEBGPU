@@ -1,4 +1,4 @@
-import { EngineDebug } from "./EngineDebug";
+// import { EngineDebug } from "./EngineDebug";
 import { EventSystem } from "./Events";
 import { GameObject } from "./GameObject";
 import { Component, ComponentEvents } from "./components/Component";
@@ -75,6 +75,17 @@ export class Scene {
     public RemoveGameObject(gameObject: GameObject) {
         const index = this.gameObjects.indexOf(gameObject);
         if (index !== -1) this.gameObjects.splice(index, 1);
+
+        for (const component of gameObject.GetComponents()) {
+            let componentsArray = this.componentsByType.get(component.name);
+            if (componentsArray) {
+                const index = componentsArray.indexOf(component);
+                if (index !== -1) {
+                    componentsArray.splice(index, 1);
+                    this.componentsByType.set(component.name, componentsArray);
+                }
+            }
+        }
     }
     
     public Start() {
@@ -87,7 +98,13 @@ export class Scene {
 
     private Tick() {
         const componentUpdateStart = performance.now();
-        for (const [component, _] of this.toUpdate) component.Update();
+        for (const [component, _] of this.toUpdate) {
+            if (!component.hasStarted) {
+                component.Start();
+                component.hasStarted = true;
+            }
+            component.Update();
+        }
         // EngineDebug.componentUpdate.SetValue(performance.now() - componentUpdateStart);
 
         this.renderPipeline.Render(this);

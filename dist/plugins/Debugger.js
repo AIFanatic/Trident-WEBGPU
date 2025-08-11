@@ -24,6 +24,7 @@ class _Debugger {
   // public useHeightMapValue: boolean = false;
   gpuBufferSizeTotal;
   gpuTextureSizeTotal;
+  visibleObjectsStat;
   renderPassesFolder;
   framePassesStats = /* @__PURE__ */ new Map();
   constructor() {
@@ -45,6 +46,7 @@ class _Debugger {
     this.bindGroupsStat = new UITextStat(this.rendererFolder, "Bind groups: ");
     this.drawCallsStat = new UITextStat(this.rendererFolder, "Draw calls: ");
     this.compiledShadersStat = new UITextStat(this.rendererFolder, "Compiled shaders: ");
+    this.visibleObjectsStat = new UITextStat(this.rendererFolder, "Visible objects: ");
     this.renderPassesFolder = new UIFolder(this.rendererFolder, "Frame passes");
     this.renderPassesFolder.Open();
     setInterval(() => {
@@ -62,6 +64,7 @@ class _Debugger {
     this.bindGroupsStat.SetValue(Renderer.info.bindGroupsStat);
     this.drawCallsStat.SetValue(Renderer.info.drawCallsStat);
     this.compiledShadersStat.SetValue(Renderer.info.compiledShadersStat);
+    this.visibleObjectsStat.SetValue(Renderer.info.visibleObjects);
     let totalGPUTime = 0;
     for (const [framePassName, framePassValue] of Renderer.info.framePassesStats) {
       let framePassStat = this.framePassesStats.get(framePassName);

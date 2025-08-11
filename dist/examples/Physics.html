@@ -1,8 +1,11 @@
-<html>
+
+    <!DOCTYPE html>
+    <html>
         <head>
             <style>
                 html, body {
                     margin: 0;
+                    overflow: hidden;
                 }
             </style>
         </head>
@@ -16,21 +19,23 @@
                 }
             </script>
             <script type="module">
+                const canvas = document.createElement("canvas");
+                const aspectRatio = 1;
+                canvas.width = window.innerWidth * aspectRatio;
+                canvas.height = window.innerHeight * aspectRatio;
+                canvas.style.width = "100vw";
+                canvas.style.height = "100vh";
+                canvas.style.userSelect = "none";
+                document.body.appendChild(canvas);
                             import { Renderer, Scene, GameObject, Mathf, Components, Geometry, PBRMaterial } from '@trident/core';
             import { OrbitControls } from '@trident/plugins/OrbitControls.js';
             import { PhysicsRapier } from '@trident/plugins/PhysicsRapier/PhysicsRapier.js';
             import { SphereCollider } from '@trident/plugins/PhysicsRapier/colliders/SphereCollider.js';
             import { PlaneCollider } from '@trident/plugins/PhysicsRapier/colliders/PlaneCollider.js';
             import { RigidBody } from '@trident/plugins/PhysicsRapier/RigidBody.js';
+            import { PhysicsDebugger } from '@trident/plugins/PhysicsRapier/PhysicsDebugger.js';
             
-            const canvas = document.createElement("canvas");
-            const aspectRatio = 1;
-            canvas.width = document.body.clientWidth * aspectRatio;
-            canvas.height = document.body.clientHeight * aspectRatio;
-            canvas.style.width = `100vw`;
-            canvas.style.height = `100vh`;
-            document.body.appendChild(canvas);
-            async function Application() {
+            async function Application(canvas) {
               const renderer = Renderer.Create(canvas, "webgpu");
               const scene = new Scene(renderer);
               const mainCameraGameObject = new GameObject(scene);
@@ -64,9 +69,11 @@
               floor.AddComponent(PlaneCollider);
               const floorRigidbody = floor.AddComponent(RigidBody);
               floorRigidbody.Create("fixed");
+              const physicsDebuggerGO = new GameObject(scene);
+              physicsDebuggerGO.AddComponent(PhysicsDebugger);
               scene.Start();
             }
-            Application();
+            Application(document.querySelector("canvas"));
             
             </script>
         </body>

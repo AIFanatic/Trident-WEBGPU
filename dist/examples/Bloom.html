@@ -1,8 +1,11 @@
-<html>
+
+    <!DOCTYPE html>
+    <html>
         <head>
             <style>
                 html, body {
                     margin: 0;
+                    overflow: hidden;
                 }
             </style>
         </head>
@@ -16,6 +19,14 @@
                 }
             </script>
             <script type="module">
+                const canvas = document.createElement("canvas");
+                const aspectRatio = 1;
+                canvas.width = window.innerWidth * aspectRatio;
+                canvas.height = window.innerHeight * aspectRatio;
+                canvas.style.width = "100vw";
+                canvas.style.height = "100vh";
+                canvas.style.userSelect = "none";
+                document.body.appendChild(canvas);
                             import { GPU, Scene, GameObject, Components, Mathf, Geometry, PBRMaterial } from '@trident/core';
             import { OrbitControls } from '@trident/plugins/OrbitControls.js';
             import { Line } from '@trident/plugins/Line.js';
@@ -23,14 +34,7 @@
             import { UIFolder, UIVecStat, UISliderStat } from '@trident/plugins/ui/UIStats.js';
             import { Debugger } from '@trident/plugins/Debugger.js';
             
-            const canvas = document.createElement("canvas");
-            const aspectRatio = 1;
-            canvas.width = window.innerWidth * aspectRatio;
-            canvas.height = window.innerHeight * aspectRatio;
-            canvas.style.width = `${window.innerWidth}px`;
-            canvas.style.height = `${window.innerHeight}px`;
-            document.body.appendChild(canvas);
-            async function Application() {
+            async function Application(canvas) {
               const renderer = GPU.Renderer.Create(canvas, "webgpu");
               const scene = new Scene(renderer);
               const mainCameraGameObject = new GameObject(scene);
@@ -142,7 +146,7 @@
               }
               scene.Start();
             }
-            Application();
+            Application(document.querySelector("canvas"));
             
             </script>
         </body>

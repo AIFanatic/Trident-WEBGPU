@@ -15,16 +15,7 @@ import { Bloom } from "@trident/plugins/Bloom";
 import { UIFolder, UISliderStat, UIVecStat } from "@trident/plugins/ui/UIStats";
 import { Debugger } from "@trident/plugins/Debugger";
 
-const canvas = document.createElement("canvas");
-const aspectRatio = 1;
-canvas.width = window.innerWidth * aspectRatio;
-canvas.height = window.innerHeight * aspectRatio;
-canvas.style.width = `${window.innerWidth}px`;
-canvas.style.height = `${window.innerHeight}px`;
-document.body.appendChild(canvas);
-
-
-async function Application() {
+async function Application(canvas: HTMLCanvasElement) {
     const renderer = GPU.Renderer.Create(canvas, "webgpu");
 
     const scene = new Scene(renderer);
@@ -195,4 +186,4 @@ async function Application() {
     scene.Start();
 };
 
-Application();
+Application(document.querySelector("canvas"));

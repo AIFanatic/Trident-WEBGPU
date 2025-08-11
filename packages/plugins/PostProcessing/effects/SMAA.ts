@@ -1,17 +1,12 @@
-import { Geometry } from "../../../Geometry";
-import { Vector2 } from "../../../math/Vector2";
-import { Vector4 } from "../../../math/Vector4";
-import { RenderPass, ResourcePool } from "../../../renderer/RenderGraph";
-import { Renderer } from "../../../renderer/Renderer";
-import { RendererContext } from "../../../renderer/RendererContext";
-import { PassParams } from "../../../renderer/RenderingPipeline";
-import { Shader } from "../../../renderer/Shader";
-import { RenderTexture, Texture } from "../../../renderer/Texture";
-import { TextureSampler } from "../../../renderer/TextureSampler";
+import {
+    Geometry,
+	Mathf,
+    GPU
+}  from "@trident/core";
 
-import AreaTexPNG from "./AreaTexDX10.png";
-import SearchTexPNG from "./SearchTex.png";
-import NoAAPNG from "./no-aa.png";
+const AreaTexPNG = "../resources/AreaTexDX10.png";
+const SearchTexPNG = "../resources/SearchTex.png";
+const NoAAPNG = "../resources/no-aa.png";
 
 // High preset
 const SMAA_THRESHOLD = 0.1;
@@ -805,28 +800,28 @@ fn SMAANeighborhoodBlendingPS(
 
 `;
 
-export class PostProcessingSMAA extends RenderPass {
+export class PostProcessingSMAA extends GPU.RenderPass {
     public name: string = "SMAA";
-    private shader1: Shader;
-    private shader2: Shader;
-    private shader3: Shader;
+    private shader1: GPU.Shader;
+    private shader2: GPU.Shader;
+    private shader3: GPU.Shader;
 
     private quadGeometry: Geometry;
 
-    private edgeTex: RenderTexture;
-    private blendTex: RenderTexture;
-    private finalTex: RenderTexture;
+    private edgeTex: GPU.RenderTexture;
+    private blendTex: GPU.RenderTexture;
+    private finalTex: GPU.RenderTexture;
 
     constructor() {
         super({inputs: [
-            PassParams.LightingPassOutput,
+            GPU.PassParams.LightingPassOutput,
         ]});
     }
 
     public async init() {
-        this.shader1 = await Shader.Create({
+        this.shader1 = await GPU.Shader.Create({
             code: pass1,
-            colorOutputs: [{format: Renderer.SwapChainFormat}],
+            colorOutputs: [{format: GPU.Renderer.SwapChainFormat}],
             attributes: {
                 position: { location: 0, size: 3, type: "vec3" },
                 uv: { location: 1, size: 2, type: "vec2" }
@@ -838,9 +833,9 @@ export class PostProcessingSMAA extends RenderPass {
             }
         });
 
-        this.shader2 = await Shader.Create({
+        this.shader2 = await GPU.Shader.Create({
             code: pass2,
-            colorOutputs: [{format: Renderer.SwapChainFormat}],
+            colorOutputs: [{format: GPU.Renderer.SwapChainFormat}],
             attributes: {
                 position: { location: 0, size: 3, type: "vec3" },
                 uv: { location: 1, size: 2, type: "vec2" }
@@ -856,9 +851,9 @@ export class PostProcessingSMAA extends RenderPass {
             }
         });
 
-        this.shader3 = await Shader.Create({
+        this.shader3 = await GPU.Shader.Create({
             code: pass3,
-            colorOutputs: [{format: Renderer.SwapChainFormat}],
+            colorOutputs: [{format: GPU.Renderer.SwapChainFormat}],
             attributes: {
                 a_position: { location: 0, size: 3, type: "vec3" },
                 a_uv: { location: 1, size: 2, type: "vec2" }
@@ -874,22 +869,22 @@ export class PostProcessingSMAA extends RenderPass {
 
         this.quadGeometry = Geometry.Plane();
 
-        this.edgeTex = RenderTexture.Create(Renderer.width, Renderer.height);
-        this.blendTex = RenderTexture.Create(Renderer.width, Renderer.height);
-        this.finalTex = RenderTexture.Create(Renderer.width, Renderer.height);
+        this.edgeTex = GPU.RenderTexture.Create(GPU.Renderer.width, GPU.Renderer.height);
+        this.blendTex = GPU.RenderTexture.Create(GPU.Renderer.width, GPU.Renderer.height);
+        this.finalTex = GPU.RenderTexture.Create(GPU.Renderer.width, GPU.Renderer.height);
 
 
 
-        const areaTex = await Texture.Load(AreaTexPNG, Renderer.SwapChainFormat, false);
-        const searchTex = await Texture.Load(SearchTexPNG, Renderer.SwapChainFormat, false);
-        const colorTex = await Texture.Load(NoAAPNG, Renderer.SwapChainFormat, false);
+        const areaTex = await GPU.Texture.Load(new URL(AreaTexPNG, import.meta.url), GPU.Renderer.SwapChainFormat, false);
+        const searchTex = await GPU.Texture.Load(new URL(SearchTexPNG, import.meta.url), GPU.Renderer.SwapChainFormat, false);
+        const colorTex = await GPU.Texture.Load(new URL(NoAAPNG, import.meta.url), GPU.Renderer.SwapChainFormat, false);
 
-        const colorTexSampler = TextureSampler.Create({addressModeU: "clamp-to-edge", addressModeV: "clamp-to-edge"});
-        const edgesTexSampler = TextureSampler.Create({addressModeU: "clamp-to-edge", addressModeV: "clamp-to-edge"});
-        const areaTexSampler = TextureSampler.Create({addressModeU: "clamp-to-edge", addressModeV: "clamp-to-edge"});
-        const searchTexSampler = TextureSampler.Create({addressModeU: "clamp-to-edge", addressModeV: "clamp-to-edge"});
-        const blendTexSampler = TextureSampler.Create();
-        const u_resolution = new Vector4(1 / Renderer.width, 1 / Renderer.height, Renderer.width, Renderer.height);
+        const colorTexSampler = GPU.TextureSampler.Create({addressModeU: "clamp-to-edge", addressModeV: "clamp-to-edge"});
+        const edgesTexSampler = GPU.TextureSampler.Create({addressModeU: "clamp-to-edge", addressModeV: "clamp-to-edge"});
+        const areaTexSampler = GPU.TextureSampler.Create({addressModeU: "clamp-to-edge", addressModeV: "clamp-to-edge"});
+        const searchTexSampler = GPU.TextureSampler.Create({addressModeU: "clamp-to-edge", addressModeV: "clamp-to-edge"});
+        const blendTexSampler = GPU.TextureSampler.Create();
+        const u_resolution = new Mathf.Vector4(1 / GPU.Renderer.width, 1 / GPU.Renderer.height, GPU.Renderer.width, GPU.Renderer.height);
 
         this.shader1.SetSampler("colorTexSampler", colorTexSampler);
         this.shader2.SetSampler("edgesTexSampler", edgesTexSampler);
@@ -912,34 +907,34 @@ export class PostProcessingSMAA extends RenderPass {
         this.initialized = true;
     }
 
-    public execute(resources: ResourcePool) {
+    public execute(resources: GPU.ResourcePool) {
         if (this.initialized === false) return;
 
-        const outputTex = resources.getResource(PassParams.LightingPassOutput);
+        const outputTex = resources.getResource(GPU.PassParams.LightingPassOutput);
         if (!outputTex) return;
 
         // this.shader1.SetTexture("colorTex", colorTex);
         // this.shader3.SetTexture("colorTex", colorTex);
 
         // Edge detection
-        RendererContext.BeginRenderPass(this.name + " - Edge", [{clear: true, target: this.edgeTex}], undefined, true);
-        RendererContext.DrawGeometry(this.quadGeometry, this.shader1);
-        RendererContext.EndRenderPass();
+        GPU.RendererContext.BeginRenderPass(this.name + " - Edge", [{clear: true, target: this.edgeTex}], undefined, true);
+        GPU.RendererContext.DrawGeometry(this.quadGeometry, this.shader1);
+        GPU.RendererContext.EndRenderPass();
 
 
         this.shader2.SetTexture("edgesTex", this.edgeTex);
 
-        RendererContext.BeginRenderPass(this.name + " - Blend", [{clear: true, target: this.blendTex}], undefined, true);
-        RendererContext.DrawGeometry(this.quadGeometry, this.shader2);
-        RendererContext.EndRenderPass();
+        GPU.RendererContext.BeginRenderPass(this.name + " - Blend", [{clear: true, target: this.blendTex}], undefined, true);
+        GPU.RendererContext.DrawGeometry(this.quadGeometry, this.shader2);
+        GPU.RendererContext.EndRenderPass();
 
 
         // this.shader3.SetTexture("blendTex", this.blendTex);
-        // RendererContext.BeginRenderPass(this.name + " - Final", [{clear: true, target: this.finalTex}], undefined, true);
-        // RendererContext.DrawGeometry(this.quadGeometry, this.shader2);
-        // RendererContext.EndRenderPass();
+        // GPU.RendererContext.BeginRenderPass(this.name + " - Final", [{clear: true, target: this.finalTex}], undefined, true);
+        // GPU.RendererContext.DrawGeometry(this.quadGeometry, this.shader2);
+        // GPU.RendererContext.EndRenderPass();
         
-        RendererContext.CopyTextureToTexture(this.blendTex, outputTex);
+        GPU.RendererContext.CopyTextureToTexture(this.blendTex, outputTex);
 
         // resources.setResource(PassParams.LightingPassOutput, LightingPassOutputTexture);
     }

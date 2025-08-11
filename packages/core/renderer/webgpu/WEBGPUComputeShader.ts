@@ -2,6 +2,7 @@ import { Compute, ComputeShaderParams } from "../Shader";
 import { WEBGPURenderer } from "./WEBGPURenderer";
 import { WEBGPUBaseShader } from "./WEBGPUBaseShader";
 import { pipelineLayoutCache } from "./WEBGPUShader";
+import { Renderer } from "../Renderer";
 
 export class WEBGPUComputeShader extends WEBGPUBaseShader implements Compute {
     private readonly computeEntrypoint: string | undefined;
@@ -43,6 +44,8 @@ export class WEBGPUComputeShader extends WEBGPUBaseShader implements Compute {
         // Pipeline
         this._pipeline = WEBGPURenderer.device.createComputePipeline(pipelineDescriptor);
 
+        Renderer.info.compiledShadersStat += 1;
+        
         this.needsUpdate = false;
     }
 }

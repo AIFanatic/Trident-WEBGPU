@@ -6,7 +6,6 @@ import { Renderer } from "../Renderer";
 
 const BindGroupCache: Map<string, GPUBindGroup> = new Map();
 
-
 export const pipelineLayoutCache: Map<string, GPUPipelineLayout> = new Map();
 const pipelineCache: Map<string, GPURenderPipeline> = new Map();
 
@@ -41,7 +40,7 @@ export class WEBGPUShader extends WEBGPUBaseShader implements Shader {
             return;
         }
 
-        // console.warn("Compiling shader");
+        console.warn("Compiling shader");
         // console.warn('%c Compiling shader', 'color: #3498db');
 
         let hasCompiled = false;
