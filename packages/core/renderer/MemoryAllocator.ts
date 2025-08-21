@@ -1,4 +1,4 @@
-import { Buffer, BufferType } from "../renderer/Buffer";
+import { Buffer, BufferType, DynamicBuffer } from "../renderer/Buffer";
 import { Renderer } from "../renderer/Renderer";
 import { RendererContext } from "../renderer/RendererContext";
 
@@ -85,11 +85,13 @@ export class BufferMemoryAllocator {
     protected links: Map<any, number>;
 
     protected static BYTES_PER_ELEMENT = Float32Array.BYTES_PER_ELEMENT;
+    protected bufferType: BufferType;
 
-    constructor(size: number) {
+    constructor(size: number, bufferType = BufferType.STORAGE) {
         this.allocator = new MemoryAllocator(size);
-        this.buffer = Buffer.Create(size * BufferMemoryAllocator.BYTES_PER_ELEMENT, BufferType.STORAGE);
+        this.buffer = Buffer.Create(size * BufferMemoryAllocator.BYTES_PER_ELEMENT, bufferType);
         this.links = new Map();
+        this.bufferType = bufferType;
     }
 
     public has(link: any): boolean {
@@ -117,12 +119,53 @@ export class BufferMemoryAllocator {
     public getAllocator(): MemoryAllocator { return this.allocator; }
 }
 
+export class DynamicBufferMemoryAllocator2 {
+    protected allocator: MemoryAllocator;
+    protected buffer: DynamicBuffer;
+    protected links: Map<any, number>;
+
+    protected static BYTES_PER_ELEMENT = Float32Array.BYTES_PER_ELEMENT;
+    protected bufferType: BufferType;
+
+    constructor(size: number, bufferType = BufferType.STORAGE, minBindingSize: number = 256) {
+        this.allocator = new MemoryAllocator(size);
+        this.buffer = DynamicBuffer.Create(size * DynamicBufferMemoryAllocator2.BYTES_PER_ELEMENT, bufferType, minBindingSize);
+        this.links = new Map();
+        this.bufferType = bufferType;
+    }
+
+    public has(link: any): boolean {
+        return this.links.has(link);
+    }
+
+    public set(link: any, data: Float32Array | Uint32Array): number {
+        let bufferOffset = this.links.get(link);
+        if (bufferOffset === undefined) {
+            bufferOffset = this.allocator.allocate(data.length);
+            this.links.set(link, bufferOffset);
+        }
+        this.buffer.SetArray(data, bufferOffset * DynamicBufferMemoryAllocator2.BYTES_PER_ELEMENT, 0, data.length);
+        return bufferOffset;
+    }
+
+    public delete(link: any) {
+        const bufferOffset = this.links.get(link);
+        if (bufferOffset === undefined) throw Error("Link not found");
+        this.allocator.free(bufferOffset);
+        this.links.delete(link);
+    }
+
+    public getBuffer(): DynamicBuffer { return this.buffer; }
+    public getAllocator(): MemoryAllocator { return this.allocator; }
+    public setOffset(offset: number) { this.buffer.dynamicOffset = offset; }
+}
+
 
 export class DynamicBufferMemoryAllocator extends BufferMemoryAllocator {
     private incrementAmount: number;
 
-    constructor(size: number, incrementAmount?: number) {
-        super(size);
+    constructor(size: number, incrementAmount?: number, bufferType = BufferType.STORAGE) {
+        super(size, bufferType);
         this.incrementAmount = incrementAmount ? incrementAmount : size;
     }
 

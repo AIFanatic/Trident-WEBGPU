@@ -40,9 +40,6 @@ export class WEBGPUShader extends WEBGPUBaseShader implements Shader {
             return;
         }
 
-        console.warn("Compiling shader");
-        // console.warn('%c Compiling shader', 'color: #3498db');
-
         let hasCompiled = false;
 
         this.bindGroupLayouts = this.BuildBindGroupLayouts();

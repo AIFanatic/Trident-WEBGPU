@@ -9,7 +9,11 @@ export { ShaderLoader, ShaderPreprocessor } from "./ShaderUtils";
 export { DepthTexture, RenderTexture, Texture, TextureArray, CubeTexture, RenderTexture3D, RenderTextureStorage3D } from "./Texture";
 export { TextureSampler } from "./TextureSampler";
 export { Material } from "./Material";
-export { MemoryAllocator, DynamicBufferMemoryAllocator } from "./MemoryAllocator";
+export { MemoryAllocator, BufferMemoryAllocator, DynamicBufferMemoryAllocator } from "./MemoryAllocator";
 
 export type { TextureFormat } from "./Texture";
 export type { RenderTarget } from "./RendererContext";
+
+
+// Temp
+export { WEBGPURendererContext } from "./webgpu/WEBGPURendererContext";

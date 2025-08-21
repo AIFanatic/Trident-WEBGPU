@@ -169,6 +169,20 @@ function wrapJsInHtml() {
     };
 }
 
+function copyAssets() {
+    return {
+        name: 'copy-assets',
+        writeBundle(options, bundle) {
+            const srcDir = "packages/editor-test/assets";
+            const destDir = "dist/editor/assets";
+            if (fs.existsSync(srcDir)) {
+                fs.cpSync(srcDir, destDir, { recursive: true });
+                console.log(`Copied: ${srcDir} -> ${destDir}`);
+            }
+        }
+    }
+}
+
 
 const examples = {
     input: 'packages/examples/index.ts',
@@ -190,17 +204,7 @@ const examples = {
         }),
         addJsExtensionToImports(),
         wrapJsInHtml(),
-        {
-            name: 'copy-example-assets',
-            writeBundle(options, bundle) {
-                const srcDir = "packages/examples/assets";
-                const destDir = "dist/examples/assets";
-                if (fs.existsSync(srcDir)) {
-                    fs.cpSync(srcDir, destDir, { recursive: true });
-                    console.log(`Copied: ${srcDir} -> ${destDir}`);
-                }
-            }
-        }
+        copyAssets()
     ]
 }
 
@@ -240,17 +244,28 @@ function editorHtml() {
 }
 
 function cssBundle({ output = 'trident-editor.css' } = {}) {
-    let css = '';
+    const styles = new Map(); // id -> css
+
     return {
         name: 'css-bundle',
+
         transform(code, id) {
             if (!id.endsWith('.css')) return null;
-            css += code + '\n';
-            return 'export default ""';
+            styles.set(id, code); // cache latest version for this file
+            return { code: 'export default ""', map: { mappings: '' } };
         },
+
+        // remove from cache if a CSS file is deleted
+        watchChange(id, change) {
+            if (id.endsWith('.css') && change.event === 'delete') {
+                styles.delete(id);
+            }
+        },
+
         generateBundle() {
+            const css = Array.from(styles.values()).join('\n');
             this.emitFile({ type: 'asset', fileName: output, source: css });
-        },
+        }
     };
 }
 
@@ -271,5 +286,24 @@ const editor = {
         cssBundle()
     ]
 }
+
+// const editor = {
+//     input: 'packages/editor-test/index.ts',
+//     output: {
+//         file: './dist/editor/trident-editor.js',
+//         format: "esm"
+//     },
+//     plugins: [
+//         // typescript(),
+//         esbuild({
+//             target: "es2022",
+//             jsxFactory: 'createElement',
+//             jsxFragment: 'Fragment',
+//         }),
+//         addJsExtensionToImports(),
+//         wrapJsInHtml(),
+//         copyAssets()
+//     ]
+// }
 
 export default [core, plugins, examples, editor];

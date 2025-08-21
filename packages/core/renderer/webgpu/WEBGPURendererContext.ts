@@ -53,7 +53,7 @@ export class WEBGPURendererContext implements RendererContext {
         WEBGPUTimestampQuery.EndRenderTimestamp();
     }
 
-    public static DrawGeometry(geometry: Geometry, shader: WEBGPUShader, instanceCount = 1) {
+    private static PrepareDraw(geometry: Geometry, shader: WEBGPUShader) {
         if (!this.activeRenderPass) throw Error("No active render pass");
 
         if (!shader.OnPreRender()) return;
@@ -78,24 +78,43 @@ export class WEBGPURendererContext implements RendererContext {
             const attributeSlot = shader.GetAttributeSlot(name);
             if (attributeSlot === undefined) continue;
             const attributeBuffer = attribute.buffer as WEBGPUBuffer;
-            this.activeRenderPass.setVertexBuffer(attributeSlot, attributeBuffer.GetBuffer());
+            this.activeRenderPass.setVertexBuffer(attributeSlot, attributeBuffer.GetBuffer(), attribute.currentOffset, attribute.currentSize);
         }
+
+        if (geometry.index) {
+            const indexBuffer = geometry.index.buffer as WEBGPUBuffer;
+            this.activeRenderPass.setIndexBuffer(indexBuffer.GetBuffer(), "uint32", geometry.index.currentOffset, geometry.index.currentSize);
+        }
+    }
+
+    public static DrawGeometry(geometry: Geometry, shader: WEBGPUShader, instanceCount = 1, firstInstance = 0) {
+        this.PrepareDraw(geometry, shader);
 
         if (!shader.params.topology || shader.params.topology === Topology.Triangles) {
             if (!geometry.index) {
                 const positions = geometry.attributes.get("position") as VertexAttribute;
-                this.activeRenderPass.draw(positions.GetBuffer().size / 3 / 4, instanceCount);
+                const vertexCount = positions.GetBuffer().size / 3 / 4;
+                this.activeRenderPass.draw(vertexCount, instanceCount, 0, firstInstance);
+                Renderer.info.triangleCount += vertexCount * instanceCount;
             }
             else {
                 const indexBuffer = geometry.index.buffer as WEBGPUBuffer;
-                this.activeRenderPass.setIndexBuffer(indexBuffer.GetBuffer(), "uint32");
-                this.activeRenderPass.drawIndexed(indexBuffer.size / 4, instanceCount);
+                this.activeRenderPass.setIndexBuffer(indexBuffer.GetBuffer(), "uint32", geometry.index.currentOffset, geometry.index.currentSize);
+                this.activeRenderPass.drawIndexed(indexBuffer.size / 4, instanceCount, 0, 0, firstInstance);
+                Renderer.info.triangleCount += indexBuffer.size / 4 * instanceCount;
             }
         }
         else if (shader.params.topology === Topology.Lines) {
             const positions = geometry.attributes.get("position") as VertexAttribute;
             this.activeRenderPass.draw(positions.GetBuffer().size / 3 / 4, instanceCount);
+            Renderer.info.triangleCount += positions.GetBuffer().size / 3 / 4 * instanceCount;
         }
+    }
+
+    public static DrawIndexed(geometry: Geometry, shader: WEBGPUShader, indexCount: number, instanceCount?: number, firstIndex?: number, baseVertex?: number, firstInstance?: number) {
+        this.PrepareDraw(geometry, shader);
+        this.activeRenderPass.drawIndexed(indexCount, instanceCount, firstIndex, baseVertex, firstInstance);
+        Renderer.info.triangleCount += indexCount * instanceCount;
     }
 
     public static DrawIndirect(geometry: Geometry, shader: WEBGPUShader, indirectBuffer: WEBGPUBuffer, indirectOffset: number) {

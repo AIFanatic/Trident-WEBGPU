@@ -6,12 +6,16 @@ import { Buffer, BufferType } from "./renderer/Buffer";
 export class GeometryAttribute {
     public array: Float32Array | Uint32Array;
     public buffer: Buffer;
+    public currentOffset: number; // This can be used 
+    public currentSize: number;
 
     constructor(array: Float32Array | Uint32Array, type: BufferType) {
         if (array.length === 0) throw Error("GeometryAttribute data is empty");
         this.array = array;
         this.buffer = Buffer.Create(array.byteLength, type);
         this.buffer.SetArray(this.array);
+        this.currentOffset = 0;
+        this.currentSize = array.byteLength;
     }
 
     public GetBuffer(): Buffer { return this.buffer };
@@ -74,6 +78,7 @@ export class IndexAttribute extends GeometryAttribute {
 
 export class Geometry {
     public id = UUID();
+    public name: string = "";
     public index?: IndexAttribute;
     public readonly attributes: Map<string, VertexAttribute | InterleavedVertexAttribute> = new Map();
 

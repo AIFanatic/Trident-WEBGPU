@@ -1,0 +1,291 @@
+import {
+    Components,
+    Scene,
+    GPU,
+    Mathf,
+    GameObject,
+    Geometry,
+    VertexAttribute,
+    IndexAttribute,
+    Utils,
+} from "@trident/core";
+
+import { OrbitControls } from "@trident/plugins/OrbitControls";
+import { Debugger } from "@trident/plugins/Debugger";
+
+class DynamicBufferMemoryAllocator {
+    protected allocator: GPU.MemoryAllocator;
+    protected buffer: GPU.Buffer;
+    protected links: Map<any, number>;
+
+    protected dataMap: Map<any, any> = new Map();
+
+    protected static BYTES_PER_ELEMENT = Float32Array.BYTES_PER_ELEMENT;
+    protected bufferType: GPU.BufferType;
+
+    constructor(size: number, bufferType = GPU.BufferType.STORAGE) {
+        this.allocator = new GPU.MemoryAllocator(size);
+        this.buffer = GPU.Buffer.Create(size * DynamicBufferMemoryAllocator.BYTES_PER_ELEMENT, bufferType);
+        this.links = new Map();
+        this.bufferType = bufferType;
+    }
+
+    public has(link: any): boolean {
+        return this.links.has(link);
+    }
+
+    public set(link: any, data: Float32Array | Uint32Array, offset: number = 0): { byteOffset: number, byteSize: number, elemOffset: number } {
+        let elemOffset = this.links.get(link);
+        if (elemOffset === undefined) {
+            elemOffset = this.allocator.allocate(data.length); // in elements
+            this.links.set(link, elemOffset);
+        }
+        const byteOffset = elemOffset * DynamicBufferMemoryAllocator.BYTES_PER_ELEMENT;
+        this.buffer.SetArray(data, byteOffset + offset, 0, data.length);
+        this.dataMap.set(byteOffset + offset, data);
+        return { byteOffset, byteSize: data.byteLength, elemOffset };
+    }
+
+    public delete(link: any) {
+        const bufferOffset = this.links.get(link);
+        if (bufferOffset === undefined) throw Error("Link not found");
+        this.allocator.free(bufferOffset);
+        this.links.delete(link);
+    }
+
+    public getBuffer(): GPU.Buffer { return this.buffer; }
+    public getAllocator(): GPU.MemoryAllocator { return this.allocator; }
+}
+
+async function Application(canvas: HTMLCanvasElement) {
+    const renderer = GPU.Renderer.Create(canvas, "webgpu");
+    const scene = new Scene(renderer);
+
+    const mainCameraGameObject = new GameObject(scene);
+    mainCameraGameObject.transform.position.set(0, 0, -15);
+    mainCameraGameObject.name = "MainCamera";
+    const camera = mainCameraGameObject.AddComponent(Components.Camera);
+    camera.SetPerspective(72, canvas.width / canvas.height, 0.5, 1000);
+
+
+    mainCameraGameObject.transform.position.set(0, 0, 2);
+    mainCameraGameObject.transform.LookAtV1(new Mathf.Vector3(0, 0, 0));
+
+    const controls = new OrbitControls(canvas, camera);
+
+    const cubeGeometry = Geometry.Cube();
+    const cubeVertices = cubeGeometry.attributes.get("position").array as Float32Array;
+    const cubeIndices = cubeGeometry.index.array as Uint32Array;
+    const sphereGeometry = Geometry.Sphere();
+    const sphereVertices = sphereGeometry.attributes.get("position").array as Float32Array;
+    const sphereIndices = sphereGeometry.index.array as Uint32Array;
+
+    const size = 1000000;
+    const vertexBuffer = new DynamicBufferMemoryAllocator(size, GPU.BufferType.VERTEX);
+    const indexBuffer = new DynamicBufferMemoryAllocator(size, GPU.BufferType.INDEX);
+
+    const dataBuffer = new DynamicBufferMemoryAllocator(size, GPU.BufferType.STORAGE);
+    const pointersBuffer = new DynamicBufferMemoryAllocator(size, GPU.BufferType.STORAGE);
+    // const pointersBuffer = GPU.Buffer.Create(size, GPU.BufferType.STORAGE);
+
+    interface BufferAllocation {
+        byteOffset: number;
+        byteSize: number;
+        elemOffset: number;
+    };
+
+    let objectCount = 0;
+    class Object {
+        public readonly id = Utils.UUID();
+
+        public readonly vertexBufferAllocator: BufferAllocation;
+        public readonly indexBufferAllocator: BufferAllocation;
+        public readonly dataAllocator: BufferAllocation;
+        public readonly pointerAllocator: BufferAllocation;
+        public readonly instanceCount: number;
+        public readonly dataSize: number;
+    
+        constructor(vertices: Float32Array, indices: Uint32Array, dataSize: number, instanceCount: number = 1) {
+            const verticesCRC = Utils.CRC32.forBytes(new Uint8Array(vertices.buffer));
+            const indicesCRC = Utils.CRC32.forBytes(new Uint8Array(indices.buffer));
+
+            this.vertexBufferAllocator = vertexBuffer.set(verticesCRC, vertices);
+            this.indexBufferAllocator = indexBuffer.set(indicesCRC, indices);
+            this.dataAllocator = dataBuffer.set(this.id, new Float32Array(dataSize * instanceCount));
+            this.instanceCount = instanceCount;
+            this.dataSize = dataSize;
+
+            for (let i = 0; i < instanceCount; i++) {
+                this.pointerAllocator = pointersBuffer.set(`${this.id}-${i}`, new Uint32Array([objectCount * dataSize]));
+                objectCount++;
+            }
+        }
+
+        public setData(data: Float32Array, offset: number = 0) {
+            dataBuffer.set(this.id, data, offset * 4);
+        }
+
+        public setInstanceData(data: Float32Array, instanceIndex: number) {
+            this.setData(data, this.dataSize * instanceIndex);
+        }
+    }
+
+    let objects: Object[] = [];
+
+    const c = 100;
+    // for (let i = 0; i < c; i++) {
+    //     const off = 100;
+    //     const r = (off) => (Math.random() * off) - off * 0.5;
+    //     const object = new Object(cubeVertices, cubeIndices, 3, 1);
+    //     object.setData(new Float32Array([r(off), r(off), r(off)]));
+    //     objects.push(object);
+    // }
+
+    // Instances
+    const cubes = new Object(cubeVertices, cubeIndices, 3, c);
+    const spheres = new Object(sphereVertices, sphereIndices, 3, c);
+    objects.push(cubes);
+    objects.push(spheres);
+    for (let i = 0; i < c; i++) {
+        const off = 100;
+        const r = (off) => (Math.random() * off) - off * 0.5;
+        cubes.setInstanceData(new Float32Array([r(off), r(off), r(off)]), i);
+        spheres.setInstanceData(new Float32Array([r(off), r(off), r(off)]), i);
+    }
+
+    // const object0 = new Object(cubeVertices, cubeIndices, 3, 2);
+    // object0.setData(new Float32Array([-1, 0, 0]), 0);
+    // object0.setData(new Float32Array([1, 0, 0]), 3);
+    // object0.setInstanceData(new Float32Array([-1, 0, 0]), 0);
+    // object0.setInstanceData(new Float32Array([1, 0, 0]), 1);
+    // objects.push(object0);
+
+    // const object1 = new Object(cubeVertices, cubeIndices, 3, 1);
+    // object1.setData(new Float32Array([1, 0, 0]));
+    // objects.push(object1);
+
+
+    console.log(objects);
+
+    console.log("pointersBuffer", pointersBuffer)
+    console.log("dataBuffer", dataBuffer)
+
+    // TODO: Dodgy
+    const globalVerticesAttribute = new VertexAttribute(new Float32Array([0]));
+    const globalIndicesAttribute = new IndexAttribute(new Uint32Array([0]));
+    globalVerticesAttribute.buffer = vertexBuffer.getBuffer();
+    globalIndicesAttribute.buffer = indexBuffer.getBuffer();
+
+    const globalGeometry = new Geometry();
+    globalGeometry.attributes.set("position", globalVerticesAttribute);
+    globalGeometry.index = globalIndicesAttribute;
+
+    class TestPass extends GPU.RenderPass {
+        private shader: GPU.Shader;
+
+        public name: string = "TestPass";
+
+        constructor() {
+            super({});
+        }
+
+        public async init(resources: GPU.ResourcePool) {
+
+            this.shader = await GPU.Shader.Create({
+                code: `
+                struct VertexInput {
+                    @builtin(instance_index) instanceIdx : u32, 
+                    @location(0) position : vec3<f32>,
+                };
+                
+                struct VertexOutput {
+                    @builtin(position) position : vec4<f32>,
+                    @location(0) color : vec3<f32>
+                };
+
+                @group(0) @binding(0) var<storage, read> data: array<u32>;
+                @group(0) @binding(1) var<storage, read> pointers : array<u32>;
+
+                @group(1) @binding(0) var<storage, read> projectionMatrix: mat4x4<f32>;
+                @group(1) @binding(1) var<storage, read> viewMatrix: mat4x4<f32>;
+                
+                @vertex
+                fn vertexMain(input: VertexInput) -> VertexOutput {
+                    var output : VertexOutput;
+
+                    // let baseAddress = pointers[input.instanceIdx];
+                    let baseAddress = pointers[input.instanceIdx];
+                
+                    let position = vec3f(bitcast<f32>(data[baseAddress + 0]), bitcast<f32>(data[baseAddress + 1]), bitcast<f32>(data[baseAddress + 2]));
+                    // let color = vec3f(bitcast<f32>(data[baseAddress + 3]), bitcast<f32>(data[baseAddress + 4]), bitcast<f32>(data[baseAddress + 5]));
+                    
+                    output.position = projectionMatrix * viewMatrix * vec4(input.position + position, 1.0);
+                    // output.color = color;
+
+                    return output;
+                }
+                
+                @fragment
+                fn fragmentMain(input: VertexOutput) -> @location(0) vec4f {
+                    return vec4f(input.color + 0.5, 1.0);
+                }
+                `,
+                colorOutputs: [
+                    { format: GPU.Renderer.SwapChainFormat },
+                ],
+                attributes: {
+                    position: { location: 0, size: 3, type: "vec3" },
+                },
+                uniforms: {
+                    data: { group: 0, binding: 0, type: "storage" },
+                    pointers: { group: 0, binding: 1, type: "storage" },
+                    projectionMatrix: { group: 1, binding: 0, type: "storage" },
+                    viewMatrix: { group: 1, binding: 1, type: "storage" },
+                }
+            })
+
+            this.shader.SetBuffer("data", dataBuffer.getBuffer());
+            this.shader.SetBuffer("pointers", pointersBuffer.getBuffer());
+            this.initialized = true;
+        }
+
+        public execute(resources: GPU.ResourcePool) {
+            if (!this.initialized) return;
+
+            const camera = Components.Camera.mainCamera;
+
+            this.shader.SetMatrix4("projectionMatrix", camera.projectionMatrix);
+            this.shader.SetMatrix4("viewMatrix", camera.viewMatrix);
+
+            // this.shader.Compile();
+
+            // if (!this.shader.pipeline) throw Error("Shader doesnt have a pipeline");
+
+            const LightingPassOutput = resources.getResource(GPU.PassParams.LightingPassOutput);
+            GPU.RendererContext.BeginRenderPass(this.name, [{ target: LightingPassOutput, clear: true }], undefined, true);
+
+            let i = 0;
+            for (const object of objects) {
+                globalVerticesAttribute.currentOffset = object.vertexBufferAllocator.byteOffset;
+                globalVerticesAttribute.currentSize = object.vertexBufferAllocator.byteSize;
+                globalIndicesAttribute.currentOffset = object.indexBufferAllocator.byteOffset;
+                globalIndicesAttribute.currentSize = object.indexBufferAllocator.byteSize;
+
+                GPU.RendererContext.DrawIndexed(globalGeometry, this.shader, object.indexBufferAllocator.byteSize / 4, object.instanceCount, 0, 0, i);
+                // console.log(i, object.instanceCount);
+                i++;
+                i += object.instanceCount - 1;
+            }
+            GPU.RendererContext.EndRenderPass();
+        }
+    }
+
+    const testPass = new TestPass();
+    scene.renderPipeline.AddPass(testPass, GPU.RenderPassOrder.AfterLighting);
+    Debugger.Enable();
+
+    scene.Start();
+
+};
+
+Application(document.querySelector("canvas"));

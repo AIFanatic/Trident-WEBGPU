@@ -72,10 +72,10 @@ export class PrepareGBuffers extends RenderPass {
         const settings = new Float32Array([
             0, // +Debugger.isDebugDepthPassEnabled,
             0, // Debugger.debugDepthMipLevel,
-            0, //Debugger.debugDepthExposure,
-            Renderer.info.viewTypeValue,
+            0, // Debugger.debugDepthExposure,
+            0, // Renderer.info.viewTypeValue,
             0, // +Renderer.info.useHeightMapValue,
-            0, //Debugger.heightScale,
+            0, // Debugger.heightScale,
             
             +DeferredShadowMapPassDebug.debugCascadesValue,
             DeferredShadowMapPassDebug.pcfResolutionValue,

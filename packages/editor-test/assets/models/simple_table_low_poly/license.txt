@@ -1,0 +1,11 @@
+Model Information:
+* title:	Simple Table (Low Poly)
+* source:	https://sketchfab.com/3d-models/simple-table-low-poly-847fa35fec684e9ca57f4e3f8bdc25d0
+* author:	Berk Gedik (https://sketchfab.com/berkgedik)
+
+Model License:
+* license type:	CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)
+* requirements:	Author must be credited. Commercial use is allowed.
+
+If you use this 3D model in your project be sure to copy paste this credit wherever you share it:
+This work is based on "Simple Table (Low Poly)" (https://sketchfab.com/3d-models/simple-table-low-poly-847fa35fec684e9ca57f4e3f8bdc25d0) by Berk Gedik (https://sketchfab.com/berkgedik) licensed under CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)

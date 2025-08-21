@@ -1,0 +1,122 @@
+import {
+    Components,
+    Scene,
+    GPU,
+    Mathf,
+    GameObject,
+    Geometry,
+    PBRMaterial,
+} from "@trident/core";
+
+import { OrbitControls } from "@trident/plugins/OrbitControls";
+import { GLTFParser } from "@trident/plugins/GLTF/GLTF_Parser";
+import { Debugger } from "@trident/plugins/Debugger";
+
+async function Application(canvas: HTMLCanvasElement) {
+    const renderer = GPU.Renderer.Create(canvas, "webgpu");
+    const scene = new Scene(renderer);
+
+    const mainCameraGameObject = new GameObject(scene);
+    mainCameraGameObject.transform.position.set(0,0,-15);
+    mainCameraGameObject.name = "MainCamera";
+    const camera = mainCameraGameObject.AddComponent(Components.Camera);
+    camera.SetPerspective(72, canvas.width / canvas.height, 0.5, 10);
+
+
+    mainCameraGameObject.transform.position.set(0, 0, 2);
+    mainCameraGameObject.transform.LookAtV1(new Mathf.Vector3(0, 0, 0));
+
+    const controls = new OrbitControls(canvas, camera);
+
+    const lightGameObject = new GameObject(scene);
+    lightGameObject.transform.position.set(-4, 4, 4);
+    lightGameObject.transform.LookAtV1(new Mathf.Vector3(0, 0, 0));
+    const light = lightGameObject.AddComponent(Components.DirectionalLight);
+    light.color.set(1.00, 0.851, 0.732, 1);
+    light.intensity = 2
+
+    // Room
+    const beigeWallAlbedo = await GPU.Texture.Load("./assets/textures/beige_wall/beige_wall_001_diff_1k.png");
+    const beigeWallNormal = await GPU.Texture.Load("./assets/textures/beige_wall/beige_wall_001_nor_gl_1k.png");
+    // const beigeWallNormal = await GPU.Texture.Load("./assets/textures/beige_wall/beige_wall_001_nor_gl_1k.png");
+    const beigeWallMaterial = new PBRMaterial({albedoMap: beigeWallAlbedo, normalMap: beigeWallNormal});
+    {
+        // Back wall
+        const wallGameObject = new GameObject(scene);
+        wallGameObject.transform.position.z = -0.48;
+        const wall = wallGameObject.AddComponent(Components.Mesh);
+        wall.SetGeometry(Geometry.Plane());
+        wall.AddMaterial(beigeWallMaterial);
+    }
+    {
+        // Right wall
+        const wallGameObject = new GameObject(scene);
+        wallGameObject.transform.position.x = 1;
+        wallGameObject.transform.eulerAngles.y = -90;
+        const wall = wallGameObject.AddComponent(Components.Mesh);
+        wall.SetGeometry(Geometry.Plane());
+        wall.AddMaterial(beigeWallMaterial);
+    }
+    {
+        // Floor
+        const wallGameObject = new GameObject(scene);
+        wallGameObject.transform.position.y = -1;
+        wallGameObject.transform.eulerAngles.x = -90;
+        const wall = wallGameObject.AddComponent(Components.Mesh);
+        wall.SetGeometry(Geometry.Plane());
+        wall.AddMaterial(beigeWallMaterial);
+    }
+
+    {
+        // Table
+        const table = (await GLTFParser.Load("./assets/models/simple_table_low_poly_v2/table.gltf")).children[0];
+        
+        const tableGameObject = new GameObject(scene);
+        tableGameObject.transform.eulerAngles.y = -90;
+        tableGameObject.transform.position.y = -0.68;
+        const tableMesh = tableGameObject.AddComponent(Components.Mesh);
+        tableMesh.SetGeometry(table.geometry);
+        tableMesh.AddMaterial(table.material);
+    }
+
+    {
+        // Table
+        const pegboard = (await GLTFParser.Load("./assets/models/pegboard/pegboard.gltf")).children[0];
+        console.log(pegboard)
+        const pegboardGameObject = new GameObject(scene);
+        pegboard.localMatrix.decompose(pegboardGameObject.transform.position, pegboardGameObject.transform.rotation, pegboardGameObject.transform.scale);
+        pegboardGameObject.transform.eulerAngles.y = -90;
+        pegboardGameObject.transform.position.y = 0.2;
+        pegboardGameObject.transform.position.z = -0.45;
+        pegboardGameObject.transform.position.x = -0;
+        const pegboardMesh = pegboardGameObject.AddComponent(Components.Mesh);
+        pegboardMesh.SetGeometry(pegboard.geometry);
+        pegboardMesh.AddMaterial(pegboard.material);
+    }
+
+    // const skybox = await GPU.Texture.Load("./assets/textures/hdr/bedroom-forest.png")
+    // const skyboxCube = GPU.CubeTexture.Create(1024, 1024, 6);
+    // GPU.Renderer.BeginRenderFrame();
+    // // +X face (Right)
+    // GPU.RendererContext.CopyTextureToTextureV3( { texture: skybox, origin: [2048, 1024, 0] }, { texture: skyboxCube, origin: [0, 0, 0] }, [1024, 1024, 1]);
+    // // -X face (Left)
+    // GPU.RendererContext.CopyTextureToTextureV3( { texture: skybox, origin: [0, 1024, 0] }, { texture: skyboxCube, origin: [0, 0, 1] }, [1024, 1024, 1]);
+    // // +Y face (Top)
+    // GPU.RendererContext.CopyTextureToTextureV3( { texture: skybox, origin: [1024, 0, 0] }, { texture: skyboxCube, origin: [0, 0, 2] }, [1024, 1024, 1]);
+    // // -Y face (Bottom)
+    // GPU.RendererContext.CopyTextureToTextureV3( { texture: skybox, origin: [1024, 2048, 0] }, { texture: skyboxCube, origin: [0, 0, 3] }, [1024, 1024, 1]);
+    // // +Z face (Front)
+    // GPU.RendererContext.CopyTextureToTextureV3( { texture: skybox, origin: [1024, 1024, 0] }, { texture: skyboxCube, origin: [0, 0, 4] }, [1024, 1024, 1]);
+    // // -Z face (Back)
+    // GPU.RendererContext.CopyTextureToTextureV3( { texture: skybox, origin: [3072, 1024, 0] }, { texture: skyboxCube, origin: [0, 0, 5] }, [1024, 1024, 1]);
+    // GPU.Renderer.EndRenderFrame();
+
+    // scene.renderPipeline.skybox = skyboxCube;
+
+    Debugger.Enable();
+
+
+    scene.Start();
+};
+
+Application(document.querySelector("canvas"));

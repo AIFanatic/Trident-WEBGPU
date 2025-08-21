@@ -1332,11 +1332,16 @@ class BoundingVolume {
 class GeometryAttribute {
   array;
   buffer;
+  currentOffset;
+  // This can be used 
+  currentSize;
   constructor(array, type) {
     if (array.length === 0) throw Error("GeometryAttribute data is empty");
     this.array = array;
     this.buffer = Buffer.Create(array.byteLength, type);
     this.buffer.SetArray(this.array);
+    this.currentOffset = 0;
+    this.currentSize = array.byteLength;
   }
   GetBuffer() {
     return this.buffer;
@@ -1394,6 +1399,7 @@ class IndexAttribute extends GeometryAttribute {
 }
 class Geometry {
   id = UUID();
+  name = "";
   index;
   attributes = /* @__PURE__ */ new Map();
   enableShadows = true;
@@ -1962,7 +1968,7 @@ class WEBGPURendererContext {
     this.activeRenderPass = null;
     WEBGPUTimestampQuery.EndRenderTimestamp();
   }
-  static DrawGeometry(geometry, shader, instanceCount = 1) {
+  static PrepareDraw(geometry, shader) {
     if (!this.activeRenderPass) throw Error("No active render pass");
     if (!shader.OnPreRender()) return;
     shader.Compile();
@@ -1982,21 +1988,37 @@ class WEBGPURendererContext {
       const attributeSlot = shader.GetAttributeSlot(name);
       if (attributeSlot === void 0) continue;
       const attributeBuffer = attribute.buffer;
-      this.activeRenderPass.setVertexBuffer(attributeSlot, attributeBuffer.GetBuffer());
+      this.activeRenderPass.setVertexBuffer(attributeSlot, attributeBuffer.GetBuffer(), attribute.currentOffset, attribute.currentSize);
     }
+    if (geometry.index) {
+      const indexBuffer = geometry.index.buffer;
+      this.activeRenderPass.setIndexBuffer(indexBuffer.GetBuffer(), "uint32", geometry.index.currentOffset, geometry.index.currentSize);
+    }
+  }
+  static DrawGeometry(geometry, shader, instanceCount = 1, firstInstance = 0) {
+    this.PrepareDraw(geometry, shader);
     if (!shader.params.topology || shader.params.topology === Topology.Triangles) {
       if (!geometry.index) {
         const positions = geometry.attributes.get("position");
-        this.activeRenderPass.draw(positions.GetBuffer().size / 3 / 4, instanceCount);
+        const vertexCount = positions.GetBuffer().size / 3 / 4;
+        this.activeRenderPass.draw(vertexCount, instanceCount, 0, firstInstance);
+        Renderer.info.triangleCount += vertexCount * instanceCount;
       } else {
         const indexBuffer = geometry.index.buffer;
-        this.activeRenderPass.setIndexBuffer(indexBuffer.GetBuffer(), "uint32");
-        this.activeRenderPass.drawIndexed(indexBuffer.size / 4, instanceCount);
+        this.activeRenderPass.setIndexBuffer(indexBuffer.GetBuffer(), "uint32", geometry.index.currentOffset, geometry.index.currentSize);
+        this.activeRenderPass.drawIndexed(indexBuffer.size / 4, instanceCount, 0, 0, firstInstance);
+        Renderer.info.triangleCount += indexBuffer.size / 4 * instanceCount;
       }
     } else if (shader.params.topology === Topology.Lines) {
       const positions = geometry.attributes.get("position");
       this.activeRenderPass.draw(positions.GetBuffer().size / 3 / 4, instanceCount);
+      Renderer.info.triangleCount += positions.GetBuffer().size / 3 / 4 * instanceCount;
     }
+  }
+  static DrawIndexed(geometry, shader, indexCount, instanceCount, firstIndex, baseVertex, firstInstance) {
+    this.PrepareDraw(geometry, shader);
+    this.activeRenderPass.drawIndexed(indexCount, instanceCount, firstIndex, baseVertex, firstInstance);
+    Renderer.info.triangleCount += indexCount * instanceCount;
   }
   static DrawIndirect(geometry, shader, indirectBuffer, indirectOffset) {
     if (!this.activeRenderPass) throw Error("No active render pass");
@@ -2112,8 +2134,12 @@ class RendererContext {
     if (Renderer.type === "webgpu") WEBGPURendererContext.SetScissor(x, y, width, height);
     else throw Error("Unknown render api type.");
   }
-  static DrawGeometry(geometry, shader, instanceCount) {
-    if (Renderer.type === "webgpu") WEBGPURendererContext.DrawGeometry(geometry, shader, instanceCount);
+  static DrawGeometry(geometry, shader, instanceCount, firstInstance) {
+    if (Renderer.type === "webgpu") WEBGPURendererContext.DrawGeometry(geometry, shader, instanceCount, firstInstance);
+    else throw Error("Unknown render api type.");
+  }
+  static DrawIndexed(geometry, shader, indexCount, instanceCount, firstIndex, baseVertex, firstInstance) {
+    if (Renderer.type === "webgpu") WEBGPURendererContext.DrawIndexed(geometry, shader, indexCount, instanceCount, firstIndex, baseVertex, firstInstance);
     else throw Error("Unknown render api type.");
   }
   static DrawIndirect(geometry, shader, indirectBuffer, indirectOffset = 0) {
@@ -2659,7 +2685,6 @@ class WEBGPUShader extends WEBGPUBaseShader {
     if (!(this.needsUpdate || !this.pipeline || !this.bindGroups)) {
       return;
     }
-    console.warn("Compiling shader");
     let hasCompiled = false;
     this.bindGroupLayouts = this.BuildBindGroupLayouts();
     this._bindGroups = this.BuildBindGroups();
@@ -3738,10 +3763,12 @@ class BufferMemoryAllocator {
   buffer;
   links;
   static BYTES_PER_ELEMENT = Float32Array.BYTES_PER_ELEMENT;
-  constructor(size) {
+  bufferType;
+  constructor(size, bufferType = BufferType.STORAGE) {
     this.allocator = new MemoryAllocator(size);
-    this.buffer = Buffer.Create(size * BufferMemoryAllocator.BYTES_PER_ELEMENT, BufferType.STORAGE);
+    this.buffer = Buffer.Create(size * BufferMemoryAllocator.BYTES_PER_ELEMENT, bufferType);
     this.links = /* @__PURE__ */ new Map();
+    this.bufferType = bufferType;
   }
   has(link) {
     return this.links.has(link);
@@ -3770,8 +3797,8 @@ class BufferMemoryAllocator {
 }
 class DynamicBufferMemoryAllocator extends BufferMemoryAllocator {
   incrementAmount;
-  constructor(size, incrementAmount) {
-    super(size);
+  constructor(size, incrementAmount, bufferType = BufferType.STORAGE) {
+    super(size, bufferType);
     this.incrementAmount = incrementAmount ? incrementAmount : size;
   }
   set(link, data) {
@@ -4446,12 +4473,13 @@ class PrepareGBuffers extends RenderPass {
       0,
       // Debugger.debugDepthMipLevel,
       0,
-      //Debugger.debugDepthExposure,
-      Renderer.info.viewTypeValue,
+      // Debugger.debugDepthExposure,
+      0,
+      // Renderer.info.viewTypeValue,
       0,
       // +Renderer.info.useHeightMapValue,
       0,
-      //Debugger.heightScale,
+      // Debugger.heightScale,
       +DeferredShadowMapPassDebug.debugCascadesValue,
       DeferredShadowMapPassDebug.pcfResolutionValue,
       DeferredShadowMapPassDebug.blendThresholdValue,
@@ -4467,6 +4495,7 @@ class PrepareGBuffers extends RenderPass {
 
 class DeferredGBufferPass extends RenderPass {
   name = "DeferredMeshRenderPass";
+  modelMatrixBuffer;
   constructor() {
     super({
       inputs: [
@@ -4480,6 +4509,7 @@ class DeferredGBufferPass extends RenderPass {
     });
   }
   async init(resources) {
+    this.modelMatrixBuffer = new DynamicBufferMemoryAllocator(16 * 4 * 1e3);
     this.initialized = true;
   }
   boundingVolume = new BoundingVolume();
@@ -4508,6 +4538,12 @@ class DeferredGBufferPass extends RenderPass {
     const inputGBufferNormal = resources.getResource(PassParams.GBufferNormal);
     const inputGBufferERMO = resources.getResource(PassParams.GBufferERMO);
     const inputGBufferDepth = resources.getResource(PassParams.GBufferDepth);
+    for (const mesh of meshes) {
+      if (!mesh.enabled) continue;
+      const geometry = mesh.GetGeometry();
+      if (!geometry) continue;
+      this.modelMatrixBuffer.set(mesh.id, mesh.transform.localToWorldMatrix.elements);
+    }
     RendererContext.BeginRenderPass(
       this.name,
       [
@@ -4520,6 +4556,7 @@ class DeferredGBufferPass extends RenderPass {
     );
     const projectionMatrix = inputCamera.projectionMatrix;
     const viewMatrix = inputCamera.viewMatrix;
+    let meshCount = 0;
     for (const mesh of meshes) {
       if (!mesh.enabled) continue;
       const geometry = mesh.GetGeometry();
@@ -4535,13 +4572,14 @@ class DeferredGBufferPass extends RenderPass {
         const shader = material.shader;
         shader.SetMatrix4("projectionMatrix", projectionMatrix);
         shader.SetMatrix4("viewMatrix", viewMatrix);
-        shader.SetMatrix4("modelMatrix", mesh.transform.localToWorldMatrix);
+        shader.SetBuffer("modelMatrix", this.modelMatrixBuffer.getBuffer());
         shader.SetVector3("cameraPosition", inputCamera.transform.position);
-        RendererContext.DrawGeometry(geometry, shader, 1);
+        RendererContext.DrawGeometry(geometry, shader, 1, meshCount);
         if (geometry.index) {
           Renderer.info.triangleCount += geometry.index.array.length / 3;
         }
       }
+      meshCount++;
     }
     for (const instancedMesh of instancedMeshes) {
       const geometry = instancedMesh.GetGeometry();
@@ -5115,6 +5153,7 @@ class ComputeContext {
 var index = /*#__PURE__*/Object.freeze({
     __proto__: null,
     Buffer: Buffer,
+    BufferMemoryAllocator: BufferMemoryAllocator,
     BufferType: BufferType,
     Compute: Compute,
     ComputeContext: ComputeContext,
@@ -5140,7 +5179,8 @@ var index = /*#__PURE__*/Object.freeze({
     Texture: Texture,
     TextureArray: TextureArray,
     TextureSampler: TextureSampler,
-    Topology: Topology
+    Topology: Topology,
+    WEBGPURendererContext: WEBGPURendererContext
 });
 
 export { Component, index$2 as Components, EventSystem, EventSystemLocal, index as GPU, GameObject, Geometry, IndexAttribute, InterleavedVertexAttribute, index$1 as Mathf, PBRMaterial, Renderer, Scene, Texture, index$3 as Utils, VertexAttribute };
