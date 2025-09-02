@@ -13,7 +13,7 @@ import {GLTFLoader, MeshPrimitive, Texture, Node, AccessorComponentType, GLTF, T
 export class GLTFParser {
     private static TextureCache: Map<Texture, Promise<TridentTexture>> = new Map();
 
-    private static async getTexture(textures: Texture[] | undefined, textureInfo: TextureInfo | null): Promise<TridentTexture | undefined> {
+    private static async getTexture(textures: Texture[] | undefined, textureInfo: TextureInfo | null, textureFormat: "bgra8unorm" | "bgra8unorm-srgb"): Promise<TridentTexture | undefined> {
         if (!textures || !textureInfo) return undefined;
 
         let cachedTexture = this.TextureCache.get(textures[textureInfo.index]);
@@ -21,7 +21,7 @@ export class GLTFParser {
         if (cachedTexture === undefined) {
             const source = textures[textureInfo.index].source;
             if (source === null) throw Error("Invalid texture");
-            cachedTexture = TridentTexture.LoadImageSource(source);
+            cachedTexture = TridentTexture.LoadImageSource(source, textureFormat);
             cachedTexture.then(texture => {
                 texture.GenerateMips();
             })
@@ -91,17 +91,18 @@ export class GLTFParser {
         let materialParams: Partial<PBRMaterialParams> = {};
         if (primitive.material) {
             if (primitive.material.pbrMetallicRoughness) {
-                materialParams.albedoColor = new Mathf.Color(...primitive.material.pbrMetallicRoughness.baseColorFactor);
+                const pbr = primitive.material.pbrMetallicRoughness;
+                materialParams.albedoColor = new Mathf.Color(...pbr.baseColorFactor);
 
-                materialParams.albedoMap = await this.getTexture(textures, primitive.material.pbrMetallicRoughness.baseColorTexture);
-                materialParams.metalnessMap = await this.getTexture(textures, primitive.material.pbrMetallicRoughness.metallicRoughnessTexture);
+                if (pbr.baseColorTexture) materialParams.albedoMap = await this.getTexture(textures, pbr.baseColorTexture, "bgra8unorm-srgb");
+                if (pbr.metallicRoughnessTexture) materialParams.metalnessMap = await this.getTexture(textures, pbr.metallicRoughnessTexture, "bgra8unorm");
 
-                materialParams.roughness = primitive.material.pbrMetallicRoughness.roughnessFactor;
-                materialParams.metalness = primitive.material.pbrMetallicRoughness.metallicFactor;
+                materialParams.roughness = pbr.roughnessFactor;
+                materialParams.metalness = pbr.metallicFactor;
             }
 
-            materialParams.normalMap = await this.getTexture(textures, primitive.material.normalTexture);
-            materialParams.emissiveMap = await this.getTexture(textures, primitive.material.emissiveTexture);
+            if (primitive.material.normalTexture) materialParams.normalMap = await this.getTexture(textures, primitive.material.normalTexture, "bgra8unorm");
+            if (primitive.material.emissiveTexture) materialParams.emissiveMap = await this.getTexture(textures, primitive.material.emissiveTexture, "bgra8unorm");
 
             if (primitive.material.emissiveFactor) {
                 materialParams.emissiveColor = new Mathf.Color(...primitive.material.emissiveFactor);
@@ -114,6 +115,9 @@ export class GLTFParser {
             materialParams.doubleSided = primitive.material.doubleSided;
             materialParams.alphaCutoff = primitive.material.alphaCutoff;
         }
+
+        // Needs tangents?
+        if (geometry.attributes.has("position") && geometry.attributes.has("normal") && geometry.attributes.has("uv") && materialParams.normalMap) geometry.ComputeTangents();
 
         return {
             geometry: geometry,
@@ -185,9 +189,10 @@ export class GLTFParser {
     }
 
     public static async Load(url: string): Promise<Object3D> {
-        return new GLTFLoader().loadGLTF(url).then(async gltf => {
+        return new GLTFLoader().load(url).then(async gltf => {
             if (!gltf || !gltf.scenes) throw Error("Invalid gltf");
-
+            
+            console.log("gltf", gltf)
             const sceneObject3D: Object3D = {
                 children: []
             }

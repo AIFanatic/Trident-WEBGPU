@@ -1105,7 +1105,52 @@ export class GLTFLoader {
 			}
 		}
 
-		// Create Textures
+		// Create images
+		if (this._glTF.images) {
+			for (let i = 0; i < this._glTF.images.length; i++) {
+				// Skip if already filled (e.g., .gltf path loaded them)
+				if (this.glTF.images[i]) continue;
+
+				const img = this._glTF.images[i];
+				// (a) bufferView-backed images (common in .glb)
+				if (typeof img.bufferView === "number") {
+					const bv = this.glTF.bufferViews[img.bufferView];
+					const mime = img.mimeType ?? "image/png";
+					try {
+						const blob = new Blob([bv.data], { type: mime });
+						this.glTF.images[i] = await createImageBitmap(blob);
+					} catch {
+						// Fallback to HTMLImageElement if createImageBitmap not available
+						const url = URL.createObjectURL(new Blob([bv.data], { type: mime }));
+						const htmlImg = await new Promise<HTMLImageElement>((res, rej) => {
+							const im = new Image();
+							im.onload = () => res(im);
+							im.onerror = rej;
+							im.src = url;
+						});
+						this.glTF.images[i] = htmlImg;
+					}
+					continue;
+				}
+
+				// (b) data URI or external URI (rare in .glb, but harmless here)
+				if (img.uri) {
+					try {
+						if (img.uri.startsWith("data:")) {
+							const resp = await fetch(img.uri);
+							const blob = await resp.blob();
+							this.glTF.images[i] = await createImageBitmap(blob);
+						} else {
+							const resp = await fetch(this.baseUri + img.uri);
+							const blob = await resp.blob();
+							this.glTF.images[i] = await createImageBitmap(blob);
+						}
+					} catch {/* swallow; leave undefined if it really fails */ }
+				}
+			}
+		}
+
+		// Create textures
 		if (this._glTF.textures) {
 			for (let i = 0; i < this._glTF.textures.length; i++) {
 				const tex = new Texture(this._glTF.textures[i], this);
@@ -1204,7 +1249,7 @@ export class GLTFLoader {
 		}
 	}
 
-	public async loadGLTF(uri: string): Promise<GLTF> {
+	private async loadGLTF(uri: string): Promise<GLTF> {
 		this.baseUri = this.getBaseUri(uri);
 
 		try {
@@ -1311,6 +1356,64 @@ export class GLTFLoader {
 
 		await this.postProcess();
 		return this.glTF;
+	}
+
+	private async loadGLB(uri: string): Promise<GLTF> {
+		this.baseUri = this.getBaseUri(uri);
+
+		const arrayBuffer = await fetch(uri).then(r => {
+			if (!r.ok) throw new Error("Failed to fetch GLB file.");
+			return r.arrayBuffer();
+		});
+
+		const dataView = new DataView(arrayBuffer);
+
+		// Validate header
+		const magic = dataView.getUint32(0, true);
+		const version = dataView.getUint32(4, true);
+		const length = dataView.getUint32(8, true);
+
+		if (magic !== 0x46546C67) throw new Error("Invalid GLB magic.");
+		if (version !== 2) throw new Error("Only GLB version 2 is supported.");
+
+		let offset = 12;
+
+		// JSON chunk
+		const jsonLength = dataView.getUint32(offset, true);
+		const jsonType = dataView.getUint32(offset + 4, true);
+		offset += 8;
+
+		if (jsonType !== 0x4E4F534A) throw new Error("Invalid JSON chunk type in GLB.");
+
+		const jsonText = new TextDecoder().decode(arrayBuffer.slice(offset, offset + jsonLength));
+		const glTFBase: GLTFBase = JSON.parse(jsonText);
+		this._glTF = glTFBase;
+		this.glTF = new GLTF(glTFBase);
+		offset += jsonLength;
+
+		// BIN chunk (optional but usually present)
+		if (offset < length) {
+			const binLength = dataView.getUint32(offset, true);
+			const binType = dataView.getUint32(offset + 4, true);
+			offset += 8;
+
+			if (binType !== 0x004E4942) throw new Error("Invalid BIN chunk type in GLB.");
+
+			const bufferData = arrayBuffer.slice(offset, offset + binLength);
+			this.glTF.buffers[0] = bufferData;
+		} else {
+			this.glTF.buffers[0] = new ArrayBuffer(0); // fallback empty buffer
+		}
+
+		await this.postProcess();
+		return this.glTF;
+	}
+
+	public async load(url: string): Promise<GLTF> {
+		if (url.endsWith(".glb")) {
+			return this.loadGLB(url);
+		}
+		return this.loadGLTF(url);
 	}
 }
 
