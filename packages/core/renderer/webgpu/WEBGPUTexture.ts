@@ -13,6 +13,7 @@ export class WEBGPUTexture implements Texture {
     public readonly type: TextureType;
     public readonly dimension: TextureDimension;
     public readonly mipLevels: number;
+    public name: string;
 
     private buffer: GPUTexture;
 
@@ -39,7 +40,7 @@ export class WEBGPUTexture implements Texture {
 
         const textureBindingViewDimension = dimension === "cube" ? "cube": undefined;
         this.buffer = WEBGPURenderer.device.createTexture({
-            size: [width, height, depth],
+            size: {width: width, height: height, depthOrArrayLayers: depth},
             // @ts-ignore
             textureBindingViewDimension: textureBindingViewDimension,
             dimension: dim,
@@ -63,8 +64,9 @@ export class WEBGPUTexture implements Texture {
         const key = `${this.currentLayer}-${this.currentMip}`;
         let view = this.viewCache.get(key);
         if (!view) {
+            const viewDimension = this.dimension === "cube" ? "2d" : this.dimension;
             view = this.buffer.createView({
-                dimension: this.dimension,
+                dimension: viewDimension,
                 baseArrayLayer: this.currentLayer,
                 arrayLayerCount: 1,
                 baseMipLevel: this.currentMip,
@@ -108,19 +110,25 @@ export class WEBGPUTexture implements Texture {
         return this.activeMipCount;
     }
 
+    public SetName(name: string) {
+        this.name = name;
+        this.buffer.label = name;
+    }
+    public GetName(): string {
+        return this.buffer.label;
+    }
+
     public Destroy() {
         this.buffer.destroy();
     }
 
-    public SetData(data: BufferSource) {
-        // This probably aint perfect
-        const extraBytes = this.format.includes("rgba32float") ? 4 : 1;
-        console.log(extraBytes)
+    public SetData(data: BufferSource, bytesPerRow: number, rowsPerImage?: number) {
+        console.log(bytesPerRow, rowsPerImage)
         try {
             WEBGPURenderer.device.queue.writeTexture(
                 {texture: this.buffer},
                 data,
-                {bytesPerRow: this.width * 4 * extraBytes, rowsPerImage: this.depth},
+                {bytesPerRow: bytesPerRow, rowsPerImage: rowsPerImage},
                 {width: this.width, height: this.height, depthOrArrayLayers: this.depth}
             );
         } catch (error) {

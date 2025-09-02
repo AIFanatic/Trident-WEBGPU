@@ -3,11 +3,15 @@ import { Geometry } from "../Geometry";
 import { Material } from "../renderer/Material";
 import { EventSystemLocal } from "../Events";
 import { TransformEvents } from "./Transform";
+import { SerializeField } from "../utils/SerializeField";
 
 export class Mesh extends Component {
+    @SerializeField
     protected geometry: Geometry;
+    @SerializeField
     private materialsMapped: Map<string, Material[]> = new Map();
 
+    @SerializeField
     public enableShadows: boolean = true;
 
     public Start(): void {

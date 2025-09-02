@@ -69,6 +69,10 @@ export class Texture {
     public readonly type: TextureType;
     public readonly dimension: TextureDimension;
     public readonly format: TextureFormat;
+    public name: string;
+
+    public SetName(name: string) {}
+    public GetName(): string {throw Error("Base class.")}
 
     public SetActiveLayer(layer: number) {}
     public GetActiveLayer(): number {throw Error("Base class.")}
@@ -83,7 +87,7 @@ export class Texture {
 
     public Destroy() {}
 
-    public SetData(data: BufferSource) {}
+    public SetData(data: BufferSource, bytesPerRow: number, rowsPerImage?: number) {}
 
     public static Create(width: number, height: number, depth: number = 1, format: TextureFormat = Renderer.SwapChainFormat, mipLevels = 1): Texture {
         return CreateTexture(width, height, depth, format, TextureType.IMAGE, "2d", mipLevels);
@@ -136,7 +140,7 @@ export class RenderTextureStorage3D extends Texture {
 
 export class RenderTextureCube extends Texture {
     public static Create(width: number, height: number, depth: number = 1, format: TextureFormat = Renderer.SwapChainFormat, mipLevels = 1): Texture {
-        return CreateTexture(width, height, depth, format, TextureType.RENDER_TARGET_STORAGE, "cube", mipLevels);
+        return CreateTexture(width, height, depth, format, TextureType.RENDER_TARGET, "cube", mipLevels);
     }
 }
 

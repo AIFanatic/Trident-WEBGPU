@@ -6,7 +6,7 @@ export { ComputeContext } from "./ComputeContext";
 export { RenderingPipeline, RenderPassOrder, PassParams } from "./RenderingPipeline";
 export { Shader, Compute, Topology } from "./Shader";
 export { ShaderLoader, ShaderPreprocessor } from "./ShaderUtils";
-export { DepthTexture, RenderTexture, Texture, TextureArray, CubeTexture, RenderTexture3D, RenderTextureStorage3D } from "./Texture";
+export { DepthTexture, RenderTexture, Texture, TextureArray, CubeTexture, RenderTexture3D, RenderTextureStorage3D, RenderTextureCube } from "./Texture";
 export { TextureSampler } from "./TextureSampler";
 export { Material } from "./Material";
 export { MemoryAllocator, BufferMemoryAllocator, DynamicBufferMemoryAllocator } from "./MemoryAllocator";

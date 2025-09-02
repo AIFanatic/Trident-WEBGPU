@@ -5,6 +5,7 @@ import { Vector3 } from "../math/Vector3";
 import { Vector4 } from "../math/Vector4";
 import { Renderer } from "../renderer/Renderer";
 import { DepthTexture, RenderTexture } from "../renderer/Texture";
+import { SerializeField } from "../utils/SerializeField";
 import { Camera } from "./Camera";
 import { Component } from "./Component";
 import { TransformEvents } from "./Transform";
@@ -15,12 +16,18 @@ export class LightEvents {
 
 export class Light extends Component {
     public camera: Camera;
+    @SerializeField
     public color: Color = new Color(1,1,1);
+    @SerializeField
     public intensity: number = 1;
+    @SerializeField
     public range: number = 10;
+    @SerializeField
     public castShadows: boolean = true;
 
     public Start(): void {
+        this.camera = new Camera(this.gameObject);
+        // this.camera = this.gameObject.AddComponent(Camera);
         EventSystemLocal.on(TransformEvents.Updated, this.transform, () => {
             EventSystem.emit(LightEvents.Updated, this);
         })
@@ -33,7 +40,6 @@ export class SpotLight extends Light {
 
     public Start(): void {
         super.Start();
-        this.camera = this.gameObject.AddComponent(Camera);
         this.camera.SetPerspective(this.angle / Math.PI * 180 * 2, Renderer.width / Renderer.height, 0.01, 1000);
     }
 }
@@ -41,7 +47,6 @@ export class SpotLight extends Light {
 export class PointLight extends Light {
     public Start(): void {
         super.Start();
-        this.camera = this.gameObject.AddComponent(Camera);
         this.camera.SetPerspective(60, Renderer.width / Renderer.height, 0.01, 1000);
     }
 }
@@ -51,17 +56,16 @@ export class AreaLight extends Light {
     public Start(): void {
         super.Start();
         // TODO: Ortographic camera
-        this.camera = this.gameObject.AddComponent(Camera);
         this.camera.SetPerspective(60, Renderer.width / Renderer.height, 0.01, 1000);
     }
 }
 
 export class DirectionalLight extends Light {
+    @SerializeField
     public direction = new Vector3(0,1,0);
 
     public Start(): void {
         super.Start();
-        this.camera = this.gameObject.AddComponent(Camera);
         const size = 1;
         this.camera.SetOrthographic(-size, size, -size, size, 0.1, 100);
         // this.camera.SetPerspective(30 / Math.PI * 180 * 2, Renderer.width / Renderer.height, 0.01, 1000);

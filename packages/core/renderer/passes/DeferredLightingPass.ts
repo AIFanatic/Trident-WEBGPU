@@ -68,22 +68,42 @@ export class DeferredLightingPass extends RenderPass {
                 ermoTexture: { group: 0, binding: 3, type: "texture" },
                 depthTexture: { group: 0, binding: 4, type: "depthTexture" },
                 shadowPassDepth: { group: 0, binding: 5, type: "depthTexture" },
+                
                 skyboxTexture: { group: 0, binding: 6, type: "texture" },
-                
-                lights: { group: 0, binding: 7, type: "storage" },
-                lightCount: { group: 0, binding: 8, type: "storage" },
+                skyboxIrradianceTexture: { group: 0, binding: 7, type: "texture" },
+                skyboxPrefilterTexture: { group: 0, binding: 8, type: "texture" },
+                skyboxBRDFLUTTexture: { group: 0, binding: 9, type: "texture" },
 
-                view: { group: 0, binding: 9, type: "storage" },
+                brdfSampler: { group: 0, binding: 10, type: "sampler" },
                 
-                shadowSamplerComp: { group: 0, binding: 10, type: "sampler-compare"},
+                lights: { group: 0, binding: 11, type: "storage" },
+                lightCount: { group: 0, binding: 12, type: "storage" },
 
-                settings: {group: 0, binding: 11, type: "storage"},
+                view: { group: 0, binding: 13, type: "storage" },
+                
+                shadowSamplerComp: { group: 0, binding: 14, type: "sampler-compare"},
+
+                settings: {group: 0, binding: 15, type: "storage"},
             },
             colorOutputs: [{format: "rgba16float"}],
         });
 
-        this.sampler = TextureSampler.Create({minFilter: "linear", magFilter: "linear", addressModeU: "clamp-to-edge", addressModeV: "clamp-to-edge"});
+        this.sampler = TextureSampler.Create({
+            minFilter: "linear",
+            magFilter: "linear",
+            mipmapFilter: "linear",
+            addressModeU: "clamp-to-edge",
+            addressModeV: "clamp-to-edge"
+        });
         this.shader.SetSampler("textureSampler", this.sampler);
+
+        const brdfSampler = TextureSampler.Create({
+            minFilter: "linear",
+            magFilter: "linear",
+            addressModeU: "repeat",
+            addressModeV: "repeat"
+        });
+        this.shader.SetSampler("brdfSampler", brdfSampler);
 
         const shadowSamplerComp = TextureSampler.Create({minFilter: "linear", magFilter: "linear", compare: "less"});
         this.shader.SetSampler("shadowSamplerComp", shadowSamplerComp);
@@ -207,6 +227,10 @@ export class DeferredLightingPass extends RenderPass {
         const inputGBufferDepth = resources.getResource(PassParams.GBufferDepth);
         const inputShadowPassDepth = resources.getResource(PassParams.ShadowPassDepth) || this.dummyShadowPassDepth;
         const inputSkybox = resources.getResource(PassParams.Skybox) as CubeTexture;
+        const inputSkyboxIrradiance = resources.getResource(PassParams.SkyboxIrradiance) as CubeTexture;
+        const inputSkyboxPrefilter = resources.getResource(PassParams.SkyboxPrefilter) as CubeTexture;
+        const inputSkyboxBRDFLUT = resources.getResource(PassParams.SkyboxBRDFLUT) as RenderTexture;
+
 
         RendererContext.BeginRenderPass("DeferredLightingPass", [{ target: this.outputLightingPass, clear: true }], undefined, true);
 
@@ -215,7 +239,11 @@ export class DeferredLightingPass extends RenderPass {
         this.shader.SetTexture("ermoTexture", inputGbufferERMO);
         this.shader.SetTexture("depthTexture", inputGBufferDepth);
         this.shader.SetTexture("shadowPassDepth", inputShadowPassDepth);
+
         this.shader.SetTexture("skyboxTexture", inputSkybox);
+        this.shader.SetTexture("skyboxIrradianceTexture", inputSkyboxIrradiance);
+        this.shader.SetTexture("skyboxPrefilterTexture", inputSkyboxPrefilter);
+        this.shader.SetTexture("skyboxBRDFLUTTexture", inputSkyboxBRDFLUT);
 
         const view = new Float32Array(4 + 4 + 16 + 16   + 16);
         view.set([Renderer.width, Renderer.height, 0], 0);

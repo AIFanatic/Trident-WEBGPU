@@ -2,6 +2,7 @@ import { UUID } from "./utils/";
 import { BoundingVolume } from "./math/BoundingVolume";
 import { Vector3 } from "./math/Vector3";
 import { Buffer, BufferType } from "./renderer/Buffer";
+import { Vector2 } from "./math";
 
 export class GeometryAttribute {
     public array: Float32Array | Uint32Array;
@@ -83,7 +84,7 @@ export class Geometry {
     public readonly attributes: Map<string, VertexAttribute | InterleavedVertexAttribute> = new Map();
 
     public enableShadows: boolean = true;
-    
+
     public _boundingVolume: BoundingVolume;
     public get boundingVolume(): BoundingVolume {
         const positions = this.attributes.get("position");
@@ -119,7 +120,7 @@ export class Geometry {
 
         const center = this.boundingVolume.center;
         let vertsCentered = new Float32Array(verts.array.length);
-        for (let i = 0; i < verts.array.length; i+=3) {
+        for (let i = 0; i < verts.array.length; i += 3) {
             if (operation === "+") {
                 vertsCentered[i + 0] = verts.array[i + 0] + vec.x;
                 vertsCentered[i + 1] = verts.array[i + 1] + vec.y;
@@ -131,7 +132,7 @@ export class Geometry {
                 vertsCentered[i + 2] = verts.array[i + 2] * vec.z;
             }
         }
-        
+
         const geometryCentered = this.Clone();
         geometryCentered.attributes.set("position", new VertexAttribute(vertsCentered));
         return geometryCentered;
@@ -184,6 +185,128 @@ export class Geometry {
         this.attributes.set("normal", normals);
     }
 
+    // From THREE.js (adapted/fixed)
+    public ComputeTangents() {
+        const index = this.index;
+
+        const positionAttribute = this.attributes.get("position");
+        const normalAttribute = this.attributes.get("normal");
+        const uvAttribute = this.attributes.get("uv");
+
+        if (!index || !positionAttribute || !normalAttribute || !uvAttribute) {
+            console.error("computeTangents() failed. Missing required attributes (index, position, normal or uv)");
+            return;
+        }
+
+        const pos = positionAttribute.array as Float32Array;
+        const nor = normalAttribute.array as Float32Array;
+        const uvs = uvAttribute.array as Float32Array;
+        const ia = index.array as Uint32Array | Uint16Array | Uint8Array; // whatever you use
+
+        const vertexCount = pos.length / 3;
+
+        // Ensure tangent attribute exists & has the right size (vec4 per vertex)
+        let tangentAttribute = this.attributes.get("tangent");
+        if (!tangentAttribute || tangentAttribute.array.length !== 4 * vertexCount) {
+            tangentAttribute = new VertexAttribute(new Float32Array(4 * vertexCount));
+            this.attributes.set("tangent", tangentAttribute);
+        } else {
+            (tangentAttribute.array as Float32Array).fill(0);
+        }
+        const tang = tangentAttribute.array as Float32Array;
+
+        // Accumulators
+        const tan1: Vector3[] = new Array(vertexCount);
+        const tan2: Vector3[] = new Array(vertexCount);
+        for (let i = 0; i < vertexCount; i++) {
+            tan1[i] = new Vector3();
+            tan2[i] = new Vector3();
+        }
+
+        const vA = new Vector3(), vB = new Vector3(), vC = new Vector3();
+        const uvA = new Vector2(), uvB = new Vector2(), uvC = new Vector2();
+        const sdir = new Vector3(), tdir = new Vector3();
+
+        function handleTriangle(a: number, b: number, c: number) {
+            // positions
+            vA.set(pos[a * 3 + 0], pos[a * 3 + 1], pos[a * 3 + 2]);
+            vB.set(pos[b * 3 + 0], pos[b * 3 + 1], pos[b * 3 + 2]);
+            vC.set(pos[c * 3 + 0], pos[c * 3 + 1], pos[c * 3 + 2]);
+
+            // uvs
+            uvA.set(uvs[a * 2 + 0], uvs[a * 2 + 1]);
+            uvB.set(uvs[b * 2 + 0], uvs[b * 2 + 1]);
+            uvC.set(uvs[c * 2 + 0], uvs[c * 2 + 1]);
+
+            // edges
+            vB.sub(vA);
+            vC.sub(vA);
+            uvB.sub(uvA);
+            uvC.sub(uvA);
+
+            const denom = uvB.x * uvC.y - uvC.x * uvB.y;
+            // silently ignore degenerate UV triangles
+            if (!isFinite(denom) || Math.abs(denom) < 1e-8) return;
+
+            const r = 1.0 / denom;
+
+            // sdir/tdir
+            sdir.copy(vB).mul(uvC.y).add(vC.clone().mul(-uvB.y)).mul(r);
+            tdir.copy(vC).mul(uvB.x).add(vB.clone().mul(-uvC.x)).mul(r);
+
+            tan1[a].add(sdir); tan1[b].add(sdir); tan1[c].add(sdir);
+            tan2[a].add(tdir); tan2[b].add(tdir); tan2[c].add(tdir);
+        }
+
+        // Walk the index buffer (triangles)
+        for (let j = 0; j < ia.length; j += 3) {
+            handleTriangle(ia[j + 0], ia[j + 1], ia[j + 2]);
+        }
+
+        const tmp = new Vector3();
+        const n = new Vector3();
+        const n2 = new Vector3();
+        const ccv = new Vector3(); // cross-check vector
+
+        function handleVertex(v: number) {
+            n.set(nor[v * 3 + 0], nor[v * 3 + 1], nor[v * 3 + 2]);
+            n2.copy(n);
+
+            const t = tan1[v];
+
+            // Gram–Schmidt orthogonalize (use clone to avoid mutating n)
+            tmp.copy(t);
+            const ndott = n.dot(t);
+            tmp.sub(n.clone().mul(ndott));
+
+            // Fallback if zero-length after projection (e.g., flat/degenerate UVs)
+            if (!isFinite(tmp.x) || !isFinite(tmp.y) || !isFinite(tmp.z) || tmp.lengthSq() === 0) {
+                // pick any orthogonal
+                const ortho = Math.abs(n.x) > 0.9 ? new Vector3(0, 1, 0) : new Vector3(1, 0, 0);
+                tmp.copy(ortho.cross(n));
+            }
+            tmp.normalize();
+
+            // Handedness
+            // ccv.crossVectors(n2, t);
+            ccv.copy(n2).cross(t);
+            const w = (ccv.dot(tan2[v]) < 0.0) ? -1.0 : 1.0;
+
+            tang[v * 4 + 0] = tmp.x;
+            tang[v * 4 + 1] = tmp.y;
+            tang[v * 4 + 2] = tmp.z;
+            tang[v * 4 + 3] = w;
+        }
+
+        for (let j = 0; j < ia.length; j += 3) {
+            handleVertex(ia[j + 0]);
+            handleVertex(ia[j + 1]);
+            handleVertex(ia[j + 2]);
+        }
+
+        this.attributes.set("tangent", new VertexAttribute(tang))
+    }
+
     public Destroy() {
         for (const [_, attribute] of this.attributes) attribute.Destroy();
         if (this.index) this.index.Destroy();
@@ -192,15 +315,15 @@ export class Geometry {
     public static ToNonIndexed(vertices: Float32Array, indices: Uint32Array): Float32Array {
         const itemSize = 3;
         const array2 = new Float32Array(indices.length * itemSize);
-    
+
         let index = 0, index2 = 0;
-        for ( let i = 0, l = indices.length; i < l; i ++ ) {
-            index = indices[ i ] * itemSize;
-            for ( let j = 0; j < itemSize; j ++ ) {
-                array2[ index2 ++ ] = vertices[ index ++ ];
+        for (let i = 0, l = indices.length; i < l; i++) {
+            index = indices[i] * itemSize;
+            for (let j = 0; j < itemSize; j++) {
+                array2[index2++] = vertices[index++];
             }
         }
-    
+
         return array2;
     }
 
@@ -287,20 +410,20 @@ export class Geometry {
         ]);
 
         const indices = new Uint32Array([
-            0, 2, 1, 
-            2, 3, 1, 
+            0, 2, 1,
+            2, 3, 1,
             4, 6, 5,
             6, 7, 5,
             8, 10, 9,
             10, 11, 9,
             12, 14, 13,
             14, 15, 13,
-            16, 18, 17, 
+            16, 18, 17,
             18, 19, 17,
             20, 22, 21,
             22, 23, 21
         ]);
-        
+
         const geometry = new Geometry();
         geometry.attributes.set("position", new VertexAttribute(vertices));
         geometry.attributes.set("uv", new VertexAttribute(uvs));
@@ -313,9 +436,9 @@ export class Geometry {
     public static Plane(): Geometry {
         const vertices = new Float32Array([
             -1.0, -1.0, 0,  // Bottom left
-             1.0, -1.0, 0,  // Bottom right
-             1.0,  1.0, 0,  // Top right
-            -1.0,  1.0, 0   // Top left
+            1.0, -1.0, 0,  // Bottom right
+            1.0, 1.0, 0,  // Top right
+            -1.0, 1.0, 0   // Top left
         ])
 
         const indices = new Uint32Array([
@@ -343,7 +466,7 @@ export class Geometry {
         geometry.attributes.set("uv", new VertexAttribute(uvs));
         geometry.index = new IndexAttribute(indices);
         // geometry.ComputeNormals();
-        
+
         return geometry;
     }
 
@@ -356,10 +479,10 @@ export class Geometry {
 
         let widthSegments = 16; // 16;
         let heightSegments = 8; // 8;
-        widthSegments = Math.max( 3, Math.floor( widthSegments ) );
-        heightSegments = Math.max( 2, Math.floor( heightSegments ) );
+        widthSegments = Math.max(3, Math.floor(widthSegments));
+        heightSegments = Math.max(2, Math.floor(heightSegments));
 
-        const thetaEnd = Math.min( thetaStart + thetaLength, Math.PI );
+        const thetaEnd = Math.min(thetaStart + thetaLength, Math.PI);
 
         let index = 0;
         const grid: number[][] = [];
@@ -374,7 +497,7 @@ export class Geometry {
         const uvs: number[] = [];
 
         // generate vertices, normals and uvs
-        for ( let iy = 0; iy <= heightSegments; iy ++ ) {
+        for (let iy = 0; iy <= heightSegments; iy++) {
             const verticesRow: number[] = [];
 
             const v = iy / heightSegments;
@@ -382,39 +505,39 @@ export class Geometry {
             // special case for the poles
             let uOffset = 0;
 
-            if ( iy === 0 && thetaStart === 0 ) uOffset = 0.5 / widthSegments;
-            else if ( iy === heightSegments && thetaEnd === Math.PI ) uOffset = - 0.5 / widthSegments;
+            if (iy === 0 && thetaStart === 0) uOffset = 0.5 / widthSegments;
+            else if (iy === heightSegments && thetaEnd === Math.PI) uOffset = - 0.5 / widthSegments;
 
-            for ( let ix = 0; ix <= widthSegments; ix ++ ) {
+            for (let ix = 0; ix <= widthSegments; ix++) {
                 const u = ix / widthSegments;
 
                 // vertex
-                vertex.x = - radius * Math.cos( phiStart + u * phiLength ) * Math.sin( thetaStart + v * thetaLength );
-                vertex.y = radius * Math.cos( thetaStart + v * thetaLength );
-                vertex.z = radius * Math.sin( phiStart + u * phiLength ) * Math.sin( thetaStart + v * thetaLength );
-                vertices.push( vertex.x, vertex.y, vertex.z );
+                vertex.x = - radius * Math.cos(phiStart + u * phiLength) * Math.sin(thetaStart + v * thetaLength);
+                vertex.y = radius * Math.cos(thetaStart + v * thetaLength);
+                vertex.z = radius * Math.sin(phiStart + u * phiLength) * Math.sin(thetaStart + v * thetaLength);
+                vertices.push(vertex.x, vertex.y, vertex.z);
 
                 // normal
-                normal.copy( vertex ).normalize();
-                normals.push( normal.x, normal.y, normal.z );
+                normal.copy(vertex).normalize();
+                normals.push(normal.x, normal.y, normal.z);
 
                 // uv
-                uvs.push( u + uOffset, 1 - v );
-                verticesRow.push( index ++ );
+                uvs.push(u + uOffset, 1 - v);
+                verticesRow.push(index++);
             }
-            grid.push( verticesRow );
+            grid.push(verticesRow);
         }
 
         // indices
-        for ( let iy = 0; iy < heightSegments; iy ++ ) {
-            for ( let ix = 0; ix < widthSegments; ix ++ ) {
-                const a = grid[ iy ][ ix + 1 ];
-                const b = grid[ iy ][ ix ];
-                const c = grid[ iy + 1 ][ ix ];
-                const d = grid[ iy + 1 ][ ix + 1 ];
+        for (let iy = 0; iy < heightSegments; iy++) {
+            for (let ix = 0; ix < widthSegments; ix++) {
+                const a = grid[iy][ix + 1];
+                const b = grid[iy][ix];
+                const c = grid[iy + 1][ix];
+                const d = grid[iy + 1][ix + 1];
 
-                if ( iy !== 0 || thetaStart > 0 ) indices.push( a, b, d );
-                if ( iy !== heightSegments - 1 || thetaEnd < Math.PI ) indices.push( b, c, d );
+                if (iy !== 0 || thetaStart > 0) indices.push(a, b, d);
+                if (iy !== heightSegments - 1 || thetaEnd < Math.PI) indices.push(b, c, d);
             }
         }
 
@@ -424,7 +547,7 @@ export class Geometry {
         geometry.attributes.set("position", new VertexAttribute(new Float32Array(vertices)));
         geometry.attributes.set("normal", new VertexAttribute(new Float32Array(normals)));
         geometry.attributes.set("uv", new VertexAttribute(new Float32Array(uvs)));
-        
+
         return geometry;
     }
 }

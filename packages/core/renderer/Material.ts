@@ -78,7 +78,24 @@ export class PBRMaterial extends Material {
             wireframe: false,
             isDeferred: true
         }
-        this.params = Object.assign({}, defaultParams, params);
+        // this.params = Object.assign({}, defaultParams, params);
+        const _params = Object.assign({}, defaultParams, params);
+        const instance = this;
+        const handler1 = {
+            set(obj, prop, value) {
+                obj[prop] = value;
+
+                instance.shader.SetArray("material", new Float32Array([
+                    instance.params.albedoColor.r, instance.params.albedoColor.g, instance.params.albedoColor.b, instance.params.albedoColor.a,
+                    instance.params.emissiveColor.r, instance.params.emissiveColor.g, instance.params.emissiveColor.b, instance.params.emissiveColor.a,
+                    instance.params.roughness, instance.params.metalness, +instance.params.unlit, instance.params.alphaCutoff, +instance.params.wireframe,
+                    0, 0, 0
+                ]));
+
+                return true;
+            },
+        };
+        this.params = new Proxy(_params, handler1) as PBRMaterialParams;
     }
 
     public async createShader(): Promise<Shader> {
@@ -103,7 +120,7 @@ export class PBRMaterial extends Material {
             attributes: {
                 position: {location: 0, size: 3, type: "vec3"},
                 normal: {location: 1, size: 3, type: "vec3"},
-                uv: {location: 2, size: 2, type: "vec2"}
+                uv: {location: 2, size: 2, type: "vec2"},
             },
             uniforms: {
                 projectionMatrix: {group: 0, binding: 0, type: "storage"},
@@ -124,6 +141,10 @@ export class PBRMaterial extends Material {
             },
             cullMode: this.params.doubleSided ? "none" : undefined
         };
+        
+        if (DEFINES.USE_NORMAL_MAP) {
+            shaderParams.attributes.tangent = {location: 3, size: 4, type: "vec4"};
+        }
         shaderParams = Object.assign({}, shaderParams, this.params);
 
         const shader = await Shader.Create(shaderParams);

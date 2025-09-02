@@ -34,16 +34,16 @@ export class GameObject {
             
             AddComponentInternal(component, componentInstance);
 
-            let currentComponent = component;
-            let i = 0
-            while (i < 10) {
-                currentComponent = Object.getPrototypeOf(currentComponent);
-                if (currentComponent.name === Component.name || currentComponent.name === "") {
-                    break;
-                }
-                AddComponentInternal(currentComponent, componentInstance);
-                i++;
-            }
+            // let currentComponent = component;
+            // let i = 0
+            // while (i < 10) {
+            //     currentComponent = Object.getPrototypeOf(currentComponent);
+            //     if (currentComponent.name === Component.name || currentComponent.name === "") {
+            //         break;
+            //     }
+            //     AddComponentInternal(currentComponent, componentInstance);
+            //     i++;
+            // }
 
             if (componentInstance instanceof Camera && !Camera.mainCamera) Camera.mainCamera = componentInstance;
 

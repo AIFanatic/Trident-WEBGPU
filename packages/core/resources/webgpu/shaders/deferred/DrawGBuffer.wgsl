@@ -4,6 +4,9 @@ struct VertexInput {
     @location(0) position : vec3<f32>,
     @location(1) normal : vec3<f32>,
     @location(2) uv : vec2<f32>,
+    #if USE_NORMAL_MAP
+        @location(3) tangent : vec4<f32>,
+    #endif
 };
 
 struct VertexOutput {
@@ -13,6 +16,8 @@ struct VertexOutput {
     @location(2) vUv : vec2<f32>,
     @location(3) @interpolate(flat) instance : u32,
     @location(4) barycenticCoord : vec3<f32>,
+    @location(5) tangent : vec3<f32>,
+    @location(6) bitangent : vec3<f32>,
 };
 
 @group(0) @binding(0) var<storage, read> projectionMatrix: mat4x4<f32>;
@@ -64,6 +69,17 @@ fn vertexMain(input: VertexInput) -> VertexOutput {
     output.barycenticCoord = vec3f(0);
     output.barycenticCoord[input.vertexIndex % 3] = 1.0;
 
+    let worldNormal = normalize(modelMatrixInstance * vec4(input.normal, 0.0)).xyz;
+    output.vNormal = worldNormal;
+
+    #if USE_NORMAL_MAP
+        let worldTangent = normalize(modelMatrixInstance * vec4(input.tangent.xyz, 0.0)).xyz;
+        let worldBitangent = cross(worldNormal, worldTangent) * input.tangent.w;
+
+        output.tangent = worldTangent;
+        output.bitangent = worldBitangent;
+    #endif
+
     return output;
 }
 
@@ -75,24 +91,6 @@ struct FragmentOutput {
 
 fn inversesqrt(v: f32) -> f32 {
     return 1.0 / sqrt(v);
-}
-
-fn getNormalFromMap(N: vec3f, p: vec3f, uv: vec2f ) -> mat3x3<f32> {
-    // get edge vectors of the pixel triangle
-    let dp1 = dpdx( p );
-    let dp2 = dpdy( p );
-    let duv1 = dpdx( uv );
-    let duv2 = dpdy( uv );
-
-    // solve the linear system
-    let dp2perp = cross( dp2, N );
-    let dp1perp = cross( N, dp1 );
-    let T = dp2perp * duv1.x + dp1perp * duv2.x;
-    let B = dp2perp * duv1.y + dp1perp * duv2.y;
-
-    // construct a scale-invariant frame 
-    let invmax = inversesqrt( max( dot(T,T), dot(B,B) ) );
-    return mat3x3( T * invmax, B * invmax, N );
 }
 
 fn edgeFactor(bary: vec3f) -> f32 {
@@ -109,7 +107,7 @@ fn fragmentMain(input: VertexOutput) -> FragmentOutput {
     let mat = material;
 
     var uv = input.vUv;// * vec2(4.0, 2.0);
-    let tbn = getNormalFromMap(input.vNormal, input.vPosition, uv);
+
     var modelMatrixInstance = modelMatrix[input.instance];
 
     var albedo = mat.AlbedoColor;
@@ -129,16 +127,14 @@ fn fragmentMain(input: VertexOutput) -> FragmentOutput {
 
     var normal: vec3f = input.vNormal;
     #if USE_NORMAL_MAP
-        let normalSample = textureSample(NormalMap, TextureSampler, uv).xyz * 2.0 - 1.0;
+        var tbn: mat3x3<f32>;
+        tbn[0] = input.tangent;
+        tbn[1] = input.bitangent;
+        tbn[2] = input.vNormal;
+        
+        let normalSample = textureSample(NormalMap, TextureSampler, uv).xyz * 2.0 - 1.0; // [0 - 1] -> [-1, -1] from brga8unorm to float
         normal = tbn * normalSample;
-
-        // let normalSample = textureSample(NormalMap, TextureSampler, uv).xyz * 2.0 - 1.0;
-        // normal = normalSample.xyz;
     #endif
-    // Should be normal matrix
-    normal = normalize(modelMatrixInstance * vec4(vec3(normal), 0.0)).xyz;
-
-    normal = normalize(normal);
 
     #if USE_METALNESS_MAP
         let metalnessRoughness = textureSample(MetalnessMap, TextureSampler, uv);
@@ -157,7 +153,8 @@ fn fragmentMain(input: VertexOutput) -> FragmentOutput {
     #endif
 
     output.albedo = vec4(albedo.rgb, roughness);
-    output.normal = vec4(normal.xyz, metalness);
+    output.normal = vec4(normal, metalness);
+    // output.normal = vec4(input.tangent.xyz, metalness);
     output.RMO = vec4(emissive.rgb, unlit);
 
 

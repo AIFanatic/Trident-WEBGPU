@@ -32,7 +32,13 @@ struct VertexOutput {
 @group(0) @binding(3) var ermoTexture: texture_2d<f32>;
 @group(0) @binding(4) var depthTexture: texture_depth_2d;
 @group(0) @binding(5) var shadowPassDepth: texture_depth_2d_array;
+
 @group(0) @binding(6) var skyboxTexture: texture_cube<f32>;
+@group(0) @binding(7) var skyboxIrradianceTexture: texture_cube<f32>;
+@group(0) @binding(8) var skyboxPrefilterTexture: texture_cube<f32>;
+@group(0) @binding(9) var skyboxBRDFLUT: texture_2d<f32>;
+
+@group(0) @binding(10) var brdfSampler: sampler;
 
 
 struct Light {
@@ -52,8 +58,8 @@ struct Light {
     params2: vec4<f32>,
 };
 
-@group(0) @binding(7) var<storage, read> lights: array<Light>;
-@group(0) @binding(8) var<storage, read> lightCount: u32;
+@group(0) @binding(11) var<storage, read> lights: array<Light>;
+@group(0) @binding(12) var<storage, read> lightCount: u32;
 
 
 
@@ -67,7 +73,7 @@ struct View {
     viewInverseMatrix: mat4x4<f32>,
     viewMatrix: mat4x4<f32>,
 };
-@group(0) @binding(9) var<storage, read> view: View;
+@group(0) @binding(13) var<storage, read> view: View;
 
 
 const numCascades = 4;
@@ -78,9 +84,9 @@ const debug_cascadeColors = array<vec4<f32>, 5>(
     vec4<f32>(1.0, 1.0, 0.0, 1.0),
     vec4<f32>(0.0, 0.0, 0.0, 1.0)
 );
-@group(0) @binding(10) var shadowSamplerComp: sampler_comparison;
+@group(0) @binding(14) var shadowSamplerComp: sampler_comparison;
 
-@group(0) @binding(11) var<storage, read> settings: Settings;
+@group(0) @binding(15) var<storage, read> settings: Settings;
 
 
 @vertex
@@ -91,41 +97,6 @@ fn vertexMain(input: VertexInput) -> VertexOutput {
     return output;
 }
 const PI = 3.141592653589793;
-
-const SPOT_LIGHT = 0;
-const DIRECTIONAL_LIGHT = 1;
-const POINT_LIGHT = 2;
-const AREA_LIGHT = 3;
-
-struct SpotLight {
-    pointToLight: vec3<f32>,
-    color: vec3<f32>,
-    direction: vec3<f32>,
-    range: f32,
-    intensity: f32,
-    angle: f32,
-}
-
-struct DirectionalLight {
-    direction: vec3<f32>,
-    color: vec3<f32>,
-    intensity: f32
-}
-
-struct PointLight {
-    pointToLight: vec3<f32>,
-    color: vec3<f32>,
-    range: f32,
-    intensity: f32,
-}
-
-struct AreaLight {
-    pointToLight: vec3<f32>,
-    direction: vec3<f32>,
-    color: vec3<f32>,
-    range: f32,
-    intensity: f32,
-}
 
 struct Surface {
     albedo: vec3<f32>,
@@ -158,268 +129,54 @@ fn reconstructWorldPosFromZ(
     return worldPosition;
 }
 
-fn DistributionGGX(N: vec3<f32>, H: vec3<f32>, roughness: f32) -> f32 {
-    let a      = roughness*roughness;
-    let a2     = a*a;
-    let NdotH  = max(dot(N, H), 0.0);
-    let NdotH2 = NdotH*NdotH;
+fn toneMapping(color: vec3f) -> vec3f {
+    let a = vec3f(1.6);
+    let d = vec3f(0.977);
+    let hdrMax = vec3f(8.0);
+    let midIn = vec3f(0.18);
+    let midOut = vec3f(0.267);
 
-    let num   = a2;
-    var denom = (NdotH2 * (a2 - 1.0) + 1.0);
-    denom = PI * denom * denom;
-    return num / denom;
+    let b = (-pow(midIn, a) + pow(hdrMax, a) * midOut) / ((pow(hdrMax, a * d) - pow(midIn, a * d)) * midOut);
+    let c = (pow(hdrMax, a * d) * pow(midIn, a) - pow(hdrMax, a) * pow(midIn, a * d) * midOut) / ((pow(hdrMax, a * d) - pow(midIn, a * d)) * midOut);
+
+    return pow(color, a) / (pow(color, a * d) * b + c);
 }
 
-fn GeometrySchlickGGX(NdotV: f32, roughness: f32) -> f32 {
-    let r = (roughness + 1.0);
-    let k = (r*r) / 8.0;
-
-    let num   = NdotV;
-    let denom = NdotV * (1.0 - k) + k;
-
-    return num / denom;
+fn DistributionGGX(n: vec3f, h: vec3f, roughness: f32) -> f32 {
+  let a = roughness * roughness;
+  let a2 = a * a;
+  let nDotH = max(dot(n, h), 0.0);
+  let nDotH2 = nDotH * nDotH;
+  var denom = (nDotH2 * (a2 - 1.0) + 1.0);
+  denom = PI * denom * denom;
+  return a2 / denom;
 }
 
-fn GeometrySmith(N: vec3<f32>, V: vec3<f32>, L: vec3<f32>, roughness: f32) -> f32 {
-    let NdotV = max(dot(N, V), 0.0);
-    let NdotL = max(dot(N, L), 0.0);
-    let ggx2  = GeometrySchlickGGX(NdotV, roughness);
-    let ggx1  = GeometrySchlickGGX(NdotL, roughness);
-
-    return ggx1 * ggx2;
+fn GeometrySchlickGGX(nDotV: f32, roughness: f32) -> f32 {
+  let r = (roughness + 1.0);
+  let k = (r * r) / 8.0;
+  return nDotV / (nDotV * (1.0 - k) + k);
 }
 
-fn FresnelSchlick(cosTheta: f32, F0: vec3<f32>) -> vec3<f32> {
-    return F0 + (1.0 - F0) * pow(clamp(1.0 - cosTheta, 0.0, 1.0), 5.0);
-} 
-
-fn rangeAttenuation(range : f32, distance : f32) -> f32 {
-    if (range <= 0.0) {
-        // Negative range means no cutoff
-        return 1.0 / pow(distance, 2.0);
-    }
-    return clamp(1.0 - pow(distance / range, 4.0), 0.0, 1.0) / pow(distance, 2.0);
+fn GeometrySmith(n: vec3f, v: vec3f, l: vec3f, roughness: f32) -> f32 {
+  let nDotV = max(dot(n, v), 0.0);
+  let nDotL = max(dot(n, l), 0.0);
+  let ggx2 = GeometrySchlickGGX(nDotV, roughness);
+  let ggx1 = GeometrySchlickGGX(nDotL, roughness);
+  return ggx1 * ggx2;
 }
 
-fn CalculateBRDF(surface: Surface, pointToLight: vec3<f32>) -> vec3<f32> {
-    // cook-torrance brdf
-    let L = normalize(pointToLight);
-    let H = normalize(surface.V + L);
-    let distance = length(pointToLight);
-
-    let NDF = DistributionGGX(surface.N, H, surface.roughness);
-    let G = GeometrySmith(surface.N, surface.V, L, surface.roughness);
-    let F = FresnelSchlick(max(dot(H, surface.V), 0.0), surface.F0);
-
-    let kD = (vec3(1.0, 1.0, 1.0) - F) * (1.0 - surface.metallic);
-
-    let NdotL = max(dot(surface.N, L), 0.0);
-
-    let numerator = NDF * G * F;
-    let denominator = max(4.0 * max(dot(surface.N, surface.V), 0.0) * NdotL, 0.001);
-    let specular = numerator / vec3(denominator, denominator, denominator);
-
-    return (kD * surface.albedo.rgb / vec3(PI, PI, PI) + specular) * NdotL;
+fn FresnelSchlick(cosTheta: f32, f0: vec3f) -> vec3f {
+  return f0 + (1.0 - f0) * pow(clamp(1.0 - cosTheta, 0.0, 1.0), 5.0);
 }
 
-fn PointLightRadiance(light : PointLight, surface : Surface) -> vec3<f32> {
-    let distance = length(light.pointToLight);
-    let attenuation = rangeAttenuation(light.range, distance);
-    let radiance = CalculateBRDF(surface, light.pointToLight) * light.color * light.intensity * attenuation;
-    return radiance;
+fn FresnelSchlickRoughness(cosTheta: f32, f0: vec3f, roughness: f32) -> vec3f {
+  return f0 + (max(vec3(1.0 - roughness), f0) - f0) * pow(clamp(1.0 - cosTheta, 0.0, 1.0), 5.0);
 }
 
-fn DirectionalLightRadiance(light: DirectionalLight, surface : Surface) -> vec3<f32> {
-    return CalculateBRDF(surface, light.direction) * light.color * light.intensity;
-}
-
-fn SpotLightRadiance(light : SpotLight, surface : Surface) -> vec3<f32> {
-    let L = normalize(light.pointToLight);
-    let distance = length(light.pointToLight);
-
-    let angle = acos(dot(light.direction, L));
-
-    // Check if the point is within the light cone
-    if angle > light.angle {
-        return vec3(0.0, 0.0, 0.0); // Outside the outer cone
-    }
-
-    let intensity = smoothstep(light.angle, 0.0, angle);
-    let attenuation = rangeAttenuation(light.range, distance) * intensity;
-
-    let radiance = CalculateBRDF(surface, light.pointToLight) * light.color * light.intensity * attenuation;
-    return radiance;
-}
-
-struct ShadowCSM {
-    visibility: f32,
-    selectedCascade: i32
-};
-
-fn ShadowLayerSelection(depthValue: f32, light: Light) -> i32 {
-    var layer = -1;
-    for (var i = 0; i < numCascades; i++) {
-        let splitDist = light.cascadeSplits[i];
-
-        if (depthValue < splitDist) {
-            layer = i;
-            break;
-        }
-    }
-
-    if (layer == -1) {
-        layer = numCascades - 1;
-    }
-
-    return layer;
-}
-
-fn SampleCascadeShadowMap(
-    surface: Surface,
-    light: Light,
-    cascadeIndex: i32,
-    lightIndex: u32
-) -> f32 {
-    // 1) Choose correct matrix
-    var csm = light.csmProjectionMatrix0;
-    if (cascadeIndex == 1) {
-        csm = light.csmProjectionMatrix1;
-    } else if (cascadeIndex == 2) {
-        csm = light.csmProjectionMatrix2;
-    } else if (cascadeIndex == 3) {
-        csm = light.csmProjectionMatrix3;
-    }
-
-    // 2) Transform worldPos → Light space
-    let fragPosLightSpace = csm * vec4(surface.worldPosition, 1.0);
-    let projCoords = fragPosLightSpace.xyz / fragPosLightSpace.w;
-    var shadowMapCoords = vec3<f32>(
-        projCoords.xy * vec2<f32>(0.5, -0.5) + vec2<f32>(0.5, 0.5),
-        projCoords.z
-    );
-
-    // 3) Adjust for array layout (your approach of splitting the atlas into 4 quadrants)
-    if (cascadeIndex >= 2) {
-        shadowMapCoords.x += 1.0;
-    }
-    if (cascadeIndex % 2 != 0) {
-        shadowMapCoords.y += 1.0;
-    }
-    shadowMapCoords.x /= 2.0;
-    shadowMapCoords.y /= 2.0;
-
-    // // Example 3x3 PCF or a single sample; up to you:
-    // let visibility = textureSampleCompareLevel(
-    //     shadowPassDepth, 
-    //     shadowSamplerComp, 
-    //     shadowMapCoords.xy, 
-    //     lightIndex,
-    //     shadowMapCoords.z
-    // );
-
-    // let fragPosViewSpace = view.viewMatrix * vec4f(surface.worldPosition, 1.0);
-    // let depthValue = abs(fragPosViewSpace.z);
-
-    // PCF
-    var visibility = 0.0;
-    let pcfResolution = i32(settings.pcfResolution);
-    let offset = 1.0 / vec2<f32>(textureDimensions(shadowPassDepth));
-    for (var i = -pcfResolution; i <= pcfResolution; i = i + 1) {
-        for (var j = -pcfResolution; j <= pcfResolution; j = j + 1) {
-            visibility += textureSampleCompareLevel(
-                shadowPassDepth,
-                shadowSamplerComp,
-                shadowMapCoords.xy + vec2<f32>(f32(i), f32(j)) * offset,
-                //lightIndex,
-                i32(light.params1.w), // params1.w == shadowMapIndex
-                shadowMapCoords.z
-            );
-
-            // if (surface.depth <= pcfDepth) {
-            //     visibility += 1.0;
-            // }
-        }
-    }
-    
-    visibility /= pow(f32(pcfResolution * 2 + 1), 2);
-    // visibility /= 9.0;
-
-    return clamp(visibility, 0.0, 1.0);
-}
-
-fn lerp(k0: f32, k1: f32, t: f32) -> f32 {
-    return k0 + t * (k1 - k0);
-}
-
-fn CalculateShadowCSM(surface: Surface, light: Light, lightIndex: u32) -> ShadowCSM {
-    var shadow: ShadowCSM;
-    
-    let fragPosViewSpace = view.viewMatrix * vec4f(surface.worldPosition, 1.0);
-    let depthValue = abs(fragPosViewSpace.z);
-
-    // 1) Get cascade selection (primary + possibly a secondary to blend with)
-    let selectedCascade = ShadowLayerSelection(depthValue, light);
-    shadow.selectedCascade = selectedCascade;
-
-    // If no valid cascade, return early or assign some fallback:
-    if (selectedCascade == -1) {
-        // No shadow
-        shadow.visibility = 1.0;
-        shadow.selectedCascade = -1;
-        return shadow;
-    }
-
-    // 2) Evaluate shadow from the primary cascade
-    shadow.visibility = SampleCascadeShadowMap(surface, light, selectedCascade, lightIndex);
-
-    // Sample the next cascade, and blend between the two results to
-    // smooth the transition
-    let BlendThreshold = settings.blendThreshold;
-
-
-    let nextSplit = light.cascadeSplits[selectedCascade];
-    
-    var splitSize = 0.0;
-    if (selectedCascade == 0) { splitSize = nextSplit; }
-    else { splitSize = nextSplit - light.cascadeSplits[selectedCascade - 1]; }
-
-    let fadeFactor = (nextSplit - depthValue) / splitSize;
-
-    if(fadeFactor <= BlendThreshold && selectedCascade != numCascades - 1) {
-        let nextSplitVisibility = SampleCascadeShadowMap(surface, light, selectedCascade + 1, lightIndex);
-        let lerpAmt = smoothstep(0.0f, BlendThreshold, fadeFactor);
-        shadow.visibility = lerp(nextSplitVisibility, shadow.visibility, lerpAmt);
-        
-        if (u32(settings.viewBlendThreshold) == 1) {
-            shadow.visibility *= fadeFactor;
-        }
-    }
- 
-    return shadow;
-}
-
-fn Tonemap_ACES(x: vec3f) -> vec3f {
-    // Narkowicz 2015, "ACES Filmic Tone Mapping Curve"
-    let a = 2.51;
-    let b = 0.03;
-    let c = 2.43;
-    let d = 0.59;
-    let e = 0.14;
-    return (x * (a * x + b)) / (x * (c * x + d) + e);
-}
-
-fn OECF_sRGBFast(linear: vec3f) -> vec3f {
-    return pow(linear, vec3(0.454545));
-}
-
-// simple Reinhard tone mapping
-fn ToneMap_Reinhard(c: vec3<f32>) -> vec3<f32> {
-    return c / (c + vec3<f32>(1.0));
-}
-
-// gamma (linear → sRGB)
-fn Gamma(c: vec3<f32>) -> vec3<f32> {
-    return pow(c, vec3<f32>(1.0 / 2.2));
+fn fixCubeHandedness(d: vec3f) -> vec3f {
+    // try flipping X first; if that’s wrong, flip Z instead
+    return vec3f(-d.x, d.y, d.z);
 }
 
 @fragment
@@ -439,8 +196,6 @@ fn fragmentMain(input: VertexOutput) -> @location(0) vec4<f32> {
     //     discard;
     // }
 
-    var color: vec3f = vec3(0);
-
     let worldPosition = reconstructWorldPosFromZ(
         input.position.xy,
         view.projectionOutputSize.xy,
@@ -453,12 +208,11 @@ fn fragmentMain(input: VertexOutput) -> @location(0) vec4<f32> {
 
     var surface: Surface;
     surface.depth = depth;
-    // surface.albedo = albedo.rgb * skyColor.rgb;
     surface.albedo = albedo.rgb;
-    surface.roughness = albedo.a;
+    surface.roughness = clamp(albedo.a, 0.0, 0.99);
     surface.metallic = normal.a;
     surface.emissive = ermo.rgb;
-    surface.occlusion = 1.0;
+    surface.occlusion = ermo.a;
     surface.worldPosition = worldPosition.xyz;
     surface.N = normalize(normal.rgb);
     surface.F0 = mix(vec3(0.04), surface.albedo.rgb, vec3(surface.metallic));
@@ -467,13 +221,63 @@ fn fragmentMain(input: VertexOutput) -> @location(0) vec4<f32> {
     var worldNormal: vec3f = normalize(surface.N);
     var eyeToSurfaceDir: vec3f = normalize(surface.worldPosition - view.viewPosition.xyz);
     var direction: vec3f = reflect(eyeToSurfaceDir, worldNormal);
-    var environmentColor = textureSample(skyboxTexture, textureSampler, direction) * 0.5;
+    var environmentColor = textureSample(skyboxTexture, textureSampler, direction);
 
-    // let maxMips = /* # of mips in your cubemap */;
-    // let lod    = surface.roughness * f32(maxMips - 1);
-    // let environmentColor = textureSampleLevel(skyboxTexture, textureSampler, direction, lod);
+    const MAX_REFLECTION_LOD = 4.0;
 
-    
+    let n = surface.N;
+    let v = surface.V;
+    // let r = direction;
+    let r = reflect(-v, n);
+    // let r = reflect(-eyeToSurfaceDir, surface.N);
+
+    let f0 = mix(vec3f(0.04), surface.albedo, surface.metallic);
+    let ao = 1.0;
+
+    var lo = vec3f(0.0);
+
+    for (var i = 0; i < i32(lightCount); i++) {
+        let l = normalize(lights[i].position.xyz - worldPosition.xyz);
+        let h = normalize(v + l);
+
+        let distance = length(lights[i].position - worldPosition);
+        let attenuation = 1.0 / (distance * distance);
+        let radiance = lights[i].color.xyz * attenuation;
+
+        let d = DistributionGGX(n, h, surface.roughness);
+        let g = GeometrySmith(n, v, l, surface.roughness);
+        let f = FresnelSchlick(max(dot(h, v), 0.0), f0);
+
+        let numerator = d * g * f;
+        let denominator = 4.0 * max(dot(n, v), 0.0) * max(dot(n, l), 0.0) + 0.00001;
+        let specular = numerator / denominator;
+
+        let kS = f;
+        var kD = vec3f(1.0) - kS;
+        kD *= 1.0 - surface.metallic;
+
+        let nDotL = max(dot(n, l), 0.00001);
+        lo += (kD * surface.albedo / PI + specular) * radiance * nDotL;
+    }
+
+    let f = FresnelSchlickRoughness(max(dot(n, v), 0.00001), f0, surface.roughness);
+    let kS = f;
+    var kD = vec3f(1.0) - kS;
+    kD *= 1.0 - surface.metallic;
+
+    let irradiance = textureSample(skyboxIrradianceTexture, textureSampler, fixCubeHandedness(n)).rgb;
+    let diffuse = irradiance * surface.albedo.xyz;
+
+    let prefilteredColor = textureSampleLevel(skyboxPrefilterTexture, textureSampler, fixCubeHandedness(r), surface.roughness * MAX_REFLECTION_LOD).rgb;
+    let brdf = textureSample(skyboxBRDFLUT, brdfSampler, vec2f(max(dot(n, v), 0.0), surface.roughness)).rg;
+    let specular = prefilteredColor * (f * brdf.x + brdf.y);
+
+    let ambient = (kD * diffuse + specular) * ao;
+
+    var color = ambient + lo;
+
+
+
     // Convert screen coordinate to NDC space [-1, 1]
     let ndc = vec3<f32>(
         (input.position.x / view.projectionOutputSize.x) * 2.0 - 1.0,
@@ -485,133 +289,21 @@ fn fragmentMain(input: VertexOutput) -> @location(0) vec4<f32> {
     let viewRay4 = view.projectionInverseMatrix * vec4(ndc, 1.0);
     var viewRay = normalize(viewRay4.xyz / viewRay4.w);
     viewRay.y *= -1.0;
+    // viewRay.x *= -1.0;
 
     // Transform the view-space ray to world space using the inverse view matrix
     var worldRay = normalize((view.viewInverseMatrix * vec4(viewRay, 0.0)).xyz);
     
     // Sample the sky cube using the view ray as direction
-    let skyColor = textureSample(skyboxTexture, textureSampler, worldRay) * 0.5;
+    var skyColor = textureSample(skyboxTexture, textureSampler, worldRay).rgb;
     
     // For example, if the depth is near the far plane, we assume it’s background:
     if (depth >= 0.9999999) {
-        return skyColor;
+        color = skyColor;
     }
 
-    if (ermo.w > 0.5) {
-        return vec4(surface.albedo.rgb, 1.0);
-    }
-    
-    var selectedCascade = 0;
-    var Lo = vec3(0.0);
-    for (var i : u32 = 0u; i < lightCount; i = i + 1u) {
-        let light = lights[i];
-        let lightType = u32(light.color.a);
+    color = toneMapping(color);
+    color = pow(color, vec3f(1.0 / 2.2));
 
-        if (lightType == SPOT_LIGHT) {
-            var spotLight: SpotLight;
-            
-            let lightViewInverse = light.viewMatrixInverse;
-            let lightDir = normalize((lightViewInverse * vec4(0.0, 0.0, 1.0, 0.0)).xyz);
-
-            spotLight.pointToLight = light.position.xyz - surface.worldPosition;
-            spotLight.color = light.color.rgb;
-            spotLight.intensity = light.params1.r;
-            spotLight.range = light.params1.g;
-            spotLight.direction = lightDir;
-            spotLight.angle = light.params2.w;
-
-            if (distance(light.position.xyz, surface.worldPosition) > spotLight.range) {
-                continue;
-            }
-
-            // let shadow = CalculateShadow(surface.worldPosition, surface.N, light, i);
-
-            let castShadows = light.params1.z > 0.5;
-            var shadow = 1.0;
-            if (castShadows) {
-                let shadowCSM = CalculateShadowCSM(surface, light, i);
-                shadow = shadowCSM.visibility;
-                selectedCascade = shadowCSM.selectedCascade;
-            }
-
-            Lo += shadow * SpotLightRadiance(spotLight, surface);
-        }
-        else if (lightType == POINT_LIGHT) {
-            var pointLight: PointLight;
-            
-            pointLight.pointToLight = light.position.xyz - surface.worldPosition;
-            pointLight.color = light.color.rgb;
-            pointLight.intensity = light.params1.x;
-            pointLight.range = light.params1.y;
-
-            // let shadow = CalculateShadow(surface.worldPosition, surface.N, light, i);
-            let shadow = 0.0;
-            Lo += (1.0 - shadow) * PointLightRadiance(pointLight, surface);
-        }
-        else if (lightType == DIRECTIONAL_LIGHT) {
-            var directionalLight: DirectionalLight;
-            let lightViewInverse = light.viewMatrixInverse;
-            let lightDir = normalize((lightViewInverse * vec4(0.0, 0.0, 1.0, 0.0)).xyz);
-            directionalLight.direction = lightDir;
-            directionalLight.color = light.color.rgb;
-            directionalLight.intensity = light.params1.x;
-
-            // var shadow = CalculateShadow(surface.worldPosition, surface.N, light, i);
-            // shadow = 1.0 - shadow;
-            // shadow += 0.5;
-
-            let castShadows = light.params1.z > 0.5;
-            var shadow = 1.0;
-            if (castShadows) {
-                let shadowCSM = CalculateShadowCSM(surface, light, i);
-                shadow = shadowCSM.visibility;
-                selectedCascade = shadowCSM.selectedCascade;
-            }
-
-            // let shadow = 1.0;
-
-            Lo += (shadow) * DirectionalLightRadiance(directionalLight, surface);
-        }
-    }
-
-
-
-    let ambientColor = vec3(0.01);
-    let specularIBL = environmentColor.rgb * surface.F0;
-    Lo += specularIBL * surface.occlusion;
-    
-    color = ambientColor * surface.albedo + Lo * surface.occlusion;
-
-    if (u32(settings.debugShadowCascades) == 1) {
-        color += debug_cascadeColors[selectedCascade].rgb * 0.05;
-    }
-
-    color += surface.emissive;
-
-    // color = Tonemap_ACES(color);
-    // color = OECF_sRGBFast(color);
-
-    // color *= 0.01;
-    // color = ToneMap_Reinhard(color);
-    // color = Gamma(color);
-
-
-    if (u32(settings.viewType) == 1) { color = surface.albedo.rgb; }
-    else if (u32(settings.viewType) == 2) { color = surface.N.xyz; }
-    else if (u32(settings.viewType) == 3) { color = vec3(surface.metallic); }
-    else if (u32(settings.viewType) == 4) { color = vec3(surface.roughness); }
-    else if (u32(settings.viewType) == 5) { color = surface.emissive; }
-    
-
-    return vec4(color, 1.0);
-
-    // return vec4(pow(projectedDepth, 20.0));
-    // return vec4(shadowPos, 1.0);
-    // return vec4(Lo, 1.0);
-    // return vec4(surface.albedo.rgb, 1.0);
-    // return vec4(worldPosition.xyz, 1.0);
-    // return vec4(surface.N, 1.0);
-
-    // var s = textureSampleLevel(shadowPassDepth, shadowSampler, input.vUv, 0);
-    // return vec4(vec3f(s) / 1.0, 1.0);
+    return vec4f(color, 1.0);
 }

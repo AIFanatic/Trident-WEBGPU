@@ -7,7 +7,7 @@ import { TextureViewer } from "./passes/TextureViewer";
 import { PrepareGBuffers } from "./passes/PrepareGBuffers";
 import { DeferredShadowMapPass } from "./passes/DeferredShadowMapPass";
 import { DebuggerTextureViewer } from "./passes/DebuggerTextureViewer";
-import { CubeTexture } from "./Texture";
+import { CubeTexture, RenderTexture } from "./Texture";
 import { DeferredGBufferPass } from "./passes/DeferredGBufferPass";
 import { ForwardPass } from "./passes/ForwardPass";
 
@@ -26,6 +26,9 @@ export const PassParams = {
     GBufferDepthClone: "GBufferDepthClone",
 
     Skybox: "Skybox",
+    SkyboxIrradiance: "SkyboxIrradiance",
+    SkyboxPrefilter: "SkyboxPrefilter",
+    SkyboxBRDFLUT: "SkyboxBRDFLUT",
 
     ShadowPassDepth: "ShadowPassDepth",
 
@@ -60,6 +63,15 @@ export class RenderingPipeline {
     private prepareGBuffersPass: PrepareGBuffers;
     public get skybox(): CubeTexture { return this.prepareGBuffersPass.skybox};
     public set skybox(skybox: CubeTexture) { this.prepareGBuffersPass.skybox = skybox};
+
+    public get skyboxIrradiance(): CubeTexture { return this.prepareGBuffersPass.skyboxIrradiance};
+    public set skyboxIrradiance(skyboxIrradiance: CubeTexture) { this.prepareGBuffersPass.skyboxIrradiance = skyboxIrradiance};
+
+    public get skyboxPrefilter(): CubeTexture { return this.prepareGBuffersPass.skyboxPrefilter};
+    public set skyboxPrefilter(skyboxPrefilter: CubeTexture) { this.prepareGBuffersPass.skyboxPrefilter = skyboxPrefilter};
+
+    public get skyboxBRDFLUT(): RenderTexture { return this.prepareGBuffersPass.skyboxBRDFLUT};
+    public set skyboxBRDFLUT(skyboxBRDFLUT: RenderTexture) { this.prepareGBuffersPass.skyboxBRDFLUT = skyboxBRDFLUT};
 
     constructor(renderer: Renderer) {
         this.renderer = renderer;

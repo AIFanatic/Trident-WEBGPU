@@ -1,5 +1,5 @@
 import { RenderPass, ResourcePool } from "../RenderGraph";
-import { CubeTexture, DepthTexture, RenderTexture } from "../Texture";
+import { CubeTexture, DepthTexture, RenderTexture, Texture } from "../Texture";
 import { PassParams } from "../RenderingPipeline";
 import { Renderer } from "../Renderer";
 import { RenderTarget, RendererContext } from "../RendererContext";
@@ -19,6 +19,9 @@ export class PrepareGBuffers extends RenderPass {
     public gBufferAlbedoRTClone: RenderTexture;
 
     public skybox: CubeTexture;
+    public skyboxIrradiance: CubeTexture;
+    public skyboxPrefilter: CubeTexture;
+    public skyboxBRDFLUT: Texture;
 
     constructor() {
         super({outputs: [
@@ -40,6 +43,9 @@ export class PrepareGBuffers extends RenderPass {
         this.gBufferNormalRT = RenderTexture.Create(Renderer.width, Renderer.height, 1, "rgba16float");
         this.gBufferERMORT = RenderTexture.Create(Renderer.width, Renderer.height, 1, "rgba16float");
         this.skybox = CubeTexture.Create(1, 1, 6);
+        this.skyboxIrradiance = CubeTexture.Create(1, 1, 6);
+        this.skyboxPrefilter = CubeTexture.Create(1, 1, 6);
+        this.skyboxBRDFLUT = Texture.Create(1, 1, 1);
         
         this.initialized = true;
     }
@@ -67,7 +73,11 @@ export class PrepareGBuffers extends RenderPass {
         resources.setResource(PassParams.GBufferAlbedoClone, this.gBufferAlbedoRTClone);
         resources.setResource(PassParams.GBufferNormal, this.gBufferNormalRT);
         resources.setResource(PassParams.GBufferERMO, this.gBufferERMORT);
+
         resources.setResource(PassParams.Skybox, this.skybox);
+        resources.setResource(PassParams.SkyboxIrradiance, this.skyboxIrradiance);
+        resources.setResource(PassParams.SkyboxPrefilter, this.skyboxPrefilter);
+        resources.setResource(PassParams.SkyboxBRDFLUT, this.skyboxBRDFLUT);
 
         const settings = new Float32Array([
             0, // +Debugger.isDebugDepthPassEnabled,

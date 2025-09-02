@@ -25,4 +25,23 @@ export class Color {
         const a = Math.floor(this.a * 255).toString(16).padStart(2, "0");
         return "#" + r + g + b + a;
     }
+
+    public setFromHex(hex: string): Color {
+        if (hex.length !== 6 && hex.length !== 8 && !hex.startsWith("#")) {
+            throw new Error("Invalid hex color format. Expected #RRGGBB or #RRGGBBAA");
+        }
+    
+        hex = hex.slice(1);
+        const r = parseInt(hex.slice(0, 2), 16) / 255;
+        const g = parseInt(hex.slice(2, 4), 16) / 255;
+        const b = parseInt(hex.slice(4, 6), 16) / 255;
+        const a = hex.length === 8 ? parseInt(hex.slice(6, 8), 16) / 255 : 1;
+    
+        this.set(r, g, b, a);
+        return this;
+    }
+
+    public clone(): Color {
+        return new Color(this.r, this.g, this.b, this.a);
+    }
 }

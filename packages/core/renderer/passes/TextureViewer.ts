@@ -39,30 +39,9 @@ export class TextureViewer extends RenderPass {
             output.vUv = input.uv;
             return output;
         }
-        
-        fn Tonemap_ACES(x: vec3f) -> vec3f {
-            // Narkowicz 2015, "ACES Filmic Tone Mapping Curve"
-            let a = 2.51;
-            let b = 0.03;
-            let c = 2.43;
-            let d = 0.59;
-            let e = 0.14;
-            return (x * (a * x + b)) / (x * (c * x + d) + e);
-        }
-        
-        fn OECF_sRGBFast(linear: vec3f) -> vec3f {
-            return pow(linear, vec3(0.454545));
-        }
 
         @fragment fn fragmentMain(input: VertexOutput) -> @location(0) vec4f {
-            let uv = input.vUv;
-
-            var color = textureSampleLevel(texture, textureSampler, uv, 0).rgb;
-            // TODO: This is a post processing filter, it shouldn't be here
-            color = Tonemap_ACES(color);
-            color = OECF_sRGBFast(color);
-
-            return vec4f(color, 1.0);
+            return textureSampleLevel(texture, textureSampler, input.vUv, 0);
         }
         `;
 
