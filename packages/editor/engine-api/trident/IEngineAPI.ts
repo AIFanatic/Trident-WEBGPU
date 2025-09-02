@@ -1,4 +1,4 @@
-import { ComponentInterface, IGameObject } from "./components/IGameObject";
+import { IGameObject } from "./components/IGameObject";
 import { IGeometry } from "./components/IGeometry";
 
 import { IMaterial } from "./components/IMaterial";
@@ -8,11 +8,13 @@ import { IScene } from "./IScene";
 import { IColor } from "./math/IColor";
 import { IVector3 } from "./math/IVector3";
 
-import { IComponent } from "./components/IComponent";
 import { IVector2 } from "./math/IVector2";
 
+import { ISerializableFieldsMap } from "./utils/ISerializeField";
+import { IComponent } from "./components/IComponent";
+
 export interface IEngineAPI {
-    currentScene: IScene;
+    currentScene?: IScene;
 
     createRenderer(canvas: HTMLCanvasElement);
     createScene(): IScene;
@@ -28,8 +30,12 @@ export interface IEngineAPI {
     createVector3(x: number, y: number, z: number): IVector3;
     isVector3(vector3: IVector3): boolean;
 
+    isComponent(component: IComponent): boolean;
+
     createPlaneGeometry(): IGeometry;
     createCubeGeometry(): IGeometry;
     
     createPBRMaterial(args): IMaterial;
+
+    SerializableFields: ISerializableFieldsMap;
 }

@@ -1,4 +1,4 @@
-import { GameObject, Renderer, Scene, Mathf, Geometry, PBRMaterial } from "@trident/core";
+import { GameObject, Renderer, Scene, Mathf, Geometry, PBRMaterial, Utils, Component } from "@trident/core";
 
 import { IEngineAPI } from "./IEngineAPI";
 import { IGameObject } from "./components/IGameObject";
@@ -8,15 +8,13 @@ import { IGeometry } from "./components/IGeometry";
 import { IMaterial } from "./components/IMaterial";
 import { IColor } from "./math/IColor";
 import { IVector2 } from "./math/IVector2";
+import { IComponent } from "./components/IComponent";
 
 export class TridentAPI implements IEngineAPI {
 
     public currentScene: IScene;
 
     private gameObjectRefs = new WeakSet<GameObject>();
-    private vector2Refs = new WeakSet<IVector2>();
-    private vector3Refs = new WeakSet<IVector3>();
-    private colorRefs = new WeakSet<IColor>();
 
     public createRenderer(canvas: HTMLCanvasElement) {
         Renderer.Create(canvas, "webgpu");
@@ -39,32 +37,33 @@ export class TridentAPI implements IEngineAPI {
 
     public createVector3(x: number, y: number, z: number): IVector3 {
         const vec3 = new Mathf.Vector3(x, y, z);
-        this.vector3Refs.add(vec3);
         return vec3;
     }
 
     public isVector3(vector3: IVector3): boolean {
-        return this.vector3Refs.has(vector3);
+        return vector3.constructor === Mathf.Vector3;
     }
 
     public createVector2(x: number, y: number, z: number): IVector2 {
         const vec2 = new Mathf.Vector2(x, y);
-        this.vector2Refs.add(vec2);
         return vec2;
     }
 
     public isVector2(vector2: IVector2): boolean {
-        return this.vector2Refs.has(vector2);
+        return vector2.constructor === Mathf.Vector2;
     }
 
     public createColor(r: number, g: number, b: number, a: number): IColor {
         const color = new Mathf.Color(r, g, b, a);;
-        this.colorRefs.add(color);
         return color;
     }
 
     public isColor(color: IColor): boolean {
-        return this.colorRefs.has(color);
+        return color.constructor === Mathf.Color;
+    }
+
+    public isComponent(component: IComponent): boolean {
+        return component.constructor === Component;
     }
 
     public createPlaneGeometry(): IGeometry {
@@ -78,4 +77,6 @@ export class TridentAPI implements IEngineAPI {
     public createPBRMaterial(args): IMaterial {
         return new PBRMaterial(args);
     }
+
+    public SerializableFields = Utils.SerializableFields;
 }

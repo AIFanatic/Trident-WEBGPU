@@ -1,4 +1,4 @@
-import { Components } from "trident-webgpu";
+import { Components } from "@trident/core";
 
 export const IComponents = {
     Camera: Components.Camera,

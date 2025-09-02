@@ -9,4 +9,9 @@ export interface IComponent {
 
     readonly gameObject: IGameObject;
     readonly transform: ITransform;
+
+    Start();
+    Update();
+    LateUpdate();
+    Destroy();
 }

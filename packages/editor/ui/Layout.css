@@ -1,6 +1,9 @@
 html, body {
     margin:0;
     height: 100%;
+    color: white;
+    font-family: monospace;
+    font-size: 10px;
 }
 
 flex {
@@ -18,13 +21,13 @@ flex.v {
 }
 
 flex-item {
-    overflow: auto;
+    /* overflow: auto; */
 }
 
 flex>flex-resizer {
     flex: 0 0 5px;
     /* background: white; */
-    background-color: #2c2c2c;
+    background-color: black;
     background-repeat: no-repeat;
     background-position: center;
 }
@@ -39,4 +42,16 @@ flex.h>flex-resizer {
 
 flex.v>flex-resizer {
     cursor: ns-resize;
+}
+
+/* Chrome, Safari, Edge, Opera */
+input::-webkit-outer-spin-button,
+input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+/* Firefox */
+input[type=number] {
+  -moz-appearance: textfield;
 }

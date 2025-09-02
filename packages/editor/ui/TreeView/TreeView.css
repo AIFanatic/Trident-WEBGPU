@@ -1,0 +1,34 @@
+.treeview {
+    line-height: 1.5;
+}
+
+.treeview .item {
+    counter-increment: section;
+    counter-reset: section;
+}
+
+.treeview .item .drag-hover {
+    background-color: red;
+}
+
+.treeview .item .item-title {
+    cursor: pointer;
+}
+
+.treeview .item .active {
+    background-color: #3498db;
+}
+
+.treeview .item .item-title:before {
+    content: counters(section, '--');
+    opacity: 0;
+}
+
+.treeview .item .item-title:hover {
+    /* background-color: #383838; */
+    opacity: 0.5;
+}
+
+.treeview .item .item-content {
+    overflow: hidden;
+}

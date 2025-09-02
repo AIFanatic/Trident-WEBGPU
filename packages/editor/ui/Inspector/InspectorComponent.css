@@ -1,0 +1,85 @@
+.InspectorComponent {
+    display: flex;
+    align-items: center;
+    margin-bottom: 7px;
+}
+
+.InspectorComponent .title {
+    font-size: 9px;
+    width: 30%;
+    margin-right: 10px;
+    margin-left: 10px;
+    white-space: nowrap;
+    overflow: hidden;
+    display: inline-flex;
+    align-items: center;
+}
+
+.InspectorComponent .input {
+    font-size: 9px;
+    background-color: #121212;
+    border-radius: 5px;
+    color: white;
+    border: 1px solid black;
+    outline: none;
+    width: 65%;
+    float: right;
+    padding-left: 5px;
+    padding-top: 0px;
+    padding-bottom: 0px;
+    margin-right: 10px;
+}
+
+.InspectorComponent .input:hover {
+    border: 1px solid #4d4d4d;
+}
+
+.InspectorComponent .input-vector3 {
+    margin-right: 3px;
+    width: 100%;
+    margin-left: 3px;
+}
+
+.InspectorComponent .input.active {
+    background-color: #3498db80;
+}
+
+.InspectorComponent .InspectorComponent {
+    width: 70%;
+    margin-bottom: 0px;
+}
+
+.InspectorComponent .InspectorComponent .input {
+    width: 100%;
+}
+
+
+
+.InspectorComponent .range {
+    -webkit-appearance: none;
+    height: 5px;
+    background: #4d4d4d;
+    outline: none;
+}
+
+.InspectorComponent .range:hover {
+    opacity: 1;
+}
+
+.InspectorComponent .range::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 10px;
+    height: 10px;
+    background: #bfbfbf;
+    cursor: pointer;
+    border-radius: 50%;
+}
+
+.InspectorComponent .range::-moz-range-thumb {
+    width: 10px;
+    height: 10px;
+    background: #bfbfbf;
+    cursor: pointer;
+    border-radius: 50%;
+}
