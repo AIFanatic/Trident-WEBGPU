@@ -4,7 +4,7 @@
     "type": "module",
     "scripts": {
         "build:rollup": "rollup -c",
-        "build:rollup:dev": "rollup -c --watch"
+        "dev": "rollup -c --watch"
     },
     "devDependencies": {
         "@webgpu/types": "^0.1.64",

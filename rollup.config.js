@@ -4,6 +4,8 @@ import esbuild from 'rollup-plugin-esbuild'
 import fs from 'fs';
 import path from 'path';
 
+const target = "es2022";
+
 function addJsExtensionToImports() {
     return {
         name: 'add-js-extension-to-imports',
@@ -49,7 +51,7 @@ const core = {
     plugins: [
         // typescript(),
         esbuild({
-            target: "es2022"
+            target: target
         }),
         string({
             include: "**/*.wgsl",
@@ -90,7 +92,7 @@ const plugins = {
         //     outDir: "dist/plugins"
         // }),
         esbuild({
-            target: "es2022"
+            target: target
         }),
         string({
             include: ["**/*.css", "**/*.wgsl"],
@@ -125,7 +127,7 @@ function wrapJsInHtml() {
             </script>
             <script type="module">
                 const canvas = document.createElement("canvas");
-                const aspectRatio = 1;
+                const aspectRatio = 2;
                 canvas.width = window.innerWidth * aspectRatio;
                 canvas.height = window.innerHeight * aspectRatio;
                 canvas.style.width = "100vw";
@@ -173,8 +175,8 @@ function copyAssets() {
     return {
         name: 'copy-assets',
         writeBundle(options, bundle) {
-            const srcDir = "packages/editor-test/assets";
-            const destDir = "dist/editor/assets";
+            const srcDir = "packages/examples/assets";
+            const destDir = "dist/examples/assets";
             if (fs.existsSync(srcDir)) {
                 fs.cpSync(srcDir, destDir, { recursive: true });
                 console.log(`Copied: ${srcDir} -> ${destDir}`);
@@ -197,7 +199,7 @@ const examples = {
         //     outDir: "dist/examples"
         // }),
         esbuild({
-            target: "es2022"
+            target: target
         }),
         string({
             include: ["**/*.wgsl"],
@@ -278,7 +280,7 @@ const editor = {
     plugins: [
         // typescript(),
         esbuild({
-            target: "es2022",
+            target: target,
             jsxFactory: 'createElement',
             jsxFragment: 'Fragment',
         }),

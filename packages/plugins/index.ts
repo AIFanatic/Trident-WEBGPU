@@ -30,3 +30,7 @@ export * from "./PhysicsRapier";
 
 export * from "./PostProcessing";
 export * from "./VoxelGenerator";
+
+export * from "./HDRParser";
+
+export * from "./DebugTextureViewer";
