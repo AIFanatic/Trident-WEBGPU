@@ -9,7 +9,7 @@ import {
 } from "@trident/core";
 
 import { OrbitControls } from "@trident/plugins/OrbitControls";
-import { Line } from "@trident/plugins/Line";
+import { LineRenderer } from "@trident/plugins/LineRenderer";
 import { Bloom } from "@trident/plugins/Bloom";
 
 import { UIFolder, UISliderStat, UIVecStat } from "@trident/plugins/ui/UIStats";
@@ -39,7 +39,7 @@ async function Application(canvas: HTMLCanvasElement) {
     light.intensity = 10;
     light.color.set(1, 1, 1, 1);
     light.castShadows = true;
-    const l = new Line(scene, lightGameObject.transform.position, new Mathf.Vector3(0, 0, 0));
+    // const l = new LineRenderer(scene, lightGameObject.transform.position, new Mathf.Vector3(0, 0, 0));
 
 
     {
@@ -54,7 +54,7 @@ async function Application(canvas: HTMLCanvasElement) {
         value => {
             const p = new Mathf.Vector3(value.x, value.y, value.z)
             light.transform.position.copy(p);
-            l.SetFrom(p);
+            // l.SetFrom(p);
         });
 
         new UISliderStat(lightFolder, "Intensity:", 0, 100, 0.1, light.intensity, state => {light.intensity = state});
