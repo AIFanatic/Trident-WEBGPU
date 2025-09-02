@@ -1,11 +1,10 @@
-import { Renderer, Scene, GameObject, Mathf, Geometry, PBRMaterial } from '@trident/core';
+import { Renderer, Scene, GameObject, Mathf, Component as Component$1, Geometry, PBRMaterial, Utils, Components, GPU } from '@trident/core';
+import { OrbitControls } from '@trident/plugins/OrbitControls.js';
+import { Debugger } from '@trident/plugins/Debugger.js';
 
 class TridentAPI {
   currentScene;
   gameObjectRefs = /* @__PURE__ */ new WeakSet();
-  vector2Refs = /* @__PURE__ */ new WeakSet();
-  vector3Refs = /* @__PURE__ */ new WeakSet();
-  colorRefs = /* @__PURE__ */ new WeakSet();
   createRenderer(canvas) {
     Renderer.Create(canvas, "webgpu");
   }
@@ -23,27 +22,27 @@ class TridentAPI {
   }
   createVector3(x, y, z) {
     const vec3 = new Mathf.Vector3(x, y, z);
-    this.vector3Refs.add(vec3);
     return vec3;
   }
   isVector3(vector3) {
-    return this.vector3Refs.has(vector3);
+    return vector3.constructor === Mathf.Vector3;
   }
   createVector2(x, y, z) {
     const vec2 = new Mathf.Vector2(x, y);
-    this.vector2Refs.add(vec2);
     return vec2;
   }
   isVector2(vector2) {
-    return this.vector2Refs.has(vector2);
+    return vector2.constructor === Mathf.Vector2;
   }
   createColor(r, g, b, a) {
     const color = new Mathf.Color(r, g, b, a);
-    this.colorRefs.add(color);
     return color;
   }
   isColor(color) {
-    return this.colorRefs.has(color);
+    return color.constructor === Mathf.Color;
+  }
+  isComponent(component) {
+    return component.constructor === Component$1;
   }
   createPlaneGeometry() {
     return Geometry.Plane();
@@ -54,6 +53,7 @@ class TridentAPI {
   createPBRMaterial(args) {
     return new PBRMaterial(args);
   }
+  SerializableFields = Utils.SerializableFields;
 }
 
 const createElement = (type, props, ...children) => {
@@ -270,9 +270,64 @@ class LayoutResizer extends Component {
   }
 }
 
+const IComponents = {
+  Camera: Components.Camera,
+  SpotLight: Components.SpotLight,
+  DirectionalLight: Components.DirectionalLight,
+  Mesh: Components.Mesh
+};
+
 class LayoutCanvas extends Component {
-  canvasRef(canvas) {
-    this.props.engineAPI.createRenderer(canvas);
+  async canvasRef(canvas) {
+    canvas.style.width = "100%";
+    canvas.style.height = "100%";
+    canvas.width = 1280;
+    canvas.height = 720;
+    const EngineAPI = this.props.engineAPI;
+    EngineAPI.createRenderer(canvas);
+    const currentScene = EngineAPI.createScene();
+    const mainCameraGameObject = EngineAPI.createGameObject(currentScene);
+    mainCameraGameObject.name = "MainCamera";
+    const camera = mainCameraGameObject.AddComponent(IComponents.Camera);
+    camera.SetPerspective(72, canvas.width / canvas.height, 0.5, 500);
+    mainCameraGameObject.transform.position.set(0, 0, 10);
+    mainCameraGameObject.transform.LookAtV1(EngineAPI.createVector3(0, 0, 0));
+    new OrbitControls(canvas, camera);
+    const lightGameObject = EngineAPI.createGameObject(EngineAPI.currentScene);
+    lightGameObject.name = "Light";
+    lightGameObject.transform.position.set(-10, 10, 10);
+    lightGameObject.transform.LookAtV1(EngineAPI.createVector3(0, 0, 0));
+    const light = lightGameObject.AddComponent(IComponents.DirectionalLight);
+    light.castShadows = true;
+    const floorGameObject = EngineAPI.createGameObject(EngineAPI.currentScene);
+    floorGameObject.name = "Floor";
+    floorGameObject.transform.eulerAngles.x = -90;
+    floorGameObject.transform.position.y = -2;
+    floorGameObject.transform.scale.set(100, 100, 100);
+    const floorMesh = floorGameObject.AddComponent(IComponents.Mesh);
+    floorMesh.SetGeometry(EngineAPI.createPlaneGeometry());
+    floorMesh.AddMaterial(EngineAPI.createPBRMaterial());
+    const cubeGameObject = EngineAPI.createGameObject(EngineAPI.currentScene);
+    cubeGameObject.name = "Cube";
+    const cubeMesh = cubeGameObject.AddComponent(IComponents.Mesh);
+    cubeMesh.SetGeometry(EngineAPI.createCubeGeometry());
+    cubeMesh.AddMaterial(EngineAPI.createPBRMaterial());
+    const t = await GPU.Texture.Load("./assets/textures/HDR/drakensberg_solitary_mountain_puresky_1k.png");
+    const c = GPU.CubeTexture.Create(1024, 1024, 6);
+    GPU.Renderer.BeginRenderFrame();
+    GPU.RendererContext.CopyTextureToTextureV3({ texture: t, origin: [2048, 1024, 0] }, { texture: c, origin: [0, 0, 0] }, [1024, 1024, 1]);
+    GPU.RendererContext.CopyTextureToTextureV3({ texture: t, origin: [0, 1024, 0] }, { texture: c, origin: [0, 0, 1] }, [1024, 1024, 1]);
+    GPU.RendererContext.CopyTextureToTextureV3({ texture: t, origin: [1024, 0, 0] }, { texture: c, origin: [0, 0, 2] }, [1024, 1024, 1]);
+    GPU.RendererContext.CopyTextureToTextureV3({ texture: t, origin: [1024, 2048, 0] }, { texture: c, origin: [0, 0, 3] }, [1024, 1024, 1]);
+    GPU.RendererContext.CopyTextureToTextureV3({ texture: t, origin: [1024, 1024, 0] }, { texture: c, origin: [0, 0, 4] }, [1024, 1024, 1]);
+    GPU.RendererContext.CopyTextureToTextureV3({ texture: t, origin: [3072, 1024, 0] }, { texture: c, origin: [0, 0, 5] }, [1024, 1024, 1]);
+    GPU.Renderer.EndRenderFrame();
+    currentScene.renderPipeline.skybox = c;
+    Debugger.Enable();
+    const test = EngineAPI.createGameObject(EngineAPI.currentScene);
+    test.name = "test";
+    test.transform.parent = floorGameObject.transform;
+    currentScene.Start();
   }
   render() {
     return /* @__PURE__ */ createElement("canvas", { ref: (canvas) => this.canvasRef(canvas) });
@@ -285,15 +340,811 @@ class LayoutAssets extends Component {
   }
 }
 
-class LayoutHierarchy extends Component {
+class Folder extends Component {
+  folderRef;
+  constructor(props) {
+    super(props);
+    this.state = { isOpen: false, isSelected: false };
+  }
+  FolderRefCreated(ref) {
+    this.folderRef = ref;
+  }
+  handleToggle(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    if (this.props.onToggled) {
+      this.props.onToggled(this.props.item);
+    }
+    this.setState({ isOpen: !this.state.isOpen, isSelected: this.state.isSelected });
+  }
+  onDragStart(event) {
+    event.dataTransfer.setData("from-uuid", this.props.item.id);
+  }
+  onDrop(event) {
+    this.folderRef.style.backgroundColor = "";
+    const fromUuid = event.dataTransfer.getData("from-uuid");
+    if (fromUuid != "") {
+      this.props.onDropped(fromUuid, this.props.item.id);
+    }
+    event.preventDefault();
+    event.stopPropagation();
+  }
+  onDragOver(event) {
+    event.preventDefault();
+  }
+  onClicked(event) {
+    this.props.onClicked(this.props.item);
+    event.preventDefault();
+    event.stopPropagation();
+  }
+  onDoubleClicked(event) {
+    if (this.props.onDoubleClicked) {
+      this.props.onDoubleClicked(this.props.item);
+      event.preventDefault();
+      event.stopPropagation();
+    }
+  }
+  onDragEnter(event) {
+    this.folderRef.style.backgroundColor = "#3498db80";
+  }
+  onDragLeave(event) {
+    this.folderRef.style.backgroundColor = "";
+  }
   render() {
-    return /* @__PURE__ */ createElement("div", null, "LayoutHierarchy");
+    let classes = "item-title";
+    if (this.props.item.isSelected) classes += " active";
+    return /* @__PURE__ */ createElement(
+      "div",
+      {
+        className: "item",
+        ref: (ref) => this.FolderRefCreated(ref)
+      },
+      /* @__PURE__ */ createElement(
+        "div",
+        {
+          style: { display: "flex", alignItems: "center" },
+          className: classes,
+          draggable: true,
+          onDragStart: (event) => this.onDragStart(event),
+          onDragEnter: (event) => this.onDragEnter(event),
+          onDragLeave: (event) => this.onDragLeave(event),
+          onDrop: (event) => this.onDrop(event),
+          onDragOver: (event) => this.onDragOver(event),
+          onClick: (event) => this.onClicked(event),
+          onDoubleClick: (event) => this.onDoubleClicked(event)
+        },
+        /* @__PURE__ */ createElement(
+          "span",
+          {
+            style: { width: "15px", height: "15px", fontSize: "10px" },
+            onClick: (event) => {
+              this.handleToggle(event);
+            }
+          },
+          this.state.isOpen ? "\u25BC " : "\u25B6 "
+        ),
+        /* @__PURE__ */ createElement("span", null, this.props.item.name)
+      ),
+      /* @__PURE__ */ createElement(
+        "div",
+        {
+          className: "item-content",
+          style: {
+            height: this.state.isOpen ? "auto" : "0"
+          }
+        },
+        this.props.children
+      )
+    );
+  }
+}
+
+class File extends Component {
+  FileRef;
+  FileRefCreated(ref) {
+    this.FileRef = ref;
+  }
+  constructor(props) {
+    super(props);
+    this.state = { isSelected: false };
+  }
+  onDragStart(event) {
+    event.dataTransfer.setData("from-uuid", this.props.data.id);
+    if (this.props.onDragStarted) {
+      this.props.onDragStarted(event, this.props.data);
+    }
+  }
+  onDrop(event) {
+    this.FileRef.style.backgroundColor = "";
+    const fromUuid = event.dataTransfer.getData("from-uuid");
+    if (fromUuid != "") {
+      this.props.onDropped(fromUuid, this.props.data.id);
+    }
+    event.preventDefault();
+    event.stopPropagation();
+  }
+  onDragOver(event) {
+    event.preventDefault();
+  }
+  onClicked(event) {
+    this.props.onClicked(this.props.data);
+    event.preventDefault();
+    event.stopPropagation();
+  }
+  onDoubleClicked(event) {
+    if (this.props.onDoubleClicked) {
+      this.props.onDoubleClicked(this.props.data);
+      event.preventDefault();
+      event.stopPropagation();
+    }
+  }
+  onDragEnter(event) {
+    this.FileRef.style.backgroundColor = "#3498db80";
+  }
+  onDragLeave(event) {
+    this.FileRef.style.backgroundColor = "";
+  }
+  render() {
+    let classes = "item-title";
+    if (this.props.data.isSelected) classes += " active";
+    return /* @__PURE__ */ createElement(
+      "div",
+      {
+        className: "item",
+        ref: (ref) => this.FileRefCreated(ref)
+      },
+      /* @__PURE__ */ createElement(
+        "div",
+        {
+          style: { display: "flex", alignItems: "center" },
+          className: classes,
+          draggable: true,
+          onDragStart: (event) => this.onDragStart(event),
+          onDragEnter: (event) => this.onDragEnter(event),
+          onDragLeave: (event) => this.onDragLeave(event),
+          onDrop: (event) => this.onDrop(event),
+          onDragOver: (event) => this.onDragOver(event),
+          onClick: (event) => this.onClicked(event),
+          onDoubleClick: (event) => this.onDoubleClicked(event)
+        },
+        /* @__PURE__ */ createElement(
+          "span",
+          {
+            style: { paddingLeft: "15px" }
+          }
+        ),
+        /* @__PURE__ */ createElement("span", null, this.props.data.name)
+      ),
+      /* @__PURE__ */ createElement(
+        "div",
+        {
+          className: "item-content"
+        }
+      )
+    );
+  }
+}
+
+var ITreeMapType = /* @__PURE__ */ ((ITreeMapType2) => {
+  ITreeMapType2[ITreeMapType2["Folder"] = 0] = "Folder";
+  ITreeMapType2[ITreeMapType2["File"] = 1] = "File";
+  return ITreeMapType2;
+})(ITreeMapType || {});
+
+class Tree extends Component {
+  constructor(props) {
+    super(props);
+  }
+  getChildrenForParent(data, parentId) {
+    let out = [];
+    for (let entry of data) {
+      if (entry.parent == parentId) out.push(entry);
+    }
+    return out;
+  }
+  render() {
+    let children = this.props.item ? this.getChildrenForParent(this.props.data, this.props.item.id) : this.getChildrenForParent(this.props.data, "");
+    return /* @__PURE__ */ createElement(
+      "div",
+      {
+        className: "treeview"
+      },
+      children.map((item) => {
+        const itemChildren = this.getChildrenForParent(this.props.data, item.id);
+        if (itemChildren.length > 0 || item.type == ITreeMapType.Folder) {
+          return /* @__PURE__ */ createElement(
+            Folder,
+            {
+              onToggled: this.props.onToggled ? (item2) => this.props.onToggled(item2) : null,
+              item,
+              data: this.props.data,
+              onDropped: (from, to) => this.props.onDropped(from, to),
+              onClicked: (data) => this.props.onClicked(data),
+              onDoubleClicked: (data) => this.props.onDoubleClicked(data)
+            },
+            /* @__PURE__ */ createElement(
+              Tree,
+              {
+                item,
+                onToggled: this.props.onToggled ? (item2) => this.props.onToggled(item2) : null,
+                onDropped: (from, to) => this.props.onDropped(from, to),
+                onClicked: (data) => this.props.onClicked(data),
+                onDragStarted: (event, data) => this.props.onDragStarted(event, data),
+                data: this.props.data
+              }
+            )
+          );
+        } else {
+          return /* @__PURE__ */ createElement(
+            File,
+            {
+              data: item,
+              onDropped: this.props.onDropped ? (from, to) => this.props.onDropped(from, to) : null,
+              onClicked: this.props.onClicked ? (data) => this.props.onClicked(data) : null,
+              onDoubleClicked: this.props.onDoubleClicked ? (data) => this.props.onDoubleClicked(data) : null,
+              onDragStarted: this.props.onDragStarted ? (event, data) => this.props.onDragStarted(event, data) : null
+            }
+          );
+        }
+      })
+    );
+  }
+}
+
+class EventSystem {
+  static events = /* @__PURE__ */ new Map();
+  static on(event, callback) {
+    const events = this.events.get(event) || [];
+    events.push(callback);
+    this.events.set(event, events);
+  }
+  static emit(event, ...args) {
+    const callbacks = this.events.get(event);
+    if (callbacks === void 0) return;
+    for (let i = 0; i < callbacks.length; i++) {
+      callbacks[i](...args);
+    }
+  }
+}
+
+class LayoutHierarchyEvents {
+  static Selected = (gameObject) => {
+  };
+}
+class LayoutHierarchy extends Component {
+  onDropped(from, to) {
+  }
+  onClicked(data) {
+    EventSystem.emit(LayoutHierarchyEvents.Selected, data.data);
+  }
+  onDragStarted(event, data) {
+  }
+  buildTreeFromGameObjects(gameObjects) {
+    const treeMap = [];
+    for (let gameObject of gameObjects) {
+      treeMap.push({
+        id: gameObject.transform.id,
+        name: gameObject.name,
+        isSelected: this.props.selectedGameObject && this.props.selectedGameObject == gameObject ? true : false,
+        parent: gameObject.transform.parent ? gameObject.transform.parent.id : "",
+        data: gameObject
+      });
+    }
+    return treeMap;
+  }
+  render() {
+    if (!this.props.engineAPI.currentScene) return;
+    const nodes = this.buildTreeFromGameObjects(this.props.engineAPI.currentScene.gameObjects);
+    return /* @__PURE__ */ createElement("div", null, /* @__PURE__ */ createElement(
+      Tree,
+      {
+        onDropped: (from, to) => this.onDropped(from, to),
+        onClicked: (data) => this.onClicked(data),
+        onDragStarted: (event, data) => this.onDragStarted(event, data),
+        data: nodes
+      }
+    ));
+  }
+}
+
+class InspectorInput extends Component {
+  constructor(props) {
+    super(props);
+  }
+  onChanged(event) {
+    if (this.props.onChanged) {
+      const input = event.currentTarget;
+      if (input.value == "") return;
+      this.props.onChanged(input.value);
+    }
+  }
+  render() {
+    return /* @__PURE__ */ createElement("div", { className: "InspectorComponent" }, /* @__PURE__ */ createElement("span", { className: "title" }, this.props.title), /* @__PURE__ */ createElement(
+      "input",
+      {
+        className: "input",
+        type: this.props.type ? this.props.type : "text",
+        onChange: (event) => {
+          this.onChanged(event);
+        },
+        value: this.props.value
+      }
+    ));
+  }
+}
+
+class InspectorCheckbox extends Component {
+  constructor(props) {
+    super(props);
+  }
+  onChanged(event) {
+    if (this.props.onChanged) {
+      const input = event.currentTarget;
+      this.props.onChanged(input.checked);
+    }
+  }
+  render() {
+    return /* @__PURE__ */ createElement("div", { className: "InspectorComponent" }, /* @__PURE__ */ createElement("span", { className: "title" }, this.props.title), /* @__PURE__ */ createElement(
+      "div",
+      {
+        style: {
+          width: "70%"
+        }
+      },
+      /* @__PURE__ */ createElement(
+        "input",
+        {
+          style: { marginLeft: "0px" },
+          type: "checkbox",
+          checked: this.props.selected,
+          onChange: (event) => {
+            this.onChanged(event);
+          }
+        }
+      )
+    ));
+  }
+}
+
+class InspectorVector3 extends Component {
+  constructor(props) {
+    super(props);
+    this.state = { vector3: this.props.vector3.clone() };
+  }
+  onChanged(property, event) {
+    if (this.props.onChanged) {
+      const input = event.currentTarget;
+      if (input.value == "") return;
+      const value = parseFloat(input.value);
+      if (property == 0 /* X */) this.state.vector3.x = value;
+      else if (property == 1 /* Y */) this.state.vector3.y = value;
+      else if (property == 2 /* Z */) this.state.vector3.z = value;
+      this.props.onChanged(this.state.vector3);
+    }
+  }
+  Vector3Equals(v1, v2, epsilon = Number.EPSILON) {
+    return Math.abs(v1.x - v2.x) < epsilon && Math.abs(v1.y - v2.y) < epsilon && Math.abs(v1.z - v2.z) < epsilon;
+  }
+  componentDidUpdate() {
+    if (!this.Vector3Equals(this.props.vector3, this.state.vector3)) {
+      this.setState({ vector3: this.props.vector3.clone() });
+    }
+  }
+  render() {
+    return /* @__PURE__ */ createElement("div", { className: "InspectorComponent" }, /* @__PURE__ */ createElement("span", { className: "title" }, this.props.title), /* @__PURE__ */ createElement("div", { style: {
+      width: "22%",
+      display: "flex",
+      alignItems: "center"
+    } }, /* @__PURE__ */ createElement("span", { style: {
+      fontSize: "12px"
+    } }, "X"), /* @__PURE__ */ createElement(
+      "input",
+      {
+        className: "input input-vector3",
+        type: "number",
+        onChange: (event) => {
+          this.onChanged(0 /* X */, event);
+        },
+        value: this.state.vector3.x
+      }
+    )), /* @__PURE__ */ createElement("div", { style: {
+      width: "22%",
+      display: "flex",
+      alignItems: "center"
+    } }, /* @__PURE__ */ createElement("span", { style: {
+      fontSize: "12px"
+    } }, "Y"), /* @__PURE__ */ createElement(
+      "input",
+      {
+        className: "input input-vector3",
+        type: "number",
+        onChange: (event) => {
+          this.onChanged(1 /* Y */, event);
+        },
+        value: this.state.vector3.y
+      }
+    )), /* @__PURE__ */ createElement("div", { style: {
+      width: "22%",
+      display: "flex",
+      alignItems: "center"
+    } }, /* @__PURE__ */ createElement("span", { style: {
+      fontSize: "12px"
+    } }, "Z"), /* @__PURE__ */ createElement(
+      "input",
+      {
+        className: "input input-vector3",
+        type: "number",
+        onChange: (event) => {
+          this.onChanged(2 /* Z */, event);
+        },
+        value: this.state.vector3.z
+      }
+    )));
+  }
+}
+
+class InspectorVector2 extends Component {
+  constructor(props) {
+    super(props);
+    this.state = { vector2: this.props.vector2.clone() };
+  }
+  onChanged(property, event) {
+    if (this.props.onChanged) {
+      const input = event.currentTarget;
+      if (input.value == "") return;
+      const value = parseFloat(input.value);
+      if (property == 0 /* X */) this.state.vector2.x = value;
+      else if (property == 1 /* Y */) this.state.vector2.y = value;
+      this.props.onChanged(this.state.vector2);
+    }
+  }
+  vector2Equals(v1, v2, epsilon = Number.EPSILON) {
+    return Math.abs(v1.x - v2.x) < epsilon && Math.abs(v1.y - v2.y) < epsilon;
+  }
+  componentDidUpdate() {
+    if (!this.vector2Equals(this.props.vector2, this.state.vector2)) {
+      this.setState({ vector2: this.props.vector2.clone() });
+    }
+  }
+  render() {
+    return /* @__PURE__ */ createElement("div", { className: "InspectorComponent" }, /* @__PURE__ */ createElement("span", { className: "title" }, this.props.title), /* @__PURE__ */ createElement("div", { style: {
+      width: "35%",
+      display: "flex",
+      alignItems: "center"
+    } }, /* @__PURE__ */ createElement("span", { style: {
+      fontSize: "12px"
+    } }, "X"), /* @__PURE__ */ createElement(
+      "input",
+      {
+        className: "input",
+        type: "number",
+        onChange: (event) => {
+          this.onChanged(0 /* X */, event);
+        },
+        value: this.state.vector2.x
+      }
+    )), /* @__PURE__ */ createElement("div", { style: {
+      width: "35%",
+      display: "flex",
+      alignItems: "center"
+    } }, /* @__PURE__ */ createElement("span", { style: {
+      fontSize: "12px"
+    } }, "Y"), /* @__PURE__ */ createElement(
+      "input",
+      {
+        className: "input",
+        type: "number",
+        onChange: (event) => {
+          this.onChanged(1 /* Y */, event);
+        },
+        value: this.state.vector2.y
+      }
+    )));
+  }
+}
+
+class Collapsible extends Component {
+  constructor(props) {
+    super(props);
+    this.state = { isOpen: this.props.open ? this.props.open : true, height: "" };
+  }
+  handleFilterOpening() {
+    if (this.state.isOpen) {
+      this.setState({ isOpen: false, height: "0px" });
+    } else {
+      this.setState({ isOpen: true, height: "" });
+    }
+  }
+  onRightMenuClicked(event) {
+    if (this.props.onRightMenuClicked) {
+      this.props.onRightMenuClicked();
+    }
+    event.preventDefault();
+    event.stopPropagation();
+  }
+  render() {
+    return /* @__PURE__ */ createElement("div", { className: "collapsible-card-edonec", id: this.props.id ? this.props.id : "" }, /* @__PURE__ */ createElement("div", null, /* @__PURE__ */ createElement("div", { className: "collapsible-header-edonec", onClick: () => {
+      this.handleFilterOpening();
+    } }, /* @__PURE__ */ createElement("button", { type: "button", className: "collapsible-icon-button-edonec" }, this.state.isOpen ? "\u25BC" : "\u25B6"), /* @__PURE__ */ createElement("div", { className: "title-text-edonec" }, this.props.header), this.props.rightMenuText ? /* @__PURE__ */ createElement("div", { className: "title-right-menu", onClick: (event) => {
+      this.onRightMenuClicked(event);
+    } }, this.props.rightMenuText) : "")), /* @__PURE__ */ createElement("div", { className: "collapsible-content-edonec", style: { height: `${this.state.height}` } }, /* @__PURE__ */ createElement("div", null, /* @__PURE__ */ createElement("div", { className: "collapsible-content-padding-edonec collapsible-children" }, this.props.children))));
+  }
+}
+
+class InspectorColor extends Component {
+  constructor(props) {
+    super(props);
+    this.state = { color: this.props.color.clone() };
+  }
+  onChanged(event) {
+    if (this.props.onChanged) {
+      const input = event.currentTarget;
+      this.state.color.setFromHex(input.value);
+      this.props.onChanged(this.state.color);
+    }
+  }
+  render() {
+    return /* @__PURE__ */ createElement("div", { className: "InspectorComponent" }, /* @__PURE__ */ createElement("span", { className: "title" }, this.props.title), /* @__PURE__ */ createElement(
+      "input",
+      {
+        className: "input",
+        type: "color",
+        onChange: (event) => {
+          this.onChanged(event);
+        },
+        value: `#${this.state.color.toHex()}`
+      }
+    ));
+  }
+}
+
+class InspectorType extends Component {
+  constructor(props) {
+    super(props);
+  }
+  onDrop(event) {
+  }
+  onDragOver(event) {
+    event.preventDefault();
+  }
+  onDragEnter(event) {
+  }
+  onDragLeave(event) {
+    const input = event.currentTarget;
+    if (input.classList.contains("active")) {
+      input.classList.remove("active");
+    }
+  }
+  render() {
+    return /* @__PURE__ */ createElement("div", { className: "InspectorComponent" }, /* @__PURE__ */ createElement("span", { className: "title" }, this.props.title), /* @__PURE__ */ createElement(
+      "input",
+      {
+        className: "input",
+        disabled: true,
+        value: this.props.value,
+        onDragEnter: (event) => this.onDragEnter(event),
+        onDragLeave: (event) => this.onDragLeave(event),
+        onDrop: (event) => this.onDrop(event),
+        onDragOver: (event) => this.onDragOver(event)
+      }
+    ), /* @__PURE__ */ createElement(
+      "span",
+      {
+        style: {
+          width: "15px",
+          height: "15px",
+          position: "relative",
+          right: "10px",
+          textAlign: "center"
+        }
+      },
+      "o"
+    ));
+  }
+}
+
+class StringUtils {
+  static CamelCaseToArray(str) {
+    return str.split(/(?=[A-Z])/);
+  }
+  static CapitalizeStrArray(strArr) {
+    let output = [];
+    for (let word of strArr) {
+      output.push(word[0].toUpperCase() + word.slice(1));
+    }
+    return output;
+  }
+  static GetEnumKeyByEnumValue(myEnum, enumValue) {
+    let keys = Object.keys(myEnum).filter((x) => myEnum[x] == enumValue);
+    return keys.length > 0 ? keys[0] : null;
+  }
+  static GetNameForPath(path) {
+    const pathArray = path.split("/");
+    const nameArr = pathArray[pathArray.length - 1].split(".");
+    return nameArr[0];
+  }
+  static Dirname(path) {
+    const pathArr = path.split("/");
+    const parentPath = pathArr.slice(0, pathArr.length - 1);
+    return parentPath.join("/");
+  }
+}
+class LayoutInspectorGameObject extends Component {
+  constructor(props) {
+    super(props);
+    this.state = { gameObject: null };
+    console.log("HEREEE");
+    EventSystem.on(LayoutHierarchyEvents.Selected, (gameObject) => {
+      console.log("LayoutInspectorGameObject", gameObject);
+      this.setState({ gameObject });
+    });
+  }
+  onRemoveComponent(component) {
+  }
+  onComponentPropertyChanged(component, property, value) {
+    const type = typeof component[property];
+    component.constructor.name;
+    const customType = component[property];
+    if (customType) {
+      component[property] = value;
+    } else if (this.props.engineAPI.isVector3(component[property]) && this.props.engineAPI.isVector3(value)) {
+      component[property].copy(value);
+    } else if (this.props.engineAPI.isColor(component[property]) && this.props.engineAPI.isColor(value)) {
+      component[property].copy(value);
+    } else if (type == "boolean") {
+      component[property] = value;
+    } else if (type == "number") {
+      component[property] = parseFloat(value);
+    }
+  }
+  onGameObjectNameChanged(gameObject, event) {
+    const input = event.currentTarget;
+    gameObject.name = input.value;
+  }
+  getInstanceParentInstance(instance) {
+    const prototype = Object.getPrototypeOf(instance);
+    const prototypeParent = Object.getPrototypeOf(prototype);
+    if (prototypeParent.constructor.name == "Object" || prototypeParent.constructor.name == "EventDispatcher") {
+      return prototype.constructor;
+    }
+    return this.getInstanceParentInstance(prototype);
+  }
+  renderInspectorForComponentProperty(component, property, checkCustomTypeOnly = false) {
+    component.constructor.name;
+    const type = typeof component[property];
+    if (type == "function") return null;
+    const title = StringUtils.CapitalizeStrArray(StringUtils.CamelCaseToArray(property)).join(" ");
+    component[property];
+    if (checkCustomTypeOnly) return;
+    if (this.props.engineAPI.isVector3(component[property])) {
+      return /* @__PURE__ */ createElement(InspectorVector3, { title, onChanged: (value) => {
+        this.onComponentPropertyChanged(component, property, value);
+      }, vector3: component[property] });
+    } else if (this.props.engineAPI.isColor(component[property])) {
+      return /* @__PURE__ */ createElement(InspectorColor, { title, onChanged: (value) => {
+        this.onComponentPropertyChanged(component, property, value);
+      }, color: component[property] });
+    } else if (this.props.engineAPI.isVector2(component[property])) {
+      return /* @__PURE__ */ createElement(InspectorVector2, { title, onChanged: (value) => {
+        this.onComponentPropertyChanged(component, property, value);
+      }, vector2: component[property] });
+    } else if (type == "number") {
+      return /* @__PURE__ */ createElement(InspectorInput, { onChanged: (value) => {
+        this.onComponentPropertyChanged(component, property, value);
+      }, title, value: component[property], type: "number" });
+    } else if (type == "boolean") {
+      return /* @__PURE__ */ createElement(InspectorCheckbox, { onChanged: (value) => {
+        this.onComponentPropertyChanged(component, property, value);
+      }, title, selected: component[property] });
+    } else if (type == "object") {
+      let valueForType = component[property].constructor.name;
+      if (component[property].userData && component[property].userData.fileId) {
+        valueForType = StringUtils.GetNameForPath(component[property].userData.fileId);
+      }
+      return /* @__PURE__ */ createElement(
+        InspectorType,
+        {
+          onChanged: (value) => {
+            this.onComponentPropertyChanged(component, property, value);
+          },
+          title,
+          component,
+          property,
+          value: valueForType
+        }
+      );
+    }
+  }
+  renderInspectorForComponent(component) {
+    console.log("component", component);
+    let componentPropertiesHTML = [];
+    for (let property of Object.getOwnPropertyNames(Object.getPrototypeOf(component))) {
+      if (!component[property]) continue;
+      if (!this.props.engineAPI.SerializableFields.has(component, property)) continue;
+      try {
+        const componentPropertyElement = this.renderInspectorForComponentProperty(component, property);
+        if (componentPropertyElement) {
+          componentPropertiesHTML.push(componentPropertyElement);
+        }
+      } catch (error) {
+        console.warn(error);
+      }
+    }
+    for (let property in component) {
+      try {
+        if (!this.props.engineAPI.SerializableFields.has(component, property)) continue;
+        const componentPropertyElement = this.renderInspectorForComponentProperty(component, property, false);
+        if (componentPropertyElement && !componentPropertiesHTML.includes(componentPropertyElement)) {
+          componentPropertiesHTML.push(componentPropertyElement);
+        }
+      } catch (error) {
+      }
+    }
+    return componentPropertiesHTML;
+  }
+  renderInspectorForGameObject(gameObject) {
+    let inspectorHTML = [];
+    const components = gameObject.GetComponents();
+    for (let component of components) {
+      const componentCast = component;
+      const componentPropertiesHTML = this.renderInspectorForComponent(componentCast);
+      const componentHTML = /* @__PURE__ */ createElement(
+        Collapsible,
+        {
+          header: componentCast.constructor.name,
+          onRightMenuClicked: () => this.onRemoveComponent(component),
+          rightMenuText: "x"
+        },
+        ...componentPropertiesHTML
+      );
+      inspectorHTML.push(componentHTML);
+    }
+    return inspectorHTML;
+  }
+  render() {
+    if (!this.state.gameObject) return /* @__PURE__ */ createElement("div", null);
+    const componentsElements = this.renderInspectorForGameObject(this.state.gameObject);
+    return /* @__PURE__ */ createElement("div", { style: {
+      height: "100%",
+      overflow: "auto"
+    } }, /* @__PURE__ */ createElement("div", { style: {
+      display: "flex",
+      padding: "10px"
+    } }, /* @__PURE__ */ createElement("input", { type: "checkbox", checked: true }), /* @__PURE__ */ createElement(
+      "input",
+      {
+        style: {
+          width: "100%",
+          fontSize: "12px",
+          background: "#121212",
+          borderRadius: "5px",
+          color: "white",
+          border: "none",
+          outline: "none",
+          paddingLeft: "5px",
+          paddingTop: "2px",
+          paddingBottom: "2px",
+          marginRight: "10px"
+        },
+        type: "text",
+        value: this.state.gameObject.name,
+        onChange: (event) => {
+          this.onGameObjectNameChanged(this.state.gameObject, event);
+        }
+      }
+    )), /* @__PURE__ */ createElement(Collapsible, { header: "Transform" }, /* @__PURE__ */ createElement(InspectorVector3, { title: "Position", onChanged: (value) => {
+      this.onComponentPropertyChanged(this.state.gameObject.transform, "position", value);
+    }, vector3: this.state.gameObject.transform.position }), /* @__PURE__ */ createElement(InspectorVector3, { title: "Rotation", onChanged: (value) => {
+      this.onComponentPropertyChanged(this.state.gameObject.transform, "localEulerAngles", value);
+    }, vector3: this.state.gameObject.transform.eulerAngles }), /* @__PURE__ */ createElement(InspectorVector3, { title: "Scale", onChanged: (value) => {
+      this.onComponentPropertyChanged(this.state.gameObject.transform, "localScale", value);
+    }, vector3: this.state.gameObject.transform.scale })), componentsElements);
   }
 }
 
 class LayoutInspector extends Component {
   render() {
-    return /* @__PURE__ */ createElement("div", null, "LayoutInspector");
+    return /* @__PURE__ */ createElement(LayoutInspectorGameObject, { engineAPI: this.props.engineAPI });
   }
 }
 

@@ -3,13 +3,13 @@ import { GLTFLoader, AccessorComponentType } from './GLTFLoader_Minimal.js';
 
 class GLTFParser {
   static TextureCache = /* @__PURE__ */ new Map();
-  static async getTexture(textures, textureInfo) {
+  static async getTexture(textures, textureInfo, textureFormat) {
     if (!textures || !textureInfo) return void 0;
     let cachedTexture = this.TextureCache.get(textures[textureInfo.index]);
     if (cachedTexture === void 0) {
       const source = textures[textureInfo.index].source;
       if (source === null) throw Error("Invalid texture");
-      cachedTexture = Texture.LoadImageSource(source);
+      cachedTexture = Texture.LoadImageSource(source, textureFormat);
       cachedTexture.then((texture) => {
         texture.GenerateMips();
       });
@@ -58,14 +58,15 @@ class GLTFParser {
     let materialParams = {};
     if (primitive.material) {
       if (primitive.material.pbrMetallicRoughness) {
-        materialParams.albedoColor = new Mathf.Color(...primitive.material.pbrMetallicRoughness.baseColorFactor);
-        materialParams.albedoMap = await this.getTexture(textures, primitive.material.pbrMetallicRoughness.baseColorTexture);
-        materialParams.metalnessMap = await this.getTexture(textures, primitive.material.pbrMetallicRoughness.metallicRoughnessTexture);
-        materialParams.roughness = primitive.material.pbrMetallicRoughness.roughnessFactor;
-        materialParams.metalness = primitive.material.pbrMetallicRoughness.metallicFactor;
+        const pbr = primitive.material.pbrMetallicRoughness;
+        materialParams.albedoColor = new Mathf.Color(...pbr.baseColorFactor);
+        if (pbr.baseColorTexture) materialParams.albedoMap = await this.getTexture(textures, pbr.baseColorTexture, "bgra8unorm-srgb");
+        if (pbr.metallicRoughnessTexture) materialParams.metalnessMap = await this.getTexture(textures, pbr.metallicRoughnessTexture, "bgra8unorm");
+        materialParams.roughness = pbr.roughnessFactor;
+        materialParams.metalness = pbr.metallicFactor;
       }
-      materialParams.normalMap = await this.getTexture(textures, primitive.material.normalTexture);
-      materialParams.emissiveMap = await this.getTexture(textures, primitive.material.emissiveTexture);
+      if (primitive.material.normalTexture) materialParams.normalMap = await this.getTexture(textures, primitive.material.normalTexture, "bgra8unorm");
+      if (primitive.material.emissiveTexture) materialParams.emissiveMap = await this.getTexture(textures, primitive.material.emissiveTexture, "bgra8unorm");
       if (primitive.material.emissiveFactor) {
         materialParams.emissiveColor = new Mathf.Color(...primitive.material.emissiveFactor);
         if (primitive.material.extensions && primitive.material.extensions["KHR_materials_emissive_strength"]) {
@@ -76,6 +77,7 @@ class GLTFParser {
       materialParams.doubleSided = primitive.material.doubleSided;
       materialParams.alphaCutoff = primitive.material.alphaCutoff;
     }
+    if (geometry.attributes.has("position") && geometry.attributes.has("normal") && geometry.attributes.has("uv") && materialParams.normalMap) geometry.ComputeTangents();
     return {
       geometry,
       material: new PBRMaterial(materialParams),
@@ -135,8 +137,9 @@ class GLTFParser {
     return nodeObject3D;
   }
   static async Load(url) {
-    return new GLTFLoader().loadGLTF(url).then(async (gltf) => {
+    return new GLTFLoader().load(url).then(async (gltf) => {
       if (!gltf || !gltf.scenes) throw Error("Invalid gltf");
+      console.log("gltf", gltf);
       const sceneObject3D = {
         children: []
       };

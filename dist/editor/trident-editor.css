@@ -1,6 +1,9 @@
 html, body {
     margin:0;
     height: 100%;
+    color: white;
+    font-family: monospace;
+    font-size: 10px;
 }
 
 flex {
@@ -18,13 +21,13 @@ flex.v {
 }
 
 flex-item {
-    overflow: auto;
+    /* overflow: auto; */
 }
 
 flex>flex-resizer {
     flex: 0 0 5px;
     /* background: white; */
-    background-color: #2c2c2c;
+    background-color: black;
     background-repeat: no-repeat;
     background-position: center;
 }
@@ -39,4 +42,180 @@ flex.h>flex-resizer {
 
 flex.v>flex-resizer {
     cursor: ns-resize;
+}
+
+/* Chrome, Safari, Edge, Opera */
+input::-webkit-outer-spin-button,
+input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+/* Firefox */
+input[type=number] {
+  -moz-appearance: textfield;
+}
+.treeview {
+    line-height: 1.5;
+}
+
+.treeview .item {
+    counter-increment: section;
+    counter-reset: section;
+}
+
+.treeview .item .drag-hover {
+    background-color: red;
+}
+
+.treeview .item .item-title {
+    cursor: pointer;
+}
+
+.treeview .item .active {
+    background-color: #3498db;
+}
+
+.treeview .item .item-title:before {
+    content: counters(section, '--');
+    opacity: 0;
+}
+
+.treeview .item .item-title:hover {
+    /* background-color: #383838; */
+    opacity: 0.5;
+}
+
+.treeview .item .item-content {
+    overflow: hidden;
+}
+.InspectorComponent {
+    display: flex;
+    align-items: center;
+    margin-bottom: 7px;
+}
+
+.InspectorComponent .title {
+    font-size: 9px;
+    width: 30%;
+    margin-right: 10px;
+    margin-left: 10px;
+    white-space: nowrap;
+    overflow: hidden;
+    display: inline-flex;
+    align-items: center;
+}
+
+.InspectorComponent .input {
+    font-size: 9px;
+    background-color: #121212;
+    border-radius: 5px;
+    color: white;
+    border: 1px solid black;
+    outline: none;
+    width: 65%;
+    float: right;
+    padding-left: 5px;
+    padding-top: 0px;
+    padding-bottom: 0px;
+    margin-right: 10px;
+}
+
+.InspectorComponent .input:hover {
+    border: 1px solid #4d4d4d;
+}
+
+.InspectorComponent .input-vector3 {
+    margin-right: 3px;
+    width: 100%;
+    margin-left: 3px;
+}
+
+.InspectorComponent .input.active {
+    background-color: #3498db80;
+}
+
+.InspectorComponent .InspectorComponent {
+    width: 70%;
+    margin-bottom: 0px;
+}
+
+.InspectorComponent .InspectorComponent .input {
+    width: 100%;
+}
+
+
+
+.InspectorComponent .range {
+    -webkit-appearance: none;
+    height: 5px;
+    background: #4d4d4d;
+    outline: none;
+}
+
+.InspectorComponent .range:hover {
+    opacity: 1;
+}
+
+.InspectorComponent .range::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 10px;
+    height: 10px;
+    background: #bfbfbf;
+    cursor: pointer;
+    border-radius: 50%;
+}
+
+.InspectorComponent .range::-moz-range-thumb {
+    width: 10px;
+    height: 10px;
+    background: #bfbfbf;
+    cursor: pointer;
+    border-radius: 50%;
+}
+.collapsible-content-edonec {
+    overflow: auto;
+    transition: height 0.2s ease-in-out;
+    border-bottom: 1px solid black;
+}
+.title-text-edonec {
+    display: inline-block;
+    font-size: 10px;
+    font-weight: bold;
+}
+.title-right-menu {
+    float: right;
+    margin-right: 10px;
+    text-align: center;
+    width: 15px;
+    font-weight: bold;
+}
+.title-right-menu:hover {
+    background-color: #404040;
+}
+
+.collapsible-header-edonec {
+    width: 100%;
+    display: inline-block;
+    align-items: center;
+    padding: 3px 0px 3px 0px;
+    cursor: pointer;
+    background-color: #2b2b2b;
+}
+.collapsible-content-padding-edonec {
+    padding-top: 11px;
+}
+
+.collapsible-icon-button-edonec {
+    cursor: pointer;
+    background-color: Transparent;
+    background-repeat: no-repeat;
+    border: none;
+    cursor: pointer;
+    overflow: hidden;
+    outline: none;
+    color: white;
+    font-size: 10px;
+    width: 25px;
 }

@@ -679,6 +679,44 @@ class GLTFLoader {
         this.glTF.samplers.push(new Sampler(this._glTF.samplers[i]));
       }
     }
+    if (this._glTF.images) {
+      for (let i = 0; i < this._glTF.images.length; i++) {
+        if (this.glTF.images[i]) continue;
+        const img = this._glTF.images[i];
+        if (typeof img.bufferView === "number") {
+          const bv = this.glTF.bufferViews[img.bufferView];
+          const mime = img.mimeType ?? "image/png";
+          try {
+            const blob = new Blob([bv.data], { type: mime });
+            this.glTF.images[i] = await createImageBitmap(blob);
+          } catch {
+            const url = URL.createObjectURL(new Blob([bv.data], { type: mime }));
+            const htmlImg = await new Promise((res, rej) => {
+              const im = new Image();
+              im.onload = () => res(im);
+              im.onerror = rej;
+              im.src = url;
+            });
+            this.glTF.images[i] = htmlImg;
+          }
+          continue;
+        }
+        if (img.uri) {
+          try {
+            if (img.uri.startsWith("data:")) {
+              const resp = await fetch(img.uri);
+              const blob = await resp.blob();
+              this.glTF.images[i] = await createImageBitmap(blob);
+            } else {
+              const resp = await fetch(this.baseUri + img.uri);
+              const blob = await resp.blob();
+              this.glTF.images[i] = await createImageBitmap(blob);
+            }
+          } catch {
+          }
+        }
+      }
+    }
     if (this._glTF.textures) {
       for (let i = 0; i < this._glTF.textures.length; i++) {
         const tex = new Texture(this._glTF.textures[i], this);
@@ -846,6 +884,47 @@ class GLTFLoader {
     await loadImage;
     await this.postProcess();
     return this.glTF;
+  }
+  async loadGLB(uri) {
+    this.baseUri = this.getBaseUri(uri);
+    const arrayBuffer = await fetch(uri).then((r) => {
+      if (!r.ok) throw new Error("Failed to fetch GLB file.");
+      return r.arrayBuffer();
+    });
+    const dataView = new DataView(arrayBuffer);
+    const magic = dataView.getUint32(0, true);
+    const version = dataView.getUint32(4, true);
+    const length = dataView.getUint32(8, true);
+    if (magic !== 1179937895) throw new Error("Invalid GLB magic.");
+    if (version !== 2) throw new Error("Only GLB version 2 is supported.");
+    let offset = 12;
+    const jsonLength = dataView.getUint32(offset, true);
+    const jsonType = dataView.getUint32(offset + 4, true);
+    offset += 8;
+    if (jsonType !== 1313821514) throw new Error("Invalid JSON chunk type in GLB.");
+    const jsonText = new TextDecoder().decode(arrayBuffer.slice(offset, offset + jsonLength));
+    const glTFBase = JSON.parse(jsonText);
+    this._glTF = glTFBase;
+    this.glTF = new GLTF(glTFBase);
+    offset += jsonLength;
+    if (offset < length) {
+      const binLength = dataView.getUint32(offset, true);
+      const binType = dataView.getUint32(offset + 4, true);
+      offset += 8;
+      if (binType !== 5130562) throw new Error("Invalid BIN chunk type in GLB.");
+      const bufferData = arrayBuffer.slice(offset, offset + binLength);
+      this.glTF.buffers[0] = bufferData;
+    } else {
+      this.glTF.buffers[0] = new ArrayBuffer(0);
+    }
+    await this.postProcess();
+    return this.glTF;
+  }
+  async load(url) {
+    if (url.endsWith(".glb")) {
+      return this.loadGLB(url);
+    }
+    return this.loadGLTF(url);
   }
 }
 var glTFLoaderBasic;

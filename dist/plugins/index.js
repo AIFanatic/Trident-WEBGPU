@@ -29,3 +29,5 @@ export { PostProcessingFXAA } from './PostProcessing/effects/FXAA.js';
 export { PostProcessingSMAA } from './PostProcessing/effects/SMAA.js';
 export { PostProcessingPass } from './PostProcessing/PostProcessingPass.js';
 export { VoxelGenerator } from './VoxelGenerator.js';
+export { HDRParser } from './HDRParser.js';
+export { DebugTextureViewer } from './DebugTextureViewer.js';

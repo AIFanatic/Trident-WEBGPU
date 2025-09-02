@@ -20,7 +20,7 @@
             </script>
             <script type="module">
                 const canvas = document.createElement("canvas");
-                const aspectRatio = 1;
+                const aspectRatio = 2;
                 canvas.width = window.innerWidth * aspectRatio;
                 canvas.height = window.innerHeight * aspectRatio;
                 canvas.style.width = "100vw";
@@ -29,7 +29,6 @@
                 document.body.appendChild(canvas);
                             import { GPU, Scene, GameObject, Components, Mathf, Geometry, PBRMaterial } from '@trident/core';
             import { OrbitControls } from '@trident/plugins/OrbitControls.js';
-            import { Line } from '@trident/plugins/Line.js';
             import { Bloom } from '@trident/plugins/Bloom.js';
             import { UIFolder, UIVecStat, UISliderStat } from '@trident/plugins/ui/UIStats.js';
             import { Debugger } from '@trident/plugins/Debugger.js';
@@ -52,7 +51,6 @@
               light.intensity = 10;
               light.color.set(1, 1, 1, 1);
               light.castShadows = true;
-              const l = new Line(scene, lightGameObject.transform.position, new Mathf.Vector3(0, 0, 0));
               {
                 const lightFolder = new UIFolder(Debugger.ui, "Light");
                 lightFolder.Open();
@@ -66,7 +64,6 @@
                   (value) => {
                     const p = new Mathf.Vector3(value.x, value.y, value.z);
                     light.transform.position.copy(p);
-                    l.SetFrom(p);
                   }
                 );
                 new UISliderStat(lightFolder, "Intensity:", 0, 100, 0.1, light.intensity, (state) => {
