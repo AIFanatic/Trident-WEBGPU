@@ -37,6 +37,7 @@ export class ForwardPass extends RenderPass {
         RendererContext.BeginRenderPass(this.name, [{target: LightingPassOutput, clear: false}], {target: DepthPassOutput, clear: false}, true);
 
         for (const mesh of meshes) {
+            
             const geometry = mesh.GetGeometry();
             if (!geometry) continue;
             if (!geometry.attributes.has("position")) continue;
@@ -44,7 +45,7 @@ export class ForwardPass extends RenderPass {
             this.projectionMatrix.SetArray(mainCamera.projectionMatrix.elements);
             this.viewMatrix.SetArray(mainCamera.viewMatrix.elements);
             this.modelMatrix.SetArray(mesh.transform.localToWorldMatrix.elements);
-
+            
             const materials = mesh.GetMaterials();
             for (const material of materials) {
                 if (material.params.isDeferred === true) continue;
@@ -56,6 +57,7 @@ export class ForwardPass extends RenderPass {
 
                 // console.log("DRawing", geometry.attributes.get("position"))
                 RendererContext.DrawGeometry(geometry, material.shader);
+
             }
         }
         RendererContext.EndRenderPass();

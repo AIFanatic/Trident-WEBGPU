@@ -15,6 +15,8 @@ import { EventSystem } from "../../Events";
 import { LightShadowData } from "./DeferredShadowMapPass";
 import { DynamicBufferMemoryAllocator } from "../MemoryAllocator";
 
+import { Vector4 } from "../../math";
+
 enum LightType {
     SPOT_LIGHT,
     DIRECTIONAL_LIGHT,
@@ -110,7 +112,7 @@ export class DeferredLightingPass extends RenderPass {
 
         this.quadGeometry = Geometry.Plane();
 
-        this.lightsBuffer = new DynamicBufferMemoryAllocator(132 * 10);
+        this.lightsBuffer = new DynamicBufferMemoryAllocator(120 * 10);
         this.lightsCountBuffer = Buffer.Create(1 * 4, BufferType.STORAGE);
 
         this.shader.SetBuffer("lights", this.lightsBuffer.getBuffer());
@@ -177,7 +179,7 @@ export class DeferredLightingPass extends RenderPass {
             // csmProjectionMatrix3: mat4x4<f32>,
             // cascadeSplits: vec4<f32>,
             // viewMatrix: mat4x4<f32>,
-            // viewMatrixInverse: mat4x4<f32>,
+            // direction: vec4<f32>,
             // color: vec4<f32>,
             // params1: vec4<f32>,
             // params2: vec4<f32>,
@@ -190,6 +192,7 @@ export class DeferredLightingPass extends RenderPass {
                 ...cascadeSplits,
                 ...light.camera.viewMatrix.elements,
                 ...light.camera.viewMatrix.clone().invert().elements,
+                // ...new Vector4(0,0,1,0).applyMatrix4(light.camera.viewMatrix.clone().invert()).normalize().elements,
                 light.color.r, light.color.g, light.color.b, lightType,
                 ...params1,
                 ...params2

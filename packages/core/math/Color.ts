@@ -44,4 +44,9 @@ export class Color {
     public clone(): Color {
         return new Color(this.r, this.g, this.b, this.a);
     }
+
+    public copy(color: Color): Color {
+        this.set(color.r, color.g, color.b, color.a);
+        return this;
+    }
 }

@@ -127,7 +127,7 @@ function wrapJsInHtml() {
             </script>
             <script type="module">
                 const canvas = document.createElement("canvas");
-                const aspectRatio = 2;
+                const aspectRatio = 1;
                 canvas.width = window.innerWidth * aspectRatio;
                 canvas.height = window.innerHeight * aspectRatio;
                 canvas.style.width = "100vw";

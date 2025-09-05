@@ -42,6 +42,10 @@ export class SpotLight extends Light {
         super.Start();
         this.camera.SetPerspective(this.angle / Math.PI * 180 * 2, Renderer.width / Renderer.height, 0.01, 1000);
     }
+
+    // public Update(): void {
+    //     this.camera.SetPerspective(this.angle / Math.PI * 180 * 2, Renderer.width / Renderer.height, 0.01, 1000);
+    // }
 }
 
 export class PointLight extends Light {
@@ -68,12 +72,5 @@ export class DirectionalLight extends Light {
         super.Start();
         const size = 1;
         this.camera.SetOrthographic(-size, size, -size, size, 0.1, 100);
-        // this.camera.SetPerspective(30 / Math.PI * 180 * 2, Renderer.width / Renderer.height, 0.01, 1000);
-
-
-        // this.camera.near = 0.01;
-        // this.camera.far = 100;
-        // this.camera.SetPerspective(60, Renderer.width / Renderer.height, this.camera.near, this.camera.far);
-        // this.camera.projectionMatrix.perspectiveLH(60 * (Math.PI / 180), Renderer.width / Renderer.height, this.camera.near, this.camera.far);
     }
 }

@@ -123,7 +123,6 @@ export class WEBGPUTexture implements Texture {
     }
 
     public SetData(data: BufferSource, bytesPerRow: number, rowsPerImage?: number) {
-        console.log(bytesPerRow, rowsPerImage)
         try {
             WEBGPURenderer.device.queue.writeTexture(
                 {texture: this.buffer},
