@@ -1,10 +1,12 @@
-import { Geometry } from "../Geometry";
-import { Buffer, BufferType } from "../renderer/Buffer";
-import { Renderer } from "../renderer/Renderer";
-import { RendererContext } from "../renderer/RendererContext";
-import { Shader } from "../renderer/Shader";
-import { Texture } from "../renderer/Texture";
-import { TextureSampler } from "../renderer/TextureSampler";
+import {
+    GPU,
+    Mathf,
+    GameObject,
+    Geometry,
+    VertexAttribute,
+    IndexAttribute,
+    Utils,
+} from "@trident/core";
 
 class Rect {
     public readonly x: number;
@@ -85,7 +87,7 @@ interface AtlasRegion {
 }
 
 export class Atlas {
-    public readonly buffer: Buffer;
+    public readonly buffer: GPU.Buffer;
     public readonly regions: AtlasRegion[] = [];
     public readonly size: number;
 
@@ -96,13 +98,13 @@ export class Atlas {
     constructor(size: number) {
         this.size = size;
         // 4 bytes per pixel (BGRA8)
-        this.buffer = Buffer.Create(size * size * 4, BufferType.STORAGE);
+        this.buffer = GPU.Buffer.Create(size * size * 4, GPU.BufferType.STORAGE);
 
         this.start_node = new Node();
         this.start_node.rect = new Rect(0, 0, size, size);
     }
 
-    public AddTexture(texture: Texture): number {
+    public AddTexture(texture: GPU.Texture): number {
         const node = this.start_node.insert_rect(new Rect(0, 0, texture.width, texture.height));
         if (!node || !node.rect) throw Error("Failed to insert texture into atlas");
 
@@ -116,12 +118,12 @@ export class Atlas {
         const offset = (node.rect.y * this.size + node.rect.x) * 4;
 
         // Copy the texture into the atlas buffer.
-        Renderer.BeginRenderFrame();
-        RendererContext.CopyTextureToBufferV2(
+        GPU.Renderer.BeginRenderFrame();
+        GPU.RendererContext.CopyTextureToBufferV2(
             { texture: texture, mipLevel: 0, origin: [0, 0, 0] },
             { buffer: this.buffer, offset: offset, bytesPerRow: this.size * 4 }
         );
-        Renderer.EndRenderFrame();
+        GPU.Renderer.EndRenderFrame();
 
         // Store the region and return its index.
         this.regions.push(region);
@@ -131,7 +133,7 @@ export class Atlas {
         return this.regions.length - 1;
     }
 
-    public AddBuffer(buffer: Buffer): number {
+    public AddBuffer(buffer: GPU.Buffer): number {
         function computeOptimalRect(dataSize: number): Rect {
             // Try to form a nearly square rectangle.
             const width = Math.floor(Math.sqrt(dataSize));
@@ -159,9 +161,9 @@ export class Atlas {
         console.log(region)
 
         // Copy the texture into the atlas buffer.
-        Renderer.BeginRenderFrame();
-        RendererContext.CopyBufferToBuffer(buffer, this.buffer, 0, offset, buffer.size);
-        Renderer.EndRenderFrame();
+        GPU.Renderer.BeginRenderFrame();
+        GPU.RendererContext.CopyBufferToBuffer(buffer, this.buffer, 0, offset, buffer.size);
+        GPU.Renderer.EndRenderFrame();
 
         // Store the region and return its index.
         this.regions.push(region);
@@ -187,7 +189,7 @@ export class Atlas {
 
 export class AtlasViewer {
     public name: string = "AtlasViewer";
-    private shader: Shader;
+    private shader: GPU.Shader;
     private quadGeometry: Geometry;
 
     private initialized = false;
@@ -274,9 +276,9 @@ export class AtlasViewer {
         }
         `;
 
-        this.shader = await Shader.Create({
+        this.shader = await GPU.Shader.Create({
             code: code,
-            colorOutputs: [{format: Renderer.SwapChainFormat}],
+            colorOutputs: [{format: GPU.Renderer.SwapChainFormat}],
             attributes: {
                 position: { location: 0, size: 3, type: "vec3" },
                 uv: { location: 1, size: 2, type: "vec2" }
@@ -300,10 +302,10 @@ export class AtlasViewer {
         this.shader.SetValue("atlasSize", atlas.size);
         this.shader.SetValue("textureIndex", textureIndex);
 
-        Renderer.BeginRenderFrame();
-        RendererContext.BeginRenderPass(this.name, [{clear: false}], undefined, true);
-        RendererContext.DrawGeometry(this.quadGeometry, this.shader);
-        RendererContext.EndRenderPass();
-        Renderer.EndRenderFrame();
+        GPU.Renderer.BeginRenderFrame();
+        GPU.RendererContext.BeginRenderPass(this.name, [{clear: false}], undefined, true);
+        GPU.RendererContext.DrawGeometry(this.quadGeometry, this.shader);
+        GPU.RendererContext.EndRenderPass();
+        GPU.Renderer.EndRenderFrame();
     }
 }

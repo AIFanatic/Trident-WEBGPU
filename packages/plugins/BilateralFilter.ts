@@ -37,7 +37,7 @@ export class BilateralFilter extends GPU.RenderPass {
             @group(0) @binding(1) var texSampler: sampler;
 
             @group(0) @binding(2) var depthTex: texture_depth_2d;
-            @group(0) @binding(3) var depthSampler: sampler;
+            @group(0) @binding(3) var depthSampler: sampler_comparison;
 
             @group(0) @binding(4) var normalTex: texture_2d<f32>;
             @group(0) @binding(5) var normalSampler: sampler;
@@ -71,7 +71,7 @@ export class BilateralFilter extends GPU.RenderPass {
             @fragment
             fn fragmentMain(input: VertexOutput) -> @location(0) vec4<f32> {
                 var color: vec3f = textureSampleLevel(tex, texSampler, input.uv, 0.).rgb;
-                var depth: f32 = textureSampleLevel(depthTex, depthSampler, input.uv, 0);
+                var depth: f32 = textureSampleCompare(depthTex, depthSampler, input.uv, 0);
             
                 if (depth >= 1e6 || depth <= 0.) {
                     return vec4f(color, 1.);
@@ -97,7 +97,10 @@ export class BilateralFilter extends GPU.RenderPass {
                 for (var x: i32 = -filterSizeI32; x <= filterSizeI32; x++) {
                     var coords = vec2f(f32(x));
                     var sampleColor: vec3f = textureSampleLevel(tex, texSampler, input.uv + coords * blurDir.xy, 0.).rgb;
-                    var sampleDepth: f32 = textureSampleLevel(depthTex, depthSampler, input.uv + f32(x) * blurDir.xy, 0);
+                    var sampleDepth: f32 = textureSampleCompareLevel(depthTex, depthSampler, input.uv + f32(x) * blurDir.xy, 0);
+                    // // Ground depth:
+                    // let ref_value = input.position.z / input.position.w;
+                    // let depth_raw: f32 = textureSampleCompare(DEPTH_TEXTURE, depth_texture_sampler, input.SCREEN_UV, ref_value);
                     var sampleNormal: vec3f = textureSampleLevel(normalTex, normalSampler, input.uv + coords * blurDir.xy, 0.).rgb;
             
                     var r: f32 = dot(coords, coords);
@@ -129,7 +132,7 @@ export class BilateralFilter extends GPU.RenderPass {
                 texSampler: { group: 0, binding: 1, type: "sampler" },
                 
                 depthTex: { group: 0, binding: 2, type: "depthTexture" },
-                depthSampler: { group: 0, binding: 3, type: "sampler" },
+                depthSampler: { group: 0, binding: 3, type: "sampler-compare" },
 
                 normalTex: { group: 0, binding: 4, type: "texture" },
                 normalSampler: { group: 0, binding: 5, type: "sampler" },
@@ -143,7 +146,7 @@ export class BilateralFilter extends GPU.RenderPass {
         });
 
         this.shader.SetSampler("texSampler", GPU.TextureSampler.Create());
-        this.shader.SetSampler("depthSampler", GPU.TextureSampler.Create());
+        this.shader.SetSampler("depthSampler", GPU.TextureSampler.Create({minFilter: "nearest", magFilter: "nearest", mipmapFilter: "nearest", compare: "less"}));
         this.shader.SetSampler("normalSampler", GPU.TextureSampler.Create());
 
         this.blurDir = GPU.Buffer.Create(4 * 4, GPU.BufferType.STORAGE);

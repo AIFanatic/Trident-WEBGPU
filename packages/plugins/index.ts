@@ -37,3 +37,4 @@ export * from "./DebugTextureViewer";
 
 export * from "./SpotLightHelper";
 export * from "./DirectionalLightHelper";
+export * from "./Atlas";

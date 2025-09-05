@@ -1,5 +1,5 @@
-import { RSMRenderPass } from "./RSM";
-import { BilateralFilter } from "./BilateralFilter";
+import { RSMRenderPass } from "@trident/plugins/RSM";
+import { BilateralFilter } from "@trident/plugins/BilateralFilter";
 import { Debugger } from "@trident/plugins/Debugger";
 
 import { UIButtonStat, UIFolder, UISliderStat } from "@trident/plugins/ui/UIStats";

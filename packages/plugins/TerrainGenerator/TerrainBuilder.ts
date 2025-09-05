@@ -71,8 +71,8 @@ export class TerrainBuilder {
         geometry.attributes.set("position", new VertexAttribute(new Float32Array(vertices)));
         geometry.attributes.set("uv", new VertexAttribute(new Float32Array(uvs)));
         geometry.index = new IndexAttribute(new Uint32Array(indices));
-        // geometry = geometry.Center();
         geometry.ComputeNormals();
+        geometry.ComputeTangents();
 
         this.geometry = geometry;
         this.heights = heights;
