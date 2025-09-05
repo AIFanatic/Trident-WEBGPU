@@ -207,19 +207,6 @@ class HDRParser {
                     default { return normalize(vec3( u,  v,  1.0)); } // -Z
                 }
             }
-
-            // // Map face + NDC uv -> direction
-            // fn dirFromFaceUV(face: u32, x: f32, y: f32) -> vec3f {
-            //     let u = x; let v = y;
-            //     switch face {
-            //       case 0u { return normalize(vec3(-1.0, v, -u)); } // +X
-            //       case 1u { return normalize(vec3(1.0, v, u)); } // -X
-            //       case 2u { return normalize(vec3(-u, 1.0, -v)); } // -Y
-            //       case 3u { return normalize(vec3(-u, -1.0, v)); } // +Y
-            //       case 4u { return normalize(vec3(-u, v, 1.0)); } // +Z
-            //       default { return normalize(vec3(u, v, -1.0)); } // -Z
-            //     }
-            // }
       
             const invAtan = vec2f(0.15915494309189535, 0.3183098861837907);
       
@@ -291,18 +278,6 @@ class HDRParser {
               return o;
             }
       
-            // fn dirFromFaceUV(face: u32, x: f32, y: f32) -> vec3f {
-            //     let u = x; let v = y;
-            //     switch face {
-            //         case 0u { return normalize(vec3( 1.0,  v, -u)); } // +X
-            //         case 1u { return normalize(vec3(-1.0,  v,  u)); } // -X
-            //         case 2u { return normalize(vec3( u,  1.0, -v)); } // +Y
-            //         case 3u { return normalize(vec3( u, -1.0, v)); } // -Y
-            //         case 4u { return normalize(vec3( u,  v,  1.0)); } // +Z
-            //         default { return normalize(vec3(-u,  v, -1.0)); } // -Z
-            //     }
-            // }
-
             // Map face + NDC uv -> direction
             fn dirFromFaceUV(face: u32, x: f32, y: f32) -> vec3f {
                 let u = x; let v = y;

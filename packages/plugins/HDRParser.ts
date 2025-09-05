@@ -258,19 +258,6 @@ export class HDRParser {
                     default { return normalize(vec3( u,  v,  1.0)); } // -Z
                 }
             }
-
-            // // Map face + NDC uv -> direction
-            // fn dirFromFaceUV(face: u32, x: f32, y: f32) -> vec3f {
-            //     let u = x; let v = y;
-            //     switch face {
-            //       case 0u { return normalize(vec3(-1.0, v, -u)); } // +X
-            //       case 1u { return normalize(vec3(1.0, v, u)); } // -X
-            //       case 2u { return normalize(vec3(-u, 1.0, -v)); } // -Y
-            //       case 3u { return normalize(vec3(-u, -1.0, v)); } // +Y
-            //       case 4u { return normalize(vec3(-u, v, 1.0)); } // +Z
-            //       default { return normalize(vec3(u, v, -1.0)); } // -Z
-            //     }
-            // }
       
             const invAtan = vec2f(0.15915494309189535, 0.3183098861837907);
       
@@ -347,18 +334,6 @@ export class HDRParser {
               return o;
             }
       
-            // fn dirFromFaceUV(face: u32, x: f32, y: f32) -> vec3f {
-            //     let u = x; let v = y;
-            //     switch face {
-            //         case 0u { return normalize(vec3( 1.0,  v, -u)); } // +X
-            //         case 1u { return normalize(vec3(-1.0,  v,  u)); } // -X
-            //         case 2u { return normalize(vec3( u,  1.0, -v)); } // +Y
-            //         case 3u { return normalize(vec3( u, -1.0, v)); } // -Y
-            //         case 4u { return normalize(vec3( u,  v,  1.0)); } // +Z
-            //         default { return normalize(vec3(-u,  v, -1.0)); } // -Z
-            //     }
-            // }
-
             // Map face + NDC uv -> direction
             fn dirFromFaceUV(face: u32, x: f32, y: f32) -> vec3f {
                 let u = x; let v = y;
@@ -626,22 +601,6 @@ export class HDRParser {
         prefilterTexture.SetActiveMip(0);
         prefilterTexture.SetActiveMipCount(roughnessLevels);
         return prefilterTexture;
-        // const prefilteredCube = GPU.CubeTexture.Create(res, res, /*faces=*/6, prefilterTexture.format, /*mipCount=*/roughnessLevels);
-
-        // GPU.Renderer.BeginRenderFrame();
-        // for (let mip = 0; mip < roughnessLevels; mip++) {
-        //     const w = Math.max(1, res >> mip);
-        //     const h = Math.max(1, res >> mip);
-        //     for (let face = 0; face < 6; face++) {
-        //         GPU.RendererContext.CopyTextureToTextureV3(
-        //             { texture: prefilterTexture, origin: [0, 0, face], mipLevel: mip },
-        //             { texture: prefilteredCube, origin: [0, 0, face], mipLevel: mip },
-        //             [w, h, 1]
-        //         );
-        //     }
-        // }
-        // GPU.Renderer.EndRenderFrame();
-        // return prefilteredCube;
     }
 
     public static async GetBRDFLUT(size: number = 512): Promise<GPU.Texture> {

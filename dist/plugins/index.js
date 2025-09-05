@@ -31,3 +31,6 @@ export { PostProcessingPass } from './PostProcessing/PostProcessingPass.js';
 export { VoxelGenerator } from './VoxelGenerator.js';
 export { HDRParser } from './HDRParser.js';
 export { DebugTextureViewer } from './DebugTextureViewer.js';
+export { SpotLightHelper } from './SpotLightHelper.js';
+export { DirectionalLightHelper } from './DirectionalLightHelper.js';
+export { Atlas, AtlasViewer } from './Atlas.js';

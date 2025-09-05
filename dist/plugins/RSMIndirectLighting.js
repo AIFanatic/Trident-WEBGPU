@@ -1,5 +1,5 @@
-import { RSMRenderPass } from './RSM.js';
-import { BilateralFilter } from './BilateralFilter.js';
+import { RSMRenderPass } from '@trident/plugins/RSM.js';
+import { BilateralFilter } from '@trident/plugins/BilateralFilter.js';
 import { Debugger } from '@trident/plugins/Debugger.js';
 import { UIFolder, UIButtonStat, UISliderStat } from '@trident/plugins/ui/UIStats.js';
 import { TextureBlender } from '@trident/plugins/TextureBlender.js';

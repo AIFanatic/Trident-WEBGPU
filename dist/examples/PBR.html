@@ -20,7 +20,7 @@
             </script>
             <script type="module">
                 const canvas = document.createElement("canvas");
-                const aspectRatio = 2;
+                const aspectRatio = 1;
                 canvas.width = window.innerWidth * aspectRatio;
                 canvas.height = window.innerHeight * aspectRatio;
                 canvas.style.width = "100vw";
@@ -43,10 +43,10 @@
               mainCameraGameObject.transform.LookAtV1(new Mathf.Vector3(0, 0, 0));
               new OrbitControls(canvas, camera);
               const lightsInfo = [
-                { position: new Mathf.Vector3(-10, 10, 10), color: new Mathf.Vector3(100, 100, 100) },
-                { position: new Mathf.Vector3(10, 10, 10), color: new Mathf.Vector3(100, 100, 100) },
-                { position: new Mathf.Vector3(-10, -10, 10), color: new Mathf.Vector3(100, 100, 100) },
-                { position: new Mathf.Vector3(10, -10, 10), color: new Mathf.Vector3(100, 100, 100) }
+                { position: new Mathf.Vector3(-10, 10, 10), color: new Mathf.Vector3(1, 1, 1) },
+                { position: new Mathf.Vector3(10, 10, 10), color: new Mathf.Vector3(1, 1, 1) },
+                { position: new Mathf.Vector3(-10, -10, 10), color: new Mathf.Vector3(1, 1, 1) },
+                { position: new Mathf.Vector3(10, -10, 10), color: new Mathf.Vector3(1, 1, 1) }
               ];
               for (const lightInfo of lightsInfo) {
                 const lightGameObject = new GameObject(scene);

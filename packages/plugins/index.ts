@@ -34,3 +34,6 @@ export * from "./VoxelGenerator";
 export * from "./HDRParser";
 
 export * from "./DebugTextureViewer";
+
+export * from "./SpotLightHelper";
+export * from "./DirectionalLightHelper";

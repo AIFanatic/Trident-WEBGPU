@@ -1,9 +1,15 @@
-import { Component, GPU, Components, Geometry, VertexAttribute } from '@trident/core';
+import { Component, Geometry, VertexAttribute, GPU, Components } from '@trident/core';
 
 class LineRenderer extends Component {
   geometry;
   material;
   mesh;
+  constructor(gameObject) {
+    super(gameObject);
+    this.geometry = new Geometry();
+    this.geometry.attributes.set("position", new VertexAttribute(new Float32Array(3)));
+    this.geometry.attributes.set("color", new VertexAttribute(new Float32Array(8)));
+  }
   async Start() {
     this.material = new GPU.Material({ isDeferred: false });
     this.material.shader = await GPU.Shader.Create({
@@ -59,7 +65,7 @@ class LineRenderer extends Component {
       topology: GPU.Topology.Lines
     });
     this.mesh = this.gameObject.AddComponent(Components.Mesh);
-    this.geometry = new Geometry();
+    this.mesh.name = "LineRenderer";
     await this.mesh.SetGeometry(this.geometry);
     this.mesh.AddMaterial(this.material);
   }
@@ -75,6 +81,9 @@ class LineRenderer extends Component {
     const positionsAtrtibute = this.geometry.attributes.get("position");
     if (positionsAtrtibute) positionsAtrtibute.Destroy();
     this.geometry.attributes.set("position", new VertexAttribute(positionsF32));
+    if (this.geometry.attributes.get("color").array.length / 4 !== positionsF32.length / 3) {
+      this.SetColors(new Float32Array(positionsF32.length / 3 * 4).fill(1));
+    }
   }
   SetColors(colors) {
     let colorsF32 = colors instanceof Float32Array ? colors : new Float32Array(colors.length * 4);
