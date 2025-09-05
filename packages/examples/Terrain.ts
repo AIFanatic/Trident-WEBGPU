@@ -47,25 +47,6 @@ async function Application(canvas: HTMLCanvasElement) {
     await mesh.SetGeometry(terrain.geometry);
     mesh.AddMaterial(material);
 
-    const skybox = await GPU.Texture.Load("./assets/textures/HDR/autumn_field_puresky_1k.png")
-    const skyboxCube = GPU.CubeTexture.Create(1024, 1024, 6);
-    GPU.Renderer.BeginRenderFrame();
-    // +X face (Right)
-    GPU.RendererContext.CopyTextureToTextureV3( { texture: skybox, origin: [2048, 1024, 0] }, { texture: skyboxCube, origin: [0, 0, 0] }, [1024, 1024, 1]);
-    // -X face (Left)
-    GPU.RendererContext.CopyTextureToTextureV3( { texture: skybox, origin: [0, 1024, 0] }, { texture: skyboxCube, origin: [0, 0, 1] }, [1024, 1024, 1]);
-    // +Y face (Top)
-    GPU.RendererContext.CopyTextureToTextureV3( { texture: skybox, origin: [1024, 0, 0] }, { texture: skyboxCube, origin: [0, 0, 2] }, [1024, 1024, 1]);
-    // -Y face (Bottom)
-    GPU.RendererContext.CopyTextureToTextureV3( { texture: skybox, origin: [1024, 2048, 0] }, { texture: skyboxCube, origin: [0, 0, 3] }, [1024, 1024, 1]);
-    // +Z face (Front)
-    GPU.RendererContext.CopyTextureToTextureV3( { texture: skybox, origin: [1024, 1024, 0] }, { texture: skyboxCube, origin: [0, 0, 4] }, [1024, 1024, 1]);
-    // -Z face (Back)
-    GPU.RendererContext.CopyTextureToTextureV3( { texture: skybox, origin: [3072, 1024, 0] }, { texture: skyboxCube, origin: [0, 0, 5] }, [1024, 1024, 1]);
-    GPU.Renderer.EndRenderFrame();
-
-    scene.renderPipeline.skybox = skyboxCube;
-
     Debugger.Enable();
 
     scene.Start();

@@ -190,10 +190,10 @@ async function Application(canvas: HTMLCanvasElement) {
     globalGeometry.attributes.set("position", globalVerticesAttribute);
     globalGeometry.index = globalIndicesAttribute;
 
-    class TestPass extends GPU.RenderPass {
+    class BindlessDrawPass extends GPU.RenderPass {
         private shader: GPU.Shader;
 
-        public name: string = "TestPass";
+        public name: string = "BindlessDrawPass";
 
         constructor() {
             super({});
@@ -291,8 +291,8 @@ async function Application(canvas: HTMLCanvasElement) {
         }
     }
 
-    const testPass = new TestPass();
-    scene.renderPipeline.AddPass(testPass, GPU.RenderPassOrder.AfterLighting);
+    const bindlessDrawPass = new BindlessDrawPass();
+    scene.renderPipeline.AddPass(bindlessDrawPass, GPU.RenderPassOrder.AfterLighting);
     Debugger.Enable();
 
     scene.Start();

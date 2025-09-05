@@ -31,10 +31,10 @@ async function Application(canvas: HTMLCanvasElement) {
     const controls = new OrbitControls(canvas, camera);
 
     const lightsInfo = [
-        {position: new Mathf.Vector3(-10.0, 10.0, 10.0), color: new Mathf.Vector3(100, 100, 100) },
-        {position: new Mathf.Vector3(10.0, 10.0, 10.0), color: new Mathf.Vector3(100, 100, 100) },
-        {position: new Mathf.Vector3(-10.0, -10.0, 10.0), color: new Mathf.Vector3(100, 100, 100) },
-        {position: new Mathf.Vector3(10.0, -10.0, 10.0), color: new Mathf.Vector3(100, 100, 100) },
+        {position: new Mathf.Vector3(-10.0, 10.0, 10.0), color: new Mathf.Vector3(1, 1, 1) },
+        {position: new Mathf.Vector3(10.0, 10.0, 10.0), color: new Mathf.Vector3(1, 1, 1) },
+        {position: new Mathf.Vector3(-10.0, -10.0, 10.0), color: new Mathf.Vector3(1, 1, 1) },
+        {position: new Mathf.Vector3(10.0, -10.0, 10.0), color: new Mathf.Vector3(1, 1, 1) },
     ];
 
     for (const lightInfo of lightsInfo ) {

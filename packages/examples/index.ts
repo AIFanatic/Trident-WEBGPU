@@ -2,7 +2,6 @@ import "./Meshlets";
 // import * as TEST from "./examples/BindlessTexture";
 import "./Water";
 import "./Skybox";
-import "./Irradiance";
 // import "./VPLS";
 import "./Physics";
 import "./Bloom";
@@ -19,3 +18,9 @@ import "./Sponza";
 import "./Cornell";
 
 import "./FPS";
+
+
+import "./BindlessDraw";
+import "./BindlessTexture";
+
+import "./RSM";

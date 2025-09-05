@@ -10,6 +10,12 @@ import {
 
 import { OrbitControls } from "@trident/plugins/OrbitControls";
 import { HDRParser } from "@trident/plugins/HDRParser";
+import { UIColorStat, UIFolder, UISliderStat, UIVecStat } from "@trident/plugins/ui/UIStats";
+import { Debugger } from "@trident/plugins/Debugger";
+import { LineRenderer } from "@trident/plugins/LineRenderer";
+
+import { SpotLightHelper } from "@trident/plugins/SpotLightHelper";
+import { DirectionalLightHelper } from "@trident/plugins/DirectionalLightHelper";
 
 async function Application(canvas: HTMLCanvasElement) {
     const renderer = GPU.Renderer.Create(canvas, "webgpu");
@@ -25,24 +31,56 @@ async function Application(canvas: HTMLCanvasElement) {
 
     const controls = new OrbitControls(canvas, camera);
 
+    let w;
     {
         const lightGameObject = new GameObject(scene);
-        lightGameObject.transform.position.set(4, 4, 4);
+        lightGameObject.transform.position.set(0.01, 4, 0.01);
         lightGameObject.transform.LookAtV1(new Mathf.Vector3(0, 0, 0));
         const light = lightGameObject.AddComponent(Components.DirectionalLight);
         light.intensity = 1;
+        light.range = 1;
         light.color.set(1, 1, 1, 1);
-        light.castShadows = false;
+        light.castShadows = true;
+
+        console.log("Light position:", lightGameObject.transform.position.elements);
+        console.log("Light rotation:", lightGameObject.transform.rotation.elements);
+        console.log("Light forward:", lightGameObject.transform.forward.elements);
+
+        const waterSettingsFolder = new UIFolder(Debugger.ui, "Light");
+        waterSettingsFolder.Open();
+        new UIVecStat(waterSettingsFolder, "Position:",
+            {min: -5, max: 5, value: light.transform.position.x, step: 0.1},
+            {min: -5, max: 5, value: light.transform.position.y, step: 0.1},
+            {min: -5, max: 5, value: light.transform.position.z, step: 0.1},
+            undefined,
+            value => {
+                light.transform.position.x = value.x;
+                light.transform.position.y = value.y;
+                light.transform.position.z = value.z;
+                light.transform.LookAtV1(new Mathf.Vector3(0,0,0))
+            }
+        );
+        new UISliderStat(waterSettingsFolder, "Intensity:", 0, 100, 0.1, light.intensity, value => light.intensity = value);
+        // new UISliderStat(waterSettingsFolder, "Angle:", 0, 3.14 * 0.5, 0.01, light.angle, value => {
+        //     light.angle = value;
+        // });
+        new UISliderStat(waterSettingsFolder, "Range:", 0, 10, 0.1, light.range, value => light.range = value);
+        
+        const lightHelperGameObject = new GameObject(scene);
+        const spotLightHelper = lightHelperGameObject.AddComponent(DirectionalLightHelper);
+        spotLightHelper.light = light;
+        w = waterSettingsFolder;
     }
 
     {
         const planeGO = new GameObject(scene);
         planeGO.transform.eulerAngles.x = -90;
         planeGO.transform.position.set(0, -2, 0);
-        planeGO.transform.scale.set(100, 100, 1);
+        planeGO.transform.scale.set(10, 10, 1);
         const sphereMesh = planeGO.AddComponent(Components.Mesh);
         await sphereMesh.SetGeometry(Geometry.Plane());
-        sphereMesh.AddMaterial(new PBRMaterial({albedoColor: new Mathf.Color(1, 0, 0), metalness: 1, roughness: 0}));
+        const mat = new PBRMaterial({albedoColor: new Mathf.Color(1, 1, 1), metalness: 0.5, roughness: 0.5});
+        sphereMesh.AddMaterial(mat);
     }
 
     {
@@ -50,8 +88,12 @@ async function Application(canvas: HTMLCanvasElement) {
         sphereGameObject.transform.position.set(3, -1.5, 0);
         const sphereMesh = sphereGameObject.AddComponent(Components.Mesh);
         await sphereMesh.SetGeometry(Geometry.Sphere());
-        const mat = new PBRMaterial({albedoColor: new Mathf.Color(0, 1, 1), metalness: 0.5, roughness: 0.1});
+        const mat = new PBRMaterial({albedoColor: new Mathf.Color(0.5843, 0.8353, 0.8784, 1), metalness: 0.5, roughness: 0.1});
         sphereMesh.AddMaterial(mat);
+        new UIColorStat(w, "Color:", "#ffffff", color => {
+            mat.params.albedoColor.setFromHex(color);
+            mat.params.albedoColor = mat.params.albedoColor; // Proxy things
+        });
     }
 
     {
@@ -82,33 +124,12 @@ async function Application(canvas: HTMLCanvasElement) {
     }
 
     {
-        // const t = await GPU.Texture.Load("./assets/textures/HDR/drakensberg_solitary_mountain_puresky_1k.png", "bgra8unorm-srgb")
-        // console.log("t", t)
-        // const c = GPU.CubeTexture.Create(1024, 1024, 6, "bgra8unorm-srgb");
-    
-        // GPU.Renderer.BeginRenderFrame();
-        // // +X face (Right)
-        // GPU.RendererContext.CopyTextureToTextureV3( { texture: t, origin: [2048, 1024, 0] }, { texture: c, origin: [0, 0, 0] }, [1024, 1024, 1]);
-        // // -X face (Left)
-        // GPU.RendererContext.CopyTextureToTextureV3( { texture: t, origin: [0, 1024, 0] }, { texture: c, origin: [0, 0, 1] }, [1024, 1024, 1]);
-        // // +Y face (Top)
-        // GPU.RendererContext.CopyTextureToTextureV3( { texture: t, origin: [1024, 0, 0] }, { texture: c, origin: [0, 0, 2] }, [1024, 1024, 1]);
-        // // -Y face (Bottom)
-        // GPU.RendererContext.CopyTextureToTextureV3( { texture: t, origin: [1024, 2048, 0] }, { texture: c, origin: [0, 0, 3] }, [1024, 1024, 1]);
-        // // +Z face (Front)
-        // GPU.RendererContext.CopyTextureToTextureV3( { texture: t, origin: [1024, 1024, 0] }, { texture: c, origin: [0, 0, 4] }, [1024, 1024, 1]);
-        // // -Z face (Back)
-        // GPU.RendererContext.CopyTextureToTextureV3( { texture: t, origin: [3072, 1024, 0] }, { texture: c, origin: [0, 0, 5] }, [1024, 1024, 1]);
-        // GPU.Renderer.EndRenderFrame();
-
-        // scene.renderPipeline.skybox = c;
-
         const hdr = await HDRParser.Load("./assets/textures/HDR/dikhololo_night_1k.hdr");
         const sky = await HDRParser.ToCubemap(hdr);
-    
+
         const skyIrradiance = await HDRParser.GetIrradianceMap(sky);
         const prefilterMap = await HDRParser.GetPrefilterMap(sky);
-        const brdfLUT = await HDRParser.GetBRDFLUT();
+        const brdfLUT = await HDRParser.GetBRDFLUT(1);
     
         scene.renderPipeline.skybox = sky;
         scene.renderPipeline.skyboxIrradiance = skyIrradiance;
