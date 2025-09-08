@@ -6,7 +6,14 @@ import { Renderer } from "./renderer/Renderer";
 import { RenderingPipeline } from "./renderer/RenderingPipeline";
 import { UUID } from "./utils";
 
+// export class SceneEvents {
+//     public static OnStarted = (scene: Scene) => {}
+// }
+
 export class Scene {
+    public static Events = {
+        OnStarted: (scene: Scene) => {}
+    }
     public readonly renderer: Renderer;
     public name: string = "Default scene"
     public id = UUID();
@@ -92,6 +99,7 @@ export class Scene {
         if (this.hasStarted) return;
         for (const gameObject of this.gameObjects) gameObject.Start();
         this._hasStarted = true;
+        EventSystem.emit(Scene.Events.OnStarted, this);
 
         this.Tick();
     }

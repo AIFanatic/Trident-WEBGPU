@@ -1,10 +1,11 @@
 import { RenderPass, ResourcePool } from "../RenderGraph";
 import { CubeTexture, DepthTexture, RenderTexture, Texture } from "../Texture";
 import { PassParams } from "../RenderingPipeline";
-import { Renderer } from "../Renderer";
+import { Renderer, RendererEvents } from "../Renderer";
 import { RenderTarget, RendererContext } from "../RendererContext";
 import { Camera } from "../../components/Camera";
 import { DeferredShadowMapPassDebug } from "./DeferredShadowMapPass";
+import { EventSystem } from "../../Events";
 
 export class PrepareGBuffers extends RenderPass {
     public name: string = "PrepareGBuffers";
@@ -14,9 +15,6 @@ export class PrepareGBuffers extends RenderPass {
     public gBufferERMORT: RenderTexture;
 
     public depthTexture: DepthTexture;
-    public depthTextureClone: DepthTexture; // So it can be used on the same pass
-
-    public gBufferAlbedoRTClone: RenderTexture;
 
     public skybox: CubeTexture;
     public skyboxIrradiance: CubeTexture;
@@ -32,16 +30,27 @@ export class PrepareGBuffers extends RenderPass {
             PassParams.GBufferERMO,
             PassParams.GBufferDepth,
         ]});
+
+        EventSystem.on(RendererEvents.Resized, canvas => {
+            this.CreateGBufferTextures();
+        })
+    }
+
+    private CreateGBufferTextures() {
+        if (this.depthTexture) this.depthTexture.Destroy();
+        if (this.gBufferAlbedoRT) this.gBufferAlbedoRT.Destroy();
+        if (this.gBufferNormalRT) this.gBufferNormalRT.Destroy();
+        if (this.gBufferERMORT) this.gBufferERMORT.Destroy();
+
+        this.depthTexture = DepthTexture.Create(Renderer.width, Renderer.height);
+        this.gBufferAlbedoRT = RenderTexture.Create(Renderer.width, Renderer.height, 1, "rgba16float");
+        this.gBufferNormalRT = RenderTexture.Create(Renderer.width, Renderer.height, 1, "rgba16float");
+        this.gBufferERMORT = RenderTexture.Create(Renderer.width, Renderer.height, 1, "rgba16float");
     }
 
     public async init(resources: ResourcePool) {
-        this.depthTexture = DepthTexture.Create(Renderer.width, Renderer.height);
-        this.depthTextureClone = DepthTexture.Create(Renderer.width, Renderer.height);
+        this.CreateGBufferTextures();
 
-        this.gBufferAlbedoRT = RenderTexture.Create(Renderer.width, Renderer.height, 1, "rgba16float");
-        this.gBufferAlbedoRTClone = RenderTexture.Create(Renderer.width, Renderer.height, 1, "rgba16float");
-        this.gBufferNormalRT = RenderTexture.Create(Renderer.width, Renderer.height, 1, "rgba16float");
-        this.gBufferERMORT = RenderTexture.Create(Renderer.width, Renderer.height, 1, "rgba16float");
         this.skybox = CubeTexture.Create(1, 1, 6);
         this.skyboxIrradiance = CubeTexture.Create(1, 1, 6);
         this.skyboxPrefilter = CubeTexture.Create(1, 1, 6);
@@ -60,17 +69,12 @@ export class PrepareGBuffers extends RenderPass {
             {target: this.gBufferERMORT, clear: true},
         ];
 
-        RendererContext.CopyTextureToTexture(this.gBufferAlbedoRT, this.gBufferAlbedoRTClone);
-        RendererContext.CopyTextureToTexture(this.depthTexture, this.depthTextureClone);
-
         RendererContext.BeginRenderPass(`PrepareGBuffers`, colorTargets, {target: this.depthTexture, clear: true}, true);
         RendererContext.EndRenderPass();
 
         resources.setResource(PassParams.depthTexture, this.depthTexture);
         resources.setResource(PassParams.GBufferDepth, this.depthTexture);
-        resources.setResource(PassParams.GBufferDepthClone, this.depthTextureClone);
         resources.setResource(PassParams.GBufferAlbedo, this.gBufferAlbedoRT);
-        resources.setResource(PassParams.GBufferAlbedoClone, this.gBufferAlbedoRTClone);
         resources.setResource(PassParams.GBufferNormal, this.gBufferNormalRT);
         resources.setResource(PassParams.GBufferERMO, this.gBufferERMORT);
 

@@ -19,11 +19,9 @@ export const PassParams = {
     depthTexturePyramid: "depthTexturePyramid",
 
     GBufferAlbedo: "GBufferAlbedo",
-    GBufferAlbedoClone: "GBufferAlbedoClone",
     GBufferNormal: "GBufferNormal",
     GBufferERMO: "GBufferERMO",
     GBufferDepth: "GBufferDepth",
-    GBufferDepthClone: "GBufferDepthClone",
 
     Skybox: "Skybox",
     SkyboxIrradiance: "SkyboxIrradiance",
@@ -96,7 +94,6 @@ export class RenderingPipeline {
         
         this.beforeScreenOutputPasses = [
             new TextureViewer(),
-            // new DebuggerTextureViewer(),
         ]
         
         this.UpdateRenderGraphPasses();

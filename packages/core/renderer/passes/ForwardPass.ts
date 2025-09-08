@@ -4,13 +4,15 @@ import { PassParams } from "../RenderingPipeline";
 import { Camera } from "../../components/Camera";
 import { Mesh } from "../../components/Mesh";
 import { Buffer, BufferType } from "../Buffer";
+import { DynamicBufferMemoryAllocator } from "../MemoryAllocator";
 
 export class ForwardPass extends RenderPass {
     public name: string = "ForwardPass";
     
     private projectionMatrix: Buffer;
     private viewMatrix: Buffer;
-    private modelMatrix: Buffer;
+    
+    private modelMatrices: DynamicBufferMemoryAllocator;
 
     constructor() {
         super({inputs: [
@@ -21,7 +23,7 @@ export class ForwardPass extends RenderPass {
     public async init(resources: ResourcePool) {
         this.projectionMatrix = Buffer.Create(16 * 4, BufferType.STORAGE);
         this.viewMatrix = Buffer.Create(16 * 4, BufferType.STORAGE);
-        this.modelMatrix = Buffer.Create(16 * 4, BufferType.STORAGE);
+        this.modelMatrices = new DynamicBufferMemoryAllocator(16 * 4 * 10);
         this.initialized = true;
     }
 
@@ -35,31 +37,32 @@ export class ForwardPass extends RenderPass {
         if (!meshes) return;
 
         RendererContext.BeginRenderPass(this.name, [{target: LightingPassOutput, clear: false}], {target: DepthPassOutput, clear: false}, true);
+        
+        this.projectionMatrix.SetArray(mainCamera.projectionMatrix.elements);
+        this.viewMatrix.SetArray(mainCamera.viewMatrix.elements);
 
+        let meshCount = 0;
         for (const mesh of meshes) {
-            
             const geometry = mesh.GetGeometry();
             if (!geometry) continue;
             if (!geometry.attributes.has("position")) continue;
             
-            this.projectionMatrix.SetArray(mainCamera.projectionMatrix.elements);
-            this.viewMatrix.SetArray(mainCamera.viewMatrix.elements);
-            this.modelMatrix.SetArray(mesh.transform.localToWorldMatrix.elements);
             
             const materials = mesh.GetMaterials();
             for (const material of materials) {
                 if (material.params.isDeferred === true) continue;
                 if (!material.shader) await material.createShader();
-
+                
+                this.modelMatrices.set(mesh.id, mesh.transform.localToWorldMatrix.elements);
                 material.shader.SetBuffer("projectionMatrix", this.projectionMatrix);
                 material.shader.SetBuffer("viewMatrix", this.viewMatrix);
-                material.shader.SetBuffer("modelMatrix", this.modelMatrix);
+                material.shader.SetBuffer("modelMatrix", this.modelMatrices.getBuffer());
 
-                // console.log("DRawing", geometry.attributes.get("position"))
-                RendererContext.DrawGeometry(geometry, material.shader);
-
+                RendererContext.DrawGeometry(geometry, material.shader, 1, meshCount);
+                meshCount++; // This only works with meshes that only have one material
             }
         }
+
         RendererContext.EndRenderPass();
     }
 }

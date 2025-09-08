@@ -1,8 +1,13 @@
 import { TextureFormat } from "./Texture";
 import { WEBGPURenderer } from "./webgpu/WEBGPURenderer";
 import { RendererInfo } from "./RendererInfo";
+import { EventSystem } from "../Events";
 
 export type RendererAPIType = "webgpu";
+
+export class RendererEvents {
+    public static Resized = (canvas: HTMLCanvasElement) => {}
+}
 
 export class Renderer {
     public static type: RendererAPIType;
@@ -13,6 +18,22 @@ export class Renderer {
     public static info: RendererInfo = new RendererInfo();
 
     public static Create(canvas: HTMLCanvasElement, type: RendererAPIType): Renderer {
+        const aspectRatio = 1;
+        canvas.width = canvas.parentElement.clientWidth * aspectRatio;
+        canvas.height = canvas.parentElement.clientHeight * aspectRatio;
+        canvas.style.width = "100vw";
+        canvas.style.height = "100vh";
+        canvas.style.userSelect = "none";
+
+        const observer = new ResizeObserver(entries => {
+            canvas.width = canvas.parentElement.clientWidth * aspectRatio;
+            canvas.height = canvas.parentElement.clientHeight * aspectRatio;
+            Renderer.width = canvas.width;
+            Renderer.height = canvas.height;
+            EventSystem.emit(RendererEvents.Resized, canvas);
+        });
+        observer.observe(canvas);
+
         Renderer.type = type;
         Renderer.width = canvas.width;
         Renderer.height = canvas.height;

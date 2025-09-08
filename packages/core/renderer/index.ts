@@ -13,7 +13,3 @@ export { MemoryAllocator, BufferMemoryAllocator, DynamicBufferMemoryAllocator } 
 
 export type { TextureFormat } from "./Texture";
 export type { RenderTarget } from "./RendererContext";
-
-
-// Temp
-export { WEBGPURendererContext } from "./webgpu/WEBGPURendererContext";

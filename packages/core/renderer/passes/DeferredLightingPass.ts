@@ -6,7 +6,7 @@ import { Camera } from "../../components/Camera";
 import { RendererContext } from "../RendererContext";
 import { RenderPass, ResourcePool } from "../RenderGraph";
 import { AreaLight, DirectionalLight, Light, LightEvents, PointLight, SpotLight } from "../../components/Light";
-import { Renderer } from "../Renderer";
+import { Renderer, RendererEvents } from "../Renderer";
 import { Matrix4 } from "../../math/Matrix4";
 import { Buffer, BufferType } from "../Buffer";
 import { ShaderLoader } from "../ShaderUtils";
@@ -119,6 +119,11 @@ export class DeferredLightingPass extends RenderPass {
         this.shader.SetBuffer("lightCount", this.lightsCountBuffer);
 
         this.outputLightingPass = RenderTexture.Create(Renderer.width, Renderer.height, 1, "rgba16float");
+
+        EventSystem.on(RendererEvents.Resized, canvas => {
+            this.outputLightingPass.Destroy();
+            this.outputLightingPass = RenderTexture.Create(Renderer.width, Renderer.height, 1, "rgba16float");
+        })
 
         // If there are no lights in the scene this is used instead
         this.dummyShadowPassDepth = DepthTextureArray.Create(1, 1, 1);

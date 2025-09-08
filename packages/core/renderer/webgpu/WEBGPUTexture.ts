@@ -119,6 +119,7 @@ export class WEBGPUTexture implements Texture {
     }
 
     public Destroy() {
+        Renderer.info.gpuTextureSizeTotal -= this.buffer.width * this.buffer.height * this.buffer.depthOrArrayLayers * 4; // account for format
         this.buffer.destroy();
     }
 

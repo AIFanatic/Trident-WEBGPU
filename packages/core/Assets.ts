@@ -6,6 +6,12 @@ type ResponseType<T> = T extends 'json' ? object
 export class Assets {
     private static cache: Map<string, Promise<any>> = new Map();
 
+    // Register a path
+    public static async Register(path: string, resource: Promise<any> | any, force? = false) {
+        if (Assets.cache.has(path) && force === false) throw Error(`Assets[Register]: ${path} already set, use "force" to bypass.`);
+        Assets.cache.set(path, Promise.resolve(resource));
+    }
+
     public static async Load<T extends "json" | "text" | "binary">(url: string, type: T): Promise<ResponseType<T>> {
         const cached = Assets.cache.get(url);
         if (cached !== undefined) {
