@@ -19,6 +19,7 @@ import { FirstPersonController } from "@trident/plugins/PhysicsRapier/FirstPerso
 import { RigidBody } from "@trident/plugins/PhysicsRapier/RigidBody";
 import { Debugger } from "@trident/plugins/Debugger";
 import { LineRenderer } from "@trident/plugins/LineRenderer";
+import { HDRParser } from "@trident/plugins/HDRParser";
 
 async function Application(canvas: HTMLCanvasElement) {
     const renderer = GPU.Renderer.Create(canvas, "webgpu");
@@ -74,13 +75,25 @@ async function Application(canvas: HTMLCanvasElement) {
     terrainMesh.SetGeometry(terrain.geometry);
     terrainMesh.AddMaterial(material);
 
-    // const playerGameObject = new GameObject(scene);
-    // playerGameObject.transform.position.y = 100;
-    // const playerCollider = playerGameObject.AddComponent(CapsuleCollider);
-    // const playerRigidbody = playerGameObject.AddComponent(RigidBody);
-    // playerRigidbody.Create("dynamic");
-    // const firstPersonController = playerGameObject.AddComponent(FirstPersonController);
-    // firstPersonController.camera = Components.Camera.mainCamera;
+    const playerGameObject = new GameObject(scene);
+    playerGameObject.transform.position.y = 100;
+    const playerCollider = playerGameObject.AddComponent(CapsuleCollider);
+    const playerRigidbody = playerGameObject.AddComponent(RigidBody);
+    playerRigidbody.Create("dynamic");
+    const firstPersonController = playerGameObject.AddComponent(FirstPersonController);
+    firstPersonController.camera = Components.Camera.mainCamera;
+
+    const hdr = await HDRParser.Load("./assets/textures/HDR/drakensberg_solitary_mountain_puresky_1k.hdr");
+    const sky = await HDRParser.ToCubemap(hdr);
+
+    const skyIrradiance = await HDRParser.GetIrradianceMap(sky);
+    const prefilterMap = await HDRParser.GetPrefilterMap(sky);
+    const brdfLUT = await HDRParser.GetBRDFLUT(1);
+
+    scene.renderPipeline.skybox = sky;
+    scene.renderPipeline.skyboxIrradiance = skyIrradiance;
+    scene.renderPipeline.skyboxPrefilter = prefilterMap;
+    scene.renderPipeline.skyboxBRDFLUT = brdfLUT;
 
 
     // const physicsDebuggerGO = new GameObject(scene);

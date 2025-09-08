@@ -40,7 +40,7 @@ async function Application(canvas: HTMLCanvasElement) {
     floorMesh.SetGeometry(Geometry.Plane());
     floorMesh.AddMaterial(new PBRMaterial());
 
-    const i = 10;
+    const i = 5;
     for (let x = 0; x < i; x++) {
         for (let y = 0; y < i; y++) {
             const sphereGameObject = new GameObject(scene);

@@ -51,25 +51,6 @@ async function Application(canvas: HTMLCanvasElement) {
             mesh.AddMaterial(object3D.material);
         }
     })
-
-    const i = 10;
-    for (let x = 0; x < i; x++) {
-        for (let y = 0; y < i; y++) {
-            const sphereGameObject = new GameObject(scene);
-            sphereGameObject.transform.position.set((x * 2) - i * 0.5 * 2, 5, (y * 2) - i * 0.5 * 2);
-            const sphereMesh = sphereGameObject.AddComponent(Components.Mesh);
-            sphereMesh.SetGeometry(Geometry.Sphere());
-            sphereMesh.AddMaterial(new PBRMaterial());
-
-            const lightGameObject = new GameObject(scene);
-            lightGameObject.transform.position.copy(sphereGameObject.transform.position);
-            lightGameObject.transform.LookAtV1(new Mathf.Vector3(0, 0, 0));
-            const light = lightGameObject.AddComponent(Components.SpotLight);
-            light.color.set(Math.random(), Math.random(), Math.random(), 1);
-            light.angle = 90;
-            light.castShadows = false;
-        }
-    }
     
     Debugger.Enable();
 

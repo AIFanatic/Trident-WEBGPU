@@ -157,7 +157,7 @@ async function Application(canvas: HTMLCanvasElement) {
 
     let objects: Object[] = [];
 
-    const c = 10000;
+    const c = 100000;
 
     // Instances
     const cubes = new Object(cubeVertices, cubeIndices, 16, c);
@@ -169,7 +169,7 @@ async function Application(canvas: HTMLCanvasElement) {
     let rotation = new Mathf.Quaternion();
     let scale = new Mathf.Vector3(1,1,1);
     for (let i = 0; i < c; i++) {
-        const off = 100;
+        const off = 1000;
         const r = (off) => (Math.random() * off) - off * 0.5;
         position.set(r(off), r(off), r(off));
         scale.set(Math.random(), Math.random(), Math.random())

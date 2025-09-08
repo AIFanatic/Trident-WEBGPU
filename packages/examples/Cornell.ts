@@ -15,6 +15,7 @@ import { Debugger } from "@trident/plugins/Debugger";
 import { PostProcessingFXAA } from "@trident/plugins/PostProcessing/effects/FXAA";
 import { PostProcessingSMAA } from "@trident/plugins/PostProcessing/effects/SMAA";
 import { PostProcessingPass } from "@trident/plugins/PostProcessing/PostProcessingPass";
+import { UIFolder, UISliderStat, UIVecStat } from "@trident/plugins/ui/UIStats";
 
 async function Application(canvas: HTMLCanvasElement) {
     const renderer = GPU.Renderer.Create(canvas, "webgpu");
@@ -32,10 +33,25 @@ async function Application(canvas: HTMLCanvasElement) {
     const controls = new OrbitControls(canvas, camera);
 
     const lightGameObject = new GameObject(scene);
-    lightGameObject.transform.position.set(-10, 10, 10);
+    // lightGameObject.transform.position.set(-10, 10, 10);
     lightGameObject.transform.LookAtV1(new Mathf.Vector3(0, 0, 0));
-    const light = lightGameObject.AddComponent(Components.DirectionalLight);
+    const light = lightGameObject.AddComponent(Components.PointLight);
     light.castShadows = true;
+
+
+    const lightSettings = new UIFolder(Debugger.ui, "Light");
+    new UIVecStat(lightSettings, "Position:",
+        {min: -10, max: 10, step: 0.1, value: light.transform.position.x},
+        {min: -10, max: 10, step: 0.1, value: light.transform.position.y},
+        {min: -10, max: 10, step: 0.1, value: light.transform.position.z},
+        undefined,
+        value => {
+            light.transform.position.set(value.x, value.y, value.z)
+        }
+    );
+
+    new UISliderStat(lightSettings, "Intensity:", 0, 100, 0.1, light.intensity, value => light.intensity = value);
+    new UISliderStat(lightSettings, "Range:", 0, 100, 0.1, light.range, value => light.range = value);
 
     
 

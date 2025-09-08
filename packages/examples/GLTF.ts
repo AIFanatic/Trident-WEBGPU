@@ -11,6 +11,7 @@ import {
 import { OrbitControls } from "@trident/plugins/OrbitControls";
 import { GLTFParser } from "@trident/plugins/GLTF/GLTF_Parser";
 import { HDRParser } from "@trident/plugins/HDRParser";
+import { Debugger } from "@trident/plugins/Debugger";
 
 async function Application(canvas: HTMLCanvasElement) {
     const renderer = GPU.Renderer.Create(canvas, "webgpu");
@@ -56,15 +57,15 @@ async function Application(canvas: HTMLCanvasElement) {
     })
 
     const hdr = await HDRParser.Load("./assets/textures/HDR/royal_esplanade_1k.hdr");
-    // const sky = await HDRParser.ToCubemap(hdr);
+    const sky = await HDRParser.ToCubemap(hdr);
 
-    const sky = await GPU.RenderTextureCube.Create(1,1,6, "rgba8unorm");
+    // const sky = await GPU.RenderTextureCube.Create(1,1,6, "rgba8unorm");
     // sky.SetData( new Uint8Array([255, 0, 0, 255]), 4, 1);
 
-    // 6 faces * 4 bytes per RGBA8 pixel = 24 bytes
-    const data = new Uint8Array(6 * 4);
-    for (let i = 0; i < 6; i++) data.set([255, 255, 255, 255], i * 4);
-    sky.SetData(data, 4, 1); // bytesPerRow=4, rowsPerImage=1 is fine for writeTexture
+    // // 6 faces * 4 bytes per RGBA8 pixel = 24 bytes
+    // const data = new Uint8Array(6 * 4);
+    // for (let i = 0; i < 6; i++) data.set([255, 255, 255, 255], i * 4);
+    // sky.SetData(data, 4, 1); // bytesPerRow=4, rowsPerImage=1 is fine for writeTexture
 
     const skyIrradiance = await HDRParser.GetIrradianceMap(sky);
     const prefilterMap = await HDRParser.GetPrefilterMap(sky);
@@ -74,6 +75,8 @@ async function Application(canvas: HTMLCanvasElement) {
     scene.renderPipeline.skyboxIrradiance = skyIrradiance;
     scene.renderPipeline.skyboxPrefilter = prefilterMap;
     scene.renderPipeline.skyboxBRDFLUT = brdfLUT;
+
+    Debugger.Enable();
 
 
     scene.Start();
