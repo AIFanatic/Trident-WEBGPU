@@ -1,5 +1,107 @@
-import { Renderer } from "@trident/core";
-import { UIFolder, UITextStat } from "@trident/plugins/ui/UIStats";
+import { Renderer, GPU, Components, EventSystem, Scene, Geometry } from "@trident/core";
+import { UIDropdownStat, UIFolder, UITextStat } from "@trident/plugins/ui/UIStats";
+
+enum ViewTypes {
+    Lighting,
+    Albedo,
+    Normal,
+    Metalness,
+    Roughness,
+    Emissive
+};
+
+class DebuggerRenderPass extends GPU.RenderPass {
+    public name: string = "DebuggerRenderPass";
+    public currentViewType: ViewTypes = ViewTypes.Lighting;
+    private geometry: Geometry;
+    private shader: GPU.Shader;
+
+    constructor() {
+        super({});
+    }
+
+    public async init(resources: GPU.ResourcePool) {
+        this.shader = await GPU.Shader.Create({
+            code: `
+                struct VertexInput {
+                    @location(0) position : vec3<f32>,
+                    @location(1) normal : vec3<f32>,
+                    @location(2) uv : vec2<f32>,
+                };
+                
+                struct VertexOutput {
+                    @builtin(position) position : vec4<f32>,
+                    @location(1) uv : vec2<f32>,
+                };
+
+                @group(0) @binding(0) var inputTexture: texture_2d<f32>;
+                @group(0) @binding(1) var inputSampler: sampler;
+                
+                @group(0) @binding(2) var<storage, read> viewType: f32;
+                
+                @vertex
+                fn vertexMain(input: VertexInput) -> VertexOutput {
+                    var output : VertexOutput;
+                    output.position = vec4(input.position, 1.0);
+                    output.uv = input.uv;
+                    return output;
+                }
+                
+                struct FragmentOutput {
+                    @location(0) albedo : vec4f,
+                };
+                
+                @fragment
+                fn fragmentMain(input: VertexOutput) -> @location(0) vec4f {
+                    var color = textureSample(inputTexture, inputSampler, input.uv);
+                    if (u32(viewType) == 0) {} // Lighting
+                    else if (u32(viewType) == 1) {} // Albedo
+                    else if (u32(viewType) == 2) {} // Normal
+                    else if (u32(viewType) == 3) { color = vec4(color.a); } // Metalness
+                    else if (u32(viewType) == 4) { color = vec4(color.a); } // Roughness
+                    else if (u32(viewType) == 5) { color = vec4(color.rgb, 1.0); } // Emissive
+                    return vec4(color.rgb, 1.0);
+                }
+            `,
+            colorOutputs: [{format: "rgba16float"}],
+            attributes: {
+                position: { location: 0, size: 3, type: "vec3" },
+                normal: { location: 1, size: 3, type: "vec3" },
+                uv: { location: 2, size: 2, type: "vec2" }
+            },
+            uniforms: {
+                inputTexture: {group: 0, binding: 0, type: "texture"},
+                inputSampler: {group: 0, binding: 1, type: "sampler"},
+                viewType: {group: 0, binding: 2, type: "storage"},
+            }
+        })
+        this.geometry = Geometry.Plane();
+        this.shader.SetSampler("inputSampler", GPU.TextureSampler.Create());
+        this.initialized = true;
+    }
+
+    public execute(resources: GPU.ResourcePool, ...args: any): void {
+        // console.log(this.currentViewType)
+        if (this.currentViewType === ViewTypes.Lighting) return;
+
+        const GBufferAlbedo = resources.getResource(GPU.PassParams.GBufferAlbedo);
+        const GBufferNormal = resources.getResource(GPU.PassParams.GBufferNormal);
+        const GBufferERMO = resources.getResource(GPU.PassParams.GBufferERMO);
+        const lightingOutput = resources.getResource(GPU.PassParams.LightingPassOutput);
+
+        this.shader.SetTexture("inputTexture", GBufferAlbedo);
+        if (this.currentViewType === ViewTypes.Albedo) this.shader.SetTexture("inputTexture", GBufferAlbedo);
+        else if (this.currentViewType === ViewTypes.Normal) this.shader.SetTexture("inputTexture", GBufferNormal);
+        else if (this.currentViewType === ViewTypes.Metalness) this.shader.SetTexture("inputTexture", GBufferAlbedo);
+        else if (this.currentViewType === ViewTypes.Roughness) this.shader.SetTexture("inputTexture", GBufferNormal);
+        else if (this.currentViewType === ViewTypes.Emissive) this.shader.SetTexture("inputTexture", GBufferERMO);
+
+        this.shader.SetValue("viewType", this.currentViewType);
+        GPU.RendererContext.BeginRenderPass(this.name, [{target: lightingOutput, clear: true}]);
+        GPU.RendererContext.DrawGeometry(this.geometry, this.shader);
+        GPU.RendererContext.EndRenderPass();
+    }
+}
 
 class _Debugger {
     public readonly ui: UIFolder;
@@ -18,11 +120,10 @@ class _Debugger {
     private bindGroupsStat: UITextStat;
     private compiledShadersStat: UITextStat;
     private drawCallsStat: UITextStat;
-    // private viewTypeStat: UIDropdownStat;
+    private viewTypeStat: UIDropdownStat;
     // private heightScale: UISliderStat;
     // private useHeightMapStat: UIButtonStat;
 
-    public viewTypeValue: UITextStat;
     // public heightScaleValue: UITextStat;
     // public useHeightMapValue: boolean = false;
 
@@ -58,12 +159,19 @@ class _Debugger {
         this.compiledShadersStat = new UITextStat(this.rendererFolder, "Compiled shaders: ");
         this.visibleObjectsStat = new UITextStat(this.rendererFolder, "Visible objects: ");
 
-        // this.viewTypeStat = new UIDropdownStat(this.rendererFolder, "Final output:", ["Lighting", "Albedo Map", "Normal Map", "Metalness", "Roughness", "Emissive"], (index, value) => {this.viewTypeValue = index}, this.viewTypeValue);
+        const debuggerRenderPass = new DebuggerRenderPass();
+        EventSystem.on(Scene.Events.OnStarted, scene => {
+            const mainCamera = Components.Camera.mainCamera;
+            mainCamera.gameObject.scene.renderPipeline.AddPass(debuggerRenderPass, GPU.RenderPassOrder.AfterLighting);
+        });
+        this.viewTypeStat = new UIDropdownStat(this.rendererFolder, "Final output:", Object.values(ViewTypes).filter(value => typeof value === "string") as string[], (index, value) => {debuggerRenderPass.currentViewType = index}, 0);
         // this.heightScale = new UISliderStat(this.rendererFolder, "Height scale:", 0, 1, 0.01, this.heightScaleValue, state => {this.heightScaleValue = state});
         // this.useHeightMapStat = new UIButtonStat(this.rendererFolder, "Use heightmap:", state => {this.useHeightMapValue = state}, this.useHeightMapValue);
 
         this.renderPassesFolder = new UIFolder(this.rendererFolder, "Frame passes");
         this.renderPassesFolder.Open();
+
+
 
         setInterval(() => {
             this.Update();

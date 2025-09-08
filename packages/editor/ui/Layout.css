@@ -20,16 +20,32 @@ flex.v {
     flex-direction: column;
 }
 
-flex-item {
-    /* overflow: auto; */
-}
-
 flex>flex-resizer {
-    flex: 0 0 5px;
+    flex: 0 0 1px;
     /* background: white; */
     background-color: black;
     background-repeat: no-repeat;
     background-position: center;
+    position: relative; 
+}
+
+flex.h>flex-resizer::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: -10px;
+    bottom: 0;
+    width: 20px;
+}
+
+flex.v>flex-resizer::before {
+    content: "";
+    position: absolute;
+    top: -10px;
+    left: 0px;
+    bottom: 10px;
+    height: 20px;
+    right: 0px;
 }
 
 flex>flex-resizer:hover {

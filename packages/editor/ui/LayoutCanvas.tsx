@@ -55,26 +55,6 @@ export class LayoutCanvas extends Component<BaseProps> {
         cubeMesh.AddMaterial(EngineAPI.createPBRMaterial());
 
 
-        const t = await GPU.Texture.Load("./assets/textures/HDR/drakensberg_solitary_mountain_puresky_1k.png")
-        const c = GPU.CubeTexture.Create(1024, 1024, 6);
-    
-        GPU.Renderer.BeginRenderFrame();
-        // +X face (Right)
-        GPU.RendererContext.CopyTextureToTextureV3( { texture: t, origin: [2048, 1024, 0] }, { texture: c, origin: [0, 0, 0] }, [1024, 1024, 1]);
-        // -X face (Left)
-        GPU.RendererContext.CopyTextureToTextureV3( { texture: t, origin: [0, 1024, 0] }, { texture: c, origin: [0, 0, 1] }, [1024, 1024, 1]);
-        // +Y face (Top)
-        GPU.RendererContext.CopyTextureToTextureV3( { texture: t, origin: [1024, 0, 0] }, { texture: c, origin: [0, 0, 2] }, [1024, 1024, 1]);
-        // -Y face (Bottom)
-        GPU.RendererContext.CopyTextureToTextureV3( { texture: t, origin: [1024, 2048, 0] }, { texture: c, origin: [0, 0, 3] }, [1024, 1024, 1]);
-        // +Z face (Front)
-        GPU.RendererContext.CopyTextureToTextureV3( { texture: t, origin: [1024, 1024, 0] }, { texture: c, origin: [0, 0, 4] }, [1024, 1024, 1]);
-        // -Z face (Back)
-        GPU.RendererContext.CopyTextureToTextureV3( { texture: t, origin: [3072, 1024, 0] }, { texture: c, origin: [0, 0, 5] }, [1024, 1024, 1]);
-        GPU.Renderer.EndRenderFrame();
-
-        currentScene.renderPipeline.skybox = c;
-
         Debugger.Enable();
 
 

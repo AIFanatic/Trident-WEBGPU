@@ -109,10 +109,16 @@ function wrapJsInHtml() {
     <!DOCTYPE html>
     <html>
         <head>
+            <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no">
+            <meta name="mobile-web-app-capable" content="yes">
+            <meta name="apple-mobile-web-app-capable" content="yes">
+            
             <style>
                 html, body {
                     margin: 0;
                     overflow: hidden;
+                    height: 100%;
+                    width: 100%;
                 }
             </style>
         </head>
@@ -127,12 +133,6 @@ function wrapJsInHtml() {
             </script>
             <script type="module">
                 const canvas = document.createElement("canvas");
-                const aspectRatio = 1;
-                canvas.width = window.innerWidth * aspectRatio;
-                canvas.height = window.innerHeight * aspectRatio;
-                canvas.style.width = "100vw";
-                canvas.style.height = "100vh";
-                canvas.style.userSelect = "none";
                 document.body.appendChild(canvas);
                 %example_code%
             </script>
@@ -171,12 +171,12 @@ function wrapJsInHtml() {
     };
 }
 
-function copyAssets() {
+function copyAssets(from, to) {
     return {
         name: 'copy-assets',
         writeBundle(options, bundle) {
-            const srcDir = "packages/examples/assets";
-            const destDir = "dist/examples/assets";
+            const srcDir = from; // "packages/examples/assets";
+            const destDir = to; // "dist/examples/assets";
             if (fs.existsSync(srcDir)) {
                 fs.cpSync(srcDir, destDir, { recursive: true });
                 console.log(`Copied: ${srcDir} -> ${destDir}`);
@@ -206,7 +206,7 @@ const examples = {
         }),
         addJsExtensionToImports(),
         wrapJsInHtml(),
-        copyAssets()
+        copyAssets("packages/examples/assets", "dist/examples/assets")
     ]
 }
 
@@ -218,6 +218,10 @@ function editorHtml() {
     <!DOCTYPE html>
     <html>
         <head>
+            <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no">
+            <meta name="mobile-web-app-capable" content="yes">
+            <meta name="apple-mobile-web-app-capable" content="yes">
+            
             <link rel="stylesheet" href="trident-editor.css">
         </head>
         <body>
@@ -285,7 +289,8 @@ const editor = {
             jsxFragment: 'Fragment',
         }),
         editorHtml(),
-        cssBundle()
+        cssBundle(),
+        copyAssets('packages/editor/resources', 'dist/editor/resources')
     ]
 }
 
