@@ -2,10 +2,16 @@
     <!DOCTYPE html>
     <html>
         <head>
+            <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no">
+            <meta name="mobile-web-app-capable" content="yes">
+            <meta name="apple-mobile-web-app-capable" content="yes">
+            
             <style>
                 html, body {
                     margin: 0;
                     overflow: hidden;
+                    height: 100%;
+                    width: 100%;
                 }
             </style>
         </head>
@@ -20,12 +26,6 @@
             </script>
             <script type="module">
                 const canvas = document.createElement("canvas");
-                const aspectRatio = 1;
-                canvas.width = window.innerWidth * aspectRatio;
-                canvas.height = window.innerHeight * aspectRatio;
-                canvas.style.width = "100vw";
-                canvas.style.height = "100vh";
-                canvas.style.userSelect = "none";
                 document.body.appendChild(canvas);
                             import { Renderer, Scene, GameObject, Components, Mathf, Geometry, PBRMaterial } from '@trident/core';
             import { Debugger } from '@trident/plugins/Debugger.js';

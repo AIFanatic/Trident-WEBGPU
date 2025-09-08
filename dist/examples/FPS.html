@@ -2,10 +2,16 @@
     <!DOCTYPE html>
     <html>
         <head>
+            <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no">
+            <meta name="mobile-web-app-capable" content="yes">
+            <meta name="apple-mobile-web-app-capable" content="yes">
+            
             <style>
                 html, body {
                     margin: 0;
                     overflow: hidden;
+                    height: 100%;
+                    width: 100%;
                 }
             </style>
         </head>
@@ -20,19 +26,17 @@
             </script>
             <script type="module">
                 const canvas = document.createElement("canvas");
-                const aspectRatio = 1;
-                canvas.width = window.innerWidth * aspectRatio;
-                canvas.height = window.innerHeight * aspectRatio;
-                canvas.style.width = "100vw";
-                canvas.style.height = "100vh";
-                canvas.style.userSelect = "none";
                 document.body.appendChild(canvas);
                             import { GPU, Scene, GameObject, Components, Mathf, PBRMaterial } from '@trident/core';
             import { OrbitControls } from '@trident/plugins/OrbitControls.js';
             import { TerrainBuilder } from '@trident/plugins/TerrainGenerator/TerrainBuilder.js';
             import { PhysicsRapier } from '@trident/plugins/PhysicsRapier/PhysicsRapier.js';
+            import { CapsuleCollider } from '@trident/plugins/PhysicsRapier/colliders/CapsuleCollider.js';
             import { TerrainCollider } from '@trident/plugins/PhysicsRapier/colliders/TerrainCollider.js';
+            import { FirstPersonController } from '@trident/plugins/PhysicsRapier/FirstPersonController.js';
+            import { RigidBody } from '@trident/plugins/PhysicsRapier/RigidBody.js';
             import { Debugger } from '@trident/plugins/Debugger.js';
+            import { HDRParser } from '@trident/plugins/HDRParser.js';
             
             async function Application(canvas) {
               const renderer = GPU.Renderer.Create(canvas, "webgpu");
@@ -73,6 +77,22 @@
               );
               terrainMesh.SetGeometry(terrain.geometry);
               terrainMesh.AddMaterial(material);
+              const playerGameObject = new GameObject(scene);
+              playerGameObject.transform.position.y = 100;
+              playerGameObject.AddComponent(CapsuleCollider);
+              const playerRigidbody = playerGameObject.AddComponent(RigidBody);
+              playerRigidbody.Create("dynamic");
+              const firstPersonController = playerGameObject.AddComponent(FirstPersonController);
+              firstPersonController.camera = Components.Camera.mainCamera;
+              const hdr = await HDRParser.Load("./assets/textures/HDR/drakensberg_solitary_mountain_puresky_1k.hdr");
+              const sky = await HDRParser.ToCubemap(hdr);
+              const skyIrradiance = await HDRParser.GetIrradianceMap(sky);
+              const prefilterMap = await HDRParser.GetPrefilterMap(sky);
+              const brdfLUT = await HDRParser.GetBRDFLUT(1);
+              scene.renderPipeline.skybox = sky;
+              scene.renderPipeline.skyboxIrradiance = skyIrradiance;
+              scene.renderPipeline.skyboxPrefilter = prefilterMap;
+              scene.renderPipeline.skyboxBRDFLUT = brdfLUT;
               Debugger.Enable();
               scene.Start();
             }

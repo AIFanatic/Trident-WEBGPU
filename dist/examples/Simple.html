@@ -2,10 +2,16 @@
     <!DOCTYPE html>
     <html>
         <head>
+            <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no">
+            <meta name="mobile-web-app-capable" content="yes">
+            <meta name="apple-mobile-web-app-capable" content="yes">
+            
             <style>
                 html, body {
                     margin: 0;
                     overflow: hidden;
+                    height: 100%;
+                    width: 100%;
                 }
             </style>
         </head>
@@ -20,12 +26,6 @@
             </script>
             <script type="module">
                 const canvas = document.createElement("canvas");
-                const aspectRatio = 1;
-                canvas.width = window.innerWidth * aspectRatio;
-                canvas.height = window.innerHeight * aspectRatio;
-                canvas.style.width = "100vw";
-                canvas.style.height = "100vh";
-                canvas.style.userSelect = "none";
                 document.body.appendChild(canvas);
                             import { GPU, Scene, GameObject, Components, Mathf, Geometry, PBRMaterial } from '@trident/core';
             import { OrbitControls } from '@trident/plugins/OrbitControls.js';
@@ -53,7 +53,7 @@
               const floorMesh = floorGameObject.AddComponent(Components.Mesh);
               floorMesh.SetGeometry(Geometry.Plane());
               floorMesh.AddMaterial(new PBRMaterial());
-              const i = 10;
+              const i = 5;
               for (let x = 0; x < i; x++) {
                 for (let y = 0; y < i; y++) {
                   const sphereGameObject = new GameObject(scene);

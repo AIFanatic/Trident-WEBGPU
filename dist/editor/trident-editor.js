@@ -1,4 +1,4 @@
-import { Renderer, Scene, GameObject, Mathf, Component as Component$1, Geometry, PBRMaterial, Utils, Components, GPU } from '@trident/core';
+import { Renderer, Scene, GameObject, Mathf, Component as Component$1, Geometry, PBRMaterial, Utils, Components } from '@trident/core';
 import { OrbitControls } from '@trident/plugins/OrbitControls.js';
 import { Debugger } from '@trident/plugins/Debugger.js';
 
@@ -312,17 +312,6 @@ class LayoutCanvas extends Component {
     const cubeMesh = cubeGameObject.AddComponent(IComponents.Mesh);
     cubeMesh.SetGeometry(EngineAPI.createCubeGeometry());
     cubeMesh.AddMaterial(EngineAPI.createPBRMaterial());
-    const t = await GPU.Texture.Load("./assets/textures/HDR/drakensberg_solitary_mountain_puresky_1k.png");
-    const c = GPU.CubeTexture.Create(1024, 1024, 6);
-    GPU.Renderer.BeginRenderFrame();
-    GPU.RendererContext.CopyTextureToTextureV3({ texture: t, origin: [2048, 1024, 0] }, { texture: c, origin: [0, 0, 0] }, [1024, 1024, 1]);
-    GPU.RendererContext.CopyTextureToTextureV3({ texture: t, origin: [0, 1024, 0] }, { texture: c, origin: [0, 0, 1] }, [1024, 1024, 1]);
-    GPU.RendererContext.CopyTextureToTextureV3({ texture: t, origin: [1024, 0, 0] }, { texture: c, origin: [0, 0, 2] }, [1024, 1024, 1]);
-    GPU.RendererContext.CopyTextureToTextureV3({ texture: t, origin: [1024, 2048, 0] }, { texture: c, origin: [0, 0, 3] }, [1024, 1024, 1]);
-    GPU.RendererContext.CopyTextureToTextureV3({ texture: t, origin: [1024, 1024, 0] }, { texture: c, origin: [0, 0, 4] }, [1024, 1024, 1]);
-    GPU.RendererContext.CopyTextureToTextureV3({ texture: t, origin: [3072, 1024, 0] }, { texture: c, origin: [0, 0, 5] }, [1024, 1024, 1]);
-    GPU.Renderer.EndRenderFrame();
-    currentScene.renderPipeline.skybox = c;
     Debugger.Enable();
     const test = EngineAPI.createGameObject(EngineAPI.currentScene);
     test.name = "test";

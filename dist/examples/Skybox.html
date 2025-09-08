@@ -2,10 +2,16 @@
     <!DOCTYPE html>
     <html>
         <head>
+            <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no">
+            <meta name="mobile-web-app-capable" content="yes">
+            <meta name="apple-mobile-web-app-capable" content="yes">
+            
             <style>
                 html, body {
                     margin: 0;
                     overflow: hidden;
+                    height: 100%;
+                    width: 100%;
                 }
             </style>
         </head>
@@ -20,18 +26,13 @@
             </script>
             <script type="module">
                 const canvas = document.createElement("canvas");
-                const aspectRatio = 1;
-                canvas.width = window.innerWidth * aspectRatio;
-                canvas.height = window.innerHeight * aspectRatio;
-                canvas.style.width = "100vw";
-                canvas.style.height = "100vh";
-                canvas.style.userSelect = "none";
                 document.body.appendChild(canvas);
                             import { GPU, Scene, GameObject, Components, Mathf, Geometry, PBRMaterial } from '@trident/core';
             import { OrbitControls } from '@trident/plugins/OrbitControls.js';
             import { HDRParser } from '@trident/plugins/HDRParser.js';
             import { UIFolder, UIVecStat, UISliderStat, UIColorStat } from '@trident/plugins/ui/UIStats.js';
             import { Debugger } from '@trident/plugins/Debugger.js';
+            import { SpotLightHelper } from '@trident/plugins/SpotLightHelper.js';
             import { DirectionalLightHelper } from '@trident/plugins/DirectionalLightHelper.js';
             
             async function Application(canvas) {
@@ -42,15 +43,20 @@
               mainCameraGameObject.name = "MainCamera";
               const camera = mainCameraGameObject.AddComponent(Components.Camera);
               camera.SetPerspective(60, canvas.width / canvas.height, 0.05, 512);
+              const observer = new ResizeObserver((entries) => {
+                camera.SetPerspective(60, canvas.width / canvas.height, 0.05, 512);
+              });
+              observer.observe(canvas);
               new OrbitControls(canvas, camera);
               let w;
               {
                 const lightGameObject = new GameObject(scene);
                 lightGameObject.transform.position.set(0.01, 4, 0.01);
                 lightGameObject.transform.LookAtV1(new Mathf.Vector3(0, 0, 0));
-                const light = lightGameObject.AddComponent(Components.DirectionalLight);
-                light.intensity = 1;
-                light.range = 1;
+                const light = lightGameObject.AddComponent(Components.SpotLight);
+                light.intensity = 100;
+                light.range = 7.5;
+                light.angle = 0.33;
                 light.color.set(1, 1, 1, 1);
                 light.castShadows = true;
                 console.log("Light position:", lightGameObject.transform.position.elements);
@@ -73,11 +79,27 @@
                   }
                 );
                 new UISliderStat(waterSettingsFolder, "Intensity:", 0, 100, 0.1, light.intensity, (value) => light.intensity = value);
-                new UISliderStat(waterSettingsFolder, "Range:", 0, 10, 0.1, light.range, (value) => light.range = value);
+                new UISliderStat(waterSettingsFolder, "Angle:", 0, 3.14 * 0.5, 0.01, light.angle, (value) => {
+                  light.angle = value;
+                });
+                new UISliderStat(waterSettingsFolder, "Range:", 0, 50, 0.1, light.range, (value) => light.range = value);
+                const lightHelperGameObject = new GameObject(scene);
+                const spotLightHelper = lightHelperGameObject.AddComponent(SpotLightHelper);
+                spotLightHelper.light = light;
+                w = waterSettingsFolder;
+              }
+              {
+                const lightGameObject = new GameObject(scene);
+                lightGameObject.transform.position.set(4, 4, 4);
+                lightGameObject.transform.LookAtV1(new Mathf.Vector3(0, 0, 0));
+                const light = lightGameObject.AddComponent(Components.DirectionalLight);
+                light.intensity = 1;
+                light.range = 7.5;
+                light.color.set(1, 1, 1, 1);
+                light.castShadows = true;
                 const lightHelperGameObject = new GameObject(scene);
                 const spotLightHelper = lightHelperGameObject.AddComponent(DirectionalLightHelper);
                 spotLightHelper.light = light;
-                w = waterSettingsFolder;
               }
               {
                 const planeGO = new GameObject(scene);

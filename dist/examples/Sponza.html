@@ -2,10 +2,16 @@
     <!DOCTYPE html>
     <html>
         <head>
+            <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no">
+            <meta name="mobile-web-app-capable" content="yes">
+            <meta name="apple-mobile-web-app-capable" content="yes">
+            
             <style>
                 html, body {
                     margin: 0;
                     overflow: hidden;
+                    height: 100%;
+                    width: 100%;
                 }
             </style>
         </head>
@@ -20,14 +26,8 @@
             </script>
             <script type="module">
                 const canvas = document.createElement("canvas");
-                const aspectRatio = 1;
-                canvas.width = window.innerWidth * aspectRatio;
-                canvas.height = window.innerHeight * aspectRatio;
-                canvas.style.width = "100vw";
-                canvas.style.height = "100vh";
-                canvas.style.userSelect = "none";
                 document.body.appendChild(canvas);
-                            import { GPU, Scene, GameObject, Components, Mathf, Geometry, PBRMaterial } from '@trident/core';
+                            import { GPU, Scene, GameObject, Components, Mathf } from '@trident/core';
             import { OrbitControls } from '@trident/plugins/OrbitControls.js';
             import { Debugger } from '@trident/plugins/Debugger.js';
             import { GLTFParser } from '@trident/plugins/GLTF/GLTF_Parser.js';
@@ -62,23 +62,6 @@
                   mesh.AddMaterial(object3D.material);
                 }
               });
-              const i = 10;
-              for (let x = 0; x < i; x++) {
-                for (let y = 0; y < i; y++) {
-                  const sphereGameObject = new GameObject(scene);
-                  sphereGameObject.transform.position.set(x * 2 - i * 0.5 * 2, 5, y * 2 - i * 0.5 * 2);
-                  const sphereMesh = sphereGameObject.AddComponent(Components.Mesh);
-                  sphereMesh.SetGeometry(Geometry.Sphere());
-                  sphereMesh.AddMaterial(new PBRMaterial());
-                  const lightGameObject2 = new GameObject(scene);
-                  lightGameObject2.transform.position.copy(sphereGameObject.transform.position);
-                  lightGameObject2.transform.LookAtV1(new Mathf.Vector3(0, 0, 0));
-                  const light2 = lightGameObject2.AddComponent(Components.SpotLight);
-                  light2.color.set(Math.random(), Math.random(), Math.random(), 1);
-                  light2.angle = 90;
-                  light2.castShadows = false;
-                }
-              }
               Debugger.Enable();
               scene.Start();
             }

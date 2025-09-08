@@ -15,7 +15,7 @@ class RigidBody extends Component {
   }
   Create(type) {
     const collider = this.gameObject.GetComponent(Collider);
-    if (!collider.collider) throw Error("Rigidbody needs a collider");
+    if (!collider || !collider.collider) throw Error("Rigidbody needs a collider");
     if (type === "fixed") this.rigidBodyDesc = PhysicsRapier.Physics.RigidBodyDesc.fixed();
     else if (type === "dynamic") this.rigidBodyDesc = PhysicsRapier.Physics.RigidBodyDesc.dynamic();
     else if (type === "kinematicVelocity") this.rigidBodyDesc = PhysicsRapier.Physics.RigidBodyDesc.kinematicVelocityBased();

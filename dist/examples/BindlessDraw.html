@@ -2,10 +2,16 @@
     <!DOCTYPE html>
     <html>
         <head>
+            <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no">
+            <meta name="mobile-web-app-capable" content="yes">
+            <meta name="apple-mobile-web-app-capable" content="yes">
+            
             <style>
                 html, body {
                     margin: 0;
                     overflow: hidden;
+                    height: 100%;
+                    width: 100%;
                 }
             </style>
         </head>
@@ -20,12 +26,6 @@
             </script>
             <script type="module">
                 const canvas = document.createElement("canvas");
-                const aspectRatio = 1;
-                canvas.width = window.innerWidth * aspectRatio;
-                canvas.height = window.innerHeight * aspectRatio;
-                canvas.style.width = "100vw";
-                canvas.style.height = "100vh";
-                canvas.style.userSelect = "none";
                 document.body.appendChild(canvas);
                             import { GPU, Scene, GameObject, Components, Mathf, Geometry, VertexAttribute, IndexAttribute, Utils } from '@trident/core';
             import { OrbitControls } from '@trident/plugins/OrbitControls.js';
@@ -142,7 +142,7 @@
                 }
               }
               let objects = [];
-              const c = 1e4;
+              const c = 1e5;
               const cubes = new Object(cubeVertices, cubeIndices, 16, c);
               const spheres = new Object(sphereVertices, sphereIndices, 16, c);
               objects.push(cubes);
@@ -152,7 +152,7 @@
               let rotation = new Mathf.Quaternion();
               let scale = new Mathf.Vector3(1, 1, 1);
               for (let i = 0; i < c; i++) {
-                const off = 100;
+                const off = 1e3;
                 const r = (off2) => Math.random() * off2 - off2 * 0.5;
                 position.set(r(off), r(off), r(off));
                 scale.set(Math.random(), Math.random(), Math.random());
