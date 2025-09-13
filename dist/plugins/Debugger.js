@@ -99,6 +99,7 @@ class _Debugger {
   ui;
   container;
   rendererFolder;
+  resolution;
   fps;
   triangleCount;
   visibleTriangles;
@@ -128,7 +129,8 @@ class _Debugger {
     this.ui.Open();
     this.rendererFolder = new UIFolder(this.ui, "Renderer");
     this.rendererFolder.Open();
-    this.fps = new UITextStat(this.rendererFolder, "FPS", 0, 2, "", true);
+    this.resolution = new UITextStat(this.rendererFolder, "Resolution: ", 0, 0, "", false);
+    this.fps = new UITextStat(this.rendererFolder, "FPS: ", 0, 2, "", true);
     this.triangleCount = new UITextStat(this.rendererFolder, "Triangles: ");
     this.visibleTriangles = new UITextStat(this.rendererFolder, "Visible triangles: ");
     this.cpuTime = new UITextStat(this.rendererFolder, "CPU: ", 0, 2, "ms", true);
@@ -150,11 +152,24 @@ class _Debugger {
     }, 0);
     this.renderPassesFolder = new UIFolder(this.rendererFolder, "Frame passes");
     this.renderPassesFolder.Open();
+    this.textStatBytesFormatter(this.gpuBufferSizeTotal);
+    this.textStatBytesFormatter(this.gpuTextureSizeTotal);
     setInterval(() => {
       this.Update();
     }, 100);
   }
+  textStatBytesFormatter(textStat) {
+    textStat.formatter = (value) => {
+      const k = 1024;
+      const decimals = 2;
+      const sizes = ["B", "KB", "MB", "GB", "TB", "PB", "EB", "ZB", "YB"];
+      const i = Math.floor(Math.log(value) / Math.log(k));
+      textStat.SetUnit(sizes[i]);
+      return parseFloat((value / Math.pow(k, i)).toFixed(decimals));
+    };
+  }
   Update() {
+    this.resolution.SetText(`${Renderer.width}x${Renderer.height}`);
     this.fps.SetValue(Renderer.info.fps);
     this.triangleCount.SetValue(Renderer.info.triangleCount);
     this.visibleTriangles.SetValue(Renderer.info.visibleTriangles);
@@ -182,7 +197,6 @@ class _Debugger {
     this.container.style.display = "";
   }
   Disable() {
-    console.log("Running", this.container);
     this.container.style.display = "none";
   }
   static getInstance() {

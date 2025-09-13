@@ -1,0 +1,106 @@
+
+    <!DOCTYPE html>
+    <html>
+        <head>
+            <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no">
+            <meta name="mobile-web-app-capable" content="yes">
+            <meta name="apple-mobile-web-app-capable" content="yes">
+            
+            <style>
+                html, body {
+                    margin: 0;
+                    overflow: hidden;
+                    height: 100%;
+                    width: 100%;
+                }
+            </style>
+        </head>
+        <body>
+            <script type="importmap">
+                {
+                    "imports": {
+                        "@trident/core": "../trident-core.js",
+                        "@trident/plugins/": "../plugins/"
+                    }
+                }
+            </script>
+            <script type="module">
+                const canvas = document.createElement("canvas");
+                document.body.appendChild(canvas);
+                            import { GPU, Scene, GameObject, Components, Mathf, Geometry, PBRMaterial } from '@trident/core';
+            import { OrbitControls } from '@trident/plugins/OrbitControls.js';
+            import { GLTFLoader } from '@trident/plugins/GLTF/GLTFLoader.js';
+            import { ImpostorMesh } from '@trident/plugins/Impostors/ImpostorMesh.js';
+            import { Debugger } from '@trident/plugins/Debugger.js';
+            
+            async function Application(canvas) {
+              const renderer = GPU.Renderer.Create(canvas, "webgpu");
+              const scene = new Scene(renderer);
+              const mainCameraGameObject = new GameObject(scene);
+              mainCameraGameObject.transform.position.set(0, 0, -5);
+              mainCameraGameObject.name = "MainCamera";
+              const camera = mainCameraGameObject.AddComponent(Components.Camera);
+              camera.SetPerspective(72, canvas.width / canvas.height, 0.01, 500);
+              new OrbitControls(canvas, camera);
+              {
+                const lightGameObject = new GameObject(scene);
+                lightGameObject.transform.position.set(4, 4, 4);
+                lightGameObject.transform.LookAtV1(new Mathf.Vector3(0, 0, 0));
+                const light = lightGameObject.AddComponent(Components.DirectionalLight);
+                light.intensity = 5;
+                light.range = 1;
+                light.color.set(1, 1, 1, 1);
+              }
+              {
+                const lightGameObject = new GameObject(scene);
+                lightGameObject.transform.position.set(-4, 4, -4);
+                lightGameObject.transform.LookAt(new Mathf.Vector3(0, 0, 0));
+                const light = lightGameObject.AddComponent(Components.DirectionalLight);
+                light.intensity = 5;
+                light.range = 1;
+                light.color.set(1, 1, 1, 1);
+              }
+              const model = await GLTFLoader.Load("./assets/models/Tree.glb");
+              const go = new GameObject(scene);
+              const bunnyImpostor = go.AddComponent(ImpostorMesh);
+              await bunnyImpostor.Create(model);
+              const m = new GPU.Material({ isDeferred: true });
+              m.shader = bunnyImpostor.impostorShader;
+              {
+                const planeGO = new GameObject(scene);
+                planeGO.transform.eulerAngles.x = -90;
+                planeGO.transform.position.set(0, -2, 0);
+                planeGO.transform.scale.set(100, 100, 1);
+                const sphereMesh = planeGO.AddComponent(Components.Mesh);
+                await sphereMesh.SetGeometry(Geometry.Plane());
+                const mat2 = new PBRMaterial({ albedoColor: new Mathf.Color(1, 1, 1), metalness: 0.5, roughness: 0.5 });
+                sphereMesh.AddMaterial(mat2);
+              }
+              const instancedMeshGameObject = new GameObject(scene);
+              const instancedMesh = instancedMeshGameObject.AddComponent(Components.InstancedMesh);
+              instancedMesh.enableShadows = false;
+              await instancedMesh.SetGeometry(bunnyImpostor.impostorGeometry);
+              instancedMesh.AddMaterial(m);
+              const mat = new Mathf.Matrix4();
+              const p = new Mathf.Vector3();
+              const r = new Mathf.Quaternion();
+              const s = new Mathf.Vector3(1, 1, 1);
+              const c = 10;
+              let i = 0;
+              for (let x = 0; x < c; x++) {
+                for (let z = 0; z < c; z++) {
+                  p.set(x * 2 - c, 0, z * 2 - c);
+                  mat.compose(p, r, s);
+                  instancedMesh.SetMatrixAt(i, mat);
+                  i++;
+                }
+              }
+              console.log(i);
+              Debugger.Enable();
+              scene.Start();
+            }
+            Application(document.querySelector("canvas"));
+            
+            </script>
+        </body>
+    </html>

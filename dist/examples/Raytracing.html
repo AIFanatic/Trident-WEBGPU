@@ -1,0 +1,279 @@
+
+    <!DOCTYPE html>
+    <html>
+        <head>
+            <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no">
+            <meta name="mobile-web-app-capable" content="yes">
+            <meta name="apple-mobile-web-app-capable" content="yes">
+            
+            <style>
+                html, body {
+                    margin: 0;
+                    overflow: hidden;
+                    height: 100%;
+                    width: 100%;
+                }
+            </style>
+        </head>
+        <body>
+            <script type="importmap">
+                {
+                    "imports": {
+                        "@trident/core": "../trident-core.js",
+                        "@trident/plugins/": "../plugins/"
+                    }
+                }
+            </script>
+            <script type="module">
+                const canvas = document.createElement("canvas");
+                document.body.appendChild(canvas);
+                            import { GPU, Scene, GameObject, Components, Mathf, Geometry, PBRMaterial } from '@trident/core';
+            import { OrbitControls } from '@trident/plugins/OrbitControls.js';
+            import { Debugger } from '@trident/plugins/Debugger.js';
+            
+            async function Application(canvas) {
+              const renderer = GPU.Renderer.Create(canvas, "webgpu");
+              const scene = new Scene(renderer);
+              const mainCameraGameObject = new GameObject(scene);
+              mainCameraGameObject.name = "MainCamera";
+              const camera = mainCameraGameObject.AddComponent(Components.Camera);
+              camera.SetPerspective(72, canvas.width / canvas.height, 0.5, 100);
+              mainCameraGameObject.transform.position.set(0, 0, 5);
+              mainCameraGameObject.transform.LookAtV1(new Mathf.Vector3(0, 0, 0));
+              new OrbitControls(canvas, camera);
+              const raytracingCompute = await GPU.Compute.Create({
+                code: `
+                    struct Ray {
+                        origin: vec3<f32>,
+                        direction: vec3<f32>,
+                    }
+            
+                    struct Sphere {
+                        center: vec3<f32>,
+                        radius: f32,
+                        color: vec3<f32>,
+                    }
+            
+                    struct Camera {
+                        position: vec3<f32>,
+                        forward: vec3<f32>,
+                        right: vec3<f32>,
+                        up: vec3<f32>,
+                        fov: f32,
+                    }
+            
+                    struct RayHit {
+                        hit: bool,
+                        distance: f32,
+                        point: vec3<f32>,
+                        normal: vec3<f32>,
+                        color: vec3<f32>,
+                    }
+            
+                    @group(0) @binding(0) var outputTexture: texture_storage_2d<rgba32float, write>;
+                    @group(0) @binding(1) var<storage, read> spheres: array<Sphere>;
+                    @group(0) @binding(2) var<storage, read> cameraData: Camera;
+                    @group(0) @binding(3) var<storage, read> resolution: vec2<f32>;
+            
+                    fn intersectSphere(ray: Ray, sphere: Sphere) -> RayHit {
+                        var hit: RayHit;
+                        hit.hit = false;
+            
+                        let oc = ray.origin - sphere.center;
+                        let a = dot(ray.direction, ray.direction);
+                        let b = 2.0 * dot(oc, ray.direction);
+                        let c = dot(oc, oc) - sphere.radius * sphere.radius;
+                        let discriminant = b * b - 4.0 * a * c;
+            
+                        if (discriminant < 0.0) {
+                            return hit;
+                        }
+            
+                        let t = (-b - sqrt(discriminant)) / (2.0 * a);
+                        if (t > 0.001) {
+                            hit.hit = true;
+                            hit.distance = t;
+                            hit.point = ray.origin + t * ray.direction;
+                            hit.normal = normalize(hit.point - sphere.center);
+                            hit.color = sphere.color;
+                        }
+            
+                        return hit;
+                    }
+            
+                    fn getRay(uv: vec2<f32>) -> Ray {
+                        var ray: Ray;
+                        ray.origin = cameraData.position;
+            
+                        let aspect = resolution.x / resolution.y;
+                        let halfHeight = tan(cameraData.fov * 0.5 * 3.14159 / 180.0);
+                        let halfWidth = aspect * halfHeight;
+            
+                        let _target = cameraData.position + cameraData.forward +
+                                    (uv.x - 0.5) * 2.0 * halfWidth * cameraData.right +
+                                    (uv.y - 0.5) * 2.0 * halfHeight * cameraData.up;
+            
+                        ray.direction = normalize(_target - ray.origin);
+                        return ray;
+                    }
+            
+                    fn trace(ray: Ray) -> vec3<f32> {
+                        var closestHit: RayHit;
+                        closestHit.hit = false;
+                        closestHit.distance = 1000000.0;
+            
+                        // Test intersection with all spheres
+                        for (var i: u32 = 0; i < arrayLength(&spheres); i++) {
+                            let hit = intersectSphere(ray, spheres[i]);
+                            if (hit.hit && hit.distance < closestHit.distance) {
+                                closestHit = hit;
+                            }
+                        }
+            
+                        if (closestHit.hit) {
+                            // Simple lighting calculation
+                            let lightDir = normalize(vec3<f32>(1.0, 1.0, 1.0));
+                            let lightIntensity = max(dot(closestHit.normal, lightDir), 0.1);
+                            return closestHit.color * lightIntensity;
+                        }
+            
+                        // Sky gradient
+                        let t = 0.5 * (ray.direction.y + 1.0);
+                        return mix(vec3<f32>(1.0, 1.0, 1.0), vec3<f32>(0.5, 0.7, 1.0), t);
+                    }
+            
+                    @compute @workgroup_size(8, 8, 1)
+                    fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
+                        let coords = vec2<i32>(global_id.xy);
+                        let uv = vec2<f32>(coords) / resolution;
+            
+                        if (coords.x >= i32(resolution.x) || coords.y >= i32(resolution.y)) {
+                            return;
+                        }
+            
+                        let ray = getRay(uv);
+                        let color = trace(ray);
+            
+                        textureStore(outputTexture, coords, vec4<f32>(color, 1.0));
+                    }
+                    `,
+                computeEntrypoint: "main",
+                uniforms: {
+                  outputTexture: { group: 0, binding: 0, type: "texture" },
+                  spheres: { group: 0, binding: 1, type: "storage" },
+                  cameraData: { group: 0, binding: 2, type: "storage" },
+                  resolution: { group: 0, binding: 3, type: "storage" }
+                }
+              });
+              const width = 512;
+              const height = 512;
+              const outputTexture = GPU.RenderTextureStorage2D.Create(width, height, 1, "rgba32float");
+              const spheres = new Float32Array([
+                // Sphere 1: center(x,y,z), radius, color(r,g,b), padding
+                0,
+                0,
+                -1,
+                0.5,
+                0.7,
+                0.3,
+                0.3,
+                0,
+                // Sphere 2
+                -1,
+                0,
+                -1,
+                0.5,
+                0.7,
+                0.7,
+                0.3,
+                0,
+                // Sphere 3
+                1,
+                0,
+                -1,
+                0.5,
+                0.3,
+                0.3,
+                0.7,
+                0,
+                // Ground sphere
+                0,
+                -100.5,
+                -1,
+                100,
+                0.8,
+                0.8,
+                0,
+                0
+              ]);
+              const sphereBuffer = GPU.Buffer.Create(spheres.length * 4, GPU.BufferType.STORAGE);
+              sphereBuffer.SetArray(spheres);
+              const updateCameraData = () => {
+                const cameraPos = camera.transform.position;
+                const cameraForward = camera.transform.forward;
+                const cameraRight = camera.transform.right;
+                const cameraUp = camera.transform.up;
+                const cameraData = new Float32Array([
+                  cameraPos.x,
+                  cameraPos.y,
+                  cameraPos.z,
+                  0,
+                  // position + padding
+                  cameraForward.x,
+                  cameraForward.y,
+                  cameraForward.z,
+                  0,
+                  // forward + padding
+                  cameraRight.x,
+                  cameraRight.y,
+                  cameraRight.z,
+                  0,
+                  // right + padding
+                  cameraUp.x,
+                  cameraUp.y,
+                  cameraUp.z,
+                  0,
+                  // up + padding
+                  camera.fov,
+                  0,
+                  0,
+                  0
+                  // fov + padding
+                ]);
+                raytracingCompute.SetArray("cameraData", cameraData);
+              };
+              raytracingCompute.SetTexture("outputTexture", outputTexture);
+              raytracingCompute.SetBuffer("spheres", sphereBuffer);
+              raytracingCompute.SetArray("resolution", new Float32Array([width, height]));
+              const quadGameObject = new GameObject(scene);
+              quadGameObject.transform.position.set(0, 0, 0);
+              const quadMesh = quadGameObject.AddComponent(Components.Mesh);
+              quadMesh.SetGeometry(Geometry.Plane());
+              const displayMaterial = new PBRMaterial({
+                albedoMap: outputTexture,
+                emissiveMap: outputTexture,
+                emissiveColor: new Mathf.Color(1, 1, 1, 1)
+              });
+              quadMesh.AddMaterial(displayMaterial);
+              Debugger.Enable();
+              const animate = () => {
+                updateCameraData();
+                GPU.Renderer.BeginRenderFrame();
+                GPU.ComputeContext.BeginComputePass("Raytracing");
+                const NUM_THREADS_X = 8;
+                const NUM_THREADS_Y = 8;
+                const workgroupsX = Math.ceil(width / NUM_THREADS_X);
+                const workgroupsY = Math.ceil(height / NUM_THREADS_Y);
+                GPU.ComputeContext.Dispatch(raytracingCompute, workgroupsX, workgroupsY, 1);
+                GPU.ComputeContext.EndComputePass();
+                GPU.Renderer.EndRenderFrame();
+                requestAnimationFrame(animate);
+              };
+              scene.Start();
+              animate();
+            }
+            Application(document.querySelector("canvas"));
+            
+            </script>
+        </body>
+    </html>

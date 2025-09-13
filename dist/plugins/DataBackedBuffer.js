@@ -5,7 +5,7 @@ class DataBackedBuffer {
   data;
   dataOffsets;
   dataValues;
-  constructor(data) {
+  constructor(data, bufferType = GPU.BufferType.STORAGE) {
     this.data = data;
     const dataOffsets = /* @__PURE__ */ new Map();
     const dataValues = [];
@@ -17,7 +17,7 @@ class DataBackedBuffer {
     }
     this.dataOffsets = dataOffsets;
     this.dataValues = new Float32Array(dataValues.flat(Infinity));
-    this.buffer = GPU.Buffer.Create(this.dataValues.length * 4, GPU.BufferType.STORAGE);
+    this.buffer = GPU.Buffer.Create(this.dataValues.length * 4, bufferType);
     this.buffer.SetArray(this.dataValues);
   }
   set(key, value) {

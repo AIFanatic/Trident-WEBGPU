@@ -1,6 +1,5 @@
 import { Renderer, Scene, GameObject, Mathf, Component as Component$1, Geometry, PBRMaterial, Utils, Components } from '@trident/core';
 import { OrbitControls } from '@trident/plugins/OrbitControls.js';
-import { Debugger } from '@trident/plugins/Debugger.js';
 
 class TridentAPI {
   currentScene;
@@ -290,6 +289,10 @@ class LayoutCanvas extends Component {
     mainCameraGameObject.name = "MainCamera";
     const camera = mainCameraGameObject.AddComponent(IComponents.Camera);
     camera.SetPerspective(72, canvas.width / canvas.height, 0.5, 500);
+    const observer = new ResizeObserver((entries) => {
+      camera.SetPerspective(72, canvas.width / canvas.height, 0.05, 500);
+    });
+    observer.observe(canvas);
     mainCameraGameObject.transform.position.set(0, 0, 10);
     mainCameraGameObject.transform.LookAtV1(EngineAPI.createVector3(0, 0, 0));
     new OrbitControls(canvas, camera);
@@ -312,7 +315,6 @@ class LayoutCanvas extends Component {
     const cubeMesh = cubeGameObject.AddComponent(IComponents.Mesh);
     cubeMesh.SetGeometry(EngineAPI.createCubeGeometry());
     cubeMesh.AddMaterial(EngineAPI.createPBRMaterial());
-    Debugger.Enable();
     const test = EngineAPI.createGameObject(EngineAPI.currentScene);
     test.name = "test";
     test.transform.parent = floorGameObject.transform;
@@ -601,10 +603,15 @@ class LayoutHierarchyEvents {
   };
 }
 class LayoutHierarchy extends Component {
+  constructor(props) {
+    super(props);
+    this.setState({ gameObject: null });
+  }
   onDropped(from, to) {
   }
   onClicked(data) {
     EventSystem.emit(LayoutHierarchyEvents.Selected, data.data);
+    this.setState({ gameObject: data.data });
   }
   onDragStarted(event, data) {
   }
@@ -614,7 +621,7 @@ class LayoutHierarchy extends Component {
       treeMap.push({
         id: gameObject.transform.id,
         name: gameObject.name,
-        isSelected: this.props.selectedGameObject && this.props.selectedGameObject == gameObject ? true : false,
+        isSelected: this.state.gameObject && this.state.gameObject == gameObject ? true : false,
         parent: gameObject.transform.parent ? gameObject.transform.parent.id : "",
         data: gameObject
       });
@@ -624,7 +631,7 @@ class LayoutHierarchy extends Component {
   render() {
     if (!this.props.engineAPI.currentScene) return;
     const nodes = this.buildTreeFromGameObjects(this.props.engineAPI.currentScene.gameObjects);
-    return /* @__PURE__ */ createElement("div", null, /* @__PURE__ */ createElement(
+    return /* @__PURE__ */ createElement("div", { style: "width: 100%" }, /* @__PURE__ */ createElement(
       Tree,
       {
         onDropped: (from, to) => this.onDropped(from, to),
@@ -881,7 +888,7 @@ class InspectorColor extends Component {
         onChange: (event) => {
           this.onChanged(event);
         },
-        value: `#${this.state.color.toHex()}`
+        value: this.state.color.toHex().slice(0, 7)
       }
     ));
   }
@@ -1090,6 +1097,9 @@ class LayoutInspectorGameObject extends Component {
     }
     return inspectorHTML;
   }
+  onGameObjectEnabled(event) {
+    this.state.gameObject.enabled = event.target.checked;
+  }
   render() {
     if (!this.state.gameObject) return /* @__PURE__ */ createElement("div", null);
     const componentsElements = this.renderInspectorForGameObject(this.state.gameObject);
@@ -1099,7 +1109,9 @@ class LayoutInspectorGameObject extends Component {
     } }, /* @__PURE__ */ createElement("div", { style: {
       display: "flex",
       padding: "10px"
-    } }, /* @__PURE__ */ createElement("input", { type: "checkbox", checked: true }), /* @__PURE__ */ createElement(
+    } }, /* @__PURE__ */ createElement("input", { type: "checkbox", checked: this.state.gameObject.enabled, onChange: (event) => {
+      this.onGameObjectEnabled(event);
+    } }), /* @__PURE__ */ createElement(
       "input",
       {
         style: {
@@ -1137,9 +1149,56 @@ class LayoutInspector extends Component {
   }
 }
 
+class LayoutConsole extends Component {
+  constructor(props) {
+    super(props);
+    this.setState({ messages: [] });
+    this.consoleOverride("log");
+    this.consoleOverride("warn");
+    this.consoleOverride("error");
+  }
+  consoleOverride(type) {
+    const originalMethod = window.console[type];
+    window.console[type] = (data) => {
+      this.setState({ messages: this.state.messages.concat({ text: data, type }) });
+      originalMethod.call(this, data);
+    };
+  }
+  render() {
+    let messages = [];
+    for (const message of this.state.messages) {
+      messages.push(/* @__PURE__ */ createElement("div", { class: message.type }, message.text));
+    }
+    return /* @__PURE__ */ createElement("div", { class: "LayoutConsole" }, "Console", ...messages);
+  }
+}
+
+class LayoutTab extends Component {
+  constructor(props) {
+    super(props);
+    this.setState({ selected: 0 });
+  }
+  onClicked(index) {
+    this.setState({ selected: index });
+  }
+  render() {
+    const headers = this.props.entries.map((entry, index) => {
+      const classes = `title ${index === this.state.selected ? "selected" : ""}`;
+      return /* @__PURE__ */ createElement("div", { onClick: (event) => {
+        this.onClicked(index);
+      }, class: classes }, entry.title);
+    });
+    const content = this.props.entries[this.state.selected].node;
+    return /* @__PURE__ */ createElement("div", { class: "LayoutTab" }, /* @__PURE__ */ createElement("div", { class: "header" }, ...headers), content);
+  }
+}
+
 class Layout extends Component {
   render() {
-    return /* @__PURE__ */ createElement("flex", { class: "h", style: "flex: 1; height: 100%;" }, /* @__PURE__ */ createElement("flex", { class: "v", style: "flex: 2;" }, /* @__PURE__ */ createElement("flex-item", { style: "flex: 2;" }, /* @__PURE__ */ createElement(LayoutCanvas, { engineAPI: this.props.engineAPI })), /* @__PURE__ */ createElement(LayoutResizer, null), /* @__PURE__ */ createElement("flex-item", { style: "flex: 1;" }, /* @__PURE__ */ createElement(LayoutAssets, { engineAPI: this.props.engineAPI }))), /* @__PURE__ */ createElement(LayoutResizer, null), /* @__PURE__ */ createElement("flex-item", { style: "flex: 1;" }, /* @__PURE__ */ createElement(LayoutHierarchy, { engineAPI: this.props.engineAPI })), /* @__PURE__ */ createElement(LayoutResizer, null), /* @__PURE__ */ createElement("flex", { class: "v", style: "flex: 1;" }, /* @__PURE__ */ createElement("flex-item", { style: "flex: 1;" }, /* @__PURE__ */ createElement(LayoutInspector, { engineAPI: this.props.engineAPI }))));
+    return /* @__PURE__ */ createElement("flex", { class: "h", style: "flex: 1; height: 100%;" }, /* @__PURE__ */ createElement("flex", { class: "v", style: "flex: 2;" }, /* @__PURE__ */ createElement("flex-item", { style: "flex: 2;" }, /* @__PURE__ */ createElement(LayoutCanvas, { engineAPI: this.props.engineAPI })), /* @__PURE__ */ createElement(LayoutResizer, null), /* @__PURE__ */ createElement("flex", { class: "h", style: "flex: 1;" }, /* @__PURE__ */ createElement("flex-item", { style: "flex: 1;" }, /* @__PURE__ */ createElement(LayoutTab, { entries: [
+      { title: "Assets", node: /* @__PURE__ */ createElement(LayoutAssets, { engineAPI: this.props.engineAPI }) },
+      { title: "Console", node: /* @__PURE__ */ createElement(LayoutConsole, { engineAPI: this.props.engineAPI }) }
+    ] })))), /* @__PURE__ */ createElement(LayoutResizer, null), /* @__PURE__ */ createElement("flex-item", { style: "flex: 1;" }, /* @__PURE__ */ createElement(LayoutHierarchy, { engineAPI: this.props.engineAPI })), /* @__PURE__ */ createElement(LayoutResizer, null), /* @__PURE__ */ createElement("flex", { class: "v", style: "flex: 1;" }, /* @__PURE__ */ createElement("flex-item", { style: "flex: 1;" }, /* @__PURE__ */ createElement(LayoutInspector, { engineAPI: this.props.engineAPI }))));
   }
 }
 

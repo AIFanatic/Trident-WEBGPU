@@ -1,5 +1,5 @@
 export { OrbitControls } from './OrbitControls.js';
-export { GLTFParser } from './GLTF/GLTF_Parser.js';
+export { GLTFLoader } from './GLTF/GLTFLoader.js';
 export { TerrainBuilder } from './TerrainGenerator/TerrainBuilder.js';
 export { SimplexNoise } from './SimplexNoise.js';
 export { DataBackedBuffer } from './DataBackedBuffer.js';
@@ -33,4 +33,6 @@ export { HDRParser } from './HDRParser.js';
 export { DebugTextureViewer } from './DebugTextureViewer.js';
 export { SpotLightHelper } from './SpotLightHelper.js';
 export { DirectionalLightHelper } from './DirectionalLightHelper.js';
+export { PointLightHelper } from './PointLightHelper.js';
 export { Atlas, AtlasViewer } from './Atlas.js';
+export { ImpostorMesh } from './Impostors/ImpostorMesh.js';

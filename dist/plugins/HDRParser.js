@@ -139,28 +139,42 @@ class HDRParser {
     let scanlineWidth = width;
     let scanlinesCount = height;
     HDRParser.readPixelsRawRLE(buffer, data, 0, fileOffset, scanlineWidth, scanlinesCount);
-    let floatData = new Float16Array(width * height * 4);
-    for (let offset = 0; offset < data.length; offset += 4) {
-      let r = data[offset + 0] / 255;
-      let g = data[offset + 1] / 255;
-      let b = data[offset + 2] / 255;
-      const e = data[offset + 3];
-      const scale = Math.pow(2, e - 128);
-      r *= scale;
-      g *= scale;
-      b *= scale;
-      let floatOffset = offset;
-      floatData[floatOffset + 0] = r;
-      floatData[floatOffset + 1] = g;
-      floatData[floatOffset + 2] = b;
-      floatData[floatOffset + 3] = 1;
+    const f32 = new Float32Array(width * height * 4);
+    for (let i = 0; i < data.length; i += 4) {
+      const e = data[i + 3];
+      const s = e ? Math.pow(2, e - 128) / 256 : 0;
+      f32[i + 0] = data[i + 0] * s;
+      f32[i + 1] = data[i + 1] * s;
+      f32[i + 2] = data[i + 2] * s;
+      f32[i + 3] = 1;
     }
+    function f32toF16(x) {
+      f32toF16.f[0] = x;
+      const u = f32toF16.u[0];
+      const s = u >>> 31 & 1;
+      let e = u >>> 23 & 255;
+      let m = u & 8388607;
+      if (e === 255) return s << 15 | 31744 | (m ? 512 : 0);
+      if (e === 0) return s << 15;
+      e = e - 127 + 15;
+      if (e <= 0) {
+        if (e < -10) return s << 15;
+        m = (m | 8388608) >>> 1 - e;
+        return s << 15 | m + 4096 >>> 13;
+      }
+      if (e >= 31) return s << 15 | 31744;
+      return s << 15 | e << 10 | m + 4096 >>> 13;
+    }
+    f32toF16.f = new Float32Array(1);
+    f32toF16.u = new Uint32Array(f32toF16.f.buffer);
+    const f16 = new Uint16Array(f32.length);
+    for (let i = 0; i < f32.length; i++) f16[i] = f32toF16(f32[i]);
     return {
       width,
       height,
       exposure,
       gamma,
-      data: floatData
+      data: f16
     };
   }
   static async ToCubemap(hdr) {

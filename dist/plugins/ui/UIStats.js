@@ -144,6 +144,7 @@ class UITextStat extends Stat {
   precision;
   unit;
   rolling;
+  formatter;
   constructor(folder, label, defaultValue = 0, precision = 0, unit = "", rolling = false) {
     super(folder.container, label);
     this.previousValue = defaultValue;
@@ -164,6 +165,10 @@ class UITextStat extends Stat {
     }
     this.previousValue = value;
   }
+  // TODO: Figure out another way of doing this
+  SetText(text) {
+    this.previousValue = text;
+  }
   GetValue() {
     return this.previousValue;
   }
@@ -175,7 +180,8 @@ class UITextStat extends Stat {
     this.unit = unit;
   }
   Update() {
-    const valueStr = this.precision === 0 ? this.previousValue.toString() : this.previousValue.toFixed(this.precision);
+    const previousValue = this.formatter ? this.formatter(this.previousValue) : this.previousValue;
+    const valueStr = this.precision === 0 ? previousValue.toString() : previousValue.toFixed(this.precision);
     this.textElement.textContent = valueStr + this.unit;
   }
 }

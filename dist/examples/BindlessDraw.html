@@ -102,8 +102,8 @@
               const cubeVertices = cubeGeometry.attributes.get("position").array;
               const cubeIndices = cubeGeometry.index.array;
               const sphereGeometry = Geometry.Sphere();
-              const sphereVertices = sphereGeometry.attributes.get("position").array;
-              const sphereIndices = sphereGeometry.index.array;
+              sphereGeometry.attributes.get("position").array;
+              sphereGeometry.index.array;
               const size = 1e3;
               const vertexBuffer = new DynamicBufferMemoryAllocator(size, GPU.BufferType.VERTEX);
               const indexBuffer = new DynamicBufferMemoryAllocator(size, GPU.BufferType.INDEX);
@@ -142,11 +142,9 @@
                 }
               }
               let objects = [];
-              const c = 1e5;
+              const c = 1e4;
               const cubes = new Object(cubeVertices, cubeIndices, 16, c);
-              const spheres = new Object(sphereVertices, sphereIndices, 16, c);
               objects.push(cubes);
-              objects.push(spheres);
               let modelMatrix = new Mathf.Matrix4();
               let position = new Mathf.Vector3();
               let rotation = new Mathf.Quaternion();

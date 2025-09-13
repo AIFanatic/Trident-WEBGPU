@@ -1,16 +1,15 @@
 import { GPU, Geometry, Mathf } from '@trident/core';
 
-class PostProcessingFXAA extends GPU.RenderPass {
-  name = "PostProcessingFXAA";
+class PostProcessingAAA extends GPU.RenderPass {
+  name = "PostProcessingAAA";
   shader;
   quadGeometry;
   renderTarget;
   constructor() {
-    super({
-      inputs: [
-        GPU.PassParams.LightingPassOutput
-      ]
-    });
+    super({ inputs: [
+      GPU.PassParams.LightingPassOutput
+    ] });
+    throw Error("TODO");
   }
   async init() {
     const code = `
@@ -84,14 +83,14 @@ class PostProcessingFXAA extends GPU.RenderPass {
 			@fragment fn fragmentMain(input: VertexOutput) -> @location(0) vec4f {
 				let resolution: vec2f = vec2f(textureDimensions(texture, 0));
 				let fragCoord: vec2f  = input.vUv * resolution;
-
+			  
 				let inverseVP: vec2f = 1.0 / resolution.xy;
 				let v_rgbNW: vec2f   = (fragCoord + vec2(-1.0, -1.0)) * inverseVP;
 				let v_rgbNE: vec2f   = (fragCoord + vec2(1.0, -1.0)) * inverseVP;
 				let v_rgbSW: vec2f   = (fragCoord + vec2(-1.0, 1.0)) * inverseVP;
 				let v_rgbSE: vec2f   = (fragCoord + vec2(1.0, 1.0)) * inverseVP;
 				let v_rgbM: vec2f    = vec2(fragCoord * inverseVP);
-
+				
 				return fxaa(texture, fragCoord, resolution, v_rgbNW, v_rgbNE, v_rgbSW, v_rgbSE, v_rgbM);
 			}
 		`;
@@ -105,13 +104,14 @@ class PostProcessingFXAA extends GPU.RenderPass {
       uniforms: {
         textureSampler: { group: 0, binding: 0, type: "sampler" },
         texture: { group: 0, binding: 1, type: "texture" },
-        resolutionInv: { group: 0, binding: 2, type: "uniform" }
+        resolutionInv: { group: 0, binding: 2, type: "storage" }
       }
     });
     this.quadGeometry = Geometry.Plane();
-    this.renderTarget = GPU.RenderTexture.Create(GPU.Renderer.width, GPU.Renderer.height);
-    this.shader.SetSampler("textureSampler", GPU.TextureSampler.Create());
+    const sampler = GPU.TextureSampler.Create();
+    this.shader.SetSampler("textureSampler", sampler);
     this.shader.SetVector2("resolutionInv", new Mathf.Vector2(1 / GPU.Renderer.width, 1 / GPU.Renderer.height));
+    this.renderTarget = GPU.RenderTexture.Create(GPU.Renderer.width, GPU.Renderer.height);
     this.initialized = true;
   }
   execute(resources) {
@@ -126,4 +126,4 @@ class PostProcessingFXAA extends GPU.RenderPass {
   }
 }
 
-export { PostProcessingFXAA };
+export { PostProcessingAAA };

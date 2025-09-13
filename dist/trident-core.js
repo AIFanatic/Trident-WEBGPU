@@ -100,7 +100,6 @@ function SerializeField(value, context) {
   }
   return value;
 }
-console.log(SerializableFields);
 
 var index$3 = /*#__PURE__*/Object.freeze({
     __proto__: null,
@@ -233,12 +232,13 @@ class Renderer {
   static height;
   static activeRenderer;
   static info = new RendererInfo();
+  static canvas;
   static Create(canvas, type) {
     const aspectRatio = 1;
     canvas.width = canvas.parentElement.clientWidth * aspectRatio;
     canvas.height = canvas.parentElement.clientHeight * aspectRatio;
-    canvas.style.width = "100vw";
-    canvas.style.height = "100vh";
+    canvas.style.width = "100%";
+    canvas.style.height = "100%";
     canvas.style.userSelect = "none";
     const observer = new ResizeObserver((entries) => {
       canvas.width = canvas.parentElement.clientWidth * aspectRatio;
@@ -246,8 +246,10 @@ class Renderer {
       Renderer.width = canvas.width;
       Renderer.height = canvas.height;
       EventSystem.emit(RendererEvents.Resized, canvas);
+      console.log("Resized");
     });
     observer.observe(canvas);
+    Renderer.canvas = canvas;
     Renderer.type = type;
     Renderer.width = canvas.width;
     Renderer.height = canvas.height;
@@ -2254,7 +2256,6 @@ class Geometry {
   name = "";
   index;
   attributes = /* @__PURE__ */ new Map();
-  enableShadows = true;
   _boundingVolume;
   get boundingVolume() {
     const positions = this.attributes.get("position");
@@ -2275,7 +2276,6 @@ class Geometry {
     if (this.index) {
       clone.index = new IndexAttribute(this.index.array);
     }
-    clone.enableShadows = this.enableShadows;
     return clone;
   }
   ApplyOperationToVertices(operation, vec) {
@@ -3310,6 +3310,11 @@ class RenderTexture extends Texture {
 class RenderTextureStorage3D extends Texture {
   static Create(width, height, depth = 1, format = Renderer.SwapChainFormat, mipLevels = 1) {
     return CreateTexture(width, height, depth, format, 3 /* RENDER_TARGET_STORAGE */, "3d", mipLevels);
+  }
+}
+class RenderTextureStorage2D extends Texture {
+  static Create(width, height, depth = 1, format = Renderer.SwapChainFormat, mipLevels = 1) {
+    return CreateTexture(width, height, depth, format, 3 /* RENDER_TARGET_STORAGE */, "2d", mipLevels);
   }
 }
 class RenderTextureCube extends Texture {
@@ -4362,9 +4367,13 @@ class DeferredLightingPass extends RenderPass {
   execute(resources) {
     if (!this.initialized) return;
     const camera = Camera.mainCamera;
-    if (this.needsUpdate) ;
     const scene = camera.gameObject.scene;
-    const lights = [...scene.GetComponents(Light), ...scene.GetComponents(PointLight), ...scene.GetComponents(DirectionalLight), ...scene.GetComponents(SpotLight), ...scene.GetComponents(AreaLight)];
+    const _lights = [...scene.GetComponents(PointLight), ...scene.GetComponents(DirectionalLight), ...scene.GetComponents(SpotLight), ...scene.GetComponents(AreaLight)];
+    let lights = [];
+    for (const light of _lights) {
+      if (light.enabled === false || light.gameObject.enabled === false) continue;
+      lights.push(light);
+    }
     if (lights.length === 0) return;
     this.updateLightsBuffer(lights, resources);
     const inputGBufferAlbedo = resources.getResource(PassParams.GBufferAlbedo);
@@ -4513,6 +4522,7 @@ class Mesh extends (_a = Component, _geometry_dec = [SerializeField], _materials
   }
   Start() {
     EventSystemLocal.on(TransformEvents.Updated, this.transform, () => {
+      if (!this.geometry) return;
       this.geometry.boundingVolume.center.copy(this.transform.position);
       this.geometry.boundingVolume.scale = Math.max(this.transform.scale.x, this.transform.scale.y, this.transform.scale.z);
     });
@@ -4742,8 +4752,12 @@ class DeferredShadowMapPass extends RenderPass {
       }
     }
     if (lights.length === 0) return;
-    const meshes = scene.GetComponents(Mesh);
     const instancedMeshes = scene.GetComponents(InstancedMesh);
+    let meshes = [];
+    const _meshes = scene.GetComponents(Mesh);
+    for (const mesh of _meshes) {
+      if (mesh.enableShadows && mesh.enabled && mesh.gameObject.enabled) meshes.push(mesh);
+    }
     if (meshes.length === 0 && instancedMeshes.length === 0) return;
     if (lights.length !== this.shadowOutput.depth) {
       this.shadowOutput = DepthTextureArray.Create(this.shadowWidth, this.shadowHeight, lights.length);
@@ -4773,9 +4787,7 @@ class DeferredShadowMapPass extends RenderPass {
       }
     }
     for (let i = 0; i < meshes.length; i++) {
-      const mesh = meshes[i];
-      if (!mesh.enabled || !mesh.enableShadows) continue;
-      this.modelMatrices.SetArray(mesh.transform.localToWorldMatrix.elements, i * 256);
+      this.modelMatrices.SetArray(meshes[i].transform.localToWorldMatrix.elements, i * 256);
     }
     this.drawShadowShader.SetBuffer("modelMatrix", this.modelMatrices);
     const shadowOutput = resources.getResource(PassParams.ShadowPassDepth);
@@ -4826,14 +4838,12 @@ class DeferredShadowMapPass extends RenderPass {
         }
         let meshCount = 0;
         for (const mesh of meshes) {
-          if (mesh.enableShadows && mesh.enabled) {
-            const geometry = mesh.GetGeometry();
-            if (!geometry) continue;
-            if (!geometry.attributes.has("position")) continue;
-            const uniform_offset = meshCount * 256;
-            this.modelMatrices.dynamicOffset = uniform_offset;
-            RendererContext.DrawGeometry(geometry, this.drawShadowShader, 1);
-          }
+          const geometry = mesh.GetGeometry();
+          if (!geometry) continue;
+          if (!geometry.attributes.has("position")) continue;
+          const uniform_offset = meshCount * 256;
+          this.modelMatrices.dynamicOffset = uniform_offset;
+          RendererContext.DrawGeometry(geometry, this.drawShadowShader, 1);
           meshCount++;
         }
         for (const instance of instancedMeshes) {
@@ -4936,7 +4946,7 @@ class PrepareGBuffers extends RenderPass {
 }
 
 class DeferredGBufferPass extends RenderPass {
-  name = "DeferredMeshRenderPass";
+  name = "DeferredGBufferPass";
   modelMatrixBuffer;
   constructor() {
     super({
@@ -4969,10 +4979,16 @@ class DeferredGBufferPass extends RenderPass {
   execute(resources) {
     if (!this.initialized) return;
     const scene = Camera.mainCamera.gameObject.scene;
-    const meshes = scene.GetComponents(Mesh);
-    Renderer.info.visibleObjects = meshes.length;
+    const _meshes = scene.GetComponents(Mesh);
+    let meshesInfo = [];
+    for (let i = 0; i < _meshes.length; i++) {
+      const mesh = _meshes[i];
+      if (!mesh.enabled || !mesh.gameObject.enabled || !mesh.GetGeometry()) continue;
+      meshesInfo.push({ mesh, index: i });
+    }
+    Renderer.info.visibleObjects = meshesInfo.length;
     const instancedMeshes = scene.GetComponents(InstancedMesh);
-    if (meshes.length === 0 && instancedMeshes.length === 0) return;
+    if (meshesInfo.length === 0 && instancedMeshes.length === 0) return;
     const inputCamera = Camera.mainCamera;
     if (!inputCamera) throw Error(`No inputs passed to ${this.name}`);
     const backgroundColor = inputCamera.backgroundColor;
@@ -4980,11 +4996,8 @@ class DeferredGBufferPass extends RenderPass {
     const inputGBufferNormal = resources.getResource(PassParams.GBufferNormal);
     const inputGBufferERMO = resources.getResource(PassParams.GBufferERMO);
     const inputGBufferDepth = resources.getResource(PassParams.GBufferDepth);
-    for (const mesh of meshes) {
-      if (!mesh.enabled) continue;
-      const geometry = mesh.GetGeometry();
-      if (!geometry) continue;
-      this.modelMatrixBuffer.set(mesh.id, mesh.transform.localToWorldMatrix.elements);
+    for (const meshInfo of meshesInfo) {
+      this.modelMatrixBuffer.set(meshInfo.mesh.id, meshInfo.mesh.transform.localToWorldMatrix.elements);
     }
     RendererContext.BeginRenderPass(
       this.name,
@@ -4998,12 +5011,9 @@ class DeferredGBufferPass extends RenderPass {
     );
     const projectionMatrix = inputCamera.projectionMatrix;
     const viewMatrix = inputCamera.viewMatrix;
-    let meshCount = 0;
-    for (const mesh of meshes) {
-      if (!mesh.enabled) continue;
-      const geometry = mesh.GetGeometry();
-      if (!geometry) continue;
-      const materials = mesh.GetMaterials();
+    for (const meshInfo of meshesInfo) {
+      const geometry = meshInfo.mesh.GetGeometry();
+      const materials = meshInfo.mesh.GetMaterials();
       for (const material of materials) {
         if (material.params.isDeferred === false) continue;
         if (!material.shader) {
@@ -5016,12 +5026,11 @@ class DeferredGBufferPass extends RenderPass {
         shader.SetMatrix4("viewMatrix", viewMatrix);
         shader.SetBuffer("modelMatrix", this.modelMatrixBuffer.getBuffer());
         shader.SetVector3("cameraPosition", inputCamera.transform.position);
-        RendererContext.DrawGeometry(geometry, shader, 1, meshCount);
+        RendererContext.DrawGeometry(geometry, shader, 1, meshInfo.index);
         if (geometry.index) {
           Renderer.info.triangleCount += geometry.index.array.length / 3;
         }
       }
-      meshCount++;
     }
     for (const instancedMesh of instancedMeshes) {
       const geometry = instancedMesh.GetGeometry();
@@ -5300,6 +5309,7 @@ class Scene {
   Tick() {
     performance.now();
     for (const [component, _] of this.toUpdate) {
+      if (component.gameObject.enabled === false) continue;
       if (!component.hasStarted) {
         component.Start();
         component.hasStarted = true;
@@ -5318,6 +5328,7 @@ class GameObject {
   transform;
   componentsArray = [];
   componentsMapped = /* @__PURE__ */ new Map();
+  enabled = true;
   constructor(scene) {
     this.scene = scene;
     this.transform = new Transform(this);
@@ -5334,16 +5345,6 @@ class GameObject {
         this.componentsArray.push(instance);
       };
       AddComponentInternal(component, componentInstance);
-      let currentComponent = component;
-      let i = 0;
-      while (i < 10) {
-        currentComponent = Object.getPrototypeOf(currentComponent);
-        if (currentComponent.name === Component.name || currentComponent.name === "") {
-          break;
-        }
-        AddComponentInternal(currentComponent, componentInstance);
-        i++;
-      }
       if (componentInstance instanceof Camera && !Camera.mainCamera) Camera.mainCamera = componentInstance;
       if (this.scene.hasStarted) componentInstance.Start();
       return componentInstance;
@@ -5610,6 +5611,7 @@ var index = /*#__PURE__*/Object.freeze({
     RenderTexture: RenderTexture,
     RenderTexture3D: RenderTexture3D,
     RenderTextureCube: RenderTextureCube,
+    RenderTextureStorage2D: RenderTextureStorage2D,
     RenderTextureStorage3D: RenderTextureStorage3D,
     Renderer: Renderer,
     RendererContext: RendererContext,

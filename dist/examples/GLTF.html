@@ -27,10 +27,9 @@
             <script type="module">
                 const canvas = document.createElement("canvas");
                 document.body.appendChild(canvas);
-                            import { GPU, Scene, GameObject, Components, Mathf } from '@trident/core';
+                            import { GPU, Scene, GameObject, Components, Mathf, IndexAttribute } from '@trident/core';
             import { OrbitControls } from '@trident/plugins/OrbitControls.js';
-            import { GLTFParser } from '@trident/plugins/GLTF/GLTF_Parser.js';
-            import { HDRParser } from '@trident/plugins/HDRParser.js';
+            import { GLTFLoader } from '@trident/plugins/GLTF/GLTFLoader.js';
             import { Debugger } from '@trident/plugins/Debugger.js';
             
             async function Application(canvas) {
@@ -52,26 +51,25 @@
                 func(object3D);
                 for (const child of object3D.children) traverse(child, func);
               }
-              const helmet = await GLTFParser.Load("./assets/models/DamagedHelmet/DamagedHelmet.gltf");
+              const helmet = await GLTFLoader.Load("./assets/models/Fox.glb");
               traverse(helmet, (object3D) => {
-                if (object3D.geometry && object3D.material) {
-                  console.log(object3D);
-                  const gameObject = new GameObject(scene);
-                  const mesh = gameObject.AddComponent(Components.Mesh);
-                  object3D.localMatrix.decompose(gameObject.transform.position, gameObject.transform.rotation, gameObject.transform.scale);
-                  mesh.SetGeometry(object3D.geometry);
-                  mesh.AddMaterial(object3D.material);
+                if (!object3D.geometry || !object3D.material) return;
+                if (!object3D.geometry.index) {
+                  const positionsArray = object3D.geometry.attributes.get("position").array;
+                  let indexBuffer = new Uint32Array(positionsArray.length);
+                  for (let i = 0; i < indexBuffer.length; i++) {
+                    indexBuffer[i] = i;
+                  }
+                  object3D.geometry.index = new IndexAttribute(indexBuffer);
+                  object3D.geometry.ComputeNormals();
                 }
+                console.log(object3D, "ger");
+                const gameObject = new GameObject(scene);
+                const mesh = gameObject.AddComponent(Components.Mesh);
+                object3D.localMatrix.decompose(gameObject.transform.position, gameObject.transform.rotation, gameObject.transform.scale);
+                mesh.SetGeometry(object3D.geometry);
+                mesh.AddMaterial(object3D.material);
               });
-              const hdr = await HDRParser.Load("./assets/textures/HDR/royal_esplanade_1k.hdr");
-              const sky = await HDRParser.ToCubemap(hdr);
-              const skyIrradiance = await HDRParser.GetIrradianceMap(sky);
-              const prefilterMap = await HDRParser.GetPrefilterMap(sky);
-              const brdfLUT = await HDRParser.GetBRDFLUT();
-              scene.renderPipeline.skybox = sky;
-              scene.renderPipeline.skyboxIrradiance = skyIrradiance;
-              scene.renderPipeline.skyboxPrefilter = prefilterMap;
-              scene.renderPipeline.skyboxBRDFLUT = brdfLUT;
               Debugger.Enable();
               scene.Start();
             }

@@ -33,7 +33,8 @@
             import { UIFolder, UIVecStat, UISliderStat, UIColorStat } from '@trident/plugins/ui/UIStats.js';
             import { Debugger } from '@trident/plugins/Debugger.js';
             import { SpotLightHelper } from '@trident/plugins/SpotLightHelper.js';
-            import { DirectionalLightHelper } from '@trident/plugins/DirectionalLightHelper.js';
+            import { PostProcessingPass } from '@trident/plugins/PostProcessing/PostProcessingPass.js';
+            import { PostProcessingFXAA } from '@trident/plugins/PostProcessing/effects/FXAA.js';
             
             async function Application(canvas) {
               const renderer = GPU.Renderer.Create(canvas, "webgpu");
@@ -87,19 +88,6 @@
                 const spotLightHelper = lightHelperGameObject.AddComponent(SpotLightHelper);
                 spotLightHelper.light = light;
                 w = waterSettingsFolder;
-              }
-              {
-                const lightGameObject = new GameObject(scene);
-                lightGameObject.transform.position.set(4, 4, 4);
-                lightGameObject.transform.LookAtV1(new Mathf.Vector3(0, 0, 0));
-                const light = lightGameObject.AddComponent(Components.DirectionalLight);
-                light.intensity = 1;
-                light.range = 7.5;
-                light.color.set(1, 1, 1, 1);
-                light.castShadows = true;
-                const lightHelperGameObject = new GameObject(scene);
-                const spotLightHelper = lightHelperGameObject.AddComponent(DirectionalLightHelper);
-                spotLightHelper.light = light;
               }
               {
                 const planeGO = new GameObject(scene);
@@ -158,6 +146,9 @@
                 scene.renderPipeline.skyboxPrefilter = prefilterMap;
                 scene.renderPipeline.skyboxBRDFLUT = brdfLUT;
               }
+              const postProcessing = new PostProcessingPass();
+              postProcessing.effects.push(new PostProcessingFXAA());
+              scene.renderPipeline.AddPass(postProcessing, GPU.RenderPassOrder.AfterLighting);
               scene.Start();
             }
             Application(document.querySelector("canvas"));

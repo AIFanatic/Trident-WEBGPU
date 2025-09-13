@@ -66,6 +66,7 @@ class LineRenderer extends Component {
     });
     this.mesh = this.gameObject.AddComponent(Components.Mesh);
     this.mesh.name = "LineRenderer";
+    this.mesh.enableShadows = false;
     await this.mesh.SetGeometry(this.geometry);
     this.mesh.AddMaterial(this.material);
   }

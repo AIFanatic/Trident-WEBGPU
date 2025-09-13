@@ -1,7 +1,7 @@
 import { Texture, Geometry, VertexAttribute, IndexAttribute, Mathf, PBRMaterial } from '@trident/core';
-import { GLTFLoader, AccessorComponentType } from './GLTFLoader_Minimal.js';
+import { GLTFParser, AccessorComponentType } from './GLTFParser.js';
 
-class GLTFParser {
+class GLTFLoader {
   static TextureCache = /* @__PURE__ */ new Map();
   static async getTexture(textures, textureInfo, textureFormat) {
     if (!textures || !textureInfo) return void 0;
@@ -79,10 +79,12 @@ class GLTFParser {
     }
     if (geometry.attributes.has("position") && geometry.attributes.has("normal") && geometry.attributes.has("uv") && materialParams.normalMap) geometry.ComputeTangents();
     return {
+      name: "",
       geometry,
       material: new PBRMaterial(materialParams),
-      children: []
+      children: [],
       // node.children,
+      localMatrix: new Mathf.Matrix4()
     };
   }
   static async parseNode(gltf, node, textures) {
@@ -137,10 +139,12 @@ class GLTFParser {
     return nodeObject3D;
   }
   static async Load(url) {
-    return new GLTFLoader().load(url).then(async (gltf) => {
+    return new GLTFParser().load(url).then(async (gltf) => {
       if (!gltf || !gltf.scenes) throw Error("Invalid gltf");
       console.log("gltf", gltf);
       const sceneObject3D = {
+        name: "Scene",
+        localMatrix: new Mathf.Matrix4(),
         children: []
       };
       for (const scene of gltf.scenes) {
@@ -155,4 +159,4 @@ class GLTFParser {
   }
 }
 
-export { GLTFParser };
+export { GLTFLoader };
