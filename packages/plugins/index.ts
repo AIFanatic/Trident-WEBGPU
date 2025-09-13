@@ -1,5 +1,5 @@
 export * from "./OrbitControls";
-export * from "./GLTF/GLTF_Parser";
+export * from "./GLTF/GLTFLoader";
 export * from "./TerrainGenerator/TerrainBuilder";
 export * from "./SimplexNoise";
 
@@ -37,4 +37,8 @@ export * from "./DebugTextureViewer";
 
 export * from "./SpotLightHelper";
 export * from "./DirectionalLightHelper";
+export * from "./PointLightHelper";
+
 export * from "./Atlas";
+
+export * from "./Impostors/ImpostorMesh";

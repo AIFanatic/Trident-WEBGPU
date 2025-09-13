@@ -8,3 +8,4 @@ yarn.*
 tsconfig.tsbuildinfo
 extra
 cloc.sh
+*.bak

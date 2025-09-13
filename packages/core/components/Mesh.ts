@@ -16,6 +16,7 @@ export class Mesh extends Component {
 
     public Start(): void {
         EventSystemLocal.on(TransformEvents.Updated, this.transform, () => {
+            if (!this.geometry) return;
             this.geometry.boundingVolume.center.copy(this.transform.position);
             this.geometry.boundingVolume.scale = Math.max(this.transform.scale.x, this.transform.scale.y, this.transform.scale.z);
         })

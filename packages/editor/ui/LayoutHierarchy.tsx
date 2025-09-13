@@ -9,13 +9,23 @@ export class LayoutHierarchyEvents {
     public static Selected = (gameObject: IGameObject) => {};
 }
 
-export class LayoutHierarchy extends Component<BaseProps> {
+interface LayoutHierarchyState {
+    gameObject: IGameObject;
+};
+
+export class LayoutHierarchy extends Component<BaseProps, LayoutHierarchyState> {
+
+    constructor(props) {
+        super(props);
+        this.setState({gameObject: null});
+    }
 
     private onDropped(from: string, to: string) {
     }
 
     private onClicked(data: ITreeMap<IGameObject>) {
         EventSystem.emit(LayoutHierarchyEvents.Selected, data.data);
+        this.setState({gameObject: data.data});
     }
 
     private onDragStarted(event, data) {
@@ -28,7 +38,7 @@ export class LayoutHierarchy extends Component<BaseProps> {
             treeMap.push({
                 id: gameObject.transform.id,
                 name: gameObject.name,
-                isSelected: this.props.selectedGameObject && this.props.selectedGameObject == gameObject ? true : false,
+                isSelected: this.state.gameObject && this.state.gameObject == gameObject ? true : false,
                 parent: gameObject.transform.parent ?  gameObject.transform.parent.id : "",
                 data: gameObject
             })
@@ -42,7 +52,7 @@ export class LayoutHierarchy extends Component<BaseProps> {
         const nodes = this.buildTreeFromGameObjects(this.props.engineAPI.currentScene.gameObjects);
 
         return (
-            <div>
+            <div style="width: 100%">
                 <Tree
                     onDropped={(from, to) => this.onDropped(from, to)}
                     onClicked={(data) => this.onClicked(data)}

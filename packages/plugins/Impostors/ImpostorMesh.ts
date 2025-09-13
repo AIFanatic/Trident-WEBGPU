@@ -1,61 +1,66 @@
-import { Object3D, GameObject, Scene, Components, Mathf } from "@trident/core";
-import { Geometry, InterleavedVertexAttribute, VertexAttribute } from "@trident/core/Geometry";
-import { Material, PBRMaterial } from "@trident/core/renderer/Material";
-import { Shader } from "@trident/core/renderer/Shader";
-import { Renderer } from "@trident/core/renderer/Renderer";
-import { RendererContext } from "@trident/core/renderer/RendererContext";
-import { Texture, RenderTexture } from "@trident/core/renderer/Texture";
-import { TextureSampler } from "@trident/core/renderer/TextureSampler";
+import {
+    Components,
+    Scene,
+    GPU,
+    Mathf,
+    GameObject,
+    Geometry,
+    PBRMaterial,
+    Object3D,
+} from "@trident/core";
+
 
 import { Dilator } from "./Dilator";
 
 export class ImpostorMesh extends Components.Mesh {
     public impostorGeometry: Geometry;
-    public impostorShader: Shader;
-    public albedoTexture: RenderTexture;
-    public normalTexture: RenderTexture;
+    public impostorShader: GPU.Shader;
+    public albedoTexture: GPU.RenderTexture;
+    public normalTexture: GPU.RenderTexture;
 
-    public async Create(objects: Object3D[], atlasResolution = 2048, atlasTiles = 12) {
-        let radius = 0;
-        for (const object of objects) {
-            if(object.geometry) {
-                // object.geometry = object.geometry.Scale(new Vector3(0.01, 0.01, 0.01));
-                object.geometry = object.geometry.Center();
-                // object.geometry.ComputeBoundingVolume();
-                radius = Math.max(radius, object.geometry.boundingVolume.radius);
-            }
+    public async Create(objects: Object3D, atlasResolution = 2048, atlasTiles = 12) {
+        async function traverse(object3D: Object3D, func: (o: Object3D) => void | Promise<void>): Promise<void> {
+            await func(object3D);
+            for (const child of object3D.children) await traverse(child, func);
         }
+
+        let radius = 0;
+        await traverse(objects, object => {
+            if (!object.geometry || !object.material) return;
+            // object.geometry = object.geometry.Scale(new Vector3(0.01, 0.01, 0.01));
+            object.geometry = object.geometry.Center();
+            // object.geometry.ComputeBoundingVolume();
+            radius = Math.max(radius, object.geometry.boundingVolume.radius);
+        })
 
         let scale = 1 / radius;
-        for (const object of objects) {
-            if(object.geometry) {
-                object.geometry = object.geometry.Scale(new Mathf.Vector3(scale, scale, scale));
-                // object.geometry = object.geometry.Center();
-                object.geometry.ComputeBoundingVolume();
-                radius = Math.max(radius, object.geometry.boundingVolume.radius);
-            }
-        }
+        await traverse(objects, object => {
+            if (!object.geometry || !object.material) return;
+            object.geometry = object.geometry.Scale(new Mathf.Vector3(scale, scale, scale));
+            // object.geometry = object.geometry.Center();
+            object.geometry.ComputeBoundingVolume();
+            radius = Math.max(radius, object.geometry.boundingVolume.radius);
+        })
 
         radius = 1;
         // const radius = geometry.boundingVolume.radius * 2.0;
         // radius = 0.6478817;
         // radius *= 1.1;
-        const scene = new Scene(Renderer.activeRenderer);
+        const scene = new Scene(GPU.Renderer.activeRenderer);
 
-        console.log(radius)
-        console.log("radius", radius)
-        console.log("bounds min", objects[0].geometry?.boundingVolume.min);
-        console.log("bounds max", objects[0].geometry?.boundingVolume.max);
         const gameObject = new GameObject(scene);
         const camera = gameObject.AddComponent(Components.Camera);
         camera.SetOrthographic(-radius, radius, radius, -radius, 0.0, radius * 2);
 
         const impostorObjects: Object3D[] = [];
 
-        for (const object of objects) {
-            if (!object.geometry) continue;
+        console.log("radius", radius);
+        await traverse(objects, async object => {
+            if (!object.geometry || !object.material) return;
 
-            const shader = await Shader.Create({
+            console.log("radius", radius);
+            
+            const shader = await GPU.Shader.Create({
                 code: `
                 struct VertexInput {
                     @location(0) position : vec3<f32>,
@@ -129,7 +134,7 @@ export class ImpostorMesh extends Components.Mesh {
                     USE_ALBEDO_MAP: object.material?.params.albedoMap ? true : false,
                 },
             });
-            shader.SetSampler("textureSampler", TextureSampler.Create());
+            shader.SetSampler("textureSampler", GPU.TextureSampler.Create());
             if (object.material) {
                 if (object.material.params.albedoColor) shader.SetArray("albedoColor", object.material.params.albedoColor.elements);
                 if (object.material.params.albedoMap) shader.SetTexture("albedoMap", object.material.params.albedoMap);
@@ -138,13 +143,13 @@ export class ImpostorMesh extends Components.Mesh {
             console.warn("Depth still has some issues")
             const m = new PBRMaterial();
             m.shader = shader;
-            impostorObjects.push({material: m, geometry: object.geometry, children: [], localMatrix: null});
-        }
-
+            impostorObjects.push({name: "impostor", material: m, geometry: object.geometry, children: [], localMatrix: null});
+            console.log(impostorObjects[impostorObjects.length -1])
+        })
 
         const frameSize = atlasResolution / atlasTiles;
-        const albedoTexture = RenderTexture.Create(atlasResolution, atlasResolution, 1, "rgba16float");
-        const normalTexture = RenderTexture.Create(atlasResolution, atlasResolution, 1, "rgba16float");
+        const albedoTexture = GPU.RenderTexture.Create(atlasResolution, atlasResolution, 1, "rgba16float");
+        const normalTexture = GPU.RenderTexture.Create(atlasResolution, atlasResolution, 1, "rgba16float");
 
 
         const frames = atlasTiles;
@@ -152,6 +157,7 @@ export class ImpostorMesh extends Components.Mesh {
 
         const framesMinusOne = frames - 1;
 
+        console.log(impostorObjects)
         for (var x = 0; x < frames; x++) {
             for (var y = 0; y < frames; y++) {
                 var vec = new Mathf.Vector2(
@@ -195,7 +201,7 @@ export class ImpostorMesh extends Components.Mesh {
         return n;
     }
 
-    private renderByPosition(renderTexture: RenderTexture, x: number, y: number, w: number, h: number, camera: Components.Camera, object: Object3D) {
+    private renderByPosition(renderTexture: GPU.RenderTexture, x: number, y: number, w: number, h: number, camera: Components.Camera, object: Object3D) {
         if (!object.material || !object.geometry) return;
 
         const modelMatrix = new Mathf.Matrix4();
@@ -204,16 +210,16 @@ export class ImpostorMesh extends Components.Mesh {
         object.material.shader.SetMatrix4("viewMatrix", camera.viewMatrix);
         object.material.shader.SetMatrix4("modelMatrix", modelMatrix);
         object.material.shader.SetValue("cameraFar", camera.far);
-        Renderer.BeginRenderFrame();
-        RendererContext.BeginRenderPass("Impostor creator", [{target: renderTexture, clear: false}]);
-        RendererContext.SetViewport(x, y, w, h);
-        RendererContext.SetScissor(x, y, w, h);
-        RendererContext.DrawGeometry(object.geometry, object.material.shader);
-        RendererContext.EndRenderPass();
-        Renderer.EndRenderFrame();
+        GPU.Renderer.BeginRenderFrame();
+        GPU.RendererContext.BeginRenderPass("Impostor creator", [{target: renderTexture, clear: false}]);
+        GPU.RendererContext.SetViewport(x, y, w, h);
+        GPU.RendererContext.SetScissor(x, y, w, h);
+        GPU.RendererContext.DrawGeometry(object.geometry, object.material.shader);
+        GPU.RendererContext.EndRenderPass();
+        GPU.Renderer.EndRenderFrame();
     }
 
-    private async createImpostorMesh(atlasTiles: number, albedoTexture: RenderTexture, normalTexture: RenderTexture) {
+    private async createImpostorMesh(atlasTiles: number, albedoTexture: GPU.RenderTexture, normalTexture: GPU.RenderTexture) {
         const geometry = Geometry.Plane();
 
 
@@ -717,7 +723,7 @@ export class ImpostorMesh extends Components.Mesh {
             return out;
         }
         `
-        const shader = await Shader.Create({
+        const shader = await GPU.Shader.Create({
             code: `
             ${impostorShaderCommon}
 
@@ -940,7 +946,7 @@ export class ImpostorMesh extends Components.Mesh {
             },
             cullMode: "none"
         });
-        shader.SetSampler("textureSampler", TextureSampler.Create({magFilter: "linear", minFilter: "linear", mipmapFilter: "linear", addressModeU: "repeat", addressModeV: "repeat"}));
+        shader.SetSampler("textureSampler", GPU.TextureSampler.Create({magFilter: "linear", minFilter: "linear", mipmapFilter: "linear", addressModeU: "repeat", addressModeV: "repeat"}));
 
 
         // const textSDFTexture = await Texture.Load("./assets/text_sdf.png");
@@ -964,12 +970,12 @@ export class ImpostorMesh extends Components.Mesh {
         
 
 
-        const normalTextureRotated = RenderTexture.Create(normalTexture.width, normalTexture.height);
-        await Texture.Blit(normalTexture, normalTextureRotated, normalTexture.width, normalTexture.height, new Mathf.Vector2(-1, 1));
+        const normalTextureRotated = GPU.RenderTexture.Create(normalTexture.width, normalTexture.height);
+        await GPU.Texture.Blit(normalTexture, normalTextureRotated, normalTexture.width, normalTexture.height, new Mathf.Vector2(-1, 1));
         normalTexture = normalTextureRotated;
 
-        const albedoTextureRotated = RenderTexture.Create(albedoTexture.width, albedoTexture.height);
-        await Texture.Blit(albedoTexture, albedoTextureRotated, albedoTexture.width, albedoTexture.height, new Mathf.Vector2(-1, 1));
+        const albedoTextureRotated = GPU.RenderTexture.Create(albedoTexture.width, albedoTexture.height);
+        await GPU.Texture.Blit(albedoTexture, albedoTextureRotated, albedoTexture.width, albedoTexture.height, new Mathf.Vector2(-1, 1));
         albedoTexture = albedoTextureRotated;
 
         // shader.SetTexture("textSDFTexture", textSDFTexture);

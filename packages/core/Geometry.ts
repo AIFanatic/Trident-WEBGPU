@@ -83,8 +83,6 @@ export class Geometry {
     public index?: IndexAttribute;
     public readonly attributes: Map<string, VertexAttribute | InterleavedVertexAttribute> = new Map();
 
-    public enableShadows: boolean = true;
-
     public _boundingVolume: BoundingVolume;
     public get boundingVolume(): BoundingVolume {
         const positions = this.attributes.get("position");
@@ -108,7 +106,6 @@ export class Geometry {
         if (this.index) {
             clone.index = new IndexAttribute(this.index.array as Uint32Array);
         }
-        clone.enableShadows = this.enableShadows;
         return clone;
     }
 

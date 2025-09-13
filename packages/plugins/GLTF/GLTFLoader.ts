@@ -8,9 +8,9 @@ import {
     IndexAttribute, VertexAttribute
 } from "@trident/core";
 
-import {GLTFLoader, MeshPrimitive, Texture, Node, AccessorComponentType, GLTF, TextureInfo} from './GLTFLoader_Minimal'
+import {GLTFParser, MeshPrimitive, Texture, Node, AccessorComponentType, GLTF, TextureInfo} from './GLTFParser'
 
-export class GLTFParser {
+export class GLTFLoader {
     private static TextureCache: Map<Texture, Promise<TridentTexture>> = new Map();
 
     private static async getTexture(textures: Texture[] | undefined, textureInfo: TextureInfo | null, textureFormat: "bgra8unorm" | "bgra8unorm-srgb"): Promise<TridentTexture | undefined> {
@@ -102,7 +102,7 @@ export class GLTFParser {
             }
 
             if (primitive.material.normalTexture) materialParams.normalMap = await this.getTexture(textures, primitive.material.normalTexture, "bgra8unorm");
-            if (primitive.material.emissiveTexture) materialParams.emissiveMap = await this.getTexture(textures, primitive.material.emissiveTexture, "bgra8unorm");
+            if (primitive.material.emissiveTexture) materialParams.emissiveMap = await this.getTexture(textures, primitive.material.emissiveTexture, "bgra8unorm-srgb");
 
             if (primitive.material.emissiveFactor) {
                 materialParams.emissiveColor = new Mathf.Color(...primitive.material.emissiveFactor);
@@ -120,9 +120,11 @@ export class GLTFParser {
         if (geometry.attributes.has("position") && geometry.attributes.has("normal") && geometry.attributes.has("uv") && materialParams.normalMap) geometry.ComputeTangents();
 
         return {
+            name: "",
             geometry: geometry,
             material: new PBRMaterial(materialParams),
             children: [], // node.children,
+            localMatrix: new Mathf.Matrix4()
         };
     }
 
@@ -189,11 +191,13 @@ export class GLTFParser {
     }
 
     public static async Load(url: string): Promise<Object3D> {
-        return new GLTFLoader().load(url).then(async gltf => {
+        return new GLTFParser().load(url).then(async gltf => {
             if (!gltf || !gltf.scenes) throw Error("Invalid gltf");
             
             console.log("gltf", gltf)
             const sceneObject3D: Object3D = {
+                name: "Scene",
+                localMatrix: new Mathf.Matrix4(),
                 children: []
             }
 

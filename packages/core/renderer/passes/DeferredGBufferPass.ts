@@ -10,7 +10,7 @@ import { BoundingVolume } from "../../math/BoundingVolume";
 import { DynamicBufferMemoryAllocator } from "../MemoryAllocator";
 
 export class DeferredGBufferPass extends RenderPass {
-    public name: string = "DeferredMeshRenderPass";
+    public name: string = "DeferredGBufferPass";
     private modelMatrixBuffer: DynamicBufferMemoryAllocator;
 
     constructor() {
@@ -49,11 +49,18 @@ export class DeferredGBufferPass extends RenderPass {
         if (!this.initialized) return;
 
         const scene = Camera.mainCamera.gameObject.scene;
-        const meshes = scene.GetComponents(Mesh);
+        const _meshes = scene.GetComponents(Mesh);
+        let meshesInfo: {mesh: Mesh, index: number}[] = [];
+
+        for (let i = 0; i < _meshes.length; i++) {
+            const mesh = _meshes[i];
+            if (!mesh.enabled || !mesh.gameObject.enabled || !mesh.GetGeometry()) continue;
+            meshesInfo.push({mesh: mesh, index: i});
+        }
         // const meshes = this.frustumCull(Camera.mainCamera, scene.GetComponents(Mesh));
-        Renderer.info.visibleObjects = meshes.length;
+        Renderer.info.visibleObjects = meshesInfo.length;
         const instancedMeshes = scene.GetComponents(InstancedMesh);
-        if (meshes.length === 0 && instancedMeshes.length === 0) return;
+        if (meshesInfo.length === 0 && instancedMeshes.length === 0) return;
 
         const inputCamera = Camera.mainCamera;
         if (!inputCamera) throw Error(`No inputs passed to ${this.name}`);
@@ -65,13 +72,8 @@ export class DeferredGBufferPass extends RenderPass {
         const inputGBufferDepth = resources.getResource(PassParams.GBufferDepth);
 
         // Update meshes matrix buffer
-        for (const mesh of meshes) {
-            if (!mesh.enabled) continue;
-
-            const geometry = mesh.GetGeometry();
-            if (!geometry) continue;
-
-            const i = this.modelMatrixBuffer.set(mesh.id, mesh.transform.localToWorldMatrix.elements);
+        for (const meshInfo of meshesInfo) {
+            this.modelMatrixBuffer.set(meshInfo.mesh.id, meshInfo.mesh.transform.localToWorldMatrix.elements);
         }
 
         RendererContext.BeginRenderPass(this.name,
@@ -86,14 +88,9 @@ export class DeferredGBufferPass extends RenderPass {
         const projectionMatrix = inputCamera.projectionMatrix;
         const viewMatrix = inputCamera.viewMatrix;
 
-        let meshCount = 0;
-        for (const mesh of meshes) {
-            if (!mesh.enabled) continue;
-
-            const geometry = mesh.GetGeometry();
-            if (!geometry) continue;
-
-            const materials = mesh.GetMaterials();
+        for (const meshInfo of meshesInfo) {
+            const geometry = meshInfo.mesh.GetGeometry();
+            const materials = meshInfo.mesh.GetMaterials();
             for (const material of materials) {
                 if (material.params.isDeferred === false) continue;
                 if (!material.shader) {
@@ -109,13 +106,11 @@ export class DeferredGBufferPass extends RenderPass {
                 shader.SetBuffer("modelMatrix", this.modelMatrixBuffer.getBuffer());
 
                 shader.SetVector3("cameraPosition", inputCamera.transform.position);
-                RendererContext.DrawGeometry(geometry, shader, 1, meshCount);
+                RendererContext.DrawGeometry(geometry, shader, 1, meshInfo.index);
                 if (geometry.index) {
                     Renderer.info.triangleCount += geometry.index.array.length / 3;
                 }
             }
-
-            meshCount++;
         }
 
         for (const instancedMesh of instancedMeshes) {

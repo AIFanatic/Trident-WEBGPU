@@ -39,16 +39,16 @@ export class OBJLoaderIndexed {
         }
     }
 
-    public static async load(url: string): Promise<Object3D[]> {
+    public static async load(url: string): Promise<Object3D> {
         const contents = await fetch(url).then(response => response.text());
         const objMesh = OBJLoaderIndexed.parse(contents);
-        return [{
+        return {
+            name: "OBJ",
             geometry: this.toGeometry(objMesh),
             material: new PBRMaterial(),
             children: [],
             localMatrix: new Mathf.Matrix4()
-        }]
-        // return this.toGeometry(objMesh);
+        };
     }
 
     public static parse(contents: string): OBJMesh {

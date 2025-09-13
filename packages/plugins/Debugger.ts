@@ -109,6 +109,7 @@ class _Debugger {
 
     private rendererFolder: UIFolder;
 
+    private resolution: UITextStat;
     private fps: UITextStat;
     private triangleCount: UITextStat;
     private visibleTriangles: UITextStat;
@@ -146,7 +147,8 @@ class _Debugger {
         this.rendererFolder = new UIFolder(this.ui, "Renderer");
         this.rendererFolder.Open();
 
-        this.fps = new UITextStat(this.rendererFolder, "FPS", 0, 2, "", true);
+        this.resolution = new UITextStat(this.rendererFolder, "Resolution: ", 0, 0, "", false);
+        this.fps = new UITextStat(this.rendererFolder, "FPS: ", 0, 2, "", true);
         this.triangleCount = new UITextStat(this.rendererFolder, "Triangles: ");
         this.visibleTriangles = new UITextStat(this.rendererFolder, "Visible triangles: ");
         this.cpuTime = new UITextStat(this.rendererFolder, "CPU: ", 0, 2, "ms", true);
@@ -165,20 +167,32 @@ class _Debugger {
             mainCamera.gameObject.scene.renderPipeline.AddPass(debuggerRenderPass, GPU.RenderPassOrder.AfterLighting);
         });
         this.viewTypeStat = new UIDropdownStat(this.rendererFolder, "Final output:", Object.values(ViewTypes).filter(value => typeof value === "string") as string[], (index, value) => {debuggerRenderPass.currentViewType = index}, 0);
-        // this.heightScale = new UISliderStat(this.rendererFolder, "Height scale:", 0, 1, 0.01, this.heightScaleValue, state => {this.heightScaleValue = state});
-        // this.useHeightMapStat = new UIButtonStat(this.rendererFolder, "Use heightmap:", state => {this.useHeightMapValue = state}, this.useHeightMapValue);
 
         this.renderPassesFolder = new UIFolder(this.rendererFolder, "Frame passes");
         this.renderPassesFolder.Open();
 
-
+        this.textStatBytesFormatter(this.gpuBufferSizeTotal);
+        this.textStatBytesFormatter(this.gpuTextureSizeTotal);
 
         setInterval(() => {
             this.Update();
         }, 100);
     }
 
+    private textStatBytesFormatter(textStat: UITextStat) {
+        textStat.formatter = (value => {
+            const k = 1024;
+            const decimals = 2;
+            const sizes = ['B', 'KB', 'MB', 'GB', 'TB', 'PB', 'EB', 'ZB', 'YB'];
+            const i = Math.floor(Math.log(value) / Math.log(k));
+
+            textStat.SetUnit(sizes[i]);
+            return parseFloat((value / Math.pow(k, i)).toFixed(decimals));
+        })
+    }
+
     public Update() {
+        this.resolution.SetText(`${Renderer.width}x${Renderer.height}`)
         this.fps.SetValue(Renderer.info.fps);
         this.triangleCount.SetValue(Renderer.info.triangleCount);
         this.visibleTriangles.SetValue(Renderer.info.visibleTriangles);
@@ -210,7 +224,6 @@ class _Debugger {
     }
 
     public Disable() {
-        console.log("Running", this.container)
         this.container.style.display = "none";
     }
 

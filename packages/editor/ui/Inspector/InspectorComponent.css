@@ -1,7 +1,6 @@
 .InspectorComponent {
     display: flex;
     align-items: center;
-    margin-bottom: 7px;
 }
 
 .InspectorComponent .title {

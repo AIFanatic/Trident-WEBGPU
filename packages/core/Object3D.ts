@@ -8,10 +8,10 @@ export interface ExtensionInstanced {
 };
 
 export interface Object3D {
-    name?: string;
+    name: string;
     geometry?: Geometry;
     material?: PBRMaterial;
-    localMatrix?: Matrix4;
+    localMatrix: Matrix4;
     children: Object3D[];
     extensions?: ExtensionInstanced[];
 };

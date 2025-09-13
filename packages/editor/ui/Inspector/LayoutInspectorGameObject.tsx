@@ -248,6 +248,10 @@ export class LayoutInspectorGameObject extends Component<LayoutInspectorProps, L
         return inspectorHTML;
     }
 
+    private onGameObjectEnabled(event) {
+        this.state.gameObject.enabled = event.target.checked;
+    }
+
     public render() {
         if (!this.state.gameObject) return <div></div>;
 
@@ -261,7 +265,7 @@ export class LayoutInspectorGameObject extends Component<LayoutInspectorProps, L
                     display: "flex",
                     padding: "10px"
                 }}>
-                    <input type="checkbox" checked={true}/>
+                    <input type="checkbox" checked={this.state.gameObject.enabled} onChange={event => {this.onGameObjectEnabled(event)}}/>
                     <input style={{
                         width: "100%",
                         fontSize: "12px",

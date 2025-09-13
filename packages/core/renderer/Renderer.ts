@@ -17,12 +17,14 @@ export class Renderer {
 
     public static info: RendererInfo = new RendererInfo();
 
+    public static canvas: HTMLCanvasElement;
+
     public static Create(canvas: HTMLCanvasElement, type: RendererAPIType): Renderer {
         const aspectRatio = 1;
         canvas.width = canvas.parentElement.clientWidth * aspectRatio;
         canvas.height = canvas.parentElement.clientHeight * aspectRatio;
-        canvas.style.width = "100vw";
-        canvas.style.height = "100vh";
+        canvas.style.width = "100%";
+        canvas.style.height = "100%";
         canvas.style.userSelect = "none";
 
         const observer = new ResizeObserver(entries => {
@@ -31,9 +33,12 @@ export class Renderer {
             Renderer.width = canvas.width;
             Renderer.height = canvas.height;
             EventSystem.emit(RendererEvents.Resized, canvas);
+
+            console.log("Resized")
         });
         observer.observe(canvas);
 
+        Renderer.canvas = canvas;
         Renderer.type = type;
         Renderer.width = canvas.width;
         Renderer.height = canvas.height;

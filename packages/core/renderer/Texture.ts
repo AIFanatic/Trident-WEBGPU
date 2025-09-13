@@ -138,6 +138,12 @@ export class RenderTextureStorage3D extends Texture {
     }
 }
 
+export class RenderTextureStorage2D extends Texture {
+    public static Create(width: number, height: number, depth: number = 1, format: TextureFormat = Renderer.SwapChainFormat, mipLevels = 1): Texture {
+        return CreateTexture(width, height, depth, format, TextureType.RENDER_TARGET_STORAGE, "2d", mipLevels);
+    }
+}
+
 export class RenderTextureCube extends Texture {
     public static Create(width: number, height: number, depth: number = 1, format: TextureFormat = Renderer.SwapChainFormat, mipLevels = 1): Texture {
         return CreateTexture(width, height, depth, format, TextureType.RENDER_TARGET, "cube", mipLevels);

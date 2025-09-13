@@ -157,13 +157,13 @@ async function Application(canvas: HTMLCanvasElement) {
 
     let objects: Object[] = [];
 
-    const c = 100000;
+    const c = 10000;
 
     // Instances
     const cubes = new Object(cubeVertices, cubeIndices, 16, c);
-    const spheres = new Object(sphereVertices, sphereIndices, 16, c);
+    // const spheres = new Object(sphereVertices, sphereIndices, 16, c);
     objects.push(cubes);
-    objects.push(spheres);
+    // objects.push(spheres);
     let modelMatrix = new Mathf.Matrix4();
     let position = new Mathf.Vector3();
     let rotation = new Mathf.Quaternion();

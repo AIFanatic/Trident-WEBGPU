@@ -23,16 +23,14 @@ export function SerializeField(value: unknown, context: ClassMemberDecoratorCont
     context.enumerable = true;
     // Register a per-instance initializer so we can access `this`
     context.addInitializer(function (this: Component) {
-      SerializableFields.set(this, context.name);
+        SerializableFields.set(this, context.name);
     });
-  
+
     // For fields, don’t return anything (keeps initializer unchanged).
     if (context.kind === "field") {
-      return; // no-op, preserve original initializer
+        return; // no-op, preserve original initializer
     }
-  
+
     // For methods/getters/setters/accessors, preserve original implementation
     return value;
-  }
-
-console.log(SerializableFields)
+}

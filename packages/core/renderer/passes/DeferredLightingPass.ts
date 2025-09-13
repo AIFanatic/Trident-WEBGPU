@@ -216,16 +216,18 @@ export class DeferredLightingPass extends RenderPass {
 
     public execute(resources: ResourcePool) {
         if (!this.initialized) return;
-        // if (!Camera.mainCamera) return;
-        // Debugger.AddFrameRenderPass("DeferredLightingPass");
+        // if (!this.needsUpdate) return;
         
         const camera = Camera.mainCamera;
 
         
-        if (this.needsUpdate) {
-        }
         const scene = camera.gameObject.scene;
-        const lights = [...scene.GetComponents(Light), ...scene.GetComponents(PointLight), ...scene.GetComponents(DirectionalLight), ...scene.GetComponents(SpotLight), ...scene.GetComponents(AreaLight)];
+        const _lights = [...scene.GetComponents(PointLight), ...scene.GetComponents(DirectionalLight), ...scene.GetComponents(SpotLight), ...scene.GetComponents(AreaLight)];
+        let lights: Light[] = [];
+        for (const light of _lights) {
+            if (light.enabled === false || light.gameObject.enabled === false) continue;
+            lights.push(light);
+        }
         if (lights.length === 0) return;
         this.updateLightsBuffer(lights, resources);
 

@@ -48,8 +48,14 @@ flex.v>flex-resizer::before {
     right: 0px;
 }
 
+flex-item {
+    display: flex;
+    overflow: hidden;
+}
+
 flex>flex-resizer:hover {
     background-color: #363636;
+    width: 20px;
 }
 
 flex.h>flex-resizer {
@@ -70,4 +76,40 @@ input::-webkit-inner-spin-button {
 /* Firefox */
 input[type=number] {
   -moz-appearance: textfield;
+}
+
+
+/* LayoutConsole */
+.LayoutConsole {
+    width: 100%;
+}
+
+.LayoutConsole > .warn {
+    color: yellow;
+}
+
+.LayoutConsole > .error {
+    color: red;
+}
+
+.LayoutTab {
+    width: 100%;
+}
+
+.LayoutTab > .header {
+    display: flex;
+    width: 100%;
+    background-color: black;
+}
+
+.LayoutTab > .header > .title {
+    height: 15px;
+    padding: 2px;
+    padding-right: 5px;
+    padding-left: 5px;
+    cursor: pointer;
+}
+
+.LayoutTab > .header > .selected {
+    background-color: #272727;
 }

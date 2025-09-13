@@ -1,42 +1,25 @@
-import { GameObject } from "../GameObject";
-import { Camera } from "../components/Camera";
-import { Scene } from "../Scene";
-import { Geometry, IndexAttribute, VertexAttribute } from "../Geometry";
-import { Renderer } from "../renderer/Renderer";
-import { OrbitControls } from "../plugins/OrbitControls";
+import {
+    Components,
+    Scene,
+    GPU,
+    Mathf,
+    GameObject,
+    Geometry,
+    PBRMaterial,
+    Object3D,
+} from "@trident/core";
 
-import { Vector3 } from "../math/Vector3";
-import { Material, PBRMaterial } from "../renderer/Material";
-import { DirectionalLight } from "../components/Light";
+import { OrbitControls } from "@trident/plugins/OrbitControls";
+import { OBJLoaderIndexed } from "@trident/plugins/OBJLoader";
+import { GLTFLoader } from "@trident/plugins/GLTF/GLTFLoader";
+import { ImpostorMesh } from "@trident/plugins/Impostors/ImpostorMesh";
+import { Debugger } from "@trident/plugins/Debugger";
 
-import { GLTFLoad, GLTFLoader } from "../plugins/GLTF/gltf";
-import { Color } from "../math/Color";
-import { Mesh } from "../components/Mesh";
-
-import { OBJLoaderIndexed } from "../plugins/OBJLoader";
-import { MeshletMesh } from "../plugins/meshlets/MeshletMesh";
-import { Component } from "../components/Component";
-import { Utils } from "../utils/Utils";
-import { Texture } from "../renderer/Texture";
-import { InstancedMesh } from "../components/InstancedMesh";
-import { Matrix4 } from "../math/Matrix4";
-import { Quaternion } from "../math/Quaternion";
-import { ImpostorMesh } from "../plugins/Impostors/ImpostorMesh";
-import { Dilator } from "../plugins/Impostors/Dilator";
-import { DynamicBufferMemoryAllocator } from "../utils/MemoryAllocator";
 
 // GLTFLoader.Load("./assets/DamagedHelmet/DamagedHelmet.gltf");
 
-const canvas = document.createElement("canvas");
-const aspectRatio = window.devicePixelRatio;
-canvas.width = window.innerWidth * aspectRatio;
-canvas.height = window.innerHeight * aspectRatio;
-canvas.style.width = `${window.innerWidth}px`;
-canvas.style.height = `${window.innerHeight}px`;
-document.body.appendChild(canvas);
-
-async function Application() {
-    const renderer = Renderer.Create(canvas, "webgpu");
+async function Application(canvas: HTMLCanvasElement) {
+    const renderer = GPU.Renderer.Create(canvas, "webgpu");
     const scene = new Scene(renderer);
 
     // const b = new DynamicBufferMemoryAllocator(10, 10);
@@ -56,14 +39,14 @@ async function Application() {
     // return;
 
     const mainCameraGameObject = new GameObject(scene);
-    mainCameraGameObject.transform.position.set(0,0,-15);
+    mainCameraGameObject.transform.position.set(0,0,-5);
     // setInterval(() => {
     //     console.log(camera.transform.position.elements)
     // }, 1000);
     // mainCameraGameObject.transform.position.z = -15;
     mainCameraGameObject.name = "MainCamera";
-    const camera = mainCameraGameObject.AddComponent(Camera);
-    camera.SetPerspective(72, canvas.width / canvas.height, 0.5, 50000);
+    const camera = mainCameraGameObject.AddComponent(Components.Camera);
+    camera.SetPerspective(72, canvas.width / canvas.height, 0.01, 500);
     // camera.transform.LookAt(new Vector3(0,0,0));
     
 
@@ -100,18 +83,32 @@ async function Application() {
     //     m.AddMaterial(mat);
     // }
 
-    const lightGameObject = new GameObject(scene);
-    lightGameObject.transform.position.set(4, 4, 4);
-    lightGameObject.transform.LookAt(new Vector3(0, 0, 0))
-    const light = lightGameObject.AddComponent(DirectionalLight);
-    light.intensity = 1;
-    light.range = 100;
-    light.color.set(1, 1, 1, 1);
+    {
+        const lightGameObject = new GameObject(scene);
+        lightGameObject.transform.position.set(4, 4, 4);
+        lightGameObject.transform.LookAtV1(new Mathf.Vector3(0, 0, 0))
+        const light = lightGameObject.AddComponent(Components.DirectionalLight);
+        light.intensity = 5;
+        light.range = 1;
+        light.color.set(1, 1, 1, 1);
+    }
 
-    const bunny = await OBJLoaderIndexed.load("./bunny.obj");
+    {
+        const lightGameObject = new GameObject(scene);
+        lightGameObject.transform.position.set(-4, 4, -4);
+        lightGameObject.transform.LookAt(new Mathf.Vector3(0, 0, 0))
+        const light = lightGameObject.AddComponent(Components.DirectionalLight);
+        light.intensity = 5;
+        light.range = 1;
+        light.color.set(1, 1, 1, 1);
+    }
+
+    // const bunny = await OBJLoaderIndexed.load("./assets/models/bunny.obj");
     // const bunny = await GLTFLoader.load("./assets/low_poly_tree_pack/pine.gltf");
     // const bunny = await GLTFLoader.load("./assets/quiver_tree_02/quiver_tree_02.gltf");
     // const bunny = await GLTFLoader.load("./assets/GLTFScenes/barrel.gltf");
+    // const bunny = [await GLTFParser.Load("./assets/models/DamagedHelmet/DamagedHelmet.gltf")];
+    const model = await GLTFLoader.Load("./assets/models/Tree.glb");
     // console.log("bunny", bunny)
     const go = new GameObject(scene);
     // go.transform.scale.set(0.01, 0.01, 0.01);
@@ -121,16 +118,16 @@ async function Application() {
     // mesh.AddMaterial(bunny[0].material);
 
     const bunnyImpostor = go.AddComponent(ImpostorMesh);
-    await bunnyImpostor.Create(bunny);
-    const m = new Material();
+    await bunnyImpostor.Create(model);
+    const m = new GPU.Material({isDeferred: true});
     m.shader = bunnyImpostor.impostorShader;
 
-    const impostor = new GameObject(scene);
-    // impostor.transform.position.x = -2
-    // impostor.transform.scale.set(10, 10, 10)
-    const im = impostor.AddComponent(Mesh);
-    await im.SetGeometry(bunnyImpostor.impostorGeometry);
-    im.AddMaterial(m);
+    // const impostor = new GameObject(scene);
+    // // impostor.transform.position.x = -2
+    // // impostor.transform.scale.set(10, 10, 10)
+    // const im = impostor.AddComponent(Components.Mesh);
+    // await im.SetGeometry(bunnyImpostor.impostorGeometry);
+    // im.AddMaterial(m);
 
 
     // const textureDilated = await Dilator.Dilate(bunnyImpostor.normalTexture);
@@ -147,29 +144,57 @@ async function Application() {
     //     dilatorMesh.AddMaterial(dilatorMaterial);
     // }
 
+    {
+        const planeGO = new GameObject(scene);
+        planeGO.transform.eulerAngles.x = -90;
+        planeGO.transform.position.set(0, -2, 0);
+        planeGO.transform.scale.set(100, 100, 1);
+        const sphereMesh = planeGO.AddComponent(Components.Mesh);
+        await sphereMesh.SetGeometry(Geometry.Plane());
+        const mat = new PBRMaterial({albedoColor: new Mathf.Color(1, 1, 1), metalness: 0.5, roughness: 0.5});
+        sphereMesh.AddMaterial(mat);
+    }
 
+    // function traverse(object3D: Object3D, func: (object3D: Object3D) => void) {
+    //     func(object3D);
+    //     for (const child of object3D.children) traverse(child, func);
+    // }
+
+    // traverse(model, object3D => {
+    //     if (!object3D.geometry || !object3D.material) return;
+    //         const gameObject = new GameObject(scene);
+    //         const mesh = gameObject.AddComponent(Components.Mesh);
+    //         mesh.enableShadows = false;
+    //         object3D.localMatrix.decompose(gameObject.transform.position, gameObject.transform.rotation, gameObject.transform.scale);
+    //         mesh.SetGeometry(object3D.geometry);
+    //         mesh.AddMaterial(object3D.material);
+    // })
 
     const instancedMeshGameObject = new GameObject(scene);
-    const instancedMesh = instancedMeshGameObject.AddComponent(InstancedMesh);
+    const instancedMesh = instancedMeshGameObject.AddComponent(Components.InstancedMesh);
+    instancedMesh.enableShadows = false;
     await instancedMesh.SetGeometry(bunnyImpostor.impostorGeometry);
     instancedMesh.AddMaterial(m);
 
-    const mat = new Matrix4();
-    const p = new Vector3();
-    const r = new Quaternion();
-    const s = new Vector3(1,1,1);
-    const c = 2;
+    const mat = new Mathf.Matrix4();
+    const p = new Mathf.Vector3();
+    const r = new Mathf.Quaternion();
+    const s = new Mathf.Vector3(1,1,1);
+    const c = 10;
     let i = 0;
     for (let x = 0; x < c; x++) {
         for (let z = 0; z < c; z++) {
-            p.set(x * 2, 0, z * 2);
+            p.set((x * 2) - c, 0, (z * 2) - c);
             mat.compose(p, r, s);
             instancedMesh.SetMatrixAt(i, mat);
             i++;
         }
     }
 
+    console.log(i)
+
+    Debugger.Enable();
     scene.Start();
 };
 
-Application();
+Application(document.querySelector("canvas"));

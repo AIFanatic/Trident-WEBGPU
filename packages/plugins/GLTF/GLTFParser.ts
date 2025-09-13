@@ -434,7 +434,7 @@ export class Node {
 	modelMatrix: Matrix4;
 	worldMatrix: Matrix4;
 
-	constructor(nodeBase: NodeBase, nodeID: GLTFID, currentLoader: GLTFLoader) {
+	constructor(nodeBase: NodeBase, nodeID: GLTFID, currentLoader: GLTFParser) {
 		this.camera = (nodeBase.camera !== undefined) ? nodeBase.camera : null;
 		this.children = [];
 		this.skin = null; // assigned later if needed
@@ -519,7 +519,7 @@ class Mesh {
 	extras: any;
 	meshID: number;
 
-	constructor(meshBase: MeshBase, meshID: number, currentLoader: GLTFLoader) {
+	constructor(meshBase: MeshBase, meshID: number, currentLoader: GLTFParser) {
 		this.primitives = [];
 		this.weights = (meshBase.weights !== undefined) ? meshBase.weights : null;
 		this.name = (meshBase.name !== undefined) ? meshBase.name : null;
@@ -551,7 +551,7 @@ export class MeshPrimitive {
 	vertexBuffer: ArrayBuffer | null;
 	shader: WebGLShader | null;
 
-	constructor(primitiveBase: MeshPrimitiveBase, gltf: GLTF, currentLoader: GLTFLoader) {
+	constructor(primitiveBase: MeshPrimitiveBase, gltf: GLTF, currentLoader: GLTFParser) {
 		this.attributesID = { ...primitiveBase.attributes };
 		if (primitiveBase.extensions?.gl_avatar && currentLoader.enableGLAvatar === true) {
 			const extAttrs = primitiveBase.extensions.gl_avatar.attributes;
@@ -611,7 +611,7 @@ export class Texture {
 	extensions: any;
 	extras: any;
 
-	constructor(textureBase: TextureBase, currentLoader: GLTFLoader) {
+	constructor(textureBase: TextureBase, currentLoader: GLTFParser) {
 		this.sampler = (typeof textureBase.sampler === "number" && currentLoader.glTF.samplers)
 			? currentLoader.glTF.samplers[textureBase.sampler]
 			: null;
@@ -1000,7 +1000,7 @@ export class GLTF {
 	}
 }
 
-export class GLTFLoader {
+export class GLTFParser {
 	_glTF: GLTFBase;
 	glTF: GLTF;
 	baseUri: string = "";

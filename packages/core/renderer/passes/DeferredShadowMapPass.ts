@@ -256,13 +256,17 @@ export class DeferredShadowMapPass extends RenderPass {
 
         if (lights.length === 0) return;
 
-        const meshes = scene.GetComponents(Mesh);
         const instancedMeshes = scene.GetComponents(InstancedMesh);
+        
+        let meshes: Mesh[] = [];
+        const _meshes = scene.GetComponents(Mesh);
+        for (const mesh of _meshes) {
+            if (mesh.enableShadows && mesh.enabled && mesh.gameObject.enabled) meshes.push(mesh);
+        }
 
         if (meshes.length === 0 && instancedMeshes.length === 0) return;
 
         // Lights
-
         if (lights.length !== this.shadowOutput.depth) {
             this.shadowOutput = DepthTextureArray.Create(this.shadowWidth, this.shadowHeight, lights.length);
         }
@@ -301,9 +305,7 @@ export class DeferredShadowMapPass extends RenderPass {
 
         // TODO: Only update if model changes
         for (let i = 0; i < meshes.length; i++) {
-            const mesh = meshes[i];
-            if (!mesh.enabled || !mesh.enableShadows) continue;
-            this.modelMatrices.SetArray(mesh.transform.localToWorldMatrix.elements, i * 256)
+            this.modelMatrices.SetArray(meshes[i].transform.localToWorldMatrix.elements, i * 256)
         }
 
         this.drawShadowShader.SetBuffer("modelMatrix", this.modelMatrices);
@@ -388,14 +390,12 @@ export class DeferredShadowMapPass extends RenderPass {
                 let meshCount = 0; // For dynamic offset
                 for (const mesh of meshes) {
                     // if (mesh.shader.params.topology === Topology.Lines) continue;
-                    if (mesh.enableShadows && mesh.enabled) {
-                        const geometry = mesh.GetGeometry();
-                        if (!geometry) continue;
-                        if (!geometry.attributes.has("position")) continue;
-                        const uniform_offset = meshCount * 256;
-                        this.modelMatrices.dynamicOffset = uniform_offset;
-                        RendererContext.DrawGeometry(geometry, this.drawShadowShader, 1);
-                    }
+                    const geometry = mesh.GetGeometry();
+                    if (!geometry) continue;
+                    if (!geometry.attributes.has("position")) continue;
+                    const uniform_offset = meshCount * 256;
+                    this.modelMatrices.dynamicOffset = uniform_offset;
+                    RendererContext.DrawGeometry(geometry, this.drawShadowShader, 1);
                     meshCount++;
                 }
 

@@ -107,6 +107,7 @@ export class Scene {
     private Tick() {
         const componentUpdateStart = performance.now();
         for (const [component, _] of this.toUpdate) {
+            if (component.gameObject.enabled === false) continue;
             if (!component.hasStarted) {
                 component.Start();
                 component.hasStarted = true;

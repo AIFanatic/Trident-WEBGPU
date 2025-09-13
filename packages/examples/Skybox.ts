@@ -16,6 +16,10 @@ import { LineRenderer } from "@trident/plugins/LineRenderer";
 
 import { SpotLightHelper } from "@trident/plugins/SpotLightHelper";
 import { DirectionalLightHelper } from "@trident/plugins/DirectionalLightHelper";
+import { PointLightHelper } from "@trident/plugins/PointLightHelper";
+
+import { PostProcessingPass } from "@trident/plugins/PostProcessing/PostProcessingPass";
+import { PostProcessingFXAA } from "@trident/plugins/PostProcessing/effects/FXAA";
 
 async function Application(canvas: HTMLCanvasElement) {
     const renderer = GPU.Renderer.Create(canvas, "webgpu");
@@ -71,30 +75,58 @@ async function Application(canvas: HTMLCanvasElement) {
             light.angle = value;
         });
         new UISliderStat(waterSettingsFolder, "Range:", 0, 50, 0.1, light.range, value => light.range = value);
-        
+
         const lightHelperGameObject = new GameObject(scene);
         const spotLightHelper = lightHelperGameObject.AddComponent(SpotLightHelper);
         spotLightHelper.light = light;
         w = waterSettingsFolder;
-
-
     }
-    
-    {
-        const lightGameObject = new GameObject(scene);
-        lightGameObject.transform.position.set(4, 4, 4);
-        lightGameObject.transform.LookAtV1(new Mathf.Vector3(0, 0, 0));
-        const light = lightGameObject.AddComponent(Components.DirectionalLight);
-        light.intensity = 1;
-        light.range = 7.5;
-        // light.angle = 0.33;
-        light.color.set(1, 1, 1, 1);
-        light.castShadows = true;
 
-        const lightHelperGameObject = new GameObject(scene);
-        const spotLightHelper = lightHelperGameObject.AddComponent(DirectionalLightHelper);
-        spotLightHelper.light = light;
-    }
+    // {
+    //     const lightGameObject = new GameObject(scene);
+    //     lightGameObject.transform.position.set(1, 1, 1);
+    //     lightGameObject.transform.LookAtV1(new Mathf.Vector3(0, 0, 0));
+    //     const light = lightGameObject.AddComponent(Components.PointLight);
+    //     light.intensity = 10;
+    //     light.range = 7.5;
+    //     light.color.set(1, 0, 0, 1);
+    //     light.castShadows = true;
+
+    //     const lightHelperGameObject = new GameObject(scene);
+    //     const pointLightHelper = lightHelperGameObject.AddComponent(PointLightHelper);
+    //     pointLightHelper.light = light;
+
+    //     new UISliderStat(w, "Range:", 0, 50, 0.1, light.range, value => light.range = value);
+    // }
+
+    // {
+    //     const lightGameObject = new GameObject(scene);
+    //     lightGameObject.transform.position.set(4, 4, 4);
+    //     lightGameObject.transform.LookAtV1(new Mathf.Vector3(0, 0, 0));
+    //     const light = lightGameObject.AddComponent(Components.DirectionalLight);
+    //     light.intensity = 1;
+    //     light.range = 7.5;
+    //     // light.angle = 0.33;
+    //     light.color.set(1, 1, 1, 1);
+    //     light.castShadows = true;
+
+    //     const lightHelperGameObject = new GameObject(scene);
+    //     const spotLightHelper = lightHelperGameObject.AddComponent(DirectionalLightHelper);
+    //     spotLightHelper.light = light;
+
+    //     new UIVecStat(w, "Position:",
+    //         {min: -5, max: 5, value: light.transform.position.x, step: 0.1},
+    //         {min: -5, max: 5, value: light.transform.position.y, step: 0.1},
+    //         {min: -5, max: 5, value: light.transform.position.z, step: 0.1},
+    //         undefined,
+    //         value => {
+    //             light.transform.position.x = value.x;
+    //             light.transform.position.y = value.y;
+    //             light.transform.position.z = value.z;
+    //             light.transform.LookAtV1(new Mathf.Vector3(0,0,0))
+    //         }
+    //     );
+    // }
 
     {
         const planeGO = new GameObject(scene);
@@ -154,12 +186,41 @@ async function Application(canvas: HTMLCanvasElement) {
         const skyIrradiance = await HDRParser.GetIrradianceMap(sky);
         const prefilterMap = await HDRParser.GetPrefilterMap(sky);
         const brdfLUT = await HDRParser.GetBRDFLUT(1);
-    
+
         scene.renderPipeline.skybox = sky;
         scene.renderPipeline.skyboxIrradiance = skyIrradiance;
         scene.renderPipeline.skyboxPrefilter = prefilterMap;
         scene.renderPipeline.skyboxBRDFLUT = brdfLUT;
     }
+
+    // {
+    //     const sphereGameObject = new GameObject(scene);
+    //     sphereGameObject.transform.position.set(1, 1, 0);
+    //     const sphereMesh = sphereGameObject.AddComponent(Components.InstancedMesh);
+    //     await sphereMesh.SetGeometry(Geometry.Cube());
+    //     const mat = new PBRMaterial({albedoColor: new Mathf.Color(1, 1, 1), metalness: 0.0, roughness: 1.0});
+    //     sphereMesh.AddMaterial(mat);
+
+    //     const c = 100000;
+    //     let modelMatrix = new Mathf.Matrix4();
+    //     let position = new Mathf.Vector3();
+    //     let rotation = new Mathf.Quaternion();
+    //     let scale = new Mathf.Vector3(1,1,1);
+    //     for (let i = 0; i < c; i++) {
+    //         const off = 100;
+    //         const r = (off) => (Math.random() * off) - off * 0.5;
+    //         position.set(r(off), r(off), r(off));
+    //         scale.set(Math.random(), Math.random(), Math.random())
+    //         modelMatrix.compose(position, rotation, scale);
+    //         sphereMesh.SetMatrixAt(i, modelMatrix);
+    //         // cubes.setInstanceData(position.elements, i);
+    //     }
+    // }
+
+
+    const postProcessing = new PostProcessingPass();
+    postProcessing.effects.push(new PostProcessingFXAA());
+    scene.renderPipeline.AddPass(postProcessing, GPU.RenderPassOrder.AfterLighting);
 
     scene.Start();
 };

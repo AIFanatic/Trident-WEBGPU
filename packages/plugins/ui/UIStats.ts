@@ -180,6 +180,8 @@ export class UITextStat extends Stat {
     private unit: string;
     private rolling: boolean;
 
+    public formatter: (value: number) => number;
+
     constructor(folder: UIFolder, label: string, defaultValue: number = 0, precision = 0, unit = "", rolling = false) {
         super(folder.container, label);
 
@@ -209,13 +211,19 @@ export class UITextStat extends Stat {
         this.previousValue = value;
     }
 
+    // TODO: Figure out another way of doing this
+    public SetText(text: string) {
+        this.previousValue = text;
+    }
+
     public GetValue(): number { return this.previousValue; } // TODO: Current value
     public GetPrecision(): number { return this.precision; }
 
     public SetUnit(unit: string) { this.unit = unit };
 
     public Update() {
-        const valueStr = this.precision === 0 ? this.previousValue.toString() : this.previousValue.toFixed(this.precision);
+        const previousValue = this.formatter ? this.formatter(this.previousValue) : this.previousValue;
+        const valueStr = this.precision === 0 ? previousValue.toString() : previousValue.toFixed(this.precision);
         this.textElement.textContent = valueStr + this.unit;
     }
 }

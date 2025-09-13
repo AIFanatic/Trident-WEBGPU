@@ -18,6 +18,7 @@ export type ComponentCtor = typeof IComponents[keyof typeof IComponents];
 export interface IGameObject {
     transform: ITransform;
     name: string;
+    enabled: boolean;
 
     AddComponent<T extends ComponentCtor>(ctor: T): InstanceType<T>;
     AddComponent<T extends ComponentCtor>(ctor: T): ComponentInterface<T>;
