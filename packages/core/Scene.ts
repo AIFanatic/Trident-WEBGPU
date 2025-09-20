@@ -1,14 +1,9 @@
-// import { EngineDebug } from "./EngineDebug";
 import { EventSystem } from "./Events";
 import { GameObject } from "./GameObject";
 import { Component, ComponentEvents } from "./components/Component";
 import { Renderer } from "./renderer/Renderer";
 import { RenderingPipeline } from "./renderer/RenderingPipeline";
 import { UUID } from "./utils";
-
-// export class SceneEvents {
-//     public static OnStarted = (scene: Scene) => {}
-// }
 
 export class Scene {
     public static Events = {
@@ -105,7 +100,6 @@ export class Scene {
     }
 
     private Tick() {
-        const componentUpdateStart = performance.now();
         for (const [component, _] of this.toUpdate) {
             if (component.gameObject.enabled === false) continue;
             if (!component.hasStarted) {
@@ -114,7 +108,11 @@ export class Scene {
             }
             component.Update();
         }
-        // EngineDebug.componentUpdate.SetValue(performance.now() - componentUpdateStart);
+
+        for (const [component, _] of this.toUpdate) {
+            if (component.gameObject.enabled === false) continue;
+            component.LateUpdate();
+        }
 
         this.renderPipeline.Render(this);
 
