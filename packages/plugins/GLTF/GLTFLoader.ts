@@ -1,5 +1,8 @@
 import {
     Geometry,
+    GameObject,
+    Scene,
+    Components,
     Object3D,
     Mathf,
     PBRMaterial,
@@ -8,7 +11,7 @@ import {
     IndexAttribute, VertexAttribute
 } from "@trident/core";
 
-import {GLTFParser, MeshPrimitive, Texture, Node, AccessorComponentType, GLTF, TextureInfo} from './GLTFParser'
+import { GLTFParser, MeshPrimitive, Texture, Node, AccessorComponentType, GLTF, TextureInfo } from './GLTFParser'
 
 export class GLTFLoader {
     private static TextureCache: Map<Texture, Promise<TridentTexture>> = new Map();
@@ -17,7 +20,7 @@ export class GLTFLoader {
         if (!textures || !textureInfo) return undefined;
 
         let cachedTexture = this.TextureCache.get(textures[textureInfo.index]);
-        
+
         if (cachedTexture === undefined) {
             const source = textures[textureInfo.index].source;
             if (source === null) throw Error("Invalid texture");
@@ -49,40 +52,36 @@ export class GLTFLoader {
         }
 
         function byteSize(componentType) {
-            switch (componentType) {
-                case AccessorComponentType.GL_UNSIGNED_BYTE:
-                    return 1;
-                case AccessorComponentType.GL_UNSIGNED_SHORT:
-                    return 2;
-                case AccessorComponentType.GL_UNSIGNED_INT:
-                    return 4;
-                case AccessorComponentType.GL_FLOAT:
-                    return 4;
-                default:
-                    return 0; // This should be handled as an error
-            }
+            if (componentType === AccessorComponentType.GL_UNSIGNED_BYTE) return 1;
+            else if (componentType === AccessorComponentType.GL_UNSIGNED_SHORT) return 2;
+            else if (componentType === AccessorComponentType.GL_UNSIGNED_INT) return 4;
+            else if (componentType === AccessorComponentType.GL_FLOAT) return 4;
+            else return 0;
         }
 
         if (primitive.attributes.POSITION) geometry.attributes.set("position", new VertexAttribute(new Float32Array(primitive.attributes.POSITION.bufferView.data)));
         if (primitive.attributes.NORMAL) geometry.attributes.set("normal", new VertexAttribute(new Float32Array(primitive.attributes.NORMAL.bufferView.data)));
         if (primitive.attributes.TEXCOORD_0) geometry.attributes.set("uv", new VertexAttribute(new Float32Array(primitive.attributes.TEXCOORD_0.bufferView.data)));
+        if (primitive.attributes.JOINTS_0) {
+            const jointsAccessor = primitive.attributes.JOINTS_0;
+            const jointsBufferView = jointsAccessor.bufferView;
+            const jointsComponentType = jointsAccessor.componentType;
+            const jointsArray = getTypedArray(jointsBufferView.data.slice(
+                jointsAccessor.byteOffset,
+                jointsAccessor.byteOffset + jointsAccessor.count * byteSize(jointsComponentType) * 4
+            ), jointsComponentType);
+
+            const joints = new Uint32Array(jointsArray, jointsArray.byteOffset, jointsArray.length);
+            geometry.attributes.set("joints", new VertexAttribute(joints));
+        }
+
+        if (primitive.attributes.WEIGHTS_0) {
+            geometry.attributes.set("weights", new VertexAttribute(new Float32Array(primitive.attributes.WEIGHTS_0.bufferView.data)));
+        }
         if (primitive.indices) {
-
-            // if (primitive.indices.componentType === AccessorComponentType.GL_UNSIGNED_SHORT) {
-            //     geometry.index = new IndexAttribute(new Uint32Array(new Uint16Array(primitive.indices.bufferView.data)));
-            // }
-            // else if (primitive.indices.componentType === AccessorComponentType.GL_UNSIGNED_INT) {
-            //     geometry.index = new IndexAttribute(new Uint32Array(new Uint16Array(primitive.indices.bufferView.data)));
-            // }
-            // else {
-            //     throw Error("cant parse index buffer")
-            // }
-
             const indicesAccessor = primitive.indices;
             const indicesBufferView = indicesAccessor.bufferView;
             const indicesComponentType = indicesAccessor.componentType;
-        
-            // Create a typed array based on the component type of the indices
             const indexArray = getTypedArray(indicesBufferView.data.slice(indicesAccessor.byteOffset, indicesAccessor.byteOffset + indicesAccessor.count * byteSize(indicesComponentType)), indicesComponentType);
             geometry.index = new IndexAttribute(new Uint32Array(indexArray));
         }
@@ -116,6 +115,10 @@ export class GLTFLoader {
             materialParams.alphaCutoff = primitive.material.alphaCutoff;
         }
 
+        if (primitive.attributes.JOINTS_0 && primitive.attributes.WEIGHTS_0) {
+            materialParams.isSkinned = true;
+        }
+
         // Needs tangents?
         if (geometry.attributes.has("position") && geometry.attributes.has("normal") && geometry.attributes.has("uv") && materialParams.normalMap) geometry.ComputeTangents();
 
@@ -124,7 +127,7 @@ export class GLTFLoader {
             geometry: geometry,
             material: new PBRMaterial(materialParams),
             children: [], // node.children,
-            localMatrix: new Mathf.Matrix4()
+            localMatrix: new Mathf.Matrix4(),
         };
     }
 
@@ -162,7 +165,7 @@ export class GLTFLoader {
                     psc += 3;
                     rc += 4;
                 }
-                nodeObject3D.extensions = [{instanceCount: count, instanceMatrices: instanceMatrices}];
+                nodeObject3D.extensions = [{ instanceCount: count, instanceMatrices: instanceMatrices }];
 
                 // console.log(translation, rotation, scale)
                 // throw Error("Got one")
@@ -193,7 +196,7 @@ export class GLTFLoader {
     public static async Load(url: string): Promise<Object3D> {
         return new GLTFParser().load(url).then(async gltf => {
             if (!gltf || !gltf.scenes) throw Error("Invalid gltf");
-            
+
             console.log("gltf", gltf)
             const sceneObject3D: Object3D = {
                 name: "Scene",
@@ -211,5 +214,166 @@ export class GLTFLoader {
 
             return sceneObject3D;
         });
+    }
+
+    /**
+     * Convert GLTF to engine GameObjects with proper skinning and animation support
+     */
+    public static async loadAsGameObjects(scene: Scene, url: string): Promise<GameObject[]> {
+        const gltf = await new GLTFParser().load(url);
+        const gameObjects: GameObject[] = [];
+        const clips: Components.AnimationClip[] = [];
+        const skins: Components.Skin[] = [];
+
+        // Create GameObjects for each node
+        const nodeGameObjects: GameObject[] = [];
+        if (gltf.nodes) {
+            for (let i = 0; i < gltf.nodes.length; i++) {
+                const node = gltf.nodes[i];
+                const gameObject = new GameObject(scene);
+                gameObject.name = node.name || `Node_${i}`;
+
+                // Set transform
+                gameObject.transform.position.set(node.translation.x, node.translation.y, node.translation.z);
+                gameObject.transform.rotation.set(node.rotation.x, node.rotation.y, node.rotation.z, node.rotation.w);
+                gameObject.transform.scale.set(node.scale.x, node.scale.y, node.scale.z);
+
+                nodeGameObjects.push(gameObject);
+                gameObjects.push(gameObject);
+            }
+
+            // Set up hierarchy
+            for (let i = 0; i < gltf.nodes.length; i++) {
+                const node = gltf.nodes[i];
+                const gameObject = nodeGameObjects[i];
+
+                for (const childId of node.childrenID) {
+                    const childGameObject = nodeGameObjects[childId];
+                    childGameObject.transform.parent = gameObject.transform;
+                }
+            }
+        }
+
+        // Create skins
+        if (gltf.skins) {
+            for (const gltfSkin of gltf.skins) {
+                const jointTransforms = gltfSkin.joints.map(jointNode => {
+                    const jointIndex = gltf.nodes!.indexOf(jointNode);
+                    return nodeGameObjects[jointIndex].transform;
+                });
+
+                const inverseBindMatricesData = gltfSkin.inverseBindMatricesData;
+                if (inverseBindMatricesData) {
+                    const skin = new Components.Skin(jointTransforms, inverseBindMatricesData as Float32Array);
+                    skins.push(skin);
+                }
+            }
+        }
+
+        // Create animation clips
+        if (gltf.animations) {
+            function getComponentCountForPath(path: string): number {
+                switch (path) {
+                    case 'translation':
+                    case 'scale':
+                        return 3;
+                    case 'rotation':
+                        return 4;
+                    case 'weights':
+                        return 1; // Variable, but 1 is common
+                    default:
+                        return 1;
+                }
+            }
+
+            for (const gltfAnimation of gltf.animations) {
+                const channels: any[] = [];
+
+                for (const gltfChannel of gltfAnimation.channels) {
+                    const targetNodeIndex = gltfChannel.target.nodeID!;
+                    const targetTransform = nodeGameObjects[targetNodeIndex].transform;
+
+                    const sampler: Components.AnimationSampler = {
+                        times: gltfChannel.sampler.keyFrameIndices as Float32Array,
+                        values: gltfChannel.sampler.keyFrameRaw as Float32Array,
+                        keyCount: gltfChannel.sampler.keyFrameIndices.length,
+                        compCount: getComponentCountForPath(gltfChannel.target.path)
+                    };
+
+                    channels.push({
+                        sampler,
+                        targetTransform,
+                        path: gltfChannel.target.path
+                    });
+                }
+
+                const duration = Math.max(0, ...gltfAnimation.channels.map(ch =>
+                    ch.sampler.keyFrameIndices[ch.sampler.keyFrameIndices.length - 1] || 0
+                ));
+
+                const clip = new Components.AnimationClip(gltfAnimation.name || `Animation ${clips.length}`, channels, duration);
+                clips.push(clip);
+            }
+        }
+
+        // Add mesh components to nodes
+        if (gltf.nodes) {
+            for (let i = 0; i < gltf.nodes.length; i++) {
+                const node = gltf.nodes[i];
+                const gameObject = nodeGameObjects[i];
+
+                if (node.mesh) {
+                    const object3D = await this.parseNode(gltf, node, gltf.textures);
+                    if (!object3D.geometry || !object3D.material) throw Error("Mesh node should have a geometry and material.");
+
+
+
+                    const positionsArray = object3D.geometry.attributes.get("position").array;
+                    if (!object3D.geometry.index) {
+                        let indexBuffer = new Uint32Array(positionsArray.length);
+                        for (let i = 0; i < indexBuffer.length; i++) {
+                            indexBuffer[i] = i;
+                        }
+                        object3D.geometry.index = new IndexAttribute(indexBuffer);
+                        object3D.geometry.ComputeNormals();
+                    }
+                    if (!object3D.geometry.attributes.get("normal")) {
+                        object3D.geometry.ComputeNormals();
+                    }
+                    if (!object3D.geometry.attributes.get("uv")) {
+                        object3D.geometry.attributes.set("uv", new VertexAttribute(new Float32Array(positionsArray.length / 3 * 2)));
+                    }
+
+
+
+
+                    const hasSkinning = node.mesh.primitives.some(p =>
+                        p.attributes.JOINTS_0 && p.attributes.WEIGHTS_0
+                    );
+
+                    if (hasSkinning && node.skin && skins[gltf.skins!.indexOf(node.skin)]) {
+                        const skinnedMesh = gameObject.AddComponent(Components.SkinnedMesh);
+                        skinnedMesh.skin = skins[gltf.skins!.indexOf(node.skin)];
+                        // Set mesh data - you'll need to implement mesh data conversion
+                        skinnedMesh.SetGeometry(object3D.geometry);
+                        skinnedMesh.AddMaterial(object3D.material);
+
+                    } else {
+                        const mesh = gameObject.AddComponent(Components.Mesh);
+                        // Set mesh data - you'll need to implement mesh data conversion
+                        mesh.SetGeometry(object3D.geometry);
+                        mesh.AddMaterial(object3D.material);
+                    }
+                }
+            }
+        }
+
+        // Add animator to root if we have animations
+        if (clips.length > 0 && gameObjects.length > 0) {
+            const animator = gameObjects[0].AddComponent(Components.Animator);
+            animator.clips = clips;
+        }
+
+        return gameObjects;
     }
 }

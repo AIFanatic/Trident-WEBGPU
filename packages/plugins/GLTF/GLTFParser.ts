@@ -97,6 +97,9 @@ interface MeshPrimitiveBase {
 		POSITION?: GLTFID;
 		NORMAL?: GLTFID;
 		TEXCOORD_0?: GLTFID;
+		JOINTS_0?: GLTFID;
+		WEIGHTS_0?: GLTFID;
+		TANGENT?: GLTFID;
 	};
 	indices?: GLTFID;
 	material?: GLTFID;
@@ -536,8 +539,8 @@ class Mesh {
 }
 
 export class MeshPrimitive {
-	attributesID: { POSITION?: GLTFID; NORMAL?: GLTFID; TEXCOORD_0?: GLTFID };
-	attributes: { POSITION?: Accessor | null; NORMAL?: Accessor | null; TEXCOORD_0?: Accessor | null };
+	attributesID: { POSITION?: GLTFID; NORMAL?: GLTFID; TEXCOORD_0?: GLTFID; JOINTS_0?: GLTFID; WEIGHTS_0?: GLTFID; TANGENT?: GLTFID };
+	attributes: { POSITION?: Accessor | null; NORMAL?: Accessor | null; TEXCOORD_0?: Accessor | null; JOINTS_0?: Accessor | null; WEIGHTS_0?: Accessor | null; TANGENT?: Accessor | null };
 	indicesID: GLTFID | null;
 	indices: Accessor | null;
 	material: Material | null;
@@ -565,7 +568,10 @@ export class MeshPrimitive {
 		this.attributes = {
 			POSITION: null,
 			NORMAL: null,
-			TEXCOORD_0: null
+			TEXCOORD_0: null,
+			JOINTS_0: null,
+			WEIGHTS_0: null,
+			TANGENT: null,
 		};
 
 		for (const attributeName in this.attributesID) {
@@ -1282,16 +1288,23 @@ export class GLTFParser {
 						continue;
 					}
 					try {
-						const base64Magic = "data:application/octet-stream;base64,";
-						if (bufferInfo.uri.indexOf(base64Magic) === 0) {
+						const base64MagicOctetStream = "data:application/octet-stream;base64,";
+						const base64MagicGltfBuffer = "data:application/gltf-buffer;base64,";
+
+						const isBase64OctectStream = bufferInfo.uri.includes(base64MagicOctetStream);
+						const isBase64GltfBuffer = bufferInfo.uri.includes(base64MagicGltfBuffer);
+						// const base64Magic = "data:application/octet-stream;base64,";
+						if (isBase64OctectStream || isBase64GltfBuffer) {
 							// base64-encoded
-							const base64Data = bufferInfo.uri.slice(base64Magic.length);
+							const base64Data = isBase64OctectStream ? bufferInfo.uri.slice(base64MagicOctetStream.length) : bufferInfo.uri.slice(base64MagicGltfBuffer.length);
 							bufferPromises.push(
 								Promise.resolve(Uint8Array.from(atob(base64Data), c => c.charCodeAt(0))).then(u8 => u8.buffer)
 							);
 						} else {
 							// external .bin
 							const url = this.baseUri + bufferInfo.uri;
+							console.log(this.baseUri)
+							console.log(bufferInfo.uri)
 							bufferPromises.push(
 								fetch(url).then((response: Response) => {
 									if (!response.ok) throw new Error("LoadingError: Could not fetch buffer.");
