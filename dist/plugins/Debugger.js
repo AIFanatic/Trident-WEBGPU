@@ -15,7 +15,6 @@ class DebuggerRenderPass extends GPU.RenderPass {
   currentViewType = 0 /* Lighting */;
   geometry;
   outputViewerShader;
-  shadowViewerShader;
   constructor() {
     super({
       inputs: [
