@@ -97,17 +97,7 @@ export class Transform extends Component {
             this.UpdateMatrices();
             this.onChanged();
         }
-        // this.rotation.lookAt(this.position, target, this.up);
-        // this.UpdateMatrices();
-        // this.onChanged();
     }
-
-    // public LookAtV2(target: Vector3): void {
-    //     m1.lookAtV3(this.position, target, this.up, true);
-    //     this.rotation.setFromRotationMatrix(m1);
-    //     this.UpdateMatrices();
-    //     this.onChanged();
-    // }
 }
 
 const m1 = new Matrix4();
