@@ -27,7 +27,7 @@ export class GeometryAttribute {
 };
 
 export class VertexAttribute extends GeometryAttribute {
-    constructor(array: Float32Array) {
+    constructor(array: Float32Array | Uint32Array) {
         super(array, BufferType.VERTEX);
     }
 }
