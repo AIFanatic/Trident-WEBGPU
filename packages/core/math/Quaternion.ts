@@ -249,6 +249,76 @@ export class Quaternion {
         return this;
     }
 
+    public length(): number {
+		return Math.sqrt( this._x * this._x + this._y * this._y + this._z * this._z + this._w * this._w );
+	}
+
+    public normalize(): Quaternion {
+		let l = this.length();
+		if ( l === 0 ) {
+			this._x = 0;
+			this._y = 0;
+			this._z = 0;
+			this._w = 1;
+		} else {
+			l = 1 / l;
+			this._x = this._x * l;
+			this._y = this._y * l;
+			this._z = this._z * l;
+			this._w = this._w * l;
+		}
+
+		return this;
+	}
+
+    public dot(v: Quaternion): number {
+		return this._x * v._x + this._y * v._y + this._z * v._z + this._w * v._w;
+	}
+
+    public slerp(qb: Quaternion, t: number): Quaternion {
+		if ( t <= 0 ) return this;
+		if ( t >= 1 ) return this.copy( qb ); // copy calls _onChangeCallback()
+
+		let x = qb._x, y = qb._y, z = qb._z, w = qb._w;
+		let dot = this.dot( qb );
+
+		if ( dot < 0 ) {
+			x = - x;
+			y = - y;
+			z = - z;
+			w = - w;
+
+			dot = - dot;
+		}
+
+		let s = 1 - t;
+
+		if ( dot < 0.9995 ) {
+			// slerp
+
+			const theta = Math.acos( dot );
+			const sin = Math.sin( theta );
+
+			s = Math.sin( s * theta ) / sin;
+			t = Math.sin( t * theta ) / sin;
+
+			this._x = this._x * s + x * t;
+			this._y = this._y * s + y * t;
+			this._z = this._z * s + z * t;
+			this._w = this._w * s + w * t;
+		} else {
+			// for small angles, lerp then normalize
+			this._x = this._x * s + x * t;
+			this._y = this._y * s + y * t;
+			this._z = this._z * s + z * t;
+			this._w = this._w * s + w * t;
+
+			this.normalize(); // normalize calls _onChangeCallback()
+		}
+
+		return this;
+	}
+
     public static fromArray(array: number[]): Quaternion {
         if (array.length < 4) throw Error("Array doesn't have enough data");
         return new Quaternion(array[0], array[1], array[2], array[3]);
