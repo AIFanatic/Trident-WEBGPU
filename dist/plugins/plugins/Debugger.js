@@ -14,22 +14,12 @@ class DebuggerRenderPass extends GPU.RenderPass {
   name = "DebuggerRenderPass";
   currentViewType = 0 /* Lighting */;
   geometry;
-  outputViewerShader;
-  shadowViewerShader;
+  shader;
   constructor() {
-    super({
-      inputs: [
-        GPU.PassParams.MainCamera,
-        GPU.PassParams.GBufferAlbedo,
-        GPU.PassParams.GBufferNormal,
-        GPU.PassParams.GBufferERMO,
-        GPU.PassParams.GBufferDepth
-      ],
-      outputs: []
-    });
+    super({});
   }
   async init(resources) {
-    this.outputViewerShader = await GPU.Shader.Create({
+    this.shader = await GPU.Shader.Create({
       code: `
                 struct VertexInput {
                     @location(0) position : vec3<f32>,
@@ -84,7 +74,7 @@ class DebuggerRenderPass extends GPU.RenderPass {
       }
     });
     this.geometry = Geometry.Plane();
-    this.outputViewerShader.SetSampler("inputSampler", GPU.TextureSampler.Create());
+    this.shader.SetSampler("inputSampler", GPU.TextureSampler.Create());
     this.initialized = true;
   }
   execute(resources, ...args) {
@@ -93,15 +83,15 @@ class DebuggerRenderPass extends GPU.RenderPass {
     const GBufferNormal = resources.getResource(GPU.PassParams.GBufferNormal);
     const GBufferERMO = resources.getResource(GPU.PassParams.GBufferERMO);
     const lightingOutput = resources.getResource(GPU.PassParams.LightingPassOutput);
-    this.outputViewerShader.SetTexture("inputTexture", GBufferAlbedo);
-    if (this.currentViewType === 1 /* Albedo */) this.outputViewerShader.SetTexture("inputTexture", GBufferAlbedo);
-    else if (this.currentViewType === 2 /* Normal */) this.outputViewerShader.SetTexture("inputTexture", GBufferNormal);
-    else if (this.currentViewType === 3 /* Metalness */) this.outputViewerShader.SetTexture("inputTexture", GBufferAlbedo);
-    else if (this.currentViewType === 4 /* Roughness */) this.outputViewerShader.SetTexture("inputTexture", GBufferNormal);
-    else if (this.currentViewType === 5 /* Emissive */) this.outputViewerShader.SetTexture("inputTexture", GBufferERMO);
-    this.outputViewerShader.SetValue("viewType", this.currentViewType);
-    GPU.RendererContext.BeginRenderPass("DebugOutputViewer", [{ target: lightingOutput, clear: true }], void 0, true);
-    GPU.RendererContext.DrawGeometry(this.geometry, this.outputViewerShader);
+    this.shader.SetTexture("inputTexture", GBufferAlbedo);
+    if (this.currentViewType === 1 /* Albedo */) this.shader.SetTexture("inputTexture", GBufferAlbedo);
+    else if (this.currentViewType === 2 /* Normal */) this.shader.SetTexture("inputTexture", GBufferNormal);
+    else if (this.currentViewType === 3 /* Metalness */) this.shader.SetTexture("inputTexture", GBufferAlbedo);
+    else if (this.currentViewType === 4 /* Roughness */) this.shader.SetTexture("inputTexture", GBufferNormal);
+    else if (this.currentViewType === 5 /* Emissive */) this.shader.SetTexture("inputTexture", GBufferERMO);
+    this.shader.SetValue("viewType", this.currentViewType);
+    GPU.RendererContext.BeginRenderPass(this.name, [{ target: lightingOutput, clear: true }]);
+    GPU.RendererContext.DrawGeometry(this.geometry, this.shader);
     GPU.RendererContext.EndRenderPass();
   }
 }

@@ -1,5 +1,6 @@
-import { Renderer, Scene, GameObject, Mathf, Component as Component$1, Geometry, PBRMaterial, Utils, Components } from '@trident/core';
+import { Renderer, Scene, GameObject, Mathf, Component as Component$1, Geometry, PBRMaterial, Utils, Components, IndexAttribute, VertexAttribute } from '@trident/core';
 import { OrbitControls } from '@trident/plugins/OrbitControls.js';
+import { GLTFLoader } from '@trident/plugins/GLTF/GLTFLoader.js';
 
 class TridentAPI {
   currentScene;
@@ -302,22 +303,69 @@ class LayoutCanvas extends Component {
     lightGameObject.transform.LookAtV1(EngineAPI.createVector3(0, 0, 0));
     const light = lightGameObject.AddComponent(IComponents.DirectionalLight);
     light.castShadows = true;
-    const floorGameObject = EngineAPI.createGameObject(EngineAPI.currentScene);
-    floorGameObject.name = "Floor";
-    floorGameObject.transform.eulerAngles.x = -90;
-    floorGameObject.transform.position.y = -2;
-    floorGameObject.transform.scale.set(100, 100, 100);
-    const floorMesh = floorGameObject.AddComponent(IComponents.Mesh);
-    floorMesh.SetGeometry(EngineAPI.createPlaneGeometry());
-    floorMesh.AddMaterial(EngineAPI.createPBRMaterial());
-    const cubeGameObject = EngineAPI.createGameObject(EngineAPI.currentScene);
-    cubeGameObject.name = "Cube";
-    const cubeMesh = cubeGameObject.AddComponent(IComponents.Mesh);
-    cubeMesh.SetGeometry(EngineAPI.createCubeGeometry());
-    cubeMesh.AddMaterial(EngineAPI.createPBRMaterial());
-    const test = EngineAPI.createGameObject(EngineAPI.currentScene);
-    test.name = "test";
-    test.transform.parent = floorGameObject.transform;
+    async function traverse(object3D, func) {
+      await func(object3D);
+      for (const child of object3D.children) await traverse(child, func);
+    }
+    const helmet = await GLTFLoader.Load("/dist/examples/assets/models/Fox.glb");
+    const nodeGameObjectMap = /* @__PURE__ */ new Map();
+    await traverse(helmet, async (object3D) => {
+      const gameObject = new GameObject(currentScene);
+      gameObject.name = object3D.name || "Node";
+      const nodeId = object3D.metadata.get("gltfNodeId");
+      gameObject.transform.metadata.set("gltfNodeId", nodeId);
+      nodeGameObjectMap.set(nodeId, gameObject);
+      object3D.localMatrix.decompose(
+        gameObject.transform.position,
+        gameObject.transform.rotation,
+        gameObject.transform.scale
+      );
+      if (object3D.geometry && object3D.material) {
+        const positionsArray = object3D.geometry.attributes.get("position").array;
+        if (!object3D.geometry.index) {
+          let indexBuffer = new Uint32Array(positionsArray.length);
+          for (let i = 0; i < indexBuffer.length; i++) {
+            indexBuffer[i] = i;
+          }
+          object3D.geometry.index = new IndexAttribute(indexBuffer);
+          object3D.geometry.ComputeNormals();
+        }
+        if (!object3D.geometry.attributes.get("normal")) {
+          object3D.geometry.ComputeNormals();
+        }
+        if (!object3D.geometry.attributes.get("uv")) {
+          object3D.geometry.attributes.set("uv", new VertexAttribute(new Float32Array(positionsArray.length / 3 * 2)));
+        }
+        const mesh = object3D.skins && object3D.skins.length > 0 ? gameObject.AddComponent(Components.SkinnedMesh) : gameObject.AddComponent(Components.Mesh);
+        if (mesh instanceof Components.SkinnedMesh) {
+          mesh.skin = object3D.skins[0];
+        }
+        mesh.SetGeometry(object3D.geometry);
+        mesh.AddMaterial(object3D.material);
+      }
+      if (object3D.animations && object3D.animations.length > 0) {
+        const animator = gameObject.AddComponent(Components.Animator);
+        for (const animation of object3D.animations) {
+          animator.Add(animation);
+        }
+        setTimeout(() => {
+          animator.Play("Run");
+        }, 2e3);
+      }
+    });
+    function setupHierarchy(object3D) {
+      const nodeId = object3D.metadata.get("gltfNodeId");
+      const currentGameObject = nodeGameObjectMap.get(nodeId);
+      for (const child of object3D.children) {
+        const childNodeId = child.metadata.get("gltfNodeId");
+        const childGameObject = nodeGameObjectMap.get(childNodeId);
+        if (currentGameObject && childGameObject) {
+          childGameObject.transform.parent = currentGameObject.transform;
+        }
+        setupHierarchy(child);
+      }
+    }
+    setupHierarchy(helmet);
     currentScene.Start();
   }
   render() {

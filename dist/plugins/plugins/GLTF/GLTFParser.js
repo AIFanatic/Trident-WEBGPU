@@ -934,6 +934,119 @@ class GLTFParser {
     }
     return this.loadGLTF(url);
   }
+  /**
+   * Convert GLTF to engine GameObjects with proper skinning and animation support
+   */
+  async loadAsGameObjects(url) {
+    const gltf = await this.load(url);
+    const gameObjects = [];
+    const clips = [];
+    const skins = [];
+    const { GameObject } = await import('../../core/GameObject.js');
+    const { Scene: Scene2 } = await import('../../core/Scene.js');
+    const { Transform } = await import('../../core/components/Transform.js');
+    const { Mesh: Mesh2 } = await import('../../core/components/Mesh.js');
+    const { SkinnedMesh, Skin: Skin2 } = await import('../../core/components/SkinnedMesh.js');
+    const { Animator, AnimationClip, AnimationSampler: AnimationSampler2 } = await import('../../core/components/Animator.js');
+    const tempScene = new Scene2();
+    const nodeGameObjects = [];
+    if (gltf.nodes) {
+      for (let i = 0; i < gltf.nodes.length; i++) {
+        const node = gltf.nodes[i];
+        const gameObject = new GameObject(tempScene);
+        gameObject.name = node.name || `Node_${i}`;
+        gameObject.transform.position.set(node.translation.x, node.translation.y, node.translation.z);
+        gameObject.transform.rotation.set(node.rotation.x, node.rotation.y, node.rotation.z, node.rotation.w);
+        gameObject.transform.scale.set(node.scale.x, node.scale.y, node.scale.z);
+        gameObject.transform.metadata = /* @__PURE__ */ new Map();
+        gameObject.transform.metadata.set("gltfNodeId", i);
+        nodeGameObjects.push(gameObject);
+        gameObjects.push(gameObject);
+      }
+      for (let i = 0; i < gltf.nodes.length; i++) {
+        const node = gltf.nodes[i];
+        const gameObject = nodeGameObjects[i];
+        for (const childId of node.childrenID) {
+          const childGameObject = nodeGameObjects[childId];
+          childGameObject.transform.SetParent(gameObject.transform);
+        }
+      }
+    }
+    if (gltf.skins) {
+      for (const gltfSkin of gltf.skins) {
+        const jointTransforms = gltfSkin.joints.map((jointNode) => {
+          const jointIndex = gltf.nodes.indexOf(jointNode);
+          return nodeGameObjects[jointIndex].transform;
+        });
+        const inverseBindMatricesData = gltfSkin.inverseBindMatricesData;
+        if (inverseBindMatricesData) {
+          const skin = new Skin2(jointTransforms, inverseBindMatricesData);
+          skins.push(skin);
+        }
+      }
+    }
+    if (gltf.animations) {
+      for (const gltfAnimation of gltf.animations) {
+        const channels = [];
+        for (const gltfChannel of gltfAnimation.channels) {
+          const targetNodeIndex = gltfChannel.target.nodeID;
+          const targetTransform = nodeGameObjects[targetNodeIndex].transform;
+          const sampler = {
+            times: gltfChannel.sampler.keyFrameIndices,
+            values: gltfChannel.sampler.keyFrameRaw,
+            keyCount: gltfChannel.sampler.keyFrameIndices.length,
+            compCount: this.getComponentCountForPath(gltfChannel.target.path)
+          };
+          channels.push({
+            sampler,
+            targetTransform,
+            path: gltfChannel.target.path
+          });
+        }
+        const duration = Math.max(0, ...gltfAnimation.channels.map(
+          (ch) => ch.sampler.keyFrameIndices[ch.sampler.keyFrameIndices.length - 1] || 0
+        ));
+        const clip = new AnimationClip(gltfAnimation.name || `Animation ${clips.length}`, channels, duration);
+        clips.push(clip);
+      }
+    }
+    if (gltf.nodes) {
+      for (let i = 0; i < gltf.nodes.length; i++) {
+        const node = gltf.nodes[i];
+        const gameObject = nodeGameObjects[i];
+        if (node.mesh) {
+          const hasSkinning = node.mesh.primitives.some(
+            (p) => p.attributes.JOINTS_0 && p.attributes.WEIGHTS_0
+          );
+          if (hasSkinning && node.skin && skins[gltf.skins.indexOf(node.skin)]) {
+            const skinnedMesh = gameObject.AddComponent(SkinnedMesh);
+            skinnedMesh.skin = skins[gltf.skins.indexOf(node.skin)];
+          } else {
+            gameObject.AddComponent(Mesh2);
+          }
+        }
+      }
+    }
+    if (clips.length > 0 && gameObjects.length > 0) {
+      const animator = gameObjects[0].AddComponent(Animator);
+      animator.clips = clips;
+    }
+    return { gltf, gameObjects, clips, skins };
+  }
+  getComponentCountForPath(path) {
+    switch (path) {
+      case "translation":
+      case "scale":
+        return 3;
+      case "rotation":
+        return 4;
+      case "weights":
+        return 1;
+      // Variable, but 1 is common
+      default:
+        return 1;
+    }
+  }
 }
 var glTFLoaderBasic;
 ((glTFLoaderBasic2) => {

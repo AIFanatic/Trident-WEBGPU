@@ -27,7 +27,7 @@
             <script type="module">
                 const canvas = document.createElement("canvas");
                 document.body.appendChild(canvas);
-                            import { GPU, Scene, GameObject, Components, Mathf, IndexAttribute } from '@trident/core';
+                            import { GPU, Scene, GameObject, Components, Mathf } from '@trident/core';
             import { OrbitControls } from '@trident/plugins/OrbitControls.js';
             import { GLTFLoader } from '@trident/plugins/GLTF/GLTFLoader.js';
             import { Debugger } from '@trident/plugins/Debugger.js';
@@ -47,29 +47,8 @@
               lightGameObject.transform.position.set(-4, 4, 4);
               lightGameObject.transform.LookAtV1(new Mathf.Vector3(0, 0, 0));
               lightGameObject.AddComponent(Components.DirectionalLight);
-              function traverse(object3D, func) {
-                func(object3D);
-                for (const child of object3D.children) traverse(child, func);
-              }
-              const helmet = await GLTFLoader.Load("./assets/models/Fox.glb");
-              traverse(helmet, (object3D) => {
-                if (!object3D.geometry || !object3D.material) return;
-                if (!object3D.geometry.index) {
-                  const positionsArray = object3D.geometry.attributes.get("position").array;
-                  let indexBuffer = new Uint32Array(positionsArray.length);
-                  for (let i = 0; i < indexBuffer.length; i++) {
-                    indexBuffer[i] = i;
-                  }
-                  object3D.geometry.index = new IndexAttribute(indexBuffer);
-                  object3D.geometry.ComputeNormals();
-                }
-                console.log(object3D, "ger");
-                const gameObject = new GameObject(scene);
-                const mesh = gameObject.AddComponent(Components.Mesh);
-                object3D.localMatrix.decompose(gameObject.transform.position, gameObject.transform.rotation, gameObject.transform.scale);
-                mesh.SetGeometry(object3D.geometry);
-                mesh.AddMaterial(object3D.material);
-              });
+              const gameObjects = await GLTFLoader.loadAsGameObjects(scene, "./assets/models/Fox.glb");
+              gameObjects[0].transform.scale.mul(0.01);
               Debugger.Enable();
               scene.Start();
             }
