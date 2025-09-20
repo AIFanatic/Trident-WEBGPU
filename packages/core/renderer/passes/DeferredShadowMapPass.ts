@@ -2,6 +2,7 @@ import { Camera } from "../../components/Camera";
 import { RendererContext } from "../RendererContext";
 import { RenderPass, ResourcePool } from "../RenderGraph";
 import { Mesh } from "../../components/Mesh";
+import { SkinnedMesh } from "../../components/SkinnedMesh";
 import { PassParams } from "../RenderingPipeline";
 import { InstancedMesh } from "../../components/InstancedMesh";
 import { AreaLight, DirectionalLight, Light, PointLight, SpotLight } from "../../components/Light";
@@ -41,6 +42,7 @@ export class DeferredShadowMapPass extends RenderPass {
 
     private drawInstancedShadowShader: Shader;
     private drawShadowShader: Shader;
+    private drawSkinnedMeshShadowShader: Shader;
 
     private lightProjectionMatrixBuffer: Buffer;
     private lightProjectionViewMatricesBuffer: Buffer;
@@ -56,6 +58,8 @@ export class DeferredShadowMapPass extends RenderPass {
     private shadowOutput: DepthTextureArray;
     private shadowWidth = 2048;
     private shadowHeight = 2048;
+
+    private skinnedBoneMatricesBuffer: Buffer;
 
     constructor() {
         super({
@@ -136,6 +140,68 @@ export class DeferredShadowMapPass extends RenderPass {
             depthOutput: "depth24plus",
             cullMode: "back",
         });
+
+        this.drawSkinnedMeshShadowShader = await Shader.Create({
+            code: `
+            struct VertexInput {
+                @builtin(instance_index) instanceIdx : u32, 
+                @location(0) position : vec3<f32>,
+                @location(1) joints: vec4<u32>,
+                @location(2) weights: vec4<f32>,
+            };
+            
+            struct VertexOutput {
+                @builtin(position) position : vec4<f32>,
+            };
+            
+            @group(0) @binding(0) var<storage, read> projectionMatrix: array<mat4x4<f32>, 4>;
+            @group(0) @binding(1) var<storage, read> cascadeIndex: f32;
+            
+            @group(1) @binding(0) var<storage, read> modelMatrix: array<mat4x4<f32>>;
+            @group(1) @binding(1) var<storage, read> boneMatrices: array<mat4x4<f32>>;
+    
+            @vertex
+            fn vertexMain(input: VertexInput) -> @builtin(position) vec4<f32> {
+                var output : VertexOutput;
+
+                let skinMatrix: mat4x4<f32> = 
+                boneMatrices[input.joints[0]] * input.weights[0] +
+                boneMatrices[input.joints[1]] * input.weights[1] +
+                boneMatrices[input.joints[2]] * input.weights[2] +
+                boneMatrices[input.joints[3]] * input.weights[3];
+            
+                let finalPosition = skinMatrix * vec4(input.position, 1.0);
+    
+                let modelMatrixInstance = modelMatrix[input.instanceIdx];
+                let lightProjectionViewMatrix = projectionMatrix[u32(cascadeIndex)];
+            
+                return lightProjectionViewMatrix * modelMatrixInstance * finalPosition;
+            }
+            
+            @fragment
+            fn fragmentMain() -> @location(0) vec4<f32> {
+                return vec4(1.0);
+            }
+            `,
+            attributes: {
+                position: { location: 0, size: 3, type: "vec3" },
+                joints: { location: 1, size: 4, type: "vec4u" },
+                weights: { location: 2, size: 4, type: "vec4" },
+            },
+            uniforms: {
+                projectionMatrix: { group: 0, binding: 0, type: "storage" },
+                cascadeIndex: { group: 0, binding: 1, type: "storage" },
+                modelMatrix: { group: 1, binding: 0, type: "storage" },
+                boneMatrices: { group: 1, binding: 1, type: "storage" },
+            },
+            colorOutputs: [],
+            depthOutput: "depth24plus",
+            cullMode: "front",
+        });
+
+        // 100 matrices 6.4Kb
+        this.skinnedBoneMatricesBuffer = Buffer.Create(16 * 100 * 4, BufferType.STORAGE);
+        this.drawSkinnedMeshShadowShader.SetBuffer("boneMatrices", this.skinnedBoneMatricesBuffer);
 
         this.shadowOutput = DepthTextureArray.Create(this.shadowWidth, this.shadowHeight, 1);
 
@@ -259,7 +325,7 @@ export class DeferredShadowMapPass extends RenderPass {
         const instancedMeshes = scene.GetComponents(InstancedMesh);
         
         let meshes: Mesh[] = [];
-        const _meshes = scene.GetComponents(Mesh);
+        const _meshes = [...scene.GetComponents(Mesh), ...scene.GetComponents(SkinnedMesh)];
         for (const mesh of _meshes) {
             if (mesh.enableShadows && mesh.enabled && mesh.gameObject.enabled) meshes.push(mesh);
         }
@@ -279,6 +345,7 @@ export class DeferredShadowMapPass extends RenderPass {
         if (!this.lightProjectionMatrixBuffer) {
             this.lightProjectionMatrixBuffer = Buffer.Create(lights.length * 4 * 4 * 16, BufferType.STORAGE);
             this.drawShadowShader.SetBuffer("projectionMatrix", this.lightProjectionMatrixBuffer);
+            this.drawSkinnedMeshShadowShader.SetBuffer("projectionMatrix", this.lightProjectionMatrixBuffer);
             this.drawInstancedShadowShader.SetBuffer("projectionMatrix", this.lightProjectionMatrixBuffer);
         }
 
@@ -309,11 +376,13 @@ export class DeferredShadowMapPass extends RenderPass {
         }
 
         this.drawShadowShader.SetBuffer("modelMatrix", this.modelMatrices);
+        this.drawSkinnedMeshShadowShader.SetBuffer("modelMatrix", this.modelMatrices);
 
         const shadowOutput = resources.getResource(PassParams.ShadowPassDepth)
         shadowOutput.SetActiveLayer(0);
 
         this.drawShadowShader.SetBuffer("cascadeIndex", this.cascadeCurrentIndexBuffer);
+        this.drawSkinnedMeshShadowShader.SetBuffer("cascadeIndex", this.cascadeCurrentIndexBuffer);
         this.drawInstancedShadowShader.SetBuffer("cascadeIndex", this.cascadeCurrentIndexBuffer);
 
 
@@ -378,15 +447,6 @@ export class DeferredShadowMapPass extends RenderPass {
                     RendererContext.SetViewport(0, 0, this.shadowOutput.width, this.shadowOutput.height, 0, 1);
                 }
 
-                // // TODO this should be parametric
-                // const width = shadowOutput.width / 2;
-                // const height = shadowOutput.height / 2;
-                // let x = 0;
-                // let y = 0;
-                // if (cascadePass >= 2) x += width;
-                // if (cascadePass % 2 !== 0) y += height;
-                // RendererContext.SetViewport(x, y, width, height, 0, 1);
-
                 let meshCount = 0; // For dynamic offset
                 for (const mesh of meshes) {
                     // if (mesh.shader.params.topology === Topology.Lines) continue;
@@ -395,7 +455,12 @@ export class DeferredShadowMapPass extends RenderPass {
                     if (!geometry.attributes.has("position")) continue;
                     const uniform_offset = meshCount * 256;
                     this.modelMatrices.dynamicOffset = uniform_offset;
-                    RendererContext.DrawGeometry(geometry, this.drawShadowShader, 1);
+                    if (mesh instanceof SkinnedMesh) {
+                        // TODO: This only works with one SkinnedMesh
+                        this.drawSkinnedMeshShadowShader.SetBuffer("boneMatrices", mesh.GetBoneMatricesBuffer());
+                        RendererContext.DrawGeometry(geometry, this.drawSkinnedMeshShadowShader, 1);
+                    }
+                    else RendererContext.DrawGeometry(geometry, this.drawShadowShader, 1);
                     meshCount++;
                 }
 

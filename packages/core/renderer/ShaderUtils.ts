@@ -8,16 +8,25 @@ import WGSL_Shader_DeferredLighting_URL from "../resources/webgpu/shaders/deferr
 // TODO: This is messy
 export class ShaderPreprocessor {
     public static ProcessDefines(code: string, defines: { [key: string]: boolean }): string {
-        const coditions = StringFindAllBetween(code, "#if", "#endif", false);
-
-        for (const condition of coditions) {
-            const variable = StringFindAllBetween(condition, "#if ", "\n")[0];
-            const value = condition.replaceAll(`#if ${variable}`, "").replaceAll("#endif", "");
-
-            if (defines[variable] === true) code = code.replaceAll(condition, value);
-            else code = code.replaceAll(condition, "");
+        const nl = code.indexOf('\r\n') >= 0 ? '\r\n' : '\n';
+        const out: string[] = [];
+        const stack: boolean[] = [];
+        const evalCond = (s: string) => {
+            s = s.trim();
+            let neg = false;
+            while (s.startsWith('!')) { neg = !neg; s = s.slice(1).trim(); }
+            const val = !!defines[s];
+            return neg ? !val : val;
+        };
+    
+        for (const raw of code.split(nl)) {
+            const t = raw.trim();
+            if (t.startsWith('#if ')) { stack.push(evalCond(t.slice(4))); continue; }
+            if (t.startsWith('#else')) { if (stack.length) stack[stack.length - 1] = !stack[stack.length - 1]; continue; }
+            if (t.startsWith('#endif')) { if (stack.length) stack.pop(); continue; }
+            if (stack.every(Boolean)) out.push(raw);
         }
-        return code;
+        return out.join(nl);
     }
 
     public static async ProcessIncludes(code: string, url: string = "./"): Promise<string> {

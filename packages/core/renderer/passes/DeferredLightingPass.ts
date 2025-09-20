@@ -52,7 +52,7 @@ export class DeferredLightingPass extends RenderPass {
                 PassParams.ShadowPassDepth,
                 PassParams.ShadowPassCascadeData,
             ],
-            outputs: [PassParams.LightingPassOutput] });
+            outputs: [PassParams.LightingPassOutput, PassParams.LightsBuffer] });
     }
 
     public async init() {
@@ -275,5 +275,6 @@ export class DeferredLightingPass extends RenderPass {
         RendererContext.EndRenderPass();
 
         resources.setResource(PassParams.LightingPassOutput, this.outputLightingPass);
+        resources.setResource(PassParams.LightsBuffer, this.lightsBuffer);
     }
 }

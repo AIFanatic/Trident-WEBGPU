@@ -18,7 +18,7 @@ export interface ShaderColorOutput {
 export interface ShaderAttribute {
     location: number;
     size: number;
-    type: "vec2" | "vec3" | "vec4" | "mat4"
+    type: "vec2" | "vec3" | "vec4" | "mat4" | "vec2u" | "vec3u" | "vec4u"
 };
 
 export interface ShaderUniform {

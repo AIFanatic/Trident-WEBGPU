@@ -14,6 +14,9 @@ const WGSLShaderAttributeFormat: {[key: string]: string} = {
     vec2: "float32x2",
     vec3: "float32x3",
     vec4: "float32x4",
+    vec2u: "uint32x2",
+    vec3u: "uint32x3",
+    vec4u: "uint32x4",
 };
 
 export class WEBGPUShader extends WEBGPUBaseShader implements Shader {
@@ -118,14 +121,12 @@ export class WEBGPUShader extends WEBGPUBaseShader implements Shader {
             pipeline = WEBGPURenderer.device.createRenderPipeline(pipelineDescriptor);
             pipelineCache.set(pipelineDescriptorKey, pipeline);
             hasCompiled = true;
+            Renderer.info.compiledShadersStat += 1;
         }
 
         this._pipeline = pipeline;
 
-
-        
         if (hasCompiled === true) {
-            console.warn('%c Compiling shader', 'color: #3498db');
             Renderer.info.compiledShadersStat += 1;
         }
 

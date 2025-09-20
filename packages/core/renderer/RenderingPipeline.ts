@@ -31,6 +31,7 @@ export const PassParams = {
     ShadowPassDepth: "ShadowPassDepth",
 
     ShadowPassCascadeData: "ShadowPassCascadeData",
+    LightsBuffer: "LightsBuffer",
     
     LightingPassOutput: "LightingPassOutput",
 };

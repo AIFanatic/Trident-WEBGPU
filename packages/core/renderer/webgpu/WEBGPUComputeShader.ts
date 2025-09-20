@@ -22,8 +22,6 @@ export class WEBGPUComputeShader extends WEBGPUBaseShader implements Compute {
             return;
         }
 
-        console.log('%c Compiling shader', 'color: #ff0000');
-
         this.bindGroupLayouts = this.BuildBindGroupLayouts();
         this._bindGroups = this.BuildBindGroups();
 

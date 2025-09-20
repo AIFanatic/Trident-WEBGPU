@@ -47,6 +47,8 @@ export interface PBRMaterialParams extends MaterialParams {
     unlit: boolean;
 
     wireframe: boolean;
+
+    isSkinned: boolean;
 }
 
 export class PBRMaterial extends Material {
@@ -76,6 +78,8 @@ export class PBRMaterial extends Material {
             unlit: false,
 
             wireframe: false,
+            isSkinned: false,
+
             isDeferred: true
         }
         // this.params = Object.assign({}, defaultParams, params);
@@ -106,6 +110,7 @@ export class PBRMaterial extends Material {
             USE_METALNESS_MAP: this.initialParams?.metalnessMap ? true : false,
             USE_EMISSIVE_MAP: this.initialParams?.emissiveMap ? true : false,
             USE_AO_MAP: this.initialParams?.aoMap ? true : false,
+            USE_SKINNING: this.initialParams?.isSkinned ? true : false,
         }
 
         let shaderParams: ShaderParams = {
@@ -142,9 +147,16 @@ export class PBRMaterial extends Material {
             cullMode: this.params.doubleSided ? "none" : undefined
         };
         
+        let nextAttributeLocation = 3;
         if (DEFINES.USE_NORMAL_MAP) {
-            shaderParams.attributes.tangent = {location: 3, size: 4, type: "vec4"};
+            shaderParams.attributes.tangent = {location: nextAttributeLocation++, size: 4, type: "vec4"};
         }
+        if (DEFINES.USE_SKINNING) {
+            shaderParams.attributes.joints = {location: nextAttributeLocation++, size: 4, type: "vec4u"};
+            shaderParams.attributes.weights = {location: nextAttributeLocation++, size: 4, type: "vec4"};
+            shaderParams.uniforms.boneMatrices = {group: 1, binding: 0, type: "storage"}
+        }
+        
         shaderParams = Object.assign({}, shaderParams, this.params);
 
         const shader = await Shader.Create(shaderParams);

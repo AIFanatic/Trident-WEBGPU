@@ -2,6 +2,7 @@ import { Camera } from "../../components/Camera";
 import { RendererContext } from "../RendererContext";
 import { RenderPass, ResourcePool } from "../RenderGraph";
 import { Mesh } from "../../components/Mesh";
+import { SkinnedMesh } from "../../components/SkinnedMesh";
 import { Transform } from "../../components/Transform";
 import { PassParams } from "../RenderingPipeline";
 import { InstancedMesh } from "../../components/InstancedMesh";
@@ -49,7 +50,7 @@ export class DeferredGBufferPass extends RenderPass {
         if (!this.initialized) return;
 
         const scene = Camera.mainCamera.gameObject.scene;
-        const _meshes = scene.GetComponents(Mesh);
+        const _meshes = [...scene.GetComponents(Mesh), ...scene.GetComponents(SkinnedMesh)];
         let meshesInfo: {mesh: Mesh, index: number}[] = [];
 
         for (let i = 0; i < _meshes.length; i++) {
@@ -106,6 +107,9 @@ export class DeferredGBufferPass extends RenderPass {
                 shader.SetBuffer("modelMatrix", this.modelMatrixBuffer.getBuffer());
 
                 shader.SetVector3("cameraPosition", inputCamera.transform.position);
+                if (meshInfo.mesh instanceof SkinnedMesh) {
+                    shader.SetBuffer("boneMatrices", meshInfo.mesh.GetBoneMatricesBuffer());
+                }
                 RendererContext.DrawGeometry(geometry, shader, 1, meshInfo.index);
                 if (geometry.index) {
                     Renderer.info.triangleCount += geometry.index.array.length / 3;
