@@ -39,7 +39,7 @@ fn worldToAtlasUVZ(worldPos: vec3<f32>, light: Light, cascadeIndex: i32) -> vec3
     return vec3<f32>(uv, ndc.z);
 }
 
-fn SampleCascadeShadowMap(surface: Surface, light: Light, cascadeIndex: i32, lightIndex: u32) -> f32 {
+fn SampleCascadeShadowMap(shadowTexture: texture_depth_2d_array, shadowSampler: sampler_comparison, surface: Surface, light: Light, cascadeIndex: i32, lightIndex: u32) -> f32 {
     // Build atlas UV/Z for this cascade
     let uvz = worldToAtlasUVZ(surface.worldPosition, light, cascadeIndex);
     let uv  = uvz.xy;
@@ -51,15 +51,15 @@ fn SampleCascadeShadowMap(surface: Surface, light: Light, cascadeIndex: i32, lig
     }
 
     // One textureDimensions() per pixel (ideally pass texel size from CPU)
-    let texDim = vec2<f32>(textureDimensions(shadowPassDepth));
+    let texDim = vec2<f32>(textureDimensions(shadowTexture));
     let texel  = 1.0 / texDim;
 
     // Use fast 3×3 when radius <= 1, else bounded loop (max 5×5)
     let radius = i32(settings.pcfResolution); // interpret as radius
     if (radius <= 1) {
-        return pcf3x3_quadrant(uv, z, i32(light.params1.w), texel);
+        return pcf3x3_quadrant(shadowTexture, shadowSampler, uv, z, i32(light.params1.w), texel);
     } else {
-        return pcfBounded(uv, z, i32(light.params1.w), texel, radius);
+        return pcfBounded(shadowTexture, shadowSampler, uv, z, i32(light.params1.w), texel, radius);
     }
 }
 
@@ -67,7 +67,7 @@ fn lerp(k0: f32, k1: f32, t: f32) -> f32 {
     return k0 + t * (k1 - k0);
 }
 
-fn CalculateShadowCSM(surface: Surface, light: Light, lightIndex: u32) -> ShadowCSM {
+fn CalculateShadowCSM(shadowTexture: texture_depth_2d_array, shadowSampler: sampler_comparison, surface: Surface, light: Light, lightIndex: u32) -> ShadowCSM {
     var out: ShadowCSM;
 
     // View-space depth for cascade selection
@@ -87,7 +87,7 @@ fn CalculateShadowCSM(surface: Surface, light: Light, lightIndex: u32) -> Shadow
     out.selectedCascade = selectedCascade;
 
     // Primary cascade
-    var visibility = SampleCascadeShadowMap(surface, light, selectedCascade, lightIndex);
+    var visibility = SampleCascadeShadowMap(shadowTexture, shadowSampler, surface, light, selectedCascade, lightIndex);
 
     // Blend near the split to hide seams
     let blendThreshold   = settings.blendThreshold;
@@ -99,7 +99,7 @@ fn CalculateShadowCSM(surface: Surface, light: Light, lightIndex: u32) -> Shadow
     let fadeFactor = (nextSplit - depthValue) / max(splitSize, 1e-6);
 
     if (fadeFactor <= blendThreshold && selectedCascade != numCascades - 1) {
-        let nextSplitVisibility = SampleCascadeShadowMap(surface, light, selectedCascade + 1, lightIndex);
+        let nextSplitVisibility = SampleCascadeShadowMap(shadowTexture, shadowSampler, surface, light, selectedCascade + 1, lightIndex);
         let lerpAmount = smoothstep(0.0, blendThreshold, fadeFactor);
         visibility = lerp(nextSplitVisibility, visibility, lerpAmount);
 

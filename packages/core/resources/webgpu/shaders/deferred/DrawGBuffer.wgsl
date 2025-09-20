@@ -4,9 +4,29 @@ struct VertexInput {
     @location(0) position : vec3<f32>,
     @location(1) normal : vec3<f32>,
     @location(2) uv : vec2<f32>,
+
     #if USE_NORMAL_MAP
         @location(3) tangent : vec4<f32>,
+        #if USE_SKINNING
+            @location(4) joints: vec4<u32>,
+            @location(5) weights: vec4<f32>,
+        #endif
+    #else
+        #if USE_SKINNING
+            @location(3) joints: vec4<u32>,
+            @location(4) weights: vec4<f32>,
+        #endif
     #endif
+};
+
+struct Material {
+    AlbedoColor: vec4<f32>,
+    EmissiveColor: vec4<f32>,
+    Roughness: f32,
+    Metalness: f32,
+    Unlit: f32,
+    AlphaCutoff: f32,
+    Wireframe: f32
 };
 
 struct VertexOutput {
@@ -23,7 +43,7 @@ struct VertexOutput {
 @group(0) @binding(0) var<storage, read> projectionMatrix: mat4x4<f32>;
 @group(0) @binding(1) var<storage, read> viewMatrix: mat4x4<f32>;
 @group(0) @binding(2) var<storage, read> modelMatrix: array<mat4x4<f32>>;
-
+@group(0) @binding(3) var<storage, read> material: Material;
 @group(0) @binding(4) var TextureSampler: sampler;
 
 // These get optimized out based on "USE*" defines
@@ -37,29 +57,38 @@ struct VertexOutput {
 
 @group(0) @binding(11) var<storage, read> cameraPosition: vec3<f32>;
 
+#if USE_SKINNING
+    @group(1) @binding(0) var<storage, read> boneMatrices: array<mat4x4<f32>>;
+#endif
 
-struct Material {
-    AlbedoColor: vec4<f32>,
-    EmissiveColor: vec4<f32>,
-    Roughness: f32,
-    Metalness: f32,
-    Unlit: f32,
-    AlphaCutoff: f32,
-    Wireframe: f32
-};
-
-@group(0) @binding(3) var<storage, read> material: Material;
 
 @vertex
 fn vertexMain(input: VertexInput) -> VertexOutput {
     var output : VertexOutput;
 
+      var finalPosition = vec4(input.position, 1.0);
+      var finalNormal = vec4(input.normal, 0.0);
+
+    #if USE_SKINNING
+        var skinnedPosition = vec4(0.0);
+        var skinnedNormal = vec4(0.0);
+
+        let skinMatrix: mat4x4<f32> = 
+            boneMatrices[input.joints[0]] * input.weights[0] +
+            boneMatrices[input.joints[1]] * input.weights[1] +
+            boneMatrices[input.joints[2]] * input.weights[2] +
+            boneMatrices[input.joints[3]] * input.weights[3];
+        
+        finalPosition = skinMatrix * vec4(input.position, 1.0);
+        finalNormal   = normalize(skinMatrix * vec4(input.normal, 0.0));
+    #endif
+
     var modelMatrixInstance = modelMatrix[input.instanceIdx];
     var modelViewMatrix = viewMatrix * modelMatrixInstance;
 
-    output.position = projectionMatrix * modelViewMatrix * vec4(input.position, 1.0);
+    output.position = projectionMatrix * modelViewMatrix * vec4(finalPosition.xyz, 1.0);
     
-    output.vPosition = input.position;
+    output.vPosition = finalPosition.xyz;
     output.vNormal = input.normal;
     output.vUv = input.uv;
 

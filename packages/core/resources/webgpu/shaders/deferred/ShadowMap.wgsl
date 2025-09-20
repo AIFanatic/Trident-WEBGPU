@@ -14,7 +14,7 @@ fn worldToAtlasUVZSpot(worldPos: vec3<f32>, light: Light, cascadeIndex: i32) -> 
     return vec3<f32>(uv, ndc.z);
 }
 
-fn SampleCascadeShadowMapSpot(surface: Surface, light: Light, cascadeIndex: i32, lightIndex: u32) -> f32 {
+fn SampleCascadeShadowMapSpot(shadowTexture: texture_depth_2d_array, shadowSampler: sampler_comparison, surface: Surface, light: Light, cascadeIndex: i32, lightIndex: u32) -> f32 {
     // Build atlas UV/Z for this cascade
     let uvz = worldToAtlasUVZSpot(surface.worldPosition, light, cascadeIndex);
     let uv  = uvz.xy;
@@ -26,19 +26,19 @@ fn SampleCascadeShadowMapSpot(surface: Surface, light: Light, cascadeIndex: i32,
     }
 
     // One textureDimensions() per pixel (ideally pass texel size from CPU)
-    let texDim = vec2<f32>(textureDimensions(shadowPassDepth));
+    let texDim = vec2<f32>(textureDimensions(shadowTexture));
     let texel  = 1.0 / texDim;
 
     // Use fast 3×3 when radius <= 1, else bounded loop (max 5×5)
     let radius = i32(settings.pcfResolution); // interpret as radius
     if (radius <= 1) {
-        return pcf3x3_quadrant(uv, z, i32(light.params1.w), texel);
+        return pcf3x3_quadrant(shadowTexture, shadowSampler, uv, z, i32(light.params1.w), texel);
     } else {
-        return pcfBounded(uv, z, i32(light.params1.w), texel, radius);
+        return pcfBounded(shadowTexture, shadowSampler, uv, z, i32(light.params1.w), texel, radius);
     }
 }
 
-fn CalculateShadowCSMSpot(surface: Surface, light: Light, lightIndex: u32) -> ShadowCSM {
+fn CalculateShadowCSMSpot(shadowTexture: texture_depth_2d_array, shadowSampler: sampler_comparison, surface: Surface, light: Light, lightIndex: u32) -> ShadowCSM {
     var out: ShadowCSM;
 
     // View-space depth for cascade selection
@@ -50,7 +50,7 @@ fn CalculateShadowCSMSpot(surface: Surface, light: Light, lightIndex: u32) -> Sh
     out.selectedCascade = selectedCascade;
 
     // Primary cascade
-    let visibility = SampleCascadeShadowMapSpot(surface, light, selectedCascade, lightIndex);
+    let visibility = SampleCascadeShadowMapSpot(shadowTexture, shadowSampler, surface, light, selectedCascade, lightIndex);
 
     out.visibility = clamp(visibility, 0.0, 1.0);
     return out;
