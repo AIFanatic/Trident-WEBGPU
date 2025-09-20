@@ -48,7 +48,10 @@
               lightGameObject.transform.LookAtV1(new Mathf.Vector3(0, 0, 0));
               lightGameObject.AddComponent(Components.DirectionalLight);
               const gameObjects = await GLTFLoader.loadAsGameObjects(scene, "./assets/models/Fox.glb");
-              gameObjects[0].transform.scale.mul(0.01);
+              const root = gameObjects[0];
+              root.transform.scale.mul(0.01);
+              const animator = root.GetComponent(Components.Animator);
+              animator.SetClipByIndex(0);
               Debugger.Enable();
               scene.Start();
             }
