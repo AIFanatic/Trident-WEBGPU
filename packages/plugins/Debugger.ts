@@ -139,7 +139,9 @@ class _Debugger {
     // public useHeightMapValue: boolean = false;
 
     private gpuBufferSizeTotal: UITextStat;
+    private gpuBufferCount: UITextStat;
     private gpuTextureSizeTotal: UITextStat;
+    private gpuTextureCount: UITextStat;
 
     private visibleObjectsStat: UITextStat;
     
@@ -164,7 +166,9 @@ class _Debugger {
         this.cpuTime = new UITextStat(this.rendererFolder, "CPU: ", 0, 2, "ms", true);
         this.gpuTime = new UITextStat(this.rendererFolder, "GPU: ", 0, 2, "ms", true);
         this.gpuBufferSizeTotal = new UITextStat(this.rendererFolder, "GPU buffer size: ", 0, 2);
-        this.gpuTextureSizeTotal = new UITextStat(this.rendererFolder, "GPU texture size: ", 0, 2);
+        this.gpuBufferCount = new UITextStat(this.rendererFolder, "GPU buffer count: ", 0, 0);
+        this.gpuTextureSizeTotal = new UITextStat(this.rendererFolder, "GPU texture size: ", 0, 0);
+        this.gpuTextureCount = new UITextStat(this.rendererFolder, "GPU texture count: ", 0, 0);
         this.bindGroupLayoutsStat = new UITextStat(this.rendererFolder, "Bind group layouts: ");
         this.bindGroupsStat = new UITextStat(this.rendererFolder, "Bind groups: ");
         this.drawCallsStat = new UITextStat(this.rendererFolder, "Draw calls: ");
@@ -208,7 +212,9 @@ class _Debugger {
         this.visibleTriangles.SetValue(Renderer.info.visibleTriangles);
         this.cpuTime.SetValue(Renderer.info.cpuTime);
         this.gpuBufferSizeTotal.SetValue(Renderer.info.gpuBufferSizeTotal);
+        this.gpuBufferCount.SetValue(Renderer.info.gpuBufferCount);
         this.gpuTextureSizeTotal.SetValue(Renderer.info.gpuTextureSizeTotal);
+        this.gpuTextureCount.SetValue(Renderer.info.gpuTextureCount);
         this.bindGroupLayoutsStat.SetValue(Renderer.info.bindGroupLayoutsStat);
         this.bindGroupsStat.SetValue(Renderer.info.bindGroupsStat);
         this.drawCallsStat.SetValue(Renderer.info.drawCallsStat);

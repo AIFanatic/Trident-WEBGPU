@@ -8,7 +8,7 @@ export class Vector2 {
     public set x(v: number) { this._x = v };
     public set y(v: number) { this._y = v };
 
-    private _elements = new Float32Array(3);
+    private _elements = new Float32Array(2);
     public get elements(): Float32Array {
         this._elements[0] = this._x;
         this._elements[1] = this._y;

@@ -26,3 +26,5 @@ import "./BindlessTexture";
 import "./RSM";
 
 import "./Impostors";
+
+import "./Particles";

@@ -5,9 +5,10 @@ import { BaseProps } from "./Layout";
 import { OrbitControls } from "@trident/plugins/OrbitControls.js";
 import { Debugger } from "@trident/plugins/Debugger.js";
 import { HDRParser } from "@trident/plugins/HDRParser.js";
+import { ParticleSystem } from "@trident/plugins/ParticleSystem.js";
 
 import { GLTFLoader } from '@trident/plugins/GLTF/GLTFLoader.js';
-import { Components, GameObject, IndexAttribute, Object3D, VertexAttribute } from "@trident/core";
+import { GPU } from "@trident/core";
 
 export class LayoutCanvas extends Component<BaseProps> {
 
@@ -72,135 +73,32 @@ export class LayoutCanvas extends Component<BaseProps> {
 
 
 
-
-        async function traverse(object3D: Object3D, func: (o: Object3D) => void | Promise<void>): Promise<void> {
-            await func(object3D);
-            for (const child of object3D.children) await traverse(child, func);
-        }
     
-        // const helmet = await GLTFLoader.Load("./assets/models/DamagedHelmet/DamagedHelmet.gltf");
-        // const helmet = await GLTFLoader.Load("./assets/models/AnimatedTriangle/AnimatedTriangle.gltf");
-        const helmet = await GLTFLoader.Load("/dist/examples/assets/models/Fox.glb");
-        // const helmet = await GLTFLoader.Load("./assets/models/AnimatedCube/AnimatedCube.gltf");
-    
-        const nodeGameObjectMap = new Map<number, GameObject>();
-        await traverse(helmet, async object3D => {
-            // Create GameObject for EVERY node (bones, empties, meshes, etc.)
-            const gameObject = new GameObject(currentScene);
-            gameObject.name = object3D.name || "Node";
-            const nodeId = object3D.metadata.get("gltfNodeId");
-            gameObject.transform.metadata.set("gltfNodeId", nodeId);
-            nodeGameObjectMap.set(nodeId, gameObject);
-      
-            // Apply transform
-            object3D.localMatrix.decompose(
-                gameObject.transform.position,
-                gameObject.transform.rotation,
-                gameObject.transform.scale
-            );
-      
-            // Only add mesh component if this node has geometry
-            if (object3D.geometry && object3D.material) {
-                const positionsArray = object3D.geometry.attributes.get("position").array;
-                if (!object3D.geometry.index) {
-                    let indexBuffer = new Uint32Array(positionsArray.length);
-                    for (let i = 0; i < indexBuffer.length; i++) {
-                        indexBuffer[i] = i;
-                    }
-                    object3D.geometry.index = new IndexAttribute(indexBuffer);
-                    object3D.geometry.ComputeNormals();
-                }
-                if (!object3D.geometry.attributes.get("normal")) {
-                    object3D.geometry.ComputeNormals();
-                }
-                if (!object3D.geometry.attributes.get("uv")) {
-                    object3D.geometry.attributes.set("uv", new VertexAttribute(new Float32Array(positionsArray.length / 3 * 2)));
-                }
-      
-                const mesh = object3D.skins && object3D.skins.length > 0
-                    ? gameObject.AddComponent(Components.SkinnedMesh)
-                    : gameObject.AddComponent(Components.Mesh);
-      
-                if (mesh instanceof Components.SkinnedMesh) {
-                    mesh.skin = object3D.skins[0];
-                }
-      
-                mesh.SetGeometry(object3D.geometry);
-                mesh.AddMaterial(object3D.material);
-            }
-      
-            // Add animator to the ROOT object (not individual nodes)
-            if (object3D.animations && object3D.animations.length > 0) {
-                const animator = gameObject.AddComponent(Components.Animator);
-                for (const animation of object3D.animations) {
-                    animator.Add(animation);
-                }
-                setTimeout(() => {
-                    animator.Play("Run");
-                }, 2000);
-            }
-        })
-    
-        function setupHierarchy(object3D: Object3D) {
-            const nodeId = object3D.metadata.get("gltfNodeId");
-            const currentGameObject = nodeGameObjectMap.get(nodeId);
-      
-            for (const child of object3D.children) {
-                const childNodeId = child.metadata.get("gltfNodeId");
-                const childGameObject = nodeGameObjectMap.get(childNodeId);
-      
-                if (currentGameObject && childGameObject) {
-                    childGameObject.transform.parent = currentGameObject.transform;
-                }
-      
-                setupHierarchy(child); // Recursive
-            }
-        }
-      
-        setupHierarchy(helmet);
+        const gameObjects = await GLTFLoader.loadAsGameObjects(currentScene, "/examples/assets/models/Fox.glb");
+        gameObjects[0].transform.scale.mul(0.1);
 
 
-        // // {
-        // //     const hdr = await HDRParser.Load("./resources/autumn_field_puresky_1k.hdr");
-        // //     const sky = await HDRParser.ToCubemap(hdr);
     
-        // //     const skyIrradiance = await HDRParser.GetIrradianceMap(sky);
-        // //     const prefilterMap = await HDRParser.GetPrefilterMap(sky);
-        // //     const brdfLUT = await HDRParser.GetBRDFLUT(1);
+        const particleSystemGameObject = EngineAPI.createGameObject(currentScene);
+        particleSystemGameObject.name = "ParticleSystem";
+        const particleSystem = particleSystemGameObject.AddComponent(ParticleSystem);
+        particleSystem.texture = await GPU.Texture.Load("/examples/assets/textures/TXT_Fire_01.png");
+
+        particleSystem.startLifetime = 2.5;
+        particleSystem.startSpeed.set(1.5, 1.5, 1.5);
+        particleSystem.startSize = 2.5;
+        // particleSystem.shapeType = "cone"
+        particleSystem.coneAngle = 5 * Math.PI / 180;
+        particleSystem.radius = 0.1;
         
-        // //     EngineAPI.currentScene.renderPipeline.skybox = sky;
-        // //     EngineAPI.currentScene.renderPipeline.skyboxIrradiance = skyIrradiance;
-        // //     EngineAPI.currentScene.renderPipeline.skyboxPrefilter = prefilterMap;
-        // //     EngineAPI.currentScene.renderPipeline.skyboxBRDFLUT = brdfLUT;
-        // // }
-
-
-        // // Debugger.Enable();
-
-
-
-
-
-        // // function traverse(object3D, func) {
-        // //     func(object3D);
-        // //     for (const child of object3D.children) traverse(child, func);
-        // //   }
-        // //   const helmet = await GLTFParser.Load("../../dist/examples/assets/models/DamagedHelmet/DamagedHelmet.gltf");
-        // //   traverse(helmet, (object3D) => {
-        // //     if (object3D.geometry && object3D.material) {
-        // //       console.log(object3D);
-        // //       const gameObject = EngineAPI.createGameObject(currentScene);
-        // //       const mesh = gameObject.AddComponent(IComponents.Mesh);
-        // //       object3D.localMatrix.decompose(gameObject.transform.position, gameObject.transform.rotation, gameObject.transform.scale);
-        // //       mesh.SetGeometry(object3D.geometry);
-        // //       mesh.AddMaterial(object3D.material);
-        // //     }
-        // //   });
-
-        // const test = EngineAPI.createGameObject(EngineAPI.currentScene);
-        // test.name = "test"
-        // test.transform.parent = floorGameObject.transform;
-
+        particleSystem.rateOverTime = 10;
+        // particleSystem.frameOvertime = "random";
+    
+        particleSystem.textureTiles.set(2,2);
+    
+        particleSystem.colorOverLifetime0.set(1, 0.9013662, 0, 1);
+        particleSystem.colorOverLifetime1.set(1, 0.558496, 0.3176471, 0.1);
+    
 
         currentScene.Start();
     }

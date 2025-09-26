@@ -22,3 +22,5 @@ export * as Mathf from './math';
 export * as GPU from "./renderer";
 
 export * as Utils from "./utils";
+
+export { Assets } from "./Assets";
