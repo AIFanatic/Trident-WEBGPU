@@ -1,3 +1,4 @@
+import { GradientEditor } from './GradientEditor.js';
 import styles from './resources/UIStats.css.js';
 
 class Stat {
@@ -110,7 +111,7 @@ class UISliderStat extends Stat {
     container.style.padding = "0px";
     const sliderElement = document.createElement("input");
     sliderElement.classList.add("slider");
-    sliderElement.style.width = "60px";
+    sliderElement.style.width = "76px";
     sliderElement.style.margin = "0px";
     sliderElement.type = "range";
     sliderElement.min = `${min}`;
@@ -209,7 +210,6 @@ class UIVecStat extends Stat {
       z: z.value,
       w: w ? w.value : void 0
     };
-    console.log(this.value);
     const container = document.createElement("div");
     container.style.display = "flex";
     container.style.width = "110px";
@@ -281,6 +281,47 @@ class UIVecStat extends Stat {
     return container;
   }
 }
+class UIGradientStat extends Stat {
+  container;
+  onChanged = (gradient) => {
+  };
+  gradientEditor;
+  constructor(folder, label, onChanged, defaultGradient) {
+    super(folder.container, label);
+    this.onChanged = onChanged;
+    this.container = document.createElement("div");
+    this.container.className = "value gradient-container";
+    this.statContainer.append(this.container);
+    const modal = Object.assign(document.createElement("div"), { style: "position: absolute; top: 0; visibility: hidden;" });
+    const backdrop = Object.assign(document.createElement("div"), { style: "position: absolute; top: 0; left: 0; right: 0; bottom: 0; display: none;" });
+    this.gradientEditor = new GradientEditor(defaultGradient);
+    modal.append(this.gradientEditor.container);
+    document.body.append(backdrop);
+    document.body.append(modal);
+    window.addEventListener("pointerdown", (event) => {
+      const target = event.target;
+      if (modal.contains(target)) return;
+      if (target.contains(this.container)) {
+        modal.style.visibility = "";
+        backdrop.style.display = "";
+        const rect = modal.getBoundingClientRect();
+        let x = event.clientX;
+        let y = event.clientY;
+        if (x + rect.width > window.innerWidth) y -= rect.width;
+        if (y + rect.height > window.innerHeight) y -= rect.height;
+        modal.style.left = `${x}px`;
+        modal.style.top = `${y}px`;
+      } else {
+        modal.style.visibility = "hidden";
+        backdrop.style.display = "none";
+      }
+    });
+    this.gradientEditor.onChanged = (gradient) => {
+      this.onChanged(gradient);
+      this.container.style.background = this.gradientEditor.currentGradient;
+    };
+  }
+}
 class UIFolder extends Stat {
   folderElement;
   container;
@@ -310,4 +351,4 @@ class UIFolder extends Stat {
   }
 }
 
-export { UIButtonStat, UIColorStat, UIDropdownStat, UIFolder, UIGraph, UISliderStat, UITextStat, UIVecStat };
+export { UIButtonStat, UIColorStat, UIDropdownStat, UIFolder, UIGradientStat, UIGraph, UISliderStat, UITextStat, UIVecStat };

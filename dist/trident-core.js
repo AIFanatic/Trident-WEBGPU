@@ -105,6 +105,7 @@ var index$3 = /*#__PURE__*/Object.freeze({
     __proto__: null,
     CRC32: CRC32,
     SerializableFields: SerializableFields,
+    SerializeField: SerializeField,
     StringFindAllBetween: StringFindAllBetween,
     UUID: UUID
 });
@@ -211,7 +212,9 @@ class RendererInfo {
   compiledShadersStat = 0;
   drawCallsStat = 0;
   gpuBufferSizeTotal = 0;
+  gpuBufferCount = 0;
   gpuTextureSizeTotal = 0;
+  gpuTextureCount = 0;
   visibleObjects = 0;
   framePassesStats = /* @__PURE__ */ new Map();
   SetPassTime(name, time) {
@@ -246,7 +249,6 @@ class Renderer {
       Renderer.width = canvas.width;
       Renderer.height = canvas.height;
       EventSystem.emit(RendererEvents.Resized, canvas);
-      console.log("Resized");
     });
     observer.observe(canvas);
     Renderer.canvas = canvas;
@@ -480,6 +482,15 @@ class ShaderLoader {
     }
     throw Error("Unknown api");
   }
+  static async LoadV2(shader_url) {
+    if (Renderer.type === "webgpu") {
+      if (shader_url === "") throw Error(`Invalid shader ${shader_url}`);
+      let code = await Assets.Load(shader_url, "text");
+      code = await ShaderPreprocessor.ProcessIncludesV2(code, shader_url);
+      return code;
+    }
+    throw Error("Unknown api");
+  }
   static async LoadURL(shader_url) {
     if (Renderer.type === "webgpu") {
       let code = await Assets.LoadURL(shader_url, "text");
@@ -513,6 +524,7 @@ class BaseBuffer {
   }
   constructor(sizeInBytes, type) {
     Renderer.info.gpuBufferSizeTotal += sizeInBytes;
+    Renderer.info.gpuBufferCount++;
     let usage = void 0;
     if (type == BufferType.STORAGE) usage = GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC | GPUBufferUsage.COPY_DST;
     else if (type == BufferType.STORAGE_WRITE) usage = GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC | GPUBufferUsage.COPY_DST;
@@ -547,6 +559,7 @@ class BaseBuffer {
   }
   Destroy() {
     Renderer.info.gpuBufferSizeTotal += -this.size;
+    Renderer.info.gpuBufferCount--;
     this.buffer.destroy();
   }
 }
@@ -630,7 +643,7 @@ class Vector2 {
   set y(v) {
     this._y = v;
   }
-  _elements = new Float32Array(3);
+  _elements = new Float32Array(2);
   get elements() {
     this._elements[0] = this._x;
     this._elements[1] = this._y;
@@ -830,6 +843,8 @@ class WEBGPUTexture {
     this.type = type;
     this.dimension = dimension;
     this.mipLevels = mipLevels;
+    Renderer.info.gpuTextureSizeTotal += width * height * depth * 4;
+    Renderer.info.gpuTextureCount++;
   }
   GetBuffer() {
     return this.buffer;
@@ -883,6 +898,7 @@ class WEBGPUTexture {
   }
   Destroy() {
     Renderer.info.gpuTextureSizeTotal -= this.buffer.width * this.buffer.height * this.buffer.depthOrArrayLayers * 4;
+    Renderer.info.gpuTextureCount--;
     this.buffer.destroy();
   }
   SetData(data, bytesPerRow, rowsPerImage) {
@@ -3312,7 +3328,6 @@ var TextureType = /* @__PURE__ */ ((TextureType2) => {
   return TextureType2;
 })(TextureType || {});
 function CreateTexture(width, height, depth, format, type, dimension, mipLevels) {
-  Renderer.info.gpuTextureSizeTotal += width * height * depth * 4;
   if (Renderer.type === "webgpu") return new WEBGPUTexture(width, height, depth, format, type, dimension, mipLevels);
   throw Error("Renderer type invalid");
 }
@@ -3698,6 +3713,28 @@ const WGSLShaderAttributeFormat = {
   vec3u: "uint32x3",
   vec4u: "uint32x4"
 };
+function blendState(mode) {
+  switch (mode) {
+    case "opaque":
+      return void 0;
+    // no blending
+    case "alpha":
+      return {
+        color: { srcFactor: "src-alpha", dstFactor: "one-minus-src-alpha", operation: "add" },
+        alpha: { srcFactor: "one", dstFactor: "one-minus-src-alpha", operation: "add" }
+      };
+    case "premultiplied":
+      return {
+        color: { srcFactor: "one", dstFactor: "one-minus-src-alpha", operation: "add" },
+        alpha: { srcFactor: "one", dstFactor: "one-minus-src-alpha", operation: "add" }
+      };
+    case "add":
+      return {
+        color: { srcFactor: "one", dstFactor: "one", operation: "add" },
+        alpha: { srcFactor: "one", dstFactor: "one", operation: "add" }
+      };
+  }
+}
 class WEBGPUShader extends WEBGPUBaseShader {
   vertexEntrypoint;
   fragmentEntrypoint;
@@ -3734,7 +3771,8 @@ class WEBGPUShader extends WEBGPUBaseShader {
     }
     let targets = [];
     for (const output of this.params.colorOutputs) targets.push({
-      format: output.format
+      format: output.format,
+      blend: blendState(output.blendMode)
       // blend: {
       //     color: {
       //       srcFactor: 'one',
@@ -3745,6 +3783,30 @@ class WEBGPUShader extends WEBGPUBaseShader {
       //       srcFactor: 'one',
       //       dstFactor: 'one-minus-src-alpha',
       //       operation: 'add',
+      //     },
+      // }
+      // blend: {
+      //     color: {
+      //       srcFactor: 'src-alpha',
+      //       dstFactor: 'one-minus-src-alpha',
+      //       operation: 'add',
+      //     },
+      //     alpha: {
+      //       srcFactor: 'one',
+      //       dstFactor: 'one-minus-src-alpha',
+      //       operation: 'add',
+      //     },
+      // }
+      // blend: {
+      //     color: {
+      //         srcFactor: 'one',                   // premultiplied: use the color as-is
+      //         dstFactor: 'one-minus-src-alpha',
+      //         operation: 'add',
+      //     },
+      //     alpha: {
+      //         srcFactor: 'one',
+      //         dstFactor: 'one-minus-src-alpha',
+      //         operation: 'add',
       //     },
       // }
     });
@@ -3839,6 +3901,22 @@ class Shader extends BaseShader {
   }
 }
 class Compute extends BaseShader {
+  /**
+   * @example
+   * ```js
+   * const = await GPU.Compute.Create({
+   *     code: `
+   *         @compute @workgroup_size(8, 8, 1)
+   *         fn main(@builtin(global_invocation_id) grid: vec3<u32>) {
+   *         }
+   *     `,
+   *     computeEntrypoint: "main",
+   *     uniforms: {
+   *         drawBuffer: {group: 0, binding: 0, type: "storage-write"}
+   *     }
+   * })
+   * ```
+   */
   static async Create(params) {
     params.code = await ShaderPreprocessor.ProcessIncludes(params.code);
     if (Renderer.type === "webgpu") return new WEBGPUComputeShader(params);
@@ -4958,9 +5036,6 @@ class DeferredShadowMapPass extends RenderPass {
       this.drawSkinnedMeshShadowShader.SetBuffer("projectionMatrix", this.lightProjectionMatrixBuffer);
       this.drawInstancedShadowShader.SetBuffer("projectionMatrix", this.lightProjectionMatrixBuffer);
     }
-    if (!this.modelMatrices || this.modelMatrices.size / 256 !== meshes.length) {
-      this.modelMatrices = DynamicBuffer.Create(meshes.length * 256, BufferType.STORAGE, 256);
-    }
     if (!this.lightProjectionViewMatricesBuffer || this.lightProjectionViewMatricesBuffer.size / 4 / 4 / 16 !== lights.length) {
       this.lightProjectionViewMatricesBuffer = Buffer.Create(lights.length * this.numOfCascades * 4 * 16, BufferType.STORAGE);
     }
@@ -4974,11 +5049,16 @@ class DeferredShadowMapPass extends RenderPass {
         this.cascadeIndexBuffers.push(buffer);
       }
     }
-    for (let i = 0; i < meshes.length; i++) {
-      this.modelMatrices.SetArray(meshes[i].transform.localToWorldMatrix.elements, i * 256);
+    if (meshes.length > 0) {
+      if (!this.modelMatrices || this.modelMatrices.size / 256 !== meshes.length) {
+        this.modelMatrices = DynamicBuffer.Create(meshes.length * 256, BufferType.STORAGE, 256);
+      }
+      for (let i = 0; i < meshes.length; i++) {
+        this.modelMatrices.SetArray(meshes[i].transform.localToWorldMatrix.elements, i * 256);
+      }
+      this.drawShadowShader.SetBuffer("modelMatrix", this.modelMatrices);
+      this.drawSkinnedMeshShadowShader.SetBuffer("modelMatrix", this.modelMatrices);
     }
-    this.drawShadowShader.SetBuffer("modelMatrix", this.modelMatrices);
-    this.drawSkinnedMeshShadowShader.SetBuffer("modelMatrix", this.modelMatrices);
     const shadowOutput = resources.getResource(PassParams.ShadowPassDepth);
     shadowOutput.SetActiveLayer(0);
     this.drawShadowShader.SetBuffer("cascadeIndex", this.cascadeCurrentIndexBuffer);
@@ -5284,7 +5364,8 @@ class ForwardPass extends RenderPass {
     const mainCamera = Camera.mainCamera;
     const scene = mainCamera.gameObject.scene;
     const meshes = scene.GetComponents(Mesh);
-    if (!meshes) return;
+    const instancedMeshes = scene.GetComponents(InstancedMesh);
+    if (meshes.length === 0 && instancedMeshes.length === 0) return;
     RendererContext.BeginRenderPass(this.name, [{ target: LightingPassOutput, clear: false }], { target: DepthPassOutput, clear: false }, true);
     this.projectionMatrix.SetArray(mainCamera.projectionMatrix.elements);
     this.viewMatrix.SetArray(mainCamera.viewMatrix.elements);
@@ -5303,6 +5384,21 @@ class ForwardPass extends RenderPass {
         material.shader.SetBuffer("modelMatrix", this.modelMatrices.getBuffer());
         RendererContext.DrawGeometry(geometry, material.shader, 1, meshCount);
         meshCount++;
+      }
+    }
+    for (const instancedMesh of instancedMeshes) {
+      if (instancedMesh.instanceCount === 0) continue;
+      const geometry = instancedMesh.GetGeometry();
+      if (!geometry) continue;
+      if (!geometry.attributes.has("position")) continue;
+      const materials = instancedMesh.GetMaterials();
+      for (const material of materials) {
+        if (material.params.isDeferred === true) continue;
+        if (!material.shader) await material.createShader();
+        material.shader.SetBuffer("projectionMatrix", this.projectionMatrix);
+        material.shader.SetBuffer("viewMatrix", this.viewMatrix);
+        material.shader.SetBuffer("modelMatrix", instancedMesh.matricesBuffer);
+        RendererContext.DrawGeometry(geometry, material.shader, instancedMesh.instanceCount, 0);
       }
     }
     RendererContext.EndRenderPass();
@@ -5585,9 +5681,11 @@ class Material {
   }
   constructor(params) {
     const defaultParams = {
-      isDeferred: false
+      isDeferred: false,
+      shader: void 0
     };
     this.params = Object.assign({}, defaultParams, params);
+    this.shader = this.params.shader;
   }
   Destroy() {
     this.shader.Destroy();
@@ -5976,4 +6074,4 @@ var index = /*#__PURE__*/Object.freeze({
     Topology: Topology
 });
 
-export { Component, index$1 as Components, EventSystem, EventSystemLocal, index as GPU, GameObject, Geometry, IndexAttribute, InterleavedVertexAttribute, index$2 as Mathf, PBRMaterial, Renderer, Scene, Texture, index$3 as Utils, VertexAttribute };
+export { Assets, Component, index$1 as Components, EventSystem, EventSystemLocal, index as GPU, GameObject, Geometry, IndexAttribute, InterleavedVertexAttribute, index$2 as Mathf, PBRMaterial, Renderer, Scene, Texture, index$3 as Utils, VertexAttribute };

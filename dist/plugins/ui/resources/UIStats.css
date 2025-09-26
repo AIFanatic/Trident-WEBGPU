@@ -160,3 +160,11 @@ details {
     padding-left: 15px;
     width: calc(100% / 3);
 }
+
+.gradient-container {
+    height: 17px;
+    background: aqua;
+    align-items: center;
+    padding: 0px;
+    border-radius: 2px;
+}
