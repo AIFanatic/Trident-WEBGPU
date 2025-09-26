@@ -349,11 +349,6 @@ export class DeferredShadowMapPass extends RenderPass {
             this.drawInstancedShadowShader.SetBuffer("projectionMatrix", this.lightProjectionMatrixBuffer);
         }
 
-        // Model
-        if (!this.modelMatrices || this.modelMatrices.size / 256 !== meshes.length) {
-            this.modelMatrices = DynamicBuffer.Create(meshes.length * 256, BufferType.STORAGE, 256);
-        }
-
         if (!this.lightProjectionViewMatricesBuffer || this.lightProjectionViewMatricesBuffer.size / 4 / 4 / 16 !== lights.length) {
             this.lightProjectionViewMatricesBuffer = Buffer.Create(lights.length * this.numOfCascades * 4 * 16, BufferType.STORAGE);
         }
@@ -370,13 +365,21 @@ export class DeferredShadowMapPass extends RenderPass {
             }
         }
 
-        // TODO: Only update if model changes
-        for (let i = 0; i < meshes.length; i++) {
-            this.modelMatrices.SetArray(meshes[i].transform.localToWorldMatrix.elements, i * 256)
+        // Model
+        if (meshes.length > 0) {
+            if (!this.modelMatrices || this.modelMatrices.size / 256 !== meshes.length) {
+                this.modelMatrices = DynamicBuffer.Create(meshes.length * 256, BufferType.STORAGE, 256);
+            }
+            
+            // TODO: Only update if model changes
+            for (let i = 0; i < meshes.length; i++) {
+                this.modelMatrices.SetArray(meshes[i].transform.localToWorldMatrix.elements, i * 256)
+            }
+    
+            this.drawShadowShader.SetBuffer("modelMatrix", this.modelMatrices);
+            this.drawSkinnedMeshShadowShader.SetBuffer("modelMatrix", this.modelMatrices);
         }
-
-        this.drawShadowShader.SetBuffer("modelMatrix", this.modelMatrices);
-        this.drawSkinnedMeshShadowShader.SetBuffer("modelMatrix", this.modelMatrices);
+        
 
         const shadowOutput = resources.getResource(PassParams.ShadowPassDepth)
         shadowOutput.SetActiveLayer(0);

@@ -56,7 +56,6 @@ export type TextureDimension =
     | "3d";
 
 function CreateTexture(width: number, height: number, depth: number, format: TextureFormat, type: TextureType, dimension: TextureDimension, mipLevels: number) {
-    Renderer.info.gpuTextureSizeTotal += width * height * depth * 4; // account for format
     if (Renderer.type === "webgpu") return new WEBGPUTexture(width, height, depth, format, type, dimension, mipLevels);
     throw Error("Renderer type invalid");
 }

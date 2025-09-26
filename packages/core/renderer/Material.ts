@@ -7,6 +7,7 @@ import { TextureSampler } from "./TextureSampler";
 
 export interface MaterialParams {
     isDeferred: boolean;
+    shader?: Shader;
 }
 
 export class Material {
@@ -19,9 +20,11 @@ export class Material {
 
     constructor(params?: Partial<MaterialParams>) {
         const defaultParams: MaterialParams = {
-            isDeferred: false
+            isDeferred: false,
+            shader: undefined
         }
         this.params = Object.assign({}, defaultParams, params);
+        this.shader = this.params.shader;
     }
 
     public Destroy() {

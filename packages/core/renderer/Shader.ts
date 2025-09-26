@@ -11,8 +11,11 @@ import { TextureSampler } from "./TextureSampler";
 import { WEBGPUComputeShader } from "./webgpu/WEBGPUComputeShader";
 import { WEBGPUShader } from "./webgpu/WEBGPUShader";
 
+export type BlendMode = 'opaque' | 'alpha' | 'premultiplied' | 'add';
+
 export interface ShaderColorOutput {
     format: TextureFormat;
+    blendMode?: BlendMode;
 };
 
 export interface ShaderAttribute {
@@ -105,6 +108,22 @@ export class Shader extends BaseShader {
 export class Compute extends BaseShader {
     declare public readonly params: ComputeShaderParams;
 
+    /**
+     * @example
+     * ```js
+     * const = await GPU.Compute.Create({
+     *     code: `
+     *         @compute @workgroup_size(8, 8, 1)
+     *         fn main(@builtin(global_invocation_id) grid: vec3<u32>) {
+     *         }
+     *     `,
+     *     computeEntrypoint: "main",
+     *     uniforms: {
+     *         drawBuffer: {group: 0, binding: 0, type: "storage-write"}
+     *     }
+     * })
+     * ```
+     */
     public static async Create(params: ComputeShaderParams): Promise<Compute> {
         params.code = await ShaderPreprocessor.ProcessIncludes(params.code);
         if (Renderer.type === "webgpu") return new WEBGPUComputeShader(params);

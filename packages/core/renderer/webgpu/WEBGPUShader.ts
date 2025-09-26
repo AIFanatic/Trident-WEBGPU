@@ -1,6 +1,6 @@
 import { WEBGPUBaseShader } from "./WEBGPUBaseShader";
 import { WEBGPURenderer } from "./WEBGPURenderer";
-import { Shader, ShaderAttribute, ShaderParams } from "../Shader";
+import { BlendMode, Shader, ShaderAttribute, ShaderParams } from "../Shader";
 import { UUID } from "../../utils";
 import { Renderer } from "../Renderer";
 
@@ -10,7 +10,7 @@ export const pipelineLayoutCache: Map<string, GPUPipelineLayout> = new Map();
 const pipelineCache: Map<string, GPURenderPipeline> = new Map();
 
 // TODO: Make this error!!
-const WGSLShaderAttributeFormat: {[key: string]: string} = {
+const WGSLShaderAttributeFormat: { [key: string]: string } = {
     vec2: "float32x2",
     vec3: "float32x3",
     vec4: "float32x4",
@@ -18,6 +18,28 @@ const WGSLShaderAttributeFormat: {[key: string]: string} = {
     vec3u: "uint32x3",
     vec4u: "uint32x4",
 };
+
+function blendState(mode: BlendMode): GPUBlendState | undefined {
+    switch (mode) {
+        case 'opaque':
+            return undefined; // no blending
+        case 'alpha': // straight alpha
+            return {
+                color: { srcFactor: 'src-alpha', dstFactor: 'one-minus-src-alpha', operation: 'add' },
+                alpha: { srcFactor: 'one', dstFactor: 'one-minus-src-alpha', operation: 'add' },
+            };
+        case 'premultiplied': // premultiplied alpha
+            return {
+                color: { srcFactor: 'one', dstFactor: 'one-minus-src-alpha', operation: 'add' },
+                alpha: { srcFactor: 'one', dstFactor: 'one-minus-src-alpha', operation: 'add' },
+            };
+        case 'add': // additive glow (works best with premultiplied shader output)
+            return {
+                color: { srcFactor: 'one', dstFactor: 'one', operation: 'add' },
+                alpha: { srcFactor: 'one', dstFactor: 'one', operation: 'add' },
+            };
+    }
+}
 
 export class WEBGPUShader extends WEBGPUBaseShader implements Shader {
     private readonly vertexEntrypoint: string | undefined;
@@ -66,6 +88,7 @@ export class WEBGPUShader extends WEBGPUBaseShader implements Shader {
         let targets: GPUColorTargetState[] = [];
         for (const output of this.params.colorOutputs) targets.push({
             format: output.format,
+            blend: blendState(output.blendMode)
             // blend: {
             //     color: {
             //       srcFactor: 'one',
@@ -76,6 +99,32 @@ export class WEBGPUShader extends WEBGPUBaseShader implements Shader {
             //       srcFactor: 'one',
             //       dstFactor: 'one-minus-src-alpha',
             //       operation: 'add',
+            //     },
+            // }
+
+            // blend: {
+            //     color: {
+            //       srcFactor: 'src-alpha',
+            //       dstFactor: 'one-minus-src-alpha',
+            //       operation: 'add',
+            //     },
+            //     alpha: {
+            //       srcFactor: 'one',
+            //       dstFactor: 'one-minus-src-alpha',
+            //       operation: 'add',
+            //     },
+            // }
+
+            // blend: {
+            //     color: {
+            //         srcFactor: 'one',                   // premultiplied: use the color as-is
+            //         dstFactor: 'one-minus-src-alpha',
+            //         operation: 'add',
+            //     },
+            //     alpha: {
+            //         srcFactor: 'one',
+            //         dstFactor: 'one-minus-src-alpha',
+            //         operation: 'add',
             //     },
             // }
         });
@@ -92,7 +141,7 @@ export class WEBGPUShader extends WEBGPUBaseShader implements Shader {
 
         // Pipeline descriptor - Depth target
         if (this.params.depthOutput) {
-            
+
             pipelineDescriptor.depthStencil = {
                 depthWriteEnabled: this.params.depthWriteEnabled !== undefined ? this.params.depthWriteEnabled : true,
                 depthCompare: this.params.depthCompare ? this.params.depthCompare : 'less',
@@ -102,17 +151,17 @@ export class WEBGPUShader extends WEBGPUBaseShader implements Shader {
                 format: this.params.depthOutput
             };
         }
-    
+
         // Pipeline descriptor - Vertex buffers (Attributes)
         const buffers: GPUVertexBufferLayout[] = [];
         for (const [_, attribute] of this.attributeMap) {
             // @ts-ignore
-            buffers.push({arrayStride: attribute.size * 4, attributes: [{ shaderLocation: attribute.location, offset: 0, format: WGSLShaderAttributeFormat[attribute.type] }] })
+            buffers.push({ arrayStride: attribute.size * 4, attributes: [{ shaderLocation: attribute.location, offset: 0, format: WGSLShaderAttributeFormat[attribute.type] }] })
         }
         pipelineDescriptor.vertex.buffers = buffers;
 
 
-        
+
 
         pipelineDescriptor.label += "," + pipelineLayout.label;
         const pipelineDescriptorKey = JSON.stringify(pipelineDescriptor);

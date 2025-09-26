@@ -13,6 +13,7 @@ class BaseBuffer {
 
     constructor(sizeInBytes: number, type: BufferType) {
         Renderer.info.gpuBufferSizeTotal += sizeInBytes;
+        Renderer.info.gpuBufferCount++;
         let usage: GPUBufferUsageFlags | undefined = undefined;
         if (type == BufferType.STORAGE) usage = GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC | GPUBufferUsage.COPY_DST;
         else if (type == BufferType.STORAGE_WRITE) usage = GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC | GPUBufferUsage.COPY_DST;
@@ -54,6 +55,7 @@ class BaseBuffer {
 
     public Destroy() {
         Renderer.info.gpuBufferSizeTotal += -this.size;
+        Renderer.info.gpuBufferCount--;
         this.buffer.destroy();
     }
 }

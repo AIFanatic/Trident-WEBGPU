@@ -56,6 +56,9 @@ export class WEBGPUTexture implements Texture {
         this.type = type;
         this.dimension = dimension;
         this.mipLevels = mipLevels;
+
+        Renderer.info.gpuTextureSizeTotal += width * height * depth * 4; // account for format
+        Renderer.info.gpuTextureCount++;
     }
 
     public GetBuffer(): GPUTexture { return this.buffer }
@@ -120,6 +123,7 @@ export class WEBGPUTexture implements Texture {
 
     public Destroy() {
         Renderer.info.gpuTextureSizeTotal -= this.buffer.width * this.buffer.height * this.buffer.depthOrArrayLayers * 4; // account for format
+        Renderer.info.gpuTextureCount--;
         this.buffer.destroy();
     }
 

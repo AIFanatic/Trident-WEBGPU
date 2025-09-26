@@ -9,7 +9,9 @@ export class RendererInfo {
     public drawCallsStat: number = 0;
 
     public gpuBufferSizeTotal: number = 0;
+    public gpuBufferCount: number = 0;
     public gpuTextureSizeTotal: number = 0;
+    public gpuTextureCount: number = 0;
 
     public visibleObjects: number = 0;
     

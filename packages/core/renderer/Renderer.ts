@@ -33,8 +33,6 @@ export class Renderer {
             Renderer.width = canvas.width;
             Renderer.height = canvas.height;
             EventSystem.emit(RendererEvents.Resized, canvas);
-
-            console.log("Resized")
         });
         observer.observe(canvas);
 

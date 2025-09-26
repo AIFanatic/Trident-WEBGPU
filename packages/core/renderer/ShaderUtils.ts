@@ -79,6 +79,17 @@ export class ShaderLoader {
         throw Error("Unknown api");
     }
 
+    public static async LoadV2(shader_url: string) {
+        if (Renderer.type === "webgpu") {
+            if (shader_url === "") throw Error(`Invalid shader ${shader_url}`);
+
+            let code = await Assets.Load(shader_url, "text");
+            code = await ShaderPreprocessor.ProcessIncludesV2(code, shader_url);
+            return code;
+        }
+        throw Error("Unknown api");
+    }
+
     public static async LoadURL(shader_url: URL) {
         if (Renderer.type === "webgpu") {
             let code = await Assets.LoadURL(shader_url, "text");
