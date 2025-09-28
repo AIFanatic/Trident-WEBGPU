@@ -1,6 +1,7 @@
 import { EventSystem } from "./Events";
 import { GameObject } from "./GameObject";
-import { Component, ComponentEvents } from "./components/Component";
+import { Camera } from "./components";
+import { Component, ComponentEvents, SerializedComponent } from "./components/Component";
 import { Renderer } from "./renderer/Renderer";
 import { RenderingPipeline } from "./renderer/RenderingPipeline";
 import { UUID } from "./utils";
@@ -120,5 +121,28 @@ export class Scene {
         //     this.Tick()
         // }, 100);
         requestAnimationFrame(() => this.Tick());
+    }
+
+    public Serialize(): {name: string, mainCamera: string, gameObjects: {components: SerializedComponent[], transform: Object}[]} {
+        let serializedScene = {name: this.name, mainCamera: Camera.mainCamera.id, gameObjects: []};
+        for (const gameObject of this.gameObjects) {
+            serializedScene.gameObjects.push(gameObject.Serialize());
+        }
+        return serializedScene;
+    }
+
+    public Deserialize(data: {name: string, mainCamera: string, gameObjects: {components: SerializedComponent[], transform: Object}[]}) {
+        for (const serializedGameObject of data.gameObjects) {
+            const gameObject = new GameObject(this);
+            gameObject.Deserialize(serializedGameObject);
+        }
+
+        for (const gameObject of this.gameObjects) {
+            for (const component of gameObject.GetComponents(Camera)) {
+                if (component.id === data.mainCamera) {
+                    Camera.mainCamera = component;
+                }
+            }
+        }
     }
 }

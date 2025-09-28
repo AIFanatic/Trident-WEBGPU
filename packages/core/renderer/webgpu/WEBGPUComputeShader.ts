@@ -46,4 +46,12 @@ export class WEBGPUComputeShader extends WEBGPUBaseShader implements Compute {
         
         this.needsUpdate = false;
     }
+
+    public Serialize(): Object {
+        return {
+            code: this.params.code,
+            defines: this.params.defines,
+            uniforms: this.params.uniforms,
+        };
+    }
 }

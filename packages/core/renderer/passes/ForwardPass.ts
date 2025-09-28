@@ -45,43 +45,41 @@ export class ForwardPass extends RenderPass {
 
         let meshCount = 0;
         for (const mesh of meshes) {
-            const geometry = mesh.GetGeometry();
-            if (!geometry) continue;
+            const geometry = mesh.geometry;
+            const material = mesh.material;
+            
+            if (!geometry || !material) continue;
             if (!geometry.attributes.has("position")) continue;
             
-            const materials = mesh.GetMaterials();
-            for (const material of materials) {
-                if (material.params.isDeferred === true) continue;
-                if (!material.shader) await material.createShader();
-                
-                this.modelMatrices.set(mesh.id, mesh.transform.localToWorldMatrix.elements);
-                material.shader.SetBuffer("projectionMatrix", this.projectionMatrix);
-                material.shader.SetBuffer("viewMatrix", this.viewMatrix);
-                material.shader.SetBuffer("modelMatrix", this.modelMatrices.getBuffer());
+            if (material.params.isDeferred === true) continue;
+            if (!material.shader) await material.createShader();
+            
+            this.modelMatrices.set(mesh.id, mesh.transform.localToWorldMatrix.elements);
+            material.shader.SetBuffer("projectionMatrix", this.projectionMatrix);
+            material.shader.SetBuffer("viewMatrix", this.viewMatrix);
+            material.shader.SetBuffer("modelMatrix", this.modelMatrices.getBuffer());
 
-                RendererContext.DrawGeometry(geometry, material.shader, 1, meshCount);
-                meshCount++; // This only works with meshes that only have one material
-            }
+            RendererContext.DrawGeometry(geometry, material.shader, 1, meshCount);
+            meshCount++; // This only works with meshes that only have one material
         }
 
         for (const instancedMesh of instancedMeshes) {
             if (instancedMesh.instanceCount === 0) continue;
 
-            const geometry = instancedMesh.GetGeometry();
-            if (!geometry) continue;
+            const geometry = instancedMesh.geometry;
+            const material = instancedMesh.material;
+
+            if (!geometry || !material) continue;
             if (!geometry.attributes.has("position")) continue;
 
-            const materials = instancedMesh.GetMaterials();
 
-            for (const material of materials) {
-                if (material.params.isDeferred === true) continue;
-                if (!material.shader) await material.createShader();
+            if (material.params.isDeferred === true) continue;
+            if (!material.shader) await material.createShader();
 
-                material.shader.SetBuffer("projectionMatrix", this.projectionMatrix);
-                material.shader.SetBuffer("viewMatrix", this.viewMatrix);
-                material.shader.SetBuffer("modelMatrix", instancedMesh.matricesBuffer);
-                RendererContext.DrawGeometry(geometry, material.shader, instancedMesh.instanceCount, 0);
-            }
+            material.shader.SetBuffer("projectionMatrix", this.projectionMatrix);
+            material.shader.SetBuffer("viewMatrix", this.viewMatrix);
+            material.shader.SetBuffer("modelMatrix", instancedMesh.matricesBuffer);
+            RendererContext.DrawGeometry(geometry, material.shader, instancedMesh.instanceCount, 0);
         }
 
         RendererContext.EndRenderPass();

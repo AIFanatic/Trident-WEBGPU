@@ -61,6 +61,7 @@ export class WEBGPURendererContext implements RendererContext {
 
         if (!shader.pipeline) throw Error("Shader doesnt have a pipeline");
 
+        // Debug
         Renderer.info.drawCallsStat += 1;
 
         this.activeRenderPass.setPipeline(shader.pipeline);
@@ -83,7 +84,7 @@ export class WEBGPURendererContext implements RendererContext {
 
         if (geometry.index) {
             const indexBuffer = geometry.index.buffer as WEBGPUBuffer;
-            this.activeRenderPass.setIndexBuffer(indexBuffer.GetBuffer(), "uint32", geometry.index.currentOffset, geometry.index.currentSize);
+            this.activeRenderPass.setIndexBuffer(indexBuffer.GetBuffer(), geometry.index.format, geometry.index.currentOffset, geometry.index.currentSize);
         }
     }
 
@@ -95,26 +96,21 @@ export class WEBGPURendererContext implements RendererContext {
                 const positions = geometry.attributes.get("position") as VertexAttribute;
                 const vertexCount = positions.GetBuffer().size / 4 / 4;
                 this.activeRenderPass.draw(vertexCount, instanceCount, 0, firstInstance);
-                Renderer.info.triangleCount += vertexCount * instanceCount;
             }
             else {
-                const indexBuffer = geometry.index.buffer as WEBGPUBuffer;
-                this.activeRenderPass.setIndexBuffer(indexBuffer.GetBuffer(), "uint32", geometry.index.currentOffset, geometry.index.currentSize);
-                this.activeRenderPass.drawIndexed(indexBuffer.size / 4, instanceCount, 0, 0, firstInstance);
-                Renderer.info.triangleCount += indexBuffer.size / 4 * instanceCount;
+                const indexCount = geometry.index.count;
+                this.activeRenderPass.drawIndexed(indexCount, instanceCount, 0, 0, firstInstance);
             }
         }
         else if (shader.params.topology === Topology.Lines) {
             const positions = geometry.attributes.get("position") as VertexAttribute;
             this.activeRenderPass.draw(positions.GetBuffer().size / 3 / 4, instanceCount, 0, firstInstance);
-            Renderer.info.triangleCount += positions.GetBuffer().size / 3 / 4 * instanceCount;
         }
     }
 
     public static DrawIndexed(geometry: Geometry, shader: WEBGPUShader, indexCount: number, instanceCount?: number, firstIndex?: number, baseVertex?: number, firstInstance?: number) {
         this.PrepareDraw(geometry, shader);
         this.activeRenderPass.drawIndexed(indexCount, instanceCount, firstIndex, baseVertex, firstInstance);
-        Renderer.info.triangleCount += indexCount * instanceCount;
     }
 
     public static DrawIndirect(geometry: Geometry, shader: WEBGPUShader, indirectBuffer: WEBGPUBuffer, indirectOffset: number) {

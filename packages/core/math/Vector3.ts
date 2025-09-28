@@ -234,6 +234,15 @@ export class Vector3 {
         if (array.length < 3) throw Error("Array doesn't have enough data");
         return new Vector3(array[0], array[1], array[2]);
     }
+
+    public Serialize(): { type: string } & Record<string, unknown> {
+        return {type: "@trident/core/math/Vector3", x: this.x, y: this.y, z: this.z};
+    }
+
+    public Deserialize(data: any): Vector3 {
+        this.set(data.x, data.y, data.z);
+        return this;
+    }
 }
 
 export class ObservableVector3 extends Vector3 {

@@ -9,6 +9,8 @@ export class TransformEvents {
 }
 
 export class Transform extends Component {
+    public static type = "@trident/core/components/Transform";
+
     private tempRotation = new Quaternion();
 
     public up: Vector3 = new Vector3(0, 1, 0);
@@ -97,6 +99,21 @@ export class Transform extends Component {
             this.UpdateMatrices();
             this.onChanged();
         }
+    }
+
+    public Serialize() {
+        return {
+            type: Transform.type,
+            position: this.position.Serialize(),
+            rotation: this.rotation.Serialize(),
+            scale: this.scale.Serialize(),
+        };
+    }
+
+    public Deserialize(data: any) {
+        this.position.Deserialize(data.position);
+        this.rotation.Deserialize(data.rotation);
+        this.scale.Deserialize(data.scale);
     }
 }
 

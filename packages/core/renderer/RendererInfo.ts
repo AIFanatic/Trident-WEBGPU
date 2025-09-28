@@ -1,5 +1,6 @@
 export class RendererInfo {
     public fps: number = 0;
+    public vertexCount: number = 0;
     public triangleCount: number = 0;
     public visibleTriangles: number = 0;
     public cpuTime: number = 0;
@@ -23,5 +24,7 @@ export class RendererInfo {
 
     public ResetFrame() {
         this.drawCallsStat = 0;
+        this.triangleCount = 0;
+        this.vertexCount = 0;
     }
 }

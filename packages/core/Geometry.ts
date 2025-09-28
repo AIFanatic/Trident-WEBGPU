@@ -5,34 +5,82 @@ import { Buffer, BufferType } from "./renderer/Buffer";
 import { Vector2 } from "./math";
 
 export class GeometryAttribute {
-    public array: Float32Array | Uint32Array;
+    public type = "@trident/core/Geometry/GeometryAttribute";
+    public array: Float32Array | Uint32Array | Uint16Array | Uint8Array;
     public buffer: Buffer;
     public currentOffset: number; // This can be used 
     public currentSize: number;
+    public count: number;
 
-    constructor(array: Float32Array | Uint32Array, type: BufferType) {
+    constructor(array: Float32Array | Uint32Array | Uint16Array | Uint8Array, type: BufferType) {
         if (array.length === 0) throw Error("GeometryAttribute data is empty");
-        this.array = array;
-        this.buffer = Buffer.Create(array.byteLength, type);
-        this.buffer.SetArray(this.array);
+    
+        let bufferArray: typeof array = array;
+        let bufferSize = array.byteLength;
+    
+        // WebGPU requires buffer sizes to be multiples of 4 bytes
+        if (bufferSize % 4 !== 0) {
+            bufferSize = Math.ceil(bufferSize / 4) * 4;
+    
+            if (array instanceof Uint16Array) {
+                const paddedLength = bufferSize / Uint16Array.BYTES_PER_ELEMENT;
+                const paddedArray = new Uint16Array(paddedLength);
+                paddedArray.set(array);
+                bufferArray = paddedArray;
+            } else if (array instanceof Uint8Array) {
+                const paddedLength = bufferSize / Uint8Array.BYTES_PER_ELEMENT;
+                const paddedArray = new Uint8Array(paddedLength);
+                paddedArray.set(array);
+                bufferArray = paddedArray;
+            }
+            // Float32Array / Uint32Array are already 4-byte aligned
+        }
+    
+        this.array = array;                     // logical data
+        this.buffer = Buffer.Create(bufferSize, type);
+        this.buffer.SetArray(bufferArray);      // upload padded array
         this.currentOffset = 0;
-        this.currentSize = array.byteLength;
+        this.currentSize = array.byteLength;    // actual used size (not padded)
+        this.count = array.length;              // number of elements
     }
+    
 
     public GetBuffer(): Buffer { return this.buffer };
 
     public Destroy() {
         this.buffer.Destroy();
     }
+
+    public Serialize(): Object {
+        return {
+            attributeType: this.type,
+            array: Array.from(this.array),
+            arrayType: this.array instanceof Float32Array ? "float32" : "uint32",
+            currentOffset: this.currentOffset,
+            currentSize: this.currentSize
+        }
+    }
 };
 
 export class VertexAttribute extends GeometryAttribute {
-    constructor(array: Float32Array | Uint32Array) {
+    public type = "@trident/core/Geometry/VertexAttribute";
+    constructor(array: Float32Array | Uint32Array | Uint16Array | Uint8Array) {
         super(array, BufferType.VERTEX);
+    }
+    
+    public static Deserialize(data: any): VertexAttribute {
+        const array = data.arrayType === "float32" ? new Float32Array(data.array) : new Uint32Array(data.array);
+        const vertexAttribute = new VertexAttribute(array);
+        vertexAttribute.currentOffset = data.currentOffset;
+        vertexAttribute.currentSize = data.currentSize;
+        return vertexAttribute;
     }
 }
 
+// TODO: Support true interleaved vertex buffers
+// A buffer is shared, only offsets and count changes
 export class InterleavedVertexAttribute extends GeometryAttribute {
+    public type = "@trident/core/Geometry/InterleavedVertexAttribute";
     constructor(public array: Float32Array, public stride: number) {
         super(array, BufferType.VERTEX);
     }
@@ -71,10 +119,31 @@ export class InterleavedVertexAttribute extends GeometryAttribute {
 
         return new InterleavedVertexAttribute(interleavedArray, interleavedStride);
     }
+
+    public static Deserialize(data: any): InterleavedVertexAttribute {
+        const array = new Float32Array(data.array);
+        const interleavedVertexAttribute = new InterleavedVertexAttribute(array, data.stride);
+        interleavedVertexAttribute.currentOffset = data.currentOffset;
+        interleavedVertexAttribute.currentSize = data.currentSize;
+        return interleavedVertexAttribute;
+    }
 }
 
 export class IndexAttribute extends GeometryAttribute {
-    constructor(array: Uint32Array) { super(array, BufferType.INDEX) }
+    public type = "@trident/core/Geometry/IndexAttribute";
+    public format: "uint32" | "uint16";
+    constructor(array: Uint32Array | Uint16Array) {
+        super(array, BufferType.INDEX);
+        this.format = array instanceof Uint32Array ? "uint32" : "uint16";
+    }
+
+    public static Deserialize(data: any): IndexAttribute {
+        const array = new Uint32Array(data.array);
+        const indexAttribute = new IndexAttribute(array);
+        indexAttribute.currentOffset = data.currentOffset;
+        indexAttribute.currentSize = data.currentSize;
+        return indexAttribute;
+    }
 }
 
 export class Geometry {
@@ -546,5 +615,27 @@ export class Geometry {
         geometry.attributes.set("uv", new VertexAttribute(new Float32Array(uvs)));
 
         return geometry;
+    }
+
+    public Serialize(): Object {
+        return {
+            id: this.id,
+            name: this.name,
+            attributes: Array.from(this.attributes, ([key, attribute]) => Object.assign(attribute.Serialize(), {name: key})),
+            index: this.index ? this.index.Serialize() : undefined
+        }
+    }
+
+    public Deserialize(data: any) {
+        this.id = data.id;
+        this.name = data.name;
+
+        for (const attribute of data.attributes) {
+            this.attributes.set(attribute.name, VertexAttribute.Deserialize(attribute));
+        }
+
+        if (data.index) {
+            this.index = IndexAttribute.Deserialize(data.index);
+        }
     }
 }

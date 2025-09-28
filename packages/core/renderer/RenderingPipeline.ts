@@ -125,7 +125,6 @@ export class RenderingPipeline {
 
     public Render(scene: Scene) {
         Renderer.info.ResetFrame();
-        Renderer.info.triangleCount = 0;
         
         const renderPipelineStart = performance.now();
         Renderer.BeginRenderFrame();

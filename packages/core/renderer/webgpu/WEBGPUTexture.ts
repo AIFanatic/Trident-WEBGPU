@@ -157,4 +157,8 @@ export class WEBGPUTexture implements Texture {
 
         return texture;
     }
+
+    public Serialize(): Object {
+        throw Error("Not implemented");
+    }
 }

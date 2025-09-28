@@ -453,7 +453,7 @@ export class DeferredShadowMapPass extends RenderPass {
                 let meshCount = 0; // For dynamic offset
                 for (const mesh of meshes) {
                     // if (mesh.shader.params.topology === Topology.Lines) continue;
-                    const geometry = mesh.GetGeometry();
+                    const geometry = mesh.geometry;
                     if (!geometry) continue;
                     if (!geometry.attributes.has("position")) continue;
                     const uniform_offset = meshCount * 256;
@@ -471,7 +471,7 @@ export class DeferredShadowMapPass extends RenderPass {
                     if (instance.instanceCount === 0) continue;
                     if (!instance.enableShadows) continue;
                     this.drawInstancedShadowShader.SetBuffer("modelMatrix", instance.matricesBuffer);
-                    RendererContext.DrawGeometry(instance.GetGeometry(), this.drawInstancedShadowShader, instance.instanceCount + 1);
+                    RendererContext.DrawGeometry(instance.geometry, this.drawInstancedShadowShader, instance.instanceCount + 1);
                 }
 
                 RendererContext.EndRenderPass();

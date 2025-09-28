@@ -87,6 +87,8 @@ export class Texture {
     public Destroy() {}
 
     public SetData(data: BufferSource, bytesPerRow: number, rowsPerImage?: number) {}
+    
+    public Serialize(): Object {throw Error("Base class.")}
 
     public static Create(width: number, height: number, depth: number = 1, format: TextureFormat = Renderer.SwapChainFormat, mipLevels = 1): Texture {
         return CreateTexture(width, height, depth, format, TextureType.IMAGE, "2d", mipLevels);

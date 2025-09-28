@@ -1,4 +1,4 @@
-import { Component } from "./components/Component";
+import { Component, SerializedComponent } from "./components/Component";
 import { Scene } from "./Scene";
 import { Transform } from "./components/Transform";
 import { Camera } from "./components/Camera";
@@ -82,5 +82,36 @@ export class GameObject {
             component.Destroy();
         }
         this.scene.RemoveGameObject(this);
+    }
+
+    public Serialize(): {name: string, components: Object[], transform: Object} {
+        return {
+            name: this.name,
+            transform: this.transform.Serialize(),
+            components: this.componentsArray.map(c => c.Serialize())
+        };
+    }
+
+    public Deserialize(data: {name: string, components: SerializedComponent[], transform: Object}) {
+        this.name = data.name;
+        this.transform.Deserialize(data.transform);
+
+        // Create first
+        let componentInstances: Component[] = [];
+        for (let i = 0; i < data.components.length; i++) {
+            const component = data.components[i];
+            const componentClass = Component.Registry.get(component.type);
+            if (!componentClass) throw Error(`Component ${component.type} not found in component registry.`);
+            console.log(componentClass)
+            const instance = this.AddComponent(componentClass);
+            componentInstances.push(instance);
+        }
+
+        // Deserialize after
+        for (let i = 0; i < data.components.length; i++) {
+            const componentInstance = componentInstances[i];
+            const componentSerialized = data.components[i];
+            componentInstance.Deserialize(componentSerialized);
+        }
     }
 }

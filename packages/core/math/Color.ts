@@ -49,4 +49,13 @@ export class Color {
         this.set(color.r, color.g, color.b, color.a);
         return this;
     }
+
+    public Serialize(): { type: string } & Record<string, unknown> {
+        return {type: "@trident/core/math/Color", r: this.r, g: this.g, b: this.b, a: this.a};
+    }
+
+    public Deserialize(data: any): Color {
+        this.set(data.r, data.g, data.b, data.a);
+        return this;
+    }
 }

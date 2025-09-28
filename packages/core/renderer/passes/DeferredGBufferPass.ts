@@ -37,9 +37,9 @@ export class DeferredGBufferPass extends RenderPass {
     private frustumCull(camera: Camera, meshes: Mesh[]): Mesh[] {
         let nonOccluded: Mesh[] = [];
         for (const mesh of meshes) {
-            this.boundingVolume.copy(mesh.GetGeometry().boundingVolume);
+            this.boundingVolume.copy(mesh.geometry.boundingVolume);
             this.boundingVolume
-            if (camera.frustum.intersectsBoundingVolume(mesh.GetGeometry().boundingVolume) === true) {
+            if (camera.frustum.intersectsBoundingVolume(mesh.geometry.boundingVolume) === true) {
                 nonOccluded.push(mesh);
             }
         }
@@ -55,7 +55,7 @@ export class DeferredGBufferPass extends RenderPass {
 
         for (let i = 0; i < _meshes.length; i++) {
             const mesh = _meshes[i];
-            if (!mesh.enabled || !mesh.gameObject.enabled || !mesh.GetGeometry()) continue;
+            if (!mesh.enabled || !mesh.gameObject.enabled || !mesh.geometry || !mesh.material) continue;
             meshesInfo.push({mesh: mesh, index: i});
         }
         // const meshes = this.frustumCull(Camera.mainCamera, scene.GetComponents(Mesh));
@@ -66,7 +66,7 @@ export class DeferredGBufferPass extends RenderPass {
         const inputCamera = Camera.mainCamera;
         if (!inputCamera) throw Error(`No inputs passed to ${this.name}`);
         const backgroundColor = inputCamera.backgroundColor;
-        
+
         const inputGBufferAlbedo = resources.getResource(PassParams.GBufferAlbedo);
         const inputGBufferNormal = resources.getResource(PassParams.GBufferNormal);
         const inputGBufferERMO = resources.getResource(PassParams.GBufferERMO);
@@ -90,60 +90,51 @@ export class DeferredGBufferPass extends RenderPass {
         const viewMatrix = inputCamera.viewMatrix;
 
         for (const meshInfo of meshesInfo) {
-            const geometry = meshInfo.mesh.GetGeometry();
-            const materials = meshInfo.mesh.GetMaterials();
-            for (const material of materials) {
-                if (material.params.isDeferred === false) continue;
-                if (!material.shader) {
-                    material.createShader().then(shader => {
-                        // shader.params.cullMode = "back"
-                    })
-                    continue;
-                }
-                const shader = material.shader;
-                shader.SetMatrix4("projectionMatrix", projectionMatrix);
-                shader.SetMatrix4("viewMatrix", viewMatrix);
-                // shader.SetMatrix4("modelMatrix", mesh.transform.localToWorldMatrix);
-                shader.SetBuffer("modelMatrix", this.modelMatrixBuffer.getBuffer());
-
-                shader.SetVector3("cameraPosition", inputCamera.transform.position);
-                if (meshInfo.mesh instanceof SkinnedMesh) {
-                    shader.SetBuffer("boneMatrices", meshInfo.mesh.GetBoneMatricesBuffer());
-                }
-                RendererContext.DrawGeometry(geometry, shader, 1, meshInfo.index);
-                if (geometry.index) {
-                    Renderer.info.triangleCount += geometry.index.array.length / 3;
-                }
+            const geometry = meshInfo.mesh.geometry;
+            const material = meshInfo.mesh.material;
+            if (material.params.isDeferred === false) continue;
+            if (!material.shader) {
+                material.createShader();
+                continue;
             }
+            const shader = material.shader;
+            shader.SetMatrix4("projectionMatrix", projectionMatrix);
+            shader.SetMatrix4("viewMatrix", viewMatrix);
+            shader.SetBuffer("modelMatrix", this.modelMatrixBuffer.getBuffer());
+
+            shader.SetVector3("cameraPosition", inputCamera.transform.position);
+            if (meshInfo.mesh instanceof SkinnedMesh) {
+                shader.SetBuffer("boneMatrices", meshInfo.mesh.GetBoneMatricesBuffer());
+            }
+            RendererContext.DrawGeometry(geometry, shader, 1, meshInfo.index);
+            
+            // Debug
+            const position = geometry.attributes.get("position");
+            Renderer.info.vertexCount += position.array.length / 3;
+            Renderer.info.triangleCount += geometry.index ? geometry.index.array.length / 3 : position.array.length / 3;
         }
 
         for (const instancedMesh of instancedMeshes) {
-            const geometry = instancedMesh.GetGeometry();
-            const materials = instancedMesh.GetMaterials();
-            for (const material of materials) {
-                if (material.params.isDeferred === false) continue;
-                if (!material.shader) {
-                    material.createShader().then(shader => {
-                        // shader.params.cullMode = "front"
-                    })
-                    continue;
-                }
-                const shader = material.shader;
-                shader.SetMatrix4("projectionMatrix", projectionMatrix);
-                shader.SetMatrix4("viewMatrix", viewMatrix);
-                shader.SetBuffer("modelMatrix", instancedMesh.matricesBuffer);
-                shader.SetVector3("cameraPosition", inputCamera.transform.position);
-                RendererContext.DrawGeometry(geometry, shader, instancedMesh.instanceCount+1);
-                if (geometry.index) {
-                    Renderer.info.triangleCount = geometry.index.array.length / 3 * (instancedMesh.instanceCount + 1);
-                }
-                else {
-                    const position = geometry.attributes.get("position");
-                    if (position) {
-                        Renderer.info.triangleCount = position.array.length / 3 / 3 * (instancedMesh.instanceCount + 1);
-                    }
-                }
+            const geometry = instancedMesh.geometry
+            const material = instancedMesh.material
+            if (material.params.isDeferred === false) continue;
+            if (!material.shader) {
+                material.createShader().then(shader => {
+                    // shader.params.cullMode = "front"
+                })
+                continue;
             }
+            const shader = material.shader;
+            shader.SetMatrix4("projectionMatrix", projectionMatrix);
+            shader.SetMatrix4("viewMatrix", viewMatrix);
+            shader.SetBuffer("modelMatrix", instancedMesh.matricesBuffer);
+            shader.SetVector3("cameraPosition", inputCamera.transform.position);
+            RendererContext.DrawGeometry(geometry, shader, instancedMesh.instanceCount+1);
+
+            // Debug
+            const position = geometry.attributes.get("position");
+            Renderer.info.vertexCount += (position.array.length / 3) * instancedMesh.instanceCount;
+            Renderer.info.triangleCount += (geometry.index ? geometry.index.array.length / 3 : position.array.length / 3) * instancedMesh.instanceCount;
         }
 
         resources.setResource(PassParams.GBufferDepth, inputGBufferDepth);

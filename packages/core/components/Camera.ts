@@ -11,6 +11,8 @@ export class CameraEvents {
 }
 
 export class Camera extends Component {
+    public static type = "@trident/core/components/Camera";
+
     public backgroundColor: Color = new Color(0.0, 0.0, 0.0, 1);
 
     public projectionMatrix = new Matrix4();
@@ -69,4 +71,29 @@ export class Camera extends Component {
         this.projectionScreenMatrix.multiplyMatrices(this.projectionMatrix, this.transform.worldToLocalMatrix);
         this.frustum.setFromProjectionMatrix(this.projectionScreenMatrix);
     }
+
+    public Serialize() {
+        return {
+            type: Camera.type,
+            name: this.name,
+            id: this.id,
+            backgroundColor: this.backgroundColor.Serialize(),
+            near: this.near,
+            far: this.far,
+            fov: this.fov,
+            aspect: this.aspect,
+        }
+    }
+
+    public Deserialize(data: any): void {
+        this.backgroundColor.Deserialize(data.backgroundColor);
+        this.name = data.name;
+        this.id = data.id;
+        this.near = data.near;
+        this.far = data.far;
+        this.fov = data.fov;
+        this.aspect = data.aspect;
+    }
 }
+
+Component.Registry.set(Camera.type, Camera);

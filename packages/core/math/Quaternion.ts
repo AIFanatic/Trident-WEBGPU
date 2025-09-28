@@ -323,6 +323,15 @@ export class Quaternion {
         if (array.length < 4) throw Error("Array doesn't have enough data");
         return new Quaternion(array[0], array[1], array[2], array[3]);
     }
+
+    public Serialize(): { type: string } & Record<string, unknown> {
+        return {type: "@trident/core/math/Quaternion", x: this.x, y: this.y, z: this.z, w: this.w};
+    }
+
+    public Deserialize(data: any): Quaternion {
+        this.set(data.x, data.y, data.z, data.w);
+        return this;
+    }
 }
 
 export class ObservableQuaternion extends Quaternion {

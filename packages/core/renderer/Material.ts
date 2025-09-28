@@ -30,6 +30,20 @@ export class Material {
     public Destroy() {
         this.shader.Destroy();
     };
+
+    public Serialize() {
+        return {
+            shader: this.shader ? this.shader.Serialize() : undefined,
+            isDeferred: this.params.isDeferred
+        }
+    }
+
+    // TODO: Do cache
+    public static Deserialize(data: {type: string, shader: any, isDeferred: boolean, params: any}): Material {
+        if (data.type === "@trident/core/renderer/Material/PBRMaterial") {
+            return PBRMaterial.Deserialize(data);
+        }
+    }
 }
 
 export interface PBRMaterialParams extends MaterialParams {
@@ -55,38 +69,40 @@ export interface PBRMaterialParams extends MaterialParams {
 }
 
 export class PBRMaterial extends Material {
+    public type = "@trident/core/renderer/Material/PBRMaterial";
+
     public id = UUID();
     public initialParams?: Partial<PBRMaterialParams>;
     declare public params: PBRMaterialParams;
 
+    public static DefaultParams: PBRMaterialParams = {
+        albedoColor: new Color(1,1,1,1),
+        emissiveColor: new Color(0,0,0,0),
+        roughness: 0,
+        metalness: 0,
+    
+        albedoMap: undefined,
+        normalMap: undefined,
+        heightMap: undefined,
+        metalnessMap: undefined,
+        emissiveMap: undefined,
+        aoMap: undefined,
+    
+        doubleSided: false,
+        alphaCutoff: 0,
+        unlit: false,
+
+        wireframe: false,
+        isSkinned: false,
+
+        isDeferred: true
+    }
     constructor(params?: Partial<PBRMaterialParams>) {
         super(params);
 
         this.initialParams = params;
-        const defaultParams: PBRMaterialParams = {
-            albedoColor: new Color(1,1,1,1),
-            emissiveColor: new Color(0,0,0,0),
-            roughness: 0,
-            metalness: 0,
-        
-            albedoMap: undefined,
-            normalMap: undefined,
-            heightMap: undefined,
-            metalnessMap: undefined,
-            emissiveMap: undefined,
-            aoMap: undefined,
-        
-            doubleSided: false,
-            alphaCutoff: 0,
-            unlit: false,
-
-            wireframe: false,
-            isSkinned: false,
-
-            isDeferred: true
-        }
         // this.params = Object.assign({}, defaultParams, params);
-        const _params = Object.assign({}, defaultParams, params);
+        const _params = Object.assign({}, PBRMaterial.DefaultParams, params);
         const instance = this;
         const handler1 = {
             set(obj, prop, value) {
@@ -160,8 +176,6 @@ export class PBRMaterial extends Material {
             shaderParams.uniforms.boneMatrices = {group: 1, binding: 0, type: "storage"}
         }
         
-        shaderParams = Object.assign({}, shaderParams, this.params);
-
         const shader = await Shader.Create(shaderParams);
 
         if (DEFINES.USE_ALBEDO_MAP || DEFINES.USE_NORMAL_MAP || DEFINES.USE_HEIGHT_MAP || DEFINES.USE_METALNESS_MAP || DEFINES.USE_EMISSIVE_MAP || DEFINES.USE_AO_MAP) {
@@ -186,5 +200,55 @@ export class PBRMaterial extends Material {
         this.shader = shader;
         
         return shader;
+    }
+
+    public Serialize(): { shader: void; isDeferred: boolean, params: {} } {
+        const params = this.params;
+        return Object.assign(
+            super.Serialize(),
+            {
+                type: this.type,
+                params: {
+                    albedoColor: params.albedoColor.Serialize(),
+                    emissiveColor: params.emissiveColor.Serialize(),
+                    roughness: params.roughness,
+                    metalness: params.metalness,
+                    albedoMap: params.albedoMap ? params.albedoMap.Serialize() : undefined,
+                    normalMap: params.normalMap ? params.normalMap.Serialize() : undefined,
+                    heightMap: params.heightMap ?params.heightMap.Serialize() : undefined,
+                    metalnessMap: params.metalnessMap ? params.metalnessMap.Serialize() : undefined,
+                    emissiveMap: params.emissiveMap ? params.emissiveMap.Serialize() : undefined,
+                    aoMap: params.aoMap ? params.aoMap.Serialize() : undefined,
+                    doubleSided: params.doubleSided,
+                    alphaCutoff: params.alphaCutoff,
+                    unlit: params.unlit,
+                    wireframe: params.wireframe,
+                    isSkinned: params.isSkinned,
+                }
+            }
+        );
+    }
+
+    // TODO: Do cache
+    public static Deserialize(data: {type: string, shader: any, isDeferred: boolean, params: any}): PBRMaterial {
+        const params = data.params;
+        const defaults = PBRMaterial.DefaultParams;
+        return new PBRMaterial({
+            albedoColor: params.albedoColor ? new Color().Deserialize(params.albedoColor) : defaults.albedoColor,
+            emissiveColor: params.emissiveColor ? new Color().Deserialize(params.emissiveColor) : defaults.emissiveColor,
+            roughness: params.roughness ? params.roughness : defaults.roughness,
+            metalness: params.metalness ? params.metalness : defaults.metalness,
+            albedoMap: params.albedoMap ? params.albedoMap.Deserialize() : defaults.albedoMap,
+            normalMap: params.normalMap ? params.normalMap.Deserialize() : defaults.normalMap,
+            heightMap: params.heightMap ?params.heightMap.Deserialize() : defaults.heightMap,
+            metalnessMap: params.metalnessMap ? params.metalnessMap.Deserialize() : defaults.metalnessMap,
+            emissiveMap: params.emissiveMap ? params.emissiveMap.Deserialize() : defaults.emissiveMap,
+            aoMap: params.aoMap ? params.aoMap.Deserialize() : defaults.aoMap,
+            doubleSided: params.doubleSided ? params.doubleSided : defaults.doubleSided,
+            alphaCutoff: params.alphaCutoff ? params.alphaCutoff: defaults.alphaCutoff,
+            unlit: params.unlit ? params.unlit: defaults.unlit,
+            wireframe: params.wireframe ? params.wireframe: defaults.wireframe,
+            isSkinned: params.isSkinned ? params.isSkinned: defaults.isSkinned,
+        })
     }
 }
