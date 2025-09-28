@@ -1,292 +1,319 @@
-import { Texture, Geometry, VertexAttribute, IndexAttribute, Mathf, PBRMaterial, GameObject, Components } from '@trident/core';
-import { GLTFParser, AccessorComponentType } from './GLTFParser.js';
+import { IndexAttribute, VertexAttribute, Texture, Geometry, Mathf, PBRMaterial, GameObject, Components } from '@trident/core';
+import { AccessorComponentType, GLTFParser } from './GLTFParser.js';
 
 class GLTFLoader {
   static TextureCache = /* @__PURE__ */ new Map();
+  // ---------- Small generic helpers ----------
+  static getTypedArray(buffer, componentType) {
+    switch (componentType) {
+      case AccessorComponentType.GL_UNSIGNED_BYTE:
+        return new Uint8Array(buffer);
+      case AccessorComponentType.GL_UNSIGNED_SHORT:
+        return new Uint16Array(buffer);
+      case AccessorComponentType.GL_UNSIGNED_INT:
+        return new Uint32Array(buffer);
+      case AccessorComponentType.GL_FLOAT:
+        return new Float32Array(buffer);
+      default:
+        throw new Error(`Unsupported component type: ${componentType}`);
+    }
+  }
+  static byteSize(componentType) {
+    switch (componentType) {
+      case AccessorComponentType.GL_UNSIGNED_BYTE:
+        return 1;
+      case AccessorComponentType.GL_UNSIGNED_SHORT:
+        return 2;
+      case AccessorComponentType.GL_UNSIGNED_INT:
+        return 4;
+      case AccessorComponentType.GL_FLOAT:
+        return 4;
+      default:
+        return 0;
+    }
+  }
+  static finalizeGeometry(geom) {
+    const posAttr = geom.attributes.get("position");
+    if (!posAttr) throw Error("Geometry missing position attribute.");
+    const countFloats = posAttr.array.length;
+    if (!geom.index) {
+      const indexBuffer = new Uint32Array(countFloats);
+      for (let i = 0; i < countFloats; i++) indexBuffer[i] = i;
+      geom.index = new IndexAttribute(indexBuffer);
+      geom.ComputeNormals();
+    }
+    if (!geom.attributes.get("normal")) geom.ComputeNormals();
+    if (!geom.attributes.get("uv")) {
+      const uv = new Float32Array(countFloats / 3 * 2);
+      geom.attributes.set("uv", new VertexAttribute(uv));
+    }
+  }
+  // ---------- Textures ----------
   static async getTexture(textures, textureInfo, textureFormat) {
     if (!textures || !textureInfo) return void 0;
-    let cachedTexture = this.TextureCache.get(textures[textureInfo.index]);
-    if (cachedTexture === void 0) {
-      const source = textures[textureInfo.index].source;
-      if (source === null) throw Error("Invalid texture");
-      cachedTexture = Texture.LoadImageSource(source, textureFormat);
-      cachedTexture.then((texture) => {
-        texture.GenerateMips();
+    const tex = textures[textureInfo.index];
+    if (!tex?.source) throw Error("Invalid texture");
+    let cached = this.TextureCache.get(tex);
+    if (!cached) {
+      cached = Texture.LoadImageSource(tex.source, textureFormat).then((t) => {
+        t.GenerateMips();
+        return t;
       });
-      this.TextureCache.set(textures[textureInfo.index], cachedTexture);
+      this.TextureCache.set(tex, cached);
     }
-    return cachedTexture;
+    return cached;
   }
-  static async parsePrimitive(primitive, textures) {
-    const geometry = new Geometry();
-    function getTypedArray(buffer, componentType) {
-      switch (componentType) {
+  static componentCount(type) {
+    switch (type) {
+      case "SCALAR":
+        return 1;
+      case "VEC2":
+        return 2;
+      case "VEC3":
+        return 3;
+      case "VEC4":
+        return 4;
+      case "MAT2":
+        return 4;
+      case "MAT3":
+        return 9;
+      case "MAT4":
+        return 16;
+    }
+  }
+  // TODO: Support true interleaved vertex buffers
+  static readAccessorAsFloat32(acc) {
+    const stride = acc.bufferView.byteStride ?? 0;
+    const comps = GLTFLoader.componentCount(acc.type);
+    const compSize = GLTFLoader.byteSize(acc.componentType);
+    const base = acc.byteOffset ?? 0;
+    const interleaved = stride > 0;
+    const out = new Float32Array(acc.count * comps);
+    const readScalar = (byteOffset) => {
+      const dv = new DataView(acc.bufferView.data, byteOffset);
+      switch (acc.componentType) {
+        case AccessorComponentType.GL_FLOAT:
+          return dv.getFloat32(0, true);
         case AccessorComponentType.GL_UNSIGNED_BYTE:
-          return new Uint8Array(buffer);
+          return acc.normalized ? dv.getUint8(0) / 255 : dv.getUint8(0);
         case AccessorComponentType.GL_UNSIGNED_SHORT:
-          return new Uint16Array(buffer);
-        case AccessorComponentType.GL_UNSIGNED_INT:
-          return new Uint32Array(buffer);
+          return acc.normalized ? dv.getUint16(0, true) / 65535 : dv.getUint16(0, true);
+        case AccessorComponentType.GL_BYTE:
+          return acc.normalized ? Math.max(-1, dv.getInt8(0) / 127) : dv.getInt8(0);
+        case AccessorComponentType.GL_SHORT:
+          return acc.normalized ? Math.max(-1, dv.getInt16(0, true) / 32767) : dv.getInt16(0, true);
         default:
-          throw new Error("Unsupported component type for indices");
+          throw Error("Unsupported attribute componentType");
+      }
+    };
+    for (let i = 0; i < acc.count; i++) {
+      const elementBase = interleaved ? base + i * stride : base + i * comps * compSize;
+      for (let c = 0; c < comps; c++) {
+        const off = interleaved ? elementBase + c * compSize : elementBase + c * compSize;
+        out[i * comps + c] = readScalar(off);
       }
     }
-    function byteSize(componentType) {
-      if (componentType === AccessorComponentType.GL_UNSIGNED_BYTE) return 1;
-      else if (componentType === AccessorComponentType.GL_UNSIGNED_SHORT) return 2;
-      else if (componentType === AccessorComponentType.GL_UNSIGNED_INT) return 4;
-      else if (componentType === AccessorComponentType.GL_FLOAT) return 4;
-      else return 0;
-    }
-    if (primitive.attributes.POSITION) geometry.attributes.set("position", new VertexAttribute(new Float32Array(primitive.attributes.POSITION.bufferView.data)));
-    if (primitive.attributes.NORMAL) geometry.attributes.set("normal", new VertexAttribute(new Float32Array(primitive.attributes.NORMAL.bufferView.data)));
-    if (primitive.attributes.TEXCOORD_0) geometry.attributes.set("uv", new VertexAttribute(new Float32Array(primitive.attributes.TEXCOORD_0.bufferView.data)));
+    return out;
+  }
+  // ---------- Primitive / Node parsing to Object3D (your existing pipeline, tidied) ----------
+  static async parsePrimitive(primitive, textures) {
+    const geometry = new Geometry();
+    if (primitive.attributes.POSITION) geometry.attributes.set("position", new VertexAttribute(this.readAccessorAsFloat32(primitive.attributes.POSITION)));
+    if (primitive.attributes.NORMAL) geometry.attributes.set("normal", new VertexAttribute(this.readAccessorAsFloat32(primitive.attributes.NORMAL)));
+    if (primitive.attributes.TEXCOORD_0) geometry.attributes.set("uv", new VertexAttribute(this.readAccessorAsFloat32(primitive.attributes.TEXCOORD_0)));
     if (primitive.attributes.JOINTS_0) {
-      const jointsAccessor = primitive.attributes.JOINTS_0;
-      const jointsBufferView = jointsAccessor.bufferView;
-      const jointsComponentType = jointsAccessor.componentType;
-      const jointsArray = getTypedArray(jointsBufferView.data.slice(
-        jointsAccessor.byteOffset,
-        jointsAccessor.byteOffset + jointsAccessor.count * byteSize(jointsComponentType) * 4
-      ), jointsComponentType);
-      const joints = new Uint32Array(jointsArray, jointsArray.byteOffset, jointsArray.length);
-      geometry.attributes.set("joints", new VertexAttribute(joints));
+      const acc = primitive.attributes.JOINTS_0;
+      const bv = acc.bufferView;
+      const bytes = bv.data.slice(acc.byteOffset, acc.byteOffset + acc.count * this.byteSize(acc.componentType) * 4);
+      const jointsSrc = this.getTypedArray(bytes, acc.componentType);
+      const jointsU32 = new Uint32Array(jointsSrc.length);
+      for (let i = 0; i < jointsSrc.length; i++) jointsU32[i] = jointsSrc[i];
+      geometry.attributes.set("joints", new VertexAttribute(jointsU32));
     }
     if (primitive.attributes.WEIGHTS_0) {
       geometry.attributes.set("weights", new VertexAttribute(new Float32Array(primitive.attributes.WEIGHTS_0.bufferView.data)));
     }
     if (primitive.indices) {
-      const indicesAccessor = primitive.indices;
-      const indicesBufferView = indicesAccessor.bufferView;
-      const indicesComponentType = indicesAccessor.componentType;
-      const indexArray = getTypedArray(indicesBufferView.data.slice(indicesAccessor.byteOffset, indicesAccessor.byteOffset + indicesAccessor.count * byteSize(indicesComponentType)), indicesComponentType);
-      geometry.index = new IndexAttribute(new Uint32Array(indexArray));
+      const acc = primitive.indices;
+      const bv = acc.bufferView;
+      const bytes = bv.data.slice(acc.byteOffset, acc.byteOffset + acc.count * this.byteSize(acc.componentType));
+      geometry.index = new IndexAttribute(this.getTypedArray(bytes, acc.componentType));
     }
     let materialParams = {};
-    if (primitive.material) {
-      if (primitive.material.pbrMetallicRoughness) {
-        const pbr = primitive.material.pbrMetallicRoughness;
-        materialParams.albedoColor = new Mathf.Color(...pbr.baseColorFactor);
-        if (pbr.baseColorTexture) materialParams.albedoMap = await this.getTexture(textures, pbr.baseColorTexture, "bgra8unorm-srgb");
-        if (pbr.metallicRoughnessTexture) materialParams.metalnessMap = await this.getTexture(textures, pbr.metallicRoughnessTexture, "bgra8unorm");
-        materialParams.roughness = pbr.roughnessFactor;
-        materialParams.metalness = pbr.metallicFactor;
-      }
-      if (primitive.material.normalTexture) materialParams.normalMap = await this.getTexture(textures, primitive.material.normalTexture, "bgra8unorm");
-      if (primitive.material.emissiveTexture) materialParams.emissiveMap = await this.getTexture(textures, primitive.material.emissiveTexture, "bgra8unorm-srgb");
-      if (primitive.material.emissiveFactor) {
-        materialParams.emissiveColor = new Mathf.Color(...primitive.material.emissiveFactor);
-        if (primitive.material.extensions && primitive.material.extensions["KHR_materials_emissive_strength"]) {
-          materialParams.emissiveColor.mul(primitive.material.extensions["KHR_materials_emissive_strength"]["emissiveStrength"]);
-        }
-      }
-      materialParams.unlit = false;
-      materialParams.doubleSided = primitive.material.doubleSided;
-      materialParams.alphaCutoff = primitive.material.alphaCutoff;
+    const mat = primitive.material;
+    if (mat?.pbrMetallicRoughness) {
+      const pbr = mat.pbrMetallicRoughness;
+      if (pbr.baseColorFactor) materialParams.albedoColor = new Mathf.Color(...pbr.baseColorFactor);
+      if (pbr.baseColorTexture) materialParams.albedoMap = await this.getTexture(textures, pbr.baseColorTexture, "bgra8unorm-srgb");
+      if (pbr.metallicRoughnessTexture) materialParams.metalnessMap = await this.getTexture(textures, pbr.metallicRoughnessTexture, "bgra8unorm");
+      if (pbr.roughnessFactor !== void 0) materialParams.roughness = pbr.roughnessFactor;
+      if (pbr.metallicFactor !== void 0) materialParams.metalness = pbr.metallicFactor;
     }
-    if (primitive.attributes.JOINTS_0 && primitive.attributes.WEIGHTS_0) {
-      materialParams.isSkinned = true;
+    if (mat?.normalTexture) materialParams.normalMap = await this.getTexture(textures, mat.normalTexture, "bgra8unorm");
+    if (mat?.emissiveTexture) materialParams.emissiveMap = await this.getTexture(textures, mat.emissiveTexture, "bgra8unorm-srgb");
+    if (mat?.emissiveFactor) {
+      materialParams.emissiveColor = new Mathf.Color(...mat.emissiveFactor);
+      const ext = mat.extensions?.["KHR_materials_emissive_strength"];
+      if (ext?.emissiveStrength) materialParams.emissiveColor.mul(ext.emissiveStrength);
     }
-    if (geometry.attributes.has("position") && geometry.attributes.has("normal") && geometry.attributes.has("uv") && materialParams.normalMap) geometry.ComputeTangents();
+    materialParams.unlit = false;
+    materialParams.doubleSided = !!mat?.doubleSided;
+    materialParams.alphaCutoff = mat?.alphaCutoff;
+    if (primitive.attributes.JOINTS_0 && primitive.attributes.WEIGHTS_0) materialParams.isSkinned = true;
+    if (geometry.attributes.has("position") && geometry.attributes.has("normal") && geometry.attributes.has("uv") && materialParams.normalMap) {
+      geometry.ComputeTangents();
+    }
     return {
       name: "",
       geometry,
       material: new PBRMaterial(materialParams),
       children: [],
-      // node.children,
       localMatrix: new Mathf.Matrix4()
     };
   }
   static async parseNode(gltf, node, textures) {
-    let nodeObject3D = {
-      name: node.name ? node.name : void 0,
+    const nodeObj = {
+      name: node.name ?? void 0,
       children: [],
       localMatrix: new Mathf.Matrix4().setFromArray(node.matrix)
     };
-    if (node.extensions) {
-      if (node.extensions.EXT_mesh_gpu_instancing) {
-        if (!gltf.accessors) throw Error("No accessors");
-        const attributes = node.extensions.EXT_mesh_gpu_instancing.attributes;
-        const translation = new Float32Array(gltf.accessors[attributes.TRANSLATION].bufferView.data);
-        const rotation = new Float32Array(gltf.accessors[attributes.ROTATION].bufferView.data);
-        const scale = new Float32Array(gltf.accessors[attributes.SCALE].bufferView.data);
-        const count = translation.length / 3;
-        let instanceMatrices = [];
-        let p = new Mathf.Vector3();
-        let r = new Mathf.Quaternion();
-        let s = new Mathf.Vector3();
-        let m = new Mathf.Matrix4();
-        let psc = 0;
-        let rc = 0;
-        for (let i = 0; i < count; i++) {
-          p.set(translation[psc + 0], translation[psc + 1], translation[psc + 2]);
-          r.set(rotation[rc + 0], rotation[rc + 1], rotation[rc + 2], rotation[rc + 3]);
-          s.set(scale[psc + 0], scale[psc + 1], scale[psc + 2]);
-          m.compose(p, r, s);
-          instanceMatrices.push(m.clone());
-          psc += 3;
-          rc += 4;
-        }
-        nodeObject3D.extensions = [{ instanceCount: count, instanceMatrices }];
+    if (node.extensions?.EXT_mesh_gpu_instancing) {
+      const attrs = node.extensions.EXT_mesh_gpu_instancing.attributes;
+      if (!gltf.accessors) throw Error("No accessors");
+      const t = new Float32Array(gltf.accessors[attrs.TRANSLATION].bufferView.data);
+      const r = new Float32Array(gltf.accessors[attrs.ROTATION].bufferView.data);
+      const s = new Float32Array(gltf.accessors[attrs.SCALE].bufferView.data);
+      const count = t.length / 3;
+      const instanceMatrices = [];
+      const P = new Mathf.Vector3();
+      const Q = new Mathf.Quaternion();
+      const S = new Mathf.Vector3();
+      const M = new Mathf.Matrix4();
+      let psc = 0, rc = 0;
+      for (let i = 0; i < count; i++) {
+        P.set(t[psc], t[psc + 1], t[psc + 2]);
+        Q.set(r[rc], r[rc + 1], r[rc + 2], r[rc + 3]);
+        S.set(s[psc], s[psc + 1], s[psc + 2]);
+        M.compose(P, Q, S);
+        instanceMatrices.push(M.clone());
+        psc += 3;
+        rc += 4;
       }
+      nodeObj.extensions = [{ instanceCount: count, instanceMatrices }];
     }
-    for (const childNode of node.children) {
-      nodeObject3D.children.push(await this.parseNode(gltf, childNode, textures));
+    for (const child of node.children) {
+      nodeObj.children.push(await this.parseNode(gltf, child, textures));
     }
-    if (node.mesh !== null) {
-      if (node.mesh.primitives.length === 1) {
-        const object3D = await this.parsePrimitive(node.mesh.primitives[0], textures);
-        nodeObject3D.geometry = object3D.geometry;
-        nodeObject3D.material = object3D.material;
+    if (node.mesh) {
+      const { primitives, name } = node.mesh;
+      if (primitives.length === 1) {
+        const o = await this.parsePrimitive(primitives[0], gltf.textures);
+        nodeObj.geometry = o.geometry;
+        nodeObj.material = o.material;
       } else {
-        for (const primitive of node.mesh.primitives) {
-          const object3D = await this.parsePrimitive(primitive, textures);
-          object3D.name = node.mesh.name || "Object3D";
-          nodeObject3D.children.push(object3D);
+        let idx = 0;
+        for (const p of primitives) {
+          const o = await this.parsePrimitive(p, gltf.textures);
+          o.name = name || `Object3D_${idx++}`;
+          nodeObj.children.push(o);
         }
       }
     }
-    return nodeObject3D;
+    return nodeObj;
   }
+  // ---------- Public: load as an Object3D tree ----------
   static async Load(url) {
-    return new GLTFParser().load(url).then(async (gltf) => {
-      if (!gltf || !gltf.scenes) throw Error("Invalid gltf");
-      console.log("gltf", gltf);
-      const sceneObject3D = {
-        name: "Scene",
-        localMatrix: new Mathf.Matrix4(),
-        children: []
-      };
-      for (const scene of gltf.scenes) {
-        if (!scene) continue;
-        sceneObject3D.name = scene.name ? scene.name : "Scene";
-        for (const node of scene.nodes) {
-          sceneObject3D.children.push(await this.parseNode(gltf, node, gltf.textures));
-        }
+    const gltf = await new GLTFParser().load(url);
+    if (!gltf?.scenes) throw Error("Invalid gltf");
+    const sceneObj = { name: "Scene", localMatrix: new Mathf.Matrix4(), children: [] };
+    for (const scene of gltf.scenes) {
+      if (!scene) continue;
+      sceneObj.name = scene.name ?? "Scene";
+      for (const node of scene.nodes) {
+        sceneObj.children.push(await this.parseNode(gltf, node, gltf.textures));
       }
-      return sceneObject3D;
-    });
+    }
+    return sceneObj;
   }
-  /**
-   * Convert GLTF to engine GameObjects with proper skinning and animation support
-   */
+  // ---------- Public: load as GameObjects (Unity-style) ----------
   static async loadAsGameObjects(scene, url) {
     const gltf = await new GLTFParser().load(url);
     const gameObjects = [];
-    const clips = [];
+    const nodeGOs = [];
     const skins = [];
-    const nodeGameObjects = [];
-    if (gltf.nodes) {
-      for (let i = 0; i < gltf.nodes.length; i++) {
-        const node = gltf.nodes[i];
-        const gameObject = new GameObject(scene);
-        gameObject.name = node.name || `Node_${i}`;
-        gameObject.transform.position.set(node.translation.x, node.translation.y, node.translation.z);
-        gameObject.transform.rotation.set(node.rotation.x, node.rotation.y, node.rotation.z, node.rotation.w);
-        gameObject.transform.scale.set(node.scale.x, node.scale.y, node.scale.z);
-        nodeGameObjects.push(gameObject);
-        gameObjects.push(gameObject);
-      }
-      for (let i = 0; i < gltf.nodes.length; i++) {
-        const node = gltf.nodes[i];
-        const gameObject = nodeGameObjects[i];
-        for (const childId of node.childrenID) {
-          const childGameObject = nodeGameObjects[childId];
-          childGameObject.transform.parent = gameObject.transform;
-        }
+    const clips = [];
+    if (!gltf.nodes) return gameObjects;
+    const nodeIndex = /* @__PURE__ */ new Map();
+    gltf.nodes.forEach((n, i) => nodeIndex.set(n, i));
+    for (let i = 0; i < gltf.nodes.length; i++) {
+      const n = gltf.nodes[i];
+      const go = new GameObject(scene);
+      go.name = n.name || `Node_${i}`;
+      go.transform.position.set(n.translation.x, n.translation.y, n.translation.z);
+      go.transform.rotation.set(n.rotation.x, n.rotation.y, n.rotation.z, n.rotation.w);
+      go.transform.scale.set(n.scale.x, n.scale.y, n.scale.z);
+      nodeGOs.push(go);
+      gameObjects.push(go);
+    }
+    for (let i = 0; i < gltf.nodes.length; i++) {
+      const n = gltf.nodes[i];
+      const go = nodeGOs[i];
+      for (const childId of n.childrenID) {
+        nodeGOs[childId].transform.parent = go.transform;
       }
     }
     if (gltf.skins) {
-      for (const gltfSkin of gltf.skins) {
-        const jointTransforms = gltfSkin.joints.map((jointNode) => {
-          const jointIndex = gltf.nodes.indexOf(jointNode);
-          return nodeGameObjects[jointIndex].transform;
-        });
-        const inverseBindMatricesData = gltfSkin.inverseBindMatricesData;
-        if (inverseBindMatricesData) {
-          const skin = new Components.Skin(jointTransforms, inverseBindMatricesData);
-          skins.push(skin);
-        }
+      for (const s of gltf.skins) {
+        const jointTransforms = s.joints.map((j) => nodeGOs[nodeIndex.get(j)].transform);
+        const ibm = s.inverseBindMatricesData;
+        if (!ibm) continue;
+        skins.push(new Components.Skin(jointTransforms, ibm));
       }
     }
     if (gltf.animations) {
-      let getComponentCountForPath = function(path) {
-        switch (path) {
-          case "translation":
-          case "scale":
-            return 3;
-          case "rotation":
-            return 4;
-          case "weights":
-            return 1;
-          // Variable, but 1 is common
-          default:
-            return 1;
-        }
-      };
-      for (const gltfAnimation of gltf.animations) {
+      const compCountForPath = (path) => path === "translation" || path === "scale" ? 3 : path === "rotation" ? 4 : path === "weights" ? 1 : 1;
+      for (const a of gltf.animations) {
         const channels = [];
-        for (const gltfChannel of gltfAnimation.channels) {
-          const targetNodeIndex = gltfChannel.target.nodeID;
-          const targetTransform = nodeGameObjects[targetNodeIndex].transform;
+        let duration = 0;
+        for (const ch of a.channels) {
+          const targetIdx = ch.target.nodeID;
+          const targetTransform = nodeGOs[targetIdx].transform;
+          const times = ch.sampler.keyFrameIndices;
+          const values = ch.sampler.keyFrameRaw;
+          duration = Math.max(duration, times[times.length - 1] ?? 0);
           const sampler = {
-            times: gltfChannel.sampler.keyFrameIndices,
-            values: gltfChannel.sampler.keyFrameRaw,
-            keyCount: gltfChannel.sampler.keyFrameIndices.length,
-            compCount: getComponentCountForPath(gltfChannel.target.path)
+            times,
+            values,
+            keyCount: times.length,
+            compCount: compCountForPath(ch.target.path)
           };
-          channels.push({
-            sampler,
-            targetTransform,
-            path: gltfChannel.target.path
-          });
+          channels.push({ sampler, targetTransform, path: ch.target.path });
         }
-        const duration = Math.max(0, ...gltfAnimation.channels.map(
-          (ch) => ch.sampler.keyFrameIndices[ch.sampler.keyFrameIndices.length - 1] || 0
-        ));
-        const clip = new Components.AnimationClip(gltfAnimation.name || `Animation ${clips.length}`, channels, duration);
-        clips.push(clip);
+        clips.push(new Components.AnimationClip(a.name || `Animation ${clips.length}`, channels, duration));
       }
     }
-    if (gltf.nodes) {
-      for (let i = 0; i < gltf.nodes.length; i++) {
-        const node = gltf.nodes[i];
-        const gameObject = nodeGameObjects[i];
-        if (node.mesh) {
-          const object3D = await this.parseNode(gltf, node, gltf.textures);
-          if (!object3D.geometry || !object3D.material) throw Error("Mesh node should have a geometry and material.");
-          const positionsArray = object3D.geometry.attributes.get("position").array;
-          if (!object3D.geometry.index) {
-            let indexBuffer = new Uint32Array(positionsArray.length);
-            for (let i2 = 0; i2 < indexBuffer.length; i2++) {
-              indexBuffer[i2] = i2;
-            }
-            object3D.geometry.index = new IndexAttribute(indexBuffer);
-            object3D.geometry.ComputeNormals();
-          }
-          if (!object3D.geometry.attributes.get("normal")) {
-            object3D.geometry.ComputeNormals();
-          }
-          if (!object3D.geometry.attributes.get("uv")) {
-            object3D.geometry.attributes.set("uv", new VertexAttribute(new Float32Array(positionsArray.length / 3 * 2)));
-          }
-          const hasSkinning = node.mesh.primitives.some(
-            (p) => p.attributes.JOINTS_0 && p.attributes.WEIGHTS_0
-          );
-          if (hasSkinning && node.skin && skins[gltf.skins.indexOf(node.skin)]) {
-            const skinnedMesh = gameObject.AddComponent(Components.SkinnedMesh);
-            skinnedMesh.skin = skins[gltf.skins.indexOf(node.skin)];
-            skinnedMesh.SetGeometry(object3D.geometry);
-            skinnedMesh.AddMaterial(object3D.material);
-          } else {
-            const mesh = gameObject.AddComponent(Components.Mesh);
-            mesh.SetGeometry(object3D.geometry);
-            mesh.AddMaterial(object3D.material);
-          }
-        }
+    for (let i = 0; i < gltf.nodes.length; i++) {
+      const node = gltf.nodes[i];
+      if (!node.mesh) continue;
+      const nodeGO = nodeGOs[i];
+      const skinIdx = node.skin ? gltf.skins.indexOf(node.skin) : -1;
+      const skin = skinIdx >= 0 ? skins[skinIdx] : void 0;
+      const primitives = node.mesh.primitives ?? [];
+      let pIndex = 0;
+      for (const primitive of primitives) {
+        const primGO = new GameObject(scene);
+        primGO.name = `${nodeGO.name}_Prim_${pIndex++}`;
+        primGO.transform.parent = nodeGO.transform;
+        const { geometry, material } = await this.parsePrimitive(primitive, gltf.textures);
+        this.finalizeGeometry(geometry);
+        const hasSkin = !!primitive.attributes && !!primitive.attributes.JOINTS_0 && !!primitive.attributes.WEIGHTS_0;
+        const mesh = hasSkin && skin ? primGO.AddComponent(Components.SkinnedMesh) : primGO.AddComponent(Components.Mesh);
+        if (mesh instanceof Components.SkinnedMesh) mesh.skin = skin;
+        mesh.geometry = geometry;
+        mesh.material = material;
       }
     }
-    if (clips.length > 0 && gameObjects.length > 0) {
+    if (clips.length && gameObjects.length) {
       const animator = gameObjects[0].AddComponent(Components.Animator);
       animator.clips = clips;
     }

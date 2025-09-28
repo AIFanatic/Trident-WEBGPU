@@ -72,15 +72,15 @@
                 planeGO.transform.position.set(0, -2, 0);
                 planeGO.transform.scale.set(100, 100, 1);
                 const sphereMesh = planeGO.AddComponent(Components.Mesh);
-                await sphereMesh.SetGeometry(Geometry.Plane());
+                sphereMesh.geometry = Geometry.Plane();
                 const mat2 = new PBRMaterial({ albedoColor: new Mathf.Color(1, 1, 1), metalness: 0.5, roughness: 0.5 });
-                sphereMesh.AddMaterial(mat2);
+                sphereMesh.material = mat2;
               }
               const instancedMeshGameObject = new GameObject(scene);
               const instancedMesh = instancedMeshGameObject.AddComponent(Components.InstancedMesh);
               instancedMesh.enableShadows = false;
-              await instancedMesh.SetGeometry(bunnyImpostor.impostorGeometry);
-              instancedMesh.AddMaterial(m);
+              instancedMesh.geometry = bunnyImpostor.impostorGeometry;
+              instancedMesh.material = m;
               const mat = new Mathf.Matrix4();
               const p = new Mathf.Vector3();
               const r = new Mathf.Quaternion();

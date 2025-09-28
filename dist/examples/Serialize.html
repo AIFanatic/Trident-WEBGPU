@@ -1,0 +1,76 @@
+
+    <!DOCTYPE html>
+    <html>
+        <head>
+            <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no">
+            <meta name="mobile-web-app-capable" content="yes">
+            <meta name="apple-mobile-web-app-capable" content="yes">
+            
+            <style>
+                html, body {
+                    margin: 0;
+                    overflow: hidden;
+                    height: 100%;
+                    width: 100%;
+                }
+            </style>
+        </head>
+        <body>
+            <script type="importmap">
+                {
+                    "imports": {
+                        "@trident/core": "../trident-core.js",
+                        "@trident/plugins/": "../plugins/"
+                    }
+                }
+            </script>
+            <script type="module">
+                const canvas = document.createElement("canvas");
+                document.body.appendChild(canvas);
+                            import { GPU, Scene, GameObject, Components, Mathf, Geometry, PBRMaterial } from '@trident/core';
+            import { OrbitControls } from '@trident/plugins/OrbitControls.js';
+            import { Debugger } from '@trident/plugins/Debugger.js';
+            
+            async function Application(canvas) {
+              const renderer = GPU.Renderer.Create(canvas, "webgpu");
+              const scene = new Scene(renderer);
+              const mainCameraGameObject = new GameObject(scene);
+              mainCameraGameObject.transform.position.set(0, 0, -15);
+              mainCameraGameObject.name = "MainCamera";
+              const camera = mainCameraGameObject.AddComponent(Components.Camera);
+              camera.SetPerspective(72, canvas.width / canvas.height, 0.01, 100);
+              mainCameraGameObject.transform.position.set(0, 0, 10);
+              mainCameraGameObject.transform.LookAtV1(new Mathf.Vector3(0, 0, 0));
+              const lightGameObject = new GameObject(scene);
+              lightGameObject.transform.position.set(-4, 4, 4);
+              lightGameObject.transform.LookAtV1(new Mathf.Vector3(0, 0, 0));
+              lightGameObject.AddComponent(Components.DirectionalLight);
+              const floorGameObject = new GameObject(scene);
+              floorGameObject.transform.eulerAngles.x = -90;
+              floorGameObject.transform.position.y = -2;
+              floorGameObject.transform.scale.set(100, 100, 100);
+              const floorMesh = floorGameObject.AddComponent(Components.Mesh);
+              floorMesh.geometry = Geometry.Plane();
+              floorMesh.material = new PBRMaterial();
+              {
+                const floorGameObject2 = new GameObject(scene);
+                floorGameObject2.transform.eulerAngles.x = -90;
+                floorGameObject2.transform.position.y = -1;
+                const floorMesh2 = floorGameObject2.AddComponent(Components.Mesh);
+                floorMesh2.geometry = Geometry.Cube();
+                floorMesh2.material = new PBRMaterial({ albedoColor: new Mathf.Color(1, 0, 0, 1) });
+              }
+              Debugger.Enable();
+              const serialized = JSON.stringify(scene.Serialize());
+              console.log(serialized);
+              const scene2 = new Scene(renderer);
+              scene2.Deserialize(JSON.parse(serialized));
+              scene2.GetComponents(Components.Camera);
+              new OrbitControls(canvas, Components.Camera.mainCamera);
+              scene2.Start();
+            }
+            Application(document.querySelector("canvas"));
+            
+            </script>
+        </body>
+    </html>

@@ -110,6 +110,7 @@ class _Debugger {
   rendererFolder;
   resolution;
   fps;
+  vertexCount;
   triangleCount;
   visibleTriangles;
   cpuTime;
@@ -142,6 +143,7 @@ class _Debugger {
     this.rendererFolder.Open();
     this.resolution = new UITextStat(this.rendererFolder, "Resolution: ", 0, 0, "", false);
     this.fps = new UITextStat(this.rendererFolder, "FPS: ", 0, 2, "", true);
+    this.vertexCount = new UITextStat(this.rendererFolder, "Vertices: ");
     this.triangleCount = new UITextStat(this.rendererFolder, "Triangles: ");
     this.visibleTriangles = new UITextStat(this.rendererFolder, "Visible triangles: ");
     this.cpuTime = new UITextStat(this.rendererFolder, "CPU: ", 0, 2, "ms", true);
@@ -184,6 +186,7 @@ class _Debugger {
   Update() {
     this.resolution.SetText(`${Renderer.width}x${Renderer.height}`);
     this.fps.SetValue(Renderer.info.fps);
+    this.vertexCount.SetValue(Renderer.info.vertexCount);
     this.triangleCount.SetValue(Renderer.info.triangleCount);
     this.visibleTriangles.SetValue(Renderer.info.visibleTriangles);
     this.cpuTime.SetValue(Renderer.info.cpuTime);

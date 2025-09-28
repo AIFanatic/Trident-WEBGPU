@@ -154,14 +154,17 @@ class WaterRenderPass extends GPU.RenderPass {
   }
 }
 class Water extends Component {
+  static type = "@trident/plugins/Water";
   settings;
-  // Hack
+  // TODO: Hack, fix
   static WaterRenderPass;
+  static WaterRenderPassScene;
   geometry;
   constructor(gameObject) {
     super(gameObject);
-    if (!Water.WaterRenderPass) {
+    if (!Water.WaterRenderPass || Water.WaterRenderPassScene !== gameObject.scene) {
       Water.WaterRenderPass = new WaterRenderPass();
+      Water.WaterRenderPassScene = gameObject.scene;
       this.gameObject.scene.renderPipeline.AddPass(Water.WaterRenderPass, GPU.RenderPassOrder.AfterGBuffer);
     }
     this.geometry = PlaneGeometry(128, 128, 256, 256);
@@ -186,6 +189,15 @@ class Water extends Component {
       settings: this.settings,
       transform: this.transform
     });
+  }
+  Serialize() {
+    return {
+      type: Water.type,
+      settings: this.settings.Serialize()
+    };
+  }
+  Deserialize(data) {
+    this.settings.Deserialize(data.settings);
   }
 }
 

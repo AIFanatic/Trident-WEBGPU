@@ -58,8 +58,8 @@
               const terrainSpec = await GPU.Texture.Load("./assets/textures/rocky_terrain_02_2k/rocky_terrain_02_spec_2k.jpg");
               const material = new PBRMaterial({ albedoMap: terrainAlbedo, normalMap: terrainNormal, metalnessMap: terrainSpec });
               const mesh = gameObject.AddComponent(Components.Mesh);
-              await mesh.SetGeometry(terrain.geometry);
-              mesh.AddMaterial(material);
+              mesh.geometry = terrain.geometry;
+              mesh.material = material;
               Debugger.Enable();
               scene.Start();
             }

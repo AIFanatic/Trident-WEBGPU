@@ -4,7 +4,7 @@ export { TerrainBuilder } from './TerrainGenerator/TerrainBuilder.js';
 export { SimplexNoise } from './SimplexNoise.js';
 export { DataBackedBuffer } from './DataBackedBuffer.js';
 export { UIButtonStat, UIColorStat, UIDropdownStat, UIFolder, UIGradientStat, UIGraph, UISliderStat, UITextStat, UIVecStat } from './ui/UIStats.js';
-export { Water } from './Water/WaterPlugin.js';
+import { Water } from './Water/WaterPlugin.js';
 export { LineRenderer } from './LineRenderer.js';
 export { OBJLoaderIndexed } from './OBJLoader.js';
 export { RSMIndirectLighting } from './RSMIndirectLighting.js';
@@ -37,3 +37,8 @@ export { PointLightHelper } from './PointLightHelper.js';
 export { Atlas, AtlasViewer } from './Atlas.js';
 export { ImpostorMesh } from './Impostors/ImpostorMesh.js';
 export { ParticleSystem } from './ParticleSystem/ParticleSystem.js';
+import { Component } from '@trident/core';
+
+Component.Registry.set(Water.type, Water);
+
+export { Water };

@@ -63,12 +63,12 @@
                 const sphereGameObject = new GameObject(scene);
                 sphereGameObject.transform.position.set((x - c * 0.5) * 1.5, y, 0);
                 const sphereMesh = sphereGameObject.AddComponent(Components.Mesh);
-                sphereMesh.SetGeometry(Geometry.Sphere());
-                sphereMesh.AddMaterial(new PBRMaterial({
+                sphereMesh.geometry = Geometry.Sphere();
+                sphereMesh.material = new PBRMaterial({
                   albedoColor: new Mathf.Color(0.957, 0.792, 0.407, 1),
                   metalness: i < 6 ? 1 : 0,
                   roughness: i % 6 / 6
-                }));
+                });
               }
               for (let i = 0; i < c; i++) {
                 const x = i;
@@ -76,12 +76,12 @@
                 const sphereGameObject = new GameObject(scene);
                 sphereGameObject.transform.position.set((x - c * 0.5) * 1.5, y, 0);
                 const sphereMesh = sphereGameObject.AddComponent(Components.Mesh);
-                sphereMesh.SetGeometry(Geometry.Sphere());
-                sphereMesh.AddMaterial(new PBRMaterial({
+                sphereMesh.geometry = Geometry.Sphere();
+                sphereMesh.material = new PBRMaterial({
                   albedoColor: new Mathf.Color(1, 0, 0, 1),
                   metalness: i < 6 ? 0 : 1,
                   roughness: i % 6 / 6
-                }));
+                });
               }
               Debugger.Enable();
               const hdr = await HDRParser.Load("./assets/textures/HDR/dikhololo_night_1k.hdr");

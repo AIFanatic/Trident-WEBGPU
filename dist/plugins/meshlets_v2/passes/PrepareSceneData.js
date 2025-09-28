@@ -92,10 +92,8 @@ class PrepareSceneData extends GPU.RenderPass {
     ]);
   }
   getMeshMaterialInfo(mesh) {
-    let materials = mesh.GetMaterials(PBRMaterial);
-    if (materials.length === 0) return null;
-    if (materials.length > 1) throw Error("Multiple materials not supported");
-    const material = materials[0];
+    const material = mesh.material;
+    if (!(material instanceof PBRMaterial)) return null;
     const albedoIndex = this.processMaterialMap(material.params.albedoMap, "albedo");
     const normalIndex = this.processMaterialMap(material.params.normalMap, "normal");
     const heightIndex = this.processMaterialMap(material.params.heightMap, "height");
@@ -183,17 +181,17 @@ class PrepareSceneData extends GPU.RenderPass {
       const meshMaterialCache = /* @__PURE__ */ new Map();
       for (const mesh of sceneMeshlets) {
         let materialIndex = -1;
-        for (const material of mesh.GetMaterials(PBRMaterial)) {
-          if (!this.meshMaterialInfo.has(material.id)) {
-            const meshMaterialInfo = this.getMeshMaterialInfo(mesh);
-            if (meshMaterialInfo !== null) {
-              this.meshMaterialInfo.set(material.id, meshMaterialInfo);
-              meshMaterialCache.set(material.id, meshMaterialCache.size);
-            }
+        const material = mesh.material;
+        if (!(material instanceof PBRMaterial)) continue;
+        if (!this.meshMaterialInfo.has(material.id)) {
+          const meshMaterialInfo = this.getMeshMaterialInfo(mesh);
+          if (meshMaterialInfo !== null) {
+            this.meshMaterialInfo.set(material.id, meshMaterialInfo);
+            meshMaterialCache.set(material.id, meshMaterialCache.size);
           }
-          let mc = meshMaterialCache.get(material.id);
-          if (mc !== void 0) materialIndex = mc;
         }
+        let mc = meshMaterialCache.get(material.id);
+        if (mc !== void 0) materialIndex = mc;
         if (!this.meshMatrixInfoBuffer.has(mesh.id)) {
           this.meshMatrixInfoBuffer.set(mesh.id, mesh.transform.localToWorldMatrix.elements);
         }

@@ -67,8 +67,8 @@ class LineRenderer extends Component {
     this.mesh = this.gameObject.AddComponent(Components.Mesh);
     this.mesh.name = "LineRenderer";
     this.mesh.enableShadows = false;
-    await this.mesh.SetGeometry(this.geometry);
-    this.mesh.AddMaterial(this.material);
+    this.mesh.geometry = this.geometry;
+    this.mesh.material = this.material;
   }
   SetPositions(positions) {
     let positionsF32 = positions instanceof Float32Array ? positions : new Float32Array(positions.length * 3);

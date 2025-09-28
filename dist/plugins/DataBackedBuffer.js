@@ -30,6 +30,13 @@ class DataBackedBuffer {
   get(key) {
     return this.data[key];
   }
+  Serialize() {
+    return this.data;
+  }
+  Deserialize(data) {
+    console.log("sss", this.data);
+    return this.data;
+  }
 }
 
 export { DataBackedBuffer };

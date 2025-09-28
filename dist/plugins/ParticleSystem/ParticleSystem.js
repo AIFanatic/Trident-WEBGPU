@@ -134,8 +134,8 @@ class ParticleSystem extends (_a = Component, _startSize_dec = [Utils.SerializeF
     this.instancedMesh.name = "ParticleSystem";
     this.instancedMesh.enableShadows = false;
     this.geometry = Geometry.Plane();
-    await this.instancedMesh.SetGeometry(this.geometry);
-    this.instancedMesh.AddMaterial(this.material);
+    this.instancedMesh.geometry = this.geometry;
+    this.instancedMesh.material = this.material;
     this.compute = await GPU.Compute.Create({
       code: await GPU.ShaderPreprocessor.ProcessIncludesV2(WGSL_Compute),
       computeEntrypoint: "main",

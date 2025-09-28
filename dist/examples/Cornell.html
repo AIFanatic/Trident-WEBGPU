@@ -74,52 +74,47 @@
               floor.transform.position.y = -5;
               floor.transform.eulerAngles.x = -90;
               const meshbottom = floor.AddComponent(Components.Mesh);
-              meshbottom.SetGeometry(Geometry.Plane());
-              meshbottom.AddMaterial(floorMaterial);
+              meshbottom.geometry = Geometry.Plane();
+              meshbottom.material = floorMaterial;
               const left = new GameObject(scene);
               left.transform.scale.set(0.05, 10, 10);
               left.transform.position.x = -5;
               const meshleft = left.AddComponent(Components.Mesh);
-              meshleft.SetGeometry(Geometry.Cube());
-              meshleft.AddMaterial(leftMaterial);
+              meshleft.geometry = Geometry.Cube();
+              meshleft.material = leftMaterial;
               const right = new GameObject(scene);
               right.transform.scale.set(0.05, 10, 10);
               right.transform.position.x = 5;
               const meshright = right.AddComponent(Components.Mesh);
-              meshright.SetGeometry(Geometry.Cube());
-              meshright.AddMaterial(rightMaterial);
+              meshright.geometry = Geometry.Cube();
+              meshright.material = rightMaterial;
               const back = new GameObject(scene);
               back.transform.scale.set(10, 10, 0.05);
               back.transform.position.z = -5;
               const meshback = back.AddComponent(Components.Mesh);
-              meshback.SetGeometry(Geometry.Cube());
-              meshback.AddMaterial(backMaterial);
+              meshback.geometry = Geometry.Cube();
+              meshback.material = backMaterial;
               const top = new GameObject(scene);
               top.transform.scale.set(5, 5, 5);
               top.transform.position.y = 5;
               top.transform.eulerAngles.x = 90;
               const meshtop = top.AddComponent(Components.Mesh);
-              meshtop.SetGeometry(Geometry.Plane());
-              meshtop.AddMaterial(topMaterial);
+              meshtop.geometry = Geometry.Plane();
+              meshtop.material = topMaterial;
               const cube = new GameObject(scene);
               cube.transform.scale.set(2, 4, 2);
               cube.transform.position.set(-2, -3, -2);
               cube.transform.eulerAngles.y = 20;
               const cubeMesh = cube.AddComponent(Components.Mesh);
-              cubeMesh.SetGeometry(Geometry.Cube());
-              cubeMesh.AddMaterial(new PBRMaterial({ albedoColor: new Mathf.Color(1, 1, 1, 1), roughness, metalness }));
+              cubeMesh.geometry = Geometry.Cube();
+              cubeMesh.material = new PBRMaterial({ albedoColor: new Mathf.Color(1, 1, 1, 1), roughness, metalness });
               const cube2 = new GameObject(scene);
               cube2.transform.scale.set(2, 2, 2);
               cube2.transform.position.set(2, -4, 2);
               cube2.transform.eulerAngles.y = 65;
               const cubeMesh2 = cube2.AddComponent(Components.Mesh);
-              cubeMesh2.SetGeometry(Geometry.Cube());
-              cubeMesh2.AddMaterial(new PBRMaterial({
-                emissiveColor: new Mathf.Color(1, 0, 0, 1),
-                albedoColor: new Mathf.Color(1, 1, 1, 1),
-                roughness,
-                metalness
-              }));
+              cubeMesh2.geometry = Geometry.Cube();
+              cubeMesh2.material = new PBRMaterial({ emissiveColor: new Mathf.Color(1, 0, 0, 1), albedoColor: new Mathf.Color(1, 1, 1, 1), roughness, metalness });
               const postProcessing = new PostProcessingPass();
               postProcessing.effects.push(new PostProcessingFXAA());
               scene.renderPipeline.AddPass(postProcessing, GPU.RenderPassOrder.AfterLighting);

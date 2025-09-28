@@ -47,6 +47,9 @@
               lightGameObject.transform.position.set(-4, 4, 4);
               lightGameObject.transform.LookAtV1(new Mathf.Vector3(0, 0, 0));
               lightGameObject.AddComponent(Components.DirectionalLight);
+              {
+                await GLTFLoader.loadAsGameObjects(scene, "./assets/models/DamagedHelmet/DamagedHelmet.gltf");
+              }
               const gameObjects = await GLTFLoader.loadAsGameObjects(scene, "./assets/models/Fox.glb");
               const root = gameObjects[0];
               root.transform.scale.mul(0.01);
