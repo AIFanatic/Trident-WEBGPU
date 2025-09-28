@@ -28,3 +28,5 @@ import "./RSM";
 import "./Impostors";
 
 import "./Particles";
+
+import "./Serialize";

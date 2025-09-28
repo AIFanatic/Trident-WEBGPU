@@ -65,8 +65,8 @@ async function Application(canvas: HTMLCanvasElement) {
     top.transform.position.y = -5.1;
     top.transform.eulerAngles.x = -90;
     const meshtop = top.AddComponent(Components.Mesh);
-    meshtop.SetGeometry(Geometry.Plane());
-    meshtop.AddMaterial(new PBRMaterial());
+    meshtop.geometry = Geometry.Plane();
+    meshtop.material = new PBRMaterial();
 
 
     const roughness = 0.7;
@@ -104,16 +104,16 @@ async function Application(canvas: HTMLCanvasElement) {
     floor.transform.position.y = -5;
     floor.transform.eulerAngles.x = -90;
     const meshbottom = floor.AddComponent(Components.Mesh);
-    meshbottom.SetGeometry(planeGeometry);
-    meshbottom.AddMaterial(floorMaterial);
+    meshbottom.geometry = planeGeometry;
+    meshbottom.material = floorMaterial;
 
     const left = new GameObject(scene);
     left.transform.scale.set(0.05, 10, 10);
     left.transform.position.x = -5;
     // left.transform.eulerAngles.y = 90;
     const meshleft = left.AddComponent(Components.Mesh);
-    meshleft.SetGeometry(cubeGeometry);
-    meshleft.AddMaterial(leftMaterial);
+    meshleft.geometry = cubeGeometry;
+    meshleft.material = leftMaterial;
 
 
     const right = new GameObject(scene);
@@ -121,23 +121,23 @@ async function Application(canvas: HTMLCanvasElement) {
     right.transform.position.x = 5;
     // right.transform.eulerAngles.y = -90;
     const meshright = right.AddComponent(Components.Mesh);
-    meshright.SetGeometry(cubeGeometry);
-    meshright.AddMaterial(rightMaterial);
+    meshright.geometry = cubeGeometry;
+    meshright.material = rightMaterial;
 
     const back = new GameObject(scene);
     back.transform.scale.set(10, 10, 0.05);
     back.transform.position.z = -5;
     const meshback = back.AddComponent(Components.Mesh);
-    meshback.SetGeometry(cubeGeometry);
-    meshback.AddMaterial(backMaterial);
+    meshback.geometry = cubeGeometry;
+    meshback.material = backMaterial;
 
     // const top = new GameObject(scene);
     // top.transform.scale.set(5, 5, 5);
     // top.transform.position.y = 5;
     // top.transform.eulerAngles.x = 90;
     // const meshtop = top.AddComponent(Mesh);
-    // meshtop.SetGeometry(planeGeometry);
-    // meshtop.AddMaterial(topMaterial);
+    // meshtop.geometry = planeGeometry;
+    // meshtop.material = topMaterial;
 
 
     const cube = new GameObject(scene);
@@ -145,16 +145,16 @@ async function Application(canvas: HTMLCanvasElement) {
     cube.transform.position.set(-2, -3, -2);
     cube.transform.eulerAngles.y = 20;
     const cubeMesh = cube.AddComponent(Components.Mesh);
-    cubeMesh.SetGeometry(cubeGeometry);
-    cubeMesh.AddMaterial(new PBRMaterial({ albedoColor: new Mathf.Color(1, 1, 1, 1), roughness: roughness, metalness: metalness }));
+    cubeMesh.geometry = cubeGeometry;
+    cubeMesh.material = new PBRMaterial({ albedoColor: new Mathf.Color(1, 1, 1, 1), roughness: roughness, metalness: metalness });
 
     const cube2 = new GameObject(scene);
     cube2.transform.scale.set(2, 2, 2);
     cube2.transform.position.set(2, -4, 2);
     cube2.transform.eulerAngles.y = 65;
     const cubeMesh2 = cube2.AddComponent(Components.Mesh);
-    cubeMesh2.SetGeometry(cubeGeometry);
-    cubeMesh2.AddMaterial(new PBRMaterial({ albedoColor: new Mathf.Color(1, 1, 1, 1), emissiveColor: new Mathf.Color(5,0,0,1), roughness: roughness, metalness: metalness }));
+    cubeMesh2.geometry = cubeGeometry;
+    cubeMesh2.material = new PBRMaterial({ albedoColor: new Mathf.Color(1, 1, 1, 1), emissiveColor: new Mathf.Color(5,0,0,1), roughness: roughness, metalness: metalness });
 
     const lightGameObject2 = new GameObject(scene);
     const light2 = lightGameObject2.AddComponent(Components.PointLight);
@@ -177,8 +177,8 @@ async function Application(canvas: HTMLCanvasElement) {
         const viewerGO = new GameObject(scene);
         viewerGO.transform.scale.set(3,3,3)
         const viewerMesh = viewerGO.AddComponent(Components.Mesh);
-        viewerMesh.SetGeometry(Geometry.Plane());
-        viewerMesh.AddMaterial(new PBRMaterial({ albedoMap: bloom.output, unlit: true }));
+        viewerMesh.geometry = Geometry.Plane();
+        viewerMesh.material = new PBRMaterial({ albedoMap: bloom.output, unlit: true });
     }
 
     // scene.renderPipeline.AddPass(new DeferredGBufferPass(), RenderPassOrder.BeforeGBuffer);

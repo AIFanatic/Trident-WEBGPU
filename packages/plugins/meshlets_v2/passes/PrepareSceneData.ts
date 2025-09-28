@@ -37,14 +37,14 @@ export class PrepareSceneData extends GPU.RenderPass {
 
     private currentMeshCount: number = 0;
     private currentMeshletsCount: number = 0;
-    
+
     private materialIndexCache: Map<string, number> = new Map();
     private albedoMaps: GPU.Texture[] = [];
     private normalMaps: GPU.Texture[] = [];
     private heightMaps: GPU.Texture[] = [];
     private metalnessMaps: GPU.Texture[] = [];
     private emissiveMaps: GPU.Texture[] = [];
-    
+
     private textureMaps: TextureMaps;
     private materialMaps: Map<string, GPU.Texture> = new Map();
 
@@ -85,7 +85,7 @@ export class PrepareSceneData extends GPU.RenderPass {
 
         //     for (const meshlet of mesh.meshlets) {
         //         this.objectInfoBuffer.delete(`${mesh.id}-${meshlet.id}`);
-                
+
         //         console.warn("TODO: Deleting meshlet, but since meshlets are shared need to check if any more meshes share this meshlet in order to delete form meshletInfoBuffer and vertexBuffer.");
         //         // if (this.meshletInfoBuffer.has(meshlet.id)) this.meshletInfoBuffer.delete(meshlet.id);
         //         // if (this.vertexBuffer.has(meshlet.id)) this.vertexBuffer.delete(meshlet.id);
@@ -94,7 +94,7 @@ export class PrepareSceneData extends GPU.RenderPass {
         // })
 
         this.dummyTexture = GPU.TextureArray.Create(1, 1, 1);
-        
+
         this.initialized = true;
     }
 
@@ -121,11 +121,8 @@ export class PrepareSceneData extends GPU.RenderPass {
     }
 
     private getMeshMaterialInfo(mesh: MeshletMesh): Float32Array | null {
-        let materials = mesh.GetMaterials(PBRMaterial);
-        if (materials.length === 0) return null;
-        if (materials.length > 1) throw Error("Multiple materials not supported");
-
-        const material = materials[0];
+        const material = mesh.material;
+        if (!(material instanceof PBRMaterial)) return null;
 
         const albedoIndex = this.processMaterialMap(material.params.albedoMap, "albedo");
         const normalIndex = this.processMaterialMap(material.params.normalMap, "normal");
@@ -176,7 +173,7 @@ export class PrepareSceneData extends GPU.RenderPass {
 
     private createMaterialMap(textures: GPU.Texture[], type: "albedo" | "normal" | "height" | "metalness" | "emissive"): GPU.Texture {
         if (textures.length === 0) return this.dummyTexture;
-        
+
         const w = textures[0].width;
         const h = textures[0].height;
 
@@ -194,7 +191,7 @@ export class PrepareSceneData extends GPU.RenderPass {
 
                 // Texture.Blit(textures[i], t, w, h);
                 GPU.RendererContext.CopyTextureToTextureV2(t, materialMap, 0, 0, [w, h, 1], i);
-                
+
                 continue;
             }
 
@@ -202,7 +199,7 @@ export class PrepareSceneData extends GPU.RenderPass {
         }
         return materialMap;
     }
-    
+
     // // At start, create buffers/texture
     // public init(resources: ResourcePool) {}
     // // Before render/compute. Fill buffers/textures. No buffer/texture creation is allowed.
@@ -219,7 +216,7 @@ export class PrepareSceneData extends GPU.RenderPass {
             const meshlets: SceneMesh[] = [];
             for (const meshlet of sceneMeshlets) {
                 for (const geometry of meshlet.meshlets) {
-                    meshlets.push({mesh: meshlet, geometry: geometry});
+                    meshlets.push({ mesh: meshlet, geometry: geometry });
                 }
             }
 
@@ -230,20 +227,20 @@ export class PrepareSceneData extends GPU.RenderPass {
             for (const mesh of sceneMeshlets) {
                 // Mesh material info
                 let materialIndex = -1;
-                for (const material of mesh.GetMaterials(PBRMaterial)) {
-                    if (!this.meshMaterialInfo.has(material.id)) {
-                        const meshMaterialInfo = this.getMeshMaterialInfo(mesh);
-                        if (meshMaterialInfo !== null) {
-                            this.meshMaterialInfo.set(material.id, meshMaterialInfo);
+                const material = mesh.material;
+                if (!(material instanceof PBRMaterial)) continue;
+                if (!this.meshMaterialInfo.has(material.id)) {
+                    const meshMaterialInfo = this.getMeshMaterialInfo(mesh);
+                    if (meshMaterialInfo !== null) {
+                        this.meshMaterialInfo.set(material.id, meshMaterialInfo);
 
-                            meshMaterialCache.set(material.id, meshMaterialCache.size);
-                        }
+                        meshMaterialCache.set(material.id, meshMaterialCache.size);
                     }
-
-                    // Just to get material index
-                    let mc = meshMaterialCache.get(material.id);
-                    if (mc !== undefined) materialIndex = mc;
                 }
+
+                // Just to get material index
+                let mc = meshMaterialCache.get(material.id);
+                if (mc !== undefined) materialIndex = mc;
                 if (!this.meshMatrixInfoBuffer.has(mesh.id)) {
                     this.meshMatrixInfoBuffer.set(mesh.id, mesh.transform.localToWorldMatrix.elements);
                 }
@@ -254,7 +251,7 @@ export class PrepareSceneData extends GPU.RenderPass {
                     meshMatrixIndex = meshMatrixCache.size;
                     meshMatrixCache.set(mesh.id, meshMatrixIndex);
                 }
-                
+
                 // console.log(mesh.meshlets.length)
                 for (const meshlet of mesh.meshlets) {
                     if (!this.meshletInfoBuffer.has(meshlet.id)) this.meshletInfoBuffer.set(meshlet.id, this.getMeshletInfo(meshlet));

@@ -37,8 +37,8 @@ async function Application(canvas: HTMLCanvasElement) {
     floorGameObject.transform.position.y = -2;
     floorGameObject.transform.scale.set(100, 100, 100);
     const floorMesh = floorGameObject.AddComponent(Components.Mesh);
-    floorMesh.SetGeometry(Geometry.Plane());
-    floorMesh.AddMaterial(new PBRMaterial());
+    floorMesh.geometry = Geometry.Plane();
+    floorMesh.material = new PBRMaterial();
 
     const i = 5;
     for (let x = 0; x < i; x++) {
@@ -46,8 +46,8 @@ async function Application(canvas: HTMLCanvasElement) {
             const sphereGameObject = new GameObject(scene);
             sphereGameObject.transform.position.set((x * 2) - i * 0.5 * 2, 0, (y * 2) - i * 0.5 * 2);
             const sphereMesh = sphereGameObject.AddComponent(Components.Mesh);
-            sphereMesh.SetGeometry(Geometry.Sphere());
-            sphereMesh.AddMaterial(new PBRMaterial());
+            sphereMesh.geometry = Geometry.Sphere();
+            sphereMesh.material = new PBRMaterial();
 
             const lightGameObject = new GameObject(scene);
             lightGameObject.transform.position.copy(sphereGameObject.transform.position);

@@ -44,8 +44,8 @@ async function Application(canvas: HTMLCanvasElement) {
     const material = new PBRMaterial({albedoMap: terrainAlbedo, normalMap: terrainNormal, metalnessMap: terrainSpec});
     // const material = new PBRMaterial();
     const mesh = gameObject.AddComponent(Components.Mesh);
-    await mesh.SetGeometry(terrain.geometry);
-    mesh.AddMaterial(material);
+    mesh.geometry = terrain.geometry;
+    mesh.material = material;
 
     Debugger.Enable();
 

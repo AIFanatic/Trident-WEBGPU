@@ -252,14 +252,14 @@ async function Application(canvas: HTMLCanvasElement) {
     const sphereGameObject = new GameObject(scene);
     sphereGameObject.transform.position.x = 2;
     const sphereMesh = sphereGameObject.AddComponent(Components.Mesh);
-    sphereMesh.SetGeometry(Geometry.Sphere());
-    sphereMesh.AddMaterial(new PBRMaterial());
+    sphereMesh.geometry = Geometry.Sphere();
+    sphereMesh.material = new PBRMaterial();
 
 
     // const suzanne = (await OBJLoaderIndexed.load("./assets/suzanne.obj"))[0];
     // const suzanne_sdf_texture = await VoxelGenerator.Generate(suzanne.geometry, new Vector3(1, 1, 1));
 
-    const bunny = (await OBJLoaderIndexed.load("./assets/models//bunny.obj"))[0];
+    const bunny = (await OBJLoaderIndexed.load("./assets/models/bunny.obj"));
     const bunny_sdf_texture = await VoxelGenerator.Generate(bunny.geometry, new Mathf.Vector3(1, 1, 1));
     
     const scene_sdf_resolution = 256;

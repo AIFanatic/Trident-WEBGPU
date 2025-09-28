@@ -12,7 +12,7 @@ import {
 import { OrbitControls } from "@trident/plugins/OrbitControls";
 import { Debugger } from "@trident/plugins/Debugger";
 
-import { GLTFParser } from "@trident/plugins/GLTF/GLTF_Parser";
+import { GLTFLoader } from "@trident/plugins/GLTF/GLTFLoader";
 
 async function Application(canvas: HTMLCanvasElement) {
     const renderer = GPU.Renderer.Create(canvas, "webgpu");
@@ -40,17 +40,7 @@ async function Application(canvas: HTMLCanvasElement) {
         for (const child of object3D.children) traverse(child, func);
     }
 
-    const sponza = (await GLTFParser.Load("/extra/dist_bak/test-assets/GLTF/scenes/Sponza/Sponza.gltf"));
-    traverse(sponza, object3D => {
-        console.log(object3D)
-        if (object3D.geometry && object3D.material) {
-            const gameObject = new GameObject(scene);
-            gameObject.transform.scale.set(0.01, 0.01, 0.01);
-            const mesh = gameObject.AddComponent(Components.Mesh);
-            mesh.SetGeometry(object3D.geometry);
-            mesh.AddMaterial(object3D.material);
-        }
-    })
+    GLTFLoader.loadAsGameObjects(scene, "/extra/dist_bak/test-assets/GLTF/scenes/Sponza/Sponza.gltf");
     
     Debugger.Enable();
 

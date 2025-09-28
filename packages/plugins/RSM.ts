@@ -152,11 +152,10 @@ export class RSMRenderPass extends GPU.RenderPass {
         for (let i = 0; i < meshes.length; i++) {
             const mesh = meshes[i];
             if (!mesh.enabled) continue;
-            const materials = mesh.GetMaterials(PBRMaterial);
-            const material = materials.length > 0 ? materials[0] : undefined;
-            const geometry = mesh.GetGeometry();
+            const material = mesh.material;
+            const geometry = mesh.geometry;
 
-            if (!material) continue;
+            if (!material || !(material instanceof PBRMaterial)) continue;
             if (material.params.unlit === true) continue;
             if (!geometry.attributes.has("position")) continue;
             if (!geometry.attributes.has("normal")) continue;

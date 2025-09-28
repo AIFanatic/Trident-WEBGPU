@@ -1,3 +1,4 @@
+
 export * from "./OrbitControls";
 export * from "./GLTF/GLTFLoader";
 export * from "./TerrainGenerator/TerrainBuilder";
@@ -44,3 +45,7 @@ export * from "./Atlas";
 export * from "./Impostors/ImpostorMesh";
 
 export * from "./ParticleSystem/ParticleSystem";
+
+import { Component } from "@trident/core";
+import { Water } from "./Water/WaterPlugin";
+Component.Registry.set(Water.type, Water);

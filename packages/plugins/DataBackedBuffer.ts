@@ -39,4 +39,16 @@ export class DataBackedBuffer<T> {
         // @ts-ignore
         return this.data[key];
     }
+
+    public Serialize(): Object {
+        return this.data;
+    }
+
+    public Deserialize(data: any): Object {
+        const keys = Object.keys(data);
+        // for (const key of keys) this.set(key as any, data[key]);
+
+        console.log("sss", this.data)
+        return this.data;
+    }
 }

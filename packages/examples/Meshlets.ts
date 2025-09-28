@@ -33,32 +33,28 @@ async function Application(canvas: HTMLCanvasElement) {
     // TODO: Should be added automatically from plugin
     scene.renderPipeline.AddPass(new MeshletDraw(), GPU.RenderPassOrder.BeforeGBuffer);
     
-    {
-        const lightGameObject = new GameObject(scene);
-        lightGameObject.transform.position.set(-4, 4, -4);
-        lightGameObject.transform.LookAtV1(new Mathf.Vector3(0, 0, 0));
-        const light = lightGameObject.AddComponent(Components.DirectionalLight);
-        light.intensity = 1;
-        light.color.set(1, 1, 1, 1);
-        light.castShadows = true;
-    }
+    const lightGameObject = new GameObject(scene);
+    lightGameObject.transform.position.set(-4, 4, -4);
+    lightGameObject.transform.LookAtV1(new Mathf.Vector3(0, 0, 0));
+    const light = lightGameObject.AddComponent(Components.DirectionalLight);
+    light.intensity = 1;
+    light.color.set(1, 1, 1, 1);
+    light.castShadows = true;
 
-    {
-        const planeGO = new GameObject(scene);
-        planeGO.transform.scale.set(100, 100, 1);
-        planeGO.transform.eulerAngles.x = -90;
-        const sphereMesh = planeGO.AddComponent(Components.Mesh);
-        await sphereMesh.SetGeometry(Geometry.Plane());
-        sphereMesh.AddMaterial(new PBRMaterial());
-    }
+    const floorGameObject = new GameObject(scene);
+    floorGameObject.transform.scale.set(100, 100, 1);
+    floorGameObject.transform.eulerAngles.x = -90;
+    const floorMesh = floorGameObject.AddComponent(Components.Mesh);
+    floorMesh.geometry = Geometry.Plane();
+    floorMesh.material = new PBRMaterial();
 
     const mesh = await OBJLoaderIndexed.load("./assets/models/bunny.obj");
 
-    const pinesGO = new GameObject(scene);
-    const instancedMesh = pinesGO.AddComponent(MeshletMesh);
-    instancedMesh.enableShadows = false;
-    await instancedMesh.SetGeometry(mesh[0].geometry);
-    instancedMesh.AddMaterial(mesh[0].material);
+    const meshletGameObject = new GameObject(scene);
+    const meshletMesh = meshletGameObject.AddComponent(MeshletMesh);
+    meshletMesh.enableShadows = false;
+    await meshletMesh.SetGeometry(mesh.geometry);
+    meshletMesh.material = mesh.material;
 
     scene.Start();
 };

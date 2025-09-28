@@ -1,4 +1,4 @@
-import { Components, Scene, GPU, Mathf, GameObject } from "@trident/core";
+import { Components, Scene, GPU, Mathf, GameObject, Geometry, IndexAttribute, PBRMaterial, VertexAttribute } from "@trident/core";
 
 import { OrbitControls } from "@trident/plugins/OrbitControls";
 import { GLTFLoader } from "@trident/plugins/GLTF/GLTFLoader";
@@ -25,6 +25,9 @@ async function Application(canvas: HTMLCanvasElement) {
     lightGameObject.transform.LookAtV1(new Mathf.Vector3(0, 0, 0));
     const light = lightGameObject.AddComponent(Components.DirectionalLight);
 
+    {
+        const gameObjects = await GLTFLoader.loadAsGameObjects(scene, "./assets/models/DamagedHelmet/DamagedHelmet.gltf");
+    }
     const gameObjects = await GLTFLoader.loadAsGameObjects(scene, "./assets/models/Fox.glb");
     const root = gameObjects[0]
     root.transform.scale.mul(0.01);

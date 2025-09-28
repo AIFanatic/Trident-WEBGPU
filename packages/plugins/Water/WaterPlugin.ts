@@ -6,7 +6,8 @@ import {
     Components,
     Component,
     Renderer,
-    GPU
+    GPU,
+    Scene
 } from "@trident/core";
 
 import { DataBackedBuffer } from "@trident/plugins/DataBackedBuffer";
@@ -250,17 +251,21 @@ class WaterRenderPass extends GPU.RenderPass {
 }
 
 export class Water extends Component {
+    public static type = "@trident/plugins/Water";
     public settings: DataBackedBuffer<WaterSettings>;
 
-    // Hack
+    // TODO: Hack, fix
     private static WaterRenderPass: WaterRenderPass;
+    private static WaterRenderPassScene: Scene;
+
     private geometry: Geometry;
 
     constructor(gameObject: GameObject) {
         super(gameObject);
 
-        if (!Water.WaterRenderPass) {
+        if (!Water.WaterRenderPass || Water.WaterRenderPassScene !== gameObject.scene) {
             Water.WaterRenderPass = new WaterRenderPass();
+            Water.WaterRenderPassScene = gameObject.scene;
             this.gameObject.scene.renderPipeline.AddPass(Water.WaterRenderPass, GPU.RenderPassOrder.AfterGBuffer);
         }
 
@@ -295,6 +300,16 @@ export class Water extends Component {
             settings: this.settings,
             transform: this.transform
         })
+    }
 
+    public Serialize(): Components.SerializedComponent {
+        return {
+            type: Water.type,
+            settings: this.settings.Serialize()
+        }
+    }
+
+    public Deserialize(data: any): void {
+        this.settings.Deserialize(data.settings);
     }
 }

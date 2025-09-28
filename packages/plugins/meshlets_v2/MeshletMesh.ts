@@ -19,7 +19,7 @@ export const meshletsCache: Map<Geometry, {meshlets: Meshlet[], instanceCount: n
 
 export class MeshletMesh extends Components.Mesh {
     public meshlets: Meshlet[] = [];
-    
+
     public Start(): void {
         EventSystemLocal.on(Components.TransformEvents.Updated, this.transform, () => {
             EventSystem.emit(MeshletEvents.Updated, this);

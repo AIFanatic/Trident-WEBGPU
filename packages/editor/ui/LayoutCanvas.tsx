@@ -3,12 +3,8 @@ import { createElement, Component } from "../gooact";
 import { BaseProps } from "./Layout";
 
 import { OrbitControls } from "@trident/plugins/OrbitControls.js";
-import { Debugger } from "@trident/plugins/Debugger.js";
-import { HDRParser } from "@trident/plugins/HDRParser.js";
-import { ParticleSystem } from "@trident/plugins/ParticleSystem.js";
 
 import { GLTFLoader } from '@trident/plugins/GLTF/GLTFLoader.js';
-import { GPU } from "@trident/core";
 
 export class LayoutCanvas extends Component<BaseProps> {
 
@@ -74,30 +70,9 @@ export class LayoutCanvas extends Component<BaseProps> {
 
 
     
-        const gameObjects = await GLTFLoader.loadAsGameObjects(currentScene, "/examples/assets/models/Fox.glb");
+        const gameObjects = await GLTFLoader.loadAsGameObjects(currentScene, "/dist/examples/assets/models/glb/CommonTree_1.glb");
         gameObjects[0].transform.scale.mul(0.1);
 
-
-    
-        const particleSystemGameObject = EngineAPI.createGameObject(currentScene);
-        particleSystemGameObject.name = "ParticleSystem";
-        const particleSystem = particleSystemGameObject.AddComponent(ParticleSystem);
-        particleSystem.texture = await GPU.Texture.Load("/examples/assets/textures/TXT_Fire_01.png");
-
-        particleSystem.startLifetime = 2.5;
-        particleSystem.startSpeed.set(1.5, 1.5, 1.5);
-        particleSystem.startSize = 2.5;
-        // particleSystem.shapeType = "cone"
-        particleSystem.coneAngle = 5 * Math.PI / 180;
-        particleSystem.radius = 0.1;
-        
-        particleSystem.rateOverTime = 10;
-        // particleSystem.frameOvertime = "random";
-    
-        particleSystem.textureTiles.set(2,2);
-    
-        particleSystem.colorOverLifetime0.set(1, 0.9013662, 0, 1);
-        particleSystem.colorOverLifetime1.set(1, 0.558496, 0.3176471, 0.1);
     
 
         currentScene.Start();

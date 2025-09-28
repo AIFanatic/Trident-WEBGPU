@@ -52,8 +52,8 @@ async function Application(canvas: HTMLCanvasElement) {
     //         const sphereGameObject = new GameObject(scene);
     //         sphereGameObject.transform.position.set((x - c * 0.5) * 1.5, (y - c * 0.5) * 1.5, 0);
     //         const sphereMesh = sphereGameObject.AddComponent(Components.Mesh);
-    //         sphereMesh.SetGeometry(Geometry.Sphere());
-    //         sphereMesh.AddMaterial(new PBRMaterial({
+    //         sphereMesh.geometry = Geometry.Sphere();
+    //         sphereMesh.material = new PBRMaterial({
     //             albedoColor: new Mathf.Color(1, 0, 0, 1),
     //             metalness: x / c,
     //             roughness: y / c
@@ -68,12 +68,12 @@ async function Application(canvas: HTMLCanvasElement) {
         const sphereGameObject = new GameObject(scene);
         sphereGameObject.transform.position.set((x - c * 0.5) * 1.5, y, 0);
         const sphereMesh = sphereGameObject.AddComponent(Components.Mesh);
-        sphereMesh.SetGeometry(Geometry.Sphere());
-        sphereMesh.AddMaterial(new PBRMaterial({
+        sphereMesh.geometry = Geometry.Sphere();
+        sphereMesh.material = new PBRMaterial({
             albedoColor: new Mathf.Color(0.957, 0.792, 0.407, 1),
             metalness: i < 6 ? 1.0 : 0.0,
             roughness: i % 6 / 6
-        }));
+        });
     }
 
     for (let i = 0; i < c; i++) {
@@ -82,19 +82,19 @@ async function Application(canvas: HTMLCanvasElement) {
         const sphereGameObject = new GameObject(scene);
         sphereGameObject.transform.position.set((x - c * 0.5) * 1.5, y, 0);
         const sphereMesh = sphereGameObject.AddComponent(Components.Mesh);
-        sphereMesh.SetGeometry(Geometry.Sphere());
-        sphereMesh.AddMaterial(new PBRMaterial({
+        sphereMesh.geometry = Geometry.Sphere();
+        sphereMesh.material = new PBRMaterial({
             albedoColor: new Mathf.Color(1, 0, 0, 1),
             metalness: i < 6 ? 0.0 : 1.0,
             roughness: i % 6 / 6
-        }));
+        });
     }
 
     // const sphereGameObject = new GameObject(scene);
     // sphereGameObject.transform.scale.set(5,5,5)
     // const sphereMesh = sphereGameObject.AddComponent(Components.Mesh);
-    // sphereMesh.SetGeometry(Geometry.Sphere());
-    // sphereMesh.AddMaterial(new PBRMaterial({
+    // sphereMesh.geometry = Geometry.Sphere();
+    // sphereMesh.material = new PBRMaterial({
     //     albedoColor: new Mathf.Color(1, 0, 0, 1),
     //     metalness: 0.0,
     //     roughness: 1
@@ -121,9 +121,9 @@ async function Application(canvas: HTMLCanvasElement) {
 
     // const sphereGameObject = new GameObject(scene);
     // const sphereMesh = sphereGameObject.AddComponent(Components.Mesh);
-    // sphereMesh.SetGeometry(Geometry.Sphere());
+    // sphereMesh.geometry = Geometry.Sphere();
     // skyIrradiance.SetActiveLayer(5)
-    // sphereMesh.AddMaterial(new PBRMaterial({albedoMap: skyIrradiance}));
+    // sphereMesh.material = new PBRMaterial({albedoMap: skyIrradiance});
 
 
     scene.Start();

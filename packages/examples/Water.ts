@@ -43,16 +43,16 @@ async function Application(canvas: HTMLCanvasElement) {
         planeGO.transform.position.set(0, 6, -5);
         planeGO.transform.scale.set(3, 3, 3);
         const sphereMesh = planeGO.AddComponent(Components.Mesh);
-        await sphereMesh.SetGeometry(Geometry.Cube());
-        sphereMesh.AddMaterial(new PBRMaterial());
+        sphereMesh.geometry = Geometry.Cube();
+        sphereMesh.material = new PBRMaterial();
     }
 
     {
         const planeGO = new GameObject(scene);
         planeGO.transform.position.set(0, 1, -5);
         const sphereMesh = planeGO.AddComponent(Components.Mesh);
-        await sphereMesh.SetGeometry(Geometry.Sphere());
-        sphereMesh.AddMaterial(new PBRMaterial());
+        sphereMesh.geometry = Geometry.Sphere();
+        sphereMesh.material = new PBRMaterial();
     }
 
 
