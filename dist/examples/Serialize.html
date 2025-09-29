@@ -38,7 +38,7 @@
               mainCameraGameObject.transform.position.set(0, 0, -15);
               mainCameraGameObject.name = "MainCamera";
               const camera = mainCameraGameObject.AddComponent(Components.Camera);
-              camera.SetPerspective(72, canvas.width / canvas.height, 0.01, 100);
+              camera.SetPerspective(72, canvas.width / canvas.height, 0.01, 1e4);
               mainCameraGameObject.transform.position.set(0, 0, 10);
               mainCameraGameObject.transform.LookAtV1(new Mathf.Vector3(0, 0, 0));
               const lightGameObject = new GameObject(scene);
@@ -62,7 +62,6 @@
               }
               Debugger.Enable();
               const serialized = JSON.stringify(scene.Serialize());
-              console.log(serialized);
               const scene2 = new Scene(renderer);
               scene2.Deserialize(JSON.parse(serialized));
               scene2.GetComponents(Components.Camera);

@@ -90,6 +90,12 @@
                 w = waterSettingsFolder;
               }
               {
+                const lightGameObject = new GameObject(scene);
+                lightGameObject.transform.position.set(-4, 4, 4);
+                lightGameObject.transform.LookAtV1(new Mathf.Vector3(0, 0, 0));
+                lightGameObject.AddComponent(Components.DirectionalLight);
+              }
+              {
                 const planeGO = new GameObject(scene);
                 planeGO.transform.eulerAngles.x = -90;
                 planeGO.transform.position.set(0, -2, 0);

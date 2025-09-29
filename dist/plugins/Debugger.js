@@ -1,4 +1,4 @@
-import { GPU, Geometry, EventSystem, Scene, Components, Renderer } from '@trident/core';
+import { GPU, Geometry, Components, Renderer, EventSystem, Scene } from '@trident/core';
 import { UIFolder, UITextStat, UIDropdownStat } from '@trident/plugins/ui/UIStats.js';
 
 var ViewTypes = /* @__PURE__ */ ((ViewTypes2) => {
@@ -8,6 +8,8 @@ var ViewTypes = /* @__PURE__ */ ((ViewTypes2) => {
   ViewTypes2[ViewTypes2["Metalness"] = 3] = "Metalness";
   ViewTypes2[ViewTypes2["Roughness"] = 4] = "Roughness";
   ViewTypes2[ViewTypes2["Emissive"] = 5] = "Emissive";
+  ViewTypes2[ViewTypes2["Depth"] = 6] = "Depth";
+  ViewTypes2[ViewTypes2["ShadowsCSM"] = 7] = "ShadowsCSM";
   return ViewTypes2;
 })(ViewTypes || {});
 class DebuggerRenderPass extends GPU.RenderPass {
@@ -15,6 +17,7 @@ class DebuggerRenderPass extends GPU.RenderPass {
   currentViewType = 0 /* Lighting */;
   geometry;
   outputViewerShader;
+  lightingOutputClone;
   constructor() {
     super({
       inputs: [
@@ -42,9 +45,22 @@ class DebuggerRenderPass extends GPU.RenderPass {
                 };
 
                 @group(0) @binding(0) var inputTexture: texture_2d<f32>;
-                @group(0) @binding(1) var inputSampler: sampler;
+                @group(0) @binding(1) var inputDepth: texture_depth_2d;
+                @group(0) @binding(2) var inputSampler: sampler;
+                @group(0) @binding(3) var inputDepthSampler: sampler;
                 
-                @group(0) @binding(2) var<storage, read> viewType: f32;
+                @group(0) @binding(4) var<storage, read> viewType: f32;
+
+                struct Camera {
+                    projectionOutputSize: vec4<f32>,
+                    projectionInverseMatrix: mat4x4<f32>,
+                    viewMatrix: mat4x4<f32>,
+                    viewInverseMatrix: mat4x4<f32>,
+                    near: f32,
+                    far: f32
+                };
+                @group(0) @binding(5) var<storage, read> camera: Camera;
+                @group(0) @binding(6) var<storage, read> csmSplits: vec4<f32>;
                 
                 @vertex
                 fn vertexMain(input: VertexInput) -> VertexOutput {
@@ -57,16 +73,57 @@ class DebuggerRenderPass extends GPU.RenderPass {
                 struct FragmentOutput {
                     @location(0) albedo : vec4f,
                 };
-                
+
+                fn LinearizeDepthFromNDC(ndcDepth: f32) -> f32 {
+                    let n = camera.near; // camera z near
+                    let f = camera.far; // camera z far
+                    let z = ndcDepth * 2.0 - 1.0;
+                    return (2.0 * n * f) / (f + n - z * (f - n));
+                }
+
+                fn VisualizeDepth_Log(depthSample: f32) -> f32 {
+                    let z = LinearizeDepthFromNDC(depthSample);
+                    let n = camera.near;
+                    let f = camera.far;
+                    let c = 10.0;
+                    let v = log(1.0 + c * (z - n)) / log(1.0 + c * (f - n));
+                    return clamp(v, 0.0, 1.0);
+                }
+
+                fn ShadowLayerSelection(depthValue: f32, numCascades: i32, cascadeSplits: vec4<f32>) -> i32 {
+                    // count how many splits we have passed (0..3)
+                    var layer = 0;
+                    layer += select(0, 1, depthValue >= cascadeSplits.x);
+                    layer += select(0, 1, depthValue >= cascadeSplits.y);
+                    layer += select(0, 1, depthValue >= cascadeSplits.z);
+                    return clamp(layer, 0, numCascades - 1);
+                }
+
                 @fragment
                 fn fragmentMain(input: VertexOutput) -> @location(0) vec4f {
                     var color = textureSample(inputTexture, inputSampler, input.uv);
+                    let depth = textureLoad(inputDepth, vec2<i32>(floor(input.position.xy)), 0);
                     if (u32(viewType) == 0) {} // Lighting
                     else if (u32(viewType) == 1) {} // Albedo
                     else if (u32(viewType) == 2) {} // Normal
                     else if (u32(viewType) == 3) { color = vec4(color.a); } // Metalness
                     else if (u32(viewType) == 4) { color = vec4(color.a); } // Roughness
                     else if (u32(viewType) == 5) { color = vec4(color.rgb, 1.0); } // Emissive
+                    else if (u32(viewType) == 6) { color = vec4(vec3f(VisualizeDepth_Log(depth)), 1.0); } // Depth
+                    else if (u32(viewType) == 7) { // Shadows CSM
+                        const debug_cascadeColors = array<vec4<f32>, 5>(
+                            vec4<f32>(1.0, 0.0, 0.0, 1.0),
+                            vec4<f32>(0.0, 1.0, 0.0, 1.0),
+                            vec4<f32>(0.0, 0.0, 1.0, 1.0),
+                            vec4<f32>(1.0, 1.0, 0.0, 1.0),
+                            vec4<f32>(0.0, 0.0, 0.0, 1.0)
+                        );
+    
+                        let viewZ = LinearizeDepthFromNDC(depth);
+                        let layer = ShadowLayerSelection(viewZ, 4, csmSplits);
+                        color = vec4f(mix(color.rgb, debug_cascadeColors[layer].rgb, 0.25), 1.0);
+                    }
+
                     return vec4(color.rgb, 1.0);
                 }
             `,
@@ -78,12 +135,17 @@ class DebuggerRenderPass extends GPU.RenderPass {
       },
       uniforms: {
         inputTexture: { group: 0, binding: 0, type: "texture" },
-        inputSampler: { group: 0, binding: 1, type: "sampler" },
-        viewType: { group: 0, binding: 2, type: "storage" }
+        inputDepth: { group: 0, binding: 1, type: "depthTexture" },
+        inputSampler: { group: 0, binding: 2, type: "sampler" },
+        inputDepthSampler: { group: 0, binding: 3, type: "sampler" },
+        viewType: { group: 0, binding: 4, type: "storage" },
+        camera: { group: 0, binding: 5, type: "storage" },
+        csmSplits: { group: 0, binding: 6, type: "storage" }
       }
     });
     this.geometry = Geometry.Plane();
     this.outputViewerShader.SetSampler("inputSampler", GPU.TextureSampler.Create());
+    this.outputViewerShader.SetSampler("inputDepthSampler", GPU.TextureSampler.Create());
     this.initialized = true;
   }
   execute(resources, ...args) {
@@ -91,13 +153,35 @@ class DebuggerRenderPass extends GPU.RenderPass {
     const GBufferAlbedo = resources.getResource(GPU.PassParams.GBufferAlbedo);
     const GBufferNormal = resources.getResource(GPU.PassParams.GBufferNormal);
     const GBufferERMO = resources.getResource(GPU.PassParams.GBufferERMO);
+    const GBufferDepth = resources.getResource(GPU.PassParams.GBufferDepth);
     const lightingOutput = resources.getResource(GPU.PassParams.LightingPassOutput);
+    if (!this.lightingOutputClone) {
+      this.lightingOutputClone = GPU.Texture.Create(lightingOutput.width, lightingOutput.height, lightingOutput.depth, lightingOutput.format);
+    }
     this.outputViewerShader.SetTexture("inputTexture", GBufferAlbedo);
     if (this.currentViewType === 1 /* Albedo */) this.outputViewerShader.SetTexture("inputTexture", GBufferAlbedo);
     else if (this.currentViewType === 2 /* Normal */) this.outputViewerShader.SetTexture("inputTexture", GBufferNormal);
     else if (this.currentViewType === 3 /* Metalness */) this.outputViewerShader.SetTexture("inputTexture", GBufferAlbedo);
     else if (this.currentViewType === 4 /* Roughness */) this.outputViewerShader.SetTexture("inputTexture", GBufferNormal);
     else if (this.currentViewType === 5 /* Emissive */) this.outputViewerShader.SetTexture("inputTexture", GBufferERMO);
+    else if (this.currentViewType === 7 /* ShadowsCSM */) {
+      GPU.RendererContext.CopyTextureToTextureV3({ texture: lightingOutput }, { texture: this.lightingOutputClone });
+      this.outputViewerShader.SetTexture("inputTexture", this.lightingOutputClone);
+    }
+    const csmSplits = Components.Camera.mainCamera.gameObject.scene.renderPipeline.DeferredShadowMapPass.csmSplits;
+    this.outputViewerShader.SetArray("csmSplits", new Float32Array(csmSplits));
+    this.outputViewerShader.SetTexture("inputDepth", GBufferDepth);
+    const mainCamera = Components.Camera.mainCamera;
+    this.outputViewerShader.SetArray("camera", new Float32Array([
+      ...[Renderer.width, Renderer.height, 0, 0],
+      ...mainCamera.projectionMatrix.clone().invert().elements,
+      ...mainCamera.viewMatrix.elements,
+      ...mainCamera.viewMatrix.clone().invert().elements,
+      mainCamera.near,
+      mainCamera.far,
+      0,
+      0
+    ]));
     this.outputViewerShader.SetValue("viewType", this.currentViewType);
     GPU.RendererContext.BeginRenderPass("DebugOutputViewer", [{ target: lightingOutput, clear: true }], void 0, true);
     GPU.RendererContext.DrawGeometry(this.geometry, this.outputViewerShader);
@@ -162,7 +246,7 @@ class _Debugger {
       const mainCamera = Components.Camera.mainCamera;
       mainCamera.gameObject.scene.renderPipeline.AddPass(debuggerRenderPass, GPU.RenderPassOrder.AfterLighting);
     });
-    this.viewTypeStat = new UIDropdownStat(this.rendererFolder, "Final output:", Object.values(ViewTypes).filter((value) => typeof value === "string"), (index, value) => {
+    this.viewTypeStat = new UIDropdownStat(this.rendererFolder, "Debug view:", Object.values(ViewTypes).filter((value) => typeof value === "string"), (index, value) => {
       debuggerRenderPass.currentViewType = index;
     }, 0);
     this.renderPassesFolder = new UIFolder(this.rendererFolder, "Frame passes");

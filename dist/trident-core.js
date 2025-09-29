@@ -1666,48 +1666,56 @@ __publicField$3(_Camera, "mainCamera");
 let Camera = _Camera;
 Component.Registry.set(Camera.type, Camera);
 
+function getCtorChain$1(ctor) {
+  const chain = [];
+  for (let c = ctor; c && c !== Component; c = Object.getPrototypeOf(c)) {
+    chain.push(c);
+  }
+  return chain;
+}
 class GameObject {
   id = UUID();
   name = "GameObject";
   scene;
   transform;
-  componentsArray = [];
-  componentsMapped = /* @__PURE__ */ new Map();
+  componentsByCtor = /* @__PURE__ */ new Map();
+  // ctor -> instances (incl. subclasses)
+  allComponents = [];
   enabled = true;
   constructor(scene) {
     this.scene = scene;
     this.transform = new Transform(this);
     this.scene.AddGameObject(this);
   }
-  AddComponent(component) {
-    try {
-      let componentInstance = new component(this);
-      if (!(componentInstance instanceof Component)) throw Error("Invalid component");
-      if (componentInstance instanceof Transform) throw Error("A GameObject can only have one Transform");
-      const AddComponentInternal = (component2, instance) => {
-        if (!this.componentsMapped.has(component2.name)) this.componentsMapped.set(component2.name, []);
-        this.componentsMapped.get(component2.name)?.push(instance);
-        this.componentsArray.push(instance);
-      };
-      AddComponentInternal(component, componentInstance);
-      if (componentInstance instanceof Camera && !Camera.mainCamera) Camera.mainCamera = componentInstance;
-      if (this.scene.hasStarted) componentInstance.Start();
-      return componentInstance;
-    } catch (error) {
-      throw Error(`Error creating component` + error);
+  AddComponent(Ctor, ...args) {
+    const componentInstance = new Ctor(this, ...args);
+    if (!(componentInstance instanceof Component)) throw new Error("Invalid component");
+    if (componentInstance instanceof Transform && this.GetComponent(Transform)) throw new Error("A GameObject can only have one Transform");
+    this.allComponents.push(componentInstance);
+    for (const ctor of getCtorChain$1(componentInstance.constructor)) {
+      let arr = this.componentsByCtor.get(ctor);
+      if (!arr) this.componentsByCtor.set(ctor, arr = []);
+      if (!arr.includes(componentInstance)) arr.push(componentInstance);
     }
+    if (componentInstance instanceof Camera && !Camera.mainCamera) Camera.mainCamera = componentInstance;
+    if (this.scene.hasStarted && componentInstance.Start) componentInstance.Start();
+    return componentInstance;
   }
-  GetComponent(type) {
-    const components = this.GetComponents(type);
-    if (components.length > 0) return components[0];
-    return null;
+  GetComponent(Ctor) {
+    const arr = this.componentsByCtor.get(Ctor);
+    return arr && arr.length ? arr[0] : null;
   }
-  GetComponents(type) {
-    if (!type) return this.componentsArray;
-    return this.componentsMapped.get(type.name) || [];
+  GetComponents(Ctor) {
+    if (!Ctor) return this.allComponents;
+    return this.componentsByCtor.get(Ctor) ?? [];
+  }
+  // Optional: only the exact type (no subclasses), still cheap (O(k) where k = matches for Ctor)
+  GetComponentsExact(Ctor) {
+    const arr = this.componentsByCtor.get(Ctor);
+    return arr ? arr.filter((c) => c.constructor === Ctor) : [];
   }
   Start() {
-    for (const component of this.componentsArray) {
+    for (const component of this.allComponents) {
       if (!component.hasStarted) {
         component.Start();
         component.hasStarted = true;
@@ -1715,7 +1723,7 @@ class GameObject {
     }
   }
   Destroy() {
-    for (const component of this.componentsArray) {
+    for (const component of this.allComponents) {
       component.Destroy();
     }
     this.scene.RemoveGameObject(this);
@@ -1724,7 +1732,7 @@ class GameObject {
     return {
       name: this.name,
       transform: this.transform.Serialize(),
-      components: this.componentsArray.map((c) => c.Serialize())
+      components: this.allComponents.map((c) => c.Serialize())
     };
   }
   Deserialize(data) {
@@ -1735,7 +1743,6 @@ class GameObject {
       const component = data.components[i];
       const componentClass = Component.Registry.get(component.type);
       if (!componentClass) throw Error(`Component ${component.type} not found in component registry.`);
-      console.log(componentClass);
       const instance = this.AddComponent(componentClass);
       componentInstances.push(instance);
     }
@@ -3060,7 +3067,7 @@ class Assets {
 
 var WGSL_Shader_Draw_URL = "struct VertexInput {\n    @builtin(instance_index) instanceIdx : u32, \n    @builtin(vertex_index) vertexIndex : u32,\n    @location(0) position : vec3<f32>,\n    @location(1) normal : vec3<f32>,\n    @location(2) uv : vec2<f32>,\n\n    #if USE_NORMAL_MAP\n        @location(3) tangent : vec4<f32>,\n        #if USE_SKINNING\n            @location(4) joints: vec4<u32>,\n            @location(5) weights: vec4<f32>,\n        #endif\n    #else\n        #if USE_SKINNING\n            @location(3) joints: vec4<u32>,\n            @location(4) weights: vec4<f32>,\n        #endif\n    #endif\n};\n\nstruct Material {\n    AlbedoColor: vec4<f32>,\n    EmissiveColor: vec4<f32>,\n    Roughness: f32,\n    Metalness: f32,\n    Unlit: f32,\n    AlphaCutoff: f32,\n    Wireframe: f32\n};\n\nstruct VertexOutput {\n    @builtin(position) position : vec4<f32>,\n    @location(0) vPosition : vec3<f32>,\n    @location(1) vNormal : vec3<f32>,\n    @location(2) vUv : vec2<f32>,\n    @location(3) @interpolate(flat) instance : u32,\n    @location(4) barycenticCoord : vec3<f32>,\n    @location(5) tangent : vec3<f32>,\n    @location(6) bitangent : vec3<f32>,\n};\n\n@group(0) @binding(0) var<storage, read> projectionMatrix: mat4x4<f32>;\n@group(0) @binding(1) var<storage, read> viewMatrix: mat4x4<f32>;\n@group(0) @binding(2) var<storage, read> modelMatrix: array<mat4x4<f32>>;\n@group(0) @binding(3) var<storage, read> material: Material;\n@group(0) @binding(4) var TextureSampler: sampler;\n\n// These get optimized out based on \"USE*\" defines\n@group(0) @binding(5) var AlbedoMap: texture_2d<f32>;\n@group(0) @binding(6) var NormalMap: texture_2d<f32>;\n@group(0) @binding(7) var HeightMap: texture_2d<f32>;\n@group(0) @binding(8) var MetalnessMap: texture_2d<f32>;\n@group(0) @binding(9) var EmissiveMap: texture_2d<f32>;\n@group(0) @binding(10) var AOMap: texture_2d<f32>;\n\n\n@group(0) @binding(11) var<storage, read> cameraPosition: vec3<f32>;\n\n#if USE_SKINNING\n    @group(1) @binding(0) var<storage, read> boneMatrices: array<mat4x4<f32>>;\n#endif\n\n\n@vertex\nfn vertexMain(input: VertexInput) -> VertexOutput {\n    var output : VertexOutput;\n\n      var finalPosition = vec4(input.position, 1.0);\n      var finalNormal = vec4(input.normal, 0.0);\n\n    #if USE_SKINNING\n        var skinnedPosition = vec4(0.0);\n        var skinnedNormal = vec4(0.0);\n\n        let skinMatrix: mat4x4<f32> = \n            boneMatrices[input.joints[0]] * input.weights[0] +\n            boneMatrices[input.joints[1]] * input.weights[1] +\n            boneMatrices[input.joints[2]] * input.weights[2] +\n            boneMatrices[input.joints[3]] * input.weights[3];\n        \n        finalPosition = skinMatrix * vec4(input.position, 1.0);\n        finalNormal   = normalize(skinMatrix * vec4(input.normal, 0.0));\n    #endif\n\n    var modelMatrixInstance = modelMatrix[input.instanceIdx];\n    var modelViewMatrix = viewMatrix * modelMatrixInstance;\n\n    output.position = projectionMatrix * modelViewMatrix * vec4(finalPosition.xyz, 1.0);\n    \n    output.vPosition = finalPosition.xyz;\n    output.vNormal = input.normal;\n    output.vUv = input.uv;\n\n    output.instance = input.instanceIdx;\n\n    // emit a barycentric coordinate\n    output.barycenticCoord = vec3f(0);\n    output.barycenticCoord[input.vertexIndex % 3] = 1.0;\n\n    let worldNormal = normalize(modelMatrixInstance * vec4(input.normal, 0.0)).xyz;\n    output.vNormal = worldNormal;\n\n    #if USE_NORMAL_MAP\n        let worldTangent = normalize(modelMatrixInstance * vec4(input.tangent.xyz, 0.0)).xyz;\n        let worldBitangent = cross(worldNormal, worldTangent) * input.tangent.w;\n\n        output.tangent = worldTangent;\n        output.bitangent = worldBitangent;\n    #endif\n\n    return output;\n}\n\nstruct FragmentOutput {\n    @location(0) albedo : vec4f,\n    @location(1) normal : vec4f,\n    @location(2) RMO : vec4f,\n};\n\nfn inversesqrt(v: f32) -> f32 {\n    return 1.0 / sqrt(v);\n}\n\nfn edgeFactor(bary: vec3f) -> f32 {\n    let lineThickness = 1.0;\n    let d = fwidth(bary);\n    let a3 = smoothstep(vec3f(0.0), d * lineThickness, bary);\n    return min(min(a3.x, a3.y), a3.z);\n}\n\n@fragment\nfn fragmentMain(input: VertexOutput) -> FragmentOutput {\n    var output: FragmentOutput;\n\n    let mat = material;\n\n    var uv = input.vUv;// * vec2(4.0, 2.0);\n\n    var modelMatrixInstance = modelMatrix[input.instance];\n\n    var albedo = mat.AlbedoColor;\n    var roughness = mat.Roughness;\n    var metalness = mat.Metalness;\n    var occlusion = 1.0;\n    var unlit = mat.Unlit;\n\n    // var albedo = mat.AlbedoColor;\n    #if USE_ALBEDO_MAP\n        albedo *= textureSample(AlbedoMap, TextureSampler, uv);\n    #endif\n\n    if (albedo.a < mat.AlphaCutoff) {\n        discard;\n    }\n\n    var normal: vec3f = input.vNormal;\n    #if USE_NORMAL_MAP\n        var tbn: mat3x3<f32>;\n        tbn[0] = input.tangent;\n        tbn[1] = input.bitangent;\n        tbn[2] = input.vNormal;\n        \n        let normalSample = textureSample(NormalMap, TextureSampler, uv).xyz * 2.0 - 1.0; // [0 - 1] -> [-1, -1] from brga8unorm to float\n        normal = tbn * normalSample;\n    #endif\n\n    #if USE_METALNESS_MAP\n        let metalnessRoughness = textureSample(MetalnessMap, TextureSampler, uv);\n        metalness *= metalnessRoughness.b;\n        roughness *= metalnessRoughness.g;\n    #endif\n\n    var emissive = mat.EmissiveColor;\n    #if USE_EMISSIVE_MAP\n        emissive *= textureSample(EmissiveMap, TextureSampler, uv);\n    #endif\n\n    #if USE_AO_MAP\n        occlusion = textureSample(AOMap, TextureSampler, uv).r;\n        occlusion = 1.0;\n    #endif\n\n    output.albedo = vec4(albedo.rgb, roughness);\n    output.normal = vec4(normal, metalness);\n    // output.normal = vec4(input.tangent.xyz, metalness);\n    output.RMO = vec4(emissive.rgb, unlit);\n\n\n    // Wireframe\n    output.albedo *= 1.0 - edgeFactor(input.barycenticCoord) * mat.Wireframe;\n\n    // // Flat shading\n    // let xTangent: vec3f = dpdx( input.vPosition );\n    // let yTangent: vec3f = dpdy( input.vPosition );\n    // let faceNormal: vec3f = normalize( cross( xTangent, yTangent ) );\n\n    // output.normal = vec4(faceNormal.xyz, metalness);\n\n    return output;\n}";
 
-var WGSL_Shader_DeferredLighting_URL = "#include \"@trident/core/resources/webgpu/shaders/deferred/LightStruct.wgsl\";\n#include \"@trident/core/resources/webgpu/shaders/deferred/ShadowMap.wgsl\";\n#include \"@trident/core/resources/webgpu/shaders/deferred/ShadowMapCSM.wgsl\";\n\nstruct Settings {\n    debugDepthPass: f32,\n    debugDepthMipLevel: f32,\n    debugDepthExposure: f32,\n    viewType: f32,\n    useHeightMap: f32,\n    heightScale: f32,\n\n    debugShadowCascades: f32,\n    pcfResolution: f32,\n    blendThreshold: f32,\n    viewBlendThreshold: f32,\n\n    cameraPosition: vec4<f32>,\n};\n\nstruct VertexInput {\n    @location(0) position : vec2<f32>,\n    @location(1) normal : vec3<f32>,\n    @location(2) uv : vec2<f32>,\n};\n\nstruct VertexOutput {\n    @builtin(position) position : vec4<f32>,\n    @location(0) vUv : vec2<f32>,\n};\n\n@group(0) @binding(0) var textureSampler: sampler;\n\n@group(0) @binding(1) var albedoTexture: texture_2d<f32>;\n@group(0) @binding(2) var normalTexture: texture_2d<f32>;\n@group(0) @binding(3) var ermoTexture: texture_2d<f32>;\n@group(0) @binding(4) var depthTexture: texture_depth_2d;\n@group(0) @binding(5) var shadowPassDepth: texture_depth_2d_array;\n\n@group(0) @binding(6) var skyboxTexture: texture_cube<f32>;\n@group(0) @binding(7) var skyboxIrradianceTexture: texture_cube<f32>;\n@group(0) @binding(8) var skyboxPrefilterTexture: texture_cube<f32>;\n@group(0) @binding(9) var skyboxBRDFLUT: texture_2d<f32>;\n\n@group(0) @binding(10) var brdfSampler: sampler;\n@group(0) @binding(11) var<storage, read> lights: array<Light>;\n@group(0) @binding(12) var<storage, read> lightCount: u32;\n\n\n\n\n\n\nstruct View {\n    projectionOutputSize: vec4<f32>,\n    viewPosition: vec4<f32>,\n    projectionInverseMatrix: mat4x4<f32>,\n    viewInverseMatrix: mat4x4<f32>,\n    viewMatrix: mat4x4<f32>,\n};\n@group(0) @binding(13) var<storage, read> view: View;\n\n\nconst numCascades = 4;\nconst debug_cascadeColors = array<vec4<f32>, 5>(\n    vec4<f32>(1.0, 0.0, 0.0, 1.0),\n    vec4<f32>(0.0, 1.0, 0.0, 1.0),\n    vec4<f32>(0.0, 0.0, 1.0, 1.0),\n    vec4<f32>(1.0, 1.0, 0.0, 1.0),\n    vec4<f32>(0.0, 0.0, 0.0, 1.0)\n);\n@group(0) @binding(14) var shadowSamplerComp: sampler_comparison;\n\n@group(0) @binding(15) var<storage, read> settings: Settings;\n\n\n@vertex\nfn vertexMain(input: VertexInput) -> VertexOutput {\n    var output: VertexOutput;\n    output.position = vec4(input.position, 0.0, 1.0);\n    output.vUv = input.uv;\n    return output;\n}\n\nconst PI = 3.141592653589793;\n\nconst SPOT_LIGHT = 0;\nconst DIRECTIONAL_LIGHT = 1;\nconst POINT_LIGHT = 2;\nconst AREA_LIGHT = 3;\n\nfn reconstructWorldPosFromZ(\n    coords: vec2<f32>,\n    size: vec2<f32>,\n    depthTexture: texture_depth_2d,\n    projInverse: mat4x4<f32>,\n    viewInverse: mat4x4<f32>\n    ) -> vec4<f32> {\n    let uv = coords.xy / size;\n    var depth = textureLoad(depthTexture, vec2<i32>(floor(coords)), 0);\n    let x = uv.x * 2.0 - 1.0;\n    let y = (1.0 - uv.y) * 2.0 - 1.0;\n    let projectedPos = vec4(x, y, depth, 1.0);\n    var worldPosition = projInverse * projectedPos;\n    worldPosition = vec4(worldPosition.xyz / worldPosition.w, 1.0);\n    worldPosition = viewInverse * worldPosition;\n    return worldPosition;\n}\n\nfn toneMapping(color: vec3f) -> vec3f {\n    // Narkowicz 2015 ACES approx\n    let a = 2.51; let b = 0.03; let c = 2.43; let d = 0.59; let e = 0.14;\n    return clamp((color*(a*color+b)) / (color*(c*color+d)+e), vec3f(0.0), vec3f(1.0));\n}\n\nfn DistributionGGX(n: vec3f, h: vec3f, roughness: f32) -> f32 {\n  let a = roughness * roughness;\n  let a2 = a * a;\n  let nDotH = max(dot(n, h), 0.0);\n  let nDotH2 = nDotH * nDotH;\n  var denom = (nDotH2 * (a2 - 1.0) + 1.0);\n  denom = PI * denom * denom;\n  return a2 / denom;\n}\n\nfn GeometrySchlickGGX(nDotV: f32, roughness: f32) -> f32 {\n  let r = (roughness + 1.0);\n  let k = (r * r) / 8.0;\n  return nDotV / (nDotV * (1.0 - k) + k);\n}\n\nfn GeometrySmith(n: vec3f, v: vec3f, l: vec3f, roughness: f32) -> f32 {\n  let nDotV = max(dot(n, v), 0.0);\n  let nDotL = max(dot(n, l), 0.0);\n  let ggx2 = GeometrySchlickGGX(nDotV, roughness);\n  let ggx1 = GeometrySchlickGGX(nDotL, roughness);\n  return ggx1 * ggx2;\n}\n\nfn FresnelSchlick(cosTheta: f32, f0: vec3f) -> vec3f {\n  return f0 + (1.0 - f0) * pow(clamp(1.0 - cosTheta, 0.0, 1.0), 5.0);\n}\n\nfn FresnelSchlickRoughness(cosTheta: f32, f0: vec3f, roughness: f32) -> vec3f {\n  return f0 + (max(vec3(1.0 - roughness), f0) - f0) * pow(clamp(1.0 - cosTheta, 0.0, 1.0), 5.0);\n}\n\nfn fixCubeHandedness(d: vec3f) -> vec3f {\n    // try flipping X first; if that’s wrong, flip Z instead\n    return vec3f(-d.x, d.y, d.z);\n}\n\nfn CalculateBRDF(surface: Surface, pointToLight: vec3<f32>) -> vec3<f32> {\n    // cook-torrance brdf\n    let L = normalize(pointToLight);\n    let H = normalize(surface.V + L);\n    let distance = length(pointToLight);\n\n    let NDF = DistributionGGX(surface.N, H, surface.roughness);\n    let G = GeometrySmith(surface.N, surface.V, L, surface.roughness);\n    let F = FresnelSchlick(max(dot(H, surface.V), 0.0), surface.F0);\n\n    let kD = (vec3(1.0, 1.0, 1.0) - F) * (1.0 - surface.metallic);\n\n    let NdotL = max(dot(surface.N, L), 0.0);\n\n    let numerator = NDF * G * F;\n    let denominator = max(4.0 * max(dot(surface.N, surface.V), 0.0) * NdotL, 0.001);\n    let specular = numerator / vec3(denominator, denominator, denominator);\n\n    return (kD * surface.albedo.rgb / vec3(PI, PI, PI) + specular) * NdotL;\n}\n\nfn DirectionalLightRadiance(light: DirectionalLight, surface : Surface) -> vec3<f32> {\n    return CalculateBRDF(surface, light.direction) * light.color * light.intensity;\n}\n\nfn rangeAttenuation(range : f32, distance : f32) -> f32 {\n    if (range <= 0.0) {\n        // Negative range means no cutoff\n        return 1.0 / pow(distance, 2.0);\n    }\n    return clamp(1.0 - pow(distance / range, 4.0), 0.0, 1.0) / pow(distance, 2.0);\n}\n\nfn SpotLightRadiance(light : SpotLight, surface : Surface) -> vec3<f32> {\n    // pointToLight is SURFACE -> LIGHT (as you already set)\n    let dist = length(light.pointToLight);\n\n    // For cone test we need LIGHT -> SURFACE\n    let L_ls = normalize(-light.pointToLight);   // light -> surface\n    let cd   = dot(light.direction, L_ls);       // cos(theta), 1 at center\n\n    // Smooth falloff from edge to center: 0 at cos(angle), 1 at 1.0\n    let spot = smoothstep(cos(light.angle), 1.0, cd);\n\n    // Range attenuation as you have it\n    let attenuation = rangeAttenuation(light.range, dist) * spot;\n\n    // BRDF usually expects wi = SURFACE -> LIGHT\n    let wi = -L_ls; // (surface -> light)\n    let radiance = CalculateBRDF(surface, wi) * light.color * light.intensity * attenuation;\n    return radiance;\n}\n\nfn PointLightRadiance(light: PointLight, surface: Surface) -> vec3<f32> {\n    let dist = length(light.pointToLight);\n    let wi   = normalize(light.pointToLight);        // surface -> light\n    let att  = rangeAttenuation(light.range, dist);  // your smooth cutoff / r^2\n    return CalculateBRDF(surface, wi) * light.color * light.intensity * att;\n}\n\n// ---------- your API (drop-in) ----------\n\n@fragment\nfn fragmentMain(input: VertexOutput) -> @location(0) vec4<f32> {\n    // Load depth once\n    let pix   = vec2<i32>(floor(input.position.xy));\n    let depth = textureLoad(depthTexture, pix, 0);\n\n    // Build NDC + view/world rays (same as before)\n    let ndc = vec3<f32>(\n        (input.position.x / view.projectionOutputSize.x) * 2.0 - 1.0,\n        (input.position.y / view.projectionOutputSize.y) * 2.0 - 1.0,\n        1.0\n    );\n    let viewRay4 = view.projectionInverseMatrix * vec4(ndc, 1.0);\n    var viewRay  = normalize(viewRay4.xyz / viewRay4.w);\n    viewRay.y   *= -1.0;\n    var worldRay = normalize((view.viewInverseMatrix * vec4(viewRay, 0.0)).xyz);\n\n    // ---- compute derivatives BEFORE any divergent branch ----\n    let uv = input.vUv;\n    let dUVdx = dpdx(uv);\n    let dUVdy = dpdy(uv);\n\n    // For cubemap LOD: take grads of the direction (works well in practice)\n    let dWRdx = dpdx(worldRay);\n    let dWRdy = dpdy(worldRay);\n\n    // Early sky-out WITH explicit grads (safe mip selection)\n    if (depth >= 0.9999999) {\n        var sky = textureSampleGrad(skyboxTexture, textureSampler, worldRay, dWRdx, dWRdy).rgb;\n        sky = toneMapping(sky);\n        sky = pow(sky, vec3f(1.0 / 2.2));  // omit if writing to *-srgb\n        return vec4f(sky, 1.0);\n    }\n\n    // Reconstruct world pos (consider a variant that takes 'depth' to avoid re-read inside)\n    let worldPosition = reconstructWorldPosFromZ(\n        input.position.xy,\n        view.projectionOutputSize.xy,\n        depthTexture,\n        view.projectionInverseMatrix,\n        view.viewInverseMatrix\n    );\n\n    // G-buffer samples now use explicit-grad\n    let albedo = textureSampleGrad(albedoTexture, textureSampler, uv, dUVdx, dUVdy);\n    let normal = textureSampleGrad(normalTexture, textureSampler, uv, dUVdx, dUVdy);\n    let ermo   = textureSampleGrad(ermoTexture,   textureSampler, uv, dUVdx, dUVdy);\n\n    // ... (your Surface build as-is)\n    var surface: Surface;\n    surface.depth          = depth;\n    surface.albedo         = albedo.rgb;\n    surface.roughness      = clamp(albedo.a, 0.0, 0.99);\n    surface.metallic       = normal.a;\n    surface.emissive       = ermo.rgb;\n    surface.occlusion      = ermo.a;\n    surface.worldPosition  = worldPosition.xyz;\n    surface.N              = normalize(normal.rgb);\n    surface.F0             = mix(vec3(0.04), surface.albedo.rgb, vec3(surface.metallic));\n    surface.V              = normalize(view.viewPosition.xyz - surface.worldPosition);\n    surface.occlusion      = 1.0;\n\n    let n = surface.N;\n    let v = surface.V;\n    let r = reflect(-v, n);\n\n    var lo = vec3f(0.0);\n    var selectedCascade = 0;\n\n    for (var i = 0u; i < lightCount; i++) {\n        let light = lights[i];\n        let lightType = u32(light.color.a);\n\n        if (lightType == DIRECTIONAL_LIGHT) {\n            var directionalLight: DirectionalLight;\n            directionalLight.direction = normalize((light.viewMatrixInverse * vec4(0.0, 0.0, 1.0, 0.0)).xyz);\n            // directionalLight.direction = light.direction.xyz;\n            directionalLight.color = light.color.rgb;\n            directionalLight.intensity = light.params1.x;\n\n            let castShadows = light.params1.z > 0.5;\n            var shadow = 1.0;\n            if (castShadows) {\n                let shadowCSM = CalculateShadowCSM(shadowPassDepth, shadowSamplerComp, surface, light, i);\n                shadow = shadowCSM.visibility;\n                selectedCascade = shadowCSM.selectedCascade;\n            }\n\n            // lo += shadow * DirectionalLightRadiance(directionalLight, surface) * radiance;\n            lo += shadow * DirectionalLightRadiance(directionalLight, surface);\n        }\n\n        else if (lightType == SPOT_LIGHT) {\n            var spotLight: SpotLight;\n            \n            spotLight.pointToLight = light.position.xyz - surface.worldPosition;\n            spotLight.color = light.color.rgb;\n            spotLight.intensity = light.params1.r;\n            spotLight.range = light.params1.g;\n            spotLight.direction = normalize((light.viewMatrixInverse * vec4(0.0, 0.0, -1.0, 0.0)).xyz);\n            // spotLight.direction = light.direction.xyz;\n            spotLight.angle = light.params2.w;\n\n            if (distance(light.position.xyz, surface.worldPosition) > spotLight.range) {\n                continue;\n            }\n\n            let castShadows = light.params1.z > 0.5;\n            var shadow = 1.0;\n            if (castShadows) {\n                let shadowCSM = CalculateShadowCSMSpot(shadowPassDepth, shadowSamplerComp, surface, light, i);\n                shadow = shadowCSM.visibility;\n                selectedCascade = shadowCSM.selectedCascade;\n                // shadow = SampleSpotShadowMap(surface, light); // <— single 2D map on this layer\n\n            }\n\n            lo += shadow * SpotLightRadiance(spotLight, surface);\n        }\n\n        else if (lightType == POINT_LIGHT) {\n            var p: PointLight;\n            p.pointToLight = light.position.xyz - surface.worldPosition;\n            p.color        = light.color.rgb;\n            p.intensity    = light.params1.x;\n            p.range        = light.params1.y;\n\n            // optional hard range cut\n            if (length(p.pointToLight) > p.range) {\n                continue;\n            }\n\n            var shadow = 1.0;\n            let castShadows = light.params1.z > 0.5;\n            // if (castShadows) {\n            //     // see section 2 for a cubemap version\n            //     shadow = SamplePointShadow(surface, light, i);  // implement below\n            // }\n\n            lo += shadow * PointLightRadiance(p, surface);\n        }\n    }\n\n    let f = FresnelSchlickRoughness(max(dot(n, v), 0.00001), surface.F0, surface.roughness);\n    let kS = f;\n    var kD = vec3f(1.0) - kS;\n    kD *= 1.0 - surface.metallic;\n\n    let irradiance = textureSampleLevel(skyboxIrradianceTexture, textureSampler, fixCubeHandedness(n), 0.0).rgb;\n    let diffuse = irradiance * surface.albedo.xyz;\n\n    const MAX_REFLECTION_LOD = 4.0;\n    let prefilteredColor = textureSampleLevel(skyboxPrefilterTexture, textureSampler, fixCubeHandedness(r), surface.roughness * MAX_REFLECTION_LOD).rgb;\n    let brdf = textureSampleLevel(skyboxBRDFLUT, brdfSampler, vec2f(max(dot(n, v), 0.0), surface.roughness), 1.0).rg;\n    let specular = prefilteredColor * (f * brdf.x + brdf.y);\n\n    let ambient = (kD * diffuse + specular) * surface.occlusion;\n\n    var color = ambient + lo + surface.emissive;\n\n    // if (u32(settings.debugShadowCascades) == 0) {\n    //     color += debug_cascadeColors[selectedCascade].rgb * 0.05;\n    // }\n\n    color = toneMapping(color);\n    color = pow(color, vec3f(1.0 / 2.2));\n\n    return vec4f(color, 1.0);\n}";
+var WGSL_Shader_DeferredLighting_URL = "#include \"@trident/core/resources/webgpu/shaders/deferred/LightStruct.wgsl\";\n#include \"@trident/core/resources/webgpu/shaders/deferred/ShadowMap.wgsl\";\n#include \"@trident/core/resources/webgpu/shaders/deferred/ShadowMapCSM.wgsl\";\n\nstruct Settings {\n    debugDepthPass: f32,\n    debugDepthMipLevel: f32,\n    debugDepthExposure: f32,\n    viewType: f32,\n    useHeightMap: f32,\n    heightScale: f32,\n\n    debugShadowCascades: f32,\n    pcfResolution: f32,\n    blendThreshold: f32,\n    viewBlendThreshold: f32,\n\n    cameraPosition: vec4<f32>,\n};\n\nstruct VertexInput {\n    @location(0) position : vec2<f32>,\n    @location(1) normal : vec3<f32>,\n    @location(2) uv : vec2<f32>,\n};\n\nstruct VertexOutput {\n    @builtin(position) position : vec4<f32>,\n    @location(0) vUv : vec2<f32>,\n};\n\n@group(0) @binding(0) var textureSampler: sampler;\n\n@group(0) @binding(1) var albedoTexture: texture_2d<f32>;\n@group(0) @binding(2) var normalTexture: texture_2d<f32>;\n@group(0) @binding(3) var ermoTexture: texture_2d<f32>;\n@group(0) @binding(4) var depthTexture: texture_depth_2d;\n@group(0) @binding(5) var shadowPassDepth: texture_depth_2d_array;\n\n@group(0) @binding(6) var skyboxTexture: texture_cube<f32>;\n@group(0) @binding(7) var skyboxIrradianceTexture: texture_cube<f32>;\n@group(0) @binding(8) var skyboxPrefilterTexture: texture_cube<f32>;\n@group(0) @binding(9) var skyboxBRDFLUT: texture_2d<f32>;\n\n@group(0) @binding(10) var brdfSampler: sampler;\n@group(0) @binding(11) var<storage, read> lights: array<Light>;\n@group(0) @binding(12) var<storage, read> lightCount: u32;\n\n\n\n\n\n\nstruct View {\n    projectionOutputSize: vec4<f32>,\n    viewPosition: vec4<f32>,\n    projectionInverseMatrix: mat4x4<f32>,\n    viewInverseMatrix: mat4x4<f32>,\n    viewMatrix: mat4x4<f32>,\n};\n@group(0) @binding(13) var<storage, read> view: View;\n\n\nconst numCascades = 4;\nconst debug_cascadeColors = array<vec4<f32>, 5>(\n    vec4<f32>(1.0, 0.0, 0.0, 1.0),\n    vec4<f32>(0.0, 1.0, 0.0, 1.0),\n    vec4<f32>(0.0, 0.0, 1.0, 1.0),\n    vec4<f32>(1.0, 1.0, 0.0, 1.0),\n    vec4<f32>(0.0, 0.0, 0.0, 1.0)\n);\n@group(0) @binding(14) var shadowSamplerComp: sampler_comparison;\n\n@group(0) @binding(15) var<storage, read> settings: Settings;\n\n\n@vertex\nfn vertexMain(input: VertexInput) -> VertexOutput {\n    var output: VertexOutput;\n    output.position = vec4(input.position, 0.0, 1.0);\n    output.vUv = input.uv;\n    return output;\n}\n\nconst PI = 3.141592653589793;\n\nconst SPOT_LIGHT = 0;\nconst DIRECTIONAL_LIGHT = 1;\nconst POINT_LIGHT = 2;\nconst AREA_LIGHT = 3;\n\nfn reconstructWorldPosFromZ(\n    coords: vec2<f32>,\n    size: vec2<f32>,\n    depthTexture: texture_depth_2d,\n    projInverse: mat4x4<f32>,\n    viewInverse: mat4x4<f32>\n    ) -> vec4<f32> {\n    let uv = coords.xy / size;\n    var depth = textureLoad(depthTexture, vec2<i32>(floor(coords)), 0);\n    let x = uv.x * 2.0 - 1.0;\n    let y = (1.0 - uv.y) * 2.0 - 1.0;\n    let projectedPos = vec4(x, y, depth, 1.0);\n    var worldPosition = projInverse * projectedPos;\n    worldPosition = vec4(worldPosition.xyz / worldPosition.w, 1.0);\n    worldPosition = viewInverse * worldPosition;\n    return worldPosition;\n}\n\nfn toneMapping(color: vec3f) -> vec3f {\n    // Narkowicz 2015 ACES approx\n    let a = 2.51; let b = 0.03; let c = 2.43; let d = 0.59; let e = 0.14;\n    return clamp((color*(a*color+b)) / (color*(c*color+d)+e), vec3f(0.0), vec3f(1.0));\n}\n\nfn DistributionGGX(n: vec3f, h: vec3f, roughness: f32) -> f32 {\n  let a = roughness * roughness;\n  let a2 = a * a;\n  let nDotH = max(dot(n, h), 0.0);\n  let nDotH2 = nDotH * nDotH;\n  var denom = (nDotH2 * (a2 - 1.0) + 1.0);\n  denom = PI * denom * denom;\n  return a2 / denom;\n}\n\nfn GeometrySchlickGGX(nDotV: f32, roughness: f32) -> f32 {\n  let r = (roughness + 1.0);\n  let k = (r * r) / 8.0;\n  return nDotV / (nDotV * (1.0 - k) + k);\n}\n\nfn GeometrySmith(n: vec3f, v: vec3f, l: vec3f, roughness: f32) -> f32 {\n  let nDotV = max(dot(n, v), 0.0);\n  let nDotL = max(dot(n, l), 0.0);\n  let ggx2 = GeometrySchlickGGX(nDotV, roughness);\n  let ggx1 = GeometrySchlickGGX(nDotL, roughness);\n  return ggx1 * ggx2;\n}\n\nfn FresnelSchlick(cosTheta: f32, f0: vec3f) -> vec3f {\n  return f0 + (1.0 - f0) * pow(clamp(1.0 - cosTheta, 0.0, 1.0), 5.0);\n}\n\nfn FresnelSchlickRoughness(cosTheta: f32, f0: vec3f, roughness: f32) -> vec3f {\n  return f0 + (max(vec3(1.0 - roughness), f0) - f0) * pow(clamp(1.0 - cosTheta, 0.0, 1.0), 5.0);\n}\n\nfn fixCubeHandedness(d: vec3f) -> vec3f {\n    // try flipping X first; if that’s wrong, flip Z instead\n    return vec3f(-d.x, d.y, d.z);\n}\n\nfn CalculateBRDF(surface: Surface, pointToLight: vec3<f32>) -> vec3<f32> {\n    // cook-torrance brdf\n    let L = normalize(pointToLight);\n    let H = normalize(surface.V + L);\n    let distance = length(pointToLight);\n\n    let NDF = DistributionGGX(surface.N, H, surface.roughness);\n    let G = GeometrySmith(surface.N, surface.V, L, surface.roughness);\n    let F = FresnelSchlick(max(dot(H, surface.V), 0.0), surface.F0);\n\n    let kD = (vec3(1.0, 1.0, 1.0) - F) * (1.0 - surface.metallic);\n\n    let NdotL = max(dot(surface.N, L), 0.0);\n\n    let numerator = NDF * G * F;\n    let denominator = max(4.0 * max(dot(surface.N, surface.V), 0.0) * NdotL, 0.001);\n    let specular = numerator / vec3(denominator, denominator, denominator);\n\n    return (kD * surface.albedo.rgb / vec3(PI, PI, PI) + specular) * NdotL;\n}\n\nfn DirectionalLightRadiance(light: DirectionalLight, surface : Surface) -> vec3<f32> {\n    return CalculateBRDF(surface, light.direction) * light.color * light.intensity;\n}\n\nfn rangeAttenuation(range : f32, distance : f32) -> f32 {\n    if (range <= 0.0) {\n        // Negative range means no cutoff\n        return 1.0 / pow(distance, 2.0);\n    }\n    return clamp(1.0 - pow(distance / range, 4.0), 0.0, 1.0) / pow(distance, 2.0);\n}\n\nfn SpotLightRadiance(light : SpotLight, surface : Surface) -> vec3<f32> {\n    // pointToLight is SURFACE -> LIGHT (as you already set)\n    let dist = length(light.pointToLight);\n\n    // For cone test we need LIGHT -> SURFACE\n    let L_ls = normalize(-light.pointToLight);   // light -> surface\n    let cd   = dot(light.direction, L_ls);       // cos(theta), 1 at center\n\n    // Smooth falloff from edge to center: 0 at cos(angle), 1 at 1.0\n    let spot = smoothstep(cos(light.angle), 1.0, cd);\n\n    // Range attenuation as you have it\n    let attenuation = rangeAttenuation(light.range, dist) * spot;\n\n    // BRDF usually expects wi = SURFACE -> LIGHT\n    let wi = -L_ls; // (surface -> light)\n    let radiance = CalculateBRDF(surface, wi) * light.color * light.intensity * attenuation;\n    return radiance;\n}\n\nfn PointLightRadiance(light: PointLight, surface: Surface) -> vec3<f32> {\n    let dist = length(light.pointToLight);\n    let wi   = normalize(light.pointToLight);        // surface -> light\n    let att  = rangeAttenuation(light.range, dist);  // your smooth cutoff / r^2\n    return CalculateBRDF(surface, wi) * light.color * light.intensity * att;\n}\n\n// ---------- your API (drop-in) ----------\n\n@fragment\nfn fragmentMain(input: VertexOutput) -> @location(0) vec4<f32> {\n    // Load depth once\n    let pix   = vec2<i32>(floor(input.position.xy));\n    let depth = textureLoad(depthTexture, pix, 0);\n\n    // Build NDC + view/world rays (same as before)\n    let ndc = vec3<f32>(\n        (input.position.x / view.projectionOutputSize.x) * 2.0 - 1.0,\n        (input.position.y / view.projectionOutputSize.y) * 2.0 - 1.0,\n        1.0\n    );\n    let viewRay4 = view.projectionInverseMatrix * vec4(ndc, 1.0);\n    var viewRay  = normalize(viewRay4.xyz / viewRay4.w);\n    viewRay.y   *= -1.0;\n    var worldRay = normalize((view.viewInverseMatrix * vec4(viewRay, 0.0)).xyz);\n\n    // ---- compute derivatives BEFORE any divergent branch ----\n    let uv = input.vUv;\n    let dUVdx = dpdx(uv);\n    let dUVdy = dpdy(uv);\n\n    // For cubemap LOD: take grads of the direction (works well in practice)\n    let dWRdx = dpdx(worldRay);\n    let dWRdy = dpdy(worldRay);\n\n    // Early sky-out WITH explicit grads (safe mip selection)\n    if (depth >= 0.9999999) {\n        // var sky = textureSampleGrad(skyboxTexture, textureSampler, worldRay, dWRdx, dWRdy).rgb;\n        var sky = textureSampleLevel(skyboxTexture, textureSampler, worldRay, 0.0).rgb; // textureSampleGrad with a cubemap doesn't work on firefox\n        sky = toneMapping(sky);\n        sky = pow(sky, vec3f(1.0 / 2.2));  // omit if writing to *-srgb\n        return vec4f(sky, 1.0);\n    }\n\n    // Reconstruct world pos (consider a variant that takes 'depth' to avoid re-read inside)\n    let worldPosition = reconstructWorldPosFromZ(\n        input.position.xy,\n        view.projectionOutputSize.xy,\n        depthTexture,\n        view.projectionInverseMatrix,\n        view.viewInverseMatrix\n    );\n\n    // G-buffer samples now use explicit-grad\n    let albedo = textureSampleGrad(albedoTexture, textureSampler, uv, dUVdx, dUVdy);\n    let normal = textureSampleGrad(normalTexture, textureSampler, uv, dUVdx, dUVdy);\n    let ermo   = textureSampleGrad(ermoTexture,   textureSampler, uv, dUVdx, dUVdy);\n\n    // ... (your Surface build as-is)\n    var surface: Surface;\n    surface.depth          = depth;\n    surface.albedo         = albedo.rgb;\n    surface.roughness      = clamp(albedo.a, 0.0, 0.99);\n    surface.metallic       = normal.a;\n    surface.emissive       = ermo.rgb;\n    surface.occlusion      = ermo.a;\n    surface.worldPosition  = worldPosition.xyz;\n    surface.N              = normalize(normal.rgb);\n    surface.F0             = mix(vec3(0.04), surface.albedo.rgb, vec3(surface.metallic));\n    surface.V              = normalize(view.viewPosition.xyz - surface.worldPosition);\n    surface.occlusion      = 1.0;\n\n    let n = surface.N;\n    let v = surface.V;\n    let r = reflect(-v, n);\n\n    var lo = vec3f(0.0);\n    var selectedCascade = 0;\n\n    for (var i = 0u; i < lightCount; i++) {\n        let light = lights[i];\n        let lightType = u32(light.color.a);\n\n        if (lightType == DIRECTIONAL_LIGHT) {\n            var directionalLight: DirectionalLight;\n            directionalLight.direction = normalize((light.viewMatrixInverse * vec4(0.0, 0.0, 1.0, 0.0)).xyz);\n            // directionalLight.direction = light.direction.xyz;\n            directionalLight.color = light.color.rgb;\n            directionalLight.intensity = light.params1.x;\n\n            let castShadows = light.params1.z > 0.5;\n            var shadow = 1.0;\n            if (castShadows) {\n                let shadowCSM = CalculateShadowCSM(shadowPassDepth, shadowSamplerComp, surface, light, i);\n                shadow = shadowCSM.visibility;\n                selectedCascade = shadowCSM.selectedCascade;\n            }\n\n            // lo += shadow * DirectionalLightRadiance(directionalLight, surface) * radiance;\n            lo += shadow * DirectionalLightRadiance(directionalLight, surface);\n        }\n\n        else if (lightType == SPOT_LIGHT) {\n            var spotLight: SpotLight;\n            \n            spotLight.pointToLight = light.position.xyz - surface.worldPosition;\n            spotLight.color = light.color.rgb;\n            spotLight.intensity = light.params1.r;\n            spotLight.range = light.params1.g;\n            spotLight.direction = normalize((light.viewMatrixInverse * vec4(0.0, 0.0, -1.0, 0.0)).xyz);\n            // spotLight.direction = light.direction.xyz;\n            spotLight.angle = light.params2.w;\n\n            if (distance(light.position.xyz, surface.worldPosition) > spotLight.range) {\n                continue;\n            }\n\n            let castShadows = light.params1.z > 0.5;\n            var shadow = 1.0;\n            if (castShadows) {\n                let shadowCSM = CalculateShadowCSMSpot(shadowPassDepth, shadowSamplerComp, surface, light, i);\n                shadow = shadowCSM.visibility;\n                selectedCascade = shadowCSM.selectedCascade;\n                // shadow = SampleSpotShadowMap(surface, light); // <— single 2D map on this layer\n\n            }\n\n            lo += shadow * SpotLightRadiance(spotLight, surface);\n        }\n\n        else if (lightType == POINT_LIGHT) {\n            var p: PointLight;\n            p.pointToLight = light.position.xyz - surface.worldPosition;\n            p.color        = light.color.rgb;\n            p.intensity    = light.params1.x;\n            p.range        = light.params1.y;\n\n            // optional hard range cut\n            if (length(p.pointToLight) > p.range) {\n                continue;\n            }\n\n            var shadow = 1.0;\n            let castShadows = light.params1.z > 0.5;\n            // if (castShadows) {\n            //     shadow = SamplePointShadow(surface, light, i);\n            // }\n\n            lo += shadow * PointLightRadiance(p, surface);\n        }\n    }\n\n    let f = FresnelSchlickRoughness(max(dot(n, v), 0.00001), surface.F0, surface.roughness);\n    let kS = f;\n    var kD = vec3f(1.0) - kS;\n    kD *= 1.0 - surface.metallic;\n\n    let irradiance = textureSampleLevel(skyboxIrradianceTexture, textureSampler, fixCubeHandedness(n), 0.0).rgb;\n    let diffuse = irradiance * surface.albedo.xyz;\n\n    const MAX_REFLECTION_LOD = 4.0;\n    let prefilteredColor = textureSampleLevel(skyboxPrefilterTexture, textureSampler, fixCubeHandedness(r), surface.roughness * MAX_REFLECTION_LOD).rgb;\n    let brdf = textureSampleLevel(skyboxBRDFLUT, brdfSampler, vec2f(max(dot(n, v), 0.0), surface.roughness), 1.0).rg;\n    let specular = prefilteredColor * (f * brdf.x + brdf.y);\n\n    let ambient = (kD * diffuse + specular) * surface.occlusion;\n\n    var color = ambient + lo + surface.emissive;\n    color = toneMapping(color);\n    color = pow(color, vec3f(1.0 / 2.2));\n\n    return vec4f(color, 1.0);\n}";
 
 var WGSL_Shader_Deferred_SurfaceStruct = "struct Surface {\n    albedo: vec3<f32>,\n    emissive: vec3<f32>,\n    metallic: f32,\n    roughness: f32,\n    occlusion: f32,\n    worldPosition: vec3<f32>,\n    N: vec3<f32>,\n    F0: vec3<f32>,\n    V: vec3<f32>,\n    depth: f32\n};";
 
@@ -3068,7 +3075,7 @@ var WGSL_Shader_Deferred_LightStruct = "struct Light {\n    position: vec4<f32>,
 
 var WGSL_Shader_Deferred_ShadowMap = "#include \"@trident/core/resources/webgpu/shaders/deferred/SurfaceStruct.wgsl\";\n#include \"@trident/core/resources/webgpu/shaders/deferred/LightStruct.wgsl\";\n#include \"@trident/core/resources/webgpu/shaders/deferred/ShadowUtils.wgsl\";\n\n// NDC -> UV, then remap into the 2×2 quadrant atlas inside ONE array layer.\nfn worldToAtlasUVZSpot(worldPos: vec3<f32>, light: Light, cascadeIndex: i32) -> vec3<f32> {\n    let m = light.csmProjectionMatrix0;\n    let p = m * vec4(worldPos, 1.0);\n    let ndc = p.xyz / p.w;\n\n    // NDC -> [0,1], with y flipped to texture space\n    var uv = ndc.xy * vec2<f32>(0.5, -0.5) + vec2<f32>(0.5, 0.5);\n\n    return vec3<f32>(uv, ndc.z);\n}\n\nfn SampleCascadeShadowMapSpot(shadowTexture: texture_depth_2d_array, shadowSampler: sampler_comparison, surface: Surface, light: Light, cascadeIndex: i32, lightIndex: u32) -> f32 {\n    // Build atlas UV/Z for this cascade\n    let uvz = worldToAtlasUVZSpot(surface.worldPosition, light, cascadeIndex);\n    let uv  = uvz.xy;\n    let z   = uvz.z;\n\n    // Outside clip or outside atlas -> lit\n    if (z <= 0.0 || z >= 1.0 || !inUnitSquare(uv)) {\n        return 1.0;\n    }\n\n    // One textureDimensions() per pixel (ideally pass texel size from CPU)\n    let texDim = vec2<f32>(textureDimensions(shadowTexture));\n    let texel  = 1.0 / texDim;\n\n    // Use fast 3×3 when radius <= 1, else bounded loop (max 5×5)\n    let radius = i32(settings.pcfResolution); // interpret as radius\n    if (radius <= 1) {\n        return pcf3x3_quadrant(shadowTexture, shadowSampler, uv, z, i32(light.params1.w), texel);\n    } else {\n        return pcfBounded(shadowTexture, shadowSampler, uv, z, i32(light.params1.w), texel, radius);\n    }\n}\n\nfn CalculateShadowCSMSpot(shadowTexture: texture_depth_2d_array, shadowSampler: sampler_comparison, surface: Surface, light: Light, lightIndex: u32) -> ShadowCSM {\n    var out: ShadowCSM;\n\n    // View-space depth for cascade selection\n    let fragPosViewSpace = view.viewMatrix * vec4f(surface.worldPosition, 1.0);\n    let depthValue  = abs(fragPosViewSpace.z);\n\n    // Pick cascade (branchless)\n    let selectedCascade = 0;\n    out.selectedCascade = selectedCascade;\n\n    // Primary cascade\n    let visibility = SampleCascadeShadowMapSpot(shadowTexture, shadowSampler, surface, light, selectedCascade, lightIndex);\n\n    out.visibility = clamp(visibility, 0.0, 1.0);\n    return out;\n}";
 
-var WGSL_Shader_Deferred_ShadowMapCSM = "#include \"@trident/core/resources/webgpu/shaders/deferred/SurfaceStruct.wgsl\";\n#include \"@trident/core/resources/webgpu/shaders/deferred/LightStruct.wgsl\";\n#include \"@trident/core/resources/webgpu/shaders/deferred/ShadowUtils.wgsl\";\n\nfn selectCascade(depthValue: f32, splits: vec4<f32>) -> i32 {\n    // count how many splits we have passed (0..3)\n    var layer = 0;\n    layer += select(0, 1, depthValue >= splits.x);\n    layer += select(0, 1, depthValue >= splits.y);\n    layer += select(0, 1, depthValue >= splits.z);\n    return clamp(layer, 0, numCascades - 1);\n}\n\nfn csmMatrix(light: Light, idx: i32) -> mat4x4<f32> {\n    if (idx == 0) { return light.csmProjectionMatrix0; }\n    if (idx == 1) { return light.csmProjectionMatrix1; }\n    if (idx == 2) { return light.csmProjectionMatrix2; }\n    return light.csmProjectionMatrix3;\n}\n\nfn ShadowLayerSelection(depthValue: f32, light: Light) -> i32 {\n    return selectCascade(depthValue, light.cascadeSplits);\n}\n\n// NDC -> UV, then remap into the 2×2 quadrant atlas inside ONE array layer.\nfn worldToAtlasUVZ(worldPos: vec3<f32>, light: Light, cascadeIndex: i32) -> vec3<f32> {\n    let m = csmMatrix(light, cascadeIndex);\n    let p = m * vec4(worldPos, 1.0);\n    let ndc = p.xyz / p.w;\n\n    // NDC -> [0,1], with y flipped to texture space\n    var uv = ndc.xy * vec2<f32>(0.5, -0.5) + vec2<f32>(0.5, 0.5);\n\n    // Quadrant packing: [0]=BL, [1]=TL, [2]=BR, [3]=TR (matches your original logic)\n    if (cascadeIndex >= 2) { uv.x += 1.0; }\n    if ((cascadeIndex & 1) == 1) { uv.y += 1.0; }\n    uv *= 0.5;\n\n    return vec3<f32>(uv, ndc.z);\n}\n\nfn SampleCascadeShadowMap(shadowTexture: texture_depth_2d_array, shadowSampler: sampler_comparison, surface: Surface, light: Light, cascadeIndex: i32, lightIndex: u32) -> f32 {\n    // Build atlas UV/Z for this cascade\n    let uvz = worldToAtlasUVZ(surface.worldPosition, light, cascadeIndex);\n    let uv  = uvz.xy;\n    let z   = uvz.z;\n\n    // Outside clip or outside atlas -> lit\n    if (z <= 0.0 || z >= 1.0 || !inUnitSquare(uv)) {\n        return 1.0;\n    }\n\n    // One textureDimensions() per pixel (ideally pass texel size from CPU)\n    let texDim = vec2<f32>(textureDimensions(shadowTexture));\n    let texel  = 1.0 / texDim;\n\n    // Use fast 3×3 when radius <= 1, else bounded loop (max 5×5)\n    let radius = i32(settings.pcfResolution); // interpret as radius\n    if (radius <= 1) {\n        return pcf3x3_quadrant(shadowTexture, shadowSampler, uv, z, i32(light.params1.w), texel);\n    } else {\n        return pcfBounded(shadowTexture, shadowSampler, uv, z, i32(light.params1.w), texel, radius);\n    }\n}\n\nfn lerp(k0: f32, k1: f32, t: f32) -> f32 {\n    return k0 + t * (k1 - k0);\n}\n\nfn CalculateShadowCSM(shadowTexture: texture_depth_2d_array, shadowSampler: sampler_comparison, surface: Surface, light: Light, lightIndex: u32) -> ShadowCSM {\n    var out: ShadowCSM;\n\n    // View-space depth for cascade selection\n    let fragPosViewSpace = view.viewMatrix * vec4f(surface.worldPosition, 1.0);\n    let depthValue  = abs(fragPosViewSpace.z);\n\n    // Early accept: beyond last split, no shadow work\n    let lastSplit = light.cascadeSplits[numCascades - 1];\n    if (depthValue > lastSplit) {\n        out.visibility = 1.0;\n        out.selectedCascade = numCascades - 1;\n        return out;\n    }\n\n    // Pick cascade (branchless)\n    let selectedCascade = ShadowLayerSelection(depthValue, light);\n    out.selectedCascade = selectedCascade;\n\n    // Primary cascade\n    var visibility = SampleCascadeShadowMap(shadowTexture, shadowSampler, surface, light, selectedCascade, lightIndex);\n\n    // Blend near the split to hide seams\n    let blendThreshold   = settings.blendThreshold;\n    let nextSplit  = light.cascadeSplits[selectedCascade];\n\n    var splitSize = nextSplit;\n    if (selectedCascade > 0) { splitSize = nextSplit - light.cascadeSplits[selectedCascade - 1]; }\n\n    let fadeFactor = (nextSplit - depthValue) / max(splitSize, 1e-6);\n\n    if (fadeFactor <= blendThreshold && selectedCascade != numCascades - 1) {\n        let nextSplitVisibility = SampleCascadeShadowMap(shadowTexture, shadowSampler, surface, light, selectedCascade + 1, lightIndex);\n        let lerpAmount = smoothstep(0.0, blendThreshold, fadeFactor);\n        visibility = lerp(nextSplitVisibility, visibility, lerpAmount);\n\n        if (u32(settings.viewBlendThreshold) == 1u) {\n            visibility *= fadeFactor; // debug view\n        }\n    }\n\n    out.visibility = clamp(visibility, 0.0, 1.0);\n    return out;\n}";
+var WGSL_Shader_Deferred_ShadowMapCSM = "#include \"@trident/core/resources/webgpu/shaders/deferred/SurfaceStruct.wgsl\";\n#include \"@trident/core/resources/webgpu/shaders/deferred/LightStruct.wgsl\";\n#include \"@trident/core/resources/webgpu/shaders/deferred/ShadowUtils.wgsl\";\n\nfn csmMatrix(light: Light, idx: i32) -> mat4x4<f32> {\n    if (idx == 0) { return light.csmProjectionMatrix0; }\n    if (idx == 1) { return light.csmProjectionMatrix1; }\n    if (idx == 2) { return light.csmProjectionMatrix2; }\n    return light.csmProjectionMatrix3;\n}\n\nfn ShadowLayerSelection(depthValue: f32, light: Light) -> i32 {\n    // count how many splits we have passed (0..3)\n    var layer = 0;\n    layer += select(0, 1, depthValue >= light.cascadeSplits.x);\n    layer += select(0, 1, depthValue >= light.cascadeSplits.y);\n    layer += select(0, 1, depthValue >= light.cascadeSplits.z);\n    return clamp(layer, 0, numCascades - 1);\n}\n\n// NDC -> UV, then remap into the 2×2 quadrant atlas inside ONE array layer.\nfn worldToAtlasUVZ(worldPos: vec3<f32>, light: Light, cascadeIndex: i32) -> vec3<f32> {\n    let m = csmMatrix(light, cascadeIndex);\n    let p = m * vec4(worldPos, 1.0);\n    let ndc = p.xyz / p.w;\n\n    // NDC -> [0,1], with y flipped to texture space\n    var uv = ndc.xy * vec2<f32>(0.5, -0.5) + vec2<f32>(0.5, 0.5);\n\n    // Quadrant packing: [0]=BL, [1]=TL, [2]=BR, [3]=TR (matches your original logic)\n    if (cascadeIndex >= 2) { uv.x += 1.0; }\n    if ((cascadeIndex & 1) == 1) { uv.y += 1.0; }\n    uv *= 0.5;\n\n    return vec3<f32>(uv, ndc.z);\n}\n\nfn SampleCascadeShadowMap(shadowTexture: texture_depth_2d_array, shadowSampler: sampler_comparison, surface: Surface, light: Light, cascadeIndex: i32, lightIndex: u32) -> f32 {\n    // Build atlas UV/Z for this cascade\n    let uvz = worldToAtlasUVZ(surface.worldPosition, light, cascadeIndex);\n    let uv  = uvz.xy;\n    let z   = uvz.z;\n\n    // Outside clip or outside atlas -> lit\n    if (z <= 0.0 || z >= 1.0 || !inUnitSquare(uv)) {\n        return 1.0;\n    }\n\n    // One textureDimensions() per pixel (ideally pass texel size from CPU)\n    let texDim = vec2<f32>(textureDimensions(shadowTexture));\n    let texel  = 1.0 / texDim;\n\n    // Use fast 3×3 when radius <= 1, else bounded loop (max 5×5)\n    let radius = i32(settings.pcfResolution); // interpret as radius\n    if (radius <= 1) {\n        return pcf3x3_quadrant(shadowTexture, shadowSampler, uv, z, i32(light.params1.w), texel);\n    } else {\n        return pcfBounded(shadowTexture, shadowSampler, uv, z, i32(light.params1.w), texel, radius);\n    }\n}\n\nfn lerp(k0: f32, k1: f32, t: f32) -> f32 {\n    return k0 + t * (k1 - k0);\n}\n\nfn CalculateShadowCSM(shadowTexture: texture_depth_2d_array, shadowSampler: sampler_comparison, surface: Surface, light: Light, lightIndex: u32) -> ShadowCSM {\n    var out: ShadowCSM;\n\n    // View-space depth for cascade selection\n    let fragPosViewSpace = view.viewMatrix * vec4f(surface.worldPosition, 1.0);\n    let depthValue  = abs(fragPosViewSpace.z);\n\n    // Early accept: beyond last split, no shadow work\n    let lastSplit = light.cascadeSplits[numCascades - 1];\n    if (depthValue > lastSplit) {\n        out.visibility = 1.0;\n        out.selectedCascade = numCascades - 1;\n        return out;\n    }\n\n    // Pick cascade (branchless)\n    let selectedCascade = ShadowLayerSelection(depthValue, light);\n    out.selectedCascade = selectedCascade;\n\n    // Primary cascade\n    var visibility = SampleCascadeShadowMap(shadowTexture, shadowSampler, surface, light, selectedCascade, lightIndex);\n\n    // Blend near the split to hide seams\n    let blendThreshold   = settings.blendThreshold;\n    let nextSplit  = light.cascadeSplits[selectedCascade];\n\n    var splitSize = nextSplit;\n    if (selectedCascade > 0) { splitSize = nextSplit - light.cascadeSplits[selectedCascade - 1]; }\n\n    let fadeFactor = (nextSplit - depthValue) / max(splitSize, 1e-6);\n\n    if (fadeFactor <= blendThreshold && selectedCascade != numCascades - 1) {\n        let nextSplitVisibility = SampleCascadeShadowMap(shadowTexture, shadowSampler, surface, light, selectedCascade + 1, lightIndex);\n        let lerpAmount = smoothstep(0.0, blendThreshold, fadeFactor);\n        visibility = lerp(nextSplitVisibility, visibility, lerpAmount);\n\n        if (u32(settings.viewBlendThreshold) == 1u) {\n            visibility *= fadeFactor; // debug view\n        }\n    }\n\n    out.visibility = clamp(visibility, 0.0, 1.0);\n    return out;\n}";
 
 var WGSL_Shader_Deferred_ShadowUtils = "struct ShadowCSM {\n    visibility: f32,\n    selectedCascade: i32\n};\n\nfn inUnitSquare(u: vec2<f32>) -> bool {\n    return all(u >= vec2<f32>(0.0)) && all(u <= vec2<f32>(1.0));\n}\n\nfn pcf3x3_quadrant(shadowTexture: texture_depth_2d_array, shadowSampler: sampler_comparison, uv: vec2<f32>, z: f32, layer: i32, texel: vec2<f32>) -> f32 {\n    // Early accept: fully lit center → 1.0\n    let center = textureSampleCompareLevel(shadowTexture, shadowSampler, uv, layer, z);\n    if (center >= 1.0) { return 1.0; }\n\n    var sum = 0.0;\n    // Row -1\n    sum += textureSampleCompareLevel(shadowTexture, shadowSampler, uv + vec2(-texel.x, -texel.y), layer, z);\n    sum += textureSampleCompareLevel(shadowTexture, shadowSampler, uv + vec2(         0.0, -texel.y), layer, z);\n    sum += textureSampleCompareLevel(shadowTexture, shadowSampler, uv + vec2( texel.x, -texel.y), layer, z);\n    // Row  0\n    sum += textureSampleCompareLevel(shadowTexture, shadowSampler, uv + vec2(-texel.x,          0.0), layer, z);\n    sum += center;\n    sum += textureSampleCompareLevel(shadowTexture, shadowSampler, uv + vec2( texel.x,          0.0), layer, z);\n    // Row +1\n    sum += textureSampleCompareLevel(shadowTexture, shadowSampler, uv + vec2(-texel.x,  texel.y), layer, z);\n    sum += textureSampleCompareLevel(shadowTexture, shadowSampler, uv + vec2(         0.0,  texel.y), layer, z);\n    sum += textureSampleCompareLevel(shadowTexture, shadowSampler, uv + vec2( texel.x,  texel.y), layer, z);\n\n    return sum * (1.0 / 9.0);\n}\n\nconst MAX_RADIUS : i32 = 2; // up to 5×5\nfn pcfBounded(shadowTexture: texture_depth_2d_array, shadowSampler: sampler_comparison, uv: vec2<f32>, z: f32, layer: i32, texel: vec2<f32>, radius: i32) -> f32 {\n    let r = clamp(radius, 0, MAX_RADIUS);\n    if (r <= 1) { return pcf3x3_quadrant(shadowTexture, shadowSampler, uv, z, layer, texel); }\n\n    var sum = 0.0;\n    for (var j = -r; j <=  r; j = j + 1) {\n        for (var i = -r; i <=  r; i = i + 1) {\n            sum += textureSampleCompareLevel(shadowTexture, shadowSampler, uv + vec2<f32>(f32(i), f32(j)) * texel, layer, z);\n        }\n    }\n    let taps = f32((2 * r + 1) * (2 * r + 1));\n    return sum / taps;\n}";
 
@@ -5288,7 +5295,7 @@ class DeferredLightingPass extends RenderPass {
     if (!this.initialized) return;
     const camera = Camera.mainCamera;
     const scene = camera.gameObject.scene;
-    const _lights = [...scene.GetComponents(PointLight), ...scene.GetComponents(DirectionalLight), ...scene.GetComponents(SpotLight), ...scene.GetComponents(AreaLight)];
+    const _lights = scene.GetComponents(Light);
     let lights = [];
     for (const light of _lights) {
       if (light.enabled === false || light.gameObject.enabled === false) continue;
@@ -5399,15 +5406,20 @@ class TextureViewer extends RenderPass {
   }
 }
 
-class _DeferredShadowMapPassDebug {
+class _DeferredShadowMapPassSettings {
+  shadowWidth = 2048;
+  shadowHeight = 2048;
   shadowsUpdateValue = true;
   roundToPixelSizeValue = true;
   debugCascadesValue = false;
   pcfResolutionValue = 1;
   blendThresholdValue = 0.3;
   viewBlendThresholdValue = false;
+  numOfCascades = 4;
+  splitType = "practical";
+  splitTypePracticalLambda = 0.99;
 }
-const DeferredShadowMapPassDebug = new _DeferredShadowMapPassDebug();
+const DeferredShadowMapPassSettings = new _DeferredShadowMapPassSettings();
 class DeferredShadowMapPass extends RenderPass {
   name = "DeferredShadowMapPass";
   drawInstancedShadowShader;
@@ -5418,12 +5430,12 @@ class DeferredShadowMapPass extends RenderPass {
   modelMatrices;
   cascadeIndexBuffers = [];
   cascadeCurrentIndexBuffer;
-  numOfCascades = 4;
   lightShadowData = /* @__PURE__ */ new Map();
   shadowOutput;
-  shadowWidth = 2048;
-  shadowHeight = 2048;
   skinnedBoneMatricesBuffer;
+  // TODO: Clean this, csmSplits here to be used by debugger plugin
+  Settings = DeferredShadowMapPassSettings;
+  csmSplits = [0, 0, 0, 0];
   constructor() {
     super({
       inputs: [
@@ -5560,7 +5572,7 @@ class DeferredShadowMapPass extends RenderPass {
     });
     this.skinnedBoneMatricesBuffer = Buffer.Create(16 * 100 * 4, BufferType.STORAGE);
     this.drawSkinnedMeshShadowShader.SetBuffer("boneMatrices", this.skinnedBoneMatricesBuffer);
-    this.shadowOutput = DepthTextureArray.Create(this.shadowWidth, this.shadowHeight, 1);
+    this.shadowOutput = DepthTextureArray.Create(DeferredShadowMapPassSettings.shadowWidth, DeferredShadowMapPassSettings.shadowHeight, 1);
     this.initialized = true;
   }
   getCornersForCascade(camera, cascadeNear, cascadeFar) {
@@ -5581,18 +5593,36 @@ class DeferredShadowMapPass extends RenderPass {
     }
     return frustumCorners;
   }
-  getCascades(camera, cascadeCount, light) {
-    const CASCADE_PERCENTAGES = [0.05, 0.15, 0.5, 1];
-    const CASCADE_DISTANCES = [
-      CASCADE_PERCENTAGES[0] * camera.far,
-      CASCADE_PERCENTAGES[1] * camera.far,
-      CASCADE_PERCENTAGES[2] * camera.far,
-      CASCADE_PERCENTAGES[3] * camera.far
-    ];
+  uniformSplit(numOfCascades, near, far, target) {
+    for (let i = 1; i < numOfCascades; i++) target.push((near + (far - near) * i / numOfCascades) / far);
+    target.push(1);
+  }
+  logarithmicSplit(numOfCascades, near, far, target) {
+    for (let i = 1; i < numOfCascades; i++) target.push(near * (far / near) ** (i / numOfCascades) / far);
+    target.push(1);
+  }
+  practicalSplit(numOfCascades, near, far, lambda, target) {
+    const lerp = (x, y, t) => (1 - t) * x + t * y;
+    const _uniformArray = [];
+    const _logArray = [];
+    this.logarithmicSplit(numOfCascades, near, far, _logArray);
+    this.uniformSplit(numOfCascades, near, far, _uniformArray);
+    for (let i = 1; i < numOfCascades; i++) target.push(lerp(_uniformArray[i - 1], _logArray[i - 1], lambda));
+    target.push(1);
+  }
+  getCascadeSplits(cascadeCount, near, far) {
+    let CASCADE_DISTANCES = [];
+    if (DeferredShadowMapPassSettings.splitType === "uniform") this.uniformSplit(cascadeCount, near, far, CASCADE_DISTANCES);
+    if (DeferredShadowMapPassSettings.splitType === "log") this.logarithmicSplit(cascadeCount, near, far, CASCADE_DISTANCES);
+    if (DeferredShadowMapPassSettings.splitType === "practical") this.practicalSplit(cascadeCount, near, far, DeferredShadowMapPassSettings.splitTypePracticalLambda, CASCADE_DISTANCES);
+    for (let i = 0; i < cascadeCount; i++) CASCADE_DISTANCES[i] *= far;
+    return CASCADE_DISTANCES;
+  }
+  getCascades(cascadeSplits, camera, cascadeCount, light) {
     let cascades = [];
     for (let i = 0; i < cascadeCount; i++) {
-      const cascadeNear = i === 0 ? camera.near : CASCADE_DISTANCES[i - 1];
-      const cascadeFar = CASCADE_DISTANCES[i];
+      const cascadeNear = i === 0 ? camera.near : cascadeSplits[i - 1];
+      const cascadeFar = cascadeSplits[i];
       const frustumCorners = this.getCornersForCascade(camera, cascadeNear, cascadeFar);
       const frustumCenter = new Vector3(0, 0, 0);
       for (let i2 = 0; i2 < frustumCorners.length; i2++) {
@@ -5601,8 +5631,8 @@ class DeferredShadowMapPass extends RenderPass {
       frustumCenter.mul(1 / frustumCorners.length);
       const lightDirection = light.transform.position.clone().normalize();
       const radius = frustumCorners[0].clone().sub(frustumCorners[6]).length() / 2;
-      if (DeferredShadowMapPassDebug.roundToPixelSizeValue === true) {
-        const shadowMapSize = this.shadowWidth;
+      if (DeferredShadowMapPassSettings.roundToPixelSizeValue === true) {
+        const shadowMapSize = DeferredShadowMapPassSettings.shadowWidth;
         const texelsPerUnit = shadowMapSize / (radius * 2);
         const scalar = new Matrix4().makeScale(new Vector3(texelsPerUnit, texelsPerUnit, texelsPerUnit));
         const baseLookAt = new Vector3(-lightDirection.x, -lightDirection.y, -lightDirection.z);
@@ -5648,7 +5678,7 @@ class DeferredShadowMapPass extends RenderPass {
     }
     if (meshes.length === 0 && instancedMeshes.length === 0) return;
     if (lights.length !== this.shadowOutput.depth) {
-      this.shadowOutput = DepthTextureArray.Create(this.shadowWidth, this.shadowHeight, lights.length);
+      this.shadowOutput = DepthTextureArray.Create(DeferredShadowMapPassSettings.shadowWidth, DeferredShadowMapPassSettings.shadowHeight, lights.length);
     }
     RendererContext.BeginRenderPass(`ShadowPass - clear`, [], { target: this.shadowOutput, clear: true }, true);
     RendererContext.EndRenderPass();
@@ -5660,13 +5690,13 @@ class DeferredShadowMapPass extends RenderPass {
       this.drawInstancedShadowShader.SetBuffer("projectionMatrix", this.lightProjectionMatrixBuffer);
     }
     if (!this.lightProjectionViewMatricesBuffer || this.lightProjectionViewMatricesBuffer.size / 4 / 4 / 16 !== lights.length) {
-      this.lightProjectionViewMatricesBuffer = Buffer.Create(lights.length * this.numOfCascades * 4 * 16, BufferType.STORAGE);
+      this.lightProjectionViewMatricesBuffer = Buffer.Create(lights.length * DeferredShadowMapPassSettings.numOfCascades * 4 * 16, BufferType.STORAGE);
     }
     if (!this.cascadeCurrentIndexBuffer) {
       this.cascadeCurrentIndexBuffer = Buffer.Create(4, BufferType.STORAGE);
     }
     if (this.cascadeIndexBuffers.length === 0) {
-      for (let i = 0; i < this.numOfCascades; i++) {
+      for (let i = 0; i < DeferredShadowMapPassSettings.numOfCascades; i++) {
         const buffer = Buffer.Create(4, BufferType.STORAGE);
         buffer.SetArray(new Float32Array([i]));
         this.cascadeIndexBuffers.push(buffer);
@@ -5694,29 +5724,34 @@ class DeferredShadowMapPass extends RenderPass {
       EventSystemLocal.emit(TransformEvents.Updated, light.transform);
       let matricesForLight = [];
       let splits = [0, 0, 0, 0];
+      let numOfCascades = 0;
       if (light instanceof DirectionalLight) {
-        const cascades = this.getCascades(Camera.mainCamera, this.numOfCascades, light);
+        const camera = Camera.mainCamera;
+        numOfCascades = DeferredShadowMapPassSettings.numOfCascades;
+        const cascadeSplits = this.getCascadeSplits(numOfCascades, camera.near, camera.far);
+        this.csmSplits = cascadeSplits;
+        const cascades = this.getCascades(cascadeSplits, camera, numOfCascades, light);
         matricesForLight = cascades.map((c) => c.viewProjMatrix);
         splits = cascades.map((c) => c.splitDepth);
-        this.numOfCascades;
       } else if (light instanceof SpotLight) {
         const vp = light.camera.projectionMatrix.clone().mul(light.camera.viewMatrix);
         matricesForLight = [vp, vp, vp, vp];
         splits = [0, 0, 0, 0];
+        numOfCascades = 1;
       } else {
         shadowMapIndex++;
         continue;
       }
       const ld = new Float32Array(matricesForLight.flatMap((m) => [...m.elements]));
-      this.lightProjectionViewMatricesBuffer.SetArray(ld, i * this.numOfCascades * 4 * 16);
+      this.lightProjectionViewMatricesBuffer.SetArray(ld, i * numOfCascades * 4 * 16);
       this.lightShadowData.set(light.id, {
         cascadeSplits: new Float32Array(splits),
         projectionMatrices: ld,
         shadowMapIndex
         // <— this layer holds this light’s shadow
       });
-      RendererContext.CopyBufferToBuffer(this.lightProjectionViewMatricesBuffer, this.lightProjectionMatrixBuffer, i * this.numOfCascades * 4 * 16, 0, this.numOfCascades * 4 * 16);
-      for (let cascadePass = 0; cascadePass < this.numOfCascades; cascadePass++) {
+      RendererContext.CopyBufferToBuffer(this.lightProjectionViewMatricesBuffer, this.lightProjectionMatrixBuffer, i * numOfCascades * 4 * 16, 0, numOfCascades * 4 * 16);
+      for (let cascadePass = 0; cascadePass < numOfCascades; cascadePass++) {
         RendererContext.CopyBufferToBuffer(this.cascadeIndexBuffers[cascadePass], this.cascadeCurrentIndexBuffer);
         RendererContext.BeginRenderPass("ShadowPass", [], { target: shadowOutput, clear: cascadePass === 0 ? true : false }, true);
         if (light instanceof DirectionalLight) {
@@ -5828,10 +5863,10 @@ class PrepareGBuffers extends RenderPass {
       // +Renderer.info.useHeightMapValue,
       0,
       // Debugger.heightScale,
-      +DeferredShadowMapPassDebug.debugCascadesValue,
-      DeferredShadowMapPassDebug.pcfResolutionValue,
-      DeferredShadowMapPassDebug.blendThresholdValue,
-      +DeferredShadowMapPassDebug.viewBlendThresholdValue,
+      +DeferredShadowMapPassSettings.debugCascadesValue,
+      DeferredShadowMapPassSettings.pcfResolutionValue,
+      DeferredShadowMapPassSettings.blendThresholdValue,
+      +DeferredShadowMapPassSettings.viewBlendThresholdValue,
       ...Camera.mainCamera.transform.position.elements,
       0,
       0,
@@ -5875,11 +5910,11 @@ class DeferredGBufferPass extends RenderPass {
   execute(resources) {
     if (!this.initialized) return;
     const scene = Camera.mainCamera.gameObject.scene;
-    const _meshes = [...scene.GetComponents(Mesh), ...scene.GetComponents(SkinnedMesh)];
+    const _meshes = scene.GetComponents(Mesh);
     let meshesInfo = [];
     for (let i = 0; i < _meshes.length; i++) {
       const mesh = _meshes[i];
-      if (!mesh.enabled || !mesh.gameObject.enabled || !mesh.geometry || !mesh.material) continue;
+      if (!mesh.enabled || !mesh.gameObject.enabled || !mesh.geometry || !mesh.material || mesh instanceof InstancedMesh) continue;
       meshesInfo.push({ mesh, index: i });
     }
     Renderer.info.visibleObjects = meshesInfo.length;
@@ -6075,6 +6110,7 @@ class RenderingPipeline {
   set skyboxBRDFLUT(skyboxBRDFLUT) {
     this.prepareGBuffersPass.skyboxBRDFLUT = skyboxBRDFLUT;
   }
+  DeferredShadowMapPass = new DeferredShadowMapPass();
   constructor(renderer) {
     this.renderer = renderer;
     this.prepareGBuffersPass = new PrepareGBuffers();
@@ -6084,7 +6120,7 @@ class RenderingPipeline {
     ];
     this.afterGBufferPasses = [
       new DeferredGBufferPass(),
-      new DeferredShadowMapPass()
+      this.DeferredShadowMapPass
     ];
     this.beforeLightingPasses = [];
     this.afterLightingPasses = [
@@ -6137,6 +6173,13 @@ class RenderingPipeline {
   }
 }
 
+function getCtorChain(ctor) {
+  const chain = [];
+  for (let c = ctor; c && c !== Component; c = Object.getPrototypeOf(c)) {
+    chain.push(c);
+  }
+  return chain;
+}
 class Scene {
   static Events = {
     OnStarted: (scene) => {
@@ -6162,17 +6205,19 @@ class Scene {
     });
     EventSystem.on(ComponentEvents.AddedComponent, (component, scene) => {
       if (scene !== this) return;
-      let componentsArray = this.componentsByType.get(component.name) || [];
-      componentsArray.push(component);
-      this.componentsByType.set(component.name, componentsArray);
+      for (const ctor of getCtorChain(component.constructor)) {
+        let arr = this.componentsByType.get(ctor);
+        if (!arr) this.componentsByType.set(ctor, arr = []);
+        if (!arr.includes(component)) arr.push(component);
+      }
     });
     EventSystem.on(ComponentEvents.RemovedComponent, (component, scene) => {
-      let componentsArray = this.componentsByType.get(component.name);
-      if (componentsArray) {
-        const index = componentsArray.indexOf(component);
-        if (index !== -1) {
-          componentsArray.splice(index, 1);
-          this.componentsByType.set(component.name, componentsArray);
+      if (scene !== this) return;
+      for (const ctor of getCtorChain(component.constructor)) {
+        const arr = this.componentsByType.get(ctor);
+        if (arr) {
+          const i = arr.indexOf(component);
+          if (i >= 0) arr.splice(i, 1);
         }
       }
     });
@@ -6183,20 +6228,19 @@ class Scene {
   GetGameObjects() {
     return this.gameObjects;
   }
-  GetComponents(type) {
-    return this.componentsByType.get(type.name) || [];
+  GetComponents(Ctor) {
+    return this.componentsByType.get(Ctor) ?? [];
   }
   RemoveGameObject(gameObject) {
-    const index = this.gameObjects.indexOf(gameObject);
-    if (index !== -1) this.gameObjects.splice(index, 1);
+    const i = this.gameObjects.indexOf(gameObject);
+    if (i !== -1) this.gameObjects.splice(i, 1);
     for (const component of gameObject.GetComponents()) {
-      let componentsArray = this.componentsByType.get(component.name);
-      if (componentsArray) {
-        const index2 = componentsArray.indexOf(component);
-        if (index2 !== -1) {
-          componentsArray.splice(index2, 1);
-          this.componentsByType.set(component.name, componentsArray);
-        }
+      for (const ctor of getCtorChain(component.constructor)) {
+        const arr = this.componentsByType.get(ctor);
+        if (!arr) continue;
+        const j = arr.indexOf(component);
+        if (j !== -1) arr.splice(j, 1);
+        if (arr.length === 0) this.componentsByType.delete(ctor);
       }
     }
   }
