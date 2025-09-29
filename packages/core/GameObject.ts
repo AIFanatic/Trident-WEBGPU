@@ -4,15 +4,24 @@ import { Transform } from "./components/Transform";
 import { Camera } from "./components/Camera";
 import { UUID } from "./utils";
 
+function getCtorChain(ctor: Function): Function[] {
+    const chain: Function[] = [];
+    for (let c: any = ctor; c && c !== Component; c = Object.getPrototypeOf(c)) {
+        chain.push(c);
+    }
+    return chain;
+}
+
 export class GameObject {
     public id = UUID();
     public name: string = "GameObject";
     public scene: Scene;
 
     public transform: Transform;
-    
-    private componentsArray: Component[] = [];
-    private componentsMapped: Map<string, Component[]> = new Map();
+
+    private componentsByCtor = new Map<Function, Component[]>();   // ctor -> instances (incl. subclasses)
+    private allComponents: Component[] = [];
+
 
     public enabled: boolean = true;
 
@@ -22,54 +31,43 @@ export class GameObject {
         this.scene.AddGameObject(this);
     }
 
-    public AddComponent<T extends Component>(component: new(...args: any[]) => T): T {
-        try {
-            let componentInstance = new component(this);
-            if (!(componentInstance instanceof Component)) throw Error("Invalid component");
-            if (componentInstance instanceof Transform) throw Error("A GameObject can only have one Transform");
-            
-            const AddComponentInternal = (component: new(...args: any[]) => T, instance: Component) => {
-                if (!this.componentsMapped.has(component.name)) this.componentsMapped.set(component.name, []);
-                this.componentsMapped.get(component.name)?.push(instance);
-                this.componentsArray.push(instance);
-            }
-            
-            AddComponentInternal(component, componentInstance);
+    public AddComponent<T extends Component>(Ctor: new (go: GameObject, ...args: any[]) => T, ...args: any[]): T {
+        const componentInstance = new Ctor(this, ...args);
+        if (!(componentInstance instanceof Component)) throw new Error("Invalid component");
+        if (componentInstance instanceof Transform && this.GetComponent(Transform)) throw new Error("A GameObject can only have one Transform");
 
-            // let currentComponent = component;
-            // let i = 0
-            // while (i < 10) {
-            //     currentComponent = Object.getPrototypeOf(currentComponent);
-            //     if (currentComponent.name === Component.name || currentComponent.name === "") {
-            //         break;
-            //     }
-            //     AddComponentInternal(currentComponent, componentInstance);
-            //     i++;
-            // }
+        this.allComponents.push(componentInstance);
 
-            if (componentInstance instanceof Camera && !Camera.mainCamera) Camera.mainCamera = componentInstance;
-
-            if (this.scene.hasStarted) componentInstance.Start();
-
-            return componentInstance;
-        } catch (error) {
-            throw Error(`Error creating component` + error);
+        for (const ctor of getCtorChain((componentInstance as any).constructor)) {
+            let arr = this.componentsByCtor.get(ctor);
+            if (!arr) this.componentsByCtor.set(ctor, arr = []);
+            if (!arr.includes(componentInstance)) arr.push(componentInstance); // no dupes
         }
+
+        if (componentInstance instanceof Camera && !Camera.mainCamera) Camera.mainCamera = componentInstance;
+        if (this.scene.hasStarted && (componentInstance as any).Start) (componentInstance as any).Start();
+        return componentInstance;
     }
 
-    public GetComponent<T extends Component>(type: new(...args: any[]) => T): T | null {
-        const components = this.GetComponents(type);
-        if (components.length > 0) return components[0];
-        return null;
+    public GetComponent<T extends Component>(Ctor: new (...a: any[]) => T): T | null {
+        const arr = this.componentsByCtor.get(Ctor);
+        return (arr && arr.length) ? (arr[0] as T) : null;
     }
 
-    public GetComponents<T extends Component>(type?: new(...args: any[]) => T): T[] {
-        if (!type) return this.componentsArray as T[];
-        return this.componentsMapped.get(type.name) as T[] || [];
+    public GetComponents<T extends Component>(Ctor?: new (...a: any[]) => T): T[] {
+        if (!Ctor) return this.allComponents as T[];                 // everything
+        return (this.componentsByCtor.get(Ctor) as T[] | undefined) ?? [];
     }
+
+    // Optional: only the exact type (no subclasses), still cheap (O(k) where k = matches for Ctor)
+    public GetComponentsExact<T extends Component>(Ctor: new (...a: any[]) => T): T[] {
+        const arr = this.componentsByCtor.get(Ctor);
+        return arr ? (arr.filter(c => (c as any).constructor === Ctor) as T[]) : [];
+    }
+
 
     public Start() {
-        for (const component of this.componentsArray) {
+        for (const component of this.allComponents) {
             if (!component.hasStarted) {
                 component.Start();
                 component.hasStarted = true;
@@ -78,21 +76,21 @@ export class GameObject {
     }
 
     public Destroy() {
-        for (const component of this.componentsArray) {
+        for (const component of this.allComponents) {
             component.Destroy();
         }
         this.scene.RemoveGameObject(this);
     }
 
-    public Serialize(): {name: string, components: Object[], transform: Object} {
+    public Serialize(): { name: string, components: Object[], transform: Object } {
         return {
             name: this.name,
             transform: this.transform.Serialize(),
-            components: this.componentsArray.map(c => c.Serialize())
+            components: this.allComponents.map(c => c.Serialize())
         };
     }
 
-    public Deserialize(data: {name: string, components: SerializedComponent[], transform: Object}) {
+    public Deserialize(data: { name: string, components: SerializedComponent[], transform: Object }) {
         this.name = data.name;
         this.transform.Deserialize(data.transform);
 
@@ -102,7 +100,6 @@ export class GameObject {
             const component = data.components[i];
             const componentClass = Component.Registry.get(component.type);
             if (!componentClass) throw Error(`Component ${component.type} not found in component registry.`);
-            console.log(componentClass)
             const instance = this.AddComponent(componentClass);
             componentInstances.push(instance);
         }

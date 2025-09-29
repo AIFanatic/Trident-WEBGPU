@@ -40,8 +40,8 @@ async function Application(canvas: HTMLCanvasElement) {
     const sphereGO = new GameObject(scene);
     sphereGO.transform.position.y = 5;
     const sphereMesh = sphereGO.AddComponent(Components.Mesh);
-    await sphereMesh.SetGeometry(Geometry.Sphere());
-    sphereMesh.AddMaterial(new PBRMaterial({albedoColor: new Mathf.Color(1, 0, 0, 1)}));
+    sphereMesh.geometry = Geometry.Sphere();
+    sphereMesh.material = new PBRMaterial({albedoColor: new Mathf.Color(1, 0, 0, 1)});
     sphereGO.AddComponent(SphereCollider);
     const sphereRigidbody = sphereGO.AddComponent(RigidBody);
     sphereRigidbody.Create("dynamic");
@@ -50,8 +50,8 @@ async function Application(canvas: HTMLCanvasElement) {
     floor.transform.eulerAngles.x = -90;
     floor.transform.scale.set(10, 10, 0.01);
     const floorMesh = floor.AddComponent(Components.Mesh);
-    await floorMesh.SetGeometry(Geometry.Plane());
-    floorMesh.AddMaterial(new PBRMaterial());
+    floorMesh.geometry = Geometry.Plane();
+    floorMesh.material = new PBRMaterial();
     floor.AddComponent(PlaneCollider);
     const floorRigidbody = floor.AddComponent(RigidBody);
     floorRigidbody.Create("fixed");

@@ -72,8 +72,8 @@ async function Application(canvas: HTMLCanvasElement) {
         terrain.heights,
         terrainGameObject.transform.scale
     );
-    terrainMesh.SetGeometry(terrain.geometry);
-    terrainMesh.AddMaterial(material);
+    terrainMesh.geometry = terrain.geometry;
+    terrainMesh.material = material;
 
     const playerGameObject = new GameObject(scene);
     playerGameObject.transform.position.y = 100;

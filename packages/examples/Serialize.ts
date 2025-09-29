@@ -12,7 +12,7 @@ async function Application(canvas: HTMLCanvasElement) {
     mainCameraGameObject.transform.position.set(0,0,-15);
     mainCameraGameObject.name = "MainCamera";
     const camera = mainCameraGameObject.AddComponent(Components.Camera);
-    camera.SetPerspective(72, canvas.width / canvas.height, 0.01, 100);
+    camera.SetPerspective(72, canvas.width / canvas.height, 0.01, 10000);
 
 
     mainCameraGameObject.transform.position.set(0, 0, 10);
@@ -46,7 +46,6 @@ async function Application(canvas: HTMLCanvasElement) {
 
     const serialized = JSON.stringify(scene.Serialize());
     // console.log(scene.Serialize());
-    console.log(serialized)
 
     const scene2 = new Scene(renderer);
     scene2.Deserialize(JSON.parse(serialized));
@@ -56,6 +55,7 @@ async function Application(canvas: HTMLCanvasElement) {
 
     scene2.Start();
 
+    
 
 
 

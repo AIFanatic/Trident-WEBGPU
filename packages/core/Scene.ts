@@ -6,9 +6,18 @@ import { Renderer } from "./renderer/Renderer";
 import { RenderingPipeline } from "./renderer/RenderingPipeline";
 import { UUID } from "./utils";
 
+function getCtorChain(ctor: Function): Function[] {
+    const chain: Function[] = [];
+    for (let c: any = ctor; c && c !== Component; c = Object.getPrototypeOf(c)) {
+        chain.push(c);
+    }
+    return chain;
+}
+
+
 export class Scene {
     public static Events = {
-        OnStarted: (scene: Scene) => {}
+        OnStarted: (scene: Scene) => { }
     }
     public readonly renderer: Renderer;
     public name: string = "Default scene"
@@ -18,7 +27,7 @@ export class Scene {
 
     private gameObjects: GameObject[] = [];
     private toUpdate: Map<Component, boolean> = new Map();
-    private componentsByType: Map<string, Component[]> = new Map();
+    private componentsByType: Map<Function, Component[]> = new Map();
 
     public readonly renderPipeline: RenderingPipeline;
 
@@ -32,41 +41,22 @@ export class Scene {
             else this.toUpdate.delete(component);
         });
 
-        EventSystem.on(ComponentEvents.AddedComponent, (component, scene) => {
+        EventSystem.on(ComponentEvents.AddedComponent, (component: Component, scene: Scene) => {
             if (scene !== this) return;
-            
-            let componentsArray = this.componentsByType.get(component.name) || [];
-            componentsArray.push(component);
-            this.componentsByType.set(component.name, componentsArray);
-
-            
-            // let i =0;
-            // while (component) {
-            //     if (!this.componentsByType.has(component.name)) this.componentsByType.set(component.name, []);
-            //     this.componentsByType.get(component.name)?.push(component);
-                
-            //     console.log(component.name, Component.name)
-            //     component = Object.getPrototypeOf(component.constructor);
-            //     console.log(component.name, Component.name)
-            //     console.log("proto", component)
-            //     if (component.name === Component.name) break;
-            //     if (component.name === "") break;
-
-            //     if (i === 100) {
-            //         alert("HEREEE")
-            //         break;
-            //     }
-            //     i++;
-            // }
+            for (const ctor of getCtorChain((component as any).constructor)) {
+                let arr = this.componentsByType.get(ctor);
+                if (!arr) this.componentsByType.set(ctor, arr = []);
+                if (!arr.includes(component)) arr.push(component); // no dupes
+            }
         });
 
-        EventSystem.on(ComponentEvents.RemovedComponent, (component, scene) => {
-            let componentsArray = this.componentsByType.get(component.name);
-            if (componentsArray) {
-                const index = componentsArray.indexOf(component);
-                if (index !== -1) {
-                    componentsArray.splice(index, 1);
-                    this.componentsByType.set(component.name, componentsArray);
+        EventSystem.on(ComponentEvents.RemovedComponent, (component: Component, scene: Scene) => {
+            if (scene !== this) return;
+            for (const ctor of getCtorChain((component as any).constructor)) {
+                const arr = this.componentsByType.get(ctor);
+                if (arr) {
+                    const i = arr.indexOf(component);
+                    if (i >= 0) arr.splice(i, 1);
                 }
             }
         });
@@ -74,23 +64,24 @@ export class Scene {
 
     public AddGameObject(gameObject: GameObject) { this.gameObjects.push(gameObject) }
     public GetGameObjects(): GameObject[] { return this.gameObjects }
-    public GetComponents<T extends Component>(type: new(...args: any[]) => T): T[] { return this.componentsByType.get(type.name) as T[] || [] }
+    public GetComponents<T extends Component>(Ctor: new (...a: any[]) => T): T[] { return (this.componentsByType.get(Ctor) as T[] | undefined) ?? [] }
     public RemoveGameObject(gameObject: GameObject) {
-        const index = this.gameObjects.indexOf(gameObject);
-        if (index !== -1) this.gameObjects.splice(index, 1);
+        const i = this.gameObjects.indexOf(gameObject);
+        if (i !== -1) this.gameObjects.splice(i, 1);
 
         for (const component of gameObject.GetComponents()) {
-            let componentsArray = this.componentsByType.get(component.name);
-            if (componentsArray) {
-                const index = componentsArray.indexOf(component);
-                if (index !== -1) {
-                    componentsArray.splice(index, 1);
-                    this.componentsByType.set(component.name, componentsArray);
-                }
+            for (const ctor of getCtorChain((component as any).constructor)) {
+                const arr = this.componentsByType.get(ctor);
+                if (!arr) continue;
+
+                const j = arr.indexOf(component);
+                if (j !== -1) arr.splice(j, 1);
+                if (arr.length === 0) this.componentsByType.delete(ctor);
             }
         }
     }
-    
+
+
     public Start() {
         if (this.hasStarted) return;
         for (const gameObject of this.gameObjects) gameObject.Start();
@@ -123,15 +114,15 @@ export class Scene {
         requestAnimationFrame(() => this.Tick());
     }
 
-    public Serialize(): {name: string, mainCamera: string, gameObjects: {components: SerializedComponent[], transform: Object}[]} {
-        let serializedScene = {name: this.name, mainCamera: Camera.mainCamera.id, gameObjects: []};
+    public Serialize(): { name: string, mainCamera: string, gameObjects: { components: SerializedComponent[], transform: Object }[] } {
+        let serializedScene = { name: this.name, mainCamera: Camera.mainCamera.id, gameObjects: [] };
         for (const gameObject of this.gameObjects) {
             serializedScene.gameObjects.push(gameObject.Serialize());
         }
         return serializedScene;
     }
 
-    public Deserialize(data: {name: string, mainCamera: string, gameObjects: {components: SerializedComponent[], transform: Object}[]}) {
+    public Deserialize(data: { name: string, mainCamera: string, gameObjects: { components: SerializedComponent[], transform: Object }[] }) {
         for (const serializedGameObject of data.gameObjects) {
             const gameObject = new GameObject(this);
             gameObject.Deserialize(serializedGameObject);

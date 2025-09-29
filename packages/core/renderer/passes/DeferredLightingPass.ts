@@ -222,7 +222,7 @@ export class DeferredLightingPass extends RenderPass {
 
         
         const scene = camera.gameObject.scene;
-        const _lights = [...scene.GetComponents(PointLight), ...scene.GetComponents(DirectionalLight), ...scene.GetComponents(SpotLight), ...scene.GetComponents(AreaLight)];
+        const _lights = scene.GetComponents(Light);
         let lights: Light[] = [];
         for (const light of _lights) {
             if (light.enabled === false || light.gameObject.enabled === false) continue;

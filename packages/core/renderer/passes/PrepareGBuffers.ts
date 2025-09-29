@@ -4,7 +4,7 @@ import { PassParams } from "../RenderingPipeline";
 import { Renderer, RendererEvents } from "../Renderer";
 import { RenderTarget, RendererContext } from "../RendererContext";
 import { Camera } from "../../components/Camera";
-import { DeferredShadowMapPassDebug } from "./DeferredShadowMapPass";
+import { DeferredShadowMapPassSettings } from "./DeferredShadowMapPass";
 import { EventSystem } from "../../Events";
 
 export class PrepareGBuffers extends RenderPass {
@@ -91,10 +91,10 @@ export class PrepareGBuffers extends RenderPass {
             0, // +Renderer.info.useHeightMapValue,
             0, // Debugger.heightScale,
             
-            +DeferredShadowMapPassDebug.debugCascadesValue,
-            DeferredShadowMapPassDebug.pcfResolutionValue,
-            DeferredShadowMapPassDebug.blendThresholdValue,
-            +DeferredShadowMapPassDebug.viewBlendThresholdValue,
+            +DeferredShadowMapPassSettings.debugCascadesValue,
+            DeferredShadowMapPassSettings.pcfResolutionValue,
+            DeferredShadowMapPassSettings.blendThresholdValue,
+            +DeferredShadowMapPassSettings.viewBlendThresholdValue,
 
             ...Camera.mainCamera.transform.position.elements, 0,
             0, 0

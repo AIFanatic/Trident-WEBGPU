@@ -2,15 +2,6 @@
 #include "@trident/core/resources/webgpu/shaders/deferred/LightStruct.wgsl";
 #include "@trident/core/resources/webgpu/shaders/deferred/ShadowUtils.wgsl";
 
-fn selectCascade(depthValue: f32, splits: vec4<f32>) -> i32 {
-    // count how many splits we have passed (0..3)
-    var layer = 0;
-    layer += select(0, 1, depthValue >= splits.x);
-    layer += select(0, 1, depthValue >= splits.y);
-    layer += select(0, 1, depthValue >= splits.z);
-    return clamp(layer, 0, numCascades - 1);
-}
-
 fn csmMatrix(light: Light, idx: i32) -> mat4x4<f32> {
     if (idx == 0) { return light.csmProjectionMatrix0; }
     if (idx == 1) { return light.csmProjectionMatrix1; }
@@ -19,7 +10,12 @@ fn csmMatrix(light: Light, idx: i32) -> mat4x4<f32> {
 }
 
 fn ShadowLayerSelection(depthValue: f32, light: Light) -> i32 {
-    return selectCascade(depthValue, light.cascadeSplits);
+    // count how many splits we have passed (0..3)
+    var layer = 0;
+    layer += select(0, 1, depthValue >= light.cascadeSplits.x);
+    layer += select(0, 1, depthValue >= light.cascadeSplits.y);
+    layer += select(0, 1, depthValue >= light.cascadeSplits.z);
+    return clamp(layer, 0, numCascades - 1);
 }
 
 // NDC -> UV, then remap into the 2×2 quadrant atlas inside ONE array layer.

@@ -240,7 +240,8 @@ fn fragmentMain(input: VertexOutput) -> @location(0) vec4<f32> {
 
     // Early sky-out WITH explicit grads (safe mip selection)
     if (depth >= 0.9999999) {
-        var sky = textureSampleGrad(skyboxTexture, textureSampler, worldRay, dWRdx, dWRdy).rgb;
+        // var sky = textureSampleGrad(skyboxTexture, textureSampler, worldRay, dWRdx, dWRdy).rgb;
+        var sky = textureSampleLevel(skyboxTexture, textureSampler, worldRay, 0.0).rgb; // textureSampleGrad with a cubemap doesn't work on firefox
         sky = toneMapping(sky);
         sky = pow(sky, vec3f(1.0 / 2.2));  // omit if writing to *-srgb
         return vec4f(sky, 1.0);
@@ -347,8 +348,7 @@ fn fragmentMain(input: VertexOutput) -> @location(0) vec4<f32> {
             var shadow = 1.0;
             let castShadows = light.params1.z > 0.5;
             // if (castShadows) {
-            //     // see section 2 for a cubemap version
-            //     shadow = SamplePointShadow(surface, light, i);  // implement below
+            //     shadow = SamplePointShadow(surface, light, i);
             // }
 
             lo += shadow * PointLightRadiance(p, surface);
@@ -371,11 +371,6 @@ fn fragmentMain(input: VertexOutput) -> @location(0) vec4<f32> {
     let ambient = (kD * diffuse + specular) * surface.occlusion;
 
     var color = ambient + lo + surface.emissive;
-
-    // if (u32(settings.debugShadowCascades) == 0) {
-    //     color += debug_cascadeColors[selectedCascade].rgb * 0.05;
-    // }
-
     color = toneMapping(color);
     color = pow(color, vec3f(1.0 / 2.2));
 

@@ -25,9 +25,6 @@ async function Application(canvas: HTMLCanvasElement) {
     lightGameObject.transform.LookAtV1(new Mathf.Vector3(0, 0, 0));
     const light = lightGameObject.AddComponent(Components.DirectionalLight);
 
-    {
-        const gameObjects = await GLTFLoader.loadAsGameObjects(scene, "./assets/models/DamagedHelmet/DamagedHelmet.gltf");
-    }
     const gameObjects = await GLTFLoader.loadAsGameObjects(scene, "./assets/models/Fox.glb");
     const root = gameObjects[0]
     root.transform.scale.mul(0.01);
@@ -35,7 +32,7 @@ async function Application(canvas: HTMLCanvasElement) {
     const animator = root.GetComponent(Components.Animator);
     animator.SetClipByIndex(0);
 
-    Debugger.Enable();
+    // Debugger.Enable();
 
     scene.Start();
 };

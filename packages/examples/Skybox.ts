@@ -82,6 +82,13 @@ async function Application(canvas: HTMLCanvasElement) {
         w = waterSettingsFolder;
     }
 
+    {
+        const lightGameObject = new GameObject(scene);
+        lightGameObject.transform.position.set(-4, 4, 4);
+        lightGameObject.transform.LookAtV1(new Mathf.Vector3(0, 0, 0));
+        const light = lightGameObject.AddComponent(Components.DirectionalLight);
+    }
+
     // {
     //     const lightGameObject = new GameObject(scene);
     //     lightGameObject.transform.position.set(1, 1, 1);

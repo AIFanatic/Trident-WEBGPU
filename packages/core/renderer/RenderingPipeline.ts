@@ -72,6 +72,8 @@ export class RenderingPipeline {
     public get skyboxBRDFLUT(): RenderTexture { return this.prepareGBuffersPass.skyboxBRDFLUT};
     public set skyboxBRDFLUT(skyboxBRDFLUT: RenderTexture) { this.prepareGBuffersPass.skyboxBRDFLUT = skyboxBRDFLUT};
 
+    public readonly DeferredShadowMapPass = new DeferredShadowMapPass();
+
     constructor(renderer: Renderer) {
         this.renderer = renderer;
 
@@ -84,7 +86,7 @@ export class RenderingPipeline {
         
         this.afterGBufferPasses = [
             new DeferredGBufferPass(),
-            new DeferredShadowMapPass(),
+            this.DeferredShadowMapPass,
         ];
 
         this.beforeLightingPasses = [];

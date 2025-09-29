@@ -26,16 +26,21 @@ interface Cascade {
     viewProjMatrix: Matrix4;
 }
 
-class _DeferredShadowMapPassDebug {
+class _DeferredShadowMapPassSettings {
+    public shadowWidth = 2048;
+    public shadowHeight = 2048;
     public shadowsUpdateValue = true;
     public roundToPixelSizeValue = true;
     public debugCascadesValue = false;
     public pcfResolutionValue: number = 1;
     public blendThresholdValue: number = 0.3;
     public viewBlendThresholdValue = false;
+    public numOfCascades: number = 4;
+    public splitType: "uniform" | "log" | "practical" = "practical";
+    public splitTypePracticalLambda: number = 0.99;
 }
 
-export const DeferredShadowMapPassDebug = new _DeferredShadowMapPassDebug();
+export const DeferredShadowMapPassSettings = new _DeferredShadowMapPassSettings();
 
 export class DeferredShadowMapPass extends RenderPass {
     public name: string = "DeferredShadowMapPass";
@@ -51,15 +56,15 @@ export class DeferredShadowMapPass extends RenderPass {
     private cascadeIndexBuffers: Buffer[] = [];
     private cascadeCurrentIndexBuffer: Buffer;
 
-    private numOfCascades = 4;
-
     private lightShadowData: Map<string, LightShadowData> = new Map();
 
     private shadowOutput: DepthTextureArray;
-    private shadowWidth = 2048;
-    private shadowHeight = 2048;
 
     private skinnedBoneMatricesBuffer: Buffer;
+
+    // TODO: Clean this, csmSplits here to be used by debugger plugin
+    public readonly Settings = DeferredShadowMapPassSettings;
+    public csmSplits: number[] = [0, 0, 0, 0];
 
     constructor() {
         super({
@@ -203,7 +208,7 @@ export class DeferredShadowMapPass extends RenderPass {
         this.skinnedBoneMatricesBuffer = Buffer.Create(16 * 100 * 4, BufferType.STORAGE);
         this.drawSkinnedMeshShadowShader.SetBuffer("boneMatrices", this.skinnedBoneMatricesBuffer);
 
-        this.shadowOutput = DepthTextureArray.Create(this.shadowWidth, this.shadowHeight, 1);
+        this.shadowOutput = DepthTextureArray.Create(DeferredShadowMapPassSettings.shadowWidth, DeferredShadowMapPassSettings.shadowHeight, 1);
 
         this.initialized = true;
     }
@@ -231,25 +236,45 @@ export class DeferredShadowMapPass extends RenderPass {
         return frustumCorners;
     }
 
-    private getCascades(camera: Camera, cascadeCount: number, light: Light): Cascade[] {
-        const CASCADE_PERCENTAGES: number[] = [0.05, 0.15, 0.5, 1];
-        const CASCADE_DISTANCES: number[] = [
-            CASCADE_PERCENTAGES[0] * camera.far,
-            CASCADE_PERCENTAGES[1] * camera.far,
-            CASCADE_PERCENTAGES[2] * camera.far,
-            CASCADE_PERCENTAGES[3] * camera.far,
-        ];
+    private uniformSplit( numOfCascades: number, near: number, far: number, target: number[] ) {
+        for ( let i = 1; i < numOfCascades; i ++ ) target.push( ( near + ( far - near ) * i / numOfCascades ) / far );
+        target.push( 1 );
+    }
 
-        // console.log(CASCADE_DISTANCES)
+    private logarithmicSplit( numOfCascades: number, near: number, far: number, target: number[] ) {
+        for ( let i = 1; i < numOfCascades; i ++ ) target.push( ( near * ( far / near ) ** ( i / numOfCascades ) ) / far );
+        target.push( 1 );
+    }
 
-        // const CASCADE_DISTANCES: number[] = [20, 80, 400, 1000];
+    private practicalSplit( numOfCascades: number, near: number, far: number, lambda: number, target: number[] ) {
+        const lerp = ( x: number, y: number, t: number ) => ( 1 - t ) * x + t * y;
 
+        const _uniformArray = [];
+        const _logArray = [];
+        this.logarithmicSplit( numOfCascades, near, far, _logArray );
+        this.uniformSplit( numOfCascades, near, far, _uniformArray );
+
+        for ( let i = 1; i < numOfCascades; i ++ ) target.push( lerp( _uniformArray[ i - 1 ], _logArray[ i - 1 ], lambda ) );
+        target.push( 1 );
+    }
+
+    private getCascadeSplits(cascadeCount: number, near: number, far: number): number[] {
+        let CASCADE_DISTANCES: number[] = [];
+        if (DeferredShadowMapPassSettings.splitType === "uniform") this.uniformSplit(cascadeCount, near, far, CASCADE_DISTANCES);
+        if (DeferredShadowMapPassSettings.splitType === "log") this.logarithmicSplit(cascadeCount, near, far, CASCADE_DISTANCES);
+        if (DeferredShadowMapPassSettings.splitType === "practical") this.practicalSplit(cascadeCount, near, far, DeferredShadowMapPassSettings.splitTypePracticalLambda, CASCADE_DISTANCES);
+        for (let i = 0; i < cascadeCount; i++) CASCADE_DISTANCES[i] *= far; // TODO: Shouldn't have to do this
+
+        return CASCADE_DISTANCES;
+    }
+
+    private getCascades(cascadeSplits: number[], camera: Camera, cascadeCount: number, light: Light): Cascade[] {
         let cascades: Cascade[] = [];
 
         for (let i = 0; i < cascadeCount; i++) {
 
-            const cascadeNear = i === 0 ? camera.near : CASCADE_DISTANCES[i - 1];
-            const cascadeFar = CASCADE_DISTANCES[i];
+            const cascadeNear = i === 0 ? camera.near : cascadeSplits[i - 1];
+            const cascadeFar = cascadeSplits[i];
             const frustumCorners = this.getCornersForCascade(camera, cascadeNear, cascadeFar);
             const frustumCenter = new Vector3(0, 0, 0);
 
@@ -263,8 +288,8 @@ export class DeferredShadowMapPass extends RenderPass {
             // const lightDirection = new Vector3().applyMatrix4(light.camera.viewMatrix).normalize();
 
             const radius = frustumCorners[0].clone().sub(frustumCorners[6]).length() / 2;
-            if (DeferredShadowMapPassDebug.roundToPixelSizeValue === true) {
-                const shadowMapSize = this.shadowWidth;
+            if (DeferredShadowMapPassSettings.roundToPixelSizeValue === true) {
+                const shadowMapSize = DeferredShadowMapPassSettings.shadowWidth;
                 const texelsPerUnit = shadowMapSize / (radius * 2.0);
                 const scalar = new Matrix4().makeScale(new Vector3(texelsPerUnit, texelsPerUnit, texelsPerUnit));
                 const baseLookAt = new Vector3(-lightDirection.x, -lightDirection.y, -lightDirection.z);
@@ -334,7 +359,7 @@ export class DeferredShadowMapPass extends RenderPass {
 
         // Lights
         if (lights.length !== this.shadowOutput.depth) {
-            this.shadowOutput = DepthTextureArray.Create(this.shadowWidth, this.shadowHeight, lights.length);
+            this.shadowOutput = DepthTextureArray.Create(DeferredShadowMapPassSettings.shadowWidth, DeferredShadowMapPassSettings.shadowHeight, lights.length);
         }
 
         RendererContext.BeginRenderPass(`ShadowPass - clear`, [], { target: this.shadowOutput, clear: true }, true);
@@ -350,7 +375,7 @@ export class DeferredShadowMapPass extends RenderPass {
         }
 
         if (!this.lightProjectionViewMatricesBuffer || this.lightProjectionViewMatricesBuffer.size / 4 / 4 / 16 !== lights.length) {
-            this.lightProjectionViewMatricesBuffer = Buffer.Create(lights.length * this.numOfCascades * 4 * 16, BufferType.STORAGE);
+            this.lightProjectionViewMatricesBuffer = Buffer.Create(lights.length * DeferredShadowMapPassSettings.numOfCascades * 4 * 16, BufferType.STORAGE);
         }
 
         if (!this.cascadeCurrentIndexBuffer) {
@@ -358,7 +383,7 @@ export class DeferredShadowMapPass extends RenderPass {
         }
 
         if (this.cascadeIndexBuffers.length === 0) {
-            for (let i = 0; i < this.numOfCascades; i++) {
+            for (let i = 0; i < DeferredShadowMapPassSettings.numOfCascades; i++) {
                 const buffer = Buffer.Create(4, BufferType.STORAGE)
                 buffer.SetArray(new Float32Array([i]));
                 this.cascadeIndexBuffers.push(buffer);
@@ -405,10 +430,13 @@ export class DeferredShadowMapPass extends RenderPass {
             let numOfCascades = 0;
 
             if (light instanceof DirectionalLight) {
-                const cascades = this.getCascades(Camera.mainCamera, this.numOfCascades, light);
+                const camera = Camera.mainCamera;
+                numOfCascades = DeferredShadowMapPassSettings.numOfCascades;
+                const cascadeSplits = this.getCascadeSplits(numOfCascades, camera.near, camera.far);
+                this.csmSplits = cascadeSplits;
+                const cascades = this.getCascades(cascadeSplits, camera, numOfCascades, light);
                 matricesForLight = cascades.map(c => c.viewProjMatrix);
                 splits = cascades.map(c => c.splitDepth);
-                numOfCascades = this.numOfCascades;
             } else if (light instanceof SpotLight) {
                 const vp = light.camera.projectionMatrix.clone().mul(light.camera.viewMatrix);
                 matricesForLight = [vp, vp, vp, vp];
@@ -422,7 +450,7 @@ export class DeferredShadowMapPass extends RenderPass {
 
             // upload the 4 matrices for this light
             const ld = new Float32Array(matricesForLight.flatMap(m => [...m.elements]));
-            this.lightProjectionViewMatricesBuffer.SetArray(ld, i * this.numOfCascades * 4 * 16);
+            this.lightProjectionViewMatricesBuffer.SetArray(ld, i * numOfCascades * 4 * 16);
 
             this.lightShadowData.set(light.id, {
                 cascadeSplits: new Float32Array(splits),
@@ -431,9 +459,9 @@ export class DeferredShadowMapPass extends RenderPass {
             });
 
 
-            RendererContext.CopyBufferToBuffer(this.lightProjectionViewMatricesBuffer, this.lightProjectionMatrixBuffer, i * this.numOfCascades * 4 * 16, 0, this.numOfCascades * 4 * 16);
+            RendererContext.CopyBufferToBuffer(this.lightProjectionViewMatricesBuffer, this.lightProjectionMatrixBuffer, i * numOfCascades * 4 * 16, 0, numOfCascades * 4 * 16);
 
-            for (let cascadePass = 0; cascadePass < this.numOfCascades; cascadePass++) {
+            for (let cascadePass = 0; cascadePass < numOfCascades; cascadePass++) {
                 RendererContext.CopyBufferToBuffer(this.cascadeIndexBuffers[cascadePass], this.cascadeCurrentIndexBuffer);
                 RendererContext.BeginRenderPass("ShadowPass", [], { target: shadowOutput, clear: cascadePass === 0 ? true : false }, true);
 
