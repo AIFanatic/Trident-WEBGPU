@@ -7,13 +7,9 @@ import {
 import { Meshlet } from "./Meshlet";
 
 import { MeshletEvents } from "./MeshletEvents";
-import { Meshoptimizer } from "./nv_cluster_lod_builder/meshoptimizer/Meshoptimizer";
+import { MeshletBuildOutput, Meshoptimizer } from "./nv_cluster_lod_builder/meshoptimizer/Meshoptimizer";
 import { MeshInput, vec3 } from "./nv_cluster_lod_builder/nvclusterlod_mesh";
 import { NV_Cluster } from "./nv_cluster_lod_builder/lib";
-
-
-import { mat4, length } from "./nv_cluster_lod_builder/test/test_common";
-import { Sphere as SphereMeshlet } from "./nv_cluster_lod_builder/nvclusterlod_common";
 
 export const meshletsCache: Map<Geometry, {meshlets: Meshlet[], instanceCount: number}> = new Map();
 
@@ -26,6 +22,47 @@ export class MeshletMesh extends Components.Mesh {
         })
     }
     
+    private static buildMeshletsFromBuildOutput(vertices: Float32Array, output: MeshletBuildOutput, attribute_size: number = 8): Meshlet[] {
+        let meshlets: Meshlet[] = [];
+
+        for (let i = 0; i < output.meshlets_count; i++) {
+            const meshlet = output.meshlets_result[i];
+
+            let meshlet_positions: number[] = [];
+            let meshlet_indices: number[] = [];
+
+            for (let v = 0; v < meshlet.vertex_count; ++v) {
+                const o = attribute_size * output.meshlet_vertices_result[meshlet.vertex_offset + v];
+                const vx = vertices[o + 0];
+                const vy = vertices[o + 1];
+                const vz = vertices[o + 2];
+
+                const nx = vertices[o + 3];
+                const ny = vertices[o + 4];
+                const nz = vertices[o + 5];
+
+                const uvx = vertices[o + 6];
+                const uvy = vertices[o + 7];
+
+                meshlet_positions.push(vx, vy, vz);
+
+                if (attribute_size === 8) {
+                    meshlet_positions.push(nx, ny, nz);
+                    meshlet_positions.push(uvx, uvy);
+                }
+            }
+            for (let t = 0; t < meshlet.triangle_count; ++t) {
+                const o = meshlet.triangle_offset + 3 * t;
+                meshlet_indices.push(output.meshlet_triangles_result[o + 0]);
+                meshlet_indices.push(output.meshlet_triangles_result[o + 1]);
+                meshlet_indices.push(output.meshlet_triangles_result[o + 2]);
+            }
+
+            meshlets.push(new Meshlet(new Float32Array(meshlet_positions), new Uint32Array(meshlet_indices)));
+        }
+        return meshlets;
+    }
+
     public async SetGeometry(geometry: Geometry, clusterize = true) {
         this.geometry = geometry;
         let cached = meshletsCache.get(geometry);
@@ -45,12 +82,30 @@ export class MeshletMesh extends Components.Mesh {
         const p = pa.array as Float32Array;
         const n = na.array as Float32Array;
         const u = ua.array as Float32Array;
-        const indices = ia.array as Uint32Array;
+        // const indices = ia.array as Uint32Array;
+        const indices = ia.array instanceof Uint32Array ? ia.array : Uint32Array.from(ia.array as ArrayLike<number>);
 
         const interleavedBufferAttribute = InterleavedVertexAttribute.fromArrays([p, n, u], [3, 3, 2]);
         const interleavedVertices = interleavedBufferAttribute.array as Float32Array;
 
         await Meshoptimizer.load();
+
+        if (clusterize) {
+            const attribute_size = 8;
+            const meshletsBuildOutput = Meshoptimizer.meshopt_buildMeshlets(interleavedVertices, indices, 128, 128, 0.0);
+            // const m = MeshletMesh.buildMeshletsFromBuildOutput(interleavedVertices, meshletsBuildOutput, attribute_size);
+            this.meshlets = MeshletMesh.buildMeshletsFromBuildOutput(interleavedVertices, meshletsBuildOutput, attribute_size);
+            for (const meshlet of this.meshlets) {
+                meshlet.boundingVolume = Mathf.Sphere.fromVertices(meshlet.vertices, meshlet.indices, attribute_size)
+                meshlet.parentBoundingVolume = meshlet.boundingVolume;
+                meshlet.lod = 0;
+                meshlet.parentError = 0;                     // guarantees parentError < threshold
+                meshlet.clusterError = Math.max(meshlet.boundingVolume.radius, 1.0); // something finite & > 0
+            }
+            console.log(`${this.gameObject.name} - ${pa.count} vertices, ${ia.count} indices, ${this.meshlets.length} meshlets`);
+            EventSystem.emit(MeshletEvents.Updated, this);
+            return;
+       }
 
         const meshInput: MeshInput = new MeshInput();
         // Mesh data

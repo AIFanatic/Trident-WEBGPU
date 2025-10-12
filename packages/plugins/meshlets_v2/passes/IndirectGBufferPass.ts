@@ -13,33 +13,9 @@ export class IndirectGBufferPass extends GPU.RenderPass {
     private shader: GPU.Shader;
     private geometry: Geometry;
 
-    constructor() {
-        super({
-            inputs: [
-                GPU.PassParams.DebugSettings,
-                GPU.PassParams.depthTexture,
-                GPU.PassParams.GBufferAlbedo,
-                GPU.PassParams.GBufferNormal,
-                GPU.PassParams.GBufferERMO,
-                GPU.PassParams.GBufferDepth,
-
-                MeshletPassParams.indirectVertices,
-                MeshletPassParams.indirectInstanceInfo,
-                MeshletPassParams.indirectMeshInfo,
-                MeshletPassParams.indirectObjectInfo,
-                MeshletPassParams.indirectMeshMatrixInfo,
-                MeshletPassParams.indirectDrawBuffer,
-                MeshletPassParams.textureMaps,
-                MeshletPassParams.isCullingPrepass,
-                MeshletPassParams.meshletSettings,
-            ],
-            outputs: [
-            ]
-        });
-    }
-
     public async init(resources: GPU.ResourcePool) {
         this.shader = await GPU.Shader.Create({
+            name: this.name,
             code: await GPU.ShaderLoader.LoadURL(new URL("../resources/DrawIndirectGBuffer.wgsl", import.meta.url)),
             colorOutputs: [
                 {format: "rgba16float"},
@@ -80,7 +56,7 @@ export class IndirectGBufferPass extends GPU.RenderPass {
         this.initialized = true;
     }
     
-    public execute(resources: GPU.ResourcePool) {
+    public async preFrame(resources: GPU.ResourcePool) {
         if (!this.initialized) return;
 
         const inputIndirectVertices = resources.getResource(MeshletPassParams.indirectVertices) as GPU.Buffer;
@@ -88,7 +64,6 @@ export class IndirectGBufferPass extends GPU.RenderPass {
         const inputIndirectObjectInfo = resources.getResource(MeshletPassParams.indirectObjectInfo) as GPU.Buffer;
         const inputIndirectMeshMatrixInfo = resources.getResource(MeshletPassParams.indirectMeshMatrixInfo) as GPU.Buffer;
         const inputIndirectInstanceInfo = resources.getResource(MeshletPassParams.indirectInstanceInfo) as GPU.Buffer;
-        const inputIndirectDrawBuffer = resources.getResource(MeshletPassParams.indirectDrawBuffer) as GPU.Buffer;
         const textureMaps = resources.getResource(MeshletPassParams.textureMaps);
 
         if (!inputIndirectVertices) return;
@@ -112,11 +87,16 @@ export class IndirectGBufferPass extends GPU.RenderPass {
 
         this.shader.SetArray("settings", resources.getResource(GPU.PassParams.DebugSettings));
         this.shader.SetArray("meshletSettings", resources.getResource(MeshletPassParams.meshletSettings));
+    }
 
+    public async execute(resources: GPU.ResourcePool) {
+        if (!this.initialized) return;
         const gBufferAlbedoRT = resources.getResource(GPU.PassParams.GBufferAlbedo);
         const gBufferNormalRT = resources.getResource(GPU.PassParams.GBufferNormal);
         const gBufferERMORT = resources.getResource(GPU.PassParams.GBufferERMO);
         const gBufferDepthRT = resources.getResource(GPU.PassParams.GBufferDepth);
+
+        const inputIndirectDrawBuffer = resources.getResource(MeshletPassParams.indirectDrawBuffer) as GPU.Buffer;
 
         const colorTargets: GPU.RenderTarget[] = [
             {target: gBufferAlbedoRT, clear: true},

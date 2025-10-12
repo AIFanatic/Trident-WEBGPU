@@ -43,8 +43,8 @@ interface meshopt_simplifyWithAttributes_result {
 };
 
 export class Meshoptimizer {
+    public static isLoaded: boolean = false;
     private static module;
-    private static isLoaded: boolean = false;
 
     public static kMeshletMaxTriangles = 512;
 
@@ -122,5 +122,89 @@ export class Meshoptimizer {
         );
 
         return destination.data as Uint32Array;
+    }
+
+    public static meshopt_buildMeshlets(vertices: Float32Array, indices: Uint32Array, max_vertices: number, max_triangles: number, cone_weight: number): MeshletBuildOutput {
+        if (!this.isLoaded) throw Error("Library not loaded");
+
+        const MeshOptmizer = Meshoptimizer.module;
+
+        function rebuildMeshlets(data) {
+            let meshlets: meshopt_Meshlet[] = [];
+
+            for (let i = 0; i < data.length; i += 4) {
+                meshlets.push({
+                    vertex_offset: data[i + 0],
+                    triangle_offset: data[i + 1],
+                    vertex_count: data[i + 2],
+                    triangle_count: data[i + 3]
+                })
+            }
+
+            return meshlets;
+        }
+
+        const max_meshlets = WASMHelper.call(MeshOptmizer, "meshopt_buildMeshletsBound", "number", indices.length, max_vertices, max_triangles);
+
+
+
+        const meshlets = new WASMPointer(new Uint32Array(max_meshlets * 4), "out");
+        const meshlet_vertices = new WASMPointer(new Uint32Array(max_meshlets * max_vertices), "out");
+        const meshlet_triangles = new WASMPointer(new Uint8Array(max_meshlets * max_triangles * 3), "out");
+
+        const meshletCount = WASMHelper.call(MeshOptmizer, "meshopt_buildMeshlets", "number", 
+            meshlets,
+            meshlet_vertices,
+            meshlet_triangles,
+            new WASMPointer(Uint32Array.from(indices)),
+            indices.length,
+            new WASMPointer(Float32Array.from(vertices)),
+            vertices.length / attribute_size,
+            attribute_size * Float32Array.BYTES_PER_ELEMENT,
+            max_vertices,
+            max_triangles,
+            cone_weight
+        );
+
+        const meshlets_result = rebuildMeshlets(meshlets.data).slice(0, meshletCount);
+        
+        const output: MeshletBuildOutput = {
+            meshlets_count: meshletCount,
+            meshlets_result: meshlets_result.slice(0, meshletCount),
+            meshlet_vertices_result: new Uint32Array(meshlet_vertices.data),
+            meshlet_triangles_result: new Uint8Array(meshlet_triangles.data),
+        }
+        return output;
+    }
+
+    // meshopt_Bounds meshopt_computeClusterBounds(const unsigned int* indices, size_t index_count, const float* vertex_positions, size_t vertex_count, size_t vertex_positions_stride)
+    public static meshopt_computeClusterBounds(
+        indices: Uint32Array,
+        index_count: number,
+        vertices: Float32Array,
+        vertex_count: number,
+        vertex_stride: number,
+    ): meshopt_Bounds {
+        const MeshOptmizer = Meshoptimizer.module;
+
+        const destination = new WASMPointer(new Float32Array(11), "out");
+
+        WASMHelper.call(MeshOptmizer, "meshopt_computeClusterBounds", "number",
+            destination, // unsigned int* destination,
+            new WASMPointer(indices), // const unsigned int* indices,
+            index_count, // size_t index_count,
+            new WASMPointer(vertices), // const float* vertex_positions,
+            vertex_count, // size_t vertex_count,
+            vertex_stride * Float32Array.BYTES_PER_ELEMENT
+        );
+
+        const out = destination.data;
+        return {
+            center: [out[0], out[1], out[2]],
+            radius: out[3],
+            cone_apex: [out[4], out[5], out[6]],
+            cone_axis: [out[7], out[8], out[9]],
+            cone_cutoff: out[10],
+        }
     }
 }

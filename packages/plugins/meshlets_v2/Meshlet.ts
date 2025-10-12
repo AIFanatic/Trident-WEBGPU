@@ -3,6 +3,7 @@ import {
     Mathf,
     Utils
 }  from "@trident/core";
+import { Meshoptimizer } from "./nv_cluster_lod_builder/meshoptimizer/Meshoptimizer";
 
 
 export interface MeshletBounds {
@@ -66,11 +67,14 @@ export class Meshlet {
         this.parents = [];
 
         this.bounds = Mathf.BoundingVolume.FromVertices(this.vertices);
-        // if (this.indices.length / 3 < Meshoptimizer.kMeshletMaxTriangles) {
-        //     const coneBounds = Meshoptimizer.meshopt_computeClusterBounds(this.vertices, this.indices);
-        //     this.coneBounds = {cone_apex: coneBounds.cone_apex, cone_axis: coneBounds.cone_axis, cone_cutoff: coneBounds.cone_cutoff};
-        // }
-        this.coneBounds = {cone_apex: new Mathf.Vector3(), cone_axis: new Mathf.Vector3(), cone_cutoff: 0};
+        // this.coneBounds = {cone_apex: new Mathf.Vector3(), cone_axis: new Mathf.Vector3(), cone_cutoff: 0};
+        if (this.indices.length / 3 < Meshoptimizer.kMeshletMaxTriangles) {
+            const coneBounds = Meshoptimizer.meshopt_computeClusterBounds(this.indices, this.indices.length, this.vertices, this.vertices.length, 8);
+            this.coneBounds = {cone_apex: Mathf.Vector3.fromArray(coneBounds.cone_apex), cone_axis: Mathf.Vector3.fromArray(coneBounds.cone_axis), cone_cutoff: coneBounds.cone_cutoff};
+        }
+
+    // public static meshopt_computeClusterBounds(
+
 
         // TODO: Get non indexed vertices, this is because no MDI in webgpu
         const verticesNonIndexed = Meshlet.convertBufferAttributeToNonIndexed(this.vertices, this.indices, 3, true, 8, 0);

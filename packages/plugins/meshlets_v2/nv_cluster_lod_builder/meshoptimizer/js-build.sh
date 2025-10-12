@@ -12,7 +12,7 @@ emcc \
 -s ENVIRONMENT=web,node \
 -s ASSERTIONS=1 \
 -s EXPORTED_RUNTIME_METHODS="['cwrap', 'ccall']" \
--s EXPORTED_FUNCTIONS="['_malloc', '_meshopt_simplifyWithAttributes', '_meshopt_simplifySloppy', '_meshopt_generateShadowIndexBuffer']" \
+-s EXPORTED_FUNCTIONS="['_malloc', '_meshopt_simplifyWithAttributes', '_meshopt_simplifySloppy', '_meshopt_generateShadowIndexBuffer', '_meshopt_buildMeshletsBound', '_meshopt_buildMeshlets', '_meshopt_computeClusterBounds']" \
 ./src/clusterizer.cpp ./src/simplifier.cpp ./src/indexgenerator.cpp \
 -o ../MeshOptimizerModule.js
 

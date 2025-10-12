@@ -21,31 +21,9 @@ export class CullingPass extends GPU.RenderPass {
 
     private debugBuffer: GPU.Buffer;
 
-    constructor() {
-        super({
-            inputs: [
-                MeshletPassParams.indirectMeshletInfo,
-                MeshletPassParams.indirectObjectInfo,
-                MeshletPassParams.indirectMeshMatrixInfo,
-                MeshletPassParams.meshletsCount,
-                MeshletPassParams.meshletSettings
-            ],
-            outputs: [
-                MeshletPassParams.indirectDrawBuffer,
-                MeshletPassParams.indirectInstanceInfo,
-
-                GPU.PassParams.GBufferAlbedo,
-                GPU.PassParams.GBufferNormal,
-                GPU.PassParams.GBufferERMO,
-                GPU.PassParams.GBufferDepth,
-                GPU.PassParams.GBufferDepth
-            ]
-        });
-    }
-
     public async init(resources: GPU.ResourcePool) {
-        console.log(import.meta.url);
         this.compute = await GPU.Compute.Create({
+            name: this.name,
             code: await GPU.ShaderLoader.LoadURL(new URL("../resources/Cull.wgsl", import.meta.url)),
             computeEntrypoint: "main",
             uniforms: {
@@ -76,9 +54,14 @@ export class CullingPass extends GPU.RenderPass {
         this.compute.SetSampler("textureSampler", sampler);
 
         this.debugBuffer = GPU.Buffer.Create(4 * 4, GPU.BufferType.STORAGE);
+
+        this.initialized = true;
     }
 
-    public execute(resources: GPU.ResourcePool) {
+    private visibilityCapacity = 0;
+    private instanceCapacity = 0;
+
+    public async preFrame(resources: GPU.ResourcePool) {
         const mainCamera = Components.Camera.mainCamera;
 
         const meshletCount = resources.getResource(MeshletPassParams.meshletsCount) as number;
@@ -88,15 +71,16 @@ export class CullingPass extends GPU.RenderPass {
         
         if (meshletCount === 0) return;
 
-        if (!this.visibilityBuffer) {
+        if (meshletCount > this.visibilityCapacity || !this.visibilityBuffer) {
             const visibilityBufferArray = new Float32Array(meshletCount).fill(1);
             this.visibilityBuffer = GPU.Buffer.Create(visibilityBufferArray.byteLength, GPU.BufferType.STORAGE_WRITE);
             this.visibilityBuffer.SetArray(visibilityBufferArray);
+            this.visibilityCapacity = meshletCount;
         }
-        if (!this.instanceInfoBuffer) {
-            console.log("meshletCount", meshletCount)
+        if (meshletCount > this.instanceCapacity || !this.instanceInfoBuffer) {
             this.instanceInfoBuffer = GPU.Buffer.Create(meshletCount * 1 * 4, GPU.BufferType.STORAGE_WRITE);
-            this.instanceInfoBuffer.name = "instanceInfoBuffer"
+            this.instanceInfoBuffer.name = "instanceInfoBuffer";
+            this.instanceCapacity = meshletCount;
         }
 
         this.compute.SetBuffer("meshletInfo", meshletInfoBuffer);
@@ -130,7 +114,10 @@ export class CullingPass extends GPU.RenderPass {
         this.cullData.SetArray(cullDataArray);
 
         this.compute.SetArray("meshletSettings", resources.getResource(MeshletPassParams.meshletSettings));
+    }
 
+    public async execute(resources: GPU.ResourcePool) {
+        const meshletCount = resources.getResource(MeshletPassParams.meshletsCount) as number;
         
         GPU.RendererContext.CopyBufferToBuffer(this.drawIndirectBuffer, this.debugBuffer);
 

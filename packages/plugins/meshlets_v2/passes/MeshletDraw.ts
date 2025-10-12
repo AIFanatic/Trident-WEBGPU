@@ -35,22 +35,7 @@ export class MeshletDraw extends GPU.RenderPass {
     private indirectRender: IndirectGBufferPass;
 
     constructor() {
-        super({
-            inputs: [
-                GPU.PassParams.depthTexture,
-                GPU.PassParams.depthTexturePyramid,
-                GPU.PassParams.DebugSettings,
-                
-                GPU.PassParams.depthTexture,
-                GPU.PassParams.GBufferAlbedo,
-                GPU.PassParams.GBufferNormal,
-                GPU.PassParams.GBufferERMO,
-                GPU.PassParams.GBufferDepth,
-            ],
-            outputs: [
-                MeshletPassParams.meshletSettings
-            ]
-        });
+        super();
     }
     public async init(resources: GPU.ResourcePool) {
         this.prepareSceneData = new PrepareSceneData();
@@ -66,8 +51,8 @@ export class MeshletDraw extends GPU.RenderPass {
         this.initialized = true;
     }
 
-    public execute(resources: GPU.ResourcePool): void {
-        this.prepareSceneData.execute(resources);
+    public async preFrame(resources: GPU.ResourcePool) {
+        await this.prepareSceneData.preFrame(resources);
 
         const settings = new Float32Array([
             +MeshletDebug.isFrustumCullingEnabled,
@@ -82,18 +67,25 @@ export class MeshletDraw extends GPU.RenderPass {
         ]);
 
         resources.setResource(MeshletPassParams.meshletSettings, settings);
-        
-        this.cullingPass.execute(resources);
-        this.indirectRender.execute(resources);
-        
-        // const depthTexture = resources.getResource(PassParams.depthTexture);
-        // const outputDepthTexturePyramid = PassParams.depthTexturePyramid;
-        // this.HiZ.execute(resources, depthTexture, outputDepthTexturePyramid);
 
-        // // this.shadows.execute(resources);
+        await this.cullingPass.preFrame(resources);
+        await this.indirectRender.preFrame(resources);
+    }
 
-        // this.cullingPass.execute(resources);
-        // this.indirectRender.execute(resources);
+    public async execute(resources: GPU.ResourcePool) {
+        await this.prepareSceneData.execute(resources);
+        
+        await this.cullingPass.execute(resources);
+        await this.indirectRender.execute(resources);
+        
+        // const depthTexture = resources.getResource(GPU.PassParams.depthTexture);
+        // const outputDepthTexturePyramid = GPU.PassParams.depthTexturePyramid;
+        // await this.HiZ.execute(resources, depthTexture, outputDepthTexturePyramid);
+
+        // this.shadows.execute(resources);
+
+        // await this.cullingPass.execute(resources);
+        // await this.indirectRender.execute(resources);
 
     }
 }

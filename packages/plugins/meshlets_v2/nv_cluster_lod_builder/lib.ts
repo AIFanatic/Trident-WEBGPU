@@ -16,10 +16,10 @@ interface Mesh {
 }
 
 export class NV_Cluster {
-    public static async Build(input: MeshInput): Promise<Map<number, Mesh[]>> {
+    public static Build(input: MeshInput): Map<number, Mesh[]> {
+        // if (!Meshoptimizer.isLoaded) throw Error("Mesh optimizer is not loaded");
 
         let mesh: LocalizedLodMesh = new LocalizedLodMesh();
-        await Meshoptimizer.load();
         let result: Result = generateLocalizedLodMesh(input, mesh);
 
         if (result !== Result.SUCCESS) {
