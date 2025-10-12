@@ -25,14 +25,30 @@ async function Application(canvas: HTMLCanvasElement) {
     lightGameObject.transform.LookAtV1(new Mathf.Vector3(0, 0, 0));
     const light = lightGameObject.AddComponent(Components.DirectionalLight);
 
-    const gameObjects = await GLTFLoader.loadAsGameObjects(scene, "./assets/models/Fox.glb");
-    const root = gameObjects[0]
-    root.transform.scale.mul(0.01);
+    // const gameObjects = await GLTFLoader.loadAsGameObjects(scene, "./assets/models/Fox.glb");
+    const gameObjects = await GLTFLoader.loadAsGameObjects(scene, "./assets/models/DamagedHelmet/DamagedHelmet.gltf");
+    // const root = gameObjects[0]
+    // root.transform.scale.mul(0.01);
 
-    const animator = root.GetComponent(Components.Animator);
-    animator.SetClipByIndex(0);
+    // const animator = root.GetComponent(Components.Animator);
+    // animator.SetClipByIndex(0);
 
-    // Debugger.Enable();
+    function traverse(gameObjects: GameObject[], fn: (gameObject: GameObject) => void) {
+        for (const gameObject of gameObjects) {
+            fn(gameObject);
+            for (const child of gameObject.transform.children) {
+                traverse([child.gameObject], fn);
+            }
+        }
+    }
+    traverse(gameObjects, gameObject => {
+        const mesh = gameObject.GetComponent(Components.Mesh);
+        if (mesh) {
+            mesh.enableShadows = false;
+        }
+    })
+
+    Debugger.Enable();
 
     scene.Start();
 };

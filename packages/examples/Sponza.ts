@@ -35,15 +35,28 @@ async function Application(canvas: HTMLCanvasElement) {
     const light = lightGameObject.AddComponent(Components.DirectionalLight);
     light.castShadows = true;
 
-    function traverse(object3D: Object3D, func: (object3D: Object3D) => void) {
-        func(object3D);
-        for (const child of object3D.children) traverse(child, func);
+    function traverse(gameObjects: GameObject[], fn: (gameObject: GameObject) => void) {
+        for (const gameObject of gameObjects) {
+            fn(gameObject);
+            for (const child of gameObject.transform.children) {
+                traverse([child.gameObject], fn);
+            }
+        }
     }
 
-    GLTFLoader.loadAsGameObjects(scene, "/extra/dist_bak/test-assets/GLTF/scenes/Sponza/Sponza.gltf");
+    const gameObjects = await GLTFLoader.loadAsGameObjects(scene, "/extra/dist_bak/test-assets/GLTF/scenes/Bistro.glb");
+    // const gameObjects = await GLTFLoader.loadAsGameObjects(scene, "/extra/dist_bak/test-assets/GLTF/scenes/Sponza/Sponza.gltf");
     
     Debugger.Enable();
 
+    const mat = new PBRMaterial();
+    traverse(gameObjects, gameObject => {
+        const mesh = gameObject.GetComponent(Components.Mesh);
+        if (mesh) {
+            mesh.enableShadows = false;
+            mesh.material = mat;
+        }
+    })
 
     scene.Start();
 };

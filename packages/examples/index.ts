@@ -31,4 +31,7 @@ import "./Particles";
 
 import "./Serialize";
 
+import "./Instances";
 import "./Test";
+
+import "./SSGI";

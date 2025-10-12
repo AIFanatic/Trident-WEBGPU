@@ -178,6 +178,12 @@ async function Application(canvas: HTMLCanvasElement) {
         // cubes.setInstanceData(position.elements, i);
     }
 
+    const cube = new Object(cubeVertices, cubeIndices, 16, 1);
+    position.set(0,0,0);
+    scale.set(1,1,1);
+    modelMatrix.compose(position, rotation, scale);
+    cube.setInstanceData(modelMatrix.elements, 0);
+
     console.log(objects);
 
     // TODO: Dodgy
@@ -194,10 +200,6 @@ async function Application(canvas: HTMLCanvasElement) {
         private shader: GPU.Shader;
 
         public name: string = "BindlessDrawPass";
-
-        constructor() {
-            super({});
-        }
 
         public async init(resources: GPU.ResourcePool) {
 
@@ -247,7 +249,7 @@ async function Application(canvas: HTMLCanvasElement) {
                 }
                 `,
                 colorOutputs: [
-                    { format: GPU.Renderer.SwapChainFormat },
+                    { format: "rgba16float" },
                 ],
                 attributes: {
                     position: { location: 0, size: 3, type: "vec3" },
@@ -265,7 +267,7 @@ async function Application(canvas: HTMLCanvasElement) {
             this.initialized = true;
         }
 
-        public execute(resources: GPU.ResourcePool) {
+        public async execute(resources: GPU.ResourcePool) {
             if (!this.initialized) return;
 
             const camera = Components.Camera.mainCamera;
