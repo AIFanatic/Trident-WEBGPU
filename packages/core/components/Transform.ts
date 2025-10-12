@@ -39,7 +39,7 @@ export class Transform extends Component {
     public get scale(): Vector3 { return this._scale };
     public set scale(value: Vector3) { this._scale.copy(value); this.onChanged(); };
 
-    private children: Set<Transform> = new Set();
+    public children: Set<Transform> = new Set();
     private _parent: Transform | null = null;
     public get parent(): Transform | null { return this._parent };
     public set parent(parent: Transform | null) {

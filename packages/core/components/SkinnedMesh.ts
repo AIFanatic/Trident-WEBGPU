@@ -54,16 +54,11 @@ export class SkinnedMesh extends Mesh {
     public Start(): void {
         if (!this.skin) throw Error("SkinnedMesh needs a skin");
 
-        console.log("this.skin", this.skin)
         this.boneMatricesBuffer = Buffer.Create(this.skin.jointData.length * 4, BufferType.STORAGE);
         this.boneMatricesBuffer.SetArray(this.skin.jointData);
     }
 
-    public Update() {
-        // this.skin.update(this.gameObject.transform.localToWorldMatrix.elements);
-        // this.boneMatricesBuffer.SetArray(this.skin.jointData);
-    }
-    public LateUpdate(): void {
+    public Update(): void {
         this.skin.update(this.gameObject.transform.localToWorldMatrix.elements);
         this.boneMatricesBuffer.SetArray(this.skin.jointData);
     }

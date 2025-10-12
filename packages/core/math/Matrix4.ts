@@ -549,6 +549,14 @@ export class Matrix4 {
 
 		return this;
 	}
+
+	public getMaxScaleOnAxis(): number {
+		const te = this.elements;
+		const scaleXSq = te[ 0 ] * te[ 0 ] + te[ 1 ] * te[ 1 ] + te[ 2 ] * te[ 2 ];
+		const scaleYSq = te[ 4 ] * te[ 4 ] + te[ 5 ] * te[ 5 ] + te[ 6 ] * te[ 6 ];
+		const scaleZSq = te[ 8 ] * te[ 8 ] + te[ 9 ] * te[ 9 ] + te[ 10 ] * te[ 10 ];
+		return Math.sqrt( Math.max( scaleXSq, scaleYSq, scaleZSq ) );
+	}
 }
 
 const _v1 = new Vector3();

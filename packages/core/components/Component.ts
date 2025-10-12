@@ -37,7 +37,6 @@ export class Component {
 
     public Start() {}
     public Update() {}
-    public LateUpdate() {}
     public Destroy() {}
     public Serialize(): SerializedComponent { throw Error(`Serialize not implemented for ${this.constructor.name}`)};
     public Deserialize(data: any) { throw Error(`Deserialize not implemented for ${this.constructor.name}`) }

@@ -18,12 +18,6 @@ struct Settings {
     cameraPosition: vec4<f32>,
 };
 
-struct VertexInput {
-    @location(0) position : vec2<f32>,
-    @location(1) normal : vec3<f32>,
-    @location(2) uv : vec2<f32>,
-};
-
 struct VertexOutput {
     @builtin(position) position : vec4<f32>,
     @location(0) vUv : vec2<f32>,
@@ -74,11 +68,19 @@ const debug_cascadeColors = array<vec4<f32>, 5>(
 @group(0) @binding(15) var<storage, read> settings: Settings;
 
 
+// Full-screen triangle (covers screen with 3 verts)
+const p = array<vec2f, 3>(
+    vec2f(-1.0, -1.0),
+    vec2f( 3.0, -1.0),
+    vec2f(-1.0,  3.0)
+);
+
 @vertex
-fn vertexMain(input: VertexInput) -> VertexOutput {
+fn vertexMain(@builtin(vertex_index) vertexIndex : u32) -> VertexOutput {
     var output: VertexOutput;
-    output.position = vec4(input.position, 0.0, 1.0);
-    output.vUv = input.uv;
+    output.position = vec4(p[vertexIndex], 0.0, 1.0);
+    let uv = 0.5 * (p[vertexIndex] + vec2f(1.0, 1.0));
+    output.vUv = vec2f(uv.x, 1.0 - uv.y);
     return output;
 }
 

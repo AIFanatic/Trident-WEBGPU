@@ -1,3 +1,4 @@
+import { Matrix4 } from "./Matrix4";
 import { Vector3 } from "./Vector3";
 
 export class Sphere {
@@ -47,5 +48,15 @@ export class Sphere {
 
         this.center = centroid;
         this.radius = maxRadius;
+    }
+
+    public applyMatrix4(matrix: Matrix4): Sphere {
+		this.center.applyMatrix4( matrix );
+		this.radius = this.radius * matrix.getMaxScaleOnAxis();
+		return this;
+	}
+
+    public clone(): Sphere {
+        return new Sphere(this.center.clone(), this.radius);
     }
 }

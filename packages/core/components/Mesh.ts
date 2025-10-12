@@ -1,27 +1,54 @@
 import { Component, SerializedComponent } from "./Component";
 import { Geometry } from "../Geometry";
 import { Material } from "../renderer/Material";
-import { EventSystemLocal } from "../Events";
+import { EventSystem, EventSystemLocal } from "../Events";
 import { TransformEvents } from "./Transform";
 import { SerializeField } from "../utils/SerializeField";
+import { BoundingVolume } from "../math/BoundingVolume";
+
+export class MeshEvents {
+    public static TransformUpdated = (mesh: Mesh) => {};
+    public static MaterialUpdated = (mesh: Mesh, material: Material) => {};
+}
 
 export class Mesh extends Component {
     public static type = "@trident/core/components/Mesh";
 
+    private _geometry: Geometry;
     @SerializeField
-    public geometry: Geometry;
+    public get geometry(): Geometry { return this._geometry; };
+    public set geometry(geometry: Geometry) { this._geometry = geometry; };
+
+
+    private _material: Material;
     @SerializeField
-    public material: Material;
+    public get material(): Material { return this._material; };
+    public set material(material: Material) {
+        this._material = material;
+        EventSystem.emit(MeshEvents.MaterialUpdated, this, material);
+    };
 
     @SerializeField
     public enableShadows: boolean = true;
 
+    public get localBounds(): BoundingVolume { return this.geometry.boundingVolume; }
+    public bounds = new BoundingVolume();
+
     public Start(): void {
         EventSystemLocal.on(TransformEvents.Updated, this.transform, () => {
             if (!this.geometry) return;
-            this.geometry.boundingVolume.center.copy(this.transform.position);
-            this.geometry.boundingVolume.scale = Math.max(this.transform.scale.x, this.transform.scale.y, this.transform.scale.z);
-        })
+            const local = this.localBounds;
+            this.bounds.center.copy(local.center);
+            this.bounds.center.applyMatrix4(this.transform.localToWorldMatrix);
+
+            const m = this.transform.localToWorldMatrix.elements;
+            const sx = Math.hypot(m[0], m[1], m[2]);
+            const sy = Math.hypot(m[4], m[5], m[6]);
+            const sz = Math.hypot(m[8], m[9], m[10]);
+            this.bounds.radius = local.radius * Math.max(sx, sy, sz);
+
+            EventSystem.emit(MeshEvents.TransformUpdated, this);
+        });
     }
 
     public Destroy(): void {

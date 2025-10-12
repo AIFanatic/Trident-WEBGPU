@@ -1,22 +1,9 @@
 struct VertexInput {
-    @builtin(instance_index) instance : u32, 
-    @builtin(vertex_index) vertex : u32,
-    @location(0) position : vec3<f32>,
-    @location(1) normal : vec3<f32>,
-    @location(2) uv : vec2<f32>,
-
-    #if USE_NORMAL_MAP
-        @location(3) tangent : vec4<f32>,
-        #if USE_SKINNING
-            @location(4) joints: vec4<u32>,
-            @location(5) weights: vec4<f32>,
-        #endif
-    #else
-        #if USE_SKINNING
-            @location(3) joints: vec4<u32>,
-            @location(4) weights: vec4<f32>,
-        #endif
-    #endif
+    @builtin(instance_index) instanceIdx : u32, 
+    @builtin(vertex_index) vertexIndex : u32,
+    // @location(0) position : vec3<f32>,
+    // @location(1) normal : vec3<f32>,
+    // @location(2) uv : vec2<f32>,
 };
 
 struct Material {
@@ -57,53 +44,47 @@ struct VertexOutput {
 
 @group(0) @binding(11) var<storage, read> cameraPosition: vec3<f32>;
 
-#if USE_SKINNING
-    @group(1) @binding(0) var<storage, read> boneMatrices: array<mat4x4<f32>>;
+// TODO: Make it work with skinning
+@group(1) @binding(0) var<storage, read> position: array<vec4<f32>>;
+@group(1) @binding(1) var<storage, read> normal: array<vec4<f32>>;
+@group(1) @binding(2) var<storage, read> uv: array<vec2<f32>>;
+@group(1) @binding(3) var<storage, read> index: array<u32>;
+#if USE_NORMAL_MAP
+    @group(1) @binding(4) var<storage, read> tangent: array<vec4<f32>>;
 #endif
-
 
 @vertex
 fn vertexMain(input: VertexInput) -> VertexOutput {
     var output : VertexOutput;
 
-      var finalPosition = vec4(input.position, 1.0);
-      var finalNormal = vec4(input.normal, 0.0);
+    let i = u32(index[input.vertexIndex]);
 
-    #if USE_SKINNING
-        var skinnedPosition = vec4(0.0);
-        var skinnedNormal = vec4(0.0);
+    var finalPosition = vec4(position[i].xyz, 1.0);
+    // var finalPosition = vec4(input.position, 1.0);
+    var finalNormal = vec4(normal[i].xyz, 0.0);
 
-        let skinMatrix: mat4x4<f32> = 
-            boneMatrices[input.joints[0]] * input.weights[0] +
-            boneMatrices[input.joints[1]] * input.weights[1] +
-            boneMatrices[input.joints[2]] * input.weights[2] +
-            boneMatrices[input.joints[3]] * input.weights[3];
-        
-        finalPosition = skinMatrix * vec4(input.position, 1.0);
-        finalNormal   = normalize(skinMatrix * vec4(input.normal, 0.0));
-    #endif
 
-    var modelMatrixInstance = modelMatrix[input.instance];
-    let modelViewMatrix = viewMatrix * modelMatrixInstance;
+    var modelMatrixInstance = modelMatrix[input.instanceIdx];
+    var modelViewMatrix = viewMatrix * modelMatrixInstance;
 
-    output.instance = input.instance;
+    output.instance = input.instanceIdx;
     output.position = projectionMatrix * modelViewMatrix * vec4(finalPosition.xyz, 1.0);
     output.vPosition = finalPosition.xyz;
-    output.vUv = input.uv;
+    output.vUv = uv[i];
     let worldNormal = normalize(modelMatrixInstance * vec4(finalNormal.xyz, 0.0)).xyz;
     output.vNormal = worldNormal;
 
     #if USE_NORMAL_MAP
-        let worldTangent = normalize(modelMatrixInstance * vec4(input.tangent.xyz, 0.0)).xyz;
-        let worldBitangent = cross(worldNormal, worldTangent) * input.tangent.w;
-
+        let tangentData = tangent[i];
+        let worldTangent = normalize(modelMatrixInstance * vec4(tangentData.xyz, 0.0)).xyz;
+        let worldBitangent = cross(worldNormal, worldTangent) * tangentData.w;
         output.tangent = worldTangent;
         output.bitangent = worldBitangent;
     #endif
 
     // emit a barycentric coordinate
     output.barycenticCoord = vec3f(0);
-    output.barycenticCoord[input.vertex % 3] = 1.0;
+    output.barycenticCoord[input.vertexIndex % 3] = 1.0;
 
     return output;
 }
@@ -129,10 +110,11 @@ fn edgeFactor(bary: vec3f) -> f32 {
 fn fragmentMain(input: VertexOutput) -> FragmentOutput {
     var output: FragmentOutput;
 
-    var uv = input.vUv;
-
     let mat = material;
-    let modelMatrixInstance = modelMatrix[input.instance];
+
+    var uv = input.vUv;// * vec2(4.0, 2.0);
+
+    var modelMatrixInstance = modelMatrix[input.instance];
 
     var albedo = mat.AlbedoColor;
     var roughness = mat.Roughness;

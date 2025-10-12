@@ -101,16 +101,11 @@ export class Scene {
             component.Update();
         }
 
-        for (const [component, _] of this.toUpdate) {
-            if (component.gameObject.enabled === false) continue;
-            component.LateUpdate();
-        }
-
         this.renderPipeline.Render(this);
 
         // setTimeout(() => {
         //     this.Tick()
-        // }, 100);
+        // }, 1000);
         requestAnimationFrame(() => this.Tick());
     }
 

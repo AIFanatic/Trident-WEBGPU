@@ -19,16 +19,6 @@ struct VertexInput {
     #endif
 };
 
-struct Material {
-    AlbedoColor: vec4<f32>,
-    EmissiveColor: vec4<f32>,
-    Roughness: f32,
-    Metalness: f32,
-    Unlit: f32,
-    AlphaCutoff: f32,
-    Wireframe: f32
-};
-
 struct VertexOutput {
     @builtin(position) position : vec4<f32>,
     @location(0) vPosition : vec3<f32>,
@@ -40,10 +30,6 @@ struct VertexOutput {
     @location(6) bitangent : vec3<f32>,
 };
 
-@group(0) @binding(0) var<storage, read> projectionMatrix: mat4x4<f32>;
-@group(0) @binding(1) var<storage, read> viewMatrix: mat4x4<f32>;
-@group(0) @binding(2) var<storage, read> modelMatrix: array<mat4x4<f32>>;
-@group(0) @binding(3) var<storage, read> material: Material;
 @group(0) @binding(4) var TextureSampler: sampler;
 
 // These get optimized out based on "USE*" defines
@@ -55,7 +41,37 @@ struct VertexOutput {
 @group(0) @binding(10) var AOMap: texture_2d<f32>;
 
 
-@group(0) @binding(11) var<storage, read> cameraPosition: vec3<f32>;
+// @group(0) @binding(11) var<storage, read> cameraPosition: vec3<f32>;
+
+struct FrameBuffer {
+    ViewMatrix: mat4x4<f32>,
+    ProjectionMatrix: mat4x4<f32>,
+    ViewProjectionMatrix: mat4x4<f32>,
+    CameraPosition : vec3<f32>, _pad0    : f32,
+    Time: f32,
+};
+
+@group(1) @binding(0) var<storage, read> Frame: FrameBuffer;
+
+struct MaterialV2 {
+    AlbedoColor: vec4<f32>,
+    EmissiveColor: vec4<f32>,
+    Roughness: f32,
+    Metalness: f32,
+    Unlit: f32,
+    AlphaCutoff: f32,
+    Wireframe: f32
+};
+@group(1) @binding(1) var<storage, read> Materials: array<MaterialV2>;
+@group(1) @binding(2) var<storage, read> Models: array<mat4x4<f32>>;
+
+struct InstanceBuffer {
+    modelIndex: u32,
+    materialIndex: u32,
+    _padI         : vec2<u32>
+};
+@group(1) @binding(3) var<storage, read> Instance: array<InstanceBuffer>;
+
 
 #if USE_SKINNING
     @group(1) @binding(0) var<storage, read> boneMatrices: array<mat4x4<f32>>;
@@ -83,11 +99,13 @@ fn vertexMain(input: VertexInput) -> VertexOutput {
         finalNormal   = normalize(skinMatrix * vec4(input.normal, 0.0));
     #endif
 
-    var modelMatrixInstance = modelMatrix[input.instance];
-    let modelViewMatrix = viewMatrix * modelMatrixInstance;
+    let instance = Instance[input.instance];
+    // var modelMatrixInstance = modelMatrix[input.instance];
+    let modelMatrixInstance = Models[instance.modelIndex];
+    let modelViewMatrix = Frame.ViewMatrix * modelMatrixInstance;
 
     output.instance = input.instance;
-    output.position = projectionMatrix * modelViewMatrix * vec4(finalPosition.xyz, 1.0);
+    output.position = Frame.ProjectionMatrix * modelViewMatrix * vec4(finalPosition.xyz, 1.0);
     output.vPosition = finalPosition.xyz;
     output.vUv = input.uv;
     let worldNormal = normalize(modelMatrixInstance * vec4(finalNormal.xyz, 0.0)).xyz;
@@ -131,8 +149,12 @@ fn fragmentMain(input: VertexOutput) -> FragmentOutput {
 
     var uv = input.vUv;
 
-    let mat = material;
-    let modelMatrixInstance = modelMatrix[input.instance];
+    // let mat = material;
+    // let modelMatrixInstance = modelMatrix[input.instance];
+
+    let instance = Instance[input.instance];
+    let mat = Materials[instance.materialIndex];
+    let modelMatrixInstance = Models[instance.modelIndex];
 
     var albedo = mat.AlbedoColor;
     var roughness = mat.Roughness;

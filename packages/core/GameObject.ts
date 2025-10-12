@@ -76,6 +76,9 @@ export class GameObject {
     }
 
     public Destroy() {
+        for (const child of this.transform.children) {
+            child.gameObject.Destroy();
+        }
         for (const component of this.allComponents) {
             component.Destroy();
         }
