@@ -81,6 +81,7 @@ const patch = (dom: GooactNode, vdom: VNodeChild, parent: (Node & ParentNode) | 
 
     if (typeof vdom == 'object' && vdom !== null && typeof (vdom as VNode).type == 'function') return Component.patch(dom, vdom as VNode, parent) as GooactNode;
     else if ((typeof vdom != 'object' || vdom === null) && dom instanceof Text) return (dom.textContent != String(vdom)) ? replace(render(vdom, parent as any)) : dom;
+    else if ((typeof vdom != 'object' || vdom === null)) return dom instanceof Text ? ((dom.textContent != String(vdom)) ? replace(render(vdom, parent as any)) : dom) : replace(render(vdom, parent as any));
     else if (typeof vdom == 'object' && dom instanceof Text) return replace(render(vdom, parent as any));
     else if (typeof vdom == 'object' && (dom as HTMLElement).nodeName != (vdom as VNode).type.toString().toUpperCase()) return replace(render(vdom, parent as any));
     else if (typeof vdom == 'object' && (dom as HTMLElement).nodeName == (vdom as VNode).type.toString().toUpperCase()) {

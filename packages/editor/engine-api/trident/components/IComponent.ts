@@ -12,6 +12,5 @@ export interface IComponent {
 
     Start();
     Update();
-    LateUpdate();
     Destroy();
 }

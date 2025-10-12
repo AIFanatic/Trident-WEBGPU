@@ -1,3 +1,30 @@
+import { IGameObject } from "./engine-api/trident/components/IGameObject";
+
+export class GameObjectEvents {
+    public static Selected = (gameObject: IGameObject) => {};
+    public static Created = (gameObject: IGameObject) => {};
+    public static Deleted = (gameObject: IGameObject) => {};
+}
+
+export class ProjectEvents {
+    public static Opened = () => {};
+}
+
+export class FileEvents {
+    public static Created = (path: string, handle: FileSystemFileHandle) => {};
+    public static Changed = (path: string, handle: FileSystemFileHandle) => {};
+    public static Deleted = (path: string, handle: FileSystemFileHandle) => {};
+}
+
+export class DirectoryEvents {
+    public static Created = (path: string, handle: FileSystemDirectoryHandle) => {};
+    public static Deleted = (path: string, handle: FileSystemDirectoryHandle) => {};
+}
+
+export class LayoutHierarchyEvents {
+    public static Selected = (gameObject: IGameObject) => {};
+}
+
 export class EventSystem {
     private static events: Map<any, Function[]> = new Map();
 

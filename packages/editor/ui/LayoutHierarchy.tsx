@@ -3,11 +3,7 @@ import { IGameObject } from "../engine-api/trident/components/IGameObject";
 import { BaseProps } from "./Layout";
 import { ITreeMap } from "./TreeView/ITreeMap";
 import { Tree } from "./TreeView/Tree";
-import { EventSystem } from "../Events";
-
-export class LayoutHierarchyEvents {
-    public static Selected = (gameObject: IGameObject) => {};
-}
+import { EventSystem, GameObjectEvents, LayoutHierarchyEvents } from "../Events";
 
 interface LayoutHierarchyState {
     gameObject: IGameObject;
@@ -18,14 +14,23 @@ export class LayoutHierarchy extends Component<BaseProps, LayoutHierarchyState> 
     constructor(props) {
         super(props);
         this.setState({gameObject: null});
+
+        EventSystem.on(GameObjectEvents.Created, gameObject => {
+            this.selectGameObject(gameObject);
+        });
+
+        EventSystem.on(GameObjectEvents.Deleted, gameObject => {
+            if (gameObject === this.state.gameObject) this.setState({gameObject: null});
+        });
+    }
+
+    private selectGameObject(gameObject: IGameObject) {
+        console.log("selected", gameObject);
+        EventSystem.emit(LayoutHierarchyEvents.Selected, gameObject);
+        this.setState({gameObject: gameObject});
     }
 
     private onDropped(from: string, to: string) {
-    }
-
-    private onClicked(data: ITreeMap<IGameObject>) {
-        EventSystem.emit(LayoutHierarchyEvents.Selected, data.data);
-        this.setState({gameObject: data.data});
     }
 
     private onDragStarted(event, data) {
@@ -52,10 +57,10 @@ export class LayoutHierarchy extends Component<BaseProps, LayoutHierarchyState> 
         const nodes = this.buildTreeFromGameObjects(this.props.engineAPI.currentScene.gameObjects);
 
         return (
-            <div style="width: 100%">
+            <div style="width: 100%; overflow: auto;">
                 <Tree
                     onDropped={(from, to) => this.onDropped(from, to)}
-                    onClicked={(data) => this.onClicked(data)}
+                    onClicked={(data) => this.selectGameObject(data.data)}
                     onDragStarted={(event, data) => this.onDragStarted(event, data)}
                     data={nodes}
                 />

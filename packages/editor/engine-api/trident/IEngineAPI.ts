@@ -35,7 +35,7 @@ export interface IEngineAPI {
     createPlaneGeometry(): IGeometry;
     createCubeGeometry(): IGeometry;
     
-    createPBRMaterial(args): IMaterial;
+    createPBRMaterial(args?): IMaterial;
 
     SerializableFields: ISerializableFieldsMap;
 }

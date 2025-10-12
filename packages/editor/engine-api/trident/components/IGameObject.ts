@@ -20,8 +20,9 @@ export interface IGameObject {
     name: string;
     enabled: boolean;
 
-    AddComponent<T extends ComponentCtor>(ctor: T): InstanceType<T>;
+    // AddComponent<T extends ComponentCtor>(ctor: T): InstanceType<T>;
     AddComponent<T extends ComponentCtor>(ctor: T): ComponentInterface<T>;
 
     GetComponents<T extends IComponent>(type?: new(...args: any[]) => T): T[];
+    Destroy();
 };

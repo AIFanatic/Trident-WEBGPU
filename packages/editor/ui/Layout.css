@@ -53,9 +53,14 @@ flex-item {
     overflow: hidden;
 }
 
-flex>flex-resizer:hover {
+flex.h>flex-resizer:hover {
     background-color: #363636;
     width: 20px;
+}
+
+flex.v>flex-resizer:hover {
+    background-color: #363636;
+    height: 20px;
 }
 
 flex.h>flex-resizer {
