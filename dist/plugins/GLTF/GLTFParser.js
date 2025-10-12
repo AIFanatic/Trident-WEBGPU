@@ -107,8 +107,6 @@ class Node {
   childrenID;
   parent;
   skinLink;
-  modelMatrix;
-  worldMatrix;
   constructor(nodeBase, nodeID, currentLoader) {
     this.camera = nodeBase.camera !== void 0 ? nodeBase.camera : null;
     this.children = [];
@@ -129,8 +127,6 @@ class Node {
     this.nodeID = nodeID;
     this.childrenID = nodeBase.children !== void 0 ? nodeBase.children : [];
     this.parent = null;
-    this.modelMatrix = Matrix4.clone(this.matrix);
-    this.worldMatrix = Matrix4.clone(this.matrix);
     this.skinLink = null;
     if (typeof nodeBase.skin === "number" && currentLoader.glTF.skins) {
       this.skin = currentLoader.glTF.skins[nodeBase.skin] || null;
@@ -753,9 +749,9 @@ class GLTFParser {
             rootNode.traverseTwoFunction(
               (node, parent) => {
                 if (parent) {
-                  Matrix4.multiply(nodeMatrices[node.nodeID], nodeMatrices[parent.nodeID], node.modelMatrix);
+                  Matrix4.multiply(nodeMatrices[node.nodeID], nodeMatrices[parent.nodeID], node.matrix);
                 } else {
-                  nodeMatrices[node.nodeID] = Matrix4.clone(node.modelMatrix);
+                  nodeMatrices[node.nodeID] = Matrix4.clone(node.matrix);
                 }
               },
               (node, parent) => {

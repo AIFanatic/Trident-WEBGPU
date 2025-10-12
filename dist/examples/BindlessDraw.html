@@ -157,6 +157,11 @@
                 modelMatrix.compose(position, rotation, scale);
                 cubes.setInstanceData(modelMatrix.elements, i);
               }
+              const cube = new Object(cubeVertices, cubeIndices, 16, 1);
+              position.set(0, 0, 0);
+              scale.set(1, 1, 1);
+              modelMatrix.compose(position, rotation, scale);
+              cube.setInstanceData(modelMatrix.elements, 0);
               console.log(objects);
               const globalVerticesAttribute = new VertexAttribute(new Float32Array([0]));
               const globalIndicesAttribute = new IndexAttribute(new Uint32Array([0]));
@@ -168,9 +173,6 @@
               class BindlessDrawPass extends GPU.RenderPass {
                 shader;
                 name = "BindlessDrawPass";
-                constructor() {
-                  super({});
-                }
                 async init(resources) {
                   this.shader = await GPU.Shader.Create({
                     code: `
@@ -218,7 +220,7 @@
                             }
                             `,
                     colorOutputs: [
-                      { format: GPU.Renderer.SwapChainFormat }
+                      { format: "rgba16float" }
                     ],
                     attributes: {
                       position: { location: 0, size: 3, type: "vec3" }
@@ -234,7 +236,7 @@
                   this.shader.SetBuffer("pointers", pointersBuffer.getBuffer());
                   this.initialized = true;
                 }
-                execute(resources) {
+                async execute(resources) {
                   if (!this.initialized) return;
                   const camera2 = Components.Camera.mainCamera;
                   this.shader.SetMatrix4("projectionMatrix", camera2.projectionMatrix);

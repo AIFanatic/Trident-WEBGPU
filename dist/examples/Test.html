@@ -27,48 +27,79 @@
             <script type="module">
                 const canvas = document.createElement("canvas");
                 document.body.appendChild(canvas);
-                            import { GPU, Scene, GameObject, Components, Mathf, Geometry, PBRMaterial } from '@trident/core';
+                            import { GPU, Scene, GameObject, Components, Mathf, PBRMaterial } from '@trident/core';
             import { OrbitControls } from '@trident/plugins/OrbitControls.js';
+            import { GLTFLoader } from '@trident/plugins/GLTF/GLTFLoader.js';
+            import { MeshletMeshV3 } from '@trident/plugins/meshlets_v3/MeshletMesh.js';
+            import { MeshletDraw } from '@trident/plugins/meshlets_v3/passes/MeshletDraw.js';
             import { Debugger } from '@trident/plugins/Debugger.js';
             
             async function Application(canvas) {
               const renderer = GPU.Renderer.Create(canvas, "webgpu");
               const scene = new Scene(renderer);
               const mainCameraGameObject = new GameObject(scene);
-              mainCameraGameObject.transform.position.set(0, 0, -15);
               mainCameraGameObject.name = "MainCamera";
               const camera = mainCameraGameObject.AddComponent(Components.Camera);
-              camera.SetPerspective(72, canvas.width / canvas.height, 0.01, 1e4);
-              mainCameraGameObject.transform.position.set(0, 0, 10);
+              camera.SetPerspective(72, canvas.width / canvas.height, 0.01, 5e4);
+              mainCameraGameObject.transform.position.set(0, 0, 2);
               mainCameraGameObject.transform.LookAtV1(new Mathf.Vector3(0, 0, 0));
               new OrbitControls(canvas, camera);
               const lightGameObject = new GameObject(scene);
               lightGameObject.transform.position.set(-4, 4, 4);
               lightGameObject.transform.LookAtV1(new Mathf.Vector3(0, 0, 0));
-              lightGameObject.AddComponent(Components.DirectionalLight);
-              const floorGameObject = new GameObject(scene);
-              floorGameObject.transform.eulerAngles.x = -90;
-              floorGameObject.transform.position.y = -2;
-              floorGameObject.transform.scale.set(100, 100, 100);
-              const floorMesh = floorGameObject.AddComponent(Components.Mesh);
-              floorMesh.geometry = Geometry.Plane();
-              floorMesh.material = new PBRMaterial();
-              {
-                const floorGameObject2 = new GameObject(scene);
-                floorGameObject2.transform.eulerAngles.x = -90;
-                floorGameObject2.transform.position.y = -1;
-                const floorMesh2 = floorGameObject2.AddComponent(Components.Mesh);
-                floorMesh2.geometry = Geometry.Cube();
-                floorMesh2.material = new PBRMaterial({ albedoColor: new Mathf.Color(1, 0, 0, 1) });
-              }
-              {
-                console.log("lightGameObject.GetComponents(Light)", lightGameObject.GetComponents(Components.Light));
-                console.log("lightGameObject.GetComponents(DirectionalLight)", lightGameObject.GetComponents(Components.DirectionalLight));
-                console.log("scene.GetComponents(Light)", scene.GetComponents(Components.Light));
-                console.log("scene.GetComponents(DirectionalLight)", scene.GetComponents(Components.DirectionalLight));
-              }
+              const light = lightGameObject.AddComponent(Components.DirectionalLight);
+              light.intensity = 1;
+              light.color.set(1, 1, 1, 1);
+              light.castShadows = true;
+              scene.renderPipeline.AddPass(new MeshletDraw(), GPU.RenderPassOrder.BeforeGBuffer);
               Debugger.Enable();
-              scene.Start();
+              {
+                async function traverse(gameObjects2, fn) {
+                  for (const go of gameObjects2) {
+                    if (!await fn(go)) continue;
+                    for (const child of go.transform.children) {
+                      await traverse([child.gameObject], fn);
+                    }
+                  }
+                }
+                const tempScene = new Scene(renderer);
+                const gameObjects = await GLTFLoader.loadAsGameObjects(tempScene, "/extra/dist_bak/test-assets/GLTF/scenes/Sponza/Sponza.gltf");
+                console.log(gameObjects);
+                const oldToNewMap = /* @__PURE__ */ new Map();
+                await traverse(gameObjects, async (gameObject) => {
+                  const newGameObject = new GameObject(scene);
+                  newGameObject.name = gameObject.name;
+                  newGameObject.transform.position.copy(gameObject.transform.position);
+                  newGameObject.transform.rotation.copy(gameObject.transform.rotation);
+                  newGameObject.transform.scale.copy(gameObject.transform.scale);
+                  oldToNewMap.set(gameObject, newGameObject);
+                  return true;
+                });
+                await traverse(gameObjects, async (oldGameObject) => {
+                  const newGameObject = oldToNewMap.get(oldGameObject);
+                  const parentOld = oldGameObject.transform.parent?.gameObject;
+                  const parentNew = parentOld ? oldToNewMap.get(parentOld) : void 0;
+                  if (parentNew) newGameObject.transform.parent = parentNew.transform;
+                  return true;
+                });
+                let i = 0;
+                let meshes = [];
+                const mat = new PBRMaterial();
+                await traverse(gameObjects, async (oldGameObject) => {
+                  const newGameObject = oldToNewMap.get(oldGameObject);
+                  const mesh = oldGameObject.GetComponent(Components.Mesh);
+                  if (!mesh) return true;
+                  const newMesh = newGameObject.AddComponent(MeshletMeshV3);
+                  newMesh.geometry = mesh.geometry;
+                  newMesh.material = mat;
+                  newMesh.enableShadows = false;
+                  console.log(`Parsed ${i}/3064`);
+                  i++;
+                  return true;
+                });
+                console.log(meshes);
+                scene.Start();
+              }
             }
             Application(document.querySelector("canvas"));
             

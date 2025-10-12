@@ -18,18 +18,6 @@ class DebuggerRenderPass extends GPU.RenderPass {
   geometry;
   outputViewerShader;
   lightingOutputClone;
-  constructor() {
-    super({
-      inputs: [
-        GPU.PassParams.MainCamera,
-        GPU.PassParams.GBufferAlbedo,
-        GPU.PassParams.GBufferNormal,
-        GPU.PassParams.GBufferERMO,
-        GPU.PassParams.GBufferDepth
-      ],
-      outputs: []
-    });
-  }
   async init(resources) {
     this.outputViewerShader = await GPU.Shader.Create({
       code: `
@@ -148,7 +136,7 @@ class DebuggerRenderPass extends GPU.RenderPass {
     this.outputViewerShader.SetSampler("inputDepthSampler", GPU.TextureSampler.Create());
     this.initialized = true;
   }
-  execute(resources, ...args) {
+  async execute(resources, ...args) {
     if (this.currentViewType === 0 /* Lighting */) return;
     const GBufferAlbedo = resources.getResource(GPU.PassParams.GBufferAlbedo);
     const GBufferNormal = resources.getResource(GPU.PassParams.GBufferNormal);
@@ -203,6 +191,8 @@ class _Debugger {
   gpuTextureSizeStat;
   bindGroupLayoutsStat;
   bindGroupsStat;
+  frameVertexBuffersStat;
+  frameIndexBufferStat;
   compiledShadersStat;
   drawCallsStat;
   viewTypeStat;
@@ -238,6 +228,8 @@ class _Debugger {
     this.gpuTextureCount = new UITextStat(this.rendererFolder, "GPU texture count: ", 0, 0);
     this.bindGroupLayoutsStat = new UITextStat(this.rendererFolder, "Bind group layouts: ");
     this.bindGroupsStat = new UITextStat(this.rendererFolder, "Bind groups: ");
+    this.frameVertexBuffersStat = new UITextStat(this.rendererFolder, "Frame vertex buffers: ");
+    this.frameIndexBufferStat = new UITextStat(this.rendererFolder, "Frame index buffers: ");
     this.drawCallsStat = new UITextStat(this.rendererFolder, "Draw calls: ");
     this.compiledShadersStat = new UITextStat(this.rendererFolder, "Compiled shaders: ");
     this.visibleObjectsStat = new UITextStat(this.rendererFolder, "Visible objects: ");
@@ -280,6 +272,8 @@ class _Debugger {
     this.gpuTextureCount.SetValue(Renderer.info.gpuTextureCount);
     this.bindGroupLayoutsStat.SetValue(Renderer.info.bindGroupLayoutsStat);
     this.bindGroupsStat.SetValue(Renderer.info.bindGroupsStat);
+    this.frameVertexBuffersStat.SetValue(Renderer.info.frameVertexBuffersStat);
+    this.frameIndexBufferStat.SetValue(Renderer.info.frameIndexBufferStat);
     this.drawCallsStat.SetValue(Renderer.info.drawCallsStat);
     this.compiledShadersStat.SetValue(Renderer.info.compiledShadersStat);
     this.visibleObjectsStat.SetValue(Renderer.info.visibleObjects);

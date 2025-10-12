@@ -6,11 +6,7 @@ class PostProcessingFXAA extends GPU.RenderPass {
   quadGeometry;
   renderTarget;
   constructor() {
-    super({
-      inputs: [
-        GPU.PassParams.LightingPassOutput
-      ]
-    });
+    super();
   }
   async init() {
     const code = `
@@ -114,7 +110,7 @@ class PostProcessingFXAA extends GPU.RenderPass {
     this.shader.SetVector2("resolutionInv", new Mathf.Vector2(1 / GPU.Renderer.width, 1 / GPU.Renderer.height));
     this.initialized = true;
   }
-  execute(resources) {
+  async execute(resources) {
     if (this.initialized === false) return;
     const LightingPassOutputTexture = resources.getResource(GPU.PassParams.LightingPassOutput);
     if (!LightingPassOutputTexture) return;

@@ -1,3 +1,4 @@
+import { Debugger } from '@trident/plugins/Debugger.js';
 import { UIFolder, UIDropdownStat, UITextStat, UISliderStat, UIButtonStat } from '@trident/plugins/ui/UIStats.js';
 
 class _MeshletDebug {
@@ -30,10 +31,7 @@ class _MeshletDebug {
   isDynamicLODEnabled = true;
   staticLODValue = 20;
   constructor() {
-    const container = document.createElement("div");
-    container.classList.add("stats-panel");
-    document.body.append(container);
-    this.meshletsFolder = new UIFolder(container, "Plugin - Meshlets");
+    this.meshletsFolder = new UIFolder(Debugger.ui, "Plugin - Meshlets");
     this.viewTypeStat = new UIDropdownStat(this.meshletsFolder, "Show:", ["Default", "Meshlets", "Triangles"], (index, value) => {
       this.meshletsViewType = index;
     }, this.meshletsViewType);

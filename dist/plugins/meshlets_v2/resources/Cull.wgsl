@@ -20,77 +20,88 @@ struct DrawBuffer {
 
 @group(0) @binding(8) var textureSampler: sampler;
 @group(0) @binding(9) var depthTexture: texture_depth_2d;
+
 @group(0) @binding(10) var<storage, read> meshletSettings: MeshletSettings;
 
-fn conservativeErrorOverDistance(transform: mat4x4<f32>, boundingSphere: vec4f, objectSpaceQuadricError: f32) -> f32 {
-    let radiusScale = 1.0;
-    let maxError = objectSpaceQuadricError * radiusScale;
-    
-    let instanceToEye = transform;
-    let sphereDistance    = length((instanceToEye * vec4f(boundingSphere.xyz, 1.0f)).xyz);
-
-    let errorDistance = max(maxError, sphereDistance - boundingSphere.w * radiusScale);
-    return maxError / errorDistance;
+fn computeRadiusScale(modelMatrix: mat4x4<f32>) -> f32 {
+    let sx = length(modelMatrix[0].xyz);
+    let sy = length(modelMatrix[1].xyz);
+    let sz = length(modelMatrix[2].xyz);
+    return max(sx, max(sy, sz));
 }
 
-fn isMeshletVisible(meshlet: MeshletInfo, modelview: mat4x4<f32>) -> bool {
-    let error = conservativeErrorOverDistance(
-        modelview,
-        meshlet.boundingSphere,
-        meshlet.error.x
+fn worldCenter(modelMatrix: mat4x4<f32>, localCenter: vec3f) -> vec3f {
+    return (modelMatrix * vec4f(localCenter, 1.0)).xyz;
+}
+
+fn viewCenter(worldPos: vec3f) -> vec3f {
+    return (cullData.viewMatrix * vec4f(worldPos, 1.0)).xyz;
+}
+
+fn worldDirection(modelMatrix: mat4x4<f32>, localDir: vec3f) -> vec3f {
+    // upper-left 3x3 is enough (uniform + non-uniform scale, orthogonal camera)
+    let m = mat3x3<f32>(
+        modelMatrix[0].xyz,
+        modelMatrix[1].xyz,
+        modelMatrix[2].xyz
     );
+    return normalize(m * localDir);
+}
 
-    let parentError = conservativeErrorOverDistance(
-        modelview,
-        meshlet.parentBoundingSphere,
-        meshlet.parentError.x
-    );
+fn conservativeErrorOverDistance(modelMatrix: mat4x4<f32>, boundingSphere: vec4f, objectSpaceError: f32) -> f32 {
+    let centerWorld = worldCenter(modelMatrix, boundingSphere.xyz);
+    let centerView = viewCenter(centerWorld);
+    let radiusScale = computeRadiusScale(modelMatrix);
 
-    let errorOverDistanceThreshold: f32 = meshletSettings.dynamicLODErrorThreshold * 0.001;
+    let scaledError = objectSpaceError * radiusScale;
+    let worldRadius = boundingSphere.w * radiusScale;
 
-    return error >= errorOverDistanceThreshold && parentError < errorOverDistanceThreshold;
+    let sphereDistance = length(centerView);
+    let errorDistance = max(scaledError, sphereDistance - worldRadius);
+    return scaledError / errorDistance;
 }
 
 fn planeDistanceToPoint(normal: vec3f, constant: f32, point: vec3f) -> f32 {
     return dot(normal, point) + constant;
 }
 
-fn IsFrustumCulled(meshlet: MeshletInfo, meshModelMatrix: mat4x4<f32>) -> bool {
-    let meshPosition = vec3(meshModelMatrix[3][0], meshModelMatrix[3][1], meshModelMatrix[3][2]);
+fn isMeshletVisible(meshlet: MeshletInfo, modelMatrix: mat4x4<f32>) -> bool {
+    let error = conservativeErrorOverDistance(modelMatrix, meshlet.boundingSphere, meshlet.error.x);
+    let parentError = conservativeErrorOverDistance(modelMatrix, meshlet.parentBoundingSphere, meshlet.parentError.x);
 
-    let scaleX = length(vec3(meshModelMatrix[0][0], meshModelMatrix[0][1], meshModelMatrix[0][2]));
-    let scaleY = length(vec3(meshModelMatrix[1][0], meshModelMatrix[1][1], meshModelMatrix[1][2]));
-    let scaleZ = length(vec3(meshModelMatrix[2][0], meshModelMatrix[2][1], meshModelMatrix[2][2]));
-    let meshScale = vec3(scaleX, scaleY, scaleZ);
+    let errorThreshold = meshletSettings.dynamicLODErrorThreshold * 0.001;
+    return error >= errorThreshold && parentError < errorThreshold;
+}
+
+fn IsFrustumCulled(meshlet: MeshletInfo, modelMatrix: mat4x4<f32>) -> bool {
+    let radiusScale = computeRadiusScale(modelMatrix);
+    let centerWorld = worldCenter(modelMatrix, meshlet.boundingSphere.xyz);
+    let centerView = viewCenter(centerWorld);
+    let worldRadius = meshlet.boundingSphere.w * radiusScale;
 
     if (bool(meshletSettings.dynamicLODEnabled)) {
-        if (!isMeshletVisible(meshlet, cullData.viewMatrix * meshModelMatrix)) {
+        if (!isMeshletVisible(meshlet, modelMatrix)) {
             return true;
         }
-    }
-    else {
-        if (!(u32(meshlet.lod.x) == u32(meshletSettings.staticLOD))) {
+    } else {
+        if (u32(meshlet.lod.x) != u32(meshletSettings.staticLOD)) {
             return true;
         }
     }
 
-    // Backface
     if (bool(meshletSettings.backFaceCullingEnabled)) {
-        if (dot(normalize(meshlet.cone_apex.xyz - cullData.cameraPosition.xyz), meshlet.cone_axis.xyz) * meshScale.x >= meshlet.cone_cutoff) {
+        let apexWorld = worldCenter(modelMatrix, meshlet.cone_apex.xyz);
+        let axisWorld = worldDirection(modelMatrix, meshlet.cone_axis.xyz);
+        let toCamera = normalize(cullData.cameraPosition.xyz - apexWorld);
+        if (dot(toCamera, axisWorld) >= meshlet.cone_cutoff) {
             return true;
         }
     }
 
-    // Camera frustum
     if (bool(meshletSettings.frustumCullingEnabled)) {
-        let boundingSphere = meshlet.boundingSphere * meshScale.x;
-        let center = (cullData.viewMatrix * vec4(boundingSphere.xyz + meshPosition.xyz, 1.0)).xyz;
-        let negRadius = -boundingSphere.w;
-
-        for (var i = 0; i < 6; i++) {
-            let distance = planeDistanceToPoint(cullData.frustum[i].xyz, cullData.frustum[i].w, center);
-
-            if (distance < negRadius) {
+        for (var i = 0u; i < 6u; i++) {
+            let distance = planeDistanceToPoint(cullData.frustum[i].xyz, cullData.frustum[i].w, centerView);
+            if (distance < -worldRadius) {
                 return true;
             }
         }
@@ -101,14 +112,10 @@ fn IsFrustumCulled(meshlet: MeshletInfo, meshModelMatrix: mat4x4<f32>) -> bool {
 
 const blockSize: u32 = 4;
 
-// @compute @workgroup_size(blockSizeX, blockSizeY, blockSizeZ)
 @compute @workgroup_size(blockSize, blockSize, blockSize)
 fn main(@builtin(global_invocation_id) grid: vec3<u32>) {
-    // let objectIndex = grid.z * (blockSizeX * blockSizeY) + grid.y * blockSizeX + grid.x;
-    
     let size = u32(ceil(pow(cullData.meshCount, 1.0 / 3.0) / 4));
     let objectIndex = grid.x + (grid.y * size * blockSize) + (grid.z * size * size * blockSize * blockSize);
-
 
     if (objectIndex >= u32(cullData.meshCount)) {
         return;
@@ -116,16 +123,13 @@ fn main(@builtin(global_invocation_id) grid: vec3<u32>) {
 
     let object = objectInfo[objectIndex];
     let meshlet = meshletInfo[u32(object.meshletID)];
-    var meshMatrixInfo = meshMatrixInfo[u32(object.meshID)];
-    // meshMatrixInfo.modelMatrix = mesh.modelMatrix;
-    // meshMatrixInfo.position = mesh.position;
-    // meshMatrixInfo.scale = mesh.scale;
+    var meshMatrix = meshMatrixInfo[u32(object.meshID)].modelMatrix;
 
-    var bVisible = visibilityBuffer[objectIndex] > 0.5 && !IsFrustumCulled(meshlet, meshMatrixInfo.modelMatrix);
+    let visible = visibilityBuffer[objectIndex] > 0.5 && !IsFrustumCulled(meshlet, meshMatrix);
 
-    if (bVisible) {
-        drawBuffer.vertexCount = u32(meshletSettings.maxTriangles * 3);
-        let countIndex = atomicAdd(&drawBuffer.instanceCount, 1);
+    if (visible) {
+        drawBuffer.vertexCount = u32(meshletSettings.maxTriangles * 3.0);
+        let countIndex = atomicAdd(&drawBuffer.instanceCount, 1u);
         instanceInfo[countIndex].meshID = objectIndex;
     }
-} 
+}

@@ -16,7 +16,7 @@ export { Upscaler } from './Upscaler.js';
 export { Bloom } from './Bloom.js';
 export { HiZPass } from './HiZPass.js';
 export { MeshletMesh } from './meshlets_v2/MeshletMesh.js';
-export { MeshletDraw } from './meshlets_v2/passes/MeshletDraw.js';
+import './meshlets_v2/passes/MeshletDraw.js';
 export { TerrainCollider } from './PhysicsRapier/colliders/TerrainCollider.js';
 export { SphereCollider } from './PhysicsRapier/colliders/SphereCollider.js';
 export { PlaneCollider } from './PhysicsRapier/colliders/PlaneCollider.js';
@@ -38,6 +38,10 @@ export { Atlas, AtlasViewer } from './Atlas.js';
 export { ImpostorMesh } from './Impostors/ImpostorMesh.js';
 export { ParticleSystem } from './ParticleSystem/ParticleSystem.js';
 import { Component } from '@trident/core';
+export { SSGIRenderPass } from './SSGI.js';
+export { Blit } from './Blit.js';
+export { MeshletMeshV3 } from './meshlets_v3/MeshletMesh.js';
+import './meshlets_v3/passes/MeshletDraw.js';
 
 Component.Registry.set(Water.type, Water);
 

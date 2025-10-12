@@ -30,6 +30,7 @@
                             import { GPU, Scene, GameObject, Components, Mathf } from '@trident/core';
             import { OrbitControls } from '@trident/plugins/OrbitControls.js';
             import { GLTFLoader } from '@trident/plugins/GLTF/GLTFLoader.js';
+            import { Debugger } from '@trident/plugins/Debugger.js';
             
             async function Application(canvas) {
               const renderer = GPU.Renderer.Create(canvas, "webgpu");
@@ -46,11 +47,22 @@
               lightGameObject.transform.position.set(-4, 4, 4);
               lightGameObject.transform.LookAtV1(new Mathf.Vector3(0, 0, 0));
               lightGameObject.AddComponent(Components.DirectionalLight);
-              const gameObjects = await GLTFLoader.loadAsGameObjects(scene, "./assets/models/Fox.glb");
-              const root = gameObjects[0];
-              root.transform.scale.mul(0.01);
-              const animator = root.GetComponent(Components.Animator);
-              animator.SetClipByIndex(0);
+              const gameObjects = await GLTFLoader.loadAsGameObjects(scene, "./assets/models/DamagedHelmet/DamagedHelmet.gltf");
+              function traverse(gameObjects2, fn) {
+                for (const gameObject of gameObjects2) {
+                  fn(gameObject);
+                  for (const child of gameObject.transform.children) {
+                    traverse([child.gameObject], fn);
+                  }
+                }
+              }
+              traverse(gameObjects, (gameObject) => {
+                const mesh = gameObject.GetComponent(Components.Mesh);
+                if (mesh) {
+                  mesh.enableShadows = false;
+                }
+              });
+              Debugger.Enable();
               scene.Start();
             }
             Application(document.querySelector("canvas"));

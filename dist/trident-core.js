@@ -139,8 +139,6 @@ class Component {
   }
   Update() {
   }
-  LateUpdate() {
-  }
   Destroy() {
   }
   Serialize() {
@@ -1183,6 +1181,13 @@ class Matrix4 {
     );
     return this;
   }
+  getMaxScaleOnAxis() {
+    const te = this.elements;
+    const scaleXSq = te[0] * te[0] + te[1] * te[1] + te[2] * te[2];
+    const scaleYSq = te[4] * te[4] + te[5] * te[5] + te[6] * te[6];
+    const scaleZSq = te[8] * te[8] + te[9] * te[9] + te[10] * te[10];
+    return Math.sqrt(Math.max(scaleXSq, scaleYSq, scaleZSq));
+  }
 }
 const _v1 = new Vector3();
 const _m1 = new Matrix4();
@@ -1535,7 +1540,7 @@ class Color {
 
 var __create$3 = Object.create;
 var __defProp$3 = Object.defineProperty;
-var __getOwnPropDesc$1 = Object.getOwnPropertyDescriptor;
+var __getOwnPropDesc$2 = Object.getOwnPropertyDescriptor;
 var __knownSymbol$3 = (name, symbol) => (symbol = Symbol[name]) ? symbol : Symbol.for("Symbol." + name);
 var __typeError$3 = (msg) => {
   throw TypeError(msg);
@@ -1554,7 +1559,7 @@ var __decorateElement$3 = (array, flags, name, decorators, target, extra) => {
   var it, done, ctx, access, k = flags & 7, s = false, p = false;
   var j = 2 , key = __decoratorStrings$3[k + 5];
   var extraInitializers = array[j] || (array[j] = []);
-  var desc = ((target = target.prototype), __getOwnPropDesc$1(target , name));
+  var desc = ((target = target.prototype), __getOwnPropDesc$2(target , name));
   for (var i = decorators.length - 1; i >= 0; i--) {
     ctx = __decoratorContext$3(k, name, done = {}, array[3], extraInitializers);
     {
@@ -1723,6 +1728,9 @@ class GameObject {
     }
   }
   Destroy() {
+    for (const child of this.transform.children) {
+      child.gameObject.Destroy();
+    }
     for (const component of this.allComponents) {
       component.Destroy();
     }
@@ -1821,6 +1829,8 @@ class RendererInfo {
   cpuTime = 0;
   bindGroupLayoutsStat = 0;
   bindGroupsStat = 0;
+  frameVertexBuffersStat = 0;
+  frameIndexBufferStat = 0;
   compiledShadersStat = 0;
   drawCallsStat = 0;
   gpuBufferSizeTotal = 0;
@@ -1836,6 +1846,11 @@ class RendererInfo {
     this.drawCallsStat = 0;
     this.triangleCount = 0;
     this.vertexCount = 0;
+    this.frameVertexBuffersStat = 0;
+    this.frameIndexBufferStat = 0;
+    this.drawCallsStat = 0;
+    this.visibleObjects = 0;
+    this.visibleTriangles = 0;
   }
 }
 
@@ -2080,6 +2095,1504 @@ class BoundingVolume {
   }
 }
 
+class Assets {
+  static cache = /* @__PURE__ */ new Map();
+  // Register a path
+  static async Register(path, resource, force = false) {
+    if (Assets.cache.has(path) && force === false) throw Error(`Assets[Register]: ${path} already set, use "force" to bypass.`);
+    Assets.cache.set(path, Promise.resolve(resource));
+  }
+  static async Load(url, type) {
+    const cached = Assets.cache.get(url);
+    if (cached !== void 0) {
+      return cached;
+    }
+    const promise = fetch(url).then((response) => {
+      if (!response.ok) throw Error(`File not found ${url}`);
+      if (type === "json") return response.json();
+      else if (type === "text") return response.text();
+      else if (type === "binary") return response.arrayBuffer();
+    }).then((result) => {
+      Assets.cache.set(url, Promise.resolve(result));
+      return result;
+    }).catch((error) => {
+      Assets.cache.delete(url);
+      throw error;
+    });
+    Assets.cache.set(url, promise);
+    return promise;
+  }
+  static async LoadURL(url, type) {
+    const cached = Assets.cache.get(url.href);
+    if (cached !== void 0) {
+      return cached;
+    }
+    const promise = fetch(url).then((response) => {
+      if (!response.ok) throw Error(`File not found ${url}`);
+      if (type === "json") return response.json();
+      else if (type === "text") return response.text();
+      else if (type === "binary") return response.arrayBuffer();
+    }).then((result) => {
+      Assets.cache.set(url.href, Promise.resolve(result));
+      return result;
+    }).catch((error) => {
+      Assets.cache.delete(url.href);
+      throw error;
+    });
+    Assets.cache.set(url.href, promise);
+    return promise;
+  }
+}
+
+var WGSL_Shader_Draw_URL = "struct VertexInput {\n    @builtin(instance_index) instance : u32, \n    @builtin(vertex_index) vertex : u32,\n    @location(0) position : vec3<f32>,\n    @location(1) normal : vec3<f32>,\n    @location(2) uv : vec2<f32>,\n\n    #if USE_NORMAL_MAP\n        @location(3) tangent : vec4<f32>,\n        #if USE_SKINNING\n            @location(4) joints: vec4<u32>,\n            @location(5) weights: vec4<f32>,\n        #endif\n    #else\n        #if USE_SKINNING\n            @location(3) joints: vec4<u32>,\n            @location(4) weights: vec4<f32>,\n        #endif\n    #endif\n};\n\nstruct Material {\n    AlbedoColor: vec4<f32>,\n    EmissiveColor: vec4<f32>,\n    Roughness: f32,\n    Metalness: f32,\n    Unlit: f32,\n    AlphaCutoff: f32,\n    Wireframe: f32\n};\n\nstruct VertexOutput {\n    @builtin(position) position : vec4<f32>,\n    @location(0) vPosition : vec3<f32>,\n    @location(1) vNormal : vec3<f32>,\n    @location(2) vUv : vec2<f32>,\n    @location(3) @interpolate(flat) instance : u32,\n    @location(4) barycenticCoord : vec3<f32>,\n    @location(5) tangent : vec3<f32>,\n    @location(6) bitangent : vec3<f32>,\n};\n\n@group(0) @binding(0) var<storage, read> projectionMatrix: mat4x4<f32>;\n@group(0) @binding(1) var<storage, read> viewMatrix: mat4x4<f32>;\n@group(0) @binding(2) var<storage, read> modelMatrix: array<mat4x4<f32>>;\n@group(0) @binding(3) var<storage, read> material: Material;\n@group(0) @binding(4) var TextureSampler: sampler;\n\n// These get optimized out based on \"USE*\" defines\n@group(0) @binding(5) var AlbedoMap: texture_2d<f32>;\n@group(0) @binding(6) var NormalMap: texture_2d<f32>;\n@group(0) @binding(7) var HeightMap: texture_2d<f32>;\n@group(0) @binding(8) var MetalnessMap: texture_2d<f32>;\n@group(0) @binding(9) var EmissiveMap: texture_2d<f32>;\n@group(0) @binding(10) var AOMap: texture_2d<f32>;\n\n\n@group(0) @binding(11) var<storage, read> cameraPosition: vec3<f32>;\n\n#if USE_SKINNING\n    @group(1) @binding(0) var<storage, read> boneMatrices: array<mat4x4<f32>>;\n#endif\n\n\n@vertex\nfn vertexMain(input: VertexInput) -> VertexOutput {\n    var output : VertexOutput;\n\n      var finalPosition = vec4(input.position, 1.0);\n      var finalNormal = vec4(input.normal, 0.0);\n\n    #if USE_SKINNING\n        var skinnedPosition = vec4(0.0);\n        var skinnedNormal = vec4(0.0);\n\n        let skinMatrix: mat4x4<f32> = \n            boneMatrices[input.joints[0]] * input.weights[0] +\n            boneMatrices[input.joints[1]] * input.weights[1] +\n            boneMatrices[input.joints[2]] * input.weights[2] +\n            boneMatrices[input.joints[3]] * input.weights[3];\n        \n        finalPosition = skinMatrix * vec4(input.position, 1.0);\n        finalNormal   = normalize(skinMatrix * vec4(input.normal, 0.0));\n    #endif\n\n    var modelMatrixInstance = modelMatrix[input.instance];\n    let modelViewMatrix = viewMatrix * modelMatrixInstance;\n\n    output.instance = input.instance;\n    output.position = projectionMatrix * modelViewMatrix * vec4(finalPosition.xyz, 1.0);\n    output.vPosition = finalPosition.xyz;\n    output.vUv = input.uv;\n    let worldNormal = normalize(modelMatrixInstance * vec4(finalNormal.xyz, 0.0)).xyz;\n    output.vNormal = worldNormal;\n\n    #if USE_NORMAL_MAP\n        let worldTangent = normalize(modelMatrixInstance * vec4(input.tangent.xyz, 0.0)).xyz;\n        let worldBitangent = cross(worldNormal, worldTangent) * input.tangent.w;\n\n        output.tangent = worldTangent;\n        output.bitangent = worldBitangent;\n    #endif\n\n    // emit a barycentric coordinate\n    output.barycenticCoord = vec3f(0);\n    output.barycenticCoord[input.vertex % 3] = 1.0;\n\n    return output;\n}\n\nstruct FragmentOutput {\n    @location(0) albedo : vec4f,\n    @location(1) normal : vec4f,\n    @location(2) RMO : vec4f,\n};\n\nfn inversesqrt(v: f32) -> f32 {\n    return 1.0 / sqrt(v);\n}\n\nfn edgeFactor(bary: vec3f) -> f32 {\n    let lineThickness = 1.0;\n    let d = fwidth(bary);\n    let a3 = smoothstep(vec3f(0.0), d * lineThickness, bary);\n    return min(min(a3.x, a3.y), a3.z);\n}\n\n@fragment\nfn fragmentMain(input: VertexOutput) -> FragmentOutput {\n    var output: FragmentOutput;\n\n    var uv = input.vUv;\n\n    let mat = material;\n    let modelMatrixInstance = modelMatrix[input.instance];\n\n    var albedo = mat.AlbedoColor;\n    var roughness = mat.Roughness;\n    var metalness = mat.Metalness;\n    var occlusion = 1.0;\n    var unlit = mat.Unlit;\n\n    // var albedo = mat.AlbedoColor;\n    #if USE_ALBEDO_MAP\n        albedo *= textureSample(AlbedoMap, TextureSampler, uv);\n    #endif\n\n    if (albedo.a < mat.AlphaCutoff) {\n        discard;\n    }\n\n    var normal: vec3f = input.vNormal;\n    #if USE_NORMAL_MAP\n        var tbn: mat3x3<f32>;\n        tbn[0] = input.tangent;\n        tbn[1] = input.bitangent;\n        tbn[2] = input.vNormal;\n        \n        let normalSample = textureSample(NormalMap, TextureSampler, uv).xyz * 2.0 - 1.0; // [0 - 1] -> [-1, -1] from brga8unorm to float\n        normal = tbn * normalSample;\n    #endif\n\n    #if USE_METALNESS_MAP\n        let metalnessRoughness = textureSample(MetalnessMap, TextureSampler, uv);\n        metalness *= metalnessRoughness.b;\n        roughness *= metalnessRoughness.g;\n    #endif\n\n    var emissive = mat.EmissiveColor;\n    #if USE_EMISSIVE_MAP\n        emissive *= textureSample(EmissiveMap, TextureSampler, uv);\n    #endif\n\n    #if USE_AO_MAP\n        occlusion = textureSample(AOMap, TextureSampler, uv).r;\n        occlusion = 1.0;\n    #endif\n\n    output.albedo = vec4(albedo.rgb, roughness);\n    output.normal = vec4(normal, metalness);\n    // output.normal = vec4(input.tangent.xyz, metalness);\n    output.RMO = vec4(emissive.rgb, unlit);\n\n\n    // Wireframe\n    output.albedo *= 1.0 - edgeFactor(input.barycenticCoord) * mat.Wireframe;\n\n    // // Flat shading\n    // let xTangent: vec3f = dpdx( input.vPosition );\n    // let yTangent: vec3f = dpdy( input.vPosition );\n    // let faceNormal: vec3f = normalize( cross( xTangent, yTangent ) );\n\n    // output.normal = vec4(faceNormal.xyz, metalness);\n\n    return output;\n}";
+
+var WGSL_Shader_DrawVertexPulling_URL = "struct VertexInput {\n    @builtin(instance_index) instanceIdx : u32, \n    @builtin(vertex_index) vertexIndex : u32,\n    // @location(0) position : vec3<f32>,\n    // @location(1) normal : vec3<f32>,\n    // @location(2) uv : vec2<f32>,\n};\n\nstruct Material {\n    AlbedoColor: vec4<f32>,\n    EmissiveColor: vec4<f32>,\n    Roughness: f32,\n    Metalness: f32,\n    Unlit: f32,\n    AlphaCutoff: f32,\n    Wireframe: f32\n};\n\nstruct VertexOutput {\n    @builtin(position) position : vec4<f32>,\n    @location(0) vPosition : vec3<f32>,\n    @location(1) vNormal : vec3<f32>,\n    @location(2) vUv : vec2<f32>,\n    @location(3) @interpolate(flat) instance : u32,\n    @location(4) barycenticCoord : vec3<f32>,\n    @location(5) tangent : vec3<f32>,\n    @location(6) bitangent : vec3<f32>,\n};\n\n@group(0) @binding(0) var<storage, read> projectionMatrix: mat4x4<f32>;\n@group(0) @binding(1) var<storage, read> viewMatrix: mat4x4<f32>;\n@group(0) @binding(2) var<storage, read> modelMatrix: array<mat4x4<f32>>;\n@group(0) @binding(3) var<storage, read> material: Material;\n@group(0) @binding(4) var TextureSampler: sampler;\n\n// These get optimized out based on \"USE*\" defines\n@group(0) @binding(5) var AlbedoMap: texture_2d<f32>;\n@group(0) @binding(6) var NormalMap: texture_2d<f32>;\n@group(0) @binding(7) var HeightMap: texture_2d<f32>;\n@group(0) @binding(8) var MetalnessMap: texture_2d<f32>;\n@group(0) @binding(9) var EmissiveMap: texture_2d<f32>;\n@group(0) @binding(10) var AOMap: texture_2d<f32>;\n\n\n@group(0) @binding(11) var<storage, read> cameraPosition: vec3<f32>;\n\n// TODO: Make it work with skinning\n@group(1) @binding(0) var<storage, read> position: array<vec4<f32>>;\n@group(1) @binding(1) var<storage, read> normal: array<vec4<f32>>;\n@group(1) @binding(2) var<storage, read> uv: array<vec2<f32>>;\n@group(1) @binding(3) var<storage, read> index: array<u32>;\n#if USE_NORMAL_MAP\n    @group(1) @binding(4) var<storage, read> tangent: array<vec4<f32>>;\n#endif\n\n@vertex\nfn vertexMain(input: VertexInput) -> VertexOutput {\n    var output : VertexOutput;\n\n    let i = u32(index[input.vertexIndex]);\n\n    var finalPosition = vec4(position[i].xyz, 1.0);\n    // var finalPosition = vec4(input.position, 1.0);\n    var finalNormal = vec4(normal[i].xyz, 0.0);\n\n\n    var modelMatrixInstance = modelMatrix[input.instanceIdx];\n    var modelViewMatrix = viewMatrix * modelMatrixInstance;\n\n    output.instance = input.instanceIdx;\n    output.position = projectionMatrix * modelViewMatrix * vec4(finalPosition.xyz, 1.0);\n    output.vPosition = finalPosition.xyz;\n    output.vUv = uv[i];\n    let worldNormal = normalize(modelMatrixInstance * vec4(finalNormal.xyz, 0.0)).xyz;\n    output.vNormal = worldNormal;\n\n    #if USE_NORMAL_MAP\n        let tangentData = tangent[i];\n        let worldTangent = normalize(modelMatrixInstance * vec4(tangentData.xyz, 0.0)).xyz;\n        let worldBitangent = cross(worldNormal, worldTangent) * tangentData.w;\n        output.tangent = worldTangent;\n        output.bitangent = worldBitangent;\n    #endif\n\n    // emit a barycentric coordinate\n    output.barycenticCoord = vec3f(0);\n    output.barycenticCoord[input.vertexIndex % 3] = 1.0;\n\n    return output;\n}\n\nstruct FragmentOutput {\n    @location(0) albedo : vec4f,\n    @location(1) normal : vec4f,\n    @location(2) RMO : vec4f,\n};\n\nfn inversesqrt(v: f32) -> f32 {\n    return 1.0 / sqrt(v);\n}\n\nfn edgeFactor(bary: vec3f) -> f32 {\n    let lineThickness = 1.0;\n    let d = fwidth(bary);\n    let a3 = smoothstep(vec3f(0.0), d * lineThickness, bary);\n    return min(min(a3.x, a3.y), a3.z);\n}\n\n@fragment\nfn fragmentMain(input: VertexOutput) -> FragmentOutput {\n    var output: FragmentOutput;\n\n    let mat = material;\n\n    var uv = input.vUv;// * vec2(4.0, 2.0);\n\n    var modelMatrixInstance = modelMatrix[input.instance];\n\n    var albedo = mat.AlbedoColor;\n    var roughness = mat.Roughness;\n    var metalness = mat.Metalness;\n    var occlusion = 1.0;\n    var unlit = mat.Unlit;\n\n    // var albedo = mat.AlbedoColor;\n    #if USE_ALBEDO_MAP\n        albedo *= textureSample(AlbedoMap, TextureSampler, uv);\n    #endif\n\n    if (albedo.a < mat.AlphaCutoff) {\n        discard;\n    }\n\n    var normal: vec3f = input.vNormal;\n    #if USE_NORMAL_MAP\n        var tbn: mat3x3<f32>;\n        tbn[0] = input.tangent;\n        tbn[1] = input.bitangent;\n        tbn[2] = input.vNormal;\n        \n        let normalSample = textureSample(NormalMap, TextureSampler, uv).xyz * 2.0 - 1.0; // [0 - 1] -> [-1, -1] from brga8unorm to float\n        normal = tbn * normalSample;\n    #endif\n\n    #if USE_METALNESS_MAP\n        let metalnessRoughness = textureSample(MetalnessMap, TextureSampler, uv);\n        metalness *= metalnessRoughness.b;\n        roughness *= metalnessRoughness.g;\n    #endif\n\n    var emissive = mat.EmissiveColor;\n    #if USE_EMISSIVE_MAP\n        emissive *= textureSample(EmissiveMap, TextureSampler, uv);\n    #endif\n\n    #if USE_AO_MAP\n        occlusion = textureSample(AOMap, TextureSampler, uv).r;\n        occlusion = 1.0;\n    #endif\n\n    output.albedo = vec4(albedo.rgb, roughness);\n    output.normal = vec4(normal, metalness);\n    // output.normal = vec4(input.tangent.xyz, metalness);\n    output.RMO = vec4(emissive.rgb, unlit);\n\n\n    // Wireframe\n    output.albedo *= 1.0 - edgeFactor(input.barycenticCoord) * mat.Wireframe;\n\n    // // Flat shading\n    // let xTangent: vec3f = dpdx( input.vPosition );\n    // let yTangent: vec3f = dpdy( input.vPosition );\n    // let faceNormal: vec3f = normalize( cross( xTangent, yTangent ) );\n\n    // output.normal = vec4(faceNormal.xyz, metalness);\n\n    return output;\n}";
+
+var WGSL_Shader_DeferredLighting_URL = "#include \"@trident/core/resources/webgpu/shaders/deferred/LightStruct.wgsl\";\n#include \"@trident/core/resources/webgpu/shaders/deferred/ShadowMap.wgsl\";\n#include \"@trident/core/resources/webgpu/shaders/deferred/ShadowMapCSM.wgsl\";\n\nstruct Settings {\n    debugDepthPass: f32,\n    debugDepthMipLevel: f32,\n    debugDepthExposure: f32,\n    viewType: f32,\n    useHeightMap: f32,\n    heightScale: f32,\n\n    debugShadowCascades: f32,\n    pcfResolution: f32,\n    blendThreshold: f32,\n    viewBlendThreshold: f32,\n\n    cameraPosition: vec4<f32>,\n};\n\nstruct VertexOutput {\n    @builtin(position) position : vec4<f32>,\n    @location(0) vUv : vec2<f32>,\n};\n\n@group(0) @binding(0) var textureSampler: sampler;\n\n@group(0) @binding(1) var albedoTexture: texture_2d<f32>;\n@group(0) @binding(2) var normalTexture: texture_2d<f32>;\n@group(0) @binding(3) var ermoTexture: texture_2d<f32>;\n@group(0) @binding(4) var depthTexture: texture_depth_2d;\n@group(0) @binding(5) var shadowPassDepth: texture_depth_2d_array;\n\n@group(0) @binding(6) var skyboxTexture: texture_cube<f32>;\n@group(0) @binding(7) var skyboxIrradianceTexture: texture_cube<f32>;\n@group(0) @binding(8) var skyboxPrefilterTexture: texture_cube<f32>;\n@group(0) @binding(9) var skyboxBRDFLUT: texture_2d<f32>;\n\n@group(0) @binding(10) var brdfSampler: sampler;\n@group(0) @binding(11) var<storage, read> lights: array<Light>;\n@group(0) @binding(12) var<storage, read> lightCount: u32;\n\n\n\n\n\n\nstruct View {\n    projectionOutputSize: vec4<f32>,\n    viewPosition: vec4<f32>,\n    projectionInverseMatrix: mat4x4<f32>,\n    viewInverseMatrix: mat4x4<f32>,\n    viewMatrix: mat4x4<f32>,\n};\n@group(0) @binding(13) var<storage, read> view: View;\n\n\nconst numCascades = 4;\nconst debug_cascadeColors = array<vec4<f32>, 5>(\n    vec4<f32>(1.0, 0.0, 0.0, 1.0),\n    vec4<f32>(0.0, 1.0, 0.0, 1.0),\n    vec4<f32>(0.0, 0.0, 1.0, 1.0),\n    vec4<f32>(1.0, 1.0, 0.0, 1.0),\n    vec4<f32>(0.0, 0.0, 0.0, 1.0)\n);\n@group(0) @binding(14) var shadowSamplerComp: sampler_comparison;\n\n@group(0) @binding(15) var<storage, read> settings: Settings;\n\n\n// Full-screen triangle (covers screen with 3 verts)\nconst p = array<vec2f, 3>(\n    vec2f(-1.0, -1.0),\n    vec2f( 3.0, -1.0),\n    vec2f(-1.0,  3.0)\n);\n\n@vertex\nfn vertexMain(@builtin(vertex_index) vertexIndex : u32) -> VertexOutput {\n    var output: VertexOutput;\n    output.position = vec4(p[vertexIndex], 0.0, 1.0);\n    let uv = 0.5 * (p[vertexIndex] + vec2f(1.0, 1.0));\n    output.vUv = vec2f(uv.x, 1.0 - uv.y);\n    return output;\n}\n\nconst PI = 3.141592653589793;\n\nconst SPOT_LIGHT = 0;\nconst DIRECTIONAL_LIGHT = 1;\nconst POINT_LIGHT = 2;\nconst AREA_LIGHT = 3;\n\nfn reconstructWorldPosFromZ(\n    coords: vec2<f32>,\n    size: vec2<f32>,\n    depthTexture: texture_depth_2d,\n    projInverse: mat4x4<f32>,\n    viewInverse: mat4x4<f32>\n    ) -> vec4<f32> {\n    let uv = coords.xy / size;\n    var depth = textureLoad(depthTexture, vec2<i32>(floor(coords)), 0);\n    let x = uv.x * 2.0 - 1.0;\n    let y = (1.0 - uv.y) * 2.0 - 1.0;\n    let projectedPos = vec4(x, y, depth, 1.0);\n    var worldPosition = projInverse * projectedPos;\n    worldPosition = vec4(worldPosition.xyz / worldPosition.w, 1.0);\n    worldPosition = viewInverse * worldPosition;\n    return worldPosition;\n}\n\nfn toneMapping(color: vec3f) -> vec3f {\n    // Narkowicz 2015 ACES approx\n    let a = 2.51; let b = 0.03; let c = 2.43; let d = 0.59; let e = 0.14;\n    return clamp((color*(a*color+b)) / (color*(c*color+d)+e), vec3f(0.0), vec3f(1.0));\n}\n\nfn DistributionGGX(n: vec3f, h: vec3f, roughness: f32) -> f32 {\n  let a = roughness * roughness;\n  let a2 = a * a;\n  let nDotH = max(dot(n, h), 0.0);\n  let nDotH2 = nDotH * nDotH;\n  var denom = (nDotH2 * (a2 - 1.0) + 1.0);\n  denom = PI * denom * denom;\n  return a2 / denom;\n}\n\nfn GeometrySchlickGGX(nDotV: f32, roughness: f32) -> f32 {\n  let r = (roughness + 1.0);\n  let k = (r * r) / 8.0;\n  return nDotV / (nDotV * (1.0 - k) + k);\n}\n\nfn GeometrySmith(n: vec3f, v: vec3f, l: vec3f, roughness: f32) -> f32 {\n  let nDotV = max(dot(n, v), 0.0);\n  let nDotL = max(dot(n, l), 0.0);\n  let ggx2 = GeometrySchlickGGX(nDotV, roughness);\n  let ggx1 = GeometrySchlickGGX(nDotL, roughness);\n  return ggx1 * ggx2;\n}\n\nfn FresnelSchlick(cosTheta: f32, f0: vec3f) -> vec3f {\n  return f0 + (1.0 - f0) * pow(clamp(1.0 - cosTheta, 0.0, 1.0), 5.0);\n}\n\nfn FresnelSchlickRoughness(cosTheta: f32, f0: vec3f, roughness: f32) -> vec3f {\n  return f0 + (max(vec3(1.0 - roughness), f0) - f0) * pow(clamp(1.0 - cosTheta, 0.0, 1.0), 5.0);\n}\n\nfn fixCubeHandedness(d: vec3f) -> vec3f {\n    // try flipping X first; if that’s wrong, flip Z instead\n    return vec3f(-d.x, d.y, d.z);\n}\n\nfn CalculateBRDF(surface: Surface, pointToLight: vec3<f32>) -> vec3<f32> {\n    // cook-torrance brdf\n    let L = normalize(pointToLight);\n    let H = normalize(surface.V + L);\n    let distance = length(pointToLight);\n\n    let NDF = DistributionGGX(surface.N, H, surface.roughness);\n    let G = GeometrySmith(surface.N, surface.V, L, surface.roughness);\n    let F = FresnelSchlick(max(dot(H, surface.V), 0.0), surface.F0);\n\n    let kD = (vec3(1.0, 1.0, 1.0) - F) * (1.0 - surface.metallic);\n\n    let NdotL = max(dot(surface.N, L), 0.0);\n\n    let numerator = NDF * G * F;\n    let denominator = max(4.0 * max(dot(surface.N, surface.V), 0.0) * NdotL, 0.001);\n    let specular = numerator / vec3(denominator, denominator, denominator);\n\n    return (kD * surface.albedo.rgb / vec3(PI, PI, PI) + specular) * NdotL;\n}\n\nfn DirectionalLightRadiance(light: DirectionalLight, surface : Surface) -> vec3<f32> {\n    return CalculateBRDF(surface, light.direction) * light.color * light.intensity;\n}\n\nfn rangeAttenuation(range : f32, distance : f32) -> f32 {\n    if (range <= 0.0) {\n        // Negative range means no cutoff\n        return 1.0 / pow(distance, 2.0);\n    }\n    return clamp(1.0 - pow(distance / range, 4.0), 0.0, 1.0) / pow(distance, 2.0);\n}\n\nfn SpotLightRadiance(light : SpotLight, surface : Surface) -> vec3<f32> {\n    // pointToLight is SURFACE -> LIGHT (as you already set)\n    let dist = length(light.pointToLight);\n\n    // For cone test we need LIGHT -> SURFACE\n    let L_ls = normalize(-light.pointToLight);   // light -> surface\n    let cd   = dot(light.direction, L_ls);       // cos(theta), 1 at center\n\n    // Smooth falloff from edge to center: 0 at cos(angle), 1 at 1.0\n    let spot = smoothstep(cos(light.angle), 1.0, cd);\n\n    // Range attenuation as you have it\n    let attenuation = rangeAttenuation(light.range, dist) * spot;\n\n    // BRDF usually expects wi = SURFACE -> LIGHT\n    let wi = -L_ls; // (surface -> light)\n    let radiance = CalculateBRDF(surface, wi) * light.color * light.intensity * attenuation;\n    return radiance;\n}\n\nfn PointLightRadiance(light: PointLight, surface: Surface) -> vec3<f32> {\n    let dist = length(light.pointToLight);\n    let wi   = normalize(light.pointToLight);        // surface -> light\n    let att  = rangeAttenuation(light.range, dist);  // your smooth cutoff / r^2\n    return CalculateBRDF(surface, wi) * light.color * light.intensity * att;\n}\n\n// ---------- your API (drop-in) ----------\n\n@fragment\nfn fragmentMain(input: VertexOutput) -> @location(0) vec4<f32> {\n    // Load depth once\n    let pix   = vec2<i32>(floor(input.position.xy));\n    let depth = textureLoad(depthTexture, pix, 0);\n\n    // Build NDC + view/world rays (same as before)\n    let ndc = vec3<f32>(\n        (input.position.x / view.projectionOutputSize.x) * 2.0 - 1.0,\n        (input.position.y / view.projectionOutputSize.y) * 2.0 - 1.0,\n        1.0\n    );\n    let viewRay4 = view.projectionInverseMatrix * vec4(ndc, 1.0);\n    var viewRay  = normalize(viewRay4.xyz / viewRay4.w);\n    viewRay.y   *= -1.0;\n    var worldRay = normalize((view.viewInverseMatrix * vec4(viewRay, 0.0)).xyz);\n\n    // ---- compute derivatives BEFORE any divergent branch ----\n    let uv = input.vUv;\n    let dUVdx = dpdx(uv);\n    let dUVdy = dpdy(uv);\n\n    // For cubemap LOD: take grads of the direction (works well in practice)\n    let dWRdx = dpdx(worldRay);\n    let dWRdy = dpdy(worldRay);\n\n    // Early sky-out WITH explicit grads (safe mip selection)\n    if (depth >= 0.9999999) {\n        // var sky = textureSampleGrad(skyboxTexture, textureSampler, worldRay, dWRdx, dWRdy).rgb;\n        var sky = textureSampleLevel(skyboxTexture, textureSampler, worldRay, 0.0).rgb; // textureSampleGrad with a cubemap doesn't work on firefox\n        sky = toneMapping(sky);\n        sky = pow(sky, vec3f(1.0 / 2.2));  // omit if writing to *-srgb\n        return vec4f(sky, 1.0);\n    }\n\n    // Reconstruct world pos (consider a variant that takes 'depth' to avoid re-read inside)\n    let worldPosition = reconstructWorldPosFromZ(\n        input.position.xy,\n        view.projectionOutputSize.xy,\n        depthTexture,\n        view.projectionInverseMatrix,\n        view.viewInverseMatrix\n    );\n\n    // G-buffer samples now use explicit-grad\n    let albedo = textureSampleGrad(albedoTexture, textureSampler, uv, dUVdx, dUVdy);\n    let normal = textureSampleGrad(normalTexture, textureSampler, uv, dUVdx, dUVdy);\n    let ermo   = textureSampleGrad(ermoTexture,   textureSampler, uv, dUVdx, dUVdy);\n\n    // ... (your Surface build as-is)\n    var surface: Surface;\n    surface.depth          = depth;\n    surface.albedo         = albedo.rgb;\n    surface.roughness      = clamp(albedo.a, 0.0, 0.99);\n    surface.metallic       = normal.a;\n    surface.emissive       = ermo.rgb;\n    surface.occlusion      = ermo.a;\n    surface.worldPosition  = worldPosition.xyz;\n    surface.N              = normalize(normal.rgb);\n    surface.F0             = mix(vec3(0.04), surface.albedo.rgb, vec3(surface.metallic));\n    surface.V              = normalize(view.viewPosition.xyz - surface.worldPosition);\n    surface.occlusion      = 1.0;\n\n    let n = surface.N;\n    let v = surface.V;\n    let r = reflect(-v, n);\n\n    var lo = vec3f(0.0);\n    var selectedCascade = 0;\n\n    for (var i = 0u; i < lightCount; i++) {\n        let light = lights[i];\n        let lightType = u32(light.color.a);\n\n        if (lightType == DIRECTIONAL_LIGHT) {\n            var directionalLight: DirectionalLight;\n            directionalLight.direction = normalize((light.viewMatrixInverse * vec4(0.0, 0.0, 1.0, 0.0)).xyz);\n            // directionalLight.direction = light.direction.xyz;\n            directionalLight.color = light.color.rgb;\n            directionalLight.intensity = light.params1.x;\n\n            let castShadows = light.params1.z > 0.5;\n            var shadow = 1.0;\n            if (castShadows) {\n                let shadowCSM = CalculateShadowCSM(shadowPassDepth, shadowSamplerComp, surface, light, i);\n                shadow = shadowCSM.visibility;\n                selectedCascade = shadowCSM.selectedCascade;\n            }\n\n            // lo += shadow * DirectionalLightRadiance(directionalLight, surface) * radiance;\n            lo += shadow * DirectionalLightRadiance(directionalLight, surface);\n        }\n\n        else if (lightType == SPOT_LIGHT) {\n            var spotLight: SpotLight;\n            \n            spotLight.pointToLight = light.position.xyz - surface.worldPosition;\n            spotLight.color = light.color.rgb;\n            spotLight.intensity = light.params1.r;\n            spotLight.range = light.params1.g;\n            spotLight.direction = normalize((light.viewMatrixInverse * vec4(0.0, 0.0, -1.0, 0.0)).xyz);\n            // spotLight.direction = light.direction.xyz;\n            spotLight.angle = light.params2.w;\n\n            if (distance(light.position.xyz, surface.worldPosition) > spotLight.range) {\n                continue;\n            }\n\n            let castShadows = light.params1.z > 0.5;\n            var shadow = 1.0;\n            if (castShadows) {\n                let shadowCSM = CalculateShadowCSMSpot(shadowPassDepth, shadowSamplerComp, surface, light, i);\n                shadow = shadowCSM.visibility;\n                selectedCascade = shadowCSM.selectedCascade;\n                // shadow = SampleSpotShadowMap(surface, light); // <— single 2D map on this layer\n\n            }\n\n            lo += shadow * SpotLightRadiance(spotLight, surface);\n        }\n\n        else if (lightType == POINT_LIGHT) {\n            var p: PointLight;\n            p.pointToLight = light.position.xyz - surface.worldPosition;\n            p.color        = light.color.rgb;\n            p.intensity    = light.params1.x;\n            p.range        = light.params1.y;\n\n            // optional hard range cut\n            if (length(p.pointToLight) > p.range) {\n                continue;\n            }\n\n            var shadow = 1.0;\n            let castShadows = light.params1.z > 0.5;\n            // if (castShadows) {\n            //     shadow = SamplePointShadow(surface, light, i);\n            // }\n\n            lo += shadow * PointLightRadiance(p, surface);\n        }\n    }\n\n    let f = FresnelSchlickRoughness(max(dot(n, v), 0.00001), surface.F0, surface.roughness);\n    let kS = f;\n    var kD = vec3f(1.0) - kS;\n    kD *= 1.0 - surface.metallic;\n\n    let irradiance = textureSampleLevel(skyboxIrradianceTexture, textureSampler, fixCubeHandedness(n), 0.0).rgb;\n    let diffuse = irradiance * surface.albedo.xyz;\n\n    const MAX_REFLECTION_LOD = 4.0;\n    let prefilteredColor = textureSampleLevel(skyboxPrefilterTexture, textureSampler, fixCubeHandedness(r), surface.roughness * MAX_REFLECTION_LOD).rgb;\n    let brdf = textureSampleLevel(skyboxBRDFLUT, brdfSampler, vec2f(max(dot(n, v), 0.0), surface.roughness), 1.0).rg;\n    let specular = prefilteredColor * (f * brdf.x + brdf.y);\n\n    let ambient = (kD * diffuse + specular) * surface.occlusion;\n\n    var color = ambient + lo + surface.emissive;\n    color = toneMapping(color);\n    color = pow(color, vec3f(1.0 / 2.2));\n\n    return vec4f(color, 1.0);\n}";
+
+var WGSL_Shader_Deferred_SurfaceStruct = "struct Surface {\n    albedo: vec3<f32>,\n    emissive: vec3<f32>,\n    metallic: f32,\n    roughness: f32,\n    occlusion: f32,\n    worldPosition: vec3<f32>,\n    N: vec3<f32>,\n    F0: vec3<f32>,\n    V: vec3<f32>,\n    depth: f32\n};";
+
+var WGSL_Shader_Deferred_LightStruct = "struct Light {\n    position: vec4<f32>,\n    projectionMatrix: mat4x4<f32>,\n    // // Using an array of mat4x4 causes the render time to go from 3ms to 9ms for some reason\n    // csmProjectionMatrix: array<mat4x4<f32>, 4>,\n    csmProjectionMatrix0: mat4x4<f32>,\n    csmProjectionMatrix1: mat4x4<f32>,\n    csmProjectionMatrix2: mat4x4<f32>,\n    csmProjectionMatrix3: mat4x4<f32>,\n    cascadeSplits: vec4<f32>,\n    viewMatrix: mat4x4<f32>,\n    viewMatrixInverse: mat4x4<f32>,\n    // direction: vec4<f32>,\n    color: vec4<f32>,\n    params1: vec4<f32>,\n    params2: vec4<f32>,\n};\n\nstruct DirectionalLight {\n    direction: vec3<f32>,\n    color: vec3<f32>,\n    intensity: f32\n};\n\nstruct SpotLight {\n    pointToLight: vec3<f32>,\n    color: vec3<f32>,\n    direction: vec3<f32>,\n    range: f32,\n    intensity: f32,\n    angle: f32,\n};\n\nstruct PointLight {\n    pointToLight: vec3<f32>,\n    color: vec3<f32>,\n    range: f32,\n    intensity: f32,\n};";
+
+var WGSL_Shader_Deferred_ShadowMap = "#include \"@trident/core/resources/webgpu/shaders/deferred/SurfaceStruct.wgsl\";\n#include \"@trident/core/resources/webgpu/shaders/deferred/LightStruct.wgsl\";\n#include \"@trident/core/resources/webgpu/shaders/deferred/ShadowUtils.wgsl\";\n\n// NDC -> UV, then remap into the 2×2 quadrant atlas inside ONE array layer.\nfn worldToAtlasUVZSpot(worldPos: vec3<f32>, light: Light, cascadeIndex: i32) -> vec3<f32> {\n    let m = light.csmProjectionMatrix0;\n    let p = m * vec4(worldPos, 1.0);\n    let ndc = p.xyz / p.w;\n\n    // NDC -> [0,1], with y flipped to texture space\n    var uv = ndc.xy * vec2<f32>(0.5, -0.5) + vec2<f32>(0.5, 0.5);\n\n    return vec3<f32>(uv, ndc.z);\n}\n\nfn SampleCascadeShadowMapSpot(shadowTexture: texture_depth_2d_array, shadowSampler: sampler_comparison, surface: Surface, light: Light, cascadeIndex: i32, lightIndex: u32) -> f32 {\n    // Build atlas UV/Z for this cascade\n    let uvz = worldToAtlasUVZSpot(surface.worldPosition, light, cascadeIndex);\n    let uv  = uvz.xy;\n    let z   = uvz.z;\n\n    // Outside clip or outside atlas -> lit\n    if (z <= 0.0 || z >= 1.0 || !inUnitSquare(uv)) {\n        return 1.0;\n    }\n\n    // One textureDimensions() per pixel (ideally pass texel size from CPU)\n    let texDim = vec2<f32>(textureDimensions(shadowTexture));\n    let texel  = 1.0 / texDim;\n\n    // Use fast 3×3 when radius <= 1, else bounded loop (max 5×5)\n    let radius = i32(settings.pcfResolution); // interpret as radius\n    if (radius <= 1) {\n        return pcf3x3_quadrant(shadowTexture, shadowSampler, uv, z, i32(light.params1.w), texel);\n    } else {\n        return pcfBounded(shadowTexture, shadowSampler, uv, z, i32(light.params1.w), texel, radius);\n    }\n}\n\nfn CalculateShadowCSMSpot(shadowTexture: texture_depth_2d_array, shadowSampler: sampler_comparison, surface: Surface, light: Light, lightIndex: u32) -> ShadowCSM {\n    var out: ShadowCSM;\n\n    // View-space depth for cascade selection\n    let fragPosViewSpace = view.viewMatrix * vec4f(surface.worldPosition, 1.0);\n    let depthValue  = abs(fragPosViewSpace.z);\n\n    // Pick cascade (branchless)\n    let selectedCascade = 0;\n    out.selectedCascade = selectedCascade;\n\n    // Primary cascade\n    let visibility = SampleCascadeShadowMapSpot(shadowTexture, shadowSampler, surface, light, selectedCascade, lightIndex);\n\n    out.visibility = clamp(visibility, 0.0, 1.0);\n    return out;\n}";
+
+var WGSL_Shader_Deferred_ShadowMapCSM = "#include \"@trident/core/resources/webgpu/shaders/deferred/SurfaceStruct.wgsl\";\n#include \"@trident/core/resources/webgpu/shaders/deferred/LightStruct.wgsl\";\n#include \"@trident/core/resources/webgpu/shaders/deferred/ShadowUtils.wgsl\";\n\nfn csmMatrix(light: Light, idx: i32) -> mat4x4<f32> {\n    if (idx == 0) { return light.csmProjectionMatrix0; }\n    if (idx == 1) { return light.csmProjectionMatrix1; }\n    if (idx == 2) { return light.csmProjectionMatrix2; }\n    return light.csmProjectionMatrix3;\n}\n\nfn ShadowLayerSelection(depthValue: f32, light: Light) -> i32 {\n    // count how many splits we have passed (0..3)\n    var layer = 0;\n    layer += select(0, 1, depthValue >= light.cascadeSplits.x);\n    layer += select(0, 1, depthValue >= light.cascadeSplits.y);\n    layer += select(0, 1, depthValue >= light.cascadeSplits.z);\n    return clamp(layer, 0, numCascades - 1);\n}\n\n// NDC -> UV, then remap into the 2×2 quadrant atlas inside ONE array layer.\nfn worldToAtlasUVZ(worldPos: vec3<f32>, light: Light, cascadeIndex: i32) -> vec3<f32> {\n    let m = csmMatrix(light, cascadeIndex);\n    let p = m * vec4(worldPos, 1.0);\n    let ndc = p.xyz / p.w;\n\n    // NDC -> [0,1], with y flipped to texture space\n    var uv = ndc.xy * vec2<f32>(0.5, -0.5) + vec2<f32>(0.5, 0.5);\n\n    // Quadrant packing: [0]=BL, [1]=TL, [2]=BR, [3]=TR (matches your original logic)\n    if (cascadeIndex >= 2) { uv.x += 1.0; }\n    if ((cascadeIndex & 1) == 1) { uv.y += 1.0; }\n    uv *= 0.5;\n\n    return vec3<f32>(uv, ndc.z);\n}\n\nfn SampleCascadeShadowMap(shadowTexture: texture_depth_2d_array, shadowSampler: sampler_comparison, surface: Surface, light: Light, cascadeIndex: i32, lightIndex: u32) -> f32 {\n    // Build atlas UV/Z for this cascade\n    let uvz = worldToAtlasUVZ(surface.worldPosition, light, cascadeIndex);\n    let uv  = uvz.xy;\n    let z   = uvz.z;\n\n    // Outside clip or outside atlas -> lit\n    if (z <= 0.0 || z >= 1.0 || !inUnitSquare(uv)) {\n        return 1.0;\n    }\n\n    // One textureDimensions() per pixel (ideally pass texel size from CPU)\n    let texDim = vec2<f32>(textureDimensions(shadowTexture));\n    let texel  = 1.0 / texDim;\n\n    // Use fast 3×3 when radius <= 1, else bounded loop (max 5×5)\n    let radius = i32(settings.pcfResolution); // interpret as radius\n    if (radius <= 1) {\n        return pcf3x3_quadrant(shadowTexture, shadowSampler, uv, z, i32(light.params1.w), texel);\n    } else {\n        return pcfBounded(shadowTexture, shadowSampler, uv, z, i32(light.params1.w), texel, radius);\n    }\n}\n\nfn lerp(k0: f32, k1: f32, t: f32) -> f32 {\n    return k0 + t * (k1 - k0);\n}\n\nfn CalculateShadowCSM(shadowTexture: texture_depth_2d_array, shadowSampler: sampler_comparison, surface: Surface, light: Light, lightIndex: u32) -> ShadowCSM {\n    var out: ShadowCSM;\n\n    // View-space depth for cascade selection\n    let fragPosViewSpace = view.viewMatrix * vec4f(surface.worldPosition, 1.0);\n    let depthValue  = abs(fragPosViewSpace.z);\n\n    // Early accept: beyond last split, no shadow work\n    let lastSplit = light.cascadeSplits[numCascades - 1];\n    if (depthValue > lastSplit) {\n        out.visibility = 1.0;\n        out.selectedCascade = numCascades - 1;\n        return out;\n    }\n\n    // Pick cascade (branchless)\n    let selectedCascade = ShadowLayerSelection(depthValue, light);\n    out.selectedCascade = selectedCascade;\n\n    // Primary cascade\n    var visibility = SampleCascadeShadowMap(shadowTexture, shadowSampler, surface, light, selectedCascade, lightIndex);\n\n    // Blend near the split to hide seams\n    let blendThreshold   = settings.blendThreshold;\n    let nextSplit  = light.cascadeSplits[selectedCascade];\n\n    var splitSize = nextSplit;\n    if (selectedCascade > 0) { splitSize = nextSplit - light.cascadeSplits[selectedCascade - 1]; }\n\n    let fadeFactor = (nextSplit - depthValue) / max(splitSize, 1e-6);\n\n    if (fadeFactor <= blendThreshold && selectedCascade != numCascades - 1) {\n        let nextSplitVisibility = SampleCascadeShadowMap(shadowTexture, shadowSampler, surface, light, selectedCascade + 1, lightIndex);\n        let lerpAmount = smoothstep(0.0, blendThreshold, fadeFactor);\n        visibility = lerp(nextSplitVisibility, visibility, lerpAmount);\n\n        if (u32(settings.viewBlendThreshold) == 1u) {\n            visibility *= fadeFactor; // debug view\n        }\n    }\n\n    out.visibility = clamp(visibility, 0.0, 1.0);\n    return out;\n}";
+
+var WGSL_Shader_Deferred_ShadowUtils = "struct ShadowCSM {\n    visibility: f32,\n    selectedCascade: i32\n};\n\nfn inUnitSquare(u: vec2<f32>) -> bool {\n    return all(u >= vec2<f32>(0.0)) && all(u <= vec2<f32>(1.0));\n}\n\nfn pcf3x3_quadrant(shadowTexture: texture_depth_2d_array, shadowSampler: sampler_comparison, uv: vec2<f32>, z: f32, layer: i32, texel: vec2<f32>) -> f32 {\n    // Early accept: fully lit center → 1.0\n    let center = textureSampleCompareLevel(shadowTexture, shadowSampler, uv, layer, z);\n    if (center >= 1.0) { return 1.0; }\n\n    var sum = 0.0;\n    // Row -1\n    sum += textureSampleCompareLevel(shadowTexture, shadowSampler, uv + vec2(-texel.x, -texel.y), layer, z);\n    sum += textureSampleCompareLevel(shadowTexture, shadowSampler, uv + vec2(         0.0, -texel.y), layer, z);\n    sum += textureSampleCompareLevel(shadowTexture, shadowSampler, uv + vec2( texel.x, -texel.y), layer, z);\n    // Row  0\n    sum += textureSampleCompareLevel(shadowTexture, shadowSampler, uv + vec2(-texel.x,          0.0), layer, z);\n    sum += center;\n    sum += textureSampleCompareLevel(shadowTexture, shadowSampler, uv + vec2( texel.x,          0.0), layer, z);\n    // Row +1\n    sum += textureSampleCompareLevel(shadowTexture, shadowSampler, uv + vec2(-texel.x,  texel.y), layer, z);\n    sum += textureSampleCompareLevel(shadowTexture, shadowSampler, uv + vec2(         0.0,  texel.y), layer, z);\n    sum += textureSampleCompareLevel(shadowTexture, shadowSampler, uv + vec2( texel.x,  texel.y), layer, z);\n\n    return sum * (1.0 / 9.0);\n}\n\nconst MAX_RADIUS : i32 = 2; // up to 5×5\nfn pcfBounded(shadowTexture: texture_depth_2d_array, shadowSampler: sampler_comparison, uv: vec2<f32>, z: f32, layer: i32, texel: vec2<f32>, radius: i32) -> f32 {\n    let r = clamp(radius, 0, MAX_RADIUS);\n    if (r <= 1) { return pcf3x3_quadrant(shadowTexture, shadowSampler, uv, z, layer, texel); }\n\n    var sum = 0.0;\n    for (var j = -r; j <=  r; j = j + 1) {\n        for (var i = -r; i <=  r; i = i + 1) {\n            sum += textureSampleCompareLevel(shadowTexture, shadowSampler, uv + vec2<f32>(f32(i), f32(j)) * texel, layer, z);\n        }\n    }\n    let taps = f32((2 * r + 1) * (2 * r + 1));\n    return sum / taps;\n}";
+
+class ShaderPreprocessor {
+  static ProcessDefines(code, defines) {
+    const nl = code.indexOf("\r\n") >= 0 ? "\r\n" : "\n";
+    const out = [];
+    const stack = [];
+    const evalCond = (s) => {
+      s = s.trim();
+      let neg = false;
+      while (s.startsWith("!")) {
+        neg = !neg;
+        s = s.slice(1).trim();
+      }
+      const val = !!defines[s];
+      return neg ? !val : val;
+    };
+    for (const raw of code.split(nl)) {
+      const t = raw.trim();
+      if (t.startsWith("#if ")) {
+        stack.push(evalCond(t.slice(4)));
+        continue;
+      }
+      if (t.startsWith("#else")) {
+        if (stack.length) stack[stack.length - 1] = !stack[stack.length - 1];
+        continue;
+      }
+      if (t.startsWith("#endif")) {
+        if (stack.length) stack.pop();
+        continue;
+      }
+      if (stack.every(Boolean)) out.push(raw);
+    }
+    return out.join(nl);
+  }
+  static async ProcessIncludes(code, url = "./") {
+    const basepath = url.substring(url.lastIndexOf("/"), -1) + "/";
+    const includes = StringFindAllBetween(code, "#include", "\n", false);
+    for (const includeStr of includes) {
+      const filenameArray = StringFindAllBetween(includeStr, '"', '"', true);
+      if (filenameArray.length !== 1) throw Error(`Invalid include ${filenameArray}`);
+      const includeFullPath = filenameArray[0];
+      const includePath = includeFullPath.substring(includeFullPath.lastIndexOf("/"), -1) + "/";
+      const includeFilename = includeFullPath.substring(includeFullPath.lastIndexOf("/")).slice(1);
+      const new_path = basepath + includePath + includeFilename;
+      const newCode = await Assets.Load(new_path, "text");
+      const includedCode = await this.ProcessIncludes(newCode, new_path);
+      code = code.replace(includeStr, includedCode + "\n");
+    }
+    return code;
+  }
+  static async ProcessIncludesV2(code, url = "./", seen = /* @__PURE__ */ new Set()) {
+    const includes = StringFindAllBetween(code, "#include", "\n", false);
+    for (const includeStr of includes) {
+      const filenameArray = StringFindAllBetween(includeStr, '"', '"', true).concat(StringFindAllBetween(includeStr, "'", "'", true));
+      if (filenameArray.length !== 1) throw Error(`Invalid include ${filenameArray}`);
+      const includeFullPath = filenameArray[0];
+      if (seen.has(includeFullPath)) {
+        code = code.replace(includeStr, "");
+        continue;
+      }
+      seen.add(includeFullPath);
+      const newCode = await Assets.Load(includeFullPath, "text");
+      const includedCode = await this.ProcessIncludesV2(newCode, includeFullPath, seen);
+      code = code.replace(includeStr, includedCode + "\n");
+    }
+    return code;
+  }
+}
+class ShaderLoader {
+  static async Load(shader_url) {
+    if (Renderer.type === "webgpu") {
+      if (shader_url === "") throw Error(`Invalid shader ${shader_url}`);
+      let code = await Assets.Load(shader_url, "text");
+      code = await ShaderPreprocessor.ProcessIncludes(code, shader_url);
+      return code;
+    }
+    throw Error("Unknown api");
+  }
+  static async LoadV2(shader_url) {
+    if (Renderer.type === "webgpu") {
+      if (shader_url === "") throw Error(`Invalid shader ${shader_url}`);
+      let code = await Assets.Load(shader_url, "text");
+      code = await ShaderPreprocessor.ProcessIncludesV2(code, shader_url);
+      return code;
+    }
+    throw Error("Unknown api");
+  }
+  static async LoadURL(shader_url) {
+    if (Renderer.type === "webgpu") {
+      let code = await Assets.LoadURL(shader_url, "text");
+      code = await ShaderPreprocessor.ProcessIncludes(code, shader_url.href);
+      return code;
+    }
+    throw Error("Unknown api");
+  }
+  static get Draw() {
+    return WGSL_Shader_Draw_URL;
+  }
+  static get DrawVertexPulling() {
+    return WGSL_Shader_DrawVertexPulling_URL;
+  }
+  static get DeferredLighting() {
+    return ShaderPreprocessor.ProcessIncludesV2(WGSL_Shader_DeferredLighting_URL);
+  }
+}
+Assets.Register("@trident/core/resources/webgpu/shaders/deferred/SurfaceStruct.wgsl", WGSL_Shader_Deferred_SurfaceStruct);
+Assets.Register("@trident/core/resources/webgpu/shaders/deferred/LightStruct.wgsl", WGSL_Shader_Deferred_LightStruct);
+Assets.Register("@trident/core/resources/webgpu/shaders/deferred/ShadowMap.wgsl", WGSL_Shader_Deferred_ShadowMap);
+Assets.Register("@trident/core/resources/webgpu/shaders/deferred/ShadowMapCSM.wgsl", WGSL_Shader_Deferred_ShadowMapCSM);
+Assets.Register("@trident/core/resources/webgpu/shaders/deferred/ShadowUtils.wgsl", WGSL_Shader_Deferred_ShadowUtils);
+
+class Vector2 {
+  _x;
+  _y;
+  get x() {
+    return this._x;
+  }
+  get y() {
+    return this._y;
+  }
+  set x(v) {
+    this._x = v;
+  }
+  set y(v) {
+    this._y = v;
+  }
+  _elements = new Float32Array(2);
+  get elements() {
+    this._elements[0] = this._x;
+    this._elements[1] = this._y;
+    return this._elements;
+  }
+  constructor(x = 0, y = 0) {
+    this._x = x;
+    this._y = y;
+  }
+  set(x, y) {
+    this.x = x;
+    this.y = y;
+  }
+  mul(v) {
+    if (v instanceof Vector2) this.x *= v.x, this.y *= v.y;
+    else this.x *= v, this.y *= v;
+    return this;
+  }
+  div(v) {
+    if (v instanceof Vector2) this.x /= v.x, this.y /= v.y;
+    else this.x /= v, this.y /= v;
+    return this;
+  }
+  add(v) {
+    if (v instanceof Vector2) this.x += v.x, this.y += v.y;
+    else this.x += v, this.y += v;
+    return this;
+  }
+  sub(v) {
+    if (v instanceof Vector2) this.x -= v.x, this.y -= v.y;
+    else this.x -= v, this.y -= v;
+    return this;
+  }
+  dot(v) {
+    return this.x * v.x + this.y * v.y;
+  }
+  length() {
+    return Math.sqrt(this.x * this.x + this.y * this.y);
+  }
+  clone() {
+    return new Vector2(this.x, this.y);
+  }
+  copy(v) {
+    this.x = v.x;
+    this.y = v.y;
+    return this;
+  }
+  toString() {
+    return `(${this.x.toPrecision(2)}, ${this.y.toPrecision(2)})`;
+  }
+}
+
+class WEBGPUMipsGenerator {
+  static sampler;
+  static module;
+  static pipelineByFormat = {};
+  static numMipLevels(...sizes) {
+    return 1 + Math.log2(Math.max(...sizes)) | 0;
+  }
+  // TODO: Cannot call this twice because of texture usages
+  static generateMips(source) {
+    if (!WEBGPURenderer.device) throw Error("WEBGPU not initialized");
+    const device = WEBGPURenderer.device;
+    const sourceBuffer = source.GetBuffer();
+    if (!this.module) {
+      this.module = device.createShaderModule({
+        label: "textured quad shaders for mip level generation",
+        code: `
+                    struct VSOutput {
+                        @builtin(position) position: vec4f,
+                        @location(0) texcoord: vec2f,
+                    };
+                    
+                    @vertex fn vs(@builtin(vertex_index) vertexIndex : u32) -> VSOutput {
+                        const pos = array(
+                            vec2f( 0.0,  0.0),  // center
+                            vec2f( 1.0,  0.0),  // right, center
+                            vec2f( 0.0,  1.0),  // center, top
+                    
+                            // 2st triangle
+                            vec2f( 0.0,  1.0),  // center, top
+                            vec2f( 1.0,  0.0),  // right, center
+                            vec2f( 1.0,  1.0),  // right, top
+                        );
+                    
+                        var vsOutput: VSOutput;
+                        let xy = pos[vertexIndex];
+                        vsOutput.position = vec4f(xy * 2.0 - 1.0, 0.0, 1.0);
+                        vsOutput.texcoord = vec2f(xy.x, 1.0 - xy.y);
+                        return vsOutput;
+                    }
+                    
+                    @group(0) @binding(0) var ourSampler: sampler;
+                    @group(0) @binding(1) var ourTexture: texture_2d<f32>;
+                    
+                    @fragment fn fs(fsInput: VSOutput) -> @location(0) vec4f {
+                        return textureSample(ourTexture, ourSampler, fsInput.texcoord);
+                    }
+                `
+      });
+      this.sampler = device.createSampler({ minFilter: "linear", magFilter: "linear" });
+    }
+    if (!this.pipelineByFormat[sourceBuffer.format]) {
+      this.pipelineByFormat[sourceBuffer.format] = device.createRenderPipeline({
+        label: "mip level generator pipeline",
+        layout: "auto",
+        vertex: { module: this.module },
+        fragment: { module: this.module, targets: [{ format: sourceBuffer.format }] }
+      });
+    }
+    const pipeline = this.pipelineByFormat[sourceBuffer.format];
+    const encoder = device.createCommandEncoder({ label: "mip gen encoder" });
+    const destinationBuffer = device.createTexture({
+      label: "destinationBuffer",
+      format: sourceBuffer.format,
+      mipLevelCount: this.numMipLevels(source.width, source.height),
+      size: [source.width, source.height, 1],
+      usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST | GPUTextureUsage.COPY_SRC | GPUTextureUsage.RENDER_ATTACHMENT
+    });
+    let width = sourceBuffer.width;
+    let height = sourceBuffer.height;
+    encoder.copyTextureToTexture({ texture: sourceBuffer }, { texture: destinationBuffer }, [width, height]);
+    let baseMipLevel = 0;
+    while (width > 1 || height > 1) {
+      width = Math.max(1, width / 2 | 0);
+      height = Math.max(1, height / 2 | 0);
+      const bindGroup = device.createBindGroup({
+        layout: pipeline.getBindGroupLayout(0),
+        entries: [
+          { binding: 0, resource: this.sampler },
+          { binding: 1, resource: destinationBuffer.createView({ baseMipLevel, mipLevelCount: 1 }) }
+        ]
+      });
+      ++baseMipLevel;
+      const renderPassDescriptor = {
+        label: "WEBGPUMipsGenerator",
+        colorAttachments: [
+          {
+            view: destinationBuffer.createView({ baseMipLevel, mipLevelCount: 1 }),
+            loadOp: "clear",
+            storeOp: "store"
+          }
+        ]
+      };
+      const pass = encoder.beginRenderPass(renderPassDescriptor);
+      pass.setPipeline(pipeline);
+      pass.setBindGroup(0, bindGroup);
+      pass.draw(6);
+      pass.end();
+    }
+    const commandBuffer = encoder.finish();
+    device.queue.submit([commandBuffer]);
+    return destinationBuffer;
+  }
+}
+
+class WEBGPUTexture {
+  id = UUID();
+  width;
+  height;
+  depth;
+  format;
+  type;
+  dimension;
+  mipLevels;
+  name;
+  buffer;
+  viewCache = /* @__PURE__ */ new Map();
+  currentLayer = 0;
+  currentMip = 0;
+  activeMipCount = 1;
+  constructor(width, height, depth, format, type, dimension, mipLevels) {
+    let textureUsage = GPUTextureUsage.COPY_DST;
+    let textureType = GPUTextureUsage.TEXTURE_BINDING;
+    if (!type) textureType = GPUTextureUsage.TEXTURE_BINDING;
+    else if (type === TextureType.DEPTH) textureType = GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_SRC;
+    else if (type === TextureType.RENDER_TARGET) textureType = GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_SRC;
+    else if (type === TextureType.RENDER_TARGET_STORAGE) textureType = GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.STORAGE_BINDING | GPUTextureUsage.COPY_SRC;
+    else throw Error(`Unknown texture format ${format}`);
+    let dim = "2d";
+    if (dimension === "1d") dim = "1d";
+    else if (dimension === "3d") dim = "3d";
+    const textureBindingViewDimension = dimension === "cube" ? "cube" : void 0;
+    this.buffer = WEBGPURenderer.device.createTexture({
+      size: { width, height, depthOrArrayLayers: depth },
+      // @ts-ignore
+      textureBindingViewDimension,
+      dimension: dim,
+      format,
+      usage: textureUsage | textureType,
+      mipLevelCount: mipLevels
+    });
+    this.width = width;
+    this.height = height;
+    this.depth = depth;
+    this.format = format;
+    this.type = type;
+    this.dimension = dimension;
+    this.mipLevels = mipLevels;
+    Renderer.info.gpuTextureSizeTotal += width * height * depth * 4;
+    Renderer.info.gpuTextureCount++;
+  }
+  GetBuffer() {
+    return this.buffer;
+  }
+  GetView() {
+    const key = `${this.currentLayer}-${this.currentMip}`;
+    let view = this.viewCache.get(key);
+    if (!view) {
+      const viewDimension = this.dimension === "cube" ? "2d" : this.dimension;
+      view = this.buffer.createView({
+        dimension: viewDimension,
+        baseArrayLayer: this.currentLayer,
+        arrayLayerCount: 1,
+        baseMipLevel: this.currentMip,
+        mipLevelCount: this.activeMipCount
+      });
+      this.viewCache.set(key, view);
+    }
+    return view;
+  }
+  GenerateMips() {
+    this.buffer = WEBGPUMipsGenerator.generateMips(this);
+    this.SetActiveMipCount(WEBGPUMipsGenerator.numMipLevels(this.width, this.height, this.depth));
+  }
+  SetActiveLayer(layer) {
+    if (layer > this.depth) throw Error("Active layer cannot be bigger than depth size");
+    this.currentLayer = layer;
+  }
+  GetActiveLayer() {
+    return this.currentLayer;
+  }
+  SetActiveMip(mip) {
+    if (mip > this.mipLevels) throw Error("Active mip cannot be bigger than mip levels size");
+    this.currentMip = mip;
+  }
+  GetActiveMip() {
+    return this.currentMip;
+  }
+  SetActiveMipCount(mipCount) {
+    return this.activeMipCount = mipCount;
+  }
+  GetActiveMipCount() {
+    return this.activeMipCount;
+  }
+  SetName(name) {
+    this.name = name;
+    this.buffer.label = name;
+  }
+  GetName() {
+    return this.buffer.label;
+  }
+  Destroy() {
+    Renderer.info.gpuTextureSizeTotal -= this.buffer.width * this.buffer.height * this.buffer.depthOrArrayLayers * 4;
+    Renderer.info.gpuTextureCount--;
+    this.buffer.destroy();
+  }
+  SetData(data, bytesPerRow, rowsPerImage) {
+    try {
+      WEBGPURenderer.device.queue.writeTexture(
+        { texture: this.buffer },
+        data,
+        { bytesPerRow, rowsPerImage },
+        { width: this.width, height: this.height, depthOrArrayLayers: this.depth }
+      );
+    } catch (error) {
+      console.warn(error);
+    }
+  }
+  // Format and types are very limited for now
+  // https://github.com/gpuweb/gpuweb/issues/2322
+  static FromImageBitmap(imageBitmap, width, height, format, flipY) {
+    const texture = new WEBGPUTexture(width, height, 1, format, TextureType.RENDER_TARGET, "2d", 1);
+    try {
+      WEBGPURenderer.device.queue.copyExternalImageToTexture(
+        { source: imageBitmap, flipY },
+        { texture: texture.GetBuffer() },
+        [imageBitmap.width, imageBitmap.height]
+      );
+    } catch (error) {
+      console.warn(error);
+    }
+    return texture;
+  }
+  Serialize() {
+    throw Error("Not implemented");
+  }
+}
+
+class RendererContext {
+  constructor() {
+  }
+  static BeginRenderPass(name, renderTargets, depthTarget, timestamp = false) {
+    if (Renderer.type === "webgpu") WEBGPURendererContext.BeginRenderPass(name, renderTargets, depthTarget, timestamp);
+    else throw Error("Unknown render api type.");
+  }
+  static EndRenderPass() {
+    if (Renderer.type === "webgpu") WEBGPURendererContext.EndRenderPass();
+    else throw Error("Unknown render api type.");
+  }
+  static SetViewport(x, y, width, height, minDepth = 0, maxDepth = 1) {
+    if (Renderer.type === "webgpu") WEBGPURendererContext.SetViewport(x, y, width, height, minDepth, maxDepth);
+    else throw Error("Unknown render api type.");
+  }
+  static SetScissor(x, y, width, height) {
+    if (Renderer.type === "webgpu") WEBGPURendererContext.SetScissor(x, y, width, height);
+    else throw Error("Unknown render api type.");
+  }
+  static DrawGeometry(geometry, shader, instanceCount, firstInstance) {
+    if (Renderer.type === "webgpu") WEBGPURendererContext.DrawGeometry(geometry, shader, instanceCount, firstInstance);
+    else throw Error("Unknown render api type.");
+  }
+  static DrawIndexed(geometry, shader, indexCount, instanceCount, firstIndex, baseVertex, firstInstance) {
+    if (Renderer.type === "webgpu") WEBGPURendererContext.DrawIndexed(geometry, shader, indexCount, instanceCount, firstIndex, baseVertex, firstInstance);
+    else throw Error("Unknown render api type.");
+  }
+  static Draw(geometry, shader, vertexCount, instanceCount, firstVertex, firstInstance) {
+    if (Renderer.type === "webgpu") WEBGPURendererContext.Draw(geometry, shader, vertexCount, instanceCount, firstVertex, firstInstance);
+    else throw Error("Unknown render api type.");
+  }
+  static DrawIndirect(geometry, shader, indirectBuffer, indirectOffset = 0) {
+    if (Renderer.type === "webgpu") WEBGPURendererContext.DrawIndirect(geometry, shader, indirectBuffer, indirectOffset);
+    else throw Error("Unknown render api type.");
+  }
+  static CopyBufferToBuffer(source, destination, sourceOffset = 0, destinationOffset = 0, size = void 0) {
+    if (Renderer.type === "webgpu") WEBGPURendererContext.CopyBufferToBuffer(source, destination, sourceOffset, destinationOffset, size ? size : source.size);
+    else throw Error("Unknown render api type.");
+  }
+  static CopyBufferToTexture(source, destination, copySize) {
+    if (Renderer.type === "webgpu") WEBGPURendererContext.CopyBufferToTexture(source, destination, copySize);
+    else throw Error("Unknown render api type.");
+  }
+  static CopyTextureToTexture(source, destination, srcMip = 0, dstMip = 0, size) {
+    if (Renderer.type === "webgpu") WEBGPURendererContext.CopyTextureToTexture(source, destination, srcMip, dstMip, size);
+    else throw Error("Unknown render api type.");
+  }
+  static CopyTextureToBuffer(source, destination, srcMip, size) {
+    if (Renderer.type === "webgpu") WEBGPURendererContext.CopyTextureToBuffer(source, destination, srcMip, size);
+    else throw Error("Unknown render api type.");
+  }
+  static CopyTextureToBufferV2(source, destination, copySize) {
+    if (Renderer.type === "webgpu") WEBGPURendererContext.CopyTextureToBufferV2(source, destination, copySize);
+    else throw Error("Unknown render api type.");
+  }
+  static CopyTextureToTextureV2(source, destination, srcMip = 0, dstMip = 0, size, depth) {
+    if (Renderer.type === "webgpu") WEBGPURendererContext.CopyTextureToTextureV2(source, destination, srcMip, dstMip, size, depth);
+    else throw Error("Unknown render api type.");
+  }
+  static CopyTextureToTextureV3(source, destination, copySize) {
+    if (Renderer.type === "webgpu") WEBGPURendererContext.CopyTextureToTextureV3(source, destination, copySize);
+    else throw Error("Unknown render api type.");
+  }
+  static ClearBuffer(buffer, offset = 0, size) {
+    if (Renderer.type === "webgpu") WEBGPURendererContext.ClearBuffer(buffer, offset, size ? size : buffer.size);
+    else throw Error("Unknown render api type.");
+  }
+}
+
+class WEBGPUTextureSampler {
+  id = UUID();
+  params;
+  sampler;
+  constructor(params) {
+    this.params = params;
+    const samplerDescriptor = {};
+    if (params && params.minFilter) samplerDescriptor.minFilter = params.minFilter;
+    if (params && params.magFilter) samplerDescriptor.magFilter = params.magFilter;
+    if (params && params.mipmapFilter) samplerDescriptor.mipmapFilter = params.mipmapFilter;
+    if (params && params.addressModeU) samplerDescriptor.addressModeU = params.addressModeU;
+    if (params && params.addressModeV) samplerDescriptor.addressModeV = params.addressModeV;
+    if (params && params.compare) samplerDescriptor.compare = params.compare;
+    if (params && params.maxAnisotropy) samplerDescriptor.maxAnisotropy = params.maxAnisotropy;
+    this.sampler = WEBGPURenderer.device.createSampler(samplerDescriptor);
+  }
+  GetBuffer() {
+    return this.sampler;
+  }
+}
+
+const defaultSamplerParams = {
+  magFilter: "linear",
+  minFilter: "linear",
+  mipmapFilter: "linear",
+  addressModeU: "repeat",
+  addressModeV: "repeat",
+  compare: void 0,
+  maxAnisotropy: 1
+};
+class TextureSampler {
+  params;
+  static Create(params) {
+    const samplerParams = Object.assign({}, defaultSamplerParams, params);
+    if (Renderer.type === "webgpu") return new WEBGPUTextureSampler(samplerParams);
+    throw Error("Renderer type invalid");
+  }
+}
+
+class WEBGPUBlit {
+  static blitShader;
+  static blitGeometry;
+  static async Init(output = Renderer.SwapChainFormat) {
+    WEBGPUBlit.blitShader = await Shader.Create({
+      code: `
+            struct VertexInput {
+                @location(0) position : vec2<f32>,
+                @location(1) normal : vec3<f32>,
+                @location(2) uv : vec2<f32>,
+            };
+            
+            struct VertexOutput {
+                @builtin(position) position : vec4<f32>,
+                @location(0) vUv : vec2<f32>,
+            };
+            
+            @group(0) @binding(0) var texture: texture_2d<f32>;
+            @group(0) @binding(1) var textureSampler: sampler;
+            @group(0) @binding(2) var<storage, read> mip: f32;
+            @group(0) @binding(3) var<storage, read> uv_scale: vec2<f32>;
+            
+            @vertex
+            fn vertexMain(input: VertexInput) -> VertexOutput {
+                var output: VertexOutput;
+                output.position = vec4(input.position, 0.0, 1.0);
+                output.vUv = input.uv;
+                return output;
+            }
+            
+            @fragment
+            fn fragmentMain(input: VertexOutput) -> @location(0) vec4<f32> {
+                let uv = input.vUv;
+                var color = textureSampleLevel(texture, textureSampler, uv * uv_scale, mip);
+            
+                return color;
+            }
+            `,
+      colorOutputs: [{ format: output }],
+      attributes: {
+        position: { location: 0, size: 3, type: "vec3" },
+        normal: { location: 1, size: 3, type: "vec3" },
+        uv: { location: 2, size: 2, type: "vec2" }
+      },
+      uniforms: {
+        texture: { group: 0, binding: 0, type: "texture" },
+        textureSampler: { group: 0, binding: 1, type: "sampler" },
+        mip: { group: 0, binding: 2, type: "storage" },
+        uv_scale: { group: 0, binding: 3, type: "storage" }
+      }
+    });
+    const textureSampler = TextureSampler.Create();
+    WEBGPUBlit.blitShader.SetSampler("textureSampler", textureSampler);
+    WEBGPUBlit.blitShader.SetValue("mip", 0);
+  }
+  static async Blit(source, destination, width, height, uv_scale) {
+    if (!this.blitShader || this.blitShader.params.colorOutputs[0].format !== destination.format) await this.Init(destination.format);
+    if (!this.blitGeometry) this.blitGeometry = Geometry.Plane();
+    this.blitShader.SetTexture("texture", source);
+    this.blitShader.SetArray("uv_scale", uv_scale.elements);
+    const activeCommandEncoder = WEBGPURenderer.GetActiveCommandEncoder();
+    if (!activeCommandEncoder) Renderer.BeginRenderFrame();
+    RendererContext.BeginRenderPass("Blit", [{ target: destination, clear: true }]);
+    RendererContext.SetViewport(0, 0, width, height);
+    RendererContext.DrawGeometry(this.blitGeometry, this.blitShader);
+    RendererContext.EndRenderPass();
+    if (!activeCommandEncoder) Renderer.EndRenderFrame();
+  }
+}
+
+var TextureType = /* @__PURE__ */ ((TextureType2) => {
+  TextureType2[TextureType2["IMAGE"] = 0] = "IMAGE";
+  TextureType2[TextureType2["DEPTH"] = 1] = "DEPTH";
+  TextureType2[TextureType2["RENDER_TARGET"] = 2] = "RENDER_TARGET";
+  TextureType2[TextureType2["RENDER_TARGET_STORAGE"] = 3] = "RENDER_TARGET_STORAGE";
+  return TextureType2;
+})(TextureType || {});
+function CreateTexture(width, height, depth, format, type, dimension, mipLevels) {
+  if (Renderer.type === "webgpu") return new WEBGPUTexture(width, height, depth, format, type, dimension, mipLevels);
+  throw Error("Renderer type invalid");
+}
+class Texture {
+  id;
+  width;
+  height;
+  depth;
+  type;
+  dimension;
+  format;
+  name;
+  SetName(name) {
+  }
+  GetName() {
+    throw Error("Base class.");
+  }
+  SetActiveLayer(layer) {
+  }
+  GetActiveLayer() {
+    throw Error("Base class.");
+  }
+  SetActiveMip(layer) {
+  }
+  GetActiveMip() {
+    throw Error("Base class.");
+  }
+  SetActiveMipCount(layer) {
+  }
+  GetActiveMipCount() {
+    throw Error("Base class.");
+  }
+  GenerateMips() {
+  }
+  Destroy() {
+  }
+  SetData(data, bytesPerRow, rowsPerImage) {
+  }
+  Serialize() {
+    throw Error("Base class.");
+  }
+  static Create(width, height, depth = 1, format = Renderer.SwapChainFormat, mipLevels = 1) {
+    return CreateTexture(width, height, depth, format, 0 /* IMAGE */, "2d", mipLevels);
+  }
+  static async Load(url, format = Renderer.SwapChainFormat, flipY = false) {
+    const response = await fetch(url);
+    const imageBitmap = await createImageBitmap(await response.blob());
+    Renderer.info.gpuTextureSizeTotal += imageBitmap.width * imageBitmap.height * 1 * 4;
+    if (Renderer.type === "webgpu") return WEBGPUTexture.FromImageBitmap(imageBitmap, imageBitmap.width, imageBitmap.height, format, flipY);
+    throw Error("Renderer type invalid");
+  }
+  static async LoadImageSource(imageSource, format = Renderer.SwapChainFormat, flipY = false) {
+    const imageBitmap = await createImageBitmap(imageSource);
+    Renderer.info.gpuTextureSizeTotal += imageBitmap.width * imageBitmap.height * 1 * 4;
+    if (Renderer.type === "webgpu") return WEBGPUTexture.FromImageBitmap(imageBitmap, imageBitmap.width, imageBitmap.height, format, flipY);
+    throw Error("Renderer type invalid");
+  }
+  static async Blit(source, destination, width, height, uv_scale = new Vector2(1, 1)) {
+    if (Renderer.type === "webgpu") return WEBGPUBlit.Blit(source, destination, width, height, uv_scale);
+    throw Error("Renderer type invalid");
+  }
+}
+class DepthTexture extends Texture {
+  static Create(width, height, depth = 1, format = "depth24plus", mipLevels = 1) {
+    return CreateTexture(width, height, depth, format, 1 /* DEPTH */, "2d", mipLevels);
+  }
+}
+class RenderTexture extends Texture {
+  static Create(width, height, depth = 1, format = Renderer.SwapChainFormat, mipLevels = 1) {
+    return CreateTexture(width, height, depth, format, 2 /* RENDER_TARGET */, "2d", mipLevels);
+  }
+}
+class RenderTextureStorage3D extends Texture {
+  static Create(width, height, depth = 1, format = Renderer.SwapChainFormat, mipLevels = 1) {
+    return CreateTexture(width, height, depth, format, 3 /* RENDER_TARGET_STORAGE */, "3d", mipLevels);
+  }
+}
+class RenderTextureStorage2D extends Texture {
+  static Create(width, height, depth = 1, format = Renderer.SwapChainFormat, mipLevels = 1) {
+    return CreateTexture(width, height, depth, format, 3 /* RENDER_TARGET_STORAGE */, "2d", mipLevels);
+  }
+}
+class RenderTextureCube extends Texture {
+  static Create(width, height, depth = 1, format = Renderer.SwapChainFormat, mipLevels = 1) {
+    return CreateTexture(width, height, depth, format, 2 /* RENDER_TARGET */, "cube", mipLevels);
+  }
+}
+class TextureArray extends Texture {
+  static Create(width, height, depth = 1, format = Renderer.SwapChainFormat, mipLevels = 1) {
+    return CreateTexture(width, height, depth, format, 0 /* IMAGE */, "2d-array", mipLevels);
+  }
+}
+class CubeTexture extends Texture {
+  static Create(width, height, depth = 1, format = Renderer.SwapChainFormat, mipLevels = 1) {
+    return CreateTexture(width, height, depth, format, 0 /* IMAGE */, "cube", mipLevels);
+  }
+}
+class DepthTextureArray extends Texture {
+  static Create(width, height, depth = 1, format = "depth24plus", mipLevels = 1) {
+    return CreateTexture(width, height, depth, format, 1 /* DEPTH */, "2d-array", mipLevels);
+  }
+}
+class RenderTexture3D extends Texture {
+  static Create(width, height, depth = 1, format = Renderer.SwapChainFormat, mipLevels = 1) {
+    return CreateTexture(width, height, depth, format, 2 /* RENDER_TARGET */, "3d", mipLevels);
+  }
+}
+
+const BindGroupLayoutCache = /* @__PURE__ */ new Map();
+const BindGroupCache = /* @__PURE__ */ new Map();
+const UniformTypeToWGSL = {
+  "uniform": "uniform",
+  "storage": "read-only-storage",
+  "storage-write": "storage"
+};
+class WEBGPUBaseShader {
+  id = UUID();
+  needsUpdate = false;
+  module;
+  params;
+  uniformMap = /* @__PURE__ */ new Map();
+  valueArray = new Float32Array(1);
+  _pipeline = null;
+  _bindGroups = [];
+  _bindGroupsInfo = [];
+  get pipeline() {
+    return this._pipeline;
+  }
+  get bindGroups() {
+    return this._bindGroups;
+  }
+  get bindGroupsInfo() {
+    return this._bindGroupsInfo;
+  }
+  bindGroupLayouts = [];
+  constructor(params) {
+    const code = params.defines ? ShaderPreprocessor.ProcessDefines(params.code, params.defines) : params.code;
+    this.params = params;
+    this.module = WEBGPURenderer.device.createShaderModule({ code, label: params.name });
+    if (this.params.uniforms) {
+      this.uniformMap = new Map(Object.entries(this.params.uniforms));
+    }
+  }
+  // TODO: This needs cleaning
+  BuildBindGroupLayouts() {
+    const bindGroupsLayoutEntries = [];
+    for (const [name, uniform] of this.uniformMap) {
+      if (!bindGroupsLayoutEntries[uniform.group]) bindGroupsLayoutEntries[uniform.group] = [];
+      const layoutEntries = bindGroupsLayoutEntries[uniform.group];
+      if (uniform.buffer instanceof WEBGPUBuffer) {
+        const visibility = uniform.type === "storage-write" ? GPUShaderStage.FRAGMENT | GPUShaderStage.COMPUTE : GPUShaderStage.VERTEX | GPUShaderStage.FRAGMENT | GPUShaderStage.COMPUTE;
+        layoutEntries.push({ binding: uniform.binding, visibility, buffer: { type: UniformTypeToWGSL[uniform.type] } });
+      } else if (uniform.buffer instanceof WEBGPUDynamicBuffer) {
+        const visibility = uniform.type === "storage-write" ? GPUShaderStage.FRAGMENT | GPUShaderStage.COMPUTE : GPUShaderStage.VERTEX | GPUShaderStage.FRAGMENT | GPUShaderStage.COMPUTE;
+        layoutEntries.push({
+          binding: uniform.binding,
+          visibility,
+          buffer: {
+            type: UniformTypeToWGSL[uniform.type],
+            hasDynamicOffset: true,
+            minBindingSize: uniform.buffer.minBindingSize
+          }
+        });
+      } else if (uniform.buffer instanceof WEBGPUTexture) {
+        let sampleType = uniform.type === "depthTexture" ? "depth" : "float";
+        if (uniform.buffer.format.includes("32float")) sampleType = "unfilterable-float";
+        else if (uniform.buffer.format.includes("32uint")) sampleType = "uint";
+        else if (uniform.buffer.format.includes("32int")) sampleType = "sint";
+        if (uniform.buffer.type === TextureType.RENDER_TARGET_STORAGE) {
+          layoutEntries.push({
+            binding: uniform.binding,
+            visibility: GPUShaderStage.COMPUTE | GPUShaderStage.FRAGMENT,
+            storageTexture: {
+              format: uniform.buffer.format,
+              viewDimension: uniform.buffer.dimension,
+              access: "read-write"
+            }
+          });
+        } else {
+          layoutEntries.push({ binding: uniform.binding, visibility: GPUShaderStage.COMPUTE | GPUShaderStage.VERTEX | GPUShaderStage.FRAGMENT, texture: { sampleType, viewDimension: uniform.buffer.dimension } });
+        }
+      } else if (uniform.buffer instanceof WEBGPUTextureSampler) {
+        let type = void 0;
+        if (uniform.type === "sampler") type = "filtering";
+        else if (uniform.type === "sampler-compare") type = "comparison";
+        else if (uniform.type === "sampler-non-filterable") type = "non-filtering";
+        layoutEntries.push({ binding: uniform.binding, visibility: GPUShaderStage.COMPUTE | GPUShaderStage.VERTEX | GPUShaderStage.FRAGMENT, sampler: { type } });
+      }
+    }
+    let bindGroupLayouts = [];
+    for (const bindGroupsLayoutEntry of bindGroupsLayoutEntries) {
+      const crc = JSON.stringify(bindGroupsLayoutEntry);
+      let bindGroupLayout = BindGroupLayoutCache.get(crc);
+      if (bindGroupLayout === void 0) {
+        bindGroupLayout = WEBGPURenderer.device.createBindGroupLayout({ entries: bindGroupsLayoutEntry });
+        BindGroupLayoutCache.set(crc, bindGroupLayout);
+        Renderer.info.bindGroupLayoutsStat += 1;
+      }
+      bindGroupLayout.label = crc;
+      bindGroupLayouts.push(bindGroupLayout);
+    }
+    return bindGroupLayouts;
+  }
+  BuildBindGroupsCRC() {
+    const crcs = [];
+    for (const [name, uniform] of this.uniformMap) {
+      if (!crcs[uniform.group]) crcs[uniform.group] = "";
+      if (uniform.buffer) {
+        crcs[uniform.group] += `${uniform.buffer.id},`;
+      }
+    }
+    return crcs;
+  }
+  BuildBindGroups() {
+    const bindGroupsInfo = [];
+    for (const [name, uniform] of this.uniformMap) {
+      if (!bindGroupsInfo[uniform.group]) bindGroupsInfo[uniform.group] = { entries: [], buffers: [] };
+      const group = bindGroupsInfo[uniform.group];
+      if (uniform.buffer instanceof WEBGPUBuffer) {
+        group.entries.push({ binding: uniform.binding, resource: { buffer: uniform.buffer.GetBuffer() } });
+        group.buffers.push(uniform.buffer);
+      } else if (uniform.buffer instanceof WEBGPUDynamicBuffer) {
+        group.entries.push({
+          binding: uniform.binding,
+          resource: {
+            buffer: uniform.buffer.GetBuffer(),
+            offset: 0,
+            size: uniform.buffer.minBindingSize
+          }
+        });
+        group.buffers.push(uniform.buffer);
+      } else if (uniform.buffer instanceof WEBGPUTexture) {
+        const view = {
+          dimension: uniform.buffer.dimension,
+          arrayLayerCount: uniform.buffer.dimension != "3d" ? uniform.buffer.GetBuffer().depthOrArrayLayers : 1,
+          // arrayLayerCount: uniform.buffer.GetBuffer().depthOrArrayLayers,
+          baseArrayLayer: 0,
+          baseMipLevel: uniform.textureMip,
+          mipLevelCount: uniform.activeMipCount
+        };
+        group.entries.push({ binding: uniform.binding, resource: uniform.buffer.GetBuffer().createView(view) });
+        group.buffers.push(uniform.buffer);
+      } else if (uniform.buffer instanceof WEBGPUTextureSampler) {
+        group.entries.push({ binding: uniform.binding, resource: uniform.buffer.GetBuffer() });
+        group.buffers.push(uniform.buffer);
+      }
+    }
+    this._bindGroupsInfo = bindGroupsInfo;
+    let bindGroupsCRC = this.BuildBindGroupsCRC();
+    let bindGroups = [];
+    for (let i = 0; i < bindGroupsInfo.length; i++) {
+      const crc = bindGroupsCRC[i];
+      const bindGroupInfo = bindGroupsInfo[i];
+      const bindGroupLayout = this.bindGroupLayouts[i];
+      let bindGroup = BindGroupCache.get(crc);
+      if (bindGroup === void 0) {
+        bindGroup = WEBGPURenderer.device.createBindGroup({ layout: bindGroupLayout, entries: bindGroupInfo.entries });
+        Renderer.info.bindGroupsStat += 1;
+        BindGroupCache.set(crc, bindGroup);
+      }
+      bindGroups.push(bindGroup);
+    }
+    return bindGroups;
+  }
+  GetValidUniform(name) {
+    const uniform = this.uniformMap.get(name);
+    if (!uniform) throw Error(`Shader does not have a parameter named ${name}`);
+    return uniform;
+  }
+  SetUniformDataFromArray(name, data, dataOffset, bufferOffset = 0, size) {
+    const uniform = this.GetValidUniform(name);
+    if (!uniform.buffer) {
+      let type = BufferType.STORAGE;
+      if (uniform.type === "uniform") type = BufferType.UNIFORM;
+      uniform.buffer = Buffer.Create(data.byteLength, type);
+      this.needsUpdate = true;
+    }
+    WEBGPURenderer.device.queue.writeBuffer(uniform.buffer.GetBuffer(), bufferOffset, data, dataOffset, size);
+  }
+  SetUniformDataFromBuffer(name, data) {
+    if (!data) throw Error(`Invalid buffer ${name}`);
+    const binding = this.GetValidUniform(name);
+    if (!binding.buffer || binding.buffer.GetBuffer() !== data.GetBuffer()) {
+      binding.buffer = data;
+      this.needsUpdate = true;
+    }
+    if (data instanceof WEBGPUTexture) {
+      binding.textureDimension = data.GetActiveLayer();
+      binding.textureMip = data.GetActiveMip();
+      binding.activeMipCount = data.GetActiveMipCount();
+    }
+  }
+  SetArray(name, array, bufferOffset = 0, dataOffset, size) {
+    this.SetUniformDataFromArray(name, array, bufferOffset, dataOffset, size);
+  }
+  SetValue(name, value) {
+    this.valueArray[0] = value;
+    this.SetUniformDataFromArray(name, this.valueArray);
+  }
+  SetMatrix4(name, matrix) {
+    this.SetUniformDataFromArray(name, matrix.elements);
+  }
+  SetVector2(name, vector) {
+    this.SetUniformDataFromArray(name, vector.elements);
+  }
+  SetVector3(name, vector) {
+    this.SetUniformDataFromArray(name, vector.elements);
+  }
+  SetVector4(name, vector) {
+    this.SetUniformDataFromArray(name, vector.elements);
+  }
+  SetTexture(name, texture) {
+    this.SetUniformDataFromBuffer(name, texture);
+  }
+  SetSampler(name, sampler) {
+    this.SetUniformDataFromBuffer(name, sampler);
+  }
+  SetBuffer(name, buffer) {
+    this.SetUniformDataFromBuffer(name, buffer);
+  }
+  HasBuffer(name) {
+    return this.uniformMap.get(name)?.buffer ? true : false;
+  }
+  Compile() {
+  }
+  OnPreRender(geometry) {
+    return true;
+  }
+  Destroy() {
+    const crcs = this.BuildBindGroupsCRC();
+    for (const crc of crcs) {
+      if (BindGroupCache.delete(crc) === true) {
+        Renderer.info.bindGroupsStat -= 1;
+      }
+    }
+    for (const bindGroupLayout of this.bindGroupLayouts) {
+      for (const [cachedBindGroupLayoutName, cachedBindGroupLayout] of BindGroupLayoutCache) {
+        if (bindGroupLayout === cachedBindGroupLayout) {
+          if (BindGroupLayoutCache.delete(cachedBindGroupLayoutName) === true) {
+            Renderer.info.bindGroupLayoutsStat -= 1;
+          }
+        }
+      }
+    }
+    Renderer.info.compiledShadersStat -= 1;
+  }
+}
+
+class WEBGPUComputeShader extends WEBGPUBaseShader {
+  computeEntrypoint;
+  _pipeline = null;
+  get pipeline() {
+    return this._pipeline;
+  }
+  constructor(params) {
+    super(params);
+    this.params = params;
+    this.computeEntrypoint = params.computeEntrypoint;
+  }
+  Compile() {
+    if (!(this.needsUpdate || !this.pipeline || !this.bindGroups)) {
+      return;
+    }
+    this.bindGroupLayouts = this.BuildBindGroupLayouts();
+    this._bindGroups = this.BuildBindGroups();
+    let pipelineLayout = WEBGPURenderer.device.createPipelineLayout({
+      bindGroupLayouts: this.bindGroupLayouts
+    });
+    const pipelineDescriptor = {
+      layout: pipelineLayout,
+      compute: { module: this.module, entryPoint: this.computeEntrypoint }
+    };
+    this._pipeline = WEBGPURenderer.device.createComputePipeline(pipelineDescriptor);
+    Renderer.info.compiledShadersStat += 1;
+    this.needsUpdate = false;
+  }
+  Serialize() {
+    return {
+      code: this.params.code,
+      defines: this.params.defines,
+      uniforms: this.params.uniforms
+    };
+  }
+}
+
+const pipelineLayoutCache = /* @__PURE__ */ new Map();
+const pipelineCache = /* @__PURE__ */ new Map();
+const WGSLShaderAttributeFormat = {
+  vec2: "float32x2",
+  vec3: "float32x3",
+  vec4: "float32x4",
+  vec2u: "uint32x2",
+  vec3u: "uint32x3",
+  vec4u: "uint32x4"
+};
+function blendState(mode) {
+  switch (mode) {
+    case "opaque":
+      return void 0;
+    // no blending
+    case "alpha":
+      return {
+        color: { srcFactor: "src-alpha", dstFactor: "one-minus-src-alpha", operation: "add" },
+        alpha: { srcFactor: "one", dstFactor: "one-minus-src-alpha", operation: "add" }
+      };
+    case "premultiplied":
+      return {
+        color: { srcFactor: "one", dstFactor: "one-minus-src-alpha", operation: "add" },
+        alpha: { srcFactor: "one", dstFactor: "one-minus-src-alpha", operation: "add" }
+      };
+    case "add":
+      return {
+        color: { srcFactor: "one", dstFactor: "one", operation: "add" },
+        alpha: { srcFactor: "one", dstFactor: "one", operation: "add" }
+      };
+  }
+}
+class WEBGPUShader extends WEBGPUBaseShader {
+  vertexEntrypoint;
+  fragmentEntrypoint;
+  attributeMap = /* @__PURE__ */ new Map();
+  _pipeline = null;
+  get pipeline() {
+    return this._pipeline;
+  }
+  constructor(params) {
+    super(params);
+    this.params = params;
+    this.vertexEntrypoint = this.params.vertexEntrypoint;
+    this.fragmentEntrypoint = this.params.fragmentEntrypoint;
+    if (this.params.attributes) this.attributeMap = new Map(Object.entries(this.params.attributes));
+  }
+  // TODO: This needs cleaning
+  Compile() {
+    if (!(this.needsUpdate || !this.pipeline || !this.bindGroups)) {
+      return;
+    }
+    let hasCompiled = false;
+    this.bindGroupLayouts = this.BuildBindGroupLayouts();
+    this._bindGroups = this.BuildBindGroups();
+    let bindGroupLayoutsCRC = "";
+    for (const b of this.bindGroupLayouts) bindGroupLayoutsCRC += b.label;
+    let pipelineLayout = pipelineLayoutCache.get(bindGroupLayoutsCRC);
+    if (pipelineLayout === void 0) {
+      pipelineLayout = WEBGPURenderer.device.createPipelineLayout({
+        bindGroupLayouts: this.bindGroupLayouts
+      });
+      pipelineLayout.label = UUID();
+      pipelineLayoutCache.set(bindGroupLayoutsCRC, pipelineLayout);
+      hasCompiled = true;
+    }
+    let targets = [];
+    for (const output of this.params.colorOutputs) targets.push({
+      format: output.format,
+      blend: blendState(output.blendMode)
+    });
+    const pipelineDescriptor = {
+      layout: pipelineLayout,
+      vertex: { module: this.module, entryPoint: this.vertexEntrypoint, buffers: [] },
+      fragment: { module: this.module, entryPoint: this.fragmentEntrypoint, targets },
+      primitive: {
+        topology: this.params.topology ? this.params.topology : "triangle-list",
+        frontFace: this.params.frontFace ? this.params.frontFace : "ccw",
+        cullMode: this.params.cullMode ? this.params.cullMode : "back"
+      }
+    };
+    if (this.params.depthOutput) {
+      pipelineDescriptor.depthStencil = {
+        depthWriteEnabled: this.params.depthWriteEnabled !== void 0 ? this.params.depthWriteEnabled : true,
+        depthCompare: this.params.depthCompare ? this.params.depthCompare : "less",
+        depthBias: this.params.depthBias ? this.params.depthBias : void 0,
+        depthBiasSlopeScale: this.params.depthBiasSlopeScale ? this.params.depthBiasSlopeScale : void 0,
+        depthBiasClamp: this.params.depthBiasClamp ? this.params.depthBiasClamp : void 0,
+        format: this.params.depthOutput
+      };
+    }
+    const buffers = [];
+    for (const [_, attribute] of this.attributeMap) {
+      buffers.push({ arrayStride: attribute.size * 4, attributes: [{ shaderLocation: attribute.location, offset: 0, format: WGSLShaderAttributeFormat[attribute.type] }] });
+    }
+    pipelineDescriptor.vertex.buffers = buffers;
+    pipelineDescriptor.label += "," + pipelineLayout.label;
+    const pipelineDescriptorKey = JSON.stringify(pipelineDescriptor);
+    let pipeline = pipelineCache.get(pipelineDescriptorKey);
+    if (!pipeline) {
+      pipeline = WEBGPURenderer.device.createRenderPipeline(pipelineDescriptor);
+      pipelineCache.set(pipelineDescriptorKey, pipeline);
+      hasCompiled = true;
+      Renderer.info.compiledShadersStat += 1;
+    }
+    this._pipeline = pipeline;
+    if (hasCompiled === true) {
+      Renderer.info.compiledShadersStat += 1;
+    }
+    this.needsUpdate = false;
+  }
+  GetAttributeSlot(name) {
+    return this.attributeMap.get(name)?.location;
+  }
+  Serialize() {
+    return {
+      code: this.params.code,
+      defines: this.params.defines,
+      attributes: this.params.attributes,
+      uniforms: Object.entries(this.params.uniforms).map(([key, value]) => {
+        return { group: value.group, binding: value.binding, type: value.type };
+      }),
+      vertexEntrypoint: this.params.vertexEntrypoint,
+      fragmentEntrypoint: this.params.fragmentEntrypoint,
+      colorOutputs: this.params.colorOutputs,
+      depthOutput: this.params.depthOutput,
+      depthCompare: this.params.depthCompare,
+      depthBiasSlopeScale: this.params.depthBiasSlopeScale,
+      depthBiasClamp: this.params.depthBiasClamp,
+      depthWriteEnabled: this.params.depthWriteEnabled,
+      topology: this.params.topology,
+      frontFace: this.params.frontFace,
+      cullMode: this.params.cullMode
+    };
+  }
+}
+
+var Topology = /* @__PURE__ */ ((Topology2) => {
+  Topology2["Triangles"] = "triangle-list";
+  Topology2["Points"] = "point-list";
+  Topology2["Lines"] = "line-list";
+  return Topology2;
+})(Topology || {});
+class BaseShader {
+  id;
+  params;
+  constructor() {
+  }
+  SetValue(name, value) {
+  }
+  SetMatrix4(name, matrix) {
+  }
+  SetVector2(name, vector) {
+  }
+  SetVector3(name, vector) {
+  }
+  SetVector4(name, vector) {
+  }
+  SetArray(name, array, bufferOffset, dataOffset, size) {
+  }
+  SetTexture(name, texture) {
+  }
+  SetSampler(name, texture) {
+  }
+  SetBuffer(name, buffer) {
+  }
+  HasBuffer(name) {
+    return false;
+  }
+  OnPreRender(geometry) {
+    return true;
+  }
+  Destroy() {
+  }
+  Serialize() {
+    throw Error("Called deserialize on BaseShader");
+  }
+}
+class Shader extends BaseShader {
+  static async Create(params) {
+    params.code = await ShaderPreprocessor.ProcessIncludes(params.code);
+    if (Renderer.type === "webgpu") return new WEBGPUShader(params);
+    throw Error("Unknown api");
+  }
+}
+class Compute extends BaseShader {
+  /**
+   * @example
+   * ```js
+   * const = await GPU.Compute.Create({
+   *     code: `
+   *         @compute @workgroup_size(8, 8, 1)
+   *         fn main(@builtin(global_invocation_id) grid: vec3<u32>) {
+   *         }
+   *     `,
+   *     computeEntrypoint: "main",
+   *     uniforms: {
+   *         drawBuffer: {group: 0, binding: 0, type: "storage-write"}
+   *     }
+   * })
+   * ```
+   */
+  static async Create(params) {
+    params.code = await ShaderPreprocessor.ProcessIncludes(params.code);
+    if (Renderer.type === "webgpu") return new WEBGPUComputeShader(params);
+    throw Error("Unknown api");
+  }
+}
+
+class WEBGPUTimestampQuery {
+  static querySet;
+  static resolveBuffer;
+  static resultBuffer;
+  static isTimestamping = false;
+  static links = /* @__PURE__ */ new Map();
+  static currentLinkIndex = 0;
+  static BeginRenderTimestamp(name) {
+    if (this.links.has(name)) return void 0;
+    if (!navigator.userAgent.toLowerCase().includes("chrome")) return void 0;
+    if (this.isTimestamping === true) throw Error("Already timestamping");
+    if (!this.querySet) {
+      this.querySet = WEBGPURenderer.device.createQuerySet({
+        type: "timestamp",
+        count: 200
+      });
+    }
+    if (!this.resolveBuffer) {
+      this.resolveBuffer = WEBGPURenderer.device.createBuffer({
+        size: this.querySet.count * 8,
+        usage: GPUBufferUsage.QUERY_RESOLVE | GPUBufferUsage.COPY_SRC
+      });
+    }
+    if (!this.resultBuffer) {
+      this.resultBuffer = WEBGPURenderer.device.createBuffer({
+        size: this.querySet.count * 8,
+        usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ
+      });
+    }
+    this.isTimestamping = true;
+    const currentLinkIndex = this.currentLinkIndex;
+    this.currentLinkIndex += 2;
+    this.links.set(name, currentLinkIndex);
+    return { querySet: this.querySet, beginningOfPassWriteIndex: currentLinkIndex, endOfPassWriteIndex: currentLinkIndex + 1 };
+  }
+  static EndRenderTimestamp() {
+    if (this.isTimestamping === false) return;
+    const activeCommandEncoder = WEBGPURenderer.GetActiveCommandEncoder();
+    if (!activeCommandEncoder) throw Error("No active command encoder!!");
+    if (this.resultBuffer.mapState === "unmapped") {
+      activeCommandEncoder.resolveQuerySet(this.querySet, 0, this.querySet.count, this.resolveBuffer, 0);
+      activeCommandEncoder.copyBufferToBuffer(this.resolveBuffer, 0, this.resultBuffer, 0, this.resultBuffer.size);
+    }
+    this.isTimestamping = false;
+  }
+  static async GetResult() {
+    if (!this.resultBuffer || this.resultBuffer.mapState !== "unmapped") return;
+    await this.resultBuffer.mapAsync(GPUMapMode.READ);
+    const arrayBuffer = this.resultBuffer.getMappedRange().slice(0);
+    const times = new BigInt64Array(arrayBuffer);
+    let visited = {};
+    let frameTimes = /* @__PURE__ */ new Map();
+    for (const [name, num] of this.links) {
+      if (visited[name] === true) continue;
+      const duration = Number(times[num + 1] - times[num]);
+      frameTimes.set(name, duration);
+      visited[name] = true;
+    }
+    this.resultBuffer.unmap();
+    this.currentLinkIndex = 0;
+    this.links.clear();
+    return frameTimes;
+  }
+}
+
+class WEBGPURendererContext {
+  static activeRenderPass = null;
+  static HasActiveRenderPass() {
+    return this.activeRenderPass instanceof GPURenderPassEncoder;
+  }
+  static BeginRenderPass(name, renderTargets, depthTarget, timestamp) {
+    const activeCommandEncoder = WEBGPURenderer.GetActiveCommandEncoder();
+    if (!activeCommandEncoder) throw Error("No active command encoder!!");
+    if (this.activeRenderPass) throw Error("There is already an active render pass");
+    const renderPassDescriptor = { colorAttachments: [], label: "RenderPassDescriptor: " + name };
+    if (timestamp === true) renderPassDescriptor.timestampWrites = WEBGPUTimestampQuery.BeginRenderTimestamp(name);
+    const attachments = [];
+    for (const renderTarget of renderTargets) {
+      attachments.push({
+        view: renderTarget.target ? renderTarget.target.GetView() : WEBGPURenderer.context.getCurrentTexture().createView(),
+        clearValue: renderTarget.color,
+        loadOp: renderTarget.clear ? "clear" : "load",
+        storeOp: "store"
+      });
+    }
+    renderPassDescriptor.colorAttachments = attachments;
+    if (depthTarget?.target) {
+      renderPassDescriptor.depthStencilAttachment = {
+        view: depthTarget.target.GetView(),
+        depthClearValue: 1,
+        depthLoadOp: depthTarget.clear ? "clear" : "load",
+        depthStoreOp: "store"
+      };
+    }
+    this.activeRenderPass = activeCommandEncoder.beginRenderPass(renderPassDescriptor);
+    this.activeRenderPass.label = "RenderPass: " + name;
+  }
+  static EndRenderPass() {
+    if (!this.activeRenderPass) throw Error("No active render pass");
+    this.activeRenderPass.end();
+    this.activeRenderPass = null;
+    WEBGPUTimestampQuery.EndRenderTimestamp();
+  }
+  static BindGeometry(geometry, shader) {
+    if (!this.activeRenderPass) throw Error("No active render pass");
+    shader.Compile();
+    if (!shader.pipeline) throw Error("Shader doesnt have a pipeline");
+    Renderer.info.drawCallsStat += 1;
+    this.activeRenderPass.setPipeline(shader.pipeline);
+    for (let i = 0; i < shader.bindGroups.length; i++) {
+      let dynamicOffsets = [];
+      for (const buffer of shader.bindGroupsInfo[i].buffers) {
+        if (buffer instanceof WEBGPUDynamicBuffer) {
+          dynamicOffsets.push(buffer.dynamicOffset);
+        }
+      }
+      this.activeRenderPass.setBindGroup(i, shader.bindGroups[i], dynamicOffsets);
+    }
+    if (shader.params.useVertexPulling === void 0 || shader.params.useVertexPulling === false) {
+      for (const [name, attribute] of geometry.attributes) {
+        const attributeSlot = shader.GetAttributeSlot(name);
+        if (attributeSlot === void 0) continue;
+        const attributeBuffer = attribute.buffer;
+        this.activeRenderPass.setVertexBuffer(attributeSlot, attributeBuffer.GetBuffer(), attribute.currentOffset, attribute.currentSize);
+        Renderer.info.frameVertexBuffersStat++;
+      }
+      if (geometry.index) {
+        const indexBuffer = geometry.index.buffer;
+        this.activeRenderPass.setIndexBuffer(indexBuffer.GetBuffer(), geometry.index.format, geometry.index.currentOffset, geometry.index.currentSize);
+        Renderer.info.frameIndexBufferStat++;
+      }
+    }
+  }
+  static DrawGeometry(geometry, shader, instanceCount = 1, firstInstance = 0) {
+    if (!shader.OnPreRender(geometry)) return;
+    this.BindGeometry(geometry, shader);
+    if (!shader.params.topology || shader.params.topology === Topology.Triangles) {
+      if (!geometry.index) {
+        const positions = geometry.attributes.get("position");
+        const vertexCount = positions.GetBuffer().size / 4 / 4;
+        this.activeRenderPass.draw(vertexCount, instanceCount, 0, firstInstance);
+      } else {
+        const indexCount = geometry.index.count;
+        if (shader.params.useVertexPulling === true) {
+          this.activeRenderPass.draw(indexCount, instanceCount, 0, firstInstance);
+        } else {
+          this.activeRenderPass.drawIndexed(indexCount, instanceCount, 0, 0, firstInstance);
+        }
+      }
+    } else if (shader.params.topology === Topology.Lines) {
+      const positions = geometry.attributes.get("position");
+      this.activeRenderPass.draw(positions.GetBuffer().size / 3 / 4, instanceCount, 0, firstInstance);
+    }
+  }
+  static DrawIndexed(geometry, shader, indexCount, instanceCount, firstIndex, baseVertex, firstInstance) {
+    this.BindGeometry(geometry, shader);
+    this.activeRenderPass.drawIndexed(indexCount, instanceCount, firstIndex, baseVertex, firstInstance);
+  }
+  static Draw(geometry, shader, vertexCount, instanceCount, firstVertex, firstInstance) {
+    this.BindGeometry(geometry, shader);
+    this.activeRenderPass.draw(vertexCount, instanceCount, firstVertex, firstInstance);
+  }
+  static DrawIndirect(geometry, shader, indirectBuffer, indirectOffset) {
+    if (!shader.OnPreRender(geometry)) return;
+    this.BindGeometry(geometry, shader);
+    if (!geometry.index) {
+      this.activeRenderPass.drawIndirect(indirectBuffer.GetBuffer(), indirectOffset);
+    } else {
+      this.activeRenderPass.drawIndexedIndirect(indirectBuffer.GetBuffer(), indirectOffset);
+    }
+  }
+  static SetViewport(x, y, width, height, minDepth, maxDepth) {
+    if (!this.activeRenderPass) throw Error("No active render pass");
+    this.activeRenderPass.setViewport(x, y, width, height, minDepth, maxDepth);
+  }
+  static SetScissor(x, y, width, height) {
+    if (!this.activeRenderPass) throw Error("No active render pass");
+    this.activeRenderPass.setScissorRect(x, y, width, height);
+  }
+  static CopyBufferToBuffer(source, destination, sourceOffset, destinationOffset, size) {
+    const activeCommandEncoder = WEBGPURenderer.GetActiveCommandEncoder();
+    if (!activeCommandEncoder) throw Error("No active command encoder!!");
+    activeCommandEncoder.copyBufferToBuffer(source.GetBuffer(), sourceOffset, destination.GetBuffer(), destinationOffset, size);
+  }
+  static CopyBufferToTexture(source, destination, copySize) {
+    const activeCommandEncoder = WEBGPURenderer.GetActiveCommandEncoder();
+    if (!activeCommandEncoder) throw Error("No active command encoder!!");
+    const sourceParameters = { buffer: source.buffer.GetBuffer(), offset: source.offset, bytesPerRow: source.bytesPerRow, rowsPerImage: source.rowsPerImage };
+    const destinationParameters = { texture: destination.texture.GetBuffer(), mipLevel: destination.mipLevel, origin: destination.origin };
+    const extents = copySize ? copySize : [destination.texture.width, destination.texture.height, destination.texture.depth];
+    activeCommandEncoder.copyBufferToTexture(sourceParameters, destinationParameters, extents);
+  }
+  // CopyTexture(Texture src, int srcElement, int srcMip, Texture dst, int dstElement, int dstMip);
+  static CopyTextureToTexture(source, destination, srcMip, dstMip, size) {
+    const activeCommandEncoder = WEBGPURenderer.GetActiveCommandEncoder();
+    if (!activeCommandEncoder) throw Error("No active command encoder!!");
+    const extents = size ? size : [source.width, source.height, source.depth];
+    activeCommandEncoder.copyTextureToTexture({ texture: source.GetBuffer(), mipLevel: srcMip }, { texture: destination.GetBuffer(), mipLevel: dstMip }, extents);
+  }
+  static CopyTextureToBuffer(source, destination, srcMip, size) {
+    const activeCommandEncoder = WEBGPURenderer.GetActiveCommandEncoder();
+    if (!activeCommandEncoder) throw Error("No active command encoder!!");
+    const extents = size ? size : [source.width, source.height, source.depth];
+    activeCommandEncoder.copyTextureToBuffer({ texture: source.GetBuffer(), mipLevel: srcMip }, { buffer: destination.GetBuffer(), bytesPerRow: source.width * 4 }, extents);
+  }
+  static CopyTextureToBufferV2(source, destination, copySize) {
+    const activeCommandEncoder = WEBGPURenderer.GetActiveCommandEncoder();
+    if (!activeCommandEncoder) throw Error("No active command encoder!!");
+    const sourceParameters = { texture: source.texture.GetBuffer(), mipLevel: source.mipLevel, origin: source.origin };
+    const destinationParameters = { buffer: destination.buffer.GetBuffer(), offset: destination.offset, bytesPerRow: destination.bytesPerRow, rowsPerImage: destination.rowsPerImage };
+    const extents = copySize ? copySize : [source.texture.width, source.texture.height, source.texture.depth];
+    activeCommandEncoder.copyTextureToBuffer(sourceParameters, destinationParameters, extents);
+  }
+  static CopyTextureToTextureV2(source, destination, srcMip, dstMip, size, depth) {
+    const activeCommandEncoder = WEBGPURenderer.GetActiveCommandEncoder();
+    if (!activeCommandEncoder) throw Error("No active command encoder!!");
+    const extents = size ? size : [source.width, source.height, source.depth];
+    activeCommandEncoder.copyTextureToTexture(
+      { texture: source.GetBuffer(), mipLevel: srcMip, origin: { x: 0, y: 0, z: 0 } },
+      { texture: destination.GetBuffer(), mipLevel: dstMip, origin: { x: 0, y: 0, z: depth ? depth : 0 } },
+      extents
+    );
+  }
+  static CopyTextureToTextureV3(source, destination, copySize) {
+    const activeCommandEncoder = WEBGPURenderer.GetActiveCommandEncoder();
+    if (!activeCommandEncoder) throw Error("No active command encoder!!");
+    const sourceParameters = { texture: source.texture.GetBuffer(), mipLevel: source.mipLevel, origin: source.origin };
+    const destinationParameters = { texture: destination.texture.GetBuffer(), mipLevel: destination.mipLevel, origin: destination.origin };
+    const extents = copySize ? copySize : [source.texture.width, source.texture.height, source.texture.depth];
+    activeCommandEncoder.copyTextureToTexture(sourceParameters, destinationParameters, extents);
+  }
+  static ClearBuffer(buffer, offset, size) {
+    const activeCommandEncoder = WEBGPURenderer.GetActiveCommandEncoder();
+    if (!activeCommandEncoder) throw Error("No active command encoder!!");
+    activeCommandEncoder.clearBuffer(buffer.GetBuffer(), offset, size);
+  }
+}
+
 class BaseBuffer {
   id = UUID();
   buffer;
@@ -2096,8 +3609,8 @@ class BaseBuffer {
     let usage = void 0;
     if (type == BufferType.STORAGE) usage = GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC | GPUBufferUsage.COPY_DST;
     else if (type == BufferType.STORAGE_WRITE) usage = GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC | GPUBufferUsage.COPY_DST;
-    else if (type == BufferType.VERTEX) usage = GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_SRC | GPUBufferUsage.COPY_DST;
-    else if (type == BufferType.INDEX) usage = GPUBufferUsage.INDEX | GPUBufferUsage.COPY_SRC | GPUBufferUsage.COPY_DST;
+    else if (type == BufferType.VERTEX) usage = GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_SRC | GPUBufferUsage.COPY_DST | GPUBufferUsage.STORAGE;
+    else if (type == BufferType.INDEX) usage = GPUBufferUsage.INDEX | GPUBufferUsage.COPY_SRC | GPUBufferUsage.COPY_DST | GPUBufferUsage.STORAGE;
     else if (type == BufferType.UNIFORM) usage = GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_SRC | GPUBufferUsage.COPY_DST;
     else if (type == BufferType.INDIRECT) usage = GPUBufferUsage.INDIRECT | GPUBufferUsage.COPY_SRC | GPUBufferUsage.COPY_DST | GPUBufferUsage.STORAGE;
     else if (type == 10) usage = GPUBufferUsage.INDEX | GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC | GPUBufferUsage.COPY_DST;
@@ -2109,6 +3622,13 @@ class BaseBuffer {
     return this.buffer;
   }
   SetArray(array, bufferOffset = 0, dataOffset, size) {
+    if (WEBGPURendererContext.HasActiveRenderPass()) {
+      console.warn("Cannot set buffer data while there is an active render pass.");
+      return;
+    }
+    if (WEBGPURenderer.GetActiveCommandEncoder()) {
+      console.warn("Cannot set buffer data after a frame has started.");
+    }
     WEBGPURenderer.device.queue.writeBuffer(this.buffer, bufferOffset, array, dataOffset, size);
   }
   async GetData(sourceOffset = 0, destinationOffset = 0, size) {
@@ -2196,74 +3716,6 @@ class DynamicBuffer {
   }
 }
 
-class Vector2 {
-  _x;
-  _y;
-  get x() {
-    return this._x;
-  }
-  get y() {
-    return this._y;
-  }
-  set x(v) {
-    this._x = v;
-  }
-  set y(v) {
-    this._y = v;
-  }
-  _elements = new Float32Array(2);
-  get elements() {
-    this._elements[0] = this._x;
-    this._elements[1] = this._y;
-    return this._elements;
-  }
-  constructor(x = 0, y = 0) {
-    this._x = x;
-    this._y = y;
-  }
-  set(x, y) {
-    this.x = x;
-    this.y = y;
-  }
-  mul(v) {
-    if (v instanceof Vector2) this.x *= v.x, this.y *= v.y;
-    else this.x *= v, this.y *= v;
-    return this;
-  }
-  div(v) {
-    if (v instanceof Vector2) this.x /= v.x, this.y /= v.y;
-    else this.x /= v, this.y /= v;
-    return this;
-  }
-  add(v) {
-    if (v instanceof Vector2) this.x += v.x, this.y += v.y;
-    else this.x += v, this.y += v;
-    return this;
-  }
-  sub(v) {
-    if (v instanceof Vector2) this.x -= v.x, this.y -= v.y;
-    else this.x -= v, this.y -= v;
-    return this;
-  }
-  dot(v) {
-    return this.x * v.x + this.y * v.y;
-  }
-  length() {
-    return Math.sqrt(this.x * this.x + this.y * this.y);
-  }
-  clone() {
-    return new Vector2(this.x, this.y);
-  }
-  copy(v) {
-    this.x = v.x;
-    this.y = v.y;
-    return this;
-  }
-  toString() {
-    return `(${this.x.toPrecision(2)}, ${this.y.toPrecision(2)})`;
-  }
-}
-
 class Sphere {
   center;
   radius;
@@ -2300,6 +3752,14 @@ class Sphere {
     let maxRadius = points.reduce((max, p) => Math.max(max, centroid.distanceTo(p)), 0);
     this.center = centroid;
     this.radius = maxRadius;
+  }
+  applyMatrix4(matrix) {
+    this.center.applyMatrix4(matrix);
+    this.radius = this.radius * matrix.getMaxScaleOnAxis();
+    return this;
+  }
+  clone() {
+    return new Sphere(this.center.clone(), this.radius);
   }
 }
 
@@ -3016,1437 +4476,9 @@ class Geometry {
   }
 }
 
-class Assets {
-  static cache = /* @__PURE__ */ new Map();
-  // Register a path
-  static async Register(path, resource, force = false) {
-    if (Assets.cache.has(path) && force === false) throw Error(`Assets[Register]: ${path} already set, use "force" to bypass.`);
-    Assets.cache.set(path, Promise.resolve(resource));
-  }
-  static async Load(url, type) {
-    const cached = Assets.cache.get(url);
-    if (cached !== void 0) {
-      return cached;
-    }
-    const promise = fetch(url).then((response) => {
-      if (!response.ok) throw Error(`File not found ${url}`);
-      if (type === "json") return response.json();
-      else if (type === "text") return response.text();
-      else if (type === "binary") return response.arrayBuffer();
-    }).then((result) => {
-      Assets.cache.set(url, Promise.resolve(result));
-      return result;
-    }).catch((error) => {
-      Assets.cache.delete(url);
-      throw error;
-    });
-    Assets.cache.set(url, promise);
-    return promise;
-  }
-  static async LoadURL(url, type) {
-    const cached = Assets.cache.get(url.href);
-    if (cached !== void 0) {
-      return cached;
-    }
-    const promise = fetch(url).then((response) => {
-      if (!response.ok) throw Error(`File not found ${url}`);
-      if (type === "json") return response.json();
-      else if (type === "text") return response.text();
-      else if (type === "binary") return response.arrayBuffer();
-    }).then((result) => {
-      Assets.cache.set(url.href, Promise.resolve(result));
-      return result;
-    }).catch((error) => {
-      Assets.cache.delete(url.href);
-      throw error;
-    });
-    Assets.cache.set(url.href, promise);
-    return promise;
-  }
-}
-
-var WGSL_Shader_Draw_URL = "struct VertexInput {\n    @builtin(instance_index) instanceIdx : u32, \n    @builtin(vertex_index) vertexIndex : u32,\n    @location(0) position : vec3<f32>,\n    @location(1) normal : vec3<f32>,\n    @location(2) uv : vec2<f32>,\n\n    #if USE_NORMAL_MAP\n        @location(3) tangent : vec4<f32>,\n        #if USE_SKINNING\n            @location(4) joints: vec4<u32>,\n            @location(5) weights: vec4<f32>,\n        #endif\n    #else\n        #if USE_SKINNING\n            @location(3) joints: vec4<u32>,\n            @location(4) weights: vec4<f32>,\n        #endif\n    #endif\n};\n\nstruct Material {\n    AlbedoColor: vec4<f32>,\n    EmissiveColor: vec4<f32>,\n    Roughness: f32,\n    Metalness: f32,\n    Unlit: f32,\n    AlphaCutoff: f32,\n    Wireframe: f32\n};\n\nstruct VertexOutput {\n    @builtin(position) position : vec4<f32>,\n    @location(0) vPosition : vec3<f32>,\n    @location(1) vNormal : vec3<f32>,\n    @location(2) vUv : vec2<f32>,\n    @location(3) @interpolate(flat) instance : u32,\n    @location(4) barycenticCoord : vec3<f32>,\n    @location(5) tangent : vec3<f32>,\n    @location(6) bitangent : vec3<f32>,\n};\n\n@group(0) @binding(0) var<storage, read> projectionMatrix: mat4x4<f32>;\n@group(0) @binding(1) var<storage, read> viewMatrix: mat4x4<f32>;\n@group(0) @binding(2) var<storage, read> modelMatrix: array<mat4x4<f32>>;\n@group(0) @binding(3) var<storage, read> material: Material;\n@group(0) @binding(4) var TextureSampler: sampler;\n\n// These get optimized out based on \"USE*\" defines\n@group(0) @binding(5) var AlbedoMap: texture_2d<f32>;\n@group(0) @binding(6) var NormalMap: texture_2d<f32>;\n@group(0) @binding(7) var HeightMap: texture_2d<f32>;\n@group(0) @binding(8) var MetalnessMap: texture_2d<f32>;\n@group(0) @binding(9) var EmissiveMap: texture_2d<f32>;\n@group(0) @binding(10) var AOMap: texture_2d<f32>;\n\n\n@group(0) @binding(11) var<storage, read> cameraPosition: vec3<f32>;\n\n#if USE_SKINNING\n    @group(1) @binding(0) var<storage, read> boneMatrices: array<mat4x4<f32>>;\n#endif\n\n\n@vertex\nfn vertexMain(input: VertexInput) -> VertexOutput {\n    var output : VertexOutput;\n\n      var finalPosition = vec4(input.position, 1.0);\n      var finalNormal = vec4(input.normal, 0.0);\n\n    #if USE_SKINNING\n        var skinnedPosition = vec4(0.0);\n        var skinnedNormal = vec4(0.0);\n\n        let skinMatrix: mat4x4<f32> = \n            boneMatrices[input.joints[0]] * input.weights[0] +\n            boneMatrices[input.joints[1]] * input.weights[1] +\n            boneMatrices[input.joints[2]] * input.weights[2] +\n            boneMatrices[input.joints[3]] * input.weights[3];\n        \n        finalPosition = skinMatrix * vec4(input.position, 1.0);\n        finalNormal   = normalize(skinMatrix * vec4(input.normal, 0.0));\n    #endif\n\n    var modelMatrixInstance = modelMatrix[input.instanceIdx];\n    var modelViewMatrix = viewMatrix * modelMatrixInstance;\n\n    output.position = projectionMatrix * modelViewMatrix * vec4(finalPosition.xyz, 1.0);\n    \n    output.vPosition = finalPosition.xyz;\n    output.vNormal = input.normal;\n    output.vUv = input.uv;\n\n    output.instance = input.instanceIdx;\n\n    // emit a barycentric coordinate\n    output.barycenticCoord = vec3f(0);\n    output.barycenticCoord[input.vertexIndex % 3] = 1.0;\n\n    let worldNormal = normalize(modelMatrixInstance * vec4(input.normal, 0.0)).xyz;\n    output.vNormal = worldNormal;\n\n    #if USE_NORMAL_MAP\n        let worldTangent = normalize(modelMatrixInstance * vec4(input.tangent.xyz, 0.0)).xyz;\n        let worldBitangent = cross(worldNormal, worldTangent) * input.tangent.w;\n\n        output.tangent = worldTangent;\n        output.bitangent = worldBitangent;\n    #endif\n\n    return output;\n}\n\nstruct FragmentOutput {\n    @location(0) albedo : vec4f,\n    @location(1) normal : vec4f,\n    @location(2) RMO : vec4f,\n};\n\nfn inversesqrt(v: f32) -> f32 {\n    return 1.0 / sqrt(v);\n}\n\nfn edgeFactor(bary: vec3f) -> f32 {\n    let lineThickness = 1.0;\n    let d = fwidth(bary);\n    let a3 = smoothstep(vec3f(0.0), d * lineThickness, bary);\n    return min(min(a3.x, a3.y), a3.z);\n}\n\n@fragment\nfn fragmentMain(input: VertexOutput) -> FragmentOutput {\n    var output: FragmentOutput;\n\n    let mat = material;\n\n    var uv = input.vUv;// * vec2(4.0, 2.0);\n\n    var modelMatrixInstance = modelMatrix[input.instance];\n\n    var albedo = mat.AlbedoColor;\n    var roughness = mat.Roughness;\n    var metalness = mat.Metalness;\n    var occlusion = 1.0;\n    var unlit = mat.Unlit;\n\n    // var albedo = mat.AlbedoColor;\n    #if USE_ALBEDO_MAP\n        albedo *= textureSample(AlbedoMap, TextureSampler, uv);\n    #endif\n\n    if (albedo.a < mat.AlphaCutoff) {\n        discard;\n    }\n\n    var normal: vec3f = input.vNormal;\n    #if USE_NORMAL_MAP\n        var tbn: mat3x3<f32>;\n        tbn[0] = input.tangent;\n        tbn[1] = input.bitangent;\n        tbn[2] = input.vNormal;\n        \n        let normalSample = textureSample(NormalMap, TextureSampler, uv).xyz * 2.0 - 1.0; // [0 - 1] -> [-1, -1] from brga8unorm to float\n        normal = tbn * normalSample;\n    #endif\n\n    #if USE_METALNESS_MAP\n        let metalnessRoughness = textureSample(MetalnessMap, TextureSampler, uv);\n        metalness *= metalnessRoughness.b;\n        roughness *= metalnessRoughness.g;\n    #endif\n\n    var emissive = mat.EmissiveColor;\n    #if USE_EMISSIVE_MAP\n        emissive *= textureSample(EmissiveMap, TextureSampler, uv);\n    #endif\n\n    #if USE_AO_MAP\n        occlusion = textureSample(AOMap, TextureSampler, uv).r;\n        occlusion = 1.0;\n    #endif\n\n    output.albedo = vec4(albedo.rgb, roughness);\n    output.normal = vec4(normal, metalness);\n    // output.normal = vec4(input.tangent.xyz, metalness);\n    output.RMO = vec4(emissive.rgb, unlit);\n\n\n    // Wireframe\n    output.albedo *= 1.0 - edgeFactor(input.barycenticCoord) * mat.Wireframe;\n\n    // // Flat shading\n    // let xTangent: vec3f = dpdx( input.vPosition );\n    // let yTangent: vec3f = dpdy( input.vPosition );\n    // let faceNormal: vec3f = normalize( cross( xTangent, yTangent ) );\n\n    // output.normal = vec4(faceNormal.xyz, metalness);\n\n    return output;\n}";
-
-var WGSL_Shader_DeferredLighting_URL = "#include \"@trident/core/resources/webgpu/shaders/deferred/LightStruct.wgsl\";\n#include \"@trident/core/resources/webgpu/shaders/deferred/ShadowMap.wgsl\";\n#include \"@trident/core/resources/webgpu/shaders/deferred/ShadowMapCSM.wgsl\";\n\nstruct Settings {\n    debugDepthPass: f32,\n    debugDepthMipLevel: f32,\n    debugDepthExposure: f32,\n    viewType: f32,\n    useHeightMap: f32,\n    heightScale: f32,\n\n    debugShadowCascades: f32,\n    pcfResolution: f32,\n    blendThreshold: f32,\n    viewBlendThreshold: f32,\n\n    cameraPosition: vec4<f32>,\n};\n\nstruct VertexInput {\n    @location(0) position : vec2<f32>,\n    @location(1) normal : vec3<f32>,\n    @location(2) uv : vec2<f32>,\n};\n\nstruct VertexOutput {\n    @builtin(position) position : vec4<f32>,\n    @location(0) vUv : vec2<f32>,\n};\n\n@group(0) @binding(0) var textureSampler: sampler;\n\n@group(0) @binding(1) var albedoTexture: texture_2d<f32>;\n@group(0) @binding(2) var normalTexture: texture_2d<f32>;\n@group(0) @binding(3) var ermoTexture: texture_2d<f32>;\n@group(0) @binding(4) var depthTexture: texture_depth_2d;\n@group(0) @binding(5) var shadowPassDepth: texture_depth_2d_array;\n\n@group(0) @binding(6) var skyboxTexture: texture_cube<f32>;\n@group(0) @binding(7) var skyboxIrradianceTexture: texture_cube<f32>;\n@group(0) @binding(8) var skyboxPrefilterTexture: texture_cube<f32>;\n@group(0) @binding(9) var skyboxBRDFLUT: texture_2d<f32>;\n\n@group(0) @binding(10) var brdfSampler: sampler;\n@group(0) @binding(11) var<storage, read> lights: array<Light>;\n@group(0) @binding(12) var<storage, read> lightCount: u32;\n\n\n\n\n\n\nstruct View {\n    projectionOutputSize: vec4<f32>,\n    viewPosition: vec4<f32>,\n    projectionInverseMatrix: mat4x4<f32>,\n    viewInverseMatrix: mat4x4<f32>,\n    viewMatrix: mat4x4<f32>,\n};\n@group(0) @binding(13) var<storage, read> view: View;\n\n\nconst numCascades = 4;\nconst debug_cascadeColors = array<vec4<f32>, 5>(\n    vec4<f32>(1.0, 0.0, 0.0, 1.0),\n    vec4<f32>(0.0, 1.0, 0.0, 1.0),\n    vec4<f32>(0.0, 0.0, 1.0, 1.0),\n    vec4<f32>(1.0, 1.0, 0.0, 1.0),\n    vec4<f32>(0.0, 0.0, 0.0, 1.0)\n);\n@group(0) @binding(14) var shadowSamplerComp: sampler_comparison;\n\n@group(0) @binding(15) var<storage, read> settings: Settings;\n\n\n@vertex\nfn vertexMain(input: VertexInput) -> VertexOutput {\n    var output: VertexOutput;\n    output.position = vec4(input.position, 0.0, 1.0);\n    output.vUv = input.uv;\n    return output;\n}\n\nconst PI = 3.141592653589793;\n\nconst SPOT_LIGHT = 0;\nconst DIRECTIONAL_LIGHT = 1;\nconst POINT_LIGHT = 2;\nconst AREA_LIGHT = 3;\n\nfn reconstructWorldPosFromZ(\n    coords: vec2<f32>,\n    size: vec2<f32>,\n    depthTexture: texture_depth_2d,\n    projInverse: mat4x4<f32>,\n    viewInverse: mat4x4<f32>\n    ) -> vec4<f32> {\n    let uv = coords.xy / size;\n    var depth = textureLoad(depthTexture, vec2<i32>(floor(coords)), 0);\n    let x = uv.x * 2.0 - 1.0;\n    let y = (1.0 - uv.y) * 2.0 - 1.0;\n    let projectedPos = vec4(x, y, depth, 1.0);\n    var worldPosition = projInverse * projectedPos;\n    worldPosition = vec4(worldPosition.xyz / worldPosition.w, 1.0);\n    worldPosition = viewInverse * worldPosition;\n    return worldPosition;\n}\n\nfn toneMapping(color: vec3f) -> vec3f {\n    // Narkowicz 2015 ACES approx\n    let a = 2.51; let b = 0.03; let c = 2.43; let d = 0.59; let e = 0.14;\n    return clamp((color*(a*color+b)) / (color*(c*color+d)+e), vec3f(0.0), vec3f(1.0));\n}\n\nfn DistributionGGX(n: vec3f, h: vec3f, roughness: f32) -> f32 {\n  let a = roughness * roughness;\n  let a2 = a * a;\n  let nDotH = max(dot(n, h), 0.0);\n  let nDotH2 = nDotH * nDotH;\n  var denom = (nDotH2 * (a2 - 1.0) + 1.0);\n  denom = PI * denom * denom;\n  return a2 / denom;\n}\n\nfn GeometrySchlickGGX(nDotV: f32, roughness: f32) -> f32 {\n  let r = (roughness + 1.0);\n  let k = (r * r) / 8.0;\n  return nDotV / (nDotV * (1.0 - k) + k);\n}\n\nfn GeometrySmith(n: vec3f, v: vec3f, l: vec3f, roughness: f32) -> f32 {\n  let nDotV = max(dot(n, v), 0.0);\n  let nDotL = max(dot(n, l), 0.0);\n  let ggx2 = GeometrySchlickGGX(nDotV, roughness);\n  let ggx1 = GeometrySchlickGGX(nDotL, roughness);\n  return ggx1 * ggx2;\n}\n\nfn FresnelSchlick(cosTheta: f32, f0: vec3f) -> vec3f {\n  return f0 + (1.0 - f0) * pow(clamp(1.0 - cosTheta, 0.0, 1.0), 5.0);\n}\n\nfn FresnelSchlickRoughness(cosTheta: f32, f0: vec3f, roughness: f32) -> vec3f {\n  return f0 + (max(vec3(1.0 - roughness), f0) - f0) * pow(clamp(1.0 - cosTheta, 0.0, 1.0), 5.0);\n}\n\nfn fixCubeHandedness(d: vec3f) -> vec3f {\n    // try flipping X first; if that’s wrong, flip Z instead\n    return vec3f(-d.x, d.y, d.z);\n}\n\nfn CalculateBRDF(surface: Surface, pointToLight: vec3<f32>) -> vec3<f32> {\n    // cook-torrance brdf\n    let L = normalize(pointToLight);\n    let H = normalize(surface.V + L);\n    let distance = length(pointToLight);\n\n    let NDF = DistributionGGX(surface.N, H, surface.roughness);\n    let G = GeometrySmith(surface.N, surface.V, L, surface.roughness);\n    let F = FresnelSchlick(max(dot(H, surface.V), 0.0), surface.F0);\n\n    let kD = (vec3(1.0, 1.0, 1.0) - F) * (1.0 - surface.metallic);\n\n    let NdotL = max(dot(surface.N, L), 0.0);\n\n    let numerator = NDF * G * F;\n    let denominator = max(4.0 * max(dot(surface.N, surface.V), 0.0) * NdotL, 0.001);\n    let specular = numerator / vec3(denominator, denominator, denominator);\n\n    return (kD * surface.albedo.rgb / vec3(PI, PI, PI) + specular) * NdotL;\n}\n\nfn DirectionalLightRadiance(light: DirectionalLight, surface : Surface) -> vec3<f32> {\n    return CalculateBRDF(surface, light.direction) * light.color * light.intensity;\n}\n\nfn rangeAttenuation(range : f32, distance : f32) -> f32 {\n    if (range <= 0.0) {\n        // Negative range means no cutoff\n        return 1.0 / pow(distance, 2.0);\n    }\n    return clamp(1.0 - pow(distance / range, 4.0), 0.0, 1.0) / pow(distance, 2.0);\n}\n\nfn SpotLightRadiance(light : SpotLight, surface : Surface) -> vec3<f32> {\n    // pointToLight is SURFACE -> LIGHT (as you already set)\n    let dist = length(light.pointToLight);\n\n    // For cone test we need LIGHT -> SURFACE\n    let L_ls = normalize(-light.pointToLight);   // light -> surface\n    let cd   = dot(light.direction, L_ls);       // cos(theta), 1 at center\n\n    // Smooth falloff from edge to center: 0 at cos(angle), 1 at 1.0\n    let spot = smoothstep(cos(light.angle), 1.0, cd);\n\n    // Range attenuation as you have it\n    let attenuation = rangeAttenuation(light.range, dist) * spot;\n\n    // BRDF usually expects wi = SURFACE -> LIGHT\n    let wi = -L_ls; // (surface -> light)\n    let radiance = CalculateBRDF(surface, wi) * light.color * light.intensity * attenuation;\n    return radiance;\n}\n\nfn PointLightRadiance(light: PointLight, surface: Surface) -> vec3<f32> {\n    let dist = length(light.pointToLight);\n    let wi   = normalize(light.pointToLight);        // surface -> light\n    let att  = rangeAttenuation(light.range, dist);  // your smooth cutoff / r^2\n    return CalculateBRDF(surface, wi) * light.color * light.intensity * att;\n}\n\n// ---------- your API (drop-in) ----------\n\n@fragment\nfn fragmentMain(input: VertexOutput) -> @location(0) vec4<f32> {\n    // Load depth once\n    let pix   = vec2<i32>(floor(input.position.xy));\n    let depth = textureLoad(depthTexture, pix, 0);\n\n    // Build NDC + view/world rays (same as before)\n    let ndc = vec3<f32>(\n        (input.position.x / view.projectionOutputSize.x) * 2.0 - 1.0,\n        (input.position.y / view.projectionOutputSize.y) * 2.0 - 1.0,\n        1.0\n    );\n    let viewRay4 = view.projectionInverseMatrix * vec4(ndc, 1.0);\n    var viewRay  = normalize(viewRay4.xyz / viewRay4.w);\n    viewRay.y   *= -1.0;\n    var worldRay = normalize((view.viewInverseMatrix * vec4(viewRay, 0.0)).xyz);\n\n    // ---- compute derivatives BEFORE any divergent branch ----\n    let uv = input.vUv;\n    let dUVdx = dpdx(uv);\n    let dUVdy = dpdy(uv);\n\n    // For cubemap LOD: take grads of the direction (works well in practice)\n    let dWRdx = dpdx(worldRay);\n    let dWRdy = dpdy(worldRay);\n\n    // Early sky-out WITH explicit grads (safe mip selection)\n    if (depth >= 0.9999999) {\n        // var sky = textureSampleGrad(skyboxTexture, textureSampler, worldRay, dWRdx, dWRdy).rgb;\n        var sky = textureSampleLevel(skyboxTexture, textureSampler, worldRay, 0.0).rgb; // textureSampleGrad with a cubemap doesn't work on firefox\n        sky = toneMapping(sky);\n        sky = pow(sky, vec3f(1.0 / 2.2));  // omit if writing to *-srgb\n        return vec4f(sky, 1.0);\n    }\n\n    // Reconstruct world pos (consider a variant that takes 'depth' to avoid re-read inside)\n    let worldPosition = reconstructWorldPosFromZ(\n        input.position.xy,\n        view.projectionOutputSize.xy,\n        depthTexture,\n        view.projectionInverseMatrix,\n        view.viewInverseMatrix\n    );\n\n    // G-buffer samples now use explicit-grad\n    let albedo = textureSampleGrad(albedoTexture, textureSampler, uv, dUVdx, dUVdy);\n    let normal = textureSampleGrad(normalTexture, textureSampler, uv, dUVdx, dUVdy);\n    let ermo   = textureSampleGrad(ermoTexture,   textureSampler, uv, dUVdx, dUVdy);\n\n    // ... (your Surface build as-is)\n    var surface: Surface;\n    surface.depth          = depth;\n    surface.albedo         = albedo.rgb;\n    surface.roughness      = clamp(albedo.a, 0.0, 0.99);\n    surface.metallic       = normal.a;\n    surface.emissive       = ermo.rgb;\n    surface.occlusion      = ermo.a;\n    surface.worldPosition  = worldPosition.xyz;\n    surface.N              = normalize(normal.rgb);\n    surface.F0             = mix(vec3(0.04), surface.albedo.rgb, vec3(surface.metallic));\n    surface.V              = normalize(view.viewPosition.xyz - surface.worldPosition);\n    surface.occlusion      = 1.0;\n\n    let n = surface.N;\n    let v = surface.V;\n    let r = reflect(-v, n);\n\n    var lo = vec3f(0.0);\n    var selectedCascade = 0;\n\n    for (var i = 0u; i < lightCount; i++) {\n        let light = lights[i];\n        let lightType = u32(light.color.a);\n\n        if (lightType == DIRECTIONAL_LIGHT) {\n            var directionalLight: DirectionalLight;\n            directionalLight.direction = normalize((light.viewMatrixInverse * vec4(0.0, 0.0, 1.0, 0.0)).xyz);\n            // directionalLight.direction = light.direction.xyz;\n            directionalLight.color = light.color.rgb;\n            directionalLight.intensity = light.params1.x;\n\n            let castShadows = light.params1.z > 0.5;\n            var shadow = 1.0;\n            if (castShadows) {\n                let shadowCSM = CalculateShadowCSM(shadowPassDepth, shadowSamplerComp, surface, light, i);\n                shadow = shadowCSM.visibility;\n                selectedCascade = shadowCSM.selectedCascade;\n            }\n\n            // lo += shadow * DirectionalLightRadiance(directionalLight, surface) * radiance;\n            lo += shadow * DirectionalLightRadiance(directionalLight, surface);\n        }\n\n        else if (lightType == SPOT_LIGHT) {\n            var spotLight: SpotLight;\n            \n            spotLight.pointToLight = light.position.xyz - surface.worldPosition;\n            spotLight.color = light.color.rgb;\n            spotLight.intensity = light.params1.r;\n            spotLight.range = light.params1.g;\n            spotLight.direction = normalize((light.viewMatrixInverse * vec4(0.0, 0.0, -1.0, 0.0)).xyz);\n            // spotLight.direction = light.direction.xyz;\n            spotLight.angle = light.params2.w;\n\n            if (distance(light.position.xyz, surface.worldPosition) > spotLight.range) {\n                continue;\n            }\n\n            let castShadows = light.params1.z > 0.5;\n            var shadow = 1.0;\n            if (castShadows) {\n                let shadowCSM = CalculateShadowCSMSpot(shadowPassDepth, shadowSamplerComp, surface, light, i);\n                shadow = shadowCSM.visibility;\n                selectedCascade = shadowCSM.selectedCascade;\n                // shadow = SampleSpotShadowMap(surface, light); // <— single 2D map on this layer\n\n            }\n\n            lo += shadow * SpotLightRadiance(spotLight, surface);\n        }\n\n        else if (lightType == POINT_LIGHT) {\n            var p: PointLight;\n            p.pointToLight = light.position.xyz - surface.worldPosition;\n            p.color        = light.color.rgb;\n            p.intensity    = light.params1.x;\n            p.range        = light.params1.y;\n\n            // optional hard range cut\n            if (length(p.pointToLight) > p.range) {\n                continue;\n            }\n\n            var shadow = 1.0;\n            let castShadows = light.params1.z > 0.5;\n            // if (castShadows) {\n            //     shadow = SamplePointShadow(surface, light, i);\n            // }\n\n            lo += shadow * PointLightRadiance(p, surface);\n        }\n    }\n\n    let f = FresnelSchlickRoughness(max(dot(n, v), 0.00001), surface.F0, surface.roughness);\n    let kS = f;\n    var kD = vec3f(1.0) - kS;\n    kD *= 1.0 - surface.metallic;\n\n    let irradiance = textureSampleLevel(skyboxIrradianceTexture, textureSampler, fixCubeHandedness(n), 0.0).rgb;\n    let diffuse = irradiance * surface.albedo.xyz;\n\n    const MAX_REFLECTION_LOD = 4.0;\n    let prefilteredColor = textureSampleLevel(skyboxPrefilterTexture, textureSampler, fixCubeHandedness(r), surface.roughness * MAX_REFLECTION_LOD).rgb;\n    let brdf = textureSampleLevel(skyboxBRDFLUT, brdfSampler, vec2f(max(dot(n, v), 0.0), surface.roughness), 1.0).rg;\n    let specular = prefilteredColor * (f * brdf.x + brdf.y);\n\n    let ambient = (kD * diffuse + specular) * surface.occlusion;\n\n    var color = ambient + lo + surface.emissive;\n    color = toneMapping(color);\n    color = pow(color, vec3f(1.0 / 2.2));\n\n    return vec4f(color, 1.0);\n}";
-
-var WGSL_Shader_Deferred_SurfaceStruct = "struct Surface {\n    albedo: vec3<f32>,\n    emissive: vec3<f32>,\n    metallic: f32,\n    roughness: f32,\n    occlusion: f32,\n    worldPosition: vec3<f32>,\n    N: vec3<f32>,\n    F0: vec3<f32>,\n    V: vec3<f32>,\n    depth: f32\n};";
-
-var WGSL_Shader_Deferred_LightStruct = "struct Light {\n    position: vec4<f32>,\n    projectionMatrix: mat4x4<f32>,\n    // // Using an array of mat4x4 causes the render time to go from 3ms to 9ms for some reason\n    // csmProjectionMatrix: array<mat4x4<f32>, 4>,\n    csmProjectionMatrix0: mat4x4<f32>,\n    csmProjectionMatrix1: mat4x4<f32>,\n    csmProjectionMatrix2: mat4x4<f32>,\n    csmProjectionMatrix3: mat4x4<f32>,\n    cascadeSplits: vec4<f32>,\n    viewMatrix: mat4x4<f32>,\n    viewMatrixInverse: mat4x4<f32>,\n    // direction: vec4<f32>,\n    color: vec4<f32>,\n    params1: vec4<f32>,\n    params2: vec4<f32>,\n};\n\nstruct DirectionalLight {\n    direction: vec3<f32>,\n    color: vec3<f32>,\n    intensity: f32\n};\n\nstruct SpotLight {\n    pointToLight: vec3<f32>,\n    color: vec3<f32>,\n    direction: vec3<f32>,\n    range: f32,\n    intensity: f32,\n    angle: f32,\n};\n\nstruct PointLight {\n    pointToLight: vec3<f32>,\n    color: vec3<f32>,\n    range: f32,\n    intensity: f32,\n};";
-
-var WGSL_Shader_Deferred_ShadowMap = "#include \"@trident/core/resources/webgpu/shaders/deferred/SurfaceStruct.wgsl\";\n#include \"@trident/core/resources/webgpu/shaders/deferred/LightStruct.wgsl\";\n#include \"@trident/core/resources/webgpu/shaders/deferred/ShadowUtils.wgsl\";\n\n// NDC -> UV, then remap into the 2×2 quadrant atlas inside ONE array layer.\nfn worldToAtlasUVZSpot(worldPos: vec3<f32>, light: Light, cascadeIndex: i32) -> vec3<f32> {\n    let m = light.csmProjectionMatrix0;\n    let p = m * vec4(worldPos, 1.0);\n    let ndc = p.xyz / p.w;\n\n    // NDC -> [0,1], with y flipped to texture space\n    var uv = ndc.xy * vec2<f32>(0.5, -0.5) + vec2<f32>(0.5, 0.5);\n\n    return vec3<f32>(uv, ndc.z);\n}\n\nfn SampleCascadeShadowMapSpot(shadowTexture: texture_depth_2d_array, shadowSampler: sampler_comparison, surface: Surface, light: Light, cascadeIndex: i32, lightIndex: u32) -> f32 {\n    // Build atlas UV/Z for this cascade\n    let uvz = worldToAtlasUVZSpot(surface.worldPosition, light, cascadeIndex);\n    let uv  = uvz.xy;\n    let z   = uvz.z;\n\n    // Outside clip or outside atlas -> lit\n    if (z <= 0.0 || z >= 1.0 || !inUnitSquare(uv)) {\n        return 1.0;\n    }\n\n    // One textureDimensions() per pixel (ideally pass texel size from CPU)\n    let texDim = vec2<f32>(textureDimensions(shadowTexture));\n    let texel  = 1.0 / texDim;\n\n    // Use fast 3×3 when radius <= 1, else bounded loop (max 5×5)\n    let radius = i32(settings.pcfResolution); // interpret as radius\n    if (radius <= 1) {\n        return pcf3x3_quadrant(shadowTexture, shadowSampler, uv, z, i32(light.params1.w), texel);\n    } else {\n        return pcfBounded(shadowTexture, shadowSampler, uv, z, i32(light.params1.w), texel, radius);\n    }\n}\n\nfn CalculateShadowCSMSpot(shadowTexture: texture_depth_2d_array, shadowSampler: sampler_comparison, surface: Surface, light: Light, lightIndex: u32) -> ShadowCSM {\n    var out: ShadowCSM;\n\n    // View-space depth for cascade selection\n    let fragPosViewSpace = view.viewMatrix * vec4f(surface.worldPosition, 1.0);\n    let depthValue  = abs(fragPosViewSpace.z);\n\n    // Pick cascade (branchless)\n    let selectedCascade = 0;\n    out.selectedCascade = selectedCascade;\n\n    // Primary cascade\n    let visibility = SampleCascadeShadowMapSpot(shadowTexture, shadowSampler, surface, light, selectedCascade, lightIndex);\n\n    out.visibility = clamp(visibility, 0.0, 1.0);\n    return out;\n}";
-
-var WGSL_Shader_Deferred_ShadowMapCSM = "#include \"@trident/core/resources/webgpu/shaders/deferred/SurfaceStruct.wgsl\";\n#include \"@trident/core/resources/webgpu/shaders/deferred/LightStruct.wgsl\";\n#include \"@trident/core/resources/webgpu/shaders/deferred/ShadowUtils.wgsl\";\n\nfn csmMatrix(light: Light, idx: i32) -> mat4x4<f32> {\n    if (idx == 0) { return light.csmProjectionMatrix0; }\n    if (idx == 1) { return light.csmProjectionMatrix1; }\n    if (idx == 2) { return light.csmProjectionMatrix2; }\n    return light.csmProjectionMatrix3;\n}\n\nfn ShadowLayerSelection(depthValue: f32, light: Light) -> i32 {\n    // count how many splits we have passed (0..3)\n    var layer = 0;\n    layer += select(0, 1, depthValue >= light.cascadeSplits.x);\n    layer += select(0, 1, depthValue >= light.cascadeSplits.y);\n    layer += select(0, 1, depthValue >= light.cascadeSplits.z);\n    return clamp(layer, 0, numCascades - 1);\n}\n\n// NDC -> UV, then remap into the 2×2 quadrant atlas inside ONE array layer.\nfn worldToAtlasUVZ(worldPos: vec3<f32>, light: Light, cascadeIndex: i32) -> vec3<f32> {\n    let m = csmMatrix(light, cascadeIndex);\n    let p = m * vec4(worldPos, 1.0);\n    let ndc = p.xyz / p.w;\n\n    // NDC -> [0,1], with y flipped to texture space\n    var uv = ndc.xy * vec2<f32>(0.5, -0.5) + vec2<f32>(0.5, 0.5);\n\n    // Quadrant packing: [0]=BL, [1]=TL, [2]=BR, [3]=TR (matches your original logic)\n    if (cascadeIndex >= 2) { uv.x += 1.0; }\n    if ((cascadeIndex & 1) == 1) { uv.y += 1.0; }\n    uv *= 0.5;\n\n    return vec3<f32>(uv, ndc.z);\n}\n\nfn SampleCascadeShadowMap(shadowTexture: texture_depth_2d_array, shadowSampler: sampler_comparison, surface: Surface, light: Light, cascadeIndex: i32, lightIndex: u32) -> f32 {\n    // Build atlas UV/Z for this cascade\n    let uvz = worldToAtlasUVZ(surface.worldPosition, light, cascadeIndex);\n    let uv  = uvz.xy;\n    let z   = uvz.z;\n\n    // Outside clip or outside atlas -> lit\n    if (z <= 0.0 || z >= 1.0 || !inUnitSquare(uv)) {\n        return 1.0;\n    }\n\n    // One textureDimensions() per pixel (ideally pass texel size from CPU)\n    let texDim = vec2<f32>(textureDimensions(shadowTexture));\n    let texel  = 1.0 / texDim;\n\n    // Use fast 3×3 when radius <= 1, else bounded loop (max 5×5)\n    let radius = i32(settings.pcfResolution); // interpret as radius\n    if (radius <= 1) {\n        return pcf3x3_quadrant(shadowTexture, shadowSampler, uv, z, i32(light.params1.w), texel);\n    } else {\n        return pcfBounded(shadowTexture, shadowSampler, uv, z, i32(light.params1.w), texel, radius);\n    }\n}\n\nfn lerp(k0: f32, k1: f32, t: f32) -> f32 {\n    return k0 + t * (k1 - k0);\n}\n\nfn CalculateShadowCSM(shadowTexture: texture_depth_2d_array, shadowSampler: sampler_comparison, surface: Surface, light: Light, lightIndex: u32) -> ShadowCSM {\n    var out: ShadowCSM;\n\n    // View-space depth for cascade selection\n    let fragPosViewSpace = view.viewMatrix * vec4f(surface.worldPosition, 1.0);\n    let depthValue  = abs(fragPosViewSpace.z);\n\n    // Early accept: beyond last split, no shadow work\n    let lastSplit = light.cascadeSplits[numCascades - 1];\n    if (depthValue > lastSplit) {\n        out.visibility = 1.0;\n        out.selectedCascade = numCascades - 1;\n        return out;\n    }\n\n    // Pick cascade (branchless)\n    let selectedCascade = ShadowLayerSelection(depthValue, light);\n    out.selectedCascade = selectedCascade;\n\n    // Primary cascade\n    var visibility = SampleCascadeShadowMap(shadowTexture, shadowSampler, surface, light, selectedCascade, lightIndex);\n\n    // Blend near the split to hide seams\n    let blendThreshold   = settings.blendThreshold;\n    let nextSplit  = light.cascadeSplits[selectedCascade];\n\n    var splitSize = nextSplit;\n    if (selectedCascade > 0) { splitSize = nextSplit - light.cascadeSplits[selectedCascade - 1]; }\n\n    let fadeFactor = (nextSplit - depthValue) / max(splitSize, 1e-6);\n\n    if (fadeFactor <= blendThreshold && selectedCascade != numCascades - 1) {\n        let nextSplitVisibility = SampleCascadeShadowMap(shadowTexture, shadowSampler, surface, light, selectedCascade + 1, lightIndex);\n        let lerpAmount = smoothstep(0.0, blendThreshold, fadeFactor);\n        visibility = lerp(nextSplitVisibility, visibility, lerpAmount);\n\n        if (u32(settings.viewBlendThreshold) == 1u) {\n            visibility *= fadeFactor; // debug view\n        }\n    }\n\n    out.visibility = clamp(visibility, 0.0, 1.0);\n    return out;\n}";
-
-var WGSL_Shader_Deferred_ShadowUtils = "struct ShadowCSM {\n    visibility: f32,\n    selectedCascade: i32\n};\n\nfn inUnitSquare(u: vec2<f32>) -> bool {\n    return all(u >= vec2<f32>(0.0)) && all(u <= vec2<f32>(1.0));\n}\n\nfn pcf3x3_quadrant(shadowTexture: texture_depth_2d_array, shadowSampler: sampler_comparison, uv: vec2<f32>, z: f32, layer: i32, texel: vec2<f32>) -> f32 {\n    // Early accept: fully lit center → 1.0\n    let center = textureSampleCompareLevel(shadowTexture, shadowSampler, uv, layer, z);\n    if (center >= 1.0) { return 1.0; }\n\n    var sum = 0.0;\n    // Row -1\n    sum += textureSampleCompareLevel(shadowTexture, shadowSampler, uv + vec2(-texel.x, -texel.y), layer, z);\n    sum += textureSampleCompareLevel(shadowTexture, shadowSampler, uv + vec2(         0.0, -texel.y), layer, z);\n    sum += textureSampleCompareLevel(shadowTexture, shadowSampler, uv + vec2( texel.x, -texel.y), layer, z);\n    // Row  0\n    sum += textureSampleCompareLevel(shadowTexture, shadowSampler, uv + vec2(-texel.x,          0.0), layer, z);\n    sum += center;\n    sum += textureSampleCompareLevel(shadowTexture, shadowSampler, uv + vec2( texel.x,          0.0), layer, z);\n    // Row +1\n    sum += textureSampleCompareLevel(shadowTexture, shadowSampler, uv + vec2(-texel.x,  texel.y), layer, z);\n    sum += textureSampleCompareLevel(shadowTexture, shadowSampler, uv + vec2(         0.0,  texel.y), layer, z);\n    sum += textureSampleCompareLevel(shadowTexture, shadowSampler, uv + vec2( texel.x,  texel.y), layer, z);\n\n    return sum * (1.0 / 9.0);\n}\n\nconst MAX_RADIUS : i32 = 2; // up to 5×5\nfn pcfBounded(shadowTexture: texture_depth_2d_array, shadowSampler: sampler_comparison, uv: vec2<f32>, z: f32, layer: i32, texel: vec2<f32>, radius: i32) -> f32 {\n    let r = clamp(radius, 0, MAX_RADIUS);\n    if (r <= 1) { return pcf3x3_quadrant(shadowTexture, shadowSampler, uv, z, layer, texel); }\n\n    var sum = 0.0;\n    for (var j = -r; j <=  r; j = j + 1) {\n        for (var i = -r; i <=  r; i = i + 1) {\n            sum += textureSampleCompareLevel(shadowTexture, shadowSampler, uv + vec2<f32>(f32(i), f32(j)) * texel, layer, z);\n        }\n    }\n    let taps = f32((2 * r + 1) * (2 * r + 1));\n    return sum / taps;\n}";
-
-class ShaderPreprocessor {
-  static ProcessDefines(code, defines) {
-    const nl = code.indexOf("\r\n") >= 0 ? "\r\n" : "\n";
-    const out = [];
-    const stack = [];
-    const evalCond = (s) => {
-      s = s.trim();
-      let neg = false;
-      while (s.startsWith("!")) {
-        neg = !neg;
-        s = s.slice(1).trim();
-      }
-      const val = !!defines[s];
-      return neg ? !val : val;
-    };
-    for (const raw of code.split(nl)) {
-      const t = raw.trim();
-      if (t.startsWith("#if ")) {
-        stack.push(evalCond(t.slice(4)));
-        continue;
-      }
-      if (t.startsWith("#else")) {
-        if (stack.length) stack[stack.length - 1] = !stack[stack.length - 1];
-        continue;
-      }
-      if (t.startsWith("#endif")) {
-        if (stack.length) stack.pop();
-        continue;
-      }
-      if (stack.every(Boolean)) out.push(raw);
-    }
-    return out.join(nl);
-  }
-  static async ProcessIncludes(code, url = "./") {
-    const basepath = url.substring(url.lastIndexOf("/"), -1) + "/";
-    const includes = StringFindAllBetween(code, "#include", "\n", false);
-    for (const includeStr of includes) {
-      const filenameArray = StringFindAllBetween(includeStr, '"', '"', true);
-      if (filenameArray.length !== 1) throw Error(`Invalid include ${filenameArray}`);
-      const includeFullPath = filenameArray[0];
-      const includePath = includeFullPath.substring(includeFullPath.lastIndexOf("/"), -1) + "/";
-      const includeFilename = includeFullPath.substring(includeFullPath.lastIndexOf("/")).slice(1);
-      const new_path = basepath + includePath + includeFilename;
-      const newCode = await Assets.Load(new_path, "text");
-      const includedCode = await this.ProcessIncludes(newCode, new_path);
-      code = code.replace(includeStr, includedCode + "\n");
-    }
-    return code;
-  }
-  static async ProcessIncludesV2(code, url = "./", seen = /* @__PURE__ */ new Set()) {
-    const includes = StringFindAllBetween(code, "#include", "\n", false);
-    for (const includeStr of includes) {
-      const filenameArray = StringFindAllBetween(includeStr, '"', '"', true).concat(StringFindAllBetween(includeStr, "'", "'", true));
-      if (filenameArray.length !== 1) throw Error(`Invalid include ${filenameArray}`);
-      const includeFullPath = filenameArray[0];
-      if (seen.has(includeFullPath)) {
-        code = code.replace(includeStr, "");
-        continue;
-      }
-      seen.add(includeFullPath);
-      const newCode = await Assets.Load(includeFullPath, "text");
-      const includedCode = await this.ProcessIncludesV2(newCode, includeFullPath, seen);
-      code = code.replace(includeStr, includedCode + "\n");
-    }
-    return code;
-  }
-}
-class ShaderLoader {
-  static async Load(shader_url) {
-    if (Renderer.type === "webgpu") {
-      if (shader_url === "") throw Error(`Invalid shader ${shader_url}`);
-      let code = await Assets.Load(shader_url, "text");
-      code = await ShaderPreprocessor.ProcessIncludes(code, shader_url);
-      return code;
-    }
-    throw Error("Unknown api");
-  }
-  static async LoadV2(shader_url) {
-    if (Renderer.type === "webgpu") {
-      if (shader_url === "") throw Error(`Invalid shader ${shader_url}`);
-      let code = await Assets.Load(shader_url, "text");
-      code = await ShaderPreprocessor.ProcessIncludesV2(code, shader_url);
-      return code;
-    }
-    throw Error("Unknown api");
-  }
-  static async LoadURL(shader_url) {
-    if (Renderer.type === "webgpu") {
-      let code = await Assets.LoadURL(shader_url, "text");
-      code = await ShaderPreprocessor.ProcessIncludes(code, shader_url.href);
-      return code;
-    }
-    throw Error("Unknown api");
-  }
-  static get Draw() {
-    return WGSL_Shader_Draw_URL;
-  }
-  static get DeferredLighting() {
-    return ShaderPreprocessor.ProcessIncludesV2(WGSL_Shader_DeferredLighting_URL);
-  }
-}
-Assets.Register("@trident/core/resources/webgpu/shaders/deferred/SurfaceStruct.wgsl", WGSL_Shader_Deferred_SurfaceStruct);
-Assets.Register("@trident/core/resources/webgpu/shaders/deferred/LightStruct.wgsl", WGSL_Shader_Deferred_LightStruct);
-Assets.Register("@trident/core/resources/webgpu/shaders/deferred/ShadowMap.wgsl", WGSL_Shader_Deferred_ShadowMap);
-Assets.Register("@trident/core/resources/webgpu/shaders/deferred/ShadowMapCSM.wgsl", WGSL_Shader_Deferred_ShadowMapCSM);
-Assets.Register("@trident/core/resources/webgpu/shaders/deferred/ShadowUtils.wgsl", WGSL_Shader_Deferred_ShadowUtils);
-
-class WEBGPUMipsGenerator {
-  static sampler;
-  static module;
-  static pipelineByFormat = {};
-  static numMipLevels(...sizes) {
-    return 1 + Math.log2(Math.max(...sizes)) | 0;
-  }
-  // TODO: Cannot call this twice because of texture usages
-  static generateMips(source) {
-    if (!WEBGPURenderer.device) throw Error("WEBGPU not initialized");
-    const device = WEBGPURenderer.device;
-    const sourceBuffer = source.GetBuffer();
-    if (!this.module) {
-      this.module = device.createShaderModule({
-        label: "textured quad shaders for mip level generation",
-        code: `
-                    struct VSOutput {
-                        @builtin(position) position: vec4f,
-                        @location(0) texcoord: vec2f,
-                    };
-                    
-                    @vertex fn vs(@builtin(vertex_index) vertexIndex : u32) -> VSOutput {
-                        const pos = array(
-                            vec2f( 0.0,  0.0),  // center
-                            vec2f( 1.0,  0.0),  // right, center
-                            vec2f( 0.0,  1.0),  // center, top
-                    
-                            // 2st triangle
-                            vec2f( 0.0,  1.0),  // center, top
-                            vec2f( 1.0,  0.0),  // right, center
-                            vec2f( 1.0,  1.0),  // right, top
-                        );
-                    
-                        var vsOutput: VSOutput;
-                        let xy = pos[vertexIndex];
-                        vsOutput.position = vec4f(xy * 2.0 - 1.0, 0.0, 1.0);
-                        vsOutput.texcoord = vec2f(xy.x, 1.0 - xy.y);
-                        return vsOutput;
-                    }
-                    
-                    @group(0) @binding(0) var ourSampler: sampler;
-                    @group(0) @binding(1) var ourTexture: texture_2d<f32>;
-                    
-                    @fragment fn fs(fsInput: VSOutput) -> @location(0) vec4f {
-                        return textureSample(ourTexture, ourSampler, fsInput.texcoord);
-                    }
-                `
-      });
-      this.sampler = device.createSampler({ minFilter: "linear", magFilter: "linear" });
-    }
-    if (!this.pipelineByFormat[sourceBuffer.format]) {
-      this.pipelineByFormat[sourceBuffer.format] = device.createRenderPipeline({
-        label: "mip level generator pipeline",
-        layout: "auto",
-        vertex: { module: this.module },
-        fragment: { module: this.module, targets: [{ format: sourceBuffer.format }] }
-      });
-    }
-    const pipeline = this.pipelineByFormat[sourceBuffer.format];
-    const encoder = device.createCommandEncoder({ label: "mip gen encoder" });
-    const destinationBuffer = device.createTexture({
-      label: "destinationBuffer",
-      format: sourceBuffer.format,
-      mipLevelCount: this.numMipLevels(source.width, source.height),
-      size: [source.width, source.height, 1],
-      usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST | GPUTextureUsage.COPY_SRC | GPUTextureUsage.RENDER_ATTACHMENT
-    });
-    let width = sourceBuffer.width;
-    let height = sourceBuffer.height;
-    encoder.copyTextureToTexture({ texture: sourceBuffer }, { texture: destinationBuffer }, [width, height]);
-    let baseMipLevel = 0;
-    while (width > 1 || height > 1) {
-      width = Math.max(1, width / 2 | 0);
-      height = Math.max(1, height / 2 | 0);
-      const bindGroup = device.createBindGroup({
-        layout: pipeline.getBindGroupLayout(0),
-        entries: [
-          { binding: 0, resource: this.sampler },
-          { binding: 1, resource: destinationBuffer.createView({ baseMipLevel, mipLevelCount: 1 }) }
-        ]
-      });
-      ++baseMipLevel;
-      const renderPassDescriptor = {
-        label: "WEBGPUMipsGenerator",
-        colorAttachments: [
-          {
-            view: destinationBuffer.createView({ baseMipLevel, mipLevelCount: 1 }),
-            loadOp: "clear",
-            storeOp: "store"
-          }
-        ]
-      };
-      const pass = encoder.beginRenderPass(renderPassDescriptor);
-      pass.setPipeline(pipeline);
-      pass.setBindGroup(0, bindGroup);
-      pass.draw(6);
-      pass.end();
-    }
-    const commandBuffer = encoder.finish();
-    device.queue.submit([commandBuffer]);
-    return destinationBuffer;
-  }
-}
-
-class WEBGPUTexture {
-  id = UUID();
-  width;
-  height;
-  depth;
-  format;
-  type;
-  dimension;
-  mipLevels;
-  name;
-  buffer;
-  viewCache = /* @__PURE__ */ new Map();
-  currentLayer = 0;
-  currentMip = 0;
-  activeMipCount = 1;
-  constructor(width, height, depth, format, type, dimension, mipLevels) {
-    let textureUsage = GPUTextureUsage.COPY_DST;
-    let textureType = GPUTextureUsage.TEXTURE_BINDING;
-    if (!type) textureType = GPUTextureUsage.TEXTURE_BINDING;
-    else if (type === TextureType.DEPTH) textureType = GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_SRC;
-    else if (type === TextureType.RENDER_TARGET) textureType = GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_SRC;
-    else if (type === TextureType.RENDER_TARGET_STORAGE) textureType = GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.STORAGE_BINDING | GPUTextureUsage.COPY_SRC;
-    else throw Error(`Unknown texture format ${format}`);
-    let dim = "2d";
-    if (dimension === "1d") dim = "1d";
-    else if (dimension === "3d") dim = "3d";
-    const textureBindingViewDimension = dimension === "cube" ? "cube" : void 0;
-    this.buffer = WEBGPURenderer.device.createTexture({
-      size: { width, height, depthOrArrayLayers: depth },
-      // @ts-ignore
-      textureBindingViewDimension,
-      dimension: dim,
-      format,
-      usage: textureUsage | textureType,
-      mipLevelCount: mipLevels
-    });
-    this.width = width;
-    this.height = height;
-    this.depth = depth;
-    this.format = format;
-    this.type = type;
-    this.dimension = dimension;
-    this.mipLevels = mipLevels;
-    Renderer.info.gpuTextureSizeTotal += width * height * depth * 4;
-    Renderer.info.gpuTextureCount++;
-  }
-  GetBuffer() {
-    return this.buffer;
-  }
-  GetView() {
-    const key = `${this.currentLayer}-${this.currentMip}`;
-    let view = this.viewCache.get(key);
-    if (!view) {
-      const viewDimension = this.dimension === "cube" ? "2d" : this.dimension;
-      view = this.buffer.createView({
-        dimension: viewDimension,
-        baseArrayLayer: this.currentLayer,
-        arrayLayerCount: 1,
-        baseMipLevel: this.currentMip,
-        mipLevelCount: this.activeMipCount
-      });
-      this.viewCache.set(key, view);
-    }
-    return view;
-  }
-  GenerateMips() {
-    this.buffer = WEBGPUMipsGenerator.generateMips(this);
-    this.SetActiveMipCount(WEBGPUMipsGenerator.numMipLevels(this.width, this.height, this.depth));
-  }
-  SetActiveLayer(layer) {
-    if (layer > this.depth) throw Error("Active layer cannot be bigger than depth size");
-    this.currentLayer = layer;
-  }
-  GetActiveLayer() {
-    return this.currentLayer;
-  }
-  SetActiveMip(mip) {
-    if (mip > this.mipLevels) throw Error("Active mip cannot be bigger than mip levels size");
-    this.currentMip = mip;
-  }
-  GetActiveMip() {
-    return this.currentMip;
-  }
-  SetActiveMipCount(mipCount) {
-    return this.activeMipCount = mipCount;
-  }
-  GetActiveMipCount() {
-    return this.activeMipCount;
-  }
-  SetName(name) {
-    this.name = name;
-    this.buffer.label = name;
-  }
-  GetName() {
-    return this.buffer.label;
-  }
-  Destroy() {
-    Renderer.info.gpuTextureSizeTotal -= this.buffer.width * this.buffer.height * this.buffer.depthOrArrayLayers * 4;
-    Renderer.info.gpuTextureCount--;
-    this.buffer.destroy();
-  }
-  SetData(data, bytesPerRow, rowsPerImage) {
-    try {
-      WEBGPURenderer.device.queue.writeTexture(
-        { texture: this.buffer },
-        data,
-        { bytesPerRow, rowsPerImage },
-        { width: this.width, height: this.height, depthOrArrayLayers: this.depth }
-      );
-    } catch (error) {
-      console.warn(error);
-    }
-  }
-  // Format and types are very limited for now
-  // https://github.com/gpuweb/gpuweb/issues/2322
-  static FromImageBitmap(imageBitmap, width, height, format, flipY) {
-    const texture = new WEBGPUTexture(width, height, 1, format, TextureType.RENDER_TARGET, "2d", 1);
-    try {
-      WEBGPURenderer.device.queue.copyExternalImageToTexture(
-        { source: imageBitmap, flipY },
-        { texture: texture.GetBuffer() },
-        [imageBitmap.width, imageBitmap.height]
-      );
-    } catch (error) {
-      console.warn(error);
-    }
-    return texture;
-  }
-  Serialize() {
-    throw Error("Not implemented");
-  }
-}
-
-class WEBGPUTimestampQuery {
-  static querySet;
-  static resolveBuffer;
-  static resultBuffer;
-  static isTimestamping = false;
-  static links = /* @__PURE__ */ new Map();
-  static currentLinkIndex = 0;
-  static BeginRenderTimestamp(name) {
-    if (this.links.has(name)) return void 0;
-    if (!navigator.userAgent.toLowerCase().includes("chrome")) return void 0;
-    if (this.isTimestamping === true) throw Error("Already timestamping");
-    if (!this.querySet) {
-      this.querySet = WEBGPURenderer.device.createQuerySet({
-        type: "timestamp",
-        count: 200
-      });
-    }
-    if (!this.resolveBuffer) {
-      this.resolveBuffer = WEBGPURenderer.device.createBuffer({
-        size: this.querySet.count * 8,
-        usage: GPUBufferUsage.QUERY_RESOLVE | GPUBufferUsage.COPY_SRC
-      });
-    }
-    if (!this.resultBuffer) {
-      this.resultBuffer = WEBGPURenderer.device.createBuffer({
-        size: this.querySet.count * 8,
-        usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ
-      });
-    }
-    this.isTimestamping = true;
-    const currentLinkIndex = this.currentLinkIndex;
-    this.currentLinkIndex += 2;
-    this.links.set(name, currentLinkIndex);
-    return { querySet: this.querySet, beginningOfPassWriteIndex: currentLinkIndex, endOfPassWriteIndex: currentLinkIndex + 1 };
-  }
-  static EndRenderTimestamp() {
-    if (this.isTimestamping === false) return;
-    const activeCommandEncoder = WEBGPURenderer.GetActiveCommandEncoder();
-    if (!activeCommandEncoder) throw Error("No active command encoder!!");
-    if (this.resultBuffer.mapState === "unmapped") {
-      activeCommandEncoder.resolveQuerySet(this.querySet, 0, this.querySet.count, this.resolveBuffer, 0);
-      activeCommandEncoder.copyBufferToBuffer(this.resolveBuffer, 0, this.resultBuffer, 0, this.resultBuffer.size);
-    }
-    this.isTimestamping = false;
-  }
-  static async GetResult() {
-    if (!this.resultBuffer || this.resultBuffer.mapState !== "unmapped") return;
-    await this.resultBuffer.mapAsync(GPUMapMode.READ);
-    const arrayBuffer = this.resultBuffer.getMappedRange().slice(0);
-    const times = new BigInt64Array(arrayBuffer);
-    let visited = {};
-    let frameTimes = /* @__PURE__ */ new Map();
-    for (const [name, num] of this.links) {
-      if (visited[name] === true) continue;
-      const duration = Number(times[num + 1] - times[num]);
-      frameTimes.set(name, duration);
-      visited[name] = true;
-    }
-    this.resultBuffer.unmap();
-    this.currentLinkIndex = 0;
-    this.links.clear();
-    return frameTimes;
-  }
-}
-
-class WEBGPURendererContext {
-  static activeRenderPass = null;
-  static BeginRenderPass(name, renderTargets, depthTarget, timestamp) {
-    const activeCommandEncoder = WEBGPURenderer.GetActiveCommandEncoder();
-    if (!activeCommandEncoder) throw Error("No active command encoder!!");
-    if (this.activeRenderPass) throw Error("There is already an active render pass");
-    const renderPassDescriptor = { colorAttachments: [], label: "RenderPassDescriptor: " + name };
-    if (timestamp === true) renderPassDescriptor.timestampWrites = WEBGPUTimestampQuery.BeginRenderTimestamp(name);
-    const attachments = [];
-    for (const renderTarget of renderTargets) {
-      attachments.push({
-        view: renderTarget.target ? renderTarget.target.GetView() : WEBGPURenderer.context.getCurrentTexture().createView(),
-        clearValue: renderTarget.color,
-        loadOp: renderTarget.clear ? "clear" : "load",
-        storeOp: "store"
-      });
-    }
-    renderPassDescriptor.colorAttachments = attachments;
-    if (depthTarget?.target) {
-      renderPassDescriptor.depthStencilAttachment = {
-        view: depthTarget.target.GetView(),
-        depthClearValue: 1,
-        depthLoadOp: depthTarget.clear ? "clear" : "load",
-        depthStoreOp: "store"
-      };
-    }
-    this.activeRenderPass = activeCommandEncoder.beginRenderPass(renderPassDescriptor);
-    this.activeRenderPass.label = "RenderPass: " + name;
-  }
-  static EndRenderPass() {
-    if (!this.activeRenderPass) throw Error("No active render pass");
-    this.activeRenderPass.end();
-    this.activeRenderPass = null;
-    WEBGPUTimestampQuery.EndRenderTimestamp();
-  }
-  static PrepareDraw(geometry, shader) {
-    if (!this.activeRenderPass) throw Error("No active render pass");
-    if (!shader.OnPreRender()) return;
-    shader.Compile();
-    if (!shader.pipeline) throw Error("Shader doesnt have a pipeline");
-    Renderer.info.drawCallsStat += 1;
-    this.activeRenderPass.setPipeline(shader.pipeline);
-    for (let i = 0; i < shader.bindGroups.length; i++) {
-      let dynamicOffsets = [];
-      for (const buffer of shader.bindGroupsInfo[i].buffers) {
-        if (buffer instanceof WEBGPUDynamicBuffer) {
-          dynamicOffsets.push(buffer.dynamicOffset);
-        }
-      }
-      this.activeRenderPass.setBindGroup(i, shader.bindGroups[i], dynamicOffsets);
-    }
-    for (const [name, attribute] of geometry.attributes) {
-      const attributeSlot = shader.GetAttributeSlot(name);
-      if (attributeSlot === void 0) continue;
-      const attributeBuffer = attribute.buffer;
-      this.activeRenderPass.setVertexBuffer(attributeSlot, attributeBuffer.GetBuffer(), attribute.currentOffset, attribute.currentSize);
-    }
-    if (geometry.index) {
-      const indexBuffer = geometry.index.buffer;
-      this.activeRenderPass.setIndexBuffer(indexBuffer.GetBuffer(), geometry.index.format, geometry.index.currentOffset, geometry.index.currentSize);
-    }
-  }
-  static DrawGeometry(geometry, shader, instanceCount = 1, firstInstance = 0) {
-    this.PrepareDraw(geometry, shader);
-    if (!shader.params.topology || shader.params.topology === Topology.Triangles) {
-      if (!geometry.index) {
-        const positions = geometry.attributes.get("position");
-        const vertexCount = positions.GetBuffer().size / 4 / 4;
-        this.activeRenderPass.draw(vertexCount, instanceCount, 0, firstInstance);
-      } else {
-        const indexCount = geometry.index.count;
-        this.activeRenderPass.drawIndexed(indexCount, instanceCount, 0, 0, firstInstance);
-      }
-    } else if (shader.params.topology === Topology.Lines) {
-      const positions = geometry.attributes.get("position");
-      this.activeRenderPass.draw(positions.GetBuffer().size / 3 / 4, instanceCount, 0, firstInstance);
-    }
-  }
-  static DrawIndexed(geometry, shader, indexCount, instanceCount, firstIndex, baseVertex, firstInstance) {
-    this.PrepareDraw(geometry, shader);
-    this.activeRenderPass.drawIndexed(indexCount, instanceCount, firstIndex, baseVertex, firstInstance);
-  }
-  static DrawIndirect(geometry, shader, indirectBuffer, indirectOffset) {
-    if (!this.activeRenderPass) throw Error("No active render pass");
-    shader.Compile();
-    if (!shader.pipeline) throw Error("Shader doesnt have a pipeline");
-    this.activeRenderPass.setPipeline(shader.pipeline);
-    for (let i = 0; i < shader.bindGroups.length; i++) {
-      let dynamicOffsetsV2 = [];
-      for (const buffer of shader.bindGroupsInfo[i].buffers) {
-        if (buffer instanceof WEBGPUDynamicBuffer) {
-          dynamicOffsetsV2.push(buffer.dynamicOffset);
-        }
-      }
-      this.activeRenderPass.setBindGroup(i, shader.bindGroups[i], dynamicOffsetsV2);
-    }
-    for (const [name, attribute] of geometry.attributes) {
-      const attributeSlot = shader.GetAttributeSlot(name);
-      if (attributeSlot === void 0) continue;
-      const attributeBuffer = attribute.buffer;
-      this.activeRenderPass.setVertexBuffer(attributeSlot, attributeBuffer.GetBuffer());
-    }
-    if (!geometry.index) {
-      this.activeRenderPass.drawIndirect(indirectBuffer.GetBuffer(), indirectOffset);
-    } else {
-      const indexBuffer = geometry.index.buffer;
-      this.activeRenderPass.setIndexBuffer(indexBuffer.GetBuffer(), "uint32");
-      this.activeRenderPass.drawIndexedIndirect(indirectBuffer.GetBuffer(), indirectOffset);
-    }
-  }
-  static SetViewport(x, y, width, height, minDepth, maxDepth) {
-    if (!this.activeRenderPass) throw Error("No active render pass");
-    this.activeRenderPass.setViewport(x, y, width, height, minDepth, maxDepth);
-  }
-  static SetScissor(x, y, width, height) {
-    if (!this.activeRenderPass) throw Error("No active render pass");
-    this.activeRenderPass.setScissorRect(x, y, width, height);
-  }
-  static CopyBufferToBuffer(source, destination, sourceOffset, destinationOffset, size) {
-    const activeCommandEncoder = WEBGPURenderer.GetActiveCommandEncoder();
-    if (!activeCommandEncoder) throw Error("No active command encoder!!");
-    activeCommandEncoder.copyBufferToBuffer(source.GetBuffer(), sourceOffset, destination.GetBuffer(), destinationOffset, size);
-  }
-  static CopyBufferToTexture(source, destination, copySize) {
-    const activeCommandEncoder = WEBGPURenderer.GetActiveCommandEncoder();
-    if (!activeCommandEncoder) throw Error("No active command encoder!!");
-    const sourceParameters = { buffer: source.buffer.GetBuffer(), offset: source.offset, bytesPerRow: source.bytesPerRow, rowsPerImage: source.rowsPerImage };
-    const destinationParameters = { texture: destination.texture.GetBuffer(), mipLevel: destination.mipLevel, origin: destination.origin };
-    const extents = copySize ? copySize : [destination.texture.width, destination.texture.height, destination.texture.depth];
-    activeCommandEncoder.copyBufferToTexture(sourceParameters, destinationParameters, extents);
-  }
-  // CopyTexture(Texture src, int srcElement, int srcMip, Texture dst, int dstElement, int dstMip);
-  static CopyTextureToTexture(source, destination, srcMip, dstMip, size) {
-    const activeCommandEncoder = WEBGPURenderer.GetActiveCommandEncoder();
-    if (!activeCommandEncoder) throw Error("No active command encoder!!");
-    const extents = size ? size : [source.width, source.height, source.depth];
-    activeCommandEncoder.copyTextureToTexture({ texture: source.GetBuffer(), mipLevel: srcMip }, { texture: destination.GetBuffer(), mipLevel: dstMip }, extents);
-  }
-  static CopyTextureToBuffer(source, destination, srcMip, size) {
-    const activeCommandEncoder = WEBGPURenderer.GetActiveCommandEncoder();
-    if (!activeCommandEncoder) throw Error("No active command encoder!!");
-    const extents = size ? size : [source.width, source.height, source.depth];
-    activeCommandEncoder.copyTextureToBuffer({ texture: source.GetBuffer(), mipLevel: srcMip }, { buffer: destination.GetBuffer(), bytesPerRow: source.width * 4 }, extents);
-  }
-  static CopyTextureToBufferV2(source, destination, copySize) {
-    const activeCommandEncoder = WEBGPURenderer.GetActiveCommandEncoder();
-    if (!activeCommandEncoder) throw Error("No active command encoder!!");
-    const sourceParameters = { texture: source.texture.GetBuffer(), mipLevel: source.mipLevel, origin: source.origin };
-    const destinationParameters = { buffer: destination.buffer.GetBuffer(), offset: destination.offset, bytesPerRow: destination.bytesPerRow, rowsPerImage: destination.rowsPerImage };
-    const extents = copySize ? copySize : [source.texture.width, source.texture.height, source.texture.depth];
-    activeCommandEncoder.copyTextureToBuffer(sourceParameters, destinationParameters, extents);
-  }
-  static CopyTextureToTextureV2(source, destination, srcMip, dstMip, size, depth) {
-    const activeCommandEncoder = WEBGPURenderer.GetActiveCommandEncoder();
-    if (!activeCommandEncoder) throw Error("No active command encoder!!");
-    const extents = size ? size : [source.width, source.height, source.depth];
-    activeCommandEncoder.copyTextureToTexture(
-      { texture: source.GetBuffer(), mipLevel: srcMip, origin: { x: 0, y: 0, z: 0 } },
-      { texture: destination.GetBuffer(), mipLevel: dstMip, origin: { x: 0, y: 0, z: depth ? depth : 0 } },
-      extents
-    );
-  }
-  static CopyTextureToTextureV3(source, destination, copySize) {
-    const activeCommandEncoder = WEBGPURenderer.GetActiveCommandEncoder();
-    if (!activeCommandEncoder) throw Error("No active command encoder!!");
-    const sourceParameters = { texture: source.texture.GetBuffer(), mipLevel: source.mipLevel, origin: source.origin };
-    const destinationParameters = { texture: destination.texture.GetBuffer(), mipLevel: destination.mipLevel, origin: destination.origin };
-    const extents = copySize ? copySize : [source.texture.width, source.texture.height, source.texture.depth];
-    activeCommandEncoder.copyTextureToTexture(sourceParameters, destinationParameters, extents);
-  }
-  static ClearBuffer(buffer, offset, size) {
-    const activeCommandEncoder = WEBGPURenderer.GetActiveCommandEncoder();
-    if (!activeCommandEncoder) throw Error("No active command encoder!!");
-    activeCommandEncoder.clearBuffer(buffer.GetBuffer(), offset, size);
-  }
-}
-
-class RendererContext {
-  constructor() {
-  }
-  static BeginRenderPass(name, renderTargets, depthTarget, timestamp = false) {
-    if (Renderer.type === "webgpu") WEBGPURendererContext.BeginRenderPass(name, renderTargets, depthTarget, timestamp);
-    else throw Error("Unknown render api type.");
-  }
-  static EndRenderPass() {
-    if (Renderer.type === "webgpu") WEBGPURendererContext.EndRenderPass();
-    else throw Error("Unknown render api type.");
-  }
-  static SetViewport(x, y, width, height, minDepth = 0, maxDepth = 1) {
-    if (Renderer.type === "webgpu") WEBGPURendererContext.SetViewport(x, y, width, height, minDepth, maxDepth);
-    else throw Error("Unknown render api type.");
-  }
-  static SetScissor(x, y, width, height) {
-    if (Renderer.type === "webgpu") WEBGPURendererContext.SetScissor(x, y, width, height);
-    else throw Error("Unknown render api type.");
-  }
-  static DrawGeometry(geometry, shader, instanceCount, firstInstance) {
-    if (Renderer.type === "webgpu") WEBGPURendererContext.DrawGeometry(geometry, shader, instanceCount, firstInstance);
-    else throw Error("Unknown render api type.");
-  }
-  static DrawIndexed(geometry, shader, indexCount, instanceCount, firstIndex, baseVertex, firstInstance) {
-    if (Renderer.type === "webgpu") WEBGPURendererContext.DrawIndexed(geometry, shader, indexCount, instanceCount, firstIndex, baseVertex, firstInstance);
-    else throw Error("Unknown render api type.");
-  }
-  static DrawIndirect(geometry, shader, indirectBuffer, indirectOffset = 0) {
-    if (Renderer.type === "webgpu") WEBGPURendererContext.DrawIndirect(geometry, shader, indirectBuffer, indirectOffset);
-    else throw Error("Unknown render api type.");
-  }
-  static CopyBufferToBuffer(source, destination, sourceOffset = 0, destinationOffset = 0, size = void 0) {
-    if (Renderer.type === "webgpu") WEBGPURendererContext.CopyBufferToBuffer(source, destination, sourceOffset, destinationOffset, size ? size : source.size);
-    else throw Error("Unknown render api type.");
-  }
-  static CopyBufferToTexture(source, destination, copySize) {
-    if (Renderer.type === "webgpu") WEBGPURendererContext.CopyBufferToTexture(source, destination, copySize);
-    else throw Error("Unknown render api type.");
-  }
-  static CopyTextureToTexture(source, destination, srcMip = 0, dstMip = 0, size) {
-    if (Renderer.type === "webgpu") WEBGPURendererContext.CopyTextureToTexture(source, destination, srcMip, dstMip, size);
-    else throw Error("Unknown render api type.");
-  }
-  static CopyTextureToBuffer(source, destination, srcMip, size) {
-    if (Renderer.type === "webgpu") WEBGPURendererContext.CopyTextureToBuffer(source, destination, srcMip, size);
-    else throw Error("Unknown render api type.");
-  }
-  static CopyTextureToBufferV2(source, destination, copySize) {
-    if (Renderer.type === "webgpu") WEBGPURendererContext.CopyTextureToBufferV2(source, destination, copySize);
-    else throw Error("Unknown render api type.");
-  }
-  static CopyTextureToTextureV2(source, destination, srcMip = 0, dstMip = 0, size, depth) {
-    if (Renderer.type === "webgpu") WEBGPURendererContext.CopyTextureToTextureV2(source, destination, srcMip, dstMip, size, depth);
-    else throw Error("Unknown render api type.");
-  }
-  static CopyTextureToTextureV3(source, destination, copySize) {
-    if (Renderer.type === "webgpu") WEBGPURendererContext.CopyTextureToTextureV3(source, destination, copySize);
-    else throw Error("Unknown render api type.");
-  }
-  static ClearBuffer(buffer, offset = 0, size) {
-    if (Renderer.type === "webgpu") WEBGPURendererContext.ClearBuffer(buffer, offset, size ? size : buffer.size);
-    else throw Error("Unknown render api type.");
-  }
-}
-
-class WEBGPUTextureSampler {
-  id = UUID();
-  params;
-  sampler;
-  constructor(params) {
-    this.params = params;
-    const samplerDescriptor = {};
-    if (params && params.minFilter) samplerDescriptor.minFilter = params.minFilter;
-    if (params && params.magFilter) samplerDescriptor.magFilter = params.magFilter;
-    if (params && params.mipmapFilter) samplerDescriptor.mipmapFilter = params.mipmapFilter;
-    if (params && params.addressModeU) samplerDescriptor.addressModeU = params.addressModeU;
-    if (params && params.addressModeV) samplerDescriptor.addressModeV = params.addressModeV;
-    if (params && params.compare) samplerDescriptor.compare = params.compare;
-    if (params && params.maxAnisotropy) samplerDescriptor.maxAnisotropy = params.maxAnisotropy;
-    this.sampler = WEBGPURenderer.device.createSampler(samplerDescriptor);
-  }
-  GetBuffer() {
-    return this.sampler;
-  }
-}
-
-const defaultSamplerParams = {
-  magFilter: "linear",
-  minFilter: "linear",
-  mipmapFilter: "linear",
-  addressModeU: "repeat",
-  addressModeV: "repeat",
-  compare: void 0,
-  maxAnisotropy: 1
-};
-class TextureSampler {
-  params;
-  static Create(params) {
-    const samplerParams = Object.assign({}, defaultSamplerParams, params);
-    if (Renderer.type === "webgpu") return new WEBGPUTextureSampler(samplerParams);
-    throw Error("Renderer type invalid");
-  }
-}
-
-class WEBGPUBlit {
-  static blitShader;
-  static blitGeometry;
-  static async Init(output = Renderer.SwapChainFormat) {
-    WEBGPUBlit.blitShader = await Shader.Create({
-      code: `
-            struct VertexInput {
-                @location(0) position : vec2<f32>,
-                @location(1) normal : vec3<f32>,
-                @location(2) uv : vec2<f32>,
-            };
-            
-            struct VertexOutput {
-                @builtin(position) position : vec4<f32>,
-                @location(0) vUv : vec2<f32>,
-            };
-            
-            @group(0) @binding(0) var texture: texture_2d<f32>;
-            @group(0) @binding(1) var textureSampler: sampler;
-            @group(0) @binding(2) var<storage, read> mip: f32;
-            @group(0) @binding(3) var<storage, read> uv_scale: vec2<f32>;
-            
-            @vertex
-            fn vertexMain(input: VertexInput) -> VertexOutput {
-                var output: VertexOutput;
-                output.position = vec4(input.position, 0.0, 1.0);
-                output.vUv = input.uv;
-                return output;
-            }
-            
-            @fragment
-            fn fragmentMain(input: VertexOutput) -> @location(0) vec4<f32> {
-                let uv = input.vUv;
-                var color = textureSampleLevel(texture, textureSampler, uv * uv_scale, mip);
-            
-                return color;
-            }
-            `,
-      colorOutputs: [{ format: output }],
-      attributes: {
-        position: { location: 0, size: 3, type: "vec3" },
-        normal: { location: 1, size: 3, type: "vec3" },
-        uv: { location: 2, size: 2, type: "vec2" }
-      },
-      uniforms: {
-        texture: { group: 0, binding: 0, type: "texture" },
-        textureSampler: { group: 0, binding: 1, type: "sampler" },
-        mip: { group: 0, binding: 2, type: "storage" },
-        uv_scale: { group: 0, binding: 3, type: "storage" }
-      }
-    });
-    const textureSampler = TextureSampler.Create();
-    WEBGPUBlit.blitShader.SetSampler("textureSampler", textureSampler);
-    WEBGPUBlit.blitShader.SetValue("mip", 0);
-  }
-  static async Blit(source, destination, width, height, uv_scale) {
-    if (!this.blitShader || this.blitShader.params.colorOutputs[0].format !== destination.format) await this.Init(destination.format);
-    if (!this.blitGeometry) this.blitGeometry = Geometry.Plane();
-    this.blitShader.SetTexture("texture", source);
-    this.blitShader.SetArray("uv_scale", uv_scale.elements);
-    const activeCommandEncoder = WEBGPURenderer.GetActiveCommandEncoder();
-    if (!activeCommandEncoder) Renderer.BeginRenderFrame();
-    RendererContext.BeginRenderPass("Blit", [{ target: destination, clear: true }]);
-    RendererContext.SetViewport(0, 0, width, height);
-    RendererContext.DrawGeometry(this.blitGeometry, this.blitShader);
-    RendererContext.EndRenderPass();
-    if (!activeCommandEncoder) Renderer.EndRenderFrame();
-  }
-}
-
-var TextureType = /* @__PURE__ */ ((TextureType2) => {
-  TextureType2[TextureType2["IMAGE"] = 0] = "IMAGE";
-  TextureType2[TextureType2["DEPTH"] = 1] = "DEPTH";
-  TextureType2[TextureType2["RENDER_TARGET"] = 2] = "RENDER_TARGET";
-  TextureType2[TextureType2["RENDER_TARGET_STORAGE"] = 3] = "RENDER_TARGET_STORAGE";
-  return TextureType2;
-})(TextureType || {});
-function CreateTexture(width, height, depth, format, type, dimension, mipLevels) {
-  if (Renderer.type === "webgpu") return new WEBGPUTexture(width, height, depth, format, type, dimension, mipLevels);
-  throw Error("Renderer type invalid");
-}
-class Texture {
-  id;
-  width;
-  height;
-  depth;
-  type;
-  dimension;
-  format;
-  name;
-  SetName(name) {
-  }
-  GetName() {
-    throw Error("Base class.");
-  }
-  SetActiveLayer(layer) {
-  }
-  GetActiveLayer() {
-    throw Error("Base class.");
-  }
-  SetActiveMip(layer) {
-  }
-  GetActiveMip() {
-    throw Error("Base class.");
-  }
-  SetActiveMipCount(layer) {
-  }
-  GetActiveMipCount() {
-    throw Error("Base class.");
-  }
-  GenerateMips() {
-  }
-  Destroy() {
-  }
-  SetData(data, bytesPerRow, rowsPerImage) {
-  }
-  Serialize() {
-    throw Error("Base class.");
-  }
-  static Create(width, height, depth = 1, format = Renderer.SwapChainFormat, mipLevels = 1) {
-    return CreateTexture(width, height, depth, format, 0 /* IMAGE */, "2d", mipLevels);
-  }
-  static async Load(url, format = Renderer.SwapChainFormat, flipY = false) {
-    const response = await fetch(url);
-    const imageBitmap = await createImageBitmap(await response.blob());
-    Renderer.info.gpuTextureSizeTotal += imageBitmap.width * imageBitmap.height * 1 * 4;
-    if (Renderer.type === "webgpu") return WEBGPUTexture.FromImageBitmap(imageBitmap, imageBitmap.width, imageBitmap.height, format, flipY);
-    throw Error("Renderer type invalid");
-  }
-  static async LoadImageSource(imageSource, format = Renderer.SwapChainFormat, flipY = false) {
-    const imageBitmap = await createImageBitmap(imageSource);
-    Renderer.info.gpuTextureSizeTotal += imageBitmap.width * imageBitmap.height * 1 * 4;
-    if (Renderer.type === "webgpu") return WEBGPUTexture.FromImageBitmap(imageBitmap, imageBitmap.width, imageBitmap.height, format, flipY);
-    throw Error("Renderer type invalid");
-  }
-  static async Blit(source, destination, width, height, uv_scale = new Vector2(1, 1)) {
-    if (Renderer.type === "webgpu") return WEBGPUBlit.Blit(source, destination, width, height, uv_scale);
-    throw Error("Renderer type invalid");
-  }
-}
-class DepthTexture extends Texture {
-  static Create(width, height, depth = 1, format = "depth24plus", mipLevels = 1) {
-    return CreateTexture(width, height, depth, format, 1 /* DEPTH */, "2d", mipLevels);
-  }
-}
-class RenderTexture extends Texture {
-  static Create(width, height, depth = 1, format = Renderer.SwapChainFormat, mipLevels = 1) {
-    return CreateTexture(width, height, depth, format, 2 /* RENDER_TARGET */, "2d", mipLevels);
-  }
-}
-class RenderTextureStorage3D extends Texture {
-  static Create(width, height, depth = 1, format = Renderer.SwapChainFormat, mipLevels = 1) {
-    return CreateTexture(width, height, depth, format, 3 /* RENDER_TARGET_STORAGE */, "3d", mipLevels);
-  }
-}
-class RenderTextureStorage2D extends Texture {
-  static Create(width, height, depth = 1, format = Renderer.SwapChainFormat, mipLevels = 1) {
-    return CreateTexture(width, height, depth, format, 3 /* RENDER_TARGET_STORAGE */, "2d", mipLevels);
-  }
-}
-class RenderTextureCube extends Texture {
-  static Create(width, height, depth = 1, format = Renderer.SwapChainFormat, mipLevels = 1) {
-    return CreateTexture(width, height, depth, format, 2 /* RENDER_TARGET */, "cube", mipLevels);
-  }
-}
-class TextureArray extends Texture {
-  static Create(width, height, depth = 1, format = Renderer.SwapChainFormat, mipLevels = 1) {
-    return CreateTexture(width, height, depth, format, 0 /* IMAGE */, "2d-array", mipLevels);
-  }
-}
-class CubeTexture extends Texture {
-  static Create(width, height, depth = 1, format = Renderer.SwapChainFormat, mipLevels = 1) {
-    return CreateTexture(width, height, depth, format, 0 /* IMAGE */, "cube", mipLevels);
-  }
-}
-class DepthTextureArray extends Texture {
-  static Create(width, height, depth = 1, format = "depth24plus", mipLevels = 1) {
-    return CreateTexture(width, height, depth, format, 1 /* DEPTH */, "2d-array", mipLevels);
-  }
-}
-class RenderTexture3D extends Texture {
-  static Create(width, height, depth = 1, format = Renderer.SwapChainFormat, mipLevels = 1) {
-    return CreateTexture(width, height, depth, format, 2 /* RENDER_TARGET */, "3d", mipLevels);
-  }
-}
-
-const BindGroupLayoutCache = /* @__PURE__ */ new Map();
-const BindGroupCache = /* @__PURE__ */ new Map();
-const UniformTypeToWGSL = {
-  "uniform": "uniform",
-  "storage": "read-only-storage",
-  "storage-write": "storage"
-};
-class WEBGPUBaseShader {
-  id = UUID();
-  needsUpdate = false;
-  module;
-  params;
-  uniformMap = /* @__PURE__ */ new Map();
-  valueArray = new Float32Array(1);
-  _pipeline = null;
-  _bindGroups = [];
-  _bindGroupsInfo = [];
-  get pipeline() {
-    return this._pipeline;
-  }
-  get bindGroups() {
-    return this._bindGroups;
-  }
-  get bindGroupsInfo() {
-    return this._bindGroupsInfo;
-  }
-  bindGroupLayouts = [];
-  constructor(params) {
-    const code = params.defines ? ShaderPreprocessor.ProcessDefines(params.code, params.defines) : params.code;
-    this.params = params;
-    this.module = WEBGPURenderer.device.createShaderModule({ code });
-    if (this.params.uniforms) {
-      this.uniformMap = new Map(Object.entries(this.params.uniforms));
-    }
-  }
-  // TODO: This needs cleaning
-  BuildBindGroupLayouts() {
-    const bindGroupsLayoutEntries = [];
-    for (const [name, uniform] of this.uniformMap) {
-      if (!bindGroupsLayoutEntries[uniform.group]) bindGroupsLayoutEntries[uniform.group] = [];
-      const layoutEntries = bindGroupsLayoutEntries[uniform.group];
-      if (uniform.buffer instanceof WEBGPUBuffer) {
-        const visibility = uniform.type === "storage-write" ? GPUShaderStage.FRAGMENT | GPUShaderStage.COMPUTE : GPUShaderStage.VERTEX | GPUShaderStage.FRAGMENT | GPUShaderStage.COMPUTE;
-        layoutEntries.push({ binding: uniform.binding, visibility, buffer: { type: UniformTypeToWGSL[uniform.type] } });
-      } else if (uniform.buffer instanceof WEBGPUDynamicBuffer) {
-        const visibility = uniform.type === "storage-write" ? GPUShaderStage.FRAGMENT | GPUShaderStage.COMPUTE : GPUShaderStage.VERTEX | GPUShaderStage.FRAGMENT | GPUShaderStage.COMPUTE;
-        layoutEntries.push({
-          binding: uniform.binding,
-          visibility,
-          buffer: {
-            type: UniformTypeToWGSL[uniform.type],
-            hasDynamicOffset: true,
-            minBindingSize: uniform.buffer.minBindingSize
-          }
-        });
-      } else if (uniform.buffer instanceof WEBGPUTexture) {
-        let sampleType = uniform.type === "depthTexture" ? "depth" : "float";
-        if (uniform.buffer.format.includes("32float")) sampleType = "unfilterable-float";
-        else if (uniform.buffer.format.includes("32uint")) sampleType = "uint";
-        else if (uniform.buffer.format.includes("32int")) sampleType = "sint";
-        if (uniform.buffer.type === TextureType.RENDER_TARGET_STORAGE) {
-          layoutEntries.push({
-            binding: uniform.binding,
-            visibility: GPUShaderStage.COMPUTE | GPUShaderStage.FRAGMENT,
-            storageTexture: {
-              format: uniform.buffer.format,
-              viewDimension: uniform.buffer.dimension,
-              access: "read-write"
-            }
-          });
-        } else {
-          layoutEntries.push({ binding: uniform.binding, visibility: GPUShaderStage.COMPUTE | GPUShaderStage.VERTEX | GPUShaderStage.FRAGMENT, texture: { sampleType, viewDimension: uniform.buffer.dimension } });
-        }
-      } else if (uniform.buffer instanceof WEBGPUTextureSampler) {
-        let type = void 0;
-        if (uniform.type === "sampler") type = "filtering";
-        else if (uniform.type === "sampler-compare") type = "comparison";
-        else if (uniform.type === "sampler-non-filterable") type = "non-filtering";
-        layoutEntries.push({ binding: uniform.binding, visibility: GPUShaderStage.COMPUTE | GPUShaderStage.VERTEX | GPUShaderStage.FRAGMENT, sampler: { type } });
-      }
-    }
-    let bindGroupLayouts = [];
-    for (const bindGroupsLayoutEntry of bindGroupsLayoutEntries) {
-      const crc = JSON.stringify(bindGroupsLayoutEntry);
-      let bindGroupLayout = BindGroupLayoutCache.get(crc);
-      if (bindGroupLayout === void 0) {
-        bindGroupLayout = WEBGPURenderer.device.createBindGroupLayout({ entries: bindGroupsLayoutEntry });
-        BindGroupLayoutCache.set(crc, bindGroupLayout);
-        Renderer.info.bindGroupLayoutsStat += 1;
-      }
-      bindGroupLayout.label = crc;
-      bindGroupLayouts.push(bindGroupLayout);
-    }
-    return bindGroupLayouts;
-  }
-  BuildBindGroupsCRC() {
-    const crcs = [];
-    for (const [name, uniform] of this.uniformMap) {
-      if (!crcs[uniform.group]) crcs[uniform.group] = "";
-      if (uniform.buffer) {
-        crcs[uniform.group] += `${uniform.buffer.id},`;
-      }
-    }
-    return crcs;
-  }
-  BuildBindGroups() {
-    const bindGroupsInfo = [];
-    for (const [name, uniform] of this.uniformMap) {
-      if (!bindGroupsInfo[uniform.group]) bindGroupsInfo[uniform.group] = { entries: [], buffers: [] };
-      const group = bindGroupsInfo[uniform.group];
-      if (uniform.buffer instanceof WEBGPUBuffer) {
-        group.entries.push({ binding: uniform.binding, resource: { buffer: uniform.buffer.GetBuffer() } });
-        group.buffers.push(uniform.buffer);
-      } else if (uniform.buffer instanceof WEBGPUDynamicBuffer) {
-        group.entries.push({
-          binding: uniform.binding,
-          resource: {
-            buffer: uniform.buffer.GetBuffer(),
-            offset: 0,
-            size: uniform.buffer.minBindingSize
-          }
-        });
-        group.buffers.push(uniform.buffer);
-      } else if (uniform.buffer instanceof WEBGPUTexture) {
-        const view = {
-          dimension: uniform.buffer.dimension,
-          arrayLayerCount: uniform.buffer.dimension != "3d" ? uniform.buffer.GetBuffer().depthOrArrayLayers : 1,
-          // arrayLayerCount: uniform.buffer.GetBuffer().depthOrArrayLayers,
-          baseArrayLayer: 0,
-          baseMipLevel: uniform.textureMip,
-          mipLevelCount: uniform.activeMipCount
-        };
-        group.entries.push({ binding: uniform.binding, resource: uniform.buffer.GetBuffer().createView(view) });
-        group.buffers.push(uniform.buffer);
-      } else if (uniform.buffer instanceof WEBGPUTextureSampler) {
-        group.entries.push({ binding: uniform.binding, resource: uniform.buffer.GetBuffer() });
-        group.buffers.push(uniform.buffer);
-      }
-    }
-    this._bindGroupsInfo = bindGroupsInfo;
-    let bindGroupsCRC = this.BuildBindGroupsCRC();
-    let bindGroups = [];
-    for (let i = 0; i < bindGroupsInfo.length; i++) {
-      const crc = bindGroupsCRC[i];
-      const bindGroupInfo = bindGroupsInfo[i];
-      const bindGroupLayout = this.bindGroupLayouts[i];
-      let bindGroup = BindGroupCache.get(crc);
-      if (bindGroup === void 0) {
-        bindGroup = WEBGPURenderer.device.createBindGroup({ layout: bindGroupLayout, entries: bindGroupInfo.entries });
-        Renderer.info.bindGroupsStat += 1;
-        BindGroupCache.set(crc, bindGroup);
-      }
-      bindGroups.push(bindGroup);
-    }
-    return bindGroups;
-  }
-  GetValidUniform(name) {
-    const uniform = this.uniformMap.get(name);
-    if (!uniform) throw Error(`Shader does not have a parameter named ${name}`);
-    return uniform;
-  }
-  SetUniformDataFromArray(name, data, dataOffset, bufferOffset = 0, size) {
-    const uniform = this.GetValidUniform(name);
-    if (!uniform.buffer) {
-      let type = BufferType.STORAGE;
-      if (uniform.type === "uniform") type = BufferType.UNIFORM;
-      uniform.buffer = Buffer.Create(data.byteLength, type);
-      this.needsUpdate = true;
-    }
-    WEBGPURenderer.device.queue.writeBuffer(uniform.buffer.GetBuffer(), bufferOffset, data, dataOffset, size);
-  }
-  SetUniformDataFromBuffer(name, data) {
-    if (!data) throw Error(`Invalid buffer ${name}`);
-    const binding = this.GetValidUniform(name);
-    if (!binding.buffer || binding.buffer.GetBuffer() !== data.GetBuffer()) {
-      binding.buffer = data;
-      this.needsUpdate = true;
-    }
-    if (data instanceof WEBGPUTexture) {
-      binding.textureDimension = data.GetActiveLayer();
-      binding.textureMip = data.GetActiveMip();
-      binding.activeMipCount = data.GetActiveMipCount();
-    }
-  }
-  SetArray(name, array, bufferOffset = 0, dataOffset, size) {
-    this.SetUniformDataFromArray(name, array, bufferOffset, dataOffset, size);
-  }
-  SetValue(name, value) {
-    this.valueArray[0] = value;
-    this.SetUniformDataFromArray(name, this.valueArray);
-  }
-  SetMatrix4(name, matrix) {
-    this.SetUniformDataFromArray(name, matrix.elements);
-  }
-  SetVector2(name, vector) {
-    this.SetUniformDataFromArray(name, vector.elements);
-  }
-  SetVector3(name, vector) {
-    this.SetUniformDataFromArray(name, vector.elements);
-  }
-  SetVector4(name, vector) {
-    this.SetUniformDataFromArray(name, vector.elements);
-  }
-  SetTexture(name, texture) {
-    this.SetUniformDataFromBuffer(name, texture);
-  }
-  SetSampler(name, sampler) {
-    this.SetUniformDataFromBuffer(name, sampler);
-  }
-  SetBuffer(name, buffer) {
-    this.SetUniformDataFromBuffer(name, buffer);
-  }
-  HasBuffer(name) {
-    return this.uniformMap.get(name)?.buffer ? true : false;
-  }
-  Compile() {
-  }
-  OnPreRender() {
-    return true;
-  }
-  Destroy() {
-    const crcs = this.BuildBindGroupsCRC();
-    for (const crc of crcs) {
-      if (BindGroupCache.delete(crc) === true) {
-        Renderer.info.bindGroupsStat -= 1;
-      }
-    }
-    for (const bindGroupLayout of this.bindGroupLayouts) {
-      for (const [cachedBindGroupLayoutName, cachedBindGroupLayout] of BindGroupLayoutCache) {
-        if (bindGroupLayout === cachedBindGroupLayout) {
-          if (BindGroupLayoutCache.delete(cachedBindGroupLayoutName) === true) {
-            Renderer.info.bindGroupLayoutsStat -= 1;
-          }
-        }
-      }
-    }
-    Renderer.info.compiledShadersStat -= 1;
-  }
-}
-
-class WEBGPUComputeShader extends WEBGPUBaseShader {
-  computeEntrypoint;
-  _pipeline = null;
-  get pipeline() {
-    return this._pipeline;
-  }
-  constructor(params) {
-    super(params);
-    this.params = params;
-    this.computeEntrypoint = params.computeEntrypoint;
-  }
-  Compile() {
-    if (!(this.needsUpdate || !this.pipeline || !this.bindGroups)) {
-      return;
-    }
-    this.bindGroupLayouts = this.BuildBindGroupLayouts();
-    this._bindGroups = this.BuildBindGroups();
-    let pipelineLayout = WEBGPURenderer.device.createPipelineLayout({
-      bindGroupLayouts: this.bindGroupLayouts
-    });
-    const pipelineDescriptor = {
-      layout: pipelineLayout,
-      compute: { module: this.module, entryPoint: this.computeEntrypoint }
-    };
-    this._pipeline = WEBGPURenderer.device.createComputePipeline(pipelineDescriptor);
-    Renderer.info.compiledShadersStat += 1;
-    this.needsUpdate = false;
-  }
-  Serialize() {
-    return {
-      code: this.params.code,
-      defines: this.params.defines,
-      uniforms: this.params.uniforms
-    };
-  }
-}
-
-const pipelineLayoutCache = /* @__PURE__ */ new Map();
-const pipelineCache = /* @__PURE__ */ new Map();
-const WGSLShaderAttributeFormat = {
-  vec2: "float32x2",
-  vec3: "float32x3",
-  vec4: "float32x4",
-  vec2u: "uint32x2",
-  vec3u: "uint32x3",
-  vec4u: "uint32x4"
-};
-function blendState(mode) {
-  switch (mode) {
-    case "opaque":
-      return void 0;
-    // no blending
-    case "alpha":
-      return {
-        color: { srcFactor: "src-alpha", dstFactor: "one-minus-src-alpha", operation: "add" },
-        alpha: { srcFactor: "one", dstFactor: "one-minus-src-alpha", operation: "add" }
-      };
-    case "premultiplied":
-      return {
-        color: { srcFactor: "one", dstFactor: "one-minus-src-alpha", operation: "add" },
-        alpha: { srcFactor: "one", dstFactor: "one-minus-src-alpha", operation: "add" }
-      };
-    case "add":
-      return {
-        color: { srcFactor: "one", dstFactor: "one", operation: "add" },
-        alpha: { srcFactor: "one", dstFactor: "one", operation: "add" }
-      };
-  }
-}
-class WEBGPUShader extends WEBGPUBaseShader {
-  vertexEntrypoint;
-  fragmentEntrypoint;
-  attributeMap = /* @__PURE__ */ new Map();
-  _pipeline = null;
-  get pipeline() {
-    return this._pipeline;
-  }
-  constructor(params) {
-    super(params);
-    this.params = params;
-    this.vertexEntrypoint = this.params.vertexEntrypoint;
-    this.fragmentEntrypoint = this.params.fragmentEntrypoint;
-    if (this.params.attributes) this.attributeMap = new Map(Object.entries(this.params.attributes));
-  }
-  // TODO: This needs cleaning
-  Compile() {
-    if (!(this.needsUpdate || !this.pipeline || !this.bindGroups)) {
-      return;
-    }
-    let hasCompiled = false;
-    this.bindGroupLayouts = this.BuildBindGroupLayouts();
-    this._bindGroups = this.BuildBindGroups();
-    let bindGroupLayoutsCRC = "";
-    for (const b of this.bindGroupLayouts) bindGroupLayoutsCRC += b.label;
-    let pipelineLayout = pipelineLayoutCache.get(bindGroupLayoutsCRC);
-    if (pipelineLayout === void 0) {
-      pipelineLayout = WEBGPURenderer.device.createPipelineLayout({
-        bindGroupLayouts: this.bindGroupLayouts
-      });
-      pipelineLayout.label = UUID();
-      pipelineLayoutCache.set(bindGroupLayoutsCRC, pipelineLayout);
-      hasCompiled = true;
-    }
-    let targets = [];
-    for (const output of this.params.colorOutputs) targets.push({
-      format: output.format,
-      blend: blendState(output.blendMode)
-    });
-    const pipelineDescriptor = {
-      layout: pipelineLayout,
-      vertex: { module: this.module, entryPoint: this.vertexEntrypoint, buffers: [] },
-      fragment: { module: this.module, entryPoint: this.fragmentEntrypoint, targets },
-      primitive: {
-        topology: this.params.topology ? this.params.topology : "triangle-list",
-        frontFace: this.params.frontFace ? this.params.frontFace : "ccw",
-        cullMode: this.params.cullMode ? this.params.cullMode : "back"
-      }
-    };
-    if (this.params.depthOutput) {
-      pipelineDescriptor.depthStencil = {
-        depthWriteEnabled: this.params.depthWriteEnabled !== void 0 ? this.params.depthWriteEnabled : true,
-        depthCompare: this.params.depthCompare ? this.params.depthCompare : "less",
-        depthBias: this.params.depthBias ? this.params.depthBias : void 0,
-        depthBiasSlopeScale: this.params.depthBiasSlopeScale ? this.params.depthBiasSlopeScale : void 0,
-        depthBiasClamp: this.params.depthBiasClamp ? this.params.depthBiasClamp : void 0,
-        format: this.params.depthOutput
-      };
-    }
-    const buffers = [];
-    for (const [_, attribute] of this.attributeMap) {
-      buffers.push({ arrayStride: attribute.size * 4, attributes: [{ shaderLocation: attribute.location, offset: 0, format: WGSLShaderAttributeFormat[attribute.type] }] });
-    }
-    pipelineDescriptor.vertex.buffers = buffers;
-    pipelineDescriptor.label += "," + pipelineLayout.label;
-    const pipelineDescriptorKey = JSON.stringify(pipelineDescriptor);
-    let pipeline = pipelineCache.get(pipelineDescriptorKey);
-    if (!pipeline) {
-      pipeline = WEBGPURenderer.device.createRenderPipeline(pipelineDescriptor);
-      pipelineCache.set(pipelineDescriptorKey, pipeline);
-      hasCompiled = true;
-      Renderer.info.compiledShadersStat += 1;
-    }
-    this._pipeline = pipeline;
-    if (hasCompiled === true) {
-      Renderer.info.compiledShadersStat += 1;
-    }
-    this.needsUpdate = false;
-  }
-  GetAttributeSlot(name) {
-    return this.attributeMap.get(name)?.location;
-  }
-  Serialize() {
-    return {
-      code: this.params.code,
-      defines: this.params.defines,
-      attributes: this.params.attributes,
-      uniforms: Object.entries(this.params.uniforms).map(([key, value]) => {
-        return { group: value.group, binding: value.binding, type: value.type };
-      }),
-      vertexEntrypoint: this.params.vertexEntrypoint,
-      fragmentEntrypoint: this.params.fragmentEntrypoint,
-      colorOutputs: this.params.colorOutputs,
-      depthOutput: this.params.depthOutput,
-      depthCompare: this.params.depthCompare,
-      depthBiasSlopeScale: this.params.depthBiasSlopeScale,
-      depthBiasClamp: this.params.depthBiasClamp,
-      depthWriteEnabled: this.params.depthWriteEnabled,
-      topology: this.params.topology,
-      frontFace: this.params.frontFace,
-      cullMode: this.params.cullMode
-    };
-  }
-}
-
-var Topology = /* @__PURE__ */ ((Topology2) => {
-  Topology2["Triangles"] = "triangle-list";
-  Topology2["Points"] = "point-list";
-  Topology2["Lines"] = "line-list";
-  return Topology2;
-})(Topology || {});
-class BaseShader {
-  id;
-  params;
-  constructor() {
-  }
-  SetValue(name, value) {
-  }
-  SetMatrix4(name, matrix) {
-  }
-  SetVector2(name, vector) {
-  }
-  SetVector3(name, vector) {
-  }
-  SetVector4(name, vector) {
-  }
-  SetArray(name, array, bufferOffset, dataOffset, size) {
-  }
-  SetTexture(name, texture) {
-  }
-  SetSampler(name, texture) {
-  }
-  SetBuffer(name, buffer) {
-  }
-  HasBuffer(name) {
-    return false;
-  }
-  OnPreRender(geometry) {
-    return true;
-  }
-  Destroy() {
-  }
-  Serialize() {
-    throw Error("Called deserialize on BaseShader");
-  }
-}
-class Shader extends BaseShader {
-  static async Create(params) {
-    params.code = await ShaderPreprocessor.ProcessIncludes(params.code);
-    if (Renderer.type === "webgpu") return new WEBGPUShader(params);
-    throw Error("Unknown api");
-  }
-}
-class Compute extends BaseShader {
-  /**
-   * @example
-   * ```js
-   * const = await GPU.Compute.Create({
-   *     code: `
-   *         @compute @workgroup_size(8, 8, 1)
-   *         fn main(@builtin(global_invocation_id) grid: vec3<u32>) {
-   *         }
-   *     `,
-   *     computeEntrypoint: "main",
-   *     uniforms: {
-   *         drawBuffer: {group: 0, binding: 0, type: "storage-write"}
-   *     }
-   * })
-   * ```
-   */
-  static async Create(params) {
-    params.code = await ShaderPreprocessor.ProcessIncludes(params.code);
-    if (Renderer.type === "webgpu") return new WEBGPUComputeShader(params);
-    throw Error("Unknown api");
-  }
-}
-
 class Material {
   shader;
   params;
-  async createShader() {
-    throw Error("Not implemented");
-  }
   constructor(params) {
     const defaultParams = {
       isDeferred: false,
@@ -4491,14 +4523,15 @@ class PBRMaterial extends Material {
     unlit: false,
     wireframe: false,
     isSkinned: false,
-    isDeferred: true
+    isDeferred: true,
+    useVertexPulling: false
   };
   constructor(params) {
     super(params);
     this.initialParams = params;
     const _params = Object.assign({}, PBRMaterial.DefaultParams, params);
     const instance = this;
-    const handler1 = {
+    const handler = {
       set(obj, prop, value) {
         obj[prop] = value;
         instance.shader.SetArray("material", new Float32Array([
@@ -4522,7 +4555,8 @@ class PBRMaterial extends Material {
         return true;
       }
     };
-    this.params = new Proxy(_params, handler1);
+    this.params = new Proxy(_params, handler);
+    this.createShader();
   }
   async createShader() {
     const DEFINES = {
@@ -4535,7 +4569,7 @@ class PBRMaterial extends Material {
       USE_SKINNING: this.initialParams?.isSkinned ? true : false
     };
     let shaderParams = {
-      code: await ShaderLoader.Draw,
+      code: this.params.useVertexPulling === true ? ShaderLoader.DrawVertexPulling : ShaderLoader.Draw,
       defines: DEFINES,
       colorOutputs: [
         { format: "rgba16float" },
@@ -4543,7 +4577,7 @@ class PBRMaterial extends Material {
         { format: "rgba16float" }
       ],
       depthOutput: "depth24plus",
-      attributes: {
+      attributes: this.params.useVertexPulling === true ? void 0 : {
         position: { location: 0, size: 3, type: "vec3" },
         normal: { location: 1, size: 3, type: "vec3" },
         uv: { location: 2, size: 2, type: "vec2" }
@@ -4561,11 +4595,17 @@ class PBRMaterial extends Material {
         EmissiveMap: { group: 0, binding: 9, type: "texture" },
         AOMap: { group: 0, binding: 10, type: "texture" },
         cameraPosition: { group: 0, binding: 11, type: "storage" }
+        // // Global buffers
+        // Frame: {group: 1, binding: 0, type: "storage"},
+        // Materials: {group: 1, binding: 1, type: "storage"},
+        // Models: {group: 1, binding: 2, type: "storage"},
+        // Instance: {group: 1, binding: 3, type: "storage"},
       },
-      cullMode: this.params.doubleSided ? "none" : void 0
+      cullMode: this.params.doubleSided ? "none" : void 0,
+      useVertexPulling: this.params.useVertexPulling
     };
     let nextAttributeLocation = 3;
-    if (DEFINES.USE_NORMAL_MAP) {
+    if (DEFINES.USE_NORMAL_MAP && this.params.useVertexPulling !== true) {
       shaderParams.attributes.tangent = { location: nextAttributeLocation++, size: 4, type: "vec4" };
     }
     if (DEFINES.USE_SKINNING) {
@@ -4573,7 +4613,28 @@ class PBRMaterial extends Material {
       shaderParams.attributes.weights = { location: nextAttributeLocation++, size: 4, type: "vec4" };
       shaderParams.uniforms.boneMatrices = { group: 1, binding: 0, type: "storage" };
     }
+    if (this.params.useVertexPulling === true) {
+      shaderParams.uniforms.position = { group: 1, binding: 0, type: "storage" };
+      shaderParams.uniforms.normal = { group: 1, binding: 1, type: "storage" };
+      shaderParams.uniforms.uv = { group: 1, binding: 2, type: "storage" };
+      shaderParams.uniforms.index = { group: 1, binding: 3, type: "storage" };
+      if (DEFINES.USE_NORMAL_MAP) {
+        shaderParams.uniforms.tangent = { group: 1, binding: 4, type: "storage" };
+      }
+    }
     const shader = await Shader.Create(shaderParams);
+    if (this.params.useVertexPulling === true) {
+      shader.OnPreRender = (geometry) => {
+        shader.SetBuffer("position", geometry.attributes.get("position").GetBuffer());
+        shader.SetBuffer("normal", geometry.attributes.get("normal").GetBuffer());
+        shader.SetBuffer("uv", geometry.attributes.get("uv").GetBuffer());
+        shader.SetBuffer("index", geometry.index.GetBuffer());
+        if (DEFINES.USE_NORMAL_MAP) {
+          shader.SetBuffer("tangent", geometry.attributes.get("tangent").GetBuffer());
+        }
+        return true;
+      };
+    }
     if (DEFINES.USE_ALBEDO_MAP || DEFINES.USE_NORMAL_MAP || DEFINES.USE_HEIGHT_MAP || DEFINES.USE_METALNESS_MAP || DEFINES.USE_EMISSIVE_MAP || DEFINES.USE_AO_MAP) {
       const textureSampler = TextureSampler.Create();
       shader.SetSampler("TextureSampler", textureSampler);
@@ -4631,7 +4692,7 @@ class PBRMaterial extends Material {
       }
     );
   }
-  // TODO: Do cache
+  // TODO: Do cache, process textures
   static Deserialize(data) {
     const params = data.params;
     const defaults = PBRMaterial.DefaultParams;
@@ -4657,11 +4718,13 @@ class PBRMaterial extends Material {
 
 var __create$1 = Object.create;
 var __defProp$1 = Object.defineProperty;
+var __getOwnPropDesc$1 = Object.getOwnPropertyDescriptor;
 var __knownSymbol$1 = (name, symbol) => (symbol = Symbol[name]) ? symbol : Symbol.for("Symbol." + name);
 var __typeError$1 = (msg) => {
   throw TypeError(msg);
 };
 var __defNormalProp$1 = (obj, key, value) => key in obj ? __defProp$1(obj, key, { enumerable: true, configurable: true, writable: true, value }) : obj[key] = value;
+var __name = (target, value) => __defProp$1(target, "name", { value, configurable: true });
 var __decoratorStart$1 = (base) => [, , , __create$1(base?.[__knownSymbol$1("metadata")] ?? null)];
 var __decoratorStrings$1 = ["class", "method", "getter", "setter", "accessor", "field", "value", "get", "set"];
 var __expectFn$1 = (fn) => fn !== void 0 && typeof fn !== "function" ? __typeError$1("Function expected") : fn;
@@ -4672,36 +4735,79 @@ var __runInitializers$1 = (array, flags, self, value) => {
   return value;
 };
 var __decorateElement$1 = (array, flags, name, decorators, target, extra) => {
-  var it, done, ctx, access, k = flags & 7, s = false, p = false;
-  var j = array.length + 1 ;
-  var initializers = (array[j - 1] = []), extraInitializers = array[j] || (array[j] = []);
-  ((target = target.prototype), k < 5);
+  var fn, it, done, ctx, access, k = flags & 7, s = !!(flags & 8), p = !!(flags & 16);
+  var j = k > 3 ? array.length + 1 : k ? s ? 1 : 2 : 0, key = __decoratorStrings$1[k + 5];
+  var initializers = k > 3 && (array[j - 1] = []), extraInitializers = array[j] || (array[j] = []);
+  var desc = k && (!p && !s && (target = target.prototype), k < 5 && (k > 3 || !p) && __getOwnPropDesc$1(k < 4 ? target : { get [name]() {
+    return __privateGet(this, extra);
+  }, set [name](x) {
+    return __privateSet(this, extra, x);
+  } }, name));
+  k ? p && k < 4 && __name(extra, (k > 2 ? "set " : k > 1 ? "get " : "") + name) : __name(target, name);
   for (var i = decorators.length - 1; i >= 0; i--) {
     ctx = __decoratorContext$1(k, name, done = {}, array[3], extraInitializers);
-    {
-      ctx.static = s, ctx.private = p, access = ctx.access = { has: (x) => name in x };
-      access.get = (x) => x[name];
-      access.set = (x, y) => x[name] = y;
+    if (k) {
+      ctx.static = s, ctx.private = p, access = ctx.access = { has: p ? (x) => __privateIn(target, x) : (x) => name in x };
+      if (k ^ 3) access.get = p ? (x) => (k ^ 1 ? __privateGet : __privateMethod)(x, target, k ^ 4 ? extra : desc.get) : (x) => x[name];
+      if (k > 2) access.set = p ? (x, y) => __privateSet(x, target, y, k ^ 4 ? extra : desc.set) : (x, y) => x[name] = y;
     }
-    it = (0, decorators[i])(void 0  , ctx), done._ = 1;
-    __expectFn$1(it) && (initializers.unshift(it) );
+    it = (0, decorators[i])(k ? k < 4 ? p ? extra : desc[key] : k > 4 ? void 0 : { get: desc.get, set: desc.set } : target, ctx), done._ = 1;
+    if (k ^ 4 || it === void 0) __expectFn$1(it) && (k > 4 ? initializers.unshift(it) : k ? p ? extra = it : desc[key] = it : target = it);
+    else if (typeof it !== "object" || it === null) __typeError$1("Object expected");
+    else __expectFn$1(fn = it.get) && (desc.get = fn), __expectFn$1(fn = it.set) && (desc.set = fn), __expectFn$1(fn = it.init) && initializers.unshift(fn);
   }
-  return target;
+  return k || __decoratorMetadata$1(array, target), desc && __defProp$1(target, name, desc), p ? k ^ 4 ? extra : desc : target;
 };
 var __publicField$1 = (obj, key, value) => __defNormalProp$1(obj, typeof key !== "symbol" ? key + "" : key, value);
+var __accessCheck = (obj, member, msg) => member.has(obj) || __typeError$1("Cannot " + msg);
+var __privateIn = (member, obj) => Object(obj) !== obj ? __typeError$1('Cannot use the "in" operator on this value') : member.has(obj);
+var __privateGet = (obj, member, getter) => (__accessCheck(obj, member, "read from private field"), getter ? getter.call(obj) : member.get(obj));
+var __privateSet = (obj, member, value, setter) => (__accessCheck(obj, member, "write to private field"), setter ? setter.call(obj, value) : member.set(obj, value), value);
+var __privateMethod = (obj, member, method) => (__accessCheck(obj, member, "access private method"), method);
 var _enableShadows_dec, _material_dec, _geometry_dec, _a$1, _init$1;
+class MeshEvents {
+  static TransformUpdated = (mesh) => {
+  };
+  static MaterialUpdated = (mesh, material) => {
+  };
+}
 const _Mesh = class _Mesh extends (_a$1 = Component, _geometry_dec = [SerializeField], _material_dec = [SerializeField], _enableShadows_dec = [SerializeField], _a$1) {
   constructor() {
     super(...arguments);
-    __publicField$1(this, "geometry", __runInitializers$1(_init$1, 8, this)), __runInitializers$1(_init$1, 11, this);
-    __publicField$1(this, "material", __runInitializers$1(_init$1, 12, this)), __runInitializers$1(_init$1, 15, this);
-    __publicField$1(this, "enableShadows", __runInitializers$1(_init$1, 16, this, true)), __runInitializers$1(_init$1, 19, this);
+    __runInitializers$1(_init$1, 5, this);
+    __publicField$1(this, "_geometry");
+    __publicField$1(this, "_material");
+    __publicField$1(this, "enableShadows", __runInitializers$1(_init$1, 8, this, true)), __runInitializers$1(_init$1, 11, this);
+    __publicField$1(this, "bounds", new BoundingVolume());
+  }
+  get geometry() {
+    return this._geometry;
+  }
+  set geometry(geometry) {
+    this._geometry = geometry;
+  }
+  get material() {
+    return this._material;
+  }
+  set material(material) {
+    this._material = material;
+    EventSystem.emit(MeshEvents.MaterialUpdated, this, material);
+  }
+  get localBounds() {
+    return this.geometry.boundingVolume;
   }
   Start() {
     EventSystemLocal.on(TransformEvents.Updated, this.transform, () => {
       if (!this.geometry) return;
-      this.geometry.boundingVolume.center.copy(this.transform.position);
-      this.geometry.boundingVolume.scale = Math.max(this.transform.scale.x, this.transform.scale.y, this.transform.scale.z);
+      const local = this.localBounds;
+      this.bounds.center.copy(local.center);
+      this.bounds.center.applyMatrix4(this.transform.localToWorldMatrix);
+      const m = this.transform.localToWorldMatrix.elements;
+      const sx = Math.hypot(m[0], m[1], m[2]);
+      const sy = Math.hypot(m[4], m[5], m[6]);
+      const sz = Math.hypot(m[8], m[9], m[10]);
+      this.bounds.radius = local.radius * Math.max(sx, sy, sz);
+      EventSystem.emit(MeshEvents.TransformUpdated, this);
     });
   }
   Destroy() {
@@ -4724,8 +4830,8 @@ const _Mesh = class _Mesh extends (_a$1 = Component, _geometry_dec = [SerializeF
   }
 };
 _init$1 = __decoratorStart$1(_a$1);
-__decorateElement$1(_init$1, 5, "geometry", _geometry_dec, _Mesh);
-__decorateElement$1(_init$1, 5, "material", _material_dec, _Mesh);
+__decorateElement$1(_init$1, 2, "geometry", _geometry_dec, _Mesh);
+__decorateElement$1(_init$1, 2, "material", _material_dec, _Mesh);
 __decorateElement$1(_init$1, 5, "enableShadows", _enableShadows_dec, _Mesh);
 __decoratorMetadata$1(_init$1, _Mesh);
 __publicField$1(_Mesh, "type", "@trident/core/components/Mesh");
@@ -4833,13 +4939,12 @@ class DynamicBufferMemoryAllocator extends BufferMemoryAllocator {
     let bufferOffset = this.links.get(link);
     if (bufferOffset === void 0) {
       if (this.allocator.availableMemorySize - data.length < 0) {
-        const o = this.allocator.memorySize;
+        this.allocator.memorySize;
         const incrementAmount = this.incrementAmount > data.length ? this.incrementAmount : data.length;
         const oldMemorySize = this.allocator.memorySize - this.allocator.availableMemorySize;
         this.allocator.memorySize += incrementAmount;
         this.allocator.availableMemorySize += incrementAmount;
         this.allocator.freeBlocks.push({ offset: oldMemorySize, size: incrementAmount });
-        console.log(`Incrementing DynamicBuffer from ${o} to ${this.allocator.memorySize}`);
         const buffer = Buffer.Create(this.allocator.memorySize * BufferMemoryAllocator.BYTES_PER_ELEMENT, BufferType.STORAGE);
         const hasActiveFrame = Renderer.HasActiveFrame();
         if (!hasActiveFrame) Renderer.BeginRenderFrame();
@@ -4927,13 +5032,10 @@ class SkinnedMesh extends Mesh {
   }
   Start() {
     if (!this.skin) throw Error("SkinnedMesh needs a skin");
-    console.log("this.skin", this.skin);
     this.boneMatricesBuffer = Buffer.Create(this.skin.jointData.length * 4, BufferType.STORAGE);
     this.boneMatricesBuffer.SetArray(this.skin.jointData);
   }
   Update() {
-  }
-  LateUpdate() {
     this.skin.update(this.gameObject.transform.localToWorldMatrix.elements);
     this.boneMatricesBuffer.SetArray(this.skin.jointData);
   }
@@ -5097,21 +5199,16 @@ var index$1 = /*#__PURE__*/Object.freeze({
 
 class RenderPass {
   name;
-  inputs = [];
-  outputs = [];
   initialized = false;
   initializing = false;
-  constructor(params) {
-    if (params.inputs) this.inputs = params.inputs;
-    if (params.outputs) this.outputs = params.outputs;
-  }
+  drawCommands = [];
   async init(resources) {
   }
-  execute(resources, ...args) {
+  async preFrame(resources) {
   }
-  set(data) {
-    if (data.inputs) this.inputs = data.inputs;
-    if (data.outputs) this.outputs = data.outputs;
+  async preRender(resources) {
+  }
+  async execute(resources) {
   }
 }
 class ResourcePool {
@@ -5130,27 +5227,21 @@ class RenderGraph {
     this.passes.push(pass);
   }
   async init() {
-    const sortedPasses = this.topologicalSort();
-    for (const pass of sortedPasses) {
+    for (const pass of this.passes) {
       if (pass.initialized === true || pass.initializing === true) continue;
       pass.initializing = true;
       await pass.init(this.resourcePool);
       pass.initialized = true;
     }
   }
-  execute() {
-    const sortedPasses = this.topologicalSort();
-    for (const pass of sortedPasses) {
-      if (!pass.initialized) {
-        console.log(`didnt execute ${pass.name} because its not initialized`);
-        return;
-      }
-      const inputs = pass.inputs.map((value) => this.resourcePool.getResource(value));
-      pass.execute(this.resourcePool, ...inputs, ...pass.outputs);
-    }
+  async preFrame() {
+    for (const pass of this.passes) if (pass.initialized) await pass.preFrame(this.resourcePool);
   }
-  topologicalSort() {
-    return this.passes;
+  async preRender() {
+    for (const pass of this.passes) if (pass.initialized) await pass.preRender(this.resourcePool);
+  }
+  async execute() {
+    for (const pass of this.passes) if (pass.initialized) await pass.execute(this.resourcePool);
   }
 }
 
@@ -5165,28 +5256,9 @@ class DeferredLightingPass extends RenderPass {
   needsUpdate = true;
   initialized = false;
   dummyShadowPassDepth;
-  constructor() {
-    super({
-      inputs: [
-        PassParams.DebugSettings,
-        PassParams.GBufferAlbedo,
-        PassParams.GBufferNormal,
-        PassParams.GBufferERMO,
-        PassParams.GBufferDepth,
-        PassParams.ShadowPassDepth,
-        PassParams.ShadowPassCascadeData
-      ],
-      outputs: [PassParams.LightingPassOutput, PassParams.LightsBuffer]
-    });
-  }
   async init() {
     this.shader = await Shader.Create({
       code: await ShaderLoader.DeferredLighting,
-      attributes: {
-        position: { location: 0, size: 3, type: "vec3" },
-        normal: { location: 1, size: 3, type: "vec3" },
-        uv: { location: 2, size: 2, type: "vec2" }
-      },
       uniforms: {
         textureSampler: { group: 0, binding: 0, type: "sampler" },
         albedoTexture: { group: 0, binding: 1, type: "texture" },
@@ -5224,7 +5296,7 @@ class DeferredLightingPass extends RenderPass {
     this.shader.SetSampler("brdfSampler", brdfSampler);
     const shadowSamplerComp = TextureSampler.Create({ minFilter: "linear", magFilter: "linear", compare: "less" });
     this.shader.SetSampler("shadowSamplerComp", shadowSamplerComp);
-    this.quadGeometry = Geometry.Plane();
+    this.quadGeometry = new Geometry();
     this.lightsBuffer = new DynamicBufferMemoryAllocator(120 * 10);
     this.lightsCountBuffer = Buffer.Create(1 * 4, BufferType.STORAGE);
     this.shader.SetBuffer("lights", this.lightsBuffer.getBuffer());
@@ -5291,8 +5363,9 @@ class DeferredLightingPass extends RenderPass {
     this.shader.SetBuffer("lights", this.lightsBuffer.getBuffer());
     this.needsUpdate = false;
   }
-  execute(resources) {
+  async preFrame(resources) {
     if (!this.initialized) return;
+    this.drawCommands.length = 0;
     const camera = Camera.mainCamera;
     const scene = camera.gameObject.scene;
     const _lights = scene.GetComponents(Light);
@@ -5312,7 +5385,7 @@ class DeferredLightingPass extends RenderPass {
     const inputSkyboxIrradiance = resources.getResource(PassParams.SkyboxIrradiance);
     const inputSkyboxPrefilter = resources.getResource(PassParams.SkyboxPrefilter);
     const inputSkyboxBRDFLUT = resources.getResource(PassParams.SkyboxBRDFLUT);
-    RendererContext.BeginRenderPass("DeferredLightingPass", [{ target: this.outputLightingPass, clear: true }], void 0, true);
+    if (!inputGBufferAlbedo) return;
     this.shader.SetTexture("albedoTexture", inputGBufferAlbedo);
     this.shader.SetTexture("normalTexture", inputGBufferNormal);
     this.shader.SetTexture("ermoTexture", inputGbufferERMO);
@@ -5334,7 +5407,14 @@ class DeferredLightingPass extends RenderPass {
     this.shader.SetArray("view", view);
     const settings = resources.getResource(PassParams.DebugSettings);
     this.shader.SetArray("settings", settings);
-    RendererContext.DrawGeometry(this.quadGeometry, this.shader);
+    this.drawCommands.push({ geometry: this.quadGeometry, shader: this.shader, instanceCount: 1, firstInstance: 0 });
+  }
+  async execute(resources) {
+    if (!this.initialized) return;
+    RendererContext.BeginRenderPass("DeferredLightingPass", [{ target: this.outputLightingPass, clear: true }], void 0, true);
+    for (const draw of this.drawCommands) {
+      RendererContext.Draw(draw.geometry, draw.shader, 3, draw.instanceCount, draw.firstInstance);
+    }
     RendererContext.EndRenderPass();
     resources.setResource(PassParams.LightingPassOutput, this.outputLightingPass);
     resources.setResource(PassParams.LightsBuffer, this.lightsBuffer);
@@ -5345,19 +5425,8 @@ class TextureViewer extends RenderPass {
   name = "TextureViewer";
   shader;
   quadGeometry;
-  constructor() {
-    super({ inputs: [
-      PassParams.LightingPassOutput,
-      PassParams.depthTexturePyramid
-    ] });
-  }
   async init() {
     const code = `
-        struct VertexInput {
-            @location(0) position : vec2<f32>,
-            @location(1) uv : vec2<f32>,
-        };
-
         struct VertexOutput {
             @builtin(position) position : vec4<f32>,
             @location(0) vUv : vec2<f32>,
@@ -5366,11 +5435,21 @@ class TextureViewer extends RenderPass {
         @group(0) @binding(0) var textureSampler: sampler;
         @group(0) @binding(1) var texture: texture_2d<f32>;
 
-        @vertex fn vertexMain(input: VertexInput) -> VertexOutput {
-            var output: VertexOutput;
-            output.position = vec4(input.position, 0.0, 1.0);
-            output.vUv = input.uv;
-            return output;
+        // Full-screen triangle (covers screen with 3 verts)
+        const p = array<vec2f, 3>(
+            vec2f(-1.0, -1.0),
+            vec2f( 3.0, -1.0),
+            vec2f(-1.0,  3.0)
+        );
+
+        @vertex fn vertexMain(@builtin(vertex_index) vertexIndex : u32) -> VertexOutput {
+            var out : VertexOutput;
+            out.position = vec4f(p[vertexIndex], 0.0, 1.0);
+          
+            // Derive UVs from NDC: ([-1,1] -> [0,1])
+            let uv = 0.5 * (p[vertexIndex] + vec2f(1.0, 1.0));
+            out.vUv = vec2f(uv.x, 1.0 - uv.y); // flip Y if your texture space needs it
+            return out;
         }
 
         @fragment fn fragmentMain(input: VertexOutput) -> @location(0) vec4f {
@@ -5380,28 +5459,24 @@ class TextureViewer extends RenderPass {
     this.shader = await Shader.Create({
       code,
       colorOutputs: [{ format: Renderer.SwapChainFormat }],
-      attributes: {
-        position: { location: 0, size: 3, type: "vec3" },
-        uv: { location: 1, size: 2, type: "vec2" }
-      },
       uniforms: {
         textureSampler: { group: 0, binding: 0, type: "sampler" },
         texture: { group: 0, binding: 1, type: "texture" }
       }
     });
-    this.quadGeometry = Geometry.Plane();
+    this.quadGeometry = new Geometry();
     const sampler = TextureSampler.Create();
     this.shader.SetSampler("textureSampler", sampler);
     this.initialized = true;
   }
-  execute(resources) {
+  async execute(resources) {
     if (this.initialized === false) return;
     resources.getResource(PassParams.DebugSettings);
     const LightingPassOutputTexture = resources.getResource(PassParams.LightingPassOutput);
     if (!LightingPassOutputTexture) return;
     this.shader.SetTexture("texture", LightingPassOutputTexture);
     RendererContext.BeginRenderPass("TextureViewer", [{ clear: false }], void 0, true);
-    RendererContext.DrawGeometry(this.quadGeometry, this.shader);
+    RendererContext.Draw(this.quadGeometry, this.shader, 3);
     RendererContext.EndRenderPass();
   }
 }
@@ -5428,29 +5503,17 @@ class DeferredShadowMapPass extends RenderPass {
   lightProjectionMatrixBuffer;
   lightProjectionViewMatricesBuffer;
   modelMatrices;
-  cascadeIndexBuffers = [];
   cascadeCurrentIndexBuffer;
+  cascadeIndexBuffers = [];
   lightShadowData = /* @__PURE__ */ new Map();
   shadowOutput;
   skinnedBoneMatricesBuffer;
+  preparedLights = [];
+  preparedMeshes = [];
+  preparedInstancedMeshes = [];
   // TODO: Clean this, csmSplits here to be used by debugger plugin
   Settings = DeferredShadowMapPassSettings;
   csmSplits = [0, 0, 0, 0];
-  constructor() {
-    super({
-      inputs: [
-        PassParams.MainCamera,
-        PassParams.GBufferAlbedo,
-        PassParams.GBufferNormal,
-        PassParams.GBufferERMO,
-        PassParams.GBufferDepth
-      ],
-      outputs: [
-        PassParams.ShadowPassDepth,
-        PassParams.ShadowPassCascadeData
-      ]
-    });
-  }
   async init(resources) {
     const code = `
         struct VertexInput {
@@ -5575,6 +5638,23 @@ class DeferredShadowMapPass extends RenderPass {
     this.shadowOutput = DepthTextureArray.Create(DeferredShadowMapPassSettings.shadowWidth, DeferredShadowMapPassSettings.shadowHeight, 1);
     this.initialized = true;
   }
+  async shaderInit(resources) {
+    if (!this.initialized) return;
+    if (this.lightProjectionMatrixBuffer) {
+      this.drawShadowShader.SetBuffer("projectionMatrix", this.lightProjectionMatrixBuffer);
+      this.drawSkinnedMeshShadowShader.SetBuffer("projectionMatrix", this.lightProjectionMatrixBuffer);
+      this.drawInstancedShadowShader.SetBuffer("projectionMatrix", this.lightProjectionMatrixBuffer);
+    }
+    if (this.cascadeCurrentIndexBuffer) {
+      this.drawShadowShader.SetBuffer("cascadeIndex", this.cascadeCurrentIndexBuffer);
+      this.drawSkinnedMeshShadowShader.SetBuffer("cascadeIndex", this.cascadeCurrentIndexBuffer);
+      this.drawInstancedShadowShader.SetBuffer("cascadeIndex", this.cascadeCurrentIndexBuffer);
+    }
+    if (this.modelMatrices) {
+      this.drawShadowShader.SetBuffer("modelMatrix", this.modelMatrices);
+      this.drawSkinnedMeshShadowShader.SetBuffer("modelMatrix", this.modelMatrices);
+    }
+  }
   getCornersForCascade(camera, cascadeNear, cascadeFar) {
     const projectionMatrix = new Matrix4().perspectiveWGPUMatrix(camera.fov * (Math.PI / 180), camera.aspect, cascadeNear, cascadeFar);
     let frustumCorners = [
@@ -5659,136 +5739,191 @@ class DeferredShadowMapPass extends RenderPass {
     }
     return cascades;
   }
-  execute(resources) {
+  async preFrame(resources) {
     if (!this.initialized) return;
-    const scene = Camera.mainCamera.gameObject.scene;
+    const mainCamera = Camera.mainCamera;
+    if (!mainCamera) return;
+    const scene = mainCamera.gameObject.scene;
     this.lightShadowData.clear();
-    const lights = [...scene.GetComponents(SpotLight), ...scene.GetComponents(PointLight), ...scene.GetComponents(DirectionalLight), ...scene.GetComponents(AreaLight)];
-    for (let i = lights.length - 1; i >= 0; i--) {
-      if (lights[i].castShadows === false) {
-        lights.splice(i, 1);
-      }
-    }
+    this.preparedLights.length = 0;
+    this.preparedMeshes.length = 0;
+    this.preparedInstancedMeshes.length = 0;
+    const lights = [
+      ...scene.GetComponents(SpotLight),
+      ...scene.GetComponents(PointLight),
+      ...scene.GetComponents(DirectionalLight),
+      ...scene.GetComponents(AreaLight)
+    ].filter((light) => light.castShadows === true);
     if (lights.length === 0) return;
-    const instancedMeshes = scene.GetComponents(InstancedMesh);
-    let meshes = [];
-    const _meshes = [...scene.GetComponents(Mesh), ...scene.GetComponents(SkinnedMesh)];
-    for (const mesh of _meshes) {
-      if (mesh.enableShadows && mesh.enabled && mesh.gameObject.enabled) meshes.push(mesh);
+    if (!this.shadowOutput || this.shadowOutput.depth !== lights.length) {
+      this.shadowOutput = DepthTextureArray.Create(
+        DeferredShadowMapPassSettings.shadowWidth,
+        DeferredShadowMapPassSettings.shadowHeight,
+        lights.length
+      );
     }
-    if (meshes.length === 0 && instancedMeshes.length === 0) return;
-    if (lights.length !== this.shadowOutput.depth) {
-      this.shadowOutput = DepthTextureArray.Create(DeferredShadowMapPassSettings.shadowWidth, DeferredShadowMapPassSettings.shadowHeight, lights.length);
-    }
-    RendererContext.BeginRenderPass(`ShadowPass - clear`, [], { target: this.shadowOutput, clear: true }, true);
-    RendererContext.EndRenderPass();
-    resources.setResource(PassParams.ShadowPassDepth, this.shadowOutput);
+    const cascadeCapacity = DeferredShadowMapPassSettings.numOfCascades;
+    const perLightByteSize = cascadeCapacity * 4 * 16;
     if (!this.lightProjectionMatrixBuffer) {
-      this.lightProjectionMatrixBuffer = Buffer.Create(lights.length * 4 * 4 * 16, BufferType.STORAGE);
+      this.lightProjectionMatrixBuffer = Buffer.Create(perLightByteSize, BufferType.STORAGE);
       this.drawShadowShader.SetBuffer("projectionMatrix", this.lightProjectionMatrixBuffer);
       this.drawSkinnedMeshShadowShader.SetBuffer("projectionMatrix", this.lightProjectionMatrixBuffer);
       this.drawInstancedShadowShader.SetBuffer("projectionMatrix", this.lightProjectionMatrixBuffer);
     }
-    if (!this.lightProjectionViewMatricesBuffer || this.lightProjectionViewMatricesBuffer.size / 4 / 4 / 16 !== lights.length) {
-      this.lightProjectionViewMatricesBuffer = Buffer.Create(lights.length * DeferredShadowMapPassSettings.numOfCascades * 4 * 16, BufferType.STORAGE);
+    const totalProjectionSize = lights.length * perLightByteSize;
+    if (!this.lightProjectionViewMatricesBuffer || this.lightProjectionViewMatricesBuffer.size !== totalProjectionSize) {
+      this.lightProjectionViewMatricesBuffer = Buffer.Create(totalProjectionSize, BufferType.STORAGE);
     }
     if (!this.cascadeCurrentIndexBuffer) {
       this.cascadeCurrentIndexBuffer = Buffer.Create(4, BufferType.STORAGE);
+      this.drawShadowShader.SetBuffer("cascadeIndex", this.cascadeCurrentIndexBuffer);
+      this.drawSkinnedMeshShadowShader.SetBuffer("cascadeIndex", this.cascadeCurrentIndexBuffer);
+      this.drawInstancedShadowShader.SetBuffer("cascadeIndex", this.cascadeCurrentIndexBuffer);
     }
-    if (this.cascadeIndexBuffers.length === 0) {
-      for (let i = 0; i < DeferredShadowMapPassSettings.numOfCascades; i++) {
+    if (this.cascadeIndexBuffers.length < cascadeCapacity) {
+      for (let i = this.cascadeIndexBuffers.length; i < cascadeCapacity; i++) {
         const buffer = Buffer.Create(4, BufferType.STORAGE);
         buffer.SetArray(new Float32Array([i]));
         this.cascadeIndexBuffers.push(buffer);
       }
     }
+    const meshes = [...scene.GetComponents(Mesh), ...scene.GetComponents(SkinnedMesh)].filter((mesh) => mesh.enableShadows && mesh.enabled && mesh.gameObject.enabled);
     if (meshes.length > 0) {
-      if (!this.modelMatrices || this.modelMatrices.size / 256 !== meshes.length) {
-        this.modelMatrices = DynamicBuffer.Create(meshes.length * 256, BufferType.STORAGE, 256);
+      const requiredSize = meshes.length * 256;
+      if (!this.modelMatrices || this.modelMatrices.size !== requiredSize) {
+        this.modelMatrices = DynamicBuffer.Create(requiredSize, BufferType.STORAGE, 256);
+        this.drawShadowShader.SetBuffer("modelMatrix", this.modelMatrices);
+        this.drawSkinnedMeshShadowShader.SetBuffer("modelMatrix", this.modelMatrices);
       }
       for (let i = 0; i < meshes.length; i++) {
         this.modelMatrices.SetArray(meshes[i].transform.localToWorldMatrix.elements, i * 256);
       }
-      this.drawShadowShader.SetBuffer("modelMatrix", this.modelMatrices);
-      this.drawSkinnedMeshShadowShader.SetBuffer("modelMatrix", this.modelMatrices);
     }
-    const shadowOutput = resources.getResource(PassParams.ShadowPassDepth);
-    shadowOutput.SetActiveLayer(0);
-    this.drawShadowShader.SetBuffer("cascadeIndex", this.cascadeCurrentIndexBuffer);
-    this.drawSkinnedMeshShadowShader.SetBuffer("cascadeIndex", this.cascadeCurrentIndexBuffer);
-    this.drawInstancedShadowShader.SetBuffer("cascadeIndex", this.cascadeCurrentIndexBuffer);
-    let shadowMapIndex = 0;
+    this.preparedMeshes = meshes;
+    const instancedMeshes = scene.GetComponents(InstancedMesh).filter((instance) => instance.enableShadows && instance.instanceCount > 0);
+    this.preparedInstancedMeshes = instancedMeshes;
+    let shadowLayer = 0;
     for (let i = 0; i < lights.length; i++) {
       const light = lights[i];
-      shadowOutput.SetActiveLayer(shadowMapIndex);
       EventSystemLocal.emit(TransformEvents.Updated, light.transform);
       let matricesForLight = [];
       let splits = [0, 0, 0, 0];
       let numOfCascades = 0;
+      const cascadeViewports = [];
       if (light instanceof DirectionalLight) {
-        const camera = Camera.mainCamera;
+        const camera = mainCamera;
         numOfCascades = DeferredShadowMapPassSettings.numOfCascades;
         const cascadeSplits = this.getCascadeSplits(numOfCascades, camera.near, camera.far);
         this.csmSplits = cascadeSplits;
         const cascades = this.getCascades(cascadeSplits, camera, numOfCascades, light);
         matricesForLight = cascades.map((c) => c.viewProjMatrix);
         splits = cascades.map((c) => c.splitDepth);
+        const halfWidth = this.shadowOutput.width / 2;
+        const halfHeight = this.shadowOutput.height / 2;
+        for (let cascadeIndex = 0; cascadeIndex < numOfCascades; cascadeIndex++) {
+          let x = 0;
+          let y = 0;
+          if (cascadeIndex >= 2) x += halfWidth;
+          if (cascadeIndex & 1) y += halfHeight;
+          cascadeViewports.push({ x, y, width: halfWidth, height: halfHeight });
+        }
       } else if (light instanceof SpotLight) {
+        numOfCascades = 1;
         const vp = light.camera.projectionMatrix.clone().mul(light.camera.viewMatrix);
         matricesForLight = [vp, vp, vp, vp];
         splits = [0, 0, 0, 0];
-        numOfCascades = 1;
+        cascadeViewports.push({ x: 0, y: 0, width: this.shadowOutput.width, height: this.shadowOutput.height });
       } else {
-        shadowMapIndex++;
+        shadowLayer++;
         continue;
       }
-      const ld = new Float32Array(matricesForLight.flatMap((m) => [...m.elements]));
-      this.lightProjectionViewMatricesBuffer.SetArray(ld, i * numOfCascades * 4 * 16);
+      const projectionArray = new Float32Array(matricesForLight.flatMap((m) => [...m.elements]));
+      const copyOffset = i * perLightByteSize;
+      this.lightProjectionViewMatricesBuffer.SetArray(projectionArray, copyOffset);
+      const cascadeSplitsArray = new Float32Array(splits);
       this.lightShadowData.set(light.id, {
-        cascadeSplits: new Float32Array(splits),
-        projectionMatrices: ld,
-        shadowMapIndex
-        // <— this layer holds this light’s shadow
+        cascadeSplits: cascadeSplitsArray,
+        projectionMatrices: projectionArray,
+        shadowMapIndex: shadowLayer
       });
-      RendererContext.CopyBufferToBuffer(this.lightProjectionViewMatricesBuffer, this.lightProjectionMatrixBuffer, i * numOfCascades * 4 * 16, 0, numOfCascades * 4 * 16);
-      for (let cascadePass = 0; cascadePass < numOfCascades; cascadePass++) {
-        RendererContext.CopyBufferToBuffer(this.cascadeIndexBuffers[cascadePass], this.cascadeCurrentIndexBuffer);
-        RendererContext.BeginRenderPass("ShadowPass", [], { target: shadowOutput, clear: cascadePass === 0 ? true : false }, true);
-        if (light instanceof DirectionalLight) {
-          const width = this.shadowOutput.width / 2;
-          const height = this.shadowOutput.height / 2;
-          let x = 0, y = 0;
-          if (cascadePass >= 2) x += width;
-          if (cascadePass & 1) y += height;
-          RendererContext.SetViewport(x, y, width, height, 0, 1);
+      this.preparedLights.push({
+        light,
+        layer: shadowLayer,
+        numCascades: numOfCascades,
+        copyOffset,
+        copySize: numOfCascades * 4 * 16,
+        cascadeViewports,
+        cascadeSplits: cascadeSplitsArray
+      });
+      shadowLayer++;
+    }
+    resources.setResource(PassParams.ShadowPassCascadeData, this.lightShadowData);
+    resources.setResource(PassParams.ShadowPassDepth, this.shadowOutput);
+  }
+  async preRender(resources) {
+    if (!this.initialized) return;
+    if (this.preparedLights.length === 0) return;
+    RendererContext.BeginRenderPass(`ShadowPass - clear`, [], { target: this.shadowOutput, clear: true }, true);
+    RendererContext.EndRenderPass();
+  }
+  async execute(resources) {
+    if (!this.initialized) return;
+    if (this.preparedLights.length === 0) return;
+    const shadowOutput = this.shadowOutput;
+    shadowOutput.SetActiveLayer(0);
+    for (const prepared of this.preparedLights) {
+      shadowOutput.SetActiveLayer(prepared.layer);
+      RendererContext.CopyBufferToBuffer(
+        this.lightProjectionViewMatricesBuffer,
+        this.lightProjectionMatrixBuffer,
+        prepared.copyOffset,
+        0,
+        prepared.copySize
+      );
+      for (let cascadePass = 0; cascadePass < prepared.numCascades; cascadePass++) {
+        RendererContext.CopyBufferToBuffer(
+          this.cascadeIndexBuffers[cascadePass],
+          this.cascadeCurrentIndexBuffer,
+          0,
+          0,
+          4
+        );
+        RendererContext.BeginRenderPass(
+          "ShadowPass",
+          [],
+          { target: shadowOutput, clear: cascadePass === 0 },
+          true
+        );
+        const viewport = prepared.cascadeViewports[cascadePass];
+        if (viewport) {
+          RendererContext.SetViewport(viewport.x, viewport.y, viewport.width, viewport.height, 0, 1);
         } else {
-          RendererContext.SetViewport(0, 0, this.shadowOutput.width, this.shadowOutput.height, 0, 1);
+          RendererContext.SetViewport(0, 0, shadowOutput.width, shadowOutput.height, 0, 1);
         }
         let meshCount = 0;
-        for (const mesh of meshes) {
+        for (const mesh of this.preparedMeshes) {
           const geometry = mesh.geometry;
-          if (!geometry) continue;
-          if (!geometry.attributes.has("position")) continue;
-          const uniform_offset = meshCount * 256;
-          this.modelMatrices.dynamicOffset = uniform_offset;
+          if (!geometry || !geometry.attributes.has("position")) {
+            meshCount++;
+            continue;
+          }
+          this.modelMatrices.dynamicOffset = meshCount * 256;
           if (mesh instanceof SkinnedMesh) {
             this.drawSkinnedMeshShadowShader.SetBuffer("boneMatrices", mesh.GetBoneMatricesBuffer());
             RendererContext.DrawGeometry(geometry, this.drawSkinnedMeshShadowShader, 1);
-          } else RendererContext.DrawGeometry(geometry, this.drawShadowShader, 1);
+          } else {
+            RendererContext.DrawGeometry(geometry, this.drawShadowShader, 1);
+          }
           meshCount++;
         }
-        for (const instance of instancedMeshes) {
-          if (instance.instanceCount === 0) continue;
-          if (!instance.enableShadows) continue;
+        for (const instance of this.preparedInstancedMeshes) {
           this.drawInstancedShadowShader.SetBuffer("modelMatrix", instance.matricesBuffer);
-          RendererContext.DrawGeometry(instance.geometry, this.drawInstancedShadowShader, instance.instanceCount + 1);
+          RendererContext.DrawGeometry(instance.geometry, this.drawInstancedShadowShader, instance.instanceCount + 1, 0);
         }
         RendererContext.EndRenderPass();
       }
-      shadowMapIndex++;
     }
     shadowOutput.SetActiveLayer(0);
-    resources.setResource(PassParams.ShadowPassCascadeData, this.lightShadowData);
   }
 }
 
@@ -5803,13 +5938,7 @@ class PrepareGBuffers extends RenderPass {
   skyboxPrefilter;
   skyboxBRDFLUT;
   constructor() {
-    super({ outputs: [
-      PassParams.depthTexture,
-      PassParams.GBufferAlbedo,
-      PassParams.GBufferNormal,
-      PassParams.GBufferERMO,
-      PassParams.GBufferDepth
-    ] });
+    super();
     EventSystem.on(RendererEvents.Resized, (canvas) => {
       this.CreateGBufferTextures();
     });
@@ -5832,7 +5961,7 @@ class PrepareGBuffers extends RenderPass {
     this.skyboxBRDFLUT = Texture.Create(1, 1, 1);
     this.initialized = true;
   }
-  execute(resources) {
+  async execute(resources) {
     if (!this.initialized) return;
     const colorTargets = [
       { target: this.gBufferAlbedoRT, clear: true },
@@ -5879,47 +6008,76 @@ class PrepareGBuffers extends RenderPass {
 class DeferredGBufferPass extends RenderPass {
   name = "DeferredGBufferPass";
   modelMatrixBuffer;
-  constructor() {
-    super({
-      inputs: [
-        PassParams.MainCamera,
-        PassParams.GBufferAlbedo,
-        PassParams.GBufferNormal,
-        PassParams.GBufferERMO,
-        PassParams.GBufferDepth
-      ],
-      outputs: []
-    });
-  }
   async init(resources) {
     this.modelMatrixBuffer = new DynamicBufferMemoryAllocator(16 * 4 * 1e3);
     this.initialized = true;
   }
-  boundingVolume = new BoundingVolume();
   frustumCull(camera, meshes) {
     let nonOccluded = [];
     for (const mesh of meshes) {
-      this.boundingVolume.copy(mesh.geometry.boundingVolume);
-      this.boundingVolume;
-      if (camera.frustum.intersectsBoundingVolume(mesh.geometry.boundingVolume) === true) {
+      if (camera.frustum.intersectsBoundingVolume(mesh.bounds) === true) {
         nonOccluded.push(mesh);
       }
     }
     return nonOccluded;
   }
-  execute(resources) {
+  async preFrame(resources) {
+    this.drawCommands.length = 0;
     if (!this.initialized) return;
     const scene = Camera.mainCamera.gameObject.scene;
-    const _meshes = scene.GetComponents(Mesh);
-    let meshesInfo = [];
-    for (let i = 0; i < _meshes.length; i++) {
-      const mesh = _meshes[i];
-      if (!mesh.enabled || !mesh.gameObject.enabled || !mesh.geometry || !mesh.material || mesh instanceof InstancedMesh) continue;
-      meshesInfo.push({ mesh, index: i });
+    const allMeshes = scene.GetComponents(Mesh);
+    let renderableMeshes = [];
+    for (const mesh of allMeshes) {
+      if (!mesh.enabled || !mesh.gameObject.enabled || !mesh.geometry || !mesh.material || mesh.constructor !== Mesh) continue;
+      renderableMeshes.push(mesh);
     }
-    Renderer.info.visibleObjects = meshesInfo.length;
+    renderableMeshes = this.frustumCull(Camera.mainCamera, renderableMeshes);
+    Renderer.info.visibleObjects += renderableMeshes.length;
     const instancedMeshes = scene.GetComponents(InstancedMesh);
-    if (meshesInfo.length === 0 && instancedMeshes.length === 0) return;
+    if (renderableMeshes.length === 0 && instancedMeshes.length === 0) return;
+    const inputCamera = Camera.mainCamera;
+    if (!inputCamera) throw Error(`No inputs passed to ${this.name}`);
+    const projectionMatrix = inputCamera.projectionMatrix;
+    const viewMatrix = inputCamera.viewMatrix;
+    for (const mesh of renderableMeshes) {
+      const offset = this.modelMatrixBuffer.set(mesh.id, mesh.transform.localToWorldMatrix.elements);
+      const matrixIndex = offset / 16;
+      const geometry = mesh.geometry;
+      const material = mesh.material;
+      if (material.params.isDeferred === false) continue;
+      if (!material.shader) continue;
+      const shader = material.shader;
+      shader.SetMatrix4("projectionMatrix", projectionMatrix);
+      shader.SetMatrix4("viewMatrix", viewMatrix);
+      shader.SetBuffer("modelMatrix", this.modelMatrixBuffer.getBuffer());
+      shader.SetVector3("cameraPosition", inputCamera.transform.position);
+      if (mesh instanceof SkinnedMesh) {
+        shader.SetBuffer("boneMatrices", mesh.GetBoneMatricesBuffer());
+      }
+      this.drawCommands.push({ geometry, shader, instanceCount: 1, firstInstance: matrixIndex });
+      const position = geometry.attributes.get("position");
+      Renderer.info.vertexCount += position.array.length / 3;
+      Renderer.info.triangleCount += geometry.index ? geometry.index.array.length / 3 : position.array.length / 3;
+    }
+    for (const instancedMesh of instancedMeshes) {
+      const geometry = instancedMesh.geometry;
+      const material = instancedMesh.material;
+      if (material.params.isDeferred === false) continue;
+      if (!material.shader) continue;
+      const shader = material.shader;
+      shader.SetMatrix4("projectionMatrix", projectionMatrix);
+      shader.SetMatrix4("viewMatrix", viewMatrix);
+      shader.SetBuffer("modelMatrix", instancedMesh.matricesBuffer);
+      shader.SetVector3("cameraPosition", inputCamera.transform.position);
+      this.drawCommands.push({ geometry, shader, instanceCount: instancedMesh.instanceCount + 1, firstInstance: 0 });
+      const position = geometry.attributes.get("position");
+      Renderer.info.vertexCount += position.array.length / 3 * instancedMesh.instanceCount;
+      Renderer.info.triangleCount += (geometry.index ? geometry.index.array.length / 3 : position.array.length / 3) * instancedMesh.instanceCount;
+    }
+  }
+  async execute(resources) {
+    if (!this.initialized) return;
+    if (this.drawCommands.length === 0) return;
     const inputCamera = Camera.mainCamera;
     if (!inputCamera) throw Error(`No inputs passed to ${this.name}`);
     const backgroundColor = inputCamera.backgroundColor;
@@ -5927,9 +6085,6 @@ class DeferredGBufferPass extends RenderPass {
     const inputGBufferNormal = resources.getResource(PassParams.GBufferNormal);
     const inputGBufferERMO = resources.getResource(PassParams.GBufferERMO);
     const inputGBufferDepth = resources.getResource(PassParams.GBufferDepth);
-    for (const meshInfo of meshesInfo) {
-      this.modelMatrixBuffer.set(meshInfo.mesh.id, meshInfo.mesh.transform.localToWorldMatrix.elements);
-    }
     RendererContext.BeginRenderPass(
       this.name,
       [
@@ -5940,47 +6095,8 @@ class DeferredGBufferPass extends RenderPass {
       { target: inputGBufferDepth, clear: false },
       true
     );
-    const projectionMatrix = inputCamera.projectionMatrix;
-    const viewMatrix = inputCamera.viewMatrix;
-    for (const meshInfo of meshesInfo) {
-      const geometry = meshInfo.mesh.geometry;
-      const material = meshInfo.mesh.material;
-      if (material.params.isDeferred === false) continue;
-      if (!material.shader) {
-        material.createShader();
-        continue;
-      }
-      const shader = material.shader;
-      shader.SetMatrix4("projectionMatrix", projectionMatrix);
-      shader.SetMatrix4("viewMatrix", viewMatrix);
-      shader.SetBuffer("modelMatrix", this.modelMatrixBuffer.getBuffer());
-      shader.SetVector3("cameraPosition", inputCamera.transform.position);
-      if (meshInfo.mesh instanceof SkinnedMesh) {
-        shader.SetBuffer("boneMatrices", meshInfo.mesh.GetBoneMatricesBuffer());
-      }
-      RendererContext.DrawGeometry(geometry, shader, 1, meshInfo.index);
-      const position = geometry.attributes.get("position");
-      Renderer.info.vertexCount += position.array.length / 3;
-      Renderer.info.triangleCount += geometry.index ? geometry.index.array.length / 3 : position.array.length / 3;
-    }
-    for (const instancedMesh of instancedMeshes) {
-      const geometry = instancedMesh.geometry;
-      const material = instancedMesh.material;
-      if (material.params.isDeferred === false) continue;
-      if (!material.shader) {
-        material.createShader().then((shader2) => {
-        });
-        continue;
-      }
-      const shader = material.shader;
-      shader.SetMatrix4("projectionMatrix", projectionMatrix);
-      shader.SetMatrix4("viewMatrix", viewMatrix);
-      shader.SetBuffer("modelMatrix", instancedMesh.matricesBuffer);
-      shader.SetVector3("cameraPosition", inputCamera.transform.position);
-      RendererContext.DrawGeometry(geometry, shader, instancedMesh.instanceCount + 1);
-      const position = geometry.attributes.get("position");
-      Renderer.info.vertexCount += position.array.length / 3 * instancedMesh.instanceCount;
-      Renderer.info.triangleCount += (geometry.index ? geometry.index.array.length / 3 : position.array.length / 3) * instancedMesh.instanceCount;
+    for (const draw of this.drawCommands) {
+      RendererContext.DrawGeometry(draw.geometry, draw.shader, draw.instanceCount, draw.firstInstance);
     }
     resources.setResource(PassParams.GBufferDepth, inputGBufferDepth);
     resources.setResource(PassParams.GBufferAlbedo, inputGBufferAlbedo);
@@ -5995,42 +6111,34 @@ class ForwardPass extends RenderPass {
   projectionMatrix;
   viewMatrix;
   modelMatrices;
-  constructor() {
-    super({ inputs: [
-      PassParams.LightingPassOutput
-    ] });
-  }
   async init(resources) {
     this.projectionMatrix = Buffer.Create(16 * 4, BufferType.STORAGE);
     this.viewMatrix = Buffer.Create(16 * 4, BufferType.STORAGE);
     this.modelMatrices = new DynamicBufferMemoryAllocator(16 * 4 * 10);
     this.initialized = true;
   }
-  async execute(resources) {
-    const LightingPassOutput = resources.getResource(PassParams.LightingPassOutput);
-    const DepthPassOutput = resources.getResource(PassParams.GBufferDepth);
+  async preFrame(resources) {
+    this.drawCommands.length = 0;
     const mainCamera = Camera.mainCamera;
     const scene = mainCamera.gameObject.scene;
     const meshes = scene.GetComponents(Mesh);
     const instancedMeshes = scene.GetComponents(InstancedMesh);
     if (meshes.length === 0 && instancedMeshes.length === 0) return;
-    RendererContext.BeginRenderPass(this.name, [{ target: LightingPassOutput, clear: false }], { target: DepthPassOutput, clear: false }, true);
     this.projectionMatrix.SetArray(mainCamera.projectionMatrix.elements);
     this.viewMatrix.SetArray(mainCamera.viewMatrix.elements);
-    let meshCount = 0;
     for (const mesh of meshes) {
       const geometry = mesh.geometry;
       const material = mesh.material;
       if (!geometry || !material) continue;
       if (!geometry.attributes.has("position")) continue;
       if (material.params.isDeferred === true) continue;
-      if (!material.shader) await material.createShader();
-      this.modelMatrices.set(mesh.id, mesh.transform.localToWorldMatrix.elements);
+      if (!material.shader) continue;
+      const offset = this.modelMatrices.set(mesh.id, mesh.transform.localToWorldMatrix.elements);
+      const matrixIndex = offset / 16;
       material.shader.SetBuffer("projectionMatrix", this.projectionMatrix);
       material.shader.SetBuffer("viewMatrix", this.viewMatrix);
       material.shader.SetBuffer("modelMatrix", this.modelMatrices.getBuffer());
-      RendererContext.DrawGeometry(geometry, material.shader, 1, meshCount);
-      meshCount++;
+      this.drawCommands.push({ geometry, shader: material.shader, instanceCount: 1, firstInstance: matrixIndex });
     }
     for (const instancedMesh of instancedMeshes) {
       if (instancedMesh.instanceCount === 0) continue;
@@ -6039,11 +6147,19 @@ class ForwardPass extends RenderPass {
       if (!geometry || !material) continue;
       if (!geometry.attributes.has("position")) continue;
       if (material.params.isDeferred === true) continue;
-      if (!material.shader) await material.createShader();
+      if (!material.shader) continue;
       material.shader.SetBuffer("projectionMatrix", this.projectionMatrix);
       material.shader.SetBuffer("viewMatrix", this.viewMatrix);
       material.shader.SetBuffer("modelMatrix", instancedMesh.matricesBuffer);
-      RendererContext.DrawGeometry(geometry, material.shader, instancedMesh.instanceCount, 0);
+      this.drawCommands.push({ geometry, shader: material.shader, instanceCount: instancedMesh.instanceCount, firstInstance: 0 });
+    }
+  }
+  async execute(resources) {
+    const LightingPassOutput = resources.getResource(PassParams.LightingPassOutput);
+    const DepthPassOutput = resources.getResource(PassParams.GBufferDepth);
+    RendererContext.BeginRenderPass(this.name, [{ target: LightingPassOutput, clear: false }], { target: DepthPassOutput, clear: false }, true);
+    for (const draw of this.drawCommands) {
+      RendererContext.DrawGeometry(draw.geometry, draw.shader, draw.instanceCount, draw.firstInstance);
     }
     RendererContext.EndRenderPass();
   }
@@ -6065,7 +6181,12 @@ const PassParams = {
   ShadowPassDepth: "ShadowPassDepth",
   ShadowPassCascadeData: "ShadowPassCascadeData",
   LightsBuffer: "LightsBuffer",
-  LightingPassOutput: "LightingPassOutput"
+  LightingPassOutput: "LightingPassOutput",
+  FrameBuffer: "FrameBuffer",
+  MaterialBuffer: "MaterialBuffer",
+  ModelBuffer: "ModelBuffer",
+  InstanceBuffer: "InstanceBuffer",
+  Renderables: "Renderables"
 };
 var RenderPassOrder = /* @__PURE__ */ ((RenderPassOrder2) => {
   RenderPassOrder2[RenderPassOrder2["BeforeGBuffer"] = 0] = "BeforeGBuffer";
@@ -6151,11 +6272,13 @@ class RenderingPipeline {
     else if (order === 4 /* BeforeScreenOutput */) this.beforeScreenOutputPasses.push(pass);
     this.UpdateRenderGraphPasses();
   }
-  Render(scene) {
+  async Render(scene) {
     Renderer.info.ResetFrame();
     const renderPipelineStart = performance.now();
+    await this.renderGraph.preFrame();
     Renderer.BeginRenderFrame();
-    this.renderGraph.execute();
+    await this.renderGraph.preRender();
+    await this.renderGraph.execute();
     Renderer.EndRenderFrame();
     Renderer.info.cpuTime = performance.now() - renderPipelineStart;
     WEBGPUTimestampQuery.GetResult().then((frameTimes) => {
@@ -6260,10 +6383,6 @@ class Scene {
       }
       component.Update();
     }
-    for (const [component, _] of this.toUpdate) {
-      if (component.gameObject.enabled === false) continue;
-      component.LateUpdate();
-    }
     this.renderPipeline.Render(this);
     requestAnimationFrame(() => this.Tick());
   }
@@ -6308,7 +6427,7 @@ class WEBGPUComputeContext {
   }
   static Dispatch(computeShader, workgroupCountX, workgroupCountY, workgroupCountZ) {
     if (!this.activeComputePass) throw Error("No active render pass");
-    computeShader.OnPreRender();
+    if (!computeShader.OnPreRender()) return;
     computeShader.Compile();
     if (!computeShader.pipeline) throw Error("Shader doesnt have a pipeline");
     this.activeComputePass.setPipeline(computeShader.pipeline);

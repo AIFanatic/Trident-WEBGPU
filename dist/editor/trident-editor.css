@@ -53,9 +53,14 @@ flex-item {
     overflow: hidden;
 }
 
-flex>flex-resizer:hover {
+flex.h>flex-resizer:hover {
     background-color: #363636;
     width: 20px;
+}
+
+flex.v>flex-resizer:hover {
+    background-color: #363636;
+    height: 20px;
 }
 
 flex.h>flex-resizer {
@@ -146,6 +151,74 @@ input[type=number] {
 
 .treeview .item .item-content {
     overflow: hidden;
+}
+.dropdown-overlay {
+    /* background-color: #ffffff50; */
+    position: fixed;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    z-index: 2;
+}
+
+.dropdown {
+    display: inline-block;
+}
+
+.dropdown-menu {
+    width: 100%;
+}
+
+.dropdown-content {
+    position: fixed;
+    background-color: #2b2b2b;
+    min-width: 160px;
+    overflow: auto;
+    box-shadow: 0px 8px 16px 0px rgba(0,0,0,0.2);
+    border: 1px solid #333333;
+    z-index: 2;
+}
+
+.dropdown-content a {
+    font-size: 12px;
+    color: white;
+    padding: 5px;
+    text-decoration: none;
+    display: block;
+}
+
+.dropdown .dropdown-btn {
+    background: none;
+    border: none;
+    color: white;
+    outline: none;
+    cursor: pointer;
+    border-radius: 5px;
+    padding: 5px;
+    font-size: 12px;
+}
+
+.dropdown .dropdown-item-btn {
+    display: inline-block;
+    width: 100%;
+    text-align: left;
+    font-size: 12px;
+}
+
+.dropdown .dropdown-item-btn:hover {
+    background-color: #383838;
+}
+
+.dropdown .dropdown-item-btn:disabled {
+    opacity: 0.2;
+}
+
+.dropdown-right-icon {
+    line-height: 24px;
+    margin-left: -15px;
+    position: fixed;
+    font-size: 10px;
 }
 .InspectorComponent {
     display: flex;

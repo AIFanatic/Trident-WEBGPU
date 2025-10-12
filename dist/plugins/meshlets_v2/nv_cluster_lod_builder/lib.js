@@ -1,13 +1,11 @@
-import { Meshoptimizer } from './meshoptimizer/Meshoptimizer.js';
 import { HierarchyInput } from './nvcluster_hierarchy.js';
 import { Result, Sphere } from './nvclusterlod_common.js';
 import { generateLodHierarchy, LodHierarchy } from './nvclusterlod_hierarchy_storage.js';
 import { generateLocalizedLodMesh, LocalizedLodMesh } from './nvclusterlod_mesh_storage.js';
 
 class NV_Cluster {
-  static async Build(input) {
+  static Build(input) {
     let mesh = new LocalizedLodMesh();
-    await Meshoptimizer.load();
     let result = generateLocalizedLodMesh(input, mesh);
     if (result !== Result.SUCCESS) {
       throw Error("Error: " + Result[result]);

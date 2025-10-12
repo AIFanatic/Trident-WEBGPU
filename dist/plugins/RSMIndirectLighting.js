@@ -22,7 +22,7 @@ class RSMIndirectLighting extends GPU.RenderPass {
   NUM_SAMPLES;
   SAMPLES_TEX_SIZE;
   constructor(light, RSM_RES, NUM_SAMPLES) {
-    super({});
+    super();
     this.light = light;
     this.RSM_RES = RSM_RES;
     this.NUM_SAMPLES = NUM_SAMPLES;
@@ -246,6 +246,7 @@ class RSMIndirectLighting extends GPU.RenderPass {
     }
     const dat = generateSampleTexture(this.SAMPLES_TEX_SIZE);
     const samplesTexture = GPU.Texture.Create(this.SAMPLES_TEX_SIZE, 1, 1, "rgba32float");
+    console.log(this.SAMPLES_TEX_SIZE);
     samplesTexture.SetData(new Float32Array(dat));
     this.shader.SetTexture("samplesTex", samplesTexture);
     this.shader.SetSampler("texSampler", GPU.TextureSampler.Create());

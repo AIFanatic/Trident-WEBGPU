@@ -1,4 +1,5 @@
 import { Utils, Mathf, InterleavedVertexAttribute } from '@trident/core';
+import { Meshoptimizer } from './nv_cluster_lod_builder/meshoptimizer/Meshoptimizer.js';
 
 class Meshlet {
   static max_triangles = 128;
@@ -33,7 +34,10 @@ class Meshlet {
     this.children = [];
     this.parents = [];
     this.bounds = Mathf.BoundingVolume.FromVertices(this.vertices);
-    this.coneBounds = { cone_apex: new Mathf.Vector3(), cone_axis: new Mathf.Vector3(), cone_cutoff: 0 };
+    if (this.indices.length / 3 < Meshoptimizer.kMeshletMaxTriangles) {
+      const coneBounds = Meshoptimizer.meshopt_computeClusterBounds(this.indices, this.indices.length, this.vertices, this.vertices.length, 8);
+      this.coneBounds = { cone_apex: Mathf.Vector3.fromArray(coneBounds.cone_apex), cone_axis: Mathf.Vector3.fromArray(coneBounds.cone_axis), cone_cutoff: coneBounds.cone_cutoff };
+    }
     const verticesNonIndexed = Meshlet.convertBufferAttributeToNonIndexed(this.vertices, this.indices, 3, true, 8, 0);
     const normalsNonIndexed = Meshlet.convertBufferAttributeToNonIndexed(this.vertices, this.indices, 3, true, 8, 3);
     const uvsNonIndexed = Meshlet.convertBufferAttributeToNonIndexed(this.vertices, this.indices, 2, true, 8, 6);

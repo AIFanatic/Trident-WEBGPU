@@ -29,9 +29,6 @@ class BilateralFilter extends GPU.RenderPass {
   set blurNormalThreshold(value) {
     this.shader.SetValue("blurNormalThreshold", value);
   }
-  constructor() {
-    super({});
-  }
   async init(resources) {
     this.shader = await GPU.Shader.Create({
       code: `
@@ -73,7 +70,11 @@ class BilateralFilter extends GPU.RenderPass {
             @fragment
             fn fragmentMain(input: VertexOutput) -> @location(0) vec4<f32> {
                 var color: vec3f = textureSampleLevel(tex, texSampler, input.uv, 0.).rgb;
-                var depth: f32 = textureSampleCompare(depthTex, depthSampler, input.uv, 0);
+                // var depth: f32 = textureSampleCompare(depthTex, depthSampler, input.uv, 0);
+
+                let texSize = textureDimensions(depthTex);
+                let coords = vec2<i32>(input.uv * vec2<f32>(texSize));
+                let depth: f32 = textureLoad(depthTex, coords, 0);
             
                 if (depth >= 1e6 || depth <= 0.) {
                     return vec4f(color, 1.);
@@ -99,7 +100,8 @@ class BilateralFilter extends GPU.RenderPass {
                 for (var x: i32 = -filterSizeI32; x <= filterSizeI32; x++) {
                     var coords = vec2f(f32(x));
                     var sampleColor: vec3f = textureSampleLevel(tex, texSampler, input.uv + coords * blurDir.xy, 0.).rgb;
-                    var sampleDepth: f32 = textureSampleCompareLevel(depthTex, depthSampler, input.uv + f32(x) * blurDir.xy, 0);
+                    let sampleCoords = vec2<i32>(input.uv * vec2<f32>(texSize)) + vec2<i32>(x, 0);
+                    let sampleDepth: f32 = textureLoad(depthTex, sampleCoords, 0);
                     // // Ground depth:
                     // let ref_value = input.position.z / input.position.w;
                     // let depth_raw: f32 = textureSampleCompare(DEPTH_TEXTURE, depth_texture_sampler, input.SCREEN_UV, ref_value);
@@ -155,17 +157,22 @@ class BilateralFilter extends GPU.RenderPass {
     this.geometry = Geometry.Plane();
     this.initialized = true;
   }
+  rendererWidth;
+  rendererHeight;
   Process(texture, depthTex, normalTex) {
     if (this.initialized === false) {
       throw Error("Not initialized");
     }
-    if (!this.renderTarget || this.renderTarget.width !== texture.width || this.renderTarget.height !== texture.height || this.renderTarget.depth !== texture.depth) {
+    const rendererWidth = Math.max(GPU.Renderer.width, 1);
+    const rendererHeight = Math.max(GPU.Renderer.height, 1);
+    if (!this.renderTarget || this.rendererWidth !== rendererWidth || this.rendererHeight !== rendererHeight) {
       this.inputTexture = GPU.Texture.Create(texture.width, texture.height, texture.depth, "rgba16float");
       this.renderTarget = GPU.RenderTexture.Create(texture.width, texture.height, texture.depth, "rgba16float");
       this.shader.SetTexture("tex", this.inputTexture);
-      console.log(texture.width);
-      this.blurDirHorizontal.SetArray(new Float32Array([1 / texture.width, 0, 0, 0]));
-      this.blurDirVertical.SetArray(new Float32Array([0, 1 / texture.height, 0, 0]));
+      this.blurDirHorizontal.SetArray(new Float32Array([1 / rendererWidth, 0, 0, 0]));
+      this.blurDirVertical.SetArray(new Float32Array([0, 1 / rendererHeight, 0, 0]));
+      this.rendererWidth = rendererWidth;
+      this.rendererHeight = rendererHeight;
     }
     this.shader.SetTexture("depthTex", depthTex);
     this.shader.SetTexture("normalTex", normalTex);

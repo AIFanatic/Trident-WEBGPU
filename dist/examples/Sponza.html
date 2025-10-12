@@ -27,7 +27,7 @@
             <script type="module">
                 const canvas = document.createElement("canvas");
                 document.body.appendChild(canvas);
-                            import { GPU, Scene, GameObject, Components, Mathf } from '@trident/core';
+                            import { GPU, Scene, GameObject, Components, Mathf, PBRMaterial } from '@trident/core';
             import { OrbitControls } from '@trident/plugins/OrbitControls.js';
             import { Debugger } from '@trident/plugins/Debugger.js';
             import { GLTFLoader } from '@trident/plugins/GLTF/GLTFLoader.js';
@@ -47,8 +47,24 @@
               lightGameObject.transform.LookAtV1(new Mathf.Vector3(0, 0, 0));
               const light = lightGameObject.AddComponent(Components.DirectionalLight);
               light.castShadows = true;
-              GLTFLoader.loadAsGameObjects(scene, "/extra/dist_bak/test-assets/GLTF/scenes/Sponza/Sponza.gltf");
+              function traverse(gameObjects2, fn) {
+                for (const gameObject of gameObjects2) {
+                  fn(gameObject);
+                  for (const child of gameObject.transform.children) {
+                    traverse([child.gameObject], fn);
+                  }
+                }
+              }
+              const gameObjects = await GLTFLoader.loadAsGameObjects(scene, "/extra/dist_bak/test-assets/GLTF/scenes/Bistro.glb");
               Debugger.Enable();
+              const mat = new PBRMaterial();
+              traverse(gameObjects, (gameObject) => {
+                const mesh = gameObject.GetComponent(Components.Mesh);
+                if (mesh) {
+                  mesh.enableShadows = false;
+                  mesh.material = mat;
+                }
+              });
               scene.Start();
             }
             Application(document.querySelector("canvas"));

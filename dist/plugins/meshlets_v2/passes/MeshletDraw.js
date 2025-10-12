@@ -16,9 +16,7 @@ const MeshletPassParams = {
   indirectDrawBuffer: "indirectDrawBuffer",
   meshletsCount: "meshletsCount",
   textureMaps: "textureMaps",
-  meshletSettings: "meshletSettings",
-  isCullingPrepass: "isCullingPrepass"
-};
+  meshletSettings: "meshletSettings"};
 class MeshletDraw extends GPU.RenderPass {
   name = "MeshletDraw";
   prepareSceneData;
@@ -26,21 +24,7 @@ class MeshletDraw extends GPU.RenderPass {
   HiZ;
   indirectRender;
   constructor() {
-    super({
-      inputs: [
-        GPU.PassParams.depthTexture,
-        GPU.PassParams.depthTexturePyramid,
-        GPU.PassParams.DebugSettings,
-        GPU.PassParams.depthTexture,
-        GPU.PassParams.GBufferAlbedo,
-        GPU.PassParams.GBufferNormal,
-        GPU.PassParams.GBufferERMO,
-        GPU.PassParams.GBufferDepth
-      ],
-      outputs: [
-        MeshletPassParams.meshletSettings
-      ]
-    });
+    super();
   }
   async init(resources) {
     this.prepareSceneData = new PrepareSceneData();
@@ -53,8 +37,8 @@ class MeshletDraw extends GPU.RenderPass {
     await this.indirectRender.init(resources);
     this.initialized = true;
   }
-  execute(resources) {
-    this.prepareSceneData.execute(resources);
+  async preFrame(resources) {
+    await this.prepareSceneData.preFrame(resources);
     const settings = new Float32Array([
       +MeshletDebug.isFrustumCullingEnabled,
       +MeshletDebug.isBackFaceCullingEnabled,
@@ -67,8 +51,13 @@ class MeshletDraw extends GPU.RenderPass {
       Meshlet.max_triangles
     ]);
     resources.setResource(MeshletPassParams.meshletSettings, settings);
-    this.cullingPass.execute(resources);
-    this.indirectRender.execute(resources);
+    await this.cullingPass.preFrame(resources);
+    await this.indirectRender.preFrame(resources);
+  }
+  async execute(resources) {
+    await this.prepareSceneData.execute(resources);
+    await this.cullingPass.execute(resources);
+    await this.indirectRender.execute(resources);
   }
 }
 

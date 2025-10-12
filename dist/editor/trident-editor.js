@@ -1,6 +1,5 @@
 import { Renderer, Scene, GameObject, Mathf, Component as Component$1, Geometry, PBRMaterial, Utils, Components } from '@trident/core';
 import { OrbitControls } from '@trident/plugins/OrbitControls.js';
-import { GLTFLoader } from '@trident/plugins/GLTF/GLTFLoader.js';
 
 class TridentAPI {
   currentScene;
@@ -96,6 +95,7 @@ const patch = (dom, vdom, parent = dom.parentNode) => {
   const replace = parent ? (el) => (parent.replaceChild(el, dom), el) : (el) => el;
   if (typeof vdom == "object" && vdom !== null && typeof vdom.type == "function") return Component.patch(dom, vdom, parent);
   else if ((typeof vdom != "object" || vdom === null) && dom instanceof Text) return dom.textContent != String(vdom) ? replace(render(vdom, parent)) : dom;
+  else if (typeof vdom != "object" || vdom === null) return dom instanceof Text ? dom.textContent != String(vdom) ? replace(render(vdom, parent)) : dom : replace(render(vdom, parent));
   else if (typeof vdom == "object" && dom instanceof Text) return replace(render(vdom, parent));
   else if (typeof vdom == "object" && dom.nodeName != vdom.type.toString().toUpperCase()) return replace(render(vdom, parent));
   else if (typeof vdom == "object" && dom.nodeName == vdom.type.toString().toUpperCase()) {
@@ -303,8 +303,19 @@ class LayoutCanvas extends Component {
     lightGameObject.transform.LookAtV1(EngineAPI.createVector3(0, 0, 0));
     const light = lightGameObject.AddComponent(IComponents.DirectionalLight);
     light.castShadows = true;
-    const gameObjects = await GLTFLoader.loadAsGameObjects(currentScene, "/dist/examples/assets/models/glb/CommonTree_1.glb");
-    gameObjects[0].transform.scale.mul(0.1);
+    const floorGameObject = EngineAPI.createGameObject(EngineAPI.currentScene);
+    floorGameObject.name = "Floor";
+    floorGameObject.transform.eulerAngles.x = -90;
+    floorGameObject.transform.position.y = -2;
+    floorGameObject.transform.scale.set(100, 100, 100);
+    const floorMesh = floorGameObject.AddComponent(IComponents.Mesh);
+    floorMesh.geometry = EngineAPI.createPlaneGeometry();
+    floorMesh.material = EngineAPI.createPBRMaterial();
+    const cubeGameObject = EngineAPI.createGameObject(EngineAPI.currentScene);
+    cubeGameObject.name = "Cube";
+    const cubeMesh = cubeGameObject.AddComponent(IComponents.Mesh);
+    cubeMesh.geometry = EngineAPI.createCubeGeometry();
+    cubeMesh.material = EngineAPI.createPBRMaterial();
     currentScene.Start();
   }
   render() {
@@ -312,9 +323,301 @@ class LayoutCanvas extends Component {
   }
 }
 
-class LayoutAssets extends Component {
-  render() {
-    return /* @__PURE__ */ createElement("div", null, "LayoutAssets");
+class GameObjectEvents {
+  static Selected = (gameObject) => {
+  };
+  static Created = (gameObject) => {
+  };
+  static Deleted = (gameObject) => {
+  };
+}
+class ProjectEvents {
+  static Opened = () => {
+  };
+}
+class FileEvents {
+  static Created = (path, handle) => {
+  };
+  static Changed = (path, handle) => {
+  };
+  static Deleted = (path, handle) => {
+  };
+}
+class DirectoryEvents {
+  static Created = (path, handle) => {
+  };
+  static Deleted = (path, handle) => {
+  };
+}
+class LayoutHierarchyEvents {
+  static Selected = (gameObject) => {
+  };
+}
+class EventSystem {
+  static events = /* @__PURE__ */ new Map();
+  static on(event, callback) {
+    const events = this.events.get(event) || [];
+    events.push(callback);
+    this.events.set(event, events);
+  }
+  static emit(event, ...args) {
+    const callbacks = this.events.get(event);
+    if (callbacks === void 0) return;
+    for (let i = 0; i < callbacks.length; i++) {
+      callbacks[i](...args);
+    }
+  }
+}
+
+class _FileBrowser {
+  rootFolderHandle;
+  constructor() {
+    if (!window.showDirectoryPicker) {
+      alert("FileSystem API not supported.");
+      throw Error("FileSystem API not supported.");
+    }
+  }
+  init() {
+    return new Promise((resolve, reject) => {
+      window.showDirectoryPicker().then((folderHandle) => {
+        this.rootFolderHandle = folderHandle;
+        resolve();
+      }).catch((error) => {
+        reject(error);
+      });
+    });
+  }
+  async opendir(path) {
+    if (!this.rootFolderHandle) {
+      alert("Trying to open a directory without initializing the File System.");
+      return;
+    }
+    if (path == "") return this.rootFolderHandle;
+    const pathArray = path.split("/");
+    let currentDirectoryHandle = this.rootFolderHandle;
+    for (const entry of pathArray) {
+      if (entry == "") continue;
+      currentDirectoryHandle = await currentDirectoryHandle.getDirectoryHandle(entry);
+    }
+    if (currentDirectoryHandle.kind == "directory" && currentDirectoryHandle.name == pathArray[pathArray.length - 1]) {
+      return currentDirectoryHandle;
+    }
+    throw Error(`Directory not found at "${path}"`);
+  }
+  async readdir(folderHandle) {
+    let files = [];
+    const values = folderHandle.values();
+    for await (const entry of values) {
+      files.push(entry);
+    }
+    return files;
+  }
+  mkdir(path) {
+    const pathArray = path.split("/");
+    const directoryName = pathArray[pathArray.length - 1];
+    const pathWithoutDirectory = pathArray.splice(0, pathArray.length - 1).join("/");
+    return this.opendir(pathWithoutDirectory).then((folderHandle) => {
+      return folderHandle.getDirectoryHandle(directoryName, {
+        create: true
+      });
+    });
+  }
+  rmdir(path) {
+    const pathArray = path.split("/");
+    const directoryName = pathArray[pathArray.length - 1];
+    const pathWithoutDirectory = pathArray.splice(0, pathArray.length - 1).join("/");
+    this.opendir(pathWithoutDirectory).then(async (folderHandle) => {
+      const files = await this.readdir(folderHandle);
+      for (let file of files) {
+        if (file.kind == "directory" && file.name == directoryName) {
+          folderHandle.removeEntry(directoryName);
+          break;
+        }
+      }
+    });
+  }
+  fopen(path, mode) {
+    if (mode == 2 /* A */) {
+      console.warn("MODE.A not implemented.");
+    }
+    const pathArray = path.split("/");
+    const filename = pathArray[pathArray.length - 1];
+    const pathWithoutDirectory = pathArray.splice(0, pathArray.length - 1).join("/");
+    return this.opendir(pathWithoutDirectory).then((folderHandle) => {
+      return folderHandle.getFileHandle(filename, {
+        create: mode == 2 /* A */ || mode == 1 /* W */ ? true : false
+      });
+    });
+  }
+  // TODO: Make more efficient by chunking
+  fread(file, start, end) {
+    return file.getFile().then((value) => {
+      return value.slice(start, end);
+    });
+  }
+  // TODO: Do append
+  fwrite(file, buf) {
+    return file.createWritable().then((writableStream) => {
+      writableStream.write(buf);
+      return writableStream.close();
+    });
+  }
+  remove(path) {
+    const pathArray = path.split("/");
+    const filename = pathArray[pathArray.length - 1];
+    const pathWithoutDirectory = pathArray.splice(0, pathArray.length - 1).join("/");
+    this.opendir(pathWithoutDirectory).then(async (folderHandle) => {
+      const files = await this.readdir(folderHandle);
+      for (let file of files) {
+        if (file.kind == "file" && file.name == filename) {
+          folderHandle.removeEntry(filename);
+          break;
+        }
+      }
+    });
+  }
+  is_directory(path) {
+    return this.opendir(path).then((folderHandle) => {
+      return true;
+    }).catch((error) => {
+      return false;
+    });
+  }
+  exists(path) {
+    return this.is_directory(path).then((isDirectory) => {
+      if (isDirectory) {
+        return true;
+      }
+      return this.fopen(path, 0 /* R */).then((file) => {
+        return true;
+      }).catch((error) => {
+        return false;
+      });
+    });
+  }
+}
+const FileBrowser = new _FileBrowser();
+
+class FileWatcher {
+  watches;
+  constructor() {
+    this.watches = /* @__PURE__ */ new Map();
+    this.update();
+  }
+  watch(directoryPath) {
+    FileBrowser.opendir(directoryPath).then((directoryHandle) => {
+      this.watches.set(directoryPath, {
+        path: directoryPath,
+        handle: directoryHandle,
+        files: /* @__PURE__ */ new Map()
+      });
+    }).catch((error) => {
+      console.warn("error", error);
+    });
+  }
+  unwatch(directoryPath) {
+    if (this.watches.has(directoryPath)) {
+      this.watches.delete(directoryPath);
+    }
+  }
+  getWatchMap() {
+    return this.watches;
+  }
+  async update() {
+    return new Promise(async (resolve, reject) => {
+      for (let watchPair of this.watches) {
+        const directoryPath = watchPair[0];
+        const directoryWatch = watchPair[1];
+        if (directoryPath[0] == ".") continue;
+        const directoryPathExists = await FileBrowser.exists(directoryPath);
+        if (!directoryPathExists) {
+          this.watches.delete(directoryPath);
+          EventSystem.emit(DirectoryEvents.Deleted, directoryPath, directoryWatch.handle);
+          continue;
+        }
+        for (let watchFilesPair of directoryWatch.files) {
+          const watchFilePath = watchFilesPair[0];
+          const watchFile = watchFilesPair[1];
+          const fileExists = await FileBrowser.exists(watchFilePath);
+          if (!fileExists) {
+            directoryWatch.files.delete(watchFile.path);
+            if (watchFile.handle instanceof FileSystemFileHandle) {
+              EventSystem.emit(FileEvents.Deleted, watchFile.path, watchFile.handle);
+            }
+          }
+        }
+        const files = await FileBrowser.readdir(directoryWatch.handle);
+        for (let file of files) {
+          if (file.name[0] == ".") continue;
+          if (file.kind == "file") {
+            const fileHandle = await file.getFile();
+            const filePath = directoryPath + "/" + file.name;
+            if (!directoryWatch.files.has(filePath)) {
+              directoryWatch.files.set(filePath, {
+                path: filePath,
+                handle: file,
+                lastModified: fileHandle.lastModified
+              });
+              EventSystem.emit(FileEvents.Created, filePath, file);
+            } else {
+              const storedFile = directoryWatch.files.get(filePath);
+              if (storedFile.lastModified != fileHandle.lastModified) {
+                storedFile.lastModified = fileHandle.lastModified;
+                EventSystem.emit(FileEvents.Changed, filePath, file);
+              }
+            }
+          } else if (file.kind == "directory") {
+            const directoryDirectoryPath = directoryPath + "/" + file.name;
+            if (!directoryWatch.files.has(directoryDirectoryPath)) {
+              directoryWatch.files.set(directoryDirectoryPath, {
+                path: directoryDirectoryPath,
+                handle: file,
+                lastModified: 0
+              });
+              EventSystem.emit(DirectoryEvents.Created, directoryDirectoryPath, file);
+            }
+          }
+        }
+      }
+      resolve();
+    }).then(() => {
+      setTimeout(() => {
+        this.update();
+      }, 1e3);
+    });
+  }
+}
+
+var ITreeMapType = /* @__PURE__ */ ((ITreeMapType2) => {
+  ITreeMapType2[ITreeMapType2["Folder"] = 0] = "Folder";
+  ITreeMapType2[ITreeMapType2["File"] = 1] = "File";
+  return ITreeMapType2;
+})(ITreeMapType || {});
+
+class StringUtils {
+  static CamelCaseToArray(str) {
+    return str.split(/(?=[A-Z])/);
+  }
+  static CapitalizeStrArray(strArr) {
+    let output = [];
+    for (let word of strArr) {
+      output.push(word[0].toUpperCase() + word.slice(1));
+    }
+    return output;
+  }
+  static GetEnumKeyByEnumValue(myEnum, enumValue) {
+    let keys = Object.keys(myEnum).filter((x) => myEnum[x] == enumValue);
+    return keys.length > 0 ? keys[0] : null;
+  }
+  static GetNameForPath(path) {
+    const pathArray = path.split("/");
+    const nameArr = pathArray[pathArray.length - 1].split(".");
+    return nameArr[0];
+  }
+  static Dirname(path) {
+    const pathArr = path.split("/");
+    const parentPath = pathArr.slice(0, pathArr.length - 1);
+    return parentPath.join("/");
   }
 }
 
@@ -503,12 +806,6 @@ class File extends Component {
   }
 }
 
-var ITreeMapType = /* @__PURE__ */ ((ITreeMapType2) => {
-  ITreeMapType2[ITreeMapType2["Folder"] = 0] = "Folder";
-  ITreeMapType2[ITreeMapType2["File"] = 1] = "File";
-  return ITreeMapType2;
-})(ITreeMapType || {});
-
 class Tree extends Component {
   constructor(props) {
     super(props);
@@ -569,36 +866,86 @@ class Tree extends Component {
   }
 }
 
-class EventSystem {
-  static events = /* @__PURE__ */ new Map();
-  static on(event, callback) {
-    const events = this.events.get(event) || [];
-    events.push(callback);
-    this.events.set(event, events);
+class LayoutAssets extends Component {
+  fileWatcher;
+  constructor(props) {
+    super(props);
+    this.setState({ currentTreeMap: /* @__PURE__ */ new Map() });
+    this.fileWatcher = new FileWatcher();
+    EventSystem.on(ProjectEvents.Opened, () => {
+      this.fileWatcher.watch("");
+    });
+    EventSystem.on(FileEvents.Created, (path, handle) => {
+      this.onFileOrDirectoryCreated(path, handle);
+    });
+    EventSystem.on(DirectoryEvents.Created, (path, handle) => {
+      this.onFileOrDirectoryCreated(path, handle);
+    });
   }
-  static emit(event, ...args) {
-    const callbacks = this.events.get(event);
-    if (callbacks === void 0) return;
-    for (let i = 0; i < callbacks.length; i++) {
-      callbacks[i](...args);
+  onFileOrDirectoryCreated(path, file) {
+    if (!this.state.currentTreeMap.has(path)) {
+      this.state.currentTreeMap.set(path, {
+        id: path,
+        name: file.name,
+        isSelected: false,
+        parent: StringUtils.Dirname(path) == path ? null : StringUtils.Dirname(path),
+        type: file instanceof FileSystemFileHandle ? ITreeMapType.File : ITreeMapType.Folder,
+        data: {
+          file,
+          instance: null
+        }
+      });
     }
+    console.log(this.state.currentTreeMap);
+    this.setState({ currentTreeMap: this.state.currentTreeMap });
+  }
+  render() {
+    console.log("RENDERRRR");
+    let treeMapArr = [];
+    for (const [name, entry] of this.state.currentTreeMap) {
+      treeMapArr.push(entry);
+    }
+    treeMapArr.sort(function(a, b) {
+      if (a.type == ITreeMapType.Folder != (b.type == ITreeMapType.Folder)) {
+        return a.type == ITreeMapType.Folder ? -1 : 1;
+      }
+      return a.name.localeCompare(b.name);
+    });
+    return /* @__PURE__ */ createElement(
+      "div",
+      {
+        style: {
+          overflow: "auto",
+          height: "100%"
+        }
+      },
+      /* @__PURE__ */ createElement(
+        Tree,
+        {
+          data: treeMapArr
+        }
+      )
+    );
   }
 }
 
-class LayoutHierarchyEvents {
-  static Selected = (gameObject) => {
-  };
-}
 class LayoutHierarchy extends Component {
   constructor(props) {
     super(props);
     this.setState({ gameObject: null });
+    EventSystem.on(GameObjectEvents.Created, (gameObject) => {
+      this.selectGameObject(gameObject);
+    });
+    EventSystem.on(GameObjectEvents.Deleted, (gameObject) => {
+      if (gameObject === this.state.gameObject) this.setState({ gameObject: null });
+    });
+  }
+  selectGameObject(gameObject) {
+    console.log("selected", gameObject);
+    EventSystem.emit(LayoutHierarchyEvents.Selected, gameObject);
+    this.setState({ gameObject });
   }
   onDropped(from, to) {
-  }
-  onClicked(data) {
-    EventSystem.emit(LayoutHierarchyEvents.Selected, data.data);
-    this.setState({ gameObject: data.data });
   }
   onDragStarted(event, data) {
   }
@@ -618,11 +965,11 @@ class LayoutHierarchy extends Component {
   render() {
     if (!this.props.engineAPI.currentScene) return;
     const nodes = this.buildTreeFromGameObjects(this.props.engineAPI.currentScene.gameObjects);
-    return /* @__PURE__ */ createElement("div", { style: "width: 100%" }, /* @__PURE__ */ createElement(
+    return /* @__PURE__ */ createElement("div", { style: "width: 100%; overflow: auto;" }, /* @__PURE__ */ createElement(
       Tree,
       {
         onDropped: (from, to) => this.onDropped(from, to),
-        onClicked: (data) => this.onClicked(data),
+        onClicked: (data) => this.selectGameObject(data.data),
         onDragStarted: (event, data) => this.onDragStarted(event, data),
         data: nodes
       }
@@ -926,39 +1273,11 @@ class InspectorType extends Component {
   }
 }
 
-class StringUtils {
-  static CamelCaseToArray(str) {
-    return str.split(/(?=[A-Z])/);
-  }
-  static CapitalizeStrArray(strArr) {
-    let output = [];
-    for (let word of strArr) {
-      output.push(word[0].toUpperCase() + word.slice(1));
-    }
-    return output;
-  }
-  static GetEnumKeyByEnumValue(myEnum, enumValue) {
-    let keys = Object.keys(myEnum).filter((x) => myEnum[x] == enumValue);
-    return keys.length > 0 ? keys[0] : null;
-  }
-  static GetNameForPath(path) {
-    const pathArray = path.split("/");
-    const nameArr = pathArray[pathArray.length - 1].split(".");
-    return nameArr[0];
-  }
-  static Dirname(path) {
-    const pathArr = path.split("/");
-    const parentPath = pathArr.slice(0, pathArr.length - 1);
-    return parentPath.join("/");
-  }
-}
 class LayoutInspectorGameObject extends Component {
   constructor(props) {
     super(props);
     this.state = { gameObject: null };
-    console.log("HEREEE");
     EventSystem.on(LayoutHierarchyEvents.Selected, (gameObject) => {
-      console.log("LayoutInspectorGameObject", gameObject);
       this.setState({ gameObject });
     });
   }
@@ -1180,12 +1499,183 @@ class LayoutTab extends Component {
   }
 }
 
+class Menu extends Component {
+  constructor(props) {
+    super(props);
+    this.state = { isDropdownVisible: false };
+  }
+  toggleDropdown() {
+    if (this.props.onToggled) this.props.onToggled(!this.state.isDropdownVisible);
+    this.setState({ isDropdownVisible: !this.state.isDropdownVisible });
+  }
+  onOptionClicked(option) {
+    this.toggleDropdown();
+    if (this.props.onOptionClicked) {
+      this.props.onOptionClicked(option);
+    }
+  }
+  render() {
+    return /* @__PURE__ */ createElement(
+      "div",
+      {
+        className: "dropdown"
+      },
+      /* @__PURE__ */ createElement(
+        "button",
+        {
+          className: "dropdown-btn",
+          onClick: (event) => this.toggleDropdown()
+        },
+        this.props.name
+      ),
+      this.state.isDropdownVisible ? /* @__PURE__ */ createElement("div", null, /* @__PURE__ */ createElement("div", { className: "dropdown-overlay", onClick: (event) => this.toggleDropdown() }), /* @__PURE__ */ createElement("div", { className: "dropdown-content" }, this.props.children)) : ""
+    );
+  }
+}
+
+class MenuDropdown extends Component {
+  constructor(props) {
+    super(props);
+    this.state = { isDropdownVisible: false };
+  }
+  toggleDropdown() {
+    if (this.props.onToggled) this.props.onToggled(!this.state.isDropdownVisible);
+    this.setState({ isDropdownVisible: !this.state.isDropdownVisible });
+  }
+  onOptionClicked(option) {
+    this.toggleDropdown();
+    if (this.props.onOptionClicked) {
+      this.props.onOptionClicked(option);
+    }
+  }
+  async contentRef(container) {
+    if (!container) return;
+    setTimeout(() => {
+      if (this.props.children) {
+        const w = container.parentElement.clientWidth;
+        container.parentElement.clientHeight;
+        container.style.marginLeft = w + "px";
+        container.style.marginTop = "-25px";
+        container.style.display = "";
+      }
+    }, 1);
+  }
+  render() {
+    return /* @__PURE__ */ createElement(
+      "div",
+      {
+        className: "dropdown-menu"
+      },
+      /* @__PURE__ */ createElement(
+        "button",
+        {
+          className: "dropdown-btn dropdown-item-btn",
+          onClick: (event) => this.toggleDropdown()
+        },
+        this.props.name
+      ),
+      /* @__PURE__ */ createElement("span", { className: "dropdown-right-icon" }, "\u25B6"),
+      this.state.isDropdownVisible ? /* @__PURE__ */ createElement("div", null, /* @__PURE__ */ createElement("div", { ref: (ref) => this.contentRef(ref), className: "dropdown-content", style: "display: none;" }, this.props.children)) : ""
+    );
+  }
+}
+
+class MenuItem extends Component {
+  constructor(props) {
+    super(props);
+  }
+  onClicked(event) {
+    if (this.props.closeMenu) {
+      this.props.closeMenu();
+    }
+    if (this.props.onClicked) {
+      this.props.onClicked();
+    }
+  }
+  render() {
+    return /* @__PURE__ */ createElement(
+      "button",
+      {
+        className: "dropdown-btn dropdown-item-btn",
+        onClick: (event) => {
+          this.onClicked(event);
+        },
+        ...this.props.disabled ? { disabled: true } : {}
+      },
+      this.props.name
+    );
+  }
+}
+
+class LayoutTopbar extends Component {
+  constructor(props) {
+    super(props);
+    this.setState({ selectedGameObject: null });
+    EventSystem.on(LayoutHierarchyEvents.Selected, (gameObject) => {
+      this.setState({ selectedGameObject: gameObject });
+    });
+  }
+  createEmptyGameObject() {
+    const gameObject = this.props.engineAPI.createGameObject(this.props.engineAPI.currentScene);
+    EventSystem.emit(GameObjectEvents.Created, gameObject);
+  }
+  deleteGameObject() {
+    if (this.state.selectedGameObject === null) return;
+    this.state.selectedGameObject.Destroy();
+    EventSystem.emit(GameObjectEvents.Deleted, this.state.selectedGameObject);
+    this.setState({ selectedGameObject: null });
+  }
+  openProject() {
+    console.log("open project");
+    FileBrowser.init().then(() => {
+      EventSystem.emit(ProjectEvents.Opened);
+    });
+  }
+  render() {
+    return /* @__PURE__ */ createElement("div", { style: "padding: 5px" }, /* @__PURE__ */ createElement(Menu, { name: "File" }, /* @__PURE__ */ createElement(MenuItem, { name: "Open Project...", onClicked: () => {
+      this.openProject();
+    } }), /* @__PURE__ */ createElement(MenuItem, { name: "Save Project", onClicked: () => {
+      this.saveProject();
+    } })), /* @__PURE__ */ createElement(Menu, { name: "Edit" }, /* @__PURE__ */ createElement(MenuItem, { name: "Delete", onClicked: () => {
+      this.deleteGameObject();
+    } })), /* @__PURE__ */ createElement(Menu, { name: "Assets" }, /* @__PURE__ */ createElement(MenuDropdown, { name: "Create" }, /* @__PURE__ */ createElement(MenuItem, { name: "Folder", onClicked: () => {
+      this.createFolder();
+    } }), /* @__PURE__ */ createElement(MenuItem, { name: "Material", onClicked: () => {
+      this.createMaterial();
+    } }), /* @__PURE__ */ createElement(MenuItem, { name: "Script", onClicked: () => {
+      this.createScript();
+    } }), /* @__PURE__ */ createElement(MenuItem, { name: "Scene", onClicked: () => {
+      this.createScene();
+    } }))), /* @__PURE__ */ createElement(Menu, { name: "GameObject" }, /* @__PURE__ */ createElement(MenuItem, { name: "Create Empty", onClicked: () => {
+      this.createEmptyGameObject();
+    } }), /* @__PURE__ */ createElement(MenuDropdown, { name: "3D Object" }, /* @__PURE__ */ createElement(MenuItem, { name: "Cube", onClicked: () => {
+      this.createPrimitive(PrimitiveType.Cube);
+    } }), /* @__PURE__ */ createElement(MenuItem, { name: "Capsule", onClicked: () => {
+      this.createPrimitive(PrimitiveType.Capsule);
+    } }), /* @__PURE__ */ createElement(MenuItem, { name: "Plane", onClicked: () => {
+      this.createPrimitive(PrimitiveType.Plane);
+    } }), /* @__PURE__ */ createElement(MenuItem, { name: "Sphere", onClicked: () => {
+      this.createPrimitive(PrimitiveType.Sphere);
+    } }), /* @__PURE__ */ createElement(MenuItem, { name: "Cylinder", onClicked: () => {
+      this.createPrimitive(PrimitiveType.Cylinder);
+    } })), /* @__PURE__ */ createElement(MenuDropdown, { name: "Lights" }, /* @__PURE__ */ createElement(MenuItem, { name: "Directional Light", onClicked: () => {
+      this.createLight(LightTypes.Directional);
+    } }), /* @__PURE__ */ createElement(MenuItem, { name: "Point Light", onClicked: () => {
+      this.createLight(LightTypes.Point);
+    } }), /* @__PURE__ */ createElement(MenuItem, { name: "Spot Light", onClicked: () => {
+      this.createLight(LightTypes.Spot);
+    } }), /* @__PURE__ */ createElement(MenuItem, { name: "Area Light", onClicked: () => {
+      this.createLight(LightTypes.Area);
+    } }))));
+  }
+}
+
 class Layout extends Component {
   render() {
-    return /* @__PURE__ */ createElement("flex", { class: "h", style: "flex: 1; height: 100%;" }, /* @__PURE__ */ createElement("flex", { class: "v", style: "flex: 2;" }, /* @__PURE__ */ createElement("flex-item", { style: "flex: 2;" }, /* @__PURE__ */ createElement(LayoutCanvas, { engineAPI: this.props.engineAPI })), /* @__PURE__ */ createElement(LayoutResizer, null), /* @__PURE__ */ createElement("flex", { class: "h", style: "flex: 1;" }, /* @__PURE__ */ createElement("flex-item", { style: "flex: 1;" }, /* @__PURE__ */ createElement(LayoutTab, { entries: [
+    return /* @__PURE__ */ createElement("flex", { class: "v", style: "flex: 1; height: 100%;" }, /* @__PURE__ */ createElement("flex-item", null, /* @__PURE__ */ createElement(LayoutTopbar, { engineAPI: this.props.engineAPI })), /* @__PURE__ */ createElement(LayoutResizer, null), /* @__PURE__ */ createElement("flex", { class: "h", style: "flex: 1; height: 100%;" }, /* @__PURE__ */ createElement("flex", { class: "v", style: "flex: 2;" }, /* @__PURE__ */ createElement("flex-item", { style: "flex: 2;" }, /* @__PURE__ */ createElement(LayoutCanvas, { engineAPI: this.props.engineAPI })), /* @__PURE__ */ createElement(LayoutResizer, null), /* @__PURE__ */ createElement("flex", { class: "h", style: "flex: 1;" }, /* @__PURE__ */ createElement("flex-item", { style: "flex: 1;" }, /* @__PURE__ */ createElement(LayoutTab, { entries: [
       { title: "Assets", node: /* @__PURE__ */ createElement(LayoutAssets, { engineAPI: this.props.engineAPI }) },
       { title: "Console", node: /* @__PURE__ */ createElement(LayoutConsole, { engineAPI: this.props.engineAPI }) }
-    ] })))), /* @__PURE__ */ createElement(LayoutResizer, null), /* @__PURE__ */ createElement("flex-item", { style: "flex: 1;" }, /* @__PURE__ */ createElement(LayoutHierarchy, { engineAPI: this.props.engineAPI })), /* @__PURE__ */ createElement(LayoutResizer, null), /* @__PURE__ */ createElement("flex", { class: "v", style: "flex: 1;" }, /* @__PURE__ */ createElement("flex-item", { style: "flex: 1;" }, /* @__PURE__ */ createElement(LayoutInspector, { engineAPI: this.props.engineAPI }))));
+    ] })))), /* @__PURE__ */ createElement(LayoutResizer, null), /* @__PURE__ */ createElement("flex-item", { style: "flex: 1;" }, /* @__PURE__ */ createElement(LayoutHierarchy, { engineAPI: this.props.engineAPI })), /* @__PURE__ */ createElement(LayoutResizer, null), /* @__PURE__ */ createElement("flex", { class: "v", style: "flex: 1;" }, /* @__PURE__ */ createElement("flex-item", { style: "flex: 1;" }, /* @__PURE__ */ createElement(LayoutInspector, { engineAPI: this.props.engineAPI })))));
   }
 }
 

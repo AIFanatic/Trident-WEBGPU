@@ -22,19 +22,7 @@ class PrepareSceneData extends GPU.RenderPass {
   textureMaps;
   materialMaps = /* @__PURE__ */ new Map();
   dummyTexture;
-  constructor() {
-    super({
-      outputs: [
-        MeshletPassParams.indirectVertices,
-        MeshletPassParams.indirectMeshInfo,
-        MeshletPassParams.indirectMeshletInfo,
-        MeshletPassParams.indirectObjectInfo,
-        MeshletPassParams.indirectMeshMatrixInfo,
-        MeshletPassParams.meshletsCount,
-        MeshletPassParams.textureMaps
-      ]
-    });
-  }
+  needsUpdate = false;
   async init(resources) {
     const bufferSize = 1024 * 100 * 1;
     this.meshMatrixInfoBuffer = new GPU.DynamicBufferMemoryAllocator(bufferSize);
@@ -46,6 +34,7 @@ class PrepareSceneData extends GPU.RenderPass {
       if (this.meshMatrixInfoBuffer.has(meshlet.id)) {
         this.meshMatrixInfoBuffer.set(meshlet.id, meshlet.transform.localToWorldMatrix.elements);
       }
+      this.needsUpdate = true;
     });
     this.dummyTexture = GPU.TextureArray.Create(1, 1, 1);
     this.initialized = true;
@@ -165,11 +154,17 @@ class PrepareSceneData extends GPU.RenderPass {
   // public preExecute(resources: ResourcePool) {}
   // // Render/compute. No buffer/texture creation of filling is allowed.
   // public execute(resources: ResourcePool) {}
-  execute(resources) {
+  async preFrame(resources) {
     const mainCamera = Components.Camera.mainCamera;
     const scene = mainCamera.gameObject.scene;
-    const sceneMeshlets = [...scene.GetComponents(MeshletMesh)];
-    if (this.currentMeshCount !== sceneMeshlets.length) {
+    const _sceneMeshlets = scene.GetComponents(MeshletMesh);
+    let sceneMeshlets = [];
+    for (const sceneMeshlet of _sceneMeshlets) {
+      if (sceneMeshlet.constructor !== MeshletMesh) continue;
+      sceneMeshlets.push(sceneMeshlet);
+    }
+    if (this.currentMeshCount !== sceneMeshlets.length || this.needsUpdate === true) {
+      this.needsUpdate = false;
       const meshlets = [];
       for (const meshlet of sceneMeshlets) {
         for (const geometry of meshlet.meshlets) {
@@ -180,7 +175,6 @@ class PrepareSceneData extends GPU.RenderPass {
       const meshMatrixCache = /* @__PURE__ */ new Map();
       const meshMaterialCache = /* @__PURE__ */ new Map();
       for (const mesh of sceneMeshlets) {
-        let materialIndex = -1;
         const material = mesh.material;
         if (!(material instanceof PBRMaterial)) continue;
         if (!this.meshMaterialInfo.has(material.id)) {
@@ -190,8 +184,7 @@ class PrepareSceneData extends GPU.RenderPass {
             meshMaterialCache.set(material.id, meshMaterialCache.size);
           }
         }
-        let mc = meshMaterialCache.get(material.id);
-        if (mc !== void 0) materialIndex = mc;
+        meshMaterialCache.get(material.id);
         if (!this.meshMatrixInfoBuffer.has(mesh.id)) {
           this.meshMatrixInfoBuffer.set(mesh.id, mesh.transform.localToWorldMatrix.elements);
         }
@@ -203,7 +196,6 @@ class PrepareSceneData extends GPU.RenderPass {
         for (const meshlet of mesh.meshlets) {
           if (!this.meshletInfoBuffer.has(meshlet.id)) this.meshletInfoBuffer.set(meshlet.id, this.getMeshletInfo(meshlet));
           if (!this.vertexBuffer.has(meshlet.id)) {
-            console.log("Setting vertices");
             this.vertexBuffer.set(meshlet.id, this.getVertexInfo(meshlet));
           }
           let geometryIndex = indexedCache.get(meshlet.crc);
@@ -211,16 +203,9 @@ class PrepareSceneData extends GPU.RenderPass {
             geometryIndex = indexedCache.size;
             indexedCache.set(meshlet.crc, geometryIndex);
           }
-          this.objectInfoBuffer.set(`${mesh.id}-${meshlet.id}`, new Float32Array([meshMatrixIndex, geometryIndex, materialIndex, 0]));
+          this.objectInfoBuffer.set(`${mesh.id}-${meshlet.id}`, new Float32Array([meshMatrixIndex, geometryIndex, 0, 0]));
         }
       }
-      this.textureMaps = {
-        albedo: this.createMaterialMap(this.albedoMaps, "albedo"),
-        normal: this.createMaterialMap(this.normalMaps, "normal"),
-        height: this.createMaterialMap(this.heightMaps, "height"),
-        metalness: this.createMaterialMap(this.metalnessMaps, "metalness"),
-        emissive: this.createMaterialMap(this.emissiveMaps, "emissive")
-      };
       this.currentMeshCount = sceneMeshlets.length;
       this.currentMeshletsCount = meshlets.length;
       MeshletDebug.totalMeshlets.SetValue(meshlets.length);
@@ -231,6 +216,15 @@ class PrepareSceneData extends GPU.RenderPass {
     resources.setResource(MeshletPassParams.indirectObjectInfo, this.objectInfoBuffer.getBuffer());
     resources.setResource(MeshletPassParams.indirectMeshMatrixInfo, this.meshMatrixInfoBuffer.getBuffer());
     resources.setResource(MeshletPassParams.meshletsCount, this.currentMeshletsCount);
+  }
+  async execute(resources) {
+    this.textureMaps = {
+      albedo: this.createMaterialMap(this.albedoMaps, "albedo"),
+      normal: this.createMaterialMap(this.normalMaps, "normal"),
+      height: this.createMaterialMap(this.heightMaps, "height"),
+      metalness: this.createMaterialMap(this.metalnessMaps, "metalness"),
+      emissive: this.createMaterialMap(this.emissiveMaps, "emissive")
+    };
     resources.setResource(MeshletPassParams.textureMaps, this.textureMaps);
   }
 }
