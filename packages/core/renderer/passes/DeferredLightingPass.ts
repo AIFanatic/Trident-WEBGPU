@@ -15,8 +15,6 @@ import { EventSystem } from "../../Events";
 import { LightShadowData } from "./DeferredShadowMapPass";
 import { DynamicBufferMemoryAllocator } from "../MemoryAllocator";
 
-import { Vector4 } from "../../math";
-
 enum LightType {
     SPOT_LIGHT,
     DIRECTIONAL_LIGHT,
@@ -41,28 +39,9 @@ export class DeferredLightingPass extends RenderPass {
 
     private dummyShadowPassDepth: RenderTexture;
 
-    constructor() {
-        super({
-            inputs: [
-                PassParams.DebugSettings,
-                PassParams.GBufferAlbedo,
-                PassParams.GBufferNormal,
-                PassParams.GBufferERMO,
-                PassParams.GBufferDepth,
-                PassParams.ShadowPassDepth,
-                PassParams.ShadowPassCascadeData,
-            ],
-            outputs: [PassParams.LightingPassOutput, PassParams.LightsBuffer] });
-    }
-
     public async init() {
         this.shader = await Shader.Create({
             code: await ShaderLoader.DeferredLighting,
-            attributes: {
-                position: { location: 0, size: 3, type: "vec3" },
-                normal: { location: 1, size: 3, type: "vec3" },
-                uv: { location: 2, size: 2, type: "vec2" }
-            },
             uniforms: {
                 textureSampler: { group: 0, binding: 0, type: "sampler" },
                 albedoTexture: { group: 0, binding: 1, type: "texture" },
@@ -110,7 +89,7 @@ export class DeferredLightingPass extends RenderPass {
         const shadowSamplerComp = TextureSampler.Create({minFilter: "linear", magFilter: "linear", compare: "less"});
         this.shader.SetSampler("shadowSamplerComp", shadowSamplerComp);
 
-        this.quadGeometry = Geometry.Plane();
+        this.quadGeometry = new Geometry();
 
         this.lightsBuffer = new DynamicBufferMemoryAllocator(120 * 10);
         this.lightsCountBuffer = Buffer.Create(1 * 4, BufferType.STORAGE);
@@ -214,12 +193,10 @@ export class DeferredLightingPass extends RenderPass {
         // console.log("Updating light buffer");
     }
 
-    public execute(resources: ResourcePool) {
+    public async preFrame(resources: ResourcePool) {
         if (!this.initialized) return;
-        // if (!this.needsUpdate) return;
-        
+        this.drawCommands.length = 0;
         const camera = Camera.mainCamera;
-
         
         const scene = camera.gameObject.scene;
         const _lights = scene.GetComponents(Light);
@@ -240,9 +217,9 @@ export class DeferredLightingPass extends RenderPass {
         const inputSkyboxIrradiance = resources.getResource(PassParams.SkyboxIrradiance) as CubeTexture;
         const inputSkyboxPrefilter = resources.getResource(PassParams.SkyboxPrefilter) as CubeTexture;
         const inputSkyboxBRDFLUT = resources.getResource(PassParams.SkyboxBRDFLUT) as RenderTexture;
+        if (!inputGBufferAlbedo) return;
 
 
-        RendererContext.BeginRenderPass("DeferredLightingPass", [{ target: this.outputLightingPass, clear: true }], undefined, true);
 
         this.shader.SetTexture("albedoTexture", inputGBufferAlbedo);
         this.shader.SetTexture("normalTexture", inputGBufferNormal);
@@ -271,7 +248,19 @@ export class DeferredLightingPass extends RenderPass {
         const settings = resources.getResource(PassParams.DebugSettings);
         this.shader.SetArray("settings", settings);
         
-        RendererContext.DrawGeometry(this.quadGeometry, this.shader);
+        // RendererContext.DrawGeometry(this.quadGeometry, this.shader);
+        this.drawCommands.push({geometry: this.quadGeometry, shader: this.shader, instanceCount: 1, firstInstance: 0});
+    }
+
+    public async execute(resources: ResourcePool) {
+        if (!this.initialized) return;
+        
+        RendererContext.BeginRenderPass("DeferredLightingPass", [{ target: this.outputLightingPass, clear: true }], undefined, true);
+
+        for (const draw of this.drawCommands) {
+            RendererContext.Draw(draw.geometry, draw.shader, 3, draw.instanceCount, draw.firstInstance);
+        }
+
         RendererContext.EndRenderPass();
 
         resources.setResource(PassParams.LightingPassOutput, this.outputLightingPass);

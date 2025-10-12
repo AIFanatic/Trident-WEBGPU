@@ -3,110 +3,71 @@ import { RendererContext } from "../RendererContext";
 import { RenderPass, ResourcePool } from "../RenderGraph";
 import { Mesh } from "../../components/Mesh";
 import { SkinnedMesh } from "../../components/SkinnedMesh";
-import { Transform } from "../../components/Transform";
 import { PassParams } from "../RenderingPipeline";
 import { InstancedMesh } from "../../components/InstancedMesh";
 import { Renderer } from "../Renderer";
-import { BoundingVolume } from "../../math/BoundingVolume";
 import { DynamicBufferMemoryAllocator } from "../MemoryAllocator";
 
 export class DeferredGBufferPass extends RenderPass {
     public name: string = "DeferredGBufferPass";
     private modelMatrixBuffer: DynamicBufferMemoryAllocator;
 
-    constructor() {
-        super({
-            inputs: [
-                PassParams.MainCamera,
-                PassParams.GBufferAlbedo,
-                PassParams.GBufferNormal,
-                PassParams.GBufferERMO,
-                PassParams.GBufferDepth,
-            ], 
-            outputs: [
-            ]
-        });
-    }
-
     public async init(resources: ResourcePool) {
         this.modelMatrixBuffer = new DynamicBufferMemoryAllocator(16 * 4 * 1000);
         this.initialized = true;
     }
 
-    private boundingVolume = new BoundingVolume();
     private frustumCull(camera: Camera, meshes: Mesh[]): Mesh[] {
         let nonOccluded: Mesh[] = [];
         for (const mesh of meshes) {
-            this.boundingVolume.copy(mesh.geometry.boundingVolume);
-            this.boundingVolume
-            if (camera.frustum.intersectsBoundingVolume(mesh.geometry.boundingVolume) === true) {
+            if (camera.frustum.intersectsBoundingVolume(mesh.bounds) === true) {
                 nonOccluded.push(mesh);
             }
         }
         return nonOccluded;
     }
 
-    public execute(resources: ResourcePool) {
+    public async preFrame(resources: ResourcePool) {
+        this.drawCommands.length = 0;
         if (!this.initialized) return;
 
         const scene = Camera.mainCamera.gameObject.scene;
-        const _meshes =scene.GetComponents(Mesh);
-        let meshesInfo: {mesh: Mesh, index: number}[] = [];
-
-        for (let i = 0; i < _meshes.length; i++) {
-            const mesh = _meshes[i];
-            if (!mesh.enabled || !mesh.gameObject.enabled || !mesh.geometry || !mesh.material || mesh instanceof InstancedMesh) continue;
-            meshesInfo.push({mesh: mesh, index: i});
+        const allMeshes = scene.GetComponents(Mesh);
+        let renderableMeshes: Mesh[] = [];
+        for (const mesh of allMeshes) {
+            if (!mesh.enabled || !mesh.gameObject.enabled || !mesh.geometry || !mesh.material || mesh.constructor !== Mesh) continue;
+            renderableMeshes.push(mesh);
         }
-        // const meshes = this.frustumCull(Camera.mainCamera, scene.GetComponents(Mesh));
-        Renderer.info.visibleObjects = meshesInfo.length;
+        renderableMeshes = this.frustumCull(Camera.mainCamera, renderableMeshes);
+
+        Renderer.info.visibleObjects += renderableMeshes.length;
         const instancedMeshes = scene.GetComponents(InstancedMesh);
-        if (meshesInfo.length === 0 && instancedMeshes.length === 0) return;
+        if (renderableMeshes.length === 0 && instancedMeshes.length === 0) return;
 
         const inputCamera = Camera.mainCamera;
         if (!inputCamera) throw Error(`No inputs passed to ${this.name}`);
-        const backgroundColor = inputCamera.backgroundColor;
-
-        const inputGBufferAlbedo = resources.getResource(PassParams.GBufferAlbedo);
-        const inputGBufferNormal = resources.getResource(PassParams.GBufferNormal);
-        const inputGBufferERMO = resources.getResource(PassParams.GBufferERMO);
-        const inputGBufferDepth = resources.getResource(PassParams.GBufferDepth);
-
-        // Update meshes matrix buffer
-        for (const meshInfo of meshesInfo) {
-            this.modelMatrixBuffer.set(meshInfo.mesh.id, meshInfo.mesh.transform.localToWorldMatrix.elements);
-        }
-
-        RendererContext.BeginRenderPass(this.name,
-            [
-                {target: inputGBufferAlbedo, clear: false, color: backgroundColor},
-                {target: inputGBufferNormal, clear: false, color: backgroundColor},
-                {target: inputGBufferERMO, clear: false, color: backgroundColor},
-            ],
-            {target: inputGBufferDepth, clear: false}
-        , true);
 
         const projectionMatrix = inputCamera.projectionMatrix;
         const viewMatrix = inputCamera.viewMatrix;
-
-        for (const meshInfo of meshesInfo) {
-            const geometry = meshInfo.mesh.geometry;
-            const material = meshInfo.mesh.material;
+        
+        for (const mesh of renderableMeshes) {
+            // Update meshes matrix buffer
+            const offset = this.modelMatrixBuffer.set(mesh.id, mesh.transform.localToWorldMatrix.elements);
+            const matrixIndex = offset / 16; // 16 floats per mat4
+            const geometry = mesh.geometry;
+            const material = mesh.material;
             if (material.params.isDeferred === false) continue;
-            if (!material.shader) {
-                material.createShader();
-                continue;
-            }
+            if (!material.shader) continue;
             const shader = material.shader;
             shader.SetMatrix4("projectionMatrix", projectionMatrix);
             shader.SetMatrix4("viewMatrix", viewMatrix);
             shader.SetBuffer("modelMatrix", this.modelMatrixBuffer.getBuffer());
 
             shader.SetVector3("cameraPosition", inputCamera.transform.position);
-            if (meshInfo.mesh instanceof SkinnedMesh) {
-                shader.SetBuffer("boneMatrices", meshInfo.mesh.GetBoneMatricesBuffer());
+            if (mesh instanceof SkinnedMesh) {
+                shader.SetBuffer("boneMatrices", mesh.GetBoneMatricesBuffer());
             }
-            RendererContext.DrawGeometry(geometry, shader, 1, meshInfo.index);
+            this.drawCommands.push({geometry: geometry, shader: shader, instanceCount: 1, firstInstance: matrixIndex});
             
             // Debug
             const position = geometry.attributes.get("position");
@@ -118,23 +79,45 @@ export class DeferredGBufferPass extends RenderPass {
             const geometry = instancedMesh.geometry
             const material = instancedMesh.material
             if (material.params.isDeferred === false) continue;
-            if (!material.shader) {
-                material.createShader().then(shader => {
-                    // shader.params.cullMode = "front"
-                })
-                continue;
-            }
+            if (!material.shader) continue;
             const shader = material.shader;
             shader.SetMatrix4("projectionMatrix", projectionMatrix);
             shader.SetMatrix4("viewMatrix", viewMatrix);
             shader.SetBuffer("modelMatrix", instancedMesh.matricesBuffer);
             shader.SetVector3("cameraPosition", inputCamera.transform.position);
-            RendererContext.DrawGeometry(geometry, shader, instancedMesh.instanceCount+1);
+            this.drawCommands.push({geometry: geometry, shader: shader, instanceCount: instancedMesh.instanceCount+1, firstInstance: 0});
 
             // Debug
             const position = geometry.attributes.get("position");
             Renderer.info.vertexCount += (position.array.length / 3) * instancedMesh.instanceCount;
             Renderer.info.triangleCount += (geometry.index ? geometry.index.array.length / 3 : position.array.length / 3) * instancedMesh.instanceCount;
+        }
+    }
+
+    public async execute(resources: ResourcePool) {
+        if (!this.initialized) return;
+        if (this.drawCommands.length === 0) return;
+
+        const inputCamera = Camera.mainCamera;
+        if (!inputCamera) throw Error(`No inputs passed to ${this.name}`);
+        const backgroundColor = inputCamera.backgroundColor;
+
+        const inputGBufferAlbedo = resources.getResource(PassParams.GBufferAlbedo);
+        const inputGBufferNormal = resources.getResource(PassParams.GBufferNormal);
+        const inputGBufferERMO = resources.getResource(PassParams.GBufferERMO);
+        const inputGBufferDepth = resources.getResource(PassParams.GBufferDepth);
+
+        RendererContext.BeginRenderPass(this.name,
+            [
+                {target: inputGBufferAlbedo, clear: false, color: backgroundColor},
+                {target: inputGBufferNormal, clear: false, color: backgroundColor},
+                {target: inputGBufferERMO, clear: false, color: backgroundColor},
+            ],
+            {target: inputGBufferDepth, clear: false}
+        , true);
+
+        for (const draw of this.drawCommands) {
+            RendererContext.DrawGeometry(draw.geometry, draw.shader, draw.instanceCount, draw.firstInstance);
         }
 
         resources.setResource(PassParams.GBufferDepth, inputGBufferDepth);

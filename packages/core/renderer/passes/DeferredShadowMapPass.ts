@@ -42,6 +42,23 @@ class _DeferredShadowMapPassSettings {
 
 export const DeferredShadowMapPassSettings = new _DeferredShadowMapPassSettings();
 
+interface PreparedShadowViewport {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+}
+
+interface PreparedShadowLight {
+    light: Light;
+    layer: number;
+    numCascades: number;
+    copyOffset: number;
+    copySize: number;
+    cascadeViewports: PreparedShadowViewport[];
+    cascadeSplits: Float32Array;
+}
+
 export class DeferredShadowMapPass extends RenderPass {
     public name: string = "DeferredShadowMapPass";
 
@@ -53,8 +70,8 @@ export class DeferredShadowMapPass extends RenderPass {
     private lightProjectionViewMatricesBuffer: Buffer;
     private modelMatrices: DynamicBuffer;
 
-    private cascadeIndexBuffers: Buffer[] = [];
     private cascadeCurrentIndexBuffer: Buffer;
+    private cascadeIndexBuffers: Buffer[] = [];
 
     private lightShadowData: Map<string, LightShadowData> = new Map();
 
@@ -62,25 +79,13 @@ export class DeferredShadowMapPass extends RenderPass {
 
     private skinnedBoneMatricesBuffer: Buffer;
 
+    private preparedLights: PreparedShadowLight[] = [];
+    private preparedMeshes: Mesh[] = [];
+    private preparedInstancedMeshes: InstancedMesh[] = [];
+
     // TODO: Clean this, csmSplits here to be used by debugger plugin
     public readonly Settings = DeferredShadowMapPassSettings;
     public csmSplits: number[] = [0, 0, 0, 0];
-
-    constructor() {
-        super({
-            inputs: [
-                PassParams.MainCamera,
-                PassParams.GBufferAlbedo,
-                PassParams.GBufferNormal,
-                PassParams.GBufferERMO,
-                PassParams.GBufferDepth,
-            ],
-            outputs: [
-                PassParams.ShadowPassDepth,
-                PassParams.ShadowPassCascadeData,
-            ]
-        });
-    }
 
     public async init(resources: ResourcePool) {
         const code = `
@@ -213,6 +218,24 @@ export class DeferredShadowMapPass extends RenderPass {
         this.initialized = true;
     }
 
+    public async shaderInit(resources: ResourcePool) {
+        if (!this.initialized) return;
+        if (this.lightProjectionMatrixBuffer) {
+            this.drawShadowShader.SetBuffer("projectionMatrix", this.lightProjectionMatrixBuffer);
+            this.drawSkinnedMeshShadowShader.SetBuffer("projectionMatrix", this.lightProjectionMatrixBuffer);
+            this.drawInstancedShadowShader.SetBuffer("projectionMatrix", this.lightProjectionMatrixBuffer);
+        }
+        if (this.cascadeCurrentIndexBuffer) {
+            this.drawShadowShader.SetBuffer("cascadeIndex", this.cascadeCurrentIndexBuffer);
+            this.drawSkinnedMeshShadowShader.SetBuffer("cascadeIndex", this.cascadeCurrentIndexBuffer);
+            this.drawInstancedShadowShader.SetBuffer("cascadeIndex", this.cascadeCurrentIndexBuffer);
+        }
+        if (this.modelMatrices) {
+            this.drawShadowShader.SetBuffer("modelMatrix", this.modelMatrices);
+            this.drawSkinnedMeshShadowShader.SetBuffer("modelMatrix", this.modelMatrices);
+        }
+    }
+
     private getCornersForCascade(camera: Camera, cascadeNear: number, cascadeFar: number): Vector3[] {
         const projectionMatrix = new Matrix4().perspectiveWGPUMatrix(camera.fov * (Math.PI / 180), camera.aspect, cascadeNear, cascadeFar);
 
@@ -325,191 +348,230 @@ export class DeferredShadowMapPass extends RenderPass {
         return cascades;
     }
 
-    public execute(resources: ResourcePool) {
+    public async preFrame(resources: ResourcePool) {
         if (!this.initialized) return;
-        // if (!Camera.mainCamera) return;
+        const mainCamera = Camera.mainCamera;
+        if (!mainCamera) return;
 
-
-        const scene = Camera.mainCamera.gameObject.scene;
-
+        const scene = mainCamera.gameObject.scene;
         this.lightShadowData.clear();
+        this.preparedLights.length = 0;
+        this.preparedMeshes.length = 0;
+        this.preparedInstancedMeshes.length = 0;
 
-        // const lights = scene.GetComponents(Light);
-        // TODO: Fix, GetComponents(Light)
-        const lights = [...scene.GetComponents(SpotLight), ...scene.GetComponents(PointLight), ...scene.GetComponents(DirectionalLight), ...scene.GetComponents(AreaLight)];
-
-        // Remove lights that don't have shadows enabled
-        for (let i = lights.length - 1; i >= 0; i--) {
-            if (lights[i].castShadows === false) {
-                lights.splice(i, 1);
-            }
-        }
+        const lights = [
+            ...scene.GetComponents(SpotLight),
+            ...scene.GetComponents(PointLight),
+            ...scene.GetComponents(DirectionalLight),
+            ...scene.GetComponents(AreaLight)
+        ].filter(light => light.castShadows === true);
 
         if (lights.length === 0) return;
 
-        const instancedMeshes = scene.GetComponents(InstancedMesh);
-        
-        let meshes: Mesh[] = [];
-        const _meshes = [...scene.GetComponents(Mesh), ...scene.GetComponents(SkinnedMesh)];
-        for (const mesh of _meshes) {
-            if (mesh.enableShadows && mesh.enabled && mesh.gameObject.enabled) meshes.push(mesh);
+        if (!this.shadowOutput || this.shadowOutput.depth !== lights.length) {
+            this.shadowOutput = DepthTextureArray.Create(
+                DeferredShadowMapPassSettings.shadowWidth,
+                DeferredShadowMapPassSettings.shadowHeight,
+                lights.length
+            );
         }
 
-        if (meshes.length === 0 && instancedMeshes.length === 0) return;
-
-        // Lights
-        if (lights.length !== this.shadowOutput.depth) {
-            this.shadowOutput = DepthTextureArray.Create(DeferredShadowMapPassSettings.shadowWidth, DeferredShadowMapPassSettings.shadowHeight, lights.length);
-        }
-
-        RendererContext.BeginRenderPass(`ShadowPass - clear`, [], { target: this.shadowOutput, clear: true }, true);
-        RendererContext.EndRenderPass();
-        resources.setResource(PassParams.ShadowPassDepth, this.shadowOutput);
-
+        const cascadeCapacity = DeferredShadowMapPassSettings.numOfCascades;
+        const perLightByteSize = cascadeCapacity * 4 * 16;
 
         if (!this.lightProjectionMatrixBuffer) {
-            this.lightProjectionMatrixBuffer = Buffer.Create(lights.length * 4 * 4 * 16, BufferType.STORAGE);
+            this.lightProjectionMatrixBuffer = Buffer.Create(perLightByteSize, BufferType.STORAGE);
             this.drawShadowShader.SetBuffer("projectionMatrix", this.lightProjectionMatrixBuffer);
             this.drawSkinnedMeshShadowShader.SetBuffer("projectionMatrix", this.lightProjectionMatrixBuffer);
             this.drawInstancedShadowShader.SetBuffer("projectionMatrix", this.lightProjectionMatrixBuffer);
         }
 
-        if (!this.lightProjectionViewMatricesBuffer || this.lightProjectionViewMatricesBuffer.size / 4 / 4 / 16 !== lights.length) {
-            this.lightProjectionViewMatricesBuffer = Buffer.Create(lights.length * DeferredShadowMapPassSettings.numOfCascades * 4 * 16, BufferType.STORAGE);
+        const totalProjectionSize = lights.length * perLightByteSize;
+        if (!this.lightProjectionViewMatricesBuffer || this.lightProjectionViewMatricesBuffer.size !== totalProjectionSize) {
+            this.lightProjectionViewMatricesBuffer = Buffer.Create(totalProjectionSize, BufferType.STORAGE);
         }
 
         if (!this.cascadeCurrentIndexBuffer) {
             this.cascadeCurrentIndexBuffer = Buffer.Create(4, BufferType.STORAGE);
+            this.drawShadowShader.SetBuffer("cascadeIndex", this.cascadeCurrentIndexBuffer);
+            this.drawSkinnedMeshShadowShader.SetBuffer("cascadeIndex", this.cascadeCurrentIndexBuffer);
+            this.drawInstancedShadowShader.SetBuffer("cascadeIndex", this.cascadeCurrentIndexBuffer);
         }
-
-        if (this.cascadeIndexBuffers.length === 0) {
-            for (let i = 0; i < DeferredShadowMapPassSettings.numOfCascades; i++) {
-                const buffer = Buffer.Create(4, BufferType.STORAGE)
+        if (this.cascadeIndexBuffers.length < cascadeCapacity) {
+            for (let i = this.cascadeIndexBuffers.length; i < cascadeCapacity; i++) {
+                const buffer = Buffer.Create(4, BufferType.STORAGE);
                 buffer.SetArray(new Float32Array([i]));
                 this.cascadeIndexBuffers.push(buffer);
             }
         }
 
-        // Model
+        const meshes = [...scene.GetComponents(Mesh), ...scene.GetComponents(SkinnedMesh)]
+            .filter(mesh => mesh.enableShadows && mesh.enabled && mesh.gameObject.enabled);
+
         if (meshes.length > 0) {
-            if (!this.modelMatrices || this.modelMatrices.size / 256 !== meshes.length) {
-                this.modelMatrices = DynamicBuffer.Create(meshes.length * 256, BufferType.STORAGE, 256);
+            const requiredSize = meshes.length * 256;
+            if (!this.modelMatrices || this.modelMatrices.size !== requiredSize) {
+                this.modelMatrices = DynamicBuffer.Create(requiredSize, BufferType.STORAGE, 256);
+                this.drawShadowShader.SetBuffer("modelMatrix", this.modelMatrices);
+                this.drawSkinnedMeshShadowShader.SetBuffer("modelMatrix", this.modelMatrices);
             }
-            
-            // TODO: Only update if model changes
+
             for (let i = 0; i < meshes.length; i++) {
-                this.modelMatrices.SetArray(meshes[i].transform.localToWorldMatrix.elements, i * 256)
+                this.modelMatrices.SetArray(meshes[i].transform.localToWorldMatrix.elements, i * 256);
             }
-    
-            this.drawShadowShader.SetBuffer("modelMatrix", this.modelMatrices);
-            this.drawSkinnedMeshShadowShader.SetBuffer("modelMatrix", this.modelMatrices);
         }
-        
+        this.preparedMeshes = meshes;
 
-        const shadowOutput = resources.getResource(PassParams.ShadowPassDepth)
-        shadowOutput.SetActiveLayer(0);
+        const instancedMeshes = scene.GetComponents(InstancedMesh).filter(instance => instance.enableShadows && instance.instanceCount > 0);
+        this.preparedInstancedMeshes = instancedMeshes;
 
-        this.drawShadowShader.SetBuffer("cascadeIndex", this.cascadeCurrentIndexBuffer);
-        this.drawSkinnedMeshShadowShader.SetBuffer("cascadeIndex", this.cascadeCurrentIndexBuffer);
-        this.drawInstancedShadowShader.SetBuffer("cascadeIndex", this.cascadeCurrentIndexBuffer);
-
-
-        let shadowMapIndex = 0;
+        let shadowLayer = 0;
         for (let i = 0; i < lights.length; i++) {
             const light = lights[i];
 
-            shadowOutput.SetActiveLayer(shadowMapIndex);
-
-            // TODO: For now we call this so that DeferredLightingPass updates.
-            //       This is only needed for cascaded shadows and only when the main camera moves.
             EventSystemLocal.emit(TransformEvents.Updated, light.transform);
 
             let matricesForLight: Matrix4[] = [];
             let splits: number[] = [0, 0, 0, 0];
-
             let numOfCascades = 0;
+            const cascadeViewports: PreparedShadowViewport[] = [];
 
             if (light instanceof DirectionalLight) {
-                const camera = Camera.mainCamera;
+                const camera = mainCamera;
                 numOfCascades = DeferredShadowMapPassSettings.numOfCascades;
                 const cascadeSplits = this.getCascadeSplits(numOfCascades, camera.near, camera.far);
                 this.csmSplits = cascadeSplits;
                 const cascades = this.getCascades(cascadeSplits, camera, numOfCascades, light);
                 matricesForLight = cascades.map(c => c.viewProjMatrix);
                 splits = cascades.map(c => c.splitDepth);
+
+                const halfWidth = this.shadowOutput.width / 2;
+                const halfHeight = this.shadowOutput.height / 2;
+                for (let cascadeIndex = 0; cascadeIndex < numOfCascades; cascadeIndex++) {
+                    let x = 0;
+                    let y = 0;
+                    if (cascadeIndex >= 2) x += halfWidth;
+                    if (cascadeIndex & 1) y += halfHeight;
+                    cascadeViewports.push({ x, y, width: halfWidth, height: halfHeight });
+                }
             } else if (light instanceof SpotLight) {
+                numOfCascades = 1;
                 const vp = light.camera.projectionMatrix.clone().mul(light.camera.viewMatrix);
                 matricesForLight = [vp, vp, vp, vp];
-                splits = [0,0,0,0]; // unused for spot
-                numOfCascades = 1;
+                splits = [0, 0, 0, 0];
+                cascadeViewports.push({ x: 0, y: 0, width: this.shadowOutput.width, height: this.shadowOutput.height });
             } else {
-                // (leave Point/Area as-is or skip)
-                shadowMapIndex++;
+                shadowLayer++;
                 continue;
             }
 
-            // upload the 4 matrices for this light
-            const ld = new Float32Array(matricesForLight.flatMap(m => [...m.elements]));
-            this.lightProjectionViewMatricesBuffer.SetArray(ld, i * numOfCascades * 4 * 16);
+            const projectionArray = new Float32Array(matricesForLight.flatMap(m => [...m.elements]));
+            const copyOffset = i * perLightByteSize;
+            this.lightProjectionViewMatricesBuffer.SetArray(projectionArray, copyOffset);
 
+            const cascadeSplitsArray = new Float32Array(splits);
             this.lightShadowData.set(light.id, {
-                cascadeSplits: new Float32Array(splits),
-                projectionMatrices: ld,
-                shadowMapIndex: shadowMapIndex, // <— this layer holds this light’s shadow
+                cascadeSplits: cascadeSplitsArray,
+                projectionMatrices: projectionArray,
+                shadowMapIndex: shadowLayer,
             });
 
+            this.preparedLights.push({
+                light,
+                layer: shadowLayer,
+                numCascades: numOfCascades,
+                copyOffset,
+                copySize: numOfCascades * 4 * 16,
+                cascadeViewports,
+                cascadeSplits: cascadeSplitsArray,
+            });
 
-            RendererContext.CopyBufferToBuffer(this.lightProjectionViewMatricesBuffer, this.lightProjectionMatrixBuffer, i * numOfCascades * 4 * 16, 0, numOfCascades * 4 * 16);
+            shadowLayer++;
+        }
 
-            for (let cascadePass = 0; cascadePass < numOfCascades; cascadePass++) {
-                RendererContext.CopyBufferToBuffer(this.cascadeIndexBuffers[cascadePass], this.cascadeCurrentIndexBuffer);
-                RendererContext.BeginRenderPass("ShadowPass", [], { target: shadowOutput, clear: cascadePass === 0 ? true : false }, true);
+        resources.setResource(PassParams.ShadowPassCascadeData, this.lightShadowData);
+        resources.setResource(PassParams.ShadowPassDepth, this.shadowOutput);
+    }
 
-                if (light instanceof DirectionalLight) {
-                    // quadrant atlas inside THIS layer
-                    const width = this.shadowOutput.width / 2;
-                    const height = this.shadowOutput.height / 2;
-                    let x = 0, y = 0;
-                    if (cascadePass >= 2) x += width;
-                    if (cascadePass & 1) y += height;
-                    RendererContext.SetViewport(x, y, width, height, 0, 1);
+    public async preRender(resources: ResourcePool) {
+        if (!this.initialized) return;
+        if (this.preparedLights.length === 0) return;
+
+        RendererContext.BeginRenderPass(`ShadowPass - clear`, [], { target: this.shadowOutput, clear: true }, true);
+        RendererContext.EndRenderPass();
+    }
+
+    public async execute(resources: ResourcePool) {
+        if (!this.initialized) return;
+        if (this.preparedLights.length === 0) return;
+
+        const shadowOutput = this.shadowOutput;
+        shadowOutput.SetActiveLayer(0);
+
+        for (const prepared of this.preparedLights) {
+            shadowOutput.SetActiveLayer(prepared.layer);
+
+            RendererContext.CopyBufferToBuffer(
+                this.lightProjectionViewMatricesBuffer,
+                this.lightProjectionMatrixBuffer,
+                prepared.copyOffset,
+                0,
+                prepared.copySize
+            );
+
+            for (let cascadePass = 0; cascadePass < prepared.numCascades; cascadePass++) {
+                RendererContext.CopyBufferToBuffer(
+                    this.cascadeIndexBuffers[cascadePass],
+                    this.cascadeCurrentIndexBuffer,
+                    0,
+                    0,
+                    4
+                );
+
+                RendererContext.BeginRenderPass(
+                    "ShadowPass",
+                    [],
+                    { target: shadowOutput, clear: cascadePass === 0 },
+                    true
+                );
+
+                const viewport = prepared.cascadeViewports[cascadePass];
+                if (viewport) {
+                    RendererContext.SetViewport(viewport.x, viewport.y, viewport.width, viewport.height, 0, 1);
                 } else {
-                    // spotlight: full layer, no atlas
-                    RendererContext.SetViewport(0, 0, this.shadowOutput.width, this.shadowOutput.height, 0, 1);
+                    RendererContext.SetViewport(0, 0, shadowOutput.width, shadowOutput.height, 0, 1);
                 }
 
-                let meshCount = 0; // For dynamic offset
-                for (const mesh of meshes) {
-                    // if (mesh.shader.params.topology === Topology.Lines) continue;
+                let meshCount = 0;
+                for (const mesh of this.preparedMeshes) {
                     const geometry = mesh.geometry;
-                    if (!geometry) continue;
-                    if (!geometry.attributes.has("position")) continue;
-                    const uniform_offset = meshCount * 256;
-                    this.modelMatrices.dynamicOffset = uniform_offset;
+                    if (!geometry || !geometry.attributes.has("position")) {
+                        meshCount++;
+                        continue;
+                    }
+
+                    this.modelMatrices.dynamicOffset = meshCount * 256;
+
                     if (mesh instanceof SkinnedMesh) {
-                        // TODO: This only works with one SkinnedMesh
+                        // TODO: Make this work with more than one skinned mesh
                         this.drawSkinnedMeshShadowShader.SetBuffer("boneMatrices", mesh.GetBoneMatricesBuffer());
                         RendererContext.DrawGeometry(geometry, this.drawSkinnedMeshShadowShader, 1);
+                    } else {
+                        RendererContext.DrawGeometry(geometry, this.drawShadowShader, 1);
                     }
-                    else RendererContext.DrawGeometry(geometry, this.drawShadowShader, 1);
+
                     meshCount++;
                 }
 
-                for (const instance of instancedMeshes) {
-                    if (instance.instanceCount === 0) continue;
-                    if (!instance.enableShadows) continue;
+                for (const instance of this.preparedInstancedMeshes) {
                     this.drawInstancedShadowShader.SetBuffer("modelMatrix", instance.matricesBuffer);
-                    RendererContext.DrawGeometry(instance.geometry, this.drawInstancedShadowShader, instance.instanceCount + 1);
+                    RendererContext.DrawGeometry(instance.geometry, this.drawInstancedShadowShader, instance.instanceCount + 1, 0);
                 }
 
                 RendererContext.EndRenderPass();
-
             }
-            shadowMapIndex++;
         }
 
         shadowOutput.SetActiveLayer(0);
-
-        resources.setResource(PassParams.ShadowPassCascadeData, this.lightShadowData);
     }
 }

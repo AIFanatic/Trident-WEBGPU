@@ -12,6 +12,7 @@ import { WEBGPUTextureSampler } from "./WEBGPUTextureSampler";
 import { Vector2 } from "../../math/Vector2";
 import { Renderer } from "../Renderer";
 import { Vector4 } from "../../math/Vector4";
+import { Geometry } from "../../Geometry";
 
 
 const BindGroupLayoutCache: Map<string, GPUBindGroupLayout> = new Map();
@@ -60,7 +61,7 @@ export class WEBGPUBaseShader {
     constructor(params: ShaderParams | ComputeShaderParams) {
         const code = params.defines ? ShaderPreprocessor.ProcessDefines(params.code, params.defines) : params.code;
         this.params = params;
-        this.module = WEBGPURenderer.device.createShaderModule({code: code});
+        this.module = WEBGPURenderer.device.createShaderModule({code: code, label: params.name});
         if (this.params.uniforms) {
             this.uniformMap = new Map(Object.entries(this.params.uniforms));
         }
@@ -271,7 +272,7 @@ export class WEBGPUBaseShader {
     public HasBuffer(name: string): boolean { return this.uniformMap.get(name)?.buffer ? true : false }
 
     public Compile() {}
-    public OnPreRender(): boolean { return true; }
+    public OnPreRender(geometry: Geometry): boolean { return true; }
 
     public Destroy() {
         const crcs = this.BuildBindGroupsCRC();

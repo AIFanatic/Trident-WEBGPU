@@ -180,7 +180,6 @@ export class DynamicBufferMemoryAllocator extends BufferMemoryAllocator {
                 this.allocator.memorySize += incrementAmount;
                 this.allocator.availableMemorySize += incrementAmount;
                 this.allocator.freeBlocks.push({offset: oldMemorySize, size: incrementAmount});
-                console.log(`Incrementing DynamicBuffer from ${o} to ${this.allocator.memorySize}`)
 
                 // Create new buffer
                 const buffer = Buffer.Create(this.allocator.memorySize * BufferMemoryAllocator.BYTES_PER_ELEMENT, BufferType.STORAGE);

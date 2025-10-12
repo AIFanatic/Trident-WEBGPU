@@ -11,6 +11,8 @@ import { WEBGPUTimestampQuery } from "./WEBGPUTimestampQuery";
 export class WEBGPURendererContext implements RendererContext {
     private static activeRenderPass: GPURenderPassEncoder | null = null;
 
+    public static HasActiveRenderPass(): boolean { return this.activeRenderPass instanceof GPURenderPassEncoder };
+
     public static BeginRenderPass(name: string, renderTargets: RenderTarget[], depthTarget?: DepthTarget, timestamp?: boolean) {
         const activeCommandEncoder = WEBGPURenderer.GetActiveCommandEncoder();
         if (!activeCommandEncoder) throw Error("No active command encoder!!");
@@ -53,10 +55,9 @@ export class WEBGPURendererContext implements RendererContext {
         WEBGPUTimestampQuery.EndRenderTimestamp();
     }
 
-    private static PrepareDraw(geometry: Geometry, shader: WEBGPUShader) {
+    private static BindGeometry(geometry: Geometry, shader: WEBGPUShader) {
         if (!this.activeRenderPass) throw Error("No active render pass");
 
-        if (!shader.OnPreRender()) return;
         shader.Compile();
 
         if (!shader.pipeline) throw Error("Shader doesnt have a pipeline");
@@ -75,21 +76,28 @@ export class WEBGPURendererContext implements RendererContext {
             this.activeRenderPass.setBindGroup(i, shader.bindGroups[i], dynamicOffsets);
         }
         
-        for (const [name, attribute] of geometry.attributes) {
-            const attributeSlot = shader.GetAttributeSlot(name);
-            if (attributeSlot === undefined) continue;
-            const attributeBuffer = attribute.buffer as WEBGPUBuffer;
-            this.activeRenderPass.setVertexBuffer(attributeSlot, attributeBuffer.GetBuffer(), attribute.currentOffset, attribute.currentSize);
+        if (shader.params.useVertexPulling === undefined || shader.params.useVertexPulling === false) {
+            for (const [name, attribute] of geometry.attributes) {
+                const attributeSlot = shader.GetAttributeSlot(name);
+                if (attributeSlot === undefined) continue;
+                const attributeBuffer = attribute.buffer as WEBGPUBuffer;
+                this.activeRenderPass.setVertexBuffer(attributeSlot, attributeBuffer.GetBuffer(), attribute.currentOffset, attribute.currentSize);
+                Renderer.info.frameVertexBuffersStat++;
+            }
+
+            if (geometry.index) {
+                const indexBuffer = geometry.index.buffer as WEBGPUBuffer;
+                this.activeRenderPass.setIndexBuffer(indexBuffer.GetBuffer(), geometry.index.format, geometry.index.currentOffset, geometry.index.currentSize);
+                Renderer.info.frameIndexBufferStat++;
+            }
         }
 
-        if (geometry.index) {
-            const indexBuffer = geometry.index.buffer as WEBGPUBuffer;
-            this.activeRenderPass.setIndexBuffer(indexBuffer.GetBuffer(), geometry.index.format, geometry.index.currentOffset, geometry.index.currentSize);
-        }
     }
 
     public static DrawGeometry(geometry: Geometry, shader: WEBGPUShader, instanceCount = 1, firstInstance = 0) {
-        this.PrepareDraw(geometry, shader);
+        if (!shader.OnPreRender(geometry)) return;
+
+        this.BindGeometry(geometry, shader);
 
         if (!shader.params.topology || shader.params.topology === Topology.Triangles) {
             if (!geometry.index) {
@@ -99,7 +107,12 @@ export class WEBGPURendererContext implements RendererContext {
             }
             else {
                 const indexCount = geometry.index.count;
-                this.activeRenderPass.drawIndexed(indexCount, instanceCount, 0, 0, firstInstance);
+                if (shader.params.useVertexPulling === true) {
+                    this.activeRenderPass.draw(indexCount, instanceCount, 0, firstInstance);
+                }
+                else {
+                    this.activeRenderPass.drawIndexed(indexCount, instanceCount, 0, 0, firstInstance);
+                }
             }
         }
         else if (shader.params.topology === Topology.Lines) {
@@ -109,41 +122,24 @@ export class WEBGPURendererContext implements RendererContext {
     }
 
     public static DrawIndexed(geometry: Geometry, shader: WEBGPUShader, indexCount: number, instanceCount?: number, firstIndex?: number, baseVertex?: number, firstInstance?: number) {
-        this.PrepareDraw(geometry, shader);
+        this.BindGeometry(geometry, shader);
         this.activeRenderPass.drawIndexed(indexCount, instanceCount, firstIndex, baseVertex, firstInstance);
     }
 
+    public static Draw(geometry: Geometry, shader: WEBGPUShader, vertexCount: number, instanceCount?: number, firstVertex?: number, firstInstance?: number) {
+        this.BindGeometry(geometry, shader);
+        this.activeRenderPass.draw(vertexCount, instanceCount, firstVertex, firstInstance);
+    }
+
     public static DrawIndirect(geometry: Geometry, shader: WEBGPUShader, indirectBuffer: WEBGPUBuffer, indirectOffset: number) {
-        if (!this.activeRenderPass) throw Error("No active render pass");
+        if (!shader.OnPreRender(geometry)) return;
 
-        shader.Compile();
-
-        if (!shader.pipeline) throw Error("Shader doesnt have a pipeline");
-
-        this.activeRenderPass.setPipeline(shader.pipeline);
-        for (let i = 0; i < shader.bindGroups.length; i++) {
-            let dynamicOffsetsV2: number[] = [];
-            for (const buffer of shader.bindGroupsInfo[i].buffers) {
-                if (buffer instanceof WEBGPUDynamicBuffer)  {
-                    dynamicOffsetsV2.push(buffer.dynamicOffset);
-                }
-            }
-            this.activeRenderPass.setBindGroup(i, shader.bindGroups[i], dynamicOffsetsV2);
-        }
-        
-        for (const [name, attribute] of geometry.attributes) {
-            const attributeSlot = shader.GetAttributeSlot(name);
-            if (attributeSlot === undefined) continue;
-            const attributeBuffer = attribute.buffer as WEBGPUBuffer;
-            this.activeRenderPass.setVertexBuffer(attributeSlot, attributeBuffer.GetBuffer());
-        }
+        this.BindGeometry(geometry, shader);
 
         if (!geometry.index) {
             this.activeRenderPass.drawIndirect(indirectBuffer.GetBuffer(), indirectOffset);
         }
         else {
-            const indexBuffer = geometry.index.buffer as WEBGPUBuffer;
-            this.activeRenderPass.setIndexBuffer(indexBuffer.GetBuffer(), "uint32");
             this.activeRenderPass.drawIndexedIndirect(indirectBuffer.GetBuffer(), indirectOffset);
         }
     }

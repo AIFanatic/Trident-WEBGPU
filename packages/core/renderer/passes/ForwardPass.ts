@@ -9,17 +9,11 @@ import { DynamicBufferMemoryAllocator } from "../MemoryAllocator";
 
 export class ForwardPass extends RenderPass {
     public name: string = "ForwardPass";
-    
+
     private projectionMatrix: Buffer;
     private viewMatrix: Buffer;
-    
-    private modelMatrices: DynamicBufferMemoryAllocator;
 
-    constructor() {
-        super({inputs: [
-            PassParams.LightingPassOutput,
-        ]});
-    }
+    private modelMatrices: DynamicBufferMemoryAllocator;
 
     public async init(resources: ResourcePool) {
         this.projectionMatrix = Buffer.Create(16 * 4, BufferType.STORAGE);
@@ -28,9 +22,8 @@ export class ForwardPass extends RenderPass {
         this.initialized = true;
     }
 
-    public async execute(resources: ResourcePool) {
-        const LightingPassOutput = resources.getResource(PassParams.LightingPassOutput);
-        const DepthPassOutput = resources.getResource(PassParams.GBufferDepth);
+    public async preFrame(resources: ResourcePool) {
+        this.drawCommands.length = 0;
 
         const mainCamera = Camera.mainCamera;
         const scene = mainCamera.gameObject.scene;
@@ -38,29 +31,26 @@ export class ForwardPass extends RenderPass {
         const instancedMeshes = scene.GetComponents(InstancedMesh);
         if (meshes.length === 0 && instancedMeshes.length === 0) return;
 
-        RendererContext.BeginRenderPass(this.name, [{target: LightingPassOutput, clear: false}], {target: DepthPassOutput, clear: false}, true);
-        
         this.projectionMatrix.SetArray(mainCamera.projectionMatrix.elements);
         this.viewMatrix.SetArray(mainCamera.viewMatrix.elements);
 
-        let meshCount = 0;
         for (const mesh of meshes) {
             const geometry = mesh.geometry;
             const material = mesh.material;
-            
+
             if (!geometry || !material) continue;
             if (!geometry.attributes.has("position")) continue;
-            
+
             if (material.params.isDeferred === true) continue;
-            if (!material.shader) await material.createShader();
-            
-            this.modelMatrices.set(mesh.id, mesh.transform.localToWorldMatrix.elements);
+            if (!material.shader) continue;
+
+            const offset = this.modelMatrices.set(mesh.id, mesh.transform.localToWorldMatrix.elements);
+            const matrixIndex = offset / 16;
             material.shader.SetBuffer("projectionMatrix", this.projectionMatrix);
             material.shader.SetBuffer("viewMatrix", this.viewMatrix);
             material.shader.SetBuffer("modelMatrix", this.modelMatrices.getBuffer());
 
-            RendererContext.DrawGeometry(geometry, material.shader, 1, meshCount);
-            meshCount++; // This only works with meshes that only have one material
+            this.drawCommands.push({ geometry: geometry, shader: material.shader, instanceCount: 1, firstInstance: matrixIndex })
         }
 
         for (const instancedMesh of instancedMeshes) {
@@ -74,14 +64,23 @@ export class ForwardPass extends RenderPass {
 
 
             if (material.params.isDeferred === true) continue;
-            if (!material.shader) await material.createShader();
+            if (!material.shader) continue;
 
             material.shader.SetBuffer("projectionMatrix", this.projectionMatrix);
             material.shader.SetBuffer("viewMatrix", this.viewMatrix);
             material.shader.SetBuffer("modelMatrix", instancedMesh.matricesBuffer);
-            RendererContext.DrawGeometry(geometry, material.shader, instancedMesh.instanceCount, 0);
+            this.drawCommands.push({ geometry: geometry, shader: material.shader, instanceCount: instancedMesh.instanceCount, firstInstance: 0 })
         }
+    }
 
+    public async execute(resources: ResourcePool) {
+        const LightingPassOutput = resources.getResource(PassParams.LightingPassOutput);
+        const DepthPassOutput = resources.getResource(PassParams.GBufferDepth);
+
+        RendererContext.BeginRenderPass(this.name, [{ target: LightingPassOutput, clear: false }], { target: DepthPassOutput, clear: false }, true);
+        for (const draw of this.drawCommands) {
+            RendererContext.DrawGeometry(draw.geometry, draw.shader, draw.instanceCount, draw.firstInstance);
+        }
         RendererContext.EndRenderPass();
     }
 }

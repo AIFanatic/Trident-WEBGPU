@@ -49,6 +49,7 @@ export type DepthCompareFunctions =
 
 export interface ShaderParams {
     code: string;
+    name?: string;
     defines?: {[key: string]: boolean};
     attributes?: {[key: string]: ShaderAttribute};
     uniforms?: {[key: string]: ShaderUniform};
@@ -62,12 +63,14 @@ export interface ShaderParams {
     depthBiasClamp?: number;
     depthWriteEnabled?: boolean;
     topology?: Topology;
-    frontFace?: "ccw" | "cw",
-    cullMode?: "back" | "front" | "none"
+    frontFace?: "ccw" | "cw";
+    cullMode?: "back" | "front" | "none";
+    useVertexPulling?: boolean;
 };
 
 export interface ComputeShaderParams {
     code: string;
+    name?: string;
     defines?: {[key: string]: boolean};
     uniforms?: {[key: string]: ShaderUniform};
     computeEntrypoint?: string;

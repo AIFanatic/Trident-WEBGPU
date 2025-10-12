@@ -32,7 +32,7 @@ export class WEBGPUComputeContext implements ComputeContext {
     public static Dispatch(computeShader: WEBGPUComputeShader, workgroupCountX: number, workgroupCountY: number, workgroupCountZ: number) {
         if (!this.activeComputePass) throw Error("No active render pass");
 
-        computeShader.OnPreRender();
+        if (!computeShader.OnPreRender()) return;
         computeShader.Compile();
 
         if (!computeShader.pipeline) throw Error("Shader doesnt have a pipeline");

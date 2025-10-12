@@ -3,6 +3,7 @@ import { StringFindAllBetween } from "../utils";
 import { Renderer } from "./Renderer";
 
 import WGSL_Shader_Draw_URL from "../resources/webgpu/shaders/deferred/DrawGBuffer.wgsl";
+import WGSL_Shader_DrawVertexPulling_URL from "../resources/webgpu/shaders/deferred/DrawGBufferVertexPulling.wgsl";
 import WGSL_Shader_DeferredLighting_URL from "../resources/webgpu/shaders/deferred/DeferredLightingPBR.wgsl";
 
 // TODO: This is messy
@@ -100,6 +101,7 @@ export class ShaderLoader {
     }
 
     public static get Draw(): string { return WGSL_Shader_Draw_URL; }
+    public static get DrawVertexPulling(): string { return WGSL_Shader_DrawVertexPulling_URL; }
     public static get DeferredLighting(): Promise<string> { return ShaderPreprocessor.ProcessIncludesV2(WGSL_Shader_DeferredLighting_URL); }
 }
 

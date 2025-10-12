@@ -11,20 +11,8 @@ export class TextureViewer extends RenderPass {
     private shader: Shader;
     private quadGeometry: Geometry;
 
-    constructor() {
-        super({inputs: [
-            PassParams.LightingPassOutput,
-            PassParams.depthTexturePyramid
-        ]});
-    }
-
     public async init() {
         const code = `
-        struct VertexInput {
-            @location(0) position : vec2<f32>,
-            @location(1) uv : vec2<f32>,
-        };
-
         struct VertexOutput {
             @builtin(position) position : vec4<f32>,
             @location(0) vUv : vec2<f32>,
@@ -33,11 +21,21 @@ export class TextureViewer extends RenderPass {
         @group(0) @binding(0) var textureSampler: sampler;
         @group(0) @binding(1) var texture: texture_2d<f32>;
 
-        @vertex fn vertexMain(input: VertexInput) -> VertexOutput {
-            var output: VertexOutput;
-            output.position = vec4(input.position, 0.0, 1.0);
-            output.vUv = input.uv;
-            return output;
+        // Full-screen triangle (covers screen with 3 verts)
+        const p = array<vec2f, 3>(
+            vec2f(-1.0, -1.0),
+            vec2f( 3.0, -1.0),
+            vec2f(-1.0,  3.0)
+        );
+
+        @vertex fn vertexMain(@builtin(vertex_index) vertexIndex : u32) -> VertexOutput {
+            var out : VertexOutput;
+            out.position = vec4f(p[vertexIndex], 0.0, 1.0);
+          
+            // Derive UVs from NDC: ([-1,1] -> [0,1])
+            let uv = 0.5 * (p[vertexIndex] + vec2f(1.0, 1.0));
+            out.vUv = vec2f(uv.x, 1.0 - uv.y); // flip Y if your texture space needs it
+            return out;
         }
 
         @fragment fn fragmentMain(input: VertexOutput) -> @location(0) vec4f {
@@ -48,16 +46,12 @@ export class TextureViewer extends RenderPass {
         this.shader = await Shader.Create({
             code: code,
             colorOutputs: [{format: Renderer.SwapChainFormat}],
-            attributes: {
-                position: { location: 0, size: 3, type: "vec3" },
-                uv: { location: 1, size: 2, type: "vec2" }
-            },
             uniforms: {
                 textureSampler: {group: 0, binding: 0, type: "sampler"},
                 texture: {group: 0, binding: 1, type: "texture"},
             }
         });
-        this.quadGeometry = Geometry.Plane();
+        this.quadGeometry = new Geometry();
 
         const sampler = TextureSampler.Create();
         this.shader.SetSampler("textureSampler", sampler);
@@ -65,7 +59,7 @@ export class TextureViewer extends RenderPass {
         this.initialized = true;
     }
 
-    public execute(resources: ResourcePool) {
+    public async execute(resources: ResourcePool) {
         if (this.initialized === false) return;
 
         const settings = resources.getResource(PassParams.DebugSettings);
@@ -75,7 +69,7 @@ export class TextureViewer extends RenderPass {
         this.shader.SetTexture("texture", LightingPassOutputTexture);
 
         RendererContext.BeginRenderPass("TextureViewer", [{clear: false}], undefined, true);
-        RendererContext.DrawGeometry(this.quadGeometry, this.shader);
+        RendererContext.Draw(this.quadGeometry, this.shader, 3);
         RendererContext.EndRenderPass();
     }
 }

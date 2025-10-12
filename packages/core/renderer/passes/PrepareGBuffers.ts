@@ -22,15 +22,7 @@ export class PrepareGBuffers extends RenderPass {
     public skyboxBRDFLUT: Texture;
 
     constructor() {
-        super({outputs: [
-            PassParams.depthTexture,
-
-            PassParams.GBufferAlbedo,
-            PassParams.GBufferNormal,
-            PassParams.GBufferERMO,
-            PassParams.GBufferDepth,
-        ]});
-
+        super();
         EventSystem.on(RendererEvents.Resized, canvas => {
             this.CreateGBufferTextures();
         })
@@ -58,8 +50,8 @@ export class PrepareGBuffers extends RenderPass {
         
         this.initialized = true;
     }
-
-    public execute(resources: ResourcePool) {
+    
+    public async execute(resources: ResourcePool) {
         if (!this.initialized) return;
         // if (!Camera.mainCamera) return;
 

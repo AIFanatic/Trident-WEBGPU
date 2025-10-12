@@ -2,6 +2,7 @@ import { UUID } from "../../utils";
 import { Buffer, BufferType, DynamicBuffer } from "../Buffer";
 import { Renderer } from "../Renderer";
 import { WEBGPURenderer } from "./WEBGPURenderer";
+import { WEBGPURendererContext } from "./WEBGPURendererContext";
 
 class BaseBuffer {
     public id = UUID();
@@ -17,8 +18,8 @@ class BaseBuffer {
         let usage: GPUBufferUsageFlags | undefined = undefined;
         if (type == BufferType.STORAGE) usage = GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC | GPUBufferUsage.COPY_DST;
         else if (type == BufferType.STORAGE_WRITE) usage = GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC | GPUBufferUsage.COPY_DST;
-        else if (type == BufferType.VERTEX) usage = GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_SRC | GPUBufferUsage.COPY_DST;
-        else if (type == BufferType.INDEX) usage = GPUBufferUsage.INDEX | GPUBufferUsage.COPY_SRC | GPUBufferUsage.COPY_DST;
+        else if (type == BufferType.VERTEX) usage = GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_SRC | GPUBufferUsage.COPY_DST | GPUBufferUsage.STORAGE;
+        else if (type == BufferType.INDEX) usage = GPUBufferUsage.INDEX | GPUBufferUsage.COPY_SRC | GPUBufferUsage.COPY_DST | GPUBufferUsage.STORAGE;
         else if (type == BufferType.UNIFORM) usage = GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_SRC | GPUBufferUsage.COPY_DST;
         else if (type == BufferType.INDIRECT) usage = GPUBufferUsage.INDIRECT | GPUBufferUsage.COPY_SRC | GPUBufferUsage.COPY_DST | GPUBufferUsage.STORAGE;
         else if (type == 10) usage = GPUBufferUsage.INDEX | GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC | GPUBufferUsage.COPY_DST;
@@ -31,6 +32,14 @@ class BaseBuffer {
     public GetBuffer(): GPUBuffer { return this.buffer };
 
     public SetArray(array: ArrayBuffer, bufferOffset: number = 0, dataOffset?: number | undefined, size?: number | undefined) {
+        if (WEBGPURendererContext.HasActiveRenderPass()) {
+            console.warn("Cannot set buffer data while there is an active render pass.");
+            return;
+        }
+        if (WEBGPURenderer.GetActiveCommandEncoder()) {
+            console.warn("Cannot set buffer data after a frame has started.");
+            // return;
+        }
         WEBGPURenderer.device.queue.writeBuffer(this.buffer, bufferOffset, array, dataOffset, size);
     }
 

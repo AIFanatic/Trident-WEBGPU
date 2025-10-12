@@ -14,10 +14,6 @@ export class Material {
     public shader: Shader;
     public params: MaterialParams;
 
-    public async createShader(): Promise<Shader> {
-        throw Error("Not implemented");
-    }
-
     constructor(params?: Partial<MaterialParams>) {
         const defaultParams: MaterialParams = {
             isDeferred: false,
@@ -66,6 +62,8 @@ export interface PBRMaterialParams extends MaterialParams {
     wireframe: boolean;
 
     isSkinned: boolean;
+
+    useVertexPulling?: boolean;
 }
 
 export class PBRMaterial extends Material {
@@ -95,7 +93,9 @@ export class PBRMaterial extends Material {
         wireframe: false,
         isSkinned: false,
 
-        isDeferred: true
+        isDeferred: true,
+
+        useVertexPulling: false
     }
     constructor(params?: Partial<PBRMaterialParams>) {
         super(params);
@@ -104,7 +104,7 @@ export class PBRMaterial extends Material {
         // this.params = Object.assign({}, defaultParams, params);
         const _params = Object.assign({}, PBRMaterial.DefaultParams, params);
         const instance = this;
-        const handler1 = {
+        const handler = {
             set(obj, prop, value) {
                 obj[prop] = value;
 
@@ -118,10 +118,12 @@ export class PBRMaterial extends Material {
                 return true;
             },
         };
-        this.params = new Proxy(_params, handler1) as PBRMaterialParams;
+        this.params = new Proxy(_params, handler) as PBRMaterialParams;
+
+        this.createShader();
     }
 
-    public async createShader(): Promise<Shader> {
+    private async createShader(): Promise<Shader> {
         const DEFINES = {
             USE_ALBEDO_MAP: this.initialParams?.albedoMap ? true : false,
             USE_NORMAL_MAP: this.initialParams?.normalMap ? true : false,
@@ -133,7 +135,7 @@ export class PBRMaterial extends Material {
         }
 
         let shaderParams: ShaderParams = {
-            code: await ShaderLoader.Draw,
+            code: this.params.useVertexPulling === true ? ShaderLoader.DrawVertexPulling : ShaderLoader.Draw,
             defines: DEFINES,
             colorOutputs: [
                 {format: "rgba16float"},
@@ -141,7 +143,7 @@ export class PBRMaterial extends Material {
                 {format: "rgba16float"},
             ],
             depthOutput: "depth24plus",
-            attributes: {
+            attributes: this.params.useVertexPulling === true ? undefined : {
                 position: {location: 0, size: 3, type: "vec3"},
                 normal: {location: 1, size: 3, type: "vec3"},
                 uv: {location: 2, size: 2, type: "vec2"},
@@ -162,12 +164,19 @@ export class PBRMaterial extends Material {
                 AOMap: {group: 0, binding: 10, type: "texture"},
 
                 cameraPosition: {group: 0, binding: 11, type: "storage"},
+
+                // // Global buffers
+                // Frame: {group: 1, binding: 0, type: "storage"},
+                // Materials: {group: 1, binding: 1, type: "storage"},
+                // Models: {group: 1, binding: 2, type: "storage"},
+                // Instance: {group: 1, binding: 3, type: "storage"},
             },
-            cullMode: this.params.doubleSided ? "none" : undefined
+            cullMode: this.params.doubleSided ? "none" : undefined,
+            useVertexPulling: this.params.useVertexPulling
         };
         
         let nextAttributeLocation = 3;
-        if (DEFINES.USE_NORMAL_MAP) {
+        if (DEFINES.USE_NORMAL_MAP && this.params.useVertexPulling !== true) {
             shaderParams.attributes.tangent = {location: nextAttributeLocation++, size: 4, type: "vec4"};
         }
         if (DEFINES.USE_SKINNING) {
@@ -175,8 +184,31 @@ export class PBRMaterial extends Material {
             shaderParams.attributes.weights = {location: nextAttributeLocation++, size: 4, type: "vec4"};
             shaderParams.uniforms.boneMatrices = {group: 1, binding: 0, type: "storage"}
         }
+
+        // TODO: Make it work with skinning
+        if (this.params.useVertexPulling === true) {
+            shaderParams.uniforms.position = {group: 1, binding: 0, type: "storage"};
+            shaderParams.uniforms.normal = {group: 1, binding: 1, type: "storage"};
+            shaderParams.uniforms.uv = {group: 1, binding: 2, type: "storage"};
+            shaderParams.uniforms.index = {group: 1, binding: 3, type: "storage"};
+            if (DEFINES.USE_NORMAL_MAP) {
+                shaderParams.uniforms.tangent = {group: 1, binding: 4, type: "storage"};
+            }
+        }
         
         const shader = await Shader.Create(shaderParams);
+        if (this.params.useVertexPulling === true) {
+            shader.OnPreRender = geometry => {
+                shader.SetBuffer("position", geometry.attributes.get("position").GetBuffer());
+                shader.SetBuffer("normal", geometry.attributes.get("normal").GetBuffer());
+                shader.SetBuffer("uv", geometry.attributes.get("uv").GetBuffer());
+                shader.SetBuffer("index", geometry.index.GetBuffer());
+                if (DEFINES.USE_NORMAL_MAP) {
+                    shader.SetBuffer("tangent", geometry.attributes.get("tangent").GetBuffer());
+                }
+                return true;
+            }
+        }
 
         if (DEFINES.USE_ALBEDO_MAP || DEFINES.USE_NORMAL_MAP || DEFINES.USE_HEIGHT_MAP || DEFINES.USE_METALNESS_MAP || DEFINES.USE_EMISSIVE_MAP || DEFINES.USE_AO_MAP) {
             const textureSampler = TextureSampler.Create();
@@ -229,7 +261,7 @@ export class PBRMaterial extends Material {
         );
     }
 
-    // TODO: Do cache
+    // TODO: Do cache, process textures
     public static Deserialize(data: {type: string, shader: any, isDeferred: boolean, params: any}): PBRMaterial {
         const params = data.params;
         const defaults = PBRMaterial.DefaultParams;

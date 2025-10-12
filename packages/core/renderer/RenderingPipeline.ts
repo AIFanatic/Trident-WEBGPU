@@ -6,7 +6,6 @@ import { WEBGPUTimestampQuery } from "./webgpu/WEBGPUTimestampQuery";
 import { TextureViewer } from "./passes/TextureViewer";
 import { PrepareGBuffers } from "./passes/PrepareGBuffers";
 import { DeferredShadowMapPass } from "./passes/DeferredShadowMapPass";
-import { DebuggerTextureViewer } from "./passes/DebuggerTextureViewer";
 import { CubeTexture, RenderTexture } from "./Texture";
 import { DeferredGBufferPass } from "./passes/DeferredGBufferPass";
 import { ForwardPass } from "./passes/ForwardPass";
@@ -34,6 +33,12 @@ export const PassParams = {
     LightsBuffer: "LightsBuffer",
     
     LightingPassOutput: "LightingPassOutput",
+
+    FrameBuffer: "FrameBuffer",
+    MaterialBuffer: "MaterialBuffer",
+    ModelBuffer: "ModelBuffer",
+    InstanceBuffer: "InstanceBuffer",
+    Renderables: "Renderables",
 };
 
 export enum RenderPassOrder {
@@ -125,13 +130,15 @@ export class RenderingPipeline {
         this.UpdateRenderGraphPasses();
     }
 
-    public Render(scene: Scene) {
+    public async Render(scene: Scene) {
         Renderer.info.ResetFrame();
         
         const renderPipelineStart = performance.now();
+
+        await this.renderGraph.preFrame();
         Renderer.BeginRenderFrame();
-        
-        this.renderGraph.execute();
+        await this.renderGraph.preRender();
+        await this.renderGraph.execute();
         Renderer.EndRenderFrame();
         Renderer.info.cpuTime = performance.now() - renderPipelineStart;
 

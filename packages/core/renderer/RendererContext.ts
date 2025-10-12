@@ -65,6 +65,11 @@ export class RendererContext {
         if (Renderer.type === "webgpu") WEBGPURendererContext.DrawIndexed(geometry, shader as WEBGPUShader, indexCount, instanceCount, firstIndex, baseVertex, firstInstance);
         else throw Error("Unknown render api type.");
     }
+    
+    public static Draw(geometry: Geometry, shader: Shader, vertexCount: number, instanceCount?: number, firstVertex?: number, firstInstance?: number) {
+        if (Renderer.type === "webgpu") WEBGPURendererContext.Draw(geometry, shader as WEBGPUShader, vertexCount, instanceCount, firstVertex, firstInstance);
+        else throw Error("Unknown render api type.");
+    }
 
     public static DrawIndirect(geometry: Geometry, shader: Shader, indirectBuffer: Buffer, indirectOffset: number = 0) {
         if (Renderer.type === "webgpu") WEBGPURendererContext.DrawIndirect(geometry, shader as WEBGPUShader, indirectBuffer as WEBGPUBuffer, indirectOffset);
