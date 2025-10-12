@@ -12,11 +12,7 @@ export class PostProcessingFXAA extends GPU.RenderPass {
 	private renderTarget: GPU.RenderTexture;
 
 	constructor() {
-		super({
-			inputs: [
-				GPU.PassParams.LightingPassOutput,
-			]
-		});
+		super();
 	}
 
 	public async init() {
@@ -127,7 +123,7 @@ export class PostProcessingFXAA extends GPU.RenderPass {
 		this.initialized = true;
 	}
 
-	public execute(resources: GPU.ResourcePool) {
+	public async execute(resources: GPU.ResourcePool) {
 		if (this.initialized === false) return;
 
 		const LightingPassOutputTexture: GPU.Texture = resources.getResource(GPU.PassParams.LightingPassOutput);

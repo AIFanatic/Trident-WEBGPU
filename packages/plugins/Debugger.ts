@@ -19,19 +19,6 @@ class DebuggerRenderPass extends GPU.RenderPass {
     private outputViewerShader: GPU.Shader;
     private lightingOutputClone: GPU.Texture;
 
-    constructor() {
-        super({
-            inputs: [
-                GPU.PassParams.MainCamera,
-                GPU.PassParams.GBufferAlbedo,
-                GPU.PassParams.GBufferNormal,
-                GPU.PassParams.GBufferERMO,
-                GPU.PassParams.GBufferDepth,
-            ],
-            outputs: []
-        });
-    }
-
     public async init(resources: GPU.ResourcePool) {
         this.outputViewerShader = await GPU.Shader.Create({
             code: `
@@ -152,7 +139,7 @@ class DebuggerRenderPass extends GPU.RenderPass {
         this.initialized = true;
     }
 
-    public execute(resources: GPU.ResourcePool, ...args: any): void {
+    public async execute(resources: GPU.ResourcePool, ...args: any) {
         // console.log(this.currentViewType)
         if (this.currentViewType === ViewTypes.Lighting) return;
 
@@ -216,6 +203,8 @@ class _Debugger {
     private gpuTextureSizeStat: UITextStat;
     private bindGroupLayoutsStat: UITextStat;
     private bindGroupsStat: UITextStat;
+    private frameVertexBuffersStat: UITextStat;
+    private frameIndexBufferStat: UITextStat;
     private compiledShadersStat: UITextStat;
     private drawCallsStat: UITextStat;
     private viewTypeStat: UIDropdownStat;
@@ -259,6 +248,8 @@ class _Debugger {
         this.gpuTextureCount = new UITextStat(this.rendererFolder, "GPU texture count: ", 0, 0);
         this.bindGroupLayoutsStat = new UITextStat(this.rendererFolder, "Bind group layouts: ");
         this.bindGroupsStat = new UITextStat(this.rendererFolder, "Bind groups: ");
+        this.frameVertexBuffersStat = new UITextStat(this.rendererFolder, "Frame vertex buffers: ");
+        this.frameIndexBufferStat = new UITextStat(this.rendererFolder, "Frame index buffers: ");
         this.drawCallsStat = new UITextStat(this.rendererFolder, "Draw calls: ");
         this.compiledShadersStat = new UITextStat(this.rendererFolder, "Compiled shaders: ");
         this.visibleObjectsStat = new UITextStat(this.rendererFolder, "Visible objects: ");
@@ -306,6 +297,8 @@ class _Debugger {
         this.gpuTextureCount.SetValue(Renderer.info.gpuTextureCount);
         this.bindGroupLayoutsStat.SetValue(Renderer.info.bindGroupLayoutsStat);
         this.bindGroupsStat.SetValue(Renderer.info.bindGroupsStat);
+        this.frameVertexBuffersStat.SetValue(Renderer.info.frameVertexBuffersStat);
+        this.frameIndexBufferStat.SetValue(Renderer.info.frameIndexBufferStat);
         this.drawCallsStat.SetValue(Renderer.info.drawCallsStat);
         this.compiledShadersStat.SetValue(Renderer.info.compiledShadersStat);
         this.visibleObjectsStat.SetValue(Renderer.info.visibleObjects);

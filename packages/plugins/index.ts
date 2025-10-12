@@ -46,6 +46,14 @@ export * from "./Impostors/ImpostorMesh";
 
 export * from "./ParticleSystem/ParticleSystem";
 
+
 import { Component } from "@trident/core";
 import { Water } from "./Water/WaterPlugin";
+
+
 Component.Registry.set(Water.type, Water);
+
+export * from "./SSGI";
+export * from "./Blit";
+
+export * from "./meshlets_v3";

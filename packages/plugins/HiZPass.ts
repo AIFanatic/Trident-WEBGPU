@@ -7,7 +7,6 @@ export class HiZPass extends GPU.RenderPass {
     public name: string = "HiZPass";
     private shader: GPU.Shader;
     private quadGeometry: Geometry;
-    public debugDepthTexture: GPU.DepthTexture;
     
     private inputTexture: GPU.DepthTexture;
     private targetTextures: GPU.DepthTexture[] = [];
@@ -23,13 +22,6 @@ export class HiZPass extends GPU.RenderPass {
 
     private blitShader: GPU.Shader;
 
-    constructor() {
-        super({
-            inputs: [GPU.PassParams.depthTexture],
-            outputs: [GPU.PassParams.depthTexturePyramid]
-        });
-    }
-
     public async init(resources: GPU.ResourcePool) {
         this.shader = await GPU.Shader.Create({
             code: `
@@ -44,7 +36,7 @@ export class HiZPass extends GPU.RenderPass {
                     @location(0) vUv : vec2<f32>,
                 };
                 
-                @group(0) @binding(0) var depthTextureInputSampler: sampler;
+                @group(0) @binding(0) var depthTextureInputSampler: sampler_comparison;
                 @group(0) @binding(1) var depthTextureInput: texture_depth_2d;
                 @group(0) @binding(2) var<storage, read> currentMip: f32;
                 
@@ -63,10 +55,10 @@ export class HiZPass extends GPU.RenderPass {
                     let uv2 = inUV + vec2f(-0.25f, 0.25f) * invSize;
                     let uv3 = inUV + vec2f(0.25f, 0.25f) * invSize;
                 
-                    depth.x = textureSampleLevel(mainTex, depthTextureInputSampler, uv0, u32(currentMip));
-                    depth.y = textureSampleLevel(mainTex, depthTextureInputSampler, uv1, u32(currentMip));
-                    depth.z = textureSampleLevel(mainTex, depthTextureInputSampler, uv2, u32(currentMip));
-                    depth.w = textureSampleLevel(mainTex, depthTextureInputSampler, uv3, u32(currentMip));
+                    depth.x = textureSampleCompareLevel(mainTex, depthTextureInputSampler, uv0, currentMip);
+                    depth.y = textureSampleCompareLevel(mainTex, depthTextureInputSampler, uv1, currentMip);
+                    depth.z = textureSampleCompareLevel(mainTex, depthTextureInputSampler, uv2, currentMip);
+                    depth.w = textureSampleCompareLevel(mainTex, depthTextureInputSampler, uv3, currentMip);
                 
                     let reversed_z = false;
                     if (reversed_z) {
@@ -94,7 +86,7 @@ export class HiZPass extends GPU.RenderPass {
             colorOutputs: [],
             depthOutput: "depth24plus",
             uniforms: {
-                depthTextureInputSampler: {group: 0, binding: 0, type: "sampler"},
+                depthTextureInputSampler: {group: 0, binding: 0, type: "sampler-compare"},
                 depthTextureInput: {group: 0, binding: 1, type: "depthTexture"},
                 currentMip: {group: 0, binding: 2, type: "storage"},
             }
@@ -117,14 +109,12 @@ export class HiZPass extends GPU.RenderPass {
             level++;
         }
         this.inputTexture = GPU.DepthTexture.Create(this.depthWidth, this.depthHeight, 1, "depth24plus", level);
+        this.inputTexture.name = "HiZDepth"
         this.inputTexture.SetActiveMip(0);
         this.inputTexture.SetActiveMipCount(level);
 
-        const Sampler = GPU.TextureSampler.Create({magFilter: "nearest", minFilter: "nearest"});
-        this.shader.SetSampler("depthTextureInputSampler", Sampler);
+        this.shader.SetSampler("depthTextureInputSampler", GPU.TextureSampler.Create({minFilter: "nearest", magFilter: "nearest", mipmapFilter: "nearest", compare: "less"}));
         this.shader.SetTexture("depthTextureInput", this.inputTexture);
-
-        this.debugDepthTexture = this.inputTexture;
 
         this.currentBuffer = GPU.Buffer.Create(4 * 4, GPU.BufferType.STORAGE);
 
@@ -144,7 +134,7 @@ export class HiZPass extends GPU.RenderPass {
             };
             
             @group(0) @binding(0) var textureDepth: texture_depth_2d;
-            @group(0) @binding(1) var textureSampler: sampler;
+            @group(0) @binding(1) var textureSampler: sampler_comparison;
             @group(0) @binding(2) var<storage, read> mip: f32;
             
             @vertex
@@ -158,7 +148,7 @@ export class HiZPass extends GPU.RenderPass {
             @fragment
             fn fragmentMain(input: VertexOutput) -> @builtin(frag_depth) f32 {
                 let uv = input.vUv;
-                let color = textureSampleLevel(textureDepth, textureSampler, uv, u32(mip));
+                let color = textureSampleCompareLevel(textureDepth, textureSampler, uv, mip);
                 return color;
             }
             `,
@@ -171,20 +161,19 @@ export class HiZPass extends GPU.RenderPass {
             },
             uniforms: {
                 texture: {group: 0, binding: 0, type: "depthTexture"},
-                textureSampler: {group: 0, binding: 1, type: "sampler"},
+                textureSampler: {group: 0, binding: 1, type: "sampler-compare"},
                 mip: {group: 0, binding: 2, type: "storage"},
             },
         });
 
-        const blitSampler = GPU.TextureSampler.Create();
-        this.blitShader.SetSampler("textureSampler", blitSampler);
+        this.blitShader.SetSampler("textureSampler", GPU.TextureSampler.Create({minFilter: "nearest", magFilter: "nearest", mipmapFilter: "nearest", compare: "less"}));
         this.blitShader.SetValue("mip", 0);
 
         resources.setResource(GPU.PassParams.depthTexturePyramid, this.inputTexture);
         this.initialized = true;
     }
 
-    public execute(resources: GPU.ResourcePool, inputDepthTexture: GPU.DepthTexture, outputDepthTexturePyramid: string) {
+    public async execute(resources: GPU.ResourcePool, inputDepthTexture: GPU.DepthTexture, outputDepthTexturePyramid: string) {
         if(this.initialized === false) return;
 
         let currentLevel = 0;

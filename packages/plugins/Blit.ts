@@ -1,25 +1,17 @@
-import { Geometry } from "../Geometry";
-import { RenderPass, ResourcePool } from "../renderer/RenderGraph";
-import { RendererContext } from "../renderer/RendererContext";
-import { Shader } from "../renderer/Shader";
-import { RenderTexture, Texture, TextureFormat } from "../renderer/Texture";
-import { TextureSampler } from "../renderer/TextureSampler";
+import { Geometry, GPU } from "@trident/core";
 
-export class Blit extends RenderPass {
-    private shader: Shader;
+export class Blit extends GPU.RenderPass {
+    private shader: GPU.Shader;
     private geometry: Geometry;
 
-    private renderTarget: RenderTexture;
-    private format: TextureFormat;
+    private renderTarget: GPU.RenderTexture;
 
-    constructor(width: number, height: number, format: TextureFormat) {
-        super({});
-        this.format = format;
-        this.renderTarget = RenderTexture.Create(width, height, 1, format);
+    constructor() {
+        super();
     }
     
-    public async init(resources: ResourcePool) {
-        this.shader = await Shader.Create({
+    public async init(resources: GPU.ResourcePool) {
+        this.shader = await GPU.Shader.Create({
             code: `
             @group(0) @binding(0) var tex: texture_2d<f32>;
             @group(0) @binding(2) var texSampler: sampler;
@@ -46,12 +38,10 @@ export class Blit extends RenderPass {
             @fragment
             fn fragmentMain(input: VertexOutput) -> @location(0) vec4<f32> {
                 let a = textureSample(tex, texSampler, input.uv);
-                return a * 0.5;
+                return a;
             }
             `,
-            colorOutputs: [
-                { format: this.format },
-            ],
+            colorOutputs: [ { format: "rgba16float" }],
             attributes: {
                 position: { location: 0, size: 3, type: "vec3" },
                 normal: { location: 1, size: 3, type: "vec3" },
@@ -63,22 +53,26 @@ export class Blit extends RenderPass {
             },
         });
 
-        this.shader.SetSampler("texSampler", TextureSampler.Create());
+        this.shader.SetSampler("texSampler", GPU.TextureSampler.Create());
 
         this.geometry = Geometry.Plane();
         this.initialized = true;
     }
 
-    public Process(tex: Texture): RenderTexture {
+    public Process(inputTexture: GPU.Texture, outputWidth: number, outputHeight: number): GPU.RenderTexture {
         if (this.initialized === false) {
             throw Error("Not initialized")
         };
 
-        this.shader.SetTexture("tex", tex);
+        if (!this.renderTarget || this.renderTarget.width !== outputWidth || this.renderTarget.height !== outputHeight) {
+            this.renderTarget = GPU.RenderTexture.Create(outputWidth, outputHeight, 1, inputTexture.format);
+        }
 
-        RendererContext.BeginRenderPass("Blit", [{target: this.renderTarget, clear: true}], undefined, true);
-        RendererContext.DrawGeometry(this.geometry, this.shader);
-        RendererContext.EndRenderPass();
+        this.shader.SetTexture("tex", inputTexture);
+
+        GPU.RendererContext.BeginRenderPass(this.name, [{target: this.renderTarget, clear: true}], undefined, true);
+        GPU.RendererContext.DrawGeometry(this.geometry, this.shader);
+        GPU.RendererContext.EndRenderPass();
 
         return this.renderTarget;
     }
