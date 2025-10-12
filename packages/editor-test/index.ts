@@ -10,7 +10,7 @@ import {
 } from "@trident/core";
 
 import { OrbitControls } from "@trident/plugins/OrbitControls";
-import { GLTFParser } from "@trident/plugins/GLTF/GLTF_Parser";
+import { GLTFLoader } from "@trident/plugins/GLTF/GLTFLoader";
 import { Debugger } from "@trident/plugins/Debugger";
 
 async function Application(canvas: HTMLCanvasElement) {
@@ -21,7 +21,7 @@ async function Application(canvas: HTMLCanvasElement) {
     mainCameraGameObject.transform.position.set(0,0,-15);
     mainCameraGameObject.name = "MainCamera";
     const camera = mainCameraGameObject.AddComponent(Components.Camera);
-    camera.SetPerspective(72, canvas.width / canvas.height, 0.5, 10);
+    camera.SetPerspective(72, canvas.width / canvas.height, 0.01, 100);
 
 
     mainCameraGameObject.transform.position.set(0, 0, 2);
@@ -35,26 +35,21 @@ async function Application(canvas: HTMLCanvasElement) {
     const light = lightGameObject.AddComponent(Components.DirectionalLight);
     light.color.set(1.00, 0.851, 0.732, 1);
     light.intensity = 2
-
-    function traverse(object3D: Object3D, func: (object3D: Object3D) => void) {
-        func(object3D);
-        for (const child of object3D.children) traverse(child, func);
-    }
     
     {
         // Room
-        const room = await GLTFParser.Load("./assets/models/room/room.gltf");
-        traverse(room, object3D => {
-            console.log(object3D)
-            if (object3D.geometry && object3D.material) {
-                const gameObject = new GameObject(scene);
-                // gameObject.transform.scale.set(0.01, 0.01, 0.01);
-                object3D.localMatrix.decompose(gameObject.transform.position, gameObject.transform.rotation, gameObject.transform.scale);
-                const mesh = gameObject.AddComponent(Components.Mesh);
-                mesh.SetGeometry(object3D.geometry);
-                mesh.AddMaterial(object3D.material);
-            }
-        })
+        const room = await GLTFLoader.loadAsGameObjects(scene, "./assets/models/room/room.gltf");
+        // traverse(room, object3D => {
+        //     console.log(object3D)
+        //     if (object3D.geometry && object3D.material) {
+        //         const gameObject = new GameObject(scene);
+        //         // gameObject.transform.scale.set(0.01, 0.01, 0.01);
+        //         object3D.localMatrix.decompose(gameObject.transform.position, gameObject.transform.rotation, gameObject.transform.scale);
+        //         const mesh = gameObject.AddComponent(Components.Mesh);
+        //         mesh.SetGeometry(object3D.geometry);
+        //         mesh.AddMaterial(object3D.material);
+        //     }
+        // })
     }
 
     // const skybox = await GPU.Texture.Load("./assets/textures/hdr/bedroom-forest.png")
