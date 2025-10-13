@@ -27,12 +27,14 @@
             <script type="module">
                 const canvas = document.createElement("canvas");
                 document.body.appendChild(canvas);
-                            import { GPU, Scene, GameObject, Components, Mathf, PBRMaterial } from '@trident/core';
+                            import { GPU, Scene, GameObject, Components, Mathf } from '@trident/core';
             import { OrbitControls } from '@trident/plugins/OrbitControls.js';
             import { GLTFLoader } from '@trident/plugins/GLTF/GLTFLoader.js';
-            import { MeshletMeshV3 } from '@trident/plugins/meshlets_v3/MeshletMesh.js';
             import { MeshletDraw } from '@trident/plugins/meshlets_v3/passes/MeshletDraw.js';
             import { Debugger } from '@trident/plugins/Debugger.js';
+            import { SSSRenderPass } from '@trident/plugins/SSS.js';
+            import { UIFolder, UIButtonStat, UISliderStat } from '@trident/plugins/ui/UIStats.js';
+            import { HDRParser } from '@trident/plugins/HDRParser.js';
             
             async function Application(canvas) {
               const renderer = GPU.Renderer.Create(canvas, "webgpu");
@@ -50,54 +52,65 @@
               const light = lightGameObject.AddComponent(Components.DirectionalLight);
               light.intensity = 1;
               light.color.set(1, 1, 1, 1);
-              light.castShadows = true;
+              light.castShadows = false;
               scene.renderPipeline.AddPass(new MeshletDraw(), GPU.RenderPassOrder.BeforeGBuffer);
               Debugger.Enable();
               {
-                async function traverse(gameObjects2, fn) {
-                  for (const go of gameObjects2) {
-                    if (!await fn(go)) continue;
-                    for (const child of go.transform.children) {
-                      await traverse([child.gameObject], fn);
-                    }
-                  }
+                new Scene(renderer);
+                await GLTFLoader.loadAsGameObjects(scene, "/extra/dist_bak/test-assets/GLTF/scenes/Bistro.glb");
+                {
+                  const hdr = await HDRParser.Load("./assets/textures/HDR/dikhololo_night_1k.hdr");
+                  const sky = await HDRParser.ToCubemap(hdr);
+                  const skyIrradiance = await HDRParser.GetIrradianceMap(sky);
+                  const prefilterMap = await HDRParser.GetPrefilterMap(sky);
+                  const brdfLUT = await HDRParser.GetBRDFLUT(1);
+                  scene.renderPipeline.skybox = sky;
+                  scene.renderPipeline.skyboxIrradiance = skyIrradiance;
+                  scene.renderPipeline.skyboxPrefilter = prefilterMap;
+                  scene.renderPipeline.skyboxBRDFLUT = brdfLUT;
                 }
-                const tempScene = new Scene(renderer);
-                const gameObjects = await GLTFLoader.loadAsGameObjects(tempScene, "/extra/dist_bak/test-assets/GLTF/scenes/Sponza/Sponza.gltf");
-                console.log(gameObjects);
-                const oldToNewMap = /* @__PURE__ */ new Map();
-                await traverse(gameObjects, async (gameObject) => {
-                  const newGameObject = new GameObject(scene);
-                  newGameObject.name = gameObject.name;
-                  newGameObject.transform.position.copy(gameObject.transform.position);
-                  newGameObject.transform.rotation.copy(gameObject.transform.rotation);
-                  newGameObject.transform.scale.copy(gameObject.transform.scale);
-                  oldToNewMap.set(gameObject, newGameObject);
-                  return true;
-                });
-                await traverse(gameObjects, async (oldGameObject) => {
-                  const newGameObject = oldToNewMap.get(oldGameObject);
-                  const parentOld = oldGameObject.transform.parent?.gameObject;
-                  const parentNew = parentOld ? oldToNewMap.get(parentOld) : void 0;
-                  if (parentNew) newGameObject.transform.parent = parentNew.transform;
-                  return true;
-                });
-                let i = 0;
-                let meshes = [];
-                const mat = new PBRMaterial();
-                await traverse(gameObjects, async (oldGameObject) => {
-                  const newGameObject = oldToNewMap.get(oldGameObject);
-                  const mesh = oldGameObject.GetComponent(Components.Mesh);
-                  if (!mesh) return true;
-                  const newMesh = newGameObject.AddComponent(MeshletMeshV3);
-                  newMesh.geometry = mesh.geometry;
-                  newMesh.material = mat;
-                  newMesh.enableShadows = false;
-                  console.log(`Parsed ${i}/3064`);
-                  i++;
-                  return true;
-                });
-                console.log(meshes);
+                {
+                  const sss = new SSSRenderPass(light);
+                  scene.renderPipeline.AddPass(sss, GPU.RenderPassOrder.AfterLighting);
+                  const sssDebugFolder = new UIFolder(Debugger.ui, "Plugin - ScreenSpaceShadows");
+                  sssDebugFolder.Open();
+                  new UIButtonStat(sssDebugFolder, "Enable:", (state) => {
+                    sss.Enabled = state;
+                  }, sss.Enabled);
+                  new UISliderStat(sssDebugFolder, "Blend Shadow Strength:", 0, 1, 0.01, sss.BlendShadowStrength, (value) => {
+                    sss.BlendShadowStrength = value;
+                  });
+                  new UISliderStat(sssDebugFolder, "Surface Thickness:", 0, 1, 1e-3, sss.SurfaceThickness, (value) => {
+                    sss.SurfaceThickness = value;
+                  });
+                  new UISliderStat(sssDebugFolder, "Bilinear Threshold:", 0, 1, 1e-3, sss.BilinearThreshold, (value) => {
+                    sss.BilinearThreshold = value;
+                  });
+                  new UISliderStat(sssDebugFolder, "ShadowContrast:", 0, 16, 1, sss.ShadowContrast, (value) => {
+                    sss.ShadowContrast = value;
+                  });
+                  new UIButtonStat(sssDebugFolder, "Ignore Edge Pixels:", (state) => {
+                    sss.IgnoreEdgePixels = state;
+                  }, sss.IgnoreEdgePixels);
+                  new UIButtonStat(sssDebugFolder, "Use Precision Offset:", (state) => {
+                    sss.UsePrecisionOffset = state;
+                  }, sss.UsePrecisionOffset);
+                  new UIButtonStat(sssDebugFolder, "Bilinear Sampling Offset Mode:", (state) => {
+                    sss.BilinearSamplingOffsetMode = state;
+                  }, sss.BilinearSamplingOffsetMode);
+                  new UIButtonStat(sssDebugFolder, "Debug Output Edge Mask:", (state) => {
+                    sss.DebugOutputEdgeMask = state;
+                  }, sss.DebugOutputEdgeMask);
+                  new UIButtonStat(sssDebugFolder, "Debug Output Thread Index:", (state) => {
+                    sss.DebugOutputThreadIndex = state;
+                  }, sss.DebugOutputThreadIndex);
+                  new UIButtonStat(sssDebugFolder, "Debug Output Wave Index:", (state) => {
+                    sss.DebugOutputWaveIndex = state;
+                  }, sss.DebugOutputWaveIndex);
+                  new UIButtonStat(sssDebugFolder, "Use Early Out:", (state) => {
+                    sss.UseEarlyOut = state;
+                  }, sss.UseEarlyOut);
+                }
                 scene.Start();
               }
             }

@@ -92,6 +92,12 @@ fn rand(co: f32) -> f32 {
     );
     let c = instanceColor;// + vertexColor * 0.1;
     output.albedo = vec4(c, 1.0);
+
+
+
+    output.albedo = vec4(1.0);
+    output.normal = vec4(input.vNormal, 1.0);
+    output.RMO    = vec4(0.0);
     
     return output;
 }

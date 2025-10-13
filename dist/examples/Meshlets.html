@@ -62,7 +62,7 @@
                   }
                 }
                 const tempScene = new Scene(renderer);
-                const gameObjects = await GLTFLoader.loadAsGameObjects(tempScene, "/extra/dist_bak/test-assets/happy-buddha.glb");
+                const gameObjects = await GLTFLoader.loadAsGameObjects(tempScene, "/extra/dist_bak/test-assets/GLTF/scenes/Sponza/Sponza.gltf");
                 console.log(gameObjects);
                 const oldToNewMap = /* @__PURE__ */ new Map();
                 await traverse(gameObjects, async (gameObject) => {
