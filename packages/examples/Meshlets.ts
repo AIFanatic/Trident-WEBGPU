@@ -83,8 +83,8 @@ async function Application(canvas: HTMLCanvasElement) {
         }
 
         const tempScene = new Scene(renderer);
-        // const gameObjects = await GLTFLoader.loadAsGameObjects(tempScene, "/extra/dist_bak/test-assets/GLTF/scenes/Sponza/Sponza.gltf");
-        const gameObjects = await GLTFLoader.loadAsGameObjects(tempScene, "/extra/dist_bak/test-assets/happy-buddha.glb");
+        const gameObjects = await GLTFLoader.loadAsGameObjects(tempScene, "/extra/dist_bak/test-assets/GLTF/scenes/Sponza/Sponza.gltf");
+        // const gameObjects = await GLTFLoader.loadAsGameObjects(tempScene, "/extra/dist_bak/test-assets/happy-buddha.glb");
         // const gameObjects = await GLTFLoader.loadAsGameObjects(tempScene, "/extra/dist_bak/test-assets/GLTF/scenes/Bistro.glb");
         // const gameObjects = await GLTFLoader.loadAsGameObjects(tempScene, "/extra/dist_bak/test-assets/DamagedHelmet/DamagedHelmet.gltf");
         // const gameObjects = await GLTFLoader.loadAsGameObjects(tempScene, "/dist/examples/assets/models/Monkey_Bunny.glb");

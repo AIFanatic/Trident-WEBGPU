@@ -33,13 +33,13 @@ export class PrepareMeshletData extends GPU.RenderPass {
 
     public async init(resources: GPU.ResourcePool) {
         this.frameBuffer = GPU.Buffer.Create(92 * 4, GPU.BufferType.STORAGE);
-        this.vertexAttribBuffer = new GPU.DynamicBufferMemoryAllocator(10000 * 64 * 8 * 4); // guess: 10000 verts * 8 floats * 4B
-        this.meshletVerticesBuffer = new GPU.DynamicBufferMemoryAllocator(10000 * 128 * 4);    // u32
-        this.meshletTrianglesBuffer = new GPU.DynamicBufferMemoryAllocator(10000 * 128 * 3 * 4);// u32 (expanded)
-        this.meshletInfoBuffer = new GPU.DynamicBufferMemoryAllocator(10000 * 4 * 4);         // 16 bytes/meshlet
-        this.meshInfoBuffer = new GPU.DynamicBufferMemoryAllocator(10000 * 16 * 4);         // 16 bytes/meshlet
-        this.lodMeshInfoBuffer = new GPU.DynamicBufferMemoryAllocator(10000 * 8 * 4);         // 16 bytes/meshlet
-        this.objectInfoBuffer = new GPU.DynamicBufferMemoryAllocator(10000 * 2 * 4);          // 12 bytes/instance (3×u32)
+        this.vertexAttribBuffer = new GPU.DynamicBufferMemoryAllocator(100000 * 64 * 8 * 4); // guess: 100000 verts * 8 floats * 4B
+        this.meshletVerticesBuffer = new GPU.DynamicBufferMemoryAllocator(100000 * 128 * 4);    // u32
+        this.meshletTrianglesBuffer = new GPU.DynamicBufferMemoryAllocator(100000 * 128 * 3 * 4);// u32 (expanded)
+        this.meshletInfoBuffer = new GPU.DynamicBufferMemoryAllocator(100000 * 4 * 4);         // 16 bytes/meshlet
+        this.meshInfoBuffer = new GPU.DynamicBufferMemoryAllocator(100000 * 16 * 4);         // 16 bytes/meshlet
+        this.lodMeshInfoBuffer = new GPU.DynamicBufferMemoryAllocator(100000 * 8 * 4);         // 16 bytes/meshlet
+        this.objectInfoBuffer = new GPU.DynamicBufferMemoryAllocator(100000 * 2 * 4);          // 12 bytes/instance (3×u32)
 
         this.initialized = true;
 

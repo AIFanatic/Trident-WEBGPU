@@ -57,3 +57,5 @@ export * from "./SSGI";
 export * from "./Blit";
 
 export * from "./meshlets_v3";
+
+export * from "./SSS";

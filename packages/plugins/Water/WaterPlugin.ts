@@ -111,18 +111,7 @@ class WaterRenderPass extends GPU.RenderPass {
     private waterSettingsBuffer: GPU.Buffer;
 
     constructor() {
-        super({
-            inputs: [
-                GPU.PassParams.MainCamera,
-                GPU.PassParams.GBufferAlbedo,
-                GPU.PassParams.GBufferNormal,
-                GPU.PassParams.GBufferERMO,
-                GPU.PassParams.GBufferDepth,
-            ],
-            outputs: [
-            ]
-        });
-        
+        super();
         this.waterGeometries = new Map();
     }
 
