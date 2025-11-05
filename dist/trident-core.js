@@ -5423,7 +5423,7 @@ class _DeferredShadowMapPassSettings {
   viewBlendThresholdValue = false;
   numOfCascades = 4;
   splitType = "practical";
-  splitTypePracticalLambda = 0.05;
+  splitTypePracticalLambda = 0.8;
 }
 const DeferredShadowMapPassSettings = new _DeferredShadowMapPassSettings();
 class DeferredShadowMapPass extends RenderPass {
