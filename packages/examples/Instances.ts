@@ -12,7 +12,7 @@ async function Application(canvas: HTMLCanvasElement) {
     mainCameraGameObject.transform.position.set(0, 0, -15);
     mainCameraGameObject.name = "MainCamera";
     const camera = mainCameraGameObject.AddComponent(Components.Camera);
-    camera.SetPerspective(72, canvas.width / canvas.height, 0.01, 10000);
+    camera.SetPerspective(70, window.innerWidth / window.innerHeight, 0.1, 1000);
 
 
     mainCameraGameObject.transform.position.set(0, 0, 10);
@@ -29,7 +29,7 @@ async function Application(canvas: HTMLCanvasElement) {
         const planeGO = new GameObject(scene);
         planeGO.transform.eulerAngles.x = -90;
         planeGO.transform.position.set(0, -2, 0);
-        planeGO.transform.scale.set(10, 10, 1);
+        planeGO.transform.scale.set(10000, 10000, 10000);
         const sphereMesh = planeGO.AddComponent(Components.Mesh);
         sphereMesh.geometry = Geometry.Plane();
         const mat = new PBRMaterial({albedoColor: new Mathf.Color(1, 1, 1), metalness: 0.5, roughness: 0.5});

@@ -186,7 +186,7 @@ export class SSSRenderPass extends GPU.RenderPass {
     public BlendShadowStrength: number = 0.5;
 
     // Visual configuration
-    public SurfaceThickness: number = 0.05;
+    public SurfaceThickness: number = 0.005;
     public BilinearThreshold: number = 0.02;
     public ShadowContrast: number = 4.0;
 
@@ -458,14 +458,14 @@ export class SSSRenderPass extends GPU.RenderPass {
                     let bilinear = frac(minor_axis) - 0.5;
 
                     if (USE_HALF_PIXEL_OFFSET) {
-                    read_xy = read_xy + vec2<f32>(0.5);
+                        read_xy = read_xy + vec2<f32>(0.5);
                     }
 
                     // offset on the minor axis only
                     let bias = select(-1.0, 1.0, bilinear > 0.0);
                     let offset_xy = vec2<f32>(
-                    select(bias, 0.0, ext.majorAxisX), // if major is X, offset Y; else offset X
-                    select(0.0, bias, ext.majorAxisX)
+                        select(bias, 0.0, ext.majorAxisX), // if major is X, offset Y; else offset X
+                        select(0.0, bias, ext.majorAxisX)
                     );
 
                     let d0 = sampleDepthWithBorder(read_xy);
@@ -477,19 +477,19 @@ export class SSSRenderPass extends GPU.RenderPass {
                     let use_point_filter = abs(d0 - d1) > depth_thickness_scale[i] * g_params.BilinearThreshold;
 
                     if (i == 0u) {
-                    is_edge = use_point_filter;
+                        is_edge = use_point_filter;
                     }
 
                     if (g_params.BilinearSamplingOffsetMode != 0u) {
-                    let lerp_amt = select(0.0, abs(bilinear), use_point_filter);
-                    let s = mix(d0, d1, lerp_amt);
-                    sampling_depth[i]  = s;
-                    shadowing_depth[i] = select(s, 1e20, (g_params.IgnoreEdgePixels != 0u) && use_point_filter);
+                        let lerp_amt = select(0.0, abs(bilinear), use_point_filter);
+                        let s = mix(d0, d1, lerp_amt);
+                        sampling_depth[i]  = s;
+                        shadowing_depth[i] = select(s, 1e20, (g_params.IgnoreEdgePixels != 0u) && use_point_filter);
                     } else {
-                    sampling_depth[i] = d0;
-                    let edge_depth = select(d0, 1e20, (g_params.IgnoreEdgePixels != 0u));
-                    let shadow_depth = d0 + abs(d0 - d1) * z_sign;
-                    shadowing_depth[i] = select(shadow_depth, edge_depth, use_point_filter);
+                        sampling_depth[i] = d0;
+                        let edge_depth = select(d0, 1e20, (g_params.IgnoreEdgePixels != 0u));
+                        let shadow_depth = d0 + abs(d0 - d1) * z_sign;
+                        shadowing_depth[i] = select(shadow_depth, edge_depth, use_point_filter);
                     }
 
                     sample_distance[i] = ext.pixelDistance + f32(WAVE_SIZE) * f32(i) * direction;
@@ -512,8 +512,8 @@ export class SSSRenderPass extends GPU.RenderPass {
                     var stored_depth = (shadowing_depth[i] - g_params.LightCoordinate.z) / sample_distance[i];
 
                     if (i != 0u) {
-                    // ignore overshoot near light
-                    stored_depth = select(1e10, stored_depth, sample_distance[i] > 0.0);
+                        // ignore overshoot near light
+                        stored_depth = select(1e10, stored_depth, sample_distance[i] > 0.0);
                     }
 
                     let idx = i * WAVE_SIZE + localX;
@@ -686,14 +686,14 @@ export class SSSRenderPass extends GPU.RenderPass {
         if (!camera) return;
 
         const lightPos = this.light.transform.position;
-        const clip = new Mathf.Vector4(lightPos.x, lightPos.y, lightPos.z, 1.0).applyMatrix4(camera.projectionScreenMatrix);
+        const clip = new Mathf.Vector4(lightPos.x, lightPos.y, lightPos.z, 0.0).applyMatrix4(camera.projectionScreenMatrix);
 
         // Choose which one is appropriate for your light type and pass its components:
         this._sssDispatchList = buildSSSDispatchList(
           [clip.x, clip.y, clip.z, clip.w],
           [gDepthTex.width, gDepthTex.height],
           [0, 0],                               // min render bounds
-          [gDepthTex.width, gDepthTex.height],  // max render bounds
+          [gDepthTex.width - 1, gDepthTex.height - 1],  // max render bounds
           /* expandedZ = */ false,               // WebGPU/D3D-style depth
           /* waveSize  = */ 64
         );

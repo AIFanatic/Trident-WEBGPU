@@ -36,3 +36,7 @@ import "./Test";
 
 import "./SSGI";
 import "./SSS";
+
+import "./DepthBufferRaymarch";
+
+import "./CSMShadows";
