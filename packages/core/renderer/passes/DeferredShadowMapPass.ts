@@ -14,6 +14,7 @@ import { EventSystemLocal } from "../../Events";
 import { TransformEvents } from "../../components/Transform";
 import { Vector3 } from "../../math/Vector3";
 import { DepthTextureArray } from "../Texture";
+import { Vector4 } from "../../math/Vector4";
 
 export interface LightShadowData {
     cascadeSplits: Float32Array;
@@ -21,14 +22,9 @@ export interface LightShadowData {
     shadowMapIndex: number;
 };
 
-interface Cascade {
-    splitDepth: number;
-    viewProjMatrix: Matrix4;
-}
-
 class _DeferredShadowMapPassSettings {
-    public shadowWidth = 2048;
-    public shadowHeight = 2048;
+    public shadowWidth = 4096;
+    public shadowHeight = 4096;
     public shadowsUpdateValue = true;
     public roundToPixelSizeValue = true;
     public debugCascadesValue = false;
@@ -37,7 +33,7 @@ class _DeferredShadowMapPassSettings {
     public viewBlendThresholdValue = false;
     public numOfCascades: number = 4;
     public splitType: "uniform" | "log" | "practical" = "practical";
-    public splitTypePracticalLambda: number = 0.99;
+    public splitTypePracticalLambda: number = 0.05;
 }
 
 export const DeferredShadowMapPassSettings = new _DeferredShadowMapPassSettings();
@@ -57,6 +53,11 @@ interface PreparedShadowLight {
     copySize: number;
     cascadeViewports: PreparedShadowViewport[];
     cascadeSplits: Float32Array;
+}
+
+interface Cascade {
+    splitDepth: number;
+    viewProjMatrix: Matrix4;
 }
 
 export class DeferredShadowMapPass extends RenderPass {
@@ -82,6 +83,7 @@ export class DeferredShadowMapPass extends RenderPass {
     private preparedLights: PreparedShadowLight[] = [];
     private preparedMeshes: Mesh[] = [];
     private preparedInstancedMeshes: InstancedMesh[] = [];
+
 
     // TODO: Clean this, csmSplits here to be used by debugger plugin
     public readonly Settings = DeferredShadowMapPassSettings;
@@ -148,7 +150,7 @@ export class DeferredShadowMapPass extends RenderPass {
             },
             colorOutputs: [],
             depthOutput: "depth24plus",
-            cullMode: "back",
+            cullMode: "front",
         });
 
         this.drawSkinnedMeshShadowShader = await Shader.Create({
@@ -218,26 +220,10 @@ export class DeferredShadowMapPass extends RenderPass {
         this.initialized = true;
     }
 
-    public async shaderInit(resources: ResourcePool) {
-        if (!this.initialized) return;
-        if (this.lightProjectionMatrixBuffer) {
-            this.drawShadowShader.SetBuffer("projectionMatrix", this.lightProjectionMatrixBuffer);
-            this.drawSkinnedMeshShadowShader.SetBuffer("projectionMatrix", this.lightProjectionMatrixBuffer);
-            this.drawInstancedShadowShader.SetBuffer("projectionMatrix", this.lightProjectionMatrixBuffer);
-        }
-        if (this.cascadeCurrentIndexBuffer) {
-            this.drawShadowShader.SetBuffer("cascadeIndex", this.cascadeCurrentIndexBuffer);
-            this.drawSkinnedMeshShadowShader.SetBuffer("cascadeIndex", this.cascadeCurrentIndexBuffer);
-            this.drawInstancedShadowShader.SetBuffer("cascadeIndex", this.cascadeCurrentIndexBuffer);
-        }
-        if (this.modelMatrices) {
-            this.drawShadowShader.SetBuffer("modelMatrix", this.modelMatrices);
-            this.drawSkinnedMeshShadowShader.SetBuffer("modelMatrix", this.modelMatrices);
-        }
-    }
+    public frustumData: {corners: Vector3[], lightMatrix: Matrix4, cameraMatrix: Matrix4, frustumCenters: Vector3[]};
 
     private getCornersForCascade(camera: Camera, cascadeNear: number, cascadeFar: number): Vector3[] {
-        const projectionMatrix = new Matrix4().perspectiveWGPUMatrix(camera.fov * (Math.PI / 180), camera.aspect, cascadeNear, cascadeFar);
+        const projectionMatrix = new Matrix4().perspectiveZO(camera.fov * (Math.PI / 180), camera.aspect, cascadeNear, cascadeFar);
 
         let frustumCorners: Vector3[] = [
             new Vector3(-1.0, 1.0, 0.0),
@@ -250,35 +236,32 @@ export class DeferredShadowMapPass extends RenderPass {
             new Vector3(-1.0, -1.0, 1.0),
         ];
 
-        // Project frustum corners into world space
         const invViewProj = projectionMatrix.clone().mul(camera.viewMatrix).invert();
-        for (let i = 0; i < 8; i++) {
-            frustumCorners[i].applyMatrix4(invViewProj);
-        }
+        for (let i = 0; i < 8; i++) frustumCorners[i].applyMatrix4(invViewProj);
 
         return frustumCorners;
     }
 
-    private uniformSplit( numOfCascades: number, near: number, far: number, target: number[] ) {
-        for ( let i = 1; i < numOfCascades; i ++ ) target.push( ( near + ( far - near ) * i / numOfCascades ) / far );
-        target.push( 1 );
+    private uniformSplit(numOfCascades: number, near: number, far: number, target: number[]) {
+        for (let i = 1; i < numOfCascades; i++) target.push((near + (far - near) * i / numOfCascades) / far);
+        target.push(1);
     }
 
-    private logarithmicSplit( numOfCascades: number, near: number, far: number, target: number[] ) {
-        for ( let i = 1; i < numOfCascades; i ++ ) target.push( ( near * ( far / near ) ** ( i / numOfCascades ) ) / far );
-        target.push( 1 );
+    private logarithmicSplit(numOfCascades: number, near: number, far: number, target: number[]) {
+        for (let i = 1; i < numOfCascades; i++) target.push((near * (far / near) ** (i / numOfCascades)) / far);
+        target.push(1);
     }
 
-    private practicalSplit( numOfCascades: number, near: number, far: number, lambda: number, target: number[] ) {
-        const lerp = ( x: number, y: number, t: number ) => ( 1 - t ) * x + t * y;
+    private practicalSplit(numOfCascades: number, near: number, far: number, lambda: number, target: number[]) {
+        const lerp = (x: number, y: number, t: number) => (1 - t) * x + t * y;
 
         const _uniformArray = [];
         const _logArray = [];
-        this.logarithmicSplit( numOfCascades, near, far, _logArray );
-        this.uniformSplit( numOfCascades, near, far, _uniformArray );
+        this.logarithmicSplit(numOfCascades, near, far, _logArray);
+        this.uniformSplit(numOfCascades, near, far, _uniformArray);
 
-        for ( let i = 1; i < numOfCascades; i ++ ) target.push( lerp( _uniformArray[ i - 1 ], _logArray[ i - 1 ], lambda ) );
-        target.push( 1 );
+        for (let i = 1; i < numOfCascades; i++) target.push(lerp(_uniformArray[i - 1], _logArray[i - 1], lambda));
+        target.push(1);
     }
 
     private getCascadeSplits(cascadeCount: number, near: number, far: number): number[] {
@@ -294,6 +277,8 @@ export class DeferredShadowMapPass extends RenderPass {
     private getCascades(cascadeSplits: number[], camera: Camera, cascadeCount: number, light: Light): Cascade[] {
         let cascades: Cascade[] = [];
 
+        this.frustumData = {corners: [], lightMatrix: new Matrix4(), cameraMatrix: new Matrix4(), frustumCenters: []};
+
         for (let i = 0; i < cascadeCount; i++) {
 
             const cascadeNear = i === 0 ? camera.near : cascadeSplits[i - 1];
@@ -306,41 +291,41 @@ export class DeferredShadowMapPass extends RenderPass {
                 frustumCenter.add(frustumCorners[i]);
             }
             frustumCenter.mul(1 / frustumCorners.length);
+            
+            let radius = 0;
+            for (let i = 0; i < 8; i++) radius = Math.max(radius, frustumCorners[i].clone().sub(frustumCenter).length());
 
-            const lightDirection = light.transform.position.clone().normalize();
-            // const lightDirection = new Vector3().applyMatrix4(light.camera.viewMatrix).normalize();
+            const lightDirection = light.transform.position.clone().mul(-1).normalize();
+            const up = Math.abs(lightDirection.dot(new Vector3(0,1,0))) > 0.99 ? new Vector3(0,0,1) : new Vector3(0,1,0);
 
-            const radius = frustumCorners[0].clone().sub(frustumCorners[6]).length() / 2;
             if (DeferredShadowMapPassSettings.roundToPixelSizeValue === true) {
                 const shadowMapSize = DeferredShadowMapPassSettings.shadowWidth;
                 const texelsPerUnit = shadowMapSize / (radius * 2.0);
                 const scalar = new Matrix4().makeScale(new Vector3(texelsPerUnit, texelsPerUnit, texelsPerUnit));
-                const baseLookAt = new Vector3(-lightDirection.x, -lightDirection.y, -lightDirection.z);
 
-                const lookAt = new Matrix4().lookAt(new Vector3(0, 0, 0), baseLookAt, new Vector3(0, 1, 0)).mul(scalar);
+                const lookAt = new Matrix4().lookAt(new Vector3(0, 0, 0), lightDirection.clone().mul(-1), up).mul(scalar);
                 const lookAtInv = lookAt.clone().invert();
 
-                frustumCenter.transformDirection(lookAt);
+                frustumCenter.applyMatrix4(lookAt).normalize();
                 frustumCenter.x = Math.floor(frustumCenter.x);
                 frustumCenter.y = Math.floor(frustumCenter.y);
-                frustumCenter.transformDirection(lookAtInv);
+                frustumCenter.applyMatrix4(lookAtInv).normalize();
             }
 
-            const eye = frustumCenter.clone().sub(lightDirection.clone().mul(radius * 2.0));
-
+            const eye = frustumCenter.clone().sub(lightDirection.clone().mul(-radius));
             const lightViewMatrix = new Matrix4();
-            lightViewMatrix.lookAt(
-                eye,
-                frustumCenter,
-                new Vector3(0, 1, 0)
-            );
+            lightViewMatrix.lookAt(eye, frustumCenter, up);
 
+            const lightProjMatrix = new Matrix4().orthoZO(-radius, radius, -radius, radius, -radius * 2, 0);
+            const viewProjMatrix = lightProjMatrix.clone().mul(lightViewMatrix);
 
-            const lightProjMatrix = new Matrix4().orthoZO(-radius, radius, -radius, radius, -radius * 6.0, radius * 6.0);
-            const out = lightProjMatrix.mul(lightViewMatrix);
+            this.frustumData.corners.push(...frustumCorners);
+            this.frustumData.cameraMatrix = camera.projectionMatrix.clone().mul(camera.viewMatrix);
+            this.frustumData.lightMatrix = viewProjMatrix;
+            this.frustumData.frustumCenters.push(frustumCenter);
 
             cascades.push({
-                viewProjMatrix: out,
+                viewProjMatrix: viewProjMatrix,
                 splitDepth: cascadeFar
             })
         }
@@ -352,6 +337,7 @@ export class DeferredShadowMapPass extends RenderPass {
         if (!this.initialized) return;
         const mainCamera = Camera.mainCamera;
         if (!mainCamera) return;
+        if (!this.Settings.shadowsUpdateValue) return;
 
         const scene = mainCamera.gameObject.scene;
         this.lightShadowData.clear();
@@ -425,6 +411,9 @@ export class DeferredShadowMapPass extends RenderPass {
         const instancedMeshes = scene.GetComponents(InstancedMesh).filter(instance => instance.enableShadows && instance.instanceCount > 0);
         this.preparedInstancedMeshes = instancedMeshes;
 
+        // // New
+        // this.updateFrustums();
+
         let shadowLayer = 0;
         for (let i = 0; i < lights.length; i++) {
             const light = lights[i];
@@ -442,8 +431,16 @@ export class DeferredShadowMapPass extends RenderPass {
                 const cascadeSplits = this.getCascadeSplits(numOfCascades, camera.near, camera.far);
                 this.csmSplits = cascadeSplits;
                 const cascades = this.getCascades(cascadeSplits, camera, numOfCascades, light);
+                // const cascades = this.getCascades_v2(camera, numOfCascades, light);
                 matricesForLight = cascades.map(c => c.viewProjMatrix);
                 splits = cascades.map(c => c.splitDepth);
+
+
+
+                // this.update(light);
+
+
+
 
                 const halfWidth = this.shadowOutput.width / 2;
                 const halfHeight = this.shadowOutput.height / 2;
@@ -497,7 +494,7 @@ export class DeferredShadowMapPass extends RenderPass {
         if (!this.initialized) return;
         if (this.preparedLights.length === 0) return;
 
-        RendererContext.BeginRenderPass(`ShadowPass - clear`, [], { target: this.shadowOutput, clear: true }, true);
+        RendererContext.BeginRenderPass(`ShadowPass - clear`, [], { target: this.shadowOutput, clear: true }, false);
         RendererContext.EndRenderPass();
     }
 
@@ -511,36 +508,16 @@ export class DeferredShadowMapPass extends RenderPass {
         for (const prepared of this.preparedLights) {
             shadowOutput.SetActiveLayer(prepared.layer);
 
-            RendererContext.CopyBufferToBuffer(
-                this.lightProjectionViewMatricesBuffer,
-                this.lightProjectionMatrixBuffer,
-                prepared.copyOffset,
-                0,
-                prepared.copySize
-            );
+            RendererContext.CopyBufferToBuffer(this.lightProjectionViewMatricesBuffer, this.lightProjectionMatrixBuffer, prepared.copyOffset, 0, prepared.copySize);
 
             for (let cascadePass = 0; cascadePass < prepared.numCascades; cascadePass++) {
-                RendererContext.CopyBufferToBuffer(
-                    this.cascadeIndexBuffers[cascadePass],
-                    this.cascadeCurrentIndexBuffer,
-                    0,
-                    0,
-                    4
-                );
+                RendererContext.CopyBufferToBuffer(this.cascadeIndexBuffers[cascadePass], this.cascadeCurrentIndexBuffer, 0, 0, 4);
 
-                RendererContext.BeginRenderPass(
-                    "ShadowPass",
-                    [],
-                    { target: shadowOutput, clear: cascadePass === 0 },
-                    true
-                );
+                RendererContext.BeginRenderPass("ShadowPass", [], { target: shadowOutput, clear: cascadePass === 0 }, true);
 
                 const viewport = prepared.cascadeViewports[cascadePass];
-                if (viewport) {
-                    RendererContext.SetViewport(viewport.x, viewport.y, viewport.width, viewport.height, 0, 1);
-                } else {
-                    RendererContext.SetViewport(0, 0, shadowOutput.width, shadowOutput.height, 0, 1);
-                }
+                if (viewport) RendererContext.SetViewport(viewport.x, viewport.y, viewport.width, viewport.height, 0, 1);
+                else RendererContext.SetViewport(0, 0, shadowOutput.width, shadowOutput.height, 0, 1);
 
                 let meshCount = 0;
                 for (const mesh of this.preparedMeshes) {
