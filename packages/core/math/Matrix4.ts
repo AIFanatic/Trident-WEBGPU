@@ -316,66 +316,6 @@ export class Matrix4 {
 		return this;
 	}
 
-	public perspectiveLH(fovy: number, aspect: number, near: number, far: number): Matrix4 {
-		const out = this.elements;
-		const f = 1.0 / Math.tan(fovy / 2);
-		out[0] = f / aspect;
-		out[1] = 0;
-		out[2] = 0;
-		out[3] = 0;
-
-		out[4] = 0;
-		out[5] = f;
-		out[6] = 0;
-		out[7] = 0;
-
-		out[8] = 0;
-		out[9] = 0;
-		out[10] = far / (far - near);
-		out[11] = 1;
-
-		out[12] = 0;
-		out[13] = 0;
-		out[14] = (-near * far) / (far - near);
-		out[15] = 0;
-
-		return this;
-	}
-
-	public perspectiveWGPUMatrix(fieldOfViewYInRadians: number, aspect: number, zNear: number, zFar: number): Matrix4 {
-		const f = Math.tan(Math.PI * 0.5 - 0.5 * fieldOfViewYInRadians);
-	  
-		const te = this.elements;
-		te[0]  = f / aspect;
-		te[1]  = 0;
-		te[2]  = 0;
-		te[3]  = 0;
-	  
-		te[4]  = 0;
-		te[5]  = f;
-		te[6]  = 0;
-		te[7]  = 0;
-	  
-		te[8]  = 0;
-		te[9]  = 0;
-		te[11] = -1;
-	  
-		te[12] = 0;
-		te[13] = 0;
-		te[15] = 0;
-	  
-		if (Number.isFinite(zFar)) {
-		  const rangeInv = 1 / (zNear - zFar);
-		  te[10] = zFar * rangeInv;
-		  te[14] = zFar * zNear * rangeInv;
-		} else {
-		  te[10] = -1;
-		  te[14] = -zNear;
-		}
-	  
-		return this;
-	  }
-
 	public orthoZO(left: number, right: number, bottom: number, top: number, near: number, far: number): Matrix4 {
 		var lr = 1 / (left - right);
 		var bt = 1 / (bottom - top);
@@ -399,31 +339,6 @@ export class Matrix4 {
 		out[15] = 1;
 		return this.setFromArray(out);
 	}
-
-	// public orthoZO(left: number, right: number, bottom: number, top: number, near: number, far: number): Matrix4 {
-	// 	var lr = 1 / (left - right);
-	// 	var bt = 1 / (bottom - top);
-	// 	var nf = 1 / (far - near);
-	// 	const out = new Float32Array(16);
-	// 	out[0] = -2 * lr;
-	// 	out[1] = 0;
-	// 	out[2] = 0;
-	// 	out[3] = 0;
-	// 	out[4] = 0;
-	// 	out[5] = -2 * bt;
-	// 	out[6] = 0;
-	// 	out[7] = 0;
-	// 	out[8] = 0;
-	// 	out[9] = 0;
-	// 	out[10] = nf;
-	// 	out[11] = 0;
-	// 	out[12] = (left + right) * lr;
-	// 	out[13] = (top + bottom) * bt;
-	// 	out[14] = -near * nf;
-	// 	out[15] = 1;
-	// 	return this.setFromArray(out);
-	// }
-	
 
 	public identity(): Matrix4 {
 		this.elements[0] = 1;

@@ -72,13 +72,6 @@ export class Vector3 {
         return this;
     }
 
-	public subVectors(a: Vector3, b: Vector3): Vector3 {
-		this.x = a.x - b.x;
-		this.y = a.y - b.y;
-		this.z = a.z - b.z;
-		return this;
-	}
-
     public applyQuaternion(q: Quaternion): Vector3 {
         const vx = this.x, vy = this.y, vz = this.z;
         const qx = q.x, qy = q.y, qz = q.z, qw = q.w;
@@ -215,19 +208,8 @@ export class Vector3 {
         return this;
     }
 
-	public transformDirection( m: Matrix4 ): Vector3 {
-		const x = this.x, y = this.y, z = this.z;
-		const e = m.elements;
-
-		this.x = e[ 0 ] * x + e[ 4 ] * y + e[ 8 ] * z;
-		this.y = e[ 1 ] * x + e[ 5 ] * y + e[ 9 ] * z;
-		this.z = e[ 2 ] * x + e[ 6 ] * y + e[ 10 ] * z;
-
-		return this.normalize();
-	}
-
     public toString(): string {
-        return `(${this.x.toPrecision(2)}, ${this.y.toPrecision(2)}, ${this.z.toPrecision(2)})`;
+        return `Vector3(x: ${this.x.toPrecision(2)}, y: ${this.y.toPrecision(2)}, z: ${this.z.toPrecision(2)})`;
     }
 
     public static fromArray(array: number[]): Vector3 {

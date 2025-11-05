@@ -54,6 +54,30 @@ export class Vector4 {
         return this.set(v.x, v.y, v.z, v.w);
     }
 
+    public mul(v: Vector4 | number): Vector4 {
+        if (v instanceof Vector4) this.x *= v.x, this.y *= v.y, this.z *= v.z, this.w *= v.w;
+        else this.x *= v, this.y *= v, this.z *= v, this.w *= v;
+        return this;
+    }
+
+    public div(v: Vector4 | number): Vector4 {
+        if (v instanceof Vector4) this.x /= v.x, this.y /= v.y, this.z /= v.z, this.w /= v.w;
+        else this.x /= v, this.y /= v, this.z /= v, this.w /= v;
+        return this;
+    }
+
+    public add(v: Vector4 | number): Vector4 {
+        if (v instanceof Vector4) this.x += v.x, this.y += v.y, this.z += v.z, this.w += v.w;
+        else this.x += v, this.y += v, this.z += v, this.w += v;
+        return this;
+    }
+
+    public sub(v: Vector4 | number): Vector4 {
+        if (v instanceof Vector4) this.x -= v.x, this.y -= v.y, this.z -= v.z, this.w -= v.w;
+        else this.x -= v, this.y -= v, this.z -= v, this.w -= v;
+        return this;
+    }
+
     public applyMatrix4(m: Matrix4): Vector4 {
 		const x = this.x, y = this.y, z = this.z, w = this.w;
 		const e = m.elements;
