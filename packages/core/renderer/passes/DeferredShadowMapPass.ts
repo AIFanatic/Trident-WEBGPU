@@ -33,7 +33,7 @@ class _DeferredShadowMapPassSettings {
     public viewBlendThresholdValue = false;
     public numOfCascades: number = 4;
     public splitType: "uniform" | "log" | "practical" = "practical";
-    public splitTypePracticalLambda: number = 0.05;
+    public splitTypePracticalLambda: number = 0.8;
 }
 
 export const DeferredShadowMapPassSettings = new _DeferredShadowMapPassSettings();
