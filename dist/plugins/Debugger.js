@@ -250,14 +250,14 @@ class _Debugger {
     }, 100);
   }
   textStatBytesFormatter(textStat) {
-    textStat.formatter = (value) => {
+    textStat.formatter = ((value) => {
       const k = 1024;
       const decimals = 2;
       const sizes = ["B", "KB", "MB", "GB", "TB", "PB", "EB", "ZB", "YB"];
       const i = Math.floor(Math.log(value) / Math.log(k));
       textStat.SetUnit(sizes[i]);
       return parseFloat((value / Math.pow(k, i)).toFixed(decimals));
-    };
+    });
   }
   Update() {
     this.resolution.SetText(`${Renderer.width}x${Renderer.height}`);

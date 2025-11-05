@@ -43,6 +43,7 @@ export { Blit } from './Blit.js';
 export { MeshletMeshV3 } from './meshlets_v3/MeshletMesh.js';
 import './meshlets_v3/passes/MeshletDraw.js';
 export { SSSRenderPass, buildSSSDispatchList } from './SSS.js';
+export { DepthBufferRaymarchPass } from './DepthBufferRaymarch.js';
 
 Component.Registry.set(Water.type, Water);
 

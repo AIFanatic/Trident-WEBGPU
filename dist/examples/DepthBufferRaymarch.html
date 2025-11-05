@@ -29,54 +29,41 @@
                 document.body.appendChild(canvas);
                             import { GPU, Scene, GameObject, Components, Mathf, Geometry, PBRMaterial } from '@trident/core';
             import { OrbitControls } from '@trident/plugins/OrbitControls.js';
+            import { DepthBufferRaymarchPass } from '@trident/plugins/DepthBufferRaymarch.js';
             import { Debugger } from '@trident/plugins/Debugger.js';
             
             async function Application(canvas) {
               const renderer = GPU.Renderer.Create(canvas, "webgpu");
               const scene = new Scene(renderer);
               const mainCameraGameObject = new GameObject(scene);
-              mainCameraGameObject.transform.position.set(0, 0, -15);
+              mainCameraGameObject.transform.position.set(0, 0, 3);
               mainCameraGameObject.name = "MainCamera";
               const camera = mainCameraGameObject.AddComponent(Components.Camera);
-              camera.SetPerspective(70, window.innerWidth / window.innerHeight, 0.1, 1e3);
-              mainCameraGameObject.transform.position.set(0, 0, 10);
-              mainCameraGameObject.transform.LookAtV1(new Mathf.Vector3(0, 0, 0));
+              camera.SetPerspective(70, window.innerWidth / window.innerHeight, 0.1, 5e3);
               new OrbitControls(canvas, camera);
               const lightGameObject = new GameObject(scene);
-              lightGameObject.transform.position.set(-4, 4, 4);
+              lightGameObject.transform.position.set(-1, -1, -1).normalize().mul(-200);
               lightGameObject.transform.LookAtV1(new Mathf.Vector3(0, 0, 0));
-              lightGameObject.AddComponent(Components.DirectionalLight);
-              {
-                const planeGO = new GameObject(scene);
-                planeGO.transform.eulerAngles.x = -90;
-                planeGO.transform.position.set(0, -2, 0);
-                planeGO.transform.scale.set(1e4, 1e4, 1e4);
-                const sphereMesh = planeGO.AddComponent(Components.Mesh);
-                sphereMesh.geometry = Geometry.Plane();
-                const mat = new PBRMaterial({ albedoColor: new Mathf.Color(1, 1, 1), metalness: 0.5, roughness: 0.5 });
-                sphereMesh.material = mat;
-              }
-              const gameObject = new GameObject(scene);
-              const instancedMesh = gameObject.AddComponent(Components.InstancedMesh);
-              instancedMesh.geometry = Geometry.Cube();
-              instancedMesh.material = new PBRMaterial({ useVertexPulling: false });
-              const count = 20;
-              let position = new Mathf.Vector3();
-              let rotation = new Mathf.Quaternion();
-              let scale = new Mathf.Vector3(1, 1, 1);
-              let matrix = new Mathf.Matrix4();
-              const offset = 2;
-              let i = 0;
-              for (let x = 0; x < count; x++) {
-                for (let y = 0; y < count; y++) {
-                  for (let z = 0; z < count; z++) {
-                    position.set(x * offset, y * offset, z * offset);
-                    matrix.compose(position, rotation, scale);
-                    instancedMesh.SetMatrixAt(i, matrix);
-                    i++;
-                  }
-                }
-              }
+              const light = lightGameObject.AddComponent(Components.DirectionalLight);
+              light.castShadows = false;
+              const target = new Mathf.Vector3(0, 0, 0);
+              const lightPos = lightGameObject.transform.position;
+              const lightDir = target.sub(lightPos).normalize();
+              console.log(lightDir);
+              const floor = new GameObject(scene);
+              floor.transform.scale.set(1e4, 1e4, 1e4);
+              floor.transform.eulerAngles.x = -90;
+              const meshbottom = floor.AddComponent(Components.Mesh);
+              meshbottom.geometry = Geometry.Plane();
+              meshbottom.material = new PBRMaterial();
+              const cube = new GameObject(scene);
+              cube.transform.position.y = 0.5;
+              const cubeMesh = cube.AddComponent(Components.Mesh);
+              cubeMesh.geometry = Geometry.Cube();
+              const texture = await GPU.Texture.Load("./assets/textures/32x32.png");
+              cubeMesh.material = new PBRMaterial({ albedoMap: texture, roughness: 0.7, metalness: 0.1 });
+              const depthBufferRaymarchPass = new DepthBufferRaymarchPass();
+              scene.renderPipeline.AddPass(depthBufferRaymarchPass, GPU.RenderPassOrder.AfterLighting);
               Debugger.Enable();
               scene.Start();
             }

@@ -1,6 +1,6 @@
 var Module = (() => {
   var _scriptDir = import.meta.url;
-  return function(Module2) {
+  return (function(Module2) {
     Module2 = Module2 || {};
     var Module2 = typeof Module2 != "undefined" ? Module2 : {};
     var readyPromiseResolve, readyPromiseReject;
@@ -879,7 +879,7 @@ var Module = (() => {
     }
     run();
     return Module2.ready;
-  };
+  });
 })();
 
 export { Module as default };

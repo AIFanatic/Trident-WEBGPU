@@ -525,12 +525,6 @@ class Vector3 {
     else this.x -= v, this.y -= v, this.z -= v;
     return this;
   }
-  subVectors(a, b) {
-    this.x = a.x - b.x;
-    this.y = a.y - b.y;
-    this.z = a.z - b.z;
-    return this;
-  }
   applyQuaternion(q) {
     const vx = this.x, vy = this.y, vz = this.z;
     const qx = q.x, qy = q.y, qz = q.z, qw = q.w;
@@ -634,16 +628,8 @@ class Vector3 {
     this.z = Math.sign(this.z);
     return this;
   }
-  transformDirection(m) {
-    const x = this.x, y = this.y, z = this.z;
-    const e = m.elements;
-    this.x = e[0] * x + e[4] * y + e[8] * z;
-    this.y = e[1] * x + e[5] * y + e[9] * z;
-    this.z = e[2] * x + e[6] * y + e[10] * z;
-    return this.normalize();
-  }
   toString() {
-    return `(${this.x.toPrecision(2)}, ${this.y.toPrecision(2)}, ${this.z.toPrecision(2)})`;
+    return `Vector3(x: ${this.x.toPrecision(2)}, y: ${this.y.toPrecision(2)}, z: ${this.z.toPrecision(2)})`;
   }
   static fromArray(array) {
     if (array.length < 3) throw Error("Array doesn't have enough data");
@@ -943,54 +929,6 @@ class Matrix4 {
     }
     return this;
   }
-  perspectiveLH(fovy, aspect, near, far) {
-    const out = this.elements;
-    const f = 1 / Math.tan(fovy / 2);
-    out[0] = f / aspect;
-    out[1] = 0;
-    out[2] = 0;
-    out[3] = 0;
-    out[4] = 0;
-    out[5] = f;
-    out[6] = 0;
-    out[7] = 0;
-    out[8] = 0;
-    out[9] = 0;
-    out[10] = far / (far - near);
-    out[11] = 1;
-    out[12] = 0;
-    out[13] = 0;
-    out[14] = -near * far / (far - near);
-    out[15] = 0;
-    return this;
-  }
-  perspectiveWGPUMatrix(fieldOfViewYInRadians, aspect, zNear, zFar) {
-    const f = Math.tan(Math.PI * 0.5 - 0.5 * fieldOfViewYInRadians);
-    const te = this.elements;
-    te[0] = f / aspect;
-    te[1] = 0;
-    te[2] = 0;
-    te[3] = 0;
-    te[4] = 0;
-    te[5] = f;
-    te[6] = 0;
-    te[7] = 0;
-    te[8] = 0;
-    te[9] = 0;
-    te[11] = -1;
-    te[12] = 0;
-    te[13] = 0;
-    te[15] = 0;
-    if (Number.isFinite(zFar)) {
-      const rangeInv = 1 / (zNear - zFar);
-      te[10] = zFar * rangeInv;
-      te[14] = zFar * zNear * rangeInv;
-    } else {
-      te[10] = -1;
-      te[14] = -zNear;
-    }
-    return this;
-  }
   orthoZO(left, right, bottom, top, near, far) {
     var lr = 1 / (left - right);
     var bt = 1 / (bottom - top);
@@ -1014,29 +952,6 @@ class Matrix4 {
     out[15] = 1;
     return this.setFromArray(out);
   }
-  // public orthoZO(left: number, right: number, bottom: number, top: number, near: number, far: number): Matrix4 {
-  // 	var lr = 1 / (left - right);
-  // 	var bt = 1 / (bottom - top);
-  // 	var nf = 1 / (far - near);
-  // 	const out = new Float32Array(16);
-  // 	out[0] = -2 * lr;
-  // 	out[1] = 0;
-  // 	out[2] = 0;
-  // 	out[3] = 0;
-  // 	out[4] = 0;
-  // 	out[5] = -2 * bt;
-  // 	out[6] = 0;
-  // 	out[7] = 0;
-  // 	out[8] = 0;
-  // 	out[9] = 0;
-  // 	out[10] = nf;
-  // 	out[11] = 0;
-  // 	out[12] = (left + right) * lr;
-  // 	out[13] = (top + bottom) * bt;
-  // 	out[14] = -near * nf;
-  // 	out[15] = 1;
-  // 	return this.setFromArray(out);
-  // }
   identity() {
     this.elements[0] = 1;
     this.elements[1] = 0;
@@ -1317,6 +1232,95 @@ class Transform extends Component {
 }
 const m1 = new Matrix4();
 
+function getCtorChain$1(ctor) {
+  const chain = [];
+  for (let c = ctor; c && c !== Component; c = Object.getPrototypeOf(c)) {
+    chain.push(c);
+  }
+  return chain;
+}
+class GameObject {
+  id = UUID();
+  name = "GameObject";
+  scene;
+  transform;
+  componentsByCtor = /* @__PURE__ */ new Map();
+  allComponents = [];
+  enabled = true;
+  constructor(scene) {
+    this.scene = scene;
+    this.transform = new Transform(this);
+    this.scene.AddGameObject(this);
+  }
+  AddComponent(Ctor, ...args) {
+    const componentInstance = new Ctor(this, ...args);
+    if (!(componentInstance instanceof Component)) throw new Error("Invalid component");
+    if (componentInstance instanceof Transform && this.GetComponent(Transform)) throw new Error("A GameObject can only have one Transform");
+    this.allComponents.push(componentInstance);
+    for (const ctor of getCtorChain$1(componentInstance.constructor)) {
+      let arr = this.componentsByCtor.get(ctor);
+      if (!arr) this.componentsByCtor.set(ctor, arr = []);
+      if (!arr.includes(componentInstance)) arr.push(componentInstance);
+    }
+    if (this.scene.hasStarted && componentInstance.Start) componentInstance.Start();
+    return componentInstance;
+  }
+  GetComponent(Ctor) {
+    const arr = this.componentsByCtor.get(Ctor);
+    return arr && arr.length ? arr[0] : null;
+  }
+  GetComponents(Ctor) {
+    if (!Ctor) return this.allComponents;
+    return this.componentsByCtor.get(Ctor) ?? [];
+  }
+  // Optional: only the exact type (no subclasses), still cheap (O(k) where k = matches for Ctor)
+  GetComponentsExact(Ctor) {
+    const arr = this.componentsByCtor.get(Ctor);
+    return arr ? arr.filter((c) => c.constructor === Ctor) : [];
+  }
+  Start() {
+    for (const component of this.allComponents) {
+      if (!component.hasStarted) {
+        component.Start();
+        component.hasStarted = true;
+      }
+    }
+  }
+  Destroy() {
+    for (const child of this.transform.children) {
+      child.gameObject.Destroy();
+    }
+    for (const component of this.allComponents) {
+      component.Destroy();
+    }
+    this.scene.RemoveGameObject(this);
+  }
+  Serialize() {
+    return {
+      name: this.name,
+      transform: this.transform.Serialize(),
+      components: this.allComponents.map((c) => c.Serialize())
+    };
+  }
+  Deserialize(data) {
+    this.name = data.name;
+    this.transform.Deserialize(data.transform);
+    let componentInstances = [];
+    for (let i = 0; i < data.components.length; i++) {
+      const component = data.components[i];
+      const componentClass = Component.Registry.get(component.type);
+      if (!componentClass) throw Error(`Component ${component.type} not found in component registry.`);
+      const instance = this.AddComponent(componentClass);
+      componentInstances.push(instance);
+    }
+    for (let i = 0; i < data.components.length; i++) {
+      const componentInstance = componentInstances[i];
+      const componentSerialized = data.components[i];
+      componentInstance.Deserialize(componentSerialized);
+    }
+  }
+}
+
 class Plane {
   normal;
   constant;
@@ -1443,6 +1447,26 @@ class Vector4 {
   }
   copy(v) {
     return this.set(v.x, v.y, v.z, v.w);
+  }
+  mul(v) {
+    if (v instanceof Vector4) this.x *= v.x, this.y *= v.y, this.z *= v.z, this.w *= v.w;
+    else this.x *= v, this.y *= v, this.z *= v, this.w *= v;
+    return this;
+  }
+  div(v) {
+    if (v instanceof Vector4) this.x /= v.x, this.y /= v.y, this.z /= v.z, this.w /= v.w;
+    else this.x /= v, this.y /= v, this.z /= v, this.w /= v;
+    return this;
+  }
+  add(v) {
+    if (v instanceof Vector4) this.x += v.x, this.y += v.y, this.z += v.z, this.w += v.w;
+    else this.x += v, this.y += v, this.z += v, this.w += v;
+    return this;
+  }
+  sub(v) {
+    if (v instanceof Vector4) this.x -= v.x, this.y -= v.y, this.z -= v.z, this.w -= v.w;
+    else this.x -= v, this.y -= v, this.z -= v, this.w -= v;
+    return this;
   }
   applyMatrix4(m) {
     const x = this.x, y = this.y, z = this.z, w = this.w;
@@ -1578,19 +1602,19 @@ class CameraEvents {
   };
 }
 const _Camera = class _Camera extends (_a$3 = Component, _near_dec = [SerializeField], _far_dec = [SerializeField], _fov_dec = [SerializeField], _aspect_dec = [SerializeField], _a$3) {
-  constructor() {
-    super(...arguments);
+  constructor(gameObject) {
+    super(gameObject);
     __runInitializers$3(_init$3, 5, this);
     __publicField$3(this, "backgroundColor", new Color(0, 0, 0, 1));
     __publicField$3(this, "projectionMatrix", new Matrix4());
     __publicField$3(this, "projectionScreenMatrix", new Matrix4());
-    // public projectionScreenMatrix.multiplyMatrices( camera.projectionMatrix, camera.matrixWorldInverse )
     __publicField$3(this, "viewMatrix", new Matrix4());
     __publicField$3(this, "frustum", new Frustum());
     __publicField$3(this, "_near");
     __publicField$3(this, "_far");
     __publicField$3(this, "_fov");
     __publicField$3(this, "_aspect");
+    if (!_Camera.mainCamera) _Camera.mainCamera = this;
   }
   get near() {
     return this._near;
@@ -1670,97 +1694,6 @@ __publicField$3(_Camera, "type", "@trident/core/components/Camera");
 __publicField$3(_Camera, "mainCamera");
 let Camera = _Camera;
 Component.Registry.set(Camera.type, Camera);
-
-function getCtorChain$1(ctor) {
-  const chain = [];
-  for (let c = ctor; c && c !== Component; c = Object.getPrototypeOf(c)) {
-    chain.push(c);
-  }
-  return chain;
-}
-class GameObject {
-  id = UUID();
-  name = "GameObject";
-  scene;
-  transform;
-  componentsByCtor = /* @__PURE__ */ new Map();
-  // ctor -> instances (incl. subclasses)
-  allComponents = [];
-  enabled = true;
-  constructor(scene) {
-    this.scene = scene;
-    this.transform = new Transform(this);
-    this.scene.AddGameObject(this);
-  }
-  AddComponent(Ctor, ...args) {
-    const componentInstance = new Ctor(this, ...args);
-    if (!(componentInstance instanceof Component)) throw new Error("Invalid component");
-    if (componentInstance instanceof Transform && this.GetComponent(Transform)) throw new Error("A GameObject can only have one Transform");
-    this.allComponents.push(componentInstance);
-    for (const ctor of getCtorChain$1(componentInstance.constructor)) {
-      let arr = this.componentsByCtor.get(ctor);
-      if (!arr) this.componentsByCtor.set(ctor, arr = []);
-      if (!arr.includes(componentInstance)) arr.push(componentInstance);
-    }
-    if (componentInstance instanceof Camera && !Camera.mainCamera) Camera.mainCamera = componentInstance;
-    if (this.scene.hasStarted && componentInstance.Start) componentInstance.Start();
-    return componentInstance;
-  }
-  GetComponent(Ctor) {
-    const arr = this.componentsByCtor.get(Ctor);
-    return arr && arr.length ? arr[0] : null;
-  }
-  GetComponents(Ctor) {
-    if (!Ctor) return this.allComponents;
-    return this.componentsByCtor.get(Ctor) ?? [];
-  }
-  // Optional: only the exact type (no subclasses), still cheap (O(k) where k = matches for Ctor)
-  GetComponentsExact(Ctor) {
-    const arr = this.componentsByCtor.get(Ctor);
-    return arr ? arr.filter((c) => c.constructor === Ctor) : [];
-  }
-  Start() {
-    for (const component of this.allComponents) {
-      if (!component.hasStarted) {
-        component.Start();
-        component.hasStarted = true;
-      }
-    }
-  }
-  Destroy() {
-    for (const child of this.transform.children) {
-      child.gameObject.Destroy();
-    }
-    for (const component of this.allComponents) {
-      component.Destroy();
-    }
-    this.scene.RemoveGameObject(this);
-  }
-  Serialize() {
-    return {
-      name: this.name,
-      transform: this.transform.Serialize(),
-      components: this.allComponents.map((c) => c.Serialize())
-    };
-  }
-  Deserialize(data) {
-    this.name = data.name;
-    this.transform.Deserialize(data.transform);
-    let componentInstances = [];
-    for (let i = 0; i < data.components.length; i++) {
-      const component = data.components[i];
-      const componentClass = Component.Registry.get(component.type);
-      if (!componentClass) throw Error(`Component ${component.type} not found in component registry.`);
-      const instance = this.AddComponent(componentClass);
-      componentInstances.push(instance);
-    }
-    for (let i = 0; i < data.components.length; i++) {
-      const componentInstance = componentInstances[i];
-      const componentSerialized = data.components[i];
-      componentInstance.Deserialize(componentSerialized);
-    }
-  }
-}
 
 const adapter = navigator ? await navigator.gpu.requestAdapter() : null;
 if (!adapter) throw Error("WEBGPU not supported");
@@ -3769,8 +3702,6 @@ var index$2 = /*#__PURE__*/Object.freeze({
     Color: Color,
     Frustum: Frustum,
     Matrix4: Matrix4,
-    ObservableQuaternion: ObservableQuaternion,
-    ObservableVector3: ObservableVector3,
     Plane: Plane,
     Quaternion: Quaternion,
     Sphere: Sphere,
@@ -5482,8 +5413,8 @@ class TextureViewer extends RenderPass {
 }
 
 class _DeferredShadowMapPassSettings {
-  shadowWidth = 2048;
-  shadowHeight = 2048;
+  shadowWidth = 4096;
+  shadowHeight = 4096;
   shadowsUpdateValue = true;
   roundToPixelSizeValue = true;
   debugCascadesValue = false;
@@ -5492,7 +5423,7 @@ class _DeferredShadowMapPassSettings {
   viewBlendThresholdValue = false;
   numOfCascades = 4;
   splitType = "practical";
-  splitTypePracticalLambda = 0.99;
+  splitTypePracticalLambda = 0.05;
 }
 const DeferredShadowMapPassSettings = new _DeferredShadowMapPassSettings();
 class DeferredShadowMapPass extends RenderPass {
@@ -5574,7 +5505,7 @@ class DeferredShadowMapPass extends RenderPass {
       },
       colorOutputs: [],
       depthOutput: "depth24plus",
-      cullMode: "back"
+      cullMode: "front"
     });
     this.drawSkinnedMeshShadowShader = await Shader.Create({
       code: `
@@ -5638,25 +5569,9 @@ class DeferredShadowMapPass extends RenderPass {
     this.shadowOutput = DepthTextureArray.Create(DeferredShadowMapPassSettings.shadowWidth, DeferredShadowMapPassSettings.shadowHeight, 1);
     this.initialized = true;
   }
-  async shaderInit(resources) {
-    if (!this.initialized) return;
-    if (this.lightProjectionMatrixBuffer) {
-      this.drawShadowShader.SetBuffer("projectionMatrix", this.lightProjectionMatrixBuffer);
-      this.drawSkinnedMeshShadowShader.SetBuffer("projectionMatrix", this.lightProjectionMatrixBuffer);
-      this.drawInstancedShadowShader.SetBuffer("projectionMatrix", this.lightProjectionMatrixBuffer);
-    }
-    if (this.cascadeCurrentIndexBuffer) {
-      this.drawShadowShader.SetBuffer("cascadeIndex", this.cascadeCurrentIndexBuffer);
-      this.drawSkinnedMeshShadowShader.SetBuffer("cascadeIndex", this.cascadeCurrentIndexBuffer);
-      this.drawInstancedShadowShader.SetBuffer("cascadeIndex", this.cascadeCurrentIndexBuffer);
-    }
-    if (this.modelMatrices) {
-      this.drawShadowShader.SetBuffer("modelMatrix", this.modelMatrices);
-      this.drawSkinnedMeshShadowShader.SetBuffer("modelMatrix", this.modelMatrices);
-    }
-  }
+  frustumData;
   getCornersForCascade(camera, cascadeNear, cascadeFar) {
-    const projectionMatrix = new Matrix4().perspectiveWGPUMatrix(camera.fov * (Math.PI / 180), camera.aspect, cascadeNear, cascadeFar);
+    const projectionMatrix = new Matrix4().perspectiveZO(camera.fov * (Math.PI / 180), camera.aspect, cascadeNear, cascadeFar);
     let frustumCorners = [
       new Vector3(-1, 1, 0),
       new Vector3(1, 1, 0),
@@ -5668,9 +5583,7 @@ class DeferredShadowMapPass extends RenderPass {
       new Vector3(-1, -1, 1)
     ];
     const invViewProj = projectionMatrix.clone().mul(camera.viewMatrix).invert();
-    for (let i = 0; i < 8; i++) {
-      frustumCorners[i].applyMatrix4(invViewProj);
-    }
+    for (let i = 0; i < 8; i++) frustumCorners[i].applyMatrix4(invViewProj);
     return frustumCorners;
   }
   uniformSplit(numOfCascades, near, far, target) {
@@ -5700,6 +5613,7 @@ class DeferredShadowMapPass extends RenderPass {
   }
   getCascades(cascadeSplits, camera, cascadeCount, light) {
     let cascades = [];
+    this.frustumData = { corners: [], lightMatrix: new Matrix4(), cameraMatrix: new Matrix4(), frustumCenters: [] };
     for (let i = 0; i < cascadeCount; i++) {
       const cascadeNear = i === 0 ? camera.near : cascadeSplits[i - 1];
       const cascadeFar = cascadeSplits[i];
@@ -5709,31 +5623,32 @@ class DeferredShadowMapPass extends RenderPass {
         frustumCenter.add(frustumCorners[i2]);
       }
       frustumCenter.mul(1 / frustumCorners.length);
-      const lightDirection = light.transform.position.clone().normalize();
-      const radius = frustumCorners[0].clone().sub(frustumCorners[6]).length() / 2;
+      let radius = 0;
+      for (let i2 = 0; i2 < 8; i2++) radius = Math.max(radius, frustumCorners[i2].clone().sub(frustumCenter).length());
+      const lightDirection = light.transform.position.clone().mul(-1).normalize();
+      const up = Math.abs(lightDirection.dot(new Vector3(0, 1, 0))) > 0.99 ? new Vector3(0, 0, 1) : new Vector3(0, 1, 0);
       if (DeferredShadowMapPassSettings.roundToPixelSizeValue === true) {
         const shadowMapSize = DeferredShadowMapPassSettings.shadowWidth;
         const texelsPerUnit = shadowMapSize / (radius * 2);
         const scalar = new Matrix4().makeScale(new Vector3(texelsPerUnit, texelsPerUnit, texelsPerUnit));
-        const baseLookAt = new Vector3(-lightDirection.x, -lightDirection.y, -lightDirection.z);
-        const lookAt = new Matrix4().lookAt(new Vector3(0, 0, 0), baseLookAt, new Vector3(0, 1, 0)).mul(scalar);
+        const lookAt = new Matrix4().lookAt(new Vector3(0, 0, 0), lightDirection.clone().mul(-1), up).mul(scalar);
         const lookAtInv = lookAt.clone().invert();
-        frustumCenter.transformDirection(lookAt);
+        frustumCenter.applyMatrix4(lookAt).normalize();
         frustumCenter.x = Math.floor(frustumCenter.x);
         frustumCenter.y = Math.floor(frustumCenter.y);
-        frustumCenter.transformDirection(lookAtInv);
+        frustumCenter.applyMatrix4(lookAtInv).normalize();
       }
-      const eye = frustumCenter.clone().sub(lightDirection.clone().mul(radius * 2));
+      const eye = frustumCenter.clone().sub(lightDirection.clone().mul(-radius));
       const lightViewMatrix = new Matrix4();
-      lightViewMatrix.lookAt(
-        eye,
-        frustumCenter,
-        new Vector3(0, 1, 0)
-      );
-      const lightProjMatrix = new Matrix4().orthoZO(-radius, radius, -radius, radius, -radius * 6, radius * 6);
-      const out = lightProjMatrix.mul(lightViewMatrix);
+      lightViewMatrix.lookAt(eye, frustumCenter, up);
+      const lightProjMatrix = new Matrix4().orthoZO(-radius, radius, -radius, radius, -radius * 2, 0);
+      const viewProjMatrix = lightProjMatrix.clone().mul(lightViewMatrix);
+      this.frustumData.corners.push(...frustumCorners);
+      this.frustumData.cameraMatrix = camera.projectionMatrix.clone().mul(camera.viewMatrix);
+      this.frustumData.lightMatrix = viewProjMatrix;
+      this.frustumData.frustumCenters.push(frustumCenter);
       cascades.push({
-        viewProjMatrix: out,
+        viewProjMatrix,
         splitDepth: cascadeFar
       });
     }
@@ -5743,6 +5658,7 @@ class DeferredShadowMapPass extends RenderPass {
     if (!this.initialized) return;
     const mainCamera = Camera.mainCamera;
     if (!mainCamera) return;
+    if (!this.Settings.shadowsUpdateValue) return;
     const scene = mainCamera.gameObject.scene;
     this.lightShadowData.clear();
     this.preparedLights.length = 0;
@@ -5863,7 +5779,7 @@ class DeferredShadowMapPass extends RenderPass {
   async preRender(resources) {
     if (!this.initialized) return;
     if (this.preparedLights.length === 0) return;
-    RendererContext.BeginRenderPass(`ShadowPass - clear`, [], { target: this.shadowOutput, clear: true }, true);
+    RendererContext.BeginRenderPass(`ShadowPass - clear`, [], { target: this.shadowOutput, clear: true }, false);
     RendererContext.EndRenderPass();
   }
   async execute(resources) {
@@ -5873,33 +5789,13 @@ class DeferredShadowMapPass extends RenderPass {
     shadowOutput.SetActiveLayer(0);
     for (const prepared of this.preparedLights) {
       shadowOutput.SetActiveLayer(prepared.layer);
-      RendererContext.CopyBufferToBuffer(
-        this.lightProjectionViewMatricesBuffer,
-        this.lightProjectionMatrixBuffer,
-        prepared.copyOffset,
-        0,
-        prepared.copySize
-      );
+      RendererContext.CopyBufferToBuffer(this.lightProjectionViewMatricesBuffer, this.lightProjectionMatrixBuffer, prepared.copyOffset, 0, prepared.copySize);
       for (let cascadePass = 0; cascadePass < prepared.numCascades; cascadePass++) {
-        RendererContext.CopyBufferToBuffer(
-          this.cascadeIndexBuffers[cascadePass],
-          this.cascadeCurrentIndexBuffer,
-          0,
-          0,
-          4
-        );
-        RendererContext.BeginRenderPass(
-          "ShadowPass",
-          [],
-          { target: shadowOutput, clear: cascadePass === 0 },
-          true
-        );
+        RendererContext.CopyBufferToBuffer(this.cascadeIndexBuffers[cascadePass], this.cascadeCurrentIndexBuffer, 0, 0, 4);
+        RendererContext.BeginRenderPass("ShadowPass", [], { target: shadowOutput, clear: cascadePass === 0 }, true);
         const viewport = prepared.cascadeViewports[cascadePass];
-        if (viewport) {
-          RendererContext.SetViewport(viewport.x, viewport.y, viewport.width, viewport.height, 0, 1);
-        } else {
-          RendererContext.SetViewport(0, 0, shadowOutput.width, shadowOutput.height, 0, 1);
-        }
+        if (viewport) RendererContext.SetViewport(viewport.x, viewport.y, viewport.width, viewport.height, 0, 1);
+        else RendererContext.SetViewport(0, 0, shadowOutput.width, shadowOutput.height, 0, 1);
         let meshCount = 0;
         for (const mesh of this.preparedMeshes) {
           const geometry = mesh.geometry;
@@ -6028,7 +5924,7 @@ class DeferredGBufferPass extends RenderPass {
     const allMeshes = scene.GetComponents(Mesh);
     let renderableMeshes = [];
     for (const mesh of allMeshes) {
-      if (!mesh.enabled || !mesh.gameObject.enabled || !mesh.geometry || !mesh.material || mesh.constructor !== Mesh) continue;
+      if (!mesh.enabled || !mesh.gameObject.enabled || !mesh.geometry || !mesh.material || mesh.constructor !== Mesh && mesh.constructor !== SkinnedMesh) continue;
       renderableMeshes.push(mesh);
     }
     renderableMeshes = this.frustumCull(Camera.mainCamera, renderableMeshes);
@@ -6319,9 +6215,11 @@ class Scene {
   toUpdate = /* @__PURE__ */ new Map();
   componentsByType = /* @__PURE__ */ new Map();
   renderPipeline;
+  static mainScene;
   constructor(renderer) {
     this.renderer = renderer;
     this.renderPipeline = new RenderingPipeline(this.renderer);
+    if (!Scene.mainScene) Scene.mainScene = this;
     EventSystem.on(ComponentEvents.CallUpdate, (component, flag) => {
       if (flag) this.toUpdate.set(component, true);
       else this.toUpdate.delete(component);
