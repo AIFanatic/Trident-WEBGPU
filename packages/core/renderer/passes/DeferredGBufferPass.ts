@@ -35,7 +35,7 @@ export class DeferredGBufferPass extends RenderPass {
         const allMeshes = scene.GetComponents(Mesh);
         let renderableMeshes: Mesh[] = [];
         for (const mesh of allMeshes) {
-            if (!mesh.enabled || !mesh.gameObject.enabled || !mesh.geometry || !mesh.material || mesh.constructor !== Mesh) continue;
+            if (!mesh.enabled || !mesh.gameObject.enabled || !mesh.geometry || !mesh.material || (mesh.constructor !== Mesh && mesh.constructor !== SkinnedMesh)) continue;
             renderableMeshes.push(mesh);
         }
         renderableMeshes = this.frustumCull(Camera.mainCamera, renderableMeshes);
