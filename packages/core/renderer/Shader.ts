@@ -87,7 +87,7 @@ export class BaseShader {
     public SetVector2(name: string, vector: Vector2) {}
     public SetVector3(name: string, vector: Vector3) {}
     public SetVector4(name: string, vector: Vector4) {}
-    public SetArray(name: string, array: ArrayBuffer, bufferOffset?: number, dataOffset?: number | undefined, size?: number | undefined) {}
+    public SetArray(name: string, array: ArrayBufferView, bufferOffset?: number, dataOffset?: number | undefined, size?: number | undefined) {}
     public SetTexture(name: string, texture: Texture | DepthTexture | RenderTexture) {}
     public SetSampler(name: string, texture: TextureSampler) {}
     public SetBuffer(name: string, buffer: Buffer | DynamicBuffer) {}

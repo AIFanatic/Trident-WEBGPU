@@ -5,6 +5,7 @@ import { Matrix4 } from "../math/Matrix4";
 import { Component } from "./Component";
 import { TransformEvents } from "./Transform";
 import { SerializeField } from "../utils/SerializeField";
+import { GameObject } from "../GameObject";
 
 export class CameraEvents {
     public static Updated = (camera: Camera) => {};
@@ -17,12 +18,16 @@ export class Camera extends Component {
 
     public projectionMatrix = new Matrix4();
     public projectionScreenMatrix = new Matrix4();
-    // public projectionScreenMatrix.multiplyMatrices( camera.projectionMatrix, camera.matrixWorldInverse )
 
     public viewMatrix = new Matrix4();
     public frustum: Frustum = new Frustum();
 
     public static mainCamera: Camera;
+
+    constructor(gameObject: GameObject) {
+        super(gameObject);
+        if (!Camera.mainCamera) Camera.mainCamera = this;
+    }
 
     
     private _near: number;
@@ -50,7 +55,6 @@ export class Camera extends Component {
         this._aspect = aspect;
         this._near = near;
         this._far = far;
-        // this.projectionMatrix.perspectiveLH(fov * (Math.PI / 180), aspect, near, far);
         this.projectionMatrix.perspectiveZO(fov * (Math.PI / 180), aspect, near, far);
     }
 

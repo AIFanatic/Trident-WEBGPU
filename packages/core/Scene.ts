@@ -31,10 +31,13 @@ export class Scene {
 
     public readonly renderPipeline: RenderingPipeline;
 
+    public static mainScene: Scene;
+
     constructor(renderer: Renderer) {
         this.renderer = renderer;
         this.renderPipeline = new RenderingPipeline(this.renderer);
 
+        if (!Scene.mainScene) Scene.mainScene = this;
 
         EventSystem.on(ComponentEvents.CallUpdate, (component, flag) => {
             if (flag) this.toUpdate.set(component, true);

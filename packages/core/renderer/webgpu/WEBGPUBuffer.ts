@@ -31,7 +31,7 @@ class BaseBuffer {
 
     public GetBuffer(): GPUBuffer { return this.buffer };
 
-    public SetArray(array: ArrayBuffer, bufferOffset: number = 0, dataOffset?: number | undefined, size?: number | undefined) {
+    public SetArray(array: BufferSource, bufferOffset: number = 0, dataOffset?: number | undefined, size?: number | undefined) {
         if (WEBGPURendererContext.HasActiveRenderPass()) {
             console.warn("Cannot set buffer data while there is an active render pass.");
             return;
@@ -43,7 +43,7 @@ class BaseBuffer {
         WEBGPURenderer.device.queue.writeBuffer(this.buffer, bufferOffset, array, dataOffset, size);
     }
 
-    public async GetData(sourceOffset: number = 0, destinationOffset: number = 0, size?: number): Promise<ArrayBuffer> {
+    public async GetData(sourceOffset: number = 0, destinationOffset: number = 0, size?: number): Promise<BufferSource> {
         const readBuffer = WEBGPURenderer.device.createBuffer({
             size: size ? size : this.buffer.size,
             usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ,

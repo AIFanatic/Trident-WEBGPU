@@ -1,7 +1,6 @@
 import { Component, SerializedComponent } from "./components/Component";
 import { Scene } from "./Scene";
 import { Transform } from "./components/Transform";
-import { Camera } from "./components/Camera";
 import { UUID } from "./utils";
 
 function getCtorChain(ctor: Function): Function[] {
@@ -19,7 +18,7 @@ export class GameObject {
 
     public transform: Transform;
 
-    private componentsByCtor = new Map<Function, Component[]>();   // ctor -> instances (incl. subclasses)
+    private componentsByCtor = new Map<Function, Component[]>();
     private allComponents: Component[] = [];
 
 
@@ -44,7 +43,6 @@ export class GameObject {
             if (!arr.includes(componentInstance)) arr.push(componentInstance); // no dupes
         }
 
-        if (componentInstance instanceof Camera && !Camera.mainCamera) Camera.mainCamera = componentInstance;
         if (this.scene.hasStarted && (componentInstance as any).Start) (componentInstance as any).Start();
         return componentInstance;
     }

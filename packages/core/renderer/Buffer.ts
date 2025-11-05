@@ -23,8 +23,8 @@ export class Buffer {
         else throw Error("Renderer type invalid");
     }
 
-    public SetArray(array: ArrayBuffer, bufferOffset: number = 0, dataOffset?: number | undefined, size?: number | undefined) {}
-    public async GetData(sourceOffset?: number, destinationOffset?: number, size?: number): Promise<ArrayBuffer> {return new ArrayBuffer(1)}
+    public SetArray(array: AllowSharedBufferSource, bufferOffset: number = 0, dataOffset?: number | undefined, size?: number | undefined) {}
+    public async GetData(sourceOffset?: number, destinationOffset?: number, size?: number): Promise<BufferSource> {return new ArrayBuffer(1)}
     public Destroy() {}
 }
 
@@ -41,7 +41,7 @@ export class DynamicBuffer {
         else throw Error("Renderer type invalid");
     }
 
-    public SetArray(array: ArrayBuffer, bufferOffset: number = 0, dataOffset?: number | undefined, size?: number | undefined) {}
-    public async GetData(sourceOffset?: number, destinationOffset?: number, size?: number): Promise<ArrayBuffer> {return new ArrayBuffer(1)}
+    public SetArray(array: AllowSharedBufferSource, bufferOffset: number = 0, dataOffset?: number | undefined, size?: number | undefined) {}
+    public async GetData(sourceOffset?: number, destinationOffset?: number, size?: number): Promise<BufferSource> {return new ArrayBuffer(1)}
     public Destroy() {}
 }

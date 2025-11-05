@@ -258,7 +258,7 @@ export class WEBGPUBaseShader {
         }
     }
 
-    public SetArray(name: string, array: ArrayBuffer, bufferOffset: number = 0, dataOffset?: number, size?: number) { this.SetUniformDataFromArray(name, array, bufferOffset, dataOffset, size) }
+    public SetArray(name: string, array: ArrayBufferView, bufferOffset: number = 0, dataOffset?: number, size?: number) { this.SetUniformDataFromArray(name, array, bufferOffset, dataOffset, size) }
     public SetValue(name: string, value: number) {this.valueArray[0] = value; this.SetUniformDataFromArray(name, this.valueArray)}
     public SetMatrix4(name: string, matrix: Matrix4) { this.SetUniformDataFromArray(name, matrix.elements) }
     public SetVector2(name: string, vector: Vector2) { this.SetUniformDataFromArray(name, vector.elements) }
