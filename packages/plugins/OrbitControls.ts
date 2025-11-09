@@ -24,7 +24,7 @@ export class OrbitControls {
     public maxRadius = Infinity;
     public minTheta = -Infinity;
     public maxTheta = Infinity;
-    public minPhi = 0;
+    public minPhi = -Math.PI;
     public maxPhi = Math.PI;
     private _camera: Components.Camera;
     private _element: HTMLElement;
@@ -64,10 +64,13 @@ export class OrbitControls {
     private y: number = 0;
     private orbit(deltaX: number, deltaY: number): void {
         const distance = this._camera.transform.position.distanceTo(this.center);
-        // const distance = this.center.distanceTo(this._camera.transform.position);
 
         this.x -= deltaX * this.orbitSpeed;
         this.y -= deltaY * this.orbitSpeed;
+
+        this.y = Math.min(this.maxPhi, Math.max(this.minPhi, this.y));
+        this.x = Math.min(this.maxTheta, Math.max(this.minTheta, this.x));
+
         const rotation = new Mathf.Quaternion().fromEuler(new Mathf.Vector3(this.y, this.x, 0));
         const position = new Mathf.Vector3(0.0, 0.0, distance).applyQuaternion(rotation).add(this.center);
 
@@ -102,7 +105,7 @@ export class OrbitControls {
         if (prevPointer) {
             const deltaX = (event.pageX - prevPointer.pageX) / this._pointers.size;
             const deltaY = (event.pageY - prevPointer.pageY) / this._pointers.size;
-    
+
             const type = event.pointerType === 'touch' ? this._pointers.size : event.buttons;
             if (type === BUTTONS.LEFT) {
                 this._element.style.cursor = 'grabbing';
@@ -111,7 +114,7 @@ export class OrbitControls {
                 this._element.style.cursor = 'grabbing';
                 if (this.enablePan) this.pan(deltaX, deltaY);
             }
-    
+
             if (event.pointerType === 'touch' && this._pointers.size === 2) {
                 // Get the other pointer
                 const otherPointer = Array.from(this._pointers.values()).find(p => p.pointerId !== event.pointerId);
@@ -128,11 +131,11 @@ export class OrbitControls {
                     this.zoom(zoomFactor);
                 }
             }
-    
+
         } else if (event.pointerType == 'touch') {
             this._element.setPointerCapture(event.pointerId);
         }
-    
+
         this._pointers.set(event.pointerId, event);
     }
 
