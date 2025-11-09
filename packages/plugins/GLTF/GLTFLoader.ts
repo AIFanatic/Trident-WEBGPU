@@ -218,7 +218,6 @@ export class GLTFLoader {
             if (primitive.attributes.TEXCOORD_0) geometry.attributes.set("uv", new VertexAttribute(this.readAccessorAsFloat32(primitive.attributes.TEXCOORD_0)));
         }
 
-
         return {
             name: "",
             geometry,
@@ -298,14 +297,14 @@ export class GLTFLoader {
 
     // ---------- Public: load as GameObjects (Unity-style) ----------
 
-    public static async loadAsGameObjects(scene: Scene, url: string): Promise<GameObject[]> {
+    public static async loadAsGameObjects(scene: Scene, url: string): Promise<GameObject> {
         const gltf = await new GLTFParser().load(url);
         const gameObjects: GameObject[] = [];
         const nodeGOs: GameObject[] = [];
         const skins: Components.Skin[] = [];
         const clips: Components.AnimationClip[] = [];
 
-        if (!gltf.nodes) return gameObjects;
+        if (!gltf.nodes) return null;
 
         // Build quick lookup to avoid indexOf on nodes later
         const nodeIndex = new Map<Node, number>();
@@ -410,12 +409,26 @@ export class GLTFLoader {
             }
         }
 
-        // 6) Animator on root (optional: make this configurable)
         if (clips.length && gameObjects.length) {
             const animator = gameObjects[0].AddComponent(Components.Animator);
             animator.clips = clips;
         }
 
-        return gameObjects;
+
+        // Get root gameobjects
+        const childIDs = new Set<number>();
+        for (const n of gltf.nodes) {
+            for (const childId of n.childrenID) {
+                childIDs.add(childId);
+            }
+        }
+
+        const rootGameObjects = gltf.nodes.map((n, i) => ({ n, go: nodeGOs[i] })).filter(({ n }, i) => !childIDs.has(i)).map(({ go }) => go);
+
+        const sceneGameObject = new GameObject(scene);
+        sceneGameObject.name = url.slice(url.lastIndexOf("/") + 1);
+        for (const rootGameObject of rootGameObjects) rootGameObject.transform.parent = sceneGameObject.transform;
+
+        return sceneGameObject;
     }
 }
