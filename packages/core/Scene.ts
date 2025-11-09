@@ -1,5 +1,6 @@
 import { EventSystem } from "./Events";
 import { GameObject } from "./GameObject";
+import { Input } from "./Input";
 import { Camera } from "./components";
 import { Component, ComponentEvents, SerializedComponent } from "./components/Component";
 import { Renderer } from "./renderer/Renderer";
@@ -32,6 +33,7 @@ export class Scene {
     public readonly renderPipeline: RenderingPipeline;
 
     public static mainScene: Scene;
+    private previousTime: number = 0;
 
     constructor(renderer: Renderer) {
         this.renderer = renderer;
@@ -91,10 +93,17 @@ export class Scene {
         this._hasStarted = true;
         EventSystem.emit(Scene.Events.OnStarted, this);
 
+        Renderer.info.frame = 0;
+        this.previousTime = performance.now();
         this.Tick();
     }
 
     private Tick() {
+        Renderer.info.frame++;
+        const currentTime = performance.now();
+        Renderer.info.deltaTime = currentTime - this.previousTime;
+        this.previousTime = currentTime;
+
         for (const [component, _] of this.toUpdate) {
             if (component.gameObject.enabled === false) continue;
             if (!component.hasStarted) {
@@ -105,6 +114,8 @@ export class Scene {
         }
 
         this.renderPipeline.Render(this);
+
+        Input.EndFrame();
 
         // setTimeout(() => {
         //     this.Tick()

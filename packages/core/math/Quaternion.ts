@@ -4,9 +4,9 @@ import { Vector3 } from "./Vector3";
 const EPSILON = 0.0001;
 
 export class Quaternion {
-    private _a = new Vector3()
-    private _b = new Vector3()
-    private _c = new Vector3()
+    private _a = new Vector3();
+    private _b = new Vector3();
+    private _c = new Vector3();
 
     public _x: number;
     public _y: number;
@@ -76,6 +76,7 @@ export class Quaternion {
         const cy = Math.cos(yaw * 0.5);
         const sy = Math.sin(yaw * 0.5);
 
+        // XYZ
         this.w = cr * cp * cy + sr * sp * sy;
         this.x = sr * cp * cy - cr * sp * sy;
         this.y = cr * sp * cy + sr * cp * sy;
@@ -84,8 +85,8 @@ export class Quaternion {
         return this;
     }
 
-    public toEuler(out?: Vector3, inDegrees = false): Vector3 {
-        if (!out) out = new Vector3();
+    public toEuler(inDegrees = false): Vector3 {
+        const out = new Vector3();
         // roll (x-axis rotation)
         const sinr_cosp = 2 * (this.w * this.x + this.y * this.z);
         const cosr_cosp = 1 - 2 * (this.x * this.x + this.y * this.y);

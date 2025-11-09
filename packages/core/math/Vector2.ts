@@ -57,6 +57,10 @@ export class Vector2 {
 		return Math.sqrt( this.x * this.x + this.y * this.y );
 	}
 
+	public lengthSq(): number {
+		return this.x * this.x + this.y * this.y;
+	}
+
     public clone(): Vector2 {
         return new Vector2(this.x, this.y);
     }

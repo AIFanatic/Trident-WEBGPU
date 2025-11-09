@@ -33,7 +33,7 @@ class _DeferredShadowMapPassSettings {
     public viewBlendThresholdValue = false;
     public numOfCascades: number = 4;
     public splitType: "uniform" | "log" | "practical" = "practical";
-    public splitTypePracticalLambda: number = 0.8;
+    public splitTypePracticalLambda: number = 0.9;
 }
 
 export const DeferredShadowMapPassSettings = new _DeferredShadowMapPassSettings();
@@ -298,6 +298,7 @@ export class DeferredShadowMapPass extends RenderPass {
             const lightDirection = light.transform.position.clone().mul(-1).normalize();
             const up = Math.abs(lightDirection.dot(new Vector3(0,1,0))) > 0.99 ? new Vector3(0,0,1) : new Vector3(0,1,0);
 
+            // TODO: This still seems wrong
             if (DeferredShadowMapPassSettings.roundToPixelSizeValue === true) {
                 const shadowMapSize = DeferredShadowMapPassSettings.shadowWidth;
                 const texelsPerUnit = shadowMapSize / (radius * 2.0);
@@ -306,10 +307,10 @@ export class DeferredShadowMapPass extends RenderPass {
                 const lookAt = new Matrix4().lookAt(new Vector3(0, 0, 0), lightDirection.clone().mul(-1), up).mul(scalar);
                 const lookAtInv = lookAt.clone().invert();
 
-                frustumCenter.applyMatrix4(lookAt).normalize();
-                frustumCenter.x = Math.floor(frustumCenter.x);
-                frustumCenter.y = Math.floor(frustumCenter.y);
-                frustumCenter.applyMatrix4(lookAtInv).normalize();
+                frustumCenter.applyMatrix4(lookAt);
+                frustumCenter.x = Math.round(frustumCenter.x) + 0.5;
+                frustumCenter.y = Math.round(frustumCenter.y) + 0.5;
+                frustumCenter.applyMatrix4(lookAtInv);
             }
 
             const eye = frustumCenter.clone().sub(lightDirection.clone().mul(-radius));

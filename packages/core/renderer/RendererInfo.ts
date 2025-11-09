@@ -1,4 +1,6 @@
 export class RendererInfo {
+    public frame: number = 0;
+    public deltaTime: number = 0;
     public fps: number = 0;
     public vertexCount: number = 0;
     public triangleCount: number = 0;

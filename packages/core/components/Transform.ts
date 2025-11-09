@@ -64,7 +64,6 @@ export class Transform extends Component {
 
     private UpdateMatrices() {
         this._localToWorldMatrix.compose(this.position, this.rotation, this.scale);
-        this._worldToLocalMatrix.copy(this._localToWorldMatrix).invert();
 
         if (this.parent !== null) {
             this._localToWorldMatrix.premultiply(this.parent._localToWorldMatrix);
@@ -73,7 +72,8 @@ export class Transform extends Component {
         for (const child of this.children) {
             child.UpdateMatrices();
         }
-        
+        this._worldToLocalMatrix.copy(this._localToWorldMatrix).invert();
+
         EventSystem.emit(TransformEvents.Updated);
         EventSystemLocal.emit(TransformEvents.Updated, this);
     }

@@ -17,12 +17,14 @@ export class DeferredGBufferPass extends RenderPass {
         this.initialized = true;
     }
 
+    // TODO: This still has bugs...specially with SkinnedMeshes and/or Transformed meshes.
+    // Disabled for now
     private frustumCull(camera: Camera, meshes: Mesh[]): Mesh[] {
         let nonOccluded: Mesh[] = [];
         for (const mesh of meshes) {
-            if (camera.frustum.intersectsBoundingVolume(mesh.bounds) === true) {
+            // if (camera.frustum.intersectsBoundingVolume(mesh.bounds) === true) {
                 nonOccluded.push(mesh);
-            }
+            // }
         }
         return nonOccluded;
     }

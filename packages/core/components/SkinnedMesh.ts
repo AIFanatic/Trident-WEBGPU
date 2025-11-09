@@ -6,12 +6,10 @@ import { Transform } from "./Transform";
 export class Skin {
     private joints: Transform[];
     private inverseBindMatrices: Float32Array[];
-    private jointMatrices: Float32Array[];
     public jointData: Float32Array;
     constructor(joints: Transform[], inverseBindMatrixData: Float32Array) {
         this.joints = joints;
         this.inverseBindMatrices = [];
-        this.jointMatrices = [];
         this.jointData = new Float32Array(joints.length * 16);
         for (let i = 0; i < joints.length; ++i) {
             this.inverseBindMatrices.push(new Float32Array(
@@ -19,22 +17,17 @@ export class Skin {
                 inverseBindMatrixData.byteOffset + Float32Array.BYTES_PER_ELEMENT * 16 * i,
                 16,
             ));
-            this.jointMatrices.push(new Float32Array(
-                this.jointData.buffer,
-                Float32Array.BYTES_PER_ELEMENT * 16 * i,
-                16,
-            ));
         }
     }
 
-    update(skinRootWorldMatrix: Float32Array) {
-        const globalWorldInverse = new Matrix4(...skinRootWorldMatrix).invert();
+    private _matrix = new Matrix4();
+    update(skinRootWorldMatrix: Matrix4) {
         for (let j = 0; j < this.joints.length; ++j) {
-            const tmp = globalWorldInverse.clone()
-            .mul(this.joints[j].localToWorldMatrix)         // see #3 about order
-            .mul(new Matrix4(...this.inverseBindMatrices[j]).transpose());
-          
-            this.jointMatrices[j].set(tmp.elements);
+            const tmp = skinRootWorldMatrix.clone()
+                .mul(this.joints[j].localToWorldMatrix)
+                .mul(new Matrix4().setFromArray(this.inverseBindMatrices[j]));
+
+            this.jointData.set(tmp.elements, j * 16);
         }
     }
 }
@@ -42,7 +35,7 @@ export class Skin {
 export class SkinnedMesh extends Mesh {
     public skin: Skin;
     private boneMatricesBuffer: Buffer;
-    
+
     constructor(gameObject) {
         super(gameObject);
     }
@@ -59,7 +52,7 @@ export class SkinnedMesh extends Mesh {
     }
 
     public Update(): void {
-        this.skin.update(this.gameObject.transform.localToWorldMatrix.elements);
+        this.skin.update(this.gameObject.transform.worldToLocalMatrix);
         this.boneMatricesBuffer.SetArray(this.skin.jointData);
     }
 }
