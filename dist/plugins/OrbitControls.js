@@ -13,7 +13,7 @@ class OrbitControls {
   maxRadius = Infinity;
   minTheta = -Infinity;
   maxTheta = Infinity;
-  minPhi = 0;
+  minPhi = -Math.PI;
   maxPhi = Math.PI;
   _camera;
   _element;
@@ -58,6 +58,8 @@ class OrbitControls {
     const distance = this._camera.transform.position.distanceTo(this.center);
     this.x -= deltaX * this.orbitSpeed;
     this.y -= deltaY * this.orbitSpeed;
+    this.y = Math.min(this.maxPhi, Math.max(this.minPhi, this.y));
+    this.x = Math.min(this.maxTheta, Math.max(this.minTheta, this.x));
     const rotation = new Mathf.Quaternion().fromEuler(new Mathf.Vector3(this.y, this.x, 0));
     const position = new Mathf.Vector3(0, 0, distance).applyQuaternion(rotation).add(this.center);
     this._camera.transform.rotation.copy(rotation);

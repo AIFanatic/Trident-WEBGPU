@@ -1,10 +1,19 @@
-import { Component } from '@trident/core';
+import { Component, Mathf } from '@trident/core';
 import { PhysicsRapier } from './PhysicsRapier.js';
 import { Collider } from './colliders/Collider.js';
 
 class RigidBody extends Component {
   rigidBody;
   rigidBodyDesc;
+  _velocity = new Mathf.Vector3();
+  get velocity() {
+    const v = this.rigidBody.linvel();
+    this._velocity.set(v.x, v.y, v.z);
+    return this._velocity;
+  }
+  get mass() {
+    return this.rigidBody.mass();
+  }
   constructor(gameObject) {
     super(gameObject);
   }
@@ -12,6 +21,18 @@ class RigidBody extends Component {
     if (!this.rigidBody) {
       this.Create("dynamic");
     }
+  }
+  AddForce(force) {
+    this.rigidBody.addForce(force, true);
+  }
+  Move(position) {
+    const dt = 1 / 60;
+    const pNew = position.clone();
+    const p = this.transform.position.clone();
+    const v = this.velocity.clone();
+    const force = pNew.sub(p).sub(v.mul(dt)).div(dt).mul(this.mass);
+    this.rigidBody.setLinvel({ x: 0, y: 0, z: 0 }, true);
+    this.AddForce(force);
   }
   Create(type) {
     const collider = this.gameObject.GetComponent(Collider);

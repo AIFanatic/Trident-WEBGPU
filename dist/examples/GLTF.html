@@ -27,7 +27,7 @@
             <script type="module">
                 const canvas = document.createElement("canvas");
                 document.body.appendChild(canvas);
-                            import { GPU, Scene, GameObject, Components, Mathf, Geometry, PBRMaterial } from '@trident/core';
+                            import { GPU, Scene, GameObject, Components, Mathf } from '@trident/core';
             import { OrbitControls } from '@trident/plugins/OrbitControls.js';
             import { GLTFLoader } from '@trident/plugins/GLTF/GLTFLoader.js';
             import { Debugger } from '@trident/plugins/Debugger.js';
@@ -39,7 +39,7 @@
               mainCameraGameObject.transform.position.set(0, 0, -15);
               mainCameraGameObject.name = "MainCamera";
               const camera = mainCameraGameObject.AddComponent(Components.Camera);
-              camera.SetPerspective(70, canvas.width / canvas.height, 0.1, 1e3);
+              camera.SetPerspective(72, canvas.width / canvas.height, 0.5, 1e3);
               mainCameraGameObject.transform.position.set(0, 0, 2);
               mainCameraGameObject.transform.LookAtV1(new Mathf.Vector3(0, 0, 0));
               new OrbitControls(canvas, camera);
@@ -47,17 +47,7 @@
               lightGameObject.transform.position.set(-4, 4, 4);
               lightGameObject.transform.LookAtV1(new Mathf.Vector3(0, 0, 0));
               lightGameObject.AddComponent(Components.DirectionalLight);
-              const floor = new GameObject(scene);
-              floor.transform.scale.set(1e4, 1e4, 1e4);
-              floor.transform.eulerAngles.x = -90;
-              const meshbottom = floor.AddComponent(Components.Mesh);
-              meshbottom.geometry = Geometry.Plane();
-              meshbottom.material = new PBRMaterial();
-              const gameObjects = await GLTFLoader.loadAsGameObjects(scene, "./assets/models/Fox.glb");
-              const root = gameObjects[0];
-              root.transform.scale.mul(0.01);
-              const animator = root.GetComponent(Components.Animator);
-              animator.SetClipByIndex(0);
+              await GLTFLoader.loadAsGameObjects(scene, "./assets/models/DamagedHelmet/DamagedHelmet.gltf");
               Debugger.Enable();
               scene.Start();
             }

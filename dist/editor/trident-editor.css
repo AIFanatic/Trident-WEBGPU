@@ -118,40 +118,6 @@ input[type=number] {
 .LayoutTab > .header > .selected {
     background-color: #272727;
 }
-.treeview {
-    line-height: 1.5;
-}
-
-.treeview .item {
-    counter-increment: section;
-    counter-reset: section;
-}
-
-.treeview .item .drag-hover {
-    background-color: red;
-}
-
-.treeview .item .item-title {
-    cursor: pointer;
-}
-
-.treeview .item .active {
-    background-color: #3498db;
-}
-
-.treeview .item .item-title:before {
-    content: counters(section, '--');
-    opacity: 0;
-}
-
-.treeview .item .item-title:hover {
-    /* background-color: #383838; */
-    opacity: 0.5;
-}
-
-.treeview .item .item-content {
-    overflow: hidden;
-}
 .dropdown-overlay {
     /* background-color: #ffffff50; */
     position: fixed;
@@ -219,6 +185,40 @@ input[type=number] {
     margin-left: -15px;
     position: fixed;
     font-size: 10px;
+}
+.treeview {
+    line-height: 1.5;
+}
+
+.treeview .item {
+    counter-increment: section;
+    counter-reset: section;
+}
+
+.treeview .item .drag-hover {
+    background-color: red;
+}
+
+.treeview .item .item-title {
+    cursor: pointer;
+}
+
+.treeview .item .active {
+    background-color: #3498db;
+}
+
+.treeview .item .item-title:before {
+    content: counters(section, '--');
+    opacity: 0;
+}
+
+.treeview .item .item-title:hover {
+    /* background-color: #383838; */
+    opacity: 0.5;
+}
+
+.treeview .item .item-content {
+    overflow: hidden;
 }
 .InspectorComponent {
     display: flex;

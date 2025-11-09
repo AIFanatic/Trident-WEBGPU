@@ -232,8 +232,8 @@ class Quaternion {
     this.z = cr * cp * sy - sr * sp * cy;
     return this;
   }
-  toEuler(out, inDegrees = false) {
-    if (!out) out = new Vector3();
+  toEuler(inDegrees = false) {
+    const out = new Vector3();
     const sinr_cosp = 2 * (this.w * this.x + this.y * this.z);
     const cosr_cosp = 1 - 2 * (this.x * this.x + this.y * this.y);
     out.x = Math.atan2(sinr_cosp, cosr_cosp);
@@ -685,24 +685,24 @@ class Matrix4 {
   elements;
   constructor(n11 = 1, n12 = 0, n13 = 0, n14 = 0, n21 = 0, n22 = 1, n23 = 0, n24 = 0, n31 = 0, n32 = 0, n33 = 1, n34 = 0, n41 = 0, n42 = 0, n43 = 0, n44 = 1) {
     this.elements = new Float32Array(16);
-    this.set(
-      n11,
-      n12,
-      n13,
-      n14,
-      n21,
-      n22,
-      n23,
-      n24,
-      n31,
-      n32,
-      n33,
-      n34,
-      n41,
-      n42,
-      n43,
-      n44
-    );
+    const te = this.elements;
+    te[0] = n11;
+    te[1] = n12;
+    te[2] = n13;
+    te[3] = n14;
+    te[4] = n21;
+    te[5] = n22;
+    te[6] = n23;
+    te[7] = n24;
+    te[8] = n31;
+    te[9] = n32;
+    te[10] = n33;
+    te[11] = n34;
+    te[12] = n41;
+    te[13] = n42;
+    te[14] = n43;
+    te[15] = n44;
+    return this;
   }
   copy(m) {
     const te = this.elements;
@@ -1187,13 +1187,13 @@ class Transform extends Component {
   }
   UpdateMatrices() {
     this._localToWorldMatrix.compose(this.position, this.rotation, this.scale);
-    this._worldToLocalMatrix.copy(this._localToWorldMatrix).invert();
     if (this.parent !== null) {
       this._localToWorldMatrix.premultiply(this.parent._localToWorldMatrix);
     }
     for (const child of this.children) {
       child.UpdateMatrices();
     }
+    this._worldToLocalMatrix.copy(this._localToWorldMatrix).invert();
     EventSystem.emit(TransformEvents.Updated);
     EventSystemLocal.emit(TransformEvents.Updated, this);
   }
@@ -1321,77 +1321,14 @@ class GameObject {
   }
 }
 
-class Plane {
-  normal;
-  constant;
-  constructor(normal = new Vector3(1, 0, 0), constant = 0) {
-    this.normal = normal;
-    this.constant = constant;
-  }
-  setComponents(x, y, z, w) {
-    this.normal.set(x, y, z);
-    this.constant = w;
-    return this;
-  }
-  normalize() {
-    const inverseNormalLength = 1 / this.normal.length();
-    this.normal.mul(inverseNormalLength);
-    this.constant *= inverseNormalLength;
-    return this;
-  }
-  distanceToPoint(point) {
-    return this.normal.dot(point) + this.constant;
-  }
-}
-
-class Frustum {
-  planes;
-  constructor(p0 = new Plane(), p1 = new Plane(), p2 = new Plane(), p3 = new Plane(), p4 = new Plane(), p5 = new Plane()) {
-    this.planes = [p0, p1, p2, p3, p4, p5];
-  }
-  setFromProjectionMatrix(m) {
-    const planes = this.planes;
-    const me = m.elements;
-    const me0 = me[0], me1 = me[1], me2 = me[2], me3 = me[3];
-    const me4 = me[4], me5 = me[5], me6 = me[6], me7 = me[7];
-    const me8 = me[8], me9 = me[9], me10 = me[10], me11 = me[11];
-    const me12 = me[12], me13 = me[13], me14 = me[14], me15 = me[15];
-    planes[0].setComponents(me3 - me0, me7 - me4, me11 - me8, me15 - me12).normalize();
-    planes[1].setComponents(me3 + me0, me7 + me4, me11 + me8, me15 + me12).normalize();
-    planes[2].setComponents(me3 + me1, me7 + me5, me11 + me9, me15 + me13).normalize();
-    planes[3].setComponents(me3 - me1, me7 - me5, me11 - me9, me15 - me13).normalize();
-    planes[4].setComponents(me3 - me2, me7 - me6, me11 - me10, me15 - me14).normalize();
-    planes[5].setComponents(me2, me6, me10, me14).normalize();
-    return this;
-  }
-  intersectsBoundingVolume(boundingVolume) {
-    const planes = this.planes;
-    const center = boundingVolume.center;
-    const negRadius = -boundingVolume.radius * boundingVolume.scale;
-    for (let i = 0; i < 6; i++) {
-      const distance = planes[i].distanceToPoint(center);
-      if (distance < negRadius) return false;
-    }
-    return true;
-  }
-}
-
-class Vector4 {
+class Vector2 {
   _x;
   _y;
-  _z;
-  _w;
   get x() {
     return this._x;
   }
   get y() {
     return this._y;
-  }
-  get z() {
-    return this._z;
-  }
-  get w() {
-    return this._w;
   }
   set x(v) {
     this._x = v;
@@ -1399,301 +1336,61 @@ class Vector4 {
   set y(v) {
     this._y = v;
   }
-  set z(v) {
-    this._z = v;
-  }
-  set w(v) {
-    this._w = v;
-  }
-  _elements = new Float32Array(4);
+  _elements = new Float32Array(2);
   get elements() {
     this._elements[0] = this._x;
     this._elements[1] = this._y;
-    this._elements[2] = this._z;
-    this._elements[3] = this._w;
     return this._elements;
   }
-  constructor(x = 0, y = 0, z = 0, w = 0) {
+  constructor(x = 0, y = 0) {
     this._x = x;
     this._y = y;
-    this._z = z;
-    this._w = w;
   }
-  set(x, y, z, w) {
+  set(x, y) {
     this.x = x;
     this.y = y;
-    this.z = z;
-    this.w = w;
-    return this;
-  }
-  setX(x) {
-    this.x = x;
-    return this;
-  }
-  setY(y) {
-    this.y = y;
-    return this;
-  }
-  setZ(z) {
-    this.z = z;
-    return this;
-  }
-  setW(w) {
-    this.w = w;
-    return this;
-  }
-  clone() {
-    return new Vector4(this.x, this.y, this.z, this.w);
-  }
-  copy(v) {
-    return this.set(v.x, v.y, v.z, v.w);
   }
   mul(v) {
-    if (v instanceof Vector4) this.x *= v.x, this.y *= v.y, this.z *= v.z, this.w *= v.w;
-    else this.x *= v, this.y *= v, this.z *= v, this.w *= v;
+    if (v instanceof Vector2) this.x *= v.x, this.y *= v.y;
+    else this.x *= v, this.y *= v;
     return this;
   }
   div(v) {
-    if (v instanceof Vector4) this.x /= v.x, this.y /= v.y, this.z /= v.z, this.w /= v.w;
-    else this.x /= v, this.y /= v, this.z /= v, this.w /= v;
+    if (v instanceof Vector2) this.x /= v.x, this.y /= v.y;
+    else this.x /= v, this.y /= v;
     return this;
   }
   add(v) {
-    if (v instanceof Vector4) this.x += v.x, this.y += v.y, this.z += v.z, this.w += v.w;
-    else this.x += v, this.y += v, this.z += v, this.w += v;
+    if (v instanceof Vector2) this.x += v.x, this.y += v.y;
+    else this.x += v, this.y += v;
     return this;
   }
   sub(v) {
-    if (v instanceof Vector4) this.x -= v.x, this.y -= v.y, this.z -= v.z, this.w -= v.w;
-    else this.x -= v, this.y -= v, this.z -= v, this.w -= v;
+    if (v instanceof Vector2) this.x -= v.x, this.y -= v.y;
+    else this.x -= v, this.y -= v;
     return this;
   }
-  applyMatrix4(m) {
-    const x = this.x, y = this.y, z = this.z, w = this.w;
-    const e = m.elements;
-    this.x = e[0] * x + e[4] * y + e[8] * z + e[12] * w;
-    this.y = e[1] * x + e[5] * y + e[9] * z + e[13] * w;
-    this.z = e[2] * x + e[6] * y + e[10] * z + e[14] * w;
-    this.w = e[3] * x + e[7] * y + e[11] * z + e[15] * w;
-    return this;
-  }
-  normalize() {
-    let x = this.x;
-    let y = this.y;
-    let z = this.z;
-    let w = this.w;
-    let len = x * x + y * y + z * z + w * w;
-    if (len > 0) len = 1 / Math.sqrt(len);
-    this.x = x * len;
-    this.y = y * len;
-    this.z = z * len;
-    this.w = w * len;
-    return this;
+  dot(v) {
+    return this.x * v.x + this.y * v.y;
   }
   length() {
-    return Math.sqrt(this.x * this.x + this.y * this.y + this.z * this.z + this.w * this.w);
+    return Math.sqrt(this.x * this.x + this.y * this.y);
   }
-  toString() {
-    return `(${this.x.toPrecision(2)}, ${this.y.toPrecision(2)}, ${this.z.toPrecision(2)}, ${this.w.toPrecision(2)})`;
-  }
-}
-
-class Color {
-  constructor(r = 0, g = 0, b = 0, a = 1) {
-    this.r = r;
-    this.g = g;
-    this.b = b;
-    this.a = a;
-  }
-  _elements = new Float32Array([0, 0, 0, 0]);
-  get elements() {
-    this._elements.set([this.r, this.g, this.b, this.a]);
-    return this._elements;
-  }
-  set(r, g, b, a) {
-    this.r = r;
-    this.g = g;
-    this.b = b;
-    this.a = a;
-  }
-  static fromVector(v) {
-    return new Color(v.x, v.y, v.z, v instanceof Vector4 ? v.w : 0);
-  }
-  static fromHex(hex) {
-    return new Color((hex >> 16 & 255) / 255, (hex >> 8 & 255) / 255, (hex & 255) / 255);
-  }
-  mul(v) {
-    if (v instanceof Color) this.r *= v.r, this.g *= v.g, this.b *= v.b;
-    else this.r *= v, this.g *= v, this.b *= v;
-    return this;
-  }
-  toHex() {
-    const r = Math.floor(this.r * 255).toString(16).padStart(2, "0");
-    const g = Math.floor(this.g * 255).toString(16).padStart(2, "0");
-    const b = Math.floor(this.b * 255).toString(16).padStart(2, "0");
-    const a = Math.floor(this.a * 255).toString(16).padStart(2, "0");
-    return "#" + r + g + b + a;
-  }
-  setFromHex(hex) {
-    if (hex.length !== 6 && hex.length !== 8 && !hex.startsWith("#")) {
-      throw new Error("Invalid hex color format. Expected #RRGGBB or #RRGGBBAA");
-    }
-    hex = hex.slice(1);
-    const r = parseInt(hex.slice(0, 2), 16) / 255;
-    const g = parseInt(hex.slice(2, 4), 16) / 255;
-    const b = parseInt(hex.slice(4, 6), 16) / 255;
-    const a = hex.length === 8 ? parseInt(hex.slice(6, 8), 16) / 255 : 1;
-    this.set(r, g, b, a);
-    return this;
+  lengthSq() {
+    return this.x * this.x + this.y * this.y;
   }
   clone() {
-    return new Color(this.r, this.g, this.b, this.a);
+    return new Vector2(this.x, this.y);
   }
-  copy(color) {
-    this.set(color.r, color.g, color.b, color.a);
+  copy(v) {
+    this.x = v.x;
+    this.y = v.y;
     return this;
   }
-  Serialize() {
-    return { type: "@trident/core/math/Color", r: this.r, g: this.g, b: this.b, a: this.a };
-  }
-  Deserialize(data) {
-    this.set(data.r, data.g, data.b, data.a);
-    return this;
+  toString() {
+    return `(${this.x.toPrecision(2)}, ${this.y.toPrecision(2)})`;
   }
 }
-
-var __create$3 = Object.create;
-var __defProp$3 = Object.defineProperty;
-var __getOwnPropDesc$2 = Object.getOwnPropertyDescriptor;
-var __knownSymbol$3 = (name, symbol) => (symbol = Symbol[name]) ? symbol : Symbol.for("Symbol." + name);
-var __typeError$3 = (msg) => {
-  throw TypeError(msg);
-};
-var __defNormalProp$3 = (obj, key, value) => key in obj ? __defProp$3(obj, key, { enumerable: true, configurable: true, writable: true, value }) : obj[key] = value;
-var __decoratorStart$3 = (base) => [, , , __create$3(base?.[__knownSymbol$3("metadata")] ?? null)];
-var __decoratorStrings$3 = ["class", "method", "getter", "setter", "accessor", "field", "value", "get", "set"];
-var __expectFn$3 = (fn) => fn !== void 0 && typeof fn !== "function" ? __typeError$3("Function expected") : fn;
-var __decoratorContext$3 = (kind, name, done, metadata, fns) => ({ kind: __decoratorStrings$3[kind], name, metadata, addInitializer: (fn) => done._ ? __typeError$3("Already initialized") : fns.push(__expectFn$3(fn || null)) });
-var __decoratorMetadata$3 = (array, target) => __defNormalProp$3(target, __knownSymbol$3("metadata"), array[3]);
-var __runInitializers$3 = (array, flags, self, value) => {
-  for (var i = 0, fns = array[flags >> 1], n = fns && fns.length; i < n; i++) fns[i].call(self) ;
-  return value;
-};
-var __decorateElement$3 = (array, flags, name, decorators, target, extra) => {
-  var it, done, ctx, access, k = flags & 7, s = false, p = false;
-  var j = 2 , key = __decoratorStrings$3[k + 5];
-  var extraInitializers = array[j] || (array[j] = []);
-  var desc = ((target = target.prototype), __getOwnPropDesc$2(target , name));
-  for (var i = decorators.length - 1; i >= 0; i--) {
-    ctx = __decoratorContext$3(k, name, done = {}, array[3], extraInitializers);
-    {
-      ctx.static = s, ctx.private = p, access = ctx.access = { has: (x) => name in x };
-      access.get = (x) => x[name];
-    }
-    it = (0, decorators[i])(desc[key]  , ctx), done._ = 1;
-    __expectFn$3(it) && (desc[key] = it );
-  }
-  return desc && __defProp$3(target, name, desc), target;
-};
-var __publicField$3 = (obj, key, value) => __defNormalProp$3(obj, typeof key !== "symbol" ? key + "" : key, value);
-var _aspect_dec, _fov_dec, _far_dec, _near_dec, _a$3, _init$3;
-class CameraEvents {
-  static Updated = (camera) => {
-  };
-}
-const _Camera = class _Camera extends (_a$3 = Component, _near_dec = [SerializeField], _far_dec = [SerializeField], _fov_dec = [SerializeField], _aspect_dec = [SerializeField], _a$3) {
-  constructor(gameObject) {
-    super(gameObject);
-    __runInitializers$3(_init$3, 5, this);
-    __publicField$3(this, "backgroundColor", new Color(0, 0, 0, 1));
-    __publicField$3(this, "projectionMatrix", new Matrix4());
-    __publicField$3(this, "projectionScreenMatrix", new Matrix4());
-    __publicField$3(this, "viewMatrix", new Matrix4());
-    __publicField$3(this, "frustum", new Frustum());
-    __publicField$3(this, "_near");
-    __publicField$3(this, "_far");
-    __publicField$3(this, "_fov");
-    __publicField$3(this, "_aspect");
-    if (!_Camera.mainCamera) _Camera.mainCamera = this;
-  }
-  get near() {
-    return this._near;
-  }
-  set near(near) {
-    this.SetPerspective(this.fov, this.aspect, near, this.far);
-  }
-  get far() {
-    return this._far;
-  }
-  set far(far) {
-    this.SetPerspective(this.fov, this.aspect, this.near, far);
-  }
-  get fov() {
-    return this._fov;
-  }
-  set fov(fov) {
-    this.SetPerspective(fov, this.aspect, this.near, this.far);
-  }
-  get aspect() {
-    return this._aspect;
-  }
-  set aspect(aspect) {
-    this.SetPerspective(this.fov, aspect, this.near, this.far);
-  }
-  SetPerspective(fov, aspect, near, far) {
-    this._fov = fov;
-    this._aspect = aspect;
-    this._near = near;
-    this._far = far;
-    this.projectionMatrix.perspectiveZO(fov * (Math.PI / 180), aspect, near, far);
-  }
-  SetOrthographic(left, right, top, bottom, near, far) {
-    this.near = near;
-    this.far = far;
-    this.projectionMatrix.orthoZO(left, right, top, bottom, near, far);
-  }
-  Start() {
-    EventSystemLocal.on(TransformEvents.Updated, this.transform, () => {
-      EventSystem.emit(CameraEvents.Updated, this);
-    });
-  }
-  Update() {
-    this.viewMatrix.copy(this.transform.worldToLocalMatrix);
-    this.projectionScreenMatrix.multiplyMatrices(this.projectionMatrix, this.transform.worldToLocalMatrix);
-    this.frustum.setFromProjectionMatrix(this.projectionScreenMatrix);
-  }
-  Serialize() {
-    return {
-      type: _Camera.type,
-      name: this.name,
-      id: this.id,
-      backgroundColor: this.backgroundColor.Serialize(),
-      near: this.near,
-      far: this.far,
-      fov: this.fov,
-      aspect: this.aspect
-    };
-  }
-  Deserialize(data) {
-    this.backgroundColor.Deserialize(data.backgroundColor);
-    this.name = data.name;
-    this.id = data.id;
-    this.near = data.near;
-    this.far = data.far;
-    this.fov = data.fov;
-    this.aspect = data.aspect;
-  }
-};
-_init$3 = __decoratorStart$3(_a$3);
-__decorateElement$3(_init$3, 2, "near", _near_dec, _Camera);
-__decorateElement$3(_init$3, 2, "far", _far_dec, _Camera);
-__decorateElement$3(_init$3, 2, "fov", _fov_dec, _Camera);
-__decorateElement$3(_init$3, 2, "aspect", _aspect_dec, _Camera);
-__decoratorMetadata$3(_init$3, _Camera);
-__publicField$3(_Camera, "type", "@trident/core/components/Camera");
-__publicField$3(_Camera, "mainCamera");
-let Camera = _Camera;
-Component.Registry.set(Camera.type, Camera);
 
 const adapter = navigator ? await navigator.gpu.requestAdapter() : null;
 if (!adapter) throw Error("WEBGPU not supported");
@@ -1755,6 +1452,8 @@ class WEBGPURenderer {
 }
 
 class RendererInfo {
+  frame = 0;
+  deltaTime = 0;
   fps = 0;
   vertexCount = 0;
   triangleCount = 0;
@@ -1842,189 +1541,6 @@ class Renderer {
   static OnFrameCompleted() {
     if (Renderer.type === "webgpu") return WEBGPURenderer.OnFrameCompleted();
     throw Error("Unknown render api type.");
-  }
-}
-
-var __create$2 = Object.create;
-var __defProp$2 = Object.defineProperty;
-var __knownSymbol$2 = (name, symbol) => (symbol = Symbol[name]) ? symbol : Symbol.for("Symbol." + name);
-var __typeError$2 = (msg) => {
-  throw TypeError(msg);
-};
-var __defNormalProp$2 = (obj, key, value) => key in obj ? __defProp$2(obj, key, { enumerable: true, configurable: true, writable: true, value }) : obj[key] = value;
-var __decoratorStart$2 = (base) => [, , , __create$2(base?.[__knownSymbol$2("metadata")] ?? null)];
-var __decoratorStrings$2 = ["class", "method", "getter", "setter", "accessor", "field", "value", "get", "set"];
-var __expectFn$2 = (fn) => fn !== void 0 && typeof fn !== "function" ? __typeError$2("Function expected") : fn;
-var __decoratorContext$2 = (kind, name, done, metadata, fns) => ({ kind: __decoratorStrings$2[kind], name, metadata, addInitializer: (fn) => done._ ? __typeError$2("Already initialized") : fns.push(__expectFn$2(fn || null)) });
-var __decoratorMetadata$2 = (array, target) => __defNormalProp$2(target, __knownSymbol$2("metadata"), array[3]);
-var __runInitializers$2 = (array, flags, self, value) => {
-  for (var i = 0, fns = array[flags >> 1], n = fns && fns.length; i < n; i++) flags & 1 ? fns[i].call(self) : value = fns[i].call(self, value);
-  return value;
-};
-var __decorateElement$2 = (array, flags, name, decorators, target, extra) => {
-  var it, done, ctx, access, k = flags & 7, s = false, p = false;
-  var j = array.length + 1 ;
-  var initializers = (array[j - 1] = []), extraInitializers = array[j] || (array[j] = []);
-  ((target = target.prototype), k < 5);
-  for (var i = decorators.length - 1; i >= 0; i--) {
-    ctx = __decoratorContext$2(k, name, done = {}, array[3], extraInitializers);
-    {
-      ctx.static = s, ctx.private = p, access = ctx.access = { has: (x) => name in x };
-      access.get = (x) => x[name];
-      access.set = (x, y) => x[name] = y;
-    }
-    it = (0, decorators[i])(void 0  , ctx), done._ = 1;
-    __expectFn$2(it) && (initializers.unshift(it) );
-  }
-  return target;
-};
-var __publicField$2 = (obj, key, value) => __defNormalProp$2(obj, typeof key !== "symbol" ? key + "" : key, value);
-var _castShadows_dec, _range_dec, _intensity_dec, _color_dec, _a$2, _init$2, _direction_dec, _b, _init2;
-class LightEvents {
-  static Updated = (light) => {
-  };
-}
-const _Light = class _Light extends (_a$2 = Component, _color_dec = [SerializeField], _intensity_dec = [SerializeField], _range_dec = [SerializeField], _castShadows_dec = [SerializeField], _a$2) {
-  constructor(gameObject) {
-    super(gameObject);
-    __publicField$2(this, "camera");
-    __publicField$2(this, "color", __runInitializers$2(_init$2, 8, this, new Color(1, 1, 1))), __runInitializers$2(_init$2, 11, this);
-    __publicField$2(this, "intensity", __runInitializers$2(_init$2, 12, this, 1)), __runInitializers$2(_init$2, 15, this);
-    __publicField$2(this, "range", __runInitializers$2(_init$2, 16, this, 10)), __runInitializers$2(_init$2, 19, this);
-    __publicField$2(this, "castShadows", __runInitializers$2(_init$2, 20, this, true)), __runInitializers$2(_init$2, 23, this);
-    this.camera = new Camera(this.gameObject);
-  }
-  Start() {
-    EventSystemLocal.on(TransformEvents.Updated, this.transform, () => {
-      EventSystem.emit(LightEvents.Updated, this);
-    });
-  }
-  Serialize() {
-    return {
-      type: _Light.type,
-      camera: this.camera.Serialize(),
-      color: this.color.Serialize(),
-      intensity: this.intensity,
-      range: this.range,
-      castShadows: this.castShadows
-    };
-  }
-};
-_init$2 = __decoratorStart$2(_a$2);
-__decorateElement$2(_init$2, 5, "color", _color_dec, _Light);
-__decorateElement$2(_init$2, 5, "intensity", _intensity_dec, _Light);
-__decorateElement$2(_init$2, 5, "range", _range_dec, _Light);
-__decorateElement$2(_init$2, 5, "castShadows", _castShadows_dec, _Light);
-__decoratorMetadata$2(_init$2, _Light);
-__publicField$2(_Light, "type", "@trident/core/components/Light");
-let Light = _Light;
-class SpotLight extends Light {
-  direction = new Vector3(0, -1, 0);
-  angle = 1;
-  Start() {
-    super.Start();
-    this.camera.SetPerspective(this.angle / Math.PI * 180 * 2, Renderer.width / Renderer.height, 0.01, 1e3);
-  }
-  // public Update(): void {
-  //     this.camera.SetPerspective(this.angle / Math.PI * 180 * 2, Renderer.width / Renderer.height, 0.01, 1000);
-  // }
-}
-class PointLight extends Light {
-  Start() {
-    super.Start();
-    this.camera.SetPerspective(60, Renderer.width / Renderer.height, 0.01, 1e3);
-  }
-}
-class AreaLight extends Light {
-  Start() {
-    super.Start();
-    this.camera.SetPerspective(60, Renderer.width / Renderer.height, 0.01, 1e3);
-  }
-}
-const _DirectionalLight = class _DirectionalLight extends (_b = Light, _direction_dec = [SerializeField], _b) {
-  constructor() {
-    super(...arguments);
-    __publicField$2(this, "direction", __runInitializers$2(_init2, 8, this, new Vector3(0, 1, 0))), __runInitializers$2(_init2, 11, this);
-  }
-  Start() {
-    super.Start();
-    const size = 1;
-    this.camera.SetOrthographic(-size, size, -size, size, 0.1, 100);
-  }
-  Serialize() {
-    return Object.assign(super.Serialize(), {
-      type: _DirectionalLight.type,
-      direction: this.direction.Serialize()
-    });
-  }
-  Deserialize(data) {
-    this.direction.Deserialize(data.direction);
-    this.camera.Deserialize(data.camera);
-    this.color.Deserialize(data.color);
-    this.intensity = data.intensity;
-    this.range = data.range;
-    this.castShadows = data.castShadows;
-  }
-};
-_init2 = __decoratorStart$2(_b);
-__decorateElement$2(_init2, 5, "direction", _direction_dec, _DirectionalLight);
-__decoratorMetadata$2(_init2, _DirectionalLight);
-__publicField$2(_DirectionalLight, "type", "@trident/core/components/DirectionalLight");
-let DirectionalLight = _DirectionalLight;
-Component.Registry.set(SpotLight.type, SpotLight);
-Component.Registry.set(PointLight.type, PointLight);
-Component.Registry.set(DirectionalLight.type, DirectionalLight);
-
-class BoundingVolume {
-  min;
-  max;
-  center;
-  radius;
-  scale;
-  constructor(min = new Vector3(Infinity, Infinity, Infinity), max = new Vector3(-Infinity, -Infinity, -Infinity), center = new Vector3(), radius = 0, scale = 1) {
-    this.min = min;
-    this.max = max;
-    this.center = center;
-    this.radius = radius;
-    this.scale = scale;
-  }
-  static FromVertices(vertices) {
-    let maxX = -Infinity;
-    let maxY = -Infinity;
-    let maxZ = -Infinity;
-    let minX = Infinity;
-    let minY = Infinity;
-    let minZ = Infinity;
-    for (let i = 0; i < vertices.length; i += 3) {
-      maxX = Math.max(maxX, vertices[i]);
-      minX = Math.min(minX, vertices[i]);
-      maxY = Math.max(maxY, vertices[i + 1]);
-      minY = Math.min(minY, vertices[i + 1]);
-      maxZ = Math.max(maxZ, vertices[i + 2]);
-      minZ = Math.min(minZ, vertices[i + 2]);
-    }
-    const centerX = minX + (maxX - minX) / 2;
-    const centerY = minY + (maxY - minY) / 2;
-    const centerZ = minZ + (maxZ - minZ) / 2;
-    const newCenter = new Vector3(centerX, centerY, centerZ);
-    const halfWidth = (maxX - minX) / 2;
-    const halfHeight = (maxY - minY) / 2;
-    const halfDepth = (maxZ - minZ) / 2;
-    const newRadius = Math.sqrt(halfWidth * halfWidth + halfHeight * halfHeight + halfDepth * halfDepth);
-    return new BoundingVolume(
-      new Vector3(minX, minY, minZ),
-      new Vector3(maxX, maxY, maxZ),
-      newCenter,
-      newRadius
-    );
-  }
-  copy(boundingVolume) {
-    this.min.copy(boundingVolume.min);
-    this.max.copy(boundingVolume.max);
-    this.center.copy(boundingVolume.center);
-    this.radius = boundingVolume.radius;
-    this.scale = boundingVolume.scale;
-    return this;
   }
 }
 
@@ -2202,74 +1718,6 @@ Assets.Register("@trident/core/resources/webgpu/shaders/deferred/LightStruct.wgs
 Assets.Register("@trident/core/resources/webgpu/shaders/deferred/ShadowMap.wgsl", WGSL_Shader_Deferred_ShadowMap);
 Assets.Register("@trident/core/resources/webgpu/shaders/deferred/ShadowMapCSM.wgsl", WGSL_Shader_Deferred_ShadowMapCSM);
 Assets.Register("@trident/core/resources/webgpu/shaders/deferred/ShadowUtils.wgsl", WGSL_Shader_Deferred_ShadowUtils);
-
-class Vector2 {
-  _x;
-  _y;
-  get x() {
-    return this._x;
-  }
-  get y() {
-    return this._y;
-  }
-  set x(v) {
-    this._x = v;
-  }
-  set y(v) {
-    this._y = v;
-  }
-  _elements = new Float32Array(2);
-  get elements() {
-    this._elements[0] = this._x;
-    this._elements[1] = this._y;
-    return this._elements;
-  }
-  constructor(x = 0, y = 0) {
-    this._x = x;
-    this._y = y;
-  }
-  set(x, y) {
-    this.x = x;
-    this.y = y;
-  }
-  mul(v) {
-    if (v instanceof Vector2) this.x *= v.x, this.y *= v.y;
-    else this.x *= v, this.y *= v;
-    return this;
-  }
-  div(v) {
-    if (v instanceof Vector2) this.x /= v.x, this.y /= v.y;
-    else this.x /= v, this.y /= v;
-    return this;
-  }
-  add(v) {
-    if (v instanceof Vector2) this.x += v.x, this.y += v.y;
-    else this.x += v, this.y += v;
-    return this;
-  }
-  sub(v) {
-    if (v instanceof Vector2) this.x -= v.x, this.y -= v.y;
-    else this.x -= v, this.y -= v;
-    return this;
-  }
-  dot(v) {
-    return this.x * v.x + this.y * v.y;
-  }
-  length() {
-    return Math.sqrt(this.x * this.x + this.y * this.y);
-  }
-  clone() {
-    return new Vector2(this.x, this.y);
-  }
-  copy(v) {
-    this.x = v.x;
-    this.y = v.y;
-    return this;
-  }
-  toString() {
-    return `(${this.x.toPrecision(2)}, ${this.y.toPrecision(2)})`;
-  }
-}
 
 class WEBGPUMipsGenerator {
   static sampler;
@@ -2505,6 +1953,1081 @@ class WEBGPUTexture {
   }
   Serialize() {
     throw Error("Not implemented");
+  }
+}
+
+class BoundingVolume {
+  min;
+  max;
+  center;
+  radius;
+  scale;
+  constructor(min = new Vector3(Infinity, Infinity, Infinity), max = new Vector3(-Infinity, -Infinity, -Infinity), center = new Vector3(), radius = 0, scale = 1) {
+    this.min = min;
+    this.max = max;
+    this.center = center;
+    this.radius = radius;
+    this.scale = scale;
+  }
+  static FromVertices(vertices) {
+    let maxX = -Infinity;
+    let maxY = -Infinity;
+    let maxZ = -Infinity;
+    let minX = Infinity;
+    let minY = Infinity;
+    let minZ = Infinity;
+    for (let i = 0; i < vertices.length; i += 3) {
+      maxX = Math.max(maxX, vertices[i]);
+      minX = Math.min(minX, vertices[i]);
+      maxY = Math.max(maxY, vertices[i + 1]);
+      minY = Math.min(minY, vertices[i + 1]);
+      maxZ = Math.max(maxZ, vertices[i + 2]);
+      minZ = Math.min(minZ, vertices[i + 2]);
+    }
+    const centerX = minX + (maxX - minX) / 2;
+    const centerY = minY + (maxY - minY) / 2;
+    const centerZ = minZ + (maxZ - minZ) / 2;
+    const newCenter = new Vector3(centerX, centerY, centerZ);
+    const halfWidth = (maxX - minX) / 2;
+    const halfHeight = (maxY - minY) / 2;
+    const halfDepth = (maxZ - minZ) / 2;
+    const newRadius = Math.sqrt(halfWidth * halfWidth + halfHeight * halfHeight + halfDepth * halfDepth);
+    return new BoundingVolume(
+      new Vector3(minX, minY, minZ),
+      new Vector3(maxX, maxY, maxZ),
+      newCenter,
+      newRadius
+    );
+  }
+  copy(boundingVolume) {
+    this.min.copy(boundingVolume.min);
+    this.max.copy(boundingVolume.max);
+    this.center.copy(boundingVolume.center);
+    this.radius = boundingVolume.radius;
+    this.scale = boundingVolume.scale;
+    return this;
+  }
+}
+
+class Vector4 {
+  _x;
+  _y;
+  _z;
+  _w;
+  get x() {
+    return this._x;
+  }
+  get y() {
+    return this._y;
+  }
+  get z() {
+    return this._z;
+  }
+  get w() {
+    return this._w;
+  }
+  set x(v) {
+    this._x = v;
+  }
+  set y(v) {
+    this._y = v;
+  }
+  set z(v) {
+    this._z = v;
+  }
+  set w(v) {
+    this._w = v;
+  }
+  _elements = new Float32Array(4);
+  get elements() {
+    this._elements[0] = this._x;
+    this._elements[1] = this._y;
+    this._elements[2] = this._z;
+    this._elements[3] = this._w;
+    return this._elements;
+  }
+  constructor(x = 0, y = 0, z = 0, w = 0) {
+    this._x = x;
+    this._y = y;
+    this._z = z;
+    this._w = w;
+  }
+  set(x, y, z, w) {
+    this.x = x;
+    this.y = y;
+    this.z = z;
+    this.w = w;
+    return this;
+  }
+  setX(x) {
+    this.x = x;
+    return this;
+  }
+  setY(y) {
+    this.y = y;
+    return this;
+  }
+  setZ(z) {
+    this.z = z;
+    return this;
+  }
+  setW(w) {
+    this.w = w;
+    return this;
+  }
+  clone() {
+    return new Vector4(this.x, this.y, this.z, this.w);
+  }
+  copy(v) {
+    return this.set(v.x, v.y, v.z, v.w);
+  }
+  mul(v) {
+    if (v instanceof Vector4) this.x *= v.x, this.y *= v.y, this.z *= v.z, this.w *= v.w;
+    else this.x *= v, this.y *= v, this.z *= v, this.w *= v;
+    return this;
+  }
+  div(v) {
+    if (v instanceof Vector4) this.x /= v.x, this.y /= v.y, this.z /= v.z, this.w /= v.w;
+    else this.x /= v, this.y /= v, this.z /= v, this.w /= v;
+    return this;
+  }
+  add(v) {
+    if (v instanceof Vector4) this.x += v.x, this.y += v.y, this.z += v.z, this.w += v.w;
+    else this.x += v, this.y += v, this.z += v, this.w += v;
+    return this;
+  }
+  sub(v) {
+    if (v instanceof Vector4) this.x -= v.x, this.y -= v.y, this.z -= v.z, this.w -= v.w;
+    else this.x -= v, this.y -= v, this.z -= v, this.w -= v;
+    return this;
+  }
+  applyMatrix4(m) {
+    const x = this.x, y = this.y, z = this.z, w = this.w;
+    const e = m.elements;
+    this.x = e[0] * x + e[4] * y + e[8] * z + e[12] * w;
+    this.y = e[1] * x + e[5] * y + e[9] * z + e[13] * w;
+    this.z = e[2] * x + e[6] * y + e[10] * z + e[14] * w;
+    this.w = e[3] * x + e[7] * y + e[11] * z + e[15] * w;
+    return this;
+  }
+  normalize() {
+    let x = this.x;
+    let y = this.y;
+    let z = this.z;
+    let w = this.w;
+    let len = x * x + y * y + z * z + w * w;
+    if (len > 0) len = 1 / Math.sqrt(len);
+    this.x = x * len;
+    this.y = y * len;
+    this.z = z * len;
+    this.w = w * len;
+    return this;
+  }
+  length() {
+    return Math.sqrt(this.x * this.x + this.y * this.y + this.z * this.z + this.w * this.w);
+  }
+  toString() {
+    return `(${this.x.toPrecision(2)}, ${this.y.toPrecision(2)}, ${this.z.toPrecision(2)}, ${this.w.toPrecision(2)})`;
+  }
+}
+
+class Sphere {
+  center;
+  radius;
+  constructor(center = new Vector3(0, 0, 0), radius = 0) {
+    this.center = center;
+    this.radius = radius;
+  }
+  static fromAABB(minBounds, maxBounds) {
+    const center = maxBounds.clone().add(minBounds).mul(0.5);
+    const radius = maxBounds.distanceTo(minBounds) * 0.5;
+    return new Sphere(center, radius);
+  }
+  static fromVertices(vertices, indices, vertex_positions_stride) {
+    let min = new Vector3(Infinity, Infinity, Infinity);
+    let max = new Vector3(-Infinity, -Infinity, -Infinity);
+    let vertex = new Vector3();
+    for (const index of indices) {
+      const x = vertices[index * vertex_positions_stride + 0];
+      const y = vertices[index * vertex_positions_stride + 1];
+      const z = vertices[index * vertex_positions_stride + 2];
+      if (isNaN(x) || isNaN(y) || isNaN(z)) throw Error(`Invalid vertex [i ${index}, ${x}, ${y}, ${z}]`);
+      vertex.set(x, y, z);
+      min.min(vertex);
+      max.max(vertex);
+    }
+    return Sphere.fromAABB(min, max);
+  }
+  // Set the sphere to contain all points in the array
+  SetFromPoints(points) {
+    if (points.length === 0) {
+      throw new Error("Point array is empty.");
+    }
+    let centroid = points.reduce((acc, cur) => acc.add(cur)).mul(1 / points.length);
+    let maxRadius = points.reduce((max, p) => Math.max(max, centroid.distanceTo(p)), 0);
+    this.center = centroid;
+    this.radius = maxRadius;
+  }
+  applyMatrix4(matrix) {
+    this.center.applyMatrix4(matrix);
+    this.radius = this.radius * matrix.getMaxScaleOnAxis();
+    return this;
+  }
+  clone() {
+    return new Sphere(this.center.clone(), this.radius);
+  }
+}
+
+class Plane {
+  normal;
+  constant;
+  constructor(normal = new Vector3(1, 0, 0), constant = 0) {
+    this.normal = normal;
+    this.constant = constant;
+  }
+  setComponents(x, y, z, w) {
+    this.normal.set(x, y, z);
+    this.constant = w;
+    return this;
+  }
+  normalize() {
+    const inverseNormalLength = 1 / this.normal.length();
+    this.normal.mul(inverseNormalLength);
+    this.constant *= inverseNormalLength;
+    return this;
+  }
+  distanceToPoint(point) {
+    return this.normal.dot(point) + this.constant;
+  }
+}
+
+class Frustum {
+  planes;
+  constructor(p0 = new Plane(), p1 = new Plane(), p2 = new Plane(), p3 = new Plane(), p4 = new Plane(), p5 = new Plane()) {
+    this.planes = [p0, p1, p2, p3, p4, p5];
+  }
+  setFromProjectionMatrix(m) {
+    const planes = this.planes;
+    const me = m.elements;
+    const me0 = me[0], me1 = me[1], me2 = me[2], me3 = me[3];
+    const me4 = me[4], me5 = me[5], me6 = me[6], me7 = me[7];
+    const me8 = me[8], me9 = me[9], me10 = me[10], me11 = me[11];
+    const me12 = me[12], me13 = me[13], me14 = me[14], me15 = me[15];
+    planes[0].setComponents(me3 - me0, me7 - me4, me11 - me8, me15 - me12).normalize();
+    planes[1].setComponents(me3 + me0, me7 + me4, me11 + me8, me15 + me12).normalize();
+    planes[2].setComponents(me3 + me1, me7 + me5, me11 + me9, me15 + me13).normalize();
+    planes[3].setComponents(me3 - me1, me7 - me5, me11 - me9, me15 - me13).normalize();
+    planes[4].setComponents(me3 - me2, me7 - me6, me11 - me10, me15 - me14).normalize();
+    planes[5].setComponents(me2, me6, me10, me14).normalize();
+    return this;
+  }
+  intersectsBoundingVolume(boundingVolume) {
+    const planes = this.planes;
+    const center = boundingVolume.center;
+    const negRadius = -boundingVolume.radius * boundingVolume.scale;
+    for (let i = 0; i < 6; i++) {
+      const distance = planes[i].distanceToPoint(center);
+      if (distance < negRadius) return false;
+    }
+    return true;
+  }
+}
+
+class Color {
+  constructor(r = 0, g = 0, b = 0, a = 1) {
+    this.r = r;
+    this.g = g;
+    this.b = b;
+    this.a = a;
+  }
+  _elements = new Float32Array([0, 0, 0, 0]);
+  get elements() {
+    this._elements.set([this.r, this.g, this.b, this.a]);
+    return this._elements;
+  }
+  set(r, g, b, a) {
+    this.r = r;
+    this.g = g;
+    this.b = b;
+    this.a = a;
+  }
+  static fromVector(v) {
+    return new Color(v.x, v.y, v.z, v instanceof Vector4 ? v.w : 0);
+  }
+  static fromHex(hex) {
+    return new Color((hex >> 16 & 255) / 255, (hex >> 8 & 255) / 255, (hex & 255) / 255);
+  }
+  mul(v) {
+    if (v instanceof Color) this.r *= v.r, this.g *= v.g, this.b *= v.b;
+    else this.r *= v, this.g *= v, this.b *= v;
+    return this;
+  }
+  toHex() {
+    const r = Math.floor(this.r * 255).toString(16).padStart(2, "0");
+    const g = Math.floor(this.g * 255).toString(16).padStart(2, "0");
+    const b = Math.floor(this.b * 255).toString(16).padStart(2, "0");
+    const a = Math.floor(this.a * 255).toString(16).padStart(2, "0");
+    return "#" + r + g + b + a;
+  }
+  setFromHex(hex) {
+    if (hex.length !== 6 && hex.length !== 8 && !hex.startsWith("#")) {
+      throw new Error("Invalid hex color format. Expected #RRGGBB or #RRGGBBAA");
+    }
+    hex = hex.slice(1);
+    const r = parseInt(hex.slice(0, 2), 16) / 255;
+    const g = parseInt(hex.slice(2, 4), 16) / 255;
+    const b = parseInt(hex.slice(4, 6), 16) / 255;
+    const a = hex.length === 8 ? parseInt(hex.slice(6, 8), 16) / 255 : 1;
+    this.set(r, g, b, a);
+    return this;
+  }
+  clone() {
+    return new Color(this.r, this.g, this.b, this.a);
+  }
+  copy(color) {
+    this.set(color.r, color.g, color.b, color.a);
+    return this;
+  }
+  Serialize() {
+    return { type: "@trident/core/math/Color", r: this.r, g: this.g, b: this.b, a: this.a };
+  }
+  Deserialize(data) {
+    this.set(data.r, data.g, data.b, data.a);
+    return this;
+  }
+}
+
+const Lerp = (a, b, f) => a * (1 - f) + b * f;
+const Clamp = (value, min, max) => Math.max(min, Math.min(max, value));
+const Round = Math.round;
+const Sqrt = Math.sqrt;
+const Atan2 = Math.atan2;
+const Floor = Math.floor;
+const Max = Math.max;
+const Min = Math.min;
+const Epsilon = 1e-5;
+const Deg2Rad = Math.PI / 180;
+const Rad2Deg = 180 / Math.PI;
+
+var index$2 = /*#__PURE__*/Object.freeze({
+    __proto__: null,
+    Atan2: Atan2,
+    BoundingVolume: BoundingVolume,
+    Clamp: Clamp,
+    Color: Color,
+    Deg2Rad: Deg2Rad,
+    Epsilon: Epsilon,
+    Floor: Floor,
+    Frustum: Frustum,
+    Lerp: Lerp,
+    Matrix4: Matrix4,
+    Max: Max,
+    Min: Min,
+    Plane: Plane,
+    Quaternion: Quaternion,
+    Rad2Deg: Rad2Deg,
+    Round: Round,
+    Sphere: Sphere,
+    Sqrt: Sqrt,
+    Vector2: Vector2,
+    Vector3: Vector3,
+    Vector4: Vector4
+});
+
+class GeometryAttribute {
+  type = "@trident/core/Geometry/GeometryAttribute";
+  array;
+  buffer;
+  currentOffset;
+  // This can be used 
+  currentSize;
+  count;
+  constructor(array, type) {
+    if (array.length === 0) throw Error("GeometryAttribute data is empty");
+    let bufferArray = array;
+    let bufferSize = array.byteLength;
+    if (bufferSize % 4 !== 0) {
+      bufferSize = Math.ceil(bufferSize / 4) * 4;
+      if (array instanceof Uint16Array) {
+        const paddedLength = bufferSize / Uint16Array.BYTES_PER_ELEMENT;
+        const paddedArray = new Uint16Array(paddedLength);
+        paddedArray.set(array);
+        bufferArray = paddedArray;
+      } else if (array instanceof Uint8Array) {
+        const paddedLength = bufferSize / Uint8Array.BYTES_PER_ELEMENT;
+        const paddedArray = new Uint8Array(paddedLength);
+        paddedArray.set(array);
+        bufferArray = paddedArray;
+      }
+    }
+    this.array = array;
+    this.buffer = Buffer.Create(bufferSize, type);
+    this.buffer.SetArray(bufferArray);
+    this.currentOffset = 0;
+    this.currentSize = array.byteLength;
+    this.count = array.length;
+  }
+  GetBuffer() {
+    return this.buffer;
+  }
+  Destroy() {
+    this.buffer.Destroy();
+  }
+  Serialize() {
+    return {
+      attributeType: this.type,
+      array: Array.from(this.array),
+      arrayType: this.array instanceof Float32Array ? "float32" : "uint32",
+      currentOffset: this.currentOffset,
+      currentSize: this.currentSize
+    };
+  }
+}
+class VertexAttribute extends GeometryAttribute {
+  type = "@trident/core/Geometry/VertexAttribute";
+  constructor(array) {
+    super(array, BufferType.VERTEX);
+  }
+  static Deserialize(data) {
+    const array = data.arrayType === "float32" ? new Float32Array(data.array) : new Uint32Array(data.array);
+    const vertexAttribute = new VertexAttribute(array);
+    vertexAttribute.currentOffset = data.currentOffset;
+    vertexAttribute.currentSize = data.currentSize;
+    return vertexAttribute;
+  }
+}
+class InterleavedVertexAttribute extends GeometryAttribute {
+  constructor(array, stride) {
+    super(array, BufferType.VERTEX);
+    this.array = array;
+    this.stride = stride;
+  }
+  type = "@trident/core/Geometry/InterleavedVertexAttribute";
+  static fromArrays(attributes, inputStrides, outputStrides) {
+    function stridedCopy(target, values, offset2, inputStride, outputStride, interleavedStride2) {
+      let writeIndex = offset2;
+      for (let i = 0; i < values.length; i += inputStride) {
+        for (let j = 0; j < inputStride && i + j < values.length; j++) {
+          target[writeIndex + j] = values[i + j];
+        }
+        for (let j = inputStride; j < outputStride; j++) {
+          target[writeIndex + j] = 0;
+        }
+        writeIndex += interleavedStride2;
+      }
+    }
+    if (!outputStrides) outputStrides = inputStrides;
+    const interleavedStride = outputStrides.reduce((a, b) => a + b, 0);
+    let totalLength = 0;
+    for (let i = 0; i < attributes.length; i++) {
+      totalLength += attributes[i].length / inputStrides[i] * outputStrides[i];
+    }
+    const interleavedArray = new Float32Array(totalLength);
+    let offset = 0;
+    for (let i = 0; i < attributes.length; i++) {
+      const attribute = attributes[i];
+      const inputStride = inputStrides[i];
+      const outputStride = outputStrides[i];
+      stridedCopy(interleavedArray, attribute, offset, inputStride, outputStride, interleavedStride);
+      offset += outputStride;
+    }
+    return new InterleavedVertexAttribute(interleavedArray, interleavedStride);
+  }
+  static Deserialize(data) {
+    const array = new Float32Array(data.array);
+    const interleavedVertexAttribute = new InterleavedVertexAttribute(array, data.stride);
+    interleavedVertexAttribute.currentOffset = data.currentOffset;
+    interleavedVertexAttribute.currentSize = data.currentSize;
+    return interleavedVertexAttribute;
+  }
+}
+class IndexAttribute extends GeometryAttribute {
+  type = "@trident/core/Geometry/IndexAttribute";
+  format;
+  constructor(array) {
+    super(array, BufferType.INDEX);
+    this.format = array instanceof Uint32Array ? "uint32" : "uint16";
+  }
+  static Deserialize(data) {
+    const array = new Uint32Array(data.array);
+    const indexAttribute = new IndexAttribute(array);
+    indexAttribute.currentOffset = data.currentOffset;
+    indexAttribute.currentSize = data.currentSize;
+    return indexAttribute;
+  }
+}
+class Geometry {
+  id = UUID();
+  name = "";
+  index;
+  attributes = /* @__PURE__ */ new Map();
+  _boundingVolume;
+  get boundingVolume() {
+    const positions = this.attributes.get("position");
+    if (!positions) throw Error("Geometry has no position attribute");
+    if (!this._boundingVolume) this._boundingVolume = BoundingVolume.FromVertices(positions.array);
+    return this._boundingVolume;
+  }
+  ComputeBoundingVolume() {
+    const positions = this.attributes.get("position");
+    if (!positions) throw Error("Geometry has no position attribute");
+    this._boundingVolume = BoundingVolume.FromVertices(positions.array);
+  }
+  Clone() {
+    const clone = new Geometry();
+    for (const attribute of this.attributes) {
+      clone.attributes.set(attribute[0], attribute[1]);
+    }
+    if (this.index) {
+      clone.index = new IndexAttribute(this.index.array);
+    }
+    return clone;
+  }
+  ApplyOperationToVertices(operation, vec) {
+    let verts = this.attributes.get("position");
+    if (!verts) throw Error("No verts");
+    if (verts instanceof InterleavedVertexAttribute) throw Error("InterleavedVertexAttribute not implemented.");
+    this.boundingVolume.center;
+    let vertsCentered = new Float32Array(verts.array.length);
+    for (let i = 0; i < verts.array.length; i += 3) {
+      if (operation === "+") {
+        vertsCentered[i + 0] = verts.array[i + 0] + vec.x;
+        vertsCentered[i + 1] = verts.array[i + 1] + vec.y;
+        vertsCentered[i + 2] = verts.array[i + 2] + vec.z;
+      } else if (operation === "*") {
+        vertsCentered[i + 0] = verts.array[i + 0] * vec.x;
+        vertsCentered[i + 1] = verts.array[i + 1] * vec.y;
+        vertsCentered[i + 2] = verts.array[i + 2] * vec.z;
+      }
+    }
+    const geometryCentered = this.Clone();
+    geometryCentered.attributes.set("position", new VertexAttribute(vertsCentered));
+    return geometryCentered;
+  }
+  Center() {
+    const center = this.boundingVolume.center;
+    return this.ApplyOperationToVertices("+", center.mul(-1));
+  }
+  Scale(scale) {
+    return this.ApplyOperationToVertices("*", scale);
+  }
+  ComputeNormals() {
+    let posAttrData = this.attributes.get("position")?.array;
+    let indexAttrData = this.index?.array;
+    if (!posAttrData || !indexAttrData) throw Error("Cannot compute normals without vertices and indices");
+    let normalAttrData = new Float32Array(posAttrData.length);
+    let trianglesCount = indexAttrData.length / 3;
+    let point1 = new Vector3(0, 1, 0);
+    let point2 = new Vector3(0, 1, 0);
+    let point3 = new Vector3(0, 1, 0);
+    let crossA = new Vector3(0, 1, 0);
+    let crossB = new Vector3(0, 1, 0);
+    for (let i = 0; i < trianglesCount; i++) {
+      let index1 = indexAttrData[i * 3];
+      let index2 = indexAttrData[i * 3 + 1];
+      let index3 = indexAttrData[i * 3 + 2];
+      point1.set(posAttrData[index1 * 3], posAttrData[index1 * 3 + 1], posAttrData[index1 * 3 + 2]);
+      point2.set(posAttrData[index2 * 3], posAttrData[index2 * 3 + 1], posAttrData[index2 * 3 + 2]);
+      point3.set(posAttrData[index3 * 3], posAttrData[index3 * 3 + 1], posAttrData[index3 * 3 + 2]);
+      crossA.copy(point1).sub(point2).normalize();
+      crossB.copy(point1).sub(point3).normalize();
+      let normal = crossA.clone().cross(crossB).normalize();
+      normalAttrData[index1 * 3] = normalAttrData[index2 * 3] = normalAttrData[index3 * 3] = normal.x;
+      normalAttrData[index1 * 3 + 1] = normalAttrData[index2 * 3 + 1] = normalAttrData[index3 * 3 + 1] = normal.y;
+      normalAttrData[index1 * 3 + 2] = normalAttrData[index2 * 3 + 2] = normalAttrData[index3 * 3 + 2] = normal.z;
+    }
+    let normals = this.attributes.get("normal");
+    if (!normals) normals = new VertexAttribute(normalAttrData);
+    this.attributes.set("normal", normals);
+  }
+  // From THREE.js (adapted/fixed)
+  ComputeTangents() {
+    const index = this.index;
+    const positionAttribute = this.attributes.get("position");
+    const normalAttribute = this.attributes.get("normal");
+    const uvAttribute = this.attributes.get("uv");
+    if (!index || !positionAttribute || !normalAttribute || !uvAttribute) {
+      console.error("computeTangents() failed. Missing required attributes (index, position, normal or uv)");
+      return;
+    }
+    const pos = positionAttribute.array;
+    const nor = normalAttribute.array;
+    const uvs = uvAttribute.array;
+    const ia = index.array;
+    const vertexCount = pos.length / 3;
+    let tangentAttribute = this.attributes.get("tangent");
+    if (!tangentAttribute || tangentAttribute.array.length !== 4 * vertexCount) {
+      tangentAttribute = new VertexAttribute(new Float32Array(4 * vertexCount));
+      this.attributes.set("tangent", tangentAttribute);
+    } else {
+      tangentAttribute.array.fill(0);
+    }
+    const tang = tangentAttribute.array;
+    const tan1 = new Array(vertexCount);
+    const tan2 = new Array(vertexCount);
+    for (let i = 0; i < vertexCount; i++) {
+      tan1[i] = new Vector3();
+      tan2[i] = new Vector3();
+    }
+    const vA = new Vector3(), vB = new Vector3(), vC = new Vector3();
+    const uvA = new Vector2(), uvB = new Vector2(), uvC = new Vector2();
+    const sdir = new Vector3(), tdir = new Vector3();
+    function handleTriangle(a, b, c) {
+      vA.set(pos[a * 3 + 0], pos[a * 3 + 1], pos[a * 3 + 2]);
+      vB.set(pos[b * 3 + 0], pos[b * 3 + 1], pos[b * 3 + 2]);
+      vC.set(pos[c * 3 + 0], pos[c * 3 + 1], pos[c * 3 + 2]);
+      uvA.set(uvs[a * 2 + 0], uvs[a * 2 + 1]);
+      uvB.set(uvs[b * 2 + 0], uvs[b * 2 + 1]);
+      uvC.set(uvs[c * 2 + 0], uvs[c * 2 + 1]);
+      vB.sub(vA);
+      vC.sub(vA);
+      uvB.sub(uvA);
+      uvC.sub(uvA);
+      const denom = uvB.x * uvC.y - uvC.x * uvB.y;
+      if (!isFinite(denom) || Math.abs(denom) < 1e-8) return;
+      const r = 1 / denom;
+      sdir.copy(vB).mul(uvC.y).add(vC.clone().mul(-uvB.y)).mul(r);
+      tdir.copy(vC).mul(uvB.x).add(vB.clone().mul(-uvC.x)).mul(r);
+      tan1[a].add(sdir);
+      tan1[b].add(sdir);
+      tan1[c].add(sdir);
+      tan2[a].add(tdir);
+      tan2[b].add(tdir);
+      tan2[c].add(tdir);
+    }
+    for (let j = 0; j < ia.length; j += 3) {
+      handleTriangle(ia[j + 0], ia[j + 1], ia[j + 2]);
+    }
+    const tmp = new Vector3();
+    const n = new Vector3();
+    const n2 = new Vector3();
+    const ccv = new Vector3();
+    function handleVertex(v) {
+      n.set(nor[v * 3 + 0], nor[v * 3 + 1], nor[v * 3 + 2]);
+      n2.copy(n);
+      const t = tan1[v];
+      tmp.copy(t);
+      const ndott = n.dot(t);
+      tmp.sub(n.clone().mul(ndott));
+      if (!isFinite(tmp.x) || !isFinite(tmp.y) || !isFinite(tmp.z) || tmp.lengthSq() === 0) {
+        const ortho = Math.abs(n.x) > 0.9 ? new Vector3(0, 1, 0) : new Vector3(1, 0, 0);
+        tmp.copy(ortho.cross(n));
+      }
+      tmp.normalize();
+      ccv.copy(n2).cross(t);
+      const w = ccv.dot(tan2[v]) < 0 ? -1 : 1;
+      tang[v * 4 + 0] = tmp.x;
+      tang[v * 4 + 1] = tmp.y;
+      tang[v * 4 + 2] = tmp.z;
+      tang[v * 4 + 3] = w;
+    }
+    for (let j = 0; j < ia.length; j += 3) {
+      handleVertex(ia[j + 0]);
+      handleVertex(ia[j + 1]);
+      handleVertex(ia[j + 2]);
+    }
+    this.attributes.set("tangent", new VertexAttribute(tang));
+  }
+  Destroy() {
+    for (const [_, attribute] of this.attributes) attribute.Destroy();
+    if (this.index) this.index.Destroy();
+  }
+  static ToNonIndexed(vertices, indices) {
+    const itemSize = 3;
+    const array2 = new Float32Array(indices.length * itemSize);
+    let index = 0, index2 = 0;
+    for (let i = 0, l = indices.length; i < l; i++) {
+      index = indices[i] * itemSize;
+      for (let j = 0; j < itemSize; j++) {
+        array2[index2++] = vertices[index++];
+      }
+    }
+    return array2;
+  }
+  static Cube() {
+    const vertices = new Float32Array([
+      0.5,
+      0.5,
+      0.5,
+      0.5,
+      0.5,
+      -0.5,
+      0.5,
+      -0.5,
+      0.5,
+      0.5,
+      -0.5,
+      -0.5,
+      -0.5,
+      0.5,
+      -0.5,
+      -0.5,
+      0.5,
+      0.5,
+      -0.5,
+      -0.5,
+      -0.5,
+      -0.5,
+      -0.5,
+      0.5,
+      -0.5,
+      0.5,
+      -0.5,
+      0.5,
+      0.5,
+      -0.5,
+      -0.5,
+      0.5,
+      0.5,
+      0.5,
+      0.5,
+      0.5,
+      -0.5,
+      -0.5,
+      0.5,
+      0.5,
+      -0.5,
+      0.5,
+      -0.5,
+      -0.5,
+      -0.5,
+      0.5,
+      -0.5,
+      -0.5,
+      -0.5,
+      0.5,
+      0.5,
+      0.5,
+      0.5,
+      0.5,
+      -0.5,
+      -0.5,
+      0.5,
+      0.5,
+      -0.5,
+      0.5,
+      0.5,
+      0.5,
+      -0.5,
+      -0.5,
+      0.5,
+      -0.5,
+      0.5,
+      -0.5,
+      -0.5,
+      -0.5,
+      -0.5,
+      -0.5
+    ]);
+    const uvs = new Float32Array([
+      0,
+      1,
+      1,
+      1,
+      0,
+      0,
+      1,
+      0,
+      0,
+      1,
+      1,
+      1,
+      0,
+      0,
+      1,
+      0,
+      0,
+      1,
+      1,
+      1,
+      0,
+      0,
+      1,
+      0,
+      0,
+      1,
+      1,
+      1,
+      0,
+      0,
+      1,
+      0,
+      0,
+      1,
+      1,
+      1,
+      0,
+      0,
+      1,
+      0,
+      0,
+      1,
+      1,
+      1,
+      0,
+      0,
+      1,
+      0
+    ]);
+    const normals = new Float32Array([
+      1,
+      0,
+      0,
+      1,
+      0,
+      -0,
+      1,
+      0,
+      -0,
+      1,
+      0,
+      -0,
+      -1,
+      0,
+      0,
+      -1,
+      0,
+      -0,
+      -1,
+      0,
+      -0,
+      -1,
+      0,
+      -0,
+      0,
+      1,
+      0,
+      0,
+      1,
+      0,
+      0,
+      1,
+      0,
+      0,
+      1,
+      0,
+      0,
+      -1,
+      0,
+      -0,
+      -1,
+      0,
+      -0,
+      -1,
+      0,
+      -0,
+      -1,
+      0,
+      0,
+      -0,
+      1,
+      0,
+      0,
+      1,
+      0,
+      0,
+      1,
+      0,
+      0,
+      1,
+      0,
+      0,
+      -1,
+      0,
+      0,
+      -1,
+      0,
+      0,
+      -1,
+      0,
+      0,
+      -1
+    ]);
+    const indices = new Uint32Array([
+      0,
+      2,
+      1,
+      2,
+      3,
+      1,
+      4,
+      6,
+      5,
+      6,
+      7,
+      5,
+      8,
+      10,
+      9,
+      10,
+      11,
+      9,
+      12,
+      14,
+      13,
+      14,
+      15,
+      13,
+      16,
+      18,
+      17,
+      18,
+      19,
+      17,
+      20,
+      22,
+      21,
+      22,
+      23,
+      21
+    ]);
+    const geometry = new Geometry();
+    geometry.attributes.set("position", new VertexAttribute(vertices));
+    geometry.attributes.set("uv", new VertexAttribute(uvs));
+    geometry.attributes.set("normal", new VertexAttribute(normals));
+    geometry.index = new IndexAttribute(indices);
+    return geometry;
+  }
+  static Plane() {
+    const vertices = new Float32Array([
+      -1,
+      -1,
+      0,
+      // Bottom left
+      1,
+      -1,
+      0,
+      // Bottom right
+      1,
+      1,
+      0,
+      // Top right
+      -1,
+      1,
+      0
+      // Top left
+    ]);
+    const indices = new Uint32Array([
+      0,
+      1,
+      2,
+      // First triangle (bottom left to top right)
+      2,
+      3,
+      0
+      // Second triangle (top right to top left)
+    ]);
+    const uvs = new Float32Array([
+      0,
+      1,
+      // Bottom left (now top left)
+      1,
+      1,
+      // Bottom right (now top right)
+      1,
+      0,
+      // Top right (now bottom right)
+      0,
+      0
+      // Top left (now bottom left)
+    ]);
+    const normals = new Float32Array([
+      0,
+      0,
+      1,
+      // Normal for bottom left vertex
+      0,
+      0,
+      1,
+      // Normal for bottom right vertex
+      0,
+      0,
+      1,
+      // Normal for top right vertex
+      0,
+      0,
+      1
+      // Normal for top left vertex
+    ]);
+    const geometry = new Geometry();
+    geometry.attributes.set("position", new VertexAttribute(vertices));
+    geometry.attributes.set("normal", new VertexAttribute(normals));
+    geometry.attributes.set("uv", new VertexAttribute(uvs));
+    geometry.index = new IndexAttribute(indices);
+    return geometry;
+  }
+  static Sphere() {
+    const radius = 0.5;
+    const phiStart = 0;
+    const phiLength = Math.PI * 2;
+    const thetaStart = 0;
+    const thetaLength = Math.PI;
+    let widthSegments = 16;
+    let heightSegments = 8;
+    widthSegments = Math.max(3, Math.floor(widthSegments));
+    heightSegments = Math.max(2, Math.floor(heightSegments));
+    const thetaEnd = Math.min(thetaStart + thetaLength, Math.PI);
+    let index = 0;
+    const grid = [];
+    const vertex = new Vector3();
+    const normal = new Vector3();
+    const indices = [];
+    const vertices = [];
+    const normals = [];
+    const uvs = [];
+    for (let iy = 0; iy <= heightSegments; iy++) {
+      const verticesRow = [];
+      const v = iy / heightSegments;
+      let uOffset = 0;
+      if (iy === 0 && thetaStart === 0) uOffset = 0.5 / widthSegments;
+      else if (iy === heightSegments && thetaEnd === Math.PI) uOffset = -0.5 / widthSegments;
+      for (let ix = 0; ix <= widthSegments; ix++) {
+        const u = ix / widthSegments;
+        vertex.x = -radius * Math.cos(phiStart + u * phiLength) * Math.sin(thetaStart + v * thetaLength);
+        vertex.y = radius * Math.cos(thetaStart + v * thetaLength);
+        vertex.z = radius * Math.sin(phiStart + u * phiLength) * Math.sin(thetaStart + v * thetaLength);
+        vertices.push(vertex.x, vertex.y, vertex.z);
+        normal.copy(vertex).normalize();
+        normals.push(normal.x, normal.y, normal.z);
+        uvs.push(u + uOffset, 1 - v);
+        verticesRow.push(index++);
+      }
+      grid.push(verticesRow);
+    }
+    for (let iy = 0; iy < heightSegments; iy++) {
+      for (let ix = 0; ix < widthSegments; ix++) {
+        const a = grid[iy][ix + 1];
+        const b = grid[iy][ix];
+        const c = grid[iy + 1][ix];
+        const d = grid[iy + 1][ix + 1];
+        if (iy !== 0 || thetaStart > 0) indices.push(a, b, d);
+        if (iy !== heightSegments - 1 || thetaEnd < Math.PI) indices.push(b, c, d);
+      }
+    }
+    const geometry = new Geometry();
+    geometry.index = new IndexAttribute(new Uint32Array(indices));
+    geometry.attributes.set("position", new VertexAttribute(new Float32Array(vertices)));
+    geometry.attributes.set("normal", new VertexAttribute(new Float32Array(normals)));
+    geometry.attributes.set("uv", new VertexAttribute(new Float32Array(uvs)));
+    return geometry;
+  }
+  Serialize() {
+    return {
+      id: this.id,
+      name: this.name,
+      attributes: Array.from(this.attributes, ([key, attribute]) => Object.assign(attribute.Serialize(), { name: key })),
+      index: this.index ? this.index.Serialize() : void 0
+    };
+  }
+  Deserialize(data) {
+    this.id = data.id;
+    this.name = data.name;
+    for (const attribute of data.attributes) {
+      this.attributes.set(attribute.name, VertexAttribute.Deserialize(attribute));
+    }
+    if (data.index) {
+      this.index = IndexAttribute.Deserialize(data.index);
+    }
   }
 }
 
@@ -3297,7 +3820,7 @@ class WEBGPUTimestampQuery {
   static currentLinkIndex = 0;
   static BeginRenderTimestamp(name) {
     if (this.links.has(name)) return void 0;
-    if (!navigator.userAgent.toLowerCase().includes("chrome")) return void 0;
+    if (!WEBGPURenderer.adapter.features.has("timestamp-query")) return void 0;
     if (this.isTimestamping === true) throw Error("Already timestamping");
     if (!this.querySet) {
       this.querySet = WEBGPURenderer.device.createQuerySet({
@@ -3649,761 +4172,735 @@ class DynamicBuffer {
   }
 }
 
-class Sphere {
-  center;
-  radius;
-  constructor(center = new Vector3(0, 0, 0), radius = 0) {
-    this.center = center;
-    this.radius = radius;
+class RenderPass {
+  name;
+  initialized = false;
+  initializing = false;
+  drawCommands = [];
+  async init(resources) {
   }
-  static fromAABB(minBounds, maxBounds) {
-    const center = maxBounds.clone().add(minBounds).mul(0.5);
-    const radius = maxBounds.distanceTo(minBounds) * 0.5;
-    return new Sphere(center, radius);
+  async preFrame(resources) {
   }
-  static fromVertices(vertices, indices, vertex_positions_stride) {
-    let min = new Vector3(Infinity, Infinity, Infinity);
-    let max = new Vector3(-Infinity, -Infinity, -Infinity);
-    let vertex = new Vector3();
-    for (const index of indices) {
-      const x = vertices[index * vertex_positions_stride + 0];
-      const y = vertices[index * vertex_positions_stride + 1];
-      const z = vertices[index * vertex_positions_stride + 2];
-      if (isNaN(x) || isNaN(y) || isNaN(z)) throw Error(`Invalid vertex [i ${index}, ${x}, ${y}, ${z}]`);
-      vertex.set(x, y, z);
-      min.min(vertex);
-      max.max(vertex);
+  async preRender(resources) {
+  }
+  async execute(resources) {
+  }
+}
+class ResourcePool {
+  resources = {};
+  setResource(name, resource) {
+    this.resources[name] = resource;
+  }
+  getResource(name) {
+    return this.resources[name];
+  }
+}
+class RenderGraph {
+  passes = [];
+  resourcePool = new ResourcePool();
+  addPass(pass) {
+    this.passes.push(pass);
+  }
+  async init() {
+    for (const pass of this.passes) {
+      if (pass.initialized === true || pass.initializing === true) continue;
+      pass.initializing = true;
+      await pass.init(this.resourcePool);
+      pass.initialized = true;
     }
-    return Sphere.fromAABB(min, max);
   }
-  // Set the sphere to contain all points in the array
-  SetFromPoints(points) {
-    if (points.length === 0) {
-      throw new Error("Point array is empty.");
-    }
-    let centroid = points.reduce((acc, cur) => acc.add(cur)).mul(1 / points.length);
-    let maxRadius = points.reduce((max, p) => Math.max(max, centroid.distanceTo(p)), 0);
-    this.center = centroid;
-    this.radius = maxRadius;
+  async preFrame() {
+    for (const pass of this.passes) if (pass.initialized) await pass.preFrame(this.resourcePool);
   }
-  applyMatrix4(matrix) {
-    this.center.applyMatrix4(matrix);
-    this.radius = this.radius * matrix.getMaxScaleOnAxis();
-    return this;
+  async preRender() {
+    for (const pass of this.passes) if (pass.initialized) await pass.preRender(this.resourcePool);
   }
-  clone() {
-    return new Sphere(this.center.clone(), this.radius);
+  async execute() {
+    for (const pass of this.passes) if (pass.initialized) await pass.execute(this.resourcePool);
   }
 }
 
-var index$2 = /*#__PURE__*/Object.freeze({
-    __proto__: null,
-    BoundingVolume: BoundingVolume,
-    Color: Color,
-    Frustum: Frustum,
-    Matrix4: Matrix4,
-    Plane: Plane,
-    Quaternion: Quaternion,
-    Sphere: Sphere,
-    Vector2: Vector2,
-    Vector3: Vector3,
-    Vector4: Vector4
-});
+class WEBGPUComputeContext {
+  static activeComputePass = null;
+  static BeginComputePass(name, timestamp) {
+    const activeCommandEncoder = WEBGPURenderer.GetActiveCommandEncoder();
+    if (!activeCommandEncoder) throw Error("No active command encoder!!");
+    if (this.activeComputePass) throw Error("There is already an active compute pass");
+    const computePassDescriptor = {};
+    if (timestamp === true) computePassDescriptor.timestampWrites = WEBGPUTimestampQuery.BeginRenderTimestamp(name);
+    this.activeComputePass = activeCommandEncoder.beginComputePass(computePassDescriptor);
+    this.activeComputePass.label = "ComputePass: " + name;
+  }
+  static EndComputePass() {
+    if (!this.activeComputePass) throw Error("No active compute pass");
+    this.activeComputePass.end();
+    this.activeComputePass = null;
+    WEBGPUTimestampQuery.EndRenderTimestamp();
+  }
+  static Dispatch(computeShader, workgroupCountX, workgroupCountY, workgroupCountZ) {
+    if (!this.activeComputePass) throw Error("No active render pass");
+    if (!computeShader.OnPreRender()) return;
+    computeShader.Compile();
+    if (!computeShader.pipeline) throw Error("Shader doesnt have a pipeline");
+    this.activeComputePass.setPipeline(computeShader.pipeline);
+    for (let i = 0; i < computeShader.bindGroups.length; i++) {
+      let dynamicOffsetsV2 = [];
+      for (const buffer of computeShader.bindGroupsInfo[i].buffers) {
+        if (buffer instanceof WEBGPUDynamicBuffer) {
+          dynamicOffsetsV2.push(buffer.dynamicOffset);
+        }
+      }
+      this.activeComputePass.setBindGroup(i, computeShader.bindGroups[i], dynamicOffsetsV2);
+    }
+    this.activeComputePass.dispatchWorkgroups(workgroupCountX, workgroupCountY, workgroupCountZ);
+  }
+}
 
-class GeometryAttribute {
-  type = "@trident/core/Geometry/GeometryAttribute";
-  array;
-  buffer;
-  currentOffset;
-  // This can be used 
-  currentSize;
-  count;
-  constructor(array, type) {
-    if (array.length === 0) throw Error("GeometryAttribute data is empty");
-    let bufferArray = array;
-    let bufferSize = array.byteLength;
-    if (bufferSize % 4 !== 0) {
-      bufferSize = Math.ceil(bufferSize / 4) * 4;
-      if (array instanceof Uint16Array) {
-        const paddedLength = bufferSize / Uint16Array.BYTES_PER_ELEMENT;
-        const paddedArray = new Uint16Array(paddedLength);
-        paddedArray.set(array);
-        bufferArray = paddedArray;
-      } else if (array instanceof Uint8Array) {
-        const paddedLength = bufferSize / Uint8Array.BYTES_PER_ELEMENT;
-        const paddedArray = new Uint8Array(paddedLength);
-        paddedArray.set(array);
-        bufferArray = paddedArray;
-      }
+class ComputeContext {
+  constructor() {
+  }
+  static BeginComputePass(name, timestamp = false) {
+    if (Renderer.type === "webgpu") WEBGPUComputeContext.BeginComputePass(name, timestamp);
+    else throw Error("Unknown render api type.");
+  }
+  static EndComputePass() {
+    if (Renderer.type === "webgpu") WEBGPUComputeContext.EndComputePass();
+    else throw Error("Unknown render api type.");
+  }
+  static Dispatch(computeShader, workgroupCountX, workgroupCountY = 1, workgroupCountZ = 1) {
+    if (Renderer.type === "webgpu") WEBGPUComputeContext.Dispatch(computeShader, workgroupCountX, workgroupCountY, workgroupCountZ);
+    else throw Error("Unknown render api type.");
+  }
+}
+
+var __create$3 = Object.create;
+var __defProp$3 = Object.defineProperty;
+var __getOwnPropDesc$2 = Object.getOwnPropertyDescriptor;
+var __knownSymbol$3 = (name, symbol) => (symbol = Symbol[name]) ? symbol : Symbol.for("Symbol." + name);
+var __typeError$3 = (msg) => {
+  throw TypeError(msg);
+};
+var __defNormalProp$3 = (obj, key, value) => key in obj ? __defProp$3(obj, key, { enumerable: true, configurable: true, writable: true, value }) : obj[key] = value;
+var __decoratorStart$3 = (base) => [, , , __create$3(base?.[__knownSymbol$3("metadata")] ?? null)];
+var __decoratorStrings$3 = ["class", "method", "getter", "setter", "accessor", "field", "value", "get", "set"];
+var __expectFn$3 = (fn) => fn !== void 0 && typeof fn !== "function" ? __typeError$3("Function expected") : fn;
+var __decoratorContext$3 = (kind, name, done, metadata, fns) => ({ kind: __decoratorStrings$3[kind], name, metadata, addInitializer: (fn) => done._ ? __typeError$3("Already initialized") : fns.push(__expectFn$3(fn || null)) });
+var __decoratorMetadata$3 = (array, target) => __defNormalProp$3(target, __knownSymbol$3("metadata"), array[3]);
+var __runInitializers$3 = (array, flags, self, value) => {
+  for (var i = 0, fns = array[flags >> 1], n = fns && fns.length; i < n; i++) fns[i].call(self) ;
+  return value;
+};
+var __decorateElement$3 = (array, flags, name, decorators, target, extra) => {
+  var it, done, ctx, access, k = flags & 7, s = false, p = false;
+  var j = 2 , key = __decoratorStrings$3[k + 5];
+  var extraInitializers = array[j] || (array[j] = []);
+  var desc = ((target = target.prototype), __getOwnPropDesc$2(target , name));
+  for (var i = decorators.length - 1; i >= 0; i--) {
+    ctx = __decoratorContext$3(k, name, done = {}, array[3], extraInitializers);
+    {
+      ctx.static = s, ctx.private = p, access = ctx.access = { has: (x) => name in x };
+      access.get = (x) => x[name];
     }
-    this.array = array;
-    this.buffer = Buffer.Create(bufferSize, type);
-    this.buffer.SetArray(bufferArray);
-    this.currentOffset = 0;
-    this.currentSize = array.byteLength;
-    this.count = array.length;
+    it = (0, decorators[i])(desc[key]  , ctx), done._ = 1;
+    __expectFn$3(it) && (desc[key] = it );
   }
-  GetBuffer() {
-    return this.buffer;
+  return desc && __defProp$3(target, name, desc), target;
+};
+var __publicField$3 = (obj, key, value) => __defNormalProp$3(obj, typeof key !== "symbol" ? key + "" : key, value);
+var _aspect_dec, _fov_dec, _far_dec, _near_dec, _a$3, _init$3;
+class CameraEvents {
+  static Updated = (camera) => {
+  };
+}
+const _Camera = class _Camera extends (_a$3 = Component, _near_dec = [SerializeField], _far_dec = [SerializeField], _fov_dec = [SerializeField], _aspect_dec = [SerializeField], _a$3) {
+  constructor(gameObject) {
+    super(gameObject);
+    __runInitializers$3(_init$3, 5, this);
+    __publicField$3(this, "backgroundColor", new Color(0, 0, 0, 1));
+    __publicField$3(this, "projectionMatrix", new Matrix4());
+    __publicField$3(this, "projectionScreenMatrix", new Matrix4());
+    __publicField$3(this, "viewMatrix", new Matrix4());
+    __publicField$3(this, "frustum", new Frustum());
+    __publicField$3(this, "_near");
+    __publicField$3(this, "_far");
+    __publicField$3(this, "_fov");
+    __publicField$3(this, "_aspect");
+    if (!_Camera.mainCamera) _Camera.mainCamera = this;
   }
-  Destroy() {
-    this.buffer.Destroy();
+  get near() {
+    return this._near;
+  }
+  set near(near) {
+    this.SetPerspective(this.fov, this.aspect, near, this.far);
+  }
+  get far() {
+    return this._far;
+  }
+  set far(far) {
+    this.SetPerspective(this.fov, this.aspect, this.near, far);
+  }
+  get fov() {
+    return this._fov;
+  }
+  set fov(fov) {
+    this.SetPerspective(fov, this.aspect, this.near, this.far);
+  }
+  get aspect() {
+    return this._aspect;
+  }
+  set aspect(aspect) {
+    this.SetPerspective(this.fov, aspect, this.near, this.far);
+  }
+  SetPerspective(fov, aspect, near, far) {
+    this._fov = fov;
+    this._aspect = aspect;
+    this._near = near;
+    this._far = far;
+    this.projectionMatrix.perspectiveZO(fov * (Math.PI / 180), aspect, near, far);
+  }
+  SetOrthographic(left, right, top, bottom, near, far) {
+    this.near = near;
+    this.far = far;
+    this.projectionMatrix.orthoZO(left, right, top, bottom, near, far);
+  }
+  Start() {
+    EventSystemLocal.on(TransformEvents.Updated, this.transform, () => {
+      EventSystem.emit(CameraEvents.Updated, this);
+    });
+  }
+  Update() {
+    this.viewMatrix.copy(this.transform.worldToLocalMatrix);
+    this.projectionScreenMatrix.multiplyMatrices(this.projectionMatrix, this.transform.worldToLocalMatrix);
+    this.frustum.setFromProjectionMatrix(this.projectionScreenMatrix);
   }
   Serialize() {
     return {
-      attributeType: this.type,
-      array: Array.from(this.array),
-      arrayType: this.array instanceof Float32Array ? "float32" : "uint32",
-      currentOffset: this.currentOffset,
-      currentSize: this.currentSize
-    };
-  }
-}
-class VertexAttribute extends GeometryAttribute {
-  type = "@trident/core/Geometry/VertexAttribute";
-  constructor(array) {
-    super(array, BufferType.VERTEX);
-  }
-  static Deserialize(data) {
-    const array = data.arrayType === "float32" ? new Float32Array(data.array) : new Uint32Array(data.array);
-    const vertexAttribute = new VertexAttribute(array);
-    vertexAttribute.currentOffset = data.currentOffset;
-    vertexAttribute.currentSize = data.currentSize;
-    return vertexAttribute;
-  }
-}
-class InterleavedVertexAttribute extends GeometryAttribute {
-  constructor(array, stride) {
-    super(array, BufferType.VERTEX);
-    this.array = array;
-    this.stride = stride;
-  }
-  type = "@trident/core/Geometry/InterleavedVertexAttribute";
-  static fromArrays(attributes, inputStrides, outputStrides) {
-    function stridedCopy(target, values, offset2, inputStride, outputStride, interleavedStride2) {
-      let writeIndex = offset2;
-      for (let i = 0; i < values.length; i += inputStride) {
-        for (let j = 0; j < inputStride && i + j < values.length; j++) {
-          target[writeIndex + j] = values[i + j];
-        }
-        for (let j = inputStride; j < outputStride; j++) {
-          target[writeIndex + j] = 0;
-        }
-        writeIndex += interleavedStride2;
-      }
-    }
-    if (!outputStrides) outputStrides = inputStrides;
-    const interleavedStride = outputStrides.reduce((a, b) => a + b, 0);
-    let totalLength = 0;
-    for (let i = 0; i < attributes.length; i++) {
-      totalLength += attributes[i].length / inputStrides[i] * outputStrides[i];
-    }
-    const interleavedArray = new Float32Array(totalLength);
-    let offset = 0;
-    for (let i = 0; i < attributes.length; i++) {
-      const attribute = attributes[i];
-      const inputStride = inputStrides[i];
-      const outputStride = outputStrides[i];
-      stridedCopy(interleavedArray, attribute, offset, inputStride, outputStride, interleavedStride);
-      offset += outputStride;
-    }
-    return new InterleavedVertexAttribute(interleavedArray, interleavedStride);
-  }
-  static Deserialize(data) {
-    const array = new Float32Array(data.array);
-    const interleavedVertexAttribute = new InterleavedVertexAttribute(array, data.stride);
-    interleavedVertexAttribute.currentOffset = data.currentOffset;
-    interleavedVertexAttribute.currentSize = data.currentSize;
-    return interleavedVertexAttribute;
-  }
-}
-class IndexAttribute extends GeometryAttribute {
-  type = "@trident/core/Geometry/IndexAttribute";
-  format;
-  constructor(array) {
-    super(array, BufferType.INDEX);
-    this.format = array instanceof Uint32Array ? "uint32" : "uint16";
-  }
-  static Deserialize(data) {
-    const array = new Uint32Array(data.array);
-    const indexAttribute = new IndexAttribute(array);
-    indexAttribute.currentOffset = data.currentOffset;
-    indexAttribute.currentSize = data.currentSize;
-    return indexAttribute;
-  }
-}
-class Geometry {
-  id = UUID();
-  name = "";
-  index;
-  attributes = /* @__PURE__ */ new Map();
-  _boundingVolume;
-  get boundingVolume() {
-    const positions = this.attributes.get("position");
-    if (!positions) throw Error("Geometry has no position attribute");
-    if (!this._boundingVolume) this._boundingVolume = BoundingVolume.FromVertices(positions.array);
-    return this._boundingVolume;
-  }
-  ComputeBoundingVolume() {
-    const positions = this.attributes.get("position");
-    if (!positions) throw Error("Geometry has no position attribute");
-    this._boundingVolume = BoundingVolume.FromVertices(positions.array);
-  }
-  Clone() {
-    const clone = new Geometry();
-    for (const attribute of this.attributes) {
-      clone.attributes.set(attribute[0], attribute[1]);
-    }
-    if (this.index) {
-      clone.index = new IndexAttribute(this.index.array);
-    }
-    return clone;
-  }
-  ApplyOperationToVertices(operation, vec) {
-    let verts = this.attributes.get("position");
-    if (!verts) throw Error("No verts");
-    if (verts instanceof InterleavedVertexAttribute) throw Error("InterleavedVertexAttribute not implemented.");
-    this.boundingVolume.center;
-    let vertsCentered = new Float32Array(verts.array.length);
-    for (let i = 0; i < verts.array.length; i += 3) {
-      if (operation === "+") {
-        vertsCentered[i + 0] = verts.array[i + 0] + vec.x;
-        vertsCentered[i + 1] = verts.array[i + 1] + vec.y;
-        vertsCentered[i + 2] = verts.array[i + 2] + vec.z;
-      } else if (operation === "*") {
-        vertsCentered[i + 0] = verts.array[i + 0] * vec.x;
-        vertsCentered[i + 1] = verts.array[i + 1] * vec.y;
-        vertsCentered[i + 2] = verts.array[i + 2] * vec.z;
-      }
-    }
-    const geometryCentered = this.Clone();
-    geometryCentered.attributes.set("position", new VertexAttribute(vertsCentered));
-    return geometryCentered;
-  }
-  Center() {
-    const center = this.boundingVolume.center;
-    return this.ApplyOperationToVertices("+", center.mul(-1));
-  }
-  Scale(scale) {
-    return this.ApplyOperationToVertices("*", scale);
-  }
-  ComputeNormals() {
-    let posAttrData = this.attributes.get("position")?.array;
-    let indexAttrData = this.index?.array;
-    if (!posAttrData || !indexAttrData) throw Error("Cannot compute normals without vertices and indices");
-    let normalAttrData = new Float32Array(posAttrData.length);
-    let trianglesCount = indexAttrData.length / 3;
-    let point1 = new Vector3(0, 1, 0);
-    let point2 = new Vector3(0, 1, 0);
-    let point3 = new Vector3(0, 1, 0);
-    let crossA = new Vector3(0, 1, 0);
-    let crossB = new Vector3(0, 1, 0);
-    for (let i = 0; i < trianglesCount; i++) {
-      let index1 = indexAttrData[i * 3];
-      let index2 = indexAttrData[i * 3 + 1];
-      let index3 = indexAttrData[i * 3 + 2];
-      point1.set(posAttrData[index1 * 3], posAttrData[index1 * 3 + 1], posAttrData[index1 * 3 + 2]);
-      point2.set(posAttrData[index2 * 3], posAttrData[index2 * 3 + 1], posAttrData[index2 * 3 + 2]);
-      point3.set(posAttrData[index3 * 3], posAttrData[index3 * 3 + 1], posAttrData[index3 * 3 + 2]);
-      crossA.copy(point1).sub(point2).normalize();
-      crossB.copy(point1).sub(point3).normalize();
-      let normal = crossA.clone().cross(crossB).normalize();
-      normalAttrData[index1 * 3] = normalAttrData[index2 * 3] = normalAttrData[index3 * 3] = normal.x;
-      normalAttrData[index1 * 3 + 1] = normalAttrData[index2 * 3 + 1] = normalAttrData[index3 * 3 + 1] = normal.y;
-      normalAttrData[index1 * 3 + 2] = normalAttrData[index2 * 3 + 2] = normalAttrData[index3 * 3 + 2] = normal.z;
-    }
-    let normals = this.attributes.get("normal");
-    if (!normals) normals = new VertexAttribute(normalAttrData);
-    this.attributes.set("normal", normals);
-  }
-  // From THREE.js (adapted/fixed)
-  ComputeTangents() {
-    const index = this.index;
-    const positionAttribute = this.attributes.get("position");
-    const normalAttribute = this.attributes.get("normal");
-    const uvAttribute = this.attributes.get("uv");
-    if (!index || !positionAttribute || !normalAttribute || !uvAttribute) {
-      console.error("computeTangents() failed. Missing required attributes (index, position, normal or uv)");
-      return;
-    }
-    const pos = positionAttribute.array;
-    const nor = normalAttribute.array;
-    const uvs = uvAttribute.array;
-    const ia = index.array;
-    const vertexCount = pos.length / 3;
-    let tangentAttribute = this.attributes.get("tangent");
-    if (!tangentAttribute || tangentAttribute.array.length !== 4 * vertexCount) {
-      tangentAttribute = new VertexAttribute(new Float32Array(4 * vertexCount));
-      this.attributes.set("tangent", tangentAttribute);
-    } else {
-      tangentAttribute.array.fill(0);
-    }
-    const tang = tangentAttribute.array;
-    const tan1 = new Array(vertexCount);
-    const tan2 = new Array(vertexCount);
-    for (let i = 0; i < vertexCount; i++) {
-      tan1[i] = new Vector3();
-      tan2[i] = new Vector3();
-    }
-    const vA = new Vector3(), vB = new Vector3(), vC = new Vector3();
-    const uvA = new Vector2(), uvB = new Vector2(), uvC = new Vector2();
-    const sdir = new Vector3(), tdir = new Vector3();
-    function handleTriangle(a, b, c) {
-      vA.set(pos[a * 3 + 0], pos[a * 3 + 1], pos[a * 3 + 2]);
-      vB.set(pos[b * 3 + 0], pos[b * 3 + 1], pos[b * 3 + 2]);
-      vC.set(pos[c * 3 + 0], pos[c * 3 + 1], pos[c * 3 + 2]);
-      uvA.set(uvs[a * 2 + 0], uvs[a * 2 + 1]);
-      uvB.set(uvs[b * 2 + 0], uvs[b * 2 + 1]);
-      uvC.set(uvs[c * 2 + 0], uvs[c * 2 + 1]);
-      vB.sub(vA);
-      vC.sub(vA);
-      uvB.sub(uvA);
-      uvC.sub(uvA);
-      const denom = uvB.x * uvC.y - uvC.x * uvB.y;
-      if (!isFinite(denom) || Math.abs(denom) < 1e-8) return;
-      const r = 1 / denom;
-      sdir.copy(vB).mul(uvC.y).add(vC.clone().mul(-uvB.y)).mul(r);
-      tdir.copy(vC).mul(uvB.x).add(vB.clone().mul(-uvC.x)).mul(r);
-      tan1[a].add(sdir);
-      tan1[b].add(sdir);
-      tan1[c].add(sdir);
-      tan2[a].add(tdir);
-      tan2[b].add(tdir);
-      tan2[c].add(tdir);
-    }
-    for (let j = 0; j < ia.length; j += 3) {
-      handleTriangle(ia[j + 0], ia[j + 1], ia[j + 2]);
-    }
-    const tmp = new Vector3();
-    const n = new Vector3();
-    const n2 = new Vector3();
-    const ccv = new Vector3();
-    function handleVertex(v) {
-      n.set(nor[v * 3 + 0], nor[v * 3 + 1], nor[v * 3 + 2]);
-      n2.copy(n);
-      const t = tan1[v];
-      tmp.copy(t);
-      const ndott = n.dot(t);
-      tmp.sub(n.clone().mul(ndott));
-      if (!isFinite(tmp.x) || !isFinite(tmp.y) || !isFinite(tmp.z) || tmp.lengthSq() === 0) {
-        const ortho = Math.abs(n.x) > 0.9 ? new Vector3(0, 1, 0) : new Vector3(1, 0, 0);
-        tmp.copy(ortho.cross(n));
-      }
-      tmp.normalize();
-      ccv.copy(n2).cross(t);
-      const w = ccv.dot(tan2[v]) < 0 ? -1 : 1;
-      tang[v * 4 + 0] = tmp.x;
-      tang[v * 4 + 1] = tmp.y;
-      tang[v * 4 + 2] = tmp.z;
-      tang[v * 4 + 3] = w;
-    }
-    for (let j = 0; j < ia.length; j += 3) {
-      handleVertex(ia[j + 0]);
-      handleVertex(ia[j + 1]);
-      handleVertex(ia[j + 2]);
-    }
-    this.attributes.set("tangent", new VertexAttribute(tang));
-  }
-  Destroy() {
-    for (const [_, attribute] of this.attributes) attribute.Destroy();
-    if (this.index) this.index.Destroy();
-  }
-  static ToNonIndexed(vertices, indices) {
-    const itemSize = 3;
-    const array2 = new Float32Array(indices.length * itemSize);
-    let index = 0, index2 = 0;
-    for (let i = 0, l = indices.length; i < l; i++) {
-      index = indices[i] * itemSize;
-      for (let j = 0; j < itemSize; j++) {
-        array2[index2++] = vertices[index++];
-      }
-    }
-    return array2;
-  }
-  static Cube() {
-    const vertices = new Float32Array([
-      0.5,
-      0.5,
-      0.5,
-      0.5,
-      0.5,
-      -0.5,
-      0.5,
-      -0.5,
-      0.5,
-      0.5,
-      -0.5,
-      -0.5,
-      -0.5,
-      0.5,
-      -0.5,
-      -0.5,
-      0.5,
-      0.5,
-      -0.5,
-      -0.5,
-      -0.5,
-      -0.5,
-      -0.5,
-      0.5,
-      -0.5,
-      0.5,
-      -0.5,
-      0.5,
-      0.5,
-      -0.5,
-      -0.5,
-      0.5,
-      0.5,
-      0.5,
-      0.5,
-      0.5,
-      -0.5,
-      -0.5,
-      0.5,
-      0.5,
-      -0.5,
-      0.5,
-      -0.5,
-      -0.5,
-      -0.5,
-      0.5,
-      -0.5,
-      -0.5,
-      -0.5,
-      0.5,
-      0.5,
-      0.5,
-      0.5,
-      0.5,
-      -0.5,
-      -0.5,
-      0.5,
-      0.5,
-      -0.5,
-      0.5,
-      0.5,
-      0.5,
-      -0.5,
-      -0.5,
-      0.5,
-      -0.5,
-      0.5,
-      -0.5,
-      -0.5,
-      -0.5,
-      -0.5,
-      -0.5
-    ]);
-    const uvs = new Float32Array([
-      0,
-      1,
-      1,
-      1,
-      0,
-      0,
-      1,
-      0,
-      0,
-      1,
-      1,
-      1,
-      0,
-      0,
-      1,
-      0,
-      0,
-      1,
-      1,
-      1,
-      0,
-      0,
-      1,
-      0,
-      0,
-      1,
-      1,
-      1,
-      0,
-      0,
-      1,
-      0,
-      0,
-      1,
-      1,
-      1,
-      0,
-      0,
-      1,
-      0,
-      0,
-      1,
-      1,
-      1,
-      0,
-      0,
-      1,
-      0
-    ]);
-    const normals = new Float32Array([
-      1,
-      0,
-      0,
-      1,
-      0,
-      -0,
-      1,
-      0,
-      -0,
-      1,
-      0,
-      -0,
-      -1,
-      0,
-      0,
-      -1,
-      0,
-      -0,
-      -1,
-      0,
-      -0,
-      -1,
-      0,
-      -0,
-      0,
-      1,
-      0,
-      0,
-      1,
-      0,
-      0,
-      1,
-      0,
-      0,
-      1,
-      0,
-      0,
-      -1,
-      0,
-      -0,
-      -1,
-      0,
-      -0,
-      -1,
-      0,
-      -0,
-      -1,
-      0,
-      0,
-      -0,
-      1,
-      0,
-      0,
-      1,
-      0,
-      0,
-      1,
-      0,
-      0,
-      1,
-      0,
-      0,
-      -1,
-      0,
-      0,
-      -1,
-      0,
-      0,
-      -1,
-      0,
-      0,
-      -1
-    ]);
-    const indices = new Uint32Array([
-      0,
-      2,
-      1,
-      2,
-      3,
-      1,
-      4,
-      6,
-      5,
-      6,
-      7,
-      5,
-      8,
-      10,
-      9,
-      10,
-      11,
-      9,
-      12,
-      14,
-      13,
-      14,
-      15,
-      13,
-      16,
-      18,
-      17,
-      18,
-      19,
-      17,
-      20,
-      22,
-      21,
-      22,
-      23,
-      21
-    ]);
-    const geometry = new Geometry();
-    geometry.attributes.set("position", new VertexAttribute(vertices));
-    geometry.attributes.set("uv", new VertexAttribute(uvs));
-    geometry.attributes.set("normal", new VertexAttribute(normals));
-    geometry.index = new IndexAttribute(indices);
-    return geometry;
-  }
-  static Plane() {
-    const vertices = new Float32Array([
-      -1,
-      -1,
-      0,
-      // Bottom left
-      1,
-      -1,
-      0,
-      // Bottom right
-      1,
-      1,
-      0,
-      // Top right
-      -1,
-      1,
-      0
-      // Top left
-    ]);
-    const indices = new Uint32Array([
-      0,
-      1,
-      2,
-      // First triangle (bottom left to top right)
-      2,
-      3,
-      0
-      // Second triangle (top right to top left)
-    ]);
-    const uvs = new Float32Array([
-      0,
-      1,
-      // Bottom left (now top left)
-      1,
-      1,
-      // Bottom right (now top right)
-      1,
-      0,
-      // Top right (now bottom right)
-      0,
-      0
-      // Top left (now bottom left)
-    ]);
-    const normals = new Float32Array([
-      0,
-      0,
-      1,
-      // Normal for bottom left vertex
-      0,
-      0,
-      1,
-      // Normal for bottom right vertex
-      0,
-      0,
-      1,
-      // Normal for top right vertex
-      0,
-      0,
-      1
-      // Normal for top left vertex
-    ]);
-    const geometry = new Geometry();
-    geometry.attributes.set("position", new VertexAttribute(vertices));
-    geometry.attributes.set("normal", new VertexAttribute(normals));
-    geometry.attributes.set("uv", new VertexAttribute(uvs));
-    geometry.index = new IndexAttribute(indices);
-    return geometry;
-  }
-  static Sphere() {
-    const radius = 0.5;
-    const phiStart = 0;
-    const phiLength = Math.PI * 2;
-    const thetaStart = 0;
-    const thetaLength = Math.PI;
-    let widthSegments = 16;
-    let heightSegments = 8;
-    widthSegments = Math.max(3, Math.floor(widthSegments));
-    heightSegments = Math.max(2, Math.floor(heightSegments));
-    const thetaEnd = Math.min(thetaStart + thetaLength, Math.PI);
-    let index = 0;
-    const grid = [];
-    const vertex = new Vector3();
-    const normal = new Vector3();
-    const indices = [];
-    const vertices = [];
-    const normals = [];
-    const uvs = [];
-    for (let iy = 0; iy <= heightSegments; iy++) {
-      const verticesRow = [];
-      const v = iy / heightSegments;
-      let uOffset = 0;
-      if (iy === 0 && thetaStart === 0) uOffset = 0.5 / widthSegments;
-      else if (iy === heightSegments && thetaEnd === Math.PI) uOffset = -0.5 / widthSegments;
-      for (let ix = 0; ix <= widthSegments; ix++) {
-        const u = ix / widthSegments;
-        vertex.x = -radius * Math.cos(phiStart + u * phiLength) * Math.sin(thetaStart + v * thetaLength);
-        vertex.y = radius * Math.cos(thetaStart + v * thetaLength);
-        vertex.z = radius * Math.sin(phiStart + u * phiLength) * Math.sin(thetaStart + v * thetaLength);
-        vertices.push(vertex.x, vertex.y, vertex.z);
-        normal.copy(vertex).normalize();
-        normals.push(normal.x, normal.y, normal.z);
-        uvs.push(u + uOffset, 1 - v);
-        verticesRow.push(index++);
-      }
-      grid.push(verticesRow);
-    }
-    for (let iy = 0; iy < heightSegments; iy++) {
-      for (let ix = 0; ix < widthSegments; ix++) {
-        const a = grid[iy][ix + 1];
-        const b = grid[iy][ix];
-        const c = grid[iy + 1][ix];
-        const d = grid[iy + 1][ix + 1];
-        if (iy !== 0 || thetaStart > 0) indices.push(a, b, d);
-        if (iy !== heightSegments - 1 || thetaEnd < Math.PI) indices.push(b, c, d);
-      }
-    }
-    const geometry = new Geometry();
-    geometry.index = new IndexAttribute(new Uint32Array(indices));
-    geometry.attributes.set("position", new VertexAttribute(new Float32Array(vertices)));
-    geometry.attributes.set("normal", new VertexAttribute(new Float32Array(normals)));
-    geometry.attributes.set("uv", new VertexAttribute(new Float32Array(uvs)));
-    return geometry;
-  }
-  Serialize() {
-    return {
-      id: this.id,
+      type: _Camera.type,
       name: this.name,
-      attributes: Array.from(this.attributes, ([key, attribute]) => Object.assign(attribute.Serialize(), { name: key })),
-      index: this.index ? this.index.Serialize() : void 0
+      id: this.id,
+      backgroundColor: this.backgroundColor.Serialize(),
+      near: this.near,
+      far: this.far,
+      fov: this.fov,
+      aspect: this.aspect
     };
   }
   Deserialize(data) {
-    this.id = data.id;
+    this.backgroundColor.Deserialize(data.backgroundColor);
     this.name = data.name;
-    for (const attribute of data.attributes) {
-      this.attributes.set(attribute.name, VertexAttribute.Deserialize(attribute));
+    this.id = data.id;
+    this.near = data.near;
+    this.far = data.far;
+    this.fov = data.fov;
+    this.aspect = data.aspect;
+  }
+};
+_init$3 = __decoratorStart$3(_a$3);
+__decorateElement$3(_init$3, 2, "near", _near_dec, _Camera);
+__decorateElement$3(_init$3, 2, "far", _far_dec, _Camera);
+__decorateElement$3(_init$3, 2, "fov", _fov_dec, _Camera);
+__decorateElement$3(_init$3, 2, "aspect", _aspect_dec, _Camera);
+__decoratorMetadata$3(_init$3, _Camera);
+__publicField$3(_Camera, "type", "@trident/core/components/Camera");
+__publicField$3(_Camera, "mainCamera");
+let Camera = _Camera;
+Component.Registry.set(Camera.type, Camera);
+
+var __create$2 = Object.create;
+var __defProp$2 = Object.defineProperty;
+var __knownSymbol$2 = (name, symbol) => (symbol = Symbol[name]) ? symbol : Symbol.for("Symbol." + name);
+var __typeError$2 = (msg) => {
+  throw TypeError(msg);
+};
+var __defNormalProp$2 = (obj, key, value) => key in obj ? __defProp$2(obj, key, { enumerable: true, configurable: true, writable: true, value }) : obj[key] = value;
+var __decoratorStart$2 = (base) => [, , , __create$2(base?.[__knownSymbol$2("metadata")] ?? null)];
+var __decoratorStrings$2 = ["class", "method", "getter", "setter", "accessor", "field", "value", "get", "set"];
+var __expectFn$2 = (fn) => fn !== void 0 && typeof fn !== "function" ? __typeError$2("Function expected") : fn;
+var __decoratorContext$2 = (kind, name, done, metadata, fns) => ({ kind: __decoratorStrings$2[kind], name, metadata, addInitializer: (fn) => done._ ? __typeError$2("Already initialized") : fns.push(__expectFn$2(fn || null)) });
+var __decoratorMetadata$2 = (array, target) => __defNormalProp$2(target, __knownSymbol$2("metadata"), array[3]);
+var __runInitializers$2 = (array, flags, self, value) => {
+  for (var i = 0, fns = array[flags >> 1], n = fns && fns.length; i < n; i++) flags & 1 ? fns[i].call(self) : value = fns[i].call(self, value);
+  return value;
+};
+var __decorateElement$2 = (array, flags, name, decorators, target, extra) => {
+  var it, done, ctx, access, k = flags & 7, s = false, p = false;
+  var j = array.length + 1 ;
+  var initializers = (array[j - 1] = []), extraInitializers = array[j] || (array[j] = []);
+  ((target = target.prototype), k < 5);
+  for (var i = decorators.length - 1; i >= 0; i--) {
+    ctx = __decoratorContext$2(k, name, done = {}, array[3], extraInitializers);
+    {
+      ctx.static = s, ctx.private = p, access = ctx.access = { has: (x) => name in x };
+      access.get = (x) => x[name];
+      access.set = (x, y) => x[name] = y;
     }
-    if (data.index) {
-      this.index = IndexAttribute.Deserialize(data.index);
+    it = (0, decorators[i])(void 0  , ctx), done._ = 1;
+    __expectFn$2(it) && (initializers.unshift(it) );
+  }
+  return target;
+};
+var __publicField$2 = (obj, key, value) => __defNormalProp$2(obj, typeof key !== "symbol" ? key + "" : key, value);
+var _castShadows_dec, _range_dec, _intensity_dec, _color_dec, _a$2, _init$2, _direction_dec, _b, _init2;
+class LightEvents {
+  static Updated = (light) => {
+  };
+}
+const _Light = class _Light extends (_a$2 = Component, _color_dec = [SerializeField], _intensity_dec = [SerializeField], _range_dec = [SerializeField], _castShadows_dec = [SerializeField], _a$2) {
+  constructor(gameObject) {
+    super(gameObject);
+    __publicField$2(this, "camera");
+    __publicField$2(this, "color", __runInitializers$2(_init$2, 8, this, new Color(1, 1, 1))), __runInitializers$2(_init$2, 11, this);
+    __publicField$2(this, "intensity", __runInitializers$2(_init$2, 12, this, 1)), __runInitializers$2(_init$2, 15, this);
+    __publicField$2(this, "range", __runInitializers$2(_init$2, 16, this, 10)), __runInitializers$2(_init$2, 19, this);
+    __publicField$2(this, "castShadows", __runInitializers$2(_init$2, 20, this, true)), __runInitializers$2(_init$2, 23, this);
+    this.camera = new Camera(this.gameObject);
+  }
+  Start() {
+    EventSystemLocal.on(TransformEvents.Updated, this.transform, () => {
+      EventSystem.emit(LightEvents.Updated, this);
+    });
+  }
+  Serialize() {
+    return {
+      type: _Light.type,
+      camera: this.camera.Serialize(),
+      color: this.color.Serialize(),
+      intensity: this.intensity,
+      range: this.range,
+      castShadows: this.castShadows
+    };
+  }
+};
+_init$2 = __decoratorStart$2(_a$2);
+__decorateElement$2(_init$2, 5, "color", _color_dec, _Light);
+__decorateElement$2(_init$2, 5, "intensity", _intensity_dec, _Light);
+__decorateElement$2(_init$2, 5, "range", _range_dec, _Light);
+__decorateElement$2(_init$2, 5, "castShadows", _castShadows_dec, _Light);
+__decoratorMetadata$2(_init$2, _Light);
+__publicField$2(_Light, "type", "@trident/core/components/Light");
+let Light = _Light;
+class SpotLight extends Light {
+  direction = new Vector3(0, -1, 0);
+  angle = 1;
+  Start() {
+    super.Start();
+    this.camera.SetPerspective(this.angle / Math.PI * 180 * 2, Renderer.width / Renderer.height, 0.01, 1e3);
+  }
+  // public Update(): void {
+  //     this.camera.SetPerspective(this.angle / Math.PI * 180 * 2, Renderer.width / Renderer.height, 0.01, 1000);
+  // }
+}
+class PointLight extends Light {
+  Start() {
+    super.Start();
+    this.camera.SetPerspective(60, Renderer.width / Renderer.height, 0.01, 1e3);
+  }
+}
+class AreaLight extends Light {
+  Start() {
+    super.Start();
+    this.camera.SetPerspective(60, Renderer.width / Renderer.height, 0.01, 1e3);
+  }
+}
+const _DirectionalLight = class _DirectionalLight extends (_b = Light, _direction_dec = [SerializeField], _b) {
+  constructor() {
+    super(...arguments);
+    __publicField$2(this, "direction", __runInitializers$2(_init2, 8, this, new Vector3(0, 1, 0))), __runInitializers$2(_init2, 11, this);
+  }
+  Start() {
+    super.Start();
+    const size = 1;
+    this.camera.SetOrthographic(-size, size, -size, size, 0.1, 100);
+  }
+  Serialize() {
+    return Object.assign(super.Serialize(), {
+      type: _DirectionalLight.type,
+      direction: this.direction.Serialize()
+    });
+  }
+  Deserialize(data) {
+    this.direction.Deserialize(data.direction);
+    this.camera.Deserialize(data.camera);
+    this.color.Deserialize(data.color);
+    this.intensity = data.intensity;
+    this.range = data.range;
+    this.castShadows = data.castShadows;
+  }
+};
+_init2 = __decoratorStart$2(_b);
+__decorateElement$2(_init2, 5, "direction", _direction_dec, _DirectionalLight);
+__decoratorMetadata$2(_init2, _DirectionalLight);
+__publicField$2(_DirectionalLight, "type", "@trident/core/components/DirectionalLight");
+let DirectionalLight = _DirectionalLight;
+Component.Registry.set(SpotLight.type, SpotLight);
+Component.Registry.set(PointLight.type, PointLight);
+Component.Registry.set(DirectionalLight.type, DirectionalLight);
+
+class MemoryAllocator {
+  memorySize;
+  availableMemorySize;
+  freeBlocks = [];
+  usedBlocks = [];
+  constructor(memorySize) {
+    this.memorySize = memorySize;
+    this.availableMemorySize = memorySize;
+    this.freeBlocks.push({ offset: 0, size: memorySize });
+  }
+  allocate(size) {
+    for (let i = 0; i < this.freeBlocks.length; i++) {
+      const block = this.freeBlocks[i];
+      if (block.size >= size) {
+        const offset = block.offset;
+        block.offset += size;
+        block.size -= size;
+        this.availableMemorySize -= size;
+        if (block.size === 0) {
+          this.freeBlocks.splice(i, 1);
+        }
+        this.usedBlocks.push({ offset, size });
+        return offset;
+      }
     }
+    throw Error("Not enough space.");
+  }
+  mergeFreeBlocks() {
+    this.freeBlocks.sort((a, b) => a.offset - b.offset);
+    for (let i = 0; i < this.freeBlocks.length - 1; ) {
+      const currentBlock = this.freeBlocks[i];
+      const nextBlock = this.freeBlocks[i + 1];
+      if (currentBlock.offset + currentBlock.size === nextBlock.offset) {
+        currentBlock.size += nextBlock.size;
+        this.freeBlocks.splice(i + 1, 1);
+      } else {
+        i++;
+      }
+    }
+  }
+  free(offset) {
+    for (let i = 0; i < this.usedBlocks.length; i++) {
+      const block = this.usedBlocks[i];
+      if (block.offset === offset) {
+        this.usedBlocks.splice(i, 1);
+        this.freeBlocks.push(block);
+        this.mergeFreeBlocks();
+        this.availableMemorySize += block.size;
+        return;
+      }
+    }
+    throw new Error(`No allocated block found at offset ${offset}`);
+  }
+}
+class BufferMemoryAllocator {
+  allocator;
+  buffer;
+  links;
+  static BYTES_PER_ELEMENT = Float32Array.BYTES_PER_ELEMENT;
+  bufferType;
+  constructor(size, bufferType = BufferType.STORAGE) {
+    this.allocator = new MemoryAllocator(size);
+    this.buffer = Buffer.Create(size * BufferMemoryAllocator.BYTES_PER_ELEMENT, bufferType);
+    this.links = /* @__PURE__ */ new Map();
+    this.bufferType = bufferType;
+  }
+  has(link) {
+    return this.links.has(link);
+  }
+  set(link, data) {
+    let bufferOffset = this.links.get(link);
+    if (bufferOffset === void 0) {
+      bufferOffset = this.allocator.allocate(data.length);
+      this.links.set(link, bufferOffset);
+    }
+    this.buffer.SetArray(data, bufferOffset * BufferMemoryAllocator.BYTES_PER_ELEMENT, 0, data.length);
+    return bufferOffset;
+  }
+  delete(link) {
+    const bufferOffset = this.links.get(link);
+    if (bufferOffset === void 0) throw Error("Link not found");
+    this.allocator.free(bufferOffset);
+    this.links.delete(link);
+  }
+  getBuffer() {
+    return this.buffer;
+  }
+  getAllocator() {
+    return this.allocator;
+  }
+}
+class DynamicBufferMemoryAllocator extends BufferMemoryAllocator {
+  incrementAmount;
+  constructor(size, incrementAmount, bufferType = BufferType.STORAGE) {
+    super(size, bufferType);
+    this.incrementAmount = incrementAmount ? incrementAmount : size;
+  }
+  set(link, data) {
+    let bufferOffset = this.links.get(link);
+    if (bufferOffset === void 0) {
+      if (this.allocator.availableMemorySize - data.length < 0) {
+        this.allocator.memorySize;
+        const incrementAmount = this.incrementAmount > data.length ? this.incrementAmount : data.length;
+        const oldMemorySize = this.allocator.memorySize - this.allocator.availableMemorySize;
+        this.allocator.memorySize += incrementAmount;
+        this.allocator.availableMemorySize += incrementAmount;
+        this.allocator.freeBlocks.push({ offset: oldMemorySize, size: incrementAmount });
+        const buffer = Buffer.Create(this.allocator.memorySize * BufferMemoryAllocator.BYTES_PER_ELEMENT, BufferType.STORAGE);
+        const hasActiveFrame = Renderer.HasActiveFrame();
+        if (!hasActiveFrame) Renderer.BeginRenderFrame();
+        RendererContext.CopyBufferToBuffer(this.buffer, buffer);
+        if (!hasActiveFrame) Renderer.EndRenderFrame();
+        const oldBuffer = this.buffer;
+        Renderer.OnFrameCompleted().then(() => {
+          oldBuffer.Destroy();
+        });
+        this.buffer = buffer;
+      }
+      bufferOffset = this.allocator.allocate(data.length);
+      this.links.set(link, bufferOffset);
+    }
+    this.buffer.SetArray(data, bufferOffset * BufferMemoryAllocator.BYTES_PER_ELEMENT, 0, data.length);
+    return bufferOffset;
+  }
+  delete(link) {
+    const bufferOffset = this.links.get(link);
+    if (bufferOffset === void 0) throw Error("Link not found");
+    this.allocator.free(bufferOffset);
+    this.links.delete(link);
+  }
+}
+
+class DeferredLightingPass extends RenderPass {
+  name = "DeferredLightingPass";
+  shader;
+  sampler;
+  quadGeometry;
+  lightsBuffer;
+  lightsCountBuffer;
+  outputLightingPass;
+  needsUpdate = true;
+  initialized = false;
+  dummyShadowPassDepth;
+  async init() {
+    this.shader = await Shader.Create({
+      code: await ShaderLoader.DeferredLighting,
+      uniforms: {
+        textureSampler: { group: 0, binding: 0, type: "sampler" },
+        albedoTexture: { group: 0, binding: 1, type: "texture" },
+        normalTexture: { group: 0, binding: 2, type: "texture" },
+        ermoTexture: { group: 0, binding: 3, type: "texture" },
+        depthTexture: { group: 0, binding: 4, type: "depthTexture" },
+        shadowPassDepth: { group: 0, binding: 5, type: "depthTexture" },
+        skyboxTexture: { group: 0, binding: 6, type: "texture" },
+        skyboxIrradianceTexture: { group: 0, binding: 7, type: "texture" },
+        skyboxPrefilterTexture: { group: 0, binding: 8, type: "texture" },
+        skyboxBRDFLUTTexture: { group: 0, binding: 9, type: "texture" },
+        brdfSampler: { group: 0, binding: 10, type: "sampler" },
+        lights: { group: 0, binding: 11, type: "storage" },
+        lightCount: { group: 0, binding: 12, type: "storage" },
+        view: { group: 0, binding: 13, type: "storage" },
+        shadowSamplerComp: { group: 0, binding: 14, type: "sampler-compare" },
+        settings: { group: 0, binding: 15, type: "storage" }
+      },
+      colorOutputs: [{ format: "rgba16float" }]
+    });
+    this.sampler = TextureSampler.Create({
+      minFilter: "linear",
+      magFilter: "linear",
+      mipmapFilter: "linear",
+      addressModeU: "clamp-to-edge",
+      addressModeV: "clamp-to-edge"
+    });
+    this.shader.SetSampler("textureSampler", this.sampler);
+    const brdfSampler = TextureSampler.Create({
+      minFilter: "linear",
+      magFilter: "linear",
+      addressModeU: "repeat",
+      addressModeV: "repeat"
+    });
+    this.shader.SetSampler("brdfSampler", brdfSampler);
+    const shadowSamplerComp = TextureSampler.Create({ minFilter: "linear", magFilter: "linear", compare: "less" });
+    this.shader.SetSampler("shadowSamplerComp", shadowSamplerComp);
+    this.quadGeometry = new Geometry();
+    this.lightsBuffer = new DynamicBufferMemoryAllocator(120 * 10);
+    this.lightsCountBuffer = Buffer.Create(1 * 4, BufferType.STORAGE);
+    this.shader.SetBuffer("lights", this.lightsBuffer.getBuffer());
+    this.shader.SetBuffer("lightCount", this.lightsCountBuffer);
+    this.outputLightingPass = RenderTexture.Create(Renderer.width, Renderer.height, 1, "rgba16float");
+    EventSystem.on(RendererEvents.Resized, (canvas) => {
+      this.outputLightingPass.Destroy();
+      this.outputLightingPass = RenderTexture.Create(Renderer.width, Renderer.height, 1, "rgba16float");
+    });
+    this.dummyShadowPassDepth = DepthTextureArray.Create(1, 1, 1);
+    EventSystem.on(LightEvents.Updated, (component) => {
+      this.needsUpdate = true;
+    });
+    this.initialized = true;
+  }
+  updateLightsBuffer(lights, resources) {
+    Camera.mainCamera.gameObject.scene;
+    for (let i = 0; i < lights.length; i++) {
+      const light = lights[i];
+      const params1 = new Float32Array([light.intensity, light.range, +light.castShadows, -1]);
+      const params2 = new Float32Array(4);
+      if (light instanceof DirectionalLight) {
+        params2.set(light.direction.elements);
+      } else if (light instanceof SpotLight) {
+        params2.set(light.direction.elements);
+        params2.set([light.angle], 3);
+      }
+      let lightType = 0 /* SPOT_LIGHT */;
+      if (light instanceof SpotLight) lightType = 0 /* SPOT_LIGHT */;
+      else if (light instanceof DirectionalLight) lightType = 1 /* DIRECTIONAL_LIGHT */;
+      else if (light instanceof PointLight) lightType = 2 /* POINT_LIGHT */;
+      else if (light instanceof AreaLight) lightType = 3 /* AREA_LIGHT */;
+      let projectionMatrices = new Float32Array(16 * 4);
+      let cascadeSplits = new Float32Array(4);
+      const lightsShadowData = resources.getResource(PassParams.ShadowPassCascadeData);
+      const lightShadowData = lightsShadowData ? lightsShadowData.get(light.id) : void 0;
+      if (lightShadowData !== void 0) {
+        projectionMatrices = lightShadowData.projectionMatrices;
+        cascadeSplits = lightShadowData.cascadeSplits;
+        params1[3] = lightShadowData.shadowMapIndex;
+      }
+      const lightData = new Float32Array([
+        light.transform.position.x,
+        light.transform.position.y,
+        light.transform.position.z,
+        1,
+        ...light.camera.projectionMatrix.elements,
+        // ...lightsCSMProjectionMatrix[i].slice(0, 16 * 4),
+        ...projectionMatrices,
+        ...cascadeSplits,
+        ...light.camera.viewMatrix.elements,
+        ...light.camera.viewMatrix.clone().invert().elements,
+        // ...new Vector4(0,0,1,0).applyMatrix4(light.camera.viewMatrix.clone().invert()).normalize().elements,
+        light.color.r,
+        light.color.g,
+        light.color.b,
+        lightType,
+        ...params1,
+        ...params2
+      ]);
+      this.lightsBuffer.set(light.id, lightData);
+    }
+    this.lightsCountBuffer.SetArray(new Uint32Array([lights.length]));
+    this.shader.SetBuffer("lights", this.lightsBuffer.getBuffer());
+    this.needsUpdate = false;
+  }
+  async preFrame(resources) {
+    if (!this.initialized) return;
+    this.drawCommands.length = 0;
+    const camera = Camera.mainCamera;
+    const scene = camera.gameObject.scene;
+    const _lights = scene.GetComponents(Light);
+    let lights = [];
+    for (const light of _lights) {
+      if (light.enabled === false || light.gameObject.enabled === false) continue;
+      lights.push(light);
+    }
+    if (lights.length === 0) return;
+    this.updateLightsBuffer(lights, resources);
+    const inputGBufferAlbedo = resources.getResource(PassParams.GBufferAlbedo);
+    const inputGBufferNormal = resources.getResource(PassParams.GBufferNormal);
+    const inputGbufferERMO = resources.getResource(PassParams.GBufferERMO);
+    const inputGBufferDepth = resources.getResource(PassParams.GBufferDepth);
+    const inputShadowPassDepth = resources.getResource(PassParams.ShadowPassDepth) || this.dummyShadowPassDepth;
+    const inputSkybox = resources.getResource(PassParams.Skybox);
+    const inputSkyboxIrradiance = resources.getResource(PassParams.SkyboxIrradiance);
+    const inputSkyboxPrefilter = resources.getResource(PassParams.SkyboxPrefilter);
+    const inputSkyboxBRDFLUT = resources.getResource(PassParams.SkyboxBRDFLUT);
+    if (!inputGBufferAlbedo) return;
+    this.shader.SetTexture("albedoTexture", inputGBufferAlbedo);
+    this.shader.SetTexture("normalTexture", inputGBufferNormal);
+    this.shader.SetTexture("ermoTexture", inputGbufferERMO);
+    this.shader.SetTexture("depthTexture", inputGBufferDepth);
+    this.shader.SetTexture("shadowPassDepth", inputShadowPassDepth);
+    this.shader.SetTexture("skyboxTexture", inputSkybox);
+    this.shader.SetTexture("skyboxIrradianceTexture", inputSkyboxIrradiance);
+    this.shader.SetTexture("skyboxPrefilterTexture", inputSkyboxPrefilter);
+    this.shader.SetTexture("skyboxBRDFLUTTexture", inputSkyboxBRDFLUT);
+    const view = new Float32Array(4 + 4 + 16 + 16 + 16);
+    view.set([Renderer.width, Renderer.height, 0], 0);
+    view.set(camera.transform.position.elements, 4);
+    const tempMatrix = new Matrix4();
+    tempMatrix.copy(camera.projectionMatrix).invert();
+    view.set(tempMatrix.elements, 8);
+    tempMatrix.copy(camera.viewMatrix).invert();
+    view.set(tempMatrix.elements, 24);
+    view.set(camera.viewMatrix.elements, 40);
+    this.shader.SetArray("view", view);
+    const settings = resources.getResource(PassParams.DebugSettings);
+    this.shader.SetArray("settings", settings);
+    this.drawCommands.push({ geometry: this.quadGeometry, shader: this.shader, instanceCount: 1, firstInstance: 0 });
+  }
+  async execute(resources) {
+    if (!this.initialized) return;
+    RendererContext.BeginRenderPass("DeferredLightingPass", [{ target: this.outputLightingPass, clear: true }], void 0, true);
+    for (const draw of this.drawCommands) {
+      RendererContext.Draw(draw.geometry, draw.shader, 3, draw.instanceCount, draw.firstInstance);
+    }
+    RendererContext.EndRenderPass();
+    resources.setResource(PassParams.LightingPassOutput, this.outputLightingPass);
+    resources.setResource(PassParams.LightsBuffer, this.lightsBuffer);
+  }
+}
+
+class TextureViewer extends RenderPass {
+  name = "TextureViewer";
+  shader;
+  quadGeometry;
+  async init() {
+    const code = `
+        struct VertexOutput {
+            @builtin(position) position : vec4<f32>,
+            @location(0) vUv : vec2<f32>,
+        };
+
+        @group(0) @binding(0) var textureSampler: sampler;
+        @group(0) @binding(1) var texture: texture_2d<f32>;
+
+        // Full-screen triangle (covers screen with 3 verts)
+        const p = array<vec2f, 3>(
+            vec2f(-1.0, -1.0),
+            vec2f( 3.0, -1.0),
+            vec2f(-1.0,  3.0)
+        );
+
+        @vertex fn vertexMain(@builtin(vertex_index) vertexIndex : u32) -> VertexOutput {
+            var out : VertexOutput;
+            out.position = vec4f(p[vertexIndex], 0.0, 1.0);
+          
+            // Derive UVs from NDC: ([-1,1] -> [0,1])
+            let uv = 0.5 * (p[vertexIndex] + vec2f(1.0, 1.0));
+            out.vUv = vec2f(uv.x, 1.0 - uv.y); // flip Y if your texture space needs it
+            return out;
+        }
+
+        @fragment fn fragmentMain(input: VertexOutput) -> @location(0) vec4f {
+            return textureSampleLevel(texture, textureSampler, input.vUv, 0);
+        }
+        `;
+    this.shader = await Shader.Create({
+      code,
+      colorOutputs: [{ format: Renderer.SwapChainFormat }],
+      uniforms: {
+        textureSampler: { group: 0, binding: 0, type: "sampler" },
+        texture: { group: 0, binding: 1, type: "texture" }
+      }
+    });
+    this.quadGeometry = new Geometry();
+    const sampler = TextureSampler.Create();
+    this.shader.SetSampler("textureSampler", sampler);
+    this.initialized = true;
+  }
+  async execute(resources) {
+    if (this.initialized === false) return;
+    resources.getResource(PassParams.DebugSettings);
+    const LightingPassOutputTexture = resources.getResource(PassParams.LightingPassOutput);
+    if (!LightingPassOutputTexture) return;
+    this.shader.SetTexture("texture", LightingPassOutputTexture);
+    RendererContext.BeginRenderPass("TextureViewer", [{ clear: false }], void 0, true);
+    RendererContext.Draw(this.quadGeometry, this.shader, 3);
+    RendererContext.EndRenderPass();
   }
 }
 
@@ -4769,135 +5266,47 @@ __publicField$1(_Mesh, "type", "@trident/core/components/Mesh");
 let Mesh = _Mesh;
 Component.Registry.set(Mesh.type, Mesh);
 
-class MemoryAllocator {
-  memorySize;
-  availableMemorySize;
-  freeBlocks = [];
-  usedBlocks = [];
-  constructor(memorySize) {
-    this.memorySize = memorySize;
-    this.availableMemorySize = memorySize;
-    this.freeBlocks.push({ offset: 0, size: memorySize });
-  }
-  allocate(size) {
-    for (let i = 0; i < this.freeBlocks.length; i++) {
-      const block = this.freeBlocks[i];
-      if (block.size >= size) {
-        const offset = block.offset;
-        block.offset += size;
-        block.size -= size;
-        this.availableMemorySize -= size;
-        if (block.size === 0) {
-          this.freeBlocks.splice(i, 1);
-        }
-        this.usedBlocks.push({ offset, size });
-        return offset;
-      }
-    }
-    throw Error("Not enough space.");
-  }
-  mergeFreeBlocks() {
-    this.freeBlocks.sort((a, b) => a.offset - b.offset);
-    for (let i = 0; i < this.freeBlocks.length - 1; ) {
-      const currentBlock = this.freeBlocks[i];
-      const nextBlock = this.freeBlocks[i + 1];
-      if (currentBlock.offset + currentBlock.size === nextBlock.offset) {
-        currentBlock.size += nextBlock.size;
-        this.freeBlocks.splice(i + 1, 1);
-      } else {
-        i++;
-      }
+class Skin {
+  joints;
+  inverseBindMatrices;
+  jointData;
+  constructor(joints, inverseBindMatrixData) {
+    this.joints = joints;
+    this.inverseBindMatrices = [];
+    this.jointData = new Float32Array(joints.length * 16);
+    for (let i = 0; i < joints.length; ++i) {
+      this.inverseBindMatrices.push(new Float32Array(
+        inverseBindMatrixData.buffer,
+        inverseBindMatrixData.byteOffset + Float32Array.BYTES_PER_ELEMENT * 16 * i,
+        16
+      ));
     }
   }
-  free(offset) {
-    for (let i = 0; i < this.usedBlocks.length; i++) {
-      const block = this.usedBlocks[i];
-      if (block.offset === offset) {
-        this.usedBlocks.splice(i, 1);
-        this.freeBlocks.push(block);
-        this.mergeFreeBlocks();
-        this.availableMemorySize += block.size;
-        return;
-      }
+  _matrix = new Matrix4();
+  update(skinRootWorldMatrix) {
+    for (let j = 0; j < this.joints.length; ++j) {
+      const tmp = skinRootWorldMatrix.clone().mul(this.joints[j].localToWorldMatrix).mul(new Matrix4().setFromArray(this.inverseBindMatrices[j]));
+      this.jointData.set(tmp.elements, j * 16);
     }
-    throw new Error(`No allocated block found at offset ${offset}`);
   }
 }
-class BufferMemoryAllocator {
-  allocator;
-  buffer;
-  links;
-  static BYTES_PER_ELEMENT = Float32Array.BYTES_PER_ELEMENT;
-  bufferType;
-  constructor(size, bufferType = BufferType.STORAGE) {
-    this.allocator = new MemoryAllocator(size);
-    this.buffer = Buffer.Create(size * BufferMemoryAllocator.BYTES_PER_ELEMENT, bufferType);
-    this.links = /* @__PURE__ */ new Map();
-    this.bufferType = bufferType;
+class SkinnedMesh extends Mesh {
+  skin;
+  boneMatricesBuffer;
+  constructor(gameObject) {
+    super(gameObject);
   }
-  has(link) {
-    return this.links.has(link);
+  GetBoneMatricesBuffer() {
+    return this.boneMatricesBuffer;
   }
-  set(link, data) {
-    let bufferOffset = this.links.get(link);
-    if (bufferOffset === void 0) {
-      bufferOffset = this.allocator.allocate(data.length);
-      this.links.set(link, bufferOffset);
-    }
-    this.buffer.SetArray(data, bufferOffset * BufferMemoryAllocator.BYTES_PER_ELEMENT, 0, data.length);
-    return bufferOffset;
+  Start() {
+    if (!this.skin) throw Error("SkinnedMesh needs a skin");
+    this.boneMatricesBuffer = Buffer.Create(this.skin.jointData.length * 4, BufferType.STORAGE);
+    this.boneMatricesBuffer.SetArray(this.skin.jointData);
   }
-  delete(link) {
-    const bufferOffset = this.links.get(link);
-    if (bufferOffset === void 0) throw Error("Link not found");
-    this.allocator.free(bufferOffset);
-    this.links.delete(link);
-  }
-  getBuffer() {
-    return this.buffer;
-  }
-  getAllocator() {
-    return this.allocator;
-  }
-}
-class DynamicBufferMemoryAllocator extends BufferMemoryAllocator {
-  incrementAmount;
-  constructor(size, incrementAmount, bufferType = BufferType.STORAGE) {
-    super(size, bufferType);
-    this.incrementAmount = incrementAmount ? incrementAmount : size;
-  }
-  set(link, data) {
-    let bufferOffset = this.links.get(link);
-    if (bufferOffset === void 0) {
-      if (this.allocator.availableMemorySize - data.length < 0) {
-        this.allocator.memorySize;
-        const incrementAmount = this.incrementAmount > data.length ? this.incrementAmount : data.length;
-        const oldMemorySize = this.allocator.memorySize - this.allocator.availableMemorySize;
-        this.allocator.memorySize += incrementAmount;
-        this.allocator.availableMemorySize += incrementAmount;
-        this.allocator.freeBlocks.push({ offset: oldMemorySize, size: incrementAmount });
-        const buffer = Buffer.Create(this.allocator.memorySize * BufferMemoryAllocator.BYTES_PER_ELEMENT, BufferType.STORAGE);
-        const hasActiveFrame = Renderer.HasActiveFrame();
-        if (!hasActiveFrame) Renderer.BeginRenderFrame();
-        RendererContext.CopyBufferToBuffer(this.buffer, buffer);
-        if (!hasActiveFrame) Renderer.EndRenderFrame();
-        const oldBuffer = this.buffer;
-        Renderer.OnFrameCompleted().then(() => {
-          oldBuffer.Destroy();
-        });
-        this.buffer = buffer;
-      }
-      bufferOffset = this.allocator.allocate(data.length);
-      this.links.set(link, bufferOffset);
-    }
-    this.buffer.SetArray(data, bufferOffset * BufferMemoryAllocator.BYTES_PER_ELEMENT, 0, data.length);
-    return bufferOffset;
-  }
-  delete(link) {
-    const bufferOffset = this.links.get(link);
-    if (bufferOffset === void 0) throw Error("Link not found");
-    this.allocator.free(bufferOffset);
-    this.links.delete(link);
+  Update() {
+    this.skin.update(this.gameObject.transform.worldToLocalMatrix);
+    this.boneMatricesBuffer.SetArray(this.skin.jointData);
   }
 }
 
@@ -4921,497 +5330,6 @@ class InstancedMesh extends Mesh {
   }
 }
 
-class Skin {
-  joints;
-  inverseBindMatrices;
-  jointMatrices;
-  jointData;
-  constructor(joints, inverseBindMatrixData) {
-    this.joints = joints;
-    this.inverseBindMatrices = [];
-    this.jointMatrices = [];
-    this.jointData = new Float32Array(joints.length * 16);
-    for (let i = 0; i < joints.length; ++i) {
-      this.inverseBindMatrices.push(new Float32Array(
-        inverseBindMatrixData.buffer,
-        inverseBindMatrixData.byteOffset + Float32Array.BYTES_PER_ELEMENT * 16 * i,
-        16
-      ));
-      this.jointMatrices.push(new Float32Array(
-        this.jointData.buffer,
-        Float32Array.BYTES_PER_ELEMENT * 16 * i,
-        16
-      ));
-    }
-  }
-  update(skinRootWorldMatrix) {
-    const globalWorldInverse = new Matrix4(...skinRootWorldMatrix).invert();
-    for (let j = 0; j < this.joints.length; ++j) {
-      const tmp = globalWorldInverse.clone().mul(this.joints[j].localToWorldMatrix).mul(new Matrix4(...this.inverseBindMatrices[j]).transpose());
-      this.jointMatrices[j].set(tmp.elements);
-    }
-  }
-}
-class SkinnedMesh extends Mesh {
-  skin;
-  boneMatricesBuffer;
-  constructor(gameObject) {
-    super(gameObject);
-  }
-  GetBoneMatricesBuffer() {
-    return this.boneMatricesBuffer;
-  }
-  Start() {
-    if (!this.skin) throw Error("SkinnedMesh needs a skin");
-    this.boneMatricesBuffer = Buffer.Create(this.skin.jointData.length * 4, BufferType.STORAGE);
-    this.boneMatricesBuffer.SetArray(this.skin.jointData);
-  }
-  Update() {
-    this.skin.update(this.gameObject.transform.localToWorldMatrix.elements);
-    this.boneMatricesBuffer.SetArray(this.skin.jointData);
-  }
-}
-
-var __create = Object.create;
-var __defProp = Object.defineProperty;
-var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
-var __knownSymbol = (name, symbol) => (symbol = Symbol[name]) ? symbol : Symbol.for("Symbol." + name);
-var __typeError = (msg) => {
-  throw TypeError(msg);
-};
-var __defNormalProp = (obj, key, value) => key in obj ? __defProp(obj, key, { enumerable: true, configurable: true, writable: true, value }) : obj[key] = value;
-var __decoratorStart = (base) => [, , , __create(base?.[__knownSymbol("metadata")] ?? null)];
-var __decoratorStrings = ["class", "method", "getter", "setter", "accessor", "field", "value", "get", "set"];
-var __expectFn = (fn) => fn !== void 0 && typeof fn !== "function" ? __typeError("Function expected") : fn;
-var __decoratorContext = (kind, name, done, metadata, fns) => ({ kind: __decoratorStrings[kind], name, metadata, addInitializer: (fn) => done._ ? __typeError("Already initialized") : fns.push(__expectFn(fn || null)) });
-var __decoratorMetadata = (array, target) => __defNormalProp(target, __knownSymbol("metadata"), array[3]);
-var __runInitializers = (array, flags, self, value) => {
-  for (var i = 0, fns = array[flags >> 1], n = fns && fns.length; i < n; i++) fns[i].call(self) ;
-  return value;
-};
-var __decorateElement = (array, flags, name, decorators, target, extra) => {
-  var it, done, ctx, access, k = flags & 7, s = false, p = false;
-  var j = 2 , key = __decoratorStrings[k + 5];
-  var extraInitializers = array[j] || (array[j] = []);
-  var desc = ((target = target.prototype), __getOwnPropDesc(target , name));
-  for (var i = decorators.length - 1; i >= 0; i--) {
-    ctx = __decoratorContext(k, name, done = {}, array[3], extraInitializers);
-    {
-      ctx.static = s, ctx.private = p, access = ctx.access = { has: (x) => name in x };
-      access.get = (x) => x[name];
-    }
-    it = (0, decorators[i])(desc[key]  , ctx), done._ = 1;
-    __expectFn(it) && (desc[key] = it );
-  }
-  return desc && __defProp(target, name, desc), target;
-};
-var __publicField = (obj, key, value) => __defNormalProp(obj, typeof key !== "symbol" ? key + "" : key, value);
-var _speed_dec, _a, _init;
-class AnimationClip {
-  name;
-  channels;
-  duration;
-  constructor(name, channels, duration) {
-    this.name = name;
-    this.channels = channels;
-    this.duration = duration;
-  }
-}
-class Animator extends (_a = Component, _speed_dec = [SerializeField], _a) {
-  constructor(gameObject) {
-    super(gameObject);
-    __runInitializers(_init, 5, this);
-    __publicField(this, "clips");
-    __publicField(this, "playing");
-    __publicField(this, "clipIndex");
-    __publicField(this, "time");
-    __publicField(this, "previousTime");
-    __publicField(this, "_speed", 1);
-    this.clips = [];
-    this.playing = false;
-    this.clipIndex = 0;
-    this.time = 0;
-    this.speed = 1;
-  }
-  get speed() {
-    return this._speed;
-  }
-  set speed(speed) {
-    this._speed = speed;
-  }
-  CurrentClip() {
-    return this.clips[this.clipIndex];
-  }
-  SetClipByIndex(i) {
-    this.clipIndex = Math.max(0, Math.min(i, this.clips.length - 1));
-    this.time = 0;
-    this.playing = true;
-  }
-  Start() {
-    this.previousTime = performance.now();
-  }
-  Update() {
-    const currentTime = performance.now();
-    const dt = currentTime - this.previousTime;
-    this.previousTime = currentTime;
-    if (!this.playing || !this.CurrentClip()) return;
-    this.time += dt / 1e3 * this._speed;
-    this.apply(this.CurrentClip(), this.time);
-  }
-  sampleSampler(sampler, t, out) {
-    const times = sampler.times;
-    const lastT = times[sampler.keyCount - 1];
-    const time = sampler.keyCount > 1 ? t % lastT : 0;
-    let i1 = 0;
-    while (i1 < sampler.keyCount && times[i1] < time) ++i1;
-    if (i1 === 0) i1 = 1;
-    if (i1 >= sampler.keyCount) i1 = sampler.keyCount - 1;
-    const i0 = i1 - 1;
-    const t0 = times[i0];
-    const t1 = times[i1];
-    const u = t1 > t0 ? (time - t0) / (t1 - t0) : 0;
-    const c = sampler.compCount;
-    const base0 = i0 * c;
-    const base1 = i1 * c;
-    if (c === 4 && out instanceof Quaternion) {
-      const qa = sampler.values.subarray(base0, base0 + 4);
-      const qb = sampler.values.subarray(base1, base1 + 4);
-      const _qa = new Quaternion(...qa);
-      const _qb = new Quaternion(...qb);
-      out.copy(_qa).slerp(_qb, u);
-    } else if (c === 3 && out instanceof Vector3) {
-      const a = sampler.values.subarray(base0, base0 + 3);
-      const b = sampler.values.subarray(base1, base1 + 3);
-      const _a2 = new Vector3(...a);
-      const _b = new Vector3(...b);
-      out.copy(_a2).lerp(_b, u);
-    } else {
-      throw Error("Not implemented");
-    }
-    return out;
-  }
-  apply(clip, time) {
-    for (const ch of clip.channels) {
-      switch (ch.path) {
-        case "translation":
-          this.sampleSampler(ch.sampler, time, ch.targetTransform.position);
-          break;
-        case "scale":
-          this.sampleSampler(ch.sampler, time, ch.targetTransform.scale);
-          break;
-        case "rotation":
-          this.sampleSampler(ch.sampler, time, ch.targetTransform.rotation).normalize();
-          break;
-      }
-    }
-  }
-}
-_init = __decoratorStart(_a);
-__decorateElement(_init, 2, "speed", _speed_dec, Animator);
-__decoratorMetadata(_init, Animator);
-
-var index$1 = /*#__PURE__*/Object.freeze({
-    __proto__: null,
-    AnimationClip: AnimationClip,
-    Animator: Animator,
-    Camera: Camera,
-    Component: Component,
-    DirectionalLight: DirectionalLight,
-    InstancedMesh: InstancedMesh,
-    Light: Light,
-    Mesh: Mesh,
-    PointLight: PointLight,
-    Skin: Skin,
-    SkinnedMesh: SkinnedMesh,
-    SpotLight: SpotLight,
-    Transform: Transform,
-    TransformEvents: TransformEvents
-});
-
-class RenderPass {
-  name;
-  initialized = false;
-  initializing = false;
-  drawCommands = [];
-  async init(resources) {
-  }
-  async preFrame(resources) {
-  }
-  async preRender(resources) {
-  }
-  async execute(resources) {
-  }
-}
-class ResourcePool {
-  resources = {};
-  setResource(name, resource) {
-    this.resources[name] = resource;
-  }
-  getResource(name) {
-    return this.resources[name];
-  }
-}
-class RenderGraph {
-  passes = [];
-  resourcePool = new ResourcePool();
-  addPass(pass) {
-    this.passes.push(pass);
-  }
-  async init() {
-    for (const pass of this.passes) {
-      if (pass.initialized === true || pass.initializing === true) continue;
-      pass.initializing = true;
-      await pass.init(this.resourcePool);
-      pass.initialized = true;
-    }
-  }
-  async preFrame() {
-    for (const pass of this.passes) if (pass.initialized) await pass.preFrame(this.resourcePool);
-  }
-  async preRender() {
-    for (const pass of this.passes) if (pass.initialized) await pass.preRender(this.resourcePool);
-  }
-  async execute() {
-    for (const pass of this.passes) if (pass.initialized) await pass.execute(this.resourcePool);
-  }
-}
-
-class DeferredLightingPass extends RenderPass {
-  name = "DeferredLightingPass";
-  shader;
-  sampler;
-  quadGeometry;
-  lightsBuffer;
-  lightsCountBuffer;
-  outputLightingPass;
-  needsUpdate = true;
-  initialized = false;
-  dummyShadowPassDepth;
-  async init() {
-    this.shader = await Shader.Create({
-      code: await ShaderLoader.DeferredLighting,
-      uniforms: {
-        textureSampler: { group: 0, binding: 0, type: "sampler" },
-        albedoTexture: { group: 0, binding: 1, type: "texture" },
-        normalTexture: { group: 0, binding: 2, type: "texture" },
-        ermoTexture: { group: 0, binding: 3, type: "texture" },
-        depthTexture: { group: 0, binding: 4, type: "depthTexture" },
-        shadowPassDepth: { group: 0, binding: 5, type: "depthTexture" },
-        skyboxTexture: { group: 0, binding: 6, type: "texture" },
-        skyboxIrradianceTexture: { group: 0, binding: 7, type: "texture" },
-        skyboxPrefilterTexture: { group: 0, binding: 8, type: "texture" },
-        skyboxBRDFLUTTexture: { group: 0, binding: 9, type: "texture" },
-        brdfSampler: { group: 0, binding: 10, type: "sampler" },
-        lights: { group: 0, binding: 11, type: "storage" },
-        lightCount: { group: 0, binding: 12, type: "storage" },
-        view: { group: 0, binding: 13, type: "storage" },
-        shadowSamplerComp: { group: 0, binding: 14, type: "sampler-compare" },
-        settings: { group: 0, binding: 15, type: "storage" }
-      },
-      colorOutputs: [{ format: "rgba16float" }]
-    });
-    this.sampler = TextureSampler.Create({
-      minFilter: "linear",
-      magFilter: "linear",
-      mipmapFilter: "linear",
-      addressModeU: "clamp-to-edge",
-      addressModeV: "clamp-to-edge"
-    });
-    this.shader.SetSampler("textureSampler", this.sampler);
-    const brdfSampler = TextureSampler.Create({
-      minFilter: "linear",
-      magFilter: "linear",
-      addressModeU: "repeat",
-      addressModeV: "repeat"
-    });
-    this.shader.SetSampler("brdfSampler", brdfSampler);
-    const shadowSamplerComp = TextureSampler.Create({ minFilter: "linear", magFilter: "linear", compare: "less" });
-    this.shader.SetSampler("shadowSamplerComp", shadowSamplerComp);
-    this.quadGeometry = new Geometry();
-    this.lightsBuffer = new DynamicBufferMemoryAllocator(120 * 10);
-    this.lightsCountBuffer = Buffer.Create(1 * 4, BufferType.STORAGE);
-    this.shader.SetBuffer("lights", this.lightsBuffer.getBuffer());
-    this.shader.SetBuffer("lightCount", this.lightsCountBuffer);
-    this.outputLightingPass = RenderTexture.Create(Renderer.width, Renderer.height, 1, "rgba16float");
-    EventSystem.on(RendererEvents.Resized, (canvas) => {
-      this.outputLightingPass.Destroy();
-      this.outputLightingPass = RenderTexture.Create(Renderer.width, Renderer.height, 1, "rgba16float");
-    });
-    this.dummyShadowPassDepth = DepthTextureArray.Create(1, 1, 1);
-    EventSystem.on(LightEvents.Updated, (component) => {
-      this.needsUpdate = true;
-    });
-    this.initialized = true;
-  }
-  updateLightsBuffer(lights, resources) {
-    Camera.mainCamera.gameObject.scene;
-    for (let i = 0; i < lights.length; i++) {
-      const light = lights[i];
-      const params1 = new Float32Array([light.intensity, light.range, +light.castShadows, -1]);
-      const params2 = new Float32Array(4);
-      if (light instanceof DirectionalLight) {
-        params2.set(light.direction.elements);
-      } else if (light instanceof SpotLight) {
-        params2.set(light.direction.elements);
-        params2.set([light.angle], 3);
-      }
-      let lightType = 0 /* SPOT_LIGHT */;
-      if (light instanceof SpotLight) lightType = 0 /* SPOT_LIGHT */;
-      else if (light instanceof DirectionalLight) lightType = 1 /* DIRECTIONAL_LIGHT */;
-      else if (light instanceof PointLight) lightType = 2 /* POINT_LIGHT */;
-      else if (light instanceof AreaLight) lightType = 3 /* AREA_LIGHT */;
-      let projectionMatrices = new Float32Array(16 * 4);
-      let cascadeSplits = new Float32Array(4);
-      const lightsShadowData = resources.getResource(PassParams.ShadowPassCascadeData);
-      const lightShadowData = lightsShadowData ? lightsShadowData.get(light.id) : void 0;
-      if (lightShadowData !== void 0) {
-        projectionMatrices = lightShadowData.projectionMatrices;
-        cascadeSplits = lightShadowData.cascadeSplits;
-        params1[3] = lightShadowData.shadowMapIndex;
-      }
-      const lightData = new Float32Array([
-        light.transform.position.x,
-        light.transform.position.y,
-        light.transform.position.z,
-        1,
-        ...light.camera.projectionMatrix.elements,
-        // ...lightsCSMProjectionMatrix[i].slice(0, 16 * 4),
-        ...projectionMatrices,
-        ...cascadeSplits,
-        ...light.camera.viewMatrix.elements,
-        ...light.camera.viewMatrix.clone().invert().elements,
-        // ...new Vector4(0,0,1,0).applyMatrix4(light.camera.viewMatrix.clone().invert()).normalize().elements,
-        light.color.r,
-        light.color.g,
-        light.color.b,
-        lightType,
-        ...params1,
-        ...params2
-      ]);
-      this.lightsBuffer.set(light.id, lightData);
-    }
-    this.lightsCountBuffer.SetArray(new Uint32Array([lights.length]));
-    this.shader.SetBuffer("lights", this.lightsBuffer.getBuffer());
-    this.needsUpdate = false;
-  }
-  async preFrame(resources) {
-    if (!this.initialized) return;
-    this.drawCommands.length = 0;
-    const camera = Camera.mainCamera;
-    const scene = camera.gameObject.scene;
-    const _lights = scene.GetComponents(Light);
-    let lights = [];
-    for (const light of _lights) {
-      if (light.enabled === false || light.gameObject.enabled === false) continue;
-      lights.push(light);
-    }
-    if (lights.length === 0) return;
-    this.updateLightsBuffer(lights, resources);
-    const inputGBufferAlbedo = resources.getResource(PassParams.GBufferAlbedo);
-    const inputGBufferNormal = resources.getResource(PassParams.GBufferNormal);
-    const inputGbufferERMO = resources.getResource(PassParams.GBufferERMO);
-    const inputGBufferDepth = resources.getResource(PassParams.GBufferDepth);
-    const inputShadowPassDepth = resources.getResource(PassParams.ShadowPassDepth) || this.dummyShadowPassDepth;
-    const inputSkybox = resources.getResource(PassParams.Skybox);
-    const inputSkyboxIrradiance = resources.getResource(PassParams.SkyboxIrradiance);
-    const inputSkyboxPrefilter = resources.getResource(PassParams.SkyboxPrefilter);
-    const inputSkyboxBRDFLUT = resources.getResource(PassParams.SkyboxBRDFLUT);
-    if (!inputGBufferAlbedo) return;
-    this.shader.SetTexture("albedoTexture", inputGBufferAlbedo);
-    this.shader.SetTexture("normalTexture", inputGBufferNormal);
-    this.shader.SetTexture("ermoTexture", inputGbufferERMO);
-    this.shader.SetTexture("depthTexture", inputGBufferDepth);
-    this.shader.SetTexture("shadowPassDepth", inputShadowPassDepth);
-    this.shader.SetTexture("skyboxTexture", inputSkybox);
-    this.shader.SetTexture("skyboxIrradianceTexture", inputSkyboxIrradiance);
-    this.shader.SetTexture("skyboxPrefilterTexture", inputSkyboxPrefilter);
-    this.shader.SetTexture("skyboxBRDFLUTTexture", inputSkyboxBRDFLUT);
-    const view = new Float32Array(4 + 4 + 16 + 16 + 16);
-    view.set([Renderer.width, Renderer.height, 0], 0);
-    view.set(camera.transform.position.elements, 4);
-    const tempMatrix = new Matrix4();
-    tempMatrix.copy(camera.projectionMatrix).invert();
-    view.set(tempMatrix.elements, 8);
-    tempMatrix.copy(camera.viewMatrix).invert();
-    view.set(tempMatrix.elements, 24);
-    view.set(camera.viewMatrix.elements, 40);
-    this.shader.SetArray("view", view);
-    const settings = resources.getResource(PassParams.DebugSettings);
-    this.shader.SetArray("settings", settings);
-    this.drawCommands.push({ geometry: this.quadGeometry, shader: this.shader, instanceCount: 1, firstInstance: 0 });
-  }
-  async execute(resources) {
-    if (!this.initialized) return;
-    RendererContext.BeginRenderPass("DeferredLightingPass", [{ target: this.outputLightingPass, clear: true }], void 0, true);
-    for (const draw of this.drawCommands) {
-      RendererContext.Draw(draw.geometry, draw.shader, 3, draw.instanceCount, draw.firstInstance);
-    }
-    RendererContext.EndRenderPass();
-    resources.setResource(PassParams.LightingPassOutput, this.outputLightingPass);
-    resources.setResource(PassParams.LightsBuffer, this.lightsBuffer);
-  }
-}
-
-class TextureViewer extends RenderPass {
-  name = "TextureViewer";
-  shader;
-  quadGeometry;
-  async init() {
-    const code = `
-        struct VertexOutput {
-            @builtin(position) position : vec4<f32>,
-            @location(0) vUv : vec2<f32>,
-        };
-
-        @group(0) @binding(0) var textureSampler: sampler;
-        @group(0) @binding(1) var texture: texture_2d<f32>;
-
-        // Full-screen triangle (covers screen with 3 verts)
-        const p = array<vec2f, 3>(
-            vec2f(-1.0, -1.0),
-            vec2f( 3.0, -1.0),
-            vec2f(-1.0,  3.0)
-        );
-
-        @vertex fn vertexMain(@builtin(vertex_index) vertexIndex : u32) -> VertexOutput {
-            var out : VertexOutput;
-            out.position = vec4f(p[vertexIndex], 0.0, 1.0);
-          
-            // Derive UVs from NDC: ([-1,1] -> [0,1])
-            let uv = 0.5 * (p[vertexIndex] + vec2f(1.0, 1.0));
-            out.vUv = vec2f(uv.x, 1.0 - uv.y); // flip Y if your texture space needs it
-            return out;
-        }
-
-        @fragment fn fragmentMain(input: VertexOutput) -> @location(0) vec4f {
-            return textureSampleLevel(texture, textureSampler, input.vUv, 0);
-        }
-        `;
-    this.shader = await Shader.Create({
-      code,
-      colorOutputs: [{ format: Renderer.SwapChainFormat }],
-      uniforms: {
-        textureSampler: { group: 0, binding: 0, type: "sampler" },
-        texture: { group: 0, binding: 1, type: "texture" }
-      }
-    });
-    this.quadGeometry = new Geometry();
-    const sampler = TextureSampler.Create();
-    this.shader.SetSampler("textureSampler", sampler);
-    this.initialized = true;
-  }
-  async execute(resources) {
-    if (this.initialized === false) return;
-    resources.getResource(PassParams.DebugSettings);
-    const LightingPassOutputTexture = resources.getResource(PassParams.LightingPassOutput);
-    if (!LightingPassOutputTexture) return;
-    this.shader.SetTexture("texture", LightingPassOutputTexture);
-    RendererContext.BeginRenderPass("TextureViewer", [{ clear: false }], void 0, true);
-    RendererContext.Draw(this.quadGeometry, this.shader, 3);
-    RendererContext.EndRenderPass();
-  }
-}
-
 class _DeferredShadowMapPassSettings {
   shadowWidth = 4096;
   shadowHeight = 4096;
@@ -5423,7 +5341,7 @@ class _DeferredShadowMapPassSettings {
   viewBlendThresholdValue = false;
   numOfCascades = 4;
   splitType = "practical";
-  splitTypePracticalLambda = 0.8;
+  splitTypePracticalLambda = 0.9;
 }
 const DeferredShadowMapPassSettings = new _DeferredShadowMapPassSettings();
 class DeferredShadowMapPass extends RenderPass {
@@ -5633,10 +5551,10 @@ class DeferredShadowMapPass extends RenderPass {
         const scalar = new Matrix4().makeScale(new Vector3(texelsPerUnit, texelsPerUnit, texelsPerUnit));
         const lookAt = new Matrix4().lookAt(new Vector3(0, 0, 0), lightDirection.clone().mul(-1), up).mul(scalar);
         const lookAtInv = lookAt.clone().invert();
-        frustumCenter.applyMatrix4(lookAt).normalize();
-        frustumCenter.x = Math.floor(frustumCenter.x);
-        frustumCenter.y = Math.floor(frustumCenter.y);
-        frustumCenter.applyMatrix4(lookAtInv).normalize();
+        frustumCenter.applyMatrix4(lookAt);
+        frustumCenter.x = Math.round(frustumCenter.x) + 0.5;
+        frustumCenter.y = Math.round(frustumCenter.y) + 0.5;
+        frustumCenter.applyMatrix4(lookAtInv);
       }
       const eye = frustumCenter.clone().sub(lightDirection.clone().mul(-radius));
       const lightViewMatrix = new Matrix4();
@@ -5908,12 +5826,12 @@ class DeferredGBufferPass extends RenderPass {
     this.modelMatrixBuffer = new DynamicBufferMemoryAllocator(16 * 4 * 1e3);
     this.initialized = true;
   }
+  // TODO: This still has bugs...specially with SkinnedMeshes and/or Transformed meshes.
+  // Disabled for now
   frustumCull(camera, meshes) {
     let nonOccluded = [];
     for (const mesh of meshes) {
-      if (camera.frustum.intersectsBoundingVolume(mesh.bounds) === true) {
-        nonOccluded.push(mesh);
-      }
+      nonOccluded.push(mesh);
     }
     return nonOccluded;
   }
@@ -6192,6 +6110,522 @@ class RenderingPipeline {
   }
 }
 
+var index$1 = /*#__PURE__*/Object.freeze({
+    __proto__: null,
+    Buffer: Buffer,
+    BufferMemoryAllocator: BufferMemoryAllocator,
+    BufferType: BufferType,
+    Compute: Compute,
+    ComputeContext: ComputeContext,
+    CubeTexture: CubeTexture,
+    DepthTexture: DepthTexture,
+    DynamicBuffer: DynamicBuffer,
+    DynamicBufferMemoryAllocator: DynamicBufferMemoryAllocator,
+    Material: Material,
+    MemoryAllocator: MemoryAllocator,
+    PassParams: PassParams,
+    RenderPass: RenderPass,
+    RenderPassOrder: RenderPassOrder,
+    RenderTexture: RenderTexture,
+    RenderTexture3D: RenderTexture3D,
+    RenderTextureCube: RenderTextureCube,
+    RenderTextureStorage2D: RenderTextureStorage2D,
+    RenderTextureStorage3D: RenderTextureStorage3D,
+    Renderer: Renderer,
+    RendererContext: RendererContext,
+    RenderingPipeline: RenderingPipeline,
+    ResourcePool: ResourcePool,
+    Shader: Shader,
+    ShaderLoader: ShaderLoader,
+    ShaderPreprocessor: ShaderPreprocessor,
+    Texture: Texture,
+    TextureArray: TextureArray,
+    TextureSampler: TextureSampler,
+    Topology: Topology
+});
+
+var KeyCodes = /* @__PURE__ */ ((KeyCodes2) => {
+  KeyCodes2[KeyCodes2["CANCEL"] = 3] = "CANCEL";
+  KeyCodes2[KeyCodes2["HELP"] = 6] = "HELP";
+  KeyCodes2[KeyCodes2["BACK_SPACE"] = 8] = "BACK_SPACE";
+  KeyCodes2[KeyCodes2["TAB"] = 9] = "TAB";
+  KeyCodes2[KeyCodes2["CLEAR"] = 12] = "CLEAR";
+  KeyCodes2[KeyCodes2["RETURN"] = 13] = "RETURN";
+  KeyCodes2[KeyCodes2["ENTER"] = 14] = "ENTER";
+  KeyCodes2[KeyCodes2["SHIFT"] = 16] = "SHIFT";
+  KeyCodes2[KeyCodes2["CONTROL"] = 17] = "CONTROL";
+  KeyCodes2[KeyCodes2["ALT"] = 18] = "ALT";
+  KeyCodes2[KeyCodes2["PAUSE"] = 19] = "PAUSE";
+  KeyCodes2[KeyCodes2["CAPS_LOCK"] = 20] = "CAPS_LOCK";
+  KeyCodes2[KeyCodes2["ESCAPE"] = 27] = "ESCAPE";
+  KeyCodes2[KeyCodes2["SPACE"] = 32] = "SPACE";
+  KeyCodes2[KeyCodes2["PAGE_UP"] = 33] = "PAGE_UP";
+  KeyCodes2[KeyCodes2["PAGE_DOWN"] = 34] = "PAGE_DOWN";
+  KeyCodes2[KeyCodes2["END"] = 35] = "END";
+  KeyCodes2[KeyCodes2["HOME"] = 36] = "HOME";
+  KeyCodes2[KeyCodes2["LEFT"] = 37] = "LEFT";
+  KeyCodes2[KeyCodes2["UP"] = 38] = "UP";
+  KeyCodes2[KeyCodes2["RIGHT"] = 39] = "RIGHT";
+  KeyCodes2[KeyCodes2["DOWN"] = 40] = "DOWN";
+  KeyCodes2[KeyCodes2["PRINTSCREEN"] = 44] = "PRINTSCREEN";
+  KeyCodes2[KeyCodes2["INSERT"] = 45] = "INSERT";
+  KeyCodes2[KeyCodes2["DELETE"] = 46] = "DELETE";
+  KeyCodes2[KeyCodes2["NUM_0"] = 48] = "NUM_0";
+  KeyCodes2[KeyCodes2["NUM_1"] = 49] = "NUM_1";
+  KeyCodes2[KeyCodes2["NUM_2"] = 50] = "NUM_2";
+  KeyCodes2[KeyCodes2["NUM_3"] = 51] = "NUM_3";
+  KeyCodes2[KeyCodes2["NUM_4"] = 52] = "NUM_4";
+  KeyCodes2[KeyCodes2["NUM_5"] = 53] = "NUM_5";
+  KeyCodes2[KeyCodes2["NUM_6"] = 54] = "NUM_6";
+  KeyCodes2[KeyCodes2["NUM_7"] = 55] = "NUM_7";
+  KeyCodes2[KeyCodes2["NUM_8"] = 56] = "NUM_8";
+  KeyCodes2[KeyCodes2["NUM_9"] = 57] = "NUM_9";
+  KeyCodes2[KeyCodes2["SEMICOLON"] = 59] = "SEMICOLON";
+  KeyCodes2[KeyCodes2["EQUALS"] = 61] = "EQUALS";
+  KeyCodes2[KeyCodes2["A"] = 65] = "A";
+  KeyCodes2[KeyCodes2["B"] = 66] = "B";
+  KeyCodes2[KeyCodes2["C"] = 67] = "C";
+  KeyCodes2[KeyCodes2["D"] = 68] = "D";
+  KeyCodes2[KeyCodes2["E"] = 69] = "E";
+  KeyCodes2[KeyCodes2["F"] = 70] = "F";
+  KeyCodes2[KeyCodes2["G"] = 71] = "G";
+  KeyCodes2[KeyCodes2["H"] = 72] = "H";
+  KeyCodes2[KeyCodes2["I"] = 73] = "I";
+  KeyCodes2[KeyCodes2["J"] = 74] = "J";
+  KeyCodes2[KeyCodes2["K"] = 75] = "K";
+  KeyCodes2[KeyCodes2["L"] = 76] = "L";
+  KeyCodes2[KeyCodes2["M"] = 77] = "M";
+  KeyCodes2[KeyCodes2["N"] = 78] = "N";
+  KeyCodes2[KeyCodes2["O"] = 79] = "O";
+  KeyCodes2[KeyCodes2["P"] = 80] = "P";
+  KeyCodes2[KeyCodes2["Q"] = 81] = "Q";
+  KeyCodes2[KeyCodes2["R"] = 82] = "R";
+  KeyCodes2[KeyCodes2["S"] = 83] = "S";
+  KeyCodes2[KeyCodes2["T"] = 84] = "T";
+  KeyCodes2[KeyCodes2["U"] = 85] = "U";
+  KeyCodes2[KeyCodes2["V"] = 86] = "V";
+  KeyCodes2[KeyCodes2["W"] = 87] = "W";
+  KeyCodes2[KeyCodes2["X"] = 88] = "X";
+  KeyCodes2[KeyCodes2["Y"] = 89] = "Y";
+  KeyCodes2[KeyCodes2["Z"] = 90] = "Z";
+  KeyCodes2[KeyCodes2["CONTEXT_MENU"] = 93] = "CONTEXT_MENU";
+  KeyCodes2[KeyCodes2["NUMPAD0"] = 96] = "NUMPAD0";
+  KeyCodes2[KeyCodes2["NUMPAD1"] = 97] = "NUMPAD1";
+  KeyCodes2[KeyCodes2["NUMPAD2"] = 98] = "NUMPAD2";
+  KeyCodes2[KeyCodes2["NUMPAD3"] = 99] = "NUMPAD3";
+  KeyCodes2[KeyCodes2["NUMPAD4"] = 100] = "NUMPAD4";
+  KeyCodes2[KeyCodes2["NUMPAD5"] = 101] = "NUMPAD5";
+  KeyCodes2[KeyCodes2["NUMPAD6"] = 102] = "NUMPAD6";
+  KeyCodes2[KeyCodes2["NUMPAD7"] = 103] = "NUMPAD7";
+  KeyCodes2[KeyCodes2["NUMPAD8"] = 104] = "NUMPAD8";
+  KeyCodes2[KeyCodes2["NUMPAD9"] = 105] = "NUMPAD9";
+  KeyCodes2[KeyCodes2["MULTIPLY"] = 106] = "MULTIPLY";
+  KeyCodes2[KeyCodes2["ADD"] = 107] = "ADD";
+  KeyCodes2[KeyCodes2["SEPARATOR"] = 108] = "SEPARATOR";
+  KeyCodes2[KeyCodes2["SUBTRACT"] = 109] = "SUBTRACT";
+  KeyCodes2[KeyCodes2["DECIMAL"] = 110] = "DECIMAL";
+  KeyCodes2[KeyCodes2["DIVIDE"] = 111] = "DIVIDE";
+  KeyCodes2[KeyCodes2["F1"] = 112] = "F1";
+  KeyCodes2[KeyCodes2["F2"] = 113] = "F2";
+  KeyCodes2[KeyCodes2["F3"] = 114] = "F3";
+  KeyCodes2[KeyCodes2["F4"] = 115] = "F4";
+  KeyCodes2[KeyCodes2["F5"] = 116] = "F5";
+  KeyCodes2[KeyCodes2["F6"] = 117] = "F6";
+  KeyCodes2[KeyCodes2["F7"] = 118] = "F7";
+  KeyCodes2[KeyCodes2["F8"] = 119] = "F8";
+  KeyCodes2[KeyCodes2["F9"] = 120] = "F9";
+  KeyCodes2[KeyCodes2["F10"] = 121] = "F10";
+  KeyCodes2[KeyCodes2["F11"] = 122] = "F11";
+  KeyCodes2[KeyCodes2["F12"] = 123] = "F12";
+  KeyCodes2[KeyCodes2["F13"] = 124] = "F13";
+  KeyCodes2[KeyCodes2["F14"] = 125] = "F14";
+  KeyCodes2[KeyCodes2["F15"] = 126] = "F15";
+  KeyCodes2[KeyCodes2["F16"] = 127] = "F16";
+  KeyCodes2[KeyCodes2["F17"] = 128] = "F17";
+  KeyCodes2[KeyCodes2["F18"] = 129] = "F18";
+  KeyCodes2[KeyCodes2["F19"] = 130] = "F19";
+  KeyCodes2[KeyCodes2["F20"] = 131] = "F20";
+  KeyCodes2[KeyCodes2["F21"] = 132] = "F21";
+  KeyCodes2[KeyCodes2["F22"] = 133] = "F22";
+  KeyCodes2[KeyCodes2["F23"] = 134] = "F23";
+  KeyCodes2[KeyCodes2["F24"] = 135] = "F24";
+  KeyCodes2[KeyCodes2["NUM_LOCK"] = 144] = "NUM_LOCK";
+  KeyCodes2[KeyCodes2["SCROLL_LOCK"] = 145] = "SCROLL_LOCK";
+  KeyCodes2[KeyCodes2["COMMA"] = 188] = "COMMA";
+  KeyCodes2[KeyCodes2["PERIOD"] = 190] = "PERIOD";
+  KeyCodes2[KeyCodes2["SLASH"] = 191] = "SLASH";
+  KeyCodes2[KeyCodes2["BACK_QUOTE"] = 192] = "BACK_QUOTE";
+  KeyCodes2[KeyCodes2["OPEN_BRACKET"] = 219] = "OPEN_BRACKET";
+  KeyCodes2[KeyCodes2["BACK_SLASH"] = 220] = "BACK_SLASH";
+  KeyCodes2[KeyCodes2["CLOSE_BRACKET"] = 221] = "CLOSE_BRACKET";
+  KeyCodes2[KeyCodes2["QUOTE"] = 222] = "QUOTE";
+  KeyCodes2[KeyCodes2["META"] = 224] = "META";
+  return KeyCodes2;
+})(KeyCodes || {});
+class Input {
+  static keysDown = {};
+  static keysUp = {};
+  static mousePosition = new Vector2();
+  static horizontalAxis = 0;
+  static verticalAxis = 0;
+  static previousTouch = new Vector2();
+  static initialized = false;
+  static Init() {
+    if (this.initialized === true) return;
+    if (!Renderer.canvas) throw Error("Renderer has no canvas.");
+    document.onkeydown = (event) => {
+      this.OnKeyDown(event);
+    };
+    document.onkeyup = (event) => {
+      this.OnKeyUp(event);
+    };
+    document.onmousemove = (event) => {
+      this.OnMouseMove(event);
+    };
+    document.ontouchmove = (event) => {
+      this.OnTouchMove(event);
+    };
+    this.initialized = true;
+  }
+  static OnTouchMove(event) {
+    event.preventDefault();
+    this.mousePosition.x = event.touches[0].clientX;
+    this.mousePosition.y = event.touches[0].clientY;
+    this.horizontalAxis += Math.round(this.mousePosition.x - this.previousTouch.x);
+    this.verticalAxis += Math.round(this.mousePosition.y - this.previousTouch.y);
+    this.previousTouch.set(this.mousePosition.x, this.mousePosition.y);
+  }
+  static OnMouseMove(event) {
+    this.mousePosition.x = event.clientX;
+    this.mousePosition.y = event.clientY;
+    this.horizontalAxis += event.movementX;
+    this.verticalAxis += event.movementY;
+  }
+  static OnKeyDown(event) {
+    if (this.keysDown[event.keyCode] === void 0) {
+      this.keysDown[event.keyCode] = Renderer.info.frame;
+      delete this.keysUp[event.keyCode];
+    }
+  }
+  static OnKeyUp(event) {
+    this.keysUp[event.keyCode] = Renderer.info.frame;
+    delete this.keysDown[event.keyCode];
+  }
+  static EndFrame() {
+    if (!this.initialized) return;
+    this.horizontalAxis = 0;
+    this.verticalAxis = 0;
+  }
+  /**
+   * Checks if the specified key was pressed down during the current frame.
+   * This method only returns true once per key down event, the key needs to be released 
+   * and pressed again in order for the condition to be true once more.
+   * 
+   * @param {KeyCodes} key - Key to check for press event.
+   * @returns {boolean} - True if the key was pressed down during this frame.
+   */
+  static GetKeyDown(key) {
+    this.Init();
+    if (this.keysDown[key] == Renderer.info.frame) {
+      return true;
+    }
+    return false;
+  }
+  /**
+   * Checks if the specified key was released during the current frame.
+   * This method only returns true once per release event, the key needs to be pressed down 
+   * and released again in order for the condition to be true once more.
+   * 
+   * @param {KeyCodes} key - Key to check for release event.
+   * @returns {boolean} - True if the key was released during this frame.
+   */
+  static GetKeyUp(key) {
+    this.Init();
+    if (this.keysUp[key] == Renderer.info.frame) {
+      return true;
+    }
+    return false;
+  }
+  /**
+   * Checks if the specified key is pressed down.
+   * This method returns true while the key is pressed down.
+   * 
+   * @param {KeyCodes} key - Key to check for press down event.
+   * @returns {boolean} - True if the key is being pressed down.
+   */
+  static GetKey(key) {
+    this.Init();
+    if (this.keysDown[key] !== void 0) {
+      return true;
+    }
+    return false;
+  }
+  /**
+   * Gets the mouse position difference between the previous frame and the current frame.
+   * This method works with both the mouse and touch events.
+   * 
+   * @param {"Horizontal"|"Vertical"} axisName - Axis to query.
+   * @returns {number} - Mouse difference between the previous frame and the current fram.
+   */
+  static GetAxis(axisName) {
+    this.Init();
+    if (axisName == "Horizontal") {
+      return this.horizontalAxis;
+    } else if (axisName == "Vertical") {
+      return this.verticalAxis;
+    }
+  }
+}
+
+var __create = Object.create;
+var __defProp = Object.defineProperty;
+var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
+var __knownSymbol = (name, symbol) => (symbol = Symbol[name]) ? symbol : Symbol.for("Symbol." + name);
+var __typeError = (msg) => {
+  throw TypeError(msg);
+};
+var __defNormalProp = (obj, key, value) => key in obj ? __defProp(obj, key, { enumerable: true, configurable: true, writable: true, value }) : obj[key] = value;
+var __decoratorStart = (base) => [, , , __create(base?.[__knownSymbol("metadata")] ?? null)];
+var __decoratorStrings = ["class", "method", "getter", "setter", "accessor", "field", "value", "get", "set"];
+var __expectFn = (fn) => fn !== void 0 && typeof fn !== "function" ? __typeError("Function expected") : fn;
+var __decoratorContext = (kind, name, done, metadata, fns) => ({ kind: __decoratorStrings[kind], name, metadata, addInitializer: (fn) => done._ ? __typeError("Already initialized") : fns.push(__expectFn(fn || null)) });
+var __decoratorMetadata = (array, target) => __defNormalProp(target, __knownSymbol("metadata"), array[3]);
+var __runInitializers = (array, flags, self, value) => {
+  for (var i = 0, fns = array[flags >> 1], n = fns && fns.length; i < n; i++) fns[i].call(self) ;
+  return value;
+};
+var __decorateElement = (array, flags, name, decorators, target, extra) => {
+  var it, done, ctx, access, k = flags & 7, s = false, p = false;
+  var j = 2 , key = __decoratorStrings[k + 5];
+  var extraInitializers = array[j] || (array[j] = []);
+  var desc = ((target = target.prototype), __getOwnPropDesc(target , name));
+  for (var i = decorators.length - 1; i >= 0; i--) {
+    ctx = __decoratorContext(k, name, done = {}, array[3], extraInitializers);
+    {
+      ctx.static = s, ctx.private = p, access = ctx.access = { has: (x) => name in x };
+      access.get = (x) => x[name];
+    }
+    it = (0, decorators[i])(desc[key]  , ctx), done._ = 1;
+    __expectFn(it) && (desc[key] = it );
+  }
+  return desc && __defProp(target, name, desc), target;
+};
+var __publicField = (obj, key, value) => __defNormalProp(obj, typeof key !== "symbol" ? key + "" : key, value);
+var _speed_dec, _a, _init;
+class AnimationClip {
+  name;
+  channels;
+  duration;
+  constructor(name, channels, duration) {
+    this.name = name;
+    this.channels = channels;
+    this.duration = duration;
+  }
+}
+class AnimationState {
+  clip;
+  time = 0;
+  speed = 1;
+  constructor(clip, speed = 1) {
+    this.clip = clip;
+    this.speed = speed;
+  }
+}
+class Animator extends (_a = Component, _speed_dec = [SerializeField], _a) {
+  constructor(gameObject) {
+    super(gameObject);
+    __runInitializers(_init, 5, this);
+    __publicField(this, "clips");
+    __publicField(this, "playing");
+    __publicField(this, "clipIndex");
+    __publicField(this, "previousTime");
+    __publicField(this, "_speed", 1);
+    // --- blending state ---
+    __publicField(this, "current");
+    __publicField(this, "next");
+    __publicField(this, "fadeDuration", 0);
+    __publicField(this, "fadeTime", 0);
+    this.clips = [];
+    this.playing = false;
+    this.clipIndex = 0;
+    this._speed = 1;
+  }
+  get speed() {
+    return this._speed;
+  }
+  set speed(speed) {
+    this._speed = speed;
+  }
+  CurrentClip() {
+    return this.current?.clip;
+  }
+  SetClipByIndex(i, play = true) {
+    this.clipIndex = Math.max(0, Math.min(i, this.clips.length - 1));
+    const clip = this.clips[this.clipIndex];
+    this.current = clip ? new AnimationState(clip, this._speed) : void 0;
+    this.next = void 0;
+    this.fadeDuration = 0;
+    this.fadeTime = 0;
+    this.playing = play && !!clip;
+  }
+  // Start a crossfade into another clip over `duration` seconds
+  CrossFadeTo(i, duration = 0.25) {
+    if (this.clips.length === 0) return;
+    const targetIdx = Math.max(0, Math.min(i, this.clips.length - 1));
+    const target = this.clips[targetIdx];
+    if (!target) return;
+    if (!this.current) {
+      this.SetClipByIndex(targetIdx, true);
+      return;
+    }
+    this.next = new AnimationState(target, this._speed);
+    this.fadeDuration = Math.max(1e-4, duration);
+    this.fadeTime = 0;
+    this.playing = true;
+  }
+  Start() {
+    this.previousTime = performance.now();
+  }
+  Update() {
+    const now = performance.now();
+    const dt = (now - this.previousTime) / 1e3;
+    this.previousTime = now;
+    if (!this.playing || !this.current) return;
+    this.current.time += dt * this.current.speed;
+    if (this.next) {
+      this.next.time += dt * this.next.speed;
+      this.fadeTime += dt;
+    }
+    if (!this.next) {
+      this.apply(this.current.clip, this.current.time);
+    } else {
+      const alpha = Math.min(1, this.fadeTime / this.fadeDuration);
+      this.applyBlended(this.current.clip, this.current.time, this.next.clip, this.next.time, alpha);
+      if (alpha >= 1) {
+        this.current = this.next;
+        this.next = void 0;
+        this.fadeDuration = 0;
+        this.fadeTime = 0;
+      }
+    }
+  }
+  // unchanged sampler
+  sampleSampler(sampler, t, out) {
+    const times = sampler.times;
+    const lastT = times[sampler.keyCount - 1];
+    const time = sampler.keyCount > 1 ? t % lastT : 0;
+    let i1 = 0;
+    while (i1 < sampler.keyCount && times[i1] < time) ++i1;
+    if (i1 === 0) i1 = 1;
+    if (i1 >= sampler.keyCount) i1 = sampler.keyCount - 1;
+    const i0 = i1 - 1;
+    const t0 = times[i0];
+    const t1 = times[i1];
+    const u = t1 > t0 ? (time - t0) / (t1 - t0) : 0;
+    const c = sampler.compCount;
+    const base0 = i0 * c;
+    const base1 = i1 * c;
+    if (c === 4 && out instanceof Quaternion) {
+      const qa = sampler.values.subarray(base0, base0 + 4);
+      const qb = sampler.values.subarray(base1, base1 + 4);
+      const _qa = new Quaternion(...qa);
+      const _qb = new Quaternion(...qb);
+      out.copy(_qa).slerp(_qb, u);
+    } else if (c === 3 && out instanceof Vector3) {
+      const a = sampler.values.subarray(base0, base0 + 3);
+      const b = sampler.values.subarray(base1, base1 + 3);
+      const _a2 = new Vector3(...a);
+      const _b = new Vector3(...b);
+      out.copy(_a2).lerp(_b, u);
+    } else {
+      throw Error("Not implemented");
+    }
+    return out;
+  }
+  // find a channel in `clip` matching the same target transform & path
+  findChannel(clip, target, path) {
+    return clip.channels.find((ch) => ch.targetTransform === target && ch.path === path);
+  }
+  // original apply (no blend)
+  apply(clip, time) {
+    for (const ch of clip.channels) {
+      switch (ch.path) {
+        case "translation":
+          this.sampleSampler(ch.sampler, time, ch.targetTransform.position);
+          break;
+        case "scale":
+          this.sampleSampler(ch.sampler, time, ch.targetTransform.scale);
+          break;
+        case "rotation":
+          this.sampleSampler(ch.sampler, time, ch.targetTransform.rotation).normalize();
+          break;
+      }
+    }
+  }
+  // blended apply between two clips at times tA/tB and factor alpha
+  applyBlended(clipA, tA, clipB, tB, alpha) {
+    const visited = /* @__PURE__ */ new Set();
+    const tmpV0 = new Vector3();
+    const tmpV1 = new Vector3();
+    const tmpQ0 = new Quaternion();
+    const tmpQ1 = new Quaternion();
+    for (const chA of clipA.channels) {
+      visited.add(chA);
+      const chB = this.findChannel(clipB, chA.targetTransform, chA.path);
+      const tr = chA.targetTransform;
+      if (chA.path === "translation") {
+        this.sampleSampler(chA.sampler, tA, tmpV0);
+        if (chB) this.sampleSampler(chB.sampler, tB, tmpV1);
+        tr.position.copy(chB ? tmpV0.lerp(tmpV1, alpha) : tmpV0);
+      } else if (chA.path === "scale") {
+        this.sampleSampler(chA.sampler, tA, tmpV0);
+        if (chB) this.sampleSampler(chB.sampler, tB, tmpV1);
+        tr.scale.copy(chB ? tmpV0.lerp(tmpV1, alpha) : tmpV0);
+      } else if (chA.path === "rotation") {
+        this.sampleSampler(chA.sampler, tA, tmpQ0);
+        if (chB) this.sampleSampler(chB.sampler, tB, tmpQ1);
+        tr.rotation.copy(chB ? tmpQ0.slerp(tmpQ1, alpha) : tmpQ0).normalize();
+      }
+    }
+    for (const chB of clipB.channels) {
+      const chA = this.findChannel(clipA, chB.targetTransform, chB.path);
+      if (chA) continue;
+      const tr = chB.targetTransform;
+      if (chB.path === "translation") {
+        this.sampleSampler(chB.sampler, tB, tmpV1);
+        tr.position.lerp(tmpV1, alpha);
+      } else if (chB.path === "scale") {
+        this.sampleSampler(chB.sampler, tB, tmpV1);
+        tr.scale.lerp(tmpV1, alpha);
+      } else if (chB.path === "rotation") {
+        this.sampleSampler(chB.sampler, tB, tmpQ1);
+        tr.rotation.slerp(tmpQ1, alpha).normalize();
+      }
+    }
+  }
+}
+_init = __decoratorStart(_a);
+__decorateElement(_init, 2, "speed", _speed_dec, Animator);
+__decoratorMetadata(_init, Animator);
+
+var index = /*#__PURE__*/Object.freeze({
+    __proto__: null,
+    AnimationClip: AnimationClip,
+    Animator: Animator,
+    Camera: Camera,
+    Component: Component,
+    DirectionalLight: DirectionalLight,
+    InstancedMesh: InstancedMesh,
+    Light: Light,
+    Mesh: Mesh,
+    PointLight: PointLight,
+    Skin: Skin,
+    SkinnedMesh: SkinnedMesh,
+    SpotLight: SpotLight,
+    Transform: Transform,
+    TransformEvents: TransformEvents
+});
+
 function getCtorChain(ctor) {
   const chain = [];
   for (let c = ctor; c && c !== Component; c = Object.getPrototypeOf(c)) {
@@ -6216,6 +6650,7 @@ class Scene {
   componentsByType = /* @__PURE__ */ new Map();
   renderPipeline;
   static mainScene;
+  previousTime = 0;
   constructor(renderer) {
     this.renderer = renderer;
     this.renderPipeline = new RenderingPipeline(this.renderer);
@@ -6270,9 +6705,15 @@ class Scene {
     for (const gameObject of this.gameObjects) gameObject.Start();
     this._hasStarted = true;
     EventSystem.emit(Scene.Events.OnStarted, this);
+    Renderer.info.frame = 0;
+    this.previousTime = performance.now();
     this.Tick();
   }
   Tick() {
+    Renderer.info.frame++;
+    const currentTime = performance.now();
+    Renderer.info.deltaTime = currentTime - this.previousTime;
+    this.previousTime = currentTime;
     for (const [component, _] of this.toUpdate) {
       if (component.gameObject.enabled === false) continue;
       if (!component.hasStarted) {
@@ -6282,6 +6723,7 @@ class Scene {
       component.Update();
     }
     this.renderPipeline.Render(this);
+    Input.EndFrame();
     requestAnimationFrame(() => this.Tick());
   }
   Serialize() {
@@ -6306,91 +6748,4 @@ class Scene {
   }
 }
 
-class WEBGPUComputeContext {
-  static activeComputePass = null;
-  static BeginComputePass(name, timestamp) {
-    const activeCommandEncoder = WEBGPURenderer.GetActiveCommandEncoder();
-    if (!activeCommandEncoder) throw Error("No active command encoder!!");
-    if (this.activeComputePass) throw Error("There is already an active compute pass");
-    const computePassDescriptor = {};
-    if (timestamp === true) computePassDescriptor.timestampWrites = WEBGPUTimestampQuery.BeginRenderTimestamp(name);
-    this.activeComputePass = activeCommandEncoder.beginComputePass(computePassDescriptor);
-    this.activeComputePass.label = "ComputePass: " + name;
-  }
-  static EndComputePass() {
-    if (!this.activeComputePass) throw Error("No active compute pass");
-    this.activeComputePass.end();
-    this.activeComputePass = null;
-    WEBGPUTimestampQuery.EndRenderTimestamp();
-  }
-  static Dispatch(computeShader, workgroupCountX, workgroupCountY, workgroupCountZ) {
-    if (!this.activeComputePass) throw Error("No active render pass");
-    if (!computeShader.OnPreRender()) return;
-    computeShader.Compile();
-    if (!computeShader.pipeline) throw Error("Shader doesnt have a pipeline");
-    this.activeComputePass.setPipeline(computeShader.pipeline);
-    for (let i = 0; i < computeShader.bindGroups.length; i++) {
-      let dynamicOffsetsV2 = [];
-      for (const buffer of computeShader.bindGroupsInfo[i].buffers) {
-        if (buffer instanceof WEBGPUDynamicBuffer) {
-          dynamicOffsetsV2.push(buffer.dynamicOffset);
-        }
-      }
-      this.activeComputePass.setBindGroup(i, computeShader.bindGroups[i], dynamicOffsetsV2);
-    }
-    this.activeComputePass.dispatchWorkgroups(workgroupCountX, workgroupCountY, workgroupCountZ);
-  }
-}
-
-class ComputeContext {
-  constructor() {
-  }
-  static BeginComputePass(name, timestamp = false) {
-    if (Renderer.type === "webgpu") WEBGPUComputeContext.BeginComputePass(name, timestamp);
-    else throw Error("Unknown render api type.");
-  }
-  static EndComputePass() {
-    if (Renderer.type === "webgpu") WEBGPUComputeContext.EndComputePass();
-    else throw Error("Unknown render api type.");
-  }
-  static Dispatch(computeShader, workgroupCountX, workgroupCountY = 1, workgroupCountZ = 1) {
-    if (Renderer.type === "webgpu") WEBGPUComputeContext.Dispatch(computeShader, workgroupCountX, workgroupCountY, workgroupCountZ);
-    else throw Error("Unknown render api type.");
-  }
-}
-
-var index = /*#__PURE__*/Object.freeze({
-    __proto__: null,
-    Buffer: Buffer,
-    BufferMemoryAllocator: BufferMemoryAllocator,
-    BufferType: BufferType,
-    Compute: Compute,
-    ComputeContext: ComputeContext,
-    CubeTexture: CubeTexture,
-    DepthTexture: DepthTexture,
-    DynamicBuffer: DynamicBuffer,
-    DynamicBufferMemoryAllocator: DynamicBufferMemoryAllocator,
-    Material: Material,
-    MemoryAllocator: MemoryAllocator,
-    PassParams: PassParams,
-    RenderPass: RenderPass,
-    RenderPassOrder: RenderPassOrder,
-    RenderTexture: RenderTexture,
-    RenderTexture3D: RenderTexture3D,
-    RenderTextureCube: RenderTextureCube,
-    RenderTextureStorage2D: RenderTextureStorage2D,
-    RenderTextureStorage3D: RenderTextureStorage3D,
-    Renderer: Renderer,
-    RendererContext: RendererContext,
-    RenderingPipeline: RenderingPipeline,
-    ResourcePool: ResourcePool,
-    Shader: Shader,
-    ShaderLoader: ShaderLoader,
-    ShaderPreprocessor: ShaderPreprocessor,
-    Texture: Texture,
-    TextureArray: TextureArray,
-    TextureSampler: TextureSampler,
-    Topology: Topology
-});
-
-export { Assets, Component, index$1 as Components, EventSystem, EventSystemLocal, index as GPU, GameObject, Geometry, IndexAttribute, InterleavedVertexAttribute, index$2 as Mathf, PBRMaterial, Renderer, Scene, Texture, index$3 as Utils, VertexAttribute };
+export { Assets, Component, index as Components, EventSystem, EventSystemLocal, index$1 as GPU, GameObject, Geometry, IndexAttribute, Input, InterleavedVertexAttribute, KeyCodes, index$2 as Mathf, PBRMaterial, Renderer, Scene, Texture, index$3 as Utils, VertexAttribute };

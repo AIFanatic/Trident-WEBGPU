@@ -11,6 +11,7 @@ class FirstPersonController extends Component {
   boostMultiplier = 10;
   orbitSpeed = 0.01;
   rayDistance = 1;
+  playHeight = 1.8;
   v = new Mathf.Vector3();
   keysPressed = {
     forward: false,
@@ -25,8 +26,7 @@ class FirstPersonController extends Component {
   };
   mouse = { deltaX: 0, deltaY: 0, left: false };
   target;
-  state = 5 /* NOCLIP */;
-  floorY = 0;
+  state = 4 /* FALLING */;
   async Start() {
     if (!this.camera) throw Error("Camera parameter not set");
     const collider = this.gameObject.GetComponent(Collider);
@@ -77,7 +77,6 @@ class FirstPersonController extends Component {
     this.target = this.transform;
   }
   GroundRayCast() {
-    if (this.state === 5 /* NOCLIP */) return;
     const direction = this.target.up.clone().mul(-1);
     const from = this.target.position.clone();
     let ray = new PhysicsRapier.Physics.Ray(from, direction);
@@ -122,7 +121,7 @@ class FirstPersonController extends Component {
     const grounded = rayHit && rayHit.collider && Math.abs(rayHit.timeOfImpact) <= 1.75;
     if (this.keysPressed.jump && grounded) r.setLinvel({ x: 0, y: 7.5, z: 0 }, true);
     this.transform.position.set(p.x, p.y, p.z);
-    this.camera.transform.position.set(p.x, p.y, p.z).add(new Mathf.Vector3(0, 1, 0));
+    this.camera.transform.position.set(p.x, p.y, p.z).add(new Mathf.Vector3(0, -1.5 + this.playHeight, 0));
   }
   HandleNoClip() {
     if (this.keysPressed.noclip === true) {

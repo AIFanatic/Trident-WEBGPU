@@ -259,7 +259,7 @@ class GLTFLoader {
     const nodeGOs = [];
     const skins = [];
     const clips = [];
-    if (!gltf.nodes) return gameObjects;
+    if (!gltf.nodes) return null;
     const nodeIndex = /* @__PURE__ */ new Map();
     gltf.nodes.forEach((n, i) => nodeIndex.set(n, i));
     let transforms = /* @__PURE__ */ new Map();
@@ -339,7 +339,17 @@ class GLTFLoader {
       const animator = gameObjects[0].AddComponent(Components.Animator);
       animator.clips = clips;
     }
-    return gameObjects;
+    const childIDs = /* @__PURE__ */ new Set();
+    for (const n of gltf.nodes) {
+      for (const childId of n.childrenID) {
+        childIDs.add(childId);
+      }
+    }
+    const rootGameObjects = gltf.nodes.map((n, i) => ({ n, go: nodeGOs[i] })).filter(({ n }, i) => !childIDs.has(i)).map(({ go }) => go);
+    const sceneGameObject = new GameObject(scene);
+    sceneGameObject.name = url.slice(url.lastIndexOf("/") + 1);
+    for (const rootGameObject of rootGameObjects) rootGameObject.transform.parent = sceneGameObject.transform;
+    return sceneGameObject;
   }
 }
 
