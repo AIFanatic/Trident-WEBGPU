@@ -22,6 +22,7 @@ export class FirstPersonController extends Component {
     public boostMultiplier = 10;
     public orbitSpeed = 0.01;
     public rayDistance = 1;
+    public playHeight = 1.80;
 
     private v = new Mathf.Vector3();
     private keysPressed = {
@@ -40,8 +41,7 @@ export class FirstPersonController extends Component {
 
     private target: Transform;
 
-    public state: CharacterState = CharacterState.NOCLIP;
-    private floorY: number = 0;
+    public state: CharacterState = CharacterState.FALLING;
 
     public async Start() {
         if (!this.camera) throw Error("Camera parameter not set");
@@ -53,7 +53,7 @@ export class FirstPersonController extends Component {
         const rigidbody = this.gameObject.GetComponent(RigidBody);
         if (!rigidbody) throw Error("FirstPersonController needs a rigidbody attached to it");
         this.rigidbody = rigidbody;
-        this.camera.transform.position.copy(this.transform.position)
+        this.camera.transform.position.copy(this.transform.position);
 
         this.rigidbody.rigidBody.lockRotations(true, true)
         
@@ -103,11 +103,10 @@ export class FirstPersonController extends Component {
     }
 
     private GroundRayCast() {
-        if (this.state === CharacterState.NOCLIP) return;
+        // if (this.state === CharacterState.NOCLIP) return;
 
         const direction = this.target.up.clone().mul(-1);
         const from = this.target.position.clone();
-
         // const to = from.clone().add(direction.clone().mul(this.rayDistance));
         // this.line.SetFrom(from);
         // this.line.SetTo(to);
@@ -181,7 +180,7 @@ export class FirstPersonController extends Component {
         if (this.keysPressed.jump && grounded) r.setLinvel({ x: 0, y: 7.5, z: 0 }, true);
 
         this.transform.position.set(p.x, p.y, p.z);
-        this.camera.transform.position.set(p.x, p.y, p.z).add(new Mathf.Vector3(0, 1, 0));
+        this.camera.transform.position.set(p.x, p.y, p.z).add(new Mathf.Vector3(0, -1.5 + this.playHeight, 0));
     }
 
     private HandleNoClip() {

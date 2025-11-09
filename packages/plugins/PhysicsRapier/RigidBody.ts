@@ -1,4 +1,4 @@
-import { GameObject, Component } from "@trident/core";
+import { GameObject, Component, Mathf } from "@trident/core";
 import { PhysicsRapier } from "./PhysicsRapier";
 import { Collider } from "./colliders/Collider";
 import RAPIER from "./rapier/rapier";
@@ -7,6 +7,15 @@ export class RigidBody extends Component {
     private rigidBody: RAPIER.RigidBody;
     private rigidBodyDesc: RAPIER.RigidBodyDesc;
 
+    private _velocity = new Mathf.Vector3();
+    public get velocity(): Mathf.Vector3 {
+        const v = this.rigidBody.linvel();
+        this._velocity.set(v.x, v.y, v.z);
+        return this._velocity;
+    }
+
+    public get mass(): number { return this.rigidBody.mass() };
+    
     constructor(gameObject: GameObject) {
         super(gameObject);
     }
@@ -15,6 +24,22 @@ export class RigidBody extends Component {
         if (!this.rigidBody) {
             this.Create("dynamic");
         }
+    }
+
+    public AddForce(force: Mathf.Vector3) {
+        this.rigidBody.addForce(force, true);
+    }
+
+    public Move(position: Mathf.Vector3) {
+        const dt = 1/60; // TODO: Should be fixedTimestep instead
+        const pNew = position.clone(); //our new desired position
+        const p = this.transform.position.clone(); //our current position
+        const v = this.velocity.clone(); //our current velocity
+        const force = pNew.sub(p).sub(v.mul(dt)).div(dt).mul(this.mass);
+        
+        // this.velocity = new Vector3(0, 0, 0);
+        this.rigidBody.setLinvel({x: 0, y: 0, z: 0}, true);
+        this.AddForce(force);
     }
 
     public Create(type: "fixed" | "dynamic" | "kinematicVelocity" | "kinematicPosition") {

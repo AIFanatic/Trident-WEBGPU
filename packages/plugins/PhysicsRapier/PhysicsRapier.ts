@@ -1,4 +1,4 @@
-import { Component } from "@trident/core"
+import { Component, Mathf } from "@trident/core"
 
 import RAPIER_Module from "./rapier/rapier.es.js"
 import RAPIER from "./rapier/rapier";
@@ -21,6 +21,21 @@ export class PhysicsRapier extends Component {
             })  
         })
     }
+
+    public static CheckSphere(position: Mathf.Vector3, radius: number, filterExcludeRigidBody: RAPIER.RigidBody = undefined): boolean {
+        let shape = new this.Physics.Ball(radius);
+        let shapePos = { x: position.x, y: position.y, z: position.z };
+        let shapeRot = { x: 0.0, y: 0.0, z: 0.0, w: 1.0 };
+
+        let found = false;
+        this.PhysicsWorld.intersectionsWithShape(shapePos, shapeRot, shape, (handle) => {
+            found = true;
+            return false; // Return `false` instead if we want to stop searching for other colliders that contain this point.
+        }, undefined, undefined, undefined, filterExcludeRigidBody);
+        
+        return found;
+    }
+    
 
     public Update(): void {
         if (!PhysicsRapier.hasLoaded) return;
