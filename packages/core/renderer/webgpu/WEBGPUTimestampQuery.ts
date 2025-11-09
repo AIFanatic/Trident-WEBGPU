@@ -12,7 +12,7 @@ export class WEBGPUTimestampQuery {
     public static BeginRenderTimestamp(name: string): GPURenderPassTimestampWrites | GPUComputePassTimestampWrites | undefined {
         if (this.links.has(name)) return undefined;
 
-        if (!navigator.userAgent.toLowerCase().includes("chrome")) return undefined;
+        if (!WEBGPURenderer.adapter.features.has("timestamp-query")) return undefined;
         if (this.isTimestamping === true) throw Error("Already timestamping");
         if (!this.querySet) {
             this.querySet = WEBGPURenderer.device.createQuerySet({
