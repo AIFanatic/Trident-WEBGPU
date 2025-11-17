@@ -3,6 +3,25 @@ import { PhysicsRapier } from "./PhysicsRapier";
 import { Collider } from "./colliders/Collider";
 import RAPIER from "./rapier/rapier";
 
+function isFrozen(c: number, flag: number): boolean {
+    return (c & flag) !== 0;
+}
+
+export const RigidbodyConstraints = {
+    None: 0,
+    FreezePositionX: 1 << 0,
+    FreezePositionY: 1 << 1,
+    FreezePositionZ: 1 << 2,
+    FreezeRotationX: 1 << 3,
+    FreezeRotationY: 1 << 4,
+    FreezeRotationZ: 1 << 5,
+    FreezePosition: (1 << 0) | (1 << 1) | (1 << 2),
+    FreezeRotation: (1 << 3) | (1 << 4) | (1 << 5),
+    FreezeAll: ((1 << 0) | (1 << 1) | (1 << 2)) | ((1 << 3) | (1 << 4) | (1 << 5)),
+};
+
+type RigidbodyConstraints = (typeof RigidbodyConstraints)[keyof typeof RigidbodyConstraints];
+
 export class RigidBody extends Component {
     private rigidBody: RAPIER.RigidBody;
     private rigidBodyDesc: RAPIER.RigidBodyDesc;
@@ -15,7 +34,26 @@ export class RigidBody extends Component {
     }
 
     public get mass(): number { return this.rigidBody.mass() };
-    
+
+    public set constraints(constraint: RigidbodyConstraints) {
+        const freezeRot = isFrozen(constraint, RigidbodyConstraints.FreezeRotation);
+        const freezePos = isFrozen(constraint, RigidbodyConstraints.FreezePosition);
+
+        this.rigidBody.setEnabledRotations(
+            !(isFrozen(constraint, RigidbodyConstraints.FreezeRotationX) || freezeRot),
+            !(isFrozen(constraint, RigidbodyConstraints.FreezeRotationY) || freezeRot),
+            !(isFrozen(constraint, RigidbodyConstraints.FreezeRotationZ) || freezeRot),
+            true
+        );
+
+        this.rigidBody.setEnabledTranslations(
+            !(isFrozen(constraint, RigidbodyConstraints.FreezePositionX) || freezePos),
+            !(isFrozen(constraint, RigidbodyConstraints.FreezePositionY) || freezePos),
+            !(isFrozen(constraint, RigidbodyConstraints.FreezePositionZ) || freezePos),
+            true
+        );
+    }
+
     constructor(gameObject: GameObject) {
         super(gameObject);
     }
@@ -31,14 +69,14 @@ export class RigidBody extends Component {
     }
 
     public Move(position: Mathf.Vector3) {
-        const dt = 1/60; // TODO: Should be fixedTimestep instead
+        const dt = 1 / 60; // TODO: Should be fixedTimestep instead
         const pNew = position.clone(); //our new desired position
         const p = this.transform.position.clone(); //our current position
         const v = this.velocity.clone(); //our current velocity
         const force = pNew.sub(p).sub(v.mul(dt)).div(dt).mul(this.mass);
-        
+
         // this.velocity = new Vector3(0, 0, 0);
-        this.rigidBody.setLinvel({x: 0, y: 0, z: 0}, true);
+        this.rigidBody.setLinvel({ x: 0, y: 0, z: 0 }, true);
         this.AddForce(force);
     }
 

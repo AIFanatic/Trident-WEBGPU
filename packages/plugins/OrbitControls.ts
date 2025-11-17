@@ -17,7 +17,7 @@ export class OrbitControls {
     /** The center point to orbit around. Default is `0, 0, 0` */
     readonly center = new Mathf.Vector3();
     public orbitSpeed = 0.01;
-    public panSpeed = 10;
+    public panSpeed = 1;
     public enableZoom = true;
     public enablePan = true;
     public minRadius = 0;
@@ -87,7 +87,7 @@ export class OrbitControls {
             _v
                 .set(-deltaX, deltaY, 0)
                 .applyQuaternion(this._camera.transform.rotation)
-                .mul(this.panSpeed / this._element.clientHeight),
+                .mul(this.panSpeed * this._camera.transform.position.length() / this._element.clientHeight),
         )
         this._camera.transform.position.add(this.center)
     }

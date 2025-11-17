@@ -1,7 +1,7 @@
 
 export * from "./OrbitControls";
 export * from "./GLTF/GLTFLoader";
-export * from "./TerrainGenerator/TerrainBuilder";
+export * from "./Terrain/";
 export * from "./SimplexNoise";
 
 export * from "./DataBackedBuffer";
@@ -61,3 +61,5 @@ export * from "./meshlets_v3";
 export * from "./SSS";
 
 export * from "./DepthBufferRaymarch";
+
+export * from "./meshoptimizer/Meshoptimizer";

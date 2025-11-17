@@ -172,7 +172,7 @@ fn fragmentMain(input: VertexOutput) -> FragmentOutput {
     let UV = input.vUv;
 
     // Calculation of the UV with the UV motion sampler
-    let	uv_offset: vec2f = waveSettings.sampler_direction.xy * TIME;
+    let	uv_offset: vec2f = waveSettings.sampler_direction.xy * TIME * waveSettings.wave_speed[0];
     let uv_sampler_uv: vec2f = UV * waveSettings.uv_sampler_scale.xy + uv_offset;
     let	uv_sampler_uv_offset: vec2f = waveSettings.uv_sampler_strength[0] * textureSample(uv_sampler, texture_sampler, uv_sampler_uv).rg * 2.0 - 1.0;
     let uv: vec2f = UV + uv_sampler_uv_offset;

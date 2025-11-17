@@ -17,7 +17,7 @@ export class ThirdPersonController extends Component {
     public _mainCamera: GameObject;
     public _animationIDS: { idle: number, walk: number, sprint: number, jump: number, fall: number };
 
-    private move = new Mathf.Vector2();
+    public move = new Mathf.Vector2();
     private look = new Mathf.Vector2();
     private jump = false;
     private sprint = false;
@@ -27,13 +27,15 @@ export class ThirdPersonController extends Component {
 
     private v = new Mathf.Vector3();
 
-    public speed = 5;
-    public boostMultiplier = 10;
+    public speed = 2;
+    public boostMultiplier = 5;
 
     public orbitSpeed = 0.01;
     public rayDistance = 1;
     public playHeight = 1.80;
     public blendRotation = 0.15;
+
+    public animationSpeedRatio = 1;
 
     private state: State = State.Walking;
 
@@ -81,7 +83,7 @@ export class ThirdPersonController extends Component {
         if (this.state === State.Running) currentAnimation = this._animationIDS.sprint;
         if (this.state === State.Jumping) currentAnimation = this._animationIDS.jump;
 
-        if (currentAnimation !== -1 && this.currentAnimation !== currentAnimation) this._animator.CrossFadeTo(currentAnimation);
+        if (currentAnimation !== -1 && this.currentAnimation !== currentAnimation) this._animator.CrossFadeTo(currentAnimation, 0.25, this.state === State.Walking ? this.speed * this.animationSpeedRatio : 1);
 
         this.currentAnimation = currentAnimation;
     }
@@ -118,8 +120,8 @@ export class ThirdPersonController extends Component {
         if (this.jump && this.isGrounded) rigidbody.setLinvel({ x: 0, y: 7.5, z: 0 }, true);
 
         const p = rigidbody.translation();
-        this._mainCamera.transform.position.set(p.x, p.y, p.z).add(new Mathf.Vector3(0, -1.5 + this.playHeight, 0)).sub(new Mathf.Vector3(0, 0, -2));
-        this._model.transform.position.set(p.x, p.y - 1.5, p.z);
+        this._mainCamera.transform.position.set(p.x, p.y, p.z).add(new Mathf.Vector3(0, this.playHeight, 0)).sub(new Mathf.Vector3(0, 0, -2));
+        this._model.transform.position.set(p.x, p.y - 1, p.z);
 
         // keep/store model rotation
         if (Math.abs(this.move.x) > Mathf.Epsilon || Math.abs(this.move.y) > Mathf.Epsilon) {
