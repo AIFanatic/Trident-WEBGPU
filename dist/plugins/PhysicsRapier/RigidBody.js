@@ -2,6 +2,18 @@ import { Component, Mathf } from '@trident/core';
 import { PhysicsRapier } from './PhysicsRapier.js';
 import { Collider } from './colliders/Collider.js';
 
+function isFrozen(c, flag) {
+  return (c & flag) !== 0;
+}
+const RigidbodyConstraints = {
+  FreezePositionX: 1 << 0,
+  FreezePositionY: 1 << 1,
+  FreezePositionZ: 1 << 2,
+  FreezeRotationX: 1 << 3,
+  FreezeRotationY: 1 << 4,
+  FreezeRotationZ: 1 << 5,
+  FreezePosition: 1 << 0 | 1 << 1 | 1 << 2,
+  FreezeRotation: 1 << 3 | 1 << 4 | 1 << 5};
 class RigidBody extends Component {
   rigidBody;
   rigidBodyDesc;
@@ -13,6 +25,22 @@ class RigidBody extends Component {
   }
   get mass() {
     return this.rigidBody.mass();
+  }
+  set constraints(constraint) {
+    const freezeRot = isFrozen(constraint, RigidbodyConstraints.FreezeRotation);
+    const freezePos = isFrozen(constraint, RigidbodyConstraints.FreezePosition);
+    this.rigidBody.setEnabledRotations(
+      !(isFrozen(constraint, RigidbodyConstraints.FreezeRotationX) || freezeRot),
+      !(isFrozen(constraint, RigidbodyConstraints.FreezeRotationY) || freezeRot),
+      !(isFrozen(constraint, RigidbodyConstraints.FreezeRotationZ) || freezeRot),
+      true
+    );
+    this.rigidBody.setEnabledTranslations(
+      !(isFrozen(constraint, RigidbodyConstraints.FreezePositionX) || freezePos),
+      !(isFrozen(constraint, RigidbodyConstraints.FreezePositionY) || freezePos),
+      !(isFrozen(constraint, RigidbodyConstraints.FreezePositionZ) || freezePos),
+      true
+    );
   }
   constructor(gameObject) {
     super(gameObject);
@@ -58,4 +86,4 @@ class RigidBody extends Component {
   }
 }
 
-export { RigidBody };
+export { RigidBody, RigidbodyConstraints };

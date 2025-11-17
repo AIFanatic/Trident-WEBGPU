@@ -1,6 +1,6 @@
 export { OrbitControls } from './OrbitControls.js';
 export { GLTFLoader } from './GLTF/GLTFLoader.js';
-export { TerrainBuilder } from './TerrainGenerator/TerrainBuilder.js';
+export { Terrain } from './Terrain/Terrain.js';
 export { SimplexNoise } from './SimplexNoise.js';
 export { DataBackedBuffer } from './DataBackedBuffer.js';
 export { UIButtonStat, UIColorStat, UIDropdownStat, UIFolder, UIGradientStat, UIGraph, UISliderStat, UITextStat, UIVecStat } from './ui/UIStats.js';
@@ -46,6 +46,7 @@ export { MeshletMeshV3 } from './meshlets_v3/MeshletMesh.js';
 import './meshlets_v3/passes/MeshletDraw.js';
 export { SSSRenderPass, buildSSSDispatchList } from './SSS.js';
 export { DepthBufferRaymarchPass } from './DepthBufferRaymarch.js';
+export { Meshoptimizer, attribute_size, meshopt_SimplifyErrorAbsolute, meshopt_SimplifyLockBorder, meshopt_SimplifySparse } from './meshoptimizer/Meshoptimizer.js';
 
 Component.Registry.set(Water.type, Water);
 

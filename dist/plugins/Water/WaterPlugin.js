@@ -99,7 +99,7 @@ class WaterRenderPass extends GPU.RenderPass {
     this.waterShader.SetBuffer("waveSettings", this.waterSettingsBuffer);
     this.initialized = true;
   }
-  execute(resources) {
+  async execute(resources) {
     if (!this.initialized) return;
     const scene = Components.Camera.mainCamera.gameObject.scene;
     const meshes = scene.GetComponents(Components.Mesh);
@@ -156,10 +156,9 @@ class Water extends Component {
     if (!Water.WaterRenderPass || Water.WaterRenderPassScene !== gameObject.scene) {
       Water.WaterRenderPass = new WaterRenderPass();
       Water.WaterRenderPassScene = gameObject.scene;
-      this.gameObject.scene.renderPipeline.AddPass(Water.WaterRenderPass, GPU.RenderPassOrder.AfterGBuffer);
+      this.gameObject.scene.renderPipeline.AddPass(Water.WaterRenderPass, GPU.RenderPassOrder.BeforeLighting);
     }
     this.geometry = PlaneGeometry(128, 128, 256, 256);
-    this.geometry.enableShadows = false;
     this.settings = new DataBackedBuffer({
       wave_speed: [0.5, 0, 0, 0],
       wave_a: [1, 0.4, 0.35, 3],

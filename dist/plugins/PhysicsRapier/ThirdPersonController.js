@@ -15,12 +15,13 @@ class ThirdPersonController extends Component {
   isGrounded = false;
   currentAnimation = -1;
   v = new Mathf.Vector3();
-  speed = 5;
-  boostMultiplier = 10;
+  speed = 2;
+  boostMultiplier = 5;
   orbitSpeed = 0.01;
   rayDistance = 1;
   playHeight = 1.8;
   blendRotation = 0.15;
+  animationSpeedRatio = 1;
   state = 1 /* Walking */;
   Start() {
     if (!this._controller) throw Error("No controller attached");
@@ -59,7 +60,7 @@ class ThirdPersonController extends Component {
     if (this.state === 1 /* Walking */) currentAnimation = this._animationIDS.walk;
     if (this.state === 2 /* Running */) currentAnimation = this._animationIDS.sprint;
     if (this.state === 3 /* Jumping */) currentAnimation = this._animationIDS.jump;
-    if (currentAnimation !== -1 && this.currentAnimation !== currentAnimation) this._animator.CrossFadeTo(currentAnimation);
+    if (currentAnimation !== -1 && this.currentAnimation !== currentAnimation) this._animator.CrossFadeTo(currentAnimation, 0.25, this.state === 1 /* Walking */ ? this.speed * this.animationSpeedRatio : 1);
     this.currentAnimation = currentAnimation;
   }
   UpdateInput() {
@@ -87,8 +88,8 @@ class ThirdPersonController extends Component {
     rigidbody.setLinvel({ x: direction.x, y: velocity.y, z: direction.z }, true);
     if (this.jump && this.isGrounded) rigidbody.setLinvel({ x: 0, y: 7.5, z: 0 }, true);
     const p = rigidbody.translation();
-    this._mainCamera.transform.position.set(p.x, p.y, p.z).add(new Mathf.Vector3(0, -1.5 + this.playHeight, 0)).sub(new Mathf.Vector3(0, 0, -2));
-    this._model.transform.position.set(p.x, p.y - 1.5, p.z);
+    this._mainCamera.transform.position.set(p.x, p.y, p.z).add(new Mathf.Vector3(0, this.playHeight, 0)).sub(new Mathf.Vector3(0, 0, -2));
+    this._model.transform.position.set(p.x, p.y - 1, p.z);
     if (Math.abs(this.move.x) > Mathf.Epsilon || Math.abs(this.move.y) > Mathf.Epsilon) {
       const targetRotation = (Mathf.Atan2(-this.move.x, this.move.y) + this.yaw) * Mathf.Rad2Deg;
       this.currentRotation = Mathf.Lerp(this.currentRotation, targetRotation, this.blendRotation);
