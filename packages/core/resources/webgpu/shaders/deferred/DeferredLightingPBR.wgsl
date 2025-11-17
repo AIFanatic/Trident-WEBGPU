@@ -212,8 +212,6 @@ fn PointLightRadiance(light: PointLight, surface: Surface) -> vec3<f32> {
     return CalculateBRDF(surface, wi) * light.color * light.intensity * att;
 }
 
-// ---------- your API (drop-in) ----------
-
 @fragment
 fn fragmentMain(input: VertexOutput) -> @location(0) vec4<f32> {
     // Load depth once
@@ -275,7 +273,7 @@ fn fragmentMain(input: VertexOutput) -> @location(0) vec4<f32> {
     surface.N              = normalize(normal.rgb);
     surface.F0             = mix(vec3(0.04), surface.albedo.rgb, vec3(surface.metallic));
     surface.V              = normalize(view.viewPosition.xyz - surface.worldPosition);
-    surface.occlusion      = 1.0;
+    // surface.occlusion      = 1.0;
 
     let n = surface.N;
     let v = surface.V;
@@ -370,7 +368,7 @@ fn fragmentMain(input: VertexOutput) -> @location(0) vec4<f32> {
     let brdf = textureSampleLevel(skyboxBRDFLUT, brdfSampler, vec2f(max(dot(n, v), 0.0), surface.roughness), 1.0).rg;
     let specular = prefilteredColor * (f * brdf.x + brdf.y);
 
-    let ambient = (kD * diffuse + specular) * surface.occlusion;
+    let ambient = kD * diffuse * surface.occlusion + specular;
 
     var color = ambient + lo + surface.emissive;
     color = toneMapping(color);

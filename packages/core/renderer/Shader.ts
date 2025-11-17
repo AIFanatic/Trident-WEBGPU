@@ -96,7 +96,7 @@ export class BaseShader {
     public OnPreRender(geometry: Geometry): boolean { return true; };
     public Destroy() {};
 
-    public Serialize() { throw Error("Called deserialize on BaseShader")};
+    public Serialize(metadata: any = {}) { throw Error("Called deserialize on BaseShader")};
 }
 
 export class Shader extends BaseShader {

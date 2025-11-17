@@ -26,7 +26,8 @@ struct Material {
     Metalness: f32,
     Unlit: f32,
     AlphaCutoff: f32,
-    Wireframe: f32
+    Wireframe: f32,
+    RepeatOffset: vec4<f32>, // xy = repeat, zw = offset
 };
 
 struct VertexOutput {
@@ -129,10 +130,11 @@ fn edgeFactor(bary: vec3f) -> f32 {
 fn fragmentMain(input: VertexOutput) -> FragmentOutput {
     var output: FragmentOutput;
 
-    var uv = input.vUv;
 
     let mat = material;
     let modelMatrixInstance = modelMatrix[input.instance];
+
+    var uv = input.vUv * mat.RepeatOffset.xy + mat.RepeatOffset.zw;
 
     var albedo = mat.AlbedoColor;
     var roughness = mat.Roughness;

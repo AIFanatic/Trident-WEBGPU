@@ -25,4 +25,4 @@ export * as Utils from "./utils";
 
 export { Assets } from "./Assets";
 
-export { Input, KeyCodes } from "./Input";
+export { Input, KeyCodes, MouseCodes } from "./Input";

@@ -37,9 +37,10 @@ export class DeferredGBufferPass extends RenderPass {
         const allMeshes = scene.GetComponents(Mesh);
         let renderableMeshes: Mesh[] = [];
         for (const mesh of allMeshes) {
-            if (!mesh.enabled || !mesh.gameObject.enabled || !mesh.geometry || !mesh.material || (mesh.constructor !== Mesh && mesh.constructor !== SkinnedMesh)) continue;
+            if (!mesh.enabled || !mesh.gameObject.enabled || !mesh.geometry || !mesh.material) continue;
             renderableMeshes.push(mesh);
         }
+
         renderableMeshes = this.frustumCull(Camera.mainCamera, renderableMeshes);
 
         Renderer.info.visibleObjects += renderableMeshes.length;
@@ -64,8 +65,8 @@ export class DeferredGBufferPass extends RenderPass {
             shader.SetMatrix4("projectionMatrix", projectionMatrix);
             shader.SetMatrix4("viewMatrix", viewMatrix);
             shader.SetBuffer("modelMatrix", this.modelMatrixBuffer.getBuffer());
-
             shader.SetVector3("cameraPosition", inputCamera.transform.position);
+            
             if (mesh instanceof SkinnedMesh) {
                 shader.SetBuffer("boneMatrices", mesh.GetBoneMatricesBuffer());
             }

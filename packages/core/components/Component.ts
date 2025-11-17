@@ -38,6 +38,6 @@ export class Component {
     public Start() {}
     public Update() {}
     public Destroy() {}
-    public Serialize(): SerializedComponent { throw Error(`Serialize not implemented for ${this.constructor.name}`)};
+    public Serialize(metadata: any = {}): SerializedComponent { throw Error(`Serialize not implemented for ${this.constructor.name}`)};
     public Deserialize(data: any) { throw Error(`Deserialize not implemented for ${this.constructor.name}`) }
 }

@@ -1,3 +1,4 @@
+import { Vector2 } from "../math";
 import { Color } from "../math/Color";
 import { UUID } from "../utils/";
 import { Shader, ShaderParams } from "./Shader";
@@ -27,9 +28,9 @@ export class Material {
         this.shader.Destroy();
     };
 
-    public Serialize() {
+    public Serialize(metadata: any = {}) {
         return {
-            shader: this.shader ? this.shader.Serialize() : undefined,
+            shader: this.shader ? this.shader.Serialize(metadata) : undefined,
             isDeferred: this.params.isDeferred
         }
     }
@@ -54,6 +55,10 @@ export interface PBRMaterialParams extends MaterialParams {
     metalnessMap?: Texture;
     emissiveMap?: Texture;
     aoMap?: Texture;
+
+    repeat?: Vector2;
+    offset?: Vector2;
+
     doubleSided?: boolean;
     alphaCutoff: number;
 
@@ -85,6 +90,9 @@ export class PBRMaterial extends Material {
         metalnessMap: undefined,
         emissiveMap: undefined,
         aoMap: undefined,
+
+        repeat: new Vector2(1,1),
+        offset: new Vector2(0,0),
     
         doubleSided: false,
         alphaCutoff: 0,
@@ -219,7 +227,9 @@ export class PBRMaterial extends Material {
             this.params.albedoColor.r, this.params.albedoColor.g, this.params.albedoColor.b, this.params.albedoColor.a,
             this.params.emissiveColor.r, this.params.emissiveColor.g, this.params.emissiveColor.b, this.params.emissiveColor.a,
             this.params.roughness, this.params.metalness, +this.params.unlit, this.params.alphaCutoff, +this.params.wireframe,
-            0, 0, 0
+            0, 0, 0,
+            this.params.repeat.x, this.params.repeat.y,
+            this.params.offset.x, this.params.offset.y,
         ]));
 
         if (DEFINES.USE_ALBEDO_MAP === true && this.params.albedoMap) shader.SetTexture("AlbedoMap", this.params.albedoMap);
@@ -234,10 +244,10 @@ export class PBRMaterial extends Material {
         return shader;
     }
 
-    public Serialize(): { shader: void; isDeferred: boolean, params: {} } {
+    public Serialize(metadata: any = {}): { shader: void; isDeferred: boolean, params: {} } {
         const params = this.params;
         return Object.assign(
-            super.Serialize(),
+            super.Serialize(metadata),
             {
                 type: this.type,
                 params: {
@@ -245,12 +255,12 @@ export class PBRMaterial extends Material {
                     emissiveColor: params.emissiveColor.Serialize(),
                     roughness: params.roughness,
                     metalness: params.metalness,
-                    albedoMap: params.albedoMap ? params.albedoMap.Serialize() : undefined,
-                    normalMap: params.normalMap ? params.normalMap.Serialize() : undefined,
-                    heightMap: params.heightMap ?params.heightMap.Serialize() : undefined,
-                    metalnessMap: params.metalnessMap ? params.metalnessMap.Serialize() : undefined,
-                    emissiveMap: params.emissiveMap ? params.emissiveMap.Serialize() : undefined,
-                    aoMap: params.aoMap ? params.aoMap.Serialize() : undefined,
+                    albedoMap: params.albedoMap ? params.albedoMap.Serialize(metadata) : undefined,
+                    normalMap: params.normalMap ? params.normalMap.Serialize(metadata) : undefined,
+                    heightMap: params.heightMap ?params.heightMap.Serialize(metadata) : undefined,
+                    metalnessMap: params.metalnessMap ? params.metalnessMap.Serialize(metadata) : undefined,
+                    emissiveMap: params.emissiveMap ? params.emissiveMap.Serialize(metadata) : undefined,
+                    aoMap: params.aoMap ? params.aoMap.Serialize(metadata) : undefined,
                     doubleSided: params.doubleSided,
                     alphaCutoff: params.alphaCutoff,
                     unlit: params.unlit,
@@ -270,12 +280,12 @@ export class PBRMaterial extends Material {
             emissiveColor: params.emissiveColor ? new Color().Deserialize(params.emissiveColor) : defaults.emissiveColor,
             roughness: params.roughness ? params.roughness : defaults.roughness,
             metalness: params.metalness ? params.metalness : defaults.metalness,
-            albedoMap: params.albedoMap ? params.albedoMap.Deserialize() : defaults.albedoMap,
-            normalMap: params.normalMap ? params.normalMap.Deserialize() : defaults.normalMap,
-            heightMap: params.heightMap ?params.heightMap.Deserialize() : defaults.heightMap,
-            metalnessMap: params.metalnessMap ? params.metalnessMap.Deserialize() : defaults.metalnessMap,
-            emissiveMap: params.emissiveMap ? params.emissiveMap.Deserialize() : defaults.emissiveMap,
-            aoMap: params.aoMap ? params.aoMap.Deserialize() : defaults.aoMap,
+            albedoMap: params.albedoMap ? Texture.Deserialize(params.albedoMap) : defaults.albedoMap,
+            normalMap: params.normalMap ? Texture.Deserialize(params.normalMap) : defaults.normalMap,
+            heightMap: params.heightMap ? Texture.Deserialize(params.heightMap) : defaults.heightMap,
+            metalnessMap: params.metalnessMap ? Texture.Deserialize(params.metalnessMap) : defaults.metalnessMap,
+            emissiveMap: params.emissiveMap ? Texture.Deserialize(params.emissiveMap) : defaults.emissiveMap,
+            aoMap: params.aoMap ? Texture.Deserialize(params.aoMap) : defaults.aoMap,
             doubleSided: params.doubleSided ? params.doubleSided : defaults.doubleSided,
             alphaCutoff: params.alphaCutoff ? params.alphaCutoff: defaults.alphaCutoff,
             unlit: params.unlit ? params.unlit: defaults.unlit,

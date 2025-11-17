@@ -3,6 +3,7 @@ import { GameObject } from "./GameObject";
 import { Input } from "./Input";
 import { Camera } from "./components";
 import { Component, ComponentEvents, SerializedComponent } from "./components/Component";
+import { Quaternion, Vector3 } from "./math";
 import { Renderer } from "./renderer/Renderer";
 import { RenderingPipeline } from "./renderer/RenderingPipeline";
 import { UUID } from "./utils";
@@ -115,8 +116,7 @@ export class Scene {
 
         this.renderPipeline.Render(this);
 
-        Input.EndFrame();
-
+        Input.Update();
         // setTimeout(() => {
         //     this.Tick()
         // }, 1000);
@@ -131,7 +131,7 @@ export class Scene {
         return serializedScene;
     }
 
-    public Deserialize(data: { name: string, mainCamera: string, gameObjects: { components: SerializedComponent[], transform: Object }[] }) {
+    public Deserialize(data: { name: string, mainCamera: string, gameObjects: { name: string, components: SerializedComponent[], transform: Object }[] }) {
         for (const serializedGameObject of data.gameObjects) {
             const gameObject = new GameObject(this);
             gameObject.Deserialize(serializedGameObject);
@@ -144,5 +144,20 @@ export class Scene {
                 }
             }
         }
+    }
+
+    private static serializedCache: Map<string, {name: string, components: SerializedComponent[], transform: Object }> = new Map();
+    public static Instantiate(gameObject: GameObject, position?: Vector3, rotation?: Quaternion): GameObject {
+        let serializedGameObject = Scene.serializedCache.get(gameObject.id);
+        if (!serializedGameObject) {
+            serializedGameObject = gameObject.Serialize({base64Textures: false});
+            Scene.serializedCache.set(gameObject.id, serializedGameObject);
+        }
+        const newGameObject = new GameObject(Scene.mainScene);
+        newGameObject.Deserialize(serializedGameObject);
+        if (position) newGameObject.transform.position.copy(position);
+        if (rotation) newGameObject.transform.rotation.copy(rotation);
+
+        return newGameObject;
     }
 }

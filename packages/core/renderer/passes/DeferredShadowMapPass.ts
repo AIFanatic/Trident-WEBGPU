@@ -34,6 +34,7 @@ class _DeferredShadowMapPassSettings {
     public numOfCascades: number = 4;
     public splitType: "uniform" | "log" | "practical" = "practical";
     public splitTypePracticalLambda: number = 0.9;
+    public maxShadowDistance: number = 2000;
 }
 
 export const DeferredShadowMapPassSettings = new _DeferredShadowMapPassSettings();
@@ -298,18 +299,29 @@ export class DeferredShadowMapPass extends RenderPass {
             const lightDirection = light.transform.position.clone().mul(-1).normalize();
             const up = Math.abs(lightDirection.dot(new Vector3(0,1,0))) > 0.99 ? new Vector3(0,0,1) : new Vector3(0,1,0);
 
+            const snapped = (p_value: number, p_step: number): number => {
+                if (p_step != 0) {
+                    p_value = Math.floor(p_value / p_step + 0.5) * p_step;
+                }
+                return p_value;
+            }
+
             // TODO: This still seems wrong
             if (DeferredShadowMapPassSettings.roundToPixelSizeValue === true) {
                 const shadowMapSize = DeferredShadowMapPassSettings.shadowWidth;
                 const texelsPerUnit = shadowMapSize / (radius * 2.0);
                 const scalar = new Matrix4().makeScale(new Vector3(texelsPerUnit, texelsPerUnit, texelsPerUnit));
 
-                const lookAt = new Matrix4().lookAt(new Vector3(0, 0, 0), lightDirection.clone().mul(-1), up).mul(scalar);
+                const lookAt = new Matrix4().lookAt(new Vector3(0, 0, 0), lightDirection, up).mul(scalar);
                 const lookAtInv = lookAt.clone().invert();
 
                 frustumCenter.applyMatrix4(lookAt);
-                frustumCenter.x = Math.round(frustumCenter.x) + 0.5;
-                frustumCenter.y = Math.round(frustumCenter.y) + 0.5;
+                // frustumCenter.x = Math.round(frustumCenter.x) + 0.5;
+                // frustumCenter.y = Math.round(frustumCenter.y) + 0.5;
+
+                frustumCenter.x = snapped(frustumCenter.x, texelsPerUnit);
+                frustumCenter.y = snapped(frustumCenter.y, texelsPerUnit);
+                
                 frustumCenter.applyMatrix4(lookAtInv);
             }
 
@@ -429,7 +441,7 @@ export class DeferredShadowMapPass extends RenderPass {
             if (light instanceof DirectionalLight) {
                 const camera = mainCamera;
                 numOfCascades = DeferredShadowMapPassSettings.numOfCascades;
-                const cascadeSplits = this.getCascadeSplits(numOfCascades, camera.near, camera.far);
+                const cascadeSplits = this.getCascadeSplits(numOfCascades, camera.near, Math.min(camera.far, DeferredShadowMapPassSettings.maxShadowDistance));
                 this.csmSplits = cascadeSplits;
                 const cascades = this.getCascades(cascadeSplits, camera, numOfCascades, light);
                 // const cascades = this.getCascades_v2(camera, numOfCascades, light);

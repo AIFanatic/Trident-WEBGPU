@@ -116,12 +116,21 @@ export enum KeyCodes {
     BACK_SLASH = 220,
     CLOSE_BRACKET = 221,
     QUOTE = 222,
-    META = 224
+    META = 224,
+}
+
+export enum MouseCodes {
+    MOUSE_LEFT,
+    MOUSE_RIGHT,
+    MOUSE_MIDDLE,
 }
 
 export class Input {
     private static keysDown: any = {};
     private static keysUp: any = {};
+
+    private static mouseDown: any = {};
+    private static mouseUp: any = {};
 
     private static mousePosition: Vector2 = new Vector2();
     private static horizontalAxis: number = 0;
@@ -139,7 +148,11 @@ export class Input {
         document.onkeydown = (event) => { this.OnKeyDown(event) };
         document.onkeyup = (event) => { this.OnKeyUp(event) };
         document.onmousemove = (event) => { this.OnMouseMove(event) };
+        document.onmousedown = (event) => { this.OnMouseDown(event) };
+        document.onmouseup = (event) => { this.OnMouseUp(event) };
         document.ontouchmove = (event) => { this.OnTouchMove(event); };
+        // document.ontouchstart = (event) => { this.OnTouchStart(event); };
+        // document.ontouchend = (event) => { this.OnTouchEnd(event); };
 
         this.initialized = true;
     }
@@ -172,7 +185,20 @@ export class Input {
         delete this.keysDown[event.keyCode];
     }
 
-    public static EndFrame() {
+    private static OnMouseDown(event: MouseEvent) {
+        if (this.mouseDown[event.button] === undefined) {
+            this.mouseDown[event.button] = Renderer.info.frame;
+            delete this.keysUp[event.button];
+        }
+    }
+
+    private static OnMouseUp(event: MouseEvent) {
+        this.mouseUp[event.button] = Renderer.info.frame;
+        delete this.mouseDown[event.button];
+    }
+
+
+    public static Update() {
         if (!this.initialized) return;
         this.horizontalAxis = 0;
         this.verticalAxis = 0;
@@ -188,7 +214,7 @@ export class Input {
      */
     public static GetKeyDown(key: KeyCodes): boolean {
         this.Init();
-        if (this.keysDown[key] == Renderer.info.frame) {
+        if (this.keysDown[key] == Renderer.info.frame - 1) {
             return true;
         }
         return false;
@@ -204,7 +230,7 @@ export class Input {
      */
     public static GetKeyUp(key: KeyCodes): boolean {
         this.Init();
-        if (this.keysUp[key] == Renderer.info.frame) {
+        if (this.keysUp[key] == Renderer.info.frame - 1) {
             return true;
         }
         return false;
@@ -220,6 +246,22 @@ export class Input {
     public static GetKey(key: KeyCodes): boolean {
         this.Init();
         if (this.keysDown[key] !== undefined) {
+            return true;
+        }
+        return false;
+    }
+
+    public static GetMouseDown(key: MouseCodes): boolean {
+        this.Init();
+        if (this.mouseDown[key] == Renderer.info.frame - 1) {
+            return true;
+        }
+        return false;
+    }
+
+    public static GetMouseUp(key: MouseCodes): boolean {
+        this.Init();
+        if (this.mouseUp[key] == Renderer.info.frame - 1) {
             return true;
         }
         return false;

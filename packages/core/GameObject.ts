@@ -3,6 +3,13 @@ import { Scene } from "./Scene";
 import { Transform } from "./components/Transform";
 import { UUID } from "./utils";
 
+export interface SerializedGameObject {
+    name: string;
+    components: SerializedComponent[];
+    transform: Object;
+    children: SerializedGameObject[];
+};
+
 function getCtorChain(ctor: Function): Function[] {
     const chain: Function[] = [];
     for (let c: any = ctor; c && c !== Component; c = Object.getPrototypeOf(c)) {
@@ -20,7 +27,6 @@ export class GameObject {
 
     private componentsByCtor = new Map<Function, Component[]>();
     private allComponents: Component[] = [];
-
 
     public enabled: boolean = true;
 
@@ -83,15 +89,19 @@ export class GameObject {
         this.scene.RemoveGameObject(this);
     }
 
-    public Serialize(): { name: string, components: Object[], transform: Object } {
+    public Serialize(metadata: any = {}): SerializedGameObject {
+        let serializedChildren: SerializedGameObject[] = [];
+        for (const childGameObject of this.transform.children) serializedChildren.push(childGameObject.gameObject.Serialize(metadata));
+
         return {
             name: this.name,
             transform: this.transform.Serialize(),
-            components: this.allComponents.map(c => c.Serialize())
+            components: this.allComponents.map(c => c.Serialize(metadata)),
+            children: serializedChildren,
         };
     }
 
-    public Deserialize(data: { name: string, components: SerializedComponent[], transform: Object }) {
+    public Deserialize(data: SerializedGameObject) {
         this.name = data.name;
         this.transform.Deserialize(data.transform);
 
@@ -110,6 +120,13 @@ export class GameObject {
             const componentInstance = componentInstances[i];
             const componentSerialized = data.components[i];
             componentInstance.Deserialize(componentSerialized);
+        }
+
+        // Deserialize children
+        for (let i = 0; i < data.children.length; i++) {
+            const newGameObject = new GameObject(Scene.mainScene);
+            newGameObject.transform.parent = this.transform;
+            newGameObject.Deserialize(data.children[i]);
         }
     }
 }

@@ -3,6 +3,19 @@ import { Renderer } from "./Renderer";
 import { WEBGPUTexture } from "./webgpu/WEBGPUTexture";
 import { WEBGPUBlit } from "./webgpu/utils/WEBGBPUBlit";
 
+export interface SerializedTexture {
+    name: string;
+    id: string;
+    width: number;
+    height: number;
+    depth: number;
+    format: TextureFormat;
+    type: TextureType;
+    dimension: TextureDimension;
+    mipLevels: number;
+    data: ImageBitmap | string;
+}
+
 export type TextureFormat =
     | "r16uint"
     | "r16sint"
@@ -68,6 +81,7 @@ export class Texture {
     public readonly type: TextureType;
     public readonly dimension: TextureDimension;
     public readonly format: TextureFormat;
+    public mipLevels: number;
     public name: string;
 
     public SetName(name: string) {}
@@ -88,7 +102,11 @@ export class Texture {
 
     public SetData(data: BufferSource, bytesPerRow: number, rowsPerImage?: number) {}
     
-    public Serialize(): Object {throw Error("Base class.")}
+    public Serialize(metadata: any = {}): SerializedTexture {throw Error("Base class.")}
+    public static Deserialize(data: SerializedTexture): Texture {
+        if (Renderer.type === "webgpu") return WEBGPUTexture.Deserialize(data);
+        throw Error("Renderer type invalid");
+    }
 
     public static Create(width: number, height: number, depth: number = 1, format: TextureFormat = Renderer.SwapChainFormat, mipLevels = 1): Texture {
         return CreateTexture(width, height, depth, format, TextureType.IMAGE, "2d", mipLevels);
@@ -97,15 +115,13 @@ export class Texture {
     public static async Load(url: string | URL, format: TextureFormat = Renderer.SwapChainFormat, flipY: boolean = false): Promise<Texture> {
         const response = await fetch(url);
         const imageBitmap = await createImageBitmap(await response.blob());
-        Renderer.info.gpuTextureSizeTotal += imageBitmap.width * imageBitmap.height * 1 * 4; // account for format
-        if (Renderer.type === "webgpu") return WEBGPUTexture.FromImageBitmap(imageBitmap, imageBitmap.width, imageBitmap.height, format, flipY);
+        if (Renderer.type === "webgpu") return WEBGPUTexture.FromImageBitmap(imageBitmap, imageBitmap.width, imageBitmap.height, format);
         throw Error("Renderer type invalid");
     }
 
-    public static async LoadImageSource(imageSource: ImageBitmapSource, format: TextureFormat = Renderer.SwapChainFormat, flipY = false): Promise<Texture> {
+    public static async LoadImageSource(imageSource: ImageBitmapSource, format: TextureFormat = Renderer.SwapChainFormat): Promise<Texture> {
         const imageBitmap = await createImageBitmap(imageSource);
-        Renderer.info.gpuTextureSizeTotal += imageBitmap.width * imageBitmap.height * 1 * 4; // account for format
-        if (Renderer.type === "webgpu") return WEBGPUTexture.FromImageBitmap(imageBitmap, imageBitmap.width, imageBitmap.height, format, flipY);
+        if (Renderer.type === "webgpu") return WEBGPUTexture.FromImageBitmap(imageBitmap, imageBitmap.width, imageBitmap.height, format);
         throw Error("Renderer type invalid");
     }
 

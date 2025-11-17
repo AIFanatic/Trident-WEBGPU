@@ -19,8 +19,7 @@ export class Renderer {
 
     public static canvas: HTMLCanvasElement;
 
-    public static Create(canvas: HTMLCanvasElement, type: RendererAPIType): Renderer {
-        const aspectRatio = 1;
+    public static Create(canvas: HTMLCanvasElement, type: RendererAPIType, aspectRatio = 1): Renderer {
         canvas.width = canvas.parentElement.clientWidth * aspectRatio;
         canvas.height = canvas.parentElement.clientHeight * aspectRatio;
         canvas.style.width = "100%";

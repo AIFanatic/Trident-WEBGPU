@@ -18,6 +18,7 @@ export class Camera extends Component {
 
     public projectionMatrix = new Matrix4();
     public projectionScreenMatrix = new Matrix4();
+    public projectionViewMatrix = new Matrix4();
 
     public viewMatrix = new Matrix4();
     public frustum: Frustum = new Frustum();
@@ -74,6 +75,7 @@ export class Camera extends Component {
         this.viewMatrix.copy(this.transform.worldToLocalMatrix);
         this.projectionScreenMatrix.multiplyMatrices(this.projectionMatrix, this.transform.worldToLocalMatrix);
         this.frustum.setFromProjectionMatrix(this.projectionScreenMatrix);
+        this.projectionViewMatrix.multiplyMatrices(this.projectionMatrix, this.viewMatrix);
     }
 
     public Serialize() {

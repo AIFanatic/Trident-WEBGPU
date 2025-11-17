@@ -20,7 +20,7 @@ export class Mesh extends Component {
     public set geometry(geometry: Geometry) { this._geometry = geometry; };
 
 
-    private _material: Material;
+    protected _material: Material;
     @SerializeField
     public get material(): Material { return this._material; };
     public set material(material: Material) {
@@ -56,11 +56,11 @@ export class Mesh extends Component {
         this.material.Destroy();
     }
 
-    public Serialize(): SerializedComponent {
+    public Serialize(metadata: any = {}): SerializedComponent {
         return {
             type: Mesh.type,
-            geometry: this.geometry.Serialize(),
-            material: this.material.Serialize(),
+            geometry: this.geometry.Serialize(metadata),
+            material: this.material.Serialize(metadata),
             enableShadows: this.enableShadows
         }
     }

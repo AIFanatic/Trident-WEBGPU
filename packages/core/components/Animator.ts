@@ -30,9 +30,9 @@ export class AnimationClip {
 }
 // --- new helper type ---
 class AnimationState {
-    clip: AnimationClip;
-    time: number = 0;
-    speed: number = 1;
+    public clip: AnimationClip;
+    public time: number = 0;
+    public speed: number = 1;
     constructor(clip: AnimationClip, speed = 1) {
         this.clip = clip;
         this.speed = speed;
@@ -47,11 +47,6 @@ export class Animator extends Component {
 
     private previousTime: number;
 
-    private _speed: number = 1;
-    @SerializeField
-    public get speed(): number { return this._speed; }
-    public set speed(speed: number) { this._speed = speed }
-
     // --- blending state ---
     private current?: AnimationState;
     private next?: AnimationState;
@@ -63,23 +58,20 @@ export class Animator extends Component {
         this.clips = [];
         this.playing = false;
         this.clipIndex = 0;
-        this._speed = 1;
     }
 
-    private CurrentClip() { return this.current?.clip; }
-
-    public SetClipByIndex(i: number, play = true) {
+    public SetClipByIndex(i: number, speed = 1) {
         this.clipIndex = Math.max(0, Math.min(i, this.clips.length - 1));
         const clip = this.clips[this.clipIndex];
-        this.current = clip ? new AnimationState(clip, this._speed) : undefined;
+        this.current = clip ? new AnimationState(clip, speed) : undefined;
         this.next = undefined;
         this.fadeDuration = 0;
         this.fadeTime = 0;
-        this.playing = play && !!clip;
+        this.playing = true;
     }
 
     // Start a crossfade into another clip over `duration` seconds
-    public CrossFadeTo(i: number, duration: number = 0.25) {
+    public CrossFadeTo(i: number, duration: number = 0.25, speed = 1) {
         if (this.clips.length === 0) return;
         const targetIdx = Math.max(0, Math.min(i, this.clips.length - 1));
         const target = this.clips[targetIdx];
@@ -87,11 +79,11 @@ export class Animator extends Component {
 
         if (!this.current) {
             // nothing playing yet: just start it
-            this.SetClipByIndex(targetIdx, true);
+            this.SetClipByIndex(targetIdx);
             return;
         }
 
-        this.next = new AnimationState(target, this._speed);
+        this.next = new AnimationState(target, speed);
         this.fadeDuration = Math.max(0.0001, duration);
         this.fadeTime = 0;
         this.playing = true;

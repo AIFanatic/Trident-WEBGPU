@@ -216,8 +216,8 @@ export class WEBGPURendererContext implements RendererContext {
         const activeCommandEncoder = WEBGPURenderer.GetActiveCommandEncoder();
         if (!activeCommandEncoder) throw Error("No active command encoder!!");
 
-        const sourceParameters: GPUImageCopyTexture = {texture: (source.texture as WEBGPUTexture).GetBuffer(), mipLevel: source.mipLevel, origin: source.origin};
-        const destinationParameters: GPUImageCopyTexture = {texture: (destination.texture as WEBGPUTexture).GetBuffer(), mipLevel: destination.mipLevel, origin: destination.origin};
+        const sourceParameters: GPUTexelCopyTextureInfo = {texture: (source.texture as WEBGPUTexture).GetBuffer(), mipLevel: source.mipLevel, origin: source.origin};
+        const destinationParameters: GPUTexelCopyTextureInfo = {texture: (destination.texture as WEBGPUTexture).GetBuffer(), mipLevel: destination.mipLevel, origin: destination.origin};
         const extents = copySize ? copySize : [source.texture.width, source.texture.height, source.texture.depth];
         activeCommandEncoder.copyTextureToTexture(sourceParameters, destinationParameters, extents);
     }

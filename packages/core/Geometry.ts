@@ -52,10 +52,14 @@ export class GeometryAttribute {
     }
 
     public Serialize(): Object {
+        let arrayType = "float32";
+        if (this.array instanceof Uint32Array) arrayType = "uint32";
+        else if (this.array instanceof Uint16Array) arrayType = "uint16";
+        else if (this.array instanceof Uint8Array) arrayType = "uint8";
         return {
             attributeType: this.type,
             array: Array.from(this.array),
-            arrayType: this.array instanceof Float32Array ? "float32" : "uint32",
+            arrayType: arrayType,
             currentOffset: this.currentOffset,
             currentSize: this.currentSize
         }
@@ -69,7 +73,13 @@ export class VertexAttribute extends GeometryAttribute {
     }
     
     public static Deserialize(data: any): VertexAttribute {
-        const array = data.arrayType === "float32" ? new Float32Array(data.array) : new Uint32Array(data.array);
+        let array = undefined;
+        if (data.arrayType === "float32") array = new Float32Array(data.array);
+        else if (data.arrayType === "uint32") array = new Uint32Array(data.array);
+        else if (data.arrayType === "uint16") array = new Uint16Array(data.array);
+        else if (data.arrayType === "uint8") array = new Uint8Array(data.array);
+        if (array === undefined) throw Error(`Cannot deserialize VertexAttribute, invalid array type "${data.arrayType}"`);
+
         const vertexAttribute = new VertexAttribute(array);
         vertexAttribute.currentOffset = data.currentOffset;
         vertexAttribute.currentSize = data.currentSize;
@@ -138,7 +148,11 @@ export class IndexAttribute extends GeometryAttribute {
     }
 
     public static Deserialize(data: any): IndexAttribute {
-        const array = new Uint32Array(data.array);
+        let array = undefined;
+        if (data.arrayType === "uint32") array = new Uint32Array(data.array);
+        else if (data.arrayType === "uint16") array = new Uint16Array(data.array);
+        if (array === undefined) throw Error(`Cannot deserialize VertexAttribute, invalid array type "${data.arrayType}"`);
+
         const indexAttribute = new IndexAttribute(array);
         indexAttribute.currentOffset = data.currentOffset;
         indexAttribute.currentSize = data.currentSize;
@@ -617,7 +631,7 @@ export class Geometry {
         return geometry;
     }
 
-    public Serialize(): Object {
+    public Serialize(metadata: any = {}): Object {
         return {
             id: this.id,
             name: this.name,
