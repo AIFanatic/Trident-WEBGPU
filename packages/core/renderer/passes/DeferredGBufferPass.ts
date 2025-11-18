@@ -66,7 +66,7 @@ export class DeferredGBufferPass extends RenderPass {
             shader.SetMatrix4("viewMatrix", viewMatrix);
             shader.SetBuffer("modelMatrix", this.modelMatrixBuffer.getBuffer());
             shader.SetVector3("cameraPosition", inputCamera.transform.position);
-            
+
             if (mesh instanceof SkinnedMesh) {
                 shader.SetBuffer("boneMatrices", mesh.GetBoneMatricesBuffer());
             }
@@ -79,10 +79,9 @@ export class DeferredGBufferPass extends RenderPass {
         }
 
         for (const instancedMesh of instancedMeshes) {
-            const geometry = instancedMesh.geometry
-            const material = instancedMesh.material
-            if (material.params.isDeferred === false) continue;
-            if (!material.shader) continue;
+            const geometry = instancedMesh.geometry;
+            const material = instancedMesh.material;
+            if (!geometry || !material || !material.shader || material.params.isDeferred === false) continue;
             const shader = material.shader;
             shader.SetMatrix4("projectionMatrix", projectionMatrix);
             shader.SetMatrix4("viewMatrix", viewMatrix);

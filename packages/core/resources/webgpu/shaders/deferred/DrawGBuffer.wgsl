@@ -1,3 +1,5 @@
+#include "@trident/core/resources/webgpu/shaders/deferred/OctahedralEncoding.wgsl";
+
 struct VertexInput {
     @builtin(instance_index) instance : u32, 
     @builtin(vertex_index) vertex : u32,
@@ -151,15 +153,15 @@ fn fragmentMain(input: VertexOutput) -> FragmentOutput {
         discard;
     }
 
-    var normal: vec3f = input.vNormal;
+    var normal: vec3f = normalize(input.vNormal);
     #if USE_NORMAL_MAP
         var tbn: mat3x3<f32>;
-        tbn[0] = input.tangent;
+        tbn[0] = input.tangent;      // column-major: T, B, N
         tbn[1] = input.bitangent;
         tbn[2] = input.vNormal;
-        
-        let normalSample = textureSample(NormalMap, TextureSampler, uv).xyz * 2.0 - 1.0; // [0 - 1] -> [-1, -1] from brga8unorm to float
-        normal = tbn * normalSample;
+
+        let normalSample = textureSample(NormalMap, TextureSampler, uv).xyz * 2.0 - 1.0;
+        normal = normalize(tbn * normalSample);
     #endif
 
     #if USE_METALNESS_MAP
@@ -175,12 +177,11 @@ fn fragmentMain(input: VertexOutput) -> FragmentOutput {
 
     #if USE_AO_MAP
         occlusion = textureSample(AOMap, TextureSampler, uv).r;
-        occlusion = 1.0;
     #endif
 
     output.albedo = vec4(albedo.rgb, roughness);
-    output.normal = vec4(normal, metalness);
-    // output.normal = vec4(input.tangent.xyz, metalness);
+
+    output.normal = vec4(OctEncode(normal.xyz), occlusion, metalness);
     output.RMO = vec4(emissive.rgb, unlit);
 
 

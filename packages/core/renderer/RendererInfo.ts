@@ -17,6 +17,8 @@ export class RendererInfo {
     public gpuBufferCount: number = 0;
     public gpuTextureSizeTotal: number = 0;
     public gpuTextureCount: number = 0;
+    
+    public gpuBandwidthInBytes: number = 0;
 
     public visibleObjects: number = 0;
     
@@ -35,5 +37,7 @@ export class RendererInfo {
         this.drawCallsStat = 0;
         this.visibleObjects = 0;
         this.visibleTriangles = 0;
+
+        this.gpuBandwidthInBytes = 0;
     }
 }

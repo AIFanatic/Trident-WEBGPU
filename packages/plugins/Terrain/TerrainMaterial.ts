@@ -1,4 +1,4 @@
-import { GameObject, GPU, Mathf } from "@trident/core";
+import { GameObject, GPU, Mathf, Scene } from "@trident/core";
 
 interface Layer {
     name?: string;
@@ -86,8 +86,12 @@ export class TerrainMaterial extends GPU.Material {
     }
 
     private async createShader() {
+        const gbufferFormat = Scene.mainScene.renderPipeline.GBufferFormat;
+
         this.shader = await GPU.Shader.Create({
             code: `
+                #include "@trident/core/resources/webgpu/shaders/deferred/OctahedralEncoding.wgsl";
+
                 struct VertexInput {
                     @builtin(instance_index) instance : u32,
                     @location(0) position : vec3<f32>,
@@ -207,17 +211,13 @@ export class TerrainMaterial extends GPU.Material {
                     let worldNormal = normalize(TBN * nTan);
 
                     output.albedo = vec4f(albedo, arm.y);
-                    output.normal = vec4f(worldNormal, arm.z);
-                    output.RMO = vec4f(vec3(0), arm.x);
+                    output.normal = vec4f(OctEncode(worldNormal), arm.x, arm.z);
+                    output.RMO = vec4f(vec3(0.0), 0.0);
 
                     return output;
                 }
             `,
-            colorOutputs: [
-                { format: "rgba16float" },
-                { format: "rgba16float" },
-                { format: "rgba16float" },
-            ],
+            colorOutputs: [ { format: gbufferFormat }, { format: gbufferFormat }, { format: gbufferFormat } ],
             depthOutput: "depth24plus",
             attributes: {
                 position: { location: 0, size: 3, type: "vec3" },

@@ -1,5 +1,5 @@
 import { RenderPass, ResourcePool } from "../RenderGraph";
-import { CubeTexture, DepthTexture, RenderTexture, Texture } from "../Texture";
+import { CubeTexture, DepthTexture, RenderTexture, Texture, TextureFormat } from "../Texture";
 import { PassParams } from "../RenderingPipeline";
 import { Renderer, RendererEvents } from "../Renderer";
 import { RenderTarget, RendererContext } from "../RendererContext";
@@ -21,6 +21,8 @@ export class PrepareGBuffers extends RenderPass {
     public skyboxPrefilter: CubeTexture;
     public skyboxBRDFLUT: Texture;
 
+    public GBufferFormat: TextureFormat = "rgba8unorm";
+
     constructor() {
         super();
         EventSystem.on(RendererEvents.Resized, canvas => {
@@ -35,9 +37,9 @@ export class PrepareGBuffers extends RenderPass {
         if (this.gBufferERMORT) this.gBufferERMORT.Destroy();
 
         this.depthTexture = DepthTexture.Create(Renderer.width, Renderer.height);
-        this.gBufferAlbedoRT = RenderTexture.Create(Renderer.width, Renderer.height, 1, "rgba16float");
-        this.gBufferNormalRT = RenderTexture.Create(Renderer.width, Renderer.height, 1, "rgba16float");
-        this.gBufferERMORT = RenderTexture.Create(Renderer.width, Renderer.height, 1, "rgba16float");
+        this.gBufferAlbedoRT = RenderTexture.Create(Renderer.width, Renderer.height, 1, this.GBufferFormat);
+        this.gBufferNormalRT = RenderTexture.Create(Renderer.width, Renderer.height, 1, this.GBufferFormat);
+        this.gBufferERMORT = RenderTexture.Create(Renderer.width, Renderer.height, 1, this.GBufferFormat);
     }
 
     public async init(resources: ResourcePool) {

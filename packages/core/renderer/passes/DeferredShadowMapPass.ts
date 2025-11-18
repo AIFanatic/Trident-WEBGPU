@@ -23,8 +23,8 @@ export interface LightShadowData {
 };
 
 class _DeferredShadowMapPassSettings {
-    public shadowWidth = 4096;
-    public shadowHeight = 4096;
+    public shadowWidth = 2048;
+    public shadowHeight = 2048;
     public shadowsUpdateValue = true;
     public roundToPixelSizeValue = true;
     public debugCascadesValue = false;

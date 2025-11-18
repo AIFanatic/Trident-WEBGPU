@@ -100,8 +100,8 @@ export class ShaderLoader {
         throw Error("Unknown api");
     }
 
-    public static get Draw(): string { return WGSL_Shader_Draw_URL; }
-    public static get DrawVertexPulling(): string { return WGSL_Shader_DrawVertexPulling_URL; }
+    public static get Draw(): Promise<string> { return ShaderPreprocessor.ProcessIncludesV2(WGSL_Shader_Draw_URL); }
+    public static get DrawVertexPulling(): Promise<string> { return ShaderPreprocessor.ProcessIncludesV2(WGSL_Shader_DrawVertexPulling_URL); }
     public static get DeferredLighting(): Promise<string> { return ShaderPreprocessor.ProcessIncludesV2(WGSL_Shader_DeferredLighting_URL); }
 }
 
@@ -110,9 +110,11 @@ import WGSL_Shader_Deferred_LightStruct from "../resources/webgpu/shaders/deferr
 import WGSL_Shader_Deferred_ShadowMap from "../resources/webgpu/shaders/deferred/ShadowMap.wgsl";
 import WGSL_Shader_Deferred_ShadowMapCSM from "../resources/webgpu/shaders/deferred/ShadowMapCSM.wgsl";
 import WGSL_Shader_Deferred_ShadowUtils from "../resources/webgpu/shaders/deferred/ShadowUtils.wgsl";
+import WGSL_Shader_Deferred_OctahedralEncoding from "../resources/webgpu/shaders/deferred/OctahedralEncoding.wgsl";
 
 Assets.Register("@trident/core/resources/webgpu/shaders/deferred/SurfaceStruct.wgsl", WGSL_Shader_Deferred_SurfaceStruct);
 Assets.Register("@trident/core/resources/webgpu/shaders/deferred/LightStruct.wgsl", WGSL_Shader_Deferred_LightStruct);
 Assets.Register("@trident/core/resources/webgpu/shaders/deferred/ShadowMap.wgsl", WGSL_Shader_Deferred_ShadowMap);
 Assets.Register("@trident/core/resources/webgpu/shaders/deferred/ShadowMapCSM.wgsl", WGSL_Shader_Deferred_ShadowMapCSM);
 Assets.Register("@trident/core/resources/webgpu/shaders/deferred/ShadowUtils.wgsl", WGSL_Shader_Deferred_ShadowUtils);
+Assets.Register("@trident/core/resources/webgpu/shaders/deferred/OctahedralEncoding.wgsl", WGSL_Shader_Deferred_OctahedralEncoding);

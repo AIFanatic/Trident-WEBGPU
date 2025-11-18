@@ -1,5 +1,6 @@
 import { Vector2 } from "../math";
 import { Color } from "../math/Color";
+import { Scene } from "../Scene";
 import { UUID } from "../utils/";
 import { Shader, ShaderParams } from "./Shader";
 import { ShaderLoader } from "./ShaderUtils";
@@ -113,9 +114,11 @@ export class PBRMaterial extends Material {
         const _params = Object.assign({}, PBRMaterial.DefaultParams, params);
         const instance = this;
         const handler = {
-            set(obj, prop, value) {
+            async set(obj, prop, value) {
                 obj[prop] = value;
 
+                if (!instance.shader) await instance.createShader();
+                
                 instance.shader.SetArray("material", new Float32Array([
                     instance.params.albedoColor.r, instance.params.albedoColor.g, instance.params.albedoColor.b, instance.params.albedoColor.a,
                     instance.params.emissiveColor.r, instance.params.emissiveColor.g, instance.params.emissiveColor.b, instance.params.emissiveColor.a,
@@ -132,6 +135,8 @@ export class PBRMaterial extends Material {
     }
 
     private async createShader(): Promise<Shader> {
+        const gbufferFormat = Scene.mainScene.renderPipeline.GBufferFormat;
+
         const DEFINES = {
             USE_ALBEDO_MAP: this.initialParams?.albedoMap ? true : false,
             USE_NORMAL_MAP: this.initialParams?.normalMap ? true : false,
@@ -145,11 +150,7 @@ export class PBRMaterial extends Material {
         let shaderParams: ShaderParams = {
             code: this.params.useVertexPulling === true ? ShaderLoader.DrawVertexPulling : ShaderLoader.Draw,
             defines: DEFINES,
-            colorOutputs: [
-                {format: "rgba16float"},
-                {format: "rgba16float"},
-                {format: "rgba16float"},
-            ],
+            colorOutputs: [ {format: gbufferFormat}, {format: gbufferFormat}, {format: gbufferFormat} ],
             depthOutput: "depth24plus",
             attributes: this.params.useVertexPulling === true ? undefined : {
                 position: {location: 0, size: 3, type: "vec3"},

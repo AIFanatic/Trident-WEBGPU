@@ -6,7 +6,7 @@ import { WEBGPUTimestampQuery } from "./webgpu/WEBGPUTimestampQuery";
 import { TextureViewer } from "./passes/TextureViewer";
 import { PrepareGBuffers } from "./passes/PrepareGBuffers";
 import { DeferredShadowMapPass } from "./passes/DeferredShadowMapPass";
-import { CubeTexture, RenderTexture } from "./Texture";
+import { CubeTexture, RenderTexture, TextureFormat } from "./Texture";
 import { DeferredGBufferPass } from "./passes/DeferredGBufferPass";
 import { ForwardPass } from "./passes/ForwardPass";
 
@@ -76,6 +76,8 @@ export class RenderingPipeline {
 
     public get skyboxBRDFLUT(): RenderTexture { return this.prepareGBuffersPass.skyboxBRDFLUT};
     public set skyboxBRDFLUT(skyboxBRDFLUT: RenderTexture) { this.prepareGBuffersPass.skyboxBRDFLUT = skyboxBRDFLUT};
+
+    public get GBufferFormat(): TextureFormat { return this.prepareGBuffersPass.GBufferFormat};
 
     public readonly DeferredShadowMapPass = new DeferredShadowMapPass();
 

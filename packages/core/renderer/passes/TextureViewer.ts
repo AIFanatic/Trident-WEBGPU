@@ -38,8 +38,19 @@ export class TextureViewer extends RenderPass {
             return out;
         }
 
+        fn toneMapping(color: vec3f) -> vec3f {
+            // Narkowicz 2015 ACES approx
+            let a = 2.51; let b = 0.03; let c = 2.43; let d = 0.59; let e = 0.14;
+            return clamp((color*(a*color+b)) / (color*(c*color+d)+e), vec3f(0.0), vec3f(1.0));
+        }
+
+        fn gammaCorrection(color: vec3f) -> vec3f {
+            return pow(color, vec3f(1.0 / 2.2));
+        }
+
         @fragment fn fragmentMain(input: VertexOutput) -> @location(0) vec4f {
-            return textureSampleLevel(texture, textureSampler, input.vUv, 0);
+            let color = textureSampleLevel(texture, textureSampler, input.vUv, 0);
+            return vec4f(gammaCorrection(toneMapping(color.rgb)), color.a);
         }
         `;
 

@@ -104,7 +104,7 @@ export class Shader extends BaseShader {
     declare public readonly params: ShaderParams;
 
     public static async Create(params: ShaderParams): Promise<Shader> {
-        params.code = await ShaderPreprocessor.ProcessIncludes(params.code);
+        params.code = await ShaderPreprocessor.ProcessIncludesV2(params.code);
         if (Renderer.type === "webgpu") return new WEBGPUShader(params);
         throw Error("Unknown api");
     }

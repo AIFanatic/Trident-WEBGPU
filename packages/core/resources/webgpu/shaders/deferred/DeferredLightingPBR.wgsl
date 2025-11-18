@@ -1,6 +1,7 @@
 #include "@trident/core/resources/webgpu/shaders/deferred/LightStruct.wgsl";
 #include "@trident/core/resources/webgpu/shaders/deferred/ShadowMap.wgsl";
 #include "@trident/core/resources/webgpu/shaders/deferred/ShadowMapCSM.wgsl";
+#include "@trident/core/resources/webgpu/shaders/deferred/OctahedralEncoding.wgsl";
 
 struct Settings {
     debugDepthPass: f32,
@@ -56,13 +57,7 @@ struct View {
 
 
 const numCascades = 4;
-const debug_cascadeColors = array<vec4<f32>, 5>(
-    vec4<f32>(1.0, 0.0, 0.0, 1.0),
-    vec4<f32>(0.0, 1.0, 0.0, 1.0),
-    vec4<f32>(0.0, 0.0, 1.0, 1.0),
-    vec4<f32>(1.0, 1.0, 0.0, 1.0),
-    vec4<f32>(0.0, 0.0, 0.0, 1.0)
-);
+
 @group(0) @binding(14) var shadowSamplerComp: sampler_comparison;
 
 @group(0) @binding(15) var<storage, read> settings: Settings;
@@ -94,12 +89,11 @@ const AREA_LIGHT = 3;
 fn reconstructWorldPosFromZ(
     coords: vec2<f32>,
     size: vec2<f32>,
-    depthTexture: texture_depth_2d,
+    depth: f32,
     projInverse: mat4x4<f32>,
     viewInverse: mat4x4<f32>
     ) -> vec4<f32> {
     let uv = coords.xy / size;
-    var depth = textureLoad(depthTexture, vec2<i32>(floor(coords)), 0);
     let x = uv.x * 2.0 - 1.0;
     let y = (1.0 - uv.y) * 2.0 - 1.0;
     let projectedPos = vec4(x, y, depth, 1.0);
@@ -107,12 +101,6 @@ fn reconstructWorldPosFromZ(
     worldPosition = vec4(worldPosition.xyz / worldPosition.w, 1.0);
     worldPosition = viewInverse * worldPosition;
     return worldPosition;
-}
-
-fn toneMapping(color: vec3f) -> vec3f {
-    // Narkowicz 2015 ACES approx
-    let a = 2.51; let b = 0.03; let c = 2.43; let d = 0.59; let e = 0.14;
-    return clamp((color*(a*color+b)) / (color*(c*color+d)+e), vec3f(0.0), vec3f(1.0));
 }
 
 fn DistributionGGX(n: vec3f, h: vec3f, roughness: f32) -> f32 {
@@ -241,39 +229,41 @@ fn fragmentMain(input: VertexOutput) -> @location(0) vec4<f32> {
     // Early sky-out WITH explicit grads (safe mip selection)
     if (depth >= 0.9999999) {
         // var sky = textureSampleGrad(skyboxTexture, textureSampler, worldRay, dWRdx, dWRdy).rgb;
-        var sky = textureSampleLevel(skyboxTexture, textureSampler, worldRay, 0.0).rgb; // textureSampleGrad with a cubemap doesn't work on firefox
-        sky = toneMapping(sky);
-        sky = pow(sky, vec3f(1.0 / 2.2));  // omit if writing to *-srgb
+        let sky = textureSampleLevel(skyboxTexture, textureSampler, worldRay, 0.0).rgb; // textureSampleGrad with a cubemap doesn't work on firefox
         return vec4f(sky, 1.0);
     }
 
-    // Reconstruct world pos (consider a variant that takes 'depth' to avoid re-read inside)
     let worldPosition = reconstructWorldPosFromZ(
         input.position.xy,
         view.projectionOutputSize.xy,
-        depthTexture,
+        depth,
         view.projectionInverseMatrix,
         view.viewInverseMatrix
     );
 
-    // G-buffer samples now use explicit-grad
     let albedo = textureSampleGrad(albedoTexture, textureSampler, uv, dUVdx, dUVdy);
     let normal = textureSampleGrad(normalTexture, textureSampler, uv, dUVdx, dUVdy);
     let ermo   = textureSampleGrad(ermoTexture,   textureSampler, uv, dUVdx, dUVdy);
 
-    // ... (your Surface build as-is)
+    let unlit = ermo.a;
+
+    if (unlit > 0.5) {
+        var color = albedo.rgb;
+        return vec4f(color, 1.0);
+    }
+
     var surface: Surface;
     surface.depth          = depth;
     surface.albedo         = albedo.rgb;
     surface.roughness      = clamp(albedo.a, 0.0, 0.99);
+    surface.occlusion      = normal.z;
     surface.metallic       = normal.a;
     surface.emissive       = ermo.rgb;
-    surface.occlusion      = ermo.a;
     surface.worldPosition  = worldPosition.xyz;
-    surface.N              = normalize(normal.rgb);
+    
+    surface.N              = OctDecode(normal.rg);
     surface.F0             = mix(vec3(0.04), surface.albedo.rgb, vec3(surface.metallic));
     surface.V              = normalize(view.viewPosition.xyz - surface.worldPosition);
-    // surface.occlusion      = 1.0;
 
     let n = surface.N;
     let v = surface.V;
@@ -371,8 +361,5 @@ fn fragmentMain(input: VertexOutput) -> @location(0) vec4<f32> {
     let ambient = kD * diffuse * surface.occlusion + specular;
 
     var color = ambient + lo + surface.emissive;
-    color = toneMapping(color);
-    color = pow(color, vec3f(1.0 / 2.2));
-
     return vec4f(color, 1.0);
 }
