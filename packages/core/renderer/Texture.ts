@@ -27,6 +27,7 @@ export type TextureFormat =
     | "r32uint"
     | "r32sint"
     | "r32float"
+    | "r8unorm"
     | "rg16uint"
     | "rg16sint"
     | "rg16float"

@@ -4,7 +4,31 @@ import { SerializedTexture, Texture, TextureDimension, TextureFormat, TextureTyp
 import { WEBGPUMipsGenerator } from "./utils/WEBGPUMipsGenerator";
 import { WEBGPURenderer } from "./WEBGPURenderer";
 
+const TextureFormatToBits: Partial<Record<TextureFormat, number>> = {
+    rgba8unorm: 32, "rgba8unorm-srgb": 32, bgra8unorm: 32, "bgra8unorm-srgb": 32,
+    rgba16float: 64, rg16float: 32, r16float: 16,
+    rgba32float: 128, rg32float: 64, r32float: 32,
+    rg8unorm: 16, r8unorm: 8,
+    depth24plus: 32, "depth24plus-stencil8": 32, depth16unorm: 16,
+};
+function bytesPerPixel(format: TextureFormat): number {
+    return (TextureFormatToBits[format] ?? 32) / 8;
+}
+function totalBytesForTexture(format: TextureFormat, width: number, height: number, depth: number, mipLevels: number): number {
+    let w = width, h = height, d = depth, totalPixels = 0;
+    for (let i = 0; i < mipLevels; i++) {
+        totalPixels += Math.max(1, w) * Math.max(1, h) * Math.max(1, d);
+        w = w > 1 ? w >> 1 : 1;
+        h = h > 1 ? h >> 1 : 1;
+        d = d > 1 ? d >> 1 : d;
+    }
+    return totalPixels * bytesPerPixel(format);
+}
+
 export class WEBGPUTexture implements Texture {
+    private byteSize = 0;
+    private lastBandwidthFrame = -1;
+
     public readonly id = UUID();
     public readonly width: number;
     public readonly height: number;
@@ -40,9 +64,9 @@ export class WEBGPUTexture implements Texture {
         if (dimension === "1d") dim = "1d";
         else if (dimension === "3d") dim = "3d";
 
-        const textureBindingViewDimension = dimension === "cube" ? "cube": undefined;
+        const textureBindingViewDimension = dimension === "cube" ? "cube" : undefined;
         this.buffer = WEBGPURenderer.device.createTexture({
-            size: {width: width, height: height, depthOrArrayLayers: depth},
+            size: { width: width, height: height, depthOrArrayLayers: depth },
             // @ts-ignore
             textureBindingViewDimension: textureBindingViewDimension,
             dimension: dim,
@@ -59,7 +83,8 @@ export class WEBGPUTexture implements Texture {
         this.dimension = dimension;
         this.mipLevels = mipLevels;
 
-        Renderer.info.gpuTextureSizeTotal += width * height * depth * 4; // account for format
+        this.byteSize = totalBytesForTexture(this.format, this.width, this.height, this.depth, this.mipLevels);
+        Renderer.info.gpuTextureSizeTotal += this.byteSize; // account for format
         Renderer.info.gpuTextureCount++;
     }
 
@@ -80,6 +105,10 @@ export class WEBGPUTexture implements Texture {
             this.viewCache.set(key, view);
         }
 
+        if (Renderer.info.frame !== this.lastBandwidthFrame) {
+            Renderer.info.gpuBandwidthInBytes += this.byteSize;
+            this.lastBandwidthFrame = Renderer.info.frame;
+        }
         return view;
     }
 
@@ -89,6 +118,7 @@ export class WEBGPUTexture implements Texture {
         const mipLevels = WEBGPUMipsGenerator.numMipLevels(this.width, this.height, this.depth);
         this.SetActiveMipCount(mipLevels);
         this.mipLevels = mipLevels;
+        this.byteSize = totalBytesForTexture(this.format, this.width, this.height, this.depth, this.mipLevels);
     }
 
     public SetActiveLayer(layer: number) {
@@ -126,7 +156,7 @@ export class WEBGPUTexture implements Texture {
     }
 
     public Destroy() {
-        Renderer.info.gpuTextureSizeTotal -= this.buffer.width * this.buffer.height * this.buffer.depthOrArrayLayers * 4; // account for format
+        Renderer.info.gpuTextureSizeTotal -= this.byteSize;
         Renderer.info.gpuTextureCount--;
         this.buffer.destroy();
     }
@@ -134,10 +164,10 @@ export class WEBGPUTexture implements Texture {
     public SetData(data: BufferSource, bytesPerRow: number, rowsPerImage?: number) {
         try {
             WEBGPURenderer.device.queue.writeTexture(
-                {texture: this.buffer},
+                { texture: this.buffer },
                 data,
-                {bytesPerRow: bytesPerRow, rowsPerImage: rowsPerImage},
-                {width: this.width, height: this.height, depthOrArrayLayers: this.depth}
+                { bytesPerRow: bytesPerRow, rowsPerImage: rowsPerImage },
+                { width: this.width, height: this.height, depthOrArrayLayers: this.depth }
             );
         } catch (error) {
             console.warn(error)
@@ -199,7 +229,7 @@ export class WEBGPUTexture implements Texture {
     public static Deserialize(data: SerializedTexture): WEBGPUTexture {
         let cachedTexture = WEBGPUTexture.SerializedTextureCache.get(data.id);
         if (cachedTexture) return cachedTexture.texture;
-        
+
         const texture = new WEBGPUTexture(data.width, data.height, data.depth, data.format, data.type, data.dimension, data.mipLevels);
         texture.name = data.name;
         let imageData = undefined;
@@ -222,10 +252,10 @@ export class WEBGPUTexture implements Texture {
             console.warn(error)
         }
 
-        cachedTexture = {serialized: data, texture: texture};
+        cachedTexture = { serialized: data, texture: texture };
         WEBGPUTexture.SerializedTextureCache.set(data.id, cachedTexture); // What id to use? New or data one? Should ids be set, probably a unique path or crc should be used instead
         return texture;
     }
 
-    private static SerializedTextureCache: Map<string, {serialized: SerializedTexture, texture: WEBGPUTexture}> = new Map();
+    private static SerializedTextureCache: Map<string, { serialized: SerializedTexture, texture: WEBGPUTexture }> = new Map();
 }
