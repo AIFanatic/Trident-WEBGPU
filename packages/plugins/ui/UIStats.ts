@@ -177,56 +177,91 @@ export class UISliderStat extends Stat {
 
 export class UITextStat extends Stat {
     private textElement: HTMLPreElement;
-    private previousValue: number;
+
+    private rawValue: number;        // Truth
+    private displayValue: number;    // What we actually show on screen
+
     private precision: number;
     private unit: string;
     private rolling: boolean;
 
-    public formatter: (value: number) => number;
+    // Now formatter returns a string (for display only)
+    public formatter?: (value: number) => string;
 
-    constructor(folder: UIFolder, label: string, defaultValue: number = 0, precision = 0, unit = "", rolling = false) {
+    constructor(
+        folder: UIFolder,
+        label: string,
+        defaultValue: number = 0,
+        precision = 0,
+        unit = "",
+        rolling = false
+    ) {
         super(folder.container, label);
 
-        this.previousValue = defaultValue;
+        this.rawValue = defaultValue;
+        this.displayValue = defaultValue;
+
         this.precision = precision;
         this.unit = unit;
         this.rolling = rolling;
 
         this.textElement = document.createElement("pre");
         this.textElement.classList.add("value");
-        this.textElement.textContent = defaultValue.toFixed(precision);
+        this.textElement.textContent = this.defaultFormat(defaultValue);
 
         this.statContainer.append(this.textElement);
 
-        // Update the values like this so it doesnt hang the rendering pipeline
+        // Still doing interval-based updates, but now they don't mutate the source value
         setInterval(() => {
             this.Update();
         }, 100);
     }
 
     public SetValue(value: number) {
-        if (this.rolling === true) {
-            value = this.previousValue * 0.95 + value * 0.05;
+        this.rawValue = value;
+
+        // If not rolling, just snap display to the raw value immediately
+        if (!this.rolling) {
+            this.displayValue = value;
         }
-        // const valueStr = this.precision === 0 ? value.toString() : value.toFixed(this.precision);
-        // this.textElement.textContent = valueStr + this.unit;
-        this.previousValue = value;
     }
 
-    // TODO: Figure out another way of doing this
+    public GetValue(): number {
+        return this.rawValue;
+    }
+
+    public GetPrecision(): number {
+        return this.precision;
+    }
+
+    public SetUnit(unit: string) {
+        this.unit = unit;
+    }
+
+    // If you really want arbitrary text, it's better to have a separate method/class.
+    // But here's a safe version that bypasses numeric logic:
     public SetText(text: string) {
-        this.previousValue = text;
+        this.textElement.textContent = text;
     }
-
-    public GetValue(): number { return this.previousValue; } // TODO: Current value
-    public GetPrecision(): number { return this.precision; }
-
-    public SetUnit(unit: string) { this.unit = unit };
 
     public Update() {
-        const previousValue = this.formatter ? this.formatter(this.previousValue) : this.previousValue;
-        const valueStr = this.precision === 0 ? previousValue.toString() : previousValue.toFixed(this.precision);
-        this.textElement.textContent = valueStr + this.unit;
+        // Update smoothing first (if enabled)
+        if (this.rolling) {
+            const lerpFactor = 0.05; // same as your original
+            this.displayValue = this.displayValue * (1 - lerpFactor) + this.rawValue * lerpFactor;
+        }
+
+        const valueToShow = this.displayValue;
+
+        const text = this.formatter
+            ? this.formatter(valueToShow)
+            : this.defaultFormat(valueToShow);
+
+        this.textElement.textContent = text + this.unit;
+    }
+
+    private defaultFormat(value: number): string {
+        return this.precision === 0 ? value.toString() : value.toFixed(this.precision);
     }
 }
 
@@ -259,6 +294,10 @@ interface VecEntry {
 
 export class UIVecStat extends Stat {
     private value: Vec4;
+    private vecx: HTMLDivElement;
+    private vecy: HTMLDivElement;
+    private vecz: HTMLDivElement;
+    private vecw: HTMLDivElement;
     constructor(folder: UIFolder, label: string, x: VecEntry, y: VecEntry, z: VecEntry, w: VecEntry | undefined, onChanged: (value: Vec4) => void) {
         super(folder.container, label);
 
@@ -272,17 +311,17 @@ export class UIVecStat extends Stat {
         const container = document.createElement("div");
         container.style.display = "flex";
         container.style.width = "110px";
-        const vecx = this.CreateEntry("X", "#c0392b4a", x, value => {this.value.x = value; onChanged(this.value)});
-        const vecy = this.CreateEntry("Y", "#39c02b4a", y, value => {this.value.y = value; onChanged(this.value)});
-        const vecz = this.CreateEntry("Z", "#392bc04a", z, value => {this.value.z = value; onChanged(this.value)});
+        this.vecx = this.CreateEntry("X", "#c0392b4a", x, value => {this.value.x = value; onChanged(this.value)});
+        this.vecy = this.CreateEntry("Y", "#39c02b4a", y, value => {this.value.y = value; onChanged(this.value)});
+        this.vecz = this.CreateEntry("Z", "#392bc04a", z, value => {this.value.z = value; onChanged(this.value)});
 
-        container.append(vecx);
-        container.append(vecy);
-        container.append(vecz);
+        container.append(this.vecx);
+        container.append(this.vecy);
+        container.append(this.vecz);
 
         if (w !== undefined) {
-            const vecw = this.CreateEntry("W", "#392bc04a", w, value => {this.value.w = value; onChanged(this.value)});
-            container.append(vecw);
+            this.vecw = this.CreateEntry("W", "#392bc04a", w, value => {this.value.w = value; onChanged(this.value)});
+            container.append(this.vecw);
         }
 
         this.statContainer.append(container);
@@ -334,6 +373,13 @@ export class UIVecStat extends Stat {
         });
 
         return container;
+    }
+
+    public SetValue(x?: number, y?: number, z?: number, w?: number) {
+        if (x) this.vecx.querySelector("input").value = `${x}`;
+        if (y) this.vecy.querySelector("input").value = `${y}`;
+        if (z) this.vecz.querySelector("input").value = `${z}`;
+        if (w) this.vecw.querySelector("input").value = `${w}`;
     }
 }
 
