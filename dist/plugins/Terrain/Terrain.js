@@ -102,6 +102,32 @@ class Terrain extends Components.Mesh {
     this.geometry = this.GenerateGeometryFromHeights(size, this.heights);
     return heights;
   }
+  SampleHeight(worldPosition) {
+    if (!this.heights || !this.geometry) return 0;
+    const size = Math.sqrt(this.heights.length);
+    this.width * 0.5;
+    this.length * 0.5;
+    const localX = (worldPosition.x - this.transform.position.x) / this.width;
+    const localZ = (worldPosition.z - this.transform.position.z) / this.length;
+    const fx = Math.max(0, Math.min(1, localX)) * (size - 1);
+    const fz = Math.max(0, Math.min(1, localZ)) * (size - 1);
+    const x0 = Math.floor(fx);
+    const z0 = Math.floor(fz);
+    const x1 = Math.min(x0 + 1, size - 1);
+    const z1 = Math.min(z0 + 1, size - 1);
+    const tx = fx - x0;
+    const tz = fz - z0;
+    const idx = (x, z) => x * size + z;
+    const h00 = this.heights[idx(x0, z0)];
+    const h10 = this.heights[idx(x1, z0)];
+    const h01 = this.heights[idx(x0, z1)];
+    const h11 = this.heights[idx(x1, z1)];
+    const h0 = h00 * (1 - tx) + h10 * tx;
+    const h1 = h01 * (1 - tx) + h11 * tx;
+    const height = h0 * (1 - tz) + h1 * tz;
+    worldPosition.y = height * this.height;
+    return height * this.height;
+  }
 }
 
 export { Terrain };

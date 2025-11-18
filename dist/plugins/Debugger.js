@@ -21,6 +21,8 @@ class DebuggerRenderPass extends GPU.RenderPass {
   async init(resources) {
     this.outputViewerShader = await GPU.Shader.Create({
       code: `
+                #include "@trident/core/resources/webgpu/shaders/deferred/OctahedralEncoding.wgsl";
+
                 struct VertexInput {
                     @location(0) position : vec3<f32>,
                     @location(1) normal : vec3<f32>,
@@ -93,7 +95,7 @@ class DebuggerRenderPass extends GPU.RenderPass {
                     let depth = textureLoad(inputDepth, vec2<i32>(floor(input.position.xy)), 0);
                     if (u32(viewType) == 0) {} // Lighting
                     else if (u32(viewType) == 1) {} // Albedo
-                    else if (u32(viewType) == 2) {} // Normal
+                    else if (u32(viewType) == 2) { color = vec4(OctDecode(color.rg), 1.0); } // Normal
                     else if (u32(viewType) == 3) { color = vec4(color.a); } // Metalness
                     else if (u32(viewType) == 4) { color = vec4(color.a); } // Roughness
                     else if (u32(viewType) == 5) { color = vec4(color.rgb, 1.0); } // Emissive
@@ -189,6 +191,7 @@ class _Debugger {
   gpuTime;
   gpuBufferSizeStat;
   gpuTextureSizeStat;
+  gpuBandwidth;
   bindGroupLayoutsStat;
   bindGroupsStat;
   frameVertexBuffersStat;
@@ -226,6 +229,7 @@ class _Debugger {
     this.gpuBufferCount = new UITextStat(this.rendererFolder, "GPU buffer count: ", 0, 0);
     this.gpuTextureSizeTotal = new UITextStat(this.rendererFolder, "GPU texture size: ", 0, 0);
     this.gpuTextureCount = new UITextStat(this.rendererFolder, "GPU texture count: ", 0, 0);
+    this.gpuBandwidth = new UITextStat(this.rendererFolder, "GPU texture bandwidth: ", 0, 0);
     this.bindGroupLayoutsStat = new UITextStat(this.rendererFolder, "Bind group layouts: ");
     this.bindGroupsStat = new UITextStat(this.rendererFolder, "Bind groups: ");
     this.frameVertexBuffersStat = new UITextStat(this.rendererFolder, "Frame vertex buffers: ");
@@ -245,18 +249,30 @@ class _Debugger {
     this.renderPassesFolder.Open();
     this.textStatBytesFormatter(this.gpuBufferSizeTotal);
     this.textStatBytesFormatter(this.gpuTextureSizeTotal);
+    this.textStatBytesFormatterByFramerate(this.gpuBandwidth);
     setInterval(() => {
       this.Update();
     }, 100);
   }
+  textStatBytesFormatterByFramerate(textStat) {
+    const sizes = ["B/s", "KB/s", "MB/s", "GB/s", "TB/s", "PB/s", "EB/s", "ZB/s", "YB/s"];
+    textStat.formatter = ((value) => {
+      value *= this.fps.GetValue();
+      const k = 1024;
+      const decimals = 2;
+      const i = Math.floor(Math.log(value) / Math.log(k));
+      textStat.SetUnit(sizes[i]);
+      return parseFloat((value / Math.pow(k, i)).toFixed(decimals)).toString();
+    });
+  }
   textStatBytesFormatter(textStat) {
+    const sizes = ["B", "KB", "MB", "GB", "TB", "PB", "EB", "ZB", "YB"];
     textStat.formatter = ((value) => {
       const k = 1024;
       const decimals = 2;
-      const sizes = ["B", "KB", "MB", "GB", "TB", "PB", "EB", "ZB", "YB"];
       const i = Math.floor(Math.log(value) / Math.log(k));
       textStat.SetUnit(sizes[i]);
-      return parseFloat((value / Math.pow(k, i)).toFixed(decimals));
+      return parseFloat((value / Math.pow(k, i)).toFixed(decimals)).toString();
     });
   }
   Update() {
@@ -270,6 +286,7 @@ class _Debugger {
     this.gpuBufferCount.SetValue(Renderer.info.gpuBufferCount);
     this.gpuTextureSizeTotal.SetValue(Renderer.info.gpuTextureSizeTotal);
     this.gpuTextureCount.SetValue(Renderer.info.gpuTextureCount);
+    this.gpuBandwidth.SetValue(Renderer.info.gpuBandwidthInBytes);
     this.bindGroupLayoutsStat.SetValue(Renderer.info.bindGroupLayoutsStat);
     this.bindGroupsStat.SetValue(Renderer.info.bindGroupsStat);
     this.frameVertexBuffersStat.SetValue(Renderer.info.frameVertexBuffersStat);

@@ -46,7 +46,8 @@
               const lightGameObject = new GameObject(scene);
               lightGameObject.transform.position.set(-4, 4, 4);
               lightGameObject.transform.LookAtV1(new Mathf.Vector3(0, 0, 0));
-              lightGameObject.AddComponent(Components.DirectionalLight);
+              const light = lightGameObject.AddComponent(Components.DirectionalLight);
+              light.castShadows = false;
               await GLTFLoader.loadAsGameObjects(scene, "./assets/models/DamagedHelmet/DamagedHelmet.gltf");
               Debugger.Enable();
               scene.Start();

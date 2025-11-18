@@ -141,49 +141,61 @@ class UISliderStat extends Stat {
 }
 class UITextStat extends Stat {
   textElement;
-  previousValue;
+  rawValue;
+  // Truth
+  displayValue;
+  // What we actually show on screen
   precision;
   unit;
   rolling;
+  // Now formatter returns a string (for display only)
   formatter;
   constructor(folder, label, defaultValue = 0, precision = 0, unit = "", rolling = false) {
     super(folder.container, label);
-    this.previousValue = defaultValue;
+    this.rawValue = defaultValue;
+    this.displayValue = defaultValue;
     this.precision = precision;
     this.unit = unit;
     this.rolling = rolling;
     this.textElement = document.createElement("pre");
     this.textElement.classList.add("value");
-    this.textElement.textContent = defaultValue.toFixed(precision);
+    this.textElement.textContent = this.defaultFormat(defaultValue);
     this.statContainer.append(this.textElement);
     setInterval(() => {
       this.Update();
     }, 100);
   }
   SetValue(value) {
-    if (this.rolling === true) {
-      value = this.previousValue * 0.95 + value * 0.05;
+    this.rawValue = value;
+    if (!this.rolling) {
+      this.displayValue = value;
     }
-    this.previousValue = value;
-  }
-  // TODO: Figure out another way of doing this
-  SetText(text) {
-    this.previousValue = text;
   }
   GetValue() {
-    return this.previousValue;
+    return this.rawValue;
   }
-  // TODO: Current value
   GetPrecision() {
     return this.precision;
   }
   SetUnit(unit) {
     this.unit = unit;
   }
+  // If you really want arbitrary text, it's better to have a separate method/class.
+  // But here's a safe version that bypasses numeric logic:
+  SetText(text) {
+    this.textElement.textContent = text;
+  }
   Update() {
-    const previousValue = this.formatter ? this.formatter(this.previousValue) : this.previousValue;
-    const valueStr = this.precision === 0 ? previousValue.toString() : previousValue.toFixed(this.precision);
-    this.textElement.textContent = valueStr + this.unit;
+    if (this.rolling) {
+      const lerpFactor = 0.05;
+      this.displayValue = this.displayValue * (1 - lerpFactor) + this.rawValue * lerpFactor;
+    }
+    const valueToShow = this.displayValue;
+    const text = this.formatter ? this.formatter(valueToShow) : this.defaultFormat(valueToShow);
+    this.textElement.textContent = text + this.unit;
+  }
+  defaultFormat(value) {
+    return this.precision === 0 ? value.toString() : value.toFixed(this.precision);
   }
 }
 class UIColorStat extends Stat {
@@ -202,6 +214,10 @@ class UIColorStat extends Stat {
 }
 class UIVecStat extends Stat {
   value;
+  vecx;
+  vecy;
+  vecz;
+  vecw;
   constructor(folder, label, x, y, z, w, onChanged) {
     super(folder.container, label);
     this.value = {
@@ -213,27 +229,27 @@ class UIVecStat extends Stat {
     const container = document.createElement("div");
     container.style.display = "flex";
     container.style.width = "110px";
-    const vecx = this.CreateEntry("X", "#c0392b4a", x, (value) => {
+    this.vecx = this.CreateEntry("X", "#c0392b4a", x, (value) => {
       this.value.x = value;
       onChanged(this.value);
     });
-    const vecy = this.CreateEntry("Y", "#39c02b4a", y, (value) => {
+    this.vecy = this.CreateEntry("Y", "#39c02b4a", y, (value) => {
       this.value.y = value;
       onChanged(this.value);
     });
-    const vecz = this.CreateEntry("Z", "#392bc04a", z, (value) => {
+    this.vecz = this.CreateEntry("Z", "#392bc04a", z, (value) => {
       this.value.z = value;
       onChanged(this.value);
     });
-    container.append(vecx);
-    container.append(vecy);
-    container.append(vecz);
+    container.append(this.vecx);
+    container.append(this.vecy);
+    container.append(this.vecz);
     if (w !== void 0) {
-      const vecw = this.CreateEntry("W", "#392bc04a", w, (value) => {
+      this.vecw = this.CreateEntry("W", "#392bc04a", w, (value) => {
         this.value.w = value;
         onChanged(this.value);
       });
-      container.append(vecw);
+      container.append(this.vecw);
     }
     this.statContainer.append(container);
   }
@@ -279,6 +295,12 @@ class UIVecStat extends Stat {
       callback(parseFloat(inputElement.value));
     });
     return container;
+  }
+  SetValue(x, y, z, w) {
+    if (x) this.vecx.querySelector("input").value = `${x}`;
+    if (y) this.vecy.querySelector("input").value = `${y}`;
+    if (z) this.vecz.querySelector("input").value = `${z}`;
+    if (w) this.vecw.querySelector("input").value = `${w}`;
   }
 }
 class UIGradientStat extends Stat {
