@@ -128,33 +128,7 @@ fn fragmentMain(input: VertexOutput) -> @location(0) vec4<f32> {
 
     let ambient = kD * diffuse * surface.occlusion + specular;
 
-    var color = ambient + surface.emissive;
-
-
-    // Build NDC + view/world rays (same as before)
-    let ndc = vec3<f32>(
-        (input.position.x / view.projectionOutputSize.x) * 2.0 - 1.0,
-        (input.position.y / view.projectionOutputSize.y) * 2.0 - 1.0,
-        1.0
-    );
-    let viewRay4 = view.projectionInverseMatrix * vec4(ndc, 1.0);
-    var viewRay  = normalize(viewRay4.xyz / viewRay4.w);
-    viewRay.y   *= -1.0;
-    var worldRay = normalize((view.viewInverseMatrix * vec4(viewRay, 0.0)).xyz);
-
-    // ---- compute derivatives BEFORE any divergent branch ----
-    let dUVdx = dpdx(uv);
-    let dUVdy = dpdy(uv);
-
-    // For cubemap LOD: take grads of the direction (works well in practice)
-    let dWRdx = dpdx(worldRay);
-    let dWRdy = dpdy(worldRay);
-
-    if (depth >= 0.9999999) {
-        // var sky = textureSampleGrad(skyboxTexture, textureSampler, worldRay, dWRdx, dWRdy).rgb;
-        let sky = textureSampleLevel(skyboxTexture, textureSampler, worldRay, 0.0).rgb; // textureSampleGrad with a cubemap doesn't work on firefox
-        return vec4f(sky, 1.0);
-    }
+    let color = ambient + surface.emissive;
 
     return vec4f(color, 1.0);
 }

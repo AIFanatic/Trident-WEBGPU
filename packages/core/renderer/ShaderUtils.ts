@@ -95,7 +95,7 @@ export class ShaderLoader {
     public static async LoadURL(shader_url: URL) {
         if (Renderer.type === "webgpu") {
             let code = await Assets.LoadURL(shader_url, "text");
-            code = await ShaderPreprocessor.ProcessIncludes(code, shader_url.href);
+            code = await ShaderPreprocessor.ProcessIncludesV2(code, shader_url.href);
             return code;
         }
         throw Error("Unknown api");

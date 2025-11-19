@@ -11,6 +11,7 @@ import { DeferredGBufferPass } from "./passes/DeferredGBufferPass";
 import { ForwardPass } from "./passes/ForwardPass";
 import { IBLLightingPass } from "./passes/IBLIBLLightingPass";
 import { SkyboxPass } from "./passes/SkyboxPass";
+import { BasePass } from "./passes/BasePass";
 
 export const PassParams = {
     DebugSettings: "DebugSettings",
@@ -96,6 +97,7 @@ export class RenderingPipeline {
 
         this.beforeLightingPasses = [];
         this.afterLightingPasses = [
+            new BasePass(),
             new DeferredLightingPass(),
             new IBLLightingPass(),
             new SkyboxPass(),
