@@ -24,8 +24,6 @@ export class Light extends Component {
     @SerializeField
     public intensity: number = 1;
     @SerializeField
-    public range: number = 10;
-    @SerializeField
     public castShadows: boolean = true;
 
     constructor(gameObject: GameObject) {
@@ -45,7 +43,7 @@ export class Light extends Component {
             camera: this.camera.Serialize(),
             color: this.color.Serialize(),
             intensity: this.intensity,
-            range: this.range,
+            // range: this.range,
             castShadows: this.castShadows
         }
     }
@@ -53,22 +51,55 @@ export class Light extends Component {
 
 export class SpotLight extends Light {
     public direction = new Vector3(0,-1,0);
-    public angle: number = 1;
+
+    private _angle: number = 1;
+    @SerializeField
+    public get angle(): number { return this._angle };
+    public set angle(angle: number) {
+        this._angle = angle;
+        this.UpdateLight();
+    };
+
+    private _range: number = 10;
+    @SerializeField
+    public get range(): number { return this._range };
+    public set range(range: number) {
+        this._range = range;
+        this.UpdateLight();
+    };
+
+    protected UpdateLight() {
+        // this.transform.scale.set(this.range, this.range, this.range);
+        // this.transform.scale.set(this.angle * 10, this.range, this.angle * 10);
+
+        const radius = Math.tan(this.angle) * this.range; // if angle is full cone angle
+         this.transform.scale.set(radius, this.range, radius);
+    }
 
     public Start(): void {
         super.Start();
         this.camera.SetPerspective(this.angle / Math.PI * 180 * 2, Renderer.width / Renderer.height, 0.01, 1000);
+        this.UpdateLight();
     }
-
-    // public Update(): void {
-    //     this.camera.SetPerspective(this.angle / Math.PI * 180 * 2, Renderer.width / Renderer.height, 0.01, 1000);
-    // }
 }
 
 export class PointLight extends Light {
+    private _range: number = 10;
+    @SerializeField
+    public get range(): number { return this._range };
+    public set range(range: number) {
+        this._range = range;
+        this.UpdateLight();
+    };
+    
+    protected UpdateLight(): void {
+        this.transform.scale.set(this.range, this.range, this.range);
+    }
+
     public Start(): void {
         super.Start();
         this.camera.SetPerspective(60, Renderer.width / Renderer.height, 0.01, 1000);
+        this.UpdateLight();
     }
 }
 

@@ -74,6 +74,8 @@ export class ForwardPass extends RenderPass {
     }
 
     public async execute(resources: ResourcePool) {
+        if (this.drawCommands.length === 0) return;
+
         const LightingPassOutput = resources.getResource(PassParams.LightingPassOutput);
         const DepthPassOutput = resources.getResource(PassParams.GBufferDepth);
 

@@ -1,4 +1,5 @@
 struct Light {
+    lightModelMatrix: mat4x4<f32>,
     position: vec4<f32>,
     projectionMatrix: mat4x4<f32>,
     // // Using an array of mat4x4 causes the render time to go from 3ms to 9ms for some reason

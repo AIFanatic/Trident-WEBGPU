@@ -1,6 +1,6 @@
 import { Shader } from "../Shader";
 import { Geometry } from "../../Geometry";
-import { CubeTexture, DepthTextureArray, RenderTexture } from "../Texture";
+import { CubeTexture, DepthTexture, DepthTextureArray, RenderTexture } from "../Texture";
 import { TextureSampler } from "../TextureSampler";
 import { Camera } from "../../components/Camera";
 import { RendererContext } from "../RendererContext";
@@ -38,10 +38,16 @@ export class DeferredLightingPass extends RenderPass {
     public initialized = false;
 
     private dummyShadowPassDepth: RenderTexture;
+    private gBufferDepthClone: DepthTexture;
 
     public async init() {
         this.shader = await Shader.Create({
             code: await ShaderLoader.DeferredLighting,
+            attributes: {
+                position: {location: 0, size: 3, type: "vec3"},
+                normal: {location: 1, size: 3, type: "vec3"},
+                uv: {location: 2, size: 2, type: "vec2"},
+            },
             uniforms: {
                 textureSampler: { group: 0, binding: 0, type: "sampler" },
                 albedoTexture: { group: 0, binding: 1, type: "texture" },
@@ -49,13 +55,6 @@ export class DeferredLightingPass extends RenderPass {
                 ermoTexture: { group: 0, binding: 3, type: "texture" },
                 depthTexture: { group: 0, binding: 4, type: "depthTexture" },
                 shadowPassDepth: { group: 0, binding: 5, type: "depthTexture" },
-                
-                skyboxTexture: { group: 0, binding: 6, type: "texture" },
-                skyboxIrradianceTexture: { group: 0, binding: 7, type: "texture" },
-                skyboxPrefilterTexture: { group: 0, binding: 8, type: "texture" },
-                skyboxBRDFLUTTexture: { group: 0, binding: 9, type: "texture" },
-
-                brdfSampler: { group: 0, binding: 10, type: "sampler" },
                 
                 lights: { group: 0, binding: 11, type: "storage" },
                 lightCount: { group: 0, binding: 12, type: "storage" },
@@ -66,7 +65,14 @@ export class DeferredLightingPass extends RenderPass {
 
                 settings: {group: 0, binding: 15, type: "storage"},
             },
-            colorOutputs: [{format: "rgba16float"}],
+            colorOutputs: [{format: "rgba16float", blendMode: "add"}],
+            depthOutput: "depth24plus",
+            depthWriteEnabled: false,
+            // depthCompare: "less-equal",
+            // cullMode: "back"
+
+            depthCompare: "greater-equal",
+            cullMode: "front"
         });
 
         this.sampler = TextureSampler.Create({
@@ -78,20 +84,12 @@ export class DeferredLightingPass extends RenderPass {
         });
         this.shader.SetSampler("textureSampler", this.sampler);
 
-        const brdfSampler = TextureSampler.Create({
-            minFilter: "linear",
-            magFilter: "linear",
-            addressModeU: "repeat",
-            addressModeV: "repeat"
-        });
-        this.shader.SetSampler("brdfSampler", brdfSampler);
-
         const shadowSamplerComp = TextureSampler.Create({minFilter: "linear", magFilter: "linear", compare: "less"});
         this.shader.SetSampler("shadowSamplerComp", shadowSamplerComp);
 
         this.quadGeometry = new Geometry();
 
-        this.lightsBuffer = new DynamicBufferMemoryAllocator(120 * 10);
+        this.lightsBuffer = new DynamicBufferMemoryAllocator(120 * 10000);
         this.lightsCountBuffer = Buffer.Create(1 * 4, BufferType.STORAGE);
 
         this.shader.SetBuffer("lights", this.lightsBuffer.getBuffer());
@@ -106,6 +104,7 @@ export class DeferredLightingPass extends RenderPass {
 
         // If there are no lights in the scene this is used instead
         this.dummyShadowPassDepth = DepthTextureArray.Create(1, 1, 1);
+        this.gBufferDepthClone = DepthTexture.Create(Renderer.width, Renderer.height);
 
 
         EventSystem.on(LightEvents.Updated, component => {
@@ -116,11 +115,12 @@ export class DeferredLightingPass extends RenderPass {
     }
 
     private updateLightsBuffer(lights: Light[], resources: ResourcePool) {
+        if (!this.needsUpdate) return;
         const scene = Camera.mainCamera.gameObject.scene;
 
         for (let i = 0; i < lights.length; i++) {
             const light = lights[i];
-            const params1 = new Float32Array([light.intensity, light.range, +light.castShadows, -1]);
+            const params1 = new Float32Array([light.intensity, (light as SpotLight).range, +light.castShadows, -1]);
             const params2 = new Float32Array(4);
 
             if (light instanceof DirectionalLight) {
@@ -152,23 +152,8 @@ export class DeferredLightingPass extends RenderPass {
                 // console.log("HERE", light.id, lightsShadowData, params1)
             }
 
-
-            // position: vec4<f32>,
-            // projectionMatrix: mat4x4<f32>,
-            // // // Using an array of mat4x4 causes the render time to go from 3ms to 9ms for some reason
-            // // csmProjectionMatrix: array<mat4x4<f32>, 4>,
-            // csmProjectionMatrix0: mat4x4<f32>,
-            // csmProjectionMatrix1: mat4x4<f32>,
-            // csmProjectionMatrix2: mat4x4<f32>,
-            // csmProjectionMatrix3: mat4x4<f32>,
-            // cascadeSplits: vec4<f32>,
-            // viewMatrix: mat4x4<f32>,
-            // direction: vec4<f32>,
-            // color: vec4<f32>,
-            // params1: vec4<f32>,
-            // params2: vec4<f32>,
-        
             const lightData = new Float32Array([
+                ...light.transform.localToWorldMatrix.elements,
                 light.transform.position.x, light.transform.position.y, light.transform.position.z, 1.0,
                 ...light.camera.projectionMatrix.elements,
                 // ...lightsCSMProjectionMatrix[i].slice(0, 16 * 4),
@@ -213,52 +198,46 @@ export class DeferredLightingPass extends RenderPass {
         const inputGbufferERMO = resources.getResource(PassParams.GBufferERMO);
         const inputGBufferDepth = resources.getResource(PassParams.GBufferDepth);
         const inputShadowPassDepth = resources.getResource(PassParams.ShadowPassDepth) || this.dummyShadowPassDepth;
-        const inputSkybox = resources.getResource(PassParams.Skybox) as CubeTexture;
-        const inputSkyboxIrradiance = resources.getResource(PassParams.SkyboxIrradiance) as CubeTexture;
-        const inputSkyboxPrefilter = resources.getResource(PassParams.SkyboxPrefilter) as CubeTexture;
-        const inputSkyboxBRDFLUT = resources.getResource(PassParams.SkyboxBRDFLUT) as RenderTexture;
+        const inputFrameBuffer = resources.getResource(PassParams.FrameBuffer);
         if (!inputGBufferAlbedo) return;
-
-
 
         this.shader.SetTexture("albedoTexture", inputGBufferAlbedo);
         this.shader.SetTexture("normalTexture", inputGBufferNormal);
         this.shader.SetTexture("ermoTexture", inputGbufferERMO);
         this.shader.SetTexture("depthTexture", inputGBufferDepth);
         this.shader.SetTexture("shadowPassDepth", inputShadowPassDepth);
-
-        this.shader.SetTexture("skyboxTexture", inputSkybox);
-        this.shader.SetTexture("skyboxIrradianceTexture", inputSkyboxIrradiance);
-        this.shader.SetTexture("skyboxPrefilterTexture", inputSkyboxPrefilter);
-        this.shader.SetTexture("skyboxBRDFLUTTexture", inputSkyboxBRDFLUT);
-
-        const view = new Float32Array(4 + 4 + 16 + 16   + 16);
-        view.set([Renderer.width, Renderer.height, 0], 0);
-        view.set(camera.transform.position.elements, 4);
-        // console.log(view)
-        const tempMatrix = new Matrix4();
-        tempMatrix.copy(camera.projectionMatrix).invert();
-        view.set(tempMatrix.elements, 8);
-        tempMatrix.copy(camera.viewMatrix).invert();
-        view.set(tempMatrix.elements, 24);
-        view.set(camera.viewMatrix.elements, 40);
-
-        this.shader.SetArray("view", view);
+        this.shader.SetArray("view", inputFrameBuffer);
 
         const settings = resources.getResource(PassParams.DebugSettings);
         this.shader.SetArray("settings", settings);
         
         // RendererContext.DrawGeometry(this.quadGeometry, this.shader);
-        this.drawCommands.push({geometry: this.quadGeometry, shader: this.shader, instanceCount: 1, firstInstance: 0});
+        for (let i = 0; i < lights.length; i++) {
+            const light = lights[i];
+            if (light instanceof DirectionalLight) this.drawCommands.push({geometry: this.plane, shader: this.shader, instanceCount: 1, firstInstance: i});
+            if (light instanceof PointLight) this.drawCommands.push({geometry: this.sphere, shader: this.shader, instanceCount: 1, firstInstance: i});
+            if (light instanceof SpotLight) this.drawCommands.push({geometry: this.cone, shader: this.shader, instanceCount: 1, firstInstance: i});
+        }
     }
+
+    private plane = Geometry.Plane();
+    private sphere = Geometry.Sphere();
+    private cone = Geometry.Cone();
 
     public async execute(resources: ResourcePool) {
         if (!this.initialized) return;
+        if (this.drawCommands.length === 0) return;
+
+        const GBufferDepth = resources.getResource(PassParams.GBufferDepth);
+        RendererContext.CopyTextureToTextureV3({texture: GBufferDepth}, {texture: this.gBufferDepthClone});
+
+        RendererContext.BeginRenderPass("DeferredLightingPass", [{ target: this.outputLightingPass, clear: true }]);
+        RendererContext.EndRenderPass();
         
-        RendererContext.BeginRenderPass("DeferredLightingPass", [{ target: this.outputLightingPass, clear: true }], undefined, true);
+        RendererContext.BeginRenderPass("DeferredLightingPass", [{ target: this.outputLightingPass, clear: false }], {target: this.gBufferDepthClone, clear: false}, true);
 
         for (const draw of this.drawCommands) {
-            RendererContext.Draw(draw.geometry, draw.shader, 3, draw.instanceCount, draw.firstInstance);
+            RendererContext.DrawGeometry(draw.geometry, draw.shader, draw.instanceCount, draw.firstInstance);
         }
 
         RendererContext.EndRenderPass();

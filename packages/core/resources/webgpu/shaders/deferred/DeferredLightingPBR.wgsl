@@ -1,3 +1,4 @@
+#include "@trident/core/resources/webgpu/shaders/deferred/SurfaceStruct.wgsl";
 #include "@trident/core/resources/webgpu/shaders/deferred/LightStruct.wgsl";
 #include "@trident/core/resources/webgpu/shaders/deferred/ShadowMap.wgsl";
 #include "@trident/core/resources/webgpu/shaders/deferred/ShadowMapCSM.wgsl";
@@ -19,9 +20,17 @@ struct Settings {
     cameraPosition: vec4<f32>,
 };
 
+struct VertexInput {
+    @builtin(instance_index) instance : u32, 
+    @location(0) position : vec3<f32>,
+    @location(1) normal : vec3<f32>,
+    @location(2) uv : vec2<f32>,
+};
+
 struct VertexOutput {
-    @builtin(position) position : vec4<f32>,
-    @location(0) vUv : vec2<f32>,
+    @builtin(position) position: vec4<f32>,
+    @location(0) vUv: vec2<f32>,
+    @location(1) @interpolate(flat) lightIndex: u32,
 };
 
 @group(0) @binding(0) var textureSampler: sampler;
@@ -52,6 +61,7 @@ struct View {
     projectionInverseMatrix: mat4x4<f32>,
     viewInverseMatrix: mat4x4<f32>,
     viewMatrix: mat4x4<f32>,
+    projectionMatrix: mat4x4<f32>,
 };
 @group(0) @binding(13) var<storage, read> view: View;
 
@@ -62,20 +72,21 @@ const numCascades = 4;
 
 @group(0) @binding(15) var<storage, read> settings: Settings;
 
-
-// Full-screen triangle (covers screen with 3 verts)
-const p = array<vec2f, 3>(
-    vec2f(-1.0, -1.0),
-    vec2f( 3.0, -1.0),
-    vec2f(-1.0,  3.0)
-);
-
 @vertex
-fn vertexMain(@builtin(vertex_index) vertexIndex : u32) -> VertexOutput {
+fn vertexMain(input: VertexInput) -> VertexOutput {
     var output: VertexOutput;
-    output.position = vec4(p[vertexIndex], 0.0, 1.0);
-    let uv = 0.5 * (p[vertexIndex] + vec2f(1.0, 1.0));
-    output.vUv = vec2f(uv.x, 1.0 - uv.y);
+    let light = lights[input.instance];
+    let lightType = u32(light.color.a);
+
+    output.position = view.projectionMatrix * view.viewMatrix * light.lightModelMatrix * vec4(input.position, 1.0);
+    if (lightType == DIRECTIONAL_LIGHT) {
+        // Flip X so the quad becomes back-facing (survives front-face cull).
+        // Place it at the far plane so it passes depthCompare "greater-equal".
+        output.position = vec4(-input.position.x, input.position.y, 1.0, 1.0);
+    }
+
+    output.vUv = input.uv;
+    output.lightIndex = input.instance;
     return output;
 }
 
@@ -129,15 +140,6 @@ fn GeometrySmith(n: vec3f, v: vec3f, l: vec3f, roughness: f32) -> f32 {
 
 fn FresnelSchlick(cosTheta: f32, f0: vec3f) -> vec3f {
   return f0 + (1.0 - f0) * pow(clamp(1.0 - cosTheta, 0.0, 1.0), 5.0);
-}
-
-fn FresnelSchlickRoughness(cosTheta: f32, f0: vec3f, roughness: f32) -> vec3f {
-  return f0 + (max(vec3(1.0 - roughness), f0) - f0) * pow(clamp(1.0 - cosTheta, 0.0, 1.0), 5.0);
-}
-
-fn fixCubeHandedness(d: vec3f) -> vec3f {
-    // try flipping X first; if that’s wrong, flip Z instead
-    return vec3f(-d.x, d.y, d.z);
 }
 
 fn CalculateBRDF(surface: Surface, pointToLight: vec3<f32>) -> vec3<f32> {
@@ -206,32 +208,10 @@ fn fragmentMain(input: VertexOutput) -> @location(0) vec4<f32> {
     let pix   = vec2<i32>(floor(input.position.xy));
     let depth = textureLoad(depthTexture, pix, 0);
 
-    // Build NDC + view/world rays (same as before)
-    let ndc = vec3<f32>(
-        (input.position.x / view.projectionOutputSize.x) * 2.0 - 1.0,
-        (input.position.y / view.projectionOutputSize.y) * 2.0 - 1.0,
-        1.0
-    );
-    let viewRay4 = view.projectionInverseMatrix * vec4(ndc, 1.0);
-    var viewRay  = normalize(viewRay4.xyz / viewRay4.w);
-    viewRay.y   *= -1.0;
-    var worldRay = normalize((view.viewInverseMatrix * vec4(viewRay, 0.0)).xyz);
+    let fragCoord = input.position.xy;
+    let screenSize = view.projectionOutputSize.xy;
 
-    // ---- compute derivatives BEFORE any divergent branch ----
-    let uv = input.vUv;
-    let dUVdx = dpdx(uv);
-    let dUVdy = dpdy(uv);
-
-    // For cubemap LOD: take grads of the direction (works well in practice)
-    let dWRdx = dpdx(worldRay);
-    let dWRdy = dpdy(worldRay);
-
-    // Early sky-out WITH explicit grads (safe mip selection)
-    if (depth >= 0.9999999) {
-        // var sky = textureSampleGrad(skyboxTexture, textureSampler, worldRay, dWRdx, dWRdy).rgb;
-        let sky = textureSampleLevel(skyboxTexture, textureSampler, worldRay, 0.0).rgb; // textureSampleGrad with a cubemap doesn't work on firefox
-        return vec4f(sky, 1.0);
-    }
+    let uv = fragCoord / screenSize;
 
     let worldPosition = reconstructWorldPosFromZ(
         input.position.xy,
@@ -241,9 +221,9 @@ fn fragmentMain(input: VertexOutput) -> @location(0) vec4<f32> {
         view.viewInverseMatrix
     );
 
-    let albedo = textureSampleGrad(albedoTexture, textureSampler, uv, dUVdx, dUVdy);
-    let normal = textureSampleGrad(normalTexture, textureSampler, uv, dUVdx, dUVdy);
-    let ermo   = textureSampleGrad(ermoTexture,   textureSampler, uv, dUVdx, dUVdy);
+    let albedo = textureSample(albedoTexture, textureSampler, uv);
+    let normal = textureSample(normalTexture, textureSampler, uv);
+    let ermo   = textureSample(ermoTexture,   textureSampler, uv);
 
     let unlit = ermo.a;
 
@@ -265,101 +245,73 @@ fn fragmentMain(input: VertexOutput) -> @location(0) vec4<f32> {
     surface.F0             = mix(vec3(0.04), surface.albedo.rgb, vec3(surface.metallic));
     surface.V              = normalize(view.viewPosition.xyz - surface.worldPosition);
 
-    let n = surface.N;
-    let v = surface.V;
-    let r = reflect(-v, n);
-
     var lo = vec3f(0.0);
     var selectedCascade = 0;
 
-    for (var i = 0u; i < lightCount; i++) {
-        let light = lights[i];
-        let lightType = u32(light.color.a);
+    var light = lights[input.lightIndex];
+    let lightType = u32(light.color.a);
 
-        if (lightType == DIRECTIONAL_LIGHT) {
-            var directionalLight: DirectionalLight;
-            directionalLight.direction = normalize((light.viewMatrixInverse * vec4(0.0, 0.0, 1.0, 0.0)).xyz);
-            // directionalLight.direction = light.direction.xyz;
-            directionalLight.color = light.color.rgb;
-            directionalLight.intensity = light.params1.x;
+    if (lightType == DIRECTIONAL_LIGHT) {
+        var directionalLight: DirectionalLight;
+        directionalLight.direction = normalize((light.viewMatrixInverse * vec4(0.0, 0.0, 1.0, 0.0)).xyz);
+        // directionalLight.direction = light.direction.xyz;
+        directionalLight.color = light.color.rgb;
+        directionalLight.intensity = light.params1.x;
 
-            let castShadows = light.params1.z > 0.5;
-            var shadow = 1.0;
-            if (castShadows) {
-                let shadowCSM = CalculateShadowCSM(shadowPassDepth, shadowSamplerComp, surface, light, i);
-                shadow = shadowCSM.visibility;
-                selectedCascade = shadowCSM.selectedCascade;
-            }
-
-            // lo += shadow * DirectionalLightRadiance(directionalLight, surface) * radiance;
-            lo += shadow * DirectionalLightRadiance(directionalLight, surface);
+        let castShadows = light.params1.z > 0.5;
+        var shadow = 1.0;
+        if (castShadows) {
+            let shadowCSM = CalculateShadowCSM(shadowPassDepth, shadowSamplerComp, surface, light, input.lightIndex);
+            shadow = shadowCSM.visibility;
+            selectedCascade = shadowCSM.selectedCascade;
         }
 
-        else if (lightType == SPOT_LIGHT) {
-            var spotLight: SpotLight;
-            
-            spotLight.pointToLight = light.position.xyz - surface.worldPosition;
-            spotLight.color = light.color.rgb;
-            spotLight.intensity = light.params1.r;
-            spotLight.range = light.params1.g;
-            spotLight.direction = normalize((light.viewMatrixInverse * vec4(0.0, 0.0, -1.0, 0.0)).xyz);
-            // spotLight.direction = light.direction.xyz;
-            spotLight.angle = light.params2.w;
-
-            if (distance(light.position.xyz, surface.worldPosition) > spotLight.range) {
-                continue;
-            }
-
-            let castShadows = light.params1.z > 0.5;
-            var shadow = 1.0;
-            if (castShadows) {
-                let shadowCSM = CalculateShadowCSMSpot(shadowPassDepth, shadowSamplerComp, surface, light, i);
-                shadow = shadowCSM.visibility;
-                selectedCascade = shadowCSM.selectedCascade;
-                // shadow = SampleSpotShadowMap(surface, light); // <— single 2D map on this layer
-
-            }
-
-            lo += shadow * SpotLightRadiance(spotLight, surface);
-        }
-
-        else if (lightType == POINT_LIGHT) {
-            var p: PointLight;
-            p.pointToLight = light.position.xyz - surface.worldPosition;
-            p.color        = light.color.rgb;
-            p.intensity    = light.params1.x;
-            p.range        = light.params1.y;
-
-            // optional hard range cut
-            if (length(p.pointToLight) > p.range) {
-                continue;
-            }
-
-            var shadow = 1.0;
-            let castShadows = light.params1.z > 0.5;
-            // if (castShadows) {
-            //     shadow = SamplePointShadow(surface, light, i);
-            // }
-
-            lo += shadow * PointLightRadiance(p, surface);
-        }
+        // lo += shadow * DirectionalLightRadiance(directionalLight, surface) * radiance;
+        lo += shadow * DirectionalLightRadiance(directionalLight, surface);
     }
 
-    let f = FresnelSchlickRoughness(max(dot(n, v), 0.00001), surface.F0, surface.roughness);
-    let kS = f;
-    var kD = vec3f(1.0) - kS;
-    kD *= 1.0 - surface.metallic;
+    else if (lightType == SPOT_LIGHT) {
+        var spotLight: SpotLight;
+        
+        // light.position.x *= -1.0;
+        // light.position.z *= -1.0;
+        spotLight.pointToLight = light.position.xyz - surface.worldPosition;
+        spotLight.color = light.color.rgb;
+        spotLight.intensity = light.params1.r;
+        spotLight.range = light.params1.g;
+        spotLight.direction = normalize((light.viewMatrixInverse * vec4(0.0, 0.0, -1.0, 0.0)).xyz);
+        // spotLight.direction = normalize(light.params2.xyz);
+        // spotLight.direction = light.direction.xyz;
+        spotLight.angle = light.params2.w;
 
-    let irradiance = textureSampleLevel(skyboxIrradianceTexture, textureSampler, fixCubeHandedness(n), 0.0).rgb;
-    let diffuse = irradiance * surface.albedo.xyz;
+        let castShadows = light.params1.z > 0.5;
+        var shadow = 1.0;
+        if (castShadows) {
+            let shadowCSM = CalculateShadowCSMSpot(shadowPassDepth, shadowSamplerComp, surface, light, input.lightIndex);
+            shadow = shadowCSM.visibility;
+            selectedCascade = shadowCSM.selectedCascade;
+            // shadow = SampleSpotShadowMap(surface, light); // <— single 2D map on this layer
 
-    const MAX_REFLECTION_LOD = 4.0;
-    let prefilteredColor = textureSampleLevel(skyboxPrefilterTexture, textureSampler, fixCubeHandedness(r), surface.roughness * MAX_REFLECTION_LOD).rgb;
-    let brdf = textureSampleLevel(skyboxBRDFLUT, brdfSampler, vec2f(max(dot(n, v), 0.0), surface.roughness), 1.0).rg;
-    let specular = prefilteredColor * (f * brdf.x + brdf.y);
+        }
 
-    let ambient = kD * diffuse * surface.occlusion + specular;
+        lo += shadow * SpotLightRadiance(spotLight, surface);
+    }
 
-    var color = ambient + lo + surface.emissive;
-    return vec4f(color, 1.0);
+    else if (lightType == POINT_LIGHT) {
+        var p: PointLight;
+        p.pointToLight = light.position.xyz - surface.worldPosition;
+        p.color        = light.color.rgb;
+        p.intensity    = light.params1.x;
+        p.range        = light.params1.y;
+
+        var shadow = 1.0;
+        let castShadows = light.params1.z > 0.5;
+        // if (castShadows) {
+        //     shadow = SamplePointShadow(surface, light, i);
+        // }
+
+        lo += shadow * PointLightRadiance(p, surface);
+    }
+
+    return vec4f(lo, 0.0);
 }

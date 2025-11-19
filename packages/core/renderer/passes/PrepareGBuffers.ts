@@ -6,6 +6,7 @@ import { RenderTarget, RendererContext } from "../RendererContext";
 import { Camera } from "../../components/Camera";
 import { DeferredShadowMapPassSettings } from "./DeferredShadowMapPass";
 import { EventSystem } from "../../Events";
+import { Matrix4 } from "../../math/Matrix4";
 
 export class PrepareGBuffers extends RenderPass {
     public name: string = "PrepareGBuffers";
@@ -23,11 +24,21 @@ export class PrepareGBuffers extends RenderPass {
 
     public GBufferFormat: TextureFormat = "rgba8unorm";
 
+    private FrameBufferValues = new ArrayBuffer(288);
+    private FrameBufferViews = {
+        projectionOutputSize: new Float32Array(this.FrameBufferValues, 0, 4),
+        viewPosition: new Float32Array(this.FrameBufferValues, 16, 4),
+        projectionInverseMatrix: new Float32Array(this.FrameBufferValues, 32, 16),
+        viewInverseMatrix: new Float32Array(this.FrameBufferValues, 96, 16),
+        viewMatrix: new Float32Array(this.FrameBufferValues, 160, 16),
+        projectionMatrix: new Float32Array(this.FrameBufferValues, 224, 16),
+    };
+
     constructor() {
         super();
         EventSystem.on(RendererEvents.Resized, canvas => {
             this.CreateGBufferTextures();
-        })
+        });
     }
 
     private CreateGBufferTextures() {
@@ -45,26 +56,27 @@ export class PrepareGBuffers extends RenderPass {
     public async init(resources: ResourcePool) {
         this.CreateGBufferTextures();
 
-        this.skybox = CubeTexture.Create(1, 1, 6);
-        this.skyboxIrradiance = CubeTexture.Create(1, 1, 6);
-        this.skyboxPrefilter = CubeTexture.Create(1, 1, 6);
-        this.skyboxBRDFLUT = Texture.Create(1, 1, 1);
+        // this.skybox = CubeTexture.Create(1, 1, 6);
+        // this.skyboxIrradiance = CubeTexture.Create(1, 1, 6);
+        // this.skyboxPrefilter = CubeTexture.Create(1, 1, 6);
+        // this.skyboxBRDFLUT = Texture.Create(1, 1, 1);
         
+        const FrameBufferValues = new ArrayBuffer(288);
+        const FrameBufferViews = {
+            projectionOutputSize: new Float32Array(FrameBufferValues, 0, 4),
+            viewPosition: new Float32Array(FrameBufferValues, 16, 4),
+            projectionInverseMatrix: new Float32Array(FrameBufferValues, 32, 16),
+            viewInverseMatrix: new Float32Array(FrameBufferValues, 96, 16),
+            viewMatrix: new Float32Array(FrameBufferValues, 160, 16),
+            projectionMatrix: new Float32Array(FrameBufferValues, 224, 16),
+        };
+
         this.initialized = true;
     }
     
-    public async execute(resources: ResourcePool) {
+    public async preFrame(resources: ResourcePool) {
         if (!this.initialized) return;
-        // if (!Camera.mainCamera) return;
-
-        const colorTargets: RenderTarget[] = [
-            {target: this.gBufferAlbedoRT, clear: true},
-            {target: this.gBufferNormalRT, clear: true},
-            {target: this.gBufferERMORT, clear: true},
-        ];
-
-        RendererContext.BeginRenderPass(`PrepareGBuffers`, colorTargets, {target: this.depthTexture, clear: true}, true);
-        RendererContext.EndRenderPass();
+        if (!Camera.mainCamera) return;
 
         resources.setResource(PassParams.depthTexture, this.depthTexture);
         resources.setResource(PassParams.GBufferDepth, this.depthTexture);
@@ -95,5 +107,28 @@ export class PrepareGBuffers extends RenderPass {
             
         ]);
         resources.setResource(PassParams.DebugSettings, settings);
+
+        
+        const camera = Camera.mainCamera;
+
+        this.FrameBufferViews.projectionOutputSize.set([Renderer.width, Renderer.height, 0, 0]);
+        this.FrameBufferViews.viewPosition.set([...camera.transform.position.elements, 0]);
+        const tempMatrix = new Matrix4();
+        this.FrameBufferViews.projectionInverseMatrix.set(tempMatrix.clone().copy(camera.projectionMatrix).invert().elements);
+        this.FrameBufferViews.viewInverseMatrix.set(tempMatrix.clone().copy(camera.viewMatrix).invert().elements);
+        this.FrameBufferViews.viewMatrix.set(camera.viewMatrix.elements);
+        this.FrameBufferViews.projectionMatrix.set(camera.projectionMatrix.elements);
+        resources.setResource(PassParams.FrameBuffer, this.FrameBufferValues);
+    }
+
+    public async execute(resources: ResourcePool) {
+        const colorTargets: RenderTarget[] = [
+            {target: this.gBufferAlbedoRT, clear: true},
+            {target: this.gBufferNormalRT, clear: true},
+            {target: this.gBufferERMORT, clear: true},
+        ];
+
+        RendererContext.BeginRenderPass(`PrepareGBuffers`, colorTargets, {target: this.depthTexture, clear: true}, true);
+        RendererContext.EndRenderPass();
     }
 }
