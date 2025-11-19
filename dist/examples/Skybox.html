@@ -30,7 +30,7 @@
                             import { GPU, Scene, GameObject, Components, Mathf, Geometry, PBRMaterial } from '@trident/core';
             import { OrbitControls } from '@trident/plugins/OrbitControls.js';
             import { HDRParser } from '@trident/plugins/HDRParser.js';
-            import { UIFolder, UIVecStat, UISliderStat, UIColorStat } from '@trident/plugins/ui/UIStats.js';
+            import { UIFolder, UIVecStat, UISliderStat } from '@trident/plugins/ui/UIStats.js';
             import { Debugger } from '@trident/plugins/Debugger.js';
             import { SpotLightHelper } from '@trident/plugins/SpotLightHelper.js';
             import { PostProcessingPass } from '@trident/plugins/PostProcessing/PostProcessingPass.js';
@@ -49,15 +49,14 @@
               });
               observer.observe(canvas);
               new OrbitControls(canvas, camera);
-              let w;
               {
                 const lightGameObject = new GameObject(scene);
-                lightGameObject.transform.position.set(0.01, 4, 0.01);
+                lightGameObject.transform.position.set(-1, 4, 0.01);
                 lightGameObject.transform.LookAtV1(new Mathf.Vector3(0, 0, 0));
                 const light = lightGameObject.AddComponent(Components.SpotLight);
                 light.intensity = 100;
-                light.range = 7.5;
-                light.angle = 0.33;
+                light.range = 20;
+                light.angle = 0.85;
                 light.color.set(1, 1, 1, 1);
                 light.castShadows = true;
                 console.log("Light position:", lightGameObject.transform.position.elements);
@@ -87,13 +86,6 @@
                 const lightHelperGameObject = new GameObject(scene);
                 const spotLightHelper = lightHelperGameObject.AddComponent(SpotLightHelper);
                 spotLightHelper.light = light;
-                w = waterSettingsFolder;
-              }
-              {
-                const lightGameObject = new GameObject(scene);
-                lightGameObject.transform.position.set(-4, 4, 4);
-                lightGameObject.transform.LookAtV1(new Mathf.Vector3(0, 0, 0));
-                lightGameObject.AddComponent(Components.DirectionalLight);
               }
               {
                 const planeGO = new GameObject(scene);
@@ -102,20 +94,8 @@
                 planeGO.transform.scale.set(10, 10, 1);
                 const sphereMesh = planeGO.AddComponent(Components.Mesh);
                 sphereMesh.geometry = Geometry.Plane();
-                const mat = new PBRMaterial({ albedoColor: new Mathf.Color(1, 1, 1), metalness: 0.5, roughness: 0.5 });
+                const mat = new PBRMaterial({ albedoColor: new Mathf.Color(1, 1, 1), metalness: 0, roughness: 1 });
                 sphereMesh.material = mat;
-              }
-              {
-                const sphereGameObject = new GameObject(scene);
-                sphereGameObject.transform.position.set(3, -1.5, 0);
-                const sphereMesh = sphereGameObject.AddComponent(Components.Mesh);
-                sphereMesh.geometry = Geometry.Sphere();
-                const mat = new PBRMaterial({ albedoColor: new Mathf.Color(0.5843, 0.8353, 0.8784, 1), metalness: 0.5, roughness: 0.1 });
-                sphereMesh.material = mat;
-                new UIColorStat(w, "Color:", "#ffffff", (color) => {
-                  mat.params.albedoColor.setFromHex(color);
-                  mat.params.albedoColor = mat.params.albedoColor;
-                });
               }
               {
                 const sphereGameObject = new GameObject(scene);

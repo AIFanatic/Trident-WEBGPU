@@ -1606,11 +1606,13 @@ var WGSL_Shader_Draw_URL = "#include \"@trident/core/resources/webgpu/shaders/de
 
 var WGSL_Shader_DrawVertexPulling_URL = "struct VertexInput {\n    @builtin(instance_index) instanceIdx : u32, \n    @builtin(vertex_index) vertexIndex : u32,\n    // @location(0) position : vec3<f32>,\n    // @location(1) normal : vec3<f32>,\n    // @location(2) uv : vec2<f32>,\n};\n\nstruct Material {\n    AlbedoColor: vec4<f32>,\n    EmissiveColor: vec4<f32>,\n    Roughness: f32,\n    Metalness: f32,\n    Unlit: f32,\n    AlphaCutoff: f32,\n    Wireframe: f32\n};\n\nstruct VertexOutput {\n    @builtin(position) position : vec4<f32>,\n    @location(0) vPosition : vec3<f32>,\n    @location(1) vNormal : vec3<f32>,\n    @location(2) vUv : vec2<f32>,\n    @location(3) @interpolate(flat) instance : u32,\n    @location(4) barycenticCoord : vec3<f32>,\n    @location(5) tangent : vec3<f32>,\n    @location(6) bitangent : vec3<f32>,\n};\n\n@group(0) @binding(0) var<storage, read> projectionMatrix: mat4x4<f32>;\n@group(0) @binding(1) var<storage, read> viewMatrix: mat4x4<f32>;\n@group(0) @binding(2) var<storage, read> modelMatrix: array<mat4x4<f32>>;\n@group(0) @binding(3) var<storage, read> material: Material;\n@group(0) @binding(4) var TextureSampler: sampler;\n\n// These get optimized out based on \"USE*\" defines\n@group(0) @binding(5) var AlbedoMap: texture_2d<f32>;\n@group(0) @binding(6) var NormalMap: texture_2d<f32>;\n@group(0) @binding(7) var HeightMap: texture_2d<f32>;\n@group(0) @binding(8) var MetalnessMap: texture_2d<f32>;\n@group(0) @binding(9) var EmissiveMap: texture_2d<f32>;\n@group(0) @binding(10) var AOMap: texture_2d<f32>;\n\n\n@group(0) @binding(11) var<storage, read> cameraPosition: vec3<f32>;\n\n// TODO: Make it work with skinning\n@group(1) @binding(0) var<storage, read> position: array<vec4<f32>>;\n@group(1) @binding(1) var<storage, read> normal: array<vec4<f32>>;\n@group(1) @binding(2) var<storage, read> uv: array<vec2<f32>>;\n@group(1) @binding(3) var<storage, read> index: array<u32>;\n#if USE_NORMAL_MAP\n    @group(1) @binding(4) var<storage, read> tangent: array<vec4<f32>>;\n#endif\n\n@vertex\nfn vertexMain(input: VertexInput) -> VertexOutput {\n    var output : VertexOutput;\n\n    let i = u32(index[input.vertexIndex]);\n\n    var finalPosition = vec4(position[i].xyz, 1.0);\n    // var finalPosition = vec4(input.position, 1.0);\n    var finalNormal = vec4(normal[i].xyz, 0.0);\n\n\n    var modelMatrixInstance = modelMatrix[input.instanceIdx];\n    var modelViewMatrix = viewMatrix * modelMatrixInstance;\n\n    output.instance = input.instanceIdx;\n    output.position = projectionMatrix * modelViewMatrix * vec4(finalPosition.xyz, 1.0);\n    output.vPosition = finalPosition.xyz;\n    output.vUv = uv[i];\n    let worldNormal = normalize(modelMatrixInstance * vec4(finalNormal.xyz, 0.0)).xyz;\n    output.vNormal = worldNormal;\n\n    #if USE_NORMAL_MAP\n        let tangentData = tangent[i];\n        let worldTangent = normalize(modelMatrixInstance * vec4(tangentData.xyz, 0.0)).xyz;\n        let worldBitangent = cross(worldNormal, worldTangent) * tangentData.w;\n        output.tangent = worldTangent;\n        output.bitangent = worldBitangent;\n    #endif\n\n    // emit a barycentric coordinate\n    output.barycenticCoord = vec3f(0);\n    output.barycenticCoord[input.vertexIndex % 3] = 1.0;\n\n    return output;\n}\n\nstruct FragmentOutput {\n    @location(0) albedo : vec4f,\n    @location(1) normal : vec4f,\n    @location(2) RMO : vec4f,\n};\n\nfn inversesqrt(v: f32) -> f32 {\n    return 1.0 / sqrt(v);\n}\n\nfn edgeFactor(bary: vec3f) -> f32 {\n    let lineThickness = 1.0;\n    let d = fwidth(bary);\n    let a3 = smoothstep(vec3f(0.0), d * lineThickness, bary);\n    return min(min(a3.x, a3.y), a3.z);\n}\n\n@fragment\nfn fragmentMain(input: VertexOutput) -> FragmentOutput {\n    var output: FragmentOutput;\n\n    let mat = material;\n\n    var uv = input.vUv;// * vec2(4.0, 2.0);\n\n    var modelMatrixInstance = modelMatrix[input.instance];\n\n    var albedo = mat.AlbedoColor;\n    var roughness = mat.Roughness;\n    var metalness = mat.Metalness;\n    var occlusion = 1.0;\n    var unlit = mat.Unlit;\n\n    // var albedo = mat.AlbedoColor;\n    #if USE_ALBEDO_MAP\n        albedo *= textureSample(AlbedoMap, TextureSampler, uv);\n    #endif\n\n    if (albedo.a < mat.AlphaCutoff) {\n        discard;\n    }\n\n    var normal: vec3f = input.vNormal;\n    #if USE_NORMAL_MAP\n        var tbn: mat3x3<f32>;\n        tbn[0] = input.tangent;\n        tbn[1] = input.bitangent;\n        tbn[2] = input.vNormal;\n        \n        let normalSample = textureSample(NormalMap, TextureSampler, uv).xyz * 2.0 - 1.0; // [0 - 1] -> [-1, -1] from brga8unorm to float\n        normal = tbn * normalSample;\n    #endif\n\n    #if USE_METALNESS_MAP\n        let metalnessRoughness = textureSample(MetalnessMap, TextureSampler, uv);\n        metalness *= metalnessRoughness.b;\n        roughness *= metalnessRoughness.g;\n    #endif\n\n    var emissive = mat.EmissiveColor;\n    #if USE_EMISSIVE_MAP\n        emissive *= textureSample(EmissiveMap, TextureSampler, uv);\n    #endif\n\n    #if USE_AO_MAP\n        occlusion = textureSample(AOMap, TextureSampler, uv).r;\n        occlusion = 1.0;\n    #endif\n\n    output.albedo = vec4(albedo.rgb, roughness);\n    output.normal = vec4(normal, metalness);\n    // output.normal = vec4(input.tangent.xyz, metalness);\n    output.RMO = vec4(emissive.rgb, unlit);\n\n\n    // Wireframe\n    output.albedo *= 1.0 - edgeFactor(input.barycenticCoord) * mat.Wireframe;\n\n    // // Flat shading\n    // let xTangent: vec3f = dpdx( input.vPosition );\n    // let yTangent: vec3f = dpdy( input.vPosition );\n    // let faceNormal: vec3f = normalize( cross( xTangent, yTangent ) );\n\n    // output.normal = vec4(faceNormal.xyz, metalness);\n\n    return output;\n}";
 
-var WGSL_Shader_DeferredLighting_URL = "#include \"@trident/core/resources/webgpu/shaders/deferred/LightStruct.wgsl\";\n#include \"@trident/core/resources/webgpu/shaders/deferred/ShadowMap.wgsl\";\n#include \"@trident/core/resources/webgpu/shaders/deferred/ShadowMapCSM.wgsl\";\n#include \"@trident/core/resources/webgpu/shaders/deferred/OctahedralEncoding.wgsl\";\n\nstruct Settings {\n    debugDepthPass: f32,\n    debugDepthMipLevel: f32,\n    debugDepthExposure: f32,\n    viewType: f32,\n    useHeightMap: f32,\n    heightScale: f32,\n\n    debugShadowCascades: f32,\n    pcfResolution: f32,\n    blendThreshold: f32,\n    viewBlendThreshold: f32,\n\n    cameraPosition: vec4<f32>,\n};\n\nstruct VertexOutput {\n    @builtin(position) position : vec4<f32>,\n    @location(0) vUv : vec2<f32>,\n};\n\n@group(0) @binding(0) var textureSampler: sampler;\n\n@group(0) @binding(1) var albedoTexture: texture_2d<f32>;\n@group(0) @binding(2) var normalTexture: texture_2d<f32>;\n@group(0) @binding(3) var ermoTexture: texture_2d<f32>;\n@group(0) @binding(4) var depthTexture: texture_depth_2d;\n@group(0) @binding(5) var shadowPassDepth: texture_depth_2d_array;\n\n@group(0) @binding(6) var skyboxTexture: texture_cube<f32>;\n@group(0) @binding(7) var skyboxIrradianceTexture: texture_cube<f32>;\n@group(0) @binding(8) var skyboxPrefilterTexture: texture_cube<f32>;\n@group(0) @binding(9) var skyboxBRDFLUT: texture_2d<f32>;\n\n@group(0) @binding(10) var brdfSampler: sampler;\n@group(0) @binding(11) var<storage, read> lights: array<Light>;\n@group(0) @binding(12) var<storage, read> lightCount: u32;\n\n\n\n\n\n\nstruct View {\n    projectionOutputSize: vec4<f32>,\n    viewPosition: vec4<f32>,\n    projectionInverseMatrix: mat4x4<f32>,\n    viewInverseMatrix: mat4x4<f32>,\n    viewMatrix: mat4x4<f32>,\n};\n@group(0) @binding(13) var<storage, read> view: View;\n\n\nconst numCascades = 4;\n\n@group(0) @binding(14) var shadowSamplerComp: sampler_comparison;\n\n@group(0) @binding(15) var<storage, read> settings: Settings;\n\n\n// Full-screen triangle (covers screen with 3 verts)\nconst p = array<vec2f, 3>(\n    vec2f(-1.0, -1.0),\n    vec2f( 3.0, -1.0),\n    vec2f(-1.0,  3.0)\n);\n\n@vertex\nfn vertexMain(@builtin(vertex_index) vertexIndex : u32) -> VertexOutput {\n    var output: VertexOutput;\n    output.position = vec4(p[vertexIndex], 0.0, 1.0);\n    let uv = 0.5 * (p[vertexIndex] + vec2f(1.0, 1.0));\n    output.vUv = vec2f(uv.x, 1.0 - uv.y);\n    return output;\n}\n\nconst PI = 3.141592653589793;\n\nconst SPOT_LIGHT = 0;\nconst DIRECTIONAL_LIGHT = 1;\nconst POINT_LIGHT = 2;\nconst AREA_LIGHT = 3;\n\nfn reconstructWorldPosFromZ(\n    coords: vec2<f32>,\n    size: vec2<f32>,\n    depth: f32,\n    projInverse: mat4x4<f32>,\n    viewInverse: mat4x4<f32>\n    ) -> vec4<f32> {\n    let uv = coords.xy / size;\n    let x = uv.x * 2.0 - 1.0;\n    let y = (1.0 - uv.y) * 2.0 - 1.0;\n    let projectedPos = vec4(x, y, depth, 1.0);\n    var worldPosition = projInverse * projectedPos;\n    worldPosition = vec4(worldPosition.xyz / worldPosition.w, 1.0);\n    worldPosition = viewInverse * worldPosition;\n    return worldPosition;\n}\n\nfn DistributionGGX(n: vec3f, h: vec3f, roughness: f32) -> f32 {\n  let a = roughness * roughness;\n  let a2 = a * a;\n  let nDotH = max(dot(n, h), 0.0);\n  let nDotH2 = nDotH * nDotH;\n  var denom = (nDotH2 * (a2 - 1.0) + 1.0);\n  denom = PI * denom * denom;\n  return a2 / denom;\n}\n\nfn GeometrySchlickGGX(nDotV: f32, roughness: f32) -> f32 {\n  let r = (roughness + 1.0);\n  let k = (r * r) / 8.0;\n  return nDotV / (nDotV * (1.0 - k) + k);\n}\n\nfn GeometrySmith(n: vec3f, v: vec3f, l: vec3f, roughness: f32) -> f32 {\n  let nDotV = max(dot(n, v), 0.0);\n  let nDotL = max(dot(n, l), 0.0);\n  let ggx2 = GeometrySchlickGGX(nDotV, roughness);\n  let ggx1 = GeometrySchlickGGX(nDotL, roughness);\n  return ggx1 * ggx2;\n}\n\nfn FresnelSchlick(cosTheta: f32, f0: vec3f) -> vec3f {\n  return f0 + (1.0 - f0) * pow(clamp(1.0 - cosTheta, 0.0, 1.0), 5.0);\n}\n\nfn FresnelSchlickRoughness(cosTheta: f32, f0: vec3f, roughness: f32) -> vec3f {\n  return f0 + (max(vec3(1.0 - roughness), f0) - f0) * pow(clamp(1.0 - cosTheta, 0.0, 1.0), 5.0);\n}\n\nfn fixCubeHandedness(d: vec3f) -> vec3f {\n    // try flipping X first; if that’s wrong, flip Z instead\n    return vec3f(-d.x, d.y, d.z);\n}\n\nfn CalculateBRDF(surface: Surface, pointToLight: vec3<f32>) -> vec3<f32> {\n    // cook-torrance brdf\n    let L = normalize(pointToLight);\n    let H = normalize(surface.V + L);\n    let distance = length(pointToLight);\n\n    let NDF = DistributionGGX(surface.N, H, surface.roughness);\n    let G = GeometrySmith(surface.N, surface.V, L, surface.roughness);\n    let F = FresnelSchlick(max(dot(H, surface.V), 0.0), surface.F0);\n\n    let kD = (vec3(1.0, 1.0, 1.0) - F) * (1.0 - surface.metallic);\n\n    let NdotL = max(dot(surface.N, L), 0.0);\n\n    let numerator = NDF * G * F;\n    let denominator = max(4.0 * max(dot(surface.N, surface.V), 0.0) * NdotL, 0.001);\n    let specular = numerator / vec3(denominator, denominator, denominator);\n\n    return (kD * surface.albedo.rgb / vec3(PI, PI, PI) + specular) * NdotL;\n}\n\nfn DirectionalLightRadiance(light: DirectionalLight, surface : Surface) -> vec3<f32> {\n    return CalculateBRDF(surface, light.direction) * light.color * light.intensity;\n}\n\nfn rangeAttenuation(range : f32, distance : f32) -> f32 {\n    if (range <= 0.0) {\n        // Negative range means no cutoff\n        return 1.0 / pow(distance, 2.0);\n    }\n    return clamp(1.0 - pow(distance / range, 4.0), 0.0, 1.0) / pow(distance, 2.0);\n}\n\nfn SpotLightRadiance(light : SpotLight, surface : Surface) -> vec3<f32> {\n    // pointToLight is SURFACE -> LIGHT (as you already set)\n    let dist = length(light.pointToLight);\n\n    // For cone test we need LIGHT -> SURFACE\n    let L_ls = normalize(-light.pointToLight);   // light -> surface\n    let cd   = dot(light.direction, L_ls);       // cos(theta), 1 at center\n\n    // Smooth falloff from edge to center: 0 at cos(angle), 1 at 1.0\n    let spot = smoothstep(cos(light.angle), 1.0, cd);\n\n    // Range attenuation as you have it\n    let attenuation = rangeAttenuation(light.range, dist) * spot;\n\n    // BRDF usually expects wi = SURFACE -> LIGHT\n    let wi = -L_ls; // (surface -> light)\n    let radiance = CalculateBRDF(surface, wi) * light.color * light.intensity * attenuation;\n    return radiance;\n}\n\nfn PointLightRadiance(light: PointLight, surface: Surface) -> vec3<f32> {\n    let dist = length(light.pointToLight);\n    let wi   = normalize(light.pointToLight);        // surface -> light\n    let att  = rangeAttenuation(light.range, dist);  // your smooth cutoff / r^2\n    return CalculateBRDF(surface, wi) * light.color * light.intensity * att;\n}\n\n@fragment\nfn fragmentMain(input: VertexOutput) -> @location(0) vec4<f32> {\n    // Load depth once\n    let pix   = vec2<i32>(floor(input.position.xy));\n    let depth = textureLoad(depthTexture, pix, 0);\n\n    // Build NDC + view/world rays (same as before)\n    let ndc = vec3<f32>(\n        (input.position.x / view.projectionOutputSize.x) * 2.0 - 1.0,\n        (input.position.y / view.projectionOutputSize.y) * 2.0 - 1.0,\n        1.0\n    );\n    let viewRay4 = view.projectionInverseMatrix * vec4(ndc, 1.0);\n    var viewRay  = normalize(viewRay4.xyz / viewRay4.w);\n    viewRay.y   *= -1.0;\n    var worldRay = normalize((view.viewInverseMatrix * vec4(viewRay, 0.0)).xyz);\n\n    // ---- compute derivatives BEFORE any divergent branch ----\n    let uv = input.vUv;\n    let dUVdx = dpdx(uv);\n    let dUVdy = dpdy(uv);\n\n    // For cubemap LOD: take grads of the direction (works well in practice)\n    let dWRdx = dpdx(worldRay);\n    let dWRdy = dpdy(worldRay);\n\n    // Early sky-out WITH explicit grads (safe mip selection)\n    if (depth >= 0.9999999) {\n        // var sky = textureSampleGrad(skyboxTexture, textureSampler, worldRay, dWRdx, dWRdy).rgb;\n        let sky = textureSampleLevel(skyboxTexture, textureSampler, worldRay, 0.0).rgb; // textureSampleGrad with a cubemap doesn't work on firefox\n        return vec4f(sky, 1.0);\n    }\n\n    let worldPosition = reconstructWorldPosFromZ(\n        input.position.xy,\n        view.projectionOutputSize.xy,\n        depth,\n        view.projectionInverseMatrix,\n        view.viewInverseMatrix\n    );\n\n    let albedo = textureSampleGrad(albedoTexture, textureSampler, uv, dUVdx, dUVdy);\n    let normal = textureSampleGrad(normalTexture, textureSampler, uv, dUVdx, dUVdy);\n    let ermo   = textureSampleGrad(ermoTexture,   textureSampler, uv, dUVdx, dUVdy);\n\n    let unlit = ermo.a;\n\n    if (unlit > 0.5) {\n        var color = albedo.rgb;\n        return vec4f(color, 1.0);\n    }\n\n    var surface: Surface;\n    surface.depth          = depth;\n    surface.albedo         = albedo.rgb;\n    surface.roughness      = clamp(albedo.a, 0.0, 0.99);\n    surface.occlusion      = normal.z;\n    surface.metallic       = normal.a;\n    surface.emissive       = ermo.rgb;\n    surface.worldPosition  = worldPosition.xyz;\n    \n    surface.N              = OctDecode(normal.rg);\n    surface.F0             = mix(vec3(0.04), surface.albedo.rgb, vec3(surface.metallic));\n    surface.V              = normalize(view.viewPosition.xyz - surface.worldPosition);\n\n    let n = surface.N;\n    let v = surface.V;\n    let r = reflect(-v, n);\n\n    var lo = vec3f(0.0);\n    var selectedCascade = 0;\n\n    for (var i = 0u; i < lightCount; i++) {\n        let light = lights[i];\n        let lightType = u32(light.color.a);\n\n        if (lightType == DIRECTIONAL_LIGHT) {\n            var directionalLight: DirectionalLight;\n            directionalLight.direction = normalize((light.viewMatrixInverse * vec4(0.0, 0.0, 1.0, 0.0)).xyz);\n            // directionalLight.direction = light.direction.xyz;\n            directionalLight.color = light.color.rgb;\n            directionalLight.intensity = light.params1.x;\n\n            let castShadows = light.params1.z > 0.5;\n            var shadow = 1.0;\n            if (castShadows) {\n                let shadowCSM = CalculateShadowCSM(shadowPassDepth, shadowSamplerComp, surface, light, i);\n                shadow = shadowCSM.visibility;\n                selectedCascade = shadowCSM.selectedCascade;\n            }\n\n            // lo += shadow * DirectionalLightRadiance(directionalLight, surface) * radiance;\n            lo += shadow * DirectionalLightRadiance(directionalLight, surface);\n        }\n\n        else if (lightType == SPOT_LIGHT) {\n            var spotLight: SpotLight;\n            \n            spotLight.pointToLight = light.position.xyz - surface.worldPosition;\n            spotLight.color = light.color.rgb;\n            spotLight.intensity = light.params1.r;\n            spotLight.range = light.params1.g;\n            spotLight.direction = normalize((light.viewMatrixInverse * vec4(0.0, 0.0, -1.0, 0.0)).xyz);\n            // spotLight.direction = light.direction.xyz;\n            spotLight.angle = light.params2.w;\n\n            if (distance(light.position.xyz, surface.worldPosition) > spotLight.range) {\n                continue;\n            }\n\n            let castShadows = light.params1.z > 0.5;\n            var shadow = 1.0;\n            if (castShadows) {\n                let shadowCSM = CalculateShadowCSMSpot(shadowPassDepth, shadowSamplerComp, surface, light, i);\n                shadow = shadowCSM.visibility;\n                selectedCascade = shadowCSM.selectedCascade;\n                // shadow = SampleSpotShadowMap(surface, light); // <— single 2D map on this layer\n\n            }\n\n            lo += shadow * SpotLightRadiance(spotLight, surface);\n        }\n\n        else if (lightType == POINT_LIGHT) {\n            var p: PointLight;\n            p.pointToLight = light.position.xyz - surface.worldPosition;\n            p.color        = light.color.rgb;\n            p.intensity    = light.params1.x;\n            p.range        = light.params1.y;\n\n            // optional hard range cut\n            if (length(p.pointToLight) > p.range) {\n                continue;\n            }\n\n            var shadow = 1.0;\n            let castShadows = light.params1.z > 0.5;\n            // if (castShadows) {\n            //     shadow = SamplePointShadow(surface, light, i);\n            // }\n\n            lo += shadow * PointLightRadiance(p, surface);\n        }\n    }\n\n    let f = FresnelSchlickRoughness(max(dot(n, v), 0.00001), surface.F0, surface.roughness);\n    let kS = f;\n    var kD = vec3f(1.0) - kS;\n    kD *= 1.0 - surface.metallic;\n\n    let irradiance = textureSampleLevel(skyboxIrradianceTexture, textureSampler, fixCubeHandedness(n), 0.0).rgb;\n    let diffuse = irradiance * surface.albedo.xyz;\n\n    const MAX_REFLECTION_LOD = 4.0;\n    let prefilteredColor = textureSampleLevel(skyboxPrefilterTexture, textureSampler, fixCubeHandedness(r), surface.roughness * MAX_REFLECTION_LOD).rgb;\n    let brdf = textureSampleLevel(skyboxBRDFLUT, brdfSampler, vec2f(max(dot(n, v), 0.0), surface.roughness), 1.0).rg;\n    let specular = prefilteredColor * (f * brdf.x + brdf.y);\n\n    let ambient = kD * diffuse * surface.occlusion + specular;\n\n    var color = ambient + lo + surface.emissive;\n    return vec4f(color, 1.0);\n}";
+var WGSL_Shader_DeferredLighting_URL = "#include \"@trident/core/resources/webgpu/shaders/deferred/SurfaceStruct.wgsl\";\n#include \"@trident/core/resources/webgpu/shaders/deferred/LightStruct.wgsl\";\n#include \"@trident/core/resources/webgpu/shaders/deferred/ShadowMap.wgsl\";\n#include \"@trident/core/resources/webgpu/shaders/deferred/ShadowMapCSM.wgsl\";\n#include \"@trident/core/resources/webgpu/shaders/deferred/OctahedralEncoding.wgsl\";\n\nstruct Settings {\n    debugDepthPass: f32,\n    debugDepthMipLevel: f32,\n    debugDepthExposure: f32,\n    viewType: f32,\n    useHeightMap: f32,\n    heightScale: f32,\n\n    debugShadowCascades: f32,\n    pcfResolution: f32,\n    blendThreshold: f32,\n    viewBlendThreshold: f32,\n\n    cameraPosition: vec4<f32>,\n};\n\nstruct VertexInput {\n    @builtin(instance_index) instance : u32, \n    @location(0) position : vec3<f32>,\n    @location(1) normal : vec3<f32>,\n    @location(2) uv : vec2<f32>,\n};\n\nstruct VertexOutput {\n    @builtin(position) position: vec4<f32>,\n    @location(0) vUv: vec2<f32>,\n    @location(1) @interpolate(flat) lightIndex: u32,\n};\n\n@group(0) @binding(0) var textureSampler: sampler;\n\n@group(0) @binding(1) var albedoTexture: texture_2d<f32>;\n@group(0) @binding(2) var normalTexture: texture_2d<f32>;\n@group(0) @binding(3) var ermoTexture: texture_2d<f32>;\n@group(0) @binding(4) var depthTexture: texture_depth_2d;\n@group(0) @binding(5) var shadowPassDepth: texture_depth_2d_array;\n\n@group(0) @binding(6) var skyboxTexture: texture_cube<f32>;\n@group(0) @binding(7) var skyboxIrradianceTexture: texture_cube<f32>;\n@group(0) @binding(8) var skyboxPrefilterTexture: texture_cube<f32>;\n@group(0) @binding(9) var skyboxBRDFLUT: texture_2d<f32>;\n\n@group(0) @binding(10) var brdfSampler: sampler;\n@group(0) @binding(11) var<storage, read> lights: array<Light>;\n@group(0) @binding(12) var<storage, read> lightCount: u32;\n\n\n\n\n\n\nstruct View {\n    projectionOutputSize: vec4<f32>,\n    viewPosition: vec4<f32>,\n    projectionInverseMatrix: mat4x4<f32>,\n    viewInverseMatrix: mat4x4<f32>,\n    viewMatrix: mat4x4<f32>,\n    projectionMatrix: mat4x4<f32>,\n};\n@group(0) @binding(13) var<storage, read> view: View;\n\n\nconst numCascades = 4;\n\n@group(0) @binding(14) var shadowSamplerComp: sampler_comparison;\n\n@group(0) @binding(15) var<storage, read> settings: Settings;\n\n@vertex\nfn vertexMain(input: VertexInput) -> VertexOutput {\n    var output: VertexOutput;\n    let light = lights[input.instance];\n    let lightType = u32(light.color.a);\n\n    output.position = view.projectionMatrix * view.viewMatrix * light.lightModelMatrix * vec4(input.position, 1.0);\n    if (lightType == DIRECTIONAL_LIGHT) {\n        // Flip X so the quad becomes back-facing (survives front-face cull).\n        // Place it at the far plane so it passes depthCompare \"greater-equal\".\n        output.position = vec4(-input.position.x, input.position.y, 1.0, 1.0);\n    }\n\n    output.vUv = input.uv;\n    output.lightIndex = input.instance;\n    return output;\n}\n\nconst PI = 3.141592653589793;\n\nconst SPOT_LIGHT = 0;\nconst DIRECTIONAL_LIGHT = 1;\nconst POINT_LIGHT = 2;\nconst AREA_LIGHT = 3;\n\nfn reconstructWorldPosFromZ(\n    coords: vec2<f32>,\n    size: vec2<f32>,\n    depth: f32,\n    projInverse: mat4x4<f32>,\n    viewInverse: mat4x4<f32>\n    ) -> vec4<f32> {\n    let uv = coords.xy / size;\n    let x = uv.x * 2.0 - 1.0;\n    let y = (1.0 - uv.y) * 2.0 - 1.0;\n    let projectedPos = vec4(x, y, depth, 1.0);\n    var worldPosition = projInverse * projectedPos;\n    worldPosition = vec4(worldPosition.xyz / worldPosition.w, 1.0);\n    worldPosition = viewInverse * worldPosition;\n    return worldPosition;\n}\n\nfn DistributionGGX(n: vec3f, h: vec3f, roughness: f32) -> f32 {\n  let a = roughness * roughness;\n  let a2 = a * a;\n  let nDotH = max(dot(n, h), 0.0);\n  let nDotH2 = nDotH * nDotH;\n  var denom = (nDotH2 * (a2 - 1.0) + 1.0);\n  denom = PI * denom * denom;\n  return a2 / denom;\n}\n\nfn GeometrySchlickGGX(nDotV: f32, roughness: f32) -> f32 {\n  let r = (roughness + 1.0);\n  let k = (r * r) / 8.0;\n  return nDotV / (nDotV * (1.0 - k) + k);\n}\n\nfn GeometrySmith(n: vec3f, v: vec3f, l: vec3f, roughness: f32) -> f32 {\n  let nDotV = max(dot(n, v), 0.0);\n  let nDotL = max(dot(n, l), 0.0);\n  let ggx2 = GeometrySchlickGGX(nDotV, roughness);\n  let ggx1 = GeometrySchlickGGX(nDotL, roughness);\n  return ggx1 * ggx2;\n}\n\nfn FresnelSchlick(cosTheta: f32, f0: vec3f) -> vec3f {\n  return f0 + (1.0 - f0) * pow(clamp(1.0 - cosTheta, 0.0, 1.0), 5.0);\n}\n\nfn CalculateBRDF(surface: Surface, pointToLight: vec3<f32>) -> vec3<f32> {\n    // cook-torrance brdf\n    let L = normalize(pointToLight);\n    let H = normalize(surface.V + L);\n    let distance = length(pointToLight);\n\n    let NDF = DistributionGGX(surface.N, H, surface.roughness);\n    let G = GeometrySmith(surface.N, surface.V, L, surface.roughness);\n    let F = FresnelSchlick(max(dot(H, surface.V), 0.0), surface.F0);\n\n    let kD = (vec3(1.0, 1.0, 1.0) - F) * (1.0 - surface.metallic);\n\n    let NdotL = max(dot(surface.N, L), 0.0);\n\n    let numerator = NDF * G * F;\n    let denominator = max(4.0 * max(dot(surface.N, surface.V), 0.0) * NdotL, 0.001);\n    let specular = numerator / vec3(denominator, denominator, denominator);\n\n    return (kD * surface.albedo.rgb / vec3(PI, PI, PI) + specular) * NdotL;\n}\n\nfn DirectionalLightRadiance(light: DirectionalLight, surface : Surface) -> vec3<f32> {\n    return CalculateBRDF(surface, light.direction) * light.color * light.intensity;\n}\n\nfn rangeAttenuation(range : f32, distance : f32) -> f32 {\n    if (range <= 0.0) {\n        // Negative range means no cutoff\n        return 1.0 / pow(distance, 2.0);\n    }\n    return clamp(1.0 - pow(distance / range, 4.0), 0.0, 1.0) / pow(distance, 2.0);\n}\n\nfn SpotLightRadiance(light : SpotLight, surface : Surface) -> vec3<f32> {\n    // pointToLight is SURFACE -> LIGHT (as you already set)\n    let dist = length(light.pointToLight);\n\n    // For cone test we need LIGHT -> SURFACE\n    let L_ls = normalize(-light.pointToLight);   // light -> surface\n    let cd   = dot(light.direction, L_ls);       // cos(theta), 1 at center\n\n    // Smooth falloff from edge to center: 0 at cos(angle), 1 at 1.0\n    let spot = smoothstep(cos(light.angle), 1.0, cd);\n\n    // Range attenuation as you have it\n    let attenuation = rangeAttenuation(light.range, dist) * spot;\n\n    // BRDF usually expects wi = SURFACE -> LIGHT\n    let wi = -L_ls; // (surface -> light)\n    let radiance = CalculateBRDF(surface, wi) * light.color * light.intensity * attenuation;\n    return radiance;\n}\n\nfn PointLightRadiance(light: PointLight, surface: Surface) -> vec3<f32> {\n    let dist = length(light.pointToLight);\n    let wi   = normalize(light.pointToLight);        // surface -> light\n    let att  = rangeAttenuation(light.range, dist);  // your smooth cutoff / r^2\n    return CalculateBRDF(surface, wi) * light.color * light.intensity * att;\n}\n\n@fragment\nfn fragmentMain(input: VertexOutput) -> @location(0) vec4<f32> {\n    // Load depth once\n    let pix   = vec2<i32>(floor(input.position.xy));\n    let depth = textureLoad(depthTexture, pix, 0);\n\n    let fragCoord = input.position.xy;\n    let screenSize = view.projectionOutputSize.xy;\n\n    let uv = fragCoord / screenSize;\n\n    let worldPosition = reconstructWorldPosFromZ(\n        input.position.xy,\n        view.projectionOutputSize.xy,\n        depth,\n        view.projectionInverseMatrix,\n        view.viewInverseMatrix\n    );\n\n    let albedo = textureSample(albedoTexture, textureSampler, uv);\n    let normal = textureSample(normalTexture, textureSampler, uv);\n    let ermo   = textureSample(ermoTexture,   textureSampler, uv);\n\n    let unlit = ermo.a;\n\n    if (unlit > 0.5) {\n        var color = albedo.rgb;\n        return vec4f(color, 1.0);\n    }\n\n    var surface: Surface;\n    surface.depth          = depth;\n    surface.albedo         = albedo.rgb;\n    surface.roughness      = clamp(albedo.a, 0.0, 0.99);\n    surface.occlusion      = normal.z;\n    surface.metallic       = normal.a;\n    surface.emissive       = ermo.rgb;\n    surface.worldPosition  = worldPosition.xyz;\n    \n    surface.N              = OctDecode(normal.rg);\n    surface.F0             = mix(vec3(0.04), surface.albedo.rgb, vec3(surface.metallic));\n    surface.V              = normalize(view.viewPosition.xyz - surface.worldPosition);\n\n    var lo = vec3f(0.0);\n    var selectedCascade = 0;\n\n    var light = lights[input.lightIndex];\n    let lightType = u32(light.color.a);\n\n    if (lightType == DIRECTIONAL_LIGHT) {\n        var directionalLight: DirectionalLight;\n        directionalLight.direction = normalize((light.viewMatrixInverse * vec4(0.0, 0.0, 1.0, 0.0)).xyz);\n        // directionalLight.direction = light.direction.xyz;\n        directionalLight.color = light.color.rgb;\n        directionalLight.intensity = light.params1.x;\n\n        let castShadows = light.params1.z > 0.5;\n        var shadow = 1.0;\n        if (castShadows) {\n            let shadowCSM = CalculateShadowCSM(shadowPassDepth, shadowSamplerComp, surface, light, input.lightIndex);\n            shadow = shadowCSM.visibility;\n            selectedCascade = shadowCSM.selectedCascade;\n        }\n\n        // lo += shadow * DirectionalLightRadiance(directionalLight, surface) * radiance;\n        lo += shadow * DirectionalLightRadiance(directionalLight, surface);\n    }\n\n    else if (lightType == SPOT_LIGHT) {\n        var spotLight: SpotLight;\n        \n        // light.position.x *= -1.0;\n        // light.position.z *= -1.0;\n        spotLight.pointToLight = light.position.xyz - surface.worldPosition;\n        spotLight.color = light.color.rgb;\n        spotLight.intensity = light.params1.r;\n        spotLight.range = light.params1.g;\n        spotLight.direction = normalize((light.viewMatrixInverse * vec4(0.0, 0.0, -1.0, 0.0)).xyz);\n        // spotLight.direction = normalize(light.params2.xyz);\n        // spotLight.direction = light.direction.xyz;\n        spotLight.angle = light.params2.w;\n\n        let castShadows = light.params1.z > 0.5;\n        var shadow = 1.0;\n        if (castShadows) {\n            let shadowCSM = CalculateShadowCSMSpot(shadowPassDepth, shadowSamplerComp, surface, light, input.lightIndex);\n            shadow = shadowCSM.visibility;\n            selectedCascade = shadowCSM.selectedCascade;\n            // shadow = SampleSpotShadowMap(surface, light); // <— single 2D map on this layer\n\n        }\n\n        lo += shadow * SpotLightRadiance(spotLight, surface);\n    }\n\n    else if (lightType == POINT_LIGHT) {\n        var p: PointLight;\n        p.pointToLight = light.position.xyz - surface.worldPosition;\n        p.color        = light.color.rgb;\n        p.intensity    = light.params1.x;\n        p.range        = light.params1.y;\n\n        var shadow = 1.0;\n        let castShadows = light.params1.z > 0.5;\n        // if (castShadows) {\n        //     shadow = SamplePointShadow(surface, light, i);\n        // }\n\n        lo += shadow * PointLightRadiance(p, surface);\n    }\n\n    return vec4f(lo, 0.0);\n}";
+
+var WGSL_Shader_IBLLighting_URL = "#include \"@trident/core/resources/webgpu/shaders/deferred/OctahedralEncoding.wgsl\";\n#include \"@trident/core/resources/webgpu/shaders/deferred/SurfaceStruct.wgsl\";\n\nstruct VertexOutput {\n    @builtin(position) position: vec4<f32>,\n    @location(0) vUv: vec2<f32>,\n};\n\n@group(0) @binding(0) var textureSampler: sampler;\n\n@group(0) @binding(1) var albedoTexture: texture_2d<f32>;\n@group(0) @binding(2) var normalTexture: texture_2d<f32>;\n@group(0) @binding(3) var ermoTexture: texture_2d<f32>;\n@group(0) @binding(4) var depthTexture: texture_depth_2d;\n\n@group(0) @binding(6) var skyboxTexture: texture_cube<f32>;\n@group(0) @binding(7) var skyboxIrradianceTexture: texture_cube<f32>;\n@group(0) @binding(8) var skyboxPrefilterTexture: texture_cube<f32>;\n@group(0) @binding(9) var skyboxBRDFLUT: texture_2d<f32>;\n\n@group(0) @binding(10) var brdfSampler: sampler;\n\nstruct View {\n    projectionOutputSize: vec4<f32>,\n    viewPosition: vec4<f32>,\n    projectionInverseMatrix: mat4x4<f32>,\n    viewInverseMatrix: mat4x4<f32>,\n    viewMatrix: mat4x4<f32>,\n    projectionMatrix: mat4x4<f32>,\n};\n@group(0) @binding(13) var<storage, read> view: View;\n\n\n// Full-screen triangle (covers screen with 3 verts)\nconst p = array<vec2f, 3>(\n    vec2f(-1.0, -1.0),\n    vec2f( 3.0, -1.0),\n    vec2f(-1.0,  3.0)\n);\n\n@vertex\nfn vertexMain(@builtin(vertex_index) vertexIndex : u32) -> VertexOutput {\n    var output: VertexOutput;\n    output.position = vec4(p[vertexIndex], 0.0, 1.0);\n    let uv = 0.5 * (p[vertexIndex] + vec2f(1.0, 1.0));\n    output.vUv = vec2f(uv.x, 1.0 - uv.y);\n    return output;\n}\n\nfn reconstructWorldPosFromZ(\n    coords: vec2<f32>,\n    size: vec2<f32>,\n    depth: f32,\n    projInverse: mat4x4<f32>,\n    viewInverse: mat4x4<f32>\n    ) -> vec4<f32> {\n    let uv = coords.xy / size;\n    let x = uv.x * 2.0 - 1.0;\n    let y = (1.0 - uv.y) * 2.0 - 1.0;\n    let projectedPos = vec4(x, y, depth, 1.0);\n    var worldPosition = projInverse * projectedPos;\n    worldPosition = vec4(worldPosition.xyz / worldPosition.w, 1.0);\n    worldPosition = viewInverse * worldPosition;\n    return worldPosition;\n}\n\nfn FresnelSchlick(cosTheta: f32, f0: vec3f) -> vec3f {\n  return f0 + (1.0 - f0) * pow(clamp(1.0 - cosTheta, 0.0, 1.0), 5.0);\n}\n\nfn FresnelSchlickRoughness(cosTheta: f32, f0: vec3f, roughness: f32) -> vec3f {\n  return f0 + (max(vec3(1.0 - roughness), f0) - f0) * pow(clamp(1.0 - cosTheta, 0.0, 1.0), 5.0);\n}\n\nfn fixCubeHandedness(d: vec3f) -> vec3f {\n    // try flipping X first; if that’s wrong, flip Z instead\n    return vec3f(-d.x, d.y, d.z);\n}\n\n@fragment\nfn fragmentMain(input: VertexOutput) -> @location(0) vec4<f32> {\n    let uv = input.vUv;\n    let pix   = vec2<i32>(floor(input.position.xy));\n\n    let depth = textureLoad(depthTexture, pix, 0);\n    let albedo = textureSample(albedoTexture, textureSampler, uv);\n    let normal = textureSample(normalTexture, textureSampler, uv);\n    let ermo   = textureSample(ermoTexture,   textureSampler, uv);\n\n    let worldPosition = reconstructWorldPosFromZ(\n        input.position.xy,\n        view.projectionOutputSize.xy,\n        depth,\n        view.projectionInverseMatrix,\n        view.viewInverseMatrix\n    );\n\n    var surface: Surface;\n    surface.depth          = depth;\n    surface.albedo         = albedo.rgb;\n    surface.roughness      = clamp(albedo.a, 0.0, 0.99);\n    surface.occlusion      = normal.z;\n    surface.metallic       = normal.a;\n    surface.emissive       = ermo.rgb;\n    surface.worldPosition  = worldPosition.xyz;\n    \n    surface.N              = OctDecode(normal.rg);\n    surface.F0             = mix(vec3(0.04), surface.albedo.rgb, vec3(surface.metallic));\n    surface.V              = normalize(view.viewPosition.xyz - surface.worldPosition);\n\n\n    let n = surface.N;\n    let v = surface.V;\n    let r = reflect(-v, n);\n\n    let irradiance = textureSample(skyboxIrradianceTexture, textureSampler, fixCubeHandedness(n)).rgb;\n    let diffuse = irradiance * surface.albedo.xyz;\n\n    let f = FresnelSchlickRoughness(max(dot(n, v), 0.00001), surface.F0, surface.roughness);\n    let kS = f;\n    var kD = vec3f(1.0) - kS;\n    kD *= 1.0 - surface.metallic;\n\n    const MAX_REFLECTION_LOD = 4.0;\n    let prefilteredColor = textureSampleLevel(skyboxPrefilterTexture, textureSampler, fixCubeHandedness(r), surface.roughness * MAX_REFLECTION_LOD).rgb;\n    let brdf = textureSample(skyboxBRDFLUT, brdfSampler, vec2f(max(dot(n, v), 0.0), surface.roughness)).rg;\n    let specular = prefilteredColor * (f * brdf.x + brdf.y);\n\n    let ambient = kD * diffuse * surface.occlusion + specular;\n\n    var color = ambient + surface.emissive;\n\n\n    // Build NDC + view/world rays (same as before)\n    let ndc = vec3<f32>(\n        (input.position.x / view.projectionOutputSize.x) * 2.0 - 1.0,\n        (input.position.y / view.projectionOutputSize.y) * 2.0 - 1.0,\n        1.0\n    );\n    let viewRay4 = view.projectionInverseMatrix * vec4(ndc, 1.0);\n    var viewRay  = normalize(viewRay4.xyz / viewRay4.w);\n    viewRay.y   *= -1.0;\n    var worldRay = normalize((view.viewInverseMatrix * vec4(viewRay, 0.0)).xyz);\n\n    // ---- compute derivatives BEFORE any divergent branch ----\n    let dUVdx = dpdx(uv);\n    let dUVdy = dpdy(uv);\n\n    // For cubemap LOD: take grads of the direction (works well in practice)\n    let dWRdx = dpdx(worldRay);\n    let dWRdy = dpdy(worldRay);\n\n    if (depth >= 0.9999999) {\n        // var sky = textureSampleGrad(skyboxTexture, textureSampler, worldRay, dWRdx, dWRdy).rgb;\n        let sky = textureSampleLevel(skyboxTexture, textureSampler, worldRay, 0.0).rgb; // textureSampleGrad with a cubemap doesn't work on firefox\n        return vec4f(sky, 1.0);\n    }\n\n    return vec4f(color, 1.0);\n}";
 
 var WGSL_Shader_Deferred_SurfaceStruct = "struct Surface {\n    albedo: vec3<f32>,\n    emissive: vec3<f32>,\n    metallic: f32,\n    roughness: f32,\n    occlusion: f32,\n    worldPosition: vec3<f32>,\n    N: vec3<f32>,\n    F0: vec3<f32>,\n    V: vec3<f32>,\n    depth: f32\n};";
 
-var WGSL_Shader_Deferred_LightStruct = "struct Light {\n    position: vec4<f32>,\n    projectionMatrix: mat4x4<f32>,\n    // // Using an array of mat4x4 causes the render time to go from 3ms to 9ms for some reason\n    // csmProjectionMatrix: array<mat4x4<f32>, 4>,\n    csmProjectionMatrix0: mat4x4<f32>,\n    csmProjectionMatrix1: mat4x4<f32>,\n    csmProjectionMatrix2: mat4x4<f32>,\n    csmProjectionMatrix3: mat4x4<f32>,\n    cascadeSplits: vec4<f32>,\n    viewMatrix: mat4x4<f32>,\n    viewMatrixInverse: mat4x4<f32>,\n    // direction: vec4<f32>,\n    color: vec4<f32>,\n    params1: vec4<f32>,\n    params2: vec4<f32>,\n};\n\nstruct DirectionalLight {\n    direction: vec3<f32>,\n    color: vec3<f32>,\n    intensity: f32\n};\n\nstruct SpotLight {\n    pointToLight: vec3<f32>,\n    color: vec3<f32>,\n    direction: vec3<f32>,\n    range: f32,\n    intensity: f32,\n    angle: f32,\n};\n\nstruct PointLight {\n    pointToLight: vec3<f32>,\n    color: vec3<f32>,\n    range: f32,\n    intensity: f32,\n};";
+var WGSL_Shader_Deferred_LightStruct = "struct Light {\n    lightModelMatrix: mat4x4<f32>,\n    position: vec4<f32>,\n    projectionMatrix: mat4x4<f32>,\n    // // Using an array of mat4x4 causes the render time to go from 3ms to 9ms for some reason\n    // csmProjectionMatrix: array<mat4x4<f32>, 4>,\n    csmProjectionMatrix0: mat4x4<f32>,\n    csmProjectionMatrix1: mat4x4<f32>,\n    csmProjectionMatrix2: mat4x4<f32>,\n    csmProjectionMatrix3: mat4x4<f32>,\n    cascadeSplits: vec4<f32>,\n    viewMatrix: mat4x4<f32>,\n    viewMatrixInverse: mat4x4<f32>,\n    // direction: vec4<f32>,\n    color: vec4<f32>,\n    params1: vec4<f32>,\n    params2: vec4<f32>,\n};\n\nstruct DirectionalLight {\n    direction: vec3<f32>,\n    color: vec3<f32>,\n    intensity: f32\n};\n\nstruct SpotLight {\n    pointToLight: vec3<f32>,\n    color: vec3<f32>,\n    direction: vec3<f32>,\n    range: f32,\n    intensity: f32,\n    angle: f32,\n};\n\nstruct PointLight {\n    pointToLight: vec3<f32>,\n    color: vec3<f32>,\n    range: f32,\n    intensity: f32,\n};";
 
 var WGSL_Shader_Deferred_ShadowMap = "#include \"@trident/core/resources/webgpu/shaders/deferred/SurfaceStruct.wgsl\";\n#include \"@trident/core/resources/webgpu/shaders/deferred/LightStruct.wgsl\";\n#include \"@trident/core/resources/webgpu/shaders/deferred/ShadowUtils.wgsl\";\n\n// NDC -> UV, then remap into the 2×2 quadrant atlas inside ONE array layer.\nfn worldToAtlasUVZSpot(worldPos: vec3<f32>, light: Light, cascadeIndex: i32) -> vec3<f32> {\n    let m = light.csmProjectionMatrix0;\n    let p = m * vec4(worldPos, 1.0);\n    let ndc = p.xyz / p.w;\n\n    // NDC -> [0,1], with y flipped to texture space\n    var uv = ndc.xy * vec2<f32>(0.5, -0.5) + vec2<f32>(0.5, 0.5);\n\n    return vec3<f32>(uv, ndc.z);\n}\n\nfn SampleCascadeShadowMapSpot(shadowTexture: texture_depth_2d_array, shadowSampler: sampler_comparison, surface: Surface, light: Light, cascadeIndex: i32, lightIndex: u32) -> f32 {\n    // Build atlas UV/Z for this cascade\n    let uvz = worldToAtlasUVZSpot(surface.worldPosition, light, cascadeIndex);\n    let uv  = uvz.xy;\n    let z   = uvz.z;\n\n    // Outside clip or outside atlas -> lit\n    if (z <= 0.0 || z >= 1.0 || !inUnitSquare(uv)) {\n        return 1.0;\n    }\n\n    // One textureDimensions() per pixel (ideally pass texel size from CPU)\n    let texDim = vec2<f32>(textureDimensions(shadowTexture));\n    let texel  = 1.0 / texDim;\n\n    // Use fast 3×3 when radius <= 1, else bounded loop (max 5×5)\n    let radius = i32(settings.pcfResolution); // interpret as radius\n    if (radius <= 1) {\n        return pcf3x3_quadrant(shadowTexture, shadowSampler, uv, z, i32(light.params1.w), texel);\n    } else {\n        return pcfBounded(shadowTexture, shadowSampler, uv, z, i32(light.params1.w), texel, radius);\n    }\n}\n\nfn CalculateShadowCSMSpot(shadowTexture: texture_depth_2d_array, shadowSampler: sampler_comparison, surface: Surface, light: Light, lightIndex: u32) -> ShadowCSM {\n    var out: ShadowCSM;\n\n    // View-space depth for cascade selection\n    let fragPosViewSpace = view.viewMatrix * vec4f(surface.worldPosition, 1.0);\n    let depthValue  = abs(fragPosViewSpace.z);\n\n    // Pick cascade (branchless)\n    let selectedCascade = 0;\n    out.selectedCascade = selectedCascade;\n\n    // Primary cascade\n    let visibility = SampleCascadeShadowMapSpot(shadowTexture, shadowSampler, surface, light, selectedCascade, lightIndex);\n\n    out.visibility = clamp(visibility, 0.0, 1.0);\n    return out;\n}";
 
@@ -1722,6 +1724,9 @@ class ShaderLoader {
   }
   static get DeferredLighting() {
     return ShaderPreprocessor.ProcessIncludesV2(WGSL_Shader_DeferredLighting_URL);
+  }
+  static get IBLLighting() {
+    return ShaderPreprocessor.ProcessIncludesV2(WGSL_Shader_IBLLighting_URL);
   }
 }
 Assets.Register("@trident/core/resources/webgpu/shaders/deferred/SurfaceStruct.wgsl", WGSL_Shader_Deferred_SurfaceStruct);
@@ -2770,242 +2775,10 @@ class Geometry {
     return array2;
   }
   static Cube() {
-    const vertices = new Float32Array([
-      0.5,
-      0.5,
-      0.5,
-      0.5,
-      0.5,
-      -0.5,
-      0.5,
-      -0.5,
-      0.5,
-      0.5,
-      -0.5,
-      -0.5,
-      -0.5,
-      0.5,
-      -0.5,
-      -0.5,
-      0.5,
-      0.5,
-      -0.5,
-      -0.5,
-      -0.5,
-      -0.5,
-      -0.5,
-      0.5,
-      -0.5,
-      0.5,
-      -0.5,
-      0.5,
-      0.5,
-      -0.5,
-      -0.5,
-      0.5,
-      0.5,
-      0.5,
-      0.5,
-      0.5,
-      -0.5,
-      -0.5,
-      0.5,
-      0.5,
-      -0.5,
-      0.5,
-      -0.5,
-      -0.5,
-      -0.5,
-      0.5,
-      -0.5,
-      -0.5,
-      -0.5,
-      0.5,
-      0.5,
-      0.5,
-      0.5,
-      0.5,
-      -0.5,
-      -0.5,
-      0.5,
-      0.5,
-      -0.5,
-      0.5,
-      0.5,
-      0.5,
-      -0.5,
-      -0.5,
-      0.5,
-      -0.5,
-      0.5,
-      -0.5,
-      -0.5,
-      -0.5,
-      -0.5,
-      -0.5
-    ]);
-    const uvs = new Float32Array([
-      0,
-      1,
-      1,
-      1,
-      0,
-      0,
-      1,
-      0,
-      0,
-      1,
-      1,
-      1,
-      0,
-      0,
-      1,
-      0,
-      0,
-      1,
-      1,
-      1,
-      0,
-      0,
-      1,
-      0,
-      0,
-      1,
-      1,
-      1,
-      0,
-      0,
-      1,
-      0,
-      0,
-      1,
-      1,
-      1,
-      0,
-      0,
-      1,
-      0,
-      0,
-      1,
-      1,
-      1,
-      0,
-      0,
-      1,
-      0
-    ]);
-    const normals = new Float32Array([
-      1,
-      0,
-      0,
-      1,
-      0,
-      -0,
-      1,
-      0,
-      -0,
-      1,
-      0,
-      -0,
-      -1,
-      0,
-      0,
-      -1,
-      0,
-      -0,
-      -1,
-      0,
-      -0,
-      -1,
-      0,
-      -0,
-      0,
-      1,
-      0,
-      0,
-      1,
-      0,
-      0,
-      1,
-      0,
-      0,
-      1,
-      0,
-      0,
-      -1,
-      0,
-      -0,
-      -1,
-      0,
-      -0,
-      -1,
-      0,
-      -0,
-      -1,
-      0,
-      0,
-      -0,
-      1,
-      0,
-      0,
-      1,
-      0,
-      0,
-      1,
-      0,
-      0,
-      1,
-      0,
-      0,
-      -1,
-      0,
-      0,
-      -1,
-      0,
-      0,
-      -1,
-      0,
-      0,
-      -1
-    ]);
-    const indices = new Uint32Array([
-      0,
-      2,
-      1,
-      2,
-      3,
-      1,
-      4,
-      6,
-      5,
-      6,
-      7,
-      5,
-      8,
-      10,
-      9,
-      10,
-      11,
-      9,
-      12,
-      14,
-      13,
-      14,
-      15,
-      13,
-      16,
-      18,
-      17,
-      18,
-      19,
-      17,
-      20,
-      22,
-      21,
-      22,
-      23,
-      21
-    ]);
+    const vertices = new Float32Array([0.5, 0.5, 0.5, 0.5, 0.5, -0.5, 0.5, -0.5, 0.5, 0.5, -0.5, -0.5, -0.5, 0.5, -0.5, -0.5, 0.5, 0.5, -0.5, -0.5, -0.5, -0.5, -0.5, 0.5, -0.5, 0.5, -0.5, 0.5, 0.5, -0.5, -0.5, 0.5, 0.5, 0.5, 0.5, 0.5, -0.5, -0.5, 0.5, 0.5, -0.5, 0.5, -0.5, -0.5, -0.5, 0.5, -0.5, -0.5, -0.5, 0.5, 0.5, 0.5, 0.5, 0.5, -0.5, -0.5, 0.5, 0.5, -0.5, 0.5, 0.5, 0.5, -0.5, -0.5, 0.5, -0.5, 0.5, -0.5, -0.5, -0.5, -0.5, -0.5]);
+    const uvs = new Float32Array([0, 1, 1, 1, 0, 0, 1, 0, 0, 1, 1, 1, 0, 0, 1, 0, 0, 1, 1, 1, 0, 0, 1, 0, 0, 1, 1, 1, 0, 0, 1, 0, 0, 1, 1, 1, 0, 0, 1, 0, 0, 1, 1, 1, 0, 0, 1, 0]);
+    const normals = new Float32Array([1, 0, 0, 1, 0, -0, 1, 0, -0, 1, 0, -0, -1, 0, 0, -1, 0, -0, -1, 0, -0, -1, 0, -0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, -1, 0, -0, -1, 0, -0, -1, 0, -0, -1, 0, 0, -0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, -1, 0, 0, -1, 0, 0, -1, 0, 0, -1]);
+    const indices = new Uint32Array([0, 2, 1, 2, 3, 1, 4, 6, 5, 6, 7, 5, 8, 10, 9, 10, 11, 9, 12, 14, 13, 14, 15, 13, 16, 18, 17, 18, 19, 17, 20, 22, 21, 22, 23, 21]);
     const geometry = new Geometry();
     geometry.attributes.set("position", new VertexAttribute(vertices));
     geometry.attributes.set("uv", new VertexAttribute(uvs));
@@ -3014,66 +2787,10 @@ class Geometry {
     return geometry;
   }
   static Plane() {
-    const vertices = new Float32Array([
-      -1,
-      -1,
-      0,
-      // Bottom left
-      1,
-      -1,
-      0,
-      // Bottom right
-      1,
-      1,
-      0,
-      // Top right
-      -1,
-      1,
-      0
-      // Top left
-    ]);
-    const indices = new Uint32Array([
-      0,
-      1,
-      2,
-      // First triangle (bottom left to top right)
-      2,
-      3,
-      0
-      // Second triangle (top right to top left)
-    ]);
-    const uvs = new Float32Array([
-      0,
-      1,
-      // Bottom left (now top left)
-      1,
-      1,
-      // Bottom right (now top right)
-      1,
-      0,
-      // Top right (now bottom right)
-      0,
-      0
-      // Top left (now bottom left)
-    ]);
-    const normals = new Float32Array([
-      0,
-      0,
-      1,
-      // Normal for bottom left vertex
-      0,
-      0,
-      1,
-      // Normal for bottom right vertex
-      0,
-      0,
-      1,
-      // Normal for top right vertex
-      0,
-      0,
-      1
-      // Normal for top left vertex
-    ]);
+    const vertices = new Float32Array([-1, -1, 0, 1, -1, 0, 1, 1, 0, -1, 1, 0]);
+    const normals = new Float32Array([0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1]);
+    const uvs = new Float32Array([0, 1, 1, 1, 1, 0, 0, 0]);
+    const indices = new Uint32Array([0, 1, 2, 2, 3, 0]);
     const geometry = new Geometry();
     geometry.attributes.set("position", new VertexAttribute(vertices));
     geometry.attributes.set("normal", new VertexAttribute(normals));
@@ -3082,53 +2799,22 @@ class Geometry {
     return geometry;
   }
   static Sphere() {
-    const radius = 0.5;
-    const phiStart = 0;
-    const phiLength = Math.PI * 2;
-    const thetaStart = 0;
-    const thetaLength = Math.PI;
-    let widthSegments = 16;
-    let heightSegments = 8;
-    widthSegments = Math.max(3, Math.floor(widthSegments));
-    heightSegments = Math.max(2, Math.floor(heightSegments));
-    const thetaEnd = Math.min(thetaStart + thetaLength, Math.PI);
-    let index = 0;
-    const grid = [];
-    const vertex = new Vector3();
-    const normal = new Vector3();
-    const indices = [];
-    const vertices = [];
-    const normals = [];
-    const uvs = [];
-    for (let iy = 0; iy <= heightSegments; iy++) {
-      const verticesRow = [];
-      const v = iy / heightSegments;
-      let uOffset = 0;
-      if (iy === 0 && thetaStart === 0) uOffset = 0.5 / widthSegments;
-      else if (iy === heightSegments && thetaEnd === Math.PI) uOffset = -0.5 / widthSegments;
-      for (let ix = 0; ix <= widthSegments; ix++) {
-        const u = ix / widthSegments;
-        vertex.x = -radius * Math.cos(phiStart + u * phiLength) * Math.sin(thetaStart + v * thetaLength);
-        vertex.y = radius * Math.cos(thetaStart + v * thetaLength);
-        vertex.z = radius * Math.sin(phiStart + u * phiLength) * Math.sin(thetaStart + v * thetaLength);
-        vertices.push(vertex.x, vertex.y, vertex.z);
-        normal.copy(vertex).normalize();
-        normals.push(normal.x, normal.y, normal.z);
-        uvs.push(u + uOffset, 1 - v);
-        verticesRow.push(index++);
-      }
-      grid.push(verticesRow);
-    }
-    for (let iy = 0; iy < heightSegments; iy++) {
-      for (let ix = 0; ix < widthSegments; ix++) {
-        const a = grid[iy][ix + 1];
-        const b = grid[iy][ix];
-        const c = grid[iy + 1][ix];
-        const d = grid[iy + 1][ix + 1];
-        if (iy !== 0 || thetaStart > 0) indices.push(a, b, d);
-        if (iy !== heightSegments - 1 || thetaEnd < Math.PI) indices.push(b, c, d);
-      }
-    }
+    const vertices = new Float32Array([0, 0.5, 0, 0, 0.5, 0, 0, 0.5, 0, 0, 0.5, 0, 0, 0.5, 0, 0, 0.5, 0, 0, 0.5, 0, 0, 0.5, 0, 0, 0.5, 0, 0, 0.5, 0, 0, 0.5, 0, 0, 0.5, 0, 0, 0.5, 0, 0, 0.5, 0, 0, 0.5, 0, 0, 0.5, 0, 0, 0.5, 0, -0.19, 0.46, 0, -0.18, 0.46, 0.07, -0.14, 0.46, 0.14, -0.07, 0.46, 0.18, 0, 0.46, 0.19, 0.07, 0.46, 0.18, 0.14, 0.46, 0.14, 0.18, 0.46, 0.07, 0.19, 0.46, 0, 0.18, 0.46, -0.07, 0.14, 0.46, -0.14, 0.07, 0.46, -0.18, 0, 0.46, -0.19, -0.07, 0.46, -0.18, -0.14, 0.46, -0.14, -0.18, 0.46, -0.07, -0.19, 0.46, 0, -0.35, 0.35, 0, -0.33, 0.35, 0.14, -0.25, 0.35, 0.25, -0.14, 0.35, 0.33, 0, 0.35, 0.35, 0.14, 0.35, 0.33, 0.25, 0.35, 0.25, 0.33, 0.35, 0.14, 0.35, 0.35, 0, 0.33, 0.35, -0.14, 0.25, 0.35, -0.25, 0.14, 0.35, -0.33, 0, 0.35, -0.35, -0.14, 0.35, -0.33, -0.25, 0.35, -0.25, -0.33, 0.35, -0.14, -0.35, 0.35, 0, -0.46, 0.19, 0, -0.43, 0.19, 0.18, -0.33, 0.19, 0.33, -0.18, 0.19, 0.43, 0, 0.19, 0.46, 0.18, 0.19, 0.43, 0.33, 0.19, 0.33, 0.43, 0.19, 0.18, 0.46, 0.19, 0, 0.43, 0.19, -0.18, 0.33, 0.19, -0.33, 0.18, 0.19, -0.43, 0, 0.19, -0.46, -0.18, 0.19, -0.43, -0.33, 0.19, -0.33, -0.43, 0.19, -0.18, -0.46, 0.19, 0, -0.5, 0, 0, -0.46, 0, 0.19, -0.35, 0, 0.35, -0.19, 0, 0.46, 0, 0, 0.5, 0.19, 0, 0.46, 0.35, 0, 0.35, 0.46, 0, 0.19, 0.5, 0, 0, 0.46, 0, -0.19, 0.35, 0, -0.35, 0.19, 0, -0.46, 0, 0, -0.5, -0.19, 0, -0.46, -0.35, 0, -0.35, -0.46, 0, -0.19, -0.5, 0, 0, -0.46, -0.19, 0, -0.43, -0.19, 0.18, -0.33, -0.19, 0.33, -0.18, -0.19, 0.43, 0, -0.19, 0.46, 0.18, -0.19, 0.43, 0.33, -0.19, 0.33, 0.43, -0.19, 0.18, 0.46, -0.19, 0, 0.43, -0.19, -0.18, 0.33, -0.19, -0.33, 0.18, -0.19, -0.43, 0, -0.19, -0.46, -0.18, -0.19, -0.43, -0.33, -0.19, -0.33, -0.43, -0.19, -0.18, -0.46, -0.19, 0, -0.35, -0.35, 0, -0.33, -0.35, 0.14, -0.25, -0.35, 0.25, -0.14, -0.35, 0.33, 0, -0.35, 0.35, 0.14, -0.35, 0.33, 0.25, -0.35, 0.25, 0.33, -0.35, 0.14, 0.35, -0.35, 0, 0.33, -0.35, -0.14, 0.25, -0.35, -0.25, 0.14, -0.35, -0.33, 0, -0.35, -0.35, -0.14, -0.35, -0.33, -0.25, -0.35, -0.25, -0.33, -0.35, -0.14, -0.35, -0.35, 0, -0.19, -0.46, 0, -0.18, -0.46, 0.07, -0.14, -0.46, 0.14, -0.07, -0.46, 0.18, 0, -0.46, 0.19, 0.07, -0.46, 0.18, 0.14, -0.46, 0.14, 0.18, -0.46, 0.07, 0.19, -0.46, 0, 0.18, -0.46, -0.07, 0.14, -0.46, -0.14, 0.07, -0.46, -0.18, 0, -0.46, -0.19, -0.07, -0.46, -0.18, -0.14, -0.46, -0.14, -0.18, -0.46, -0.07, -0.19, -0.46, 0, 0, -0.5, 0, 0, -0.5, 0, 0, -0.5, 0, 0, -0.5, 0, 0, -0.5, 0, 0, -0.5, 0, 0, -0.5, 0, 0, -0.5, 0, 0, -0.5, 0, 0, -0.5, 0, 0, -0.5, 0, 0, -0.5, 0, 0, -0.5, 0, 0, -0.5, 0, 0, -0.5, 0, 0, -0.5, 0, 0, -0.5, 0]);
+    const normals = new Float32Array([0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, -0.38, 0.92, 0, -0.35, 0.92, 0.15, -0.27, 0.92, 0.27, -0.15, 0.92, 0.35, 0, 0.92, 0.38, 0.15, 0.92, 0.35, 0.27, 0.92, 0.27, 0.35, 0.92, 0.15, 0.38, 0.92, 0, 0.35, 0.92, -0.15, 0.27, 0.92, -0.27, 0.15, 0.92, -0.35, 0, 0.92, -0.38, -0.15, 0.92, -0.35, -0.27, 0.92, -0.27, -0.35, 0.92, -0.15, -0.38, 0.92, 0, -0.71, 0.71, 0, -0.65, 0.71, 0.27, -0.5, 0.71, 0.5, -0.27, 0.71, 0.65, 0, 0.71, 0.71, 0.27, 0.71, 0.65, 0.5, 0.71, 0.5, 0.65, 0.71, 0.27, 0.71, 0.71, 0, 0.65, 0.71, -0.27, 0.5, 0.71, -0.5, 0.27, 0.71, -0.65, 0, 0.71, -0.71, -0.27, 0.71, -0.65, -0.5, 0.71, -0.5, -0.65, 0.71, -0.27, -0.71, 0.71, 0, -0.92, 0.38, 0, -0.85, 0.38, 0.35, -0.65, 0.38, 0.65, -0.35, 0.38, 0.85, 0, 0.38, 0.92, 0.35, 0.38, 0.85, 0.65, 0.38, 0.65, 0.85, 0.38, 0.35, 0.92, 0.38, 0, 0.85, 0.38, -0.35, 0.65, 0.38, -0.65, 0.35, 0.38, -0.85, 0, 0.38, -0.92, -0.35, 0.38, -0.85, -0.65, 0.38, -0.65, -0.85, 0.38, -0.35, -0.92, 0.38, 0, -1, 0, 0, -0.92, 0, 0.38, -0.71, 0, 0.71, -0.38, 0, 0.92, 0, 0, 1, 0.38, 0, 0.92, 0.71, 0, 0.71, 0.92, 0, 0.38, 1, 0, 0, 0.92, 0, -0.38, 0.71, 0, -0.71, 0.38, 0, -0.92, 0, 0, -1, -0.38, 0, -0.92, -0.71, 0, -0.71, -0.92, 0, -0.38, -1, 0, 0, -0.92, -0.38, 0, -0.85, -0.38, 0.35, -0.65, -0.38, 0.65, -0.35, -0.38, 0.85, 0, -0.38, 0.92, 0.35, -0.38, 0.85, 0.65, -0.38, 0.65, 0.85, -0.38, 0.35, 0.92, -0.38, 0, 0.85, -0.38, -0.35, 0.65, -0.38, -0.65, 0.35, -0.38, -0.85, 0, -0.38, -0.92, -0.35, -0.38, -0.85, -0.65, -0.38, -0.65, -0.85, -0.38, -0.35, -0.92, -0.38, 0, -0.71, -0.71, 0, -0.65, -0.71, 0.27, -0.5, -0.71, 0.5, -0.27, -0.71, 0.65, 0, -0.71, 0.71, 0.27, -0.71, 0.65, 0.5, -0.71, 0.5, 0.65, -0.71, 0.27, 0.71, -0.71, 0, 0.65, -0.71, -0.27, 0.5, -0.71, -0.5, 0.27, -0.71, -0.65, 0, -0.71, -0.71, -0.27, -0.71, -0.65, -0.5, -0.71, -0.5, -0.65, -0.71, -0.27, -0.71, -0.71, 0, -0.38, -0.92, 0, -0.35, -0.92, 0.15, -0.27, -0.92, 0.27, -0.15, -0.92, 0.35, 0, -0.92, 0.38, 0.15, -0.92, 0.35, 0.27, -0.92, 0.27, 0.35, -0.92, 0.15, 0.38, -0.92, 0, 0.35, -0.92, -0.15, 0.27, -0.92, -0.27, 0.15, -0.92, -0.35, 0, -0.92, -0.38, -0.15, -0.92, -0.35, -0.27, -0.92, -0.27, -0.35, -0.92, -0.15, -0.38, -0.92, 0, 0, -1, 0, 0, -1, 0, 0, -1, 0, 0, -1, 0, 0, -1, 0, 0, -1, 0, 0, -1, 0, 0, -1, 0, 0, -1, 0, 0, -1, 0, 0, -1, 0, 0, -1, 0, 0, -1, 0, 0, -1, 0, 0, -1, 0, 0, -1, 0, 0, -1, 0]);
+    const uvs = new Float32Array([0.03, 1, 0.09, 1, 0.16, 1, 0.22, 1, 0.28, 1, 0.34, 1, 0.41, 1, 0.47, 1, 0.53, 1, 0.59, 1, 0.66, 1, 0.72, 1, 0.78, 1, 0.84, 1, 0.91, 1, 0.97, 1, 1.03, 1, 0, 0.88, 0.06, 0.88, 0.13, 0.88, 0.19, 0.88, 0.25, 0.88, 0.31, 0.88, 0.38, 0.88, 0.44, 0.88, 0.5, 0.88, 0.56, 0.88, 0.63, 0.88, 0.69, 0.88, 0.75, 0.88, 0.81, 0.88, 0.88, 0.88, 0.94, 0.88, 1, 0.88, 0, 0.75, 0.06, 0.75, 0.13, 0.75, 0.19, 0.75, 0.25, 0.75, 0.31, 0.75, 0.38, 0.75, 0.44, 0.75, 0.5, 0.75, 0.56, 0.75, 0.63, 0.75, 0.69, 0.75, 0.75, 0.75, 0.81, 0.75, 0.88, 0.75, 0.94, 0.75, 1, 0.75, 0, 0.63, 0.06, 0.63, 0.13, 0.63, 0.19, 0.63, 0.25, 0.63, 0.31, 0.63, 0.38, 0.63, 0.44, 0.63, 0.5, 0.63, 0.56, 0.63, 0.63, 0.63, 0.69, 0.63, 0.75, 0.63, 0.81, 0.63, 0.88, 0.63, 0.94, 0.63, 1, 0.63, 0, 0.5, 0.06, 0.5, 0.13, 0.5, 0.19, 0.5, 0.25, 0.5, 0.31, 0.5, 0.38, 0.5, 0.44, 0.5, 0.5, 0.5, 0.56, 0.5, 0.63, 0.5, 0.69, 0.5, 0.75, 0.5, 0.81, 0.5, 0.88, 0.5, 0.94, 0.5, 1, 0.5, 0, 0.38, 0.06, 0.38, 0.13, 0.38, 0.19, 0.38, 0.25, 0.38, 0.31, 0.38, 0.38, 0.38, 0.44, 0.38, 0.5, 0.38, 0.56, 0.38, 0.63, 0.38, 0.69, 0.38, 0.75, 0.38, 0.81, 0.38, 0.88, 0.38, 0.94, 0.38, 1, 0.38, 0, 0.25, 0.06, 0.25, 0.13, 0.25, 0.19, 0.25, 0.25, 0.25, 0.31, 0.25, 0.38, 0.25, 0.44, 0.25, 0.5, 0.25, 0.56, 0.25, 0.63, 0.25, 0.69, 0.25, 0.75, 0.25, 0.81, 0.25, 0.88, 0.25, 0.94, 0.25, 1, 0.25, 0, 0.13, 0.06, 0.13, 0.13, 0.13, 0.19, 0.13, 0.25, 0.13, 0.31, 0.13, 0.38, 0.13, 0.44, 0.13, 0.5, 0.13, 0.56, 0.13, 0.63, 0.13, 0.69, 0.13, 0.75, 0.13, 0.81, 0.13, 0.88, 0.13, 0.94, 0.13, 1, 0.13, -0.03, 0, 0.03, 0, 0.09, 0, 0.16, 0, 0.22, 0, 0.28, 0, 0.34, 0, 0.41, 0, 0.47, 0, 0.53, 0, 0.59, 0, 0.66, 0, 0.72, 0, 0.78, 0, 0.84, 0, 0.91, 0, 0.97, 0]);
+    const indices = new Uint32Array([0, 17, 18, 1, 18, 19, 2, 19, 20, 3, 20, 21, 4, 21, 22, 5, 22, 23, 6, 23, 24, 7, 24, 25, 8, 25, 26, 9, 26, 27, 10, 27, 28, 11, 28, 29, 12, 29, 30, 13, 30, 31, 14, 31, 32, 15, 32, 33, 18, 17, 35, 17, 34, 35, 19, 18, 36, 18, 35, 36, 20, 19, 37, 19, 36, 37, 21, 20, 38, 20, 37, 38, 22, 21, 39, 21, 38, 39, 23, 22, 40, 22, 39, 40, 24, 23, 41, 23, 40, 41, 25, 24, 42, 24, 41, 42, 26, 25, 43, 25, 42, 43, 27, 26, 44, 26, 43, 44, 28, 27, 45, 27, 44, 45, 29, 28, 46, 28, 45, 46, 30, 29, 47, 29, 46, 47, 31, 30, 48, 30, 47, 48, 32, 31, 49, 31, 48, 49, 33, 32, 50, 32, 49, 50, 35, 34, 52, 34, 51, 52, 36, 35, 53, 35, 52, 53, 37, 36, 54, 36, 53, 54, 38, 37, 55, 37, 54, 55, 39, 38, 56, 38, 55, 56, 40, 39, 57, 39, 56, 57, 41, 40, 58, 40, 57, 58, 42, 41, 59, 41, 58, 59, 43, 42, 60, 42, 59, 60, 44, 43, 61, 43, 60, 61, 45, 44, 62, 44, 61, 62, 46, 45, 63, 45, 62, 63, 47, 46, 64, 46, 63, 64, 48, 47, 65, 47, 64, 65, 49, 48, 66, 48, 65, 66, 50, 49, 67, 49, 66, 67, 52, 51, 69, 51, 68, 69, 53, 52, 70, 52, 69, 70, 54, 53, 71, 53, 70, 71, 55, 54, 72, 54, 71, 72, 56, 55, 73, 55, 72, 73, 57, 56, 74, 56, 73, 74, 58, 57, 75, 57, 74, 75, 59, 58, 76, 58, 75, 76, 60, 59, 77, 59, 76, 77, 61, 60, 78, 60, 77, 78, 62, 61, 79, 61, 78, 79, 63, 62, 80, 62, 79, 80, 64, 63, 81, 63, 80, 81, 65, 64, 82, 64, 81, 82, 66, 65, 83, 65, 82, 83, 67, 66, 84, 66, 83, 84, 69, 68, 86, 68, 85, 86, 70, 69, 87, 69, 86, 87, 71, 70, 88, 70, 87, 88, 72, 71, 89, 71, 88, 89, 73, 72, 90, 72, 89, 90, 74, 73, 91, 73, 90, 91, 75, 74, 92, 74, 91, 92, 76, 75, 93, 75, 92, 93, 77, 76, 94, 76, 93, 94, 78, 77, 95, 77, 94, 95, 79, 78, 96, 78, 95, 96, 80, 79, 97, 79, 96, 97, 81, 80, 98, 80, 97, 98, 82, 81, 99, 81, 98, 99, 83, 82, 100, 82, 99, 100, 84, 83, 101, 83, 100, 101, 86, 85, 103, 85, 102, 103, 87, 86, 104, 86, 103, 104, 88, 87, 105, 87, 104, 105, 89, 88, 106, 88, 105, 106, 90, 89, 107, 89, 106, 107, 91, 90, 108, 90, 107, 108, 92, 91, 109, 91, 108, 109, 93, 92, 110, 92, 109, 110, 94, 93, 111, 93, 110, 111, 95, 94, 112, 94, 111, 112, 96, 95, 113, 95, 112, 113, 97, 96, 114, 96, 113, 114, 98, 97, 115, 97, 114, 115, 99, 98, 116, 98, 115, 116, 100, 99, 117, 99, 116, 117, 101, 100, 118, 100, 117, 118, 103, 102, 120, 102, 119, 120, 104, 103, 121, 103, 120, 121, 105, 104, 122, 104, 121, 122, 106, 105, 123, 105, 122, 123, 107, 106, 124, 106, 123, 124, 108, 107, 125, 107, 124, 125, 109, 108, 126, 108, 125, 126, 110, 109, 127, 109, 126, 127, 111, 110, 128, 110, 127, 128, 112, 111, 129, 111, 128, 129, 113, 112, 130, 112, 129, 130, 114, 113, 131, 113, 130, 131, 115, 114, 132, 114, 131, 132, 116, 115, 133, 115, 132, 133, 117, 116, 134, 116, 133, 134, 118, 117, 135, 117, 134, 135, 120, 119, 137, 121, 120, 138, 122, 121, 139, 123, 122, 140, 124, 123, 141, 125, 124, 142, 126, 125, 143, 127, 126, 144, 128, 127, 145, 129, 128, 146, 130, 129, 147, 131, 130, 148, 132, 131, 149, 133, 132, 150, 134, 133, 151, 135, 134, 152]);
+    const geometry = new Geometry();
+    geometry.index = new IndexAttribute(new Uint32Array(indices));
+    geometry.attributes.set("position", new VertexAttribute(new Float32Array(vertices)));
+    geometry.attributes.set("normal", new VertexAttribute(new Float32Array(normals)));
+    geometry.attributes.set("uv", new VertexAttribute(new Float32Array(uvs)));
+    return geometry;
+  }
+  static Cone() {
+    const vertices = new Float32Array([0, 0, 0.5, 0, 0, 0.5, 0, 0, 0.5, 0, 0, 0.5, 0, 0, 0.5, 0, 0, 0.5, 0, 0, 0.5, 0, 0, 0.5, 0, 0, 0.5, 0, -1, -0.5, 0.71, -0.71, -0.5, 1, 0, -0.5, 0.71, 0.71, -0.5, 0, 1, -0.5, -0.71, 0.71, -0.5, -1, 0, -0.5, -0.71, -0.71, -0.5, 0, -1, -0.5, 0, 0, -0.5, 0, 0, -0.5, 0, 0, -0.5, 0, 0, -0.5, 0, 0, -0.5, 0, 0, -0.5, 0, 0, -0.5, 0, 0, -0.5, 0, -1, -0.5, 0.71, -0.71, -0.5, 1, 0, -0.5, 0.71, 0.71, -0.5, 0, 1, -0.5, -0.71, 0.71, -0.5, -1, 0, -0.5, -0.71, -0.71, -0.5, 0, -1, -0.5]);
+    const normals = new Float32Array([0, -0.71, 0.71, 0.5, -0.5, 0.71, 0.71, 0, 0.71, 0.5, 0.5, 0.71, 0, 0.71, 0.71, -0.5, 0.5, 0.71, -0.71, 0, 0.71, -0.5, -0.5, 0.71, 0, -0.71, 0.71, 0, -0.71, 0.71, 0.5, -0.5, 0.71, 0.71, 0, 0.71, 0.5, 0.5, 0.71, 0, 0.71, 0.71, -0.5, 0.5, 0.71, -0.71, 0, 0.71, -0.5, -0.5, 0.71, 0, -0.71, 0.71, 0, 0, -1, 0, 0, -1, 0, 0, -1, 0, 0, -1, 0, 0, -1, 0, 0, -1, 0, 0, -1, 0, 0, -1, 0, 0, -1, 0, 0, -1, 0, 0, -1, 0, 0, -1, 0, 0, -1, 0, 0, -1, 0, 0, -1, 0, 0, -1, 0, 0, -1]);
+    const uvs = new Float32Array([0, 1, 0.13, 1, 0.25, 1, 0.38, 1, 0.5, 1, 0.63, 1, 0.75, 1, 0.88, 1, 1, 1, 0, 0, 0.13, 0, 0.25, 0, 0.38, 0, 0.5, 0, 0.63, 0, 0.75, 0, 0.88, 0, 1, 0, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 1, 0.5, 0.85, 0.15, 0.5, 0, 0.15, 0.15, 0, 0.5, 0.15, 0.85, 0.5, 1, 0.85, 0.85, 1, 0.5]);
+    const indices = new Uint32Array([9, 10, 1, 10, 11, 2, 11, 12, 3, 12, 13, 4, 13, 14, 5, 14, 15, 6, 15, 16, 7, 16, 17, 8, 27, 26, 18, 28, 27, 19, 29, 28, 20, 30, 29, 21, 31, 30, 22, 32, 31, 23, 33, 32, 24, 34, 33, 25]);
     const geometry = new Geometry();
     geometry.index = new IndexAttribute(new Uint32Array(indices));
     geometry.attributes.set("position", new VertexAttribute(new Float32Array(vertices)));
@@ -4403,7 +4089,7 @@ class ComputeContext {
 
 var __create$2 = Object.create;
 var __defProp$2 = Object.defineProperty;
-var __getOwnPropDesc$1 = Object.getOwnPropertyDescriptor;
+var __getOwnPropDesc$2 = Object.getOwnPropertyDescriptor;
 var __knownSymbol$2 = (name, symbol) => (symbol = Symbol[name]) ? symbol : Symbol.for("Symbol." + name);
 var __typeError$2 = (msg) => {
   throw TypeError(msg);
@@ -4422,7 +4108,7 @@ var __decorateElement$2 = (array, flags, name, decorators, target, extra) => {
   var it, done, ctx, access, k = flags & 7, s = false, p = false;
   var j = 2 , key = __decoratorStrings$2[k + 5];
   var extraInitializers = array[j] || (array[j] = []);
-  var desc = ((target = target.prototype), __getOwnPropDesc$1(target , name));
+  var desc = ((target = target.prototype), __getOwnPropDesc$2(target , name));
   for (var i = decorators.length - 1; i >= 0; i--) {
     ctx = __decoratorContext$2(k, name, done = {}, array[3], extraInitializers);
     {
@@ -4538,11 +4224,13 @@ Component.Registry.set(Camera.type, Camera);
 
 var __create$1 = Object.create;
 var __defProp$1 = Object.defineProperty;
+var __getOwnPropDesc$1 = Object.getOwnPropertyDescriptor;
 var __knownSymbol$1 = (name, symbol) => (symbol = Symbol[name]) ? symbol : Symbol.for("Symbol." + name);
 var __typeError$1 = (msg) => {
   throw TypeError(msg);
 };
 var __defNormalProp$1 = (obj, key, value) => key in obj ? __defProp$1(obj, key, { enumerable: true, configurable: true, writable: true, value }) : obj[key] = value;
+var __name$1 = (target, value) => __defProp$1(target, "name", { value, configurable: true });
 var __decoratorStart$1 = (base) => [, , , __create$1(base?.[__knownSymbol$1("metadata")] ?? null)];
 var __decoratorStrings$1 = ["class", "method", "getter", "setter", "accessor", "field", "value", "get", "set"];
 var __expectFn$1 = (fn) => fn !== void 0 && typeof fn !== "function" ? __typeError$1("Function expected") : fn;
@@ -4553,36 +4241,47 @@ var __runInitializers$1 = (array, flags, self, value) => {
   return value;
 };
 var __decorateElement$1 = (array, flags, name, decorators, target, extra) => {
-  var it, done, ctx, access, k = flags & 7, s = false, p = false;
-  var j = array.length + 1 ;
-  var initializers = (array[j - 1] = []), extraInitializers = array[j] || (array[j] = []);
-  ((target = target.prototype), k < 5);
+  var fn, it, done, ctx, access, k = flags & 7, s = !!(flags & 8), p = !!(flags & 16);
+  var j = k > 3 ? array.length + 1 : k ? s ? 1 : 2 : 0, key = __decoratorStrings$1[k + 5];
+  var initializers = k > 3 && (array[j - 1] = []), extraInitializers = array[j] || (array[j] = []);
+  var desc = k && (!p && !s && (target = target.prototype), k < 5 && (k > 3 || !p) && __getOwnPropDesc$1(k < 4 ? target : { get [name]() {
+    return __privateGet$1(this, extra);
+  }, set [name](x) {
+    return __privateSet$1(this, extra, x);
+  } }, name));
+  k ? p && k < 4 && __name$1(extra, (k > 2 ? "set " : k > 1 ? "get " : "") + name) : __name$1(target, name);
   for (var i = decorators.length - 1; i >= 0; i--) {
     ctx = __decoratorContext$1(k, name, done = {}, array[3], extraInitializers);
-    {
-      ctx.static = s, ctx.private = p, access = ctx.access = { has: (x) => name in x };
-      access.get = (x) => x[name];
-      access.set = (x, y) => x[name] = y;
+    if (k) {
+      ctx.static = s, ctx.private = p, access = ctx.access = { has: p ? (x) => __privateIn$1(target, x) : (x) => name in x };
+      if (k ^ 3) access.get = p ? (x) => (k ^ 1 ? __privateGet$1 : __privateMethod$1)(x, target, k ^ 4 ? extra : desc.get) : (x) => x[name];
+      if (k > 2) access.set = p ? (x, y) => __privateSet$1(x, target, y, k ^ 4 ? extra : desc.set) : (x, y) => x[name] = y;
     }
-    it = (0, decorators[i])(void 0  , ctx), done._ = 1;
-    __expectFn$1(it) && (initializers.unshift(it) );
+    it = (0, decorators[i])(k ? k < 4 ? p ? extra : desc[key] : k > 4 ? void 0 : { get: desc.get, set: desc.set } : target, ctx), done._ = 1;
+    if (k ^ 4 || it === void 0) __expectFn$1(it) && (k > 4 ? initializers.unshift(it) : k ? p ? extra = it : desc[key] = it : target = it);
+    else if (typeof it !== "object" || it === null) __typeError$1("Object expected");
+    else __expectFn$1(fn = it.get) && (desc.get = fn), __expectFn$1(fn = it.set) && (desc.set = fn), __expectFn$1(fn = it.init) && initializers.unshift(fn);
   }
-  return target;
+  return k || __decoratorMetadata$1(array, target), desc && __defProp$1(target, name, desc), p ? k ^ 4 ? extra : desc : target;
 };
 var __publicField$1 = (obj, key, value) => __defNormalProp$1(obj, typeof key !== "symbol" ? key + "" : key, value);
-var _castShadows_dec, _range_dec, _intensity_dec, _color_dec, _a$1, _init$1, _direction_dec, _b, _init2;
+var __accessCheck$1 = (obj, member, msg) => member.has(obj) || __typeError$1("Cannot " + msg);
+var __privateIn$1 = (member, obj) => Object(obj) !== obj ? __typeError$1('Cannot use the "in" operator on this value') : member.has(obj);
+var __privateGet$1 = (obj, member, getter) => (__accessCheck$1(obj, member, "read from private field"), getter ? getter.call(obj) : member.get(obj));
+var __privateSet$1 = (obj, member, value, setter) => (__accessCheck$1(obj, member, "write to private field"), setter ? setter.call(obj, value) : member.set(obj, value), value);
+var __privateMethod$1 = (obj, member, method) => (__accessCheck$1(obj, member, "access private method"), method);
+var _castShadows_dec, _intensity_dec, _color_dec, _a$1, _init$1, _range_dec, _angle_dec, _b, _init2, _range_dec2, _c, _init3, _direction_dec, _d, _init4;
 class LightEvents {
   static Updated = (light) => {
   };
 }
-const _Light = class _Light extends (_a$1 = Component, _color_dec = [SerializeField], _intensity_dec = [SerializeField], _range_dec = [SerializeField], _castShadows_dec = [SerializeField], _a$1) {
+const _Light = class _Light extends (_a$1 = Component, _color_dec = [SerializeField], _intensity_dec = [SerializeField], _castShadows_dec = [SerializeField], _a$1) {
   constructor(gameObject) {
     super(gameObject);
     __publicField$1(this, "camera");
     __publicField$1(this, "color", __runInitializers$1(_init$1, 8, this, new Color(1, 1, 1))), __runInitializers$1(_init$1, 11, this);
     __publicField$1(this, "intensity", __runInitializers$1(_init$1, 12, this, 1)), __runInitializers$1(_init$1, 15, this);
-    __publicField$1(this, "range", __runInitializers$1(_init$1, 16, this, 10)), __runInitializers$1(_init$1, 19, this);
-    __publicField$1(this, "castShadows", __runInitializers$1(_init$1, 20, this, true)), __runInitializers$1(_init$1, 23, this);
+    __publicField$1(this, "castShadows", __runInitializers$1(_init$1, 16, this, true)), __runInitializers$1(_init$1, 19, this);
     this.camera = new Camera(this.gameObject);
   }
   Start() {
@@ -4596,7 +4295,7 @@ const _Light = class _Light extends (_a$1 = Component, _color_dec = [SerializeFi
       camera: this.camera.Serialize(),
       color: this.color.Serialize(),
       intensity: this.intensity,
-      range: this.range,
+      // range: this.range,
       castShadows: this.castShadows
     };
   }
@@ -4604,38 +4303,81 @@ const _Light = class _Light extends (_a$1 = Component, _color_dec = [SerializeFi
 _init$1 = __decoratorStart$1(_a$1);
 __decorateElement$1(_init$1, 5, "color", _color_dec, _Light);
 __decorateElement$1(_init$1, 5, "intensity", _intensity_dec, _Light);
-__decorateElement$1(_init$1, 5, "range", _range_dec, _Light);
 __decorateElement$1(_init$1, 5, "castShadows", _castShadows_dec, _Light);
 __decoratorMetadata$1(_init$1, _Light);
 __publicField$1(_Light, "type", "@trident/core/components/Light");
 let Light = _Light;
-class SpotLight extends Light {
-  direction = new Vector3(0, -1, 0);
-  angle = 1;
+class SpotLight extends (_b = Light, _angle_dec = [SerializeField], _range_dec = [SerializeField], _b) {
+  constructor() {
+    super(...arguments);
+    __runInitializers$1(_init2, 5, this);
+    __publicField$1(this, "direction", new Vector3(0, -1, 0));
+    __publicField$1(this, "_angle", 1);
+    __publicField$1(this, "_range", 10);
+  }
+  get angle() {
+    return this._angle;
+  }
+  set angle(angle) {
+    this._angle = angle;
+    this.UpdateLight();
+  }
+  get range() {
+    return this._range;
+  }
+  set range(range) {
+    this._range = range;
+    this.UpdateLight();
+  }
+  UpdateLight() {
+    const radius = Math.tan(this.angle) * this.range;
+    this.transform.scale.set(radius, this.range, radius);
+  }
   Start() {
     super.Start();
     this.camera.SetPerspective(this.angle / Math.PI * 180 * 2, Renderer.width / Renderer.height, 0.01, 1e3);
+    this.UpdateLight();
   }
-  // public Update(): void {
-  //     this.camera.SetPerspective(this.angle / Math.PI * 180 * 2, Renderer.width / Renderer.height, 0.01, 1000);
-  // }
 }
-class PointLight extends Light {
+_init2 = __decoratorStart$1(_b);
+__decorateElement$1(_init2, 2, "angle", _angle_dec, SpotLight);
+__decorateElement$1(_init2, 2, "range", _range_dec, SpotLight);
+__decoratorMetadata$1(_init2, SpotLight);
+class PointLight extends (_c = Light, _range_dec2 = [SerializeField], _c) {
+  constructor() {
+    super(...arguments);
+    __runInitializers$1(_init3, 5, this);
+    __publicField$1(this, "_range", 10);
+  }
+  get range() {
+    return this._range;
+  }
+  set range(range) {
+    this._range = range;
+    this.UpdateLight();
+  }
+  UpdateLight() {
+    this.transform.scale.set(this.range, this.range, this.range);
+  }
   Start() {
     super.Start();
     this.camera.SetPerspective(60, Renderer.width / Renderer.height, 0.01, 1e3);
+    this.UpdateLight();
   }
 }
+_init3 = __decoratorStart$1(_c);
+__decorateElement$1(_init3, 2, "range", _range_dec2, PointLight);
+__decoratorMetadata$1(_init3, PointLight);
 class AreaLight extends Light {
   Start() {
     super.Start();
     this.camera.SetPerspective(60, Renderer.width / Renderer.height, 0.01, 1e3);
   }
 }
-const _DirectionalLight = class _DirectionalLight extends (_b = Light, _direction_dec = [SerializeField], _b) {
+const _DirectionalLight = class _DirectionalLight extends (_d = Light, _direction_dec = [SerializeField], _d) {
   constructor() {
     super(...arguments);
-    __publicField$1(this, "direction", __runInitializers$1(_init2, 8, this, new Vector3(0, 1, 0))), __runInitializers$1(_init2, 11, this);
+    __publicField$1(this, "direction", __runInitializers$1(_init4, 8, this, new Vector3(0, 1, 0))), __runInitializers$1(_init4, 11, this);
   }
   Start() {
     super.Start();
@@ -4657,9 +4399,9 @@ const _DirectionalLight = class _DirectionalLight extends (_b = Light, _directio
     this.castShadows = data.castShadows;
   }
 };
-_init2 = __decoratorStart$1(_b);
-__decorateElement$1(_init2, 5, "direction", _direction_dec, _DirectionalLight);
-__decoratorMetadata$1(_init2, _DirectionalLight);
+_init4 = __decoratorStart$1(_d);
+__decorateElement$1(_init4, 5, "direction", _direction_dec, _DirectionalLight);
+__decoratorMetadata$1(_init4, _DirectionalLight);
 __publicField$1(_DirectionalLight, "type", "@trident/core/components/DirectionalLight");
 let DirectionalLight = _DirectionalLight;
 Component.Registry.set(SpotLight.type, SpotLight);
@@ -4809,9 +4551,15 @@ class DeferredLightingPass extends RenderPass {
   needsUpdate = true;
   initialized = false;
   dummyShadowPassDepth;
+  gBufferDepthClone;
   async init() {
     this.shader = await Shader.Create({
       code: await ShaderLoader.DeferredLighting,
+      attributes: {
+        position: { location: 0, size: 3, type: "vec3" },
+        normal: { location: 1, size: 3, type: "vec3" },
+        uv: { location: 2, size: 2, type: "vec2" }
+      },
       uniforms: {
         textureSampler: { group: 0, binding: 0, type: "sampler" },
         albedoTexture: { group: 0, binding: 1, type: "texture" },
@@ -4819,18 +4567,19 @@ class DeferredLightingPass extends RenderPass {
         ermoTexture: { group: 0, binding: 3, type: "texture" },
         depthTexture: { group: 0, binding: 4, type: "depthTexture" },
         shadowPassDepth: { group: 0, binding: 5, type: "depthTexture" },
-        skyboxTexture: { group: 0, binding: 6, type: "texture" },
-        skyboxIrradianceTexture: { group: 0, binding: 7, type: "texture" },
-        skyboxPrefilterTexture: { group: 0, binding: 8, type: "texture" },
-        skyboxBRDFLUTTexture: { group: 0, binding: 9, type: "texture" },
-        brdfSampler: { group: 0, binding: 10, type: "sampler" },
         lights: { group: 0, binding: 11, type: "storage" },
         lightCount: { group: 0, binding: 12, type: "storage" },
         view: { group: 0, binding: 13, type: "storage" },
         shadowSamplerComp: { group: 0, binding: 14, type: "sampler-compare" },
         settings: { group: 0, binding: 15, type: "storage" }
       },
-      colorOutputs: [{ format: "rgba16float" }]
+      colorOutputs: [{ format: "rgba16float", blendMode: "add" }],
+      depthOutput: "depth24plus",
+      depthWriteEnabled: false,
+      // depthCompare: "less-equal",
+      // cullMode: "back"
+      depthCompare: "greater-equal",
+      cullMode: "front"
     });
     this.sampler = TextureSampler.Create({
       minFilter: "linear",
@@ -4840,17 +4589,10 @@ class DeferredLightingPass extends RenderPass {
       addressModeV: "clamp-to-edge"
     });
     this.shader.SetSampler("textureSampler", this.sampler);
-    const brdfSampler = TextureSampler.Create({
-      minFilter: "linear",
-      magFilter: "linear",
-      addressModeU: "repeat",
-      addressModeV: "repeat"
-    });
-    this.shader.SetSampler("brdfSampler", brdfSampler);
     const shadowSamplerComp = TextureSampler.Create({ minFilter: "linear", magFilter: "linear", compare: "less" });
     this.shader.SetSampler("shadowSamplerComp", shadowSamplerComp);
     this.quadGeometry = new Geometry();
-    this.lightsBuffer = new DynamicBufferMemoryAllocator(120 * 10);
+    this.lightsBuffer = new DynamicBufferMemoryAllocator(120 * 1e4);
     this.lightsCountBuffer = Buffer.Create(1 * 4, BufferType.STORAGE);
     this.shader.SetBuffer("lights", this.lightsBuffer.getBuffer());
     this.shader.SetBuffer("lightCount", this.lightsCountBuffer);
@@ -4860,12 +4602,14 @@ class DeferredLightingPass extends RenderPass {
       this.outputLightingPass = RenderTexture.Create(Renderer.width, Renderer.height, 1, "rgba16float");
     });
     this.dummyShadowPassDepth = DepthTextureArray.Create(1, 1, 1);
+    this.gBufferDepthClone = DepthTexture.Create(Renderer.width, Renderer.height);
     EventSystem.on(LightEvents.Updated, (component) => {
       this.needsUpdate = true;
     });
     this.initialized = true;
   }
   updateLightsBuffer(lights, resources) {
+    if (!this.needsUpdate) return;
     Camera.mainCamera.gameObject.scene;
     for (let i = 0; i < lights.length; i++) {
       const light = lights[i];
@@ -4892,6 +4636,7 @@ class DeferredLightingPass extends RenderPass {
         params1[3] = lightShadowData.shadowMapIndex;
       }
       const lightData = new Float32Array([
+        ...light.transform.localToWorldMatrix.elements,
         light.transform.position.x,
         light.transform.position.y,
         light.transform.position.z,
@@ -4934,39 +4679,36 @@ class DeferredLightingPass extends RenderPass {
     const inputGbufferERMO = resources.getResource(PassParams.GBufferERMO);
     const inputGBufferDepth = resources.getResource(PassParams.GBufferDepth);
     const inputShadowPassDepth = resources.getResource(PassParams.ShadowPassDepth) || this.dummyShadowPassDepth;
-    const inputSkybox = resources.getResource(PassParams.Skybox);
-    const inputSkyboxIrradiance = resources.getResource(PassParams.SkyboxIrradiance);
-    const inputSkyboxPrefilter = resources.getResource(PassParams.SkyboxPrefilter);
-    const inputSkyboxBRDFLUT = resources.getResource(PassParams.SkyboxBRDFLUT);
+    const inputFrameBuffer = resources.getResource(PassParams.FrameBuffer);
     if (!inputGBufferAlbedo) return;
     this.shader.SetTexture("albedoTexture", inputGBufferAlbedo);
     this.shader.SetTexture("normalTexture", inputGBufferNormal);
     this.shader.SetTexture("ermoTexture", inputGbufferERMO);
     this.shader.SetTexture("depthTexture", inputGBufferDepth);
     this.shader.SetTexture("shadowPassDepth", inputShadowPassDepth);
-    this.shader.SetTexture("skyboxTexture", inputSkybox);
-    this.shader.SetTexture("skyboxIrradianceTexture", inputSkyboxIrradiance);
-    this.shader.SetTexture("skyboxPrefilterTexture", inputSkyboxPrefilter);
-    this.shader.SetTexture("skyboxBRDFLUTTexture", inputSkyboxBRDFLUT);
-    const view = new Float32Array(4 + 4 + 16 + 16 + 16);
-    view.set([Renderer.width, Renderer.height, 0], 0);
-    view.set(camera.transform.position.elements, 4);
-    const tempMatrix = new Matrix4();
-    tempMatrix.copy(camera.projectionMatrix).invert();
-    view.set(tempMatrix.elements, 8);
-    tempMatrix.copy(camera.viewMatrix).invert();
-    view.set(tempMatrix.elements, 24);
-    view.set(camera.viewMatrix.elements, 40);
-    this.shader.SetArray("view", view);
+    this.shader.SetArray("view", inputFrameBuffer);
     const settings = resources.getResource(PassParams.DebugSettings);
     this.shader.SetArray("settings", settings);
-    this.drawCommands.push({ geometry: this.quadGeometry, shader: this.shader, instanceCount: 1, firstInstance: 0 });
+    for (let i = 0; i < lights.length; i++) {
+      const light = lights[i];
+      if (light instanceof DirectionalLight) this.drawCommands.push({ geometry: this.plane, shader: this.shader, instanceCount: 1, firstInstance: i });
+      if (light instanceof PointLight) this.drawCommands.push({ geometry: this.sphere, shader: this.shader, instanceCount: 1, firstInstance: i });
+      if (light instanceof SpotLight) this.drawCommands.push({ geometry: this.cone, shader: this.shader, instanceCount: 1, firstInstance: i });
+    }
   }
+  plane = Geometry.Plane();
+  sphere = Geometry.Sphere();
+  cone = Geometry.Cone();
   async execute(resources) {
     if (!this.initialized) return;
-    RendererContext.BeginRenderPass("DeferredLightingPass", [{ target: this.outputLightingPass, clear: true }], void 0, true);
+    if (this.drawCommands.length === 0) return;
+    const GBufferDepth = resources.getResource(PassParams.GBufferDepth);
+    RendererContext.CopyTextureToTextureV3({ texture: GBufferDepth }, { texture: this.gBufferDepthClone });
+    RendererContext.BeginRenderPass("DeferredLightingPass", [{ target: this.outputLightingPass, clear: true }]);
+    RendererContext.EndRenderPass();
+    RendererContext.BeginRenderPass("DeferredLightingPass", [{ target: this.outputLightingPass, clear: false }], { target: this.gBufferDepthClone, clear: false }, true);
     for (const draw of this.drawCommands) {
-      RendererContext.Draw(draw.geometry, draw.shader, 3, draw.instanceCount, draw.firstInstance);
+      RendererContext.DrawGeometry(draw.geometry, draw.shader, draw.instanceCount, draw.firstInstance);
     }
     RendererContext.EndRenderPass();
     resources.setResource(PassParams.LightingPassOutput, this.outputLightingPass);
@@ -5904,6 +5646,15 @@ class PrepareGBuffers extends RenderPass {
   skyboxPrefilter;
   skyboxBRDFLUT;
   GBufferFormat = "rgba8unorm";
+  FrameBufferValues = new ArrayBuffer(288);
+  FrameBufferViews = {
+    projectionOutputSize: new Float32Array(this.FrameBufferValues, 0, 4),
+    viewPosition: new Float32Array(this.FrameBufferValues, 16, 4),
+    projectionInverseMatrix: new Float32Array(this.FrameBufferValues, 32, 16),
+    viewInverseMatrix: new Float32Array(this.FrameBufferValues, 96, 16),
+    viewMatrix: new Float32Array(this.FrameBufferValues, 160, 16),
+    projectionMatrix: new Float32Array(this.FrameBufferValues, 224, 16)
+  };
   constructor() {
     super();
     EventSystem.on(RendererEvents.Resized, (canvas) => {
@@ -5922,21 +5673,11 @@ class PrepareGBuffers extends RenderPass {
   }
   async init(resources) {
     this.CreateGBufferTextures();
-    this.skybox = CubeTexture.Create(1, 1, 6);
-    this.skyboxIrradiance = CubeTexture.Create(1, 1, 6);
-    this.skyboxPrefilter = CubeTexture.Create(1, 1, 6);
-    this.skyboxBRDFLUT = Texture.Create(1, 1, 1);
     this.initialized = true;
   }
-  async execute(resources) {
+  async preFrame(resources) {
     if (!this.initialized) return;
-    const colorTargets = [
-      { target: this.gBufferAlbedoRT, clear: true },
-      { target: this.gBufferNormalRT, clear: true },
-      { target: this.gBufferERMORT, clear: true }
-    ];
-    RendererContext.BeginRenderPass(`PrepareGBuffers`, colorTargets, { target: this.depthTexture, clear: true }, true);
-    RendererContext.EndRenderPass();
+    if (!Camera.mainCamera) return;
     resources.setResource(PassParams.depthTexture, this.depthTexture);
     resources.setResource(PassParams.GBufferDepth, this.depthTexture);
     resources.setResource(PassParams.GBufferAlbedo, this.gBufferAlbedoRT);
@@ -5969,6 +5710,24 @@ class PrepareGBuffers extends RenderPass {
       0
     ]);
     resources.setResource(PassParams.DebugSettings, settings);
+    const camera = Camera.mainCamera;
+    this.FrameBufferViews.projectionOutputSize.set([Renderer.width, Renderer.height, 0, 0]);
+    this.FrameBufferViews.viewPosition.set([...camera.transform.position.elements, 0]);
+    const tempMatrix = new Matrix4();
+    this.FrameBufferViews.projectionInverseMatrix.set(tempMatrix.clone().copy(camera.projectionMatrix).invert().elements);
+    this.FrameBufferViews.viewInverseMatrix.set(tempMatrix.clone().copy(camera.viewMatrix).invert().elements);
+    this.FrameBufferViews.viewMatrix.set(camera.viewMatrix.elements);
+    this.FrameBufferViews.projectionMatrix.set(camera.projectionMatrix.elements);
+    resources.setResource(PassParams.FrameBuffer, this.FrameBufferValues);
+  }
+  async execute(resources) {
+    const colorTargets = [
+      { target: this.gBufferAlbedoRT, clear: true },
+      { target: this.gBufferNormalRT, clear: true },
+      { target: this.gBufferERMORT, clear: true }
+    ];
+    RendererContext.BeginRenderPass(`PrepareGBuffers`, colorTargets, { target: this.depthTexture, clear: true }, true);
+    RendererContext.EndRenderPass();
   }
 }
 
@@ -6121,6 +5880,7 @@ class ForwardPass extends RenderPass {
     }
   }
   async execute(resources) {
+    if (this.drawCommands.length === 0) return;
     const LightingPassOutput = resources.getResource(PassParams.LightingPassOutput);
     const DepthPassOutput = resources.getResource(PassParams.GBufferDepth);
     RendererContext.BeginRenderPass(this.name, [{ target: LightingPassOutput, clear: false }], { target: DepthPassOutput, clear: false }, true);
@@ -6128,6 +5888,192 @@ class ForwardPass extends RenderPass {
       RendererContext.DrawGeometry(draw.geometry, draw.shader, draw.instanceCount, draw.firstInstance);
     }
     RendererContext.EndRenderPass();
+  }
+}
+
+class IBLLightingPass extends RenderPass {
+  name = "IBLLightingPass";
+  shader;
+  sampler;
+  quadGeometry;
+  initialized = false;
+  async init() {
+    this.shader = await Shader.Create({
+      code: await ShaderLoader.IBLLighting,
+      uniforms: {
+        textureSampler: { group: 0, binding: 0, type: "sampler" },
+        albedoTexture: { group: 0, binding: 1, type: "texture" },
+        normalTexture: { group: 0, binding: 2, type: "texture" },
+        ermoTexture: { group: 0, binding: 3, type: "texture" },
+        depthTexture: { group: 0, binding: 4, type: "depthTexture" },
+        skyboxTexture: { group: 0, binding: 6, type: "texture" },
+        skyboxIrradianceTexture: { group: 0, binding: 7, type: "texture" },
+        skyboxPrefilterTexture: { group: 0, binding: 8, type: "texture" },
+        skyboxBRDFLUTTexture: { group: 0, binding: 9, type: "texture" },
+        brdfSampler: { group: 0, binding: 10, type: "sampler" },
+        view: { group: 0, binding: 13, type: "storage" }
+      },
+      colorOutputs: [{ format: "rgba16float", blendMode: "add" }]
+    });
+    this.sampler = TextureSampler.Create({
+      minFilter: "linear",
+      magFilter: "linear",
+      mipmapFilter: "linear",
+      addressModeU: "clamp-to-edge",
+      addressModeV: "clamp-to-edge"
+    });
+    this.shader.SetSampler("textureSampler", this.sampler);
+    const brdfSampler = TextureSampler.Create({
+      minFilter: "linear",
+      magFilter: "linear",
+      addressModeU: "repeat",
+      addressModeV: "repeat"
+    });
+    this.shader.SetSampler("brdfSampler", brdfSampler);
+    this.quadGeometry = new Geometry();
+    this.initialized = true;
+  }
+  async preFrame(resources) {
+    if (!this.initialized) return;
+    this.drawCommands.length = 0;
+    const inputGBufferAlbedo = resources.getResource(PassParams.GBufferAlbedo);
+    const inputGBufferNormal = resources.getResource(PassParams.GBufferNormal);
+    const inputGbufferERMO = resources.getResource(PassParams.GBufferERMO);
+    const inputGBufferDepth = resources.getResource(PassParams.GBufferDepth);
+    const inputSkybox = resources.getResource(PassParams.Skybox);
+    const inputSkyboxIrradiance = resources.getResource(PassParams.SkyboxIrradiance);
+    const inputSkyboxPrefilter = resources.getResource(PassParams.SkyboxPrefilter);
+    const inputSkyboxBRDFLUT = resources.getResource(PassParams.SkyboxBRDFLUT);
+    const inputFrameBuffer = resources.getResource(PassParams.FrameBuffer);
+    if (!inputGBufferAlbedo) return;
+    if (!inputSkybox) return;
+    this.shader.SetTexture("albedoTexture", inputGBufferAlbedo);
+    this.shader.SetTexture("normalTexture", inputGBufferNormal);
+    this.shader.SetTexture("ermoTexture", inputGbufferERMO);
+    this.shader.SetTexture("depthTexture", inputGBufferDepth);
+    this.shader.SetTexture("skyboxTexture", inputSkybox);
+    this.shader.SetTexture("skyboxIrradianceTexture", inputSkyboxIrradiance);
+    this.shader.SetTexture("skyboxPrefilterTexture", inputSkyboxPrefilter);
+    this.shader.SetTexture("skyboxBRDFLUTTexture", inputSkyboxBRDFLUT);
+    this.shader.SetArray("view", inputFrameBuffer);
+    this.drawCommands.push({ geometry: this.quadGeometry, shader: this.shader, instanceCount: 1, firstInstance: 0 });
+  }
+  async execute(resources) {
+    if (!this.initialized) return;
+    if (this.drawCommands.length === 0) return;
+    const LightingPassOutput = resources.getResource(PassParams.LightingPassOutput);
+    RendererContext.BeginRenderPass(this.name, [{ target: LightingPassOutput, clear: false }], void 0, true);
+    for (const draw of this.drawCommands) {
+      RendererContext.Draw(draw.geometry, draw.shader, 3, draw.instanceCount, draw.firstInstance);
+    }
+    RendererContext.EndRenderPass();
+    resources.setResource(PassParams.LightingPassOutput, LightingPassOutput);
+  }
+}
+
+class SkyboxPass extends RenderPass {
+  name = "SkyboxPass";
+  shader;
+  quadGeometry;
+  initialized = false;
+  async init() {
+    this.shader = await Shader.Create({
+      code: `
+                struct VertexOutput {
+                    @builtin(position) position: vec4<f32>,
+                };
+
+                @group(0) @binding(0) var textureSampler: sampler;
+
+                @group(0) @binding(4) var depthTexture: texture_depth_2d;
+
+                @group(0) @binding(6) var skyboxTexture: texture_cube<f32>;
+
+                struct View {
+                    projectionOutputSize: vec4<f32>,
+                    viewPosition: vec4<f32>,
+                    projectionInverseMatrix: mat4x4<f32>,
+                    viewInverseMatrix: mat4x4<f32>,
+                    viewMatrix: mat4x4<f32>,
+                    projectionMatrix: mat4x4<f32>,
+                };
+                @group(0) @binding(13) var<storage, read> view: View;
+
+
+                // Full-screen triangle (covers screen with 3 verts)
+                const p = array<vec2f, 3>(
+                    vec2f(-1.0, -1.0),
+                    vec2f( 3.0, -1.0),
+                    vec2f(-1.0,  3.0)
+                );
+
+                @vertex
+                fn vertexMain(@builtin(vertex_index) vertexIndex : u32) -> VertexOutput {
+                    var output: VertexOutput;
+                    output.position = vec4(p[vertexIndex], 0.0, 1.0);
+                    return output;
+                }
+
+                @fragment
+                fn fragmentMain(input: VertexOutput) -> @location(0) vec4<f32> {
+                    let pix   = vec2<i32>(floor(input.position.xy));
+
+                    let depth = textureLoad(depthTexture, pix, 0);
+                    
+                    if (depth <= 0.9999999) {
+                        discard;
+                    }
+
+                    // Build NDC + view/world rays (same as before)
+                    let ndc = vec3<f32>(
+                        (input.position.x / view.projectionOutputSize.x) * 2.0 - 1.0,
+                        (input.position.y / view.projectionOutputSize.y) * 2.0 - 1.0,
+                        1.0
+                    );
+                    let viewRay4 = view.projectionInverseMatrix * vec4(ndc, 1.0);
+                    var viewRay  = normalize(viewRay4.xyz / viewRay4.w);
+                    viewRay.y   *= -1.0;
+                    var worldRay = normalize((view.viewInverseMatrix * vec4(viewRay, 0.0)).xyz);
+
+                    let sky = textureSample(skyboxTexture, textureSampler, worldRay).rgb;
+                    return vec4f(sky, 1.0);
+                }
+            `,
+      uniforms: {
+        textureSampler: { group: 0, binding: 0, type: "sampler" },
+        depthTexture: { group: 0, binding: 4, type: "depthTexture" },
+        skyboxTexture: { group: 0, binding: 6, type: "texture" },
+        view: { group: 0, binding: 13, type: "storage" }
+      },
+      colorOutputs: [{ format: "rgba16float" }]
+    });
+    this.shader.SetSampler("textureSampler", TextureSampler.Create());
+    this.quadGeometry = new Geometry();
+    this.initialized = true;
+  }
+  async preFrame(resources) {
+    if (!this.initialized) return;
+    this.drawCommands.length = 0;
+    const inputGBufferDepth = resources.getResource(PassParams.GBufferDepth);
+    const inputSkybox = resources.getResource(PassParams.Skybox);
+    const inputFrameBuffer = resources.getResource(PassParams.FrameBuffer);
+    if (!inputGBufferDepth) return;
+    if (!inputSkybox) return;
+    this.shader.SetTexture("depthTexture", inputGBufferDepth);
+    this.shader.SetTexture("skyboxTexture", inputSkybox);
+    this.shader.SetArray("view", inputFrameBuffer);
+    this.drawCommands.push({ geometry: this.quadGeometry, shader: this.shader, instanceCount: 1, firstInstance: 0 });
+  }
+  async execute(resources) {
+    if (!this.initialized) return;
+    if (this.drawCommands.length === 0) return;
+    const LightingPassOutput = resources.getResource(PassParams.LightingPassOutput);
+    RendererContext.BeginRenderPass(this.name, [{ target: LightingPassOutput, clear: false }], void 0, true);
+    for (const draw of this.drawCommands) {
+      RendererContext.Draw(draw.geometry, draw.shader, 3, draw.instanceCount, draw.firstInstance);
+    }
+    RendererContext.EndRenderPass();
+    resources.setResource(PassParams.LightingPassOutput, LightingPassOutput);
   }
 }
 
@@ -6148,11 +6094,7 @@ const PassParams = {
   ShadowPassCascadeData: "ShadowPassCascadeData",
   LightsBuffer: "LightsBuffer",
   LightingPassOutput: "LightingPassOutput",
-  FrameBuffer: "FrameBuffer",
-  MaterialBuffer: "MaterialBuffer",
-  ModelBuffer: "ModelBuffer",
-  InstanceBuffer: "InstanceBuffer",
-  Renderables: "Renderables"
+  FrameBuffer: "FrameBuffer"
 };
 var RenderPassOrder = /* @__PURE__ */ ((RenderPassOrder2) => {
   RenderPassOrder2[RenderPassOrder2["BeforeGBuffer"] = 0] = "BeforeGBuffer";
@@ -6215,6 +6157,8 @@ class RenderingPipeline {
     this.beforeLightingPasses = [];
     this.afterLightingPasses = [
       new DeferredLightingPass(),
+      new IBLLightingPass(),
+      new SkyboxPass(),
       new ForwardPass()
     ];
     this.beforeScreenOutputPasses = [

@@ -1,4 +1,4 @@
-import { Component, Mathf } from '@trident/core';
+import { Component } from '@trident/core';
 import { LineRenderer } from '@trident/plugins/LineRenderer.js';
 
 class SpotLightHelper extends Component {
@@ -59,10 +59,7 @@ class SpotLightHelper extends Component {
   Update() {
     this.transform.position.copy(this.light.transform.position);
     this.transform.rotation.copy(this.light.transform.rotation);
-    const coneLength = this.light.range ? this.light.range : 1e3;
-    const coneWidth = coneLength * Math.tan(this.light.angle);
-    this.transform.scale.set(coneWidth, coneWidth, coneLength);
-    this.transform.LookAtV1(new Mathf.Vector3(0, 0, 0));
+    this.transform.scale.set(this.light.angle * Math.PI, this.light.angle * Math.PI, this.light.range * 0.5);
   }
 }
 
