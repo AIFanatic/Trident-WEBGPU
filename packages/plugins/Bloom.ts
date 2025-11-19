@@ -19,10 +19,10 @@ export class Bloom extends GPU.RenderPass {
     private temporaryTextures: Map<string, GPU.RenderTexture> = new Map();
     private scratchTextures: GPU.RenderTexture[] = [];
 
-    private iterations: number = 1;
+    private iterations: number = 4;
 
     constructor() {
-        super({})
+        super();
         this.renderTarget = GPU.RenderTexture.Create(GPU.Renderer.width, GPU.Renderer.height, 1, "rgba16float");
         this.output = GPU.RenderTexture.Create(GPU.Renderer.width, GPU.Renderer.height, 1, "rgba16float");
     }
@@ -214,10 +214,10 @@ export class Bloom extends GPU.RenderPass {
         bloomFolder.Open();
 
 
-        let _DownsampleDistance = 1;
+        let _DownsampleDistance = 5;
         let _UpsampleDistance = 0.5;
         let Strength = 1;
-        let threshold = 0.8;
+        let threshold = 0.4;
         let softThreshold = 0.25;
 
         const updateParams = () => {
@@ -248,12 +248,14 @@ export class Bloom extends GPU.RenderPass {
         GPU.RendererContext.EndRenderPass();        
     }
 
-    public execute(resources: GPU.ResourcePool, ...args: any): void {
+    public async execute(resources: GPU.ResourcePool, ...args: any) {
         if (this.initialized === false) {
             throw Error("Not initialized")
         };
 
         const lightingTexture = resources.getResource(GPU.PassParams.LightingPassOutput) as GPU.Texture;
+        if (!lightingTexture) return;
+        
         this.shader.SetTexture("tex", lightingTexture);
 
 

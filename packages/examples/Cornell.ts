@@ -37,7 +37,8 @@ async function Application(canvas: HTMLCanvasElement) {
     lightGameObject.transform.LookAtV1(new Mathf.Vector3(0, 0, 0));
     const light = lightGameObject.AddComponent(Components.PointLight);
     light.color.set(1, 1, 1, 1)
-    light.intensity = 1;
+    light.intensity = 10;
+    light.range = 20;
     light.castShadows = true;
 
 

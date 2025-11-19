@@ -116,14 +116,15 @@ class WaterRenderPass extends GPU.RenderPass {
     }
 
     public async init(resources: GPU.ResourcePool) {
+        const GBufferFormat = Scene.mainScene.renderPipeline.GBufferFormat;
 
         this.waterShader = await GPU.Shader.Create({
             // code: await Assets.Load("./WaterPass.wgsl", "json"),
             code: await GPU.ShaderLoader.LoadURL(new URL(WaterPassWGSL, import.meta.url)),
             colorOutputs: [
-                { format: "rgba16float" },
-                { format: "rgba16float" },
-                { format: "rgba16float" },
+                { format: GBufferFormat },
+                { format: GBufferFormat },
+                { format: GBufferFormat },
             ],
             depthOutput: "depth24plus",
             attributes: {
@@ -172,7 +173,7 @@ class WaterRenderPass extends GPU.RenderPass {
         this.waterShader.SetSampler("texture_sampler", GPU.TextureSampler.Create());
         this.waterShader.SetSampler("depth_texture_sampler", GPU.TextureSampler.Create({compare: "less-equal"}));
 
-        this.albedoClone = GPU.RenderTexture.Create(Renderer.width, Renderer.height, 1, "rgba16float");
+        this.albedoClone = GPU.RenderTexture.Create(Renderer.width, Renderer.height, 1, GBufferFormat);
         this.depthClone = GPU.DepthTexture.Create(Renderer.width, Renderer.height);
 
 

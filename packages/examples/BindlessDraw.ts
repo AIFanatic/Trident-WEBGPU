@@ -249,7 +249,7 @@ async function Application(canvas: HTMLCanvasElement) {
                 }
                 `,
                 colorOutputs: [
-                    { format: "rgba16float" },
+                    { format: GPU.Renderer.SwapChainFormat },
                 ],
                 attributes: {
                     position: { location: 0, size: 3, type: "vec3" },

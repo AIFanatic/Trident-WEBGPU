@@ -1,3 +1,5 @@
+#include "@trident/core/resources/webgpu/shaders/deferred/OctahedralEncoding.wgsl";
+
 struct VertexInput {
     @builtin(instance_index) instanceIdx : u32, 
     @location(0) position : vec3<f32>,
@@ -226,7 +228,7 @@ fn fragmentMain(input: VertexOutput) -> FragmentOutput {
     output.albedo = vec4f(color, 0.2);
     // output.albedo = vec4f(vec3(UV, 0.0), 0.2);
 
-    output.normal = vec4(ref_normalmap, 0.1);
+    output.normal = vec4(OctEncode(ref_normalmap.xyz), 1.0, 0.1);
     output.RMO = vec4(vec3(0.0), 0.0);
 
     return output;

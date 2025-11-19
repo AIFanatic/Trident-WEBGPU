@@ -33,7 +33,7 @@ async function Application(canvas: HTMLCanvasElement) {
     lightGameObject.transform.position.set(2, 5, 10);
     lightGameObject.transform.LookAtV1(new Mathf.Vector3(0, 0, 0));
     // const light = lightGameObject.AddComponent(DirectionalLight);
-    const light = lightGameObject.AddComponent(Components.SpotLight);
+    const light = lightGameObject.AddComponent(Components.PointLight);
     light.range = 200;
     light.angle = 90;
     light.intensity = 10;
@@ -58,6 +58,8 @@ async function Application(canvas: HTMLCanvasElement) {
         });
 
         new UISliderStat(lightFolder, "Intensity:", 0, 100, 0.1, light.intensity, state => {light.intensity = state});
+        new UISliderStat(lightFolder, "Angle:", 0, 100, 0.1, light.angle, state => {light.angle = state});
+        new UISliderStat(lightFolder, "Range:", 0, 100, 0.1, light.range, state => {light.range = state});
     }
 
     const top = new GameObject(scene);
@@ -159,6 +161,7 @@ async function Application(canvas: HTMLCanvasElement) {
     const lightGameObject2 = new GameObject(scene);
     const light2 = lightGameObject2.AddComponent(Components.PointLight);
     light2.intensity = 10;
+    light2.range = 20;
     light2.color.set(1, 0, 0, 1);
     light2.castShadows = false;
     light2.transform.position.copy(cube2.transform.position);
