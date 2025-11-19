@@ -43,12 +43,12 @@ async function Application(canvas: HTMLCanvasElement) {
     let w;
     {
         const lightGameObject = new GameObject(scene);
-        lightGameObject.transform.position.set(0.01, 4, 0.01);
+        lightGameObject.transform.position.set(-1, 4, 0.01);
         lightGameObject.transform.LookAtV1(new Mathf.Vector3(0, 0, 0));
         const light = lightGameObject.AddComponent(Components.SpotLight);
         light.intensity = 100;
-        light.range = 7.5;
-        light.angle = 0.33;
+        light.range = 20;
+        light.angle = 0.85;
         light.color.set(1, 1, 1, 1);
         light.castShadows = true;
 
@@ -80,14 +80,30 @@ async function Application(canvas: HTMLCanvasElement) {
         const spotLightHelper = lightHelperGameObject.AddComponent(SpotLightHelper);
         spotLightHelper.light = light;
         w = waterSettingsFolder;
+
+        // {
+        //     const sphereGameObject = new GameObject(scene);
+        //     const sphereMesh = sphereGameObject.AddComponent(Components.Mesh);
+        //     sphereMesh.geometry = Geometry.Cone();
+        //     const mat = new PBRMaterial({albedoColor: new Mathf.Color(1, 1, 1), metalness: 0.0, roughness: 1.0});
+        //     sphereMesh.material = mat;
+    
+        //     setInterval(() => {
+        //         sphereGameObject.transform.position.copy(light.transform.position);
+        //         sphereGameObject.transform.scale.copy(light.transform.scale);
+        //     }, 100);
+        // }
     }
 
-    {
-        const lightGameObject = new GameObject(scene);
-        lightGameObject.transform.position.set(-4, 4, 4);
-        lightGameObject.transform.LookAtV1(new Mathf.Vector3(0, 0, 0));
-        const light = lightGameObject.AddComponent(Components.DirectionalLight);
-    }
+
+
+    
+    // {
+    //     const lightGameObject = new GameObject(scene);
+    //     lightGameObject.transform.position.set(-4, 4, 4);
+    //     lightGameObject.transform.LookAtV1(new Mathf.Vector3(0, 0, 0));
+    //     const light = lightGameObject.AddComponent(Components.DirectionalLight);
+    // }
 
     // {
     //     const lightGameObject = new GameObject(scene);
@@ -142,22 +158,22 @@ async function Application(canvas: HTMLCanvasElement) {
         planeGO.transform.scale.set(10, 10, 1);
         const sphereMesh = planeGO.AddComponent(Components.Mesh);
         sphereMesh.geometry = Geometry.Plane();
-        const mat = new PBRMaterial({albedoColor: new Mathf.Color(1, 1, 1), metalness: 0.5, roughness: 0.5});
+        const mat = new PBRMaterial({albedoColor: new Mathf.Color(1, 1, 1), metalness: 0.0, roughness: 1});
         sphereMesh.material = mat;
     }
 
-    {
-        const sphereGameObject = new GameObject(scene);
-        sphereGameObject.transform.position.set(3, -1.5, 0);
-        const sphereMesh = sphereGameObject.AddComponent(Components.Mesh);
-        sphereMesh.geometry = Geometry.Sphere();
-        const mat = new PBRMaterial({albedoColor: new Mathf.Color(0.5843, 0.8353, 0.8784, 1), metalness: 0.5, roughness: 0.1});
-        sphereMesh.material = mat;
-        new UIColorStat(w, "Color:", "#ffffff", color => {
-            mat.params.albedoColor.setFromHex(color);
-            mat.params.albedoColor = mat.params.albedoColor; // Proxy things
-        });
-    }
+    // {
+    //     const sphereGameObject = new GameObject(scene);
+    //     sphereGameObject.transform.position.set(3, -1.5, 0);
+    //     const sphereMesh = sphereGameObject.AddComponent(Components.Mesh);
+    //     sphereMesh.geometry = Geometry.Sphere();
+    //     const mat = new PBRMaterial({albedoColor: new Mathf.Color(0.5843, 0.8353, 0.8784, 1), metalness: 0.5, roughness: 0.1});
+    //     sphereMesh.material = mat;
+    //     new UIColorStat(w, "Color:", "#ffffff", color => {
+    //         mat.params.albedoColor.setFromHex(color);
+    //         mat.params.albedoColor = mat.params.albedoColor; // Proxy things
+    //     });
+    // }
 
     {
         const sphereGameObject = new GameObject(scene);

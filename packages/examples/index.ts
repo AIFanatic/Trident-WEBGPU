@@ -40,3 +40,5 @@ import "./SSS";
 import "./DepthBufferRaymarch";
 
 import "./CSMShadows";
+
+import "./LightBenchmark";

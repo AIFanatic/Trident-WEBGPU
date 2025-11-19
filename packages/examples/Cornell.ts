@@ -36,6 +36,8 @@ async function Application(canvas: HTMLCanvasElement) {
     // lightGameObject.transform.position.set(-10, 10, 10);
     lightGameObject.transform.LookAtV1(new Mathf.Vector3(0, 0, 0));
     const light = lightGameObject.AddComponent(Components.PointLight);
+    light.color.set(1, 1, 1, 1)
+    light.intensity = 1;
     light.castShadows = true;
 
 
@@ -84,7 +86,7 @@ async function Application(canvas: HTMLCanvasElement) {
     const right = new GameObject(scene);
     right.transform.scale.set(0.05, 10, 10);
     right.transform.position.x = 5;
-    // right.transform.eulerAngles.y = -90;
+    right.transform.eulerAngles.y = -180;
     const meshright = right.AddComponent(Components.Mesh);
     meshright.geometry = Geometry.Cube();
     meshright.material = rightMaterial;
