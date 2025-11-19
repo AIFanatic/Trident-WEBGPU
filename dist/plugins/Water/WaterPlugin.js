@@ -1,4 +1,4 @@
-import { GPU, Renderer, Components, Component, Geometry, IndexAttribute, VertexAttribute } from '@trident/core';
+import { GPU, Scene, Renderer, Components, Component, Geometry, IndexAttribute, VertexAttribute } from '@trident/core';
 import { DataBackedBuffer } from '@trident/plugins/DataBackedBuffer.js';
 
 const WaterPassWGSL = "./resources/WaterPass.wgsl";
@@ -52,13 +52,14 @@ class WaterRenderPass extends GPU.RenderPass {
     this.waterGeometries = /* @__PURE__ */ new Map();
   }
   async init(resources) {
+    const GBufferFormat = Scene.mainScene.renderPipeline.GBufferFormat;
     this.waterShader = await GPU.Shader.Create({
       // code: await Assets.Load("./WaterPass.wgsl", "json"),
       code: await GPU.ShaderLoader.LoadURL(new URL(WaterPassWGSL, import.meta.url)),
       colorOutputs: [
-        { format: "rgba16float" },
-        { format: "rgba16float" },
-        { format: "rgba16float" }
+        { format: GBufferFormat },
+        { format: GBufferFormat },
+        { format: GBufferFormat }
       ],
       depthOutput: "depth24plus",
       attributes: {
@@ -93,7 +94,7 @@ class WaterRenderPass extends GPU.RenderPass {
     this.waterShader.SetTexture("foam_sampler", foam_sampler_texture);
     this.waterShader.SetSampler("texture_sampler", GPU.TextureSampler.Create());
     this.waterShader.SetSampler("depth_texture_sampler", GPU.TextureSampler.Create({ compare: "less-equal" }));
-    this.albedoClone = GPU.RenderTexture.Create(Renderer.width, Renderer.height, 1, "rgba16float");
+    this.albedoClone = GPU.RenderTexture.Create(Renderer.width, Renderer.height, 1, GBufferFormat);
     this.depthClone = GPU.DepthTexture.Create(Renderer.width, Renderer.height);
     this.waterSettingsBuffer = GPU.Buffer.Create(14 * 4 * 4, GPU.BufferType.STORAGE);
     this.waterShader.SetBuffer("waveSettings", this.waterSettingsBuffer);

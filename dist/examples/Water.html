@@ -102,6 +102,27 @@
                 );
                 waterSettingsFolder.Open();
               }
+              const offset = 10;
+              const i = 5;
+              for (let x = 0; x < i; x++) {
+                for (let y = 0; y < i; y++) {
+                  const lightGameObject = new GameObject(scene);
+                  lightGameObject.transform.position.set(x * offset - i * 0.5 * 2, 7, y * offset - i * 0.5 * 2);
+                  const look = lightGameObject.transform.position.clone();
+                  look.y -= 1;
+                  lightGameObject.transform.LookAtV1(look);
+                  const light = lightGameObject.AddComponent(Components.PointLight);
+                  light.color.set(Math.random(), Math.random(), Math.random(), 1);
+                  light.range = 20;
+                  light.intensity = 10;
+                  light.castShadows = false;
+                  const sphereGameObject = new GameObject(scene);
+                  sphereGameObject.transform.position.copy(lightGameObject.transform.position);
+                  const sphereMesh = sphereGameObject.AddComponent(Components.Mesh);
+                  sphereMesh.geometry = Geometry.Sphere();
+                  sphereMesh.material = new PBRMaterial({ albedoColor: light.color, emissiveColor: light.color, unlit: false });
+                }
+              }
               scene.Start();
             }
             Application(document.querySelector("canvas"));

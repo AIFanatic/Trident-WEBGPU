@@ -10,9 +10,9 @@ class Bloom extends GPU.RenderPass {
   currentPassBuffer;
   temporaryTextures = /* @__PURE__ */ new Map();
   scratchTextures = [];
-  iterations = 1;
+  iterations = 4;
   constructor() {
-    super({});
+    super();
     this.renderTarget = GPU.RenderTexture.Create(GPU.Renderer.width, GPU.Renderer.height, 1, "rgba16float");
     this.output = GPU.RenderTexture.Create(GPU.Renderer.width, GPU.Renderer.height, 1, "rgba16float");
   }
@@ -189,10 +189,10 @@ class Bloom extends GPU.RenderPass {
     this.shader.SetBuffer("_pass", this.currentPassBuffer);
     const bloomFolder = new UIFolder(Debugger.ui, "Bloom");
     bloomFolder.Open();
-    let _DownsampleDistance = 1;
+    let _DownsampleDistance = 5;
     let _UpsampleDistance = 0.5;
     let Strength = 1;
-    let threshold = 0.8;
+    let threshold = 0.4;
     let softThreshold = 0.25;
     const updateParams = () => {
       const knee = threshold * softThreshold;
@@ -247,11 +247,12 @@ class Bloom extends GPU.RenderPass {
     GPU.RendererContext.DrawGeometry(this.geometry, shader);
     GPU.RendererContext.EndRenderPass();
   }
-  execute(resources, ...args) {
+  async execute(resources, ...args) {
     if (this.initialized === false) {
       throw Error("Not initialized");
     }
     const lightingTexture = resources.getResource(GPU.PassParams.LightingPassOutput);
+    if (!lightingTexture) return;
     this.shader.SetTexture("tex", lightingTexture);
     this.shader.SetTexture("_MainTex", lightingTexture);
     this.shader.SetArray("_MainTex_TexelSize", new Float32Array([1 / lightingTexture.width, 1 / lightingTexture.height, 0, 0]));

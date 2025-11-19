@@ -45,6 +45,7 @@
               lightGameObject.transform.position.set(-1, -1, -1).normalize().mul(-200);
               lightGameObject.transform.LookAtV1(new Mathf.Vector3(0, 0, 0));
               const light = lightGameObject.AddComponent(Components.DirectionalLight);
+              light.intensity = 0.01;
               light.castShadows = false;
               const target = new Mathf.Vector3(0, 0, 0);
               const lightPos = lightGameObject.transform.position;
