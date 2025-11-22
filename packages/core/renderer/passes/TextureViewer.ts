@@ -49,8 +49,11 @@ export class TextureViewer extends RenderPass {
         }
 
         @fragment fn fragmentMain(input: VertexOutput) -> @location(0) vec4f {
-            let color = textureSampleLevel(texture, textureSampler, input.vUv, 0);
-            return vec4f(gammaCorrection(toneMapping(color.rgb)), color.a);
+            // let color = textureSampleLevel(texture, textureSampler, input.vUv, 0);
+            // return vec4f(gammaCorrection(toneMapping(color.rgb)), color.a);
+
+            let hdr = textureSampleLevel(texture, textureSampler, input.vUv, 0);
+            return vec4f(gammaCorrection(toneMapping(hdr.rgb * 0.5)), hdr.a);
         }
         `;
 

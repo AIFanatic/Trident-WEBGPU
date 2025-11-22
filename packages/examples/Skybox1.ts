@@ -204,41 +204,52 @@ async function Application(canvas: HTMLCanvasElement) {
     }
 
     {
-        const skyAtmosphere = new Sky();
-        await skyAtmosphere.init();
-        await skyAtmosphere.preFrame();
-        await skyAtmosphere.execute();
-
         const hdr = await HDRParser.Load("./assets/textures/HDR/dikhololo_night_1k.hdr");
-        // const sky = await HDRParser.ToCubemap(hdr);
-        const sky = await HDRParser.ToCubemap(skyAtmosphere.output);
+        const sky = await HDRParser.ToCubemap(hdr);
 
         const skyIrradiance = await HDRParser.GetIrradianceMap(sky);
         const prefilterMap = await HDRParser.GetPrefilterMap(sky);
         const brdfLUT = await HDRParser.GetBRDFLUT(1);
 
 
-        // scene.renderPipeline.AddPass(skyAtmosphere, GPU.RenderPassOrder.AfterLighting);
+        const skyGO = new GameObject(scene);
+        const skyAtmosphere = new Sky();
+        scene.renderPipeline.AddPass(skyAtmosphere, GPU.RenderPassOrder.AfterGBuffer);
 
-        scene.renderPipeline.skybox = sky;
-        scene.renderPipeline.skyboxIrradiance = skyIrradiance;
-        scene.renderPipeline.skyboxPrefilter = prefilterMap;
-        scene.renderPipeline.skyboxBRDFLUT = brdfLUT;
-
-        {
-            const skySettings = new UIFolder(Debugger.ui, "Sky");
-            new UISliderStat(skySettings, "Rayleigh:", 0, 100, 0.01, skyAtmosphere.rayleigh, value => skyAtmosphere.rayleigh = value);
-            new UISliderStat(skySettings, "Turbidity:", 0, 100, 0.01, skyAtmosphere.turbidity, value => skyAtmosphere.turbidity = value);
-            new UISliderStat(skySettings, "MieCoefficient:", 0, 100, 0.01, skyAtmosphere.mieCoefficient, value => skyAtmosphere.mieCoefficient = value);
-            new UISliderStat(skySettings, "MieDirectionalG:", 0, 100, 0.01, skyAtmosphere.mieDirectionalG, value => skyAtmosphere.mieDirectionalG = value);
-
-            new UISliderStat(skySettings, "Sun azimuth:", -Math.PI, Math.PI, 0.01, skyAtmosphere.sunDirection.x, value => skyAtmosphere.sunDirection.x = value);
-            new UISliderStat(skySettings, "Sun elevation:", -Math.PI, Math.PI, 0.01, skyAtmosphere.sunDirection.y, value => skyAtmosphere.sunDirection.y = value);
-    
-            skySettings.Open();
-        }
+        // scene.renderPipeline.skybox = sky;
+        // scene.renderPipeline.skyboxIrradiance = skyIrradiance;
+        // scene.renderPipeline.skyboxPrefilter = prefilterMap;
+        // scene.renderPipeline.skyboxBRDFLUT = brdfLUT;
     }
 
+    // {
+    //     const sphereGameObject = new GameObject(scene);
+    //     sphereGameObject.transform.position.set(1, 1, 0);
+    //     const sphereMesh = sphereGameObject.AddComponent(Components.InstancedMesh);
+        // sphereMesh.geometry = Geometry.Cube();
+    //     const mat = new PBRMaterial({albedoColor: new Mathf.Color(1, 1, 1), metalness: 0.0, roughness: 1.0});
+    //     sphereMesh.material = mat;
+
+    //     const c = 100000;
+    //     let modelMatrix = new Mathf.Matrix4();
+    //     let position = new Mathf.Vector3();
+    //     let rotation = new Mathf.Quaternion();
+    //     let scale = new Mathf.Vector3(1,1,1);
+    //     for (let i = 0; i < c; i++) {
+    //         const off = 100;
+    //         const r = (off) => (Math.random() * off) - off * 0.5;
+    //         position.set(r(off), r(off), r(off));
+    //         scale.set(Math.random(), Math.random(), Math.random())
+    //         modelMatrix.compose(position, rotation, scale);
+    //         sphereMesh.SetMatrixAt(i, modelMatrix);
+    //         // cubes.setInstanceData(position.elements, i);
+    //     }
+    // }
+
+
+    const postProcessing = new PostProcessingPass();
+    postProcessing.effects.push(new PostProcessingFXAA());
+    scene.renderPipeline.AddPass(postProcessing, GPU.RenderPassOrder.AfterLighting);
 
     scene.Start();
 };

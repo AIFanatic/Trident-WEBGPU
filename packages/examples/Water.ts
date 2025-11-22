@@ -49,7 +49,8 @@ async function Application(canvas: HTMLCanvasElement) {
 
     {
         const planeGO = new GameObject(scene);
-        planeGO.transform.position.set(0, 1, -5);
+        planeGO.transform.scale.set(5, 5, 5);
+        planeGO.transform.position.set(5, 5, -5);
         const sphereMesh = planeGO.AddComponent(Components.Mesh);
         sphereMesh.geometry = Geometry.Sphere();
         sphereMesh.material = new PBRMaterial();
@@ -71,7 +72,7 @@ async function Application(canvas: HTMLCanvasElement) {
         const waterSettingsFolder = new UIFolder(Debugger.ui, "Water");
         new UISliderStat(waterSettingsFolder, "Wave speed:", -1, 1, 0.01, water.settings.get("wave_speed")[0], value => water.settings.set("wave_speed", [value, 0, 0, 0]));
         new UISliderStat(waterSettingsFolder, "Beers law:", -2, 20, 0.01, water.settings.get("beers_law")[0], value => water.settings.set("beers_law", [value, 0, 0, 0]));
-        new UISliderStat(waterSettingsFolder, "Depth offset:", -1, 1, 0.01, water.settings.get("depth_offset")[0], value => water.settings.set("depth_offset", [value, 0, 0, 0]));
+        new UISliderStat(waterSettingsFolder, "Depth offset:", -10, 0, 0.01, water.settings.get("depth_offset")[0], value => water.settings.set("depth_offset", [value, 0, 0, 0]));
         new UISliderStat(waterSettingsFolder, "Refraction:", -1, 1, 0.01, water.settings.get("refraction")[0], value => water.settings.set("refraction", [value, 0, 0, 0]));
         new UISliderStat(waterSettingsFolder, "Foam level:", -10, 10, 0.01, water.settings.get("foam_level")[0], value => water.settings.set("foam_level", [value, 0, 0, 0]));
         new UIColorStat(waterSettingsFolder, "Color deep:", new Mathf.Color(...water.settings.get("color_deep")).toHex().slice(0, 7), value => {
@@ -83,16 +84,22 @@ async function Application(canvas: HTMLCanvasElement) {
             water.settings.set("color_shallow", [c.r, c.g, c.b, c.a]);
         });
 
-        const wave_a = water.settings.get("wave_a");
-        new UIVecStat(waterSettingsFolder, "Wave A:",
-            {value: wave_a[0], min: -1, max: 1, step: 0.01},
-            {value: wave_a[1], min: -1, max: 1, step: 0.01},
-            {value: wave_a[2], min: -1, max: 1, step: 0.01},
-            {value: wave_a[3], min: -1, max: 1, step: 0.01},
-            value => {
-                water.settings.set("wave_a", [value.x, value.y, value.z, value.w])
-            }
-        )
+        function addWaveStat(name: "wave_a" | "wave_b" | "wave_c", setting) {
+            const wave = setting; //water.settings.get("wave_a");
+            new UIVecStat(waterSettingsFolder, name,
+                {value: wave[0], min: -1, max: 1, step: 0.01},
+                {value: wave[1], min: -1, max: 1, step: 0.01},
+                {value: wave[2], min: -1, max: 1, step: 0.01},
+                {value: wave[3], min: -1, max: 1, step: 0.01},
+                value => {
+                    water.settings.set(name, [value.x, value.y, value.z, value.w])
+                }
+            )
+        }
+
+        addWaveStat("wave_a", water.settings.get("wave_a"));
+        addWaveStat("wave_b", water.settings.get("wave_b"));
+        addWaveStat("wave_c", water.settings.get("wave_c"));
 
         waterSettingsFolder.Open();
     }
@@ -120,6 +127,17 @@ async function Application(canvas: HTMLCanvasElement) {
             sphereMesh.geometry = Geometry.Sphere();
             sphereMesh.material = new PBRMaterial({albedoColor: light.color, emissiveColor: light.color, unlit: false});
         }
+    }
+
+    {
+        const planeGO = new GameObject(scene);
+        planeGO.transform.eulerAngles.x = -90;
+        planeGO.transform.position.set(0, 3, 0);
+        planeGO.transform.scale.set(100, 100, 1);
+        const sphereMesh = planeGO.AddComponent(Components.Mesh);
+        sphereMesh.geometry = Geometry.Plane();
+        const mat = new PBRMaterial({albedoColor: new Mathf.Color(1, 1, 1), metalness: 0.0, roughness: 1});
+        sphereMesh.material = mat;
     }
 
 

@@ -6,16 +6,7 @@ export class PostProcessingPass extends GPU.RenderPass {
     public effects: GPU.RenderPass[] = []
 
     constructor() {
-        super({
-            inputs: [
-                GPU.PassParams.LightingPassOutput,
-            ],
-            outputs: [
-                GPU.PassParams.LightingPassOutput,
-            ]
-        });
-
-        // PostProcessingPasses.push(new PostProcessingFXAA());
+        super();
     }
 
     public async init(resources: GPU.ResourcePool) {
@@ -26,7 +17,7 @@ export class PostProcessingPass extends GPU.RenderPass {
         this.initialized = true;
     }
 
-    public async execute(resources: GPU.ResourcePool) {
+    public async preFrame(resources: GPU.ResourcePool) {
         if (this.initialized === false) return;
 
         for (const effect of this.effects) {
@@ -34,9 +25,17 @@ export class PostProcessingPass extends GPU.RenderPass {
                 await effect.init(resources);
                 continue;
             }
+            effect.preFrame(resources);
+        } 
+    }
+    public async execute(resources: GPU.ResourcePool) {
+        if (this.initialized === false) return;
+
+        for (const effect of this.effects) {
+            if (!effect.initialized) {
+                throw Error("Effect not initialized");
+            }
             effect.execute(resources);
         }
-
-        resources.setResource
     }
 }

@@ -176,7 +176,7 @@ export class WEBGPUTexture implements Texture {
 
     // Format and types are very limited for now
     // https://github.com/gpuweb/gpuweb/issues/2322
-    public static FromImageBitmap(imageBitmap: ImageBitmap, width: number, height: number, format: TextureFormat): WEBGPUTexture {
+    public static FromImageBitmap(imageBitmap: ImageBitmap, width: number, height: number, format: TextureFormat, generateMips: boolean): WEBGPUTexture {
         const texture = new WEBGPUTexture(width, height, 1, format, TextureType.RENDER_TARGET, "2d", 1);
 
         try {
@@ -190,6 +190,9 @@ export class WEBGPUTexture implements Texture {
         }
 
         texture.imageBitmap = imageBitmap;
+
+        if (generateMips) texture.GenerateMips();
+        
         return texture;
     }
 

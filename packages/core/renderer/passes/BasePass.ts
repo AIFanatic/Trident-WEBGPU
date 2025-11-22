@@ -44,7 +44,7 @@ export class BasePass extends RenderPass {
 
                 @fragment
                 fn fragmentMain(input: VertexOutput) -> @location(0) vec4<f32> {
-                    let ermo   = textureSample(ermoTexture, textureSampler, input.uv);
+                    let ermo = textureSample(ermoTexture, textureSampler, input.uv);
                     return vec4f(ermo.rgb, 1.0);
                 }
             `,
@@ -80,7 +80,7 @@ export class BasePass extends RenderPass {
         const LightingPassOutput = resources.getResource(PassParams.LightingPassOutput);
         if (!LightingPassOutput) return;
 
-        RendererContext.BeginRenderPass(this.name, [{ target: LightingPassOutput, clear: true }], undefined, true);
+        RendererContext.BeginRenderPass(this.name, [{ target: LightingPassOutput, clear: false }], undefined, true);
 
         for (const draw of this.drawCommands) {
             RendererContext.Draw(draw.geometry, draw.shader, 3, draw.instanceCount, draw.firstInstance);

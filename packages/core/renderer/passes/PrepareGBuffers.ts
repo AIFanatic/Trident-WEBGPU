@@ -130,5 +130,11 @@ export class PrepareGBuffers extends RenderPass {
 
         RendererContext.BeginRenderPass(`PrepareGBuffers`, colorTargets, {target: this.depthTexture, clear: true}, true);
         RendererContext.EndRenderPass();
+
+        const LightingPassOutput = resources.getResource(PassParams.LightingPassOutput);
+        if (!LightingPassOutput) return;
+
+        RendererContext.BeginRenderPass(this.name, [{ target: LightingPassOutput, clear: true }], undefined, true);
+        RendererContext.EndRenderPass();
     }
 }

@@ -18,7 +18,7 @@ async function Application(canvas: HTMLCanvasElement) {
     const mainCameraGameObject = new GameObject(scene);
     mainCameraGameObject.name = "MainCamera";
     const camera = mainCameraGameObject.AddComponent(Components.Camera);
-    camera.SetPerspective(72, canvas.width / canvas.height, 0.5, 500);
+    camera.SetPerspective(72, canvas.width / canvas.height, 0.5, 5000);
 
 
     mainCameraGameObject.transform.position.set(0, 0, 10);
@@ -40,8 +40,8 @@ async function Application(canvas: HTMLCanvasElement) {
     floorMesh.geometry = Geometry.Plane();
     floorMesh.material = new PBRMaterial();
 
-    const offset = 10;
-    const i = 5;
+    const offset = 5;
+    const i = 100;
     for (let x = 0; x < i; x++) {
         for (let y = 0; y < i; y++) {
 
@@ -50,18 +50,18 @@ async function Application(canvas: HTMLCanvasElement) {
             const look = lightGameObject.transform.position.clone();
             look.y -= 1;
             lightGameObject.transform.LookAtV1(look);
-            const light = lightGameObject.AddComponent(Components.SpotLight);
+            const light = lightGameObject.AddComponent(Components.PointLight);
             light.color.set(Math.random(), Math.random(), Math.random(), 1);
             light.range = 10;
-            light.intensity = 2
+            light.intensity = 10
             // light.angle = 90;
             light.castShadows = false;
 
-            const sphereGameObject = new GameObject(scene);
-            sphereGameObject.transform.position.copy(lightGameObject.transform.position);
-            const sphereMesh = sphereGameObject.AddComponent(Components.Mesh);
-            sphereMesh.geometry = Geometry.Sphere();
-            sphereMesh.material = new PBRMaterial({albedoColor: light.color, emissiveColor: light.color, unlit: true});
+            // const sphereGameObject = new GameObject(scene);
+            // sphereGameObject.transform.position.copy(lightGameObject.transform.position);
+            // const sphereMesh = sphereGameObject.AddComponent(Components.Mesh);
+            // sphereMesh.geometry = Geometry.Sphere();
+            // sphereMesh.material = new PBRMaterial({albedoColor: light.color, emissiveColor: light.color, unlit: true});
         }
     }
 

@@ -310,7 +310,7 @@ export class UIVecStat extends Stat {
 
         const container = document.createElement("div");
         container.style.display = "flex";
-        container.style.width = "110px";
+        container.style.maxWidth = "200px";
         this.vecx = this.CreateEntry("X", "#c0392b4a", x, value => {this.value.x = value; onChanged(this.value)});
         this.vecy = this.CreateEntry("Y", "#39c02b4a", y, value => {this.value.y = value; onChanged(this.value)});
         this.vecz = this.CreateEntry("Z", "#392bc04a", z, value => {this.value.z = value; onChanged(this.value)});

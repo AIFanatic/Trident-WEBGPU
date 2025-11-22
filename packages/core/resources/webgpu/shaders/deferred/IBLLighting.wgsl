@@ -13,7 +13,6 @@ struct VertexOutput {
 @group(0) @binding(3) var ermoTexture: texture_2d<f32>;
 @group(0) @binding(4) var depthTexture: texture_depth_2d;
 
-@group(0) @binding(6) var skyboxTexture: texture_cube<f32>;
 @group(0) @binding(7) var skyboxIrradianceTexture: texture_cube<f32>;
 @group(0) @binding(8) var skyboxPrefilterTexture: texture_cube<f32>;
 @group(0) @binding(9) var skyboxBRDFLUT: texture_2d<f32>;

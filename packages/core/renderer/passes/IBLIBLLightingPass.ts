@@ -29,7 +29,6 @@ export class IBLLightingPass extends RenderPass {
                 ermoTexture: { group: 0, binding: 3, type: "texture" },
                 depthTexture: { group: 0, binding: 4, type: "depthTexture" },
                 
-                skyboxTexture: { group: 0, binding: 6, type: "texture" },
                 skyboxIrradianceTexture: { group: 0, binding: 7, type: "texture" },
                 skyboxPrefilterTexture: { group: 0, binding: 8, type: "texture" },
                 skyboxBRDFLUTTexture: { group: 0, binding: 9, type: "texture" },
@@ -71,14 +70,13 @@ export class IBLLightingPass extends RenderPass {
         const inputGBufferNormal = resources.getResource(PassParams.GBufferNormal);
         const inputGbufferERMO = resources.getResource(PassParams.GBufferERMO);
         const inputGBufferDepth = resources.getResource(PassParams.GBufferDepth);
-        const inputSkybox = resources.getResource(PassParams.Skybox) as CubeTexture;
         const inputSkyboxIrradiance = resources.getResource(PassParams.SkyboxIrradiance) as CubeTexture;
         const inputSkyboxPrefilter = resources.getResource(PassParams.SkyboxPrefilter) as CubeTexture;
         const inputSkyboxBRDFLUT = resources.getResource(PassParams.SkyboxBRDFLUT) as RenderTexture;
         const inputFrameBuffer = resources.getResource(PassParams.FrameBuffer);
         
         if (!inputGBufferAlbedo) return;
-        if (!inputSkybox) return;
+        if (!inputSkyboxIrradiance) return;
 
 
         this.shader.SetTexture("albedoTexture", inputGBufferAlbedo);
@@ -86,7 +84,6 @@ export class IBLLightingPass extends RenderPass {
         this.shader.SetTexture("ermoTexture", inputGbufferERMO);
         this.shader.SetTexture("depthTexture", inputGBufferDepth);
 
-        this.shader.SetTexture("skyboxTexture", inputSkybox);
         this.shader.SetTexture("skyboxIrradianceTexture", inputSkyboxIrradiance);
         this.shader.SetTexture("skyboxPrefilterTexture", inputSkyboxPrefilter);
         this.shader.SetTexture("skyboxBRDFLUTTexture", inputSkyboxBRDFLUT);

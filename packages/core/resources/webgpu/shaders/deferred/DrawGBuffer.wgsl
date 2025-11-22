@@ -86,7 +86,7 @@ fn vertexMain(input: VertexInput) -> VertexOutput {
         finalNormal   = normalize(skinMatrix * vec4(input.normal, 0.0));
     #endif
 
-    var modelMatrixInstance = modelMatrix[input.instance];
+    let modelMatrixInstance = modelMatrix[input.instance];
     let modelViewMatrix = viewMatrix * modelMatrixInstance;
 
     output.instance = input.instance;
@@ -142,7 +142,6 @@ fn fragmentMain(input: VertexOutput) -> FragmentOutput {
     var roughness = mat.Roughness;
     var metalness = mat.Metalness;
     var occlusion = 1.0;
-    var unlit = mat.Unlit;
 
     // var albedo = mat.AlbedoColor;
     #if USE_ALBEDO_MAP
@@ -182,7 +181,7 @@ fn fragmentMain(input: VertexOutput) -> FragmentOutput {
     output.albedo = vec4(albedo.rgb, roughness);
 
     output.normal = vec4(OctEncode(normal.xyz), occlusion, metalness);
-    output.RMO = vec4(emissive.rgb, unlit);
+    output.RMO = vec4(emissive.rgb, mat.Unlit);
 
 
     // Wireframe
@@ -193,7 +192,7 @@ fn fragmentMain(input: VertexOutput) -> FragmentOutput {
     // let yTangent: vec3f = dpdy( input.vPosition );
     // let faceNormal: vec3f = normalize( cross( xTangent, yTangent ) );
 
-    // output.normal = vec4(faceNormal.xyz, metalness);
+    // output.normal = vec4(OctEncode(faceNormal.xyz), occlusion, metalness);
 
     return output;
 }

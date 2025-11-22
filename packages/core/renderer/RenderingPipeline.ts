@@ -97,7 +97,7 @@ export class RenderingPipeline {
 
         this.beforeLightingPasses = [];
         this.afterLightingPasses = [
-            new BasePass(),
+            // new BasePass(), // Needs to blend instead of overwritting every pixel on lighting output (this does emissive)
             new DeferredLightingPass(),
             new IBLLightingPass(),
             new SkyboxPass(),

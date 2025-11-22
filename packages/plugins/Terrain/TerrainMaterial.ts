@@ -136,10 +136,14 @@ export class TerrainMaterial extends GPU.Material {
 
                     let modelMatrixInstance = modelMatrix[input.instance];
 
-                    output.position = projectionMatrix * viewMatrix * modelMatrixInstance * vec4(input.position.xyz, 1.0);
+                    var p = input.position;
+                    if (p.y < 0.01) {
+                        p.y -= 0.1;
+                    }
+                    output.position = projectionMatrix * viewMatrix * modelMatrixInstance * vec4(p, 1.0);
                     output.vUv = input.uv;
 
-                    output.worldPosition = modelMatrixInstance * vec4(input.position, 1.0);
+                    output.worldPosition = modelMatrixInstance * vec4(p, 1.0);
 
                     let worldNormal = normalize(normalMatrix * vec4(input.normal.xyz, 0.0)).xyz;
                     let worldTangent = normalize(normalMatrix * vec4(input.tangent.xyz, 0.0)).xyz;
