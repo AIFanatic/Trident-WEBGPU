@@ -77,7 +77,12 @@ class ThirdPersonController extends Component {
     const ray = new PhysicsRapier.Physics.Ray(p, { x: 0, y: -1, z: 0 });
     const rayHit = PhysicsRapier.PhysicsWorld.castRay(ray, this.rayDistance + 2, true, void 0, void 0, void 0, rigidbody);
     this.isGrounded = rayHit && rayHit.collider && Math.abs(rayHit.timeOfImpact) <= 1.75;
+    if (rayHit) {
+      const groundPoint = ray.pointAt(rayHit.timeOfImpact);
+      this.groundPoint.set(groundPoint.x, groundPoint.y, groundPoint.z);
+    }
   }
+  groundPoint = new Mathf.Vector3();
   Move() {
     this.v.set(0, 0, 0);
     this.v.set(this.move.x, 0, -this.move.y);
@@ -86,6 +91,11 @@ class ThirdPersonController extends Component {
     const velocity = rigidbody.linvel();
     const direction = this.v.mul(this.sprint ? this.boostMultiplier : this.speed);
     rigidbody.setLinvel({ x: direction.x, y: velocity.y, z: direction.z }, true);
+    if (this.isGrounded && !this.jump) {
+      const t = rigidbody.translation();
+      t.y = this.groundPoint.y + 1;
+      rigidbody.setTranslation(t, false);
+    }
     if (this.jump && this.isGrounded) rigidbody.setLinvel({ x: 0, y: 7.5, z: 0 }, true);
     const p = rigidbody.translation();
     this._mainCamera.transform.position.set(p.x, p.y, p.z).add(new Mathf.Vector3(0, this.playHeight, 0)).sub(new Mathf.Vector3(0, 0, -2));

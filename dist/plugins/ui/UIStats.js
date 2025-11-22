@@ -228,7 +228,7 @@ class UIVecStat extends Stat {
     };
     const container = document.createElement("div");
     container.style.display = "flex";
-    container.style.width = "110px";
+    container.style.maxWidth = "200px";
     this.vecx = this.CreateEntry("X", "#c0392b4a", x, (value) => {
       this.value.x = value;
       onChanged(this.value);

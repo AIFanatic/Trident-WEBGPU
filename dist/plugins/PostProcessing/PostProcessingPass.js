@@ -4,14 +4,7 @@ class PostProcessingPass extends GPU.RenderPass {
   name = "PostProcessingPass";
   effects = [];
   constructor() {
-    super({
-      inputs: [
-        GPU.PassParams.LightingPassOutput
-      ],
-      outputs: [
-        GPU.PassParams.LightingPassOutput
-      ]
-    });
+    super();
   }
   async init(resources) {
     for (const effect of this.effects) {
@@ -19,16 +12,24 @@ class PostProcessingPass extends GPU.RenderPass {
     }
     this.initialized = true;
   }
-  async execute(resources) {
+  async preFrame(resources) {
     if (this.initialized === false) return;
     for (const effect of this.effects) {
       if (!effect.initialized) {
         await effect.init(resources);
         continue;
       }
+      effect.preFrame(resources);
+    }
+  }
+  async execute(resources) {
+    if (this.initialized === false) return;
+    for (const effect of this.effects) {
+      if (!effect.initialized) {
+        throw Error("Effect not initialized");
+      }
       effect.execute(resources);
     }
-    resources.setResource;
   }
 }
 

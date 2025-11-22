@@ -3,8 +3,6 @@
 struct VertexInput {
     @builtin(instance_index) instanceIdx : u32, 
     @location(0) position : vec3<f32>,
-    @location(1) normal: vec3<f32>,
-    @location(2) uv: vec2<f32>,
 };
 
 struct VertexOutput {
@@ -24,7 +22,7 @@ struct VertexOutput {
 
     @location(9) UV : vec2<f32>,
 
-    @location(10) worldPos: vec3<f32>,
+    @location(10) p : vec3<f32>,
 };
 
 @group(0) @binding(0) var<storage, read> projectionMatrix: mat4x4<f32>;
@@ -36,7 +34,6 @@ struct VertexOutput {
 @group(0) @binding(4) var<storage, read> TIME: f32;
 @group(0) @binding(5) var<storage, read> INV_PROJECTION_MATRIX: mat4x4<f32>;
 @group(0) @binding(6) var<storage, read> INV_VIEW_MATRIX: mat4x4<f32>;
-@group(0) @binding(7) var<storage, read> inv_mvp: mat4x4<f32>;
 
 
 
@@ -69,12 +66,11 @@ struct WaveSettings {
 @group(1) @binding(1) var normalmap_a_sampler: texture_2d<f32>; // Normalmap sampler A
 @group(1) @binding(2) var normalmap_b_sampler: texture_2d<f32>; // Normalmap sampler B
 @group(1) @binding(3) var foam_sampler: texture_2d<f32>; // Foam sampler
-@group(1) @binding(4) var caustic_sampler: texture_2d<f32>; // Caustic sampler
-@group(1) @binding(5) var SCREEN_TEXTURE: texture_2d<f32>;
-@group(1) @binding(6) var DEPTH_TEXTURE: texture_depth_2d;
-@group(1) @binding(7) var texture_sampler: sampler;
-@group(1) @binding(8) var depth_texture_sampler: sampler_comparison;
-@group(1) @binding(9) var<storage, read> waveSettings: WaveSettings;
+@group(1) @binding(4) var SCREEN_TEXTURE: texture_2d<f32>;
+@group(1) @binding(5) var DEPTH_TEXTURE: texture_depth_2d;
+@group(1) @binding(6) var texture_sampler: sampler;
+@group(1) @binding(7) var depth_texture_sampler: sampler_comparison;
+@group(1) @binding(8) var<storage, read> waveSettings: WaveSettings;
 
 // Wave function:
 struct WaveParams {
@@ -162,11 +158,6 @@ fn vertexMain(input: VertexInput) -> VertexOutput {
     output.SCREEN_UV = ndc.xy * 0.5 + 0.5;
     output.SCREEN_UV.y = 1.0 - output.SCREEN_UV.y;
 
-// output.vUv = (modelMatrixInstance * vec4(vertex.xyz, 1.0)).xz * waveSettings.sampler_scale.xy;
-    output.UV = (modelMatrixInstance * vec4(vertex.xyz, 1.0)).xz * waveSettings.sampler_scale.xy;
-
-    output.worldPos = (modelMatrixInstance * vertex).xyz;
-
     return output;
 }
 
@@ -180,68 +171,66 @@ struct FragmentOutput {
 fn fragmentMain(input: VertexOutput) -> FragmentOutput {
     var output: FragmentOutput;
 
-    let UV = input.UV;
-    let SCREEN_UV = input.SCREEN_UV;
-    let VERTEX = input.VERTEX;
+    let UV = input.vUv;
 
-    let PROJECTION_MATRIX = projectionMatrix;
+    // Calculation of the UV with the UV motion sampler
+    let	uv_offset: vec2f = waveSettings.sampler_direction.xy * TIME * waveSettings.wave_speed[0];
+    let uv_sampler_uv: vec2f = UV * waveSettings.uv_sampler_scale.xy + uv_offset;
+    let	uv_sampler_uv_offset: vec2f = waveSettings.uv_sampler_strength[0] * textureSample(uv_sampler, texture_sampler, uv_sampler_uv).rg * 2.0 - 1.0;
+    let uv: vec2f = UV + uv_sampler_uv_offset;
+    
+    // Normalmap:
+    var normalmap: vec3f = textureSample(normalmap_a_sampler, texture_sampler, uv - uv_offset*2.0).rgb * 0.75;		// 75 % sampler A
+    normalmap += textureSample(normalmap_b_sampler, texture_sampler, uv + uv_offset).rgb * 0.25;			// 25 % sampler B
+    
+    // Refraction UV:
+    var	ref_normalmap: vec3f = normalmap * 2.0 - 1.0;
+    ref_normalmap = normalize(input.vertex_tangent*ref_normalmap.x + input.vertex_binormal*ref_normalmap.y + input.vertex_normal*ref_normalmap.z);
+    let ref_uv: vec2f = input.SCREEN_UV + (ref_normalmap.xy * waveSettings.refraction[0]) / -input.VERTEX.z;
 
-    let vertex_tangent = input.vertex_tangent;
-    let vertex_binormal = input.vertex_binormal;
-    let vertex_normal = input.vertex_normal;
-    let vertex_height = input.vertex_height;
+    // Ground depth:
+    let ref_value = input.position.z / input.position.w;
+    let depth_raw: f32 = textureSampleCompare(DEPTH_TEXTURE, depth_texture_sampler, input.SCREEN_UV, ref_value);
 
-	// Calculation of the UV with the UV motion sampler
-	let	uv_offset: vec2f 					 = waveSettings.sampler_direction.xy * TIME;
-	let 	uv_sampler_uv: vec2f 				 = UV * waveSettings.uv_sampler_scale.xy + uv_offset;
-	let	uv_sampler_uv_offset: vec2f 		 = waveSettings.uv_sampler_strength.xy * textureSample(uv_sampler, texture_sampler, uv_sampler_uv).rg * 2.0 - 1.0;
-	let 	uv: vec2f 							 = UV + uv_sampler_uv_offset;
-	
-	// Normalmap:
-	var normalmap					 = textureSample(normalmap_a_sampler, texture_sampler, uv - uv_offset*2.0).rgb * 0.75;		// 75 % sampler A
-			normalmap 					+= textureSample(normalmap_b_sampler, texture_sampler, uv + uv_offset).rgb * 0.25;			// 25 % sampler B
-	
-	// Refraction UV:
-	var	ref_normalmap				 = normalmap * 2.0 - 1.0;
-			ref_normalmap				 = normalize(vertex_tangent*ref_normalmap.x + vertex_binormal*ref_normalmap.y + vertex_normal*ref_normalmap.z);
-	let 	ref_uv						 = SCREEN_UV + (ref_normalmap.xy * waveSettings.refraction.x) / -VERTEX.z;
-	
-	// Ground depth:
-    let dims = textureDimensions(DEPTH_TEXTURE, 0); // vec2u
-	let 	depth_raw					 = textureLoad(DEPTH_TEXTURE, vec2<i32>(vec2<f32>(dims) * SCREEN_UV), 0);
+    let ndc = vec4f(ref_uv * 2.0 - 1.0, depth_raw, 1.0);
+    let view_pos_h = INV_PROJECTION_MATRIX * ndc;
+    let view_pos = view_pos_h.xyz / view_pos_h.w;
+    var dist = input.VERTEX.z - view_pos.z;
+    dist = pow(dist * 0.1, 1.0 / 2.2);
 
-    let ndc_xy = vec2(SCREEN_UV.x, 1.0 - SCREEN_UV.y) * 2.0 - 1.0;
-	let 	depth_view					 = INV_PROJECTION_MATRIX * vec4(ndc_xy, depth_raw, 1.0);
-	let 	dist						 = distance(VERTEX, depth_view.xyz / depth_view.w);
-	
-	var 	depth_blend 				 = exp((dist + waveSettings.depth_offset.x) * -waveSettings.beers_law.x);
-			depth_blend 				 = clamp(1.0 - depth_blend, 0.0, 1.0);
-	let	depth_blend_pow				 = clamp(pow(depth_blend, 2.5), 0.0, 1.0);
+    var depth_blend = exp((dist + waveSettings.depth_offset[0]) * -waveSettings.beers_law[0]);
+    depth_blend = clamp(1.0 - depth_blend, 0.0, 1.0);
+    let depth_blend_pow = clamp(pow(depth_blend, 2.5), 0.0, 1.0);
+    
+    // Ground color:
+    // let screen_color: vec3f = textureLod(SCREEN_TEXTURE, ref_uv, depth_blend_pow * 2.5).rgb;
+    let screen_color: vec3f = textureSampleLevel(SCREEN_TEXTURE, texture_sampler, ref_uv, depth_blend_pow * 2.5).rgb;
 
-	// Ground color:
-    // vec3 	screen_color 				 = textureLod(SCREEN_TEXTURE, ref_uv, depth_blend_pow * 2.5).rgb;
-	let 	screen_color 				 = textureSampleLevel(SCREEN_TEXTURE, texture_sampler, ref_uv, depth_blend_pow * 2.5).rgb;
-	
-	let 	dye_color 					 = mix(waveSettings.color_shallow.rgb, waveSettings.color_deep.rgb, depth_blend_pow);
-	var	color 						 = mix(screen_color*dye_color, dye_color*0.25, depth_blend_pow*0.5);
-	
-	// // Caustic screen projection
-	// let 	caustic_screenPos 			 = vec4f(ref_uv*2.0-1.0, depth_raw, 1.0);
-	// var 	caustic_localPos 			 = inv_mvp * caustic_screenPos;
-	// 		caustic_localPos			 = vec4f(caustic_localPos.xyz/caustic_localPos.w, caustic_localPos.w);
-	
-	// let 	caustic_Uv 					 = caustic_localPos.xz / vec2(1024.0) + 0.5;
-	// let	caustic_color				 = textureSample(caustic_sampler, texture_sampler, vec3(caustic_Uv*300.0, TIME*14.0 % 16.0));
+    let dye_color: vec3f = mix(waveSettings.color_shallow.rgb, waveSettings.color_deep.rgb, depth_blend_pow);
+    // var color: vec3f = mix(screen_color*dye_color, dye_color*0.25, depth_blend_pow*0.5);
+    var color = mix(screen_color, dye_color, depth_blend_pow);
+    // var color = dye_color;
 
-	// 		color 						*= 1.0 + pow(caustic_color.r, 1.50) * (1.0-depth_blend) * 6.0;
 
-	let foam_depth = (1.0 - min(1.0, dist / 3.0));
-    let foam_noise = clamp(pow(textureSample(foam_sampler, texture_sampler, (uv*4.0) - uv_offset).r, 10.0)*40.0, 0.0, 0.2);
-    let foam_mix = clamp(pow(foam_depth + foam_noise, 8.0) * foam_noise * 0.4, 0.0, 1.0);
-    color = mix(color, vec3(1.0), foam_mix * smoothstep(0.0, 1.0, waveSettings.foam_level.x - dist));
-	
+
+    // let foam_depth = (1.0 - min(1.0, dist / 3.0));
+    // let foam_noise = clamp(pow(textureSample(foam_sampler, texture_sampler, (uv*4.0) - uv_offset).r, 10.0)*40.0, 0.0, 0.2);
+    // let foam_mix = clamp(pow(foam_depth + foam_noise, 8.0) * foam_noise * 0.4, 0.0, 1.0);
+    // color = mix(color, vec3(1.0), foam_mix * smoothstep(0.0, 1.0, waveSettings.foam_level[0] - dist));
+
+    
+    // output.albedo = vec4(ref_uv, 0, 0.2);
+    // output.albedo = vec4(input.VERTEX, 0.2);
+    // output.albedo = vec4f(vec3f(dist * 0.1), 1.0);
+    // output.albedo = vec4f(vec3f(noisy_dist * 0.1), 1.0);
+    let normalized_dist = clamp(dist / 4.0, 0.0, 1.0);
+    // let blend = exp((normalized_dist + waveSettings.depth_offset[0]) * -waveSettings.beers_law[0]);
+    // output.albedo = vec4f((mix(screen_color*dye_color, dye_color*0.25, blend*0.5)), 0.2);
+    // output.albedo = vec4f(vec3(depth_blend_pow), 0.2);
     output.albedo = vec4f(color, 0.2);
-    output.normal = vec4(OctEncode(ref_normalmap), 1.0, 0.1);
+    // output.albedo = vec4f(vec3(UV, 0.0), 0.2);
+
+    output.normal = vec4(OctEncode(ref_normalmap.xyz), 1.0, 0.1);
     output.RMO = vec4(vec3(0.0), 0.0);
 
     return output;

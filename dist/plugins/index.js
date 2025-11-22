@@ -28,6 +28,7 @@ export { PhysicsDebugger } from './PhysicsRapier/PhysicsDebugger.js';
 export { FirstPersonController } from './PhysicsRapier/FirstPersonController.js';
 export { ThirdPersonController } from './PhysicsRapier/ThirdPersonController.js';
 export { PostProcessingFXAA } from './PostProcessing/effects/FXAA.js';
+export { PostProcessingFog } from './PostProcessing/effects/Fog.js';
 export { PostProcessingSMAA } from './PostProcessing/effects/SMAA.js';
 export { PostProcessingPass } from './PostProcessing/PostProcessingPass.js';
 export { VoxelGenerator } from './VoxelGenerator.js';
@@ -47,6 +48,7 @@ import './meshlets_v3/passes/MeshletDraw.js';
 export { SSSRenderPass, buildSSSDispatchList } from './SSS.js';
 export { DepthBufferRaymarchPass } from './DepthBufferRaymarch.js';
 export { Meshoptimizer, attribute_size, meshopt_SimplifyErrorAbsolute, meshopt_SimplifyLockBorder, meshopt_SimplifySparse } from './meshoptimizer/Meshoptimizer.js';
+export { Sky } from './Sky.js';
 
 Component.Registry.set(Water.type, Water);
 

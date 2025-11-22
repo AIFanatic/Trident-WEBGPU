@@ -17,11 +17,16 @@ function PlaneGeometry(width = 1, height = 1, widthSegments = 1, heightSegments 
   const segment_height = height / gridY;
   const indices = [];
   const vertices = [];
+  const normals = [];
+  const uvs = [];
   for (let iy = 0; iy < gridY1; iy++) {
     const y = iy * segment_height - height_half;
     for (let ix = 0; ix < gridX1; ix++) {
       const x = ix * segment_width - width_half;
       vertices.push(x, -y, 0);
+      normals.push(0, 0, 1);
+      uvs.push(ix / gridX);
+      uvs.push(1 - iy / gridY);
     }
   }
   for (let iy = 0; iy < gridY; iy++) {
@@ -37,6 +42,8 @@ function PlaneGeometry(width = 1, height = 1, widthSegments = 1, heightSegments 
   const geometry = new Geometry();
   geometry.index = new IndexAttribute(new Uint32Array(indices));
   geometry.attributes.set("position", new VertexAttribute(new Float32Array(vertices)));
+  geometry.attributes.set("normal", new VertexAttribute(new Float32Array(normals)));
+  geometry.attributes.set("uv", new VertexAttribute(new Float32Array(uvs)));
   return geometry;
 }
 class WaterRenderPass extends GPU.RenderPass {
@@ -63,7 +70,9 @@ class WaterRenderPass extends GPU.RenderPass {
       ],
       depthOutput: "depth24plus",
       attributes: {
-        position: { location: 0, size: 3, type: "vec3" }
+        position: { location: 0, size: 3, type: "vec3" },
+        normal: { location: 1, size: 3, type: "vec3" },
+        uv: { location: 2, size: 2, type: "vec2" }
       },
       uniforms: {
         projectionMatrix: { group: 0, binding: 0, type: "storage" },
@@ -73,25 +82,29 @@ class WaterRenderPass extends GPU.RenderPass {
         TIME: { group: 0, binding: 4, type: "storage" },
         INV_PROJECTION_MATRIX: { group: 0, binding: 5, type: "storage" },
         INV_VIEW_MATRIX: { group: 0, binding: 6, type: "storage" },
+        inv_mvp: { group: 0, binding: 7, type: "storage" },
         uv_sampler: { group: 1, binding: 0, type: "texture" },
         normalmap_a_sampler: { group: 1, binding: 1, type: "texture" },
         normalmap_b_sampler: { group: 1, binding: 2, type: "texture" },
         foam_sampler: { group: 1, binding: 3, type: "texture" },
-        SCREEN_TEXTURE: { group: 1, binding: 4, type: "texture" },
-        DEPTH_TEXTURE: { group: 1, binding: 5, type: "depthTexture" },
-        texture_sampler: { group: 1, binding: 6, type: "sampler" },
-        depth_texture_sampler: { group: 1, binding: 7, type: "sampler-compare" },
-        waveSettings: { group: 1, binding: 8, type: "storage" }
+        caustic_sampler: { group: 1, binding: 4, type: "texture" },
+        SCREEN_TEXTURE: { group: 1, binding: 5, type: "texture" },
+        DEPTH_TEXTURE: { group: 1, binding: 6, type: "depthTexture" },
+        texture_sampler: { group: 1, binding: 7, type: "sampler" },
+        depth_texture_sampler: { group: 1, binding: 8, type: "sampler-compare" },
+        waveSettings: { group: 1, binding: 9, type: "storage" }
       }
     });
     const uv_sampler_texture = await GPU.Texture.Load(new URL(uv_sampler_texture_url, import.meta.url));
     const normalmap_a_sampler_texture = await GPU.Texture.Load(new URL(normalmap_a_sampler_texture_url, import.meta.url));
     const normalmap_b_sampler_texture = await GPU.Texture.Load(new URL(normalmap_b_sampler_texture_url, import.meta.url));
     const foam_sampler_texture = await GPU.Texture.Load(new URL(foam_sampler_texture_url, import.meta.url));
+    const caustic_sampler_texture = await GPU.Texture.Load(new URL(foam_sampler_texture_url, import.meta.url));
     this.waterShader.SetTexture("uv_sampler", uv_sampler_texture);
     this.waterShader.SetTexture("normalmap_a_sampler", normalmap_a_sampler_texture);
     this.waterShader.SetTexture("normalmap_b_sampler", normalmap_b_sampler_texture);
     this.waterShader.SetTexture("foam_sampler", foam_sampler_texture);
+    this.waterShader.SetTexture("caustic_sampler", caustic_sampler_texture);
     this.waterShader.SetSampler("texture_sampler", GPU.TextureSampler.Create());
     this.waterShader.SetSampler("depth_texture_sampler", GPU.TextureSampler.Create({ compare: "less-equal" }));
     this.albedoClone = GPU.RenderTexture.Create(Renderer.width, Renderer.height, 1, GBufferFormat);
@@ -140,6 +153,7 @@ class WaterRenderPass extends GPU.RenderPass {
     for (const [geometry, waterInfo] of this.waterGeometries) {
       this.waterShader.SetBuffer("waveSettings", waterInfo.settings.buffer);
       this.waterShader.SetMatrix4("modelMatrix", waterInfo.transform.localToWorldMatrix);
+      this.waterShader.SetMatrix4("inv_mvp", projectionMatrix.clone().mul(viewMatrix).mul(waterInfo.transform.localToWorldMatrix).invert());
       GPU.RendererContext.DrawGeometry(geometry, this.waterShader, 1);
     }
     GPU.RendererContext.EndRenderPass();
@@ -162,17 +176,17 @@ class Water extends Component {
     this.geometry = PlaneGeometry(128, 128, 256, 256);
     this.settings = new DataBackedBuffer({
       wave_speed: [0.5, 0, 0, 0],
-      wave_a: [1, 0.4, 0.35, 3],
+      wave_a: [1, 0.4, 0.5, 3],
       wave_b: [-0.1, 0.6, 0.3, 1.55],
-      wave_c: [-1, -0.8, 0.25, 0.9],
+      wave_c: [-1, -0.8, 0.1, 0.9],
       sampler_scale: [0.25, 0.25, 0, 0],
       sampler_direction: [0.05, 0.04, 0, 0],
       uv_sampler_scale: [0.25, 0.25, 0, 0],
       uv_sampler_strength: [0.04, 0, 0, 0],
       foam_level: [0.75, 0, 0, 0],
       refraction: [0.075, 0, 0, 0],
-      color_deep: [0.25, 1, 1.25, 1],
-      color_shallow: [0.4, 0.9, 1, 1],
+      color_deep: [0.32, 0.4, 0.5, 1],
+      color_shallow: [0.66, 0.75, 0.76, 1],
       beers_law: [2, 0, 0, 0],
       depth_offset: [-0.75, 0, 0, 0]
     });

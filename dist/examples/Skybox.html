@@ -33,8 +33,7 @@
             import { UIFolder, UIVecStat, UISliderStat } from '@trident/plugins/ui/UIStats.js';
             import { Debugger } from '@trident/plugins/Debugger.js';
             import { SpotLightHelper } from '@trident/plugins/SpotLightHelper.js';
-            import { PostProcessingPass } from '@trident/plugins/PostProcessing/PostProcessingPass.js';
-            import { PostProcessingFXAA } from '@trident/plugins/PostProcessing/effects/FXAA.js';
+            import { Sky } from '@trident/plugins/Sky.js';
             
             async function Application(canvas) {
               const renderer = GPU.Renderer.Create(canvas, "webgpu");
@@ -122,8 +121,12 @@
                 sphereMesh.material = mat;
               }
               {
-                const hdr = await HDRParser.Load("./assets/textures/HDR/dikhololo_night_1k.hdr");
-                const sky = await HDRParser.ToCubemap(hdr);
+                const skyAtmosphere = new Sky();
+                await skyAtmosphere.init();
+                await skyAtmosphere.preFrame();
+                await skyAtmosphere.execute();
+                await HDRParser.Load("./assets/textures/HDR/dikhololo_night_1k.hdr");
+                const sky = await HDRParser.ToCubemap(skyAtmosphere.output);
                 const skyIrradiance = await HDRParser.GetIrradianceMap(sky);
                 const prefilterMap = await HDRParser.GetPrefilterMap(sky);
                 const brdfLUT = await HDRParser.GetBRDFLUT(1);
@@ -131,10 +134,17 @@
                 scene.renderPipeline.skyboxIrradiance = skyIrradiance;
                 scene.renderPipeline.skyboxPrefilter = prefilterMap;
                 scene.renderPipeline.skyboxBRDFLUT = brdfLUT;
+                {
+                  const skySettings = new UIFolder(Debugger.ui, "Sky");
+                  new UISliderStat(skySettings, "Rayleigh:", 0, 100, 0.01, skyAtmosphere.rayleigh, (value) => skyAtmosphere.rayleigh = value);
+                  new UISliderStat(skySettings, "Turbidity:", 0, 100, 0.01, skyAtmosphere.turbidity, (value) => skyAtmosphere.turbidity = value);
+                  new UISliderStat(skySettings, "MieCoefficient:", 0, 100, 0.01, skyAtmosphere.mieCoefficient, (value) => skyAtmosphere.mieCoefficient = value);
+                  new UISliderStat(skySettings, "MieDirectionalG:", 0, 100, 0.01, skyAtmosphere.mieDirectionalG, (value) => skyAtmosphere.mieDirectionalG = value);
+                  new UISliderStat(skySettings, "Sun azimuth:", -Math.PI, Math.PI, 0.01, skyAtmosphere.sunDirection.x, (value) => skyAtmosphere.sunDirection.x = value);
+                  new UISliderStat(skySettings, "Sun elevation:", -Math.PI, Math.PI, 0.01, skyAtmosphere.sunDirection.y, (value) => skyAtmosphere.sunDirection.y = value);
+                  skySettings.Open();
+                }
               }
-              const postProcessing = new PostProcessingPass();
-              postProcessing.effects.push(new PostProcessingFXAA());
-              scene.renderPipeline.AddPass(postProcessing, GPU.RenderPassOrder.AfterLighting);
               scene.Start();
             }
             Application(document.querySelector("canvas"));

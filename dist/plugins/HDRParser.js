@@ -178,8 +178,13 @@ class HDRParser {
     };
   }
   static async ToCubemap(hdr) {
-    const srcHDR = GPU.RenderTexture.Create(hdr.width, hdr.height, 1, "rgba16float");
-    srcHDR.SetData(hdr.data, hdr.width * 8);
+    let srcHDR;
+    if (hdr["data"]) {
+      srcHDR = GPU.RenderTexture.Create(hdr.width, hdr.height, 1, "rgba16float");
+      srcHDR.SetData(hdr.data, hdr.width * 8);
+    } else {
+      srcHDR = hdr;
+    }
     const faceSize = Math.min(hdr.width / 2 | 0, hdr.height | 0);
     const renderTarget = GPU.RenderTextureCube.Create(faceSize, faceSize, 6, "rgba8unorm");
     renderTarget.SetName("Skybox");
