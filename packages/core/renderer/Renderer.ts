@@ -19,6 +19,9 @@ export class Renderer {
 
     public static canvas: HTMLCanvasElement;
 
+    // Dodgy, just here for the UICanvas/TextureViewer plugin
+    public static get device() { return WEBGPURenderer.device };
+
     public static Create(canvas: HTMLCanvasElement, type: RendererAPIType, aspectRatio = 1): Renderer {
         canvas.width = canvas.parentElement.clientWidth * aspectRatio;
         canvas.height = canvas.parentElement.clientHeight * aspectRatio;

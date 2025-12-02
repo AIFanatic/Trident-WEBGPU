@@ -1,6 +1,8 @@
+import { GPU } from "@trident/core";
 import { ColorPicker } from "./ColorPicker";
 import { Gradient, GradientEditor } from "./GradientEditor";
 import styles from "./resources/UIStats.css";
+import { TextureViewer } from "./TextureViewer";
 
 class Stat {
     protected statContainer: HTMLDivElement;
@@ -429,6 +431,33 @@ export class UIGradientStat extends Stat {
             this.onChanged(gradient);
             this.container.style.background = this.gradientEditor.currentGradient;
         }
+    }
+}
+
+export class UITextureViewer extends Stat {
+    private texture: GPU.Texture;
+    private textureViewer: TextureViewer;
+
+    constructor(folder: UIFolder, label: string, texture: GPU.Texture) {
+        super(folder.container, label);
+        this.texture = texture;
+
+        this.textureViewer = new TextureViewer(texture);
+        this.statContainer.append(this.textureViewer.canvasTexture.canvas);
+        this.textureViewer.canvasTexture.canvas.style.height = "32px";
+
+        this.textureViewer.canvasTexture.canvas.addEventListener("mouseover", event => { this.textureViewer.canvasTexture.canvas.style.height = "" });
+        this.textureViewer.canvasTexture.canvas.addEventListener("mouseleave", event => { this.textureViewer.canvasTexture.canvas.style.height = "32px" });
+
+        // Some time for setup
+        setTimeout(async () => {
+            this.Update();
+        }, 100);
+    }
+
+    public async Update() {
+        await this.textureViewer.init();
+        await this.textureViewer.execute();
     }
 }
 

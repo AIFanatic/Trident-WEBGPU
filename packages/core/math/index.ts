@@ -19,6 +19,9 @@ export const Atan2 = Math.atan2;
 export const Floor = Math.floor;
 export const Max = Math.max;
 export const Min = Math.min;
+export const Sin = Math.sin;
+export const Cos = Math.cos;
+export const Tan = Math.tan;
 export const Epsilon = 1e-5;
 
 export const Deg2Rad = Math.PI / 180;

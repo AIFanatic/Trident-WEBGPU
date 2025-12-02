@@ -78,6 +78,10 @@ export class Vector4 {
         return this;
     }
 
+    public dot(v: Vector4): number {
+        return this.x * v.x + this.y * v.y + this.z * v.z + this.w * v.w;
+    }
+
     public applyMatrix4(m: Matrix4): Vector4 {
 		const x = this.x, y = this.y, z = this.z, w = this.w;
 		const e = m.elements;

@@ -64,4 +64,4 @@ export * from "./DepthBufferRaymarch";
 
 export * from "./meshoptimizer/Meshoptimizer";
 
-export * from "./Sky";
+export * from "./Environment";

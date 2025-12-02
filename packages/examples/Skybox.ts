@@ -10,7 +10,7 @@ import {
 
 import { OrbitControls } from "@trident/plugins/OrbitControls";
 import { HDRParser } from "@trident/plugins/HDRParser";
-import { UIColorStat, UIFolder, UISliderStat, UIVecStat } from "@trident/plugins/ui/UIStats";
+import { UIButtonStat, UIColorStat, UIFolder, UISliderStat, UITextureViewer, UIVecStat } from "@trident/plugins/ui/UIStats";
 import { Debugger } from "@trident/plugins/Debugger";
 import { LineRenderer } from "@trident/plugins/LineRenderer";
 
@@ -20,7 +20,13 @@ import { PointLightHelper } from "@trident/plugins/PointLightHelper";
 
 import { PostProcessingPass } from "@trident/plugins/PostProcessing/PostProcessingPass";
 import { PostProcessingFXAA } from "@trident/plugins/PostProcessing/effects/FXAA";
-import { Sky } from "@trident/plugins/Sky";
+import { Sky } from "@trident/plugins/Environment/Sky";
+import { Irradiance } from "@trident/plugins/Environment/Irradiance";
+import { Prefilter } from "@trident/plugins/Environment/Prefilter";
+import { BRDF } from "@trident/plugins/Environment/BRDF";
+import { Environment } from "@trident/plugins/Environment/Environment";
+
+import { PostProcessingFog } from "@trident/plugins/PostProcessing/effects/Fog";
 
 async function Application(canvas: HTMLCanvasElement) {
     const renderer = GPU.Renderer.Create(canvas, "webgpu");
@@ -41,116 +47,14 @@ async function Application(canvas: HTMLCanvasElement) {
 
     const controls = new OrbitControls(canvas, camera);
 
-    let w;
-    {
-        const lightGameObject = new GameObject(scene);
-        lightGameObject.transform.position.set(-1, 4, 0.01);
-        lightGameObject.transform.LookAtV1(new Mathf.Vector3(0, 0, 0));
-        const light = lightGameObject.AddComponent(Components.SpotLight);
-        light.intensity = 100;
-        light.range = 20;
-        light.angle = 0.85;
-        light.color.set(1, 1, 1, 1);
-        light.castShadows = true;
+    const lightGameObject = new GameObject(scene);
+    lightGameObject.transform.position.set(-1, 4, 0.01);
+    lightGameObject.transform.LookAtV1(new Mathf.Vector3(0, 0, 0));
+    const light = lightGameObject.AddComponent(Components.DirectionalLight);
+    light.intensity = 1;
 
-        console.log("Light position:", lightGameObject.transform.position.elements);
-        console.log("Light rotation:", lightGameObject.transform.rotation.elements);
-        console.log("Light forward:", lightGameObject.transform.forward.elements);
-
-        const waterSettingsFolder = new UIFolder(Debugger.ui, "Light");
-        waterSettingsFolder.Open();
-        new UIVecStat(waterSettingsFolder, "Position:",
-            {min: -5, max: 5, value: light.transform.position.x, step: 0.1},
-            {min: -5, max: 5, value: light.transform.position.y, step: 0.1},
-            {min: -5, max: 5, value: light.transform.position.z, step: 0.1},
-            undefined,
-            value => {
-                light.transform.position.x = value.x;
-                light.transform.position.y = value.y;
-                light.transform.position.z = value.z;
-                light.transform.LookAtV1(new Mathf.Vector3(0,0,0))
-            }
-        );
-        new UISliderStat(waterSettingsFolder, "Intensity:", 0, 100, 0.1, light.intensity, value => light.intensity = value);
-        new UISliderStat(waterSettingsFolder, "Angle:", 0, 3.14 * 0.5, 0.01, light.angle, value => {
-            light.angle = value;
-        });
-        new UISliderStat(waterSettingsFolder, "Range:", 0, 50, 0.1, light.range, value => light.range = value);
-
-        const lightHelperGameObject = new GameObject(scene);
-        const spotLightHelper = lightHelperGameObject.AddComponent(SpotLightHelper);
-        spotLightHelper.light = light;
-        w = waterSettingsFolder;
-
-        // {
-        //     const sphereGameObject = new GameObject(scene);
-        //     const sphereMesh = sphereGameObject.AddComponent(Components.Mesh);
-        //     sphereMesh.geometry = Geometry.Cone();
-        //     const mat = new PBRMaterial({albedoColor: new Mathf.Color(1, 1, 1), metalness: 0.0, roughness: 1.0});
-        //     sphereMesh.material = mat;
-    
-        //     setInterval(() => {
-        //         sphereGameObject.transform.position.copy(light.transform.position);
-        //         sphereGameObject.transform.scale.copy(light.transform.scale);
-        //     }, 100);
-        // }
-    }
-
-
-
-    
-    // {
-    //     const lightGameObject = new GameObject(scene);
-    //     lightGameObject.transform.position.set(-4, 4, 4);
-    //     lightGameObject.transform.LookAtV1(new Mathf.Vector3(0, 0, 0));
-    //     const light = lightGameObject.AddComponent(Components.DirectionalLight);
-    // }
-
-    // {
-    //     const lightGameObject = new GameObject(scene);
-    //     lightGameObject.transform.position.set(1, 1, 1);
-    //     lightGameObject.transform.LookAtV1(new Mathf.Vector3(0, 0, 0));
-    //     const light = lightGameObject.AddComponent(Components.PointLight);
-    //     light.intensity = 10;
-    //     light.range = 7.5;
-    //     light.color.set(1, 0, 0, 1);
-    //     light.castShadows = true;
-
-    //     const lightHelperGameObject = new GameObject(scene);
-    //     const pointLightHelper = lightHelperGameObject.AddComponent(PointLightHelper);
-    //     pointLightHelper.light = light;
-
-    //     new UISliderStat(w, "Range:", 0, 50, 0.1, light.range, value => light.range = value);
-    // }
-
-    // {
-    //     const lightGameObject = new GameObject(scene);
-    //     lightGameObject.transform.position.set(4, 4, 4);
-    //     lightGameObject.transform.LookAtV1(new Mathf.Vector3(0, 0, 0));
-    //     const light = lightGameObject.AddComponent(Components.DirectionalLight);
-    //     light.intensity = 1;
-    //     light.range = 7.5;
-    //     // light.angle = 0.33;
-    //     light.color.set(1, 1, 1, 1);
-    //     light.castShadows = true;
-
-    //     const lightHelperGameObject = new GameObject(scene);
-    //     const spotLightHelper = lightHelperGameObject.AddComponent(DirectionalLightHelper);
-    //     spotLightHelper.light = light;
-
-    //     new UIVecStat(w, "Position:",
-    //         {min: -5, max: 5, value: light.transform.position.x, step: 0.1},
-    //         {min: -5, max: 5, value: light.transform.position.y, step: 0.1},
-    //         {min: -5, max: 5, value: light.transform.position.z, step: 0.1},
-    //         undefined,
-    //         value => {
-    //             light.transform.position.x = value.x;
-    //             light.transform.position.y = value.y;
-    //             light.transform.position.z = value.z;
-    //             light.transform.LookAtV1(new Mathf.Vector3(0,0,0))
-    //         }
-    //     );
-    // }
+    const lightHelper = lightGameObject.AddComponent(DirectionalLightHelper);
+    lightHelper.light = light;
 
     {
         const planeGO = new GameObject(scene);
@@ -163,18 +67,16 @@ async function Application(canvas: HTMLCanvasElement) {
         sphereMesh.material = mat;
     }
 
-    // {
-    //     const sphereGameObject = new GameObject(scene);
-    //     sphereGameObject.transform.position.set(3, -1.5, 0);
-    //     const sphereMesh = sphereGameObject.AddComponent(Components.Mesh);
-    //     sphereMesh.geometry = Geometry.Sphere();
-    //     const mat = new PBRMaterial({albedoColor: new Mathf.Color(0.5843, 0.8353, 0.8784, 1), metalness: 0.5, roughness: 0.1});
-    //     sphereMesh.material = mat;
-    //     new UIColorStat(w, "Color:", "#ffffff", color => {
-    //         mat.params.albedoColor.setFromHex(color);
-    //         mat.params.albedoColor = mat.params.albedoColor; // Proxy things
-    //     });
-    // }
+    {
+        const sphereGameObject = new GameObject(scene);
+        sphereGameObject.transform.position.set(-10, -1.5, 0);
+        sphereGameObject.transform.scale.set(10, 10, 10);
+        sphereGameObject.transform.eulerAngles.y = 90;
+        const sphereMesh = sphereGameObject.AddComponent(Components.Mesh);
+        sphereMesh.geometry = Geometry.Plane();
+        const mat = new PBRMaterial({albedoColor: new Mathf.Color(1, 1, 1), metalness: 1.0, roughness: 0.0});
+        sphereMesh.material = mat;
+    }
 
     {
         const sphereGameObject = new GameObject(scene);
@@ -204,41 +106,55 @@ async function Application(canvas: HTMLCanvasElement) {
     }
 
     {
+        const hdr = await HDRParser.Load("/dist/examples/assets/textures/HDR/royal_esplanade_1k.hdr");
+        const hdrCubemap = await HDRParser.ToCubemap(hdr);
+        
         const skyAtmosphere = new Sky();
         await skyAtmosphere.init();
-        await skyAtmosphere.preFrame();
-        await skyAtmosphere.execute();
 
-        const hdr = await HDRParser.Load("./assets/textures/HDR/dikhololo_night_1k.hdr");
-        // const sky = await HDRParser.ToCubemap(hdr);
-        const sky = await HDRParser.ToCubemap(skyAtmosphere.output);
+        // const skyTexture = hdrCubemap;
+        const skyTexture = skyAtmosphere.skyTextureCubemap;
 
-        const skyIrradiance = await HDRParser.GetIrradianceMap(sky);
-        const prefilterMap = await HDRParser.GetPrefilterMap(sky);
-        const brdfLUT = await HDRParser.GetBRDFLUT(1);
+        const environment = new Environment(scene, skyTexture);
+        await environment.init();
 
+        setInterval(() => {
+            const radius = 1; // distance of the directional light from origin
+            const elevationRad = Mathf.Deg2Rad * skyAtmosphere.SUN_ELEVATION_DEGREES;
+            const azimuthRad   = Mathf.Deg2Rad * skyAtmosphere.SUN_AZIMUTH_DEGREES; // or use your own azimuth angle
 
-        // scene.renderPipeline.AddPass(skyAtmosphere, GPU.RenderPassOrder.AfterLighting);
+            // Convert spherical coordinates to 3D position
+            const x = radius * Mathf.Cos(elevationRad) * Mathf.Cos(azimuthRad);
+            const y = radius * Mathf.Sin(elevationRad);
+            const z = radius * Mathf.Cos(elevationRad) * Mathf.Sin(azimuthRad);
 
-        scene.renderPipeline.skybox = sky;
-        scene.renderPipeline.skyboxIrradiance = skyIrradiance;
-        scene.renderPipeline.skyboxPrefilter = prefilterMap;
-        scene.renderPipeline.skyboxBRDFLUT = brdfLUT;
+            const sunPos = new Mathf.Vector3(x, y, z);
+
+            lightGameObject.transform.position = sunPos;
+            lightGameObject.transform.LookAtV1(new Mathf.Vector3(0,0,0));
+        }, 100);
 
         {
             const skySettings = new UIFolder(Debugger.ui, "Sky");
-            new UISliderStat(skySettings, "Rayleigh:", 0, 100, 0.01, skyAtmosphere.rayleigh, value => skyAtmosphere.rayleigh = value);
-            new UISliderStat(skySettings, "Turbidity:", 0, 100, 0.01, skyAtmosphere.turbidity, value => skyAtmosphere.turbidity = value);
-            new UISliderStat(skySettings, "MieCoefficient:", 0, 100, 0.01, skyAtmosphere.mieCoefficient, value => skyAtmosphere.mieCoefficient = value);
-            new UISliderStat(skySettings, "MieDirectionalG:", 0, 100, 0.01, skyAtmosphere.mieDirectionalG, value => skyAtmosphere.mieDirectionalG = value);
 
-            new UISliderStat(skySettings, "Sun azimuth:", -Math.PI, Math.PI, 0.01, skyAtmosphere.sunDirection.x, value => skyAtmosphere.sunDirection.x = value);
-            new UISliderStat(skySettings, "Sun elevation:", -Math.PI, Math.PI, 0.01, skyAtmosphere.sunDirection.y, value => skyAtmosphere.sunDirection.y = value);
+            new UISliderStat(skySettings, "SUN_ELEVATION_DEGREES:", 0, 180, 0.01, skyAtmosphere.SUN_ELEVATION_DEGREES, value => skyAtmosphere.SUN_ELEVATION_DEGREES = value);
+            new UISliderStat(skySettings, "SUN_AZIMUTH_DEGREES:", 0, 180, 0.01, skyAtmosphere.SUN_AZIMUTH_DEGREES, value => skyAtmosphere.SUN_AZIMUTH_DEGREES = value);
+            new UISliderStat(skySettings, "EYE_ALTITUDE:", 0, 1000, 0.01, skyAtmosphere.EYE_ALTITUDE, value => skyAtmosphere.EYE_ALTITUDE = value);
+
+            // const o0 = new UITextureViewer(skySettings, "Sky output0:", skyAtmosphere.transmittanceLUT);
+            // const o1 = new UITextureViewer(skySettings, "Sky output1:", skyTexture);
+
+            new UIButtonStat(skySettings, "Rebuild:", async value => {
+                skyAtmosphere.Update();
+                environment.Update();
+
+                // o0.Update();
+                // o1.Update();
+            });
     
             skySettings.Open();
         }
     }
-
 
     scene.Start();
 };

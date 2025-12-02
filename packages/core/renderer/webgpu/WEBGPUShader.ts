@@ -103,7 +103,6 @@ export class WEBGPUShader extends WEBGPUBaseShader implements Shader {
 
         // Pipeline descriptor - Depth target
         if (this.params.depthOutput) {
-
             pipelineDescriptor.depthStencil = {
                 depthWriteEnabled: this.params.depthWriteEnabled !== undefined ? this.params.depthWriteEnabled : true,
                 depthCompare: this.params.depthCompare ? this.params.depthCompare : 'less',
@@ -126,13 +125,12 @@ export class WEBGPUShader extends WEBGPUBaseShader implements Shader {
 
 
         pipelineDescriptor.label += "," + pipelineLayout.label;
-        const pipelineDescriptorKey = JSON.stringify(pipelineDescriptor);
+        const pipelineDescriptorKey = JSON.stringify(pipelineDescriptor) + this.params.code; // TODO: Use code CRC or something better
         let pipeline = pipelineCache.get(pipelineDescriptorKey);
         if (!pipeline) {
             pipeline = WEBGPURenderer.device.createRenderPipeline(pipelineDescriptor);
             pipelineCache.set(pipelineDescriptorKey, pipeline);
             hasCompiled = true;
-            Renderer.info.compiledShadersStat += 1;
         }
 
         this._pipeline = pipeline;
@@ -140,9 +138,6 @@ export class WEBGPUShader extends WEBGPUBaseShader implements Shader {
         if (hasCompiled === true) {
             Renderer.info.compiledShadersStat += 1;
         }
-
-        // // Pipeline
-        // this._pipeline = WEBGPURenderer.device.createRenderPipeline(pipelineDescriptor);
 
         this.needsUpdate = false;
     }

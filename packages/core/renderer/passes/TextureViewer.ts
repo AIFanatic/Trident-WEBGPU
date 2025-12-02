@@ -34,7 +34,7 @@ export class TextureViewer extends RenderPass {
           
             // Derive UVs from NDC: ([-1,1] -> [0,1])
             let uv = 0.5 * (p[vertexIndex] + vec2f(1.0, 1.0));
-            out.vUv = vec2f(uv.x, 1.0 - uv.y); // flip Y if your texture space needs it
+            out.vUv = vec2f(uv.x, 1.0 - uv.y);
             return out;
         }
 
@@ -48,12 +48,75 @@ export class TextureViewer extends RenderPass {
             return pow(color, vec3f(1.0 / 2.2));
         }
 
+
+        /*
+        * ACES tonemapping fit for the sRGB color space
+        * https://github.com/TheRealMJP/BakingLab/blob/master/BakingLab/ACES.hlsl
+        */
+        // sRGB => XYZ => D65_2_D60 => AP1 => RRT_SAT
+        const aces_input_mat = mat3x3<f32>(
+            0.59719, 0.07600, 0.02840,
+            0.35458, 0.90834, 0.13383,
+            0.04823, 0.01566, 0.83777
+        );
+
+        // ODT_SAT => XYZ => D60_2_D65 => sRGB
+        const aces_output_mat = mat3x3<f32>(
+            1.60475, -0.10208, -0.00327,
+            -0.53108,  1.10813, -0.07276,
+            -0.07367, -0.00605,  1.07602
+        );
+
+        fn rrt_and_odt_fit(v: vec3f) -> vec3f {
+            let a = v * (v + 0.0245786) - 0.000090537;
+            let b = v * (0.983729 * v + 0.4329510) + 0.238081;
+            return a / b;
+        }
+            
+        fn aces_fitted(_color: vec3f) -> vec3f {
+            var color = _color;
+            color = aces_input_mat * color;
+            color = rrt_and_odt_fit(color);
+            color = aces_output_mat * color;
+            return clamp(color, vec3f(0.0), vec3f(1.0));
+        }
+
+        //-----------------------------------------------------------------------------
+
+        fn gamma_correct(linear_srgb: vec3f) -> vec3f {
+            let a = 12.92 * linear_srgb;
+            let b = 1.055 * pow(linear_srgb, vec3(1.0 / 2.4)) - 0.055;
+            let c = step(vec3(0.0031308), linear_srgb);
+            return mix(a, b, c);
+        }
+
         @fragment fn fragmentMain(input: VertexOutput) -> @location(0) vec4f {
             // let color = textureSampleLevel(texture, textureSampler, input.vUv, 0);
             // return vec4f(gammaCorrection(toneMapping(color.rgb)), color.a);
 
-            let hdr = textureSampleLevel(texture, textureSampler, input.vUv, 0);
-            return vec4f(gammaCorrection(toneMapping(hdr.rgb * 0.5)), hdr.a);
+            // let hdr = textureSampleLevel(texture, textureSampler, input.vUv, 0);
+            // return vec4f(gammaCorrection(toneMapping(hdr.rgb * 0.5)), hdr.a);
+
+
+            const EXPOSURE = -4.0;
+
+            var col = textureSampleLevel(texture, textureSampler, input.vUv, 0).rgb;
+            
+            // Apply exposure
+            col = col * exp2(EXPOSURE);
+
+            // Tonemap
+            col = toneMapping(col);
+            // Apply the sRGB transfer function (gamma correction)
+            col = clamp(gammaCorrection(col), vec3f(0.0), vec3f(1.0));
+
+
+            // // Tonemap
+            // col = aces_fitted(col);
+            // // Apply the sRGB transfer function (gamma correction)
+            // col = clamp(gamma_correct(col), vec3f(0.0), vec3f(1.0));
+
+            return vec4f(col, 1.0);
         }
         `;
 

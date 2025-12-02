@@ -426,6 +426,7 @@ export class Geometry {
         const vertices = new Float32Array([-1.0, -1.0, 0,1.0, -1.0, 0,1.0, 1.0, 0,-1.0, 1.0, 0])
         const normals = new Float32Array([0.0, 0.0, 1.0,0.0, 0.0, 1.0,0.0, 0.0, 1.0,0.0, 0.0, 1.0]);
         const uvs = new Float32Array([0.0, 1.0,1.0, 1.0,1.0, 0.0,0.0, 0.0]);
+        
         const indices = new Uint32Array([0, 1, 2,2, 3, 0]);
 
         const geometry = new Geometry();

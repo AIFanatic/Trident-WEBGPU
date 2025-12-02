@@ -72,7 +72,6 @@ fn FresnelSchlickRoughness(cosTheta: f32, f0: vec3f, roughness: f32) -> vec3f {
 }
 
 fn fixCubeHandedness(d: vec3f) -> vec3f {
-    // try flipping X first; if that’s wrong, flip Z instead
     return vec3f(-d.x, d.y, d.z);
 }
 

@@ -55,7 +55,7 @@ export class WEBGPURendererContext implements RendererContext {
         WEBGPUTimestampQuery.EndRenderTimestamp();
     }
 
-    private static BindGeometry(geometry: Geometry, shader: WEBGPUShader) {
+    private static BindGeometry(shader: WEBGPUShader, geometry?: Geometry) {
         if (!this.activeRenderPass) throw Error("No active render pass");
 
         shader.Compile();
@@ -65,6 +65,7 @@ export class WEBGPURendererContext implements RendererContext {
         // Debug
         Renderer.info.drawCallsStat += 1;
 
+        // Bind pipeline
         this.activeRenderPass.setPipeline(shader.pipeline);
         for (let i = 0; i < shader.bindGroups.length; i++) {
             let dynamicOffsets: number[] = [];
@@ -76,6 +77,9 @@ export class WEBGPURendererContext implements RendererContext {
             this.activeRenderPass.setBindGroup(i, shader.bindGroups[i], dynamicOffsets);
         }
         
+        if (!geometry) return;
+
+        // Bind buffers
         if (shader.params.useVertexPulling === undefined || shader.params.useVertexPulling === false) {
             for (const [name, attribute] of geometry.attributes) {
                 const attributeSlot = shader.GetAttributeSlot(name);
@@ -97,7 +101,7 @@ export class WEBGPURendererContext implements RendererContext {
     public static DrawGeometry(geometry: Geometry, shader: WEBGPUShader, instanceCount = 1, firstInstance = 0) {
         if (!shader.OnPreRender(geometry)) return;
 
-        this.BindGeometry(geometry, shader);
+        this.BindGeometry(shader, geometry);
 
         if (!shader.params.topology || shader.params.topology === Topology.Triangles) {
             if (!geometry.index) {
@@ -122,19 +126,24 @@ export class WEBGPURendererContext implements RendererContext {
     }
 
     public static DrawIndexed(geometry: Geometry, shader: WEBGPUShader, indexCount: number, instanceCount?: number, firstIndex?: number, baseVertex?: number, firstInstance?: number) {
-        this.BindGeometry(geometry, shader);
+        this.BindGeometry(shader, geometry);
         this.activeRenderPass.drawIndexed(indexCount, instanceCount, firstIndex, baseVertex, firstInstance);
     }
 
     public static Draw(geometry: Geometry, shader: WEBGPUShader, vertexCount: number, instanceCount?: number, firstVertex?: number, firstInstance?: number) {
-        this.BindGeometry(geometry, shader);
+        this.BindGeometry(shader, geometry);
+        this.activeRenderPass.draw(vertexCount, instanceCount, firstVertex, firstInstance);
+    }
+
+    public static DrawVertex(shader: WEBGPUShader, vertexCount: number, instanceCount?: number, firstVertex?: number, firstInstance?: number) {
+        this.BindGeometry(shader);
         this.activeRenderPass.draw(vertexCount, instanceCount, firstVertex, firstInstance);
     }
 
     public static DrawIndirect(geometry: Geometry, shader: WEBGPUShader, indirectBuffer: WEBGPUBuffer, indirectOffset: number) {
         if (!shader.OnPreRender(geometry)) return;
 
-        this.BindGeometry(geometry, shader);
+        this.BindGeometry(shader, geometry);
 
         if (!geometry.index) {
             this.activeRenderPass.drawIndirect(indirectBuffer.GetBuffer(), indirectOffset);

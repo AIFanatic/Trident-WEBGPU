@@ -23,7 +23,7 @@ import { RigidBody, RigidbodyConstraints } from "@trident/plugins/PhysicsRapier/
 import { Debugger } from "@trident/plugins/Debugger";
 import { HDRParser } from "@trident/plugins/HDRParser";
 import { GLTFLoader } from "@trident/plugins/GLTF/GLTFLoader";
-import { UIColorStat, UIFolder, UISliderStat, UIVecStat } from "@trident/plugins/ui/UIStats";
+import { UIButtonStat, UIColorStat, UIFolder, UISliderStat, UIVecStat } from "@trident/plugins/ui/UIStats";
 import { OrbitControls } from "@trident/plugins/OrbitControls";
 import { PhysicsDebugger } from "@trident/plugins/PhysicsRapier/PhysicsDebugger";
 import { LineRenderer } from "@trident/plugins/LineRenderer";
@@ -34,7 +34,9 @@ import { Water } from "@trident/plugins/Water/WaterPlugin";
 import { DirectionalLightHelper } from "@trident/plugins/DirectionalLightHelper";
 import { PostProcessingPass } from "@trident/plugins/PostProcessing/PostProcessingPass";
 import { PostProcessingFog } from "@trident/plugins/PostProcessing/effects/Fog";
-import { Sky } from "@trident/plugins/Sky";
+
+import { Sky } from "@trident/plugins/Environment/Sky";
+import { Environment } from "@trident/plugins/Environment/Environment";
 
 async function Application(canvas: HTMLCanvasElement) {
     const renderer = GPU.Renderer.Create(canvas, "webgpu");
@@ -51,7 +53,7 @@ async function Application(canvas: HTMLCanvasElement) {
     lightGameObject.transform.position.set(4, 4, 4).mul(10);
     lightGameObject.transform.LookAtV1(new Mathf.Vector3(0, 0, 0));
     const light = lightGameObject.AddComponent(Components.DirectionalLight);
-    light.intensity = 0.00001;
+    light.intensity = 10;
 
     const physicsWorld = new GameObject(scene);
     const physicsComponent = physicsWorld.AddComponent(PhysicsRapier);
@@ -160,23 +162,46 @@ async function Application(canvas: HTMLCanvasElement) {
         // }
     }
 
-    const skyAtmosphere = new Sky();
-    await skyAtmosphere.init();
-    await skyAtmosphere.preFrame();
-    await skyAtmosphere.execute();
-    
-    // const hdr = await HDRParser.Load("./assets/textures/HDR/kloofendal_48d_partly_cloudy_puresky_1k.hdr");
-    // const sky = await HDRParser.ToCubemap(hdr);
-    const sky = await HDRParser.ToCubemap(skyAtmosphere.output);
+        const skyAtmosphere = new Sky();
+        await skyAtmosphere.init();
 
-    const skyIrradiance = await HDRParser.GetIrradianceMap(sky);
-    const prefilterMap = await HDRParser.GetPrefilterMap(sky);
-    const brdfLUT = await HDRParser.GetBRDFLUT(1);
+        // const skyTexture = hdrCubemap;
+        const skyTexture = skyAtmosphere.skyTextureCubemap;
 
-    scene.renderPipeline.skybox = sky;
-    scene.renderPipeline.skyboxIrradiance = skyIrradiance;
-    scene.renderPipeline.skyboxPrefilter = prefilterMap;
-    scene.renderPipeline.skyboxBRDFLUT = brdfLUT;
+        const environment = new Environment(scene, skyTexture);
+        await environment.init();
+
+    {
+        const skySettings = new UIFolder(Debugger.ui, "Sky");
+        new UISliderStat(skySettings, "SUN_ELEVATION_DEGREES:", 0, 180, 0.01, skyAtmosphere.SUN_ELEVATION_DEGREES, value => skyAtmosphere.SUN_ELEVATION_DEGREES = value);
+        new UISliderStat(skySettings, "EYE_ALTITUDE:", 0, 1000, 0.01, skyAtmosphere.EYE_ALTITUDE, value => skyAtmosphere.EYE_ALTITUDE = value);
+
+        new UIButtonStat(skySettings, "Rebuild:", async value => {
+            skyAtmosphere.Update();
+            environment.Update();
+        });
+
+        skySettings.Open();
+
+        // setInterval(async () => {
+        //     await skyAtmosphere.init();
+        //     await skyAtmosphere.preFrame();
+        //     await skyAtmosphere.execute();
+            
+        //     // const hdr = await HDRParser.Load("./assets/textures/HDR/kloofendal_48d_partly_cloudy_puresky_1k.hdr");
+        //     // const sky = await HDRParser.ToCubemap(hdr);
+        //     const sky = await HDRParser.ToCubemap(skyAtmosphere.output);
+
+        //     const skyIrradiance = await HDRParser.GetIrradianceMap(sky);
+        //     const prefilterMap = await HDRParser.GetPrefilterMap(sky);
+        //     const brdfLUT = await HDRParser.GetBRDFLUT(1);
+
+        //     scene.renderPipeline.skybox = sky;
+        //     scene.renderPipeline.skyboxIrradiance = skyIrradiance;
+        //     scene.renderPipeline.skyboxPrefilter = prefilterMap;
+        //     scene.renderPipeline.skyboxBRDFLUT = brdfLUT;
+        // }, 1000);
+    }
 
 
     function traverse(gameObjects: GameObject[], fn: (gameObject: GameObject) => void) {
@@ -440,7 +465,7 @@ async function Application(canvas: HTMLCanvasElement) {
             // {geometry: Geometry.Plane(), material: new PBRMaterial({ albedoMap: await GPU.Texture.Load("/extra/test-assets/billboards/grass/grassbushcc008.png", "rgba8unorm", false, true), alphaCutoff: 0.5, albedoColor: Mathf.Color.fromHex(0x707070ff) }), amount: 5000, distance: 500, ground_height: 0, scale: new Mathf.Vector3(1,1,1)},
             // {texture: await GPU.Texture.Load("/extra/test-assets/billboards/grass/grassbushcc007.png"), amount: 10000, distance: 50, ground_height: 0, scale: new Mathf.Vector3(1,1,1)},
             // {geometry: Geometry.Plane(), material: new PBRMaterial({ albedoMap: await GPU.Texture.Load("/extra/test-assets/billboards/trees/tree002.png", "rgba8unorm", false, true), alphaCutoff: 0.5, unlit: false}), amount: 100, distance: 50, ground_height: 2, scale: new Mathf.Vector3(5,5,5)},
-            {geometry: treeGeometry, material: treeMaterial, amount: 1000, distance: 300, ground_height: 8, scale: new Mathf.Vector3(1,1,1), rotation: new Mathf.Vector3(-Math.PI / 2,0,0)},
+            // {geometry: treeGeometry, material: treeMaterial, amount: 1000, distance: 300, ground_height: 8, scale: new Mathf.Vector3(1,1,1), rotation: new Mathf.Vector3(-Math.PI / 2,0,0)},
         ]
 
         const treesGameObject = new GameObject(scene);
