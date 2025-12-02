@@ -30,10 +30,11 @@
                             import { GPU, Scene, GameObject, Components, Mathf, Geometry, PBRMaterial } from '@trident/core';
             import { OrbitControls } from '@trident/plugins/OrbitControls.js';
             import { HDRParser } from '@trident/plugins/HDRParser.js';
-            import { UIFolder, UIVecStat, UISliderStat } from '@trident/plugins/ui/UIStats.js';
+            import { UIFolder, UISliderStat, UIButtonStat } from '@trident/plugins/ui/UIStats.js';
             import { Debugger } from '@trident/plugins/Debugger.js';
-            import { SpotLightHelper } from '@trident/plugins/SpotLightHelper.js';
-            import { Sky } from '@trident/plugins/Sky.js';
+            import { DirectionalLightHelper } from '@trident/plugins/DirectionalLightHelper.js';
+            import { Sky } from '@trident/plugins/Environment/Sky.js';
+            import { Environment } from '@trident/plugins/Environment/Environment.js';
             
             async function Application(canvas) {
               const renderer = GPU.Renderer.Create(canvas, "webgpu");
@@ -48,44 +49,13 @@
               });
               observer.observe(canvas);
               new OrbitControls(canvas, camera);
-              {
-                const lightGameObject = new GameObject(scene);
-                lightGameObject.transform.position.set(-1, 4, 0.01);
-                lightGameObject.transform.LookAtV1(new Mathf.Vector3(0, 0, 0));
-                const light = lightGameObject.AddComponent(Components.SpotLight);
-                light.intensity = 100;
-                light.range = 20;
-                light.angle = 0.85;
-                light.color.set(1, 1, 1, 1);
-                light.castShadows = true;
-                console.log("Light position:", lightGameObject.transform.position.elements);
-                console.log("Light rotation:", lightGameObject.transform.rotation.elements);
-                console.log("Light forward:", lightGameObject.transform.forward.elements);
-                const waterSettingsFolder = new UIFolder(Debugger.ui, "Light");
-                waterSettingsFolder.Open();
-                new UIVecStat(
-                  waterSettingsFolder,
-                  "Position:",
-                  { min: -5, max: 5, value: light.transform.position.x, step: 0.1 },
-                  { min: -5, max: 5, value: light.transform.position.y, step: 0.1 },
-                  { min: -5, max: 5, value: light.transform.position.z, step: 0.1 },
-                  void 0,
-                  (value) => {
-                    light.transform.position.x = value.x;
-                    light.transform.position.y = value.y;
-                    light.transform.position.z = value.z;
-                    light.transform.LookAtV1(new Mathf.Vector3(0, 0, 0));
-                  }
-                );
-                new UISliderStat(waterSettingsFolder, "Intensity:", 0, 100, 0.1, light.intensity, (value) => light.intensity = value);
-                new UISliderStat(waterSettingsFolder, "Angle:", 0, 3.14 * 0.5, 0.01, light.angle, (value) => {
-                  light.angle = value;
-                });
-                new UISliderStat(waterSettingsFolder, "Range:", 0, 50, 0.1, light.range, (value) => light.range = value);
-                const lightHelperGameObject = new GameObject(scene);
-                const spotLightHelper = lightHelperGameObject.AddComponent(SpotLightHelper);
-                spotLightHelper.light = light;
-              }
+              const lightGameObject = new GameObject(scene);
+              lightGameObject.transform.position.set(-1, 4, 0.01);
+              lightGameObject.transform.LookAtV1(new Mathf.Vector3(0, 0, 0));
+              const light = lightGameObject.AddComponent(Components.DirectionalLight);
+              light.intensity = 1;
+              const lightHelper = lightGameObject.AddComponent(DirectionalLightHelper);
+              lightHelper.light = light;
               {
                 const planeGO = new GameObject(scene);
                 planeGO.transform.eulerAngles.x = -90;
@@ -94,6 +64,16 @@
                 const sphereMesh = planeGO.AddComponent(Components.Mesh);
                 sphereMesh.geometry = Geometry.Plane();
                 const mat = new PBRMaterial({ albedoColor: new Mathf.Color(1, 1, 1), metalness: 0, roughness: 1 });
+                sphereMesh.material = mat;
+              }
+              {
+                const sphereGameObject = new GameObject(scene);
+                sphereGameObject.transform.position.set(-10, -1.5, 0);
+                sphereGameObject.transform.scale.set(10, 10, 10);
+                sphereGameObject.transform.eulerAngles.y = 90;
+                const sphereMesh = sphereGameObject.AddComponent(Components.Mesh);
+                sphereMesh.geometry = Geometry.Plane();
+                const mat = new PBRMaterial({ albedoColor: new Mathf.Color(1, 1, 1), metalness: 1, roughness: 0 });
                 sphereMesh.material = mat;
               }
               {
@@ -121,27 +101,33 @@
                 sphereMesh.material = mat;
               }
               {
+                const hdr = await HDRParser.Load("/dist/examples/assets/textures/HDR/royal_esplanade_1k.hdr");
+                await HDRParser.ToCubemap(hdr);
                 const skyAtmosphere = new Sky();
                 await skyAtmosphere.init();
-                await skyAtmosphere.preFrame();
-                await skyAtmosphere.execute();
-                await HDRParser.Load("./assets/textures/HDR/dikhololo_night_1k.hdr");
-                const sky = await HDRParser.ToCubemap(skyAtmosphere.output);
-                const skyIrradiance = await HDRParser.GetIrradianceMap(sky);
-                const prefilterMap = await HDRParser.GetPrefilterMap(sky);
-                const brdfLUT = await HDRParser.GetBRDFLUT(1);
-                scene.renderPipeline.skybox = sky;
-                scene.renderPipeline.skyboxIrradiance = skyIrradiance;
-                scene.renderPipeline.skyboxPrefilter = prefilterMap;
-                scene.renderPipeline.skyboxBRDFLUT = brdfLUT;
+                const skyTexture = skyAtmosphere.skyTextureCubemap;
+                const environment = new Environment(scene, skyTexture);
+                await environment.init();
+                setInterval(() => {
+                  const radius = 1;
+                  const elevationRad = Mathf.Deg2Rad * skyAtmosphere.SUN_ELEVATION_DEGREES;
+                  const azimuthRad = Mathf.Deg2Rad * skyAtmosphere.SUN_AZIMUTH_DEGREES;
+                  const x = radius * Mathf.Cos(elevationRad) * Mathf.Cos(azimuthRad);
+                  const y = radius * Mathf.Sin(elevationRad);
+                  const z = radius * Mathf.Cos(elevationRad) * Mathf.Sin(azimuthRad);
+                  const sunPos = new Mathf.Vector3(x, y, z);
+                  lightGameObject.transform.position = sunPos;
+                  lightGameObject.transform.LookAtV1(new Mathf.Vector3(0, 0, 0));
+                }, 100);
                 {
                   const skySettings = new UIFolder(Debugger.ui, "Sky");
-                  new UISliderStat(skySettings, "Rayleigh:", 0, 100, 0.01, skyAtmosphere.rayleigh, (value) => skyAtmosphere.rayleigh = value);
-                  new UISliderStat(skySettings, "Turbidity:", 0, 100, 0.01, skyAtmosphere.turbidity, (value) => skyAtmosphere.turbidity = value);
-                  new UISliderStat(skySettings, "MieCoefficient:", 0, 100, 0.01, skyAtmosphere.mieCoefficient, (value) => skyAtmosphere.mieCoefficient = value);
-                  new UISliderStat(skySettings, "MieDirectionalG:", 0, 100, 0.01, skyAtmosphere.mieDirectionalG, (value) => skyAtmosphere.mieDirectionalG = value);
-                  new UISliderStat(skySettings, "Sun azimuth:", -Math.PI, Math.PI, 0.01, skyAtmosphere.sunDirection.x, (value) => skyAtmosphere.sunDirection.x = value);
-                  new UISliderStat(skySettings, "Sun elevation:", -Math.PI, Math.PI, 0.01, skyAtmosphere.sunDirection.y, (value) => skyAtmosphere.sunDirection.y = value);
+                  new UISliderStat(skySettings, "SUN_ELEVATION_DEGREES:", 0, 180, 0.01, skyAtmosphere.SUN_ELEVATION_DEGREES, (value) => skyAtmosphere.SUN_ELEVATION_DEGREES = value);
+                  new UISliderStat(skySettings, "SUN_AZIMUTH_DEGREES:", 0, 180, 0.01, skyAtmosphere.SUN_AZIMUTH_DEGREES, (value) => skyAtmosphere.SUN_AZIMUTH_DEGREES = value);
+                  new UISliderStat(skySettings, "EYE_ALTITUDE:", 0, 1e3, 0.01, skyAtmosphere.EYE_ALTITUDE, (value) => skyAtmosphere.EYE_ALTITUDE = value);
+                  new UIButtonStat(skySettings, "Rebuild:", async (value) => {
+                    skyAtmosphere.Update();
+                    environment.Update();
+                  });
                   skySettings.Open();
                 }
               }

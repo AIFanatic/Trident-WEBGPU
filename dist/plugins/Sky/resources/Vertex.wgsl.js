@@ -1,0 +1,3 @@
+var VertexWGSL = "struct VertexOutput {\n    @builtin(position) position : vec4<f32>,\n    @location(0) uv: vec2<f32>,\n};\n\n// Full-screen triangle (covers screen with 3 verts)\nconst vertices = array<vec2f, 3>(\n    vec2f(-1.0, -1.0),\n    vec2f( 3.0, -1.0),\n    vec2f(-1.0,  3.0)\n);\n\n@vertex\nfn vertexMain(@builtin(vertex_index) vertexIndex : u32) -> VertexOutput {\n    var output: VertexOutput;\n    let vertex = vertices[vertexIndex];\n    output.position = vec4(vertex, 0.0, 1.0);\n\n    output.uv = vertex * 0.5 + 0.5;\n    output.uv.y = 1.0 - output.uv.y;\n    return output;\n}";
+
+export { VertexWGSL as default };

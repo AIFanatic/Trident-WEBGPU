@@ -3,7 +3,7 @@ export { GLTFLoader } from './GLTF/GLTFLoader.js';
 export { Terrain } from './Terrain/Terrain.js';
 export { SimplexNoise } from './SimplexNoise.js';
 export { DataBackedBuffer } from './DataBackedBuffer.js';
-export { UIButtonStat, UIColorStat, UIDropdownStat, UIFolder, UIGradientStat, UIGraph, UISliderStat, UITextStat, UIVecStat } from './ui/UIStats.js';
+export { UIButtonStat, UIColorStat, UIDropdownStat, UIFolder, UIGradientStat, UIGraph, UISliderStat, UITextStat, UITextureViewer, UIVecStat } from './ui/UIStats.js';
 import { Water } from './Water/WaterPlugin.js';
 export { LineRenderer } from './LineRenderer.js';
 export { OBJLoaderIndexed } from './OBJLoader.js';
@@ -48,7 +48,11 @@ import './meshlets_v3/passes/MeshletDraw.js';
 export { SSSRenderPass, buildSSSDispatchList } from './SSS.js';
 export { DepthBufferRaymarchPass } from './DepthBufferRaymarch.js';
 export { Meshoptimizer, attribute_size, meshopt_SimplifyErrorAbsolute, meshopt_SimplifyLockBorder, meshopt_SimplifySparse } from './meshoptimizer/Meshoptimizer.js';
-export { Sky } from './Sky.js';
+export { Sky } from './Environment/Sky.js';
+export { Irradiance } from './Environment/Irradiance.js';
+export { Prefilter } from './Environment/Prefilter.js';
+export { BRDF } from './Environment/BRDF.js';
+export { Environment } from './Environment/Environment.js';
 
 Component.Registry.set(Water.type, Water);
 

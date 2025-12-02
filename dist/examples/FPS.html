@@ -35,12 +35,12 @@
             import { ThirdPersonController } from '@trident/plugins/PhysicsRapier/ThirdPersonController.js';
             import { RigidBody, RigidbodyConstraints } from '@trident/plugins/PhysicsRapier/RigidBody.js';
             import { Debugger } from '@trident/plugins/Debugger.js';
-            import { HDRParser } from '@trident/plugins/HDRParser.js';
             import { GLTFLoader } from '@trident/plugins/GLTF/GLTFLoader.js';
-            import { UIFolder, UIVecStat } from '@trident/plugins/ui/UIStats.js';
+            import { UIFolder, UISliderStat, UIButtonStat, UIVecStat } from '@trident/plugins/ui/UIStats.js';
             import { OrbitControls } from '@trident/plugins/OrbitControls.js';
             import { Terrain } from '@trident/plugins/Terrain/Terrain.js';
-            import { Sky } from '@trident/plugins/Sky.js';
+            import { Sky } from '@trident/plugins/Environment/Sky.js';
+            import { Environment } from '@trident/plugins/Environment/Environment.js';
             
             async function Application(canvas) {
               const renderer = GPU.Renderer.Create(canvas, "webgpu");
@@ -55,7 +55,7 @@
               lightGameObject.transform.position.set(4, 4, 4).mul(10);
               lightGameObject.transform.LookAtV1(new Mathf.Vector3(0, 0, 0));
               const light = lightGameObject.AddComponent(Components.DirectionalLight);
-              light.intensity = 1e-5;
+              light.intensity = 10;
               const physicsWorld = new GameObject(scene);
               const physicsComponent = physicsWorld.AddComponent(PhysicsRapier);
               await physicsComponent.Load();
@@ -121,16 +121,19 @@
               }
               const skyAtmosphere = new Sky();
               await skyAtmosphere.init();
-              await skyAtmosphere.preFrame();
-              await skyAtmosphere.execute();
-              const sky = await HDRParser.ToCubemap(skyAtmosphere.output);
-              const skyIrradiance = await HDRParser.GetIrradianceMap(sky);
-              const prefilterMap = await HDRParser.GetPrefilterMap(sky);
-              const brdfLUT = await HDRParser.GetBRDFLUT(1);
-              scene.renderPipeline.skybox = sky;
-              scene.renderPipeline.skyboxIrradiance = skyIrradiance;
-              scene.renderPipeline.skyboxPrefilter = prefilterMap;
-              scene.renderPipeline.skyboxBRDFLUT = brdfLUT;
+              const skyTexture = skyAtmosphere.skyTextureCubemap;
+              const environment = new Environment(scene, skyTexture);
+              await environment.init();
+              {
+                const skySettings = new UIFolder(Debugger.ui, "Sky");
+                new UISliderStat(skySettings, "SUN_ELEVATION_DEGREES:", 0, 180, 0.01, skyAtmosphere.SUN_ELEVATION_DEGREES, (value) => skyAtmosphere.SUN_ELEVATION_DEGREES = value);
+                new UISliderStat(skySettings, "EYE_ALTITUDE:", 0, 1e3, 0.01, skyAtmosphere.EYE_ALTITUDE, (value) => skyAtmosphere.EYE_ALTITUDE = value);
+                new UIButtonStat(skySettings, "Rebuild:", async (value) => {
+                  skyAtmosphere.Update();
+                  environment.Update();
+                });
+                skySettings.Open();
+              }
               function traverse(gameObjects, fn) {
                 for (const gameObject of gameObjects) {
                   fn(gameObject);
@@ -324,11 +327,11 @@
                 });
                 if (!treeGeometry || !treeMaterial) throw Error("No tree geometry or material");
                 const billboards = [
-                  { geometry: Geometry.Plane(), material: new PBRMaterial({ albedoMap: await GPU.Texture.Load("/extra/test-assets/billboards/grass/grassbushcc008.png", "rgba8unorm", false, true), alphaCutoff: 0.5, albedoColor: Mathf.Color.fromHex(1886417151) }), amount: 5e4, distance: 200, ground_height: 0, scale: new Mathf.Vector3(1, 1, 1) },
+                  { geometry: Geometry.Plane(), material: new PBRMaterial({ albedoMap: await GPU.Texture.Load("/extra/test-assets/billboards/grass/grassbushcc008.png", "rgba8unorm", false, true), alphaCutoff: 0.5, albedoColor: Mathf.Color.fromHex(1886417151) }), amount: 5e4, distance: 200, ground_height: 0, scale: new Mathf.Vector3(1, 1, 1) }
                   // {geometry: Geometry.Plane(), material: new PBRMaterial({ albedoMap: await GPU.Texture.Load("/extra/test-assets/billboards/grass/grassbushcc008.png", "rgba8unorm", false, true), alphaCutoff: 0.5, albedoColor: Mathf.Color.fromHex(0x707070ff) }), amount: 5000, distance: 500, ground_height: 0, scale: new Mathf.Vector3(1,1,1)},
                   // {texture: await GPU.Texture.Load("/extra/test-assets/billboards/grass/grassbushcc007.png"), amount: 10000, distance: 50, ground_height: 0, scale: new Mathf.Vector3(1,1,1)},
                   // {geometry: Geometry.Plane(), material: new PBRMaterial({ albedoMap: await GPU.Texture.Load("/extra/test-assets/billboards/trees/tree002.png", "rgba8unorm", false, true), alphaCutoff: 0.5, unlit: false}), amount: 100, distance: 50, ground_height: 2, scale: new Mathf.Vector3(5,5,5)},
-                  { geometry: treeGeometry, material: treeMaterial, amount: 1e3, distance: 300, ground_height: 8, scale: new Mathf.Vector3(1, 1, 1), rotation: new Mathf.Vector3(-Math.PI / 2, 0, 0) }
+                  // {geometry: treeGeometry, material: treeMaterial, amount: 1000, distance: 300, ground_height: 8, scale: new Mathf.Vector3(1,1,1), rotation: new Mathf.Vector3(-Math.PI / 2,0,0)},
                 ];
                 const treesGameObject = new GameObject(scene);
                 for (const billboard of billboards) {

@@ -1,5 +1,6 @@
 import { GradientEditor } from './GradientEditor.js';
 import styles from './resources/UIStats.css.js';
+import { TextureViewer } from './TextureViewer.js';
 
 class Stat {
   statContainer;
@@ -344,6 +345,30 @@ class UIGradientStat extends Stat {
     };
   }
 }
+class UITextureViewer extends Stat {
+  texture;
+  textureViewer;
+  constructor(folder, label, texture) {
+    super(folder.container, label);
+    this.texture = texture;
+    this.textureViewer = new TextureViewer(texture);
+    this.statContainer.append(this.textureViewer.canvasTexture.canvas);
+    this.textureViewer.canvasTexture.canvas.style.height = "32px";
+    this.textureViewer.canvasTexture.canvas.addEventListener("mouseover", (event) => {
+      this.textureViewer.canvasTexture.canvas.style.height = "";
+    });
+    this.textureViewer.canvasTexture.canvas.addEventListener("mouseleave", (event) => {
+      this.textureViewer.canvasTexture.canvas.style.height = "32px";
+    });
+    setTimeout(async () => {
+      this.Update();
+    }, 100);
+  }
+  async Update() {
+    await this.textureViewer.init();
+    await this.textureViewer.execute();
+  }
+}
 class UIFolder extends Stat {
   folderElement;
   container;
@@ -373,4 +398,4 @@ class UIFolder extends Stat {
   }
 }
 
-export { UIButtonStat, UIColorStat, UIDropdownStat, UIFolder, UIGradientStat, UIGraph, UISliderStat, UITextStat, UIVecStat };
+export { UIButtonStat, UIColorStat, UIDropdownStat, UIFolder, UIGradientStat, UIGraph, UISliderStat, UITextStat, UITextureViewer, UIVecStat };

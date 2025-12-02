@@ -24,12 +24,25 @@ class PostProcessingFog extends GPU.RenderPass {
 			@group(0) @binding(1) var texture: texture_2d<f32>;
 			@group(0) @binding(2) var depthTexture: texture_depth_2d;
 
+			@group(0) @binding(5) var skyboxTexture: texture_cube<f32>;
+
 			struct Camera {
 				near: f32,
 				far: f32,
 				pad: vec2<f32>
 			}
 			@group(0) @binding(3) var<storage, read> camera: Camera;
+
+			struct View {
+				projectionOutputSize: vec4<f32>,
+				viewPosition: vec4<f32>,
+				projectionInverseMatrix: mat4x4<f32>,
+				viewInverseMatrix: mat4x4<f32>,
+				viewMatrix: mat4x4<f32>,
+				projectionMatrix: mat4x4<f32>,
+			};
+			@group(0) @binding(4) var<storage, read> view: View;
+
 
 			@vertex fn vertexMain(input: VertexInput) -> VertexOutput {
 				var output: VertexOutput;
@@ -39,23 +52,30 @@ class PostProcessingFog extends GPU.RenderPass {
 			}
 
 			fn LinearizeDepthFromNDC(ndcDepth: f32) -> f32 {
-				let n = camera.near; // camera z near
-				let f = camera.far; // camera z far
+				let n = camera.near;
+				let f = camera.far;
 				let z = ndcDepth * 2.0 - 1.0;
 				return (2.0 * n * f) / (f + n - z * (f - n));
 			}
 
-			@fragment fn fragmentMain(input: VertexOutput) -> @location(0) vec4f {
+			@fragment
+			fn fragmentMain(input: VertexOutput) -> @location(0) vec4<f32> {
 				let dims = vec2<f32>(textureDimensions(depthTexture));
 				let d = textureLoad(depthTexture, vec2<i32>(input.vUv * dims), 0);
 				let linearDepth = LinearizeDepthFromNDC(d);
-				
-				let c = textureSample(texture, textureSampler, input.vUv);
 
-				let fogColor = vec3(1.0);
-				let screenColor = c.rgb;
-				let color = mix(screenColor, fogColor, linearDepth / 1000);
-				return vec4(vec3(color), 1.0);
+				// Fog range
+				let fogStart = 10.0;
+				let fogEnd   = 80.0;
+
+				var fogFactor = (linearDepth - fogStart) / (fogEnd - fogStart);
+				fogFactor = clamp(fogFactor, 0.0, 1.0);
+
+				let c = textureSample(texture, textureSampler, input.vUv);
+				let fogColor = vec3<f32>(1.0); // simple white fog
+
+				let color = mix(c.rgb, fogColor, fogFactor);
+				return vec4<f32>(color, 1.0);
 			}
 		`;
     this.shader = await GPU.Shader.Create({

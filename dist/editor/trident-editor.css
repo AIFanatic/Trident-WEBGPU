@@ -118,40 +118,6 @@ input[type=number] {
 .LayoutTab > .header > .selected {
     background-color: #272727;
 }
-.treeview {
-    line-height: 1.5;
-}
-
-.treeview .item {
-    counter-increment: section;
-    counter-reset: section;
-}
-
-.treeview .item .drag-hover {
-    background-color: red;
-}
-
-.treeview .item .item-title {
-    cursor: pointer;
-}
-
-.treeview .item .active {
-    background-color: #3498db;
-}
-
-.treeview .item .item-title:before {
-    content: counters(section, '--');
-    opacity: 0;
-}
-
-.treeview .item .item-title:hover {
-    /* background-color: #383838; */
-    opacity: 0.5;
-}
-
-.treeview .item .item-content {
-    overflow: hidden;
-}
 .dropdown-overlay {
     /* background-color: #ffffff50; */
     position: fixed;
@@ -220,50 +186,39 @@ input[type=number] {
     position: fixed;
     font-size: 10px;
 }
-.collapsible-content-edonec {
-    overflow: auto;
-    transition: height 0.2s ease-in-out;
-    border-bottom: 1px solid black;
-}
-.title-text-edonec {
-    display: inline-block;
-    font-size: 10px;
-    font-weight: bold;
-}
-.title-right-menu {
-    float: right;
-    margin-right: 10px;
-    text-align: center;
-    width: 15px;
-    font-weight: bold;
-}
-.title-right-menu:hover {
-    background-color: #404040;
+.treeview {
+    line-height: 1.5;
 }
 
-.collapsible-header-edonec {
-    width: 100%;
-    display: inline-block;
-    align-items: center;
-    padding: 3px 0px 3px 0px;
-    cursor: pointer;
-    background-color: #2b2b2b;
-}
-.collapsible-content-padding-edonec {
-    padding-top: 3px;
+.treeview .item {
+    counter-increment: section;
+    counter-reset: section;
 }
 
-.collapsible-icon-button-edonec {
+.treeview .item .drag-hover {
+    background-color: red;
+}
+
+.treeview .item .item-title {
     cursor: pointer;
-    background-color: Transparent;
-    background-repeat: no-repeat;
-    border: none;
-    cursor: pointer;
+}
+
+.treeview .item .active {
+    background-color: #3498db;
+}
+
+.treeview .item .item-title:before {
+    content: counters(section, '--');
+    opacity: 0;
+}
+
+.treeview .item .item-title:hover {
+    /* background-color: #383838; */
+    opacity: 0.5;
+}
+
+.treeview .item .item-content {
     overflow: hidden;
-    outline: none;
-    color: white;
-    font-size: 10px;
-    width: 25px;
 }
 .InspectorComponent {
     display: flex;
@@ -348,4 +303,49 @@ input[type=number] {
     background: #bfbfbf;
     cursor: pointer;
     border-radius: 50%;
+}
+.collapsible-content-edonec {
+    overflow: auto;
+    transition: height 0.2s ease-in-out;
+    border-bottom: 1px solid black;
+}
+.title-text-edonec {
+    display: inline-block;
+    font-size: 10px;
+    font-weight: bold;
+}
+.title-right-menu {
+    float: right;
+    margin-right: 10px;
+    text-align: center;
+    width: 15px;
+    font-weight: bold;
+}
+.title-right-menu:hover {
+    background-color: #404040;
+}
+
+.collapsible-header-edonec {
+    width: 100%;
+    display: inline-block;
+    align-items: center;
+    padding: 3px 0px 3px 0px;
+    cursor: pointer;
+    background-color: #2b2b2b;
+}
+.collapsible-content-padding-edonec {
+    padding-top: 3px;
+}
+
+.collapsible-icon-button-edonec {
+    cursor: pointer;
+    background-color: Transparent;
+    background-repeat: no-repeat;
+    border: none;
+    cursor: pointer;
+    overflow: hidden;
+    outline: none;
+    color: white;
+    font-size: 10px;
+    width: 25px;
 }
