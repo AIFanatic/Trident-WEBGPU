@@ -65,7 +65,7 @@ export class Quaternion {
         return this;
     }
 
-    public fromEuler(euler: Vector3, inDegrees: boolean = false): Quaternion {
+    public setFromEuler(euler: Vector3, inDegrees: boolean = false): Quaternion {
         const roll = inDegrees ? euler.x * Math.PI / 180 : euler.x;
         const pitch = inDegrees ? euler.y * Math.PI / 180 : euler.y;
         const yaw = inDegrees ? euler.z * Math.PI / 180 : euler.z;

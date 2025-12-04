@@ -54,7 +54,7 @@ export class Transform extends Component {
     }
 
     private onEulerChanged() {
-        this._rotation.fromEuler(this._eulerAngles, true);
+        this._rotation.setFromEuler(this._eulerAngles, true);
         EventSystem.emit(ComponentEvents.CallUpdate, this, true);
     }
 

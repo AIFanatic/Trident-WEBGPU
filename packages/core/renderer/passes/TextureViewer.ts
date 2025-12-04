@@ -5,6 +5,9 @@ import { Shader } from "../Shader";
 import { Geometry } from "../../Geometry";
 import { TextureSampler } from "../TextureSampler";
 import { PassParams } from "../RenderingPipeline";
+import { Console, ConsoleVarConfigs } from "../../Console";
+
+const TextureViewerSettings = Console.define({r_exposure: { default: 0.0, help: "Final image exposure"}} satisfies ConsoleVarConfigs);
 
 export class TextureViewer extends RenderPass {
     public name: string = "TextureViewer";
@@ -20,6 +23,8 @@ export class TextureViewer extends RenderPass {
 
         @group(0) @binding(0) var textureSampler: sampler;
         @group(0) @binding(1) var texture: texture_2d<f32>;
+
+        @group(0) @binding(2) var<storage, read> exposure: f32;
 
         // Full-screen triangle (covers screen with 3 verts)
         const p = array<vec2f, 3>(
@@ -91,14 +96,7 @@ export class TextureViewer extends RenderPass {
         }
 
         @fragment fn fragmentMain(input: VertexOutput) -> @location(0) vec4f {
-            // let color = textureSampleLevel(texture, textureSampler, input.vUv, 0);
-            // return vec4f(gammaCorrection(toneMapping(color.rgb)), color.a);
-
-            // let hdr = textureSampleLevel(texture, textureSampler, input.vUv, 0);
-            // return vec4f(gammaCorrection(toneMapping(hdr.rgb * 0.5)), hdr.a);
-
-
-            const EXPOSURE = -4.0;
+            let EXPOSURE = exposure;
 
             var col = textureSampleLevel(texture, textureSampler, input.vUv, 0).rgb;
             
@@ -126,6 +124,7 @@ export class TextureViewer extends RenderPass {
             uniforms: {
                 textureSampler: {group: 0, binding: 0, type: "sampler"},
                 texture: {group: 0, binding: 1, type: "texture"},
+                exposure: {group: 0, binding: 2, type: "storage"},
             }
         });
         this.quadGeometry = new Geometry();
@@ -139,11 +138,11 @@ export class TextureViewer extends RenderPass {
     public async execute(resources: ResourcePool) {
         if (this.initialized === false) return;
 
-        const settings = resources.getResource(PassParams.DebugSettings);
         const LightingPassOutputTexture = resources.getResource(PassParams.LightingPassOutput);
         if (!LightingPassOutputTexture) return;
 
         this.shader.SetTexture("texture", LightingPassOutputTexture);
+        this.shader.SetValue("exposure", TextureViewerSettings.r_exposure.value);
 
         RendererContext.BeginRenderPass("TextureViewer", [{clear: false}], undefined, true);
         RendererContext.Draw(this.quadGeometry, this.shader, 3);

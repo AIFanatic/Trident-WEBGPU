@@ -87,7 +87,7 @@ export class DeferredGBufferPass extends RenderPass {
             shader.SetMatrix4("viewMatrix", viewMatrix);
             shader.SetBuffer("modelMatrix", instancedMesh.matricesBuffer);
             shader.SetVector3("cameraPosition", inputCamera.transform.position);
-            this.drawCommands.push({geometry: geometry, shader: shader, instanceCount: instancedMesh.instanceCount+1, firstInstance: 0});
+            this.drawCommands.push({geometry: geometry, shader: shader, instanceCount: instancedMesh.instanceCount, firstInstance: 0});
 
             // Debug
             const position = geometry.attributes.get("position");

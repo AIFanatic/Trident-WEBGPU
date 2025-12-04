@@ -176,10 +176,10 @@ class WaterRenderPass extends GPU.RenderPass {
         const foam_sampler_texture = await GPU.Texture.Load(new URL(foam_sampler_texture_url, import.meta.url));
         const caustic_sampler_texture = await GPU.Texture.Load(new URL(foam_sampler_texture_url, import.meta.url));
 
-        // uv_sampler_texture.GenerateMips();
-        // normalmap_a_sampler_texture.GenerateMips();
-        // normalmap_b_sampler_texture.GenerateMips();
-        // foam_sampler_texture.GenerateMips();
+        uv_sampler_texture.GenerateMips();
+        normalmap_a_sampler_texture.GenerateMips();
+        normalmap_b_sampler_texture.GenerateMips();
+        foam_sampler_texture.GenerateMips();
 
         this.waterShader.SetTexture("uv_sampler", uv_sampler_texture);
         this.waterShader.SetTexture("normalmap_a_sampler", normalmap_a_sampler_texture);
@@ -277,7 +277,7 @@ export class Water extends Component {
             this.gameObject.scene.renderPipeline.AddPass(Water.WaterRenderPass, GPU.RenderPassOrder.BeforeLighting);
         }
 
-        this.geometry = PlaneGeometry(128, 128, 256, 256);
+        this.geometry = PlaneGeometry(1, 1, 256, 256);
 
         // this.settings = new DataBackedBuffer<WaterSettings>({
         //     wave_speed: [0.5, 0.0, 0.0, 0.0],
@@ -303,7 +303,7 @@ export class Water extends Component {
         //     depth_offset: [-0.75, 0.0, 0.0, 0.0],
         // });
 
-this.settings = new DataBackedBuffer<WaterSettings>({
+        this.settings = new DataBackedBuffer<WaterSettings>({
             wave_speed: [0.5, 0.0, 0.0, 0.0],
 
             wave_a: [1.0, 0.4, 0.5, 3.0],
@@ -320,8 +320,11 @@ this.settings = new DataBackedBuffer<WaterSettings>({
     
             refraction: [0.075, 0.0, 0.0, 0.0],
     
-            color_deep: [0.32, 0.4, 0.5, 1.0],
-            color_shallow: [0.66, 0.75, 0.76, 1.0],
+            // color_deep: [0.32, 0.4, 0.5, 1.0],
+            // color_shallow: [0.66, 0.75, 0.76, 1.0],
+
+            color_shallow: [0.0, 0.4, 0.45, 1.0],
+            color_deep: [0.1, 0.5, 0.5, 1.0],
     
             beers_law: [2.0, 0.0, 0.0, 0.0],
             depth_offset: [-0.75, 0.0, 0.0, 0.0],

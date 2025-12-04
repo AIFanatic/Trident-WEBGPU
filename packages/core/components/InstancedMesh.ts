@@ -12,8 +12,11 @@ export class InstancedMesh extends Mesh {
     private _instanceCount: number = 0;
     public get instanceCount(): number { return this._instanceCount};
 
+    public ResetInstances(): void {
+        this._instanceCount = 0;
+    }
+
     public SetMatrixAt(index: number, matrix: Matrix4) {
-        if (!this._matricesBuffer) throw Error("Matrices buffer not created.");
         this._instanceCount = Math.max(index, this._instanceCount);
         this._matricesBuffer.set(index, matrix.elements);
     }

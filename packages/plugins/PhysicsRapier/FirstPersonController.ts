@@ -96,7 +96,7 @@ export class FirstPersonController extends Component {
 
             this.mouse.deltaX -= event.movementX * this.orbitSpeed;
             this.mouse.deltaY -= event.movementY * this.orbitSpeed;
-            this.camera.transform.rotation.fromEuler(new Mathf.Vector3(this.mouse.deltaY, this.mouse.deltaX, 0));
+            this.camera.transform.rotation.setFromEuler(new Mathf.Vector3(this.mouse.deltaY, this.mouse.deltaX, 0));
         })
 
         this.target = this.transform;

@@ -51,7 +51,7 @@ async function Application(canvas: HTMLCanvasElement) {
     lightGameObject.transform.position.set(-1, 4, 0.01);
     lightGameObject.transform.LookAtV1(new Mathf.Vector3(0, 0, 0));
     const light = lightGameObject.AddComponent(Components.DirectionalLight);
-    light.intensity = 1;
+    light.intensity = 10;
 
     const lightHelper = lightGameObject.AddComponent(DirectionalLightHelper);
     lightHelper.light = light;

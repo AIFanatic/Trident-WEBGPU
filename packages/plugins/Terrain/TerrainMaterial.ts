@@ -172,10 +172,16 @@ export class TerrainMaterial extends GPU.Material {
                     let layer = Layers[layer_index];
                     let uv_layer = uv * 1 / layer.transform.xy + layer.transform.zw;
                     let layerAlbedo = textureSample(albedoTextures, textureSampler, uv_layer, layer_index);
-                    let layerNormal = textureSample(normalTextures, textureSampler, uv_layer, layer_index);
+                    // let layerNormal = textureSample(normalTextures, textureSampler, uv_layer, layer_index);
+                    let layerNormalSample = textureSample(normalTextures, textureSampler, uv_layer, layer_index);
+                    let layerNormal = layerNormalSample.xyz * 2.0 - 1.0;
                     let layerArm = textureSample(armTextures, textureSampler, uv_layer, layer_index);
 
-                    return TerrainSample(layerAlbedo.rgb, layerNormal.rgb, layerArm.gar); // Unity style r=metalness,g=ao,b=detail,a=roughness
+                    // Unity style r=1.0 - smoothness,g=ao,b=detail,a=roughness
+                    let ao = layerArm.g;
+                    let roughness = 1.0 - layerArm.a;
+                    let metalness = layerArm.r;
+                    return TerrainSample(layerAlbedo.rgb, layerNormal, vec3(ao, roughness, metalness));
                 }
                     
                 @fragment
@@ -204,7 +210,7 @@ export class TerrainMaterial extends GPU.Material {
                     let normal = (layer0.normal * layerWeightsPerPixel.x) + (layer1.normal * layerWeightsPerPixel.y) + (layer2.normal * layerWeightsPerPixel.z);
                     let arm = (layer0.arm * layerWeightsPerPixel.x) + (layer1.arm * layerWeightsPerPixel.y) + (layer2.arm * layerWeightsPerPixel.z);
 
-                    let nTan = normalize(normal * 2.0 - 1.0);
+                    let nTan = normalize(normal);
 
                     // TBN from geometry
                     let N = normalize(input.normal);

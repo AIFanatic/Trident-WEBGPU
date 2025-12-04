@@ -15,29 +15,13 @@ import { TransformEvents } from "../../components/Transform";
 import { Vector3 } from "../../math/Vector3";
 import { DepthTextureArray } from "../Texture";
 import { Vector4 } from "../../math/Vector4";
+import { Console, ConsoleVarConfigs } from "../../Console";
 
 export interface LightShadowData {
     cascadeSplits: Float32Array;
     projectionMatrices: Float32Array;
     shadowMapIndex: number;
 };
-
-class _DeferredShadowMapPassSettings {
-    public shadowWidth = 2048;
-    public shadowHeight = 2048;
-    public shadowsUpdateValue = true;
-    public roundToPixelSizeValue = true;
-    public debugCascadesValue = false;
-    public pcfResolutionValue: number = 1;
-    public blendThresholdValue: number = 0.3;
-    public viewBlendThresholdValue = false;
-    public numOfCascades: number = 4;
-    public splitType: "uniform" | "log" | "practical" = "practical";
-    public splitTypePracticalLambda: number = 0.9;
-    public maxShadowDistance: number = 2000;
-}
-
-export const DeferredShadowMapPassSettings = new _DeferredShadowMapPassSettings();
 
 interface PreparedShadowViewport {
     x: number;
@@ -60,6 +44,19 @@ interface Cascade {
     splitDepth: number;
     viewProjMatrix: Matrix4;
 }
+
+export const ShadowMapSettings = Console.define({
+  r_shadows_width: { default: 2048, help: "Shadow map width"},
+  r_shadows_height: { default: 2048, help: "Shadow map height"},
+  r_shadows_enabled: { default: true, help: "Enable Shadows"},
+  r_shadows_pcfResolution: { default: 1, help:   "Shadows Percentage-Closer Filtering, the higher the value the softer the shadows."},
+  r_shadows_maxShadowDistance: { default: 2000, help: "Maximum distance to show shadows"},
+  r_shadows_csm_roundToPixelSizeValue: { default: true, help: "Round CSM to nearest pixel, helps with shimmering CSM's"},
+  r_shadows_csm_blendThresholdValue: { default: 0.3, help: "How much percentage to blend between cascades"},
+  r_shadows_csm_numOfCascades: { default: 4, help: "How many cascades, to use"},
+  r_shadows_csm_splitType: { default: "practical" as "uniform" | "log" | "practical", help: "Type of split between cascades (uniform | log | practical)"},
+  r_shadows_csm_splitTypePracticalLambda: { default: 0.9, help:"When using splitType practical how much to blend between uniform and log types"},
+} satisfies ConsoleVarConfigs);
 
 export class DeferredShadowMapPass extends RenderPass {
     public name: string = "DeferredShadowMapPass";
@@ -87,7 +84,6 @@ export class DeferredShadowMapPass extends RenderPass {
 
 
     // TODO: Clean this, csmSplits here to be used by debugger plugin
-    public readonly Settings = DeferredShadowMapPassSettings;
     public csmSplits: number[] = [0, 0, 0, 0];
 
     public async init(resources: ResourcePool) {
@@ -216,7 +212,7 @@ export class DeferredShadowMapPass extends RenderPass {
         this.skinnedBoneMatricesBuffer = Buffer.Create(16 * 100 * 4, BufferType.STORAGE);
         this.drawSkinnedMeshShadowShader.SetBuffer("boneMatrices", this.skinnedBoneMatricesBuffer);
 
-        this.shadowOutput = DepthTextureArray.Create(DeferredShadowMapPassSettings.shadowWidth, DeferredShadowMapPassSettings.shadowHeight, 1);
+        this.shadowOutput = DepthTextureArray.Create(ShadowMapSettings.r_shadows_width.value, ShadowMapSettings.r_shadows_height.value, 1);
 
         this.initialized = true;
     }
@@ -267,9 +263,9 @@ export class DeferredShadowMapPass extends RenderPass {
 
     private getCascadeSplits(cascadeCount: number, near: number, far: number): number[] {
         let CASCADE_DISTANCES: number[] = [];
-        if (DeferredShadowMapPassSettings.splitType === "uniform") this.uniformSplit(cascadeCount, near, far, CASCADE_DISTANCES);
-        if (DeferredShadowMapPassSettings.splitType === "log") this.logarithmicSplit(cascadeCount, near, far, CASCADE_DISTANCES);
-        if (DeferredShadowMapPassSettings.splitType === "practical") this.practicalSplit(cascadeCount, near, far, DeferredShadowMapPassSettings.splitTypePracticalLambda, CASCADE_DISTANCES);
+        if (ShadowMapSettings.r_shadows_csm_splitType.value === "uniform") this.uniformSplit(cascadeCount, near, far, CASCADE_DISTANCES);
+        if (ShadowMapSettings.r_shadows_csm_splitType.value === "log") this.logarithmicSplit(cascadeCount, near, far, CASCADE_DISTANCES);
+        if (ShadowMapSettings.r_shadows_csm_splitType.value === "practical") this.practicalSplit(cascadeCount, near, far, ShadowMapSettings.r_shadows_csm_splitTypePracticalLambda.value, CASCADE_DISTANCES);
         for (let i = 0; i < cascadeCount; i++) CASCADE_DISTANCES[i] *= far; // TODO: Shouldn't have to do this
 
         return CASCADE_DISTANCES;
@@ -307,8 +303,8 @@ export class DeferredShadowMapPass extends RenderPass {
             }
 
             // TODO: This still seems wrong
-            if (DeferredShadowMapPassSettings.roundToPixelSizeValue === true) {
-                const shadowMapSize = DeferredShadowMapPassSettings.shadowWidth;
+            if (ShadowMapSettings.r_shadows_csm_roundToPixelSizeValue.value === true) {
+                const shadowMapSize = ShadowMapSettings.r_shadows_width.value;
                 const texelsPerUnit = shadowMapSize / (radius * 2.0);
                 const scalar = new Matrix4().makeScale(new Vector3(texelsPerUnit, texelsPerUnit, texelsPerUnit));
 
@@ -350,7 +346,7 @@ export class DeferredShadowMapPass extends RenderPass {
         if (!this.initialized) return;
         const mainCamera = Camera.mainCamera;
         if (!mainCamera) return;
-        if (!this.Settings.shadowsUpdateValue) return;
+        if (!ShadowMapSettings.r_shadows_enabled) return;
 
         const scene = mainCamera.gameObject.scene;
         this.lightShadowData.clear();
@@ -369,13 +365,13 @@ export class DeferredShadowMapPass extends RenderPass {
 
         if (!this.shadowOutput || this.shadowOutput.depth !== lights.length) {
             this.shadowOutput = DepthTextureArray.Create(
-                DeferredShadowMapPassSettings.shadowWidth,
-                DeferredShadowMapPassSettings.shadowHeight,
+                ShadowMapSettings.r_shadows_width.value,
+                ShadowMapSettings.r_shadows_height.value,
                 lights.length
             );
         }
 
-        const cascadeCapacity = DeferredShadowMapPassSettings.numOfCascades;
+        const cascadeCapacity = ShadowMapSettings.r_shadows_csm_numOfCascades.value;
         const perLightByteSize = cascadeCapacity * 4 * 16;
 
         if (!this.lightProjectionMatrixBuffer) {
@@ -440,8 +436,8 @@ export class DeferredShadowMapPass extends RenderPass {
 
             if (light instanceof DirectionalLight) {
                 const camera = mainCamera;
-                numOfCascades = DeferredShadowMapPassSettings.numOfCascades;
-                const cascadeSplits = this.getCascadeSplits(numOfCascades, camera.near, Math.min(camera.far, DeferredShadowMapPassSettings.maxShadowDistance));
+                numOfCascades = ShadowMapSettings.r_shadows_csm_numOfCascades.value;
+                const cascadeSplits = this.getCascadeSplits(numOfCascades, camera.near, Math.min(camera.far, ShadowMapSettings.r_shadows_maxShadowDistance.value));
                 this.csmSplits = cascadeSplits;
                 const cascades = this.getCascades(cascadeSplits, camera, numOfCascades, light);
                 // const cascades = this.getCascades_v2(camera, numOfCascades, light);

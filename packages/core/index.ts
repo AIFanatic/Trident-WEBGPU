@@ -26,3 +26,5 @@ export * as Utils from "./utils";
 export { Assets } from "./Assets";
 
 export { Input, KeyCodes, MouseCodes } from "./Input";
+
+export { Console } from "./Console";

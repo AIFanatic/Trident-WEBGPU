@@ -107,10 +107,12 @@ export class ThirdPersonController extends Component {
         if (rayHit) {
             const groundPoint = ray.pointAt(rayHit.timeOfImpact);
             this.groundPoint.set(groundPoint.x, groundPoint.y, groundPoint.z);
+            this.time = rayHit.timeOfImpact;
         }
     }
 
     private groundPoint = new Mathf.Vector3();
+    private time = 0;
 
     private Move() {
         this.v.set(0, 0, 0);
@@ -123,9 +125,9 @@ export class ThirdPersonController extends Component {
         const direction = this.v.mul(this.sprint ? this.boostMultiplier : this.speed);
         rigidbody.setLinvel({ x: direction.x, y: velocity.y, z: direction.z }, true);
         // Ground player, helps with slopes
-        if (this.isGrounded && !this.jump) {
+        if (this.isGrounded && !this.jump && this.time > 1.5) {
             const t = rigidbody.translation();
-            t.y = this.groundPoint.y + 1;
+            t.y = this.groundPoint.y + 1.5;
             rigidbody.setTranslation(t, false);
         }
 
@@ -140,7 +142,7 @@ export class ThirdPersonController extends Component {
         if (Math.abs(this.move.x) > Mathf.Epsilon || Math.abs(this.move.y) > Mathf.Epsilon) {
             const targetRotation = (Mathf.Atan2(-this.move.x, this.move.y) + this.yaw) * Mathf.Rad2Deg;
             this.currentRotation = Mathf.Lerp(this.currentRotation, targetRotation, this.blendRotation);
-            this._model.transform.rotation.fromEuler(new Mathf.Vector3(0, this.currentRotation, 0), true);
+            this._model.transform.rotation.setFromEuler(new Mathf.Vector3(0, this.currentRotation, 0), true);
         }
     }
     private currentRotation = 0;
@@ -150,7 +152,7 @@ export class ThirdPersonController extends Component {
 
     private CameraRotation() {
         const minPhi = -Math.PI / 2;
-        const maxPhi = 0;
+        const maxPhi = Math.PI / 2;
         const distance = this._mainCamera.transform.position.distanceTo(this.transform.position);
 
         if (this.isPointerLocked) {
@@ -159,7 +161,7 @@ export class ThirdPersonController extends Component {
             this.pitch = Math.min(maxPhi, Math.max(minPhi, this.pitch));
         }
 
-        this._mainCamera.transform.rotation.fromEuler(new Mathf.Vector3(this.pitch, this.yaw, 0));
+        this._mainCamera.transform.rotation.setFromEuler(new Mathf.Vector3(this.pitch, this.yaw, 0));
         this._mainCamera.transform.position.set(0, 0, distance).applyQuaternion(this._mainCamera.transform.rotation).add(this.transform.position);
     }
 }
