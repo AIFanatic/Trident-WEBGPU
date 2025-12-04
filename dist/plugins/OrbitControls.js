@@ -60,7 +60,7 @@ class OrbitControls {
     this.y -= deltaY * this.orbitSpeed;
     this.y = Math.min(this.maxPhi, Math.max(this.minPhi, this.y));
     this.x = Math.min(this.maxTheta, Math.max(this.minTheta, this.x));
-    const rotation = new Mathf.Quaternion().fromEuler(new Mathf.Vector3(this.y, this.x, 0));
+    const rotation = new Mathf.Quaternion().setFromEuler(new Mathf.Vector3(this.y, this.x, 0));
     const position = new Mathf.Vector3(0, 0, distance).applyQuaternion(rotation).add(this.center);
     this._camera.transform.rotation.copy(rotation);
     this._camera.transform.position.copy(position);

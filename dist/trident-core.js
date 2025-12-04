@@ -216,7 +216,7 @@ class Quaternion {
     this.w = quaternion.w;
     return this;
   }
-  fromEuler(euler, inDegrees = false) {
+  setFromEuler(euler, inDegrees = false) {
     const roll = inDegrees ? euler.x * Math.PI / 180 : euler.x;
     const pitch = inDegrees ? euler.y * Math.PI / 180 : euler.y;
     const yaw = inDegrees ? euler.z * Math.PI / 180 : euler.z;
@@ -1179,7 +1179,7 @@ class Transform extends Component {
     this._parent = parent;
   }
   onEulerChanged() {
-    this._rotation.fromEuler(this._eulerAngles, true);
+    this._rotation.setFromEuler(this._eulerAngles, true);
     EventSystem.emit(ComponentEvents.CallUpdate, this, true);
   }
   onChanged() {
@@ -4736,6 +4736,57 @@ class DeferredLightingPass extends RenderPass {
   }
 }
 
+class ConsoleVar {
+  name;
+  help;
+  _value;
+  _onChange;
+  constructor(opts) {
+    this.name = opts.name;
+    this.help = opts.help;
+    this._value = opts.default;
+    this._onChange = opts.onChange;
+  }
+  get value() {
+    return this._value;
+  }
+  set value(next) {
+    const old = this._value;
+    if (old === next) return;
+    this._value = next;
+    this._onChange?.(next, old);
+  }
+}
+class ConsoleManager {
+  vars = /* @__PURE__ */ new Map();
+  defineVar(opts) {
+    const key = opts.name.toLowerCase();
+    const variable = new ConsoleVar(opts);
+    this.vars.set(key, variable);
+    return variable;
+  }
+  getVar(name) {
+    return this.vars.get(name.toLowerCase());
+  }
+  define(defs) {
+    const result = {};
+    for (const key in defs) {
+      const def = defs[key];
+      const variable = this.defineVar({
+        name: key,
+        help: def.help,
+        default: def.default,
+        onChange: def.onChange
+      });
+      result[key] = variable;
+    }
+    return result;
+  }
+}
+const Console = new ConsoleManager();
+window["Console"] = Console;
+
+const TextureViewerSettings = Console.define({ r_exposure: { default: 0, help: "Final image exposure" } });
 class TextureViewer extends RenderPass {
   name = "TextureViewer";
   shader;
@@ -4749,6 +4800,8 @@ class TextureViewer extends RenderPass {
 
         @group(0) @binding(0) var textureSampler: sampler;
         @group(0) @binding(1) var texture: texture_2d<f32>;
+
+        @group(0) @binding(2) var<storage, read> exposure: f32;
 
         // Full-screen triangle (covers screen with 3 verts)
         const p = array<vec2f, 3>(
@@ -4820,14 +4873,7 @@ class TextureViewer extends RenderPass {
         }
 
         @fragment fn fragmentMain(input: VertexOutput) -> @location(0) vec4f {
-            // let color = textureSampleLevel(texture, textureSampler, input.vUv, 0);
-            // return vec4f(gammaCorrection(toneMapping(color.rgb)), color.a);
-
-            // let hdr = textureSampleLevel(texture, textureSampler, input.vUv, 0);
-            // return vec4f(gammaCorrection(toneMapping(hdr.rgb * 0.5)), hdr.a);
-
-
-            const EXPOSURE = -4.0;
+            let EXPOSURE = exposure;
 
             var col = textureSampleLevel(texture, textureSampler, input.vUv, 0).rgb;
             
@@ -4853,7 +4899,8 @@ class TextureViewer extends RenderPass {
       colorOutputs: [{ format: Renderer.SwapChainFormat }],
       uniforms: {
         textureSampler: { group: 0, binding: 0, type: "sampler" },
-        texture: { group: 0, binding: 1, type: "texture" }
+        texture: { group: 0, binding: 1, type: "texture" },
+        exposure: { group: 0, binding: 2, type: "storage" }
       }
     });
     this.quadGeometry = new Geometry();
@@ -4863,10 +4910,10 @@ class TextureViewer extends RenderPass {
   }
   async execute(resources) {
     if (this.initialized === false) return;
-    resources.getResource(PassParams.DebugSettings);
     const LightingPassOutputTexture = resources.getResource(PassParams.LightingPassOutput);
     if (!LightingPassOutputTexture) return;
     this.shader.SetTexture("texture", LightingPassOutputTexture);
+    this.shader.SetValue("exposure", TextureViewerSettings.r_exposure.value);
     RendererContext.BeginRenderPass("TextureViewer", [{ clear: false }], void 0, true);
     RendererContext.Draw(this.quadGeometry, this.shader, 3);
     RendererContext.EndRenderPass();
@@ -5293,8 +5340,10 @@ class InstancedMesh extends Mesh {
   get instanceCount() {
     return this._instanceCount;
   }
+  ResetInstances() {
+    this._instanceCount = 0;
+  }
   SetMatrixAt(index, matrix) {
-    if (!this._matricesBuffer) throw Error("Matrices buffer not created.");
     this._instanceCount = Math.max(index, this._instanceCount);
     this._matricesBuffer.set(index, matrix.elements);
   }
@@ -5303,21 +5352,18 @@ class InstancedMesh extends Mesh {
   }
 }
 
-class _DeferredShadowMapPassSettings {
-  shadowWidth = 2048;
-  shadowHeight = 2048;
-  shadowsUpdateValue = true;
-  roundToPixelSizeValue = true;
-  debugCascadesValue = false;
-  pcfResolutionValue = 1;
-  blendThresholdValue = 0.3;
-  viewBlendThresholdValue = false;
-  numOfCascades = 4;
-  splitType = "practical";
-  splitTypePracticalLambda = 0.9;
-  maxShadowDistance = 2e3;
-}
-const DeferredShadowMapPassSettings = new _DeferredShadowMapPassSettings();
+const ShadowMapSettings = Console.define({
+  r_shadows_width: { default: 2048, help: "Shadow map width" },
+  r_shadows_height: { default: 2048, help: "Shadow map height" },
+  r_shadows_enabled: { default: true, help: "Enable Shadows" },
+  r_shadows_pcfResolution: { default: 1, help: "Shadows Percentage-Closer Filtering, the higher the value the softer the shadows." },
+  r_shadows_maxShadowDistance: { default: 2e3, help: "Maximum distance to show shadows" },
+  r_shadows_csm_roundToPixelSizeValue: { default: true, help: "Round CSM to nearest pixel, helps with shimmering CSM's" },
+  r_shadows_csm_blendThresholdValue: { default: 0.3, help: "How much percentage to blend between cascades" },
+  r_shadows_csm_numOfCascades: { default: 4, help: "How many cascades, to use" },
+  r_shadows_csm_splitType: { default: "practical", help: "Type of split between cascades (uniform | log | practical)" },
+  r_shadows_csm_splitTypePracticalLambda: { default: 0.9, help: "When using splitType practical how much to blend between uniform and log types" }
+});
 class DeferredShadowMapPass extends RenderPass {
   name = "DeferredShadowMapPass";
   drawInstancedShadowShader;
@@ -5335,7 +5381,6 @@ class DeferredShadowMapPass extends RenderPass {
   preparedMeshes = [];
   preparedInstancedMeshes = [];
   // TODO: Clean this, csmSplits here to be used by debugger plugin
-  Settings = DeferredShadowMapPassSettings;
   csmSplits = [0, 0, 0, 0];
   async init(resources) {
     const code = `
@@ -5458,7 +5503,7 @@ class DeferredShadowMapPass extends RenderPass {
     });
     this.skinnedBoneMatricesBuffer = Buffer.Create(16 * 100 * 4, BufferType.STORAGE);
     this.drawSkinnedMeshShadowShader.SetBuffer("boneMatrices", this.skinnedBoneMatricesBuffer);
-    this.shadowOutput = DepthTextureArray.Create(DeferredShadowMapPassSettings.shadowWidth, DeferredShadowMapPassSettings.shadowHeight, 1);
+    this.shadowOutput = DepthTextureArray.Create(ShadowMapSettings.r_shadows_width.value, ShadowMapSettings.r_shadows_height.value, 1);
     this.initialized = true;
   }
   frustumData;
@@ -5497,9 +5542,9 @@ class DeferredShadowMapPass extends RenderPass {
   }
   getCascadeSplits(cascadeCount, near, far) {
     let CASCADE_DISTANCES = [];
-    if (DeferredShadowMapPassSettings.splitType === "uniform") this.uniformSplit(cascadeCount, near, far, CASCADE_DISTANCES);
-    if (DeferredShadowMapPassSettings.splitType === "log") this.logarithmicSplit(cascadeCount, near, far, CASCADE_DISTANCES);
-    if (DeferredShadowMapPassSettings.splitType === "practical") this.practicalSplit(cascadeCount, near, far, DeferredShadowMapPassSettings.splitTypePracticalLambda, CASCADE_DISTANCES);
+    if (ShadowMapSettings.r_shadows_csm_splitType.value === "uniform") this.uniformSplit(cascadeCount, near, far, CASCADE_DISTANCES);
+    if (ShadowMapSettings.r_shadows_csm_splitType.value === "log") this.logarithmicSplit(cascadeCount, near, far, CASCADE_DISTANCES);
+    if (ShadowMapSettings.r_shadows_csm_splitType.value === "practical") this.practicalSplit(cascadeCount, near, far, ShadowMapSettings.r_shadows_csm_splitTypePracticalLambda.value, CASCADE_DISTANCES);
     for (let i = 0; i < cascadeCount; i++) CASCADE_DISTANCES[i] *= far;
     return CASCADE_DISTANCES;
   }
@@ -5525,8 +5570,8 @@ class DeferredShadowMapPass extends RenderPass {
         }
         return p_value;
       };
-      if (DeferredShadowMapPassSettings.roundToPixelSizeValue === true) {
-        const shadowMapSize = DeferredShadowMapPassSettings.shadowWidth;
+      if (ShadowMapSettings.r_shadows_csm_roundToPixelSizeValue.value === true) {
+        const shadowMapSize = ShadowMapSettings.r_shadows_width.value;
         const texelsPerUnit = shadowMapSize / (radius * 2);
         const scalar = new Matrix4().makeScale(new Vector3(texelsPerUnit, texelsPerUnit, texelsPerUnit));
         const lookAt = new Matrix4().lookAt(new Vector3(0, 0, 0), lightDirection, up).mul(scalar);
@@ -5556,7 +5601,7 @@ class DeferredShadowMapPass extends RenderPass {
     if (!this.initialized) return;
     const mainCamera = Camera.mainCamera;
     if (!mainCamera) return;
-    if (!this.Settings.shadowsUpdateValue) return;
+    if (!ShadowMapSettings.r_shadows_enabled) return;
     const scene = mainCamera.gameObject.scene;
     this.lightShadowData.clear();
     this.preparedLights.length = 0;
@@ -5571,12 +5616,12 @@ class DeferredShadowMapPass extends RenderPass {
     if (lights.length === 0) return;
     if (!this.shadowOutput || this.shadowOutput.depth !== lights.length) {
       this.shadowOutput = DepthTextureArray.Create(
-        DeferredShadowMapPassSettings.shadowWidth,
-        DeferredShadowMapPassSettings.shadowHeight,
+        ShadowMapSettings.r_shadows_width.value,
+        ShadowMapSettings.r_shadows_height.value,
         lights.length
       );
     }
-    const cascadeCapacity = DeferredShadowMapPassSettings.numOfCascades;
+    const cascadeCapacity = ShadowMapSettings.r_shadows_csm_numOfCascades.value;
     const perLightByteSize = cascadeCapacity * 4 * 16;
     if (!this.lightProjectionMatrixBuffer) {
       this.lightProjectionMatrixBuffer = Buffer.Create(perLightByteSize, BufferType.STORAGE);
@@ -5626,8 +5671,8 @@ class DeferredShadowMapPass extends RenderPass {
       const cascadeViewports = [];
       if (light instanceof DirectionalLight) {
         const camera = mainCamera;
-        numOfCascades = DeferredShadowMapPassSettings.numOfCascades;
-        const cascadeSplits = this.getCascadeSplits(numOfCascades, camera.near, Math.min(camera.far, DeferredShadowMapPassSettings.maxShadowDistance));
+        numOfCascades = ShadowMapSettings.r_shadows_csm_numOfCascades.value;
+        const cascadeSplits = this.getCascadeSplits(numOfCascades, camera.near, Math.min(camera.far, ShadowMapSettings.r_shadows_maxShadowDistance.value));
         this.csmSplits = cascadeSplits;
         const cascades = this.getCascades(cascadeSplits, camera, numOfCascades, light);
         matricesForLight = cascades.map((c) => c.viewProjMatrix);
@@ -5786,10 +5831,12 @@ class PrepareGBuffers extends RenderPass {
       // +Renderer.info.useHeightMapValue,
       0,
       // Debugger.heightScale,
-      +DeferredShadowMapPassSettings.debugCascadesValue,
-      DeferredShadowMapPassSettings.pcfResolutionValue,
-      DeferredShadowMapPassSettings.blendThresholdValue,
-      +DeferredShadowMapPassSettings.viewBlendThresholdValue,
+      0,
+      // ShadowMapSettings.debugCascadesValue.value,
+      ShadowMapSettings.r_shadows_pcfResolution.value,
+      ShadowMapSettings.r_shadows_csm_blendThresholdValue.value,
+      0,
+      // DeferredShadowMapPassSettings.viewBlendThresholdValue,
       ...Camera.mainCamera.transform.position.elements,
       0,
       0,
@@ -5884,7 +5931,7 @@ class DeferredGBufferPass extends RenderPass {
       shader.SetMatrix4("viewMatrix", viewMatrix);
       shader.SetBuffer("modelMatrix", instancedMesh.matricesBuffer);
       shader.SetVector3("cameraPosition", inputCamera.transform.position);
-      this.drawCommands.push({ geometry, shader, instanceCount: instancedMesh.instanceCount + 1, firstInstance: 0 });
+      this.drawCommands.push({ geometry, shader, instanceCount: instancedMesh.instanceCount, firstInstance: 0 });
       const position = geometry.attributes.get("position");
       Renderer.info.vertexCount += position.array.length / 3 * instancedMesh.instanceCount;
       Renderer.info.triangleCount += (geometry.index ? geometry.index.array.length / 3 : position.array.length / 3) * instancedMesh.instanceCount;
@@ -6936,4 +6983,4 @@ class Scene {
   }
 }
 
-export { Assets, Component, index as Components, EventSystem, EventSystemLocal, index$1 as GPU, GameObject, Geometry, IndexAttribute, Input, InterleavedVertexAttribute, KeyCodes, index$2 as Mathf, MouseCodes, PBRMaterial, Renderer, Scene, Texture, index$3 as Utils, VertexAttribute };
+export { Assets, Component, index as Components, Console, EventSystem, EventSystemLocal, index$1 as GPU, GameObject, Geometry, IndexAttribute, Input, InterleavedVertexAttribute, KeyCodes, index$2 as Mathf, MouseCodes, PBRMaterial, Renderer, Scene, Texture, index$3 as Utils, VertexAttribute };

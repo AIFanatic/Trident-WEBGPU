@@ -127,7 +127,7 @@ fn vertexMain(input: VertexInput) -> VertexOutput {
 
     let time = TIME * waveSettings.wave_speed[0];
 
-    var	vertex: vec4f = vec4(input.position, 1.0);
+    var	vertex: vec4f = vec4(input.position, 1.0) * 1000.0;
     let vertex_position = (modelMatrixInstance * vertex).xyz;
 
     let tang: vec3f = vec3(0.0, 0.0, 0.0);
