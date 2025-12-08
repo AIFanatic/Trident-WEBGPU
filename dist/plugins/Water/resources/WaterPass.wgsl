@@ -1,4 +1,4 @@
-#include "@trident/core/resources/webgpu/shaders/deferred/OctahedralEncoding.wgsl";
+#include "@trident/core/resources/webgpu/shaders/deferred/Common.wgsl";
 
 struct VertexInput {
     @builtin(instance_index) instanceIdx : u32, 

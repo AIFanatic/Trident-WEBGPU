@@ -27,7 +27,7 @@
             <script type="module">
                 const canvas = document.createElement("canvas");
                 document.body.appendChild(canvas);
-                            import { GPU, Scene, GameObject, Components, Mathf, Geometry, PBRMaterial } from '@trident/core';
+                            import { GPU, Scene, GameObject, Components, Mathf, Geometry, PBRMaterial, Console } from '@trident/core';
             import { OrbitControls } from '@trident/plugins/OrbitControls.js';
             import { Debugger } from '@trident/plugins/Debugger.js';
             import { UIFolder, UIButtonStat } from '@trident/plugins/ui/UIStats.js';
@@ -107,10 +107,10 @@
                 const CSMFolder = new UIFolder(Debugger.ui, "CSM");
                 CSMFolder.Open();
                 new UIButtonStat(CSMFolder, "Enabled:", (state) => {
-                  shadowPass.Settings.shadowsUpdateValue = state;
+                  Console.getVar("r_shadows_enabled").value = state;
                   camera.SetPerspective(camera.fov, camera.aspect, camera.near, state ? 1e3 : 5e4);
                   console.log(camera.fov, state);
-                }, shadowPass.Settings.shadowsUpdateValue);
+                }, Console.getVar("r_shadows_enabled").value);
                 new Mathf.Matrix4();
                 setInterval(() => {
                   let positions = [];
@@ -174,7 +174,7 @@
                   const shadowEntry = lightsShadowData.get(light.id);
                   if (shadowEntry) {
                     const { projectionMatrices } = shadowEntry;
-                    for (let cascade = 0; cascade < shadowPass.Settings.numOfCascades; cascade++) {
+                    for (let cascade = 0; cascade < Console.getVar("r_shadows_csm_numofcascades").value; cascade++) {
                       const vp = new Mathf.Matrix4();
                       vp.setFromArray(projectionMatrices.subarray(cascade * 16, (cascade + 1) * 16));
                       const lightCorners = worldCornersFromViewProj(vp);

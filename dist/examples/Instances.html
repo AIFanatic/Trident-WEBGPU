@@ -59,7 +59,7 @@
               const gameObject = new GameObject(scene);
               const instancedMesh = gameObject.AddComponent(Components.InstancedMesh);
               instancedMesh.geometry = Geometry.Cube();
-              instancedMesh.material = new PBRMaterial({ useVertexPulling: false });
+              instancedMesh.material = new PBRMaterial();
               const count = 20;
               let position = new Mathf.Vector3();
               let rotation = new Mathf.Quaternion();

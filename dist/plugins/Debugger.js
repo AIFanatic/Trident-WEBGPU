@@ -21,7 +21,7 @@ class DebuggerRenderPass extends GPU.RenderPass {
   async init(resources) {
     this.outputViewerShader = await GPU.Shader.Create({
       code: `
-                #include "@trident/core/resources/webgpu/shaders/deferred/OctahedralEncoding.wgsl";
+                #include "@trident/core/resources/webgpu/shaders/deferred/Common.wgsl";
 
                 struct VertexInput {
                     @location(0) position : vec3<f32>,

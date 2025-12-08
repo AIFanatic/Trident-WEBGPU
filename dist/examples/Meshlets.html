@@ -62,10 +62,10 @@
                   }
                 }
                 const tempScene = new Scene(renderer);
-                const gameObjects = await GLTFLoader.loadAsGameObjects(tempScene, "/extra/dist_bak/test-assets/GLTF/scenes/Sponza/Sponza.gltf");
+                const gameObjects = await GLTFLoader.loadAsGameObjects(tempScene, "/dist/examples/assets/models/DamagedHelmet/DamagedHelmet.gltf");
                 console.log(gameObjects);
                 const oldToNewMap = /* @__PURE__ */ new Map();
-                await traverse(gameObjects, async (gameObject) => {
+                await traverse([gameObjects], async (gameObject) => {
                   const newGameObject = new GameObject(scene);
                   newGameObject.name = gameObject.name;
                   newGameObject.transform.position.copy(gameObject.transform.position);
@@ -74,7 +74,7 @@
                   oldToNewMap.set(gameObject, newGameObject);
                   return true;
                 });
-                await traverse(gameObjects, async (oldGameObject) => {
+                await traverse([gameObjects], async (oldGameObject) => {
                   const newGameObject = oldToNewMap.get(oldGameObject);
                   const parentOld = oldGameObject.transform.parent?.gameObject;
                   const parentNew = parentOld ? oldToNewMap.get(parentOld) : void 0;
@@ -84,13 +84,15 @@
                 let i = 0;
                 let meshes = [];
                 const mat = new PBRMaterial();
-                await traverse(gameObjects, async (oldGameObject) => {
+                await traverse([gameObjects], async (oldGameObject) => {
                   const newGameObject = oldToNewMap.get(oldGameObject);
                   const mesh = oldGameObject.GetComponent(Components.Mesh);
                   if (!mesh) return true;
                   const newMesh = newGameObject.AddComponent(MeshletMesh);
                   newMesh.geometry = mesh.geometry;
-                  await newMesh.SetGeometry(mesh.geometry, true);
+                  if (newMesh["SetGeometry"]) {
+                    await newMesh.SetGeometry(mesh.geometry, true);
+                  }
                   newMesh.material = mat;
                   newMesh.enableShadows = false;
                   console.log(`Parsed ${i}/3064`);
