@@ -5,7 +5,8 @@ import {
     Components,
     Mathf,
     PBRMaterial,
-    GPU
+    GPU,
+    Console
 } from "@trident/core";
 
 import { OrbitControls } from "@trident/plugins/OrbitControls";
@@ -122,11 +123,11 @@ async function Application(canvas: HTMLCanvasElement) {
         CSMFolder.Open();
 
         new UIButtonStat(CSMFolder, "Enabled:", state => {
-            shadowPass.Settings.shadowsUpdateValue = state;
+            Console.getVar("r_shadows_enabled").value = state;
             camera.SetPerspective(camera.fov, camera.aspect, camera.near, state ? 1000 : 50000);
             console.log(camera.fov, state)
             
-        }, shadowPass.Settings.shadowsUpdateValue);
+        }, Console.getVar<boolean>("r_shadows_enabled").value);
 
         // lineRenderer.SetPositions([
             
@@ -206,7 +207,7 @@ async function Application(canvas: HTMLCanvasElement) {
             const shadowEntry = lightsShadowData.get(light.id);
             if (shadowEntry) {
                 const { projectionMatrices } = shadowEntry;
-                for (let cascade = 0; cascade < shadowPass.Settings.numOfCascades; cascade++) {
+                for (let cascade = 0; cascade < Console.getVar<number>("r_shadows_csm_numofcascades").value; cascade++) {
                     const vp = new Mathf.Matrix4();
                     vp.setFromArray(projectionMatrices.subarray(cascade * 16, (cascade + 1) * 16));
                     const lightCorners = worldCornersFromViewProj(vp); // zNear=0, zFar=1 for orthoZO

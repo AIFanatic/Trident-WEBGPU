@@ -1,7 +1,8 @@
-import { Mesh } from "./Mesh";
 import { Matrix4 } from "../math/Matrix4";
 import { Buffer, BufferType } from "../renderer/Buffer";
 import { Transform } from "./Transform";
+import { Renderable } from "./Renderable";
+import { RendererContext } from "../renderer/RendererContext";
 
 export class Skin {
     private joints: Transform[];
@@ -20,7 +21,6 @@ export class Skin {
         }
     }
 
-    private _matrix = new Matrix4();
     update(skinRootWorldMatrix: Matrix4) {
         for (let j = 0; j < this.joints.length; ++j) {
             const tmp = skinRootWorldMatrix.clone()
@@ -32,13 +32,9 @@ export class Skin {
     }
 }
 
-export class SkinnedMesh extends Mesh {
+export class SkinnedMesh extends Renderable {
     public skin: Skin;
     private boneMatricesBuffer: Buffer;
-
-    constructor(gameObject) {
-        super(gameObject);
-    }
 
     public GetBoneMatricesBuffer(): Buffer {
         return this.boneMatricesBuffer;
@@ -54,5 +50,17 @@ export class SkinnedMesh extends Mesh {
     public Update(): void {
         this.skin.update(this.gameObject.transform.worldToLocalMatrix);
         this.boneMatricesBuffer.SetArray(this.skin.jointData);
+    }
+
+    public OnPreRender() {
+        if (!this.geometry || !this.material || !this.material?.shader) return;
+        this.material.shader.SetMatrix4("modelMatrix", this.transform.localToWorldMatrix);
+        this.material.shader.SetBuffer("boneMatrices", this.boneMatricesBuffer);
+    }
+
+    public OnRenderObject() {
+        if (!this.geometry || !this.material || !this.material?.shader) return;
+
+        RendererContext.DrawGeometry(this.geometry, this.material.shader);
     }
 }

@@ -3,7 +3,6 @@ import { StringFindAllBetween } from "../utils";
 import { Renderer } from "./Renderer";
 
 import WGSL_Shader_Draw_URL from "../resources/webgpu/shaders/deferred/DrawGBuffer.wgsl";
-import WGSL_Shader_DrawVertexPulling_URL from "../resources/webgpu/shaders/deferred/DrawGBufferVertexPulling.wgsl";
 import WGSL_Shader_DeferredLighting_URL from "../resources/webgpu/shaders/deferred/DeferredLightingPBR.wgsl";
 import WGSL_Shader_IBLLighting_URL from "../resources/webgpu/shaders/deferred/IBLLighting.wgsl";
 
@@ -48,7 +47,7 @@ export class ShaderPreprocessor {
         return code;
     }
 
-    public static async ProcessIncludesV2(code: string, url: string = "./", seen = new Set<string>()): Promise<string> {
+    public static async ProcessIncludesV2(code: string, url: string = "", seen = new Set<string>()): Promise<string> {
         const includes = StringFindAllBetween(code, "#include", "\n", false);
         for (const includeStr of includes) {
             const filenameArray = StringFindAllBetween(includeStr, '"', '"', true).concat(StringFindAllBetween(includeStr, "'", "'", true));
@@ -61,8 +60,10 @@ export class ShaderPreprocessor {
             }
             seen.add(includeFullPath);
 
-            const newCode = await Assets.Load(includeFullPath, "text");
-            const includedCode = await this.ProcessIncludesV2(newCode, includeFullPath, seen);
+            const basePath = url.slice(0, url.lastIndexOf("/"));
+            const fullPath = url !== "" && includeFullPath[0] !== "@" ? `${basePath}/${includeFullPath}` : includeFullPath;
+            const newCode = await Assets.Load(fullPath, "text");
+            const includedCode = await this.ProcessIncludesV2(newCode, fullPath, seen);
             code = code.replace(includeStr, includedCode + "\n");
         }
         return code;
@@ -102,7 +103,6 @@ export class ShaderLoader {
     }
 
     public static get Draw(): Promise<string> { return ShaderPreprocessor.ProcessIncludesV2(WGSL_Shader_Draw_URL); }
-    public static get DrawVertexPulling(): Promise<string> { return ShaderPreprocessor.ProcessIncludesV2(WGSL_Shader_DrawVertexPulling_URL); }
     public static get DeferredLighting(): Promise<string> { return ShaderPreprocessor.ProcessIncludesV2(WGSL_Shader_DeferredLighting_URL); }
     public static get IBLLighting(): Promise<string> { return ShaderPreprocessor.ProcessIncludesV2(WGSL_Shader_IBLLighting_URL); }
 }
@@ -112,11 +112,11 @@ import WGSL_Shader_Deferred_LightStruct from "../resources/webgpu/shaders/deferr
 import WGSL_Shader_Deferred_ShadowMap from "../resources/webgpu/shaders/deferred/ShadowMap.wgsl";
 import WGSL_Shader_Deferred_ShadowMapCSM from "../resources/webgpu/shaders/deferred/ShadowMapCSM.wgsl";
 import WGSL_Shader_Deferred_ShadowUtils from "../resources/webgpu/shaders/deferred/ShadowUtils.wgsl";
-import WGSL_Shader_Deferred_OctahedralEncoding from "../resources/webgpu/shaders/deferred/OctahedralEncoding.wgsl";
+import WGSL_Shader_Deferred_Common from "../resources/webgpu/shaders/deferred/Common.wgsl";
 
 Assets.Register("@trident/core/resources/webgpu/shaders/deferred/SurfaceStruct.wgsl", WGSL_Shader_Deferred_SurfaceStruct);
 Assets.Register("@trident/core/resources/webgpu/shaders/deferred/LightStruct.wgsl", WGSL_Shader_Deferred_LightStruct);
 Assets.Register("@trident/core/resources/webgpu/shaders/deferred/ShadowMap.wgsl", WGSL_Shader_Deferred_ShadowMap);
 Assets.Register("@trident/core/resources/webgpu/shaders/deferred/ShadowMapCSM.wgsl", WGSL_Shader_Deferred_ShadowMapCSM);
 Assets.Register("@trident/core/resources/webgpu/shaders/deferred/ShadowUtils.wgsl", WGSL_Shader_Deferred_ShadowUtils);
-Assets.Register("@trident/core/resources/webgpu/shaders/deferred/OctahedralEncoding.wgsl", WGSL_Shader_Deferred_OctahedralEncoding);
+Assets.Register("@trident/core/resources/webgpu/shaders/deferred/Common.wgsl", WGSL_Shader_Deferred_Common);

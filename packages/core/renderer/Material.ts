@@ -68,8 +68,6 @@ export interface PBRMaterialParams extends MaterialParams {
     wireframe: boolean;
 
     isSkinned: boolean;
-
-    useVertexPulling?: boolean;
 }
 
 export class PBRMaterial extends Material {
@@ -103,8 +101,6 @@ export class PBRMaterial extends Material {
         isSkinned: false,
 
         isDeferred: true,
-
-        useVertexPulling: false
     }
     constructor(params?: Partial<PBRMaterialParams>) {
         super(params);
@@ -148,76 +144,14 @@ export class PBRMaterial extends Material {
         }
 
         let shaderParams: ShaderParams = {
-            code: this.params.useVertexPulling === true ? ShaderLoader.DrawVertexPulling : ShaderLoader.Draw,
+            code: await ShaderLoader.Draw,
             defines: DEFINES,
             colorOutputs: [ {format: gbufferFormat}, {format: gbufferFormat}, {format: gbufferFormat} ],
             depthOutput: "depth24plus",
-            attributes: this.params.useVertexPulling === true ? undefined : {
-                position: {location: 0, size: 3, type: "vec3"},
-                normal: {location: 1, size: 3, type: "vec3"},
-                uv: {location: 2, size: 2, type: "vec2"},
-            },
-            uniforms: {
-                projectionMatrix: {group: 0, binding: 0, type: "storage"},
-                viewMatrix: {group: 0, binding: 1, type: "storage"},
-                modelMatrix: {group: 0, binding: 2, type: "storage"},
-
-                material: {group: 0, binding: 3, type: "storage"},
-
-                TextureSampler: {group: 0, binding: 4, type: "sampler"},
-                AlbedoMap: {group: 0, binding: 5, type: "texture"},
-                NormalMap: {group: 0, binding: 6, type: "texture"},
-                HeightMap: {group: 0, binding: 7, type: "texture"},
-                MetalnessMap: {group: 0, binding: 8, type: "texture"},
-                EmissiveMap: {group: 0, binding: 9, type: "texture"},
-                AOMap: {group: 0, binding: 10, type: "texture"},
-
-                cameraPosition: {group: 0, binding: 11, type: "storage"},
-
-                // // Global buffers
-                // Frame: {group: 1, binding: 0, type: "storage"},
-                // Materials: {group: 1, binding: 1, type: "storage"},
-                // Models: {group: 1, binding: 2, type: "storage"},
-                // Instance: {group: 1, binding: 3, type: "storage"},
-            },
             cullMode: this.params.doubleSided ? "none" : undefined,
-            useVertexPulling: this.params.useVertexPulling
         };
         
-        let nextAttributeLocation = 3;
-        if (DEFINES.USE_NORMAL_MAP && this.params.useVertexPulling !== true) {
-            shaderParams.attributes.tangent = {location: nextAttributeLocation++, size: 4, type: "vec4"};
-        }
-        if (DEFINES.USE_SKINNING) {
-            shaderParams.attributes.joints = {location: nextAttributeLocation++, size: 4, type: "vec4u"};
-            shaderParams.attributes.weights = {location: nextAttributeLocation++, size: 4, type: "vec4"};
-            shaderParams.uniforms.boneMatrices = {group: 1, binding: 0, type: "storage"}
-        }
-
-        // TODO: Make it work with skinning
-        if (this.params.useVertexPulling === true) {
-            shaderParams.uniforms.position = {group: 1, binding: 0, type: "storage"};
-            shaderParams.uniforms.normal = {group: 1, binding: 1, type: "storage"};
-            shaderParams.uniforms.uv = {group: 1, binding: 2, type: "storage"};
-            shaderParams.uniforms.index = {group: 1, binding: 3, type: "storage"};
-            if (DEFINES.USE_NORMAL_MAP) {
-                shaderParams.uniforms.tangent = {group: 1, binding: 4, type: "storage"};
-            }
-        }
-        
         const shader = await Shader.Create(shaderParams);
-        if (this.params.useVertexPulling === true) {
-            shader.OnPreRender = geometry => {
-                shader.SetBuffer("position", geometry.attributes.get("position").GetBuffer());
-                shader.SetBuffer("normal", geometry.attributes.get("normal").GetBuffer());
-                shader.SetBuffer("uv", geometry.attributes.get("uv").GetBuffer());
-                shader.SetBuffer("index", geometry.index.GetBuffer());
-                if (DEFINES.USE_NORMAL_MAP) {
-                    shader.SetBuffer("tangent", geometry.attributes.get("tangent").GetBuffer());
-                }
-                return true;
-            }
-        }
 
         if (DEFINES.USE_ALBEDO_MAP || DEFINES.USE_NORMAL_MAP || DEFINES.USE_HEIGHT_MAP || DEFINES.USE_METALNESS_MAP || DEFINES.USE_EMISSIVE_MAP || DEFINES.USE_AO_MAP) {
             const textureSampler = TextureSampler.Create();

@@ -40,7 +40,7 @@ async function Application(canvas: HTMLCanvasElement) {
     const instancedMesh = gameObject.AddComponent(Components.InstancedMesh);
 
     instancedMesh.geometry = Geometry.Cube();
-    instancedMesh.material = new PBRMaterial({useVertexPulling: false});
+    instancedMesh.material = new PBRMaterial();
 
     const count = 20;
     let position = new Mathf.Vector3();

@@ -89,6 +89,7 @@ async function Application(canvas: HTMLCanvasElement) {
 
     const biomes_splat_map = await GPU.Texture.Load("/extra/test-assets/terrain/heightmaps/biomeids_1024x1024.png");
     biomes_splat_map.GenerateMips();
+    console.log(terrain)
     terrain.material.layerTexture = biomes_splat_map;
 
     terrain.material.splatMapTextures = await LoadTerrainTextures([

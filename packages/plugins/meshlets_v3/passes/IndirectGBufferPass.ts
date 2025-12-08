@@ -1,4 +1,4 @@
-import { Geometry, VertexAttribute, GPU } from "@trident/core";
+import { Geometry, VertexAttribute, GPU, Scene } from "@trident/core";
 import { MeshletPassParams } from "./MeshletDraw";
 
 export class IndirectGBufferPass extends GPU.RenderPass {
@@ -8,13 +8,15 @@ export class IndirectGBufferPass extends GPU.RenderPass {
     private geometry: Geometry;
 
     public async init(resources: GPU.ResourcePool) {
+        const gbufferFormat = Scene.mainScene.renderPipeline.GBufferFormat;
+        
         this.shader = await GPU.Shader.Create({
             name: this.name,
             code: await GPU.ShaderLoader.LoadURL(new URL("../resources/DrawIndirectGBuffer.wgsl", import.meta.url)),
             colorOutputs: [
-                {format: "rgba16float"},
-                {format: "rgba16float"},
-                {format: "rgba16float"},
+                {format: gbufferFormat},
+                {format: gbufferFormat},
+                {format: gbufferFormat},
             ],
             depthOutput: "depth24plus",
             attributes: {

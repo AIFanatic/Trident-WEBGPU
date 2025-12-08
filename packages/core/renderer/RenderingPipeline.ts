@@ -7,11 +7,11 @@ import { TextureViewer } from "./passes/TextureViewer";
 import { PrepareGBuffers } from "./passes/PrepareGBuffers";
 import { DeferredShadowMapPass } from "./passes/DeferredShadowMapPass";
 import { CubeTexture, RenderTexture, TextureFormat } from "./Texture";
-import { DeferredGBufferPass } from "./passes/DeferredGBufferPass";
 import { ForwardPass } from "./passes/ForwardPass";
 import { IBLLightingPass } from "./passes/IBLIBLLightingPass";
 import { SkyboxPass } from "./passes/SkyboxPass";
 import { BasePass } from "./passes/BasePass";
+import { RenderablePass } from "./passes/RenderablePass";
 
 export const PassParams = {
     DebugSettings: "DebugSettings",
@@ -91,7 +91,7 @@ export class RenderingPipeline {
         ];
         
         this.afterGBufferPasses = [
-            new DeferredGBufferPass(),
+            new RenderablePass(),
             this.DeferredShadowMapPass,
         ];
 

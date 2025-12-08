@@ -1,4 +1,4 @@
-#include "@trident/core/resources/webgpu/shaders/deferred/OctahedralEncoding.wgsl";
+#include "@trident/core/resources/webgpu/shaders/deferred/Common.wgsl";
 #include "@trident/core/resources/webgpu/shaders/deferred/SurfaceStruct.wgsl";
 
 struct VertexOutput {

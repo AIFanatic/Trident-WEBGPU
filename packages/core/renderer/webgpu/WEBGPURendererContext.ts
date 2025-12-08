@@ -80,20 +80,18 @@ export class WEBGPURendererContext implements RendererContext {
         if (!geometry) return;
 
         // Bind buffers
-        if (shader.params.useVertexPulling === undefined || shader.params.useVertexPulling === false) {
-            for (const [name, attribute] of geometry.attributes) {
-                const attributeSlot = shader.GetAttributeSlot(name);
-                if (attributeSlot === undefined) continue;
-                const attributeBuffer = attribute.buffer as WEBGPUBuffer;
-                this.activeRenderPass.setVertexBuffer(attributeSlot, attributeBuffer.GetBuffer(), attribute.currentOffset, attribute.currentSize);
-                Renderer.info.frameVertexBuffersStat++;
-            }
+        for (const [name, attribute] of geometry.attributes) {
+            const attributeSlot = shader.GetAttributeSlot(name);
+            if (attributeSlot === undefined) continue;
+            const attributeBuffer = attribute.buffer as WEBGPUBuffer;
+            this.activeRenderPass.setVertexBuffer(attributeSlot, attributeBuffer.GetBuffer(), attribute.currentOffset, attribute.currentSize);
+            Renderer.info.frameVertexBuffersStat++;
+        }
 
-            if (geometry.index) {
-                const indexBuffer = geometry.index.buffer as WEBGPUBuffer;
-                this.activeRenderPass.setIndexBuffer(indexBuffer.GetBuffer(), geometry.index.format, geometry.index.currentOffset, geometry.index.currentSize);
-                Renderer.info.frameIndexBufferStat++;
-            }
+        if (geometry.index) {
+            const indexBuffer = geometry.index.buffer as WEBGPUBuffer;
+            this.activeRenderPass.setIndexBuffer(indexBuffer.GetBuffer(), geometry.index.format, geometry.index.currentOffset, geometry.index.currentSize);
+            Renderer.info.frameIndexBufferStat++;
         }
 
     }
@@ -111,12 +109,7 @@ export class WEBGPURendererContext implements RendererContext {
             }
             else {
                 const indexCount = geometry.index.count;
-                if (shader.params.useVertexPulling === true) {
-                    this.activeRenderPass.draw(indexCount, instanceCount, 0, firstInstance);
-                }
-                else {
-                    this.activeRenderPass.drawIndexed(indexCount, instanceCount, 0, 0, firstInstance);
-                }
+                this.activeRenderPass.drawIndexed(indexCount, instanceCount, 0, 0, firstInstance);
             }
         }
         else if (shader.params.topology === Topology.Lines) {

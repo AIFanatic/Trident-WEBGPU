@@ -108,7 +108,7 @@ export class SkyboxPass extends RenderPass {
 
         this.shader.SetTexture("depthTexture", inputGBufferDepth);
         this.shader.SetTexture("skyboxTexture", inputSkybox);
-        this.shader.SetArray("view", inputFrameBuffer);
+        this.shader.SetBuffer("view", inputFrameBuffer);
         
         this.drawCommands.push({geometry: this.quadGeometry, shader: this.shader, instanceCount: 1, firstInstance: 0});
     }

@@ -7,7 +7,7 @@ export class Assets {
     private static cache: Map<string, Promise<any>> = new Map();
 
     // Register a path
-    public static async Register(path: string, resource: Promise<any> | any, force? = false) {
+    public static async Register(path: string, resource: Promise<any> | any, force = false) {
         if (Assets.cache.has(path) && force === false) throw Error(`Assets[Register]: ${path} already set, use "force" to bypass.`);
         Assets.cache.set(path, Promise.resolve(resource));
     }

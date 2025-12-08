@@ -12,7 +12,6 @@ import {
 } from "@trident/core";
 
 import { GLTFParser, MeshPrimitive, Texture, Node, AccessorComponentType, GLTF, TextureInfo, Accessor } from './GLTFParser'
-import { MeshletMesh } from "@trident/plugins/meshlets_v2/MeshletMesh";
 
 export class GLTFLoader {
     private static TextureCache: Map<Texture, Promise<TridentTexture>> = new Map();
@@ -122,25 +121,6 @@ export class GLTFLoader {
 
     // ---------- Primitive / Node parsing to Object3D (your existing pipeline, tidied) ----------
 
-    private static padVec3ToVec4(src, w = 1): Float32Array {
-        const n = (src.length / 3) | 0;
-        const out = new Float32Array(n * 4);
-        for (let i = 0; i < n; i++) {
-            out[4 * i + 0] = src[3 * i + 0];
-            out[4 * i + 1] = src[3 * i + 1];
-            out[4 * i + 2] = src[3 * i + 2];
-            out[4 * i + 3] = w;
-        }
-        return out;
-    }
-
-    private static toUint32(array: Uint16Array | Uint32Array): Uint32Array {
-        if (array instanceof Uint32Array) return array;
-        const converted = new Uint32Array(array.length);
-        for (let i = 0; i < array.length; i++) converted[i] = array[i];
-        return converted;
-    }
-
     private static async parsePrimitive(primitive: MeshPrimitive, textures?: Texture[]): Promise<Object3D> {
         const geometry = new Geometry();
 
@@ -203,21 +183,6 @@ export class GLTFLoader {
 
         geometry.ComputeBoundingVolume();
 
-
-        const enableVertexPulling = false;
-        materialParams.useVertexPulling = enableVertexPulling;
-        if (enableVertexPulling) {
-            if (primitive.indices) {
-                const acc = primitive.indices;
-                const bv = acc.bufferView;
-                const bytes = bv.data.slice(acc.byteOffset, acc.byteOffset + acc.count * this.byteSize(acc.componentType));
-                geometry.index = new IndexAttribute(this.toUint32(this.getTypedArray(bytes, acc.componentType) as Uint32Array | Uint16Array));
-            }
-            if (primitive.attributes.POSITION) geometry.attributes.set("position", new VertexAttribute(this.padVec3ToVec4(this.readAccessorAsFloat32(primitive.attributes.POSITION))));
-            if (primitive.attributes.NORMAL) geometry.attributes.set("normal", new VertexAttribute(this.padVec3ToVec4(this.readAccessorAsFloat32(primitive.attributes.NORMAL))));
-            if (primitive.attributes.TEXCOORD_0) geometry.attributes.set("uv", new VertexAttribute(this.readAccessorAsFloat32(primitive.attributes.TEXCOORD_0)));
-        }
-
         return {
             name: "",
             geometry,
@@ -226,74 +191,6 @@ export class GLTFLoader {
             localMatrix: new Mathf.Matrix4(),
         };
     }
-
-    // private static async parseNode(gltf: GLTF, node: Node, textures?: Texture[]): Promise<Object3D> {
-    //     const nodeObj: Object3D = {
-    //         name: node.name ?? undefined,
-    //         children: [],
-    //         localMatrix: new Mathf.Matrix4().setFromArray(node.matrix)
-    //     };
-
-    //     if (node.extensions?.EXT_mesh_gpu_instancing) {
-    //         const attrs = node.extensions.EXT_mesh_gpu_instancing.attributes;
-    //         if (!gltf.accessors) throw Error("No accessors");
-    //         const t = new Float32Array(gltf.accessors[attrs.TRANSLATION].bufferView.data);
-    //         const r = new Float32Array(gltf.accessors[attrs.ROTATION].bufferView.data);
-    //         const s = new Float32Array(gltf.accessors[attrs.SCALE].bufferView.data);
-
-    //         const count = t.length / 3;
-    //         const instanceMatrices: Mathf.Matrix4[] = [];
-    //         const P = new Mathf.Vector3(); const Q = new Mathf.Quaternion(); const S = new Mathf.Vector3(); const M = new Mathf.Matrix4();
-    //         let psc = 0, rc = 0;
-    //         for (let i = 0; i < count; i++) {
-    //             P.set(t[psc], t[psc + 1], t[psc + 2]);
-    //             Q.set(r[rc], r[rc + 1], r[rc + 2], r[rc + 3]);
-    //             S.set(s[psc], s[psc + 1], s[psc + 2]);
-    //             M.compose(P, Q, S);
-    //             instanceMatrices.push(M.clone());
-    //             psc += 3; rc += 4;
-    //         }
-    //         nodeObj.extensions = [{ instanceCount: count, instanceMatrices }];
-    //     }
-
-    //     for (const child of node.children) {
-    //         nodeObj.children.push(await this.parseNode(gltf, child, textures));
-    //     }
-
-    //     if (node.mesh) {
-    //         const { primitives, name } = node.mesh;
-    //         if (primitives.length === 1) {
-    //             const o = await this.parsePrimitive(primitives[0], gltf.textures);
-    //             nodeObj.geometry = o.geometry;
-    //             nodeObj.material = o.material;
-    //         } else {
-    //             let idx = 0;
-    //             for (const p of primitives) {
-    //                 const o = await this.parsePrimitive(p, gltf.textures);
-    //                 o.name = name || `Object3D_${idx++}`;
-    //                 nodeObj.children.push(o);
-    //             }
-    //         }
-    //     }
-    //     return nodeObj;
-    // }
-
-    // // ---------- Public: load as an Object3D tree ----------
-
-    // public static async Load(url: string): Promise<Object3D> {
-    //     const gltf = await new GLTFParser().load(url);
-    //     if (!gltf?.scenes) throw Error("Invalid gltf");
-
-    //     const sceneObj: Object3D = { name: "Scene", localMatrix: new Mathf.Matrix4(), children: [] };
-    //     for (const scene of gltf.scenes) {
-    //         if (!scene) continue;
-    //         sceneObj.name = scene.name ?? "Scene";
-    //         for (const node of scene.nodes) {
-    //             sceneObj.children.push(await this.parseNode(gltf, node, gltf.textures));
-    //         }
-    //     }
-    //     return sceneObj;
-    // }
 
     // ---------- Public: load as GameObjects (Unity-style) ----------
 

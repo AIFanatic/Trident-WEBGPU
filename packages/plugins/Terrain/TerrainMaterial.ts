@@ -90,7 +90,7 @@ export class TerrainMaterial extends GPU.Material {
 
         this.shader = await GPU.Shader.Create({
             code: `
-                #include "@trident/core/resources/webgpu/shaders/deferred/OctahedralEncoding.wgsl";
+                #include "@trident/core/resources/webgpu/shaders/deferred/Common.wgsl";
 
                 struct VertexInput {
                     @builtin(instance_index) instance : u32,
@@ -109,10 +109,9 @@ export class TerrainMaterial extends GPU.Material {
                     @location(4) bitangent : vec3<f32>,
                 };
 
-                @group(0) @binding(0) var<storage, read> projectionMatrix: mat4x4<f32>;
-                @group(0) @binding(1) var<storage, read> viewMatrix: mat4x4<f32>;
+                @group(0) @binding(0) var<storage, read> frameBuffer: FrameBuffer;
+
                 @group(0) @binding(2) var<storage, read> modelMatrix: array<mat4x4<f32>>;
-                @group(0) @binding(3) var<storage, read> cameraPosition: vec3<f32>;
                 @group(0) @binding(4) var<storage, read> normalMatrix: mat4x4<f32>;
 
 
@@ -140,7 +139,7 @@ export class TerrainMaterial extends GPU.Material {
                     if (p.y < 0.01) {
                         p.y -= 0.1;
                     }
-                    output.position = projectionMatrix * viewMatrix * modelMatrixInstance * vec4(p, 1.0);
+                    output.position = frameBuffer.projectionMatrix * frameBuffer.viewMatrix * modelMatrixInstance * vec4(p, 1.0);
                     output.vUv = input.uv;
 
                     output.worldPosition = modelMatrixInstance * vec4(p, 1.0);
@@ -229,27 +228,6 @@ export class TerrainMaterial extends GPU.Material {
             `,
             colorOutputs: [ { format: gbufferFormat }, { format: gbufferFormat }, { format: gbufferFormat } ],
             depthOutput: "depth24plus",
-            attributes: {
-                position: { location: 0, size: 3, type: "vec3" },
-                normal: { location: 1, size: 3, type: "vec3" },
-                uv: { location: 2, size: 2, type: "vec2" },
-                tangent: { location: 3, size: 4, type: "vec4" },
-            },
-            uniforms: {
-                projectionMatrix: {group: 0, binding: 0, type: "storage"},
-                viewMatrix: {group: 0, binding: 1, type: "storage"},
-                modelMatrix: {group: 0, binding: 2, type: "storage"},
-                cameraPosition: {group: 0, binding: 3, type: "storage"},
-                normalMatrix: {group: 0, binding: 4, type: "storage"},
-
-                textureSampler: { group: 1, binding: 0, type: "sampler" },
-                albedoTextures: { group: 1, binding: 1, type: "texture" },
-                normalTextures: { group: 1, binding: 2, type: "texture" },
-                armTextures: { group: 1, binding: 3, type: "texture" },
-                splatMapTextures: { group: 1, binding: 4, type: "texture" },
-                layerTexture: { group: 1, binding: 5, type: "texture" },
-                Layers: { group: 1, binding: 6, type: "storage" },
-            }
         })
 
         this.blankTextureArray = GPU.TextureArray.Create(1, 1, 1);

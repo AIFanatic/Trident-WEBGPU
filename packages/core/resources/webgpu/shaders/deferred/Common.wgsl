@@ -22,3 +22,12 @@ fn OctDecode(_f: vec2f) -> vec3f {
     n.x += cond.x; n.y += cond.y;
     return normalize(n);
 }
+
+struct FrameBuffer {
+    projectionOutputSize: vec4<f32>,
+    viewPosition: vec4<f32>,
+    projectionInverseMatrix: mat4x4<f32>,
+    viewInverseMatrix: mat4x4<f32>,
+    viewMatrix: mat4x4<f32>,
+    projectionMatrix: mat4x4<f32>,
+};

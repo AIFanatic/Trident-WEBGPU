@@ -228,7 +228,10 @@ export class WEBGPUBaseShader {
 
     private GetValidUniform(name: string): WEBGPUShaderUniform {
         const uniform = this.uniformMap.get(name);
-        if (!uniform) throw Error(`Shader does not have a parameter named ${name}`);
+        if (!uniform) {
+            console.log(this);
+            throw Error(`Shader does not have a parameter named ${name}`);
+        }
         return uniform;
     }
 

@@ -88,7 +88,7 @@ export class IBLLightingPass extends RenderPass {
         this.shader.SetTexture("skyboxPrefilterTexture", inputSkyboxPrefilter);
         this.shader.SetTexture("skyboxBRDFLUTTexture", inputSkyboxBRDFLUT);
         
-        this.shader.SetArray("view", inputFrameBuffer);
+        this.shader.SetBuffer("view", inputFrameBuffer);
         
         // RendererContext.DrawGeometry(this.quadGeometry, this.shader);
         this.drawCommands.push({geometry: this.quadGeometry, shader: this.shader, instanceCount: 1, firstInstance: 0});

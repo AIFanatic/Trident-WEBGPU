@@ -12,7 +12,7 @@ import { OrbitControls } from "@trident/plugins/OrbitControls";
 import { OBJLoaderIndexed } from "@trident/plugins/OBJLoader";
 import { GLTFLoader } from "@trident/plugins/GLTF/GLTFLoader";
 
-import { MeshletMesh } from "@trident/plugins/meshlets_v2/MeshletMesh";
+import { MeshletMesh as MeshletMesh } from "@trident/plugins/meshlets_v2/MeshletMesh";
 import { MeshletDraw } from "@trident/plugins/meshlets_v2/passes/MeshletDraw";
 
 async function Application(canvas: HTMLCanvasElement) {
@@ -83,10 +83,10 @@ async function Application(canvas: HTMLCanvasElement) {
         }
 
         const tempScene = new Scene(renderer);
-        const gameObjects = await GLTFLoader.loadAsGameObjects(tempScene, "/extra/dist_bak/test-assets/GLTF/scenes/Sponza/Sponza.gltf");
+        // const gameObjects = await GLTFLoader.loadAsGameObjects(tempScene, "/extra/dist_bak/test-assets/GLTF/scenes/Sponza/Sponza.gltf");
         // const gameObjects = await GLTFLoader.loadAsGameObjects(tempScene, "/extra/dist_bak/test-assets/happy-buddha.glb");
         // const gameObjects = await GLTFLoader.loadAsGameObjects(tempScene, "/extra/dist_bak/test-assets/GLTF/scenes/Bistro.glb");
-        // const gameObjects = await GLTFLoader.loadAsGameObjects(tempScene, "/extra/dist_bak/test-assets/DamagedHelmet/DamagedHelmet.gltf");
+        const gameObjects = await GLTFLoader.loadAsGameObjects(tempScene, "/dist/examples/assets/models/DamagedHelmet/DamagedHelmet.gltf");
         // const gameObjects = await GLTFLoader.loadAsGameObjects(tempScene, "/dist/examples/assets/models/Monkey_Bunny.glb");
         console.log(gameObjects)
 
@@ -110,7 +110,7 @@ async function Application(canvas: HTMLCanvasElement) {
 
         const oldToNewMap: Map<GameObject, GameObject> = new Map();
         // First pass: Create all GameObjects
-        await traverse(gameObjects, async gameObject => {
+        await traverse([gameObjects], async gameObject => {
             const newGameObject = new GameObject(scene);
             newGameObject.name = gameObject.name;
             newGameObject.transform.position.copy(gameObject.transform.position);
@@ -120,7 +120,7 @@ async function Application(canvas: HTMLCanvasElement) {
             return true;
         })
         // Second pass create hierarchy
-        await traverse(gameObjects, async oldGameObject => {
+        await traverse([gameObjects], async oldGameObject => {
             const newGameObject = oldToNewMap.get(oldGameObject)!;
             const parentOld = oldGameObject.transform.parent?.gameObject;
             const parentNew = parentOld ? oldToNewMap.get(parentOld) : undefined;
@@ -133,7 +133,7 @@ async function Application(canvas: HTMLCanvasElement) {
 
         let meshes = []
         const mat = new PBRMaterial();
-        await traverse(gameObjects, async oldGameObject => {
+        await traverse([gameObjects], async oldGameObject => {
             // if (i === 100) return true;
             // i++;
 
@@ -144,7 +144,9 @@ async function Application(canvas: HTMLCanvasElement) {
             // setTimeout(async () => {
                 const newMesh = newGameObject.AddComponent(MeshletMesh);
                 newMesh.geometry = mesh.geometry;
-                await newMesh.SetGeometry(mesh.geometry, true);
+                if (newMesh["SetGeometry"]) {
+                    await newMesh.SetGeometry(mesh.geometry, true);
+                }
                 newMesh.material = mat;
                 newMesh.enableShadows = false;
                 console.log(`Parsed ${i}/3064`);

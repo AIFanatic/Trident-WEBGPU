@@ -206,7 +206,7 @@ export class DeferredLightingPass extends RenderPass {
         this.shader.SetTexture("ermoTexture", inputGbufferERMO);
         this.shader.SetTexture("depthTexture", inputGBufferDepth);
         this.shader.SetTexture("shadowPassDepth", inputShadowPassDepth);
-        this.shader.SetArray("view", inputFrameBuffer);
+        this.shader.SetBuffer("view", inputFrameBuffer);
 
         const settings = resources.getResource(PassParams.DebugSettings);
         this.shader.SetArray("settings", settings);

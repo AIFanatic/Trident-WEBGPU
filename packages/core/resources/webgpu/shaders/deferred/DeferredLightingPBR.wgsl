@@ -1,8 +1,8 @@
+#include "@trident/core/resources/webgpu/shaders/deferred/Common.wgsl";
 #include "@trident/core/resources/webgpu/shaders/deferred/SurfaceStruct.wgsl";
 #include "@trident/core/resources/webgpu/shaders/deferred/LightStruct.wgsl";
 #include "@trident/core/resources/webgpu/shaders/deferred/ShadowMap.wgsl";
 #include "@trident/core/resources/webgpu/shaders/deferred/ShadowMapCSM.wgsl";
-#include "@trident/core/resources/webgpu/shaders/deferred/OctahedralEncoding.wgsl";
 
 struct Settings {
     debugDepthPass: f32,

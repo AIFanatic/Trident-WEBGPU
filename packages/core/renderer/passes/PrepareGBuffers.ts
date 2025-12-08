@@ -7,6 +7,7 @@ import { Camera } from "../../components/Camera";
 import { EventSystem } from "../../Events";
 import { Matrix4 } from "../../math/Matrix4";
 import { ShadowMapSettings } from "./DeferredShadowMapPass";
+import { Buffer, BufferType } from "../Buffer";
 
 export class PrepareGBuffers extends RenderPass {
     public name: string = "PrepareGBuffers";
@@ -24,6 +25,7 @@ export class PrepareGBuffers extends RenderPass {
 
     public GBufferFormat: TextureFormat = "rgba8unorm";
 
+    private FrameBuffer: Buffer;
     private FrameBufferValues = new ArrayBuffer(288);
     private FrameBufferViews = {
         projectionOutputSize: new Float32Array(this.FrameBufferValues, 0, 4),
@@ -56,20 +58,7 @@ export class PrepareGBuffers extends RenderPass {
     public async init(resources: ResourcePool) {
         this.CreateGBufferTextures();
 
-        // this.skybox = CubeTexture.Create(1, 1, 6);
-        // this.skyboxIrradiance = CubeTexture.Create(1, 1, 6);
-        // this.skyboxPrefilter = CubeTexture.Create(1, 1, 6);
-        // this.skyboxBRDFLUT = Texture.Create(1, 1, 1);
-        
-        const FrameBufferValues = new ArrayBuffer(288);
-        const FrameBufferViews = {
-            projectionOutputSize: new Float32Array(FrameBufferValues, 0, 4),
-            viewPosition: new Float32Array(FrameBufferValues, 16, 4),
-            projectionInverseMatrix: new Float32Array(FrameBufferValues, 32, 16),
-            viewInverseMatrix: new Float32Array(FrameBufferValues, 96, 16),
-            viewMatrix: new Float32Array(FrameBufferValues, 160, 16),
-            projectionMatrix: new Float32Array(FrameBufferValues, 224, 16),
-        };
+        this.FrameBuffer = Buffer.Create(this.FrameBufferValues.byteLength, BufferType.STORAGE);
 
         this.initialized = true;
     }
@@ -118,7 +107,9 @@ export class PrepareGBuffers extends RenderPass {
         this.FrameBufferViews.viewInverseMatrix.set(tempMatrix.clone().copy(camera.viewMatrix).invert().elements);
         this.FrameBufferViews.viewMatrix.set(camera.viewMatrix.elements);
         this.FrameBufferViews.projectionMatrix.set(camera.projectionMatrix.elements);
-        resources.setResource(PassParams.FrameBuffer, this.FrameBufferValues);
+        this.FrameBuffer.SetArray(this.FrameBufferValues);
+
+        resources.setResource(PassParams.FrameBuffer, this.FrameBuffer);
     }
 
     public async execute(resources: ResourcePool) {

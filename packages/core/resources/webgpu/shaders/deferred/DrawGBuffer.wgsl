@@ -1,4 +1,4 @@
-#include "@trident/core/resources/webgpu/shaders/deferred/OctahedralEncoding.wgsl";
+#include "@trident/core/resources/webgpu/shaders/deferred/Common.wgsl";
 
 struct VertexInput {
     @builtin(instance_index) instance : u32, 
@@ -43,22 +43,19 @@ struct VertexOutput {
     @location(6) bitangent : vec3<f32>,
 };
 
-@group(0) @binding(0) var<storage, read> projectionMatrix: mat4x4<f32>;
-@group(0) @binding(1) var<storage, read> viewMatrix: mat4x4<f32>;
-@group(0) @binding(2) var<storage, read> modelMatrix: array<mat4x4<f32>>;
-@group(0) @binding(3) var<storage, read> material: Material;
-@group(0) @binding(4) var TextureSampler: sampler;
+@group(0) @binding(0) var<storage, read> frameBuffer: FrameBuffer;
+@group(0) @binding(1) var<storage, read> modelMatrix: array<mat4x4<f32>>;
+@group(0) @binding(2) var<storage, read> material: Material;
+@group(0) @binding(3) var TextureSampler: sampler;
 
 // These get optimized out based on "USE*" defines
-@group(0) @binding(5) var AlbedoMap: texture_2d<f32>;
-@group(0) @binding(6) var NormalMap: texture_2d<f32>;
-@group(0) @binding(7) var HeightMap: texture_2d<f32>;
-@group(0) @binding(8) var MetalnessMap: texture_2d<f32>;
-@group(0) @binding(9) var EmissiveMap: texture_2d<f32>;
-@group(0) @binding(10) var AOMap: texture_2d<f32>;
+@group(0) @binding(4) var AlbedoMap: texture_2d<f32>;
+@group(0) @binding(5) var NormalMap: texture_2d<f32>;
+@group(0) @binding(6) var HeightMap: texture_2d<f32>;
+@group(0) @binding(7) var MetalnessMap: texture_2d<f32>;
+@group(0) @binding(8) var EmissiveMap: texture_2d<f32>;
+@group(0) @binding(9) var AOMap: texture_2d<f32>;
 
-
-@group(0) @binding(11) var<storage, read> cameraPosition: vec3<f32>;
 
 #if USE_SKINNING
     @group(1) @binding(0) var<storage, read> boneMatrices: array<mat4x4<f32>>;
@@ -87,10 +84,10 @@ fn vertexMain(input: VertexInput) -> VertexOutput {
     #endif
 
     let modelMatrixInstance = modelMatrix[input.instance];
-    let modelViewMatrix = viewMatrix * modelMatrixInstance;
+    let modelViewMatrix = frameBuffer.viewMatrix * modelMatrixInstance;
 
     output.instance = input.instance;
-    output.position = projectionMatrix * modelViewMatrix * vec4(finalPosition.xyz, 1.0);
+    output.position = frameBuffer.projectionMatrix * modelViewMatrix * vec4(finalPosition.xyz, 1.0);
     output.vPosition = finalPosition.xyz;
     output.vUv = input.uv;
     let worldNormal = normalize(modelMatrixInstance * vec4(finalNormal.xyz, 0.0)).xyz;

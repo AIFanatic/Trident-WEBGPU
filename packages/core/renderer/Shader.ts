@@ -8,6 +8,7 @@ import { Renderer } from "./Renderer";
 import { ShaderPreprocessor } from "./ShaderUtils";
 import { DepthTexture, RenderTexture, Texture, TextureFormat } from "./Texture";
 import { TextureSampler } from "./TextureSampler";
+import { ReflectWGSL } from "./webgpu/utils/WGSLReflection";
 import { WEBGPUComputeShader } from "./webgpu/WEBGPUComputeShader";
 import { WEBGPUShader } from "./webgpu/WEBGPUShader";
 
@@ -65,7 +66,6 @@ export interface ShaderParams {
     topology?: Topology;
     frontFace?: "ccw" | "cw";
     cullMode?: "back" | "front" | "none";
-    useVertexPulling?: boolean;
 };
 
 export interface ComputeShaderParams {
@@ -105,6 +105,11 @@ export class Shader extends BaseShader {
 
     public static async Create(params: ShaderParams): Promise<Shader> {
         params.code = await ShaderPreprocessor.ProcessIncludesV2(params.code);
+        const reflectionSource = params.defines ? ShaderPreprocessor.ProcessDefines(params.code, params.defines) : params.code;
+        const reflection = ReflectWGSL(reflectionSource, params.vertexEntrypoint ?? "vertexMain");
+        if (!params.attributes) params.attributes = reflection.attributes;
+        if (!params.uniforms) params.uniforms = reflection.uniforms;
+        else for (const [name, uniform] of Object.entries(reflection.uniforms)) if (!params.uniforms[name]) params.uniforms[name] = uniform;
         if (Renderer.type === "webgpu") return new WEBGPUShader(params);
         throw Error("Unknown api");
     }
