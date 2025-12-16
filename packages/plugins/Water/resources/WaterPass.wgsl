@@ -27,11 +27,8 @@ struct VertexOutput {
     @location(10) worldPos: vec3<f32>,
 };
 
-@group(0) @binding(0) var<storage, read> projectionMatrix: mat4x4<f32>;
-@group(0) @binding(1) var<storage, read> viewMatrix: mat4x4<f32>;
+@group(0) @binding(0) var<storage, read> frameBuffer: FrameBuffer;
 @group(0) @binding(2) var<storage, read> modelMatrix: array<mat4x4<f32>>;
-
-@group(0) @binding(3) var<storage, read> cameraPosition: vec3<f32>;
 
 @group(0) @binding(4) var<storage, read> TIME: f32;
 @group(0) @binding(5) var<storage, read> INV_PROJECTION_MATRIX: mat4x4<f32>;
@@ -120,52 +117,52 @@ fn wave(parameter: vec4f, position: vec2f, time: f32) -> WaveParams {
 
 @vertex
 fn vertexMain(input: VertexInput) -> VertexOutput {
-    var output : VertexOutput;
+    var output: VertexOutput;
 
-    var modelMatrixInstance = modelMatrix[input.instanceIdx];
-    var modelViewMatrix = viewMatrix * modelMatrixInstance;
+    let M = modelMatrix[input.instanceIdx];
+    let V = frameBuffer.viewMatrix;
+    let P = frameBuffer.projectionMatrix;
 
-    let time = TIME * waveSettings.wave_speed[0];
+    let time = TIME * waveSettings.wave_speed.x;
 
-    var	vertex: vec4f = vec4(input.position, 1.0) * 1000.0;
-    let vertex_position = (modelMatrixInstance * vertex).xyz;
+    // 1) Base position in WORLD space (transform scale included)
+    let localPos = vec4f(input.position, 1.0);
+    let worldPos0 = (M * localPos).xyz;
 
-    let tang: vec3f = vec3(0.0, 0.0, 0.0);
-    let bin: vec3f = vec3(0.0, 0.0, 0.0);
+    // 2) Waves in WORLD units (so wavelengths are stable)
+    let waveA = wave(waveSettings.wave_a, worldPos0.xz, time);
+    let waveB = wave(waveSettings.wave_b, worldPos0.xz, time);
+    let waveC = wave(waveSettings.wave_c, worldPos0.xz, time);
 
-    let waveA = wave(waveSettings.wave_a, vertex_position.xz, time);
-    let waveB = wave(waveSettings.wave_b, vertex_position.xz, time);
-    let waveC = wave(waveSettings.wave_c, vertex_position.xz, time);
-    
-    let displacement = waveA.displacement + waveB.displacement + waveC.displacement;
-    let tangent = normalize(waveA.tangent + waveB.tangent + waveC.tangent);
-    let binormal = normalize(waveA.binormal + waveB.binormal + waveC.binormal);
-    
-    vertex += displacement;
-    
-    output.vertex_tangent = tangent;
-    output.vertex_binormal = binormal;
-    output.vertex_normal = normalize(cross(binormal, tangent));
-    
-    output.vertex_height = (projectionMatrix * modelViewMatrix * vertex).z;
+    let dispW = (waveA.displacement + waveB.displacement + waveC.displacement).xyz;
+    let tangentW = normalize(waveA.tangent + waveB.tangent + waveC.tangent);
+    let binormW  = normalize(waveA.binormal + waveB.binormal + waveC.binormal);
+    let normalW  = normalize(cross(binormW, tangentW));
 
-    // output.vertex_tangent = wavePass.tangent;
-    // output.vertex_binormal = wavePass.binormal;
-    output.vertex_normal = normalize(cross(output.vertex_binormal, output.vertex_tangent));
+    // 3) Apply displacement in WORLD space
+    let worldPos = worldPos0 + dispW;
 
-    
-    output.position = projectionMatrix * modelViewMatrix * vertex;
-    output.VERTEX = (modelViewMatrix * vec4(vertex.xyz, 1.0)).xyz;
-    output.vUv = (modelMatrixInstance * vec4(vertex.xyz, 1.0)).xz * waveSettings.sampler_scale.xy;
-    
-    let ndc: vec3f = output.position.xyz / output.position.w;
+    // 4) Continue pipeline from WORLD
+    let viewPos = (V * vec4f(worldPos, 1.0)).xyz;
+    output.position = P * vec4f(viewPos, 1.0);
+
+    output.VERTEX = viewPos;
+    output.worldPos = worldPos;
+
+    // Basis for your normalmap conversion (keep consistent space!)
+    output.vertex_tangent  = tangentW;
+    output.vertex_binormal = binormW;
+    output.vertex_normal   = normalW;
+
+    // Use world XZ for sampler UV so scaling the mesh doesn't stretch normals
+    output.UV = worldPos.xz * waveSettings.sampler_scale.xy;
+    output.vUv = output.UV;
+
+    let ndc = output.position.xyz / output.position.w;
     output.SCREEN_UV = ndc.xy * 0.5 + 0.5;
     output.SCREEN_UV.y = 1.0 - output.SCREEN_UV.y;
 
-// output.vUv = (modelMatrixInstance * vec4(vertex.xyz, 1.0)).xz * waveSettings.sampler_scale.xy;
-    output.UV = (modelMatrixInstance * vec4(vertex.xyz, 1.0)).xz * waveSettings.sampler_scale.xy;
-
-    output.worldPos = (modelMatrixInstance * vertex).xyz;
+    output.vertex_height = output.position.z;
 
     return output;
 }
@@ -184,7 +181,7 @@ fn fragmentMain(input: VertexOutput) -> FragmentOutput {
     let SCREEN_UV = input.SCREEN_UV;
     let VERTEX = input.VERTEX;
 
-    let PROJECTION_MATRIX = projectionMatrix;
+    let PROJECTION_MATRIX = frameBuffer.projectionMatrix;
 
     let vertex_tangent = input.vertex_tangent;
     let vertex_binormal = input.vertex_binormal;
@@ -204,7 +201,10 @@ fn fragmentMain(input: VertexOutput) -> FragmentOutput {
 	// Refraction UV:
 	var	ref_normalmap				 = normalmap * 2.0 - 1.0;
 			ref_normalmap				 = normalize(vertex_tangent*ref_normalmap.x + vertex_binormal*ref_normalmap.y + vertex_normal*ref_normalmap.z);
+
 	let 	ref_uv						 = SCREEN_UV + (ref_normalmap.xy * waveSettings.refraction.x) / -VERTEX.z;
+    let ref_uv_clamped = clamp(ref_uv, vec2f(0.001), vec2f(0.999));
+
 	
 	// Ground depth:
     let dims = textureDimensions(DEPTH_TEXTURE, 0); // vec2u
@@ -219,8 +219,7 @@ fn fragmentMain(input: VertexOutput) -> FragmentOutput {
 	let	depth_blend_pow				 = clamp(pow(depth_blend, 2.5), 0.0, 1.0);
 
 	// Ground color:
-    // vec3 	screen_color 				 = textureLod(SCREEN_TEXTURE, ref_uv, depth_blend_pow * 2.5).rgb;
-	let 	screen_color 				 = textureSampleLevel(SCREEN_TEXTURE, texture_sampler, ref_uv, depth_blend_pow * 2.5).rgb;
+    let screen_color = textureSampleLevel(SCREEN_TEXTURE, texture_sampler, ref_uv_clamped, depth_blend_pow * 2.5).rgb;
 	
 	let 	dye_color 					 = mix(waveSettings.color_shallow.rgb, waveSettings.color_deep.rgb, depth_blend_pow);
 	var	color 						 = mix(screen_color*dye_color, dye_color*0.25, depth_blend_pow*0.5);
