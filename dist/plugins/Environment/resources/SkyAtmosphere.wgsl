@@ -31,9 +31,9 @@ fn get_multiple_scattering(transmittance_lut: texture_2d<f32>, cos_theta: f32, n
     let L_ground = PHASE_ISOTROPIC * omega * (GROUND_ALBEDO / PI) * T_to_ground * T_ground_to_sample * cos_theta;
 
     // Fit of Earth's multiple scattering coming from other points in the atmosphere
-    let L_ms = 0.02 * vec4(0.217, 0.347, 0.594, 1.0) * (1.0 / (1.0 + 5.0 * exp(-17.92 * cos_theta)));
+    let L_ms = 0.006 * vec4(0.217, 0.347, 0.594, 1.0) * (1.0 / (1.0 + 5.0 * exp(-17.92 * cos_theta)));
 
-    return L_ms + L_ground;
+    return L_ground;
 // #else
 //     return vec4(0.0);
 // #endif
@@ -190,8 +190,10 @@ fn fragmentMain(input: VertexOutput) -> @location(0) vec4<f32> {
     let transmittance = inscattering.transmittance;
 
 // #if ENABLE_SPECTRAL == 1
-    return vec4(linear_srgb_from_spectral_samples(L), 1.0);
+    // TODO: Adding tonemapping here as the sky seems way to overexposed, probably a bug somewhere else on the pipeline but original shader also under exposes
+    let col = linear_srgb_from_spectral_samples(L) * exp2(-4.0);
+    return vec4(col, 1.0);
 // #else
-//     fragColor = vec4(L.rgb, 1.0);
+//     return vec4(L.rgb, 1.0);
 // #endif
 }

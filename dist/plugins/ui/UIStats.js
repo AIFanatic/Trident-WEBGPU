@@ -353,12 +353,12 @@ class UITextureViewer extends Stat {
     this.texture = texture;
     this.textureViewer = new TextureViewer(texture);
     this.statContainer.append(this.textureViewer.canvasTexture.canvas);
-    this.textureViewer.canvasTexture.canvas.style.height = "32px";
+    this.textureViewer.canvasTexture.canvas.style.height = "128px";
     this.textureViewer.canvasTexture.canvas.addEventListener("mouseover", (event) => {
       this.textureViewer.canvasTexture.canvas.style.height = "";
     });
     this.textureViewer.canvasTexture.canvas.addEventListener("mouseleave", (event) => {
-      this.textureViewer.canvasTexture.canvas.style.height = "32px";
+      this.textureViewer.canvasTexture.canvas.style.height = "128px";
     });
     setTimeout(async () => {
       this.Update();

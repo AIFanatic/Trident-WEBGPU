@@ -72,7 +72,6 @@ class TextureViewer {
     this.shader.SetTexture("texture", this.texture);
   }
   async execute() {
-    console.log("CALLED");
     GPU.Renderer.BeginRenderFrame();
     GPU.RendererContext.BeginRenderPass("TextureViewer", [{ target: this.canvasTexture, clear: true }]);
     GPU.RendererContext.Draw(this.quadGeometry, this.shader, 3);

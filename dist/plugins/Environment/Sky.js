@@ -8,9 +8,9 @@ import CubemapWGSL from './resources/Cubemap.wgsl.js';
 Assets.Register("@trident/plugins/Sky/resources/Common.wgsl", CommonWGSL);
 Assets.Register("@trident/plugins/Sky/resources/Vertex.wgsl", VertexWGSL);
 class Sky {
-  SUN_ELEVATION_DEGREES = 90;
+  SUN_ELEVATION_DEGREES = 60;
   SUN_AZIMUTH_DEGREES = 0;
-  EYE_ALTITUDE = 0.1;
+  EYE_ALTITUDE = 0.5;
   skyTexture;
   skyTextureCubemap;
   transmittanceLUT;

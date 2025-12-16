@@ -33,6 +33,8 @@
             import { PostProcessingSMAA } from '@trident/plugins/PostProcessing/effects/SMAA.js';
             import { Sky } from '@trident/plugins/Environment/Sky.js';
             import { Environment } from '@trident/plugins/Environment/Environment.js';
+            import { UIButtonStat, UITextureViewer } from '@trident/plugins/ui/UIStats.js';
+            import { Debugger } from '@trident/plugins/Debugger.js';
             
             async function Application(canvas) {
               const renderer = GPU.Renderer.Create(canvas, "webgpu");
@@ -90,6 +92,18 @@
               postProcessing.effects.push(smaa);
               scene.renderPipeline.AddPass(postProcessing, GPU.RenderPassOrder.BeforeScreenOutput);
               document.body.style.backgroundColor = "#404040";
+              setTimeout(() => {
+                new UIButtonStat(Debugger.ui, "Disable SMAA:", async (value) => {
+                  smaa.enabled = value;
+                });
+                const u0 = new UITextureViewer(Debugger.ui, "SMAA Edges", smaa.edgeTex);
+                const u1 = new UITextureViewer(Debugger.ui, "SMAA Weights", smaa.weightsTex);
+                setInterval(() => {
+                  u0.Update();
+                  u1.Update();
+                }, 1e3);
+              }, 1e3);
+              Debugger.Enable();
               scene.Start();
             }
             Application(document.querySelector("canvas"));

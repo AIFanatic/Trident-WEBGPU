@@ -140,6 +140,9 @@
                 const mat = new PBRMaterial({ albedoColor: new Mathf.Color(1, 1, 1), metalness: 0, roughness: 1 });
                 sphereMesh.material = mat;
               }
+              setTimeout(() => {
+                console.log(Renderer.info.drawCalls);
+              }, 1e3);
               scene.Start();
             }
             Application(document.querySelector("canvas"));

@@ -27,7 +27,7 @@
             <script type="module">
                 const canvas = document.createElement("canvas");
                 document.body.appendChild(canvas);
-                            import { GPU, Scene, GameObject, Components, Mathf, Geometry, PBRMaterial, Input, KeyCodes, MouseCodes, Console, Component } from '@trident/core';
+                            import { GPU, Scene, GameObject, Components, Mathf, Geometry, PBRMaterial, Input, KeyCodes, MouseCodes, Console } from '@trident/core';
             import { PhysicsRapier } from '@trident/plugins/PhysicsRapier/PhysicsRapier.js';
             import { TerrainCollider } from '@trident/plugins/PhysicsRapier/colliders/TerrainCollider.js';
             import { CapsuleCollider } from '@trident/plugins/PhysicsRapier/colliders/CapsuleCollider.js';
@@ -36,12 +36,14 @@
             import { RigidBody, RigidbodyConstraints } from '@trident/plugins/PhysicsRapier/RigidBody.js';
             import { Debugger } from '@trident/plugins/Debugger.js';
             import { GLTFLoader } from '@trident/plugins/GLTF/GLTFLoader.js';
-            import { UIFolder, UISliderStat, UIButtonStat, UIVecStat, UIColorStat } from '@trident/plugins/ui/UIStats.js';
-            import { OrbitControls } from '@trident/plugins/OrbitControls.js';
+            import { UIColorStat, UIFolder, UISliderStat, UIButtonStat, UIVecStat } from '@trident/plugins/ui/UIStats.js';
             import { Terrain } from '@trident/plugins/Terrain/Terrain.js';
             import { Water } from '@trident/plugins/Water/WaterPlugin.js';
+            import { PostProcessingPass } from '@trident/plugins/PostProcessing/PostProcessingPass.js';
+            import { PostProcessingSMAA } from '@trident/plugins/PostProcessing/effects/SMAA.js';
             import { Sky } from '@trident/plugins/Environment/Sky.js';
             import { Environment } from '@trident/plugins/Environment/Environment.js';
+            import { LODInstanceRenderable } from '@trident/plugins/LODGroup.js';
             
             async function Application(canvas) {
               const renderer = GPU.Renderer.Create(canvas, "webgpu");
@@ -56,7 +58,22 @@
               lightGameObject.transform.position.set(4, 4, 4).mul(10);
               lightGameObject.transform.LookAtV1(new Mathf.Vector3(0, 0, 0));
               const light = lightGameObject.AddComponent(Components.DirectionalLight);
+              light.color.set(1, 0.96, 0.88, 1);
               light.intensity = 10;
+              new UIColorStat(Debugger.ui, "Light Color:", light.color.toHex(), (value) => {
+                light.color.setFromHex(value);
+              });
+              setInterval(() => {
+                const radius = 1;
+                const elevationRad = Mathf.Deg2Rad * skyAtmosphere.SUN_ELEVATION_DEGREES;
+                const azimuthRad = Mathf.Deg2Rad * skyAtmosphere.SUN_AZIMUTH_DEGREES;
+                const x = radius * Mathf.Cos(elevationRad) * Mathf.Cos(azimuthRad);
+                const y = radius * Mathf.Sin(elevationRad);
+                const z = radius * Mathf.Cos(elevationRad) * Mathf.Sin(azimuthRad);
+                const sunPos = new Mathf.Vector3(x, y, z);
+                lightGameObject.transform.position = sunPos;
+                lightGameObject.transform.LookAtV1(new Mathf.Vector3(0, 0, 0));
+              }, 100);
               const physicsWorld = new GameObject(scene);
               const physicsComponent = physicsWorld.AddComponent(PhysicsRapier);
               await physicsComponent.Load();
@@ -178,8 +195,8 @@
               boxGO.transform.position.y = 1.5;
               boxGO.transform.position.x = 2;
               const boxMesh = boxGO.AddComponent(Components.Mesh);
-              boxMesh.geometry = Geometry.Cube();
-              boxMesh.material = new PBRMaterial({ albedoColor: new Mathf.Color(0, 1, 0, 1) });
+              boxMesh.geometry = Geometry.Sphere();
+              boxMesh.material = new PBRMaterial({ albedoColor: new Mathf.Color(1, 1, 1, 1) });
               class NatureSpawner extends Components.Component {
                 spawnAnimationID = -1;
                 moveAnimationID = -1;
@@ -289,7 +306,7 @@
                         0
                       ).add(this.rotation);
                       r.setFromEuler(_euler);
-                      const objectCenter = minRadius <= 0 ? this.randomPointOnCircle(target, maxRadius) : this.randomPointInAnnulus(target, minRadius, maxRadius);
+                      const objectCenter = this.randomPointOnCircle(target, maxRadius) ;
                       p.copy(objectCenter);
                       p.y = this.heightSamplingFunction(p);
                       p.y += this.scale.y * 0.5;
@@ -297,25 +314,10 @@
                       m.compose(p, r, this.scale);
                       return m;
                     };
-                    let instances2 = [];
                     for (let i = 0; i < c; i++) {
-                      const mat2 = calculateNewPosition(this.target.position, 0, this.distance);
-                      this.SetMatrixAt(i, mat2);
-                      instances2.push({ i, m: mat2 });
+                      const mat = calculateNewPosition(this.target.position, 0, this.distance);
+                      this.SetMatrixAt(i, mat);
                     }
-                    setInterval(() => {
-                      for (const instance of instances2) {
-                        instance.m.decompose(p, r, this.scale);
-                        const dist = this.target.position.distanceTo(p);
-                        if (dist > this.distance) {
-                          const inner = this.distance * 0.7;
-                          const outer = this.distance;
-                          const mat2 = calculateNewPosition(this.target.position, inner, outer);
-                          this.SetMatrixAt(instance.i, mat2);
-                          instance.m = mat2;
-                        }
-                      }
-                    }, 1e3);
                   }
                 }
                 const billboards = [
@@ -342,101 +344,82 @@
                   };
                 }
               }
-              const commonTree = await GLTFLoader.loadAsGameObjects(scene, "/extra/test-assets/tree-02.glb");
-              let instances = [];
-              traverse([commonTree], (gameObject) => {
-                const mesh = gameObject.GetComponent(Components.Mesh);
-                if (mesh) {
-                  instances.push({ geometry: mesh.geometry, material: mesh.material });
-                }
-              });
-              class InstancedLODGroup extends Component {
-                static type = "@trident/core/components/InstancedLODGroup";
-                hysteresis = 5;
-                lodLevels = [];
-                instances = [];
-                cameraPosition = new Mathf.Vector3();
-                AddLevel(config) {
-                  const level = {
-                    mesh: this.gameObject.AddComponent(Components.InstancedMesh),
-                    maxDistance: config.maxDistance ?? Number.POSITIVE_INFINITY,
-                    minDistance: 0,
-                    minDistanceSq: 0,
-                    maxDistanceSq: Number.POSITIVE_INFINITY,
-                    cursor: 0
-                  };
-                  level.mesh.geometry = config.geometry;
-                  level.mesh.material = config.material;
-                  this.lodLevels.push(level);
-                  this.recalculateRanges();
-                  return level.mesh;
-                }
-                SetMatrixAt(index, matrix) {
-                  let slot = this.instances[index];
-                  if (!slot) {
-                    slot = { matrix: new Mathf.Matrix4(), position: new Mathf.Vector3(), lodIndex: -1 };
-                    this.instances[index] = slot;
+              {
+                const tree1 = await GLTFLoader.loadAsGameObjects(scene, "/extra/test-assets/tree-01/tree-01.glb");
+                let lodGroupEntries = [];
+                traverse([tree1], (gameObject) => {
+                  const mesh = gameObject.GetComponent(Components.Mesh);
+                  if (mesh) {
+                    const geometrySerialized = mesh.geometry.Serialize();
+                    const materialSerialized = mesh.material.Serialize();
+                    console.log(materialSerialized.params.roughness, materialSerialized.params.metalness);
+                    materialSerialized.params.roughness = 1;
+                    materialSerialized.params.metalness = 0;
+                    const materialClone = GPU.Material.Deserialize(materialSerialized);
+                    const geometryClone = new Geometry();
+                    geometryClone.Deserialize(geometrySerialized);
+                    lodGroupEntries.push({ geometry: geometryClone, material: materialClone });
                   }
-                  slot.matrix.copy(matrix);
-                  slot.position.setFromMatrixPosition(matrix);
-                }
-                Update() {
-                  if (!this.enabled || this.lodLevels.length === 0) return;
-                  const camera2 = Components.Camera.mainCamera;
-                  if (!camera2) return;
-                  this.cameraPosition.copy(camera2.transform.position);
-                  for (const level of this.lodLevels) {
-                    level.cursor = 0;
-                    level.mesh.ResetInstances();
-                  }
-                  for (const slot of this.instances) {
-                    if (!slot) continue;
-                    const distanceSq = slot.position.distanceToSquared(this.cameraPosition);
-                    const target = this.selectLOD(distanceSq, slot.lodIndex);
-                    slot.lodIndex = target;
-                    const level = this.lodLevels[target];
-                    level.mesh.SetMatrixAt(level.cursor++, slot.matrix);
-                  }
-                }
-                selectLOD(distanceSq, previousLOD) {
-                  if (previousLOD >= 0) {
-                    const level = this.lodLevels[previousLOD];
-                    const near = Math.max(0, level.minDistance - this.hysteresis);
-                    const far = Number.isFinite(level.maxDistance) ? level.maxDistance + this.hysteresis : Number.POSITIVE_INFINITY;
-                    const nearSq = near * near;
-                    const farSq = Number.isFinite(far) ? far * far : Number.POSITIVE_INFINITY;
-                    if (distanceSq >= nearSq && distanceSq < farSq) return previousLOD;
-                  }
-                  for (let i = 0; i < this.lodLevels.length; i++) {
-                    if (distanceSq < this.lodLevels[i].maxDistanceSq) return i;
-                  }
-                  return this.lodLevels.length - 1;
-                }
-                recalculateRanges() {
-                  this.lodLevels.sort((a, b) => a.maxDistance - b.maxDistance);
-                  let previousMax = 0;
-                  for (const level of this.lodLevels) {
-                    level.minDistance = previousMax;
-                    level.minDistanceSq = level.minDistance * level.minDistance;
-                    level.maxDistanceSq = Number.isFinite(level.maxDistance) ? level.maxDistance * level.maxDistance : Number.POSITIVE_INFINITY;
-                    previousMax = level.maxDistance;
+                });
+                tree1.Destroy();
+                console.log(lodGroupEntries);
+                const lodGameObject = new GameObject(scene);
+                const lodInstanceRenderable = lodGameObject.AddComponent(LODInstanceRenderable);
+                lodInstanceRenderable.lods.push({ renderers: lodGroupEntries.slice(0, 2), screenSize: 0 });
+                lodInstanceRenderable.lods.push({ renderers: lodGroupEntries.slice(2, 4), screenSize: 40 });
+                lodInstanceRenderable.lods.push({ renderers: lodGroupEntries.slice(4, 6), screenSize: 80 });
+                lodInstanceRenderable.lods.push({ renderers: lodGroupEntries.slice(6, 8), screenSize: 200 });
+                const p = new Mathf.Vector3();
+                const r = new Mathf.Vector3();
+                const q = new Mathf.Quaternion();
+                const s = new Mathf.Vector3(1, 1, 1);
+                const m = new Mathf.Matrix4();
+                const c = 5e4;
+                const off = 500;
+                playerGameObject.transform.position;
+                for (let i = 0; i < c; i++) {
+                  Mathf.RandomRange(0, 1e3);
+                  const x = Mathf.RandomRange(-off, off);
+                  const z = Mathf.RandomRange(-off, off);
+                  p.set(x, 0, z);
+                  terrain.SampleHeight(p);
+                  r.y = Mathf.RandomRange(0, 360);
+                  q.setFromEuler(r);
+                  p.y += Mathf.RandomRange(-1, 0);
+                  m.compose(p, q, s);
+                  if (p.y > 25) {
+                    lodInstanceRenderable.SetMatrixAt(i, m);
                   }
                 }
               }
-              const lodTrees = terrainGameObject.AddComponent(InstancedLODGroup);
-              lodTrees.hysteresis = 15;
-              const mat = new PBRMaterial({ doubleSided: true });
-              lodTrees.AddLevel({ geometry: Geometry.Sphere(), material: mat, maxDistance: 10 });
-              lodTrees.AddLevel({ geometry: Geometry.Cube(), material: mat, maxDistance: 20 });
-              lodTrees.AddLevel({ geometry: Geometry.Plane(), material: mat });
               {
+                const tree1 = await GLTFLoader.loadAsGameObjects(scene, "/extra/test-assets/tree-01/grass.glb");
+                let lodGroupEntries = [];
+                traverse([tree1], (gameObject) => {
+                  const mesh = gameObject.GetComponent(Components.Mesh);
+                  if (mesh) {
+                    const geometrySerialized = mesh.geometry.Serialize();
+                    const materialSerialized = mesh.material.Serialize();
+                    console.log(materialSerialized.params.roughness, materialSerialized.params.metalness);
+                    materialSerialized.params.roughness = 1;
+                    materialSerialized.params.metalness = 0;
+                    const materialClone = GPU.Material.Deserialize(materialSerialized);
+                    const geometryClone = new Geometry();
+                    geometryClone.Deserialize(geometrySerialized);
+                    lodGroupEntries.push({ geometry: geometryClone, material: materialClone });
+                  }
+                });
+                tree1.Destroy();
+                const lodGameObject = new GameObject(scene);
+                const lodInstanceRenderable = lodGameObject.AddComponent(LODInstanceRenderable);
+                lodInstanceRenderable.lods.push({ renderers: lodGroupEntries, screenSize: 0 });
                 const p = new Mathf.Vector3();
                 const r = new Mathf.Vector3();
-                const _q = new Mathf.Quaternion();
+                const q = new Mathf.Quaternion();
                 const s = new Mathf.Vector3(1, 1, 1);
                 const m = new Mathf.Matrix4();
+                const c = 2e4;
                 const center = playerGameObject.transform.position;
-                let c = 1e3;
                 for (let i = 0; i < c; i++) {
                   const angle = i / c * Math.PI * 2;
                   const radius = Mathf.RandomRange(0, 100);
@@ -444,10 +427,13 @@
                   const z = center.z + Mathf.Sin(angle) * radius;
                   p.set(x, 0, z);
                   terrain.SampleHeight(p);
-                  p.y += 0.5;
-                  _q.setFromEuler(r, true);
-                  m.compose(p, _q, s);
-                  lodTrees.SetMatrixAt(i, m);
+                  r.y = Mathf.RandomRange(0, 360);
+                  q.setFromEuler(r);
+                  p.y += 0.1;
+                  m.compose(p, q, s);
+                  if (p.y > 25) {
+                    lodInstanceRenderable.SetMatrixAt(i, m);
+                  }
                 }
               }
               {
@@ -455,118 +441,19 @@
                 const waterGameObject = new GameObject(scene);
                 waterGameObject.transform.scale.set(scale, scale, 1);
                 waterGameObject.transform.eulerAngles.x = -90;
-                waterGameObject.transform.position.y = 18;
-                const water = waterGameObject.AddComponent(Water);
-                const invScale = 1 / scale;
-                water.settings.set("sampler_scale", [invScale, invScale, 0, 0]);
-                water.settings.set("uv_sampler_scale", [invScale, invScale, 0, 0]);
-                const container = document.createElement("div");
-                container.classList.add("stats-panel");
-                document.body.append(container);
-                const waterSettingsFolder = new UIFolder(Debugger.ui, "Water");
-                new UISliderStat(waterSettingsFolder, "Wave speed:", -1, 1, 0.01, water.settings.get("wave_speed")[0], (value) => water.settings.set("wave_speed", [value, 0, 0, 0]));
-                new UISliderStat(waterSettingsFolder, "Beers law:", -2, 20, 0.01, water.settings.get("beers_law")[0], (value) => water.settings.set("beers_law", [value, 0, 0, 0]));
-                new UISliderStat(waterSettingsFolder, "Depth offset:", -1, 1, 0.01, water.settings.get("depth_offset")[0], (value) => water.settings.set("depth_offset", [value, 0, 0, 0]));
-                new UISliderStat(waterSettingsFolder, "Refraction:", -1, 1, 0.01, water.settings.get("refraction")[0], (value) => water.settings.set("refraction", [value, 0, 0, 0]));
-                new UISliderStat(waterSettingsFolder, "Foam level:", -10, 10, 0.01, water.settings.get("foam_level")[0], (value) => water.settings.set("foam_level", [value, 0, 0, 0]));
-                new UIColorStat(waterSettingsFolder, "Color deep:", new Mathf.Color(...water.settings.get("color_deep")).toHex().slice(0, 7), (value) => {
-                  const c = Mathf.Color.fromHex(parseInt(value.slice(1, value.length), 16));
-                  water.settings.set("color_deep", [c.r, c.g, c.b, c.a]);
-                });
-                new UIColorStat(waterSettingsFolder, "Color shallow:", new Mathf.Color(...water.settings.get("color_shallow")).toHex().slice(0, 7), (value) => {
-                  const c = Mathf.Color.fromHex(parseInt(value.slice(1, value.length), 16));
-                  water.settings.set("color_shallow", [c.r, c.g, c.b, c.a]);
-                });
-                const wave_a = water.settings.get("wave_a");
-                new UIVecStat(
-                  waterSettingsFolder,
-                  "Wave A:",
-                  { value: wave_a[0], min: -1, max: 1, step: 0.01 },
-                  { value: wave_a[1], min: -1, max: 1, step: 0.01 },
-                  { value: wave_a[2], min: -1, max: 1, step: 0.01 },
-                  { value: wave_a[3], min: -1, max: 1, step: 0.01 },
-                  (value) => {
-                    water.settings.set("wave_a", [value.x, value.y, value.z, value.w]);
-                  }
-                );
-                const wave_b = water.settings.get("wave_b");
-                new UIVecStat(
-                  waterSettingsFolder,
-                  "Wave B:",
-                  { value: wave_b[0], min: -1, max: 1, step: 0.01 },
-                  { value: wave_b[1], min: -1, max: 1, step: 0.01 },
-                  { value: wave_b[2], min: -1, max: 1, step: 0.01 },
-                  { value: wave_b[3], min: -1, max: 1, step: 0.01 },
-                  (value) => {
-                    water.settings.set("wave_b", [value.x, value.y, value.z, value.w]);
-                  }
-                );
-                const wave_c = water.settings.get("wave_c");
-                new UIVecStat(
-                  waterSettingsFolder,
-                  "Wave C:",
-                  { value: wave_c[0], min: -1, max: 1, step: 0.01 },
-                  { value: wave_c[1], min: -1, max: 1, step: 0.01 },
-                  { value: wave_c[2], min: -1, max: 1, step: 0.01 },
-                  { value: wave_c[3], min: -1, max: 1, step: 0.01 },
-                  (value) => {
-                    water.settings.set("wave_c", [value.x, value.y, value.z, value.w]);
-                  }
-                );
-                const sampler_scale = water.settings.get("sampler_scale");
-                new UIVecStat(
-                  waterSettingsFolder,
-                  "Sample scale:",
-                  { value: sampler_scale[0], min: -5, max: 5, step: 0.01 },
-                  { value: sampler_scale[1], min: -5, max: 5, step: 0.01 },
-                  { value: 0, min: -5, max: 5, step: 0.01 },
-                  { value: 0, min: -5, max: 5, step: 0.01 },
-                  (value) => {
-                    water.settings.set("sampler_scale", [value.x, value.y, 0, 0]);
-                  }
-                );
-                const sampler_direction = water.settings.get("sampler_direction");
-                new UIVecStat(
-                  waterSettingsFolder,
-                  "Sample direction:",
-                  { value: sampler_direction[0], min: -5, max: 5, step: 0.01 },
-                  { value: sampler_direction[1], min: -5, max: 5, step: 0.01 },
-                  { value: 0, min: -5, max: 5, step: 0.01 },
-                  void 0,
-                  (value) => {
-                    water.settings.set("sampler_direction", [value.x, value.y, 0, 0]);
-                  }
-                );
-                const uv_sampler_scale = water.settings.get("uv_sampler_scale");
-                new UIVecStat(
-                  waterSettingsFolder,
-                  "UV Sampler scale:",
-                  { value: uv_sampler_scale[0], min: -5, max: 5, step: 0.01 },
-                  { value: uv_sampler_scale[1], min: -5, max: 5, step: 0.01 },
-                  { value: 0, min: -5, max: 5, step: 0.01 },
-                  void 0,
-                  (value) => {
-                    water.settings.set("uv_sampler_scale", [value.x, value.y, 0, 0]);
-                  }
-                );
-                const uv_sampler_strength = water.settings.get("uv_sampler_strength");
-                new UIVecStat(
-                  waterSettingsFolder,
-                  "UV Sampler strength:",
-                  { value: uv_sampler_strength[0], min: -5, max: 5, step: 0.01 },
-                  { value: 0, min: -5, max: 5, step: 0.01 },
-                  { value: 0, min: -5, max: 5, step: 0.01 },
-                  void 0,
-                  (value) => {
-                    water.settings.set("uv_sampler_strength", [value.x, 0, 0, 0]);
-                  }
-                );
-                waterSettingsFolder.Open();
+                waterGameObject.transform.position.y = 25;
+                waterGameObject.AddComponent(Water);
               }
-              Console.getVar("r_exposure").value = -2;
+              Console.getVar("r_exposure").value = 0;
               Console.getVar("r_shadows_csm_splittypepracticallambda").value = 0.99;
               mainCameraGameObject.transform.position.set(0, 0, 500);
-              new OrbitControls(GPU.Renderer.canvas, camera);
+              const postProcessing = new PostProcessingPass();
+              const smaa = new PostProcessingSMAA();
+              postProcessing.effects.push(smaa);
+              scene.renderPipeline.AddPass(postProcessing, GPU.RenderPassOrder.BeforeScreenOutput);
+              new UIButtonStat(Debugger.ui, "Disable SMAA:", async (value) => {
+                smaa.enabled = value;
+              });
               Debugger.Enable();
               scene.Start();
             }

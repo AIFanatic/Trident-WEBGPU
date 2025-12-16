@@ -1,0 +1,112 @@
+
+    <!DOCTYPE html>
+    <html>
+        <head>
+            <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no">
+            <meta name="mobile-web-app-capable" content="yes">
+            <meta name="apple-mobile-web-app-capable" content="yes">
+            
+            <style>
+                html, body {
+                    margin: 0;
+                    overflow: hidden;
+                    height: 100%;
+                    width: 100%;
+                }
+            </style>
+        </head>
+        <body>
+            <script type="importmap">
+                {
+                    "imports": {
+                        "@trident/core": "../trident-core.js",
+                        "@trident/plugins/": "../plugins/"
+                    }
+                }
+            </script>
+            <script type="module">
+                const canvas = document.createElement("canvas");
+                document.body.appendChild(canvas);
+                            import { GPU, Scene, GameObject, Components, Mathf, Geometry, PBRMaterial } from '@trident/core';
+            import { OrbitControls } from '@trident/plugins/OrbitControls.js';
+            import { Debugger } from '@trident/plugins/Debugger.js';
+            import { LODInstanceRenderable } from '@trident/plugins/LODGroup.js';
+            import { GLTFLoader } from '@trident/plugins/GLTF/GLTFLoader.js';
+            import { HDRParser } from '@trident/plugins/HDRParser.js';
+            import { Environment } from '@trident/plugins/Environment/Environment.js';
+            
+            async function Application(canvas) {
+              const renderer = GPU.Renderer.Create(canvas, "webgpu");
+              const scene = new Scene(renderer);
+              const mainCameraGameObject = new GameObject(scene);
+              mainCameraGameObject.name = "MainCamera";
+              const camera = mainCameraGameObject.AddComponent(Components.Camera);
+              camera.SetPerspective(72, canvas.width / canvas.height, 0.5, 5e3);
+              mainCameraGameObject.transform.position.set(0, 0, 10);
+              mainCameraGameObject.transform.LookAtV1(new Mathf.Vector3(0, 0, 0));
+              new OrbitControls(canvas, camera);
+              const lightGameObject = new GameObject(scene);
+              lightGameObject.transform.position.set(-10, 10, 10);
+              lightGameObject.transform.LookAtV1(new Mathf.Vector3(0, 0, 0));
+              lightGameObject.AddComponent(Components.DirectionalLight);
+              const floorGameObject = new GameObject(scene);
+              floorGameObject.transform.eulerAngles.x = -90;
+              floorGameObject.transform.position.y = -2;
+              floorGameObject.transform.scale.set(10, 10, 10);
+              const floorMesh = floorGameObject.AddComponent(Components.Mesh);
+              floorMesh.geometry = Geometry.Plane();
+              floorMesh.material = new PBRMaterial();
+              const hdr = await HDRParser.Load("/dist/examples/assets/textures/HDR/autumn_field_puresky_1k.hdr");
+              const hdrCubemap = await HDRParser.ToCubemap(hdr);
+              const environment = new Environment(scene, hdrCubemap);
+              await environment.init();
+              const lodGameObject = new GameObject(scene);
+              const lodInstanceRenderable = lodGameObject.AddComponent(LODInstanceRenderable);
+              const tree = await GLTFLoader.loadAsGameObjects(scene, "/extra/test-assets/tree-01/tree.glb");
+              function traverse(gameObjects, fn) {
+                for (const gameObject of gameObjects) {
+                  fn(gameObject);
+                  for (const child of gameObject.transform.children) {
+                    traverse([child.gameObject], fn);
+                  }
+                }
+              }
+              let lodGroupEntries = [];
+              traverse([tree], (gameObject) => {
+                const mesh = gameObject.GetComponent(Components.Mesh);
+                if (mesh) {
+                  const geometrySerialized = mesh.geometry.Serialize();
+                  const materialSerialized = mesh.material.Serialize();
+                  const materialClone = GPU.Material.Deserialize(materialSerialized);
+                  const geometryClone = new Geometry();
+                  geometryClone.Deserialize(geometrySerialized);
+                  console.log(materialSerialized.params);
+                  lodGroupEntries.push({ geometry: geometryClone, material: materialClone });
+                }
+              });
+              console.log(lodGroupEntries);
+              tree.Destroy();
+              lodInstanceRenderable.lods.push({ renderers: lodGroupEntries, screenSize: 0 });
+              lodInstanceRenderable.lods.push({ renderers: lodGroupEntries.slice(0, 2), screenSize: 20 });
+              lodInstanceRenderable.lods.push({ renderers: lodGroupEntries.slice(2, 4), screenSize: 40 });
+              lodInstanceRenderable.lods.push({ renderers: lodGroupEntries.slice(4, 6), screenSize: 60 });
+              lodInstanceRenderable.lods.push({ renderers: lodGroupEntries.slice(6, 8), screenSize: 80 });
+              const p = new Mathf.Vector3();
+              const r = new Mathf.Quaternion();
+              const s = new Mathf.Vector3(1, 1, 1);
+              const m = new Mathf.Matrix4();
+              const c = 1e3;
+              const off = 100;
+              for (let i = 0; i < c; i++) {
+                p.set(Mathf.RandomRange(-off, off), 0, Mathf.RandomRange(-off, off));
+                m.compose(p, r, s);
+                lodInstanceRenderable.SetMatrixAt(i, m);
+              }
+              Debugger.Enable();
+              scene.Start();
+            }
+            Application(document.querySelector("canvas"));
+            
+            </script>
+        </body>
+    </html>

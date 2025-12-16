@@ -53,6 +53,7 @@ export { Irradiance } from './Environment/Irradiance.js';
 export { Prefilter } from './Environment/Prefilter.js';
 export { BRDF } from './Environment/BRDF.js';
 export { Environment } from './Environment/Environment.js';
+export { LODGroup, LODInstanceRenderable } from './LODGroup.js';
 
 Component.Registry.set(Water.type, Water);
 

@@ -30,11 +30,13 @@
                             import { GPU, Scene, GameObject, Components, Mathf, Geometry, PBRMaterial } from '@trident/core';
             import { OrbitControls } from '@trident/plugins/OrbitControls.js';
             import { HDRParser } from '@trident/plugins/HDRParser.js';
-            import { UIFolder, UISliderStat, UIButtonStat } from '@trident/plugins/ui/UIStats.js';
+            import { UIFolder, UISliderStat, UIButtonStat, UITextureViewer } from '@trident/plugins/ui/UIStats.js';
             import { Debugger } from '@trident/plugins/Debugger.js';
             import { DirectionalLightHelper } from '@trident/plugins/DirectionalLightHelper.js';
+            import { PostProcessingPass } from '@trident/plugins/PostProcessing/PostProcessingPass.js';
             import { Sky } from '@trident/plugins/Environment/Sky.js';
             import { Environment } from '@trident/plugins/Environment/Environment.js';
+            import { PostProcessingSMAA } from '@trident/plugins/PostProcessing/effects/SMAA.js';
             
             async function Application(canvas) {
               const renderer = GPU.Renderer.Create(canvas, "webgpu");
@@ -131,6 +133,21 @@
                   skySettings.Open();
                 }
               }
+              const postProcessing = new PostProcessingPass();
+              const smaa = new PostProcessingSMAA();
+              postProcessing.effects.push(smaa);
+              scene.renderPipeline.AddPass(postProcessing, GPU.RenderPassOrder.BeforeScreenOutput);
+              setTimeout(() => {
+                new UIButtonStat(Debugger.ui, "Disable SMAA:", async (value) => {
+                  smaa.enabled = value;
+                });
+                const u0 = new UITextureViewer(Debugger.ui, "SMAA Edges", smaa.edgeTex);
+                const u1 = new UITextureViewer(Debugger.ui, "SMAA Weights", smaa.weightsTex);
+                setInterval(() => {
+                  u0.Update();
+                  u1.Update();
+                }, 1e3);
+              }, 1e3);
               scene.Start();
             }
             Application(document.querySelector("canvas"));

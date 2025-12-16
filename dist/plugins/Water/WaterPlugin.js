@@ -6,6 +6,7 @@ const uv_sampler_texture_url = "./resources/textures/Water_UV.png";
 const normalmap_a_sampler_texture_url = "./resources/textures/Water_N_A.png";
 const normalmap_b_sampler_texture_url = "./resources/textures/Water_N_B.png";
 const foam_sampler_texture_url = "./resources/textures/Foam.png";
+const caustic_sampler_texture_url = "./resources/textures/Caustic.png";
 function PlaneGeometry(width = 1, height = 1, widthSegments = 1, heightSegments = 1) {
   const width_half = width / 2;
   const height_half = height / 2;
@@ -68,38 +69,13 @@ class WaterRenderPass extends GPU.RenderPass {
         { format: GBufferFormat },
         { format: GBufferFormat }
       ],
-      depthOutput: "depth24plus",
-      attributes: {
-        position: { location: 0, size: 3, type: "vec3" },
-        normal: { location: 1, size: 3, type: "vec3" },
-        uv: { location: 2, size: 2, type: "vec2" }
-      },
-      uniforms: {
-        projectionMatrix: { group: 0, binding: 0, type: "storage" },
-        viewMatrix: { group: 0, binding: 1, type: "storage" },
-        modelMatrix: { group: 0, binding: 2, type: "storage" },
-        cameraPosition: { group: 0, binding: 3, type: "storage" },
-        TIME: { group: 0, binding: 4, type: "storage" },
-        INV_PROJECTION_MATRIX: { group: 0, binding: 5, type: "storage" },
-        INV_VIEW_MATRIX: { group: 0, binding: 6, type: "storage" },
-        inv_mvp: { group: 0, binding: 7, type: "storage" },
-        uv_sampler: { group: 1, binding: 0, type: "texture" },
-        normalmap_a_sampler: { group: 1, binding: 1, type: "texture" },
-        normalmap_b_sampler: { group: 1, binding: 2, type: "texture" },
-        foam_sampler: { group: 1, binding: 3, type: "texture" },
-        caustic_sampler: { group: 1, binding: 4, type: "texture" },
-        SCREEN_TEXTURE: { group: 1, binding: 5, type: "texture" },
-        DEPTH_TEXTURE: { group: 1, binding: 6, type: "depthTexture" },
-        texture_sampler: { group: 1, binding: 7, type: "sampler" },
-        depth_texture_sampler: { group: 1, binding: 8, type: "sampler-compare" },
-        waveSettings: { group: 1, binding: 9, type: "storage" }
-      }
+      depthOutput: "depth24plus"
     });
     const uv_sampler_texture = await GPU.Texture.Load(new URL(uv_sampler_texture_url, import.meta.url));
     const normalmap_a_sampler_texture = await GPU.Texture.Load(new URL(normalmap_a_sampler_texture_url, import.meta.url));
     const normalmap_b_sampler_texture = await GPU.Texture.Load(new URL(normalmap_b_sampler_texture_url, import.meta.url));
     const foam_sampler_texture = await GPU.Texture.Load(new URL(foam_sampler_texture_url, import.meta.url));
-    const caustic_sampler_texture = await GPU.Texture.Load(new URL(foam_sampler_texture_url, import.meta.url));
+    const caustic_sampler_texture = await GPU.Texture.Load(new URL(caustic_sampler_texture_url, import.meta.url));
     uv_sampler_texture.GenerateMips();
     normalmap_a_sampler_texture.GenerateMips();
     normalmap_b_sampler_texture.GenerateMips();
@@ -130,6 +106,7 @@ class WaterRenderPass extends GPU.RenderPass {
     if (!currentAlbedo || !currentDepth) return;
     GPU.RendererContext.CopyTextureToTexture(currentAlbedo, this.albedoClone);
     GPU.RendererContext.CopyTextureToTexture(currentDepth, this.depthClone);
+    const FrameBuffer = resources.getResource(GPU.PassParams.FrameBuffer);
     const inputGBufferAlbedo = resources.getResource(GPU.PassParams.GBufferAlbedo);
     const inputGBufferNormal = resources.getResource(GPU.PassParams.GBufferNormal);
     const inputGBufferERMO = resources.getResource(GPU.PassParams.GBufferERMO);
@@ -146,14 +123,12 @@ class WaterRenderPass extends GPU.RenderPass {
     );
     const projectionMatrix = inputCamera.projectionMatrix;
     const viewMatrix = inputCamera.viewMatrix;
+    this.waterShader.SetBuffer("frameBuffer", FrameBuffer);
     this.waterShader.SetTexture("SCREEN_TEXTURE", this.albedoClone);
     this.waterShader.SetTexture("DEPTH_TEXTURE", this.depthClone);
     this.waterShader.SetValue("TIME", performance.now() / 1e3);
-    this.waterShader.SetMatrix4("projectionMatrix", projectionMatrix);
     this.waterShader.SetMatrix4("INV_PROJECTION_MATRIX", projectionMatrix.clone().invert());
-    this.waterShader.SetMatrix4("viewMatrix", viewMatrix);
     this.waterShader.SetMatrix4("INV_VIEW_MATRIX", viewMatrix.clone().invert());
-    this.waterShader.SetVector3("cameraPosition", inputCamera.transform.position);
     for (const [geometry, waterInfo] of this.waterGeometries) {
       this.waterShader.SetBuffer("waveSettings", waterInfo.settings.buffer);
       this.waterShader.SetMatrix4("modelMatrix", waterInfo.transform.localToWorldMatrix);

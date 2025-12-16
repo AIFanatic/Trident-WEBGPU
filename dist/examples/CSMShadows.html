@@ -27,12 +27,9 @@
             <script type="module">
                 const canvas = document.createElement("canvas");
                 document.body.appendChild(canvas);
-                            import { GPU, Scene, GameObject, Components, Mathf, Geometry, PBRMaterial, Console } from '@trident/core';
+                            import { GPU, Scene, GameObject, Components, Mathf, Geometry, PBRMaterial } from '@trident/core';
             import { OrbitControls } from '@trident/plugins/OrbitControls.js';
             import { Debugger } from '@trident/plugins/Debugger.js';
-            import { UIFolder, UIButtonStat } from '@trident/plugins/ui/UIStats.js';
-            import { LineRenderer } from '@trident/plugins/LineRenderer.js';
-            import { GLTFLoader } from '@trident/plugins/GLTF/GLTFLoader.js';
             
             async function Application(canvas) {
               const renderer = GPU.Renderer.Create(canvas, "webgpu");
@@ -48,7 +45,7 @@
               const lightGameObject = new GameObject(scene);
               lightGameObject.transform.position.set(-1, -1, -1).normalize().mul(-200);
               lightGameObject.transform.LookAtV1(new Mathf.Vector3(0, 0, 0));
-              const light = lightGameObject.AddComponent(Components.DirectionalLight);
+              lightGameObject.AddComponent(Components.DirectionalLight);
               const floor = new GameObject(scene);
               floor.transform.scale.set(1e4, 1e4, 1e4);
               floor.transform.eulerAngles.x = -90;
@@ -68,125 +65,18 @@
                 const gameObject1 = new GameObject(scene);
                 const cube1 = gameObject1.AddComponent(Components.Mesh);
                 cube1.geometry = geometry;
-                cube1.material = i % 2 === 0 ? material1 : material2;
+                cube1.material = i % 2 === 0 ? material1.clone() : material2.clone();
                 cube1.transform.position.set(-i * 25, 20, 30);
                 cube1.transform.scale.y = Math.random() * 2 + 6;
                 cube1.transform.scale.mul(10);
                 const gameObject2 = new GameObject(scene);
                 const cube2 = gameObject2.AddComponent(Components.Mesh);
                 cube2.geometry = geometry;
-                cube2.material = i % 2 === 0 ? material2 : material1;
+                cube2.material = i % 2 === 0 ? material2.clone() : material1.clone();
                 cube2.transform.position.set(-i * 25, 20, -30);
                 cube2.transform.scale.y = Math.random() * 2 + 6;
                 cube2.transform.scale.mul(10);
               }
-              {
-                let worldCornersFromViewProj = function(viewProj) {
-                  const invVP = viewProj.clone().invert();
-                  const zNear = 0, zFar = 1;
-                  const ndc = [
-                    new Mathf.Vector4(-1, -1, zNear, 1),
-                    new Mathf.Vector4(-1, 1, zNear, 1),
-                    new Mathf.Vector4(1, 1, zNear, 1),
-                    new Mathf.Vector4(1, -1, zNear, 1),
-                    new Mathf.Vector4(-1, -1, zFar, 1),
-                    new Mathf.Vector4(-1, 1, zFar, 1),
-                    new Mathf.Vector4(1, 1, zFar, 1),
-                    new Mathf.Vector4(1, -1, zFar, 1)
-                  ];
-                  return ndc.map((p) => {
-                    p.applyMatrix4(invVP);
-                    p.mul(1 / p.w);
-                    return new Mathf.Vector3(p.x, p.y, p.z);
-                  });
-                };
-                const csmDebugGO = new GameObject(scene);
-                const lineRenderer = csmDebugGO.AddComponent(LineRenderer);
-                const shadowPass = scene.renderPipeline.DeferredShadowMapPass;
-                const lightsShadowData = shadowPass.lightShadowData;
-                const CSMFolder = new UIFolder(Debugger.ui, "CSM");
-                CSMFolder.Open();
-                new UIButtonStat(CSMFolder, "Enabled:", (state) => {
-                  Console.getVar("r_shadows_enabled").value = state;
-                  camera.SetPerspective(camera.fov, camera.aspect, camera.near, state ? 1e3 : 5e4);
-                  console.log(camera.fov, state);
-                }, Console.getVar("r_shadows_enabled").value);
-                new Mathf.Matrix4();
-                setInterval(() => {
-                  let positions = [];
-                  let colors = [];
-                  const palette = [
-                    Mathf.Color.fromHex(16711680),
-                    Mathf.Color.fromHex(65280),
-                    Mathf.Color.fromHex(255),
-                    Mathf.Color.fromHex(16776960)
-                  ];
-                  function DrawFrustum(corners, color, matrix = new Mathf.Matrix4()) {
-                    if (corners.length !== 8) throw Error("Need 8 corners");
-                    const [c0, c1, c2, c3, c4, c5, c6, c7] = corners;
-                    c0.applyMatrix4(matrix);
-                    c1.applyMatrix4(matrix);
-                    c2.applyMatrix4(matrix);
-                    c3.applyMatrix4(matrix);
-                    c4.applyMatrix4(matrix);
-                    c5.applyMatrix4(matrix);
-                    c6.applyMatrix4(matrix);
-                    c7.applyMatrix4(matrix);
-                    positions.push(c0, c1);
-                    positions.push(c1, c2);
-                    positions.push(c2, c3);
-                    positions.push(c3, c0);
-                    positions.push(c4, c5);
-                    positions.push(c5, c6);
-                    positions.push(c6, c7);
-                    positions.push(c7, c4);
-                    positions.push(c0, c4);
-                    positions.push(c1, c5);
-                    positions.push(c2, c6);
-                    positions.push(c3, c7);
-                    colors.push(...new Array(24).fill(color));
-                  }
-                  window.meshes = window.meshes || new Array(4);
-                  function DrawSphere(index, position, radius = 1, color = new Mathf.Color(1, 0, 0, 1)) {
-                    let mesh = window.meshes[index];
-                    if (!mesh) {
-                      const gameObject = new GameObject(scene);
-                      const newMesh = gameObject.AddComponent(Components.Mesh);
-                      newMesh.enableShadows = false;
-                      newMesh.geometry = Geometry.Sphere();
-                      newMesh.material = new PBRMaterial({ unlit: true, albedoColor: color });
-                      window.meshes[index] = newMesh;
-                      console.log("HERE", mesh);
-                      mesh = newMesh;
-                    }
-                    mesh.transform.position.copy(position);
-                    mesh.transform.scale.mul(radius);
-                  }
-                  const m2 = new Mathf.Matrix4();
-                  DrawFrustum(shadowPass.frustumData.corners.slice(0, 8), palette[0], m2);
-                  DrawFrustum(shadowPass.frustumData.corners.slice(8, 16), palette[0], m2);
-                  DrawFrustum(shadowPass.frustumData.corners.slice(16, 24), palette[0], m2);
-                  DrawFrustum(shadowPass.frustumData.corners.slice(24, 32), palette[0], m2);
-                  DrawSphere(0, shadowPass.frustumData.frustumCenters[0], 1, palette[0]);
-                  DrawSphere(1, shadowPass.frustumData.frustumCenters[1], 1, palette[1]);
-                  DrawSphere(2, shadowPass.frustumData.frustumCenters[2], 10, palette[2]);
-                  DrawSphere(3, shadowPass.frustumData.frustumCenters[3], 100, palette[3]);
-                  const shadowEntry = lightsShadowData.get(light.id);
-                  if (shadowEntry) {
-                    const { projectionMatrices } = shadowEntry;
-                    for (let cascade = 0; cascade < Console.getVar("r_shadows_csm_numofcascades").value; cascade++) {
-                      const vp = new Mathf.Matrix4();
-                      vp.setFromArray(projectionMatrices.subarray(cascade * 16, (cascade + 1) * 16));
-                      const lightCorners = worldCornersFromViewProj(vp);
-                      DrawFrustum(lightCorners, palette[cascade]);
-                    }
-                  }
-                  lineRenderer.SetPositions(positions);
-                  lineRenderer.SetColors(colors);
-                }, 1e3);
-              }
-              const gameObjects = await GLTFLoader.loadAsGameObjects(scene, "./assets/models/Fox.glb");
-              gameObjects[0];
               Debugger.Enable();
               scene.Start();
             }

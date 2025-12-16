@@ -65,7 +65,7 @@ class PostProcessingFog extends GPU.RenderPass {
 				let linearDepth = LinearizeDepthFromNDC(d);
 
 				// Fog range
-				let fogStart = 10.0;
+				let fogStart = 40.0;
 				let fogEnd   = 80.0;
 
 				var fogFactor = (linearDepth - fogStart) / (fogEnd - fogStart);
@@ -80,7 +80,7 @@ class PostProcessingFog extends GPU.RenderPass {
 		`;
     this.shader = await GPU.Shader.Create({
       code,
-      colorOutputs: [{ format: GPU.Renderer.SwapChainFormat }],
+      colorOutputs: [{ format: "rgba16float" }],
       attributes: {
         position: { location: 0, size: 3, type: "vec3" },
         uv: { location: 1, size: 2, type: "vec2" }
@@ -93,7 +93,7 @@ class PostProcessingFog extends GPU.RenderPass {
       }
     });
     this.quadGeometry = Geometry.Plane();
-    this.renderTarget = GPU.RenderTexture.Create(GPU.Renderer.width, GPU.Renderer.height);
+    this.renderTarget = GPU.RenderTexture.Create(GPU.Renderer.width, GPU.Renderer.height, 1, "rgba16float");
     this.shader.SetSampler("textureSampler", GPU.TextureSampler.Create());
     this.initialized = true;
   }
