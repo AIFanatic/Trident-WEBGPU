@@ -63,11 +63,17 @@ const ATMOSPHERE_RADIUS = EARTH_RADIUS + ATMOSPHERE_THICKNESS;
 // const aerosol_background_density = 2e6;
 // const aerosol_height_scale = 0.73;
 
-const aerosol_absorption_cross_section = vec4(6.3312e-19, 7.5567e-19, 9.2627e-19, 1.0391e-18);
-const aerosol_scattering_cross_section = vec4(4.6539e-26, 2.721e-26, 4.1104e-26, 5.6249e-26);
-const aerosol_base_density = 2.0266e17;
+// const aerosol_absorption_cross_section = vec4(6.3312e-19, 7.5567e-19, 9.2627e-19, 1.0391e-18);
+// const aerosol_scattering_cross_section = vec4(4.6539e-26, 2.721e-26, 4.1104e-26, 5.6249e-26);
+// const aerosol_base_density = 2.0266e17;
+// const aerosol_background_density = 2e6;
+// const aerosol_height_scale = 0.9;
+
+const aerosol_absorption_cross_section = vec4(5.0393e-23, 8.0765e-23, 1.3823e-22, 2.3383e-22);
+const aerosol_scattering_cross_section = vec4(2.6004e-22, 2.4844e-22, 2.8362e-22, 2.7494e-22);
+const aerosol_base_density = 8.544e18;
 const aerosol_background_density = 2e6;
-const aerosol_height_scale = 0.9;
+const aerosol_height_scale = 0.73;
 
 const aerosol_background_divided_by_base_density = aerosol_background_density / aerosol_base_density;
 

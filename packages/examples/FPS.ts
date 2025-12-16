@@ -25,7 +25,7 @@ import { RigidBody, RigidbodyConstraints } from "@trident/plugins/PhysicsRapier/
 import { Debugger } from "@trident/plugins/Debugger";
 import { HDRParser } from "@trident/plugins/HDRParser";
 import { GLTFLoader } from "@trident/plugins/GLTF/GLTFLoader";
-import { UIButtonStat, UIColorStat, UIFolder, UISliderStat, UIVecStat } from "@trident/plugins/ui/UIStats";
+import { UIButtonStat, UIColorStat, UIFolder, UISliderStat, UITextureViewer, UIVecStat } from "@trident/plugins/ui/UIStats";
 import { OrbitControls } from "@trident/plugins/OrbitControls";
 import { PhysicsDebugger } from "@trident/plugins/PhysicsRapier/PhysicsDebugger";
 import { LineRenderer } from "@trident/plugins/LineRenderer";
@@ -36,9 +36,12 @@ import { Water } from "@trident/plugins/Water/WaterPlugin";
 import { DirectionalLightHelper } from "@trident/plugins/DirectionalLightHelper";
 import { PostProcessingPass } from "@trident/plugins/PostProcessing/PostProcessingPass";
 import { PostProcessingFog } from "@trident/plugins/PostProcessing/effects/Fog";
+import { PostProcessingFXAA } from "@trident/plugins/PostProcessing/effects/FXAA";
+import { PostProcessingSMAA } from "@trident/plugins/PostProcessing/effects/SMAA";
 
 import { Sky } from "@trident/plugins/Environment/Sky";
 import { Environment } from "@trident/plugins/Environment/Environment";
+import { LODInstanceRenderable } from "@trident/plugins/LODGroup";
 
 async function Application(canvas: HTMLCanvasElement) {
     const renderer = GPU.Renderer.Create(canvas, "webgpu");
@@ -55,7 +58,28 @@ async function Application(canvas: HTMLCanvasElement) {
     lightGameObject.transform.position.set(4, 4, 4).mul(10);
     lightGameObject.transform.LookAtV1(new Mathf.Vector3(0, 0, 0));
     const light = lightGameObject.AddComponent(Components.DirectionalLight);
+    light.color.set(1.0, 0.96, 0.88, 1);
     light.intensity = 10;
+
+    new UIColorStat(Debugger.ui, "Light Color:", light.color.toHex(), value => {
+        light.color.setFromHex(value);
+    })
+
+    setInterval(() => {
+        const radius = 1; // distance of the directional light from origin
+        const elevationRad = Mathf.Deg2Rad * skyAtmosphere.SUN_ELEVATION_DEGREES;
+        const azimuthRad   = Mathf.Deg2Rad * skyAtmosphere.SUN_AZIMUTH_DEGREES; // or use your own azimuth angle
+
+        // Convert spherical coordinates to 3D position
+        const x = radius * Mathf.Cos(elevationRad) * Mathf.Cos(azimuthRad);
+        const y = radius * Mathf.Sin(elevationRad);
+        const z = radius * Mathf.Cos(elevationRad) * Mathf.Sin(azimuthRad);
+
+        const sunPos = new Mathf.Vector3(x, y, z);
+
+        lightGameObject.transform.position = sunPos;
+        lightGameObject.transform.LookAtV1(new Mathf.Vector3(0,0,0));
+    }, 100);
 
     const physicsWorld = new GameObject(scene);
     const physicsComponent = physicsWorld.AddComponent(PhysicsRapier);
@@ -172,9 +196,10 @@ async function Application(canvas: HTMLCanvasElement) {
 
     const skyAtmosphere = new Sky();
     await skyAtmosphere.init();
-
-    // const skyTexture = hdrCubemap;
     const skyTexture = skyAtmosphere.skyTextureCubemap;
+
+    // const hdr = await HDRParser.Load("/dist/examples/assets/textures/HDR/autumn_field_puresky_1k.hdr");
+    // const skyTexture = await HDRParser.ToCubemap(hdr);
 
     const environment = new Environment(scene, skyTexture);
     await environment.init();
@@ -190,25 +215,6 @@ async function Application(canvas: HTMLCanvasElement) {
         });
 
         skySettings.Open();
-
-        // setInterval(async () => {
-        //     await skyAtmosphere.init();
-        //     await skyAtmosphere.preFrame();
-        //     await skyAtmosphere.execute();
-
-        //     // const hdr = await HDRParser.Load("./assets/textures/HDR/kloofendal_48d_partly_cloudy_puresky_1k.hdr");
-        //     // const sky = await HDRParser.ToCubemap(hdr);
-        //     const sky = await HDRParser.ToCubemap(skyAtmosphere.output);
-
-        //     const skyIrradiance = await HDRParser.GetIrradianceMap(sky);
-        //     const prefilterMap = await HDRParser.GetPrefilterMap(sky);
-        //     const brdfLUT = await HDRParser.GetBRDFLUT(1);
-
-        //     scene.renderPipeline.skybox = sky;
-        //     scene.renderPipeline.skyboxIrradiance = skyIrradiance;
-        //     scene.renderPipeline.skyboxPrefilter = prefilterMap;
-        //     scene.renderPipeline.skyboxBRDFLUT = brdfLUT;
-        // }, 1000);
     }
 
 
@@ -267,8 +273,8 @@ async function Application(canvas: HTMLCanvasElement) {
     boxGO.transform.position.y = 1.5;
     boxGO.transform.position.x = 2;
     const boxMesh = boxGO.AddComponent(Components.Mesh);
-    boxMesh.geometry = Geometry.Cube();
-    boxMesh.material = new PBRMaterial({ albedoColor: new Mathf.Color(0, 1, 0, 1) });
+    boxMesh.geometry = Geometry.Sphere();
+    boxMesh.material = new PBRMaterial({ albedoColor: new Mathf.Color(1, 1, 1, 1) });
 
     class NatureSpawner extends Components.Component {
         public spawnAnimationID = -1;
@@ -425,23 +431,23 @@ async function Application(canvas: HTMLCanvasElement) {
                     instances.push({ i, m: mat });
                 }
 
-                // Updates
-                setInterval(() => {
-                    for (const instance of instances) {
-                        instance.m.decompose(p, r, this.scale);
+                // // Updates
+                // setInterval(() => {
+                //     for (const instance of instances) {
+                //         instance.m.decompose(p, r, this.scale);
 
-                        const dist = this.target.position.distanceTo(p);
-                        if (dist > this.distance) {
-                            // Recycle ONLY in outer ring, e.g. 70%–100% of max radius
-                            const inner = this.distance * 0.7;
-                            const outer = this.distance;
+                //         const dist = this.target.position.distanceTo(p);
+                //         if (dist > this.distance) {
+                //             // Recycle ONLY in outer ring, e.g. 70%–100% of max radius
+                //             const inner = this.distance * 0.7;
+                //             const outer = this.distance;
 
-                            const mat = calculateNewPosition(this.target.position, inner, outer);
-                            this.SetMatrixAt(instance.i, mat);
-                            instance.m = mat;
-                        }
-                    }
-                }, 1000);
+                //             const mat = calculateNewPosition(this.target.position, inner, outer);
+                //             this.SetMatrixAt(instance.i, mat);
+                //             instance.m = mat;
+                //         }
+                //     }
+                // }, 1000);
             }
         }
 
@@ -470,204 +476,122 @@ async function Application(canvas: HTMLCanvasElement) {
         }
     }
 
-
-    // Instanced Tree
-    interface Instance {
-        geometry: Geometry;
-        material: PBRMaterial;
-    };
-
-    class InstancedMultiMesh {
-        private instancedMeshes: Components.InstancedMesh[] = [];
-
-        constructor(gameObject: GameObject, instances: Instance[]) {
-            for (const instance of instances) {
-                const instancedMesh = gameObject.AddComponent(Components.InstancedMesh);
-                instancedMesh.geometry = instance.geometry;
-                instancedMesh.material = instance.material;
-                this.instancedMeshes.push(instancedMesh);
-            }
-        }
-
-        public SetMatrixAt(index: number, matrix: Mathf.Matrix4) {
-            for (const instancedMesh of this.instancedMeshes) {
-                instancedMesh.SetMatrixAt(index, matrix);
-            }
-        }
-    }
-
-    // const commonTree = await GLTFLoader.loadAsGameObjects(scene, "/extra/test-assets/Stylized Nature MegaKit[Standard]/glTF/CommonTree_1.gltf");
-    const commonTree = await GLTFLoader.loadAsGameObjects(scene, "/extra/test-assets/tree-02.glb");
-
-    let instances: Instance[] = [];
-    traverse([commonTree], gameObject => {
-        const mesh = gameObject.GetComponent(Components.Mesh);
-        if (mesh) {
-            instances.push({ geometry: mesh.geometry, material: mesh.material as PBRMaterial });
-        }
-    })
-
-    // const g = new GameObject(scene);
-    // const instancedMultiMesh = new InstancedMultiMesh(g, instances);
-
-    // const p = new Mathf.Vector3();
-    // const r = new Mathf.Vector3();
-    // const _q = new Mathf.Quaternion();
-    // const s = new Mathf.Vector3(1, 1, 1);
-    // const m = new Mathf.Matrix4();
-    // const center = playerGameObject.transform.position;
-
-    // let index = 0;
-    // let c = 1000;
-    // for (let i = 0; i < c; i++) {
-    //     const angle = i / c * Math.PI * 2;
-    //     const radius = Mathf.RandomRange(20, 1000);
-
-    //     const x = center.x + Mathf.Cos(angle) * radius;
-    //     const z = center.z + Mathf.Sin(angle) * radius;
-
-    //     p.set(x, 0, z);
-    //     terrain.SampleHeight(p);
-
-    //     // p.y *= Mathf.RandomRange(0.95, 1.0);
-    //     r.set(0, Mathf.RandomRange(0, 360), 0);
-
-    //     if (p.y > 20) { // Dont place on water
-    //         _q.setFromEuler(r, true);
-    //         m.compose(p, _q, s);
-    //         instancedMultiMesh.SetMatrixAt(index, m);
-    //         index++;
-    //     }
-    // }
-
-
-    interface InstancedLODLevelConfig {
-        geometry: Geometry;
-        material: GPU.Material;
-        maxDistance?: number; // exclusive switch distance, Infinity if omitted
-    }
-
-    interface InstanceSlot {
-        matrix: Mathf.Matrix4;
-        position: Mathf.Vector3;
-        lodIndex: number;
-    }
-
-    interface LODLevel {
-        mesh: Components.InstancedMesh;
-        maxDistance: number;
-        minDistance: number;
-        minDistanceSq: number;
-        maxDistanceSq: number;
-        cursor: number;
-    }
-
-    class InstancedLODGroup extends Component {
-        public static type = "@trident/core/components/InstancedLODGroup";
-
-        public hysteresis = 5;
-        private lodLevels: LODLevel[] = [];
-        private instances: (InstanceSlot | undefined)[] = [];
-        private cameraPosition = new Mathf.Vector3();
-
-        public AddLevel(config: InstancedLODLevelConfig): Components.InstancedMesh {
-            const level: LODLevel = {
-                mesh: this.gameObject.AddComponent(Components.InstancedMesh),
-                maxDistance: config.maxDistance ?? Number.POSITIVE_INFINITY,
-                minDistance: 0,
-                minDistanceSq: 0,
-                maxDistanceSq: Number.POSITIVE_INFINITY,
-                cursor: 0
-            };
-            level.mesh.geometry = config.geometry;
-            level.mesh.material = config.material;
-            this.lodLevels.push(level);
-            this.recalculateRanges();
-            return level.mesh;
-        }
-
-        public SetMatrixAt(index: number, matrix: Mathf.Matrix4) {
-            let slot = this.instances[index];
-            if (!slot) {
-                slot = { matrix: new Mathf.Matrix4(), position: new Mathf.Vector3(), lodIndex: -1 };
-                this.instances[index] = slot;
-            }
-            slot.matrix.copy(matrix);
-            slot.position.setFromMatrixPosition(matrix);
-        }
-
-        public Update() {
-            if (!this.enabled || this.lodLevels.length === 0) return;
-            const camera = Components.Camera.mainCamera;
-            if (!camera) return;
-
-            this.cameraPosition.copy(camera.transform.position);
-            for (const level of this.lodLevels) {
-                level.cursor = 0;
-                level.mesh.ResetInstances();
-            }
-
-            for (const slot of this.instances) {
-                if (!slot) continue;
-                const distanceSq = slot.position.distanceToSquared(this.cameraPosition);
-                const target = this.selectLOD(distanceSq, slot.lodIndex);
-                slot.lodIndex = target;
-                const level = this.lodLevels[target];
-                level.mesh.SetMatrixAt(level.cursor++, slot.matrix);
-            }
-        }
-
-        private selectLOD(distanceSq: number, previousLOD: number): number {
-            if (previousLOD >= 0) {
-                const level = this.lodLevels[previousLOD];
-                const near = Math.max(0, level.minDistance - this.hysteresis);
-                const far = Number.isFinite(level.maxDistance)
-                    ? level.maxDistance + this.hysteresis
-                    : Number.POSITIVE_INFINITY;
-                const nearSq = near * near;
-                const farSq = Number.isFinite(far) ? far * far : Number.POSITIVE_INFINITY;
-                if (distanceSq >= nearSq && distanceSq < farSq) return previousLOD;
-            }
-            for (let i = 0; i < this.lodLevels.length; i++) {
-                if (distanceSq < this.lodLevels[i].maxDistanceSq) return i;
-            }
-            return this.lodLevels.length - 1;
-        }
-
-        private recalculateRanges() {
-            this.lodLevels.sort((a, b) => a.maxDistance - b.maxDistance);
-            let previousMax = 0;
-            for (const level of this.lodLevels) {
-                level.minDistance = previousMax;
-                level.minDistanceSq = level.minDistance * level.minDistance;
-                level.maxDistanceSq = Number.isFinite(level.maxDistance)
-                    ? level.maxDistance * level.maxDistance
-                    : Number.POSITIVE_INFINITY;
-                previousMax = level.maxDistance;
-            }
-        }
-    }
-
-    const lodTrees = terrainGameObject.AddComponent(InstancedLODGroup);
-    lodTrees.hysteresis = 15;
-
-    const mat = new PBRMaterial({doubleSided: true});
-    lodTrees.AddLevel({ geometry: Geometry.Sphere(), material: mat, maxDistance: 10 });
-    lodTrees.AddLevel({ geometry: Geometry.Cube(), material: mat, maxDistance: 20 });
-    lodTrees.AddLevel({ geometry: Geometry.Plane(), material: mat }); // catches everything beyond 120m
-
-
+    // Trees
     {
+        const tree1 = await GLTFLoader.loadAsGameObjects(scene, "/extra/test-assets/tree-01/tree-01.glb");
+    
+        let lodGroupEntries: { geometry: Geometry, material: GPU.Material }[] = []
+        traverse([tree1], gameObject => {
+            const mesh = gameObject.GetComponent(Components.Mesh);
+            if (mesh) {
+                const geometrySerialized = mesh.geometry.Serialize();
+                const materialSerialized = mesh.material.Serialize();
+                console.log(materialSerialized.params.roughness, materialSerialized.params.metalness)
+                materialSerialized.params.roughness = 1.0
+                materialSerialized.params.metalness = 0.0;
+                const materialClone = GPU.Material.Deserialize(materialSerialized);
+                const geometryClone = new Geometry();
+                geometryClone.Deserialize(geometrySerialized);
+    
+                lodGroupEntries.push({ geometry: geometryClone, material: materialClone });
+            }
+        })
+        tree1.Destroy();
+    
+        console.log(lodGroupEntries)
+    
+        const lodGameObject = new GameObject(scene);
+        const lodInstanceRenderable = lodGameObject.AddComponent(LODInstanceRenderable);
+        // lodInstanceRenderable.lods.push({ renderers: lodGroupEntries, screenSize: 0 });
+        lodInstanceRenderable.lods.push({ renderers: lodGroupEntries.slice(0, 2), screenSize: 0 });
+        lodInstanceRenderable.lods.push({ renderers: lodGroupEntries.slice(2, 4), screenSize: 40 });
+        lodInstanceRenderable.lods.push({ renderers: lodGroupEntries.slice(4, 6), screenSize: 80 });
+        lodInstanceRenderable.lods.push({ renderers: lodGroupEntries.slice(6, 8), screenSize: 200 });
+    
         const p = new Mathf.Vector3();
         const r = new Mathf.Vector3();
-        const _q = new Mathf.Quaternion();
+        const q = new Mathf.Quaternion();
         const s = new Mathf.Vector3(1, 1, 1);
         const m = new Mathf.Matrix4();
+    
+        const c = 50000;
+        const off = 500;
+    
+        const c2 = 20;
+    
         const center = playerGameObject.transform.position;
     
-        let index = 0;
-        let c = 1000;
         for (let i = 0; i < c; i++) {
+    
+            const angle = i / c * Math.PI * 2;
+            // const radius = Mathf.RandomRange(20, 1000);
+            const radius = Mathf.RandomRange(0, 1000);
+    
+            // const x = center.x + Mathf.Cos(angle) * radius;
+            // const z = center.z + Mathf.Sin(angle) * radius;
+    
+            const x = Mathf.RandomRange(-off, off);
+            const z = Mathf.RandomRange(-off, off);
+    
+            p.set(x, 0, z);
+            terrain.SampleHeight(p);
+    
+            r.y = Mathf.RandomRange(0, 360);
+            q.setFromEuler(r);
+            p.y += Mathf.RandomRange(-1, 0);
+            m.compose(p, q, s);
+    
+            if (p.y > 25) {
+                lodInstanceRenderable.SetMatrixAt(i, m);
+            }
+        }
+    }
+
+    // Grass
+    {
+        const tree1 = await GLTFLoader.loadAsGameObjects(scene, "/extra/test-assets/tree-01/grass.glb");
+    
+        let lodGroupEntries: { geometry: Geometry, material: GPU.Material }[] = []
+        traverse([tree1], gameObject => {
+            const mesh = gameObject.GetComponent(Components.Mesh);
+            if (mesh) {
+                const geometrySerialized = mesh.geometry.Serialize();
+                const materialSerialized = mesh.material.Serialize();
+                console.log(materialSerialized.params.roughness, materialSerialized.params.metalness)
+                materialSerialized.params.roughness = 1.0
+                materialSerialized.params.metalness = 0.0;
+                const materialClone = GPU.Material.Deserialize(materialSerialized);
+                const geometryClone = new Geometry();
+                geometryClone.Deserialize(geometrySerialized);
+    
+                lodGroupEntries.push({ geometry: geometryClone, material: materialClone });
+            }
+        })
+        tree1.Destroy();
+    
+        const lodGameObject = new GameObject(scene);
+        const lodInstanceRenderable = lodGameObject.AddComponent(LODInstanceRenderable);
+        lodInstanceRenderable.lods.push({ renderers: lodGroupEntries, screenSize: 0 });
+        // lodInstanceRenderable.lods.push({ renderers: lodGroupEntries.slice(0, 2), screenSize: 0 });
+        // lodInstanceRenderable.lods.push({ renderers: lodGroupEntries.slice(2, 4), screenSize: 40 });
+        // lodInstanceRenderable.lods.push({ renderers: lodGroupEntries.slice(4, 6), screenSize: 80 });
+        // lodInstanceRenderable.lods.push({ renderers: lodGroupEntries.slice(6, 8), screenSize: 200 });
+    
+        const p = new Mathf.Vector3();
+        const r = new Mathf.Vector3();
+        const q = new Mathf.Quaternion();
+        const s = new Mathf.Vector3(1, 1, 1);
+        const m = new Mathf.Matrix4();
+    
+        const c = 20000;
+        const off = 1000;
+    
+        const c2 = 20;
+    
+        const center = playerGameObject.transform.position;
+    
+        for (let i = 0; i < c; i++) {
+    
             const angle = i / c * Math.PI * 2;
             // const radius = Mathf.RandomRange(20, 1000);
             const radius = Mathf.RandomRange(0, 100);
@@ -677,17 +601,15 @@ async function Application(canvas: HTMLCanvasElement) {
     
             p.set(x, 0, z);
             terrain.SampleHeight(p);
-            p.y += 0.5;
-            // p.y *= Mathf.RandomRange(0.95, 1.0);
-            // r.set(0, Mathf.RandomRange(0, 360), 0);
-            // r.set(0,90,0);
     
-            // if (p.y > 20) { // Dont place on water
-                _q.setFromEuler(r, true);
-                m.compose(p, _q, s);
-                lodTrees.SetMatrixAt(i, m);
-                index++;
-            // }
+            r.y = Mathf.RandomRange(0, 360);
+            q.setFromEuler(r);
+            p.y += 0.1;
+            m.compose(p, q, s);
+    
+            if (p.y > 25) {
+                lodInstanceRenderable.SetMatrixAt(i, m);
+            }
         }
     }
 
@@ -700,150 +622,31 @@ async function Application(canvas: HTMLCanvasElement) {
         const waterGameObject = new GameObject(scene);
         waterGameObject.transform.scale.set(scale, scale, 1);
         waterGameObject.transform.eulerAngles.x = -90;
-        waterGameObject.transform.position.y = 18;
+        waterGameObject.transform.position.y = 25;
         const water = waterGameObject.AddComponent(Water);
-        // water.settings.set("sampler_scale", [1 / scale, 1 / scale, 0, 0]);
-        // water.settings.set("uv_sampler_scale", [1 / scale, 1 / scale, 0, 0]);
-
-        const invScale = 1 / scale;
-
-
-        //   const rescaleWave = name => {
-        //     const wave = water.settings.get(name);
-        //     water.settings.set(name, [wave[0], wave[1], wave[2] * invScale, wave[3] * invScale]);
-        //   };
-        //   ["wave_a", "wave_b", "wave_c"].forEach(rescaleWave);
-
-        //   water.settings.set("wave_speed", [water.settings.get("wave_speed")[0] * invScale, 0, 0, 0]);
-        //   water.settings.set("sampler_direction", [
-        //     water.settings.get("sampler_direction")[0] * invScale,
-        //     water.settings.get("sampler_direction")[1] * invScale,
-        //     0,
-        //     0,
-        //   ]);
-
-        water.settings.set("sampler_scale", [invScale, invScale, 0, 0]);
-        water.settings.set("uv_sampler_scale", [invScale, invScale, 0, 0]);
-
-        // Debug
-        const container = document.createElement("div");
-        container.classList.add("stats-panel");
-        document.body.append(container);
-
-        const waterSettingsFolder = new UIFolder(Debugger.ui, "Water");
-        new UISliderStat(waterSettingsFolder, "Wave speed:", -1, 1, 0.01, water.settings.get("wave_speed")[0], value => water.settings.set("wave_speed", [value, 0, 0, 0]));
-        new UISliderStat(waterSettingsFolder, "Beers law:", -2, 20, 0.01, water.settings.get("beers_law")[0], value => water.settings.set("beers_law", [value, 0, 0, 0]));
-        new UISliderStat(waterSettingsFolder, "Depth offset:", -1, 1, 0.01, water.settings.get("depth_offset")[0], value => water.settings.set("depth_offset", [value, 0, 0, 0]));
-        new UISliderStat(waterSettingsFolder, "Refraction:", -1, 1, 0.01, water.settings.get("refraction")[0], value => water.settings.set("refraction", [value, 0, 0, 0]));
-        new UISliderStat(waterSettingsFolder, "Foam level:", -10, 10, 0.01, water.settings.get("foam_level")[0], value => water.settings.set("foam_level", [value, 0, 0, 0]));
-        new UIColorStat(waterSettingsFolder, "Color deep:", new Mathf.Color(...water.settings.get("color_deep")).toHex().slice(0, 7), value => {
-            const c = Mathf.Color.fromHex(parseInt(value.slice(1, value.length), 16));
-            water.settings.set("color_deep", [c.r, c.g, c.b, c.a]);
-        });
-        new UIColorStat(waterSettingsFolder, "Color shallow:", new Mathf.Color(...water.settings.get("color_shallow")).toHex().slice(0, 7), value => {
-            const c = Mathf.Color.fromHex(parseInt(value.slice(1, value.length), 16));
-            water.settings.set("color_shallow", [c.r, c.g, c.b, c.a]);
-        });
-
-        const wave_a = water.settings.get("wave_a");
-        new UIVecStat(waterSettingsFolder, "Wave A:",
-            { value: wave_a[0], min: -1, max: 1, step: 0.01 },
-            { value: wave_a[1], min: -1, max: 1, step: 0.01 },
-            { value: wave_a[2], min: -1, max: 1, step: 0.01 },
-            { value: wave_a[3], min: -1, max: 1, step: 0.01 },
-            value => {
-                water.settings.set("wave_a", [value.x, value.y, value.z, value.w])
-            }
-        )
-
-        const wave_b = water.settings.get("wave_b");
-        new UIVecStat(waterSettingsFolder, "Wave B:",
-            { value: wave_b[0], min: -1, max: 1, step: 0.01 },
-            { value: wave_b[1], min: -1, max: 1, step: 0.01 },
-            { value: wave_b[2], min: -1, max: 1, step: 0.01 },
-            { value: wave_b[3], min: -1, max: 1, step: 0.01 },
-            value => {
-                water.settings.set("wave_b", [value.x, value.y, value.z, value.w])
-            }
-        )
-
-        const wave_c = water.settings.get("wave_c");
-        new UIVecStat(waterSettingsFolder, "Wave C:",
-            { value: wave_c[0], min: -1, max: 1, step: 0.01 },
-            { value: wave_c[1], min: -1, max: 1, step: 0.01 },
-            { value: wave_c[2], min: -1, max: 1, step: 0.01 },
-            { value: wave_c[3], min: -1, max: 1, step: 0.01 },
-            value => {
-                water.settings.set("wave_c", [value.x, value.y, value.z, value.w])
-            }
-        )
-
-        const sampler_scale = water.settings.get("sampler_scale");
-        new UIVecStat(waterSettingsFolder, "Sample scale:",
-            { value: sampler_scale[0], min: -5, max: 5, step: 0.01 },
-            { value: sampler_scale[1], min: -5, max: 5, step: 0.01 },
-            { value: 0, min: -5, max: 5, step: 0.01 },
-            { value: 0, min: -5, max: 5, step: 0.01 },
-            value => {
-                water.settings.set("sampler_scale", [value.x, value.y, 0.0, 0.0])
-            }
-        )
-
-        const sampler_direction = water.settings.get("sampler_direction");
-        new UIVecStat(waterSettingsFolder, "Sample direction:",
-            { value: sampler_direction[0], min: -5, max: 5, step: 0.01 },
-            { value: sampler_direction[1], min: -5, max: 5, step: 0.01 },
-            { value: 0, min: -5, max: 5, step: 0.01 },
-            undefined,
-            value => {
-                water.settings.set("sampler_direction", [value.x, value.y, 0.0, 0.0])
-            }
-        )
-
-        const uv_sampler_scale = water.settings.get("uv_sampler_scale");
-        new UIVecStat(waterSettingsFolder, "UV Sampler scale:",
-            { value: uv_sampler_scale[0], min: -5, max: 5, step: 0.01 },
-            { value: uv_sampler_scale[1], min: -5, max: 5, step: 0.01 },
-            { value: 0, min: -5, max: 5, step: 0.01 },
-            undefined,
-            value => {
-                water.settings.set("uv_sampler_scale", [value.x, value.y, 0.0, 0.0])
-            }
-        )
-
-        const uv_sampler_strength = water.settings.get("uv_sampler_strength");
-        new UIVecStat(waterSettingsFolder, "UV Sampler strength:",
-            { value: uv_sampler_strength[0], min: -5, max: 5, step: 0.01 },
-            { value: 0, min: -5, max: 5, step: 0.01 },
-            { value: 0, min: -5, max: 5, step: 0.01 },
-            undefined,
-            value => {
-                water.settings.set("uv_sampler_strength", [value.x, 0, 0.0, 0.0])
-            }
-        )
-
-        // sampler_scale: [0.25, 0.25, 0.0, 0.0],
-        // sampler_direction: [0.05, 0.04, 0.0, 0.0],
-
-        // uv_sampler_scale: [0.25, 0.25, 0.0, 0.0],
-        // uv_sampler_strength: [0.04, 0.0, 0.0, 0.0],
-
-        waterSettingsFolder.Open();
     }
 
-    Console.getVar("r_exposure").value = -2;
+    Console.getVar("r_exposure").value = 0;
     Console.getVar("r_shadows_csm_splittypepracticallambda").value = 0.99;
 
     mainCameraGameObject.transform.position.set(0, 0, 500);
-    const controls = new OrbitControls(GPU.Renderer.canvas, camera);
+    // const controls = new OrbitControls(GPU.Renderer.canvas, camera);
 
 
     // const physicsDebuggerGO = new GameObject(scene);
     // physicsDebuggerGO.AddComponent(PhysicsDebugger);
 
-    // const postProcessing = new PostProcessingPass();
+    const postProcessing = new PostProcessingPass();
     // postProcessing.effects.push(new PostProcessingFog());
-    // scene.renderPipeline.AddPass(postProcessing, GPU.RenderPassOrder.AfterLighting);
+    // postProcessing.effects.push(new PostProcessingFXAA());
+    const smaa = new PostProcessingSMAA();
+    postProcessing.effects.push(smaa);
+    scene.renderPipeline.AddPass(postProcessing, GPU.RenderPassOrder.BeforeScreenOutput);
+
+    new UIButtonStat(Debugger.ui, "Disable SMAA:", async value => {
+        smaa.enabled = value;
+    });
+
 
     Debugger.Enable();
 

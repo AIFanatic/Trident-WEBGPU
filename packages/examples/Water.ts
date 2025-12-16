@@ -142,6 +142,10 @@ async function Application(canvas: HTMLCanvasElement) {
     }
 
 
+    setTimeout(() => {
+        console.log(Renderer.info.drawCalls)
+    }, 1000);
+
     scene.Start();
 };
 

@@ -9,22 +9,12 @@ import {
 } from "@trident/core";
 
 import { OrbitControls } from "@trident/plugins/OrbitControls";
-import { OBJLoaderIndexed } from "@trident/plugins/OBJLoader";
-import { GLTFLoader } from "@trident/plugins/GLTF/GLTFLoader";
-
-import { MeshletMeshV3 } from "@trident/plugins/meshlets_v3/MeshletMesh";
-import { MeshletDraw } from "@trident/plugins/meshlets_v3/passes/MeshletDraw";
-import { Debugger } from "@trident/plugins/Debugger";
-import { SSSRenderPass } from "@trident/plugins/SSS";
-import { UIButtonStat, UIFolder, UISliderStat, UITextureViewer } from "@trident/plugins/ui/UIStats";
-import { HDRParser } from "@trident/plugins/HDRParser";
-
-
 import { PostProcessingPass } from "@trident/plugins/PostProcessing/PostProcessingPass";
 import { PostProcessingSMAA } from "@trident/plugins/PostProcessing/effects/SMAA";
-import { DirectionalLightHelper } from "@trident/plugins/DirectionalLightHelper";
 import { Sky } from "@trident/plugins/Environment/Sky";
 import { Environment } from "@trident/plugins/Environment/Environment";
+import { UIButtonStat, UITextureViewer } from "@trident/plugins/ui/UIStats";
+import { Debugger } from "@trident/plugins/Debugger";
 
 async function Application(canvas: HTMLCanvasElement) {
     const renderer = GPU.Renderer.Create(canvas, "webgpu");
@@ -86,9 +76,6 @@ async function Application(canvas: HTMLCanvasElement) {
     await skyAtmosphere.init();
     const skyTexture = skyAtmosphere.skyTextureCubemap;
 
-    // const hdr = await HDRParser.Load("/dist/examples/assets/textures/HDR/autumn_field_puresky_1k.hdr");
-    // const skyTexture = await HDRParser.ToCubemap(hdr);
-
     const environment = new Environment(scene, skyTexture);
     await environment.init();
 
@@ -99,19 +86,19 @@ async function Application(canvas: HTMLCanvasElement) {
 
     document.body.style.backgroundColor = "#404040";
 
-    // setTimeout(() => {
-    //     new UIButtonStat(Debugger.ui, "Disable SMAA:", async value => {
-    //         smaa.enabled = value;
-    //     });
-    //     const u0 = new UITextureViewer(Debugger.ui, "SMAA Edges", smaa.edgeTex);
-    //     const u1 = new UITextureViewer(Debugger.ui, "SMAA Weights", smaa.weightsTex);
-    //     setInterval(() => {
-    //         u0.Update();
-    //         u1.Update();
-    //     }, 1000);
-    // }, 1000);
+    setTimeout(() => {
+        new UIButtonStat(Debugger.ui, "Disable SMAA:", async value => {
+            smaa.enabled = value;
+        });
+        const u0 = new UITextureViewer(Debugger.ui, "SMAA Edges", smaa.edgeTex);
+        const u1 = new UITextureViewer(Debugger.ui, "SMAA Weights", smaa.weightsTex);
+        setInterval(() => {
+            u0.Update();
+            u1.Update();
+        }, 1000);
+    }, 1000);
     
-    // Debugger.Enable();
+    Debugger.Enable();
 
     scene.Start();
 

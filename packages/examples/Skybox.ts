@@ -28,6 +28,8 @@ import { Environment } from "@trident/plugins/Environment/Environment";
 
 import { PostProcessingFog } from "@trident/plugins/PostProcessing/effects/Fog";
 
+import { PostProcessingSMAA } from "@trident/plugins/PostProcessing/effects/SMAA";
+
 async function Application(canvas: HTMLCanvasElement) {
     const renderer = GPU.Renderer.Create(canvas, "webgpu");
 
@@ -63,7 +65,7 @@ async function Application(canvas: HTMLCanvasElement) {
         planeGO.transform.scale.set(10, 10, 1);
         const sphereMesh = planeGO.AddComponent(Components.Mesh);
         sphereMesh.geometry = Geometry.Plane();
-        const mat = new PBRMaterial({albedoColor: new Mathf.Color(1, 1, 1), metalness: 0.0, roughness: 1});
+        const mat = new PBRMaterial({ albedoColor: new Mathf.Color(1, 1, 1), metalness: 0.0, roughness: 1 });
         sphereMesh.material = mat;
     }
 
@@ -74,7 +76,7 @@ async function Application(canvas: HTMLCanvasElement) {
         sphereGameObject.transform.eulerAngles.y = 90;
         const sphereMesh = sphereGameObject.AddComponent(Components.Mesh);
         sphereMesh.geometry = Geometry.Plane();
-        const mat = new PBRMaterial({albedoColor: new Mathf.Color(1, 1, 1), metalness: 1.0, roughness: 0.0});
+        const mat = new PBRMaterial({ albedoColor: new Mathf.Color(1, 1, 1), metalness: 1.0, roughness: 0.0 });
         sphereMesh.material = mat;
     }
 
@@ -83,7 +85,7 @@ async function Application(canvas: HTMLCanvasElement) {
         sphereGameObject.transform.position.set(1, -1.5, 0);
         const sphereMesh = sphereGameObject.AddComponent(Components.Mesh);
         sphereMesh.geometry = Geometry.Sphere();
-        const mat = new PBRMaterial({albedoColor: new Mathf.Color(1, 1, 1), metalness: 1.0, roughness: 0.0});
+        const mat = new PBRMaterial({ albedoColor: new Mathf.Color(1, 1, 1), metalness: 1.0, roughness: 0.0 });
         sphereMesh.material = mat;
     }
 
@@ -92,7 +94,7 @@ async function Application(canvas: HTMLCanvasElement) {
         sphereGameObject.transform.position.set(-3, -1.5, 0);
         const sphereMesh = sphereGameObject.AddComponent(Components.Mesh);
         sphereMesh.geometry = Geometry.Sphere();
-        const mat = new PBRMaterial({albedoColor: new Mathf.Color(1, 1, 1), metalness: 0.0, roughness: 0.0});
+        const mat = new PBRMaterial({ albedoColor: new Mathf.Color(1, 1, 1), metalness: 0.0, roughness: 0.0 });
         sphereMesh.material = mat;
     }
 
@@ -101,14 +103,14 @@ async function Application(canvas: HTMLCanvasElement) {
         sphereGameObject.transform.position.set(-1, -1.5, 0);
         const sphereMesh = sphereGameObject.AddComponent(Components.Mesh);
         sphereMesh.geometry = Geometry.Sphere();
-        const mat = new PBRMaterial({albedoColor: new Mathf.Color(1, 1, 1), metalness: 0.0, roughness: 1.0});
+        const mat = new PBRMaterial({ albedoColor: new Mathf.Color(1, 1, 1), metalness: 0.0, roughness: 1.0 });
         sphereMesh.material = mat;
     }
 
     {
         const hdr = await HDRParser.Load("/dist/examples/assets/textures/HDR/royal_esplanade_1k.hdr");
         const hdrCubemap = await HDRParser.ToCubemap(hdr);
-        
+
         const skyAtmosphere = new Sky();
         await skyAtmosphere.init();
 
@@ -121,7 +123,7 @@ async function Application(canvas: HTMLCanvasElement) {
         setInterval(() => {
             const radius = 1; // distance of the directional light from origin
             const elevationRad = Mathf.Deg2Rad * skyAtmosphere.SUN_ELEVATION_DEGREES;
-            const azimuthRad   = Mathf.Deg2Rad * skyAtmosphere.SUN_AZIMUTH_DEGREES; // or use your own azimuth angle
+            const azimuthRad = Mathf.Deg2Rad * skyAtmosphere.SUN_AZIMUTH_DEGREES; // or use your own azimuth angle
 
             // Convert spherical coordinates to 3D position
             const x = radius * Mathf.Cos(elevationRad) * Mathf.Cos(azimuthRad);
@@ -131,7 +133,7 @@ async function Application(canvas: HTMLCanvasElement) {
             const sunPos = new Mathf.Vector3(x, y, z);
 
             lightGameObject.transform.position = sunPos;
-            lightGameObject.transform.LookAtV1(new Mathf.Vector3(0,0,0));
+            lightGameObject.transform.LookAtV1(new Mathf.Vector3(0, 0, 0));
         }, 100);
 
         {
@@ -151,10 +153,28 @@ async function Application(canvas: HTMLCanvasElement) {
                 // o0.Update();
                 // o1.Update();
             });
-    
+
             skySettings.Open();
         }
     }
+
+    const postProcessing = new PostProcessingPass();
+    const smaa = new PostProcessingSMAA();
+    postProcessing.effects.push(smaa);
+    scene.renderPipeline.AddPass(postProcessing, GPU.RenderPassOrder.BeforeScreenOutput);
+
+
+    setTimeout(() => {
+        new UIButtonStat(Debugger.ui, "Disable SMAA:", async value => {
+            smaa.enabled = value;
+        });
+        const u0 = new UITextureViewer(Debugger.ui, "SMAA Edges", smaa.edgeTex);
+        const u1 = new UITextureViewer(Debugger.ui, "SMAA Weights", smaa.weightsTex);
+        setInterval(() => {
+            u0.Update();
+            u1.Update();
+        }, 1000);
+    }, 1000);
 
     scene.Start();
 };

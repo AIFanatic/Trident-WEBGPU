@@ -65,3 +65,5 @@ export * from "./DepthBufferRaymarch";
 export * from "./meshoptimizer/Meshoptimizer";
 
 export * from "./Environment";
+
+export * from "./LODGroup";

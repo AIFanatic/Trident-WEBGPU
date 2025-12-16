@@ -42,3 +42,7 @@ import "./DepthBufferRaymarch";
 import "./CSMShadows";
 
 import "./LightBenchmark";
+
+import "./LODTest";
+
+import "./SMAA";

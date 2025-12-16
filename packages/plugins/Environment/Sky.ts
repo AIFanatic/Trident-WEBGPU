@@ -10,9 +10,9 @@ Assets.Register("@trident/plugins/Sky/resources/Common.wgsl", CommonWGSL);
 Assets.Register("@trident/plugins/Sky/resources/Vertex.wgsl", VertexWGSL);
 
 export class Sky {
-    public SUN_ELEVATION_DEGREES = 90;
+    public SUN_ELEVATION_DEGREES = 60;
     public SUN_AZIMUTH_DEGREES = 0;
-    public EYE_ALTITUDE = 0.1;
+    public EYE_ALTITUDE = 0.5;
 
     public skyTexture: GPU.RenderTexture;
     public skyTextureCubemap: GPU.RenderTexture;
@@ -84,6 +84,7 @@ export class Sky {
         this.transmittanceLUTShader.SetArray("params", params);
         this.skyTextureShader.SetArray("params", params);
 
+        // TODO: TransmittanceLUT doesn't have to be generated whenever the sky changes
         GPU.Renderer.BeginRenderFrame();
         GPU.RendererContext.BeginRenderPass(this.name, [{ target: this.transmittanceLUT, clear: true }]);
         GPU.RendererContext.Draw(this.geometry, this.transmittanceLUTShader, 3);
