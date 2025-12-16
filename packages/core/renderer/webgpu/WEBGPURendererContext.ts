@@ -64,6 +64,7 @@ export class WEBGPURendererContext implements RendererContext {
 
         // Debug
         Renderer.info.drawCallsStat += 1;
+        Renderer.info.drawCalls.set(this.activeRenderPass.label, shader);
 
         // Bind pipeline
         this.activeRenderPass.setPipeline(shader.pipeline);

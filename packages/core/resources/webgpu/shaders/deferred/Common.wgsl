@@ -30,4 +30,5 @@ struct FrameBuffer {
     viewInverseMatrix: mat4x4<f32>,
     viewMatrix: mat4x4<f32>,
     projectionMatrix: mat4x4<f32>,
+    viewProjectionMatrix: mat4x4<f32>
 };

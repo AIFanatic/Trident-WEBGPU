@@ -1,5 +1,5 @@
 import { Matrix4 } from "../math/Matrix4";
-import { RendererContext } from "../renderer";
+import { RendererContext, Shader } from "../renderer";
 import { Buffer } from "../renderer/Buffer";
 import { DynamicBufferMemoryAllocator } from "../renderer/MemoryAllocator";
 import { Renderable } from "./Renderable";
@@ -25,9 +25,10 @@ export class InstancedMesh extends Renderable {
         this.material.shader.SetBuffer("modelMatrix", this.matricesBuffer);
     }
 
-    public OnRenderObject(): void {
-        if (!this.geometry || !this.material || !this.material?.shader || this._instanceCount === 0) return;
-        RendererContext.DrawGeometry(this.geometry, this.material.shader, this._instanceCount);
+    public OnRenderObject(shaderOverride: Shader): void {
+        const shader = shaderOverride ? shaderOverride : this.material?.shader;
+        if (!this.geometry || !this.material || !shader || this._instanceCount === 0) return;
+        RendererContext.DrawGeometry(this.geometry, shader, this._instanceCount);
     }
 
     public Destroy(): void {

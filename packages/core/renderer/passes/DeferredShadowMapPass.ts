@@ -1,11 +1,10 @@
 import { Camera } from "../../components/Camera";
 import { RendererContext } from "../RendererContext";
 import { RenderPass, ResourcePool } from "../RenderGraph";
-import { Mesh } from "../../components/Mesh";
-import { SkinnedMesh } from "../../components/SkinnedMesh";
 import { PassParams } from "../RenderingPipeline";
-import { InstancedMesh } from "../../components/InstancedMesh";
 import { AreaLight, DirectionalLight, Light, PointLight, SpotLight } from "../../components/Light";
+import { Renderable } from "../../components/Renderable";
+import { SkinnedMesh } from "../../components/SkinnedMesh";
 import { Shader } from "../Shader";
 
 import { Buffer, BufferType, DynamicBuffer } from "../Buffer";
@@ -45,17 +44,27 @@ interface Cascade {
     viewProjMatrix: Matrix4;
 }
 
+type InstancedRenderable = Renderable & {
+    matricesBuffer: Buffer;
+    instanceCount: number;
+    geometry?: any;
+};
+
+const isInstancedRenderable = (renderable: Renderable): renderable is InstancedRenderable => {
+    return (renderable as any).matricesBuffer !== undefined && (renderable as any).instanceCount !== undefined;
+};
+
 export const ShadowMapSettings = Console.define({
-  r_shadows_width: { default: 2048, help: "Shadow map width"},
-  r_shadows_height: { default: 2048, help: "Shadow map height"},
-  r_shadows_enabled: { default: true, help: "Enable Shadows"},
-  r_shadows_pcfResolution: { default: 1, help:   "Shadows Percentage-Closer Filtering, the higher the value the softer the shadows."},
-  r_shadows_maxShadowDistance: { default: 2000, help: "Maximum distance to show shadows"},
-  r_shadows_csm_roundToPixelSizeValue: { default: true, help: "Round CSM to nearest pixel, helps with shimmering CSM's"},
-  r_shadows_csm_blendThresholdValue: { default: 0.3, help: "How much percentage to blend between cascades"},
-  r_shadows_csm_numOfCascades: { default: 4, help: "How many cascades, to use"},
-  r_shadows_csm_splitType: { default: "practical" as "uniform" | "log" | "practical", help: "Type of split between cascades (uniform | log | practical)"},
-  r_shadows_csm_splitTypePracticalLambda: { default: 0.9, help:"When using splitType practical how much to blend between uniform and log types"},
+    r_shadows_width: { default: 4096, help: "Shadow map width" },
+    r_shadows_height: { default: 4096, help: "Shadow map height" },
+    r_shadows_enabled: { default: true, help: "Enable Shadows" },
+    r_shadows_pcfResolution: { default: 1, help: "Shadows Percentage-Closer Filtering, the higher the value the softer the shadows." },
+    r_shadows_maxShadowDistance: { default: 2000, help: "Maximum distance to show shadows" },
+    r_shadows_csm_roundToPixelSizeValue: { default: true, help: "Round CSM to nearest pixel, helps with shimmering CSM's" },
+    r_shadows_csm_blendThresholdValue: { default: 0.3, help: "How much percentage to blend between cascades" },
+    r_shadows_csm_numOfCascades: { default: 4, help: "How many cascades, to use" },
+    r_shadows_csm_splitType: { default: "practical" as "uniform" | "log" | "practical", help: "Type of split between cascades (uniform | log | practical)" },
+    r_shadows_csm_splitTypePracticalLambda: { default: 0.5, help: "When using splitType practical how much to blend between uniform and log types" },
 } satisfies ConsoleVarConfigs);
 
 export class DeferredShadowMapPass extends RenderPass {
@@ -79,8 +88,8 @@ export class DeferredShadowMapPass extends RenderPass {
     private skinnedBoneMatricesBuffer: Buffer;
 
     private preparedLights: PreparedShadowLight[] = [];
-    private preparedMeshes: Mesh[] = [];
-    private preparedInstancedMeshes: InstancedMesh[] = [];
+    private preparedRenderables: Renderable[] = [];
+    private preparedInstancedMeshes: InstancedRenderable[] = [];
 
 
     // TODO: Clean this, csmSplits here to be used by debugger plugin
@@ -217,7 +226,7 @@ export class DeferredShadowMapPass extends RenderPass {
         this.initialized = true;
     }
 
-    public frustumData: {corners: Vector3[], lightMatrix: Matrix4, cameraMatrix: Matrix4, frustumCenters: Vector3[]};
+    public frustumData: { corners: Vector3[], lightMatrix: Matrix4, cameraMatrix: Matrix4, frustumCenters: Vector3[] };
 
     private getCornersForCascade(camera: Camera, cascadeNear: number, cascadeFar: number): Vector3[] {
         const projectionMatrix = new Matrix4().perspectiveZO(camera.fov * (Math.PI / 180), camera.aspect, cascadeNear, cascadeFar);
@@ -274,7 +283,7 @@ export class DeferredShadowMapPass extends RenderPass {
     private getCascades(cascadeSplits: number[], camera: Camera, cascadeCount: number, light: Light): Cascade[] {
         let cascades: Cascade[] = [];
 
-        this.frustumData = {corners: [], lightMatrix: new Matrix4(), cameraMatrix: new Matrix4(), frustumCenters: []};
+        this.frustumData = { corners: [], lightMatrix: new Matrix4(), cameraMatrix: new Matrix4(), frustumCenters: [] };
 
         for (let i = 0; i < cascadeCount; i++) {
 
@@ -288,37 +297,29 @@ export class DeferredShadowMapPass extends RenderPass {
                 frustumCenter.add(frustumCorners[i]);
             }
             frustumCenter.mul(1 / frustumCorners.length);
-            
+
             let radius = 0;
             for (let i = 0; i < 8; i++) radius = Math.max(radius, frustumCorners[i].clone().sub(frustumCenter).length());
+            radius = Math.round(radius * 100) / 100; // 0.1 world unit precision
 
             const lightDirection = light.transform.position.clone().mul(-1).normalize();
-            const up = Math.abs(lightDirection.dot(new Vector3(0,1,0))) > 0.99 ? new Vector3(0,0,1) : new Vector3(0,1,0);
 
-            const snapped = (p_value: number, p_step: number): number => {
-                if (p_step != 0) {
-                    p_value = Math.floor(p_value / p_step + 0.5) * p_step;
-                }
-                return p_value;
-            }
+            const up = Math.abs(lightDirection.dot(new Vector3(0, 1, 0))) > 0.99 ? new Vector3(0, 0, 1) : new Vector3(0, 1, 0);
 
             // TODO: This still seems wrong
-            if (ShadowMapSettings.r_shadows_csm_roundToPixelSizeValue.value === true) {
-                const shadowMapSize = ShadowMapSettings.r_shadows_width.value;
-                const texelsPerUnit = shadowMapSize / (radius * 2.0);
-                const scalar = new Matrix4().makeScale(new Vector3(texelsPerUnit, texelsPerUnit, texelsPerUnit));
+            if (ShadowMapSettings.r_shadows_csm_roundToPixelSizeValue.value) {
+                const cascadeRes = ShadowMapSettings.r_shadows_width.value / 2; // 2048
+                const worldUnitsPerTexel = (radius * 2.0) / cascadeRes;
 
-                const lookAt = new Matrix4().lookAt(new Vector3(0, 0, 0), lightDirection, up).mul(scalar);
-                const lookAtInv = lookAt.clone().invert();
+                const lightBasis = new Matrix4().lookAt(new Vector3(0, 0, 0), lightDirection, up);
+                const inv = lightBasis.clone().invert();
 
-                frustumCenter.applyMatrix4(lookAt);
-                // frustumCenter.x = Math.round(frustumCenter.x) + 0.5;
-                // frustumCenter.y = Math.round(frustumCenter.y) + 0.5;
+                const c = frustumCenter.clone().applyMatrix4(lightBasis);
 
-                frustumCenter.x = snapped(frustumCenter.x, texelsPerUnit);
-                frustumCenter.y = snapped(frustumCenter.y, texelsPerUnit);
-                
-                frustumCenter.applyMatrix4(lookAtInv);
+                c.x = Math.round(c.x / worldUnitsPerTexel) * worldUnitsPerTexel;
+                c.y = Math.round(c.y / worldUnitsPerTexel) * worldUnitsPerTexel;
+
+                frustumCenter.copy(c.applyMatrix4(inv));
             }
 
             const eye = frustumCenter.clone().sub(lightDirection.clone().mul(-radius));
@@ -351,7 +352,7 @@ export class DeferredShadowMapPass extends RenderPass {
         const scene = mainCamera.gameObject.scene;
         this.lightShadowData.clear();
         this.preparedLights.length = 0;
-        this.preparedMeshes.length = 0;
+        this.preparedRenderables.length = 0;
         this.preparedInstancedMeshes.length = 0;
 
         const lights = [
@@ -400,24 +401,28 @@ export class DeferredShadowMapPass extends RenderPass {
             }
         }
 
-        const meshes = [...scene.GetComponents(Mesh), ...scene.GetComponents(SkinnedMesh)]
-            .filter(mesh => mesh.enableShadows && mesh.enabled && mesh.gameObject.enabled);
+        const renderables: Renderable[] = []
+        for (const [id, r] of Renderable.Renderables) {
+            if (r.enableShadows && r.enabled && r.gameObject.enabled && (r as any).geometry) renderables.push(r);
+        }
 
-        if (meshes.length > 0) {
-            const requiredSize = meshes.length * 256;
+        const shadowCasters = renderables.filter(r => !isInstancedRenderable(r));
+        const instancedMeshes = renderables.filter(r => isInstancedRenderable(r) && r.instanceCount > 0) as InstancedRenderable[];
+
+        if (shadowCasters.length > 0) {
+            const requiredSize = shadowCasters.length * 256;
             if (!this.modelMatrices || this.modelMatrices.size !== requiredSize) {
                 this.modelMatrices = DynamicBuffer.Create(requiredSize, BufferType.STORAGE, 256);
                 this.drawShadowShader.SetBuffer("modelMatrix", this.modelMatrices);
                 this.drawSkinnedMeshShadowShader.SetBuffer("modelMatrix", this.modelMatrices);
             }
 
-            for (let i = 0; i < meshes.length; i++) {
-                this.modelMatrices.SetArray(meshes[i].transform.localToWorldMatrix.elements, i * 256);
+            for (let i = 0; i < shadowCasters.length; i++) {
+                this.modelMatrices.SetArray(shadowCasters[i].transform.localToWorldMatrix.elements, i * 256);
             }
         }
-        this.preparedMeshes = meshes;
+        this.preparedRenderables = shadowCasters;
 
-        const instancedMeshes = scene.GetComponents(InstancedMesh).filter(instance => instance.enableShadows && instance.instanceCount > 0);
         this.preparedInstancedMeshes = instancedMeshes;
 
         // // New
@@ -528,30 +533,32 @@ export class DeferredShadowMapPass extends RenderPass {
                 if (viewport) RendererContext.SetViewport(viewport.x, viewport.y, viewport.width, viewport.height, 0, 1);
                 else RendererContext.SetViewport(0, 0, shadowOutput.width, shadowOutput.height, 0, 1);
 
-                let meshCount = 0;
-                for (const mesh of this.preparedMeshes) {
-                    const geometry = mesh.geometry;
-                    if (!geometry || !geometry.attributes.has("position")) {
-                        meshCount++;
+                let renderableIndex = 0;
+                for (const renderable of this.preparedRenderables) {
+                    const geometry = (renderable as any).geometry;
+                    if (!geometry || !geometry.attributes?.has("position")) {
+                        renderableIndex++;
                         continue;
                     }
 
-                    this.modelMatrices.dynamicOffset = meshCount * 256;
+                    this.modelMatrices.dynamicOffset = renderableIndex * 256;
 
-                    if (mesh instanceof SkinnedMesh) {
+                    if (renderable instanceof SkinnedMesh) {
                         // TODO: Make this work with more than one skinned mesh
-                        this.drawSkinnedMeshShadowShader.SetBuffer("boneMatrices", mesh.GetBoneMatricesBuffer());
-                        RendererContext.DrawGeometry(geometry, this.drawSkinnedMeshShadowShader, 1);
+                        this.drawSkinnedMeshShadowShader.SetBuffer("boneMatrices", renderable.GetBoneMatricesBuffer());
+                        renderable.OnRenderObject(this.drawSkinnedMeshShadowShader);
                     } else {
-                        RendererContext.DrawGeometry(geometry, this.drawShadowShader, 1);
+                        renderable.OnRenderObject(this.drawShadowShader);
                     }
 
-                    meshCount++;
+                    renderableIndex++;
                 }
 
                 for (const instance of this.preparedInstancedMeshes) {
+                    const geometry = (instance as any).geometry;
+                    if (!geometry || !geometry.attributes?.has("position")) continue;
                     this.drawInstancedShadowShader.SetBuffer("modelMatrix", instance.matricesBuffer);
-                    RendererContext.DrawGeometry(instance.geometry, this.drawInstancedShadowShader, instance.instanceCount + 1, 0);
+                    instance.OnRenderObject(this.drawInstancedShadowShader);
                 }
 
                 RendererContext.EndRenderPass();

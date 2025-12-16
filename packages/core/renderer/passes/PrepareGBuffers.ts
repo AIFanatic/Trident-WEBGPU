@@ -26,7 +26,7 @@ export class PrepareGBuffers extends RenderPass {
     public GBufferFormat: TextureFormat = "rgba8unorm";
 
     private FrameBuffer: Buffer;
-    private FrameBufferValues = new ArrayBuffer(288);
+    private FrameBufferValues = new ArrayBuffer(352);
     private FrameBufferViews = {
         projectionOutputSize: new Float32Array(this.FrameBufferValues, 0, 4),
         viewPosition: new Float32Array(this.FrameBufferValues, 16, 4),
@@ -34,6 +34,7 @@ export class PrepareGBuffers extends RenderPass {
         viewInverseMatrix: new Float32Array(this.FrameBufferValues, 96, 16),
         viewMatrix: new Float32Array(this.FrameBufferValues, 160, 16),
         projectionMatrix: new Float32Array(this.FrameBufferValues, 224, 16),
+        viewProjectionMatrix: new Float32Array(this.FrameBufferValues, 288, 16),
     };
 
     constructor() {
@@ -107,6 +108,7 @@ export class PrepareGBuffers extends RenderPass {
         this.FrameBufferViews.viewInverseMatrix.set(tempMatrix.clone().copy(camera.viewMatrix).invert().elements);
         this.FrameBufferViews.viewMatrix.set(camera.viewMatrix.elements);
         this.FrameBufferViews.projectionMatrix.set(camera.projectionMatrix.elements);
+        this.FrameBufferViews.viewProjectionMatrix.set(camera.projectionMatrix.clone().mul(camera.viewMatrix).elements);
         this.FrameBuffer.SetArray(this.FrameBufferValues);
 
         resources.setResource(PassParams.FrameBuffer, this.FrameBuffer);

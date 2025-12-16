@@ -6,13 +6,16 @@ import { Geometry } from "../../Geometry";
 import { TextureSampler } from "../TextureSampler";
 import { PassParams } from "../RenderingPipeline";
 import { Console, ConsoleVarConfigs } from "../../Console";
+import { RenderTexture } from "../Texture";
 
 const TextureViewerSettings = Console.define({r_exposure: { default: 0.0, help: "Final image exposure"}} satisfies ConsoleVarConfigs);
 
-export class TextureViewer extends RenderPass {
-    public name: string = "TextureViewer";
+export class PostExposureTonemap extends RenderPass {
+    public name: string = "PostExposureTonemap";
     private shader: Shader;
     private quadGeometry: Geometry;
+
+    private renderTarget: RenderTexture;
 
     public async init() {
         const code = `
@@ -102,19 +105,11 @@ export class TextureViewer extends RenderPass {
             let a = c.a;
             var col = c.rgb;
             
-            // // Apply exposure
-            // col = col * exp2(EXPOSURE);
+            // Apply exposure
+            col = col * exp2(EXPOSURE);
 
-            // // Tonemap
-            // col = toneMapping(col);
-            // // Apply the sRGB transfer function (gamma correction)
-            col = clamp(gammaCorrection(col), vec3f(0.0), vec3f(1.0));
-
-
-            // // // Tonemap
-            // // col = aces_fitted(col);
-            // // // Apply the sRGB transfer function (gamma correction)
-            // // col = clamp(gamma_correct(col), vec3f(0.0), vec3f(1.0));
+            // Tonemap
+            col = toneMapping(col);
 
             return vec4f(col, 1.0);
         }
@@ -122,7 +117,7 @@ export class TextureViewer extends RenderPass {
 
         this.shader = await Shader.Create({
             code: code,
-            colorOutputs: [{format: Renderer.SwapChainFormat}],
+            colorOutputs: [{format: "rgba16float"}],
             uniforms: {
                 textureSampler: {group: 0, binding: 0, type: "sampler"},
                 texture: {group: 0, binding: 1, type: "texture"},
@@ -133,6 +128,7 @@ export class TextureViewer extends RenderPass {
 
         const sampler = TextureSampler.Create();
         this.shader.SetSampler("textureSampler", sampler);
+        this.renderTarget = RenderTexture.Create(Renderer.width, Renderer.height, 1, "rgba16float");
 
         this.initialized = true;
     }
@@ -146,8 +142,10 @@ export class TextureViewer extends RenderPass {
         this.shader.SetTexture("texture", LightingPassOutputTexture);
         this.shader.SetValue("exposure", TextureViewerSettings.r_exposure.value);
 
-        RendererContext.BeginRenderPass("TextureViewer", [{clear: false}], undefined, true);
+        RendererContext.BeginRenderPass(this.name, [{clear: false, target: this.renderTarget}], undefined, true);
         RendererContext.Draw(this.quadGeometry, this.shader, 3);
         RendererContext.EndRenderPass();
+
+        RendererContext.CopyTextureToTexture(this.renderTarget, LightingPassOutputTexture);
     }
 }

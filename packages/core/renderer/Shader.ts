@@ -135,7 +135,11 @@ export class Compute extends BaseShader {
      * ```
      */
     public static async Create(params: ComputeShaderParams): Promise<Compute> {
-        params.code = await ShaderPreprocessor.ProcessIncludes(params.code);
+        params.code = await ShaderPreprocessor.ProcessIncludesV2(params.code);
+        const reflectionSource = params.defines ? ShaderPreprocessor.ProcessDefines(params.code, params.defines) : params.code;
+        const reflection = ReflectWGSL(reflectionSource);
+        if (!params.uniforms) params.uniforms = reflection.uniforms;
+        else for (const [name, uniform] of Object.entries(reflection.uniforms)) if (!params.uniforms[name]) params.uniforms[name] = uniform;
         if (Renderer.type === "webgpu") return new WEBGPUComputeShader(params);
         throw Error("Unknown api");
     }

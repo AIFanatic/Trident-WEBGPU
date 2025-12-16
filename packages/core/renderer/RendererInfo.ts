@@ -1,3 +1,5 @@
+import { Shader } from "./Shader";
+
 export class RendererInfo {
     public frame: number = 0;
     public deltaTime: number = 0;
@@ -24,6 +26,8 @@ export class RendererInfo {
     
     public framePassesStats: Map<string, number> = new Map();
 
+    public drawCalls: Map<string, Shader> = new Map();
+
     public SetPassTime(name: string, time: number) {
         this.framePassesStats.set(name, time / 1e6);
     }
@@ -39,5 +43,6 @@ export class RendererInfo {
         this.visibleTriangles = 0;
 
         this.gpuBandwidthInBytes = 0;
+        this.drawCalls.clear();
     }
 }

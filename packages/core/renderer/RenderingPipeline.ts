@@ -10,8 +10,8 @@ import { CubeTexture, RenderTexture, TextureFormat } from "./Texture";
 import { ForwardPass } from "./passes/ForwardPass";
 import { IBLLightingPass } from "./passes/IBLIBLLightingPass";
 import { SkyboxPass } from "./passes/SkyboxPass";
-import { BasePass } from "./passes/BasePass";
 import { RenderablePass } from "./passes/RenderablePass";
+import { PostExposureTonemap } from "./passes/PostExposureTonemap";
 
 export const PassParams = {
     DebugSettings: "DebugSettings",
@@ -45,7 +45,8 @@ export enum RenderPassOrder {
     AfterGBuffer,
     BeforeLighting,
     AfterLighting,
-    BeforeScreenOutput
+    BeforeScreenOutput,
+    AfterScreenOutput,
 };
 
 export class RenderingPipeline {
@@ -62,6 +63,7 @@ export class RenderingPipeline {
     private afterLightingPasses: RenderPass[] = [];
 
     private beforeScreenOutputPasses: RenderPass[] = [];
+    private afterScreenOutputPasses: RenderPass[] = [];
 
     private prepareGBuffersPass: PrepareGBuffers;
     public get skybox(): CubeTexture { return this.prepareGBuffersPass.skybox};
@@ -105,6 +107,10 @@ export class RenderingPipeline {
         ];
         
         this.beforeScreenOutputPasses = [
+            new PostExposureTonemap(),
+        ]
+
+        this.afterScreenOutputPasses = [
             new TextureViewer(),
         ]
         
@@ -118,7 +124,8 @@ export class RenderingPipeline {
             ...this.afterGBufferPasses,
             ...this.beforeLightingPasses,
             ...this.afterLightingPasses,
-            ...this.beforeScreenOutputPasses
+            ...this.beforeScreenOutputPasses,
+            ...this.afterScreenOutputPasses
         );
 
         this.renderGraph.init();
@@ -130,6 +137,7 @@ export class RenderingPipeline {
         else if (order === RenderPassOrder.BeforeLighting) this.beforeLightingPasses.push(pass);
         else if (order === RenderPassOrder.AfterLighting) this.afterLightingPasses.push(pass);
         else if (order === RenderPassOrder.BeforeScreenOutput) this.beforeScreenOutputPasses.push(pass);
+        else if (order === RenderPassOrder.AfterScreenOutput) this.afterScreenOutputPasses.push(pass);
 
         this.UpdateRenderGraphPasses();
     }

@@ -39,17 +39,17 @@ type ConsoleVarConfig<T> = {
 export type ConsoleVarConfigs = Record<string, ConsoleVarConfig<any>>;
 
 class ConsoleManager {
-    private vars = new Map<string, ConsoleVar<any>>();
+    private vars: {[key: string]: ConsoleVar<any>} = {};
 
     private defineVar<T>(opts: ConsoleVarOptions<T>): ConsoleVar<T> {
         const key = opts.name.toLowerCase();
         const variable = new ConsoleVar(opts);
-        this.vars.set(key, variable);
+        this.vars[key] = variable;
         return variable;
     }
 
     public getVar<T>(name: string): ConsoleVar<T> | undefined {
-        return this.vars.get(name.toLowerCase());
+        return this.vars[name.toLowerCase()];
     }
 
     public define<const Defs extends ConsoleVarConfigs>(defs: Defs): { [K in keyof Defs]: ConsoleVar<Defs[K]["default"]> } {

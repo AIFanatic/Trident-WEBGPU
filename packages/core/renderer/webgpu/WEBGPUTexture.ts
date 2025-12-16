@@ -176,12 +176,12 @@ export class WEBGPUTexture implements Texture {
 
     // Format and types are very limited for now
     // https://github.com/gpuweb/gpuweb/issues/2322
-    public static FromImageBitmap(imageBitmap: ImageBitmap, width: number, height: number, format: TextureFormat, generateMips: boolean): WEBGPUTexture {
+    public static FromImageBitmap(imageBitmap: ImageBitmap, width: number, height: number, format: TextureFormat, flipY: boolean, generateMips: boolean): WEBGPUTexture {
         const texture = new WEBGPUTexture(width, height, 1, format, TextureType.RENDER_TARGET, "2d", 1);
 
         try {
             WEBGPURenderer.device.queue.copyExternalImageToTexture(
-                { source: imageBitmap, flipY: false },
+                { source: imageBitmap, flipY: flipY },
                 { texture: texture.GetBuffer() },
                 [imageBitmap.width, imageBitmap.height]
             );

@@ -3,6 +3,7 @@ import { Buffer, BufferType } from "../renderer/Buffer";
 import { Transform } from "./Transform";
 import { Renderable } from "./Renderable";
 import { RendererContext } from "../renderer/RendererContext";
+import { Shader } from "../renderer/Shader";
 
 export class Skin {
     private joints: Transform[];
@@ -58,9 +59,9 @@ export class SkinnedMesh extends Renderable {
         this.material.shader.SetBuffer("boneMatrices", this.boneMatricesBuffer);
     }
 
-    public OnRenderObject() {
-        if (!this.geometry || !this.material || !this.material?.shader) return;
-
-        RendererContext.DrawGeometry(this.geometry, this.material.shader);
+    public OnRenderObject(shaderOverride: Shader): void {
+        const shader = shaderOverride ? shaderOverride : this.material?.shader;
+        if (!this.geometry || !this.material || !shader) return;
+        RendererContext.DrawGeometry(this.geometry, shader);
     }
 }

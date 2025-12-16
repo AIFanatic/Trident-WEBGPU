@@ -2,7 +2,6 @@ import { Camera } from "../../components/Camera";
 import { RendererContext } from "../RendererContext";
 import { RenderPass, ResourcePool } from "../RenderGraph";
 import { PassParams } from "../RenderingPipeline";
-import { Scene } from "../../Scene";
 import { Renderable } from "../../components/Renderable";
 
 export class RenderablePass extends RenderPass {
@@ -13,16 +12,22 @@ export class RenderablePass extends RenderPass {
         this.renderables.length = 0;
 
         const FrameBuffer = resources.getResource(PassParams.FrameBuffer);
-        const potentialRenderables = Scene.mainScene.GetComponents(Renderable);
-        for (const renderable of potentialRenderables) {
-            renderable.OnPreRender();
+        const potentialRenderables = Renderable.Renderables;
+        for (const [id, renderable] of potentialRenderables) {
+            renderable.OnPreFrame();
 
-            if (!renderable.material.shader) continue;
+            if (!renderable.material || !renderable.material.shader) continue;
             if (renderable.material.params.isDeferred === false) continue;
         
             renderable.material.shader.SetBuffer("frameBuffer", FrameBuffer);
             
             this.renderables.push(renderable);
+        }
+    }
+
+    public async preRender(resources: ResourcePool) {
+        for (const renderable of this.renderables) {
+            renderable.OnPreRender();
         }
     }
 

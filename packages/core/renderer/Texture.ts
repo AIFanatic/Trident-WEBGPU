@@ -116,13 +116,13 @@ export class Texture {
     public static async Load(url: string | URL, format: TextureFormat = Renderer.SwapChainFormat, flipY: boolean = false, generateMips = false): Promise<Texture> {
         const response = await fetch(url);
         const imageBitmap = await createImageBitmap(await response.blob());
-        if (Renderer.type === "webgpu") return WEBGPUTexture.FromImageBitmap(imageBitmap, imageBitmap.width, imageBitmap.height, format, generateMips);
+        if (Renderer.type === "webgpu") return WEBGPUTexture.FromImageBitmap(imageBitmap, imageBitmap.width, imageBitmap.height, format, flipY, generateMips);
         throw Error("Renderer type invalid");
     }
 
-    public static async LoadImageSource(imageSource: ImageBitmapSource, format: TextureFormat = Renderer.SwapChainFormat, generateMips = false): Promise<Texture> {
+    public static async LoadImageSource(imageSource: ImageBitmapSource, format: TextureFormat = Renderer.SwapChainFormat, flipY: boolean = false, generateMips = false): Promise<Texture> {
         const imageBitmap = await createImageBitmap(imageSource);
-        if (Renderer.type === "webgpu") return WEBGPUTexture.FromImageBitmap(imageBitmap, imageBitmap.width, imageBitmap.height, format, generateMips);
+        if (Renderer.type === "webgpu") return WEBGPUTexture.FromImageBitmap(imageBitmap, imageBitmap.width, imageBitmap.height, format, flipY, generateMips);
         throw Error("Renderer type invalid");
     }
 

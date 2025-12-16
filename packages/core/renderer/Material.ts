@@ -26,7 +26,7 @@ export class Material {
     }
 
     public Destroy() {
-        this.shader.Destroy();
+        if (this.shader) this.shader.Destroy();
     };
 
     public Serialize(metadata: any = {}) {
@@ -41,6 +41,10 @@ export class Material {
         if (data.type === "@trident/core/renderer/Material/PBRMaterial") {
             return PBRMaterial.Deserialize(data);
         }
+    }
+
+    public clone(): Material {
+        return Material.Deserialize(this.Serialize());
     }
 }
 
@@ -80,7 +84,7 @@ export class PBRMaterial extends Material {
     public static DefaultParams: PBRMaterialParams = {
         albedoColor: new Color(1,1,1,1),
         emissiveColor: new Color(0,0,0,0),
-        roughness: 0,
+        roughness: 0.5,
         metalness: 0,
     
         albedoMap: undefined,
