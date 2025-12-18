@@ -66,26 +66,10 @@ async function Application(canvas: HTMLCanvasElement) {
     const topMaterial = new PBRMaterial({ albedoColor: new Mathf.Color(1, 1, 1, 1), roughness: roughness, metalness: metalness });
     const floorMaterial = new PBRMaterial({ albedoColor: new Mathf.Color(1, 1, 1, 1), roughness: roughness, metalness: metalness });
     
-    // const albedoMap = await Texture.Load("./test-assets/textures/brick-wall-unity/brick-wall_albedo.png");
-    // const normalMap = await Texture.Load("./test-assets/textures/brick-wall-unity/brick-wall_normal-ogl.png");
-    // const metalnessMap = await Texture.Load("./test-assets/textures/brick-wall-unity/brick-wall_metallic.png");
-    // albedoMap.GenerateMips();
-    // normalMap.GenerateMips();
-    // metalnessMap.GenerateMips();
-    // const backMaterial = new PBRMaterial({
-    //     albedoMap: albedoMap,
-    //     normalMap: normalMap,
-    //     metalnessMap: metalnessMap,
-    //     roughness: 0.1, metalness: 0.3
-    //     // albedoColor: new Mathf.Color(1, 1, 1, 1), roughness: roughness, metalness: metalness
-    // });
-
     const backMaterial = new PBRMaterial({ albedoColor: new Mathf.Color(1, 1, 1, 1), roughness: roughness, metalness: metalness });
 
     const leftMaterial = new PBRMaterial({ albedoColor: new Mathf.Color(1, 0, 0, 1), roughness: roughness, metalness: metalness });
     const rightMaterial = new PBRMaterial({ albedoColor: new Mathf.Color(0, 1, 0, 1), roughness: roughness, metalness: metalness });
-    // const leftMaterial = new PBRMaterial({ albedoMap: await Texture.Load("./test-assets/textures/brick-wall-unity/brick-wall_normal-ogl.png"), roughness: roughness, metalness: metalness });
-    // const rightMaterial = new PBRMaterial({ albedoMap: await Texture.Load("./test-assets/textures/brick-wall-unity/brick-wall_albedo.png"), roughness: roughness, metalness: metalness });
 
     const planeGeometry = Geometry.Plane();
     const cubeGeometry = Geometry.Cube();

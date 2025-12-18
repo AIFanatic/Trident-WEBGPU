@@ -46,3 +46,5 @@ import "./LightBenchmark";
 import "./LODTest";
 
 import "./SMAA";
+
+import "./ShadowTest";

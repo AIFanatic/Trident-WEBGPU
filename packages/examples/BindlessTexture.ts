@@ -23,8 +23,6 @@ async function Application(canvas: HTMLCanvasElement) {
     // const t3 = await RenderTexture.Load("./assets/img/brickwall_albedo.png");
     // const t4 = await RenderTexture.Load("./assets/img/toybox_normal.png");
 
-    const t5 = await GPU.RenderTexture.Load("./assets/textures/brick-wall_albedo.png");
-
     const atlas = new Atlas(16);
 
     // // atlas.AddTexture(t1);

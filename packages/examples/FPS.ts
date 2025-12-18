@@ -79,6 +79,8 @@ async function Application(canvas: HTMLCanvasElement) {
 
         lightGameObject.transform.position = sunPos;
         lightGameObject.transform.LookAtV1(new Mathf.Vector3(0,0,0));
+
+        light.intensity = skyAtmosphere.SUN_ELEVATION_DEGREES / 10;
     }, 100);
 
     const physicsWorld = new GameObject(scene);
@@ -499,14 +501,32 @@ async function Application(canvas: HTMLCanvasElement) {
         tree1.Destroy();
     
         console.log(lodGroupEntries)
-    
+
+        const lodColors = [
+            [1,0,0,1],
+            [0,1,0,1],
+            [0,0,1,1],
+            [1,1,0,1],
+            [0,1,1,1],
+            [1,1,1,1],
+        ]
+
+        let j = 0;
+        for (let i = 0; i < lodGroupEntries.length; i+=2) {
+            const c = lodColors[j];
+            (lodGroupEntries[i].material as PBRMaterial).params.albedoColor.set(c[0], c[1], c[2], c[3]);
+            j++;
+        }
+        //     lodInstanceRenderable.lods.push({ renderers: lodGroupEntries.slice(0, 2), screenSize: 20 });
+        // lodInstanceRenderable.lods.push({ renderers: lodGroupEntries.slice(2, 4), screenSize: 40 });
+        // lodInstanceRenderable.lods.push({ renderers: lodGroupEntries.slice(4, 6), screenSize: 80 });
+        // lodInstanceRenderable.lods.push({ renderers: lodGroupEntries.slice(6, 8), screenSize: 200 });
         const lodGameObject = new GameObject(scene);
         const lodInstanceRenderable = lodGameObject.AddComponent(LODInstanceRenderable);
-        // lodInstanceRenderable.lods.push({ renderers: lodGroupEntries, screenSize: 0 });
-        lodInstanceRenderable.lods.push({ renderers: lodGroupEntries.slice(0, 2), screenSize: 0 });
-        lodInstanceRenderable.lods.push({ renderers: lodGroupEntries.slice(2, 4), screenSize: 40 });
-        lodInstanceRenderable.lods.push({ renderers: lodGroupEntries.slice(4, 6), screenSize: 80 });
-        lodInstanceRenderable.lods.push({ renderers: lodGroupEntries.slice(6, 8), screenSize: 200 });
+        lodInstanceRenderable.lods.push({ renderers: lodGroupEntries.slice(0, 2), screenSize: 10 }); // from 0 to x
+        lodInstanceRenderable.lods.push({ renderers: lodGroupEntries.slice(2, 4), screenSize: 20 });
+        lodInstanceRenderable.lods.push({ renderers: lodGroupEntries.slice(4, 6), screenSize: 100 });
+        lodInstanceRenderable.lods.push({ renderers: lodGroupEntries.slice(6, 8), screenSize: 300 });
     
         const p = new Mathf.Vector3();
         const r = new Mathf.Vector3();
@@ -558,8 +578,6 @@ async function Application(canvas: HTMLCanvasElement) {
                 const geometrySerialized = mesh.geometry.Serialize();
                 const materialSerialized = mesh.material.Serialize();
                 console.log(materialSerialized.params.roughness, materialSerialized.params.metalness)
-                materialSerialized.params.roughness = 1.0
-                materialSerialized.params.metalness = 0.0;
                 const materialClone = GPU.Material.Deserialize(materialSerialized);
                 const geometryClone = new Geometry();
                 geometryClone.Deserialize(geometrySerialized);
@@ -571,11 +589,9 @@ async function Application(canvas: HTMLCanvasElement) {
     
         const lodGameObject = new GameObject(scene);
         const lodInstanceRenderable = lodGameObject.AddComponent(LODInstanceRenderable);
+        lodInstanceRenderable.enableShadows = false;
         lodInstanceRenderable.lods.push({ renderers: lodGroupEntries, screenSize: 0 });
-        // lodInstanceRenderable.lods.push({ renderers: lodGroupEntries.slice(0, 2), screenSize: 0 });
-        // lodInstanceRenderable.lods.push({ renderers: lodGroupEntries.slice(2, 4), screenSize: 40 });
-        // lodInstanceRenderable.lods.push({ renderers: lodGroupEntries.slice(4, 6), screenSize: 80 });
-        // lodInstanceRenderable.lods.push({ renderers: lodGroupEntries.slice(6, 8), screenSize: 200 });
+        lodInstanceRenderable.lods.push({ renderers: lodGroupEntries, screenSize: 1000 });
     
         const p = new Mathf.Vector3();
         const r = new Mathf.Vector3();
@@ -584,9 +600,7 @@ async function Application(canvas: HTMLCanvasElement) {
         const m = new Mathf.Matrix4();
     
         const c = 20000;
-        const off = 1000;
-    
-        const c2 = 20;
+        const off = 500;
     
         const center = playerGameObject.transform.position;
     
@@ -598,6 +612,9 @@ async function Application(canvas: HTMLCanvasElement) {
     
             const x = center.x + Mathf.Cos(angle) * radius;
             const z = center.z + Mathf.Sin(angle) * radius;
+
+            // const x = Mathf.RandomRange(-off, off);
+            // const z = Mathf.RandomRange(-off, off);            
     
             p.set(x, 0, z);
             terrain.SampleHeight(p);
@@ -626,7 +643,7 @@ async function Application(canvas: HTMLCanvasElement) {
         const water = waterGameObject.AddComponent(Water);
     }
 
-    Console.getVar("r_exposure").value = 0;
+    Console.getVar("r_exposure").value = 1;
     Console.getVar("r_shadows_csm_splittypepracticallambda").value = 0.99;
 
     mainCameraGameObject.transform.position.set(0, 0, 500);

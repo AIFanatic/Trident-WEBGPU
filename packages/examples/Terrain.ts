@@ -38,10 +38,7 @@ async function Application(canvas: HTMLCanvasElement) {
     gameObject.transform.position.z -= terrainSize * 0.5;
     gameObject.transform.position.x -= terrainSize * 0.5;
     gameObject.transform.position.y = -5;
-    const terrainAlbedo = await GPU.Texture.Load("./assets/textures/rocky_terrain_02_2k/rocky_terrain_02_diff_2k.jpg");
-    const terrainNormal = await GPU.Texture.Load("./assets/textures/rocky_terrain_02_2k/rocky_terrain_02_nor_gl_2k.jpg");
-    const terrainSpec = await GPU.Texture.Load("./assets/textures/rocky_terrain_02_2k/rocky_terrain_02_spec_2k.jpg");
-    const material = new PBRMaterial({albedoMap: terrainAlbedo, normalMap: terrainNormal, metalnessMap: terrainSpec});
+    const material = new PBRMaterial();
     // const material = new PBRMaterial();
     const mesh = gameObject.AddComponent(Components.Mesh);
     mesh.geometry = terrain.geometry;
