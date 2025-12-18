@@ -451,12 +451,12 @@ export class UITextureViewer extends Stat {
 
         // Some time for setup
         setTimeout(async () => {
-            this.Update();
+            await this.textureViewer.init();
+            await this.textureViewer.execute();
         }, 100);
     }
 
     public async Update() {
-        await this.textureViewer.init();
         await this.textureViewer.execute();
     }
 }
