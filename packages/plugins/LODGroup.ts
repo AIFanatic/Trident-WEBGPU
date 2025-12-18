@@ -91,23 +91,37 @@ export class LODInstanceRenderable extends LODGroup {
 
             const blockSize: u32 = 1;
 
-            fn sphere_inside_frustum(viewProjection: mat4x4<f32>, centerWS : vec3<f32>, radius : f32) -> bool {
-                let c = viewProjection * vec4<f32>(centerWS, 1.0); // clip space
+            fn computeRadiusScale(modelMatrix: mat4x4<f32>) -> f32 {
+                let sx = length(modelMatrix[0].xyz);
+                let sy = length(modelMatrix[1].xyz);
+                let sz = length(modelMatrix[2].xyz);
+                return max(sx, max(sy, sz));
+            }
 
-                if (c.x >  c.w + radius) { return false; } // right
-                if (c.x < -c.w - radius) { return false; } // left
-                if (c.y >  c.w + radius) { return false; } // top
-                if (c.y < -c.w - radius) { return false; } // bottom
-                if (c.z >  c.w + radius) { return false; } // far
-                if (c.z <        0.0 - radius) { return false; } // near (for 0..w depth)
-
-                return true;
+            fn worldCenter(modelMatrix: mat4x4<f32>, localCenter: vec3f) -> vec3f {
+                return (modelMatrix * vec4f(localCenter, 1.0)).xyz;
+            }
+                
+            fn outsideFrustum(modelMatrix: mat4x4<f32>, boundingSphere: vec4<f32>) -> bool {
+                let radiusScale = computeRadiusScale(modelMatrix);
+                let centerWorld = worldCenter(modelMatrix, boundingSphere.xyz);
+                let worldRadius = boundingSphere.w * radiusScale;
+            
+                for (var i = 0u; i < 6u; i++) {
+                    let plane = frameBuffer.frustum[i];
+                    let distance = dot(plane.xyz, centerWorld) + plane.w;
+                    if (distance < -worldRadius) {
+                        return true;
+                    }
+                }
+                    
+                return false;
             }
 
             @compute @workgroup_size(blockSize, blockSize, blockSize)
             fn main(@builtin(global_invocation_id) grid: vec3<u32>) {
-                let size = u32(ceil(pow(meshCount, 1.0 / 3.0) / 4));
-                let objectIndex = grid.x + (grid.y * size * blockSize) + (grid.z * size * size * blockSize * blockSize);
+                let size = u32(ceil(pow(meshCount, 1.0 / 3.0)));
+                let objectIndex = grid.x + (grid.y * size) + (grid.z * size * size);
 
                 if (objectIndex >= u32(meshCount)) {
                     return;
@@ -116,18 +130,25 @@ export class LODInstanceRenderable extends LODGroup {
                 let modelMatrixInstance = modelMatrix[objectIndex];
                 let modelPosition = modelMatrixInstance[3].xyz;
 
-                if (!sphere_inside_frustum(frameBuffer.viewProjectionMatrix, modelPosition + boundingSphere.xyz, boundingSphere.w)) {
+                if (outsideFrustum(modelMatrixInstance, boundingSphere)) {
                     // return;
                 }
 
-                let distance = distance(frameBuffer.viewPosition.xyz, modelPosition);
-                var lod: u32 = 0u;
-                for (var i: u32 = 0u; i < u32(lodCount); i++) {
-                    if (distance <= lods[i].distance) {
+                let lc = u32(lodCount);
+                if (lc == 0u) { return; }
+                
+                let d = distance(frameBuffer.viewPosition.xyz, modelPosition);
+                let cullDistance = lods[lc - 1u].distance;
+                if (d > cullDistance) { return; }
+
+                var lod: u32 = lc - 1u;
+
+                // pick the first threshold that contains d
+                for (var i: u32 = 0u; i < lc; i++) {
+                    if (d <= lods[i].distance) {
                         lod = i;
                         break;
                     }
-                    lod = min(i + 1u, u32(lodCount) - 1u);
                 }
 
                 let writeIndex = atomicAdd(&drawBuffer[lod].instanceCount, 1u);
@@ -228,7 +249,8 @@ export class LODInstanceRenderable extends LODGroup {
         this.drawCompute.SetBuffer("lodMatrices", this.lodMatricesScratch);
 
         GPU.ComputeContext.BeginComputePass("LODGroup");
-        GPU.ComputeContext.Dispatch(this.drawCompute, this.instanceCount, 1, 1);
+        const dispatchSize = Math.max(1, Math.ceil(Math.cbrt(this.instanceCount)));
+        GPU.ComputeContext.Dispatch(this.drawCompute, dispatchSize, dispatchSize, dispatchSize);
         GPU.ComputeContext.EndComputePass();
 
         GPU.Renderer.EndRenderFrame();
