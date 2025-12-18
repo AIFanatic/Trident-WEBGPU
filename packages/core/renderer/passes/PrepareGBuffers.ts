@@ -26,7 +26,7 @@ export class PrepareGBuffers extends RenderPass {
     public GBufferFormat: TextureFormat = "rgba8unorm";
 
     private FrameBuffer: Buffer;
-    private FrameBufferValues = new ArrayBuffer(352);
+    private FrameBufferValues = new ArrayBuffer(448);
     private FrameBufferViews = {
         projectionOutputSize: new Float32Array(this.FrameBufferValues, 0, 4),
         viewPosition: new Float32Array(this.FrameBufferValues, 16, 4),
@@ -35,6 +35,7 @@ export class PrepareGBuffers extends RenderPass {
         viewMatrix: new Float32Array(this.FrameBufferValues, 160, 16),
         projectionMatrix: new Float32Array(this.FrameBufferValues, 224, 16),
         viewProjectionMatrix: new Float32Array(this.FrameBufferValues, 288, 16),
+        frustum: new Float32Array(this.FrameBufferValues, 352, 24),
     };
 
     constructor() {
@@ -109,6 +110,15 @@ export class PrepareGBuffers extends RenderPass {
         this.FrameBufferViews.viewMatrix.set(camera.viewMatrix.elements);
         this.FrameBufferViews.projectionMatrix.set(camera.projectionMatrix.elements);
         this.FrameBufferViews.viewProjectionMatrix.set(camera.projectionMatrix.clone().mul(camera.viewMatrix).elements);
+        this.FrameBufferViews.frustum.set([
+            ...camera.frustum.planes[0].normal.elements, camera.frustum.planes[0].constant,
+            ...camera.frustum.planes[1].normal.elements, camera.frustum.planes[1].constant,
+            ...camera.frustum.planes[2].normal.elements, camera.frustum.planes[2].constant,
+            ...camera.frustum.planes[3].normal.elements, camera.frustum.planes[3].constant,
+            ...camera.frustum.planes[4].normal.elements, camera.frustum.planes[4].constant,
+            ...camera.frustum.planes[5].normal.elements, camera.frustum.planes[5].constant,
+        ]);
+
         this.FrameBuffer.SetArray(this.FrameBufferValues);
 
         resources.setResource(PassParams.FrameBuffer, this.FrameBuffer);
