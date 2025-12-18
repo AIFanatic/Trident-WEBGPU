@@ -361,11 +361,11 @@ class UITextureViewer extends Stat {
       this.textureViewer.canvasTexture.canvas.style.height = "128px";
     });
     setTimeout(async () => {
-      this.Update();
+      await this.textureViewer.init();
+      await this.textureViewer.execute();
     }, 100);
   }
   async Update() {
-    await this.textureViewer.init();
     await this.textureViewer.execute();
   }
 }

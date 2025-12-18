@@ -34,7 +34,6 @@
               GPU.Renderer.Create(canvas, "webgpu");
               await GPU.RenderTexture.Load("./assets/textures/32x32.png");
               await GPU.RenderTexture.Load("./assets/textures/64x64.png");
-              await GPU.RenderTexture.Load("./assets/textures/brick-wall_albedo.png");
               const atlas = new Atlas(16);
               const b1d = new Float32Array([0.1, 0.2, 0.5, 0.8]);
               console.log(b1d);

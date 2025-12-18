@@ -73,6 +73,7 @@
                 const sunPos = new Mathf.Vector3(x, y, z);
                 lightGameObject.transform.position = sunPos;
                 lightGameObject.transform.LookAtV1(new Mathf.Vector3(0, 0, 0));
+                light.intensity = skyAtmosphere.SUN_ELEVATION_DEGREES / 10;
               }, 100);
               const physicsWorld = new GameObject(scene);
               const physicsComponent = physicsWorld.AddComponent(PhysicsRapier);
@@ -363,12 +364,26 @@
                 });
                 tree1.Destroy();
                 console.log(lodGroupEntries);
+                const lodColors = [
+                  [1, 0, 0, 1],
+                  [0, 1, 0, 1],
+                  [0, 0, 1, 1],
+                  [1, 1, 0, 1],
+                  [0, 1, 1, 1],
+                  [1, 1, 1, 1]
+                ];
+                let j = 0;
+                for (let i = 0; i < lodGroupEntries.length; i += 2) {
+                  const c3 = lodColors[j];
+                  lodGroupEntries[i].material.params.albedoColor.set(c3[0], c3[1], c3[2], c3[3]);
+                  j++;
+                }
                 const lodGameObject = new GameObject(scene);
                 const lodInstanceRenderable = lodGameObject.AddComponent(LODInstanceRenderable);
-                lodInstanceRenderable.lods.push({ renderers: lodGroupEntries.slice(0, 2), screenSize: 0 });
-                lodInstanceRenderable.lods.push({ renderers: lodGroupEntries.slice(2, 4), screenSize: 40 });
-                lodInstanceRenderable.lods.push({ renderers: lodGroupEntries.slice(4, 6), screenSize: 80 });
-                lodInstanceRenderable.lods.push({ renderers: lodGroupEntries.slice(6, 8), screenSize: 200 });
+                lodInstanceRenderable.lods.push({ renderers: lodGroupEntries.slice(0, 2), screenSize: 10 });
+                lodInstanceRenderable.lods.push({ renderers: lodGroupEntries.slice(2, 4), screenSize: 20 });
+                lodInstanceRenderable.lods.push({ renderers: lodGroupEntries.slice(4, 6), screenSize: 100 });
+                lodInstanceRenderable.lods.push({ renderers: lodGroupEntries.slice(6, 8), screenSize: 300 });
                 const p = new Mathf.Vector3();
                 const r = new Mathf.Vector3();
                 const q = new Mathf.Quaternion();
@@ -401,8 +416,6 @@
                     const geometrySerialized = mesh.geometry.Serialize();
                     const materialSerialized = mesh.material.Serialize();
                     console.log(materialSerialized.params.roughness, materialSerialized.params.metalness);
-                    materialSerialized.params.roughness = 1;
-                    materialSerialized.params.metalness = 0;
                     const materialClone = GPU.Material.Deserialize(materialSerialized);
                     const geometryClone = new Geometry();
                     geometryClone.Deserialize(geometrySerialized);
@@ -412,7 +425,9 @@
                 tree1.Destroy();
                 const lodGameObject = new GameObject(scene);
                 const lodInstanceRenderable = lodGameObject.AddComponent(LODInstanceRenderable);
+                lodInstanceRenderable.enableShadows = false;
                 lodInstanceRenderable.lods.push({ renderers: lodGroupEntries, screenSize: 0 });
+                lodInstanceRenderable.lods.push({ renderers: lodGroupEntries, screenSize: 1e3 });
                 const p = new Mathf.Vector3();
                 const r = new Mathf.Vector3();
                 const q = new Mathf.Quaternion();
@@ -444,7 +459,7 @@
                 waterGameObject.transform.position.y = 25;
                 waterGameObject.AddComponent(Water);
               }
-              Console.getVar("r_exposure").value = 0;
+              Console.getVar("r_exposure").value = 1;
               Console.getVar("r_shadows_csm_splittypepracticallambda").value = 0.99;
               mainCameraGameObject.transform.position.set(0, 0, 500);
               const postProcessing = new PostProcessingPass();
