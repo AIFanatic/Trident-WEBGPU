@@ -1,0 +1,364 @@
+
+    <!DOCTYPE html>
+    <html>
+        <head>
+            <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no">
+            <meta name="mobile-web-app-capable" content="yes">
+            <meta name="apple-mobile-web-app-capable" content="yes">
+            
+            <style>
+                html, body {
+                    margin: 0;
+                    overflow: hidden;
+                    width: 100%;
+                    height: 100%;
+                }
+            </style>
+        </head>
+        <body>
+            <script type="importmap">
+                {
+                    "imports": {
+                        "@trident/core": "../trident-core.js",
+                        "@trident/plugins/": "../plugins/"
+                    }
+                }
+            </script>
+            <script type="module">
+                const canvas = document.createElement("canvas");
+                document.body.appendChild(canvas);
+                            import { GPU, Scene, GameObject, Mathf, Components, Geometry, PBRMaterial } from '@trident/core';
+            import { OrbitControls } from '@trident/plugins/OrbitControls.js';
+            import { Debugger } from '@trident/plugins/Debugger.js';
+            
+            class Handle {
+              constructor(idx) {
+                this.idx = idx;
+              }
+            }
+            const U32 = 4;
+            const ALIGN = 16;
+            const MAGIC = 1396919858;
+            const VERSION = 1;
+            const HEADER_BYTES = 16;
+            const DESC_U32 = 8;
+            const DESC_BYTES = DESC_U32 * U32;
+            function align16(x) {
+              return x + (ALIGN - 1) & -16;
+            }
+            class Scene2 {
+              buf;
+              totalBytes;
+              tables = [];
+              byId = /* @__PURE__ */ new Map();
+              heapPtrBytes;
+              offsetsRegionBaseBytes;
+              constructor(totalBytes, maxTables, maxEntriesPerTable) {
+                this.totalBytes = totalBytes;
+                const descRegionBytes = maxTables * DESC_BYTES;
+                const offsetsRegionBytes = maxTables * maxEntriesPerTable * U32;
+                this.offsetsRegionBaseBytes = HEADER_BYTES + descRegionBytes;
+                const heapBase = align16(this.offsetsRegionBaseBytes + offsetsRegionBytes);
+                this.heapPtrBytes = heapBase;
+                if (heapBase >= totalBytes) throw new Error("Scene2: buffer too small.");
+                this.buf = GPU.Buffer.Create(totalBytes, GPU.BufferType.STORAGE);
+                this.writeHeader();
+              }
+              getBuffer() {
+                return this.buf;
+              }
+              /** Create a table and return an object with push/set/remove. */
+              createTable(id, strideBytes, capacity, maxEntriesPerTable) {
+                if (this.byId.has(id)) throw new Error(`duplicate tableId ${id}`);
+                const tableIndex = this.tables.length;
+                if (capacity > maxEntriesPerTable) throw new Error("capacity > maxEntriesPerTable");
+                const offsetsBaseBytes = this.offsetsRegionBaseBytes + tableIndex * maxEntriesPerTable * U32;
+                const t = {
+                  id,
+                  tableIndex,
+                  offsetsBaseBytes,
+                  stride: strideBytes,
+                  capacity,
+                  count: 0,
+                  ptrs: new Uint32Array(capacity),
+                  handles: new Array(capacity).fill(null)
+                };
+                this.tables.push(t);
+                this.byId.set(id, t);
+                this.buf.SetArray(new Uint32Array(maxEntriesPerTable), offsetsBaseBytes);
+                this.writeTableDesc(t);
+                this.writeHeader();
+                return new Table(this, t);
+              }
+              // -------- methods used by Table --------
+              _allocPayload(bytes) {
+                const ptr = this.heapPtrBytes;
+                const next = align16(ptr + bytes);
+                if (next > this.totalBytes) throw new Error("heap full");
+                this.heapPtrBytes = next;
+                this.writeHeader();
+                return ptr;
+              }
+              _writePayload(byteOffset, data) {
+                this.buf.SetArray(data, byteOffset);
+              }
+              _writeOffsetPtr(t, idx, ptrBytes) {
+                t.ptrs[idx] = ptrBytes >>> 0;
+                this.buf.SetArray(new Uint32Array([ptrBytes >>> 0]), t.offsetsBaseBytes + idx * U32);
+              }
+              _writeCount(t) {
+                const countOffset = HEADER_BYTES + t.tableIndex * DESC_BYTES + 3 * U32;
+                this.buf.SetArray(new Uint32Array([t.count]), countOffset);
+              }
+              writeHeader() {
+                const hdr = new Uint32Array([MAGIC, VERSION, this.tables.length, this.heapPtrBytes]);
+                this.buf.SetArray(hdr, 0);
+              }
+              writeTableDesc(t) {
+                const desc = new Uint32Array(DESC_U32);
+                desc[0] = t.id;
+                desc[1] = t.offsetsBaseBytes;
+                desc[2] = t.stride;
+                desc[3] = t.count;
+                desc[4] = t.capacity;
+                const base = HEADER_BYTES + t.tableIndex * DESC_BYTES;
+                this.buf.SetArray(desc, base);
+              }
+            }
+            class Table {
+              constructor(scene, t) {
+                this.scene = scene;
+                this.t = t;
+              }
+              /** Append new element. Returns a mutable handle whose idx may change on remove(). */
+              push(data) {
+                if (this.t.count >= this.t.capacity) throw new Error("table full (offset slots)");
+                const payloadPtr = this.scene._allocPayload(this.t.stride);
+                this.scene._writePayload(payloadPtr, data);
+                const idx = this.t.count++;
+                this.scene._writeOffsetPtr(this.t, idx, payloadPtr);
+                const h = new Handle(idx);
+                this.t.handles[idx] = h;
+                this.scene._writeCount(this.t);
+                return h;
+              }
+              /** Overwrite payload in place (no allocation). */
+              set(hOrIdx, data) {
+                const idx = typeof hOrIdx === "number" ? hOrIdx : hOrIdx.idx;
+                if (idx < 0 || idx >= this.t.count) throw new Error("OOB");
+                const ptr = this.t.ptrs[idx];
+                this.scene._writePayload(ptr, data);
+              }
+              /** Get the payload pointer (byte offset) for storing in other tables. */
+              ptr(hOrIdx) {
+                const idx = typeof hOrIdx === "number" ? hOrIdx : hOrIdx.idx;
+                if (idx < 0 || idx >= this.t.count) throw new Error("OOB");
+                return this.t.ptrs[idx];
+              }
+              /** Dense remove (swap-remove). Updates moved handle.idx; invalidates removed handle. */
+              remove(h) {
+                const idx = h.idx;
+                const last = this.t.count - 1;
+                if (idx < 0 || idx > last) throw new Error("bad handle");
+                if (idx !== last) {
+                  const lastPtr = this.t.ptrs[last];
+                  this.scene._writeOffsetPtr(this.t, idx, lastPtr);
+                  const moved = this.t.handles[last];
+                  this.t.handles[idx] = moved;
+                  moved.idx = idx;
+                }
+                this.t.handles[last] = null;
+                this.t.count--;
+                this.scene._writeCount(this.t);
+                h.idx = -1;
+              }
+              get count() {
+                return this.t.count;
+              }
+              get id() {
+                return this.t.id;
+              }
+              get tableIndex() {
+                return this.t.tableIndex;
+              }
+              // for WGSL tableDesc(tableIndex)
+            }
+            async function Application(canvas) {
+              const renderer = GPU.Renderer.Create(canvas, "webgpu");
+              const scene = new Scene(renderer);
+              const mainCameraGameObject = new GameObject(scene);
+              mainCameraGameObject.name = "MainCamera";
+              mainCameraGameObject.transform.position.set(0, 0, 5);
+              mainCameraGameObject.transform.LookAt(new Mathf.Vector3(0, 0, 0));
+              const camera = mainCameraGameObject.AddComponent(Components.Camera);
+              camera.SetPerspective(72, canvas.width / canvas.height, 0.5, 1e3);
+              const lightGameObject = new GameObject(scene);
+              lightGameObject.transform.position.set(-4, 4, 4);
+              lightGameObject.transform.LookAtV1(new Mathf.Vector3(0, 0, 0));
+              lightGameObject.AddComponent(Components.DirectionalLight);
+              new OrbitControls(canvas, camera);
+              function hash(str) {
+                let hash2 = 2166136261;
+                for (let i = 0; i < str.length; i++) {
+                  hash2 ^= str.charCodeAt(i);
+                  hash2 = Math.imul(hash2, 16777619);
+                }
+                return hash2 >>> 0;
+              }
+              console.log(hash("TABLE_MODELS"));
+              const globalBuffer = new Scene2(
+                1 * 1024 * 1024 * 1024,
+                64,
+                // maxTables
+                2e5
+                // maxEntriesPerTable (offset slots)
+              );
+              const frameBufferTable = globalBuffer.createTable(hash("TABLE_FRAME_BUFFER"), 16 * 1 * 4, 2, 2e5);
+              const modelsTableIndex = globalBuffer.createTable(hash("TABLE_MODELS"), 16 * 1 * 4, 2e5, 2e5);
+              class BindlessDrawPass extends GPU.RenderPass {
+                shader;
+                name = "BindlessDrawPass";
+                sceneBuffer;
+                async init(resources) {
+                  if (!this.sceneBuffer) throw Error("No scene buffer");
+                  this.shader = await GPU.Shader.Create({
+                    code: `
+            
+            
+                            struct Header {
+                                magic: u32,
+                                version: u32,
+                                tableCount: u32,
+                                heapPtrBytes: u32,
+                            };
+            
+                            // Matches Scene2.ts desc: 32 bytes (8 u32), first 5 used.
+                            struct TableDesc {
+                                id: u32,
+                                offsetsBaseBytes: u32,
+                                strideBytes: u32,
+                                count: u32,
+                                capacity: u32,
+                                _r0: u32,
+                                _r1: u32,
+                                _r2: u32,
+                            };
+            
+                            fn header() -> Header {
+                                return Header(scene[0], scene[1], scene[2], scene[3]);
+                            }
+            
+                            // Header is 4 u32, descs start at u32 index 4.
+                            // Each desc is 8 u32.
+                            fn tableDesc(tableIndex: u32) -> TableDesc {
+                                let base = 4u + tableIndex * 8u;
+                                return TableDesc(
+                                    scene[base + 0u], scene[base + 1u], scene[base + 2u], scene[base + 3u],
+                                    scene[base + 4u], scene[base + 5u], scene[base + 6u], scene[base + 7u]
+                                );
+                            }
+            
+                            fn readU32(byteOffset: u32) -> u32 {
+                                return scene[byteOffset >> 2u];
+                            }
+            
+                            fn readVec4(byteOffset: u32) -> vec4 < f32 > {
+                                let i = byteOffset >> 2u;
+                                return vec4<f32>(
+                                    bitcast<f32>(scene[i + 0u]),
+                                    bitcast<f32>(scene[i + 1u]),
+                                    bitcast<f32>(scene[i + 2u]),
+                                    bitcast<f32>(scene[i + 3u])
+                                );
+                            }
+            
+                            fn readMat4(byteOffset: u32) -> mat4x4 < f32 > {
+                                let c0 = readVec4(byteOffset + 0u);
+                                let c1 = readVec4(byteOffset + 16u);
+                                let c2 = readVec4(byteOffset + 32u);
+                                let c3 = readVec4(byteOffset + 48u);
+                                return mat4x4<f32>(c0, c1, c2, c3);
+                            }
+            
+                            // offsets[index] -> payload pointer (byte offset into heap)
+                            fn elemPtr(desc: TableDesc, index: u32) -> u32 {
+                                return readU32(desc.offsetsBaseBytes + index * 4u);
+                            }
+            
+                            struct VertexInput {
+                                @builtin(instance_index) instanceIdx : u32,
+                                @location(0) position : vec3<f32>,
+                            };
+                            
+                            struct VertexOutput {
+                                @builtin(position) position : vec4<f32>,
+                            };
+            
+                            @group(0) @binding(0) var<storage, read > scene: array<u32>;
+            
+                            const FRAME_BUFFER_TABLE_INDEX = 0u;
+                            const MODELS_TABLE_INDEX = 1u;
+            
+                            @vertex
+                            fn vertexMain(input: VertexInput) -> VertexOutput {
+                                var output : VertexOutput;
+                                
+                                let modelIndex = 0u;
+                                let models = tableDesc(MODELS_TABLE_INDEX);
+                                let frameBuffer = tableDesc(FRAME_BUFFER_TABLE_INDEX);
+                                let M = readMat4(elemPtr(models, modelIndex));
+            
+                                let projectionMatrix = readMat4(elemPtr(frameBuffer, 0));
+                                let viewMatrix = readMat4(elemPtr(frameBuffer, 1));
+            
+                                output.position = projectionMatrix * viewMatrix * vec4(input.position, 1.0);
+                                return output;
+                            }
+                            
+                            @fragment
+                            fn fragmentMain(input: VertexOutput) -> @location(0) vec4f {
+                                return vec4f(1.0, 0.0, 0.0, 1.0);
+                            }
+                            `,
+                    colorOutputs: [
+                      { format: "rgba16float" }
+                    ]
+                  });
+                  this.shader.SetBuffer("scene", this.sceneBuffer);
+                  this.initialized = true;
+                  this.geometry = Geometry.Plane();
+                }
+                geometry;
+                async execute(resources) {
+                  if (!this.initialized) return;
+                  const LightingPassOutput = resources.getResource(GPU.PassParams.LightingPassOutput);
+                  GPU.RendererContext.BeginRenderPass(this.name, [{ target: LightingPassOutput, clear: true }], void 0, true);
+                  GPU.RendererContext.DrawGeometry(this.geometry, this.shader);
+                  GPU.RendererContext.EndRenderPass();
+                }
+              }
+              const matrix0 = new Mathf.Matrix4();
+              modelsTableIndex.push(matrix0.elements);
+              const projectionMatrix = frameBufferTable.push(camera.projectionMatrix.elements);
+              const viewMatrix = frameBufferTable.push(camera.viewMatrix.elements);
+              setInterval(() => {
+                frameBufferTable.set(projectionMatrix, camera.projectionMatrix.elements);
+                frameBufferTable.set(viewMatrix, camera.viewMatrix.elements);
+              }, 1e3);
+              const bindlessDrawPass = new BindlessDrawPass();
+              bindlessDrawPass.sceneBuffer = globalBuffer.getBuffer();
+              scene.renderPipeline.AddPass(bindlessDrawPass, GPU.RenderPassOrder.AfterLighting);
+              const cubeGameObject = new GameObject(scene);
+              const mesh = cubeGameObject.AddComponent(Components.Mesh);
+              mesh.geometry = Geometry.Cube();
+              mesh.material = new PBRMaterial();
+              Debugger.Enable();
+              scene.Start();
+            }
+            Application(document.querySelector("canvas"));
+            
+            export { Handle, Scene2, Table };
+            
+            </script>
+        </body>
+    </html>

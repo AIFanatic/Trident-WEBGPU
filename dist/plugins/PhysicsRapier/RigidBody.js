@@ -54,7 +54,7 @@ class RigidBody extends Component {
     this.rigidBody.addForce(force, true);
   }
   Move(position) {
-    const dt = 1 / 60;
+    const dt = PhysicsRapier.fixedDeltaTime;
     const pNew = position.clone();
     const p = this.transform.position.clone();
     const v = this.velocity.clone();

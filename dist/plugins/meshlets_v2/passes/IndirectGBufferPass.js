@@ -7,13 +7,15 @@ class IndirectGBufferPass extends GPU.RenderPass {
   shader;
   geometry;
   async init(resources) {
+    const format = "rgba8unorm";
+    console.log(format);
     this.shader = await GPU.Shader.Create({
       name: this.name,
       code: await GPU.ShaderLoader.LoadURL(new URL("../resources/DrawIndirectGBuffer.wgsl", import.meta.url)),
       colorOutputs: [
-        { format: "rgba16float" },
-        { format: "rgba16float" },
-        { format: "rgba16float" }
+        { format },
+        { format },
+        { format }
       ],
       depthOutput: "depth24plus",
       attributes: {

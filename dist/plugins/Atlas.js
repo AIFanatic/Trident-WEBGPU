@@ -1,4 +1,4 @@
-import { GPU, Geometry } from '@trident/core';
+import { GPU } from '@trident/core';
 
 class Rect {
   x;
@@ -61,7 +61,7 @@ class Atlas {
   start_node;
   constructor(size) {
     this.size = size;
-    this.buffer = GPU.Buffer.Create(size * size * 4, GPU.BufferType.STORAGE);
+    this.buffer = GPU.Texture.Create(size, size, 1, "bgra8unorm");
     this.start_node = new Node();
     this.start_node.rect = new Rect(0, 0, size, size);
   }
@@ -72,38 +72,12 @@ class Atlas {
       uvOffset: [node.rect.x / this.size, node.rect.y / this.size],
       uvSize: [node.rect.w / this.size, node.rect.h / this.size]
     };
-    const offset = (node.rect.y * this.size + node.rect.x) * 4;
     GPU.Renderer.BeginRenderFrame();
-    GPU.RendererContext.CopyTextureToBufferV2(
-      { texture, mipLevel: 0, origin: [0, 0, 0] },
-      { buffer: this.buffer, offset, bytesPerRow: this.size * 4 }
-    );
+    GPU.RendererContext.CopyTextureToTextureV3({ texture }, { texture: this.buffer, origin: [node.rect.x, node.rect.y] }, [node.rect.w, node.rect.h]);
     GPU.Renderer.EndRenderFrame();
     this.regions.push(region);
     this.UpdateRegionData();
-    return this.regions.length - 1;
-  }
-  AddBuffer(buffer) {
-    function computeOptimalRect(dataSize) {
-      const width = Math.floor(Math.sqrt(dataSize));
-      const height = Math.ceil(dataSize / width);
-      return new Rect(0, 0, width, height);
-    }
-    const node = this.start_node.insert_rect(computeOptimalRect(buffer.size * 0.5 * 0.5));
-    if (!node || !node.rect) throw Error("Failed to insert texture into atlas");
-    const region = {
-      uvOffset: [node.rect.x / this.size, node.rect.y / this.size],
-      uvSize: [node.rect.w / this.size, node.rect.h / this.size]
-    };
-    const offset = (node.rect.y * this.size + node.rect.x) * 4;
-    console.log(node.rect);
-    console.log(region);
-    GPU.Renderer.BeginRenderFrame();
-    GPU.RendererContext.CopyBufferToBuffer(buffer, this.buffer, 0, offset, buffer.size);
-    GPU.Renderer.EndRenderFrame();
-    this.regions.push(region);
-    this.UpdateRegionData();
-    return this.regions.length - 1;
+    return region;
   }
   UpdateRegionData() {
     let regionData = [];
@@ -116,121 +90,5 @@ class Atlas {
     this.regionData = new Float32Array(regionData);
   }
 }
-class AtlasViewer {
-  name = "AtlasViewer";
-  shader;
-  quadGeometry;
-  initialized = false;
-  async init() {
-    const code = `
-        struct VertexInput {
-            @location(0) position : vec2<f32>,
-            @location(1) uv : vec2<f32>,
-        };
 
-        struct VertexOutput {
-            @builtin(position) position : vec4<f32>,
-            @location(0) vUv : vec2<f32>,
-        };
-
-        struct AtlasRegion {
-            uvOffset: vec2<f32>,
-            uvSize: vec2<f32>,
-        };
-
-        @group(0) @binding(1) var<storage, read> atlasBuffer: array<f32>;
-        @group(0) @binding(2) var<storage, read> atlasRegions: array<AtlasRegion>;
-
-        @group(0) @binding(3) var<storage, read> atlasSize: f32;
-        @group(0) @binding(4) var<storage, read> textureIndex: f32;
-
-        @vertex fn vertexMain(input: VertexInput) -> VertexOutput {
-            var output: VertexOutput;
-            output.position = vec4(input.position, 0.0, 1.0);
-            output.vUv = input.uv;
-            return output;
-        }
-
-        // // Unpack a packed BGRA8 pixel stored in a u32 into a vec4<f32>
-        // fn getPixel(globalUV: vec2<f32>, atlasSize: f32) -> vec4<f32> {
-        //     let coord = vec2<u32>(globalUV * atlasSize);
-        //     let index = coord.y * u32(atlasSize) + coord.x;
-        //     let packed = atlasBuffer[index];
-  
-        //     // Unpack BGRA (each channel is 8 bits) and convert to normalized floats.
-        //     let b = f32((packed >> 0u) & 0xFFu) / 255.0;
-        //     let g = f32((packed >> 8u) & 0xFFu) / 255.0;
-        //     let r = f32((packed >> 16u) & 0xFFu) / 255.0;
-        //     let a = f32((packed >> 24u) & 0xFFu) / 255.0;
-        //     return vec4f(r, g, b, a);
-        // }
-
-        // fn atlasSample(textureIndex: u32, uv: vec2<f32>) -> vec4<f32> {
-        //     // Get the region for the selected texture.
-        //     let region = atlasRegions[textureIndex];
-        //     // Remap the incoming UV (0\u20131) to the region\u2019s area in the atlas.
-        //     let globalUV = region.uvOffset + fract(uv) * region.uvSize;
-
-        //     return getPixel(globalUV, atlasSize);
-        // }
-        
-        @fragment fn fragmentMain(input: VertexOutput) -> @location(0) vec4f {
-            // // return atlasSample(u32(textureIndex), input.vUv);
-
-            // let p = atlasSample(u32(textureIndex), input.vUv);
-            // if (p.r > -10.0) {
-            //     // return vec4f(0.0, 1.0, 0.0, 1.0);
-            // }
-            // return vec4f(p.rgb, 1.0);
-
-            // Map the incoming UV [0,1] to atlas pixel coordinates.
-            let coord = vec2<u32>(input.vUv * atlasSize);
-            let index = coord.y * u32(atlasSize) + coord.x;
-            let value = atlasBuffer[index];
-            // Output the value as a grayscale color.
-            return vec4f(value, value, value, 1.0);
-
-            // let coord = vec2<u32>(input.vUv * atlasSize);
-            // let index = coord.y * u32(atlasSize) + coord.x;
-            // let packed = atlasBuffer[index];
-  
-            // // Unpack the BGRA channels from the 32-bit packed value.
-            // let b = f32((packed >> 0u) & 0xFFu) / 255.0;
-            // let g = f32((packed >> 8u) & 0xFFu) / 255.0;
-            // let r = f32((packed >> 16u) & 0xFFu) / 255.0;
-            // let a = f32((packed >> 24u) & 0xFFu) / 255.0;
-            // return vec4f(r, g, b, a);
-        }
-        `;
-    this.shader = await GPU.Shader.Create({
-      code,
-      colorOutputs: [{ format: GPU.Renderer.SwapChainFormat }],
-      attributes: {
-        position: { location: 0, size: 3, type: "vec3" },
-        uv: { location: 1, size: 2, type: "vec2" }
-      },
-      uniforms: {
-        atlasBuffer: { group: 0, binding: 1, type: "storage" },
-        atlasRegions: { group: 0, binding: 2, type: "storage" },
-        atlasSize: { group: 0, binding: 3, type: "storage" },
-        textureIndex: { group: 0, binding: 4, type: "storage" }
-      }
-    });
-    this.quadGeometry = Geometry.Plane();
-    this.initialized = true;
-  }
-  async execute(atlas, textureIndex) {
-    if (!this.initialized) await this.init();
-    this.shader.SetBuffer("atlasBuffer", atlas.buffer);
-    this.shader.SetArray("atlasRegions", atlas.regionData);
-    this.shader.SetValue("atlasSize", atlas.size);
-    this.shader.SetValue("textureIndex", textureIndex);
-    GPU.Renderer.BeginRenderFrame();
-    GPU.RendererContext.BeginRenderPass(this.name, [{ clear: false }], void 0, true);
-    GPU.RendererContext.DrawGeometry(this.quadGeometry, this.shader);
-    GPU.RendererContext.EndRenderPass();
-    GPU.Renderer.EndRenderFrame();
-  }
-}
-
-export { Atlas, AtlasViewer };
+export { Atlas };

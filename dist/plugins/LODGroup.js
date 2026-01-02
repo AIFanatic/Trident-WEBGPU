@@ -178,6 +178,7 @@ class LODInstanceRenderable extends LODGroup {
         colorOutputs: [
           { format: gbufferFormat },
           { format: gbufferFormat },
+          { format: gbufferFormat },
           { format: gbufferFormat }
         ],
         depthOutput: "depth24plus"

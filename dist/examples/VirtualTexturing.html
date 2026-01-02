@@ -1,0 +1,105 @@
+
+    <!DOCTYPE html>
+    <html>
+        <head>
+            <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no">
+            <meta name="mobile-web-app-capable" content="yes">
+            <meta name="apple-mobile-web-app-capable" content="yes">
+            
+            <style>
+                html, body {
+                    margin: 0;
+                    overflow: hidden;
+                    width: 100%;
+                    height: 100%;
+                }
+            </style>
+        </head>
+        <body>
+            <script type="importmap">
+                {
+                    "imports": {
+                        "@trident/core": "../trident-core.js",
+                        "@trident/plugins/": "../plugins/"
+                    }
+                }
+            </script>
+            <script type="module">
+                const canvas = document.createElement("canvas");
+                document.body.appendChild(canvas);
+                            import { GPU, Scene, GameObject, Components, Mathf, Geometry, PBRMaterial } from '@trident/core';
+            import { OrbitControls } from '@trident/plugins/OrbitControls.js';
+            import { Debugger } from '@trident/plugins/Debugger.js';
+            import { VirtualTexturingPass } from '@trident/plugins/VirtualTexturing/VirtualTexturingPass.js';
+            import { UITextureViewer } from '@trident/plugins/ui/UIStats.js';
+            import { TilesGenerator } from '@trident/plugins/VirtualTexturing/TilesGenerator.js';
+            
+            async function Application(canvas) {
+              document.body.style.width = "1024px";
+              document.body.style.height = "1024px";
+              const renderer = GPU.Renderer.Create(canvas, "webgpu");
+              const scene = new Scene(renderer);
+              const mainCameraGameObject = new GameObject(scene);
+              mainCameraGameObject.name = "MainCamera";
+              const camera = mainCameraGameObject.AddComponent(Components.Camera);
+              camera.SetPerspective(60, canvas.width / canvas.height, 0.01, 100);
+              mainCameraGameObject.transform.position.set(0, 0, 4);
+              mainCameraGameObject.transform.LookAtV1(new Mathf.Vector3(0, 0, 0));
+              new OrbitControls(canvas, camera);
+              const lightGameObject = new GameObject(scene);
+              lightGameObject.transform.position.set(-10, 10, 10);
+              lightGameObject.transform.LookAtV1(new Mathf.Vector3(0, 0, 0));
+              const light = lightGameObject.AddComponent(Components.DirectionalLight);
+              light.castShadows = true;
+              const tilesMap = /* @__PURE__ */ new Map();
+              const virtualTexturingPass = new VirtualTexturingPass();
+              virtualTexturingPass.page_manager.ImageRequest = (request) => {
+                const key = `${request.lod}|${request.x}|${request.y}`;
+                console.log(key);
+                return tilesMap.get(key);
+              };
+              async function Load(materialIndex, url) {
+                const response = await fetch(url);
+                const imageBitmap = await createImageBitmap(await response.blob());
+                const tiles = TilesGenerator.generate(TilesGenerator.imageBitmapToImageData(imageBitmap), 512, 512, 2);
+                for (const tile of tiles) tilesMap.set(`${tile.lod}|${tile.tile_x}|${tile.tile_y}`, tile.data);
+              }
+              await Load(0, "/extra/test-assets/8k/UV-CheckerMap_Maurus_01_8K.png");
+              console.log(tilesMap);
+              scene.renderPipeline.AddPass(virtualTexturingPass, GPU.RenderPassOrder.BeforeScreenOutput);
+              const t = new UITextureViewer(Debugger.ui, "Atlas", virtualTexturingPass.page_manager.atlas_);
+              const t1 = new UITextureViewer(Debugger.ui, "Feedback", virtualTexturingPass.vtFeedbackPass.renderTarget);
+              const t2 = new UITextureViewer(Debugger.ui, "PageTable", virtualTexturingPass.page_manager.PageTables());
+              Debugger.Enable();
+              setInterval(() => {
+                t.Update();
+                t1.Update();
+                t2.Update();
+              }, 1e3);
+              {
+                const floorGameObject = new GameObject(scene);
+                const floorMesh = floorGameObject.AddComponent(Components.Mesh);
+                floorMesh.geometry = Geometry.Plane();
+                floorMesh.material = new PBRMaterial();
+              }
+              {
+                const floorGameObject = new GameObject(scene);
+                const floorMesh = floorGameObject.AddComponent(Components.Mesh);
+                floorMesh.transform.position.x = -2;
+                floorMesh.geometry = Geometry.Cube();
+                floorMesh.material = new PBRMaterial();
+              }
+              {
+                const floorGameObject = new GameObject(scene);
+                const floorMesh = floorGameObject.AddComponent(Components.Mesh);
+                floorMesh.transform.position.x = 2;
+                floorMesh.geometry = Geometry.Sphere();
+                floorMesh.material = new PBRMaterial();
+              }
+              scene.Start();
+            }
+            Application(document.querySelector("canvas"));
+            
+            </script>
+        </body>
+    </html>

@@ -5,6 +5,8 @@ class PhysicsRapier extends Component {
   static hasLoaded = false;
   static Physics;
   static PhysicsWorld;
+  static fixedDeltaTime = 1 / 60;
+  // seconds
   Load() {
     return new Promise((resolve) => {
       Tg.init().then(() => {
@@ -13,6 +15,7 @@ class PhysicsRapier extends Component {
         PhysicsRapier.Physics = Tg;
         PhysicsRapier.PhysicsWorld = world;
         PhysicsRapier.hasLoaded = true;
+        world.timestep = PhysicsRapier.fixedDeltaTime;
         resolve(true);
       });
     });

@@ -10,8 +10,8 @@
                 html, body {
                     margin: 0;
                     overflow: hidden;
-                    height: 100%;
                     width: 100%;
+                    height: 100%;
                 }
             </style>
         </head>
@@ -48,22 +48,7 @@
               lightGameObject.transform.LookAtV1(new Mathf.Vector3(0, 0, 0));
               const light = lightGameObject.AddComponent(Components.DirectionalLight);
               light.castShadows = false;
-              const gameObjects = await GLTFLoader.loadAsGameObjects(scene, "./assets/models/Fox.glb");
-              function traverse(gameObjects2, fn) {
-                for (const gameObject of gameObjects2) {
-                  fn(gameObject);
-                  for (const child of gameObject.transform.children) {
-                    traverse([child.gameObject], fn);
-                  }
-                }
-              }
-              let animator = void 0;
-              traverse([gameObjects], (gameObject) => {
-                const _animator = gameObject.GetComponent(Components.Animator);
-                if (_animator) animator = _animator;
-              });
-              if (!animator) throw Error("Could not find an animator component");
-              animator.SetClipByIndex(0);
+              await GLTFLoader.loadAsGameObjects(scene, "./assets/models/DamagedHelmet/DamagedHelmet.gltf");
               Debugger.Enable();
               scene.Start();
             }

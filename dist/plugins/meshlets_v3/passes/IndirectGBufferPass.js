@@ -37,6 +37,8 @@ class IndirectGBufferPass extends GPU.RenderPass {
   }
   async preFrame(resources) {
     if (!this.initialized) return;
+    const currentMeshletCount = resources.getResource(MeshletPassParams.CurrentMeshletCount);
+    if (currentMeshletCount === 0) return;
     const frameBuffer = resources.getResource(MeshletPassParams.FrameBuffer);
     const vertexBuffer = resources.getResource(MeshletPassParams.VertexBuffer);
     const meshletVerticesBuffer = resources.getResource(MeshletPassParams.MeshletVerticesBuffer);
@@ -58,6 +60,8 @@ class IndirectGBufferPass extends GPU.RenderPass {
   }
   async execute(resources) {
     if (!this.initialized) return;
+    const currentMeshletCount = resources.getResource(MeshletPassParams.CurrentMeshletCount);
+    if (currentMeshletCount === 0) return;
     const gBufferAlbedoRT = resources.getResource(GPU.PassParams.GBufferAlbedo);
     const gBufferNormalRT = resources.getResource(GPU.PassParams.GBufferNormal);
     const gBufferERMORT = resources.getResource(GPU.PassParams.GBufferERMO);

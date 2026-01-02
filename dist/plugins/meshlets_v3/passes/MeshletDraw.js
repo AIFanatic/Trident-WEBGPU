@@ -4,7 +4,7 @@ import { CullingPass } from './CullingPass.js';
 import { IndirectGBufferPass } from './IndirectGBufferPass.js';
 
 var MeshletPassParams = /* @__PURE__ */ ((MeshletPassParams2) => {
-  MeshletPassParams2["FrameBuffer"] = "FrameBuffer";
+  MeshletPassParams2["FrameBuffer"] = "MeshletPassParams.FrameBuffer";
   MeshletPassParams2["VertexBuffer"] = "VertexBuffer";
   MeshletPassParams2["MeshletVerticesBuffer"] = "MeshletVerticesBuffer";
   MeshletPassParams2["MeshletTrianglesBuffer"] = "MeshletTrianglesBuffer";

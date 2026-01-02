@@ -39,13 +39,6 @@ struct VertexOutput {
     let triIndex    = input.vertexIndex / 3u;
     let corner      = input.vertexIndex % 3u;
 
-    // // Guard (optional): avoid reading past the triangle_count
-    // // If your DrawIndirect provides exact counts, this isn't needed.
-    // if (triIndex >= meshletInfo.triangle_count) {
-    //     output.position = vec4<f32>(0.0);
-    //     return output;
-    // }
-
     // 1) local vertex id (0..vertex_count-1)
     let localVid = meshletTrianglesBuffer[u32(meshletInfo.triangle_offset) + lodMeshInfo.baseTriangleOffset + triIndex * 3u + corner];
 
@@ -95,7 +88,7 @@ fn rand(co: f32) -> f32 {
 
 
 
-    output.albedo = vec4(1.0);
+    // output.albedo = vec4(1.0);
     output.normal = vec4(input.vNormal, 1.0);
     output.RMO    = vec4(0.0);
     

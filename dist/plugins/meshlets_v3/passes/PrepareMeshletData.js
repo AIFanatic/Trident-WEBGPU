@@ -32,6 +32,7 @@ class PrepareMeshletData extends GPU.RenderPass {
     this.objectInfoBuffer = new GPU.DynamicBufferMemoryAllocator(1e5 * 2 * 4);
     this.initialized = true;
     EventSystem.on(MeshletEvents.Updated, (meshlet) => {
+      console.log("Updated", meshlet);
       this.needsUpdate = true;
     });
     MeshletDebug.isBackFaceCullingEnabled = true;
@@ -40,6 +41,7 @@ class PrepareMeshletData extends GPU.RenderPass {
     if (this.needsUpdate) {
       const scene = Components.Camera.mainCamera.gameObject.scene;
       const meshletMeshes = scene.GetComponents(MeshletMeshV3);
+      console.log("ERGERG", meshletMeshes);
       this.currentMeshletCount = 0;
       for (const meshletMesh of meshletMeshes) {
         const lodMeshlets = meshletMesh.lodMeshlets;
@@ -133,8 +135,6 @@ class PrepareMeshletData extends GPU.RenderPass {
     ]);
     this.frameBuffer.SetArray(frameBufferData);
     resources.setResource(MeshletPassParams.FrameBuffer, this.frameBuffer);
-  }
-  async execute(_resources) {
   }
 }
 

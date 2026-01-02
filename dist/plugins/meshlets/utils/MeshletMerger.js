@@ -1,0 +1,74 @@
+import { Meshlet } from '../Meshlet.js';
+import { attribute_size } from '../Meshoptimizer.js';
+
+class Vertex {
+  position;
+  normal;
+  uv;
+  constructor(position, normal, uv) {
+    this.position = position;
+    this.normal = normal;
+    this.uv = uv;
+  }
+}
+class MeshletMerger {
+  static removeDuplicateVertices(vertexData, indexData) {
+    const vertexMap = /* @__PURE__ */ new Map();
+    const uniqueVertices = [];
+    const newIndices = [];
+    var precisionPoints = 4;
+    var precision = Math.pow(10, precisionPoints);
+    for (let i = 0; i < indexData.length; i++) {
+      const index = indexData[i];
+      const pos = vertexData.subarray(index * attribute_size, index * attribute_size + 3);
+      const norm = vertexData.subarray(index * attribute_size + 3, index * attribute_size + 6);
+      const uv = vertexData.subarray(index * attribute_size + 6, index * attribute_size + 8);
+      const vertex = new Vertex(Array.from(pos), Array.from(norm), Array.from(uv));
+      const vertexKey = Math.round(vertex.position[0] * precision) + "_" + Math.round(vertex.position[1] * precision) + "_" + Math.round(vertex.position[2] * precision);
+      if (vertexMap.has(vertexKey)) {
+        newIndices.push(vertexMap.get(vertexKey));
+      } else {
+        const newIndex = uniqueVertices.length;
+        uniqueVertices.push(vertex);
+        vertexMap.set(vertexKey, newIndex);
+        newIndices.push(newIndex);
+      }
+    }
+    const newVertexData = new Float32Array(uniqueVertices.length * attribute_size);
+    uniqueVertices.forEach((v, index) => {
+      newVertexData.set([...v.position, ...v.normal, ...v.uv], index * attribute_size);
+    });
+    return {
+      vertices: newVertexData,
+      indices: new Uint32Array(newIndices)
+    };
+  }
+  static merge(meshlets) {
+    const vertices = [];
+    const indices = [];
+    let indexOffset = 0;
+    for (let i = 0; i < meshlets.length; ++i) {
+      const indices2 = meshlets[i].indices;
+      for (let j = 0; j < indices2.length; j++) {
+        indices.push(indices2[j] + indexOffset);
+      }
+      indexOffset += meshlets[i].vertices.length / attribute_size;
+    }
+    for (let i = 0; i < meshlets.length; ++i) vertices.push(...meshlets[i].vertices);
+    const { vertices: newVertices, indices: newIndices } = this.removeDuplicateVertices(new Float32Array(vertices), new Uint32Array(indices));
+    return new Meshlet(newVertices, newIndices);
+  }
+  static mergeV2(meshlets) {
+    let vertices = [];
+    let indices = [];
+    let indicesOffset = 0;
+    for (const meshlet of meshlets) {
+      for (const vertex of meshlet.vertices) vertices.push(vertex);
+      for (const index of meshlet.indices) indices.push(index + indicesOffset);
+      indicesOffset += meshlet.vertices.length / 3;
+    }
+    return new Meshlet(new Float32Array(vertices), new Uint32Array(indices));
+  }
+}
+
+export { MeshletMerger };

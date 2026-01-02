@@ -34,6 +34,7 @@ class CullingPass extends GPU.RenderPass {
   }
   async preFrame(resources) {
     const currentMeshletCount = resources.getResource(MeshletPassParams.CurrentMeshletCount);
+    if (currentMeshletCount === 0) return;
     const frameBuffer = resources.getResource(MeshletPassParams.FrameBuffer);
     const meshletInfoBuffer = resources.getResource(MeshletPassParams.MeshletBuffer);
     const meshInfoBuffer = resources.getResource(MeshletPassParams.MeshBuffer);
@@ -52,12 +53,13 @@ class CullingPass extends GPU.RenderPass {
     resources.setResource(MeshletPassParams.InstanceInfoBuffer, this.instanceInfoBuffer);
   }
   async execute(resources) {
-    const meshletCount = resources.getResource(MeshletPassParams.CurrentMeshletCount);
+    const currentMeshletCount = resources.getResource(MeshletPassParams.CurrentMeshletCount);
+    if (currentMeshletCount === 0) return;
     GPU.RendererContext.CopyBufferToBuffer(this.drawIndirectBuffer, this.debugBuffer);
     GPU.RendererContext.ClearBuffer(this.drawIndirectBuffer);
-    const dispatchSizeX = Math.ceil(Math.cbrt(meshletCount) / 4);
-    const dispatchSizeY = Math.ceil(Math.cbrt(meshletCount) / 4);
-    const dispatchSizeZ = Math.ceil(Math.cbrt(meshletCount) / 4);
+    const dispatchSizeX = Math.ceil(Math.cbrt(currentMeshletCount) / 4);
+    const dispatchSizeY = Math.ceil(Math.cbrt(currentMeshletCount) / 4);
+    const dispatchSizeZ = Math.ceil(Math.cbrt(currentMeshletCount) / 4);
     GPU.ComputeContext.BeginComputePass(`Culling`, true);
     GPU.ComputeContext.Dispatch(this.compute, dispatchSizeX, dispatchSizeY, dispatchSizeZ);
     GPU.ComputeContext.EndComputePass();
@@ -67,7 +69,7 @@ class CullingPass extends GPU.RenderPass {
     this.debugBuffer.GetData().then((v) => {
       const visibleMeshletCount = new Uint32Array(v)[1];
       this.visibleObjects = visibleMeshletCount;
-      this.triangleCount = 128 * meshletCount;
+      this.triangleCount = 128 * currentMeshletCount;
       this.visibleTriangles = 128 * visibleMeshletCount;
     });
   }

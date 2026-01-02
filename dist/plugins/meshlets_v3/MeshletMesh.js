@@ -64,7 +64,7 @@ class MeshletMeshV3 extends (_a = Component, _material_dec = [Utils.SerializeFie
     __publicField(this, "_material");
     __publicField(this, "enableShadows", __runInitializers(_init, 8, this, true)), __runInitializers(_init, 11, this);
     __publicField(this, "lodMeshlets", []);
-    __publicField(this, "clusterizeOnly", true);
+    __publicField(this, "clusterizeOnly", false);
   }
   get material() {
     return this._material;
@@ -84,6 +84,7 @@ class MeshletMeshV3 extends (_a = Component, _material_dec = [Utils.SerializeFie
     const indices = ia.array instanceof Uint32Array ? ia.array : Uint32Array.from(ia.array);
     const interleavedBufferAttribute = InterleavedVertexAttribute.fromArrays([p, n, u], [3, 3, 2]);
     const interleavedVertices = interleavedBufferAttribute.array;
+    console.log("HEREREG");
     if (this.clusterizeOnly) {
       const meshletsBuildOutput = Meshoptimizer.meshopt_buildMeshlets(interleavedVertices, indices, 128, 128, 0);
       const lodMeshlet = {
@@ -136,6 +137,7 @@ class MeshletMeshV3 extends (_a = Component, _material_dec = [Utils.SerializeFie
     try {
       const outputMeshes = NV_Cluster.BuildToMeshlets(meshInput);
       this.lodMeshlets = outputMeshes;
+      EventSystem.emit(MeshletEvents.Updated, this);
     } catch (error) {
       console.warn("Ignoring geometry", geometry, error);
     }

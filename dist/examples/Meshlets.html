@@ -10,8 +10,8 @@
                 html, body {
                     margin: 0;
                     overflow: hidden;
-                    height: 100%;
                     width: 100%;
+                    height: 100%;
                 }
             </style>
         </head>
@@ -27,11 +27,11 @@
             <script type="module">
                 const canvas = document.createElement("canvas");
                 document.body.appendChild(canvas);
-                            import { GPU, Scene, GameObject, Components, Mathf, PBRMaterial } from '@trident/core';
+                            import { GPU, Scene, GameObject, Components, Mathf } from '@trident/core';
             import { OrbitControls } from '@trident/plugins/OrbitControls.js';
-            import { GLTFLoader } from '@trident/plugins/GLTF/GLTFLoader.js';
-            import { MeshletMesh } from '@trident/plugins/meshlets_v2/MeshletMesh.js';
-            import { MeshletDraw } from '@trident/plugins/meshlets_v2/passes/MeshletDraw.js';
+            import { OBJLoaderIndexed } from '@trident/plugins/OBJLoader.js';
+            import { MeshletMesh } from '@trident/plugins/meshlets/MeshletMesh.js';
+            import { MeshletDraw } from '@trident/plugins/meshlets/passes/MeshletDraw.js';
             
             async function Application(canvas) {
               const renderer = GPU.Renderer.Create(canvas, "webgpu");
@@ -49,59 +49,18 @@
               lightGameObject.transform.position.set(-4, 4, 4);
               lightGameObject.transform.LookAtV1(new Mathf.Vector3(0, 0, 0));
               const light = lightGameObject.AddComponent(Components.DirectionalLight);
-              light.intensity = 1;
+              light.intensity = 20;
               light.color.set(1, 1, 1, 1);
               light.castShadows = true;
               {
-                async function traverse(gameObjects2, fn) {
-                  for (const go of gameObjects2) {
-                    if (!await fn(go)) continue;
-                    for (const child of go.transform.children) {
-                      await traverse([child.gameObject], fn);
-                    }
-                  }
-                }
-                const tempScene = new Scene(renderer);
-                const gameObjects = await GLTFLoader.loadAsGameObjects(tempScene, "/dist/examples/assets/models/DamagedHelmet/DamagedHelmet.gltf");
-                console.log(gameObjects);
-                const oldToNewMap = /* @__PURE__ */ new Map();
-                await traverse([gameObjects], async (gameObject) => {
-                  const newGameObject = new GameObject(scene);
-                  newGameObject.name = gameObject.name;
-                  newGameObject.transform.position.copy(gameObject.transform.position);
-                  newGameObject.transform.rotation.copy(gameObject.transform.rotation);
-                  newGameObject.transform.scale.copy(gameObject.transform.scale);
-                  oldToNewMap.set(gameObject, newGameObject);
-                  return true;
-                });
-                await traverse([gameObjects], async (oldGameObject) => {
-                  const newGameObject = oldToNewMap.get(oldGameObject);
-                  const parentOld = oldGameObject.transform.parent?.gameObject;
-                  const parentNew = parentOld ? oldToNewMap.get(parentOld) : void 0;
-                  if (parentNew) newGameObject.transform.parent = parentNew.transform;
-                  return true;
-                });
-                let i = 0;
-                let meshes = [];
-                const mat = new PBRMaterial();
-                await traverse([gameObjects], async (oldGameObject) => {
-                  const newGameObject = oldToNewMap.get(oldGameObject);
-                  const mesh = oldGameObject.GetComponent(Components.Mesh);
-                  if (!mesh) return true;
-                  const newMesh = newGameObject.AddComponent(MeshletMesh);
-                  newMesh.geometry = mesh.geometry;
-                  if (newMesh["SetGeometry"]) {
-                    await newMesh.SetGeometry(mesh.geometry, true);
-                  }
-                  newMesh.material = mat;
-                  newMesh.enableShadows = false;
-                  console.log(`Parsed ${i}/3064`);
-                  i++;
-                  return true;
-                });
-                console.log(meshes);
-                scene.Start();
+                const mesh = await OBJLoaderIndexed.load("./assets/models/bunny.obj");
+                const meshletGameObject = new GameObject(scene);
+                const meshletMesh = meshletGameObject.AddComponent(MeshletMesh);
+                meshletMesh.enableShadows = false;
+                meshletMesh.geometry = mesh.geometry;
+                meshletMesh.material = mesh.material;
               }
+              scene.Start();
             }
             Application(document.querySelector("canvas"));
             
