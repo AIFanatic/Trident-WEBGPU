@@ -23,6 +23,10 @@ fn OctDecode(_f: vec2f) -> vec3f {
     return normalize(n);
 }
 
+fn rand(co: f32) -> f32 {
+    return fract(sin((co + 1.0) * 12.9898) * 43758.5453);
+}
+
 struct FrameBuffer {
     projectionOutputSize: vec4<f32>,
     viewPosition: vec4<f32>,
@@ -31,5 +35,6 @@ struct FrameBuffer {
     viewMatrix: mat4x4<f32>,
     projectionMatrix: mat4x4<f32>,
     viewProjectionMatrix: mat4x4<f32>,
+    cameraNearFar: vec4<f32>,
     frustum: array<vec4<f32>, 6>,
 };

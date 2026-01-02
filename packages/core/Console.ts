@@ -72,4 +72,4 @@ class ConsoleManager {
 }
 
 export const Console = new ConsoleManager();
-(window as any)["Console"] = Console;
+globalThis["Console"] = Console;

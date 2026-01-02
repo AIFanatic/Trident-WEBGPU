@@ -83,6 +83,8 @@ export class WEBGPUTexture implements Texture {
         this.dimension = dimension;
         this.mipLevels = mipLevels;
 
+        this.SetActiveMipCount(mipLevels);
+
         this.byteSize = totalBytesForTexture(this.format, this.width, this.height, this.depth, this.mipLevels);
         Renderer.info.gpuTextureSizeTotal += this.byteSize; // account for format
         Renderer.info.gpuTextureCount++;
@@ -94,13 +96,19 @@ export class WEBGPUTexture implements Texture {
         const key = `${this.currentLayer}-${this.currentMip}`;
         let view = this.viewCache.get(key);
         if (!view) {
-            const viewDimension = this.dimension === "cube" ? "2d" : this.dimension;
+            const viewDimension =
+                this.dimension === "cube" ||
+                    this.dimension === "2d-array" ||
+                    this.dimension === "cube-array"
+                    ? "2d"
+                    : this.dimension;
+
             view = this.buffer.createView({
                 dimension: viewDimension,
                 baseArrayLayer: this.currentLayer,
                 arrayLayerCount: 1,
                 baseMipLevel: this.currentMip,
-                mipLevelCount: this.activeMipCount
+                mipLevelCount: this.activeMipCount,
             });
             this.viewCache.set(key, view);
         }
@@ -174,6 +182,25 @@ export class WEBGPUTexture implements Texture {
         }
     }
 
+    public SetSubData(data: BufferSource, width: number, height: number, mip: number, offsetX: number = 0, offsetY: number = 0, layer: number = 0) {
+        try {
+            const bpp = bytesPerPixel(this.format);
+            const bytesPerRow = width * bpp;
+            WEBGPURenderer.device.queue.writeTexture(
+                {
+                    texture: this.buffer,
+                    mipLevel: mip,
+                    origin: { x: offsetX, y: offsetY, z: layer }
+                },
+                data,
+                { bytesPerRow, rowsPerImage: height },
+                { width, height, depthOrArrayLayers: 1 }
+            );
+        } catch (error) {
+            console.warn(error)
+        }
+    }
+
     // Format and types are very limited for now
     // https://github.com/gpuweb/gpuweb/issues/2322
     public static FromImageBitmap(imageBitmap: ImageBitmap, width: number, height: number, format: TextureFormat, flipY: boolean, generateMips: boolean): WEBGPUTexture {
@@ -192,7 +219,7 @@ export class WEBGPUTexture implements Texture {
         texture.imageBitmap = imageBitmap;
 
         if (generateMips) texture.GenerateMips();
-        
+
         return texture;
     }
 

@@ -2,24 +2,33 @@ import { Vector2 } from "../math";
 import { Color } from "../math/Color";
 import { Scene } from "../Scene";
 import { UUID } from "../utils/";
+import { Pool } from "../utils/Pool";
 import { Shader, ShaderParams } from "./Shader";
 import { ShaderLoader } from "./ShaderUtils";
 import { Texture } from "./Texture";
 import { TextureSampler } from "./TextureSampler";
 
+
+export const MaterialPool = new Pool<Material>();
+
 export interface MaterialParams {
     isDeferred: boolean;
     shader?: Shader;
+    materialID?: number;
 }
 
 export class Material {
     public shader: Shader;
     public params: MaterialParams;
+    public materialId: number;
 
     constructor(params?: Partial<MaterialParams>) {
+        this.materialId = MaterialPool.add(this);
+
         const defaultParams: MaterialParams = {
             isDeferred: false,
-            shader: undefined
+            shader: undefined,
+            materialID: this.materialId
         }
         this.params = Object.assign({}, defaultParams, params);
         this.shader = this.params.shader;
@@ -27,6 +36,7 @@ export class Material {
 
     public Destroy() {
         if (this.shader) this.shader.Destroy();
+        MaterialPool.remove(this.materialId);
     };
 
     public Serialize(metadata: any = {}) {
@@ -37,7 +47,7 @@ export class Material {
     }
 
     // TODO: Do cache
-    public static Deserialize(data: {type: string, shader: any, isDeferred: boolean, params: any}): Material {
+    public static Deserialize(data: { type: string, shader: any, isDeferred: boolean, params: any }): Material {
         if (data.type === "@trident/core/renderer/Material/PBRMaterial") {
             return PBRMaterial.Deserialize(data);
         }
@@ -82,11 +92,11 @@ export class PBRMaterial extends Material {
     declare public params: PBRMaterialParams;
 
     public static DefaultParams: PBRMaterialParams = {
-        albedoColor: new Color(1,1,1,1),
-        emissiveColor: new Color(0,0,0,0),
+        albedoColor: new Color(1, 1, 1, 1),
+        emissiveColor: new Color(0, 0, 0, 0),
         roughness: 0.5,
         metalness: 0,
-    
+
         albedoMap: undefined,
         normalMap: undefined,
         heightMap: undefined,
@@ -94,9 +104,9 @@ export class PBRMaterial extends Material {
         emissiveMap: undefined,
         aoMap: undefined,
 
-        repeat: new Vector2(1,1),
-        offset: new Vector2(0,0),
-    
+        repeat: new Vector2(1, 1),
+        offset: new Vector2(0, 0),
+
         doubleSided: false,
         alphaCutoff: 0,
         unlit: false,
@@ -118,11 +128,14 @@ export class PBRMaterial extends Material {
                 obj[prop] = value;
 
                 if (!instance.shader) await instance.createShader();
-                
+
                 instance.shader.SetArray("material", new Float32Array([
-                    instance.params.albedoColor.r, instance.params.albedoColor.g, instance.params.albedoColor.b, instance.params.albedoColor.a,
-                    instance.params.emissiveColor.r, instance.params.emissiveColor.g, instance.params.emissiveColor.b, instance.params.emissiveColor.a,
-                    instance.params.roughness, instance.params.metalness, +instance.params.unlit, instance.params.alphaCutoff, +instance.params.wireframe,
+                    this.params.albedoColor.r, this.params.albedoColor.g, this.params.albedoColor.b, this.params.albedoColor.a,
+                    this.params.emissiveColor.r, this.params.emissiveColor.g, this.params.emissiveColor.b, this.params.emissiveColor.a,
+                    this.params.roughness, this.params.metalness, +this.params.unlit, this.params.alphaCutoff,
+                    this.params.repeat.x, this.params.repeat.y,
+                    this.params.offset.x, this.params.offset.y,
+                    +this.params.wireframe,
                     0, 0, 0
                 ]));
 
@@ -150,11 +163,11 @@ export class PBRMaterial extends Material {
         let shaderParams: ShaderParams = {
             code: await ShaderLoader.Draw,
             defines: DEFINES,
-            colorOutputs: [ {format: gbufferFormat}, {format: gbufferFormat}, {format: gbufferFormat} ],
+            colorOutputs: [{ format: gbufferFormat }, { format: gbufferFormat }, { format: gbufferFormat }],
             depthOutput: "depth24plus",
             cullMode: this.params.doubleSided ? "none" : undefined,
         };
-        
+
         const shader = await Shader.Create(shaderParams);
 
         if (DEFINES.USE_ALBEDO_MAP || DEFINES.USE_NORMAL_MAP || DEFINES.USE_HEIGHT_MAP || DEFINES.USE_METALNESS_MAP || DEFINES.USE_EMISSIVE_MAP || DEFINES.USE_AO_MAP) {
@@ -165,10 +178,11 @@ export class PBRMaterial extends Material {
         shader.SetArray("material", new Float32Array([
             this.params.albedoColor.r, this.params.albedoColor.g, this.params.albedoColor.b, this.params.albedoColor.a,
             this.params.emissiveColor.r, this.params.emissiveColor.g, this.params.emissiveColor.b, this.params.emissiveColor.a,
-            this.params.roughness, this.params.metalness, +this.params.unlit, this.params.alphaCutoff, +this.params.wireframe,
-            0, 0, 0,
+            this.params.roughness, this.params.metalness, +this.params.unlit, this.params.alphaCutoff,
             this.params.repeat.x, this.params.repeat.y,
             this.params.offset.x, this.params.offset.y,
+            +this.params.wireframe,
+            0, 0, 0
         ]));
 
         if (DEFINES.USE_ALBEDO_MAP === true && this.params.albedoMap) shader.SetTexture("AlbedoMap", this.params.albedoMap);
@@ -179,7 +193,7 @@ export class PBRMaterial extends Material {
         if (DEFINES.USE_AO_MAP === true && this.params.aoMap) shader.SetTexture("AOMap", this.params.aoMap);
 
         this.shader = shader;
-        
+
         return shader;
     }
 
@@ -196,7 +210,7 @@ export class PBRMaterial extends Material {
                     metalness: params.metalness,
                     albedoMap: params.albedoMap ? params.albedoMap.Serialize(metadata) : undefined,
                     normalMap: params.normalMap ? params.normalMap.Serialize(metadata) : undefined,
-                    heightMap: params.heightMap ?params.heightMap.Serialize(metadata) : undefined,
+                    heightMap: params.heightMap ? params.heightMap.Serialize(metadata) : undefined,
                     metalnessMap: params.metalnessMap ? params.metalnessMap.Serialize(metadata) : undefined,
                     emissiveMap: params.emissiveMap ? params.emissiveMap.Serialize(metadata) : undefined,
                     aoMap: params.aoMap ? params.aoMap.Serialize(metadata) : undefined,
@@ -211,7 +225,7 @@ export class PBRMaterial extends Material {
     }
 
     // TODO: Do cache, process textures
-    public static Deserialize(data: {type: string, shader: any, isDeferred: boolean, params: any}): PBRMaterial {
+    public static Deserialize(data: { type: string, shader: any, isDeferred: boolean, params: any }): PBRMaterial {
         const params = data.params;
         const defaults = PBRMaterial.DefaultParams;
         return new PBRMaterial({
@@ -226,10 +240,10 @@ export class PBRMaterial extends Material {
             emissiveMap: params.emissiveMap ? Texture.Deserialize(params.emissiveMap) : defaults.emissiveMap,
             aoMap: params.aoMap ? Texture.Deserialize(params.aoMap) : defaults.aoMap,
             doubleSided: params.doubleSided ? params.doubleSided : defaults.doubleSided,
-            alphaCutoff: params.alphaCutoff ? params.alphaCutoff: defaults.alphaCutoff,
-            unlit: params.unlit ? params.unlit: defaults.unlit,
-            wireframe: params.wireframe ? params.wireframe: defaults.wireframe,
-            isSkinned: params.isSkinned ? params.isSkinned: defaults.isSkinned,
+            alphaCutoff: params.alphaCutoff ? params.alphaCutoff : defaults.alphaCutoff,
+            unlit: params.unlit ? params.unlit : defaults.unlit,
+            wireframe: params.wireframe ? params.wireframe : defaults.wireframe,
+            isSkinned: params.isSkinned ? params.isSkinned : defaults.isSkinned,
         })
     }
 }

@@ -8,7 +8,12 @@ import { PassParams } from "../RenderingPipeline";
 import { Console, ConsoleVarConfigs } from "../../Console";
 import { RenderTexture } from "../Texture";
 
-const TextureViewerSettings = Console.define({r_exposure: { default: 0.0, help: "Final image exposure"}} satisfies ConsoleVarConfigs);
+const TextureViewerSettings = Console.define({
+    r_tonemapper: { default: 0.0, help: "Tonemapper type (disabled"},
+    r_exposure: { default: 0.0, help: "Exposure"},
+    r_contrast: { default: 1.0, help: "Contrast"},
+    r_saturation: { default: 1.0, help: "Saturation"},
+} satisfies ConsoleVarConfigs);
 
 export class PostExposureTonemap extends RenderPass {
     public name: string = "PostExposureTonemap";
@@ -27,7 +32,14 @@ export class PostExposureTonemap extends RenderPass {
         @group(0) @binding(0) var textureSampler: sampler;
         @group(0) @binding(1) var texture: texture_2d<f32>;
 
-        @group(0) @binding(2) var<storage, read> exposure: f32;
+        struct Params {
+            tonemapType: f32,
+            exposure: f32,
+            contrast: f32,
+            saturation: f32
+
+        };
+        @group(0) @binding(2) var<storage, read> params: Params;
 
         // Full-screen triangle (covers screen with 3 verts)
         const p = array<vec2f, 3>(
@@ -98,18 +110,31 @@ export class PostExposureTonemap extends RenderPass {
             return mix(a, b, c);
         }
 
-        @fragment fn fragmentMain(input: VertexOutput) -> @location(0) vec4f {
-            let EXPOSURE = exposure;
+          fn luminance(c: vec3f) -> f32 { return dot(c, vec3f(0.2126, 0.7152, 0.0722)); }
 
-            let c = textureSampleLevel(texture, textureSampler, input.vUv, 0);
+        fn applyContrast(color: vec3f, contrast: f32) -> vec3f {
+            return (color - vec3f(0.5)) * contrast + vec3f(0.5);
+        }
+
+        fn applySaturation(color: vec3f, sat: f32) -> vec3f {
+            let l = luminance(color);
+            return mix(vec3f(l), color, sat);
+        }
+
+
+        @fragment fn fragmentMain(input: VertexOutput) -> @location(0) vec4f {
+            let c = textureSampleLevel(texture, textureSampler, input.vUv, 0.0);
             let a = c.a;
             var col = c.rgb;
             
-            // Apply exposure
-            col = col * exp2(EXPOSURE);
+            col = col * exp2(params.exposure);
 
             // Tonemap
             col = toneMapping(col);
+
+            col = applyContrast(col, params.contrast);
+            col = applySaturation(col, params.saturation);
+            col = clamp(col, vec3f(0.0), vec3f(1.0));
 
             return vec4f(col, 1.0);
         }
@@ -140,7 +165,13 @@ export class PostExposureTonemap extends RenderPass {
         if (!LightingPassOutputTexture) return;
 
         this.shader.SetTexture("texture", LightingPassOutputTexture);
-        this.shader.SetValue("exposure", TextureViewerSettings.r_exposure.value);
+
+        this.shader.SetArray("params", new Float32Array([
+            TextureViewerSettings.r_tonemapper.value,
+            TextureViewerSettings.r_exposure.value,
+            TextureViewerSettings.r_contrast.value,
+            TextureViewerSettings.r_saturation.value
+        ]));
 
         RendererContext.BeginRenderPass(this.name, [{clear: false, target: this.renderTarget}], undefined, true);
         RendererContext.Draw(this.quadGeometry, this.shader, 3);

@@ -41,19 +41,8 @@ struct VertexOutput {
 @group(0) @binding(4) var depthTexture: texture_depth_2d;
 @group(0) @binding(5) var shadowPassDepth: texture_depth_2d_array;
 
-@group(0) @binding(6) var skyboxTexture: texture_cube<f32>;
-@group(0) @binding(7) var skyboxIrradianceTexture: texture_cube<f32>;
-@group(0) @binding(8) var skyboxPrefilterTexture: texture_cube<f32>;
-@group(0) @binding(9) var skyboxBRDFLUT: texture_2d<f32>;
-
-@group(0) @binding(10) var brdfSampler: sampler;
-@group(0) @binding(11) var<storage, read> lights: array<Light>;
-@group(0) @binding(12) var<storage, read> lightCount: u32;
-
-
-
-
-
+@group(0) @binding(6) var<storage, read> lights: array<Light>;
+@group(0) @binding(7) var<storage, read> lightCount: u32;
 
 struct View {
     projectionOutputSize: vec4<f32>,
@@ -63,14 +52,14 @@ struct View {
     viewMatrix: mat4x4<f32>,
     projectionMatrix: mat4x4<f32>,
 };
-@group(0) @binding(13) var<storage, read> view: View;
+@group(0) @binding(8) var<storage, read> view: View;
 
 
 const numCascades = 4;
 
-@group(0) @binding(14) var shadowSamplerComp: sampler_comparison;
+@group(0) @binding(9) var shadowSamplerComp: sampler_comparison;
 
-@group(0) @binding(15) var<storage, read> settings: Settings;
+@group(0) @binding(10) var<storage, read> settings: Settings;
 
 @vertex
 fn vertexMain(input: VertexInput) -> VertexOutput {
@@ -92,10 +81,10 @@ fn vertexMain(input: VertexInput) -> VertexOutput {
 
 const PI = 3.141592653589793;
 
-const SPOT_LIGHT = 0;
-const DIRECTIONAL_LIGHT = 1;
-const POINT_LIGHT = 2;
-const AREA_LIGHT = 3;
+const SPOT_LIGHT: u32 = 0;
+const DIRECTIONAL_LIGHT: u32 = 1;
+const POINT_LIGHT: u32 = 2;
+const AREA_LIGHT: u32 = 3;
 
 fn reconstructWorldPosFromZ(
     coords: vec2<f32>,

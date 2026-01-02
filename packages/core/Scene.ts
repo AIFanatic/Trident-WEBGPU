@@ -1,11 +1,12 @@
 import { EventSystem } from "./Events";
 import { GameObject } from "./GameObject";
-import { Input } from "./Input";
+import { Input, KeyCodes } from "./Input";
 import { Camera } from "./components";
 import { Component, ComponentEvents, SerializedComponent } from "./components/Component";
 import { Quaternion, Vector3 } from "./math";
 import { Renderer } from "./renderer/Renderer";
 import { RenderingPipeline } from "./renderer/RenderingPipeline";
+import { WEBGPURenderer } from "./renderer/webgpu/WEBGPURenderer";
 import { UUID } from "./utils";
 
 function getCtorChain(ctor: Function): Function[] {
@@ -96,10 +97,29 @@ export class Scene {
 
         Renderer.info.frame = 0;
         this.previousTime = performance.now();
-        this.Tick();
+
+        // TODO: This handles deno and web, probably better to abstract distinction away
+        const webMainLoop = () => {
+            this.Tick();
+
+            // setTimeout(() => {
+            //     webMainLoop()
+            // }, 1000);
+            requestAnimationFrame(() => webMainLoop());
+        }
+
+        const denoMainLoop = () => {
+            globalThis.mainloop(async () => {
+                await this.Tick();
+                Renderer.canvas.surface.present();
+            }, false)
+        }
+
+        if (globalThis.mainloop) denoMainLoop();
+        else webMainLoop();
     }
 
-    private Tick() {
+    private async Tick() {
         Renderer.info.frame++;
         const currentTime = performance.now();
         Renderer.info.deltaTime = currentTime - this.previousTime;
@@ -114,13 +134,9 @@ export class Scene {
             component.Update();
         }
 
-        this.renderPipeline.Render(this);
+        await this.renderPipeline.Render(this);
 
         Input.Update();
-        // setTimeout(() => {
-        //     this.Tick()
-        // }, 1000);
-        requestAnimationFrame(() => this.Tick());
     }
 
     public Serialize(): { name: string, mainCamera: string, gameObjects: { components: SerializedComponent[], transform: Object }[] } {

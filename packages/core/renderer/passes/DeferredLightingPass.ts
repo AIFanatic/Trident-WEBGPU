@@ -42,29 +42,8 @@ export class DeferredLightingPass extends RenderPass {
 
     public async init() {
         this.shader = await Shader.Create({
+            name: this.name,
             code: await ShaderLoader.DeferredLighting,
-            attributes: {
-                position: {location: 0, size: 3, type: "vec3"},
-                normal: {location: 1, size: 3, type: "vec3"},
-                uv: {location: 2, size: 2, type: "vec2"},
-            },
-            uniforms: {
-                textureSampler: { group: 0, binding: 0, type: "sampler" },
-                albedoTexture: { group: 0, binding: 1, type: "texture" },
-                normalTexture: { group: 0, binding: 2, type: "texture" },
-                ermoTexture: { group: 0, binding: 3, type: "texture" },
-                depthTexture: { group: 0, binding: 4, type: "depthTexture" },
-                shadowPassDepth: { group: 0, binding: 5, type: "depthTexture" },
-                
-                lights: { group: 0, binding: 11, type: "storage" },
-                lightCount: { group: 0, binding: 12, type: "storage" },
-
-                view: { group: 0, binding: 13, type: "storage" },
-                
-                shadowSamplerComp: { group: 0, binding: 14, type: "sampler-compare"},
-
-                settings: {group: 0, binding: 15, type: "storage"},
-            },
             colorOutputs: [{format: "rgba16float", blendMode: "add"}],
             depthOutput: "depth24plus",
             depthWriteEnabled: false,

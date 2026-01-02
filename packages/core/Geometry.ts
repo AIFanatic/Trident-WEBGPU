@@ -3,6 +3,7 @@ import { BoundingVolume } from "./math/BoundingVolume";
 import { Vector3 } from "./math/Vector3";
 import { Buffer, BufferType } from "./renderer/Buffer";
 import { Vector2 } from "./math";
+import { CRC32 } from "./utils/CRC32";
 
 export class GeometryAttribute {
     public type = "@trident/core/Geometry/GeometryAttribute";
@@ -11,6 +12,13 @@ export class GeometryAttribute {
     public currentOffset: number; // This can be used 
     public currentSize: number;
     public count: number;
+
+    private _crc: number;
+    public get crc(): number {
+        if (this._crc) return this._crc;
+        this._crc = CRC32.forBytes(new Uint8Array(this.array));
+        return this._crc;
+    }
 
     constructor(array: Float32Array | Uint32Array | Uint16Array | Uint8Array, type: BufferType) {
         if (array.length === 0) throw Error("GeometryAttribute data is empty");

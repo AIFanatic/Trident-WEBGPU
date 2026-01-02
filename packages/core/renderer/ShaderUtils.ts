@@ -2,9 +2,23 @@ import { Assets } from "../Assets";
 import { StringFindAllBetween } from "../utils";
 import { Renderer } from "./Renderer";
 
-import WGSL_Shader_Draw_URL from "../resources/webgpu/shaders/deferred/DrawGBuffer.wgsl";
-import WGSL_Shader_DeferredLighting_URL from "../resources/webgpu/shaders/deferred/DeferredLightingPBR.wgsl";
-import WGSL_Shader_IBLLighting_URL from "../resources/webgpu/shaders/deferred/IBLLighting.wgsl";
+import WGSL_Shader_Draw_URL from "../resources/webgpu/shaders/deferred/DrawGBuffer.wgsl" with { type: "text" };
+import WGSL_Shader_DeferredLighting_URL from "../resources/webgpu/shaders/deferred/DeferredLightingPBR.wgsl" with { type: "text" };
+import WGSL_Shader_IBLLighting_URL from "../resources/webgpu/shaders/deferred/IBLLighting.wgsl" with { type: "text" };
+
+import WGSL_Shader_Deferred_SurfaceStruct from "../resources/webgpu/shaders/deferred/SurfaceStruct.wgsl" with { type: "text" };
+import WGSL_Shader_Deferred_LightStruct from "../resources/webgpu/shaders/deferred/LightStruct.wgsl" with { type: "text" };
+import WGSL_Shader_Deferred_ShadowMap from "../resources/webgpu/shaders/deferred/ShadowMap.wgsl" with { type: "text" };
+import WGSL_Shader_Deferred_ShadowMapCSM from "../resources/webgpu/shaders/deferred/ShadowMapCSM.wgsl" with { type: "text" };
+import WGSL_Shader_Deferred_ShadowUtils from "../resources/webgpu/shaders/deferred/ShadowUtils.wgsl" with { type: "text" };
+import WGSL_Shader_Deferred_Common from "../resources/webgpu/shaders/deferred/Common.wgsl" with { type: "text" };
+
+Assets.Register("@trident/core/resources/webgpu/shaders/deferred/SurfaceStruct.wgsl", WGSL_Shader_Deferred_SurfaceStruct);
+Assets.Register("@trident/core/resources/webgpu/shaders/deferred/LightStruct.wgsl", WGSL_Shader_Deferred_LightStruct);
+Assets.Register("@trident/core/resources/webgpu/shaders/deferred/ShadowMap.wgsl", WGSL_Shader_Deferred_ShadowMap);
+Assets.Register("@trident/core/resources/webgpu/shaders/deferred/ShadowMapCSM.wgsl", WGSL_Shader_Deferred_ShadowMapCSM);
+Assets.Register("@trident/core/resources/webgpu/shaders/deferred/ShadowUtils.wgsl", WGSL_Shader_Deferred_ShadowUtils);
+Assets.Register("@trident/core/resources/webgpu/shaders/deferred/Common.wgsl", WGSL_Shader_Deferred_Common);
 
 // TODO: This is messy
 export class ShaderPreprocessor {
@@ -106,17 +120,3 @@ export class ShaderLoader {
     public static get DeferredLighting(): Promise<string> { return ShaderPreprocessor.ProcessIncludesV2(WGSL_Shader_DeferredLighting_URL); }
     public static get IBLLighting(): Promise<string> { return ShaderPreprocessor.ProcessIncludesV2(WGSL_Shader_IBLLighting_URL); }
 }
-
-import WGSL_Shader_Deferred_SurfaceStruct from "../resources/webgpu/shaders/deferred/SurfaceStruct.wgsl";
-import WGSL_Shader_Deferred_LightStruct from "../resources/webgpu/shaders/deferred/LightStruct.wgsl";
-import WGSL_Shader_Deferred_ShadowMap from "../resources/webgpu/shaders/deferred/ShadowMap.wgsl";
-import WGSL_Shader_Deferred_ShadowMapCSM from "../resources/webgpu/shaders/deferred/ShadowMapCSM.wgsl";
-import WGSL_Shader_Deferred_ShadowUtils from "../resources/webgpu/shaders/deferred/ShadowUtils.wgsl";
-import WGSL_Shader_Deferred_Common from "../resources/webgpu/shaders/deferred/Common.wgsl";
-
-Assets.Register("@trident/core/resources/webgpu/shaders/deferred/SurfaceStruct.wgsl", WGSL_Shader_Deferred_SurfaceStruct);
-Assets.Register("@trident/core/resources/webgpu/shaders/deferred/LightStruct.wgsl", WGSL_Shader_Deferred_LightStruct);
-Assets.Register("@trident/core/resources/webgpu/shaders/deferred/ShadowMap.wgsl", WGSL_Shader_Deferred_ShadowMap);
-Assets.Register("@trident/core/resources/webgpu/shaders/deferred/ShadowMapCSM.wgsl", WGSL_Shader_Deferred_ShadowMapCSM);
-Assets.Register("@trident/core/resources/webgpu/shaders/deferred/ShadowUtils.wgsl", WGSL_Shader_Deferred_ShadowUtils);
-Assets.Register("@trident/core/resources/webgpu/shaders/deferred/Common.wgsl", WGSL_Shader_Deferred_Common);

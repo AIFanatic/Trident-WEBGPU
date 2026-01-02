@@ -102,6 +102,8 @@ export class Texture {
     public Destroy() {}
 
     public SetData(data: BufferSource, bytesPerRow: number, rowsPerImage?: number) {}
+
+    public SetSubData(data: BufferSource, width: number, height: number, mip: number, offsetX: number = 0, offsetY: number = 0, layer: number = 0) {}
     
     public Serialize(metadata: any = {}): SerializedTexture {throw Error("Base class.")}
     public static Deserialize(data: SerializedTexture): Texture {
@@ -128,6 +130,11 @@ export class Texture {
 
     public static async Blit(source: Texture, destination: Texture, width: number, height: number, uv_scale = new Vector2(1,1)) {
         if (Renderer.type === "webgpu") return WEBGPUBlit.Blit(source, destination, width, height, uv_scale);
+        throw Error("Renderer type invalid");
+    }
+
+    public static async BlitDepth(source: DepthTexture, destination: DepthTexture, width: number, height: number, uv_scale = new Vector2(1,1)) {
+        if (Renderer.type === "webgpu") return WEBGPUBlit.BlitDepth(source, destination, width, height, uv_scale);
         throw Error("Renderer type invalid");
     }
 }

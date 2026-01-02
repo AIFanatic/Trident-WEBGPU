@@ -6,6 +6,7 @@ import { Geometry } from "../../Geometry";
 import { TextureSampler } from "../TextureSampler";
 import { PassParams } from "../RenderingPipeline";
 import { Console, ConsoleVarConfigs } from "../../Console";
+import { Texture } from "../Texture";
 
 const TextureViewerSettings = Console.define({r_exposure: { default: 0.0, help: "Final image exposure"}} satisfies ConsoleVarConfigs);
 
@@ -96,38 +97,19 @@ export class TextureViewer extends RenderPass {
         }
 
         @fragment fn fragmentMain(input: VertexOutput) -> @location(0) vec4f {
-            let EXPOSURE = exposure;
-
-            let c = textureSampleLevel(texture, textureSampler, input.vUv, 0);
+            let c = textureSampleLevel(texture, textureSampler, input.vUv, 0.0);
             let a = c.a;
             var col = c.rgb;
-            
-            // // Apply exposure
-            // col = col * exp2(EXPOSURE);
-
-            // // Tonemap
-            // col = toneMapping(col);
-            // // Apply the sRGB transfer function (gamma correction)
             col = clamp(gammaCorrection(col), vec3f(0.0), vec3f(1.0));
-
-
-            // // // Tonemap
-            // // col = aces_fitted(col);
-            // // // Apply the sRGB transfer function (gamma correction)
-            // // col = clamp(gamma_correct(col), vec3f(0.0), vec3f(1.0));
 
             return vec4f(col, 1.0);
         }
         `;
 
         this.shader = await Shader.Create({
+            name: "TextureViewer",
             code: code,
             colorOutputs: [{format: Renderer.SwapChainFormat}],
-            uniforms: {
-                textureSampler: {group: 0, binding: 0, type: "sampler"},
-                texture: {group: 0, binding: 1, type: "texture"},
-                exposure: {group: 0, binding: 2, type: "storage"},
-            }
         });
         this.quadGeometry = new Geometry();
 

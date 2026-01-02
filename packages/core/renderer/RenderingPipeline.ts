@@ -12,6 +12,7 @@ import { IBLLightingPass } from "./passes/IBLIBLLightingPass";
 import { SkyboxPass } from "./passes/SkyboxPass";
 import { RenderablePass } from "./passes/RenderablePass";
 import { PostExposureTonemap } from "./passes/PostExposureTonemap";
+import { BasePass } from "./passes/BasePass";
 
 export const PassParams = {
     DebugSettings: "DebugSettings",
@@ -99,7 +100,7 @@ export class RenderingPipeline {
 
         this.beforeLightingPasses = [];
         this.afterLightingPasses = [
-            // new BasePass(), // Needs to blend instead of overwritting every pixel on lighting output (this does emissive)
+            new BasePass(),
             new DeferredLightingPass(),
             new IBLLightingPass(),
             new SkyboxPass(),

@@ -119,17 +119,18 @@ export class BufferMemoryAllocator {
     public getAllocator(): MemoryAllocator { return this.allocator; }
 }
 
-export class DynamicBufferMemoryAllocator2 {
+export class DynamicBufferMemoryAllocatorDynamic {
     protected allocator: MemoryAllocator;
     protected buffer: DynamicBuffer;
     protected links: Map<any, number>;
 
-    protected static BYTES_PER_ELEMENT = Float32Array.BYTES_PER_ELEMENT;
+    protected minBindingSize: number;
     protected bufferType: BufferType;
 
-    constructor(size: number, bufferType = BufferType.STORAGE, minBindingSize: number = 256) {
-        this.allocator = new MemoryAllocator(size);
-        this.buffer = DynamicBuffer.Create(size * DynamicBufferMemoryAllocator2.BYTES_PER_ELEMENT, bufferType, minBindingSize);
+    constructor(slotCount: number, bufferType = BufferType.STORAGE, minBindingSize: number = 256) {
+        this.minBindingSize = minBindingSize;
+        this.allocator = new MemoryAllocator(slotCount);
+        this.buffer = DynamicBuffer.Create(slotCount * minBindingSize, bufferType, minBindingSize);
         this.links = new Map();
         this.bufferType = bufferType;
     }
@@ -139,27 +140,31 @@ export class DynamicBufferMemoryAllocator2 {
     }
 
     public set(link: any, data: Float32Array | Uint32Array): number {
-        let bufferOffset = this.links.get(link);
-        if (bufferOffset === undefined) {
-            bufferOffset = this.allocator.allocate(data.length);
-            this.links.set(link, bufferOffset);
+        if (data.byteLength > this.minBindingSize) {
+            throw Error(`Data size (${data.byteLength}) exceeds minBindingSize (${this.minBindingSize}).`);
         }
-        this.buffer.SetArray(data, bufferOffset * DynamicBufferMemoryAllocator2.BYTES_PER_ELEMENT, 0, data.length);
-        return bufferOffset;
+
+        let slotIndex = this.links.get(link);
+        if (slotIndex === undefined) {
+            slotIndex = this.allocator.allocate(1);
+            this.links.set(link, slotIndex);
+        }
+
+        this.buffer.SetArray(data, slotIndex * this.minBindingSize);
+        return slotIndex;
     }
 
     public delete(link: any) {
-        const bufferOffset = this.links.get(link);
-        if (bufferOffset === undefined) throw Error("Link not found");
-        this.allocator.free(bufferOffset);
+        const slotIndex = this.links.get(link);
+        if (slotIndex === undefined) throw Error("Link not found");
+        this.allocator.free(slotIndex);
         this.links.delete(link);
     }
 
     public getBuffer(): DynamicBuffer { return this.buffer; }
     public getAllocator(): MemoryAllocator { return this.allocator; }
-    public setOffset(offset: number) { this.buffer.dynamicOffset = offset; }
+    public getStride(): number { return this.minBindingSize; }
 }
-
 
 export class DynamicBufferMemoryAllocator extends BufferMemoryAllocator {
     private incrementAmount: number;
@@ -169,7 +174,11 @@ export class DynamicBufferMemoryAllocator extends BufferMemoryAllocator {
         this.incrementAmount = incrementAmount ? incrementAmount : size;
     }
 
-    public set(link: any, data: Float32Array | Uint32Array): number {
+    public get(link: any): number | null {
+        return this.links.get(link);
+    }
+
+    public set(link: any, data: Float32Array | Uint32Array | Uint16Array | Uint8Array, _bufferOffset: number = 0): number {
         let bufferOffset = this.links.get(link);
         if (bufferOffset === undefined) {
             if (this.allocator.availableMemorySize - data.length < 0) {
@@ -199,7 +208,8 @@ export class DynamicBufferMemoryAllocator extends BufferMemoryAllocator {
             bufferOffset = this.allocator.allocate(data.length);
             this.links.set(link, bufferOffset);
         }
-        this.buffer.SetArray(data, bufferOffset * BufferMemoryAllocator.BYTES_PER_ELEMENT, 0, data.length);
+        const byteOffset = bufferOffset * DynamicBufferMemoryAllocator.BYTES_PER_ELEMENT;
+        this.buffer.SetArray(data, byteOffset + _bufferOffset);
         return bufferOffset;
     }
 

@@ -11,6 +11,9 @@ for (const key in adapter.limits) requiredLimits[key] = adapter.limits[key];
 
 const features: GPUFeatureName[] = [];
 if (adapter.features.has("timestamp-query")) features.push("timestamp-query");
+if (adapter.features.has("indirect-first-instance")) features.push("indirect-first-instance"); // TODO: Needed for meshlets. Figure out a way for plugins to request these
+
+console.log(features)
 
 const device = adapter ? await adapter.requestDevice({
     requiredFeatures: features,
@@ -35,17 +38,13 @@ export class WEBGPURenderer implements Renderer {
         WEBGPURenderer.device = device;
         WEBGPURenderer.presentationFormat = navigator.gpu.getPreferredCanvasFormat();
 
-        context.configure({device, format: WEBGPURenderer.presentationFormat });
+        context.configure({device: WEBGPURenderer.device, format: WEBGPURenderer.presentationFormat, alphaMode: "opaque" });
 
-        WEBGPURenderer.adapter = adapter;
-        WEBGPURenderer.device = device;
         WEBGPURenderer.context = context;
 
-        WEBGPURenderer.context.configure({
-            device: WEBGPURenderer.device,
-            format: WEBGPURenderer.presentationFormat,
-            alphaMode: "opaque",
-        });
+        WEBGPURenderer.device.onuncapturederror = (event) => {
+            console.error("WebGPU uncaptured error:", event.error);
+        };
     }
 
     public static GetActiveCommandEncoder(): GPUCommandEncoder | null { return WEBGPURenderer.activeCommandEncoder }

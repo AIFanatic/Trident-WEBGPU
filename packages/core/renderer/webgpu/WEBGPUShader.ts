@@ -71,7 +71,9 @@ export class WEBGPUShader extends WEBGPUBaseShader implements Shader {
         this._bindGroups = this.BuildBindGroups();
 
         let bindGroupLayoutsCRC = "";
-        for (const b of this.bindGroupLayouts) bindGroupLayoutsCRC += b.label;
+        for (const b of this.bindGroupLayouts) {
+            bindGroupLayoutsCRC += b["crc"]; // Meh
+        }
 
         let pipelineLayout = pipelineLayoutCache.get(bindGroupLayoutsCRC);
         if (pipelineLayout === undefined) {

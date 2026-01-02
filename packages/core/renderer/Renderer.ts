@@ -23,20 +23,24 @@ export class Renderer {
     public static get device() { return WEBGPURenderer.device };
 
     public static Create(canvas: HTMLCanvasElement, type: RendererAPIType, aspectRatio = 1): Renderer {
-        canvas.width = canvas.parentElement.clientWidth * aspectRatio;
-        canvas.height = canvas.parentElement.clientHeight * aspectRatio;
-        canvas.style.width = "100%";
-        canvas.style.height = "100%";
-        canvas.style.userSelect = "none";
-
-        const observer = new ResizeObserver(entries => {
+        if (canvas.parentElement) {
             canvas.width = canvas.parentElement.clientWidth * aspectRatio;
             canvas.height = canvas.parentElement.clientHeight * aspectRatio;
-            Renderer.width = canvas.width;
-            Renderer.height = canvas.height;
-            EventSystem.emit(RendererEvents.Resized, canvas);
-        });
-        observer.observe(canvas);
+            canvas.style.width = "100%";
+            canvas.style.height = "100%";
+            canvas.style.userSelect = "none";
+        }
+
+        if (globalThis.ResizeObserver) {
+            const observer = new ResizeObserver(entries => {
+                canvas.width = canvas.parentElement.clientWidth * aspectRatio;
+                canvas.height = canvas.parentElement.clientHeight * aspectRatio;
+                Renderer.width = canvas.width;
+                Renderer.height = canvas.height;
+                EventSystem.emit(RendererEvents.Resized, canvas);
+            });
+            observer.observe(canvas);
+        }
 
         Renderer.canvas = canvas;
         Renderer.type = type;

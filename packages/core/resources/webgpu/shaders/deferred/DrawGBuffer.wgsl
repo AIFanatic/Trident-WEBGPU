@@ -28,8 +28,8 @@ struct Material {
     Metalness: f32,
     Unlit: f32,
     AlphaCutoff: f32,
-    Wireframe: f32,
     RepeatOffset: vec4<f32>, // xy = repeat, zw = offset
+    Wireframe: f32,
 };
 
 struct VertexOutput {
@@ -131,7 +131,6 @@ fn fragmentMain(input: VertexOutput) -> FragmentOutput {
 
 
     let mat = material;
-    let modelMatrixInstance = modelMatrix[input.instance];
 
     var uv = input.vUv * mat.RepeatOffset.xy + mat.RepeatOffset.zw;
 

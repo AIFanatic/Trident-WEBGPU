@@ -1,8 +1,6 @@
 import { Shader } from "../Shader";
 import { Geometry } from "../../Geometry";
-import { CubeTexture, RenderTexture } from "../Texture";
 import { TextureSampler } from "../TextureSampler";
-import { Camera } from "../../components/Camera";
 import { PassParams } from "../RenderingPipeline";
 import { RenderPass, ResourcePool } from "../RenderGraph";
 import { RendererContext } from "../RendererContext";

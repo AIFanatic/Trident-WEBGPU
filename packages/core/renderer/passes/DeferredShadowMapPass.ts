@@ -15,22 +15,16 @@ import { Vector3 } from "../../math/Vector3";
 import { DepthTextureArray } from "../Texture";
 import { Console, ConsoleVarConfigs } from "../../Console";
 
-interface LightShadowInfo {
-    numOfCascades: number;
-    projectionArray: Float32Array;
-    splits: Float32Array;
+interface LightShadowInfoBase {
+    numCascades: number;
+    projectionMatrices: Float32Array;
+    cascadeSplits: Float32Array;
     cascadeViewports: PreparedShadowViewport[];
 }
 
-export interface LightShadowData {
-    cascadeSplits: Float32Array;
-    projectionMatrices: Float32Array;
+export interface LightShadowInfo extends LightShadowInfoBase {
     shadowMapIndex: number;
-
-    light: Light;
-    numCascades: number;
     lightOffset: number;
-    cascadeViewports: PreparedShadowViewport[];
 };
 
 interface PreparedShadowViewport {
@@ -56,8 +50,8 @@ const isInstancedRenderable = (renderable: Renderable): renderable is InstancedR
 };
 
 export const ShadowMapSettings = Console.define({
-    r_shadows_width: { default: 1024, help: "Shadow map width" },
-    r_shadows_height: { default: 1024, help: "Shadow map height" },
+    r_shadows_width: { default: 2048, help: "Shadow map width" },
+    r_shadows_height: { default: 2048, help: "Shadow map height" },
     r_shadows_enabled: { default: true, help: "Enable Shadows" },
     r_shadows_pcfResolution: { default: 3, help: "Shadows Percentage-Closer Filtering, the higher the value the softer the shadows." },
     r_shadows_maxShadowDistance: { default: 2000, help: "Maximum distance to show shadows" },
@@ -80,7 +74,7 @@ export class DeferredShadowMapPass extends RenderPass {
     private lightProjectionMatrices: DynamicBuffer;
     private cascadeIndexBuffer: DynamicBuffer;
 
-    private lightShadowData: Map<string, LightShadowData> = new Map();
+    private lightShadowData: Map<string, LightShadowInfo> = new Map();
 
     private shadowOutput: DepthTextureArray;
 
@@ -248,8 +242,8 @@ export class DeferredShadowMapPass extends RenderPass {
         return CASCADE_DISTANCES;
     }
 
-    private getCascades(cascadeSplits: number[], camera: Camera, cascadeCount: number, light: Light): Cascade[] {
-        let cascades: Cascade[] = [];
+    private getCascadeProjectionMatrices(cascadeSplits: number[], camera: Camera, cascadeCount: number, light: Light): Matrix4[] {
+        let cascadeProjectionMatrices: Matrix4[] = [];
 
         this.frustumData = { corners: [], lightMatrix: new Matrix4(), cameraMatrix: new Matrix4(), frustumCenters: [] };
 
@@ -301,23 +295,19 @@ export class DeferredShadowMapPass extends RenderPass {
             this.frustumData.lightMatrix = viewProjMatrix;
             this.frustumData.frustumCenters.push(frustumCenter);
 
-            cascades.push({
-                viewProjMatrix: viewProjMatrix,
-                splitDepth: cascadeFar
-            })
+            cascadeProjectionMatrices.push(viewProjMatrix);
         }
 
-        return cascades;
+        return cascadeProjectionMatrices;
     }
 
-    private prepareCascadedShadowMap(light: Light): LightShadowInfo {
+    private prepareCascadedShadowMap(light: Light): LightShadowInfoBase {
         const camera = Camera.mainCamera;
         const numOfCascades = ShadowMapSettings.r_shadows_csm_numOfCascades.value;
         const cascadeSplits = this.getCascadeSplits(numOfCascades, camera.near, Math.min(camera.far, ShadowMapSettings.r_shadows_maxShadowDistance.value));
         this.csmSplits = cascadeSplits;
-        const cascades = this.getCascades(cascadeSplits, camera, numOfCascades, light);
-        const projectionArray = new Float32Array(cascades.map(c => c.viewProjMatrix).flatMap(m => [...m.elements]));
-        const splits = cascades.map(c => c.splitDepth);
+        const cascadeProjectionMatrices = this.getCascadeProjectionMatrices(cascadeSplits, camera, numOfCascades, light);
+        const projectionMatrices = new Float32Array(cascadeProjectionMatrices.flatMap(m => [...m.elements]));
         let cascadeViewports: PreparedShadowViewport[] = [];
         const halfWidth = this.shadowOutput.width / 2;
         const halfHeight = this.shadowOutput.height / 2;
@@ -329,17 +319,17 @@ export class DeferredShadowMapPass extends RenderPass {
             cascadeViewports.push({ x, y, width: halfWidth, height: halfHeight });
         }
 
-        return { numOfCascades: numOfCascades, projectionArray: projectionArray, splits: new Float32Array(splits), cascadeViewports: cascadeViewports };
+        return { numCascades: numOfCascades, projectionMatrices: projectionMatrices, cascadeSplits: new Float32Array(cascadeSplits), cascadeViewports: cascadeViewports };
     }
 
-    private prepareShadowMap(light: Light): LightShadowInfo {
+    private prepareShadowMap(light: Light): LightShadowInfoBase {
         const numOfCascades = 1;
         const vp = light.camera.projectionMatrix.clone().mul(light.camera.viewMatrix);
-        const projectionArray = new Float32Array([vp, vp, vp, vp].flatMap(m => [...m.elements]));
-        const splits = [0, 0, 0, 0];
+        const projectionMatrices = new Float32Array([vp, vp, vp, vp].flatMap(m => [...m.elements]));
+        const cascadeSplits = [0, 0, 0, 0];
         const cascadeViewports = [{ x: 0, y: 0, width: this.shadowOutput.width, height: this.shadowOutput.height }];
 
-        return { numOfCascades: numOfCascades, projectionArray: projectionArray, splits: new Float32Array(splits), cascadeViewports: cascadeViewports };
+        return { numCascades: numOfCascades, projectionMatrices: projectionMatrices, cascadeSplits: new Float32Array(cascadeSplits), cascadeViewports: cascadeViewports };
     }
 
     private ensureBuffers(lightCount: number) {
@@ -407,14 +397,9 @@ export class DeferredShadowMapPass extends RenderPass {
         this.preparedRenderables.length = 0;
         this.preparedInstancedMeshes.length = 0;
 
-        const lights = [
-            ...scene.GetComponents(SpotLight),
-            ...scene.GetComponents(PointLight),
-            ...scene.GetComponents(DirectionalLight),
-            ...scene.GetComponents(AreaLight)
-        ].filter(light => light.castShadows === true);
+        const lights = scene.GetComponents(Light).filter(light => light.castShadows === true);
 
-        if (lights.length === 0) return;
+        if (lights.length === 0 ) return;
 
         this.ensureBuffers(lights.length);
         this.prepareRenderables();
@@ -425,7 +410,7 @@ export class DeferredShadowMapPass extends RenderPass {
 
             EventSystemLocal.emit(TransformEvents.Updated, light.transform);
 
-            let preparedLight: LightShadowInfo = undefined;
+            let preparedLight: LightShadowInfoBase = undefined;
             if (light instanceof DirectionalLight) preparedLight = this.prepareCascadedShadowMap(light);
             else if (light instanceof SpotLight) preparedLight = this.prepareShadowMap(light);
             else {
@@ -435,15 +420,14 @@ export class DeferredShadowMapPass extends RenderPass {
 
             const cascadeCapacity = ShadowMapSettings.r_shadows_csm_numOfCascades.value;
             const lightOffset = shadowLayer * cascadeCapacity * 4 * 256;
-            this.lightProjectionMatrices.SetArray(preparedLight.projectionArray, lightOffset);
+            this.lightProjectionMatrices.SetArray(preparedLight.projectionMatrices, lightOffset);
 
             this.lightShadowData.set(light.id, {
-                cascadeSplits: preparedLight.splits,
-                projectionMatrices: preparedLight.projectionArray,
+                cascadeSplits: preparedLight.cascadeSplits,
+                projectionMatrices: preparedLight.projectionMatrices,
                 shadowMapIndex: shadowLayer,
 
-                light: light,
-                numCascades: preparedLight.numOfCascades,
+                numCascades: preparedLight.numCascades,
                 lightOffset: lightOffset,
                 cascadeViewports: preparedLight.cascadeViewports,
             });
