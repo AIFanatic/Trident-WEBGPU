@@ -1,10 +1,10 @@
 import { Assets, GPU, Geometry } from "@trident/core";
 
-import CommonWGSL from "./resources/Common.wgsl";
-import VertexWGSL from "./resources/Vertex.wgsl";
-import TransmittanceLUTWGSL from "./resources/TransmittanceLUT.wgsl";
-import SkyAtmosphereWGSL from "./resources/SkyAtmosphere.wgsl";
-import CubemapWGSL from "./resources/Cubemap.wgsl";
+import CommonWGSL from "./resources/Common.wgsl" with { type: "text" };
+import VertexWGSL from "./resources/Vertex.wgsl" with { type: "text" };
+import TransmittanceLUTWGSL from "./resources/TransmittanceLUT.wgsl" with { type: "text" };
+import SkyAtmosphereWGSL from "./resources/SkyAtmosphere.wgsl" with { type: "text" };
+import CubemapWGSL from "./resources/Cubemap.wgsl" with { type: "text" };
 
 Assets.Register("@trident/plugins/Sky/resources/Common.wgsl", CommonWGSL);
 Assets.Register("@trident/plugins/Sky/resources/Vertex.wgsl", VertexWGSL);

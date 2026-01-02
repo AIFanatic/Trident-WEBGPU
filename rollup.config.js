@@ -60,8 +60,29 @@ const core = {
 }
 
 function copyResources(from, to) {
+    function listFilesRecursive(dir) {
+        const out = [];
+        if (!fs.existsSync(dir)) return out;
+        for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+            const full = path.join(dir, entry.name);
+            if (entry.isDirectory()) out.push(...listFilesRecursive(full));
+            else if (entry.isFile()) out.push(full);
+        }
+        return out;
+    }
+
     return {
         name: 'copy-resources',
+        buildStart() {
+            const base = from;
+            for (const entry of fs.readdirSync(base)) {
+                const srcDir = path.join(base, entry, 'resources');
+                if (!fs.existsSync(srcDir)) continue;
+                for (const file of listFilesRecursive(srcDir)) {
+                    this.addWatchFile(file);
+                }
+            }
+        },
         buildEnd() {
             const base = from;
             const dest = to;
@@ -117,8 +138,8 @@ function wrapJsInHtml() {
                 html, body {
                     margin: 0;
                     overflow: hidden;
-                    height: 100%;
                     width: 100%;
+                    height: 100%;
                 }
             </style>
         </head>

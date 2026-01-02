@@ -6,32 +6,15 @@ import {
     GPU,
     GameObject,
     PBRMaterial,
+    Renderer,
 } from "@trident/core";
 
 import { OrbitControls } from "@trident/plugins/OrbitControls";
-import { HDRParser } from "@trident/plugins/HDRParser";
-import { UIButtonStat, UIColorStat, UIFolder, UISliderStat, UITextureViewer, UIVecStat } from "@trident/plugins/ui/UIStats";
-import { Debugger } from "@trident/plugins/Debugger";
-import { LineRenderer } from "@trident/plugins/LineRenderer";
-
-import { SpotLightHelper } from "@trident/plugins/SpotLightHelper";
 import { DirectionalLightHelper } from "@trident/plugins/DirectionalLightHelper";
-import { PointLightHelper } from "@trident/plugins/PointLightHelper";
-
-import { PostProcessingPass } from "@trident/plugins/PostProcessing/PostProcessingPass";
-import { PostProcessingFXAA } from "@trident/plugins/PostProcessing/effects/FXAA";
-import { Sky } from "@trident/plugins/Environment/Sky";
-import { Irradiance } from "@trident/plugins/Environment/Irradiance";
-import { Prefilter } from "@trident/plugins/Environment/Prefilter";
-import { BRDF } from "@trident/plugins/Environment/BRDF";
-import { Environment } from "@trident/plugins/Environment/Environment";
-
-import { PostProcessingFog } from "@trident/plugins/PostProcessing/effects/Fog";
-
-import { PostProcessingSMAA } from "@trident/plugins/PostProcessing/effects/SMAA";
+import { SpotLightHelper } from "@trident/plugins/SpotLightHelper";
 
 async function Application(canvas: HTMLCanvasElement) {
-    const renderer = GPU.Renderer.Create(canvas, "webgpu");
+    const renderer = Renderer.Create(canvas, "webgpu");
 
     const scene = new Scene(renderer);
 
@@ -51,18 +34,18 @@ async function Application(canvas: HTMLCanvasElement) {
 
     {
         const lightGameObject = new GameObject(scene);
-        lightGameObject.transform.position.set(-4, 4, 0.01);
+        lightGameObject.transform.position.set(-2, 4, 0.01);
         lightGameObject.transform.LookAtV1(new Mathf.Vector3(0, 0, 0));
-        const light = lightGameObject.AddComponent(Components.DirectionalLight);
+        const light = lightGameObject.AddComponent(Components.SpotLight);
         light.intensity = 1;
     
-        const lightHelper = lightGameObject.AddComponent(DirectionalLightHelper);
+        const lightHelper = lightGameObject.AddComponent(SpotLightHelper);
         lightHelper.light = light;
     }
 
     {
         const lightGameObject = new GameObject(scene);
-        lightGameObject.transform.position.set(4, 4, 0.01);
+        lightGameObject.transform.position.set(2, 4, 0.01);
         lightGameObject.transform.LookAtV1(new Mathf.Vector3(0, 0, 0));
         const light = lightGameObject.AddComponent(Components.DirectionalLight);
         light.intensity = 1;
@@ -81,6 +64,7 @@ async function Application(canvas: HTMLCanvasElement) {
         const mat = new PBRMaterial({ albedoColor: new Mathf.Color(1, 1, 1), metalness: 0.0, roughness: 1 });
         sphereMesh.material = mat;
     }
+
 
     {
         const sphereGameObject = new GameObject(scene);

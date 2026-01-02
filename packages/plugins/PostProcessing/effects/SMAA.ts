@@ -322,7 +322,7 @@ export class PostProcessingSMAA extends GPU.RenderPass {
                 }
 
                 fn SMAAArea(areaTex: texture_2d<f32>, areaTexSampler: sampler, dist: vec2f, e1: f32, e2: f32, offset: f32) -> vec2f {
-                    var texcoord: vec2f = mad_vec2f(vec2(SMAA_AREATEX_MAX_DISTANCE, SMAA_AREATEX_MAX_DISTANCE), round(4.0 * vec2(e1, e2)), dist);
+                    var texcoord: vec2f = mad_vec2f(vec2(f32(SMAA_AREATEX_MAX_DISTANCE), f32(SMAA_AREATEX_MAX_DISTANCE)), round(4.0 * vec2(e1, e2)), dist);
 
                     texcoord = mad_vec2f(SMAA_AREATEX_PIXEL_SIZE, texcoord, 0.5 * SMAA_AREATEX_PIXEL_SIZE);
                     texcoord.y = mad_f32(SMAA_AREATEX_SUBTEX_SIZE, offset, texcoord.y);

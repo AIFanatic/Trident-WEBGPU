@@ -42,6 +42,9 @@ import { PostProcessingSMAA } from "@trident/plugins/PostProcessing/effects/SMAA
 import { Sky } from "@trident/plugins/Environment/Sky";
 import { Environment } from "@trident/plugins/Environment/Environment";
 import { LODInstanceRenderable } from "@trident/plugins/LODGroup";
+import { OBJLoaderIndexed } from "@trident/plugins/OBJLoader";
+import { MeshletMesh } from "@trident/plugins/meshlets_v4/MeshletMesh";
+import { MeshletDraw } from "@trident/plugins/meshlets_v4/passes/MeshletDraw";
 
 async function Application(canvas: HTMLCanvasElement) {
     const renderer = GPU.Renderer.Create(canvas, "webgpu");
@@ -60,6 +63,7 @@ async function Application(canvas: HTMLCanvasElement) {
     const light = lightGameObject.AddComponent(Components.DirectionalLight);
     light.color.set(1.0, 0.96, 0.88, 1);
     light.intensity = 10;
+    // light.castShadows = false;
 
     new UIColorStat(Debugger.ui, "Light Color:", light.color.toHex(), value => {
         light.color.setFromHex(value);
@@ -478,6 +482,89 @@ async function Application(canvas: HTMLCanvasElement) {
         }
     }
 
+
+    // {
+    //     scene.renderPipeline.AddPass(new MeshletDraw(), GPU.RenderPassOrder.BeforeGBuffer);
+        
+
+    //     function traverse(gameObjects: GameObject[], fn: (gameObject: GameObject) => void) {
+    //         for (const gameObject of gameObjects) {
+    //             fn(gameObject);
+    //             for (const child of gameObject.transform.children) {
+    //                 traverse([child.gameObject], fn);
+    //             }
+    //         }
+    //     }
+
+    //     const tree1 = await GLTFLoader.loadAsGameObjects(scene, "/extra/test-assets/tree-01/tree-01.glb");
+
+    //     let lodGroupEntries: { geometry: Geometry, material: GPU.Material }[] = []
+    //     traverse([tree1], gameObject => {
+    //         const mesh = gameObject.GetComponent(Components.Mesh);
+    //         if (mesh) {
+    //             const geometrySerialized = mesh.geometry.Serialize();
+    //             const materialSerialized = mesh.material.Serialize();
+    //             materialSerialized.params.roughness = 1.0
+    //             materialSerialized.params.metalness = 0.0;
+    //             const materialClone = GPU.Material.Deserialize(materialSerialized);
+    //             const geometryClone = new Geometry();
+    //             geometryClone.Deserialize(geometrySerialized);
+
+    //             lodGroupEntries.push({ geometry: geometryClone, material: materialClone });
+    //         }
+    //     })
+    //     tree1.Destroy();
+
+    //     // console.log(lodGroupEntries[0])
+
+    //     console.log(lodGroupEntries[0].material.params)
+    //     // (lodGroupEntries[0].material as PBRMaterial).params.albedoColor.set(1, 0, 0, 1)
+
+    //     const entries = lodGroupEntries.slice(0, 2);
+        
+    //     let treeCount = 0;
+    //     const p = new Mathf.Vector3();
+    //     const r = new Mathf.Vector3();
+    //     const q = new Mathf.Quaternion();
+    //     const s = new Mathf.Vector3(1, 1, 1);
+    //     const m = new Mathf.Matrix4();
+
+    //     const c = 50000;
+    //     const off = 500;
+    //     for (let i = 0; i < c; i++) {
+    //         // const angle = i / c * Math.PI * 2;
+    //         // // const radius = Mathf.RandomRange(20, 1000);
+    //         // const radius = Mathf.RandomRange(0, 1000);
+    
+    //         // const x = center.x + Mathf.Cos(angle) * radius;
+    //         // const z = center.z + Mathf.Sin(angle) * radius;
+    
+    //         const x = Mathf.RandomRange(-off, off);
+    //         const z = Mathf.RandomRange(-off, off);
+    
+    //         p.set(x, 0, z);
+    //         terrain.SampleHeight(p);
+    
+    //         r.y = Mathf.RandomRange(0, 360);
+    //         q.setFromEuler(r);
+    //         p.y += Mathf.RandomRange(-1, 0);
+    //         m.compose(p, q, s);
+    
+    //         if (p.y > 25) {
+    //             for (const mesh of entries) {
+    //                 const go2 = new GameObject(scene);
+    //                 const meshletB = go2.AddComponent(MeshletMesh);
+    //                 meshletB.geometry = mesh.geometry;
+    //                 meshletB.material = mesh.material;
+    //                 m.decompose(meshletB.transform.position, meshletB.transform.rotation, meshletB.transform.scale);
+                    
+    //             }
+    //             treeCount++
+    //         }
+    //     }
+    //     console.log("treeCount", treeCount)
+    // }
+    
     // Trees
     {
         const tree1 = await GLTFLoader.loadAsGameObjects(scene, "/extra/test-assets/tree-01/tree-01.glb");
@@ -511,12 +598,12 @@ async function Application(canvas: HTMLCanvasElement) {
             [1,1,1,1],
         ]
 
-        let j = 0;
-        for (let i = 0; i < lodGroupEntries.length; i+=2) {
-            const c = lodColors[j];
-            (lodGroupEntries[i].material as PBRMaterial).params.albedoColor.set(c[0], c[1], c[2], c[3]);
-            j++;
-        }
+        // let j = 0;
+        // for (let i = 0; i < lodGroupEntries.length; i+=2) {
+        //     const c = lodColors[j];
+        //     (lodGroupEntries[i].material as PBRMaterial).params.albedoColor.set(c[0], c[1], c[2], c[3]);
+        //     j++;
+        // }
         //     lodInstanceRenderable.lods.push({ renderers: lodGroupEntries.slice(0, 2), screenSize: 20 });
         // lodInstanceRenderable.lods.push({ renderers: lodGroupEntries.slice(2, 4), screenSize: 40 });
         // lodInstanceRenderable.lods.push({ renderers: lodGroupEntries.slice(4, 6), screenSize: 80 });
@@ -541,11 +628,12 @@ async function Application(canvas: HTMLCanvasElement) {
     
         const center = playerGameObject.transform.position;
     
+        let treeCount = 0;
         for (let i = 0; i < c; i++) {
     
-            const angle = i / c * Math.PI * 2;
-            // const radius = Mathf.RandomRange(20, 1000);
-            const radius = Mathf.RandomRange(0, 1000);
+            // const angle = i / c * Math.PI * 2;
+            // // const radius = Mathf.RandomRange(20, 1000);
+            // const radius = Mathf.RandomRange(0, 1000);
     
             // const x = center.x + Mathf.Cos(angle) * radius;
             // const z = center.z + Mathf.Sin(angle) * radius;
@@ -562,73 +650,75 @@ async function Application(canvas: HTMLCanvasElement) {
             m.compose(p, q, s);
     
             if (p.y > 25) {
-                lodInstanceRenderable.SetMatrixAt(i, m);
+                lodInstanceRenderable.SetMatrixAt(treeCount, m);
+                treeCount++
             }
         }
+        console.log(treeCount)
     }
 
-    // Grass
-    {
-        const tree1 = await GLTFLoader.loadAsGameObjects(scene, "/extra/test-assets/tree-01/grass.glb");
+    // // Grass
+    // {
+    //     const tree1 = await GLTFLoader.loadAsGameObjects(scene, "/extra/test-assets/tree-01/grass.glb");
     
-        let lodGroupEntries: { geometry: Geometry, material: GPU.Material }[] = []
-        traverse([tree1], gameObject => {
-            const mesh = gameObject.GetComponent(Components.Mesh);
-            if (mesh) {
-                const geometrySerialized = mesh.geometry.Serialize();
-                const materialSerialized = mesh.material.Serialize();
-                console.log(materialSerialized.params.roughness, materialSerialized.params.metalness)
-                const materialClone = GPU.Material.Deserialize(materialSerialized);
-                const geometryClone = new Geometry();
-                geometryClone.Deserialize(geometrySerialized);
+    //     let lodGroupEntries: { geometry: Geometry, material: GPU.Material }[] = []
+    //     traverse([tree1], gameObject => {
+    //         const mesh = gameObject.GetComponent(Components.Mesh);
+    //         if (mesh) {
+    //             const geometrySerialized = mesh.geometry.Serialize();
+    //             const materialSerialized = mesh.material.Serialize();
+    //             console.log(materialSerialized.params.roughness, materialSerialized.params.metalness)
+    //             const materialClone = GPU.Material.Deserialize(materialSerialized);
+    //             const geometryClone = new Geometry();
+    //             geometryClone.Deserialize(geometrySerialized);
     
-                lodGroupEntries.push({ geometry: geometryClone, material: materialClone });
-            }
-        })
-        tree1.Destroy();
+    //             lodGroupEntries.push({ geometry: geometryClone, material: materialClone });
+    //         }
+    //     })
+    //     tree1.Destroy();
     
-        const lodGameObject = new GameObject(scene);
-        const lodInstanceRenderable = lodGameObject.AddComponent(LODInstanceRenderable);
-        lodInstanceRenderable.enableShadows = false;
-        lodInstanceRenderable.lods.push({ renderers: lodGroupEntries, screenSize: 0 });
-        lodInstanceRenderable.lods.push({ renderers: lodGroupEntries, screenSize: 1000 });
+    //     const lodGameObject = new GameObject(scene);
+    //     const lodInstanceRenderable = lodGameObject.AddComponent(LODInstanceRenderable);
+    //     lodInstanceRenderable.enableShadows = false;
+    //     lodInstanceRenderable.lods.push({ renderers: lodGroupEntries, screenSize: 0 });
+    //     lodInstanceRenderable.lods.push({ renderers: lodGroupEntries, screenSize: 1000 });
     
-        const p = new Mathf.Vector3();
-        const r = new Mathf.Vector3();
-        const q = new Mathf.Quaternion();
-        const s = new Mathf.Vector3(1, 1, 1);
-        const m = new Mathf.Matrix4();
+    //     const p = new Mathf.Vector3();
+    //     const r = new Mathf.Vector3();
+    //     const q = new Mathf.Quaternion();
+    //     const s = new Mathf.Vector3(1, 1, 1);
+    //     const m = new Mathf.Matrix4();
     
-        const c = 20000;
-        const off = 500;
+    //     const c = 20000;
+    //     const off = 500;
     
-        const center = playerGameObject.transform.position;
+    //     const center = playerGameObject.transform.position;
     
-        for (let i = 0; i < c; i++) {
+    //     for (let i = 0; i < c; i++) {
     
-            const angle = i / c * Math.PI * 2;
-            // const radius = Mathf.RandomRange(20, 1000);
-            const radius = Mathf.RandomRange(0, 100);
+    //         const angle = i / c * Math.PI * 2;
+    //         // const radius = Mathf.RandomRange(20, 1000);
+    //         const radius = Mathf.RandomRange(0, 100);
     
-            const x = center.x + Mathf.Cos(angle) * radius;
-            const z = center.z + Mathf.Sin(angle) * radius;
+    //         const x = center.x + Mathf.Cos(angle) * radius;
+    //         const z = center.z + Mathf.Sin(angle) * radius;
 
-            // const x = Mathf.RandomRange(-off, off);
-            // const z = Mathf.RandomRange(-off, off);            
+    //         // const x = Mathf.RandomRange(-off, off);
+    //         // const z = Mathf.RandomRange(-off, off);            
     
-            p.set(x, 0, z);
-            terrain.SampleHeight(p);
+    //         p.set(x, 0, z);
+    //         terrain.SampleHeight(p);
     
-            r.y = Mathf.RandomRange(0, 360);
-            q.setFromEuler(r);
-            p.y += 0.1;
-            m.compose(p, q, s);
+    //         r.y = Mathf.RandomRange(0, 360);
+    //         q.setFromEuler(r);
+    //         p.y += 0.1;
+    //         m.compose(p, q, s);
     
-            if (p.y > 25) {
-                lodInstanceRenderable.SetMatrixAt(i, m);
-            }
-        }
-    }
+    //         if (p.y > 25) {
+    //             lodInstanceRenderable.SetMatrixAt(i, m);
+    //         }
+    //     }
+    // }
 
 
 
@@ -664,6 +754,10 @@ async function Application(canvas: HTMLCanvasElement) {
         smaa.enabled = value;
     });
 
+
+    new UISliderStat(Debugger.ui, "Exposure:", -4, 4, 0.1, Console.getVar<number>("r_exposure").value, value => Console.getVar("r_exposure").value = value);
+    new UISliderStat(Debugger.ui, "Saturation:", -4, 4, 0.1, Console.getVar<number>("r_saturation").value, value => Console.getVar("r_saturation").value = value);
+    new UISliderStat(Debugger.ui, "Contrast:", -4, 4, 0.1, Console.getVar<number>("r_contrast").value, value => Console.getVar("r_contrast").value = value);
 
     Debugger.Enable();
 

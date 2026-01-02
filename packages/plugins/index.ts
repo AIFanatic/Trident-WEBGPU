@@ -25,7 +25,6 @@ export * from "./Upscaler";
 export * from "./Bloom";
 
 export * from "./HiZPass";
-export * from "./meshlets_v2";
 
 export * from "./PhysicsRapier";
 
@@ -40,7 +39,7 @@ export * from "./SpotLightHelper";
 export * from "./DirectionalLightHelper";
 export * from "./PointLightHelper";
 
-export * from "./Atlas";
+export { Atlas } from "./Atlas";
 
 export * from "./Impostors/ImpostorMesh";
 
@@ -56,7 +55,7 @@ Component.Registry.set(Water.type, Water);
 export * from "./SSGI";
 export * from "./Blit";
 
-export * from "./meshlets_v3";
+export * from "./meshlets_v4";
 
 export * from "./SSS";
 
@@ -67,3 +66,6 @@ export * from "./meshoptimizer/Meshoptimizer";
 export * from "./Environment";
 
 export * from "./LODGroup";
+
+
+export * from "./VirtualTexturing/";

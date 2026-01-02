@@ -9,6 +9,8 @@ export class PhysicsRapier extends Component {
     public static Physics: typeof RAPIER;
     public static PhysicsWorld: RAPIER.World;
 
+    public static fixedDeltaTime = 1 / 60;   // seconds
+
     public Load(): Promise<boolean> {
         return new Promise(resolve => {
             RAPIER_Module.init().then(() => {
@@ -17,8 +19,9 @@ export class PhysicsRapier extends Component {
                 PhysicsRapier.Physics = RAPIER_Module;
                 PhysicsRapier.PhysicsWorld = world;
                 PhysicsRapier.hasLoaded = true;
+                world.timestep = PhysicsRapier.fixedDeltaTime;
                 resolve(true);
-            })  
+            })
         })
     }
 

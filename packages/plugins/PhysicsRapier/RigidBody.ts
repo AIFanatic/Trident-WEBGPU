@@ -69,7 +69,7 @@ export class RigidBody extends Component {
     }
 
     public Move(position: Mathf.Vector3) {
-        const dt = 1 / 60; // TODO: Should be fixedTimestep instead
+        const dt = PhysicsRapier.fixedDeltaTime;
         const pNew = position.clone(); //our new desired position
         const p = this.transform.position.clone(); //our current position
         const v = this.velocity.clone(); //our current velocity

@@ -1,5 +1,5 @@
 import "./Meshlets";
-// import * as TEST from "./examples/BindlessTexture";
+import "./Meshlets_v4";
 import "./Water";
 import "./Skybox";
 // import "./VPLS";
@@ -21,7 +21,7 @@ import "./FPS";
 
 
 import "./BindlessDraw";
-import "./BindlessTexture";
+import "./TextureAtlas";
 
 import "./RSM";
 
@@ -48,3 +48,8 @@ import "./LODTest";
 import "./SMAA";
 
 import "./ShadowTest";
+
+
+
+
+import "./VirtualTexturing";

@@ -26,27 +26,27 @@ async function Application(canvas: HTMLCanvasElement) {
     const light = lightGameObject.AddComponent(Components.DirectionalLight);
     light.castShadows = false;
 
-    const gameObjects = await GLTFLoader.loadAsGameObjects(scene, "./assets/models/Fox.glb");
-    // const gameObjects = await GLTFLoader.loadAsGameObjects(scene, "./assets/models/DamagedHelmet/DamagedHelmet.gltf");
+    // const gameObjects = await GLTFLoader.loadAsGameObjects(scene, "./assets/models/Fox.glb");
+    const gameObjects = await GLTFLoader.loadAsGameObjects(scene, "./assets/models/DamagedHelmet/DamagedHelmet.gltf");
 
-    function traverse(gameObjects: GameObject[], fn: (gameObject: GameObject) => void) {
-        for (const gameObject of gameObjects) {
-            fn(gameObject);
-            for (const child of gameObject.transform.children) {
-                traverse([child.gameObject], fn);
-            }
-        }
-    }
+    // function traverse(gameObjects: GameObject[], fn: (gameObject: GameObject) => void) {
+    //     for (const gameObject of gameObjects) {
+    //         fn(gameObject);
+    //         for (const child of gameObject.transform.children) {
+    //             traverse([child.gameObject], fn);
+    //         }
+    //     }
+    // }
 
-    let animator: Components.Animator = undefined;
-    traverse([gameObjects], gameObject => {
-        const _animator = gameObject.GetComponent(Components.Animator);
-        if (_animator) animator = _animator;
-    })
+    // let animator: Components.Animator = undefined;
+    // traverse([gameObjects], gameObject => {
+    //     const _animator = gameObject.GetComponent(Components.Animator);
+    //     if (_animator) animator = _animator;
+    // })
 
-    if (!animator) throw Error("Could not find an animator component");
+    // if (!animator) throw Error("Could not find an animator component");
 
-    animator.SetClipByIndex(0);
+    // animator.SetClipByIndex(0);
     Debugger.Enable();
 
     scene.Start();

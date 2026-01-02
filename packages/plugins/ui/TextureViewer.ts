@@ -6,6 +6,8 @@ export class CanvasTexture {
 
     constructor(width: number, height: number) {
         this.canvas = document.createElement("canvas");
+        this.canvas.width = width;
+        this.canvas.height = height;
         this.context = this.canvas.getContext("webgpu");
     }
 
@@ -36,6 +38,17 @@ export class TextureViewer {
     }
 
     public async init() {
+        const FormatToType = {
+            "bgra8unorm": "float",
+            "rgba16float": "float",
+            "r32uint": "uint"
+        }
+        const type = FormatToType[this.texture.format];
+        const floatSample = `let color = textureSample(texture, textureSampler, input.uv);`;
+        const uintSample = `
+        let coords = input.uv * vec2f(textureDimensions(texture));
+        let color = vec4f(textureLoad(texture, vec2i(coords), 0));
+        `;
         const code = `
         struct VertexOutput {
             @builtin(position) position : vec4<f32>,
@@ -43,7 +56,7 @@ export class TextureViewer {
         };
 
         @group(0) @binding(0) var textureSampler: sampler;
-        @group(0) @binding(1) var texture: texture_2d<f32>;
+        @group(0) @binding(1) var texture: texture_2d<${type === "float" ? "f32" : "u32"}>;
         // Full-screen triangle (covers screen with 3 verts)
         const p = array<vec2f, 3>(
             vec2f(-1.0, -1.0),
@@ -61,7 +74,8 @@ export class TextureViewer {
             return out;
         }
         @fragment fn fragmentMain(input: VertexOutput) -> @location(0) vec4f {
-            let color = textureSample(texture, textureSampler, input.uv);
+            // let color = textureSample(texture, textureSampler, input.uv);
+            ${type === "float" ? floatSample : uintSample}
             return color;
         }
         `;

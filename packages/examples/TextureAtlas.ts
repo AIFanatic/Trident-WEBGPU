@@ -1,0 +1,153 @@
+import { Atlas } from "@trident/plugins/Atlas";
+
+import {
+    Components,
+    Scene,
+    GPU,
+    Mathf,
+    GameObject,
+    Geometry,
+} from "@trident/core";
+import { Debugger } from "@trident/plugins/Debugger";
+import { OrbitControls } from "@trident/plugins/OrbitControls";
+import { UITextureViewer } from "@trident/plugins/ui/UIStats";
+
+async function Application(canvas: HTMLCanvasElement) {
+    const renderer = GPU.Renderer.Create(canvas, "webgpu");
+    const scene = new Scene(renderer);
+
+    const mainCameraGameObject = new GameObject(scene);
+    mainCameraGameObject.name = "MainCamera";
+    const camera = mainCameraGameObject.AddComponent(Components.Camera);
+    camera.SetPerspective(60, canvas.width / canvas.height, 0.01, 100);
+
+    const lightGameObject = new GameObject(scene);
+    lightGameObject.transform.position.set(-4, 4, 10);
+    lightGameObject.transform.LookAtV1(new Mathf.Vector3(0, 0, 0));
+    const light = lightGameObject.AddComponent(Components.DirectionalLight);
+    light.castShadows = true;
+
+
+    mainCameraGameObject.transform.position.set(0, 0, 4);
+    mainCameraGameObject.transform.LookAtV1(new Mathf.Vector3(0, 0, 0));
+
+    const controls = new OrbitControls(canvas, camera);
+
+    const t2 = await GPU.RenderTexture.Load("./assets/textures/32x32.png");
+    const t3 = await GPU.RenderTexture.Load("./assets/textures/64x64.png", "bgra8unorm", true);
+
+    const atlas = new Atlas(256);
+    const reg1 = atlas.AddTexture(t3);
+    console.log(reg1)
+    atlas.AddTexture(t2);
+    // atlas.AddTexture(t2);
+
+    {
+        class AtlasMaterial extends GPU.Material {
+            private atlas: GPU.Texture;
+            constructor(atlas: GPU.Texture) {
+                super({isDeferred: true});
+                this.atlas = atlas;
+                this.createShader();
+            }
+
+            private async createShader() {
+                const gbufferFormat = Scene.mainScene.renderPipeline.GBufferFormat;
+                this.shader = await GPU.Shader.Create({
+                    code: `
+                        #include "@trident/core/resources/webgpu/shaders/deferred/Common.wgsl";
+
+                        struct VertexInput {
+                            @builtin(instance_index) instanceIdx : u32, 
+                            @location(0) position : vec3<f32>,
+                            @location(1) normal : vec3<f32>,
+                            @location(2) uv : vec2<f32>,
+                        };
+
+                        struct VertexOutput {
+                            @builtin(position) position : vec4<f32>,
+                            @location(0) vPosition : vec3<f32>,
+                            @location(1) vNormal : vec3<f32>,
+                            @location(2) vUv : vec2<f32>,
+                        };
+
+                        struct FragmentOutput {
+                            @location(0) albedo : vec4f,
+                            @location(1) normal : vec4f,
+                            @location(2) RMO : vec4f,
+                        };
+
+                        @group(0) @binding(0) var<storage, read> frameBuffer: FrameBuffer;
+                        @group(0) @binding(1) var<storage, read> modelMatrix: array<mat4x4<f32>>;
+
+                        @group(1) @binding(0) var atlasSampler: sampler;
+                        @group(1) @binding(1) var atlas: texture_2d<f32>;
+
+                        struct AtlasRegion {
+                            uv_offset: vec2<f32>,
+                            uv_size: vec2<f32>
+                        }
+                        @group(1) @binding(2) var<storage, read> regions: array<AtlasRegion>;
+
+                        @vertex
+                        fn vertexMain(input: VertexInput) -> VertexOutput {
+                            var output : VertexOutput;
+
+                            var modelMatrixInstance = modelMatrix[input.instanceIdx];
+                            var modelViewMatrix = frameBuffer.viewMatrix * modelMatrixInstance;
+
+                            output.position = frameBuffer.projectionMatrix * modelViewMatrix * vec4(input.position, 1.0);
+                            
+                            output.vPosition = input.position;
+                            output.vNormal = input.normal;
+                            output.vUv = input.uv;
+
+                            return output;
+                        }
+
+                        @fragment
+                        fn fragmentMain(input: VertexOutput) -> FragmentOutput {
+                            var output: FragmentOutput;
+
+                            let region = regions[0];
+                            var offset = input.vUv;
+                            offset *= region.uv_size;
+                            offset += region.uv_offset;
+
+                            let c = textureSample(atlas, atlasSampler, offset);
+                            var albedo = c.rgb;
+                            var unlit = 0.0;
+                            output.albedo = vec4(albedo.rgb, 1.0);
+                            output.normal = vec4(OctEncode(input.vNormal), 0.0, 0.0);
+                            output.RMO = vec4(vec3(0.0), unlit);
+
+                            return output;
+                        }
+                    `,
+                    colorOutputs: [{format: gbufferFormat},{format: gbufferFormat},{format: gbufferFormat}],
+                    depthOutput: "depth24plus"
+                })
+
+                this.shader.SetSampler("atlasSampler", GPU.TextureSampler.Create());
+                this.shader.SetTexture("atlas", this.atlas);
+
+                this.shader.SetArray("regions", atlas.regionData);
+            }
+        }
+
+        const floorGameObject = new GameObject(scene);
+        const floorMesh = floorGameObject.AddComponent(Components.Mesh);
+        floorMesh.geometry = Geometry.Plane();
+        // floorMesh.material = new PBRMaterial({albedoMap: atlas.buffer});
+        floorMesh.material = new AtlasMaterial(atlas.buffer);
+    }
+
+    new UITextureViewer(Debugger.ui, "Atlas", atlas.buffer);
+    
+    Debugger.Enable();
+
+    scene.Start();
+
+};
+
+Application(document.querySelector("canvas"));
