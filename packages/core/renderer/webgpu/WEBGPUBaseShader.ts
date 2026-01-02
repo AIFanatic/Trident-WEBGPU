@@ -128,14 +128,15 @@ export class WEBGPUBaseShader {
         let bindGroupLayouts: GPUBindGroupLayout[] = [];
         for (const bindGroupsLayoutEntry of bindGroupsLayoutEntries) {
             const crc = JSON.stringify(bindGroupsLayoutEntry);
+            // console.log(crc)
 
             let bindGroupLayout = BindGroupLayoutCache.get(crc);
             if (bindGroupLayout === undefined) {
-                bindGroupLayout = WEBGPURenderer.device.createBindGroupLayout({entries: bindGroupsLayoutEntry});
+                bindGroupLayout = WEBGPURenderer.device.createBindGroupLayout({label: this.params.name, entries: bindGroupsLayoutEntry});
                 BindGroupLayoutCache.set(crc, bindGroupLayout);
                 Renderer.info.bindGroupLayoutsStat += 1;
             }
-            bindGroupLayout.label = crc;
+            bindGroupLayout["crc"] = crc; // Meh
             bindGroupLayouts.push(bindGroupLayout);
         }
 
@@ -228,10 +229,7 @@ export class WEBGPUBaseShader {
 
     private GetValidUniform(name: string): WEBGPUShaderUniform {
         const uniform = this.uniformMap.get(name);
-        if (!uniform) {
-            console.log(this);
-            throw Error(`Shader does not have a parameter named ${name}`);
-        }
+        if (!uniform) throw Error(`Shader does not have a parameter named ${name}`);
         return uniform;
     }
 
