@@ -154,10 +154,16 @@ class TerrainMaterial extends GPU.Material {
                     let layerNormal = layerNormalSample.xyz * 2.0 - 1.0;
                     let layerArm = textureSample(armTextures, textureSampler, uv_layer, layer_index);
 
+                    // // Unity style r=1.0 - smoothness,g=ao,b=detail,a=roughness
+                    // let ao = layerArm.g;
+                    // let roughness = 1.0 - layerArm.a;
+                    // let metalness = layerArm.r;
+
                     // Unity style r=1.0 - smoothness,g=ao,b=detail,a=roughness
-                    let ao = layerArm.g;
-                    let roughness = 1.0 - layerArm.a;
-                    let metalness = layerArm.r;
+                    let ao = layerArm.r;
+                    let roughness = layerArm.g;
+                    let metalness = layerArm.b;
+
                     return TerrainSample(layerAlbedo.rgb, layerNormal, vec3(ao, roughness, metalness));
                 }
                     

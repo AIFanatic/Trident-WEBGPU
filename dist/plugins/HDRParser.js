@@ -123,11 +123,12 @@ class HDRParser {
     }
     let width = 0;
     let height = 0;
+    let exposure = 1;
     for (let i = 0; i < 20; i += 1) {
       let line = readLine();
       let match;
       if (match = line.match(HDRParser.radiancePattern)) ; else if (match = line.match(HDRParser.formatPattern)) ; else if (match = line.match(HDRParser.exposurePattern)) {
-        Number(match[1]);
+        exposure = Number(match[1]);
       } else if (match = line.match(HDRParser.commentPattern)) ; else if (match = line.match(HDRParser.widthHeightPattern)) {
         height = Number(match[1]);
         width = Number(match[2]);
@@ -138,43 +139,46 @@ class HDRParser {
     let scanlineWidth = width;
     let scanlinesCount = height;
     HDRParser.readPixelsRawRLE(buffer, data, 0, fileOffset, scanlineWidth, scanlinesCount);
-    const f32 = new Float32Array(width * height * 4);
-    for (let i = 0; i < data.length; i += 4) {
-      const e = data[i + 3];
-      const s = e ? Math.pow(2, e - 128) / 256 : 0;
-      f32[i + 0] = data[i + 0] * s;
-      f32[i + 1] = data[i + 1] * s;
-      f32[i + 2] = data[i + 2] * s;
-      f32[i + 3] = 1;
+    function acesToneMapping(x) {
+      const a = 2.51;
+      const b = 0.03;
+      const c = 2.43;
+      const d = 0.59;
+      const e = 0.14;
+      const y = x * (a * x + b) / (x * (c * x + d) + e);
+      return Math.max(0, y);
     }
-    function f32toF16(x) {
-      f32toF16.f[0] = x;
-      const u = f32toF16.u[0];
-      const s = u >>> 31 & 1;
-      let e = u >>> 23 & 255;
-      let m = u & 8388607;
-      if (e === 255) return s << 15 | 31744 | (m ? 512 : 0);
-      if (e === 0) return s << 15;
-      e = e - 127 + 15;
-      if (e <= 0) {
-        if (e < -10) return s << 15;
-        m = (m | 8388608) >>> 1 - e;
-        return s << 15 | m + 4096 >>> 13;
-      }
-      if (e >= 31) return s << 15 | 31744;
-      return s << 15 | e << 10 | m + 4096 >>> 13;
+    const exposureMul = exposure;
+    let floatData = new Float16Array(width * height * 4);
+    for (let offset = 0; offset < data.length; offset += 4) {
+      let r = data[offset + 0] / 255;
+      let g = data[offset + 1] / 255;
+      let b = data[offset + 2] / 255;
+      const e = data[offset + 3];
+      const scale = Math.pow(2, e - 128);
+      r *= scale;
+      g *= scale;
+      b *= scale;
+      r *= exposureMul;
+      g *= exposureMul;
+      b *= exposureMul;
+      r = acesToneMapping(r);
+      g = acesToneMapping(g);
+      b = acesToneMapping(b);
+      const i = offset;
+      floatData[i + 0] = r;
+      floatData[i + 1] = g;
+      floatData[i + 2] = b;
+      floatData[i + 3] = 1;
     }
-    f32toF16.f = new Float32Array(1);
-    f32toF16.u = new Uint32Array(f32toF16.f.buffer);
-    const f16 = new Uint16Array(f32.length);
-    for (let i = 0; i < f32.length; i++) f16[i] = f32toF16(f32[i]);
     const dstHDR = GPU.RenderTexture.Create(width, height, 1, HDRParser.ImageFormat);
-    dstHDR.SetData(f16, width * 8);
+    dstHDR.SetData(floatData, width * 8);
     return dstHDR;
   }
   static async ToCubemap(hdr) {
     const faceSize = Math.min(hdr.width / 2 | 0, hdr.height | 0);
-    const renderTarget = GPU.RenderTextureCube.Create(faceSize, faceSize, 6, "rgba8unorm");
+    console.log("faceSize", faceSize);
+    const renderTarget = GPU.RenderTextureCube.Create(faceSize, faceSize, 6, "rgba16float");
     renderTarget.SetName("Skybox");
     const hdrSampler = GPU.TextureSampler.Create({
       minFilter: "linear",
@@ -234,7 +238,7 @@ class HDRParser {
             }
           `
       ),
-      colorOutputs: [{ format: "rgba8unorm" }],
+      colorOutputs: [{ format: renderTarget.format }],
       attributes: { position: { location: 0, size: 3, type: "vec3" } },
       uniforms: {
         hdrTexture: { group: 0, binding: 1, type: "texture" },
@@ -250,11 +254,12 @@ class HDRParser {
       params.SetArray(new Float32Array([face, 0, 0, 0]));
       GPU.Renderer.BeginRenderFrame();
       renderTarget.SetActiveLayer(face);
-      GPU.RendererContext.BeginRenderPass(`EquirectToCubeFace_${face}`, [{ target: renderTarget, clear: false }]);
+      GPU.RendererContext.BeginRenderPass(`EquirectToCubeFace_${face}`, [{ target: renderTarget, clear: true }]);
       GPU.RendererContext.DrawGeometry(geometry, shader);
       GPU.RendererContext.EndRenderPass();
       GPU.Renderer.EndRenderFrame();
     }
+    renderTarget.GenerateMips();
     return renderTarget;
   }
 }

@@ -1,4 +1,4 @@
-import { GPU, Geometry, Mathf } from '@trident/core';
+import { GPU, Geometry } from '@trident/core';
 
 class Prefilter {
   prefilterTexture;
@@ -8,12 +8,11 @@ class Prefilter {
   prefilterShader;
   res;
   roughnessLevels;
-  outputFormat;
   constructor(res = 256, roughnessLevels = 5, outputFormat = "rgba16float") {
     this.res = res;
     this.roughnessLevels = roughnessLevels;
-    this.outputFormat = outputFormat;
-    this.prefilterTexture = GPU.RenderTextureCube.Create(this.res, this.res, 6, this.outputFormat, roughnessLevels);
+    this.prefilterTexture = GPU.RenderTextureCube.Create(this.res, this.res, 6, outputFormat, roughnessLevels);
+    this.prefilterTexture.name = "Prefilter";
   }
   async init() {
     this.prefilterShader = await GPU.Shader.Create({
@@ -41,12 +40,12 @@ class Prefilter {
                 fn dirFromFaceUV(face: u32, x: f32, y: f32) -> vec3f {
                     let u = x; let v = y;
                     switch face {
-                    case 0u { return normalize(vec3(-1.0, v, -u)); } // +X
-                    case 1u { return normalize(vec3(1.0, v, u)); } // -X
-                    case 2u { return normalize(vec3(-u, 1.0, -v)); } // -Y
-                    case 3u { return normalize(vec3(-u, -1.0, v)); } // +Y
-                    case 4u { return normalize(vec3(-u, v, 1.0)); } // +Z
-                    default { return normalize(vec3(u, v, -1.0)); } // -Z
+                    case 0u { return normalize(vec3( 1.0,  v, -u)); } // +X
+                    case 1u { return normalize(vec3(-1.0,  v,  u)); } // -X
+                    case 2u { return normalize(vec3( u,  1.0, -v)); } // +Y
+                    case 3u { return normalize(vec3( u, -1.0,  v)); } // -Y
+                    case 4u { return normalize(vec3( u,  v,  1.0)); } // +Z
+                    default { return normalize(vec3(-u,  v, -1.0)); } // -Z
                     }
                 }
         
@@ -106,9 +105,11 @@ class Prefilter {
                     let r = n;
                     let v = r;
                     
-                    let SAMPLE_COUNT: u32 = 256u;
+                    let SAMPLE_COUNT: u32 = 1024u;
                     var prefilteredColor = vec3f(0.0, 0.0, 0.0);
                     var totalWeight = 0.0;
+                    let dim = textureDimensions(environmentMap);
+                    let resolution = f32(dim.x);
                     
                     for (var i: u32 = 0u; i < SAMPLE_COUNT; i = i + 1u) {
                         // Generates a sample vector that's biased towards the preferred alignment
@@ -126,7 +127,6 @@ class Prefilter {
                             let hDotV = max(dot(h, v), 0.0);
                             let pdf = d * nDotH / (4.0 * hDotV) + 0.0001;
                         
-                            let resolution = ${this.res}.0; // resolution of source cubemap (per face)
                             let saTexel = 4.0 * PI / (6.0 * resolution * resolution);
                             let saSample = 1.0 / (f32(SAMPLE_COUNT) * pdf + 0.0001);
                         
@@ -163,7 +163,6 @@ class Prefilter {
   }
   Update(texture) {
     if (!this.initialized) return;
-    const color = new Mathf.Color(0.3, 0.3, 0.3, 1);
     this.prefilterShader.SetTexture("environmentMap", texture);
     for (let mip = 0; mip < this.roughnessLevels; mip += 1) {
       const width = this.prefilterTexture.width >> mip;
@@ -176,7 +175,7 @@ class Prefilter {
         this.prefilterTexture.SetActiveLayer(face);
         this.prefilterTexture.SetActiveMip(mip);
         this.prefilterTexture.SetActiveMipCount(1);
-        GPU.RendererContext.BeginRenderPass(`Prefilter_${mip}_${face}`, [{ target: this.prefilterTexture, clear: true, color }]);
+        GPU.RendererContext.BeginRenderPass(`Prefilter_${mip}_${face}`, [{ target: this.prefilterTexture, clear: true }]);
         GPU.RendererContext.SetViewport(0, 0, width, height, 0, 1);
         GPU.RendererContext.DrawGeometry(this.geometry, this.prefilterShader);
         GPU.RendererContext.EndRenderPass();

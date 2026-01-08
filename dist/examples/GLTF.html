@@ -31,15 +31,17 @@
             import { OrbitControls } from '@trident/plugins/OrbitControls.js';
             import { GLTFLoader } from '@trident/plugins/GLTF/GLTFLoader.js';
             import { Debugger } from '@trident/plugins/Debugger.js';
+            import { HDRParser } from '@trident/plugins/HDRParser.js';
+            import { Environment } from '@trident/plugins/Environment/Environment.js';
             
             async function Application(canvas) {
-              const renderer = GPU.Renderer.Create(canvas, "webgpu");
+              const renderer = GPU.Renderer.Create(canvas, "webgpu", 2);
               const scene = new Scene(renderer);
               const mainCameraGameObject = new GameObject(scene);
               mainCameraGameObject.transform.position.set(0, 0, -15);
               mainCameraGameObject.name = "MainCamera";
               const camera = mainCameraGameObject.AddComponent(Components.Camera);
-              camera.SetPerspective(72, canvas.width / canvas.height, 0.5, 1e3);
+              camera.SetPerspective(72, canvas.width / canvas.height, 0.05, 1e3);
               mainCameraGameObject.transform.position.set(0, 0, 2);
               mainCameraGameObject.transform.LookAtV1(new Mathf.Vector3(0, 0, 0));
               new OrbitControls(canvas, camera);
@@ -47,8 +49,15 @@
               lightGameObject.transform.position.set(-4, 4, 4);
               lightGameObject.transform.LookAtV1(new Mathf.Vector3(0, 0, 0));
               const light = lightGameObject.AddComponent(Components.DirectionalLight);
-              light.castShadows = false;
-              await GLTFLoader.loadAsGameObjects(scene, "./assets/models/DamagedHelmet/DamagedHelmet.gltf");
+              light.castShadows = true;
+              light.intensity = 1;
+              const hdr = await HDRParser.Load("/dist/examples/assets/textures/HDR/autumn_field_puresky_1k.hdr");
+              const skyTexture = await HDRParser.ToCubemap(hdr);
+              const environment = new Environment(scene, skyTexture);
+              await environment.init();
+              const prefab = await GLTFLoader.LoadFromURL("./assets/models/DamagedHelmet/DamagedHelmet.gltf");
+              console.log(prefab);
+              scene.Instantiate(prefab);
               Debugger.Enable();
               scene.Start();
             }

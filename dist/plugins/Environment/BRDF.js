@@ -128,7 +128,7 @@ class BRDF {
             }
           `
       ),
-      colorOutputs: [{ format: "rg16float" }],
+      colorOutputs: [{ format: this.brdfTexture.format }],
       attributes: {
         position: { location: 0, size: 3, type: "vec3" },
         normal: { location: 1, size: 3, type: "vec3" },

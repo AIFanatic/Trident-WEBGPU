@@ -56,7 +56,7 @@
                 const mesh = await OBJLoaderIndexed.load("/dist/examples/assets/models/bunny.obj");
                 mesh.geometry.ComputeNormals();
                 mesh.geometry.ComputeTangents();
-                const mat = new PBRMaterial({ albedoMap: await GPU.Texture.Load("/dist/examples/assets/textures/stone.png") });
+                const mat = new PBRMaterial({ albedoMap: await GPU.Texture.Load("/dist/examples/assets/textures/brick.png") });
                 const meshletGameObject = new GameObject(scene);
                 meshletGameObject.transform.position.x = 2;
                 const meshletMesh = meshletGameObject.AddComponent(MeshletMesh);

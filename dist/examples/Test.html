@@ -29,67 +29,209 @@
                 document.body.appendChild(canvas);
                             import { GPU, Scene, GameObject, Components, Mathf, Geometry, PBRMaterial } from '@trident/core';
             import { OrbitControls } from '@trident/plugins/OrbitControls.js';
-            import { PostProcessingPass } from '@trident/plugins/PostProcessing/PostProcessingPass.js';
-            import { PostProcessingSMAA } from '@trident/plugins/PostProcessing/effects/SMAA.js';
-            import { Sky } from '@trident/plugins/Environment/Sky.js';
+            import { GLTFLoader } from '@trident/plugins/GLTF/GLTFLoader.js';
+            import { Debugger } from '@trident/plugins/Debugger.js';
+            import { HDRParser } from '@trident/plugins/HDRParser.js';
             import { Environment } from '@trident/plugins/Environment/Environment.js';
             
             async function Application(canvas) {
-              const renderer = GPU.Renderer.Create(canvas, "webgpu");
+              const renderer = GPU.Renderer.Create(canvas, "webgpu", 2);
               const scene = new Scene(renderer);
               const mainCameraGameObject = new GameObject(scene);
+              mainCameraGameObject.transform.position.set(0, 0, -15);
               mainCameraGameObject.name = "MainCamera";
               const camera = mainCameraGameObject.AddComponent(Components.Camera);
-              camera.SetPerspective(72, canvas.width / canvas.height, 0.01, 500);
-              mainCameraGameObject.transform.position.set(0, 0, 2);
-              mainCameraGameObject.transform.LookAtV1(new Mathf.Vector3(0, 0, 0));
+              camera.SetPerspective(72, canvas.width / canvas.height, 0.05, 1e3);
               new OrbitControls(canvas, camera);
-              {
-                const lightGameObject = new GameObject(scene);
-                lightGameObject.transform.position.set(-4, -4, -4);
-                lightGameObject.transform.LookAtV1(new Mathf.Vector3(0, 0, 0));
-                const light = lightGameObject.AddComponent(Components.DirectionalLight);
-                light.intensity = 3;
-                light.color.set(1, 1, 1, 1);
-                light.castShadows = false;
-              }
-              {
-                const lightGameObject = new GameObject(scene);
-                lightGameObject.transform.position.set(4, 4, 4);
-                lightGameObject.transform.LookAtV1(new Mathf.Vector3(0, 0, 0));
-                const light = lightGameObject.AddComponent(Components.DirectionalLight);
-                light.intensity = 3;
-                light.color.set(1, 1, 1, 1);
-                light.castShadows = false;
-              }
-              {
-                const lightGameObject = new GameObject(scene);
-                lightGameObject.transform.position.set(4, 4, 4);
-                lightGameObject.transform.LookAtV1(new Mathf.Vector3(0, 0, 0));
-                const light = lightGameObject.AddComponent(Components.DirectionalLight);
-                light.intensity = 1;
-                light.color.set(1, 1, 1, 1);
-                light.castShadows = false;
-              }
-              {
-                const planeGO = new GameObject(scene);
-                planeGO.transform.position.set(0, 0, 0);
-                planeGO.transform.scale.set(1, 1, 1);
-                const sphereMesh = planeGO.AddComponent(Components.Mesh);
-                sphereMesh.geometry = Geometry.Cube();
-                const mat = new PBRMaterial({ metalness: 0, roughness: 1 });
-                sphereMesh.material = mat;
-              }
-              const skyAtmosphere = new Sky();
-              await skyAtmosphere.init();
-              const skyTexture = skyAtmosphere.skyTextureCubemap;
+              const lightGameObject = new GameObject(scene);
+              lightGameObject.transform.position.set(-4, 4, 4);
+              lightGameObject.transform.LookAtV1(new Mathf.Vector3(0, 0, 0));
+              const light = lightGameObject.AddComponent(Components.DirectionalLight);
+              light.castShadows = false;
+              light.intensity = 1;
+              const hdr = await HDRParser.Load("/dist/examples/assets/textures/HDR/dikhololo_night_1k.hdr");
+              const skyTexture = await HDRParser.ToCubemap(hdr);
               const environment = new Environment(scene, skyTexture);
               await environment.init();
-              const postProcessing = new PostProcessingPass();
-              const smaa = new PostProcessingSMAA();
-              postProcessing.effects.push(smaa);
-              scene.renderPipeline.AddPass(postProcessing, GPU.RenderPassOrder.BeforeScreenOutput);
-              document.body.style.backgroundColor = "#404040";
+              {
+                let readEntry = function(entry, path = "") {
+                  return new Promise((resolve, reject) => {
+                    if (entry.isFile) {
+                      const fileEntry = entry;
+                      fileEntry.file(
+                        (file) => {
+                          resolve([{ type: "file", path: path + entry.name, file }]);
+                        },
+                        (err) => reject(err)
+                      );
+                    } else if (entry.isDirectory) {
+                      const dirEntry = entry;
+                      const reader = dirEntry.createReader();
+                      const entries = [];
+                      const readBatch = () => {
+                        reader.readEntries(
+                          async (batch) => {
+                            if (batch.length === 0) {
+                              resolve(entries);
+                              return;
+                            }
+                            for (const child of batch) {
+                              const childEntries = await readEntry(
+                                child,
+                                path + entry.name + "/"
+                              );
+                              entries.push(...childEntries);
+                            }
+                            readBatch();
+                          },
+                          (err) => reject(err)
+                        );
+                      };
+                      readBatch();
+                    } else {
+                      resolve([]);
+                    }
+                  });
+                };
+                window.addEventListener("dragover", (e) => {
+                  e.preventDefault();
+                });
+                window.addEventListener("drop", async (ev) => {
+                  ev.preventDefault();
+                  function traverse(prefabs, fn) {
+                    for (const prefab of prefabs) {
+                      fn(prefab);
+                      for (const child of prefab.children) traverse([child], fn);
+                    }
+                  }
+                  function makeLimiter(max) {
+                    let inFlight = 0;
+                    const queue = [];
+                    return async function runLimited(task) {
+                      if (inFlight >= max) await new Promise((r2) => queue.push(r2));
+                      inFlight++;
+                      try {
+                        return await task();
+                      } finally {
+                        inFlight--;
+                        const next = queue.shift();
+                        if (next) next();
+                      }
+                    };
+                  }
+                  const READ_CONCURRENCY = 4;
+                  const PARSE_CONCURRENCY = 4;
+                  const runReadLimited = makeLimiter(READ_CONCURRENCY);
+                  const runParseLimited = makeLimiter(PARSE_CONCURRENCY);
+                  const rootItem = ev.dataTransfer?.items?.[0];
+                  if (!rootItem) return;
+                  const entry = rootItem.webkitGetAsEntry?.();
+                  if (!entry) return;
+                  const files = await readEntry(entry);
+                  const filesByPath = /* @__PURE__ */ new Map();
+                  for (const f of files) filesByPath.set(f.path, f.file);
+                  const sceneJsonFile = filesByPath.get("GLB/Scene.json");
+                  if (!sceneJsonFile) {
+                    console.warn("Missing GLB/Scene.json");
+                    return;
+                  }
+                  const sceneFile = JSON.parse(await sceneJsonFile.text());
+                  const MAX_INSTANCES = 3e3;
+                  let instanceCount = 0;
+                  const uniques = /* @__PURE__ */ new Map();
+                  async function loadUniqueGLB(assetPath, file, record) {
+                    const arrayBuffer = await runReadLimited(() => file.arrayBuffer());
+                    await runParseLimited(async () => {
+                      console.log("Loading", assetPath);
+                      const prefab = await GLTFLoader.LoadFromArrayBuffer(arrayBuffer);
+                      const rootGameObject = record.rootGameObject;
+                      traverse([prefab], (p2) => {
+                        for (const component of p2.components) {
+                          if (component.type === Components.Mesh.type) {
+                            const instancedMesh = rootGameObject.AddComponent(Components.InstancedMesh);
+                            const geometry = new Geometry();
+                            geometry.Deserialize(component.renderable.geometry);
+                            const material = PBRMaterial.Deserialize(component.renderable.material);
+                            instancedMesh.geometry = geometry;
+                            instancedMesh.material = material;
+                            record.instancedMeshes.push(instancedMesh);
+                          }
+                        }
+                      });
+                    });
+                  }
+                  for (const actor of sceneFile.actors) {
+                    if (actor.class !== "StaticMeshActor") continue;
+                    if (instanceCount >= MAX_INSTANCES) break;
+                    for (const m of actor.static_meshes) {
+                      if (instanceCount >= MAX_INSTANCES) break;
+                      const assetName = m.asset_name;
+                      let assetPath = m.asset_path.replace("/Game", "GLB");
+                      assetPath = assetPath.slice(0, assetPath.lastIndexOf(".")) + ".glb";
+                      if (!assetName) continue;
+                      if (!uniques.has(assetPath)) {
+                        const file = filesByPath.get(assetPath);
+                        if (!file) {
+                          console.warn("Missing GLB:", assetPath, "assetName:", assetName);
+                          continue;
+                        }
+                        const record = {
+                          rootGameObject: new GameObject(scene),
+                          instancedMeshes: [],
+                          loadPromise: null
+                        };
+                        record.loadPromise = loadUniqueGLB(assetPath, file, record).catch((err) => {
+                          console.warn("Failed loading", assetPath, err);
+                        });
+                        uniques.set(assetPath, record);
+                      }
+                      instanceCount++;
+                    }
+                  }
+                  console.log("Unique assets:", uniques.size);
+                  await Promise.all([...uniques.values()].map((u) => u.loadPromise));
+                  const p = new Mathf.Vector3();
+                  const e = new Mathf.Vector3();
+                  const r = new Mathf.Quaternion();
+                  const s = new Mathf.Vector3(1, 1, 1);
+                  const mat = new Mathf.Matrix4();
+                  instanceCount = 0;
+                  for (const actor of sceneFile.actors) {
+                    if (actor.class !== "StaticMeshActor") continue;
+                    if (instanceCount >= MAX_INSTANCES) break;
+                    for (const static_mesh of actor.static_meshes) {
+                      if (instanceCount >= MAX_INSTANCES) break;
+                      const assetName = static_mesh.asset_name;
+                      let assetPath = static_mesh.asset_path.replace("/Game", "GLB");
+                      assetPath = assetPath.slice(0, assetPath.lastIndexOf(".")) + ".glb";
+                      if (!assetName) continue;
+                      const record = uniques.get(assetPath);
+                      if (!record || record.instancedMeshes.length === 0) {
+                        instanceCount++;
+                        continue;
+                      }
+                      const { location, rotation_euler_deg, scale } = actor.transform;
+                      p.set(-location.y / 100, location.z / 100, location.x / 100);
+                      e.set(rotation_euler_deg.roll, -90 + rotation_euler_deg.yaw, rotation_euler_deg.pitch);
+                      r.setFromEuler(e, true);
+                      s.set(scale.x, scale.y, scale.z);
+                      mat.compose(p, r, s);
+                      for (const inst of record.instancedMeshes) {
+                        inst.SetMatrixAt(inst.instanceCount, mat);
+                      }
+                      instanceCount++;
+                    }
+                  }
+                  for (const [assetPath, record] of uniques) {
+                    if (record.instancedMeshes.length === 0) {
+                      console.warn(assetPath, "loaded 0 meshes (failed load or no mesh components).");
+                      continue;
+                    }
+                    console.log(`${assetPath} has ${record.instancedMeshes[0].instanceCount} instances`);
+                  }
+                });
+              }
+              Debugger.Enable();
               scene.Start();
             }
             Application(document.querySelector("canvas"));

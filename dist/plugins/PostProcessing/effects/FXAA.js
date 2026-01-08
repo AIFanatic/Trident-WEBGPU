@@ -11,8 +11,9 @@ class PostProcessingFXAA extends GPU.RenderPass {
   async init() {
     const code = `
 			struct VertexInput {
-				@location(0) position : vec2<f32>,
-				@location(1) uv : vec2<f32>,
+				@location(0) position : vec3<f32>,
+				@location(1) normal : vec3<f32>,
+				@location(2) uv : vec2<f32>,
 			};
 
 			struct VertexOutput {
@@ -26,7 +27,7 @@ class PostProcessingFXAA extends GPU.RenderPass {
 
 			@vertex fn vertexMain(input: VertexInput) -> VertexOutput {
 				var output: VertexOutput;
-				output.position = vec4(input.position, 0.0, 1.0);
+				output.position = vec4(input.position, 1.0);
 				output.vUv = input.uv;
 				return output;
 			}
@@ -93,16 +94,7 @@ class PostProcessingFXAA extends GPU.RenderPass {
 		`;
     this.shader = await GPU.Shader.Create({
       code,
-      colorOutputs: [{ format: "rgba16float" }],
-      attributes: {
-        position: { location: 0, size: 3, type: "vec3" },
-        uv: { location: 1, size: 2, type: "vec2" }
-      },
-      uniforms: {
-        textureSampler: { group: 0, binding: 0, type: "sampler" },
-        texture: { group: 0, binding: 1, type: "texture" },
-        resolutionInv: { group: 0, binding: 2, type: "uniform" }
-      }
+      colorOutputs: [{ format: "rgba16float" }]
     });
     this.quadGeometry = Geometry.Plane();
     this.renderTarget = GPU.RenderTexture.Create(GPU.Renderer.width, GPU.Renderer.height, 1, "rgba16float");
@@ -118,7 +110,7 @@ class PostProcessingFXAA extends GPU.RenderPass {
     GPU.RendererContext.BeginRenderPass(this.name, [{ clear: false, target: this.renderTarget }], void 0, true);
     GPU.RendererContext.DrawGeometry(this.quadGeometry, this.shader);
     GPU.RendererContext.EndRenderPass();
-    GPU.Texture.Blit(this.renderTarget, LightingPassOutputTexture, this.renderTarget.width, this.renderTarget.height);
+    GPU.RendererContext.CopyTextureToTextureV3({ texture: this.renderTarget }, { texture: LightingPassOutputTexture });
   }
 }
 
