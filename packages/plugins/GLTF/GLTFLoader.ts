@@ -8,23 +8,36 @@ import {
     PBRMaterial,
     PBRMaterialParams,
     Texture as TridentTexture,
-    IndexAttribute, VertexAttribute
+    IndexAttribute, VertexAttribute,
+    Prefab
 } from "@trident/core";
 
 import { GLTFParser, MeshPrimitive, Texture, Node, AccessorComponentType, GLTF, TextureInfo, Accessor } from './GLTFParser'
 
 export class GLTFLoader {
-    private static TextureCache: Map<Texture, Promise<TridentTexture>> = new Map();
+    private static TextureCache: Map<number, Promise<TridentTexture>> = new Map();
 
     // ---------- Small generic helpers ----------
 
-    private static getTypedArray(buffer: ArrayBufferLike, componentType: AccessorComponentType) {
+    private static getTypedArrayView(bytes: Uint8Array, componentType: AccessorComponentType) {
+        const buf = bytes.buffer;
+        const off = bytes.byteOffset;
+
         switch (componentType) {
-            case AccessorComponentType.GL_UNSIGNED_BYTE: return new Uint8Array(buffer);
-            case AccessorComponentType.GL_UNSIGNED_SHORT: return new Uint16Array(buffer);
-            case AccessorComponentType.GL_UNSIGNED_INT: return new Uint32Array(buffer);
-            case AccessorComponentType.GL_FLOAT: return new Float32Array(buffer);
-            default: throw new Error(`Unsupported component type: ${componentType}`);
+            case AccessorComponentType.GL_UNSIGNED_BYTE:
+                return new Uint8Array(buf, off, bytes.byteLength);
+
+            case AccessorComponentType.GL_UNSIGNED_SHORT:
+                return new Uint16Array(buf, off, (bytes.byteLength / 2) | 0);
+
+            case AccessorComponentType.GL_UNSIGNED_INT:
+                return new Uint32Array(buf, off, (bytes.byteLength / 4) | 0);
+
+            case AccessorComponentType.GL_FLOAT:
+                return new Float32Array(buf, off, (bytes.byteLength / 4) | 0);
+
+            default:
+                throw new Error(`Unsupported component type: ${componentType}`);
         }
     }
 
@@ -41,17 +54,18 @@ export class GLTFLoader {
     private static finalizeGeometry(geom: Geometry) {
         const posAttr = geom.attributes.get("position");
         if (!posAttr) throw Error("Geometry missing position attribute.");
-        const countFloats = (posAttr.array as any).length;
+        const floatCount = posAttr.array.length;
+        const vertexCount = (floatCount / 3) | 0;
 
         if (!geom.index) {
-            const indexBuffer = new Uint32Array(countFloats);
-            for (let i = 0; i < countFloats; i++) indexBuffer[i] = i;
+            const indexBuffer = new Uint32Array(vertexCount);
+            for (let i = 0; i < vertexCount; i++) indexBuffer[i] = i;
             geom.index = new IndexAttribute(indexBuffer);
             geom.ComputeNormals();
         }
         if (!geom.attributes.get("normal")) geom.ComputeNormals();
         if (!geom.attributes.get("uv")) {
-            const uv = new Float32Array(countFloats / 3 * 2);
+            const uv = new Float32Array(floatCount / 3 * 2);
             geom.attributes.set("uv", new VertexAttribute(uv));
         }
     }
@@ -63,13 +77,11 @@ export class GLTFLoader {
         const tex = textures[textureInfo.index];
         if (!tex?.source) throw Error("Invalid texture");
 
-        let cached = this.TextureCache.get(tex);
+        let cached = this.TextureCache.get(tex.source.checksum);
         if (!cached) {
-            cached = TridentTexture.LoadImageSource(tex.source, textureFormat).then(t => {
-                t.GenerateMips();
-                return t;
-            });
-            this.TextureCache.set(tex, cached);
+            // cached = TridentTexture.LoadImageSource(new Blob([tex.source.bytes], { type: tex.source.mimeType }), textureFormat, {resizeWidth: 1024, resizeHeight: 1024});
+            cached = TridentTexture.LoadImageSource(new Blob([tex.source.bytes], { type: tex.source.mimeType }), textureFormat);
+            this.TextureCache.set(tex.source.checksum, cached);
         }
         return cached;
     }
@@ -88,34 +100,40 @@ export class GLTFLoader {
 
     // TODO: Support true interleaved vertex buffers
     private static readAccessorAsFloat32(acc: Accessor): Float32Array {
-        const stride = acc.bufferView.byteStride ?? 0;          // bytes per vertex if interleaved
+        const stride = acc.bufferView.byteStride ?? 0;
         const comps = GLTFLoader.componentCount(acc.type);
-        const compSize = GLTFLoader.byteSize(acc.componentType);  // bytes per component
-        const base = acc.byteOffset ?? 0;                     // offset within this bufferView
-        const interleaved = stride > 0;
+        const compSize = GLTFLoader.byteSize(acc.componentType);
 
+        const bvU8 = acc.bufferView.data;
+        const baseInBV = acc.byteOffset ?? 0; // offset INSIDE bufferView
+        const baseInAB = bvU8.byteOffset + baseInBV; // absolute offset into underlying ArrayBuffer
+
+        const interleaved = stride > 0;
         const out = new Float32Array(acc.count * comps);
 
-        const readScalar = (byteOffset: number) => {
-            const dv = new DataView(acc.bufferView.data as ArrayBufferLike, byteOffset);
+        const dv = new DataView(bvU8.buffer); // one DataView, reuse it
+
+        const readScalarAt = (absByteOffset: number) => {
             switch (acc.componentType) {
-                case AccessorComponentType.GL_FLOAT: return dv.getFloat32(0, true);
-                case AccessorComponentType.GL_UNSIGNED_BYTE: return acc.normalized ? dv.getUint8(0) / 255 : dv.getUint8(0);
-                case AccessorComponentType.GL_UNSIGNED_SHORT: return acc.normalized ? dv.getUint16(0, true) / 65535 : dv.getUint16(0, true);
-                case AccessorComponentType.GL_BYTE: return acc.normalized ? Math.max(-1, dv.getInt8(0) / 127) : dv.getInt8(0);
-                case AccessorComponentType.GL_SHORT: return acc.normalized ? Math.max(-1, dv.getInt16(0, true) / 32767) : dv.getInt16(0, true);
+                case AccessorComponentType.GL_FLOAT: return dv.getFloat32(absByteOffset, true);
+                case AccessorComponentType.GL_UNSIGNED_BYTE: return acc.normalized ? dv.getUint8(absByteOffset) / 255 : dv.getUint8(absByteOffset);
+                case AccessorComponentType.GL_UNSIGNED_SHORT: return acc.normalized ? dv.getUint16(absByteOffset, true) / 65535 : dv.getUint16(absByteOffset, true);
+                case AccessorComponentType.GL_BYTE: return acc.normalized ? Math.max(-1, dv.getInt8(absByteOffset) / 127) : dv.getInt8(absByteOffset);
+                case AccessorComponentType.GL_SHORT: return acc.normalized ? Math.max(-1, dv.getInt16(absByteOffset, true) / 32767) : dv.getInt16(absByteOffset, true);
                 default: throw Error("Unsupported attribute componentType");
             }
         };
 
         for (let i = 0; i < acc.count; i++) {
-            const elementBase = interleaved ? base + i * stride : base + i * comps * compSize; // tightly packed
+            const elementBaseAbs = interleaved
+                ? baseInAB + i * stride
+                : baseInAB + i * comps * compSize;
 
             for (let c = 0; c < comps; c++) {
-                const off = interleaved ? elementBase + c * compSize : elementBase + c * compSize;
-                out[i * comps + c] = readScalar(off);
+                out[i * comps + c] = readScalarAt(elementBaseAbs + c * compSize);
             }
         }
+
         return out;
     }
 
@@ -131,22 +149,43 @@ export class GLTFLoader {
         // JOINTS_0 (u8/u16) → promote to u32 if your engine expects that
         if (primitive.attributes.JOINTS_0) {
             const acc = primitive.attributes.JOINTS_0;
-            const bv = acc.bufferView;
-            const bytes = bv.data.slice(acc.byteOffset, acc.byteOffset + acc.count * this.byteSize(acc.componentType) * 4);
-            const jointsSrc = this.getTypedArray(bytes, acc.componentType);
+            const comps = this.componentCount(acc.type); // should be VEC4 typically, but don’t assume
+            const byteLen = acc.count * comps * this.byteSize(acc.componentType);
+
+            const bytes = acc.bufferView.data.subarray(acc.byteOffset, acc.byteOffset + byteLen);
+            const jointsSrc = this.getTypedArrayView(bytes, acc.componentType) as Uint8Array | Uint16Array | Uint32Array;
+
+            // promote to u32 if your engine wants that
             const jointsU32 = new Uint32Array(jointsSrc.length);
-            for (let i = 0; i < jointsSrc.length; i++) jointsU32[i] = (jointsSrc as any)[i];
+            for (let i = 0; i < jointsSrc.length; i++) jointsU32[i] = jointsSrc[i];
+
             geometry.attributes.set("joints", new VertexAttribute(jointsU32));
         }
         if (primitive.attributes.WEIGHTS_0) {
-            geometry.attributes.set("weights", new VertexAttribute(new Float32Array(primitive.attributes.WEIGHTS_0.bufferView.data)));
+            const acc = primitive.attributes.WEIGHTS_0;
+
+            // Read like other attributes (handles normalized + stride)
+            const weightsF32 = this.readAccessorAsFloat32(acc);
+            geometry.attributes.set("weights", new VertexAttribute(weightsF32));
         }
 
         if (primitive.indices) {
             const acc = primitive.indices;
             const bv = acc.bufferView;
-            const bytes = bv.data.slice(acc.byteOffset, acc.byteOffset + acc.count * this.byteSize(acc.componentType));
-            geometry.index = new IndexAttribute(this.getTypedArray(bytes, acc.componentType) as Uint32Array | Uint16Array);
+
+            const byteLen = acc.count * this.byteSize(acc.componentType);
+            const bytes = bv.data.subarray(acc.byteOffset, acc.byteOffset + byteLen);
+
+            let indices = this.getTypedArrayView(bytes, acc.componentType);
+
+            // WebGPU index buffers must be u16/u32
+            if (indices instanceof Uint8Array) {
+                const promoted = new Uint16Array(indices.length);
+                for (let i = 0; i < indices.length; i++) promoted[i] = indices[i];
+                indices = promoted;
+            }
+
+            geometry.index = new IndexAttribute(indices as Uint16Array | Uint32Array);
         }
 
         let materialParams: Partial<PBRMaterialParams> = {};
@@ -169,12 +208,12 @@ export class GLTFLoader {
             const ext = mat.extensions?.["KHR_materials_emissive_strength"];
             if (ext?.emissiveStrength) materialParams.emissiveColor.mul(ext.emissiveStrength);
         }
-        materialParams.unlit = false;
+        materialParams.unlit = mat.extensions?.["KHR_materials_unlit"] ? true : false;
         materialParams.doubleSided = !!mat?.doubleSided;
         materialParams.alphaCutoff = mat?.alphaCutoff;
-        
+
         if (primitive.attributes.JOINTS_0 && primitive.attributes.WEIGHTS_0) materialParams.isSkinned = true;
-        
+
         this.finalizeGeometry(geometry);
         // tangents if needed
         if (geometry.attributes.has("position") && geometry.attributes.has("normal") && geometry.attributes.has("uv") && materialParams.normalMap) {
@@ -194,8 +233,29 @@ export class GLTFLoader {
 
     // ---------- Public: load as GameObjects (Unity-style) ----------
 
-    public static async loadAsGameObjects(scene: Scene, url: string): Promise<GameObject> {
-        const gltf = await new GLTFParser().load(url);
+    private static cache: Map<any, GLTF> = new Map();
+
+    public static async loadAsGameObjects(scene: Scene, url: string, format?: "glb" | "gltf"): Promise<GameObject> {
+        let cached = GLTFLoader.cache.get(url);
+        if (!cached) {
+            if (url.endsWith(".glb") || format === "glb") cached = await new GLTFParser().loadGLBUrl(url);
+            else if (url.endsWith(".gltf") || format === "gltf") cached = await new GLTFParser().loadGLTF(url);
+            GLTFLoader.cache.set(url, cached);
+        }
+
+        return this.parseAsGameObjects(scene, cached);
+    }
+
+    public static async loadAsGameObjectsFromArrayBuffer(scene: Scene, arrayBuffer: ArrayBuffer, key?: any): Promise<GameObject> {
+        let cached = GLTFLoader.cache.get(key);
+        if (!cached) {
+            cached = await new GLTFParser().parseGLB(arrayBuffer);
+            GLTFLoader.cache.set(key, cached);
+        }
+        return this.parseAsGameObjects(scene, cached);
+    }
+
+    private static async parseAsGameObjects(scene: Scene, gltf: GLTF): Promise<GameObject> {
         const gameObjects: GameObject[] = [];
         const nodeGOs: GameObject[] = [];
         const skins: Components.Skin[] = [];
@@ -207,7 +267,7 @@ export class GLTFLoader {
         const nodeIndex = new Map<Node, number>();
         gltf.nodes.forEach((n, i) => nodeIndex.set(n, i));
 
-        let transforms: Map<GameObject, {position: Mathf.Vector3, rotation: Mathf.Quaternion, scale: Mathf.Vector3}> = new Map();
+        let transforms: Map<GameObject, { position: Mathf.Vector3, rotation: Mathf.Quaternion, scale: Mathf.Vector3 }> = new Map();
 
         // 1) Create empty GOs with transforms
         for (let i = 0; i < gltf.nodes.length; i++) {
@@ -323,9 +383,132 @@ export class GLTFLoader {
         const rootGameObjects = gltf.nodes.map((n, i) => ({ n, go: nodeGOs[i] })).filter(({ n }, i) => !childIDs.has(i)).map(({ go }) => go);
 
         const sceneGameObject = new GameObject(scene);
-        sceneGameObject.name = url.slice(url.lastIndexOf("/") + 1);
+        // sceneGameObject.name = url.slice(url.lastIndexOf("/") + 1);
         for (const rootGameObject of rootGameObjects) rootGameObject.transform.parent = sceneGameObject.transform;
 
         return sceneGameObject;
+    }
+
+
+
+
+    private static serializeTransform(position: Mathf.Vector3, rotation: Mathf.Quaternion, scale: Mathf.Vector3) {
+        return {
+            type: Components.Transform.type,
+            position: position.Serialize(),
+            rotation: rotation.Serialize(),
+            scale: scale.Serialize()
+        };
+    }
+
+    private static createEmptyGO(name: string, position?: Mathf.Vector3, rotation?: Mathf.Quaternion, scale?: Mathf.Vector3): Prefab {
+        return {
+            name,
+            transform: this.serializeTransform(
+                position ?? new Mathf.Vector3(),
+                rotation ?? new Mathf.Quaternion(),
+                scale ?? new Mathf.Vector3(1, 1, 1)
+            ),
+            components: [],
+            children: []
+        };
+    }
+
+    public static async LoadFromURL(url: string, format?: "glb" | "gltf"): Promise<Prefab> {
+        let cached = GLTFLoader.cache.get(url);
+        if (!cached) {
+            if (url.endsWith(".glb") || format === "glb") cached = await new GLTFParser().loadGLBUrl(url);
+            else if (url.endsWith(".gltf") || format === "gltf") cached = await new GLTFParser().loadGLTF(url);
+            GLTFLoader.cache.set(url, cached);
+        }
+
+        return this.Parse(cached);
+    }
+
+    public static async LoadFromArrayBuffer(arrayBuffer: ArrayBuffer, key?: any): Promise<Prefab> {
+        const cacheKey = key ?? arrayBuffer;
+        let cached = GLTFLoader.cache.get(cacheKey);
+        if (!cached) {
+            cached = await new GLTFParser().parseGLB(arrayBuffer);
+            GLTFLoader.cache.set(cacheKey, cached);
+        }
+        return this.Parse(cached);
+    }
+
+    private static async Parse(gltf: GLTF): Promise<Prefab> {
+        if (!gltf.nodes) {
+            return this.createEmptyGO("GLTFPrefab");
+        }
+
+        const nodeIndex = new Map<Node, number>();
+        gltf.nodes.forEach((n, i) => nodeIndex.set(n, i));
+
+        const nodes: Prefab[] = [];
+        for (let i = 0; i < gltf.nodes.length; i++) {
+            const n = gltf.nodes[i];
+            nodes.push(this.createEmptyGO(
+                n.name || `Node_${i}`,
+                new Mathf.Vector3(n.translation.x, n.translation.y, n.translation.z),
+                new Mathf.Quaternion(n.rotation.x, n.rotation.y, n.rotation.z, n.rotation.w),
+                new Mathf.Vector3(n.scale.x, n.scale.y, n.scale.z)
+            ));
+        }
+
+        // Hierarchy
+        for (let i = 0; i < gltf.nodes.length; i++) {
+            const n = gltf.nodes[i];
+            for (const childId of n.childrenID) {
+                nodes[i].children.push(nodes[childId]);
+            }
+        }
+
+        // Mesh primitives -> child GOs
+        for (let i = 0; i < gltf.nodes.length; i++) {
+            const node = gltf.nodes[i];
+            if (!node.mesh) continue;
+
+            const nodeGO = nodes[i];
+            const primitives = node.mesh.primitives ?? [];
+            let pIndex = 0;
+
+            for (const primitive of primitives) {
+                const { geometry, material } = await this.parsePrimitive(primitive, gltf.textures);
+
+                const hasSkin = !!primitive.attributes && !!(primitive.attributes as any).JOINTS_0 && !!(primitive.attributes as any).WEIGHTS_0;
+                if (hasSkin) {
+                    // SkinnedMesh serialization is not implemented; skip for now.
+                    continue;
+                }
+
+                const renderable = {
+                    type: Components.Renderable.type,
+                    geometry: geometry.Serialize(),
+                    material: material.Serialize(),
+                    enableShadows: true
+                };
+
+                const meshComponent = {
+                    type: Components.Mesh.type,
+                    renderable
+                };
+
+                const primGO = this.createEmptyGO(`${nodeGO.name}_Prim_${pIndex++}`);
+                primGO.components.push(meshComponent);
+                nodeGO.children.push(primGO);
+            }
+        }
+
+        // Roots
+        const childIDs = new Set<number>();
+        for (const n of gltf.nodes) {
+            for (const childId of n.childrenID) childIDs.add(childId);
+        }
+
+        const root = this.createEmptyGO("GLTFPrefab");
+        for (let i = 0; i < gltf.nodes.length; i++) {
+            if (!childIDs.has(i)) root.children.push(nodes[i]);
+        }
+
+        return root;
     }
 }
