@@ -180,50 +180,72 @@ export class HDRParser {
 
         HDRParser.readPixelsRawRLE(buffer, data, 0, fileOffset, scanlineWidth, scanlinesCount);
 
-        const f32 = new Float32Array(width * height * 4);
-        for (let i = 0; i < data.length; i += 4) {
-            const e = data[i + 3];
-            const s = e ? Math.pow(2.0, e - 128) / 256.0 : 0.0; // RGBE decode
-            f32[i + 0] = data[i + 0] * s;
-            f32[i + 1] = data[i + 1] * s;
-            f32[i + 2] = data[i + 2] * s;
-            f32[i + 3] = 1.0;
+
+        function acesToneMapping(x: number): number {
+            const a = 2.51;
+            const b = 0.03;
+            const c = 2.43;
+            const d = 0.59;
+            const e = 0.14;
+            // Same structure as WGSL: max(0, ...)
+            const y = (x * (a * x + b)) / (x * (c * x + d) + e);
+            return Math.max(0, y);
         }
 
-        // returns IEEE-754 half-float bits (uint16) for a JS number
-        function f32toF16(x: number): number {
-            f32toF16.f[0] = x;
-            const u = f32toF16.u[0];
-            const s = (u >>> 31) & 1;
-            let e = (u >>> 23) & 0xff;
-            let m = u & 0x7fffff;
-
-            if (e === 0xff) return (s << 15) | 0x7c00 | (m ? 0x200 : 0); // Inf/NaN
-            if (e === 0) return s << 15;                               // +/- 0 (flush tiny)
-
-            e = e - 127 + 15;
-            if (e <= 0) {
-                if (e < -10) return s << 15;                                // underflow
-                m = (m | 0x800000) >>> (1 - e);
-                return (s << 15) | ((m + 0x1000) >>> 13);
-            }
-            if (e >= 31) return (s << 15) | 0x7c00;                       // overflow -> Inf
-            return (s << 15) | (e << 10) | ((m + 0x1000) >>> 13);
+        function linearToSRGB(linearValue: number): number {
+            // IMPORTANT: clamp to avoid NaN from pow(negative, frac)
+            const v = Math.max(0, linearValue);
+            if (v <= 0.0031308) return 12.92 * v;
+            return 1.055 * Math.pow(v, 1 / 2.4) - 0.055;
         }
-        f32toF16.f = new Float32Array(1);
-        f32toF16.u = new Uint32Array(f32toF16.f.buffer);
 
-        const f16 = new Uint16Array(f32.length);
-        for (let i = 0; i < f32.length; i++) f16[i] = f32toF16(f32[i]);
+        // Use the parsed header exposure if you want, and/or allow user exposure
+        const exposureMul = exposure; // or exposure * userExposure
+
+        let floatData = new Float16Array(width * height * 4);
+
+        for (let offset = 0; offset < data.length; offset += 4) {
+            let r = data[offset + 0] / 255;
+            let g = data[offset + 1] / 255;
+            let b = data[offset + 2] / 255;
+            const e = data[offset + 3];
+
+            // RGBE -> linear HDR scale
+            const scale = Math.pow(2.0, e - 128.0);
+            r *= scale;
+            g *= scale;
+            b *= scale;
+
+            // === Match WGSL pipeline ===
+            r *= exposureMul;
+            g *= exposureMul;
+            b *= exposureMul;
+
+            r = acesToneMapping(r);
+            g = acesToneMapping(g);
+            b = acesToneMapping(b);
+
+            // r = linearToSRGB(r);
+            // g = linearToSRGB(g);
+            // b = linearToSRGB(b);
+
+            // Store (sRGB in float16)
+            const i = offset; // same indexing since offset steps by 4
+            floatData[i + 0] = r;
+            floatData[i + 1] = g;
+            floatData[i + 2] = b;
+            floatData[i + 3] = 1.0;
+        }
 
         const dstHDR = GPU.RenderTexture.Create(width, height, 1, HDRParser.ImageFormat);
-        dstHDR.SetData(f16, width * 8);
+        dstHDR.SetData(floatData, width * 8);
         return dstHDR;
     }
 
     public static async ToCubemap(hdr: GPU.Texture): Promise<GPU.RenderTextureCube> {
         const faceSize = Math.min((hdr.width / 2) | 0, hdr.height | 0);
-        const renderTarget = GPU.RenderTextureCube.Create(faceSize, faceSize, 6, "rgba8unorm");
+        console.log("faceSize", faceSize)
+        const renderTarget = GPU.RenderTextureCube.Create(faceSize, faceSize, 6, "rgba16float");
         renderTarget.SetName("Skybox");
 
         const hdrSampler = GPU.TextureSampler.Create({
@@ -279,7 +301,7 @@ export class HDRParser {
                 return vec4f(col, 1.0);
             }
           `,
-            colorOutputs: [{ format: "rgba8unorm" }],
+            colorOutputs: [{ format: renderTarget.format }],
             attributes: { position: { location: 0, size: 3, type: "vec3" } },
             uniforms: {
                 hdrTexture: { group: 0, binding: 1, type: "texture" },
@@ -299,12 +321,13 @@ export class HDRParser {
 
             GPU.Renderer.BeginRenderFrame();
             renderTarget.SetActiveLayer(face);
-            GPU.RendererContext.BeginRenderPass(`EquirectToCubeFace_${face}`, [{ target: renderTarget, clear: false }]);
+            GPU.RendererContext.BeginRenderPass(`EquirectToCubeFace_${face}`, [{ target: renderTarget, clear: true }]);
             GPU.RendererContext.DrawGeometry(geometry, shader);
             GPU.RendererContext.EndRenderPass();
             GPU.Renderer.EndRenderFrame();
         }
 
+        renderTarget.GenerateMips();
         return renderTarget;
     }
 }

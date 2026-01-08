@@ -10,6 +10,8 @@ export interface SerializedGameObject {
     children: SerializedGameObject[];
 };
 
+export type Prefab = SerializedGameObject;
+
 function getCtorChain(ctor: Function): Function[] {
     const chain: Function[] = [];
     for (let c: any = ctor; c && c !== Component; c = Object.getPrototypeOf(c)) {
@@ -43,13 +45,17 @@ export class GameObject {
 
         this.allComponents.push(componentInstance);
 
-        for (const ctor of getCtorChain((componentInstance as any).constructor)) {
+        for (const ctor of getCtorChain(componentInstance.constructor)) {
             let arr = this.componentsByCtor.get(ctor);
             if (!arr) this.componentsByCtor.set(ctor, arr = []);
             if (!arr.includes(componentInstance)) arr.push(componentInstance); // no dupes
         }
 
-        if (this.scene.hasStarted && (componentInstance as any).Start) (componentInstance as any).Start();
+        if (this.scene.hasStarted && componentInstance.Start && !componentInstance.hasStarted) {
+            componentInstance.Start();
+            componentInstance.hasStarted = true;
+        }
+
         return componentInstance;
     }
 

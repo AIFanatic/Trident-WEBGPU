@@ -109,5 +109,7 @@ export class Sky {
             GPU.RendererContext.EndRenderPass();
             GPU.Renderer.EndRenderFrame();
         }
+
+        this.skyTextureCubemap.GenerateMips();
     }
 }

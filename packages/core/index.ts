@@ -3,6 +3,9 @@ export { Scene } from "./Scene";
 export { GameObject } from "./GameObject";
 export { Component } from "./components/Component";
 
+export type { Prefab } from './GameObject'
+
+
 export { Renderer } from "./renderer/Renderer";
 export { EventSystem, EventSystemLocal } from "./Events";
 

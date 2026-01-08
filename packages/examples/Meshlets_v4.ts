@@ -73,7 +73,7 @@ async function Application(canvas: HTMLCanvasElement) {
         // const mesh = await OBJLoaderIndexed.load("/extra/test-assets/lucy.obj");
         mesh.geometry.ComputeNormals();
         mesh.geometry.ComputeTangents();
-        const mat = new PBRMaterial({albedoMap: await GPU.Texture.Load("/dist/examples/assets/textures/stone.png")})
+        const mat = new PBRMaterial({albedoMap: await GPU.Texture.Load("/dist/examples/assets/textures/brick.png")})
         // const mesh = await OBJLoaderIndexed.load("/extra/test-assets/tree-01/tree-01.obj");
         const meshletGameObject = new GameObject(scene);
         meshletGameObject.transform.position.x = 2;

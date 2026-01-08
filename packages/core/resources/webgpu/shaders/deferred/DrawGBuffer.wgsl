@@ -161,17 +161,20 @@ fn fragmentMain(input: VertexOutput) -> FragmentOutput {
 
     #if USE_METALNESS_MAP
         let metalnessRoughness = textureSample(MetalnessMap, TextureSampler, uv);
-        metalness *= metalnessRoughness.b;
+
+        occlusion *= metalnessRoughness.r;
         roughness *= metalnessRoughness.g;
+        metalness *= metalnessRoughness.b;
+
+        // // Unity style - Mask map MT(R) AO(G) SM(A)
+        // metalness *= metalnessRoughness.r;
+        // occlusion *= metalnessRoughness.g; 
+        // roughness *= metalnessRoughness.a;
     #endif
 
     var emissive = mat.EmissiveColor;
     #if USE_EMISSIVE_MAP
         emissive *= textureSample(EmissiveMap, TextureSampler, uv);
-    #endif
-
-    #if USE_AO_MAP
-        occlusion = textureSample(AOMap, TextureSampler, uv).r;
     #endif
 
     output.albedo = vec4(albedo.rgb, roughness);

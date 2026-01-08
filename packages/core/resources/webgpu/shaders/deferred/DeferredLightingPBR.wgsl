@@ -194,7 +194,7 @@ fn PointLightRadiance(light: PointLight, surface: Surface) -> vec3<f32> {
 @fragment
 fn fragmentMain(input: VertexOutput) -> @location(0) vec4<f32> {
     // Load depth once
-    let pix   = vec2<i32>(floor(input.position.xy));
+    let pix = vec2<i32>(input.position.xy);
     let depth = textureLoad(depthTexture, pix, 0);
 
     let fragCoord = input.position.xy;
@@ -210,9 +210,9 @@ fn fragmentMain(input: VertexOutput) -> @location(0) vec4<f32> {
         view.viewInverseMatrix
     );
 
-    let albedo = textureSample(albedoTexture, textureSampler, uv);
-    let normal = textureSample(normalTexture, textureSampler, uv);
-    let ermo   = textureSample(ermoTexture,   textureSampler, uv);
+    let albedo = textureLoad(albedoTexture, pix, 0);
+    let normal = textureLoad(normalTexture, pix, 0);
+    let ermo   = textureLoad(ermoTexture,   pix, 0);
 
     let unlit = ermo.a;
 

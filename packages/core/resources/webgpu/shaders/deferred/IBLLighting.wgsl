@@ -18,6 +18,7 @@ struct VertexOutput {
 @group(0) @binding(9) var skyboxBRDFLUT: texture_2d<f32>;
 
 @group(0) @binding(10) var brdfSampler: sampler;
+@group(0) @binding(11) var skybox: texture_cube<f32>;
 
 struct View {
     projectionOutputSize: vec4<f32>,
@@ -71,19 +72,15 @@ fn FresnelSchlickRoughness(cosTheta: f32, f0: vec3f, roughness: f32) -> vec3f {
   return f0 + (max(vec3(1.0 - roughness), f0) - f0) * pow(clamp(1.0 - cosTheta, 0.0, 1.0), 5.0);
 }
 
-fn fixCubeHandedness(d: vec3f) -> vec3f {
-    return vec3f(-d.x, d.y, d.z);
-}
-
 @fragment
 fn fragmentMain(input: VertexOutput) -> @location(0) vec4<f32> {
     let uv = input.vUv;
-    let pix   = vec2<i32>(floor(input.position.xy));
 
-    let depth = textureLoad(depthTexture, pix, 0);
-    let albedo = textureSample(albedoTexture, textureSampler, uv);
-    let normal = textureSample(normalTexture, textureSampler, uv);
-    let ermo   = textureSample(ermoTexture,   textureSampler, uv);
+    let pix = vec2<i32>(input.position.xy);
+    let albedo = textureLoad(albedoTexture, pix, 0);
+    let normal = textureLoad(normalTexture, pix, 0);
+    let ermo   = textureLoad(ermoTexture,   pix, 0);
+    let depth  = textureLoad(depthTexture,  pix, 0);    
 
     let worldPosition = reconstructWorldPosFromZ(
         input.position.xy,
@@ -96,7 +93,7 @@ fn fragmentMain(input: VertexOutput) -> @location(0) vec4<f32> {
     var surface: Surface;
     surface.depth          = depth;
     surface.albedo         = albedo.rgb;
-    surface.roughness      = clamp(albedo.a, 0.0, 0.99);
+    surface.roughness      = clamp(albedo.a, 0.01, 0.99);
     surface.occlusion      = normal.z;
     surface.metallic       = normal.a;
     surface.emissive       = ermo.rgb;
@@ -111,7 +108,7 @@ fn fragmentMain(input: VertexOutput) -> @location(0) vec4<f32> {
     let v = surface.V;
     let r = reflect(-v, n);
 
-    let irradiance = textureSample(skyboxIrradianceTexture, textureSampler, fixCubeHandedness(n)).rgb;
+    let irradiance = textureSample(skyboxIrradianceTexture, textureSampler, n).rgb;
     let diffuse = irradiance * surface.albedo.xyz;
 
     let f = FresnelSchlickRoughness(max(dot(n, v), 0.00001), surface.F0, surface.roughness);
@@ -119,8 +116,8 @@ fn fragmentMain(input: VertexOutput) -> @location(0) vec4<f32> {
     var kD = vec3f(1.0) - kS;
     kD *= 1.0 - surface.metallic;
 
-    const MAX_REFLECTION_LOD = 4.0;
-    let prefilteredColor = textureSampleLevel(skyboxPrefilterTexture, textureSampler, fixCubeHandedness(r), surface.roughness * MAX_REFLECTION_LOD).rgb;
+    let MAX_REFLECTION_LOD = f32(textureNumLevels(skyboxPrefilterTexture) - 1u);
+    let prefilteredColor = textureSampleLevel(skyboxPrefilterTexture, textureSampler, r, surface.roughness * MAX_REFLECTION_LOD).rgb;
     let brdf = textureSample(skyboxBRDFLUT, brdfSampler, vec2f(max(dot(n, v), 0.0), surface.roughness)).rg;
     let specular = prefilteredColor * (f * brdf.x + brdf.y);
 

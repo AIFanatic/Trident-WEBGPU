@@ -22,21 +22,6 @@ export class IBLLightingPass extends RenderPass {
     public async init() {
         this.shader = await Shader.Create({
             code: await ShaderLoader.IBLLighting,
-            uniforms: {
-                textureSampler: { group: 0, binding: 0, type: "sampler" },
-                albedoTexture: { group: 0, binding: 1, type: "texture" },
-                normalTexture: { group: 0, binding: 2, type: "texture" },
-                ermoTexture: { group: 0, binding: 3, type: "texture" },
-                depthTexture: { group: 0, binding: 4, type: "depthTexture" },
-                
-                skyboxIrradianceTexture: { group: 0, binding: 7, type: "texture" },
-                skyboxPrefilterTexture: { group: 0, binding: 8, type: "texture" },
-                skyboxBRDFLUTTexture: { group: 0, binding: 9, type: "texture" },
-
-                brdfSampler: { group: 0, binding: 10, type: "sampler" },
-                
-                view: { group: 0, binding: 13, type: "storage" },
-            },
             colorOutputs: [{format: "rgba16float", blendMode: "add"}],
         });
 
@@ -70,6 +55,7 @@ export class IBLLightingPass extends RenderPass {
         const inputGBufferNormal = resources.getResource(PassParams.GBufferNormal);
         const inputGbufferERMO = resources.getResource(PassParams.GBufferERMO);
         const inputGBufferDepth = resources.getResource(PassParams.GBufferDepth);
+        const inputSkybox = resources.getResource(PassParams.Skybox) as CubeTexture;
         const inputSkyboxIrradiance = resources.getResource(PassParams.SkyboxIrradiance) as CubeTexture;
         const inputSkyboxPrefilter = resources.getResource(PassParams.SkyboxPrefilter) as CubeTexture;
         const inputSkyboxBRDFLUT = resources.getResource(PassParams.SkyboxBRDFLUT) as RenderTexture;
@@ -84,9 +70,10 @@ export class IBLLightingPass extends RenderPass {
         this.shader.SetTexture("ermoTexture", inputGbufferERMO);
         this.shader.SetTexture("depthTexture", inputGBufferDepth);
 
+        this.shader.SetTexture("skybox", inputSkybox);
         this.shader.SetTexture("skyboxIrradianceTexture", inputSkyboxIrradiance);
         this.shader.SetTexture("skyboxPrefilterTexture", inputSkyboxPrefilter);
-        this.shader.SetTexture("skyboxBRDFLUTTexture", inputSkyboxBRDFLUT);
+        this.shader.SetTexture("skyboxBRDFLUT", inputSkyboxBRDFLUT);
         
         this.shader.SetBuffer("view", inputFrameBuffer);
         

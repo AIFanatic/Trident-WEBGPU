@@ -30,6 +30,7 @@ export class Light extends Component {
         super(gameObject);
         this.camera = new Camera(this.gameObject);
     }
+    
     public Start(): void {
         // this.camera = this.gameObject.AddComponent(Camera);
         EventSystemLocal.on(TransformEvents.Updated, this.transform, () => {

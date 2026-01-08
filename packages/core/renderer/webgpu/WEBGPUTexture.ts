@@ -2,6 +2,7 @@ import { UUID } from "../../utils";
 import { Renderer } from "../Renderer";
 import { SerializedTexture, Texture, TextureDimension, TextureFormat, TextureType } from "../Texture";
 import { WEBGPUMipsGenerator } from "./utils/WEBGPUMipsGenerator";
+import { WEBGPUCubeMipsGenerator } from "./utils/WEBGPUCubeMipsGenerator";
 import { WEBGPURenderer } from "./WEBGPURenderer";
 
 const TextureFormatToBits: Partial<Record<TextureFormat, number>> = {
@@ -37,7 +38,9 @@ export class WEBGPUTexture implements Texture {
     public readonly type: TextureType;
     public readonly dimension: TextureDimension;
     public mipLevels: number;
-    public name: string;
+
+    public get name(): string { return this.buffer.label };
+    public set name(name: string) { this.buffer.label = name };
 
     private buffer: GPUTexture;
 
@@ -121,11 +124,16 @@ export class WEBGPUTexture implements Texture {
     }
 
     public GenerateMips() {
-        this.buffer = WEBGPUMipsGenerator.generateMips(this);
+        if (this.dimension === "cube") {
+            this.buffer = WEBGPUCubeMipsGenerator.generateMips(this);
+        } else {
+            this.buffer = WEBGPUMipsGenerator.generateMips(this);
+        }
         // Needed for mipmapping "mipLevelCount: uniform.activeMipCount"
         const mipLevels = WEBGPUMipsGenerator.numMipLevels(this.width, this.height, this.depth);
         this.SetActiveMipCount(mipLevels);
         this.mipLevels = mipLevels;
+        this.viewCache.clear();
         this.byteSize = totalBytesForTexture(this.format, this.width, this.height, this.depth, this.mipLevels);
     }
 

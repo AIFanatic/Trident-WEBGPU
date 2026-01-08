@@ -14,6 +14,7 @@ import { Debugger } from "@trident/plugins/Debugger";
 import { HDRParser } from "@trident/plugins/HDRParser";
 
 import { DebugTextureViewer } from "@trident/plugins/DebugTextureViewer";
+import { Environment } from "@trident/plugins/Environment/Environment";
 
 async function Application(canvas: HTMLCanvasElement) {
     const renderer = GPU.Renderer.Create(canvas, "webgpu");
@@ -103,16 +104,10 @@ async function Application(canvas: HTMLCanvasElement) {
     Debugger.Enable();
 
     const hdr = await HDRParser.Load("./assets/textures/HDR/dikhololo_night_1k.hdr");
-    const sky = await HDRParser.ToCubemap(hdr);
+    const skyTexture = await HDRParser.ToCubemap(hdr);
 
-    const skyIrradiance = await HDRParser.GetIrradianceMap(sky);
-    const prefilterMap = await HDRParser.GetPrefilterMap(sky);
-    const brdfLUT = await HDRParser.GetBRDFLUT();
-
-    scene.renderPipeline.skybox = sky;
-    scene.renderPipeline.skyboxIrradiance = skyIrradiance;
-    scene.renderPipeline.skyboxPrefilter = prefilterMap;
-    scene.renderPipeline.skyboxBRDFLUT = brdfLUT;
+    const environment = new Environment(scene, skyTexture);
+    await environment.init();
 
     // const textureViewer = new DebugTextureViewer(brdfLUT);
     // scene.renderPipeline.AddPass(textureViewer, GPU.RenderPassOrder.AfterLighting);

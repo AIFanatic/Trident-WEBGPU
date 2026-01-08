@@ -45,9 +45,10 @@ import { LODInstanceRenderable } from "@trident/plugins/LODGroup";
 import { OBJLoaderIndexed } from "@trident/plugins/OBJLoader";
 import { MeshletMesh } from "@trident/plugins/meshlets_v4/MeshletMesh";
 import { MeshletDraw } from "@trident/plugins/meshlets_v4/passes/MeshletDraw";
+import { Bloom } from "@trident/plugins/Bloom";
 
 async function Application(canvas: HTMLCanvasElement) {
-    const renderer = GPU.Renderer.Create(canvas, "webgpu");
+    const renderer = GPU.Renderer.Create(canvas, "webgpu", 1);
     const scene = new Scene(renderer);
 
     const mainCameraGameObject = new GameObject(scene);
@@ -62,30 +63,30 @@ async function Application(canvas: HTMLCanvasElement) {
     lightGameObject.transform.LookAtV1(new Mathf.Vector3(0, 0, 0));
     const light = lightGameObject.AddComponent(Components.DirectionalLight);
     light.color.set(1.0, 0.96, 0.88, 1);
-    light.intensity = 10;
+    light.intensity = 1;
     // light.castShadows = false;
 
     new UIColorStat(Debugger.ui, "Light Color:", light.color.toHex(), value => {
         light.color.setFromHex(value);
     })
 
-    setInterval(() => {
-        const radius = 1; // distance of the directional light from origin
-        const elevationRad = Mathf.Deg2Rad * skyAtmosphere.SUN_ELEVATION_DEGREES;
-        const azimuthRad   = Mathf.Deg2Rad * skyAtmosphere.SUN_AZIMUTH_DEGREES; // or use your own azimuth angle
+    // setInterval(() => {
+    //     const radius = 1; // distance of the directional light from origin
+    //     const elevationRad = Mathf.Deg2Rad * skyAtmosphere.SUN_ELEVATION_DEGREES;
+    //     const azimuthRad   = Mathf.Deg2Rad * skyAtmosphere.SUN_AZIMUTH_DEGREES; // or use your own azimuth angle
 
-        // Convert spherical coordinates to 3D position
-        const x = radius * Mathf.Cos(elevationRad) * Mathf.Cos(azimuthRad);
-        const y = radius * Mathf.Sin(elevationRad);
-        const z = radius * Mathf.Cos(elevationRad) * Mathf.Sin(azimuthRad);
+    //     // Convert spherical coordinates to 3D position
+    //     const x = radius * Mathf.Cos(elevationRad) * Mathf.Cos(azimuthRad);
+    //     const y = radius * Mathf.Sin(elevationRad);
+    //     const z = radius * Mathf.Cos(elevationRad) * Mathf.Sin(azimuthRad);
 
-        const sunPos = new Mathf.Vector3(x, y, z);
+    //     const sunPos = new Mathf.Vector3(x, y, z);
 
-        lightGameObject.transform.position = sunPos;
-        lightGameObject.transform.LookAtV1(new Mathf.Vector3(0,0,0));
+    //     lightGameObject.transform.position = sunPos;
+    //     lightGameObject.transform.LookAtV1(new Mathf.Vector3(0,0,0));
 
-        light.intensity = skyAtmosphere.SUN_ELEVATION_DEGREES / 10;
-    }, 100);
+    //     light.intensity = skyAtmosphere.SUN_ELEVATION_DEGREES / 10;
+    // }, 100);
 
     const physicsWorld = new GameObject(scene);
     const physicsComponent = physicsWorld.AddComponent(PhysicsRapier);
@@ -119,47 +120,18 @@ async function Application(canvas: HTMLCanvasElement) {
 
     const biomes_splat_map = await GPU.Texture.Load("/extra/test-assets/terrain/heightmaps/biomeids_1024x1024.png");
     biomes_splat_map.GenerateMips();
-    console.log(terrain)
     terrain.material.layerTexture = biomes_splat_map;
 
     terrain.material.splatMapTextures = await LoadTerrainTextures([
         "/extra/test-assets/terrain/heightmaps/splatmap_1024x1024.png", //"/extra/test-assets/terrain/heightmaps/splat0_island_1024x1024.png",
     ]);
 
-    const basePath = "/extra/test-assets/terrain/Terrain Textures";
-    let transform = new Float32Array([2, 2, 0, 0]);
-    // terrain.material.layers = [
-    //     { name: "TropicalForest", transform: transform, albedoMap: await LoadTexture(basePath + "/Grass 01/Grass 01_BaseColor.png"), normalMap: await LoadTexture(basePath + "/Grass 01/Grass 01_Normal.png"), armMap: await LoadTexture(basePath + "/Grass 01/Grass 01_MaskMap.png") },
-    //     { name: "Forest", transform: transform, albedoMap: await LoadTexture(basePath + "/Leaves 01/Leaves 01_BaseColor.png"), normalMap: await LoadTexture(basePath + "/Leaves 01/Leaves 01_Normal.png"), armMap: await LoadTexture(basePath + "/Leaves 01/Leaves 01_MaskMap.png") },
-    //     { name: "Woodland", transform: transform, albedoMap: await LoadTexture(basePath + "/Leaves 02/Leaves 02_BaseColor.png"), normalMap: await LoadTexture(basePath + "/Leaves 02/Leaves 02_Normal.png"), armMap: await LoadTexture(basePath + "/Leaves 02/Leaves 02_MaskMap.png") },
-
-    //     { name: "Savanna", transform: transform, albedoMap: await LoadTexture(basePath + "/Sand 01/Sand 01_BaseColor.png"), normalMap: await LoadTexture(basePath + "/Sand 01/Sand 01_Normal.png"), armMap: await LoadTexture(basePath + "/Sand 01/Sand 01_MaskMap.png") },
-    //     { name: "Desert", transform: transform, albedoMap: await LoadTexture(basePath + "/Sand 02/Sand 02_BaseColor.png"), normalMap: await LoadTexture(basePath + "/Sand 02/Sand 02_Normal.png"), armMap: await LoadTexture(basePath + "/Sand 02/Sand 02_MaskMap.png") },
-    //     { name: "Tundra", transform: transform, albedoMap: await LoadTexture(basePath + "/Soil 01/Soil 01_BaseColor.png"), normalMap: await LoadTexture(basePath + "/Soil 01/Soil 01_Normal.png"), armMap: await LoadTexture(basePath + "/Soil 01/Soil 01_MaskMap.png") },
-
-    //     { name: "Water", transform: transform, albedoMap: await LoadTexture(basePath + "/Asphalt 01/Asphalt 01_BaseColor.png"), normalMap: await LoadTexture(basePath + "/Asphalt 01/Asphalt 01_Normal.png"), armMap: await LoadTexture(basePath + "/Asphalt 01/Asphalt 01_MaskMap.png") },
-    //     { name: "Beach", transform: transform, albedoMap: await LoadTexture(basePath + "/Sand 03/Sand 03_BaseColor.png"), normalMap: await LoadTexture(basePath + "/Sand 03/Sand 03_Normal.png"), armMap: await LoadTexture(basePath + "/Sand 03/Sand 03_MaskMap.png") },
-    //     { name: "Snow", transform: transform, albedoMap: await LoadTexture(basePath + "/Snow 01/Snow 01_BaseColor.png"), normalMap: await LoadTexture(basePath + "/Snow 01/Snow 01_Normal.png"), armMap: await LoadTexture(basePath + "/Snow 01/Snow 01_MaskMap.png") },
-    // ]
-
-    // const albedoTexture = await LoadTexture(`/extra/test-assets/terrain/Terrain Textures/Grass 01/Grass 01_BaseColor.png`, "rgba8unorm-srgb");
-    // const normalTexture = await LoadTexture(`/extra/test-assets/terrain/Terrain Textures/Grass 01/Grass 01_Normal.png`, "rgba8unorm");
-    // const armMap = await LoadTexture(`/extra/test-assets/terrain/Terrain Textures/Grass 01/Grass 01_MaskMap.png`, "rgba8unorm");
-    const albedoTexture = await LoadTexture(`/extra/test-assets/terrain/Terrain_Textures_v2/T_ground_grass_01_BC_SM.png`, "rgba8unorm-srgb");
-    const normalTexture = await LoadTexture(`/extra/test-assets/terrain/Terrain_Textures_v2/T_ground_grass_01_N.png`, "rgba8unorm");
-    const armMap = await LoadTexture(`/extra/test-assets/terrain/Terrain_Textures_v2/T_ground_grass_01_MT_AO_H_SM.png`, "rgba8unorm");
+    let transform = new Float32Array([10, 10, 0, 0]);
+    const albedoTexture = await LoadTexture(`/extra/test-assets/terrain/rocky_terrain_02_2k/rocky_terrain_02_diff_2k.jpg`, "rgba8unorm-srgb");
+    const normalTexture = await LoadTexture(`/extra/test-assets/terrain/rocky_terrain_02_2k/rocky_terrain_02_nor_gl_2k.jpg`, "rgba8unorm");
+    const armMap = await LoadTexture(`/extra/test-assets/terrain/rocky_terrain_02_2k/rocky_terrain_02_arm_2k.jpg`, "rgba8unorm");
     terrain.material.layers = [
         { name: "TropicalForest", transform: transform, albedoMap: albedoTexture, normalMap: normalTexture, armMap: armMap },
-        { name: `TropicalForest`, transform: transform, albedoMap: albedoTexture, normalMap: normalTexture, armMap: armMap },
-        { name: `TropicalForest`, transform: transform, albedoMap: albedoTexture, normalMap: normalTexture, armMap: armMap },
-
-        { name: `TropicalForest`, transform: transform, albedoMap: albedoTexture, normalMap: normalTexture, armMap: armMap },
-        { name: `TropicalForest`, transform: transform, albedoMap: albedoTexture, normalMap: normalTexture, armMap: armMap },
-        { name: `TropicalForest`, transform: transform, albedoMap: albedoTexture, normalMap: normalTexture, armMap: armMap },
-
-        // { name: `Water`, transform: transform, albedoMap: await LoadTexture(basePath + `/Asphalt 01/Asphalt 01_BaseColor.png`), normalMap: await LoadTexture(basePath + `/Asphalt 01/Asphalt 01_Normal.png`), armMap: await LoadTexture(basePath + `/Asphalt 01/Asphalt 01_MaskMap.png`) },
-        { name: `TropicalForest`, transform: transform, albedoMap: albedoTexture, normalMap: normalTexture, armMap: armMap },
-        { name: `TropicalForest`, transform: transform, albedoMap: albedoTexture, normalMap: normalTexture, armMap: armMap },
     ]
 
     const heightsSize = Math.sqrt(terrain.heights.length);
@@ -172,57 +144,34 @@ async function Application(canvas: HTMLCanvasElement) {
     const terrainCollider = terrainGameObject.AddComponent(TerrainCollider);
     terrainCollider.SetTerrainData(heightsSize - 1, heightsSize - 1, terrain.heights, terrainGameObject.transform.scale);
 
-    {
-        {
-            const boxGO = new GameObject(scene);
-            boxGO.transform.position.y = 200;
-            // boxGO.transform.position.x = 5;
-            boxGO.transform.scale.set(1, 1, 1);
-            const boxMesh = boxGO.AddComponent(Components.Mesh);
-            boxMesh.geometry = Geometry.Cube();
-            boxMesh.material = new PBRMaterial({ albedoColor: new Mathf.Color(1, 0, 0, 1), roughness: 0.3 });
+    // const sky = new Sky();
+    // sky.SUN_ELEVATION_DEGREES = 40;
+    // await sky.init();
+    // const skyTexture = sky.skyTextureCubemap;
+    // setInterval(() => {
+    //     const radius = 1; // distance of the directional light from origin
+    //     const elevationRad = Mathf.Deg2Rad * sky.SUN_ELEVATION_DEGREES;
+    //     const azimuthRad = Mathf.Deg2Rad * sky.SUN_AZIMUTH_DEGREES; // or use your own azimuth angle
 
-            const collider = boxGO.AddComponent(BoxCollider);
-            const rigidbody = boxGO.AddComponent(RigidBody);
-            rigidbody.Create("fixed")
-        }
+    //     // Convert spherical coordinates to 3D position
+    //     const x = radius * Mathf.Cos(elevationRad) * Mathf.Cos(azimuthRad);
+    //     const y = radius * Mathf.Sin(elevationRad);
+    //     const z = radius * Mathf.Cos(elevationRad) * Mathf.Sin(azimuthRad);
 
-        // {
-        //     const boxGO = new GameObject(scene);
-        //     boxGO.transform.position.y = 1.5;
-        //     boxGO.transform.position.x = 2;
-        //     const boxMesh = boxGO.AddComponent(Components.Mesh);
-        //     boxMesh.geometry = Geometry.Cube();
-        //     boxMesh.material = new PBRMaterial({ albedoColor: new Mathf.Color(0, 1, 0, 1) });
+    //     const sunPos = new Mathf.Vector3(x, y, z);
 
-        //     const collider = boxGO.AddComponent(BoxCollider);
-        //     const rigidbody = boxGO.AddComponent(RigidBody);
-        // }
-    }
+    //     lightGameObject.transform.position = sunPos;
+    //     lightGameObject.transform.LookAtV1(new Mathf.Vector3(0, 0, 0));
 
-    const skyAtmosphere = new Sky();
-    await skyAtmosphere.init();
-    const skyTexture = skyAtmosphere.skyTextureCubemap;
+    //     light.intensity = sky.SUN_ELEVATION_DEGREES / 10;
+    // }, 100);
 
-    // const hdr = await HDRParser.Load("/dist/examples/assets/textures/HDR/autumn_field_puresky_1k.hdr");
-    // const skyTexture = await HDRParser.ToCubemap(hdr);
+    const hdr = await HDRParser.Load("/dist/examples/assets/textures/HDR/autumn_field_puresky_1k.hdr");
+    const skyTexture = await HDRParser.ToCubemap(hdr);
+
 
     const environment = new Environment(scene, skyTexture);
     await environment.init();
-
-    {
-        const skySettings = new UIFolder(Debugger.ui, "Sky");
-        new UISliderStat(skySettings, "SUN_ELEVATION_DEGREES:", 0, 180, 0.01, skyAtmosphere.SUN_ELEVATION_DEGREES, value => skyAtmosphere.SUN_ELEVATION_DEGREES = value);
-        new UISliderStat(skySettings, "EYE_ALTITUDE:", 0, 1000, 0.01, skyAtmosphere.EYE_ALTITUDE, value => skyAtmosphere.EYE_ALTITUDE = value);
-
-        new UIButtonStat(skySettings, "Rebuild:", async value => {
-            skyAtmosphere.Update();
-            environment.Update();
-        });
-
-        skySettings.Open();
-    }
-
 
     function traverse(gameObjects: GameObject[], fn: (gameObject: GameObject) => void) {
         for (const gameObject of gameObjects) {
@@ -259,7 +208,8 @@ async function Application(canvas: HTMLCanvasElement) {
     const playerGameObject = new GameObject(scene);
     // playerGameObject.transform.position.y = 200;
     // playerGameObject.transform.position.set(0, 100, 0);
-    playerGameObject.transform.position.set(-125, 30, 255);
+    // playerGameObject.transform.position.set(-125, 30, 255);
+    playerGameObject.transform.position.set(20, 33, 185);
 
 
     const playerCollider = playerGameObject.AddComponent(CapsuleCollider);
@@ -275,392 +225,172 @@ async function Application(canvas: HTMLCanvasElement) {
     thirdPersonController.animationSpeedRatio = 0.8;
     thirdPersonController.boostMultiplier = 20;
 
-    const boxGO = new GameObject(scene);
-    boxGO.transform.position.y = 1.5;
-    boxGO.transform.position.x = 2;
-    const boxMesh = boxGO.AddComponent(Components.Mesh);
-    boxMesh.geometry = Geometry.Sphere();
-    boxMesh.material = new PBRMaterial({ albedoColor: new Mathf.Color(1, 1, 1, 1) });
-
-    class NatureSpawner extends Components.Component {
-        public spawnAnimationID = -1;
-        public moveAnimationID = -1;
-        public animator: Components.Animator;
-        public thirdPersonController: ThirdPersonController;
-        public rigidBody: RigidBody;
-
-        public spawnPrefab: GameObject;
-
-        private isSpelling = false;
-
-        public Start(): void {
-            if (!this.animator) throw Error("No animator");
-            if (!this.thirdPersonController) throw Error("No thirdPersonController");
-            if (!this.rigidBody) throw Error("No rigidbody");
-            if (!this.spawnPrefab) throw Error("No spawnPrefab");
-        }
-
-        public Update() {
-
-            if (!this.isSpelling) {
-                if (Input.GetKey(KeyCodes.Q)) {
-                    this.animator.CrossFadeTo(this.spawnAnimationID);
-                    this.isSpelling = true;
-                }
-            }
-            else {
-                const p = thirdPersonController.transform.position.clone();
-                p.y += 5;
-                const dir = new Mathf.Vector3(0, 0, -1).applyQuaternion(Components.Camera.mainCamera.transform.rotation).normalize();
-                const ray = new PhysicsRapier.Physics.Ray(p, dir);
-                const rayHit = PhysicsRapier.PhysicsWorld.castRay(ray, 100, true, undefined, undefined, undefined, this.rigidBody.rigidBody);
-
-                if (rayHit) {
-                    let hitPoint = ray.pointAt(rayHit.timeOfImpact);
-                    const hitPointv = new Mathf.Vector3(hitPoint.x, hitPoint.y, hitPoint.z);
-                    boxGO.transform.position.copy(hitPointv);
-
-                    if (Input.GetMouseDown(MouseCodes.MOUSE_LEFT)) {
-                        console.log("Moused")
-                        Scene.Instantiate(this.spawnPrefab, hitPointv);
-                    }
-                }
-
-                if (Math.abs(this.thirdPersonController.move.x) > Mathf.Epsilon || Math.abs(this.thirdPersonController.move.y) > Mathf.Epsilon) {
-                    this.animator.CrossFadeTo(this.moveAnimationID);
-                    this.isSpelling = false;
-                }
-            }
-        }
-    }
-
-    const natureSpawner = playerGameObject.AddComponent(NatureSpawner);
-    natureSpawner.spawnAnimationID = GetClipIndexByName(animator, "Spell_Simple_Idle_Loop");
-    natureSpawner.moveAnimationID = GetClipIndexByName(animator, "Rig|Rig|Walk_Loop");
-    natureSpawner.animator = animator;
-    natureSpawner.rigidBody = playerRigidbody;
-    natureSpawner.thirdPersonController = thirdPersonController;
-
-    const tree = await GLTFLoader.loadAsGameObjects(scene, "/extra/test-assets/Stylized Nature MegaKit[Standard]/glTF/CommonTree_1.gltf");
-    natureSpawner.spawnPrefab = tree;
-    console.log(playerGameObject)
-
-
-    const playerSettings = new UIFolder(Debugger.ui, "Player");
-    const playerPosition = new UIVecStat(playerSettings, "Position:",
-        { value: playerGameObject.transform.position.x, min: -1000, max: 1000, step: 1 },
-        { value: playerGameObject.transform.position.y, min: -1000, max: 1000, step: 1 },
-        { value: playerGameObject.transform.position.z, min: -1000, max: 1000, step: 1 },
-        undefined,
-        value => {
-            playerGameObject.transform.position.set(value.x, value.y, value.z)
-        }
-    )
-    setInterval(() => {
-        const p = playerGameObject.transform.position;
-        playerPosition.SetValue(p.x, p.y, p.z);
-    }, 100);
-
-
-    // Billboard grass
-    {
-        class FrustumInstance extends Components.InstancedMesh {
-            public distance: number = 10;
-            public amount: number = 100;
-            public scale: Mathf.Vector3 = new Mathf.Vector3(1, 1, 1);
-            public rotation: Mathf.Vector3 = new Mathf.Vector3(0, 0, 0);
-            public ground_height: number = 0;
-            public target: Components.Transform;
-
-            public heightSamplingFunction = (point: Mathf.Vector3): number => { return 0 };
-
-            private randomPointInAnnulus(center: Mathf.Vector3, innerRadius: number, outerRadius: number) {
-                const angle = Mathf.RandomRange(0, 1) * Math.PI * 2;
-
-                // Uniform distribution between innerRadius and outerRadius
-                const inner2 = innerRadius * innerRadius;
-                const outer2 = outerRadius * outerRadius;
-                const radius = Math.sqrt(Mathf.RandomRange(inner2, outer2));
-
-                return new Mathf.Vector3(
-                    center.x + Math.cos(angle) * radius,
-                    center.y,
-                    center.z + Math.sin(angle) * radius
-                );
-            }
-
-            private randomPointOnCircle(center: Mathf.Vector3, radius: number) {
-                const angle = Mathf.RandomRange(0, 1) * Math.PI * 2;
-                const uniformRadius = radius * Math.sqrt(Mathf.RandomRange(0, 1));
-                return new Mathf.Vector3(center.x + Math.cos(angle) * uniformRadius, center.y, center.z + Math.sin(angle) * uniformRadius);
-            }
-
-            public Start() {
-                if (!this.target) throw Error("No transform");
-                if (!this.geometry || !this.material) throw Error("No geometry or material");
-
-                const p = new Mathf.Vector3();
-                const r = new Mathf.Quaternion();
-
-                const _euler = new Mathf.Vector3();
-                const c = this.amount;
-
-                const calculateNewPosition = (target: Mathf.Vector3, minRadius: number, maxRadius: number): Mathf.Matrix4 => {
-                    const m = new Mathf.Matrix4();
-                    _euler.set(
-                        Mathf.RandomRange(-10, 10) * Mathf.Deg2Rad,
-                        Mathf.RandomRange(0, 360) * Mathf.Deg2Rad,
-                        0
-                    ).add(this.rotation);
-                    r.setFromEuler(_euler);
-
-                    const objectCenter = minRadius <= 0
-                        ? this.randomPointOnCircle(target, maxRadius)              // full disk
-                        : this.randomPointInAnnulus(target, minRadius, maxRadius); // outer ring
-
-                    p.copy(objectCenter);
-
-                    p.y = this.heightSamplingFunction(p);
-                    p.y += this.scale.y * 0.5;
-                    p.y += this.ground_height;
-
-                    m.compose(p, r, this.scale);
-                    return m;
-                };
-
-                let instances: { i: number; m: Mathf.Matrix4 }[] = [];
-
-                // Initial placement: anywhere in [0, distance]
-                for (let i = 0; i < c; i++) {
-                    const mat = calculateNewPosition(this.target.position, 0, this.distance);
-                    this.SetMatrixAt(i, mat);
-                    instances.push({ i, m: mat });
-                }
-
-                // // Updates
-                // setInterval(() => {
-                //     for (const instance of instances) {
-                //         instance.m.decompose(p, r, this.scale);
-
-                //         const dist = this.target.position.distanceTo(p);
-                //         if (dist > this.distance) {
-                //             // Recycle ONLY in outer ring, e.g. 70%–100% of max radius
-                //             const inner = this.distance * 0.7;
-                //             const outer = this.distance;
-
-                //             const mat = calculateNewPosition(this.target.position, inner, outer);
-                //             this.SetMatrixAt(instance.i, mat);
-                //             instance.m = mat;
-                //         }
-                //     }
-                // }, 1000);
-            }
-        }
-
-        const billboards = [
-            // { geometry: Geometry.Plane(), material: new PBRMaterial({ albedoMap: await GPU.Texture.Load("/extra/test-assets/billboards/grass/grassbushcc008.png", "rgba8unorm", false, true), alphaCutoff: 0.5, albedoColor: Mathf.Color.fromHex(0x707070ff) }), amount: 100000, distance: 25, ground_height: 0, scale: new Mathf.Vector3(0.5, 0.5, 0.5) },
-            // {geometry: Geometry.Plane(), material: new PBRMaterial({ albedoMap: await GPU.Texture.Load("/extra/test-assets/billboards/grass/grassbushcc008.png", "rgba8unorm", false, true), alphaCutoff: 0.5, albedoColor: Mathf.Color.fromHex(0x707070ff) }), amount: 5000, distance: 500, ground_height: 0, scale: new Mathf.Vector3(1,1,1)},
-            // {texture: await GPU.Texture.Load("/extra/test-assets/billboards/grass/grassbushcc007.png"), amount: 10000, distance: 50, ground_height: 0, scale: new Mathf.Vector3(1,1,1)},
-            // {geometry: Geometry.Plane(), material: new PBRMaterial({ albedoMap: await GPU.Texture.Load("/extra/test-assets/billboards/trees/tree002.png", "rgba8unorm", false, true), alphaCutoff: 0.5, unlit: false}), amount: 100, distance: 50, ground_height: 2, scale: new Mathf.Vector3(5,5,5)},
-            // {geometry: treeGeometry, material: treeMaterial, amount: 1000, distance: 300, ground_height: 8, scale: new Mathf.Vector3(1,1,1), rotation: new Mathf.Vector3(-Math.PI / 2,0,0)},
-        ]
-
-        const treesGameObject = new GameObject(scene);
-
-        for (const billboard of billboards) {
-            const treesInstance = treesGameObject.AddComponent(FrustumInstance);
-            treesInstance.amount = billboard.amount;
-            treesInstance.distance = billboard.distance;
-            treesInstance.ground_height = billboard.ground_height;
-            treesInstance.scale = billboard.scale;
-            treesInstance.target = playerGameObject.transform;
-            if (billboard.rotation) treesInstance.rotation = billboard.rotation;
-            treesInstance.enableShadows = false;
-            treesInstance.geometry = billboard.geometry;
-            treesInstance.material = billboard.material;
-            treesInstance.heightSamplingFunction = p => { return terrain.SampleHeight(p) };
-        }
-    }
-
-
-    // {
-    //     scene.renderPipeline.AddPass(new MeshletDraw(), GPU.RenderPassOrder.BeforeGBuffer);
-        
-
-    //     function traverse(gameObjects: GameObject[], fn: (gameObject: GameObject) => void) {
-    //         for (const gameObject of gameObjects) {
-    //             fn(gameObject);
-    //             for (const child of gameObject.transform.children) {
-    //                 traverse([child.gameObject], fn);
-    //             }
-    //         }
-    //     }
-
-    //     const tree1 = await GLTFLoader.loadAsGameObjects(scene, "/extra/test-assets/tree-01/tree-01.glb");
-
-    //     let lodGroupEntries: { geometry: Geometry, material: GPU.Material }[] = []
-    //     traverse([tree1], gameObject => {
-    //         const mesh = gameObject.GetComponent(Components.Mesh);
-    //         if (mesh) {
-    //             const geometrySerialized = mesh.geometry.Serialize();
-    //             const materialSerialized = mesh.material.Serialize();
-    //             materialSerialized.params.roughness = 1.0
-    //             materialSerialized.params.metalness = 0.0;
-    //             const materialClone = GPU.Material.Deserialize(materialSerialized);
-    //             const geometryClone = new Geometry();
-    //             geometryClone.Deserialize(geometrySerialized);
-
-    //             lodGroupEntries.push({ geometry: geometryClone, material: materialClone });
-    //         }
-    //     })
-    //     tree1.Destroy();
-
-    //     // console.log(lodGroupEntries[0])
-
-    //     console.log(lodGroupEntries[0].material.params)
-    //     // (lodGroupEntries[0].material as PBRMaterial).params.albedoColor.set(1, 0, 0, 1)
-
-    //     const entries = lodGroupEntries.slice(0, 2);
-        
-    //     let treeCount = 0;
-    //     const p = new Mathf.Vector3();
-    //     const r = new Mathf.Vector3();
-    //     const q = new Mathf.Quaternion();
-    //     const s = new Mathf.Vector3(1, 1, 1);
-    //     const m = new Mathf.Matrix4();
-
-    //     const c = 50000;
-    //     const off = 500;
-    //     for (let i = 0; i < c; i++) {
-    //         // const angle = i / c * Math.PI * 2;
-    //         // // const radius = Mathf.RandomRange(20, 1000);
-    //         // const radius = Mathf.RandomRange(0, 1000);
-    
-    //         // const x = center.x + Mathf.Cos(angle) * radius;
-    //         // const z = center.z + Mathf.Sin(angle) * radius;
-    
-    //         const x = Mathf.RandomRange(-off, off);
-    //         const z = Mathf.RandomRange(-off, off);
-    
-    //         p.set(x, 0, z);
-    //         terrain.SampleHeight(p);
-    
-    //         r.y = Mathf.RandomRange(0, 360);
-    //         q.setFromEuler(r);
-    //         p.y += Mathf.RandomRange(-1, 0);
-    //         m.compose(p, q, s);
-    
-    //         if (p.y > 25) {
-    //             for (const mesh of entries) {
-    //                 const go2 = new GameObject(scene);
-    //                 const meshletB = go2.AddComponent(MeshletMesh);
-    //                 meshletB.geometry = mesh.geometry;
-    //                 meshletB.material = mesh.material;
-    //                 m.decompose(meshletB.transform.position, meshletB.transform.rotation, meshletB.transform.scale);
-                    
-    //             }
-    //             treeCount++
-    //         }
-    //     }
-    //     console.log("treeCount", treeCount)
-    // }
-    
     // Trees
     {
-        const tree1 = await GLTFLoader.loadAsGameObjects(scene, "/extra/test-assets/tree-01/tree-01.glb");
-    
-        let lodGroupEntries: { geometry: Geometry, material: GPU.Material }[] = []
-        traverse([tree1], gameObject => {
-            const mesh = gameObject.GetComponent(Components.Mesh);
-            if (mesh) {
-                const geometrySerialized = mesh.geometry.Serialize();
-                const materialSerialized = mesh.material.Serialize();
-                console.log(materialSerialized.params.roughness, materialSerialized.params.metalness)
-                materialSerialized.params.roughness = 1.0
-                materialSerialized.params.metalness = 0.0;
-                const materialClone = GPU.Material.Deserialize(materialSerialized);
-                const geometryClone = new Geometry();
-                geometryClone.Deserialize(geometrySerialized);
-    
-                lodGroupEntries.push({ geometry: geometryClone, material: materialClone });
+        interface TerrainObjectSpawnerOptions {
+            spawnAroundTarget?: Mathf.Vector3;
+            enableShadows?: boolean;
+            heightRandom?: number;
+        }
+        async function TerrainObjectSpawner(glbURL, count, _options?: TerrainObjectSpawnerOptions) {
+            const defaults: TerrainObjectSpawnerOptions = { spawnAroundTarget: undefined, enableShadows: true, heightRandom: -0.5 };
+            const options = Object.assign({}, defaults, _options);
+            const tree1 = await GLTFLoader.loadAsGameObjects(scene, glbURL);
+
+            let lodGroupEntries: { geometry: Geometry, material: GPU.Material }[] = []
+            traverse([tree1], gameObject => {
+                const mesh = gameObject.GetComponent(Components.Mesh);
+                if (mesh) {
+                    const geometrySerialized = mesh.geometry.Serialize();
+                    const materialSerialized = mesh.material.Serialize();
+                    console.log(materialSerialized.params)
+                    materialSerialized.params.doubleSided = true
+                    const materialClone = GPU.Material.Deserialize(materialSerialized);
+                    const geometryClone = new Geometry();
+                    geometryClone.Deserialize(geometrySerialized);
+
+                    lodGroupEntries.push({ geometry: geometryClone, material: materialClone });
+                }
+            })
+            tree1.Destroy();
+
+            const lodGameObject = new GameObject(scene);
+            const lodInstanceRenderable = lodGameObject.AddComponent(LODInstanceRenderable);
+            if (lodGroupEntries.length >= 2) lodInstanceRenderable.lods.push({ renderers: lodGroupEntries.slice(0, 2), screenSize: 10 });
+            if (lodGroupEntries.length >= 4) lodInstanceRenderable.lods.push({ renderers: lodGroupEntries.slice(2, 4), screenSize: 20 });
+            if (lodGroupEntries.length >= 6) lodInstanceRenderable.lods.push({ renderers: lodGroupEntries.slice(4, 6), screenSize: 100 });
+            if (lodGroupEntries.length >= 7) lodInstanceRenderable.lods.push({ renderers: lodGroupEntries.slice(6, 7), screenSize: 300 });
+            else if (lodGroupEntries.length >= 1) lodInstanceRenderable.lods.push({ renderers: lodGroupEntries.slice(0, 1), screenSize: 300 });
+
+            lodInstanceRenderable.enableShadows = options.enableShadows;
+
+            const p = new Mathf.Vector3();
+            const r = new Mathf.Vector3();
+            const q = new Mathf.Quaternion();
+            const s = new Mathf.Vector3(1, 1, 1);
+            const m = new Mathf.Matrix4();
+
+            const c = count;
+            const off = 500;
+
+            let treeCount = 0;
+            for (let i = 0; i < c; i++) {
+
+                let x = Mathf.RandomRange(-off, off);
+                let z = Mathf.RandomRange(-off, off);
+
+                if (options.spawnAroundTarget) {
+                    const angle = i / c * Math.PI * 2;
+                    const radius = Mathf.RandomRange(0, 200);
+
+                    x = options.spawnAroundTarget.x + Mathf.Cos(angle) * radius;
+                    z = options.spawnAroundTarget.z + Mathf.Sin(angle) * radius;
+                }
+
+                p.set(x, 0, z);
+                terrain.SampleHeight(p);
+
+                r.y = Mathf.RandomRange(0, 360);
+                q.setFromEuler(r);
+                if (options.heightRandom) {
+                    p.y += Mathf.RandomRange(options.heightRandom, 0);
+                }
+                m.compose(p, q, s);
+
+                if (p.y > 25 && p.y < 100) {
+                    lodInstanceRenderable.SetMatrixAt(treeCount, m);
+                    treeCount++
+                }
             }
-        })
-        tree1.Destroy();
-    
-        console.log(lodGroupEntries)
 
-        const lodColors = [
-            [1,0,0,1],
-            [0,1,0,1],
-            [0,0,1,1],
-            [1,1,0,1],
-            [0,1,1,1],
-            [1,1,1,1],
-        ]
+            console.log(treeCount)
+        }
 
-        // let j = 0;
-        // for (let i = 0; i < lodGroupEntries.length; i+=2) {
-        //     const c = lodColors[j];
-        //     (lodGroupEntries[i].material as PBRMaterial).params.albedoColor.set(c[0], c[1], c[2], c[3]);
-        //     j++;
-        // }
-        //     lodInstanceRenderable.lods.push({ renderers: lodGroupEntries.slice(0, 2), screenSize: 20 });
-        // lodInstanceRenderable.lods.push({ renderers: lodGroupEntries.slice(2, 4), screenSize: 40 });
-        // lodInstanceRenderable.lods.push({ renderers: lodGroupEntries.slice(4, 6), screenSize: 80 });
-        // lodInstanceRenderable.lods.push({ renderers: lodGroupEntries.slice(6, 8), screenSize: 200 });
-        const lodGameObject = new GameObject(scene);
-        const lodInstanceRenderable = lodGameObject.AddComponent(LODInstanceRenderable);
-        lodInstanceRenderable.lods.push({ renderers: lodGroupEntries.slice(0, 2), screenSize: 10 }); // from 0 to x
-        lodInstanceRenderable.lods.push({ renderers: lodGroupEntries.slice(2, 4), screenSize: 20 });
-        lodInstanceRenderable.lods.push({ renderers: lodGroupEntries.slice(4, 6), screenSize: 100 });
-        lodInstanceRenderable.lods.push({ renderers: lodGroupEntries.slice(6, 8), screenSize: 300 });
-    
-        const p = new Mathf.Vector3();
-        const r = new Mathf.Vector3();
-        const q = new Mathf.Quaternion();
-        const s = new Mathf.Vector3(1, 1, 1);
-        const m = new Mathf.Matrix4();
-    
-        const c = 50000;
-        const off = 500;
-    
-        const c2 = 20;
-    
-        const center = playerGameObject.transform.position;
-    
-        let treeCount = 0;
-        for (let i = 0; i < c; i++) {
-    
-            // const angle = i / c * Math.PI * 2;
-            // // const radius = Mathf.RandomRange(20, 1000);
-            // const radius = Mathf.RandomRange(0, 1000);
-    
-            // const x = center.x + Mathf.Cos(angle) * radius;
-            // const z = center.z + Mathf.Sin(angle) * radius;
-    
-            const x = Mathf.RandomRange(-off, off);
-            const z = Mathf.RandomRange(-off, off);
-    
-            p.set(x, 0, z);
-            terrain.SampleHeight(p);
-    
-            r.y = Mathf.RandomRange(0, 360);
-            q.setFromEuler(r);
-            p.y += Mathf.RandomRange(-1, 0);
-            m.compose(p, q, s);
-    
-            if (p.y > 25) {
-                lodInstanceRenderable.SetMatrixAt(treeCount, m);
-                treeCount++
+        const ta = 5000;
+        await TerrainObjectSpawner("/extra/test-assets/Mountain Environment/Pine_trees/Prefabs/Prefab_Forest_pine_01.glb", ta);
+        // await TerrainObjectSpawner("/extra/test-assets/Mountain Environment/Pine_trees/Prefabs/Prefab_Forest_pine_02.glb", ta);
+        // await TerrainObjectSpawner("/extra/test-assets/Mountain Environment/Pine_trees/Prefabs/Prefab_Forest_pine_03.glb", ta);
+        // await TerrainObjectSpawner("/extra/test-assets/Mountain Environment/Pine_trees/Prefabs/Prefab_Forest_pine_04.glb", ta);
+        // await TerrainObjectSpawner("/extra/test-assets/Mountain Environment/Pine_trees/Prefabs/Prefab_Forest_pine_06.glb", ta);
+        // await TerrainObjectSpawner("/extra/test-assets/Mountain Environment/Pine_trees/Prefabs/Prefab_Forest_pine_07.glb", ta);
+        // await TerrainObjectSpawner("/extra/test-assets/Mountain Environment/Pine_trees/Prefabs/Prefab_Forest_pine_08.glb", ta);
+        // await TerrainObjectSpawner("/extra/test-assets/Mountain Environment/Pine_trees/Prefabs/Prefab_Forest_pine_09.glb", ta);
+        // await TerrainObjectSpawner("/extra/test-assets/Mountain Environment/Pine_trees/Prefabs/Prefab_Forest_pine_plant_01.glb", ta);
+        // await TerrainObjectSpawner("/extra/test-assets/Mountain Environment/Pine_trees/Prefabs/Prefab_Forest_pine_plant_02.glb", ta);
+        // await TerrainObjectSpawner("/extra/test-assets/Mountain Environment/Pine_trees/Prefabs/Prefab_Forest_pine_plant_03.glb", ta);
+        // await TerrainObjectSpawner("/extra/test-assets/Mountain Environment/Pine_trees/Prefabs/Prefab_Forest_pine_tree_00_A.glb", ta);
+
+
+        // // await TerrainObjectSpawner("/extra/test-assets/tree-01/grass.glb", 50000000);
+        // const grassOptions: TerrainObjectSpawnerOptions = {spawnAroundTarget: playerGameObject.transform.position, enableShadows: false, heightRandom: undefined};
+        // await TerrainObjectSpawner("/extra/test-assets/Mountain Environment/Foliage and Grass/Prefabs/Prefab_grass_01_1.glb", 50000, grassOptions);
+        // await TerrainObjectSpawner("/extra/test-assets/Mountain Environment/Foliage and Grass/Prefabs/Prefab_grass_01_4.glb", 50000, grassOptions);
+        // await TerrainObjectSpawner("/extra/test-assets/Mountain Environment/Foliage and Grass/Prefabs/Prefab_grass_03_C_1.glb", 5000, grassOptions);
+        // await TerrainObjectSpawner("/extra/test-assets/Mountain Environment/Foliage and Grass/Prefabs/Prefab_grass_03_A_1.glb", 50000, grassOptions);
+
+
+
+        {
+            const tree1 = await GLTFLoader.loadAsGameObjects(scene, "/extra/test-assets/Mountain Environment/Foliage and Grass/Prefabs/Prefab_grass_01_1.glb");
+
+            let lodGroupEntries: { geometry: Geometry, material: GPU.Material }[] = []
+            traverse([tree1], gameObject => {
+                const mesh = gameObject.GetComponent(Components.Mesh);
+                if (mesh) {
+                    const geometrySerialized = mesh.geometry.Serialize();
+                    const materialSerialized = mesh.material.Serialize();
+                    const materialClone = GPU.Material.Deserialize(materialSerialized);
+                    const geometryClone = new Geometry();
+                    geometryClone.Deserialize(geometrySerialized);
+
+                    lodGroupEntries.push({ geometry: geometryClone, material: materialClone });
+                }
+            })
+            tree1.Destroy();
+
+            const gameObject = new GameObject(scene);
+            const instancedMesh = gameObject.AddComponent(Components.InstancedMesh);
+            instancedMesh.enableShadows = false;
+
+            console.log(lodGroupEntries)
+            instancedMesh.geometry = lodGroupEntries[0].geometry;
+            instancedMesh.material = lodGroupEntries[0].material;
+
+            const count = 100000;
+            const p = new Mathf.Vector3();
+            const r = new Mathf.Vector3();
+            const q = new Mathf.Quaternion();
+            const s = new Mathf.Vector3(1, 1, 1);
+            const m = new Mathf.Matrix4();
+
+            const c = count;
+            const off = 500;
+
+            let treeCount = 0;
+            for (let i = 0; i < c; i++) {
+
+                let x = Mathf.RandomRange(-off, off);
+                let z = Mathf.RandomRange(-off, off);
+
+                p.set(x, 0, z);
+                terrain.SampleHeight(p);
+
+                r.y = Mathf.RandomRange(0, 360);
+                q.setFromEuler(r);
+                m.compose(p, q, s);
+
+                if (p.y > 25) {
+                    instancedMesh.SetMatrixAt(treeCount, m);
+                    treeCount++
+                }
             }
         }
-        console.log(treeCount)
     }
 
     // // Grass
     // {
     //     const tree1 = await GLTFLoader.loadAsGameObjects(scene, "/extra/test-assets/tree-01/grass.glb");
-    
+
     //     let lodGroupEntries: { geometry: Geometry, material: GPU.Material }[] = []
     //     traverse([tree1], gameObject => {
     //         const mesh = gameObject.GetComponent(Components.Mesh);
@@ -671,49 +401,49 @@ async function Application(canvas: HTMLCanvasElement) {
     //             const materialClone = GPU.Material.Deserialize(materialSerialized);
     //             const geometryClone = new Geometry();
     //             geometryClone.Deserialize(geometrySerialized);
-    
+
     //             lodGroupEntries.push({ geometry: geometryClone, material: materialClone });
     //         }
     //     })
     //     tree1.Destroy();
-    
+
     //     const lodGameObject = new GameObject(scene);
     //     const lodInstanceRenderable = lodGameObject.AddComponent(LODInstanceRenderable);
     //     lodInstanceRenderable.enableShadows = false;
     //     lodInstanceRenderable.lods.push({ renderers: lodGroupEntries, screenSize: 0 });
     //     lodInstanceRenderable.lods.push({ renderers: lodGroupEntries, screenSize: 1000 });
-    
+
     //     const p = new Mathf.Vector3();
     //     const r = new Mathf.Vector3();
     //     const q = new Mathf.Quaternion();
     //     const s = new Mathf.Vector3(1, 1, 1);
     //     const m = new Mathf.Matrix4();
-    
+
     //     const c = 20000;
     //     const off = 500;
-    
+
     //     const center = playerGameObject.transform.position;
-    
+
     //     for (let i = 0; i < c; i++) {
-    
+
     //         const angle = i / c * Math.PI * 2;
     //         // const radius = Mathf.RandomRange(20, 1000);
     //         const radius = Mathf.RandomRange(0, 100);
-    
+
     //         const x = center.x + Mathf.Cos(angle) * radius;
     //         const z = center.z + Mathf.Sin(angle) * radius;
 
     //         // const x = Mathf.RandomRange(-off, off);
     //         // const z = Mathf.RandomRange(-off, off);            
-    
+
     //         p.set(x, 0, z);
     //         terrain.SampleHeight(p);
-    
+
     //         r.y = Mathf.RandomRange(0, 360);
     //         q.setFromEuler(r);
     //         p.y += 0.1;
     //         m.compose(p, q, s);
-    
+
     //         if (p.y > 25) {
     //             lodInstanceRenderable.SetMatrixAt(i, m);
     //         }
@@ -731,9 +461,18 @@ async function Application(canvas: HTMLCanvasElement) {
         waterGameObject.transform.eulerAngles.x = -90;
         waterGameObject.transform.position.y = 25;
         const water = waterGameObject.AddComponent(Water);
+
+        new UIColorStat(Debugger.ui, "Color deep:", new Mathf.Color(...water.settings.get("color_deep")).toHex().slice(0, 7), value => {
+            const c = Mathf.Color.fromHex(parseInt(value.slice(1, value.length), 16));
+            water.settings.set("color_deep", [c.r, c.g, c.b, c.a]);
+        });
+        new UIColorStat(Debugger.ui, "Color shallow:", new Mathf.Color(...water.settings.get("color_shallow")).toHex().slice(0, 7), value => {
+            const c = Mathf.Color.fromHex(parseInt(value.slice(1, value.length), 16));
+            water.settings.set("color_shallow", [c.r, c.g, c.b, c.a]);
+        });
     }
 
-    Console.getVar("r_exposure").value = 1;
+    Console.getVar("r_exposure").value = 0;
     Console.getVar("r_shadows_csm_splittypepracticallambda").value = 0.99;
 
     mainCameraGameObject.transform.position.set(0, 0, 500);
@@ -760,6 +499,25 @@ async function Application(canvas: HTMLCanvasElement) {
     new UISliderStat(Debugger.ui, "Contrast:", -4, 4, 0.1, Console.getVar<number>("r_contrast").value, value => Console.getVar("r_contrast").value = value);
 
     Debugger.Enable();
+
+
+    // Drag and drop models
+    {
+        window.addEventListener("dragover", (e) => {
+            e.preventDefault(); // allow drop
+        });
+
+        window.addEventListener("drop", async (e) => {
+            e.preventDefault();
+
+            const file = e.dataTransfer?.files?.[0];
+            if (!file) return;
+
+            const url = URL.createObjectURL(file);
+            const obj = await GLTFLoader.loadAsGameObjects(scene, url, "glb");
+            obj.transform.position.copy(playerGameObject.transform.position);
+        });
+    }
 
     scene.Start();
 };

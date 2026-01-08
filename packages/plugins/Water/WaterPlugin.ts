@@ -247,30 +247,6 @@ export class Water extends Component {
 
         this.geometry = PlaneGeometry(1, 1, 256, 256);
 
-        // this.settings = new DataBackedBuffer<WaterSettings>({
-        //     wave_speed: [0.5, 0.0, 0.0, 0.0],
-
-        //     wave_a: [1.0, 0.4, 0.35, 3.0],
-        //     wave_b: [-0.1, 0.6, 0.30, 1.55],
-        //     wave_c: [-1.0, -0.8, 0.25, 0.9],
-    
-        //     sampler_scale: [0.25, 0.25, 0.0, 0.0],
-        //     sampler_direction: [0.05, 0.04, 0.0, 0.0],
-    
-        //     uv_sampler_scale: [0.25, 0.25, 0.0, 0.0],
-        //     uv_sampler_strength: [0.04, 0.0, 0.0, 0.0],
-    
-        //     foam_level: [0.75, 0.0, 0.0, 0.0],
-    
-        //     refraction: [0.075, 0.0, 0.0, 0.0],
-    
-        //     color_deep: [0.32, 0.4, 0.5, 1.0],
-        //     color_shallow: [0.66, 0.75, 0.76, 1.0],
-    
-        //     beers_law: [2.0, 0.0, 0.0, 0.0],
-        //     depth_offset: [-0.75, 0.0, 0.0, 0.0],
-        // });
-
         this.settings = new DataBackedBuffer<WaterSettings>({
             wave_speed: [0.5, 0.0, 0.0, 0.0],
 

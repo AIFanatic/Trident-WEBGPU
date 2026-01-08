@@ -3,16 +3,18 @@ import { Components, Scene, GPU, Mathf, GameObject, Geometry, IndexAttribute, PB
 import { OrbitControls } from "@trident/plugins/OrbitControls";
 import { GLTFLoader } from "@trident/plugins/GLTF/GLTFLoader";
 import { Debugger } from "@trident/plugins/Debugger";
+import { HDRParser } from "@trident/plugins/HDRParser";
+import { Environment } from "@trident/plugins/Environment/Environment";
 
 async function Application(canvas: HTMLCanvasElement) {
-    const renderer = GPU.Renderer.Create(canvas, "webgpu");
+    const renderer = GPU.Renderer.Create(canvas, "webgpu", 2);
     const scene = new Scene(renderer);
 
     const mainCameraGameObject = new GameObject(scene);
-    mainCameraGameObject.transform.position.set(0,0,-15);
+    mainCameraGameObject.transform.position.set(0, 0, -15);
     mainCameraGameObject.name = "MainCamera";
     const camera = mainCameraGameObject.AddComponent(Components.Camera);
-    camera.SetPerspective(72, canvas.width / canvas.height, 0.5, 1000);
+    camera.SetPerspective(72, canvas.width / canvas.height, 0.05, 1000);
 
 
     mainCameraGameObject.transform.position.set(0, 0, 2);
@@ -24,29 +26,19 @@ async function Application(canvas: HTMLCanvasElement) {
     lightGameObject.transform.position.set(-4, 4, 4);
     lightGameObject.transform.LookAtV1(new Mathf.Vector3(0, 0, 0));
     const light = lightGameObject.AddComponent(Components.DirectionalLight);
-    light.castShadows = false;
+    light.castShadows = true;
+    light.intensity = 1
 
-    // const gameObjects = await GLTFLoader.loadAsGameObjects(scene, "./assets/models/Fox.glb");
-    const gameObjects = await GLTFLoader.loadAsGameObjects(scene, "./assets/models/DamagedHelmet/DamagedHelmet.gltf");
+    const hdr = await HDRParser.Load("/dist/examples/assets/textures/HDR/autumn_field_puresky_1k.hdr");
+    const skyTexture = await HDRParser.ToCubemap(hdr);
 
-    // function traverse(gameObjects: GameObject[], fn: (gameObject: GameObject) => void) {
-    //     for (const gameObject of gameObjects) {
-    //         fn(gameObject);
-    //         for (const child of gameObject.transform.children) {
-    //             traverse([child.gameObject], fn);
-    //         }
-    //     }
-    // }
+    const environment = new Environment(scene, skyTexture);
+    await environment.init();
 
-    // let animator: Components.Animator = undefined;
-    // traverse([gameObjects], gameObject => {
-    //     const _animator = gameObject.GetComponent(Components.Animator);
-    //     if (_animator) animator = _animator;
-    // })
+    const prefab = await GLTFLoader.LoadFromURL("./assets/models/DamagedHelmet/DamagedHelmet.gltf");
+    console.log(prefab)
 
-    // if (!animator) throw Error("Could not find an animator component");
-
-    // animator.SetClipByIndex(0);
+    scene.Instantiate(prefab);
     Debugger.Enable();
 
     scene.Start();

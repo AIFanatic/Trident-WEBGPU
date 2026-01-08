@@ -62,7 +62,6 @@ export class ForwardPass extends RenderPass {
             if (!geometry || !material) continue;
             if (!geometry.attributes.has("position")) continue;
 
-
             if (material.params.isDeferred === true) continue;
             if (!material.shader) continue;
 

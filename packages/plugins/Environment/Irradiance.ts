@@ -10,13 +10,11 @@ export class Irradiance {
     private irradianceShader: GPU.Shader;
     
     private res: number;
-    private outputFormat: GPU.TextureFormat;
 
     constructor(res: number = 32, outputFormat: GPU.TextureFormat = "rgba16float") {
         this.res = res;
-        this.outputFormat = outputFormat;
-
-        this.irradianceTexture = GPU.RenderTextureCube.Create(this.res, this.res, 6, this.outputFormat);
+        this.irradianceTexture = GPU.RenderTextureCube.Create(this.res, this.res, 6, outputFormat);
+        this.irradianceTexture.name = "Irradiance";
     }
 
     public async init() {
@@ -46,12 +44,12 @@ export class Irradiance {
                 fn dirFromFaceUV(face: u32, x: f32, y: f32) -> vec3f {
                     let u = x; let v = y;
                     switch face {
-                    case 0u { return normalize(vec3(-1.0, v, -u)); } // +X
-                    case 1u { return normalize(vec3(1.0, v, u)); } // -X
-                    case 2u { return normalize(vec3(-u, 1.0, -v)); } // -Y
-                    case 3u { return normalize(vec3(-u, -1.0, v)); } // +Y
-                    case 4u { return normalize(vec3(-u, v, 1.0)); } // +Z
-                    default { return normalize(vec3(u, v, -1.0)); } // -Z
+                    case 0u { return normalize(vec3( 1.0,  v, -u)); } // +X
+                    case 1u { return normalize(vec3(-1.0,  v,  u)); } // -X
+                    case 2u { return normalize(vec3( u,  1.0, -v)); } // +Y
+                    case 3u { return normalize(vec3( u, -1.0,  v)); } // -Y
+                    case 4u { return normalize(vec3( u,  v,  1.0)); } // +Z
+                    default { return normalize(vec3(-u,  v, -1.0)); } // -Z
                     }
                 }
         
@@ -62,33 +60,48 @@ export class Irradiance {
                     // Per-pixel normal for this output cubemap face
                     let normal = dirFromFaceUV(u32(face.x), uv.x, uv.y);
             
-                    var irradiance = vec3f(0.0, 0.0, 0.0);
+                    var irradiance = vec3<f32>(0.0);
 
-                    var up = vec3f(0.0, 1.0, 0.0);
-                    let right = normalize(cross(up, normal));
-                    up = normalize(cross(normal, right));
-                
-                    var sampleDelta = 0.025;
-                    var nrSamples = 0.0;
-                    for(var phi: f32 = 0.0; phi < 2.0 * PI; phi = phi + sampleDelta) {
-                        for(var theta : f32 = 0.0; theta < 0.5 * PI; theta = theta + sampleDelta) {
-                            // spherical to cartesian (in tangent space)
-                            let tangentSample: vec3f = vec3f(sin(theta) * cos(phi), sin(theta) * sin(phi), cos(theta));
-                            // tangent space to world
-                            let sampleVec = tangentSample.x * right + tangentSample.y * up + tangentSample.z * normal;
-                    
-                            // irradiance += textureSample(environmentMap, environmentMapSampler, sampleVec).rgb * cos(theta) * sin(theta);
-                            irradiance += textureSampleLevel(environmentMap, environmentMapSampler, normalize(sampleVec), 0.0).rgb * cos(theta) * sin(theta);
+                    var up = vec3<f32>(0.0, 1.0, 0.0);
+                    let tangent = normalize(cross(up, normal));
+                    let bitangent = normalize(cross(normal, tangent));
 
-                            nrSamples += 1.0;
+                    let sampleCount = 32u;
+                    let invSampleCount = 1.0 / f32(sampleCount);
+
+                    for (var i = 0u; i < sampleCount; i++) {
+                        for (var j = 0u; j < sampleCount; j++) {
+                            let u1 = (f32(i) + 0.5) * invSampleCount;
+                            let u2 = (f32(j) + 0.5) * invSampleCount;
+
+                            let cosTheta = sqrt(u1);
+                            let sinTheta = sqrt(1.0 - u1);
+                            let phi = 2.0 * PI * u2;
+
+                            let cosPhi = cos(phi);
+                            let sinPhi = sin(phi);
+
+                            let sampleVec = vec3<f32>(
+                                sinTheta * cosPhi,
+                                sinTheta * sinPhi,
+                                cosTheta
+                            );
+
+                            let worldSample = sampleVec.x * tangent +
+                                            sampleVec.y * bitangent +
+                                            sampleVec.z * normal;
+
+                            let sampleColor = textureSample(environmentMap, environmentMapSampler, worldSample);
+                            irradiance += sampleColor.rgb * cosTheta;
                         }
                     }
-                    irradiance = PI * irradiance * (1.0 / nrSamples);
-                
-                    return vec4f(irradiance, 1.0);
+
+                    irradiance = irradiance * PI * invSampleCount * invSampleCount;
+
+                    return vec4<f32>(irradiance, 1.0);
                 }
             `,
-            colorOutputs: [{ format: "rgba16float" }],
+            colorOutputs: [{ format: this.irradianceTexture.format }],
             attributes: { position: { location: 0, size: 3, type: "vec3" } },
             uniforms: {
                 environmentMap: { group: 0, binding: 1, type: "texture" },

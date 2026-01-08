@@ -153,7 +153,7 @@ export class ThirdPersonController extends Component {
     private CameraRotation() {
         const minPhi = -Math.PI / 2;
         const maxPhi = Math.PI / 2;
-        const distance = this._mainCamera.transform.position.distanceTo(this.transform.position);
+        const distance = this._mainCamera.transform.position.distanceTo(this.transform.position) + 2;
 
         if (this.isPointerLocked) {
             this.yaw += this.look.x * this.orbitSpeed;

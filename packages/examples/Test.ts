@@ -1,120 +1,323 @@
-import {
-    GameObject,
-    Geometry,
-    Scene,
-    Components,
-    Mathf,
-    PBRMaterial,
-    GPU,
-} from "@trident/core";
+import { Components, Scene, GPU, Mathf, GameObject, Geometry, IndexAttribute, PBRMaterial, VertexAttribute, Prefab } from "@trident/core";
 
 import { OrbitControls } from "@trident/plugins/OrbitControls";
-import { OBJLoaderIndexed } from "@trident/plugins/OBJLoader";
 import { GLTFLoader } from "@trident/plugins/GLTF/GLTFLoader";
-
-import { MeshletMeshV3 } from "@trident/plugins/meshlets_v3/MeshletMesh";
-import { MeshletDraw } from "@trident/plugins/meshlets_v3/passes/MeshletDraw";
 import { Debugger } from "@trident/plugins/Debugger";
-import { SSSRenderPass } from "@trident/plugins/SSS";
-import { UIButtonStat, UIFolder, UISliderStat, UITextureViewer } from "@trident/plugins/ui/UIStats";
 import { HDRParser } from "@trident/plugins/HDRParser";
-
-
-import { PostProcessingPass } from "@trident/plugins/PostProcessing/PostProcessingPass";
-import { PostProcessingSMAA } from "@trident/plugins/PostProcessing/effects/SMAA";
-import { DirectionalLightHelper } from "@trident/plugins/DirectionalLightHelper";
-import { Sky } from "@trident/plugins/Environment/Sky";
 import { Environment } from "@trident/plugins/Environment/Environment";
 
 async function Application(canvas: HTMLCanvasElement) {
-    const renderer = GPU.Renderer.Create(canvas, "webgpu");
+    const renderer = GPU.Renderer.Create(canvas, "webgpu", 2);
     const scene = new Scene(renderer);
 
     const mainCameraGameObject = new GameObject(scene);
+    mainCameraGameObject.transform.position.set(0, 0, -15);
+    // mainCameraGameObject.transform.position.set(5295, 2770, -70);
     mainCameraGameObject.name = "MainCamera";
     const camera = mainCameraGameObject.AddComponent(Components.Camera);
-    camera.SetPerspective(72, canvas.width / canvas.height, 0.01, 500);
+    camera.SetPerspective(72, canvas.width / canvas.height, 0.05, 1000);
 
 
-    mainCameraGameObject.transform.position.set(0, 0, 2);
-    mainCameraGameObject.transform.LookAtV1(new Mathf.Vector3(0, 0, 0));
+    // mainCameraGameObject.transform.LookAtV1(new Mathf.Vector3(0, 0, 0));
 
     const controls = new OrbitControls(canvas, camera);
 
-    {
-        const lightGameObject = new GameObject(scene);
-        lightGameObject.transform.position.set(-4, -4, -4);
-        lightGameObject.transform.LookAtV1(new Mathf.Vector3(0, 0, 0));
-        const light = lightGameObject.AddComponent(Components.DirectionalLight);
-        light.intensity = 3;
-        light.color.set(1, 1, 1, 1);
-        light.castShadows = false;
-    }
+    const lightGameObject = new GameObject(scene);
+    lightGameObject.transform.position.set(-4, 4, 4);
+    lightGameObject.transform.LookAtV1(new Mathf.Vector3(0, 0, 0));
+    const light = lightGameObject.AddComponent(Components.DirectionalLight);
+    light.castShadows = false;
+    light.intensity = 1
 
-    {
-        const lightGameObject = new GameObject(scene);
-        lightGameObject.transform.position.set(4, 4, 4);
-        lightGameObject.transform.LookAtV1(new Mathf.Vector3(0, 0, 0));
-        const light = lightGameObject.AddComponent(Components.DirectionalLight);
-        light.intensity = 3;
-        light.color.set(1, 1, 1, 1);
-        light.castShadows = false;
-    }
 
-    {
-        const lightGameObject = new GameObject(scene);
-        lightGameObject.transform.position.set(4, 4, 4);
-        lightGameObject.transform.LookAtV1(new Mathf.Vector3(0, 0, 0));
-        const light = lightGameObject.AddComponent(Components.DirectionalLight);
-        light.intensity = 1;
-        light.color.set(1, 1, 1, 1);
-        light.castShadows = false;
-    }
-
-    {
-        const planeGO = new GameObject(scene);
-        // planeGO.transform.eulerAngles.x = -90;
-        planeGO.transform.position.set(0, 0, 0);
-        planeGO.transform.scale.set(1, 1, 1);
-        const sphereMesh = planeGO.AddComponent(Components.Mesh);
-        sphereMesh.geometry = Geometry.Cube();
-        const mat = new PBRMaterial({ metalness: 0.0, roughness: 1 });
-        sphereMesh.material = mat;
-    }
-
-    const skyAtmosphere = new Sky();
-    await skyAtmosphere.init();
-    const skyTexture = skyAtmosphere.skyTextureCubemap;
-
-    // const hdr = await HDRParser.Load("/dist/examples/assets/textures/HDR/autumn_field_puresky_1k.hdr");
-    // const skyTexture = await HDRParser.ToCubemap(hdr);
+    const hdr = await HDRParser.Load("/dist/examples/assets/textures/HDR/dikhololo_night_1k.hdr");
+    const skyTexture = await HDRParser.ToCubemap(hdr);
 
     const environment = new Environment(scene, skyTexture);
     await environment.init();
 
-    const postProcessing = new PostProcessingPass();
-    const smaa = new PostProcessingSMAA();
-    postProcessing.effects.push(smaa);
-    scene.renderPipeline.AddPass(postProcessing, GPU.RenderPassOrder.BeforeScreenOutput);
+    {
+        function readEntry(entry: FileSystemEntry, path: string = ""): Promise<Array<{ type: "file", path: string, file: File }>> {
+            return new Promise((resolve, reject) => {
+                if (entry.isFile) {
+                    const fileEntry = entry as FileSystemFileEntry;
 
-    document.body.style.backgroundColor = "#404040";
+                    fileEntry.file(
+                        (file: File) => {
+                            resolve([ { type: "file", path: path + entry.name, file } ]);
+                        },
+                        (err) => reject(err)
+                    );
+                }
+                else if (entry.isDirectory) {
+                    const dirEntry = entry as FileSystemDirectoryEntry;
+                    const reader = dirEntry.createReader();
+                    const entries: Array<{ type: "file", path: string, file: File }> = [];
 
-    // setTimeout(() => {
-    //     new UIButtonStat(Debugger.ui, "Disable SMAA:", async value => {
-    //         smaa.enabled = value;
-    //     });
-    //     const u0 = new UITextureViewer(Debugger.ui, "SMAA Edges", smaa.edgeTex);
-    //     const u1 = new UITextureViewer(Debugger.ui, "SMAA Weights", smaa.weightsTex);
-    //     setInterval(() => {
-    //         u0.Update();
-    //         u1.Update();
-    //     }, 1000);
-    // }, 1000);
-    
-    // Debugger.Enable();
+                    const readBatch = () => {
+                        reader.readEntries(
+                            async (batch: FileSystemEntry[]) => {
+                                if (batch.length === 0) {
+                                    resolve(entries);
+                                    return;
+                                }
+
+                                for (const child of batch) {
+                                    const childEntries = await readEntry(
+                                        child,
+                                        path + entry.name + "/"
+                                    );
+                                    entries.push(...childEntries);
+                                }
+
+                                readBatch(); // keep reading until empty
+                            },
+                            (err) => reject(err)
+                        );
+                    };
+
+                    readBatch();
+                } else {
+                    resolve([]);
+                }
+            });
+        }
+
+        window.addEventListener("dragover", (e) => {
+            e.preventDefault(); // allow drop
+        });
+
+        window.addEventListener("drop", async (ev) => {
+            ev.preventDefault();
+
+            // ----------------------------
+            // Helpers
+            // ----------------------------
+            function traverse(prefabs, fn) {
+                for (const prefab of prefabs) {
+                    fn(prefab);
+                    for (const child of prefab.children) traverse([child], fn);
+                }
+            }
+
+            function makeLimiter(max) {
+                let inFlight = 0;
+                const queue = [];
+                return async function runLimited(task) {
+                    if (inFlight >= max) await new Promise((r) => queue.push(r));
+                    inFlight++;
+                    try {
+                        return await task();
+                    } finally {
+                        inFlight--;
+                        const next = queue.shift();
+                        if (next) next();
+                    }
+                };
+            }
+
+            // Keep these LOW. Raise slowly if stable.
+            const READ_CONCURRENCY = 4;   // file.arrayBuffer()
+            const PARSE_CONCURRENCY = 4;  // GLTF parse + component creation
+
+            const runReadLimited = makeLimiter(READ_CONCURRENCY);
+            const runParseLimited = makeLimiter(PARSE_CONCURRENCY);
+
+            // ----------------------------
+            // Drop handling
+            // ----------------------------
+            const rootItem = ev.dataTransfer?.items?.[0];
+            if (!rootItem) return;
+
+            const entry = rootItem.webkitGetAsEntry?.();
+            if (!entry) return;
+
+            const files = await readEntry(entry); // <- assumes your existing helper returns [{path, file}, ...]
+            const filesByPath = new Map();
+            for (const f of files) filesByPath.set(f.path, f.file);
+
+            const sceneJsonFile = filesByPath.get("GLB/Scene.json");
+            if (!sceneJsonFile) {
+                console.warn("Missing GLB/Scene.json");
+                return;
+            }
+
+            const sceneFile = JSON.parse(await sceneJsonFile.text());
+
+            // ----------------------------
+            // Build unique load list (but do not load yet)
+            // ----------------------------
+            const MAX_INSTANCES = 3000;
+            let instanceCount = 0;
+
+            // assetPath -> { rootGameObject, instancedMeshes, loadPromise }
+            const uniques = new Map();
+
+            async function loadUniqueGLB(assetPath, file, record) {
+                // (1) read with low concurrency
+                const arrayBuffer = await runReadLimited(() => file.arrayBuffer());
+
+                // (2) parse + instantiate mesh components with low concurrency
+                await runParseLimited(async () => {
+                    console.log("Loading", assetPath);
+
+                    const prefab = await GLTFLoader.LoadFromArrayBuffer(arrayBuffer);
+
+                    const rootGameObject = record.rootGameObject;
+                    traverse([prefab], (p) => {
+                        for (const component of p.components) {
+                            if (component.type === Components.Mesh.type) {
+                                const instancedMesh = rootGameObject.AddComponent(Components.InstancedMesh);
+
+                                const geometry = new Geometry();
+                                geometry.Deserialize(component.renderable.geometry);
+
+                                const material = PBRMaterial.Deserialize(component.renderable.material);
+
+                                instancedMesh.geometry = geometry;
+                                instancedMesh.material = material;
+
+                                record.instancedMeshes.push(instancedMesh);
+                            }
+                        }
+                    });
+                });
+            }
+
+            // Collect unique assets + schedule loads
+            for (const actor of sceneFile.actors) {
+                if (actor.class !== "StaticMeshActor") continue;
+                if (instanceCount >= MAX_INSTANCES) break;
+
+                for (const m of actor.static_meshes) {
+                    if (instanceCount >= MAX_INSTANCES) break;
+
+                    const assetName = m.asset_name;
+                    let assetPath = m.asset_path.replace("/Game", "GLB");
+                    assetPath = assetPath.slice(0, assetPath.lastIndexOf(".")) + ".glb";
+                    if (!assetName) continue;
+
+                    if (!uniques.has(assetPath)) {
+                        const file = filesByPath.get(assetPath);
+                        if (!file) {
+                            console.warn("Missing GLB:", assetPath, "assetName:", assetName);
+                            continue;
+                        }
+
+                        const record = {
+                            rootGameObject: new GameObject(scene),
+                            instancedMeshes: [],
+                            loadPromise: null,
+                        };
+
+                        // schedule load ONCE
+                        record.loadPromise = loadUniqueGLB(assetPath, file, record).catch((err) => {
+                            console.warn("Failed loading", assetPath, err);
+                            // keep record but mark as empty; we'll skip later
+                        });
+
+                        uniques.set(assetPath, record);
+                    }
+
+                    instanceCount++;
+                }
+            }
+
+            console.log("Unique assets:", uniques.size);
+
+            // ----------------------------
+            // Wait for all unique loads to finish
+            // ----------------------------
+            await Promise.all([...uniques.values()].map((u) => u.loadPromise));
+
+            // ----------------------------
+            // Apply instance transforms
+            // ----------------------------
+            const p = new Mathf.Vector3();
+            const e = new Mathf.Vector3();
+            const r = new Mathf.Quaternion();
+            const s = new Mathf.Vector3(1, 1, 1);
+            const mat = new Mathf.Matrix4();
+
+            instanceCount = 0;
+
+            for (const actor of sceneFile.actors) {
+                if (actor.class !== "StaticMeshActor") continue;
+                if (instanceCount >= MAX_INSTANCES) break;
+
+                for (const static_mesh of actor.static_meshes) {
+                    if (instanceCount >= MAX_INSTANCES) break;
+
+                    const assetName = static_mesh.asset_name;
+                    let assetPath = static_mesh.asset_path.replace("/Game", "GLB");
+                    assetPath = assetPath.slice(0, assetPath.lastIndexOf(".")) + ".glb";
+                    if (!assetName) continue;
+
+                    const record = uniques.get(assetPath);
+                    if (!record || record.instancedMeshes.length === 0) {
+                        // asset missing or failed to load
+                        instanceCount++;
+                        continue;
+                    }
+
+                    const { location, rotation_euler_deg, scale } = actor.transform;
+
+                    p.set(-location.y / 100, location.z / 100, location.x / 100);
+                    e.set(rotation_euler_deg.roll, -90 + rotation_euler_deg.yaw, rotation_euler_deg.pitch);
+                    r.setFromEuler(e, true);
+                    s.set(scale.x, scale.y, scale.z);
+                    mat.compose(p, r, s);
+
+                    for (const inst of record.instancedMeshes) {
+                        inst.SetMatrixAt(inst.instanceCount, mat);
+                    }
+
+                    instanceCount++;
+                }
+            }
+
+            // ----------------------------
+            // Debug info
+            // ----------------------------
+            for (const [assetPath, record] of uniques) {
+                if (record.instancedMeshes.length === 0) {
+                    console.warn(assetPath, "loaded 0 meshes (failed load or no mesh components).");
+                    continue;
+                }
+                console.log(`${assetPath} has ${record.instancedMeshes[0].instanceCount} instances`);
+            }
+
+            // // Load lights
+            // for (const actor of sceneFile.actors) {
+            //     if (actor.class !== "StaticMeshActor") continue;
+            //     // if (instanceCount >= MAX_INSTANCES) break;
+
+            //     for (const m of actor.static_meshes) {
+            //         // if (instanceCount >= MAX_INSTANCES) break;
+
+            //         const assetName = m.asset_name as string;
+            //         if (!assetName) continue;
+
+            //         if (!assetName.toLowerCase().includes("light")) continue;
+
+            //         const { location, rotation_euler_deg, scale } = actor.transform;
+
+            //         // 0.533, 0.847, 1.0
+            //         const lightGameObject = new GameObject(scene);
+            //         lightGameObject.transform.position.set(-location.y / 100, location.z / 100, location.x / 100);
+            //         const light = lightGameObject.AddComponent(Components.PointLight);
+            //         light.color.set(0.533, 0.847, 1.0, 1.0);
+            //         light.intensity = 10;
+            //         light.range = 50;
+            //         console.log(`Added light ${assetName} at ${lightGameObject.transform.position}`)
+            //     }
+            // }
+        });
+    }
+
+    Debugger.Enable();
 
     scene.Start();
-
 };
 
 Application(document.querySelector("canvas"));

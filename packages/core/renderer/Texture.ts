@@ -16,6 +16,20 @@ export interface SerializedTexture {
     data: ImageBitmap | string;
 }
 
+export interface ImageLoadOptions {
+    flipY?: boolean;
+    generateMips?: boolean;
+    resizeWidth?: number;
+    resizeHeight?: number;
+};
+
+const DefaultOptions: ImageLoadOptions = {
+    flipY: false,
+    generateMips: true,
+    resizeWidth: undefined,
+    resizeHeight: undefined
+};
+
 export type TextureFormat =
     | "r16uint"
     | "r16sint"
@@ -115,16 +129,15 @@ export class Texture {
         return CreateTexture(width, height, depth, format, TextureType.IMAGE, "2d", mipLevels);
     }
 
-    public static async Load(url: string | URL, format: TextureFormat = Renderer.SwapChainFormat, flipY: boolean = false, generateMips = false): Promise<Texture> {
+    public static async Load(url: string | URL, format: TextureFormat = Renderer.SwapChainFormat, options?: ImageLoadOptions): Promise<Texture> {
         const response = await fetch(url);
-        const imageBitmap = await createImageBitmap(await response.blob());
-        if (Renderer.type === "webgpu") return WEBGPUTexture.FromImageBitmap(imageBitmap, imageBitmap.width, imageBitmap.height, format, flipY, generateMips);
-        throw Error("Renderer type invalid");
+        return Texture.LoadImageSource(await response.blob(), format, options);
     }
 
-    public static async LoadImageSource(imageSource: ImageBitmapSource, format: TextureFormat = Renderer.SwapChainFormat, flipY: boolean = false, generateMips = false): Promise<Texture> {
-        const imageBitmap = await createImageBitmap(imageSource);
-        if (Renderer.type === "webgpu") return WEBGPUTexture.FromImageBitmap(imageBitmap, imageBitmap.width, imageBitmap.height, format, flipY, generateMips);
+    public static async LoadImageSource(imageSource: ImageBitmapSource, format: TextureFormat = Renderer.SwapChainFormat, options?: ImageLoadOptions): Promise<Texture> {
+        const _options = Object.assign({}, DefaultOptions, options);
+        const imageBitmap = await createImageBitmap(imageSource, {resizeWidth: _options.resizeWidth, resizeHeight: _options.resizeHeight});
+        if (Renderer.type === "webgpu") return WEBGPUTexture.FromImageBitmap(imageBitmap, imageBitmap.width, imageBitmap.height, format, _options.flipY, _options.generateMips);
         throw Error("Renderer type invalid");
     }
 

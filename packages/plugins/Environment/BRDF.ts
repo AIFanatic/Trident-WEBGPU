@@ -12,7 +12,7 @@ export class BRDF {
 
     constructor(res: number = 512) {
         this.res = res;
-        this.brdfTexture  = GPU.RenderTexture.Create(res, res, 1, "rg16float");
+        this.brdfTexture = GPU.RenderTexture.Create(res, res, 1, "rg16float");
     }
 
     public async init() {
@@ -130,7 +130,7 @@ export class BRDF {
               return integrateBRDF(uv.x, uv.y);
             }
           `,
-            colorOutputs: [{ format: "rg16float" }],
+            colorOutputs: [{ format: this.brdfTexture.format }],
             attributes: {
                 position: { location: 0, size: 3, type: "vec3" },
                 normal: { location: 1, size: 3, type: "vec3" },

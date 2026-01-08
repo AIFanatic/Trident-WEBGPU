@@ -1,12 +1,11 @@
 import { EventSystem } from "./Events";
-import { GameObject } from "./GameObject";
+import { GameObject, Prefab } from "./GameObject";
 import { Input, KeyCodes } from "./Input";
 import { Camera } from "./components";
 import { Component, ComponentEvents, SerializedComponent } from "./components/Component";
 import { Quaternion, Vector3 } from "./math";
 import { Renderer } from "./renderer/Renderer";
 import { RenderingPipeline } from "./renderer/RenderingPipeline";
-import { WEBGPURenderer } from "./renderer/webgpu/WEBGPURenderer";
 import { UUID } from "./utils";
 
 function getCtorChain(ctor: Function): Function[] {
@@ -162,18 +161,31 @@ export class Scene {
         }
     }
 
-    private static serializedCache: Map<string, {name: string, components: SerializedComponent[], transform: Object }> = new Map();
-    public static Instantiate(gameObject: GameObject, position?: Vector3, rotation?: Quaternion): GameObject {
-        let serializedGameObject = Scene.serializedCache.get(gameObject.id);
-        if (!serializedGameObject) {
-            serializedGameObject = gameObject.Serialize({base64Textures: false});
-            Scene.serializedCache.set(gameObject.id, serializedGameObject);
-        }
+    // private static serializedCache: Map<string, {name: string, components: SerializedComponent[], transform: Object }> = new Map();
+    // public static Instantiate(gameObject: GameObject, position?: Vector3, rotation?: Quaternion): GameObject {
+    //     let serializedGameObject = Scene.serializedCache.get(gameObject.id);
+    //     if (!serializedGameObject) {
+    //         serializedGameObject = gameObject.Serialize({base64Textures: false});
+    //         Scene.serializedCache.set(gameObject.id, serializedGameObject);
+    //     }
+    //     const newGameObject = new GameObject(Scene.mainScene);
+    //     newGameObject.Deserialize(serializedGameObject);
+    //     if (position) newGameObject.transform.position.copy(position);
+    //     if (rotation) newGameObject.transform.rotation.copy(rotation);
+
+    //     return newGameObject;
+    // }
+
+    public static Instantiate(prefab: Prefab, position?: Vector3, rotation?: Quaternion): GameObject {
         const newGameObject = new GameObject(Scene.mainScene);
-        newGameObject.Deserialize(serializedGameObject);
+        newGameObject.Deserialize(prefab);
         if (position) newGameObject.transform.position.copy(position);
         if (rotation) newGameObject.transform.rotation.copy(rotation);
 
         return newGameObject;
+    }
+
+    public Instantiate(prefab: Prefab, position?: Vector3, rotation?: Quaternion): GameObject {
+        return Scene.Instantiate(prefab, position, rotation);
     }
 }

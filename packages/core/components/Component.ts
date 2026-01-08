@@ -29,7 +29,6 @@ export class Component {
         this.transform = gameObject.transform;
         this.name = this.constructor.name;
 
-        if (this.gameObject.scene.hasStarted) this.Start();
         if (this.constructor.prototype.Update !== Component.prototype.Update) EventSystem.emit(ComponentEvents.CallUpdate, this, true);
 
         EventSystem.emit(ComponentEvents.AddedComponent, this, this.gameObject.scene);
