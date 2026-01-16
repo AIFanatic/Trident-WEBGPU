@@ -285,7 +285,7 @@ class RSMIndirectLighting extends GPU.RenderPass {
     GPU.RendererContext.EndRenderPass();
     const indirectBlurred = this.bilateralFilter.Process(this.indirectLighting, gDepthTex, gNormalTex);
     const ta = this.textureBlender.Process(indirectBlurred, lightingTex);
-    resources.setResource(GPU.PassParams.LightingPassOutput, ta);
+    GPU.RendererContext.CopyTextureToTextureV3({ texture: ta }, { texture: lightingTex });
     if (this.showIndirect) {
       resources.setResource(GPU.PassParams.LightingPassOutput, indirectBlurred);
     }

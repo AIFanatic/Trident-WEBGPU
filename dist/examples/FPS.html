@@ -27,20 +27,20 @@
             <script type="module">
                 const canvas = document.createElement("canvas");
                 document.body.appendChild(canvas);
-                            import { GPU, Scene, GameObject, Components, Mathf, Geometry, Console } from '@trident/core';
+                            import { GPU, Scene, GameObject, Components, Mathf, Console, Geometry } from '@trident/core';
             import { PhysicsRapier } from '@trident/plugins/PhysicsRapier/PhysicsRapier.js';
             import { TerrainCollider } from '@trident/plugins/PhysicsRapier/colliders/TerrainCollider.js';
             import { CapsuleCollider } from '@trident/plugins/PhysicsRapier/colliders/CapsuleCollider.js';
             import { ThirdPersonController } from '@trident/plugins/PhysicsRapier/ThirdPersonController.js';
             import { RigidBody, RigidbodyConstraints } from '@trident/plugins/PhysicsRapier/RigidBody.js';
             import { Debugger } from '@trident/plugins/Debugger.js';
-            import { HDRParser } from '@trident/plugins/HDRParser.js';
             import { GLTFLoader } from '@trident/plugins/GLTF/GLTFLoader.js';
             import { UIColorStat, UIButtonStat, UISliderStat } from '@trident/plugins/ui/UIStats.js';
             import { Terrain } from '@trident/plugins/Terrain/Terrain.js';
             import { Water } from '@trident/plugins/Water/WaterPlugin.js';
             import { PostProcessingPass } from '@trident/plugins/PostProcessing/PostProcessingPass.js';
             import { PostProcessingSMAA } from '@trident/plugins/PostProcessing/effects/SMAA.js';
+            import { Sky } from '@trident/plugins/Environment/Sky.js';
             import { Environment } from '@trident/plugins/Environment/Environment.js';
             import { LODInstanceRenderable } from '@trident/plugins/LODGroup.js';
             
@@ -105,8 +105,22 @@
               terrainGameObject.transform.position.x -= terrain.length * 0.5;
               const terrainCollider = terrainGameObject.AddComponent(TerrainCollider);
               terrainCollider.SetTerrainData(heightsSize - 1, heightsSize - 1, terrain.heights, terrainGameObject.transform.scale);
-              const hdr = await HDRParser.Load("/dist/examples/assets/textures/HDR/autumn_field_puresky_1k.hdr");
-              const skyTexture = await HDRParser.ToCubemap(hdr);
+              const sky = new Sky();
+              sky.SUN_ELEVATION_DEGREES = 60;
+              await sky.init();
+              const skyTexture = sky.skyTextureCubemap;
+              setInterval(() => {
+                const radius = 1;
+                const elevationRad = Mathf.Deg2Rad * sky.SUN_ELEVATION_DEGREES;
+                const azimuthRad = Mathf.Deg2Rad * sky.SUN_AZIMUTH_DEGREES;
+                const x = radius * Mathf.Cos(elevationRad) * Mathf.Cos(azimuthRad);
+                const y = radius * Mathf.Sin(elevationRad);
+                const z = radius * Mathf.Cos(elevationRad) * Mathf.Sin(azimuthRad);
+                const sunPos = new Mathf.Vector3(x, y, z);
+                lightGameObject.transform.position = sunPos;
+                lightGameObject.transform.LookAtV1(new Mathf.Vector3(0, 0, 0));
+                light.intensity = sky.SUN_ELEVATION_DEGREES / 10;
+              }, 100);
               const environment = new Environment(scene, skyTexture);
               await environment.init();
               function traverse(gameObjects, fn) {
@@ -208,50 +222,6 @@
                 }
                 const ta = 5e3;
                 await TerrainObjectSpawner("/extra/test-assets/Mountain Environment/Pine_trees/Prefabs/Prefab_Forest_pine_01.glb", ta);
-                {
-                  const tree1 = await GLTFLoader.loadAsGameObjects(scene, "/extra/test-assets/Mountain Environment/Foliage and Grass/Prefabs/Prefab_grass_01_1.glb");
-                  let lodGroupEntries = [];
-                  traverse([tree1], (gameObject2) => {
-                    const mesh = gameObject2.GetComponent(Components.Mesh);
-                    if (mesh) {
-                      const geometrySerialized = mesh.geometry.Serialize();
-                      const materialSerialized = mesh.material.Serialize();
-                      const materialClone = GPU.Material.Deserialize(materialSerialized);
-                      const geometryClone = new Geometry();
-                      geometryClone.Deserialize(geometrySerialized);
-                      lodGroupEntries.push({ geometry: geometryClone, material: materialClone });
-                    }
-                  });
-                  tree1.Destroy();
-                  const gameObject = new GameObject(scene);
-                  const instancedMesh = gameObject.AddComponent(Components.InstancedMesh);
-                  instancedMesh.enableShadows = false;
-                  console.log(lodGroupEntries);
-                  instancedMesh.geometry = lodGroupEntries[0].geometry;
-                  instancedMesh.material = lodGroupEntries[0].material;
-                  const count = 1e5;
-                  const p = new Mathf.Vector3();
-                  const r = new Mathf.Vector3();
-                  const q = new Mathf.Quaternion();
-                  const s = new Mathf.Vector3(1, 1, 1);
-                  const m = new Mathf.Matrix4();
-                  const c = count;
-                  const off = 500;
-                  let treeCount = 0;
-                  for (let i = 0; i < c; i++) {
-                    let x = Mathf.RandomRange(-off, off);
-                    let z = Mathf.RandomRange(-off, off);
-                    p.set(x, 0, z);
-                    terrain.SampleHeight(p);
-                    r.y = Mathf.RandomRange(0, 360);
-                    q.setFromEuler(r);
-                    m.compose(p, q, s);
-                    if (p.y > 25) {
-                      instancedMesh.SetMatrixAt(treeCount, m);
-                      treeCount++;
-                    }
-                  }
-                }
               }
               {
                 const scale = 1e3;

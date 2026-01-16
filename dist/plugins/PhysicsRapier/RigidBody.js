@@ -47,7 +47,7 @@ class RigidBody extends Component {
   }
   Start() {
     if (!this.rigidBody) {
-      this.Create("dynamic");
+      this.Create("kinematicPosition");
     }
   }
   AddForce(force) {
@@ -80,8 +80,8 @@ class RigidBody extends Component {
   Update() {
     if (!this.rigidBody) return;
     const t = this.rigidBody.translation();
-    this.transform.position.set(t.x, t.y, t.z);
     const r = this.rigidBody.rotation();
+    this.transform.position.set(t.x, t.y, t.z);
     this.transform.rotation.set(r.x, r.y, r.z, r.w);
   }
 }

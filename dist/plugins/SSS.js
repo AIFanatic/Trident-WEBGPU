@@ -600,7 +600,7 @@ class SSSRenderPass extends GPU.RenderPass {
     const camera = Components.Camera.mainCamera;
     if (!camera) return;
     const lightPos = this.light.transform.position;
-    const clip = new Mathf.Vector4(lightPos.x, lightPos.y, lightPos.z, 0).applyMatrix4(camera.projectionScreenMatrix);
+    const clip = new Mathf.Vector4(lightPos.x, lightPos.y, lightPos.z, 1).applyMatrix4(camera.projectionScreenMatrix);
     this._sssDispatchList = buildSSSDispatchList(
       [clip.x, clip.y, clip.z, clip.w],
       [gDepthTex.width, gDepthTex.height],

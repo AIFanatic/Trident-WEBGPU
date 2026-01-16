@@ -167,7 +167,7 @@ class GLTFLoader {
       const ext = mat.extensions?.["KHR_materials_emissive_strength"];
       if (ext?.emissiveStrength) materialParams.emissiveColor.mul(ext.emissiveStrength);
     }
-    materialParams.unlit = mat.extensions?.["KHR_materials_unlit"] ? true : false;
+    materialParams.unlit = mat?.extensions?.["KHR_materials_unlit"] ? true : false;
     materialParams.doubleSided = !!mat?.doubleSided;
     materialParams.alphaCutoff = mat?.alphaCutoff;
     if (primitive.attributes.JOINTS_0 && primitive.attributes.WEIGHTS_0) materialParams.isSkinned = true;

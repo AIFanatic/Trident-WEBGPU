@@ -6,7 +6,7 @@ class PhysicsDebugger extends Component {
   updateRate = 1e3;
   Start() {
     const line = this.gameObject.AddComponent(LineRenderer);
-    setTimeout(() => {
+    setInterval(() => {
       const { vertices, colors } = PhysicsRapier.PhysicsWorld.debugRender();
       line.SetPositions(vertices);
       line.SetColors(colors);

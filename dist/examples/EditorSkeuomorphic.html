@@ -1,0 +1,107 @@
+
+    <!DOCTYPE html>
+    <html>
+        <head>
+            <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no">
+            <meta name="mobile-web-app-capable" content="yes">
+            <meta name="apple-mobile-web-app-capable" content="yes">
+            
+            <style>
+                html, body {
+                    margin: 0;
+                    overflow: hidden;
+                    width: 100%;
+                    height: 100%;
+                }
+            </style>
+        </head>
+        <body>
+            <script type="importmap">
+                {
+                    "imports": {
+                        "@trident/core": "../trident-core.js",
+                        "@trident/plugins/": "../plugins/"
+                    }
+                }
+            </script>
+            <script type="module">
+                const canvas = document.createElement("canvas");
+                document.body.appendChild(canvas);
+                            import { GPU, Scene, GameObject, Components, Mathf } from '@trident/core';
+            import { OrbitControls } from '@trident/plugins/OrbitControls.js';
+            import { GLTFLoader } from '@trident/plugins/GLTF/GLTFLoader.js';
+            import { Debugger } from '@trident/plugins/Debugger.js';
+            import { HDRParser } from '@trident/plugins/HDRParser.js';
+            import { Environment } from '@trident/plugins/Environment/Environment.js';
+            import { PhysicsRapier } from '@trident/plugins/PhysicsRapier/PhysicsRapier.js';
+            import { PhysicsDebugger } from '@trident/plugins/PhysicsRapier/PhysicsDebugger.js';
+            import { RigidBody } from '@trident/plugins/PhysicsRapier/RigidBody.js';
+            import { MeshCollider } from '@trident/plugins/PhysicsRapier/colliders/MeshCollider.js';
+            import { SpotLightHelper } from '@trident/plugins/SpotLightHelper.js';
+            
+            async function Application(canvas) {
+              const renderer = GPU.Renderer.Create(canvas, "webgpu", 2);
+              const scene = new Scene(renderer);
+              const mainCameraGameObject = new GameObject(scene);
+              mainCameraGameObject.transform.position.set(1.3214703183015142, 1.204350593000603, 0.8880642037210573);
+              mainCameraGameObject.transform.rotation.set(-0.22277136531362418, 0.4210578424541847, 0.10748743891250674, 0.8726566693609583);
+              mainCameraGameObject.name = "MainCamera";
+              const camera = mainCameraGameObject.AddComponent(Components.Camera);
+              camera.SetPerspective(60, canvas.width / canvas.height, 0.05, 100);
+              new OrbitControls(canvas, camera);
+              const lightGameObject = new GameObject(scene);
+              lightGameObject.transform.position.set(0, 2, 0);
+              lightGameObject.transform.LookAt(new Mathf.Vector3(0, 0, 0));
+              const light = lightGameObject.AddComponent(Components.SpotLight);
+              light.castShadows = true;
+              light.intensity = 0.01;
+              const lightHelper = lightGameObject.AddComponent(SpotLightHelper);
+              lightHelper.light = light;
+              const hdr = await HDRParser.Load("/extra/test-assets/editor/brown_photostudio_01_1k.hdr");
+              const skyTexture = await HDRParser.ToCubemap(hdr);
+              const environment = new Environment(scene, skyTexture);
+              await environment.init();
+              const prefab = await GLTFLoader.LoadFromURL("/extra/test-assets/editor/room.glb");
+              console.log(prefab);
+              const rootGameObject = scene.Instantiate(prefab);
+              rootGameObject.transform.Update();
+              function traverse(gameObjects, fn) {
+                for (const gameObject of gameObjects) {
+                  fn(gameObject);
+                  for (const child of gameObject.transform.children) {
+                    traverse([child.gameObject], fn);
+                  }
+                }
+              }
+              let modelsGameObject = void 0;
+              traverse([rootGameObject], (gameObject) => {
+                if (gameObject.name === "ModelsBox_Prim_0") {
+                  modelsGameObject = gameObject;
+                }
+              });
+              console.log(modelsGameObject.transform.position);
+              const physicsGameObject = new GameObject(scene);
+              const physics = physicsGameObject.AddComponent(PhysicsRapier);
+              await physics.Load();
+              const physicsDebuggerGO = new GameObject(scene);
+              physicsDebuggerGO.AddComponent(PhysicsDebugger);
+              const p = new Mathf.Vector3();
+              const q = new Mathf.Quaternion();
+              const s = new Mathf.Vector3();
+              modelsGameObject.transform.localToWorldMatrix.decompose(p, q, s);
+              modelsGameObject.AddComponent(MeshCollider);
+              const rigid = modelsGameObject.AddComponent(RigidBody);
+              setTimeout(() => {
+                const v = p;
+                v.z += 0.1;
+                rigid.rigidBody.setNextKinematicTranslation(v);
+                console.log(rigid);
+              }, 2e3);
+              Debugger.Enable();
+              scene.Start();
+            }
+            Application(document.querySelector("canvas"));
+            
+            </script>
+        </body>
+    </html>

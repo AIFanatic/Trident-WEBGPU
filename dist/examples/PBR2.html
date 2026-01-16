@@ -1,0 +1,146 @@
+
+    <!DOCTYPE html>
+    <html>
+        <head>
+            <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no">
+            <meta name="mobile-web-app-capable" content="yes">
+            <meta name="apple-mobile-web-app-capable" content="yes">
+            
+            <style>
+                html, body {
+                    margin: 0;
+                    overflow: hidden;
+                    width: 100%;
+                    height: 100%;
+                }
+            </style>
+        </head>
+        <body>
+            <script type="importmap">
+                {
+                    "imports": {
+                        "@trident/core": "../trident-core.js",
+                        "@trident/plugins/": "../plugins/"
+                    }
+                }
+            </script>
+            <script type="module">
+                const canvas = document.createElement("canvas");
+                document.body.appendChild(canvas);
+                            import { GPU, Scene, GameObject, Components, Mathf, Geometry, PBRMaterial } from '@trident/core';
+            import { OrbitControls } from '@trident/plugins/OrbitControls.js';
+            import { Debugger } from '@trident/plugins/Debugger.js';
+            import { HDRParser } from '@trident/plugins/HDRParser.js';
+            import { Environment } from '@trident/plugins/Environment/Environment.js';
+            
+            async function Application(canvas) {
+              const renderer = GPU.Renderer.Create(canvas, "webgpu");
+              const scene = new Scene(renderer);
+              const mainCameraGameObject = new GameObject(scene);
+              mainCameraGameObject.name = "MainCamera";
+              const camera = mainCameraGameObject.AddComponent(Components.Camera);
+              camera.SetPerspective(72, canvas.width / canvas.height, 0.5, 500);
+              mainCameraGameObject.transform.position.set(0, 0, 5);
+              mainCameraGameObject.transform.LookAtV1(new Mathf.Vector3(0, 0, 0));
+              new OrbitControls(canvas, camera);
+              const lightGameObject = new GameObject(scene);
+              lightGameObject.transform.position.set(0, 0, 0);
+              lightGameObject.transform.LookAtV1(new Mathf.Vector3(0, 0, 0));
+              const light = lightGameObject.AddComponent(Components.DirectionalLight);
+              light.intensity = 0.01;
+              light.castShadows = false;
+              const hdr = await HDRParser.Load("/extra/test-assets/editor/brown_photostudio_01_1k.hdr");
+              const skyTexture = await HDRParser.ToCubemap(hdr);
+              const environment = new Environment(scene, skyTexture);
+              await environment.init();
+              {
+                const gameObject = new GameObject(scene);
+                gameObject.transform.eulerAngles.x = -90;
+                gameObject.transform.scale.set(10, 10, 10);
+                gameObject.transform.position.set(0, -0.5, 0);
+                const mesh = gameObject.AddComponent(Components.Mesh);
+                mesh.geometry = Geometry.Plane();
+                const albedo = await GPU.Texture.Load("/dist/examples/assets/textures/uv_grid.png", "bgra8unorm-srgb");
+                mesh.material = new PBRMaterial({ albedoMap: albedo, repeat: new Mathf.Vector2(5, 5) });
+              }
+              {
+                const gameObject = new GameObject(scene);
+                gameObject.transform.position.set(-2.25, 0, 0);
+                const mesh = gameObject.AddComponent(Components.Mesh);
+                mesh.geometry = Geometry.Sphere();
+                const material = new GPU.Material({
+                  isDeferred: false,
+                  shader: await GPU.Shader.Create({
+                    code: `
+                        struct VertexInput {
+                            @builtin(instance_index) instanceIdx : u32, 
+                            @location(0) position : vec3<f32>,
+                            @location(1) normal : vec3<f32>,
+                            @location(2) uv : vec2<f32>,
+                        };
+                        
+                        struct VertexOutput {
+                            @builtin(position) position : vec4<f32>,
+                            @location(0) normal : vec3<f32>,
+                            @location(1) uv : vec2<f32>,
+                        };
+                        
+                        @group(0) @binding(0) var<storage, read> projectionMatrix: mat4x4<f32>;
+                        @group(0) @binding(1) var<storage, read> viewMatrix: mat4x4<f32>;
+                        @group(0) @binding(2) var<storage, read> modelMatrix: array<mat4x4<f32>>;
+                        
+                        @vertex
+                        fn vertexMain(input: VertexInput) -> VertexOutput {
+                            var output : VertexOutput;
+                        
+                            var modelMatrixInstance = modelMatrix[input.instanceIdx];
+                            var modelViewMatrix = viewMatrix * modelMatrixInstance;
+                        
+                            output.position = projectionMatrix * modelViewMatrix * vec4(input.position, 1.0);
+                            
+                            output.normal = input.normal.xyz;
+                            output.uv = input.uv;
+                        
+                            return output;
+                        }
+                        
+                        @fragment
+                        fn fragmentMain(input: VertexOutput) -> @location(0) vec4f {
+                            return vec4f(input.normal, 0.2);
+                        }
+                        `,
+                    colorOutputs: [{ format: "rgba16float", blendMode: "alpha" }],
+                    depthOutput: "depth24plus"
+                  })
+                });
+                mesh.material = material;
+              }
+              {
+                const gameObject = new GameObject(scene);
+                gameObject.transform.position.set(-0.75, 0, 0);
+                const mesh = gameObject.AddComponent(Components.Mesh);
+                mesh.geometry = Geometry.Sphere();
+                mesh.material = new PBRMaterial({ metalness: 0, roughness: 1 });
+              }
+              {
+                const gameObject = new GameObject(scene);
+                gameObject.transform.position.set(0.75, 0, 0);
+                const mesh = gameObject.AddComponent(Components.Mesh);
+                mesh.geometry = Geometry.Sphere();
+                mesh.material = new PBRMaterial({ metalness: 1, roughness: 0 });
+              }
+              {
+                const gameObject = new GameObject(scene);
+                gameObject.transform.position.set(2.25, 0, 0);
+                const mesh = gameObject.AddComponent(Components.Mesh);
+                mesh.geometry = Geometry.Sphere();
+                mesh.material = new PBRMaterial({ albedoColor: new Mathf.Color(75 / 255, 185 / 255, 200 / 255), metalness: 0, roughness: 0.2 });
+              }
+              Debugger.Enable();
+              scene.Start();
+            }
+            Application(document.querySelector("canvas"));
+            
+            </script>
+        </body>
+    </html>

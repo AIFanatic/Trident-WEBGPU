@@ -20,6 +20,7 @@ export { SphereCollider } from './PhysicsRapier/colliders/SphereCollider.js';
 export { PlaneCollider } from './PhysicsRapier/colliders/PlaneCollider.js';
 export { CapsuleCollider } from './PhysicsRapier/colliders/CapsuleCollider.js';
 export { BoxCollider } from './PhysicsRapier/colliders/BoxCollider.js';
+export { MeshCollider } from './PhysicsRapier/colliders/MeshCollider.js';
 export { RigidBody } from './PhysicsRapier/RigidBody.js';
 export { PhysicsRapier } from './PhysicsRapier/PhysicsRapier.js';
 export { PhysicsDebugger } from './PhysicsRapier/PhysicsDebugger.js';
@@ -54,6 +55,8 @@ export { Environment } from './Environment/Environment.js';
 export { LODGroup, LODInstanceRenderable } from './LODGroup.js';
 export { VirtualTexturingPass } from './VirtualTexturing/VirtualTexturingPass.js';
 export { TilesGenerator } from './VirtualTexturing/TilesGenerator.js';
+export { FakeGI, VPLGenerator } from './VPLGenerator.js';
+export { PathTracer } from './PathTracer.js';
 
 Component.Registry.set(Water.type, Water);
 

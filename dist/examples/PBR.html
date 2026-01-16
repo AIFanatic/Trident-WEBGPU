@@ -85,7 +85,7 @@
                 });
               }
               Debugger.Enable();
-              const hdr = await HDRParser.Load("./assets/textures/HDR/dikhololo_night_1k.hdr");
+              const hdr = await HDRParser.Load("./assets/textures/HDR/goegap_1k.hdr");
               const skyTexture = await HDRParser.ToCubemap(hdr);
               const environment = new Environment(scene, skyTexture);
               await environment.init();

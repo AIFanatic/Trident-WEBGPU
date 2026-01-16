@@ -139,15 +139,6 @@ class HDRParser {
     let scanlineWidth = width;
     let scanlinesCount = height;
     HDRParser.readPixelsRawRLE(buffer, data, 0, fileOffset, scanlineWidth, scanlinesCount);
-    function acesToneMapping(x) {
-      const a = 2.51;
-      const b = 0.03;
-      const c = 2.43;
-      const d = 0.59;
-      const e = 0.14;
-      const y = x * (a * x + b) / (x * (c * x + d) + e);
-      return Math.max(0, y);
-    }
     const exposureMul = exposure;
     let floatData = new Float16Array(width * height * 4);
     for (let offset = 0; offset < data.length; offset += 4) {
@@ -162,9 +153,6 @@ class HDRParser {
       r *= exposureMul;
       g *= exposureMul;
       b *= exposureMul;
-      r = acesToneMapping(r);
-      g = acesToneMapping(g);
-      b = acesToneMapping(b);
       const i = offset;
       floatData[i + 0] = r;
       floatData[i + 1] = g;
@@ -178,7 +166,7 @@ class HDRParser {
   static async ToCubemap(hdr) {
     const faceSize = Math.min(hdr.width / 2 | 0, hdr.height | 0);
     console.log("faceSize", faceSize);
-    const renderTarget = GPU.RenderTextureCube.Create(faceSize, faceSize, 6, "rgba16float");
+    const renderTarget = GPU.RenderTextureCube.Create(faceSize, faceSize, 6, "rgba8unorm");
     renderTarget.SetName("Skybox");
     const hdrSampler = GPU.TextureSampler.Create({
       minFilter: "linear",

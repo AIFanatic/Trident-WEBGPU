@@ -22,7 +22,7 @@ class OrbitControls {
     this.domElement = domElement;
     this.domElement.style.touchAction = "none";
     this._camera = camera;
-    this._camera.transform.LookAtV1(this.center);
+    this._camera.transform.LookAt(this.center);
     domElement.addEventListener("contextmenu", (event) => {
       this._onContextMenu(event);
     });

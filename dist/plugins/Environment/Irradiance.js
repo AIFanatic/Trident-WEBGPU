@@ -87,7 +87,7 @@ class Irradiance {
                                             sampleVec.z * normal;
 
                             let sampleColor = textureSample(environmentMap, environmentMapSampler, worldSample);
-                            irradiance += sampleColor.rgb * cosTheta;
+                            irradiance += sampleColor.rgb;
                         }
                     }
 
