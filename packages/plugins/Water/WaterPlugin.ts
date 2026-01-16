@@ -14,12 +14,6 @@ import {
 
 import { DataBackedBuffer } from "@trident/plugins/DataBackedBuffer";
 
-// import WaterPassWGSL from "./resources/WaterPass.wgsl";
-// import uv_sampler_texture_url from "./resources/textures/Water_UV.png";
-// import normalmap_a_sampler_texture_url from "./resources/textures/Water_N_A.png";
-// import normalmap_b_sampler_texture_url from "./resources/textures/Water_N_B.png";
-// import foam_sampler_texture_url from "./resources/textures/Foam.png";
-
 const WaterPassWGSL = "./resources/WaterPass.wgsl";
 const uv_sampler_texture_url = "./resources/textures/Water_UV.png";
 const normalmap_a_sampler_texture_url = "./resources/textures/Water_N_A.png";

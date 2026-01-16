@@ -28,7 +28,7 @@ export interface ShaderAttribute {
 export interface ShaderUniform {
     group: number;
     binding: number;
-    type: "uniform" | "storage" | "storage-write" | "texture" | "sampler" | "sampler-compare" | "sampler-non-filterable" | "depthTexture";
+    type: "uniform" | "storage" | "storage-write" | "storage-write-only" | "storage-read-only" | "texture" | "sampler" | "sampler-compare" | "sampler-non-filterable" | "depthTexture";
 };
 
 export enum Topology {

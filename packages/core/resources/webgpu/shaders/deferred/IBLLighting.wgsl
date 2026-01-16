@@ -72,6 +72,8 @@ fn FresnelSchlickRoughness(cosTheta: f32, f0: vec3f, roughness: f32) -> vec3f {
   return f0 + (max(vec3(1.0 - roughness), f0) - f0) * pow(clamp(1.0 - cosTheta, 0.0, 1.0), 5.0);
 }
 
+const PI = 3.141592653589793;
+
 @fragment
 fn fragmentMain(input: VertexOutput) -> @location(0) vec4<f32> {
     let uv = input.vUv;
@@ -109,7 +111,7 @@ fn fragmentMain(input: VertexOutput) -> @location(0) vec4<f32> {
     let r = reflect(-v, n);
 
     let irradiance = textureSample(skyboxIrradianceTexture, textureSampler, n).rgb;
-    let diffuse = irradiance * surface.albedo.xyz;
+    let diffuse = irradiance * surface.albedo.xyz / PI;
 
     let f = FresnelSchlickRoughness(max(dot(n, v), 0.00001), surface.F0, surface.roughness);
     let kS = f;

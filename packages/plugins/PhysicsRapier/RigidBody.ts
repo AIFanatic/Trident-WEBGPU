@@ -60,7 +60,7 @@ export class RigidBody extends Component {
 
     public Start(): void {
         if (!this.rigidBody) {
-            this.Create("dynamic");
+            this.Create("kinematicPosition");
         }
     }
 
@@ -103,9 +103,9 @@ export class RigidBody extends Component {
         if (!this.rigidBody) return;
 
         const t = this.rigidBody.translation();
-        this.transform.position.set(t.x, t.y, t.z);
-
         const r = this.rigidBody.rotation();
+
+        this.transform.position.set(t.x, t.y, t.z);
         this.transform.rotation.set(r.x, r.y, r.z, r.w);
     }
 

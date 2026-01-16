@@ -118,6 +118,8 @@ export class SkyboxPass extends RenderPass {
         if (this.drawCommands.length === 0) return;
 
         const LightingPassOutput = resources.getResource(PassParams.LightingPassOutput);
+        if (!LightingPassOutput) return;
+        
         RendererContext.BeginRenderPass(this.name, [{ target: LightingPassOutput, clear: false }], undefined, true);
 
         for (const draw of this.drawCommands) {

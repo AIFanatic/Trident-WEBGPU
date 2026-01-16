@@ -33,7 +33,7 @@ async function Application(canvas: HTMLCanvasElement) {
     // const light = lightGameObject.AddComponent(DirectionalLight);
     const light = lightGameObject.AddComponent(Components.SpotLight);
     light.range = 200;
-    light.angle = 90;
+    // light.angle = 90;
     light.intensity = 100;
     light.color.set(1, 1, 1, 1);
     light.castShadows = true;

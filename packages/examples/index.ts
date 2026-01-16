@@ -2,7 +2,6 @@ import "./Meshlets";
 import "./Meshlets_v4";
 import "./Water";
 import "./Skybox";
-// import "./VPLS";
 import "./Physics";
 import "./Bloom";
 import "./Terrain";
@@ -53,3 +52,11 @@ import "./ShadowTest";
 
 
 import "./VirtualTexturing";
+
+import "./VPL";
+import "./PathTracer";
+
+
+import "./EditorSkeuomorphic";
+
+import "./PBR2";

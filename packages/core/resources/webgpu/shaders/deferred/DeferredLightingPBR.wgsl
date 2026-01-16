@@ -197,6 +197,10 @@ fn fragmentMain(input: VertexOutput) -> @location(0) vec4<f32> {
     let pix = vec2<i32>(input.position.xy);
     let depth = textureLoad(depthTexture, pix, 0);
 
+    if (depth > 0.99999) {
+        discard;
+    }
+
     let fragCoord = input.position.xy;
     let screenSize = view.projectionOutputSize.xy;
 

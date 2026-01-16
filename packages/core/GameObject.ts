@@ -69,10 +69,26 @@ export class GameObject {
         return (this.componentsByCtor.get(Ctor) as T[] | undefined) ?? [];
     }
 
-    // Optional: only the exact type (no subclasses), still cheap (O(k) where k = matches for Ctor)
     public GetComponentsExact<T extends Component>(Ctor: new (...a: any[]) => T): T[] {
         const arr = this.componentsByCtor.get(Ctor);
         return arr ? (arr.filter(c => (c as any).constructor === Ctor) as T[]) : [];
+    }
+
+    public GetComponentsInChildren<T extends Component>(Ctor?: new (...a: any[]) => T): T[] {
+        const out: T[] = [];
+
+        const walk = (go: GameObject) => {
+            if (!Ctor) out.push(...(go.allComponents as T[]));
+            else {
+                const list = go.componentsByCtor.get(Ctor) as T[] | undefined;
+                if (list) out.push(...list);
+            }
+
+            for (const child of go.transform.children) walk(child.gameObject);
+        };
+
+        walk(this);
+        return out;
     }
 
 

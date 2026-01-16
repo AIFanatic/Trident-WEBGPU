@@ -21,7 +21,9 @@ const BindGroupCache: Map<string, GPUBindGroup> = new Map();
 export const UniformTypeToWGSL: {[key: string]: any} = {
     "uniform": "uniform",
     "storage": "read-only-storage",
-    "storage-write": "storage"
+    "storage-write": "storage",
+    "storage-write-only": "storage",
+    "storage-read-only": "storage",
 }
 
 interface WEBGPUShaderUniform extends ShaderUniform {
@@ -106,7 +108,7 @@ export class WEBGPUBaseShader {
                         storageTexture: {
                             format: uniform.buffer.format,
                             viewDimension: uniform.buffer.dimension,
-                            access: "read-write",
+                            access: uniform.type === "storage-write-only" ? "write-only" : uniform.type === "storage-read-only" ? "read-only" : "read-write",
                         }
                     })
                 }

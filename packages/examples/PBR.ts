@@ -13,7 +13,6 @@ import { Debugger } from "@trident/plugins/Debugger";
 
 import { HDRParser } from "@trident/plugins/HDRParser";
 
-import { DebugTextureViewer } from "@trident/plugins/DebugTextureViewer";
 import { Environment } from "@trident/plugins/Environment/Environment";
 
 async function Application(canvas: HTMLCanvasElement) {
@@ -47,21 +46,6 @@ async function Application(canvas: HTMLCanvasElement) {
         light.castShadows = false;
     }
 
-    // const c = 4;
-    // for (let x = 0; x <= c; x++) {
-    //     for (let y = 0; y <= c; y++) {
-    //         const sphereGameObject = new GameObject(scene);
-    //         sphereGameObject.transform.position.set((x - c * 0.5) * 1.5, (y - c * 0.5) * 1.5, 0);
-    //         const sphereMesh = sphereGameObject.AddComponent(Components.Mesh);
-    //         sphereMesh.geometry = Geometry.Sphere();
-    //         sphereMesh.material = new PBRMaterial({
-    //             albedoColor: new Mathf.Color(1, 0, 0, 1),
-    //             metalness: x / c,
-    //             roughness: y / c
-    //         }));
-    //     }
-    // }
-    
     const c = 6;
     for (let i = 0; i < c; i++) {
         const x = i;
@@ -91,35 +75,13 @@ async function Application(canvas: HTMLCanvasElement) {
         });
     }
 
-    // const sphereGameObject = new GameObject(scene);
-    // sphereGameObject.transform.scale.set(5,5,5)
-    // const sphereMesh = sphereGameObject.AddComponent(Components.Mesh);
-    // sphereMesh.geometry = Geometry.Sphere();
-    // sphereMesh.material = new PBRMaterial({
-    //     albedoColor: new Mathf.Color(1, 0, 0, 1),
-    //     metalness: 0.0,
-    //     roughness: 1
-    // }));
-
     Debugger.Enable();
 
-    const hdr = await HDRParser.Load("./assets/textures/HDR/dikhololo_night_1k.hdr");
+    const hdr = await HDRParser.Load("./assets/textures/HDR/goegap_1k.hdr");
     const skyTexture = await HDRParser.ToCubemap(hdr);
 
     const environment = new Environment(scene, skyTexture);
     await environment.init();
-
-    // const textureViewer = new DebugTextureViewer(brdfLUT);
-    // scene.renderPipeline.AddPass(textureViewer, GPU.RenderPassOrder.AfterLighting);
-
-
-
-    // const sphereGameObject = new GameObject(scene);
-    // const sphereMesh = sphereGameObject.AddComponent(Components.Mesh);
-    // sphereMesh.geometry = Geometry.Sphere();
-    // skyIrradiance.SetActiveLayer(5)
-    // sphereMesh.material = new PBRMaterial({albedoMap: skyIrradiance});
-
 
     scene.Start();
 };

@@ -168,9 +168,9 @@ export class Animator extends Component {
     apply(clip: AnimationClip, time: number) {
         for (const ch of clip.channels) {
             switch (ch.path) {
-                case 'translation': this.sampleSampler(ch.sampler, time, ch.targetTransform.position); break;
+                case 'translation': this.sampleSampler(ch.sampler, time, ch.targetTransform.localPosition); break;
                 case 'scale':       this.sampleSampler(ch.sampler, time, ch.targetTransform.scale); break;
-                case 'rotation':    this.sampleSampler(ch.sampler, time, ch.targetTransform.rotation).normalize(); break;
+                case 'rotation':    this.sampleSampler(ch.sampler, time, ch.targetTransform.localRotation).normalize(); break;
                 default: break;
             }
         }
@@ -196,7 +196,7 @@ export class Animator extends Component {
             if (chA.path === 'translation') {
                 this.sampleSampler(chA.sampler, tA, tmpV0);
                 if (chB) this.sampleSampler(chB.sampler, tB, tmpV1);
-                tr.position.copy(chB ? tmpV0.lerp(tmpV1, alpha) : tmpV0);
+                tr.localPosition.copy(chB ? tmpV0.lerp(tmpV1, alpha) : tmpV0);
             } else if (chA.path === 'scale') {
                 this.sampleSampler(chA.sampler, tA, tmpV0);
                 if (chB) this.sampleSampler(chB.sampler, tB, tmpV1);
@@ -204,7 +204,7 @@ export class Animator extends Component {
             } else if (chA.path === 'rotation') {
                 this.sampleSampler(chA.sampler, tA, tmpQ0);
                 if (chB) this.sampleSampler(chB.sampler, tB, tmpQ1);
-                tr.rotation.copy(chB ? tmpQ0.slerp(tmpQ1, alpha) : tmpQ0).normalize();
+                tr.localRotation.copy(chB ? tmpQ0.slerp(tmpQ1, alpha) : tmpQ0).normalize();
             }
         }
 
@@ -218,13 +218,13 @@ export class Animator extends Component {
             if (chB.path === 'translation') {
                 this.sampleSampler(chB.sampler, tB, tmpV1);
                 // Blend from current transform (what A left there) to B — or just snap toward B:
-                tr.position.lerp(tmpV1, alpha);
+                tr.localPosition.lerp(tmpV1, alpha);
             } else if (chB.path === 'scale') {
                 this.sampleSampler(chB.sampler, tB, tmpV1);
                 tr.scale.lerp(tmpV1, alpha);
             } else if (chB.path === 'rotation') {
                 this.sampleSampler(chB.sampler, tB, tmpQ1);
-                tr.rotation.slerp(tmpQ1, alpha).normalize();
+                tr.localRotation.slerp(tmpQ1, alpha).normalize();
             }
         }
     }

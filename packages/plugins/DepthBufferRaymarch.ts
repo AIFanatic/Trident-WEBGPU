@@ -22,6 +22,8 @@ export class DepthBufferRaymarchPass extends GPU.RenderPass {
     public async init(resources: GPU.ResourcePool) {
         this.shader = await GPU.Shader.Create({
             code: `
+                #include "@trident/core/resources/webgpu/shaders/deferred/Common.wgsl";
+
                 struct VertexOutput {
                     @builtin(position) position : vec4<f32>,
                     @location(0) uv : vec2<f32>,
@@ -708,7 +710,8 @@ export class DepthBufferRaymarchPass extends GPU.RenderPass {
                     // let world_position2 = vec4(position_ndc_to_world(frag_coord_to_ndc(frag_coord)), 1.0);
                     // return vec4(world_position.xyz, 1.0);
 
-                    let N = normalize(textureSample(normal_texture, depth_linear_sampler, input.uv).xyz);
+                    let normalEncoded = textureSample(normal_texture, depth_linear_sampler, input.uv);
+                    let N = normalize(OctDecode(normalEncoded.rg));
                     let V = normalize(view_bindings.viewPosition.xyz - world_position.xyz);
 
                     // Calculate the reflection vector.
@@ -784,6 +787,6 @@ export class DepthBufferRaymarchPass extends GPU.RenderPass {
         GPU.RendererContext.Draw(this.geometry, this.shader, 3);
         GPU.RendererContext.EndRenderPass();
 
-        resources.setResource(GPU.PassParams.LightingPassOutput, this.output);
+        GPU.RendererContext.CopyTextureToTextureV3({texture: this.output}, {texture: LightingPassOutput});
     }
 }

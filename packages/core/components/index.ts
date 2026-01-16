@@ -1,5 +1,5 @@
 export { Camera } from "./Camera";
-export { Component } from "./Component";
+export { Component, ComponentEvents } from "./Component";
 export { SpotLight, DirectionalLight, PointLight, Light } from "./Light";
 export { Mesh } from "./Mesh";
 export { InstancedMesh } from "./InstancedMesh";

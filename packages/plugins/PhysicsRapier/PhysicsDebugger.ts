@@ -9,7 +9,7 @@ export class PhysicsDebugger extends Component {
     public Start(): void {
         const line = this.gameObject.AddComponent(LineRenderer);
 
-        setTimeout(() => {
+        setInterval(() => {
             const { vertices, colors } = PhysicsRapier.PhysicsWorld.debugRender();
             line.SetPositions(vertices);
             line.SetColors(colors);

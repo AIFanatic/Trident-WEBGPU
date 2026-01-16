@@ -686,7 +686,7 @@ export class SSSRenderPass extends GPU.RenderPass {
         if (!camera) return;
 
         const lightPos = this.light.transform.position;
-        const clip = new Mathf.Vector4(lightPos.x, lightPos.y, lightPos.z, 0.0).applyMatrix4(camera.projectionScreenMatrix);
+        const clip = new Mathf.Vector4(lightPos.x, lightPos.y, lightPos.z, 1.0).applyMatrix4(camera.projectionScreenMatrix);
 
         // Choose which one is appropriate for your light type and pass its components:
         this._sssDispatchList = buildSSSDispatchList(
@@ -780,6 +780,7 @@ export class SSSRenderPass extends GPU.RenderPass {
         GPU.RendererContext.BeginRenderPass(this.name + " - blend", [{ target: this.blendOutput, clear: true }]);
         GPU.RendererContext.DrawGeometry(this.blendGeometry, this.blendShader);
         GPU.RendererContext.EndRenderPass();
+        
         GPU.RendererContext.CopyTextureToTextureV3({ texture: this.blendOutput }, { texture: LightingPassOutput });
     }
 }

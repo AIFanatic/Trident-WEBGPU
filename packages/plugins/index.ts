@@ -69,3 +69,8 @@ export * from "./LODGroup";
 
 
 export * from "./VirtualTexturing/";
+
+
+export * from "./VPLGenerator";
+
+export * from "./PathTracer";

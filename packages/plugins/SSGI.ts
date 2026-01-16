@@ -36,6 +36,8 @@ export class SSGIRenderPass extends GPU.RenderPass {
 
         this.shader = await GPU.Shader.Create({
             code: `
+            #include "@trident/core/resources/webgpu/shaders/deferred/Common.wgsl";
+
             struct VertexInput {
                 @location(0) position : vec3<f32>,
                 @location(1) normal : vec3<f32>,
@@ -144,7 +146,7 @@ export class SSGIRenderPass extends GPU.RenderPass {
                 let aspect = settings.projectionOutputSize.yx / settings.projectionOutputSize.x;
           
                 let positionVS    = reconstructPosition(fragUV);
-                let normalWS      = textureSample(inputNormal, textureSampler, fragUV).rgb;
+                let normalWS      = OctDecode(textureSample(inputNormal, textureSampler, fragUV).rg);
                 let normalVS      = normalize((settings.viewMatrix * vec4<f32>(normalWS, 0.0)).xyz);
           
                 let viewZ       = min(positionVS.z, -0.001);
@@ -173,7 +175,7 @@ export class SSGIRenderPass extends GPU.RenderPass {
                         let sampleUV   = clamp(fragUV - sampleStep * sampleScale * omega * aspect, vec2<f32>(0.0), vec2<f32>(1.0));
           
                         let samplePositionVS    = reconstructPosition(sampleUV);
-                        let sampleNormalVS      = normalize((settings.viewMatrix * vec4<f32>(textureSample(inputNormal, textureSampler, sampleUV).rgb, 0.0)).xyz);
+                        let sampleNormalVS      = normalize((settings.viewMatrix * vec4<f32>(OctDecode(textureSample(inputNormal, textureSampler, sampleUV).rg), 0.0)).xyz);
           
                         let sampleLight     = textureSample(inputLight, textureSampler, sampleUV).rgb;
                         let sampleDistance  = samplePositionVS - positionVS;
@@ -284,6 +286,6 @@ export class SSGIRenderPass extends GPU.RenderPass {
 
         // const ta = this.textureBlender.Process(this.output, inputLight);
         
-        resources.setResource(GPU.PassParams.LightingPassOutput, ta)
+        GPU.RendererContext.CopyTextureToTextureV3({ texture: ta }, { texture: inputLight });
     }
 }

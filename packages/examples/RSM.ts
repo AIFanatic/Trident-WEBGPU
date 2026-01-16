@@ -29,10 +29,9 @@ async function Application(canvas: HTMLCanvasElement) {
     const lightGameObject = new GameObject(scene);
     lightGameObject.transform.position.set(2, 5, 10);
     lightGameObject.transform.LookAtV1(new Mathf.Vector3(0, 0, 0));
-    // const light = lightGameObject.AddComponent(DirectionalLight);
     const light = lightGameObject.AddComponent(Components.SpotLight);
     light.range = 200;
-    light.angle = 90;
+    // light.angle = 90;
     light.intensity = 100;
     light.color.set(1, 1, 1, 1);
     light.castShadows = true;
@@ -151,10 +150,10 @@ async function Application(canvas: HTMLCanvasElement) {
         const rsmLight = new RSMIndirectLighting(light, 128, 64);
         scene.renderPipeline.AddPass(rsmLight, GPU.RenderPassOrder.AfterLighting);
 
-        const viewerGO = new GameObject(scene);
-        const viewerMesh = viewerGO.AddComponent(Components.Mesh);
-        viewerMesh.geometry = Geometry.Plane();
-        viewerMesh.material = new PBRMaterial({ albedoMap: rsmLight.indirectLighting, unlit: true });
+        // const viewerGO = new GameObject(scene);
+        // const viewerMesh = viewerGO.AddComponent(Components.Mesh);
+        // viewerMesh.geometry = Geometry.Plane();
+        // viewerMesh.material = new PBRMaterial({ albedoMap: rsmLight.indirectLighting, unlit: true });
     }
 
     scene.Start();

@@ -33,11 +33,11 @@ async function Application(canvas: HTMLCanvasElement) {
     const lightGameObject = new GameObject(scene);
     lightGameObject.transform.position.set(2, 5, 10);
     lightGameObject.transform.LookAtV1(new Mathf.Vector3(0, 0, 0));
-    // const light = lightGameObject.AddComponent(DirectionalLight);
-    const light = lightGameObject.AddComponent(Components.SpotLight);
+    const light = lightGameObject.AddComponent(Components.DirectionalLight);
+    // const light = lightGameObject.AddComponent(Components.SpotLight);
     light.range = 200;
-    light.angle = 90;
-    light.intensity = 100;
+    // light.angle = 90;
+    // light.intensity = 100;
     light.color.set(1, 1, 1, 1);
     light.castShadows = false;
 
