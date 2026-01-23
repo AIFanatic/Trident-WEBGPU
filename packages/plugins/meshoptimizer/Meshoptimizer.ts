@@ -37,9 +37,8 @@ export const meshopt_SimplifySparse = 1 << 1;
 export const meshopt_SimplifyErrorAbsolute = 1 << 2;
 
 interface meshopt_simplifyWithAttributes_result {
-    ret: number;
     destination: Uint32Array;
-    out_result_error: number;
+    result_error: number;
 };
 
 export class Meshoptimizer {
@@ -57,9 +56,7 @@ export class Meshoptimizer {
 
     // size_t meshopt_simplify(unsigned int* destination, const unsigned int* indices, size_t index_count, const float* vertex_positions_data, size_t vertex_count, size_t vertex_positions_stride, size_t target_index_count, float target_error, unsigned int options, float* out_result_error)
     public static meshopt_simplify(
-        destination_length: number,
         indices: Uint32Array,
-        index_count: number,
         vertex_positions_data: Float32Array,
         vertex_count: number,
         vertex_positions_stride: number,
@@ -69,13 +66,13 @@ export class Meshoptimizer {
     ): meshopt_simplifyWithAttributes_result {
         const MeshOptmizer = Meshoptimizer.module;
 
-        const destination = new WASMPointer(new Uint32Array(destination_length), "out");
+        const destination = new WASMPointer(new Uint32Array(indices.length), "out");
         const result_error = new WASMPointer(new Float32Array(1), "out");
 
         const ret = WASMHelper.call(MeshOptmizer, "meshopt_simplify", "number",
             destination, // unsigned int* destination,
             new WASMPointer(indices), // const unsigned int* indices,
-            index_count, // size_t index_count,
+            indices.length, // size_t index_count,
             new WASMPointer(vertex_positions_data), // const float* vertex_positions,
             vertex_count, // size_t vertex_count,
             vertex_positions_stride * Float32Array.BYTES_PER_ELEMENT,
@@ -85,7 +82,7 @@ export class Meshoptimizer {
             result_error, // float* result_error
         );
 
-        return {ret: ret, destination: destination.data as Uint32Array, out_result_error: result_error.data[0]};
+        return {destination: destination.data.slice(0, ret) as Uint32Array, result_error: result_error.data[0]};
     }
 
     // size_t meshopt_simplifyWithAttributes(unsigned int* destination, const unsigned int* indices, size_t index_count, const float* vertex_positions_data, size_t vertex_count, size_t vertex_positions_stride, const float* vertex_attributes_data, size_t vertex_attributes_stride, const float* attribute_weights, size_t attribute_count, const unsigned char* vertex_lock, size_t target_index_count, float target_error, unsigned int options, float* out_result_error)
