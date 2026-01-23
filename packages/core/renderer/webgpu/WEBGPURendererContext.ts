@@ -105,7 +105,7 @@ export class WEBGPURendererContext implements RendererContext {
         if (!shader.params.topology || shader.params.topology === Topology.Triangles) {
             if (!geometry.index) {
                 const positions = geometry.attributes.get("position") as VertexAttribute;
-                const vertexCount = positions.GetBuffer().size / 4 / 4;
+                const vertexCount = positions.GetBuffer().size / 4 / 3;
                 this.activeRenderPass.draw(vertexCount, instanceCount, 0, firstInstance);
             }
             else {

@@ -7,12 +7,11 @@ import { RendererContext } from "../RendererContext";
 import { RenderPass, ResourcePool } from "../RenderGraph";
 import { AreaLight, DirectionalLight, Light, LightEvents, PointLight, SpotLight } from "../../components/Light";
 import { Renderer, RendererEvents } from "../Renderer";
-import { Matrix4 } from "../../math/Matrix4";
 import { Buffer, BufferType } from "../Buffer";
 import { ShaderLoader } from "../ShaderUtils";
 import { PassParams } from "../RenderingPipeline";
 import { EventSystem } from "../../Events";
-import { LightShadowData } from "./DeferredShadowMapPass";
+import { LightShadowInfo } from "./DeferredShadowMapPass";
 import { DynamicBufferMemoryAllocator } from "../MemoryAllocator";
 
 enum LightType {
@@ -118,10 +117,10 @@ export class DeferredLightingPass extends RenderPass {
             else if (light instanceof AreaLight) lightType = LightType.AREA_LIGHT;
 
             let projectionMatrices: Float32Array = new Float32Array(16 * 4);
-            let cascadeSplits = new Float32Array(4);
+            let cascadeSplits: Float32Array = new Float32Array(4);
 
             
-            const lightsShadowData = resources.getResource(PassParams.ShadowPassCascadeData) as Map<string, LightShadowData> | undefined;
+            const lightsShadowData = resources.getResource(PassParams.ShadowPassCascadeData) as Map<string, LightShadowInfo> | undefined;
             const lightShadowData = lightsShadowData ? lightsShadowData.get(light.id) : undefined;
             if (lightShadowData !== undefined) {
                 projectionMatrices = lightShadowData.projectionMatrices;
@@ -208,6 +207,11 @@ export class DeferredLightingPass extends RenderPass {
         if (this.drawCommands.length === 0) return;
 
         const GBufferDepth = resources.getResource(PassParams.GBufferDepth);
+        if (!GBufferDepth) return;
+        if (this.gBufferDepthClone.width !== GBufferDepth.width || this.gBufferDepthClone.height !== GBufferDepth.height) {
+            this.gBufferDepthClone.Destroy();
+            this.gBufferDepthClone = DepthTexture.Create(GBufferDepth.width, GBufferDepth.height, GBufferDepth.depth, GBufferDepth.format);
+        }
         RendererContext.CopyTextureToTextureV3({texture: GBufferDepth}, {texture: this.gBufferDepthClone});
 
         // RendererContext.BeginRenderPass("DeferredLightingPass", [{ target: this.outputLightingPass, clear: true }]);

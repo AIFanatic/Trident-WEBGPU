@@ -12,8 +12,6 @@ export { EventSystem, EventSystemLocal } from "./Events";
 export { PBRMaterial } from "./renderer/Material";
 export type { PBRMaterialParams } from "./renderer/Material";
 
-export type { Object3D } from "./Object3D";
-
 export { Texture } from "./renderer/Texture";
 
 export { Geometry, IndexAttribute, VertexAttribute, InterleavedVertexAttribute } from "./Geometry";

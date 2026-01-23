@@ -163,6 +163,10 @@ export class PostExposureTonemap extends RenderPass {
 
         const LightingPassOutputTexture = resources.getResource(PassParams.LightingPassOutput);
         if (!LightingPassOutputTexture) return;
+        if (this.renderTarget.width !== LightingPassOutputTexture.width || this.renderTarget.height !== LightingPassOutputTexture.height) {
+            this.renderTarget.Destroy();
+            this.renderTarget = RenderTexture.Create(LightingPassOutputTexture.width, LightingPassOutputTexture.height, LightingPassOutputTexture.depth, LightingPassOutputTexture.format);
+        }
 
         this.shader.SetTexture("texture", LightingPassOutputTexture);
 
