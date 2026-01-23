@@ -41,7 +41,7 @@ export * from "./PointLightHelper";
 
 export { Atlas } from "./Atlas";
 
-export * from "./Impostors/ImpostorMesh";
+export * from "./Impostors/";
 
 export * from "./ParticleSystem/ParticleSystem";
 

@@ -6,41 +6,28 @@ import {
     GameObject,
     Geometry,
     PBRMaterial,
-    Object3D,
+    Prefab,
 } from "@trident/core";
 
 
 import { Dilator } from "./Dilator";
 
 export class ImpostorMesh extends Components.Mesh {
-    public impostorGeometry: Geometry;
-    public impostorShader: GPU.Shader;
     public albedoTexture: GPU.RenderTexture;
     public normalTexture: GPU.RenderTexture;
 
-    public async Create(objects: Object3D, atlasResolution = 2048, atlasTiles = 12) {
-        async function traverse(object3D: Object3D, func: (o: Object3D) => void | Promise<void>): Promise<void> {
-            await func(object3D);
-            for (const child of object3D.children) await traverse(child, func);
-        }
-
+    public async Create(geometry: Geometry, material: PBRMaterial, atlasResolution = 2048, atlasTiles = 12) {
         let radius = 0;
-        await traverse(objects, object => {
-            if (!object.geometry || !object.material) return;
-            // object.geometry = object.geometry.Scale(new Vector3(0.01, 0.01, 0.01));
-            object.geometry = object.geometry.Center();
-            // object.geometry.ComputeBoundingVolume();
-            radius = Math.max(radius, object.geometry.boundingVolume.radius);
-        })
+        geometry.Center();
+        geometry.Scale(new Mathf.Vector3(1, 1, 1));
+        geometry.ComputeBoundingVolume();
+        geometry.boundingVolume.radius;
 
         let scale = 1 / radius;
-        await traverse(objects, object => {
-            if (!object.geometry || !object.material) return;
-            object.geometry = object.geometry.Scale(new Mathf.Vector3(scale, scale, scale));
-            // object.geometry = object.geometry.Center();
-            object.geometry.ComputeBoundingVolume();
-            radius = Math.max(radius, object.geometry.boundingVolume.radius);
-        })
+        geometry.Scale(new Mathf.Vector3(scale, scale, scale));
+        geometry.Center();
+        geometry.ComputeBoundingVolume();
+        geometry.boundingVolume.radius;
 
         radius = 1;
         // const radius = geometry.boundingVolume.radius * 2.0;
@@ -52,16 +39,14 @@ export class ImpostorMesh extends Components.Mesh {
         const camera = gameObject.AddComponent(Components.Camera);
         camera.SetOrthographic(-radius, radius, radius, -radius, 0.0, radius * 2);
 
-        const impostorObjects: Object3D[] = [];
+        const impostorObjects: { material: GPU.Material, geometry: Geometry }[] = [];
+
 
         console.log("radius", radius);
-        await traverse(objects, async object => {
-            if (!object.geometry || !object.material) return;
+        console.log("radius", radius);
 
-            console.log("radius", radius);
-            
-            const shader = await GPU.Shader.Create({
-                code: `
+        const shader = await GPU.Shader.Create({
+            code: `
                 struct VertexInput {
                     @location(0) position : vec3<f32>,
                     @location(1) normal : vec3<f32>,
@@ -89,7 +74,7 @@ export class ImpostorMesh extends Components.Mesh {
         
                 @vertex fn vertexMain(input: VertexInput) -> VertexOutput {
                     var output: VertexOutput;
-                    output.position = projectionMatrix * viewMatrix * vec4(input.position, 1.0);
+                    output.position = projectionMatrix * viewMatrix * modelMatrix * vec4(input.position, 1.0);
                     output.vUv = input.uv;
                     output.vNormal = input.normal;
                     var _ProjectionParams_w = 1.0 / ${radius * 2};
@@ -102,7 +87,8 @@ export class ImpostorMesh extends Components.Mesh {
                 
                 @fragment fn fragmentMain(input: VertexOutput) -> @location(0) vec4f {
                     if (renderNormal > 0.5) {
-                        return vec4(vec3(input.vNormal * vec3(-1.0, 1.0, 1.0)) * 0.5 + 0.5, input.depth);
+                        // return vec4(vec3(input.vNormal * vec3(-1.0, 1.0, 1.0)) * 0.5 + 0.5, input.depth);
+                        return vec4(vec3(input.vNormal * vec3(1.0, -1.0, 1.0)) * 0.5 + 0.5, input.depth);
                     }
     
                     var color = albedoColor;
@@ -113,63 +99,44 @@ export class ImpostorMesh extends Components.Mesh {
                     return color;
                 }
                 `,
-                colorOutputs: [{format: "rgba16float"}],
-                attributes: {
-                    position: {location: 0, size: 3, type: "vec3"},
-                    normal: {location: 1, size: 3, type: "vec3"},
-                    uv: {location: 2, size: 2, type: "vec2"}
-                },
-                uniforms: {
-                    projectionMatrix: {group: 0, binding: 0, type: "storage"},
-                    viewMatrix: {group: 0, binding: 1, type: "storage"},
-                    renderNormal: {group: 0, binding: 2, type: "storage"},
-                    albedoColor: {group: 0, binding: 3, type: "storage"},
-                    albedoMap: {group: 0, binding: 4, type: "texture"},
-                    textureSampler: {group: 0, binding: 5, type: "sampler"},
+            colorOutputs: [{ format: "rgba16float" }],
+            defines: {
+                USE_ALBEDO_MAP: material?.params.albedoMap ? true : false,
+            },
+        });
+        shader.SetSampler("textureSampler", GPU.TextureSampler.Create());
+        if (material) {
+            if (material.params.albedoColor) shader.SetArray("albedoColor", material.params.albedoColor.elements);
+            if (material.params.albedoMap) shader.SetTexture("albedoMap", material.params.albedoMap);
+        }
 
-                    modelMatrix: {group: 0, binding: 6, type: "storage"},
-                    cameraFar: {group: 0, binding: 7, type: "storage"},
-                },
-                defines: {
-                    USE_ALBEDO_MAP: object.material?.params.albedoMap ? true : false,
-                },
-            });
-            shader.SetSampler("textureSampler", GPU.TextureSampler.Create());
-            if (object.material) {
-                if (object.material.params.albedoColor) shader.SetArray("albedoColor", object.material.params.albedoColor.elements);
-                if (object.material.params.albedoMap) shader.SetTexture("albedoMap", object.material.params.albedoMap);
-            }
-
-            console.warn("Depth still has some issues")
-            const m = new PBRMaterial();
-            m.shader = shader;
-            impostorObjects.push({name: "impostor", material: m, geometry: object.geometry, children: [], localMatrix: null});
-            console.log(impostorObjects[impostorObjects.length -1])
-        })
+        console.warn("Depth still has some issues")
+        const m = new PBRMaterial();
+        m.shader = shader;
+        impostorObjects.push({ material: m, geometry: geometry });
+        console.log(impostorObjects[impostorObjects.length - 1])
 
         const frameSize = atlasResolution / atlasTiles;
         const albedoTexture = GPU.RenderTexture.Create(atlasResolution, atlasResolution, 1, "rgba16float");
         const normalTexture = GPU.RenderTexture.Create(atlasResolution, atlasResolution, 1, "rgba16float");
-
 
         const frames = atlasTiles;
         const imposterPosition = new Mathf.Vector3(); // root.position + imposter.Offset
 
         const framesMinusOne = frames - 1;
 
-        console.log(impostorObjects)
         for (var x = 0; x < frames; x++) {
             for (var y = 0; y < frames; y++) {
                 var vec = new Mathf.Vector2(
                     x / framesMinusOne * 2.0 - 1.0,
                     y / framesMinusOne * 2.0 - 1.0
                 );
-             
+
                 const normal = this.OctahedralCoordToVector(vec);
                 const position = imposterPosition.clone().sub(normal.mul(radius).normalize());
-               
+
                 camera.transform.position.copy(position);
-                camera.transform.LookAtV1(new Mathf.Vector3(0, 0, -0.0000001));
+                camera.transform.LookAt(new Mathf.Vector3(0, 0, -0.0000001));
                 camera.transform.Update();
                 camera.Update();
 
@@ -188,10 +155,10 @@ export class ImpostorMesh extends Components.Mesh {
         this.albedoTexture = albedoTexture;
         this.normalTexture = normalTexture;
     }
-    
+
     private OctahedralCoordToVector(f: Mathf.Vector2): Mathf.Vector3 {
-        function clamp( value, min, max ) {
-            return Math.max( min, Math.min( max, value ) );
+        function clamp(value, min, max) {
+            return Math.max(min, Math.min(max, value));
         }
 
         var n = new Mathf.Vector3(f.x, 1.0 - Math.abs(f.x) - Math.abs(f.y), f.y);
@@ -204,14 +171,18 @@ export class ImpostorMesh extends Components.Mesh {
     private renderByPosition(renderTexture: GPU.RenderTexture, x: number, y: number, w: number, h: number, camera: Components.Camera, object: Object3D) {
         if (!object.material || !object.geometry) return;
 
+        const p = new Mathf.Vector3(0, 0, 0);
+        const q = new Mathf.Quaternion(0, 0, 0); //.setFromEuler(new Mathf.Vector3(90,0,0), true);
+        const s = new Mathf.Vector3(1, 1, 1);
         const modelMatrix = new Mathf.Matrix4();
+        modelMatrix.compose(p, q, s)
 
         object.material.shader.SetMatrix4("projectionMatrix", camera.projectionMatrix);
         object.material.shader.SetMatrix4("viewMatrix", camera.viewMatrix);
         object.material.shader.SetMatrix4("modelMatrix", modelMatrix);
         object.material.shader.SetValue("cameraFar", camera.far);
         GPU.Renderer.BeginRenderFrame();
-        GPU.RendererContext.BeginRenderPass("Impostor creator", [{target: renderTexture, clear: false}]);
+        GPU.RendererContext.BeginRenderPass("Impostor creator", [{ target: renderTexture, clear: false }]);
         GPU.RendererContext.SetViewport(x, y, w, h);
         GPU.RendererContext.SetScissor(x, y, w, h);
         GPU.RendererContext.DrawGeometry(object.geometry, object.material.shader);
@@ -223,6 +194,7 @@ export class ImpostorMesh extends Components.Mesh {
         const geometry = Geometry.Plane();
 
 
+        const gBufferFormat = Scene.mainScene.renderPipeline.GBufferFormat;
         const orthoMethods = `
         // http://jcgt.org/published/0003/02/01/paper.pdf
         // A Survey of Efficient Representations for Independent Unit Vectors 
@@ -472,7 +444,7 @@ export class ImpostorMesh extends Components.Mesh {
         fn ImposterVertex( _imp: ImposterData ) -> ImposterData
         {
             var imp = _imp;
-            var _WorldSpaceCameraPos = cameraPosition.xyz;
+            var _WorldSpaceCameraPos = frameBuffer.viewPosition.xyz;
             var unity_ObjectToWorld = modelMatrix[imp.instanceIdx];
             var unity_WorldToObject = inverse(unity_ObjectToWorld);
 
@@ -612,23 +584,20 @@ export class ImpostorMesh extends Components.Mesh {
 
         fn ImposterBlendWeights( tex: texture_2d<f32>, uv: vec2f, frame0: vec2f, frame1: vec2f, frame2: vec2f, weights: vec4f, ddxy: vec2f ) -> vec4f
         {    
-            // var ddx = vec2f(ddxy.x, ddxy.y);
-            // var ddy = vec2f(ddxy.x, ddxy.y);
-
             var ddx_vp0uv = dpdx(frame0);
             var ddy_vp0uv = dpdy(frame0);
-            
-            var ddx_vp1uv = dpdx(frame1);
-            var ddy_vp1uv = dpdy(frame1);
-            
-            var ddx_vp2uv = dpdx(frame2);
-            var ddy_vp2uv = dpdy(frame2);
 
-            var samp0 = textureSampleGrad( tex, textureSampler, frame0 * textureScale, ddx_vp0uv, ddy_vp0uv );
-            var samp1 = textureSampleGrad( tex, textureSampler, frame1 * textureScale, ddx_vp1uv, ddy_vp1uv );
-            var samp2 = textureSampleGrad( tex, textureSampler, frame2 * textureScale, ddx_vp2uv, ddy_vp2uv );
+            let ddx_vp1uv = dpdx(frame1);
+            let ddy_vp1uv = dpdy(frame1);
+            
+            let ddx_vp2uv = dpdx(frame2);
+            let ddy_vp2uv = dpdy(frame2);
 
-            var result = samp0*weights.x + samp1*weights.y + samp2*weights.z;
+            let samp0 = textureSampleGrad( tex, textureSampler, frame0 * textureScale, ddx_vp0uv, ddy_vp0uv );
+            let samp1 = textureSampleGrad( tex, textureSampler, frame1 * textureScale, ddx_vp1uv, ddy_vp1uv );
+            let samp2 = textureSampleGrad( tex, textureSampler, frame2 * textureScale, ddx_vp2uv, ddy_vp2uv );
+
+            let result = samp0*weights.x + samp1*weights.y + samp2*weights.z;
             
             return result;
         }
@@ -662,55 +631,9 @@ export class ImpostorMesh extends Components.Mesh {
             var frame1 = gridSnap + (lerp(vec2f(0,1),vec2f(1,0),weights.w)/vec2f(_ImposterFrames));
             var frame2 = gridSnap + (vec2f(1,1)/vec2f(_ImposterFrames));
         
-            var vp0uv = frame0 + imp.frame0.xy;
-            var vp1uv = frame1 + imp.frame1.xy; 
-            var vp2uv = frame2 + imp.frame2.xy;
-
-            // //resolution of atlas (Square)
-            // var textureDims = _ImposterBaseTex_TexelSize.z;
-            // //fractional frame size, ex 2048/12 = 170.6
-            // var frameSize = textureDims/_ImposterFrames; 
-            // //actual atlas resolution used, ex 170*12 = 2040
-            // var actualDims = floor(frameSize) * _ImposterFrames; 
-            // //the scale factor to apply to UV coordinate, ex 2048/2040 = 0.99609375
-            // var scaleFactor = actualDims / textureDims;
-           
-            // vp0uv *= scaleFactor;
-            // vp1uv *= scaleFactor;
-            // vp2uv *= scaleFactor;
-           
-            // //clamp out neighboring frames TODO maybe discard instead?
-            // var gridSize = 1.0/vec2f(_ImposterFrames);
-            // gridSize *= _ImposterBaseTex_TexelSize.zw;
-            // gridSize *= _ImposterBaseTex_TexelSize.xy;
-            // var border = _ImposterBaseTex_TexelSize.xy*_ImposterBorderClamp;
-            
-            // //vp0uv = clamp(vp0uv,frame0+border,frame0+gridSize-border);
-            // //vp1uv = clamp(vp1uv,frame1+border,frame1+gridSize-border);
-            // //vp2uv = clamp(vp2uv,frame2+border,frame2+gridSize-border);
-           
-            // //for parallax modify
-            // var n0 = textureSample( normalTexture, textureSampler, vp0uv );
-            // var n1 = textureSample( normalTexture, textureSampler, vp1uv );
-            // var n2 = textureSample( normalTexture, textureSampler, vp2uv );
-            
-            // var n0s = 0.5-n0.a;    
-            // var n1s = 0.5-n1.a;
-            // var n2s = 0.5-n2.a;
-            
-            // var n0p = imp.frame0.zw * n0s;
-            // var n1p = imp.frame1.zw * n1s;
-            // var n2p = imp.frame2.zw * n2s;
-            
-            // //add parallax shift 
-            // vp0uv += n0p;
-            // vp1uv += n1p;
-            // vp2uv += n2p;
-            
-            // //clamp out neighboring frames TODO maybe discard instead?
-            // vp0uv = clamp(vp0uv,frame0+border,frame0+gridSize-border);
-            // vp1uv = clamp(vp1uv,frame1+border,frame1+gridSize-border);
-            // vp2uv = clamp(vp2uv,frame2+border,frame2+gridSize-border);
+            let vp0uv = frame0 + imp.frame0.xy;
+            let vp1uv = frame1 + imp.frame1.xy; 
+            let vp2uv = frame2 + imp.frame2.xy;
             
             var ddxy = vec2f( dpdx(imp.uv.x), dpdy(imp.uv.y) );
 
@@ -720,11 +643,14 @@ export class ImpostorMesh extends Components.Mesh {
             out.baseTex = baseTex;
             out.worldNormal = worldNormal;
             out.debugParam = vec4f(vp1uv.xy, 0, 0);
+
             return out;
         }
         `
         const shader = await GPU.Shader.Create({
             code: `
+            #include "@trident/core/resources/webgpu/shaders/deferred/Common.wgsl";
+
             ${impostorShaderCommon}
 
             struct VertexInput {
@@ -749,18 +675,17 @@ export class ImpostorMesh extends Components.Mesh {
                 @location(8) @interpolate(flat) instanceIdx : u32,
             };
     
-            @group(0) @binding(0) var<storage, read> projectionMatrix: mat4x4<f32>;
-            @group(0) @binding(1) var<storage, read> viewMatrix: mat4x4<f32>;
-            @group(0) @binding(2) var<storage, read> modelMatrix: array<mat4x4<f32>>;
-            @group(0) @binding(3) var<storage, read> cameraPosition: vec3<f32>;
-            
-            @group(0) @binding(4) var textureSampler: sampler;
-            @group(0) @binding(5) var albedoTexture: texture_2d<f32>;
-            @group(0) @binding(6) var normalTexture: texture_2d<f32>;
-            @group(0) @binding(7) var<storage, read> atlasTiles: f32;
-            @group(0) @binding(8) var textSDFTexture: texture_2d<f32>;
+            @group(0) @binding(0) var<storage, read> frameBuffer: FrameBuffer;
 
-            @group(0) @binding(9) var normalTexture2: texture_2d<f32>;
+            @group(0) @binding(1) var<storage, read> modelMatrix: array<mat4x4<f32>>;
+            
+            @group(0) @binding(2) var textureSampler: sampler;
+            @group(0) @binding(3) var albedoTexture: texture_2d<f32>;
+            @group(0) @binding(4) var normalTexture: texture_2d<f32>;
+            @group(0) @binding(5) var<storage, read> atlasTiles: f32;
+            @group(0) @binding(6) var textSDFTexture: texture_2d<f32>;
+
+            @group(0) @binding(7) var normalTexture2: texture_2d<f32>;
 
             @vertex fn vertexMain(input: VertexInput) -> VertexOutput {
                 var output: VertexOutput;
@@ -772,8 +697,8 @@ export class ImpostorMesh extends Components.Mesh {
 
                 imp = ImposterVertex(imp);
                 var modelMatrixInstance = modelMatrix[input.instanceIdx];
-                var modelViewMatrix = viewMatrix * modelMatrixInstance;
-                output.position = projectionMatrix * modelViewMatrix * imp.vertex;
+                var modelViewMatrix = frameBuffer.viewMatrix * modelMatrixInstance;
+                output.position = frameBuffer.projectionMatrix * modelViewMatrix * imp.vertex;
                 output.vUv = input.uv;
 
                 output.texCoord = vec4f(imp.uv, imp.grid);
@@ -791,44 +716,6 @@ export class ImpostorMesh extends Components.Mesh {
                 @location(1) normal : vec4f,
                 @location(2) RMO : vec4f,
             };
-
-            // fn C(c) {
-            //     U.x-=.5; O+= char(U,64+c)
-            // }
-
-            // fn print(p: vec2<f32>, c: i32) -> f32 {
-            //     if (p.x < 0.0 || p.x > 1.0 || p.y < 0.0 || p.y > 1.0) {
-            //         return 0.0;
-            //     }
-            //     let texCoord = p / 16.0 + fract(vec2<f32>(f32(c), 15.0 - f32(c / 16)) / 16.0);
-            //     return textureSampleLevel(textSDFTexture, textureSampler, vec2f(texCoord.x, 1.0 - texCoord.y), 0).r;
-            // }
-
-            // fn print_num(pos: vec2f, n: f32, before: i32, after: i32, signed: bool) -> f32 {
-            //     var len = before + after + i32(after > 0) + i32(signed);
-            //     if (pos.x < 0. || pos.y < 0. || pos.x >= f32(len) || pos.y >= 1.) {
-            //         return 0.0;
-            //     }
-            //     var ind = i32(pos.x) - i32(signed);
-            //     var char: i32;
-            //     if (signed && ind == -1) {
-            //         if (n < 0.0) {
-            //             char = 45;
-            //         }
-            //         else {
-            //             char = 32;
-            //         }
-            //         // char = n < 0. ? 45 : 32; // '-' : ' '
-            //     } else if (ind == before) {
-            //         char = 46; // '.'
-            //     } else {
-            //         var rounded = round(abs(n) * pow(10., f32(after)));
-            //         var power = ind - (before + after) - i32(ind > before);
-            //         var dig = i32(fract(rounded * pow(10., f32(power))) * 10.);
-            //         char = dig + 0x30; // '0'
-            //     }
-            //     return print(fract(pos), char);
-            // }
 
             fn c1(input: VertexOutput) -> FragmentOutput {
                 var output: FragmentOutput;
@@ -886,35 +773,8 @@ export class ImpostorMesh extends Components.Mesh {
                 var unity_ObjectToWorld = modelMatrix[input.instanceIdx];
                 worldNormal = (unity_ObjectToWorld * vec4f(worldNormal, 0)).xyz;
 
-
-
-
-                // var debugVar = out.debugParam;
-                // var O = 0.0;
-                // var uv = vec2f(imp.uv.xy);
-                // var position = vec2f(0);
-                // var FontSize = 0.2;
-                // var U = ( uv - position)*64.0/FontSize;
-
-                // U.x-=.5; O += print(U,64 + 8);
-                // U.x-=.5; O += print_num(U, debugVar.x, 2, 2, true);
-                // U.y-=1.0; O += print_num(U, debugVar.y, 2, 2, true);
-                // U.y-=1.0; O += print_num(U, debugVar.z, 2, 2, true);
-
-
-
-                // // output.albedo = input.debugParam + 0.5;
-                // // output.albedo = vec4(input.debugParam.xy, 0, 0);
-                // // output.albedo = vec4(imp.frame0.xy, 0, 0);
                 output.albedo = vec4(baseTex.rgb, 1.0);
-                // // output.albedo = vec4(worldNormal, 1.0);
-                // output.normal = vec4(worldNormal, 1.0);
-                output.RMO = vec4(1.0);
-
-                // output.albedo += O;
-
-                output.albedo = vec4(baseTex.rgb, 1.0);
-                output.normal = vec4(worldNormal.xyz, 0.0);
+                output.normal = vec4(OctEncode(worldNormal.xyz), 0.0, 0.0);
                 output.RMO = vec4(vec3(0), 0.0);
 
                 return output;
@@ -924,29 +784,11 @@ export class ImpostorMesh extends Components.Mesh {
                 return c3(input);
             }
             `,
-            colorOutputs: [{format: "rgba16float"}, {format: "rgba16float"}, {format: "rgba16float"}],
+            colorOutputs: [{ format: gBufferFormat }, { format: gBufferFormat }, { format: gBufferFormat }],
             depthOutput: "depth24plus",
-            attributes: {
-                position: {location: 0, size: 3, type: "vec3"},
-                normal: {location: 1, size: 3, type: "vec3"},
-                uv: {location: 2, size: 2, type: "vec2"}
-            },
-            uniforms: {
-                projectionMatrix: {group: 0, binding: 0, type: "storage"},
-                viewMatrix: {group: 0, binding: 1, type: "storage"},
-                modelMatrix: {group: 0, binding: 2, type: "storage"},
-                cameraPosition: {group: 0, binding: 3, type: "storage"},
-                textureSampler: {group: 0, binding: 4, type: "sampler"},
-                albedoTexture: {group: 0, binding: 5, type: "texture"},
-                normalTexture: {group: 0, binding: 6, type: "texture"},
-                atlasTiles: {group: 0, binding: 7, type: "storage"},
-
-                textSDFTexture: {group: 0, binding: 8, type: "texture"},
-                normalTexture2: {group: 0, binding: 9, type: "texture"},
-            },
             cullMode: "none"
         });
-        shader.SetSampler("textureSampler", GPU.TextureSampler.Create({magFilter: "linear", minFilter: "linear", mipmapFilter: "linear", addressModeU: "repeat", addressModeV: "repeat"}));
+        shader.SetSampler("textureSampler", GPU.TextureSampler.Create({ magFilter: "linear", minFilter: "linear", mipmapFilter: "linear", addressModeU: "repeat", addressModeV: "repeat" }));
 
 
         // const textSDFTexture = await Texture.Load("./assets/text_sdf.png");
@@ -967,16 +809,16 @@ export class ImpostorMesh extends Components.Mesh {
         // normalTexture = await Dilator.Dilate(normalTexture);
         // bunnyImpostor.normalTexture = textureDilated;
         // bunnyImpostor.impostorShader.SetTexture("normalTexture", textureDilated);
-        
 
 
-        const normalTextureRotated = GPU.RenderTexture.Create(normalTexture.width, normalTexture.height);
-        await GPU.Texture.Blit(normalTexture, normalTextureRotated, normalTexture.width, normalTexture.height, new Mathf.Vector2(-1, 1));
-        normalTexture = normalTextureRotated;
 
-        const albedoTextureRotated = GPU.RenderTexture.Create(albedoTexture.width, albedoTexture.height);
-        await GPU.Texture.Blit(albedoTexture, albedoTextureRotated, albedoTexture.width, albedoTexture.height, new Mathf.Vector2(-1, 1));
-        albedoTexture = albedoTextureRotated;
+        // const normalTextureRotated = GPU.RenderTexture.Create(normalTexture.width, normalTexture.height);
+        // await GPU.Texture.Blit(normalTexture, normalTextureRotated, normalTexture.width, normalTexture.height, new Mathf.Vector2(-1, 1));
+        // normalTexture = normalTextureRotated;
+
+        // const albedoTextureRotated = GPU.RenderTexture.Create(albedoTexture.width, albedoTexture.height);
+        // await GPU.Texture.Blit(albedoTexture, albedoTextureRotated, albedoTexture.width, albedoTexture.height, new Mathf.Vector2(-1, 1));
+        // albedoTexture = albedoTextureRotated;
 
         // shader.SetTexture("textSDFTexture", textSDFTexture);
 
@@ -984,7 +826,11 @@ export class ImpostorMesh extends Components.Mesh {
         shader.SetTexture("normalTexture", normalTexture);
         shader.SetValue("atlasTiles", atlasTiles);
 
-        this.impostorGeometry = geometry;
-        this.impostorShader = shader;
+        this.geometry = geometry;
+
+        this.material = new GPU.Material({
+            shader: shader,
+            isDeferred: true
+        })
     }
 }

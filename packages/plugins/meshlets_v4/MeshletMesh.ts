@@ -46,7 +46,8 @@ export class MeshletMesh extends Component {
         const ua = geometry.attributes.get("uv");
         const ta = geometry.attributes.get("tangent");
         const ia = geometry.index;
-        if (!pa || !na || !ua || !ia || !ta) throw Error("To create meshlets need indices, position, normal and uv attributes");
+        // This should just auto generate or something
+        if (!pa || !na || !ua || !ia || !ta) throw Error("To create meshlets need indices, position, normal, uv and tangent attributes");
 
 
         const p = pa.array as Float32Array;

@@ -4,12 +4,7 @@ import {
     IndexAttribute,
     VertexAttribute,
     Components,
-    Component,
-    Renderer,
-    GPU,
-    Scene,
     Mathf,
-    Utils
 } from "@trident/core";
 import { TerrainMaterial } from "./TerrainMaterial";
 
@@ -130,8 +125,6 @@ export class Terrain extends Components.Mesh {
         if (!this.heights || !this.geometry) return 0;
 
         const size = Math.sqrt(this.heights.length); // heightmap dimension N x N
-        const halfWidth = this.width * 0.5;
-        const halfLength = this.length * 0.5;
 
         // Convert world position to local [0,1] coordinate on heightmap
         const localX = (worldPosition.x - this.transform.position.x) / this.width;
