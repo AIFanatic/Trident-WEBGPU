@@ -309,6 +309,7 @@ const editor = {
             jsxFactory: 'createElement',
             jsxFragment: 'Fragment',
         }),
+        addJsExtensionToImports(),
         editorHtml(),
         cssBundle(),
         copyAssets('packages/editor/resources', 'dist/editor/resources')
