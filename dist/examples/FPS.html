@@ -27,9 +27,10 @@
             <script type="module">
                 const canvas = document.createElement("canvas");
                 document.body.appendChild(canvas);
-                            import { GPU, Scene, GameObject, Components, Mathf, Console, Geometry } from '@trident/core';
+                            import { GPU, Scene, GameObject, Components, Mathf, Console, Geometry, PBRMaterial } from '@trident/core';
             import { PhysicsRapier } from '@trident/plugins/PhysicsRapier/PhysicsRapier.js';
             import { TerrainCollider } from '@trident/plugins/PhysicsRapier/colliders/TerrainCollider.js';
+            import { PlaneCollider } from '@trident/plugins/PhysicsRapier/colliders/PlaneCollider.js';
             import { CapsuleCollider } from '@trident/plugins/PhysicsRapier/colliders/CapsuleCollider.js';
             import { ThirdPersonController } from '@trident/plugins/PhysicsRapier/ThirdPersonController.js';
             import { RigidBody, RigidbodyConstraints } from '@trident/plugins/PhysicsRapier/RigidBody.js';
@@ -37,7 +38,6 @@
             import { GLTFLoader } from '@trident/plugins/GLTF/GLTFLoader.js';
             import { UIColorStat, UIButtonStat, UISliderStat } from '@trident/plugins/ui/UIStats.js';
             import { Terrain } from '@trident/plugins/Terrain/Terrain.js';
-            import { Water } from '@trident/plugins/Water/WaterPlugin.js';
             import { PostProcessingPass } from '@trident/plugins/PostProcessing/PostProcessingPass.js';
             import { PostProcessingSMAA } from '@trident/plugins/PostProcessing/effects/SMAA.js';
             import { Sky } from '@trident/plugins/Environment/Sky.js';
@@ -223,22 +223,6 @@
                 const ta = 5e3;
                 await TerrainObjectSpawner("/extra/test-assets/Mountain Environment/Pine_trees/Prefabs/Prefab_Forest_pine_01.glb", ta);
               }
-              {
-                const scale = 1e3;
-                const waterGameObject = new GameObject(scene);
-                waterGameObject.transform.scale.set(scale, scale, 1);
-                waterGameObject.transform.eulerAngles.x = -90;
-                waterGameObject.transform.position.y = 25;
-                const water = waterGameObject.AddComponent(Water);
-                new UIColorStat(Debugger.ui, "Color deep:", new Mathf.Color(...water.settings.get("color_deep")).toHex().slice(0, 7), (value) => {
-                  const c = Mathf.Color.fromHex(parseInt(value.slice(1, value.length), 16));
-                  water.settings.set("color_deep", [c.r, c.g, c.b, c.a]);
-                });
-                new UIColorStat(Debugger.ui, "Color shallow:", new Mathf.Color(...water.settings.get("color_shallow")).toHex().slice(0, 7), (value) => {
-                  const c = Mathf.Color.fromHex(parseInt(value.slice(1, value.length), 16));
-                  water.settings.set("color_shallow", [c.r, c.g, c.b, c.a]);
-                });
-              }
               Console.getVar("r_exposure").value = 0;
               Console.getVar("r_shadows_csm_splittypepracticallambda").value = 0.99;
               mainCameraGameObject.transform.position.set(0, 0, 500);
@@ -254,6 +238,14 @@
               new UISliderStat(Debugger.ui, "Contrast:", -4, 4, 0.1, Console.getVar("r_contrast").value, (value) => Console.getVar("r_contrast").value = value);
               Debugger.Enable();
               {
+                const floorGameObject = new GameObject(scene);
+                floorGameObject.transform.eulerAngles.x = -90;
+                floorGameObject.transform.position.y = playerGameObject.transform.position.y - 5;
+                floorGameObject.transform.scale.set(1e3, 1e3, 1e3);
+                const floorMesh = floorGameObject.AddComponent(Components.Mesh);
+                floorMesh.geometry = Geometry.Plane();
+                floorGameObject.AddComponent(PlaneCollider);
+                floorMesh.material = new PBRMaterial();
                 window.addEventListener("dragover", (e) => {
                   e.preventDefault();
                 });
@@ -264,6 +256,7 @@
                   const url = URL.createObjectURL(file);
                   const obj = await GLTFLoader.loadAsGameObjects(scene, url, "glb");
                   obj.transform.position.copy(playerGameObject.transform.position);
+                  obj.transform.eulerAngles.x += 90;
                 });
               }
               scene.Start();

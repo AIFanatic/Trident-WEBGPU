@@ -3176,21 +3176,33 @@ class Geometry {
     }
     this.attributes.set("tangent", new VertexAttribute(tang));
   }
+  // Interleaved not supported for now
+  ToNonIndexed() {
+    if (!this.attributes.has("position") || !this.index) throw Error("Cannot convert to non indexed without vertices and indices");
+    const geometry = new Geometry();
+    const indices = this.index.array;
+    const positions = this.attributes.get("position")?.array;
+    const normals = this.attributes.get("normal")?.array;
+    const uvs = this.attributes.get("uv")?.array;
+    if (positions) geometry.attributes.set("position", new VertexAttribute(Geometry.ToNonIndexedAttribute(positions, indices, 3, 0, 3)));
+    if (normals) geometry.attributes.set("normal", new VertexAttribute(Geometry.ToNonIndexedAttribute(normals, indices, 3, 0, 3)));
+    if (uvs) geometry.attributes.set("uv", new VertexAttribute(Geometry.ToNonIndexedAttribute(uvs, indices, 2, 0, 2)));
+    return geometry;
+  }
   Destroy() {
     for (const [_, attribute] of this.attributes) attribute.Destroy();
     if (this.index) this.index.Destroy();
   }
-  static ToNonIndexed(vertices, indices) {
-    const itemSize = 3;
-    const array2 = new Float32Array(indices.length * itemSize);
-    let index = 0, index2 = 0;
-    for (let i = 0, l = indices.length; i < l; i++) {
-      index = indices[i] * itemSize;
+  static ToNonIndexedAttribute(src, indices, stride, offset, itemSize) {
+    const dst = new Float32Array(indices.length * itemSize);
+    let dstIndex = 0;
+    for (let i = 0; i < indices.length; i++) {
+      let srcIndex = indices[i] * stride + offset;
       for (let j = 0; j < itemSize; j++) {
-        array2[index2++] = vertices[index++];
+        dst[dstIndex++] = src[srcIndex++];
       }
     }
-    return array2;
+    return dst;
   }
   static Cube() {
     const vertices = new Float32Array([0.5, 0.5, 0.5, 0.5, 0.5, -0.5, 0.5, -0.5, 0.5, 0.5, -0.5, -0.5, -0.5, 0.5, -0.5, -0.5, 0.5, 0.5, -0.5, -0.5, -0.5, -0.5, -0.5, 0.5, -0.5, 0.5, -0.5, 0.5, 0.5, -0.5, -0.5, 0.5, 0.5, 0.5, 0.5, 0.5, -0.5, -0.5, 0.5, 0.5, -0.5, 0.5, -0.5, -0.5, -0.5, 0.5, -0.5, -0.5, -0.5, 0.5, 0.5, 0.5, 0.5, 0.5, -0.5, -0.5, 0.5, 0.5, -0.5, 0.5, 0.5, 0.5, -0.5, -0.5, 0.5, -0.5, 0.5, -0.5, -0.5, -0.5, -0.5, -0.5]);
@@ -4257,7 +4269,7 @@ class WEBGPURendererContext {
     if (!shader.params.topology || shader.params.topology === Topology.Triangles) {
       if (!geometry.index) {
         const positions = geometry.attributes.get("position");
-        const vertexCount = positions.GetBuffer().size / 4 / 4;
+        const vertexCount = positions.GetBuffer().size / 4 / 3;
         this.activeRenderPass.draw(vertexCount, instanceCount, 0, firstInstance);
       } else {
         const indexCount = geometry.index.count;
@@ -5227,6 +5239,11 @@ class DeferredLightingPass extends RenderPass {
     if (!this.initialized) return;
     if (this.drawCommands.length === 0) return;
     const GBufferDepth = resources.getResource(PassParams.GBufferDepth);
+    if (!GBufferDepth) return;
+    if (this.gBufferDepthClone.width !== GBufferDepth.width || this.gBufferDepthClone.height !== GBufferDepth.height) {
+      this.gBufferDepthClone.Destroy();
+      this.gBufferDepthClone = DepthTexture.Create(GBufferDepth.width, GBufferDepth.height, GBufferDepth.depth, GBufferDepth.format);
+    }
     RendererContext.CopyTextureToTextureV3({ texture: GBufferDepth }, { texture: this.gBufferDepthClone });
     RendererContext.BeginRenderPass("DeferredLightingPass", [{ target: this.outputLightingPass, clear: false }], { target: this.gBufferDepthClone, clear: false }, true);
     for (const draw of this.drawCommands) {
@@ -6759,6 +6776,10 @@ class PostExposureTonemap extends RenderPass {
     if (this.initialized === false) return;
     const LightingPassOutputTexture = resources.getResource(PassParams.LightingPassOutput);
     if (!LightingPassOutputTexture) return;
+    if (this.renderTarget.width !== LightingPassOutputTexture.width || this.renderTarget.height !== LightingPassOutputTexture.height) {
+      this.renderTarget.Destroy();
+      this.renderTarget = RenderTexture.Create(LightingPassOutputTexture.width, LightingPassOutputTexture.height, LightingPassOutputTexture.depth, LightingPassOutputTexture.format);
+    }
     this.shader.SetTexture("texture", LightingPassOutputTexture);
     this.shader.SetArray("params", new Float32Array([
       TextureViewerSettings.r_tonemapper.value,

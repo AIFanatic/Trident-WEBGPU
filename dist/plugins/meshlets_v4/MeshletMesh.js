@@ -88,7 +88,7 @@ const _MeshletMesh = class _MeshletMesh extends (_a = Component, _material_dec =
     const ua = geometry.attributes.get("uv");
     const ta = geometry.attributes.get("tangent");
     const ia = geometry.index;
-    if (!pa || !na || !ua || !ia || !ta) throw Error("To create meshlets need indices, position, normal and uv attributes");
+    if (!pa || !na || !ua || !ia || !ta) throw Error("To create meshlets need indices, position, normal, uv and tangent attributes");
     const p = pa.array;
     const n = na.array;
     const u = ua.array;

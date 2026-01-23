@@ -27,54 +27,59 @@
             <script type="module">
                 const canvas = document.createElement("canvas");
                 document.body.appendChild(canvas);
-                            import { GPU, Scene, GameObject, Components, Mathf, PBRMaterial, Geometry } from '@trident/core';
+                            import { GPU, Scene, GameObject, Components, Mathf, Geometry, PBRMaterial } from '@trident/core';
             import { OrbitControls } from '@trident/plugins/OrbitControls.js';
-            import { GLTFLoader } from '@trident/plugins/GLTF/GLTFLoader.js';
-            import { ImpostorMesh } from '@trident/plugins/Impostors/ImpostorMesh.js';
             import { Debugger } from '@trident/plugins/Debugger.js';
-            import { UITextureViewer } from '@trident/plugins/ui/UIStats.js';
+            import { GLTFLoader } from '@trident/plugins/GLTF/GLTFLoader.js';
+            import { Billboarder } from '@trident/plugins/Impostors/Billboarder.js';
             
             async function Application(canvas) {
               const renderer = GPU.Renderer.Create(canvas, "webgpu");
               const scene = new Scene(renderer);
               const mainCameraGameObject = new GameObject(scene);
-              mainCameraGameObject.transform.position.set(0, 0, -5);
               mainCameraGameObject.name = "MainCamera";
               const camera = mainCameraGameObject.AddComponent(Components.Camera);
-              camera.SetPerspective(72, canvas.width / canvas.height, 0.01, 500);
+              camera.SetPerspective(60, canvas.width / canvas.height, 0.5, 100);
+              mainCameraGameObject.transform.position.set(0, 0, 5);
+              mainCameraGameObject.transform.LookAt(new Mathf.Vector3(0, 0, 0));
               new OrbitControls(canvas, camera);
-              {
-                const lightGameObject = new GameObject(scene);
-                lightGameObject.transform.position.set(-4, 4, -4);
-                lightGameObject.transform.LookAtV1(new Mathf.Vector3(0, 0, 0));
-                const light = lightGameObject.AddComponent(Components.DirectionalLight);
-                light.intensity = 5;
-                light.range = 1;
-                light.color.set(1, 1, 1, 1);
-              }
+              const lightGameObject = new GameObject(scene);
+              lightGameObject.transform.position.set(-10, 10, 10);
+              lightGameObject.transform.LookAt(new Mathf.Vector3(0, 0, 0));
+              lightGameObject.AddComponent(Components.DirectionalLight);
+              const floor = new GameObject(scene);
+              floor.transform.position.y = -0.5;
+              floor.transform.scale.set(100, 100, 100);
+              floor.transform.eulerAngles.x = -90;
+              const meshbottom = floor.AddComponent(Components.Mesh);
+              meshbottom.geometry = Geometry.Plane();
+              meshbottom.material = new PBRMaterial();
               const model = await GLTFLoader.LoadFromURL("./assets/models/bunny.glb");
+              Scene.Instantiate(model);
               function traverse(object3D, func) {
                 func(object3D);
                 for (const child of object3D.children) traverse(child, func);
               }
               let geometry;
-              let material = new PBRMaterial();
               traverse(model, (prefab) => {
                 for (const component of prefab.components) {
                   if (component.type === Components.Mesh.type) {
                     geometry = new Geometry();
                     geometry.Deserialize(component.renderable.geometry);
+                    component.renderable.material;
                   }
                 }
               });
-              const go = new GameObject(scene);
-              const bunnyImpostor = go.AddComponent(ImpostorMesh);
-              await bunnyImpostor.Create(geometry, material);
-              new UITextureViewer(Debugger.ui, "Atlas", bunnyImpostor.albedoTexture);
-              new UITextureViewer(Debugger.ui, "Atlas", bunnyImpostor.normalTexture);
-              {
-                Scene.Instantiate(model, new Mathf.Vector3(3, 0, 0));
-              }
+              console.log("geometry", geometry);
+              const albedoTexture = GPU.Texture.Create(1, 1);
+              albedoTexture.SetSubData(new Float32Array([1, 1, 1, 1]), 1, 1, 0);
+              const billboardTexture = await Billboarder.Create(geometry, albedoTexture);
+              billboardTexture.name = "Billboard";
+              const billboard = new GameObject(scene);
+              billboard.transform.position.set(1, 1, 0);
+              const billboardMesh = billboard.AddComponent(Components.Mesh);
+              billboardMesh.geometry = Geometry.Plane();
+              billboardMesh.material = new PBRMaterial({ albedoMap: billboardTexture });
               Debugger.Enable();
               scene.Start();
             }

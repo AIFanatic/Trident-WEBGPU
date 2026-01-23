@@ -258,7 +258,10 @@ class Texture {
   extras;
   constructor(textureBase, currentLoader) {
     this.sampler = typeof textureBase.sampler === "number" && currentLoader.glTF.samplers ? currentLoader.glTF.samplers[textureBase.sampler] : null;
-    this.source = typeof textureBase.source === "number" && currentLoader.glTF.images ? currentLoader.glTF.images[textureBase.source] : null;
+    const ext = textureBase.extensions;
+    const extSource = ext?.EXT_texture_webp?.source ?? ext?.KHR_texture_basisu?.source;
+    const sourceIndex = typeof textureBase.source === "number" ? textureBase.source : typeof extSource === "number" ? extSource : null;
+    this.source = sourceIndex !== null && currentLoader.glTF.images ? currentLoader.glTF.images[sourceIndex] : null;
     this.name = textureBase.name !== void 0 ? textureBase.name : null;
     this.extensions = textureBase.extensions !== void 0 ? textureBase.extensions : null;
     this.extras = textureBase.extras !== void 0 ? textureBase.extras : null;

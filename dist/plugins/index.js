@@ -37,6 +37,7 @@ export { SpotLightHelper } from './SpotLightHelper.js';
 export { DirectionalLightHelper } from './DirectionalLightHelper.js';
 export { PointLightHelper } from './PointLightHelper.js';
 export { Atlas } from './Atlas.js';
+export { Billboarder } from './Impostors/Billboarder.js';
 export { ImpostorMesh } from './Impostors/ImpostorMesh.js';
 export { ParticleSystem } from './ParticleSystem/ParticleSystem.js';
 import { Component } from '@trident/core';

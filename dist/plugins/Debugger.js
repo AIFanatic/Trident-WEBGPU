@@ -147,6 +147,9 @@ class DebuggerRenderPass extends GPU.RenderPass {
     const lightingOutput = resources.getResource(GPU.PassParams.LightingPassOutput);
     if (!this.lightingOutputClone) {
       this.lightingOutputClone = GPU.Texture.Create(lightingOutput.width, lightingOutput.height, lightingOutput.depth, lightingOutput.format);
+    } else if (this.lightingOutputClone.width !== lightingOutput.width || this.lightingOutputClone.height !== lightingOutput.height) {
+      this.lightingOutputClone.Destroy();
+      this.lightingOutputClone = GPU.Texture.Create(lightingOutput.width, lightingOutput.height, lightingOutput.depth, lightingOutput.format);
     }
     this.outputViewerShader.SetTexture("inputTexture", GBufferAlbedo);
     if (this.currentViewType === 1 /* Albedo */) this.outputViewerShader.SetTexture("inputTexture", GBufferAlbedo);

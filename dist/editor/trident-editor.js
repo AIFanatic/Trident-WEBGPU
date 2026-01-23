@@ -1,5 +1,6 @@
 import { Renderer, Scene, GameObject, Mathf, Component as Component$1, Geometry, PBRMaterial, Utils, Components } from '@trident/core';
 import { OrbitControls } from '@trident/plugins/OrbitControls.js';
+import { GLTFLoader } from '@trident/plugins/GLTF/GLTFLoader.js';
 
 class TridentAPI {
   currentScene;
@@ -883,6 +884,9 @@ class LayoutAssets extends Component {
     });
   }
   onFileOrDirectoryCreated(path, file) {
+    if (file instanceof FileSystemDirectoryHandle) {
+      this.fileWatcher.watch(path);
+    }
     if (!this.state.currentTreeMap.has(path)) {
       this.state.currentTreeMap.set(path, {
         id: path,
@@ -899,8 +903,28 @@ class LayoutAssets extends Component {
     console.log(this.state.currentTreeMap);
     this.setState({ currentTreeMap: this.state.currentTreeMap });
   }
+  onToggled(item) {
+    console.log("onToggled", item);
+  }
+  async onItemClicked(item) {
+    console.log("onItemClicked", item);
+    if (!item.data.instance) {
+      if (item.data.file instanceof FileSystemFileHandle) {
+        const extension = item.data.file.name.slice(item.data.file.name.lastIndexOf(".") + 1);
+        if (extension === "glb") {
+          console.log(extension);
+          const data = await item.data.file.getFile();
+          const arrayBuffer = await data.arrayBuffer();
+          const prefab = await GLTFLoader.LoadFromArrayBuffer(arrayBuffer);
+          console.log(prefab);
+        }
+      }
+    }
+  }
+  onDropped(from, to) {
+    console.log("onDropped");
+  }
   render() {
-    console.log("RENDERRRR");
     let treeMapArr = [];
     for (const [name, entry] of this.state.currentTreeMap) {
       treeMapArr.push(entry);
@@ -922,6 +946,9 @@ class LayoutAssets extends Component {
       /* @__PURE__ */ createElement(
         Tree,
         {
+          onToggled: (item) => this.onToggled(item),
+          onDropped: (from, to) => this.onDropped(from, to),
+          onClicked: (data) => this.onItemClicked(data),
           data: treeMapArr
         }
       )

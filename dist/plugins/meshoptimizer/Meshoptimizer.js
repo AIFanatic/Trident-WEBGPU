@@ -1,4 +1,4 @@
-import { WASMHelper, WASMPointer } from './WASMHelper.js';
+import { WASMPointer, WASMHelper } from './WASMHelper.js';
 import Module from './MeshOptimizerModule.js';
 
 const attribute_size = 8;
@@ -16,9 +16,9 @@ class Meshoptimizer {
     }
   }
   // size_t meshopt_simplify(unsigned int* destination, const unsigned int* indices, size_t index_count, const float* vertex_positions_data, size_t vertex_count, size_t vertex_positions_stride, size_t target_index_count, float target_error, unsigned int options, float* out_result_error)
-  static meshopt_simplify(destination_length, indices, index_count, vertex_positions_data, vertex_count, vertex_positions_stride, target_index_count, target_error, options) {
+  static meshopt_simplify(indices, vertex_positions_data, vertex_count, vertex_positions_stride, target_index_count, target_error, options) {
     const MeshOptmizer = Meshoptimizer.module;
-    const destination = new WASMPointer(new Uint32Array(destination_length), "out");
+    const destination = new WASMPointer(new Uint32Array(indices.length), "out");
     const result_error = new WASMPointer(new Float32Array(1), "out");
     const ret = WASMHelper.call(
       MeshOptmizer,
@@ -28,7 +28,7 @@ class Meshoptimizer {
       // unsigned int* destination,
       new WASMPointer(indices),
       // const unsigned int* indices,
-      index_count,
+      indices.length,
       // size_t index_count,
       new WASMPointer(vertex_positions_data),
       // const float* vertex_positions,
@@ -44,7 +44,7 @@ class Meshoptimizer {
       result_error
       // float* result_error
     );
-    return { ret, destination: destination.data, out_result_error: result_error.data[0] };
+    return { destination: destination.data.slice(0, ret), result_error: result_error.data[0] };
   }
   // size_t meshopt_simplifyWithAttributes(unsigned int* destination, const unsigned int* indices, size_t index_count, const float* vertex_positions_data, size_t vertex_count, size_t vertex_positions_stride, const float* vertex_attributes_data, size_t vertex_attributes_stride, const float* attribute_weights, size_t attribute_count, const unsigned char* vertex_lock, size_t target_index_count, float target_error, unsigned int options, float* out_result_error)
   static meshopt_simplifyWithAttributes(destination_length, indices, index_count, vertex_positions_data, vertex_count, vertex_positions_stride, vertex_attributes_data, vertex_attributes_stride, attribute_weights, attribute_count, vertex_lock, target_index_count, target_error, options) {

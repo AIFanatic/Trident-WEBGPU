@@ -105,8 +105,6 @@ class Terrain extends Components.Mesh {
   SampleHeight(worldPosition) {
     if (!this.heights || !this.geometry) return 0;
     const size = Math.sqrt(this.heights.length);
-    this.width * 0.5;
-    this.length * 0.5;
     const localX = (worldPosition.x - this.transform.position.x) / this.width;
     const localZ = (worldPosition.z - this.transform.position.z) / this.length;
     const fx = Math.max(0, Math.min(1, localX)) * (size - 1);
