@@ -634,7 +634,13 @@ export class Texture {
 
 	constructor(textureBase: TextureBase, currentLoader: GLTFParser) {
 		this.sampler = (typeof textureBase.sampler === "number" && currentLoader.glTF.samplers) ? currentLoader.glTF.samplers[textureBase.sampler] : null;
-		this.source = (typeof textureBase.source === "number" && currentLoader.glTF.images) ? currentLoader.glTF.images[textureBase.source] : null;
+		// this.source = (typeof textureBase.source === "number" && currentLoader.glTF.images) ? currentLoader.glTF.images[textureBase.source] : null;
+
+		const ext = textureBase.extensions;
+		const extSource = (ext?.EXT_texture_webp?.source ?? ext?.KHR_texture_basisu?.source);
+		const sourceIndex = (typeof textureBase.source === "number") ? textureBase.source : (typeof extSource === "number") ? extSource : null;
+		this.source = (sourceIndex !== null && currentLoader.glTF.images) ? currentLoader.glTF.images[sourceIndex] : null;
+
 		this.name = (textureBase.name !== undefined) ? textureBase.name : null;
 		this.extensions = (textureBase.extensions !== undefined) ? textureBase.extensions : null;
 		this.extras = (textureBase.extras !== undefined) ? textureBase.extras : null;

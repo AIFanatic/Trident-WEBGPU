@@ -137,6 +137,40 @@ export class GLTFLoader {
         return out;
     }
 
+    private static readAccessorAsUint32(acc: Accessor): Uint32Array {
+        const stride = acc.bufferView.byteStride ?? 0;
+        const comps = GLTFLoader.componentCount(acc.type);
+        const compSize = GLTFLoader.byteSize(acc.componentType);
+
+        const bvU8 = acc.bufferView.data;
+        const baseInBV = acc.byteOffset ?? 0;
+        const baseInAB = bvU8.byteOffset + baseInBV;
+
+        const interleaved = stride > 0;
+        const out = new Uint32Array(acc.count * comps);
+        const dv = new DataView(bvU8.buffer);
+
+        const readScalarAt = (absByteOffset: number) => {
+            switch (acc.componentType) {
+                case AccessorComponentType.GL_UNSIGNED_BYTE: return dv.getUint8(absByteOffset);
+                case AccessorComponentType.GL_UNSIGNED_SHORT: return dv.getUint16(absByteOffset, true);
+                case AccessorComponentType.GL_UNSIGNED_INT: return dv.getUint32(absByteOffset, true);
+                default: throw Error("Unsupported componentType");
+            }
+        };
+
+        for (let i = 0; i < acc.count; i++) {
+            const elementBaseAbs = interleaved
+                ? baseInAB + i * stride
+                : baseInAB + i * comps * compSize;
+
+            for (let c = 0; c < comps; c++) {
+                out[i * comps + c] = readScalarAt(elementBaseAbs + c * compSize);
+            }
+        }
+        return out;
+    }
+
     // ---------- Primitive / Node parsing to Object3D (your existing pipeline, tidied) ----------
 
     private static async parsePrimitive(primitive: MeshPrimitive, textures?: Texture[]): Promise<Object3D> {
@@ -146,19 +180,8 @@ export class GLTFLoader {
         if (primitive.attributes.NORMAL) geometry.attributes.set("normal", new VertexAttribute(this.readAccessorAsFloat32(primitive.attributes.NORMAL)));
         if (primitive.attributes.TEXCOORD_0) geometry.attributes.set("uv", new VertexAttribute(this.readAccessorAsFloat32(primitive.attributes.TEXCOORD_0)));
 
-        // JOINTS_0 (u8/u16) → promote to u32 if your engine expects that
         if (primitive.attributes.JOINTS_0) {
-            const acc = primitive.attributes.JOINTS_0;
-            const comps = this.componentCount(acc.type); // should be VEC4 typically, but don’t assume
-            const byteLen = acc.count * comps * this.byteSize(acc.componentType);
-
-            const bytes = acc.bufferView.data.subarray(acc.byteOffset, acc.byteOffset + byteLen);
-            const jointsSrc = this.getTypedArrayView(bytes, acc.componentType) as Uint8Array | Uint16Array | Uint32Array;
-
-            // promote to u32 if your engine wants that
-            const jointsU32 = new Uint32Array(jointsSrc.length);
-            for (let i = 0; i < jointsSrc.length; i++) jointsU32[i] = jointsSrc[i];
-
+            const jointsU32 = this.readAccessorAsUint32(primitive.attributes.JOINTS_0);
             geometry.attributes.set("joints", new VertexAttribute(jointsU32));
         }
         if (primitive.attributes.WEIGHTS_0) {
@@ -195,6 +218,8 @@ export class GLTFLoader {
             const pbr = mat.pbrMetallicRoughness;
             if (pbr.baseColorFactor) materialParams.albedoColor = new Mathf.Color(...pbr.baseColorFactor);
 
+            console.log(textures)
+            console.log(pbr.baseColorTexture)
             if (pbr.baseColorTexture) materialParams.albedoMap = await this.getTexture(textures, pbr.baseColorTexture, "bgra8unorm-srgb");
             if (pbr.metallicRoughnessTexture) materialParams.metalnessMap = await this.getTexture(textures, pbr.metallicRoughnessTexture, "bgra8unorm");
 
@@ -269,14 +294,11 @@ export class GLTFLoader {
 
         let transforms: Map<GameObject, { position: Mathf.Vector3, rotation: Mathf.Quaternion, scale: Mathf.Vector3 }> = new Map();
 
-        // 1) Create empty GOs with transforms
+        // 1) Create empty GOs (set transforms after parenting)
         for (let i = 0; i < gltf.nodes.length; i++) {
             const n = gltf.nodes[i];
             const go = new GameObject(scene);
             go.name = n.name || `Node_${i}`;
-            go.transform.position.set(n.translation.x, n.translation.y, n.translation.z);
-            go.transform.rotation.set(n.rotation.x, n.rotation.y, n.rotation.z, n.rotation.w);
-            go.transform.scale.set(n.scale.x, n.scale.y, n.scale.z);
 
             nodeGOs.push(go);
             gameObjects.push(go);
@@ -291,10 +313,12 @@ export class GLTFLoader {
             }
         }
 
-        for (const [gameObject, transform] of transforms) {
-            gameObject.transform.position.copy(transform.position);
-            gameObject.transform.rotation.copy(transform.rotation);
-            gameObject.transform.scale.copy(transform.scale);
+        for (let i = 0; i < gltf.nodes.length; i++) {
+            const n = gltf.nodes[i];
+            const go = nodeGOs[i];
+            go.transform.localPosition.set(n.translation.x, n.translation.y, n.translation.z);
+            go.transform.localRotation.set(n.rotation.x, n.rotation.y, n.rotation.z, n.rotation.w);
+            go.transform.scale.set(n.scale.x, n.scale.y, n.scale.z);
         }
 
         // 3) Skins
@@ -474,7 +498,7 @@ export class GLTFLoader {
             for (const primitive of primitives) {
                 const { geometry, material } = await this.parsePrimitive(primitive, gltf.textures);
 
-                const hasSkin = !!primitive.attributes && !!(primitive.attributes as any).JOINTS_0 && !!(primitive.attributes as any).WEIGHTS_0;
+                const hasSkin = primitive.attributes && primitive.attributes.JOINTS_0 && primitive.attributes.WEIGHTS_0;
                 if (hasSkin) {
                     // SkinnedMesh serialization is not implemented; skip for now.
                     continue;
@@ -489,7 +513,7 @@ export class GLTFLoader {
 
                 const meshComponent = {
                     type: Components.Mesh.type,
-                    renderable
+                    renderable: renderable
                 };
 
                 const primGO = this.createEmptyGO(`${nodeGO.name}_Prim_${pIndex++}`);
