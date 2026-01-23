@@ -7,7 +7,7 @@ import { HDRParser } from "@trident/plugins/HDRParser";
 import { Environment } from "@trident/plugins/Environment/Environment";
 
 async function Application(canvas: HTMLCanvasElement) {
-    const renderer = GPU.Renderer.Create(canvas, "webgpu", 2);
+    const renderer = GPU.Renderer.Create(canvas, "webgpu", 1);
     const scene = new Scene(renderer);
 
     const mainCameraGameObject = new GameObject(scene);
@@ -35,9 +35,8 @@ async function Application(canvas: HTMLCanvasElement) {
     const environment = new Environment(scene, skyTexture);
     await environment.init();
 
-    const prefab = await GLTFLoader.LoadFromURL("./assets/models/DamagedHelmet/DamagedHelmet.gltf");
-    console.log(prefab)
-
+    // const prefab = await GLTFLoader.LoadFromURL("./assets/models/DamagedHelmet/DamagedHelmet.gltf");
+    const prefab = await GLTFLoader.LoadFromURL("./assets/models/Fox.glb");
     scene.Instantiate(prefab);
     Debugger.Enable();
 

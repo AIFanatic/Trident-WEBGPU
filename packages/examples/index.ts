@@ -60,3 +60,7 @@ import "./PathTracer";
 import "./EditorSkeuomorphic";
 
 import "./PBR2";
+
+import "./Billboard";
+
+import "./DrawBenchmark";

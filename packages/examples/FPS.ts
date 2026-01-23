@@ -479,24 +479,24 @@ async function Application(canvas: HTMLCanvasElement) {
 
 
 
-    // Water
-    {
-        const scale = 1000;
-        const waterGameObject = new GameObject(scene);
-        waterGameObject.transform.scale.set(scale, scale, 1);
-        waterGameObject.transform.eulerAngles.x = -90;
-        waterGameObject.transform.position.y = 25;
-        const water = waterGameObject.AddComponent(Water);
+    // // Water
+    // {
+    //     const scale = 1000;
+    //     const waterGameObject = new GameObject(scene);
+    //     waterGameObject.transform.scale.set(scale, scale, 1);
+    //     waterGameObject.transform.eulerAngles.x = -90;
+    //     waterGameObject.transform.position.y = 25;
+    //     const water = waterGameObject.AddComponent(Water);
 
-        new UIColorStat(Debugger.ui, "Color deep:", new Mathf.Color(...water.settings.get("color_deep")).toHex().slice(0, 7), value => {
-            const c = Mathf.Color.fromHex(parseInt(value.slice(1, value.length), 16));
-            water.settings.set("color_deep", [c.r, c.g, c.b, c.a]);
-        });
-        new UIColorStat(Debugger.ui, "Color shallow:", new Mathf.Color(...water.settings.get("color_shallow")).toHex().slice(0, 7), value => {
-            const c = Mathf.Color.fromHex(parseInt(value.slice(1, value.length), 16));
-            water.settings.set("color_shallow", [c.r, c.g, c.b, c.a]);
-        });
-    }
+    //     new UIColorStat(Debugger.ui, "Color deep:", new Mathf.Color(...water.settings.get("color_deep")).toHex().slice(0, 7), value => {
+    //         const c = Mathf.Color.fromHex(parseInt(value.slice(1, value.length), 16));
+    //         water.settings.set("color_deep", [c.r, c.g, c.b, c.a]);
+    //     });
+    //     new UIColorStat(Debugger.ui, "Color shallow:", new Mathf.Color(...water.settings.get("color_shallow")).toHex().slice(0, 7), value => {
+    //         const c = Mathf.Color.fromHex(parseInt(value.slice(1, value.length), 16));
+    //         water.settings.set("color_shallow", [c.r, c.g, c.b, c.a]);
+    //     });
+    // }
 
     Console.getVar("r_exposure").value = 0;
     Console.getVar("r_shadows_csm_splittypepracticallambda").value = 0.99;
@@ -529,6 +529,15 @@ async function Application(canvas: HTMLCanvasElement) {
 
     // Drag and drop models
     {
+    const floorGameObject = new GameObject(scene);
+    floorGameObject.transform.eulerAngles.x = -90;
+    floorGameObject.transform.position.y = playerGameObject.transform.position.y - 5;
+    floorGameObject.transform.scale.set(1000, 1000, 1000);
+    const floorMesh = floorGameObject.AddComponent(Components.Mesh);
+    floorMesh.geometry = Geometry.Plane();
+    floorGameObject.AddComponent(PlaneCollider);
+    floorMesh.material = new PBRMaterial();
+    
         window.addEventListener("dragover", (e) => {
             e.preventDefault(); // allow drop
         });
@@ -542,6 +551,7 @@ async function Application(canvas: HTMLCanvasElement) {
             const url = URL.createObjectURL(file);
             const obj = await GLTFLoader.loadAsGameObjects(scene, url, "glb");
             obj.transform.position.copy(playerGameObject.transform.position);
+            obj.transform.eulerAngles.x += 90
         });
     }
 
