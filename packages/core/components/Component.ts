@@ -55,6 +55,8 @@ export class Component {
             const value = data[property];
 
             if (typeof value === "boolean" || typeof value === "number" || typeof value === "string") this[property] = value;
+            // This is meh, basically relies on the property having an initializer on the class 
+            else if (this[property] instanceof Float32Array || this[property] instanceof Array) this[property] = value;
             else if (this[property]["Deserialize"]) this[property]["Deserialize"](value);
             else throw Error(`Could not Deserialize ${this.constructor["type"]}::${property as string}`);
         }

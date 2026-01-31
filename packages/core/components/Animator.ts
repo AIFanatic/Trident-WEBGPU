@@ -5,227 +5,241 @@ import { SerializeField } from "../utils/SerializeField";
 
 export type AnimationPath = "translation" | "rotation" | "scale" | "weights";
 
-export interface AnimationSampler {
-    times: Float32Array;    // keyframe times (sec)
-    values: Float32Array;   // values (packed)
+export interface SerializedAnimationClipDef {
+    name: string;
+    duration: number;
+}
+
+export interface SerializedAnimationTrackClip {
+    clipIndex: number;
+    channels: SerializedAnimationChannel[];
+}
+
+export interface SerializedAnimationSampler {
+    times: number[];
+    values: number[];
     keyCount: number;
     compCount: number;
 }
 
-interface AnimationChannel {
-    sampler: AnimationSampler,
-    targetTransform: Transform,
-    path: AnimationPath,
+export interface SerializedAnimationChannel {
+    path: AnimationPath;
+    sampler: SerializedAnimationSampler;
 }
 
-export class AnimationClip {
-    public name: string;
-    public channels: AnimationChannel[];
-    private duration: number;
-    constructor(name: string, channels: AnimationChannel[], duration: number) {
-        this.name = name;
-        this.channels = channels;
-        this.duration = duration;
+export interface SerializedAnimationClip {
+    name: string;
+    duration: number;
+    channels: SerializedAnimationChannel[];
+}
+
+export class AnimationTrack extends Component {
+    public static type = "@trident/core/components/AnimationTrack";
+
+    @SerializeField
+    public clips: SerializedAnimationTrackClip[] = [];
+
+    // O(1) lookup cache (built once)
+    private _clipsByIndex: (SerializedAnimationTrackClip | null)[] | null = null;
+
+    private ensureClipCache() {
+        if (this._clipsByIndex) return;
+        let max = -1;
+        for (const c of this.clips) if (c.clipIndex > max) max = c.clipIndex;
+        const arr = new Array(max + 1).fill(null);
+        for (const c of this.clips) arr[c.clipIndex] = c;
+        this._clipsByIndex = arr;
+    }
+
+    private getClip(clipIndex: number) {
+        this.ensureClipCache();
+        return this._clipsByIndex![clipIndex] ?? null;
+    }
+
+    private sampleSampler(sampler: SerializedAnimationSampler, t: number, out: Vector3 | Quaternion): Quaternion | Vector3 {
+        const times = sampler.times;
+        const lastT = times[sampler.keyCount - 1] ?? 0;
+        const time = sampler.keyCount > 1 ? (t % lastT) : 0;
+
+        let i1 = 0; while (i1 < sampler.keyCount && times[i1] < time) ++i1;
+        if (i1 === 0) i1 = 1;
+        if (i1 >= sampler.keyCount) i1 = sampler.keyCount - 1;
+        const i0 = i1 - 1;
+
+        const t0 = times[i0];
+        const t1 = times[i1];
+        const u = t1 > t0 ? (time - t0) / (t1 - t0) : 0;
+
+        const c = sampler.compCount;
+        const base0 = i0 * c;
+        const base1 = i1 * c;
+
+        if (c === 4 && out instanceof Quaternion) {
+            const qa = sampler.values.slice(base0, base0 + 4);
+            const qb = sampler.values.slice(base1, base1 + 4);
+            const _qa = new Quaternion(...qa as any);
+            const _qb = new Quaternion(...qb as any);
+            out.copy(_qa).slerp(_qb, u);
+        } else if (c === 3 && out instanceof Vector3) {
+            const a = sampler.values.slice(base0, base0 + 3);
+            const b = sampler.values.slice(base1, base1 + 3);
+            const _a = new Vector3(...a as any);
+            const _b = new Vector3(...b as any);
+            out.copy(_a).lerp(_b, u);
+        }
+        return out;
+    }
+
+    public apply(clipIndex: number, time: number) {
+        const clip = this.getClip(clipIndex);
+        if (!clip) return;
+
+        const tr = this.gameObject.transform;
+        for (const ch of clip.channels) {
+            if (ch.path === "translation") {
+                this.sampleSampler(ch.sampler, time, tr.localPosition);
+            } else if (ch.path === "scale") {
+                this.sampleSampler(ch.sampler, time, tr.scale);
+            } else if (ch.path === "rotation") {
+                this.sampleSampler(ch.sampler, time, tr.localRotation).normalize();
+            }
+        }
+    }
+
+    public applyBlended(clipA: number, tA: number, clipB: number, tB: number, alpha: number) {
+        const a = this.getClip(clipA);
+        const b = this.getClip(clipB);
+        if (!a && !b) return;
+
+        // if only one clip exists on this track
+        if (a && !b) return this.apply(clipA, tA);
+        if (!a && b) return this.apply(clipB, tB);
+
+        const tr = this.gameObject.transform;
+
+        for (const chA of a.channels) {
+            const chB = b.channels.find(ch => ch.path === chA.path);
+            if (!chB) {
+                // no matching channel: just apply A
+                if (chA.path === "translation") this.sampleSampler(chA.sampler, tA, tr.localPosition);
+                else if (chA.path === "scale") this.sampleSampler(chA.sampler, tA, tr.scale);
+                else if (chA.path === "rotation") this.sampleSampler(chA.sampler, tA, tr.localRotation).normalize();
+                continue;
+            }
+
+            if (chA.path === "translation") {
+                const v0 = new Vector3();
+                const v1 = new Vector3();
+                this.sampleSampler(chA.sampler, tA, v0);
+                this.sampleSampler(chB.sampler, tB, v1);
+                tr.localPosition.copy(v0.lerp(v1, alpha));
+            } else if (chA.path === "scale") {
+                const v0 = new Vector3();
+                const v1 = new Vector3();
+                this.sampleSampler(chA.sampler, tA, v0);
+                this.sampleSampler(chB.sampler, tB, v1);
+                tr.scale.copy(v0.lerp(v1, alpha));
+            } else if (chA.path === "rotation") {
+                const q0 = new Quaternion();
+                const q1 = new Quaternion();
+                this.sampleSampler(chA.sampler, tA, q0);
+                this.sampleSampler(chB.sampler, tB, q1);
+                tr.localRotation.copy(q0.slerp(q1, alpha)).normalize();
+            }
+        }
     }
 }
-// --- new helper type ---
-class AnimationState {
-    public clip: AnimationClip;
-    public time: number = 0;
-    public speed: number = 1;
-    constructor(clip: AnimationClip, speed = 1) {
-        this.clip = clip;
-        this.speed = speed;
-    }
-}
+
+Component.Registry.set(AnimationTrack.type, AnimationTrack);
 
 export class Animator extends Component {
-    public clips: AnimationClip[];
+    public static type = "@trident/core/components/Animator";
 
-    private playing: boolean;
-    public clipIndex: number;
+    @SerializeField
+    public clips: SerializedAnimationClipDef[] = [];
 
-    private previousTime: number;
+    public clipIndex = 0;
+    private playing = false;
+    private previousTime = 0;
 
-    // --- blending state ---
-    private current?: AnimationState;
-    private next?: AnimationState;
-    private fadeDuration: number = 0;
-    private fadeTime: number = 0;
+    private tracks: AnimationTrack[] = [];
 
-    constructor(gameObject) {
-        super(gameObject);
-        this.clips = [];
-        this.playing = false;
-        this.clipIndex = 0;
+    // blend state
+    private currentTime = 0;
+    private nextTime = 0;
+    private fadeDuration = 0;
+    private fadeTime = 0;
+    private nextClipIndex: number | null = null;
+
+    public Start(): void {
+        this.previousTime = performance.now();
+        this.tracks = [];
+        this.collectTracks(this.gameObject.transform);
+        this.playing = true;
     }
 
-    public SetClipByIndex(i: number, speed = 1) {
-        this.clipIndex = Math.max(0, Math.min(i, this.clips.length - 1));
-        const clip = this.clips[this.clipIndex];
-        this.current = clip ? new AnimationState(clip, speed) : undefined;
-        this.next = undefined;
+    private collectTracks(root: Transform) {
+        const track = root.gameObject.GetComponent(AnimationTrack);
+        if (track) this.tracks.push(track);
+        for (const child of root.children) this.collectTracks(child);
+    }
+
+    public SetClipByIndex(i: number) {
+        this.clipIndex = Math.max(0, i);
+        this.currentTime = 0;
+        this.nextClipIndex = null;
         this.fadeDuration = 0;
         this.fadeTime = 0;
         this.playing = true;
     }
 
-    // Start a crossfade into another clip over `duration` seconds
-    public CrossFadeTo(i: number, duration: number = 0.25, speed = 1) {
-        if (this.clips.length === 0) return;
-        const targetIdx = Math.max(0, Math.min(i, this.clips.length - 1));
-        const target = this.clips[targetIdx];
-        if (!target) return;
-
-        if (!this.current) {
-            // nothing playing yet: just start it
-            this.SetClipByIndex(targetIdx);
-            return;
-        }
-
-        this.next = new AnimationState(target, speed);
+    public CrossFadeTo(i: number, duration: number = 0.25) {
+        this.nextClipIndex = Math.max(0, i);
+        this.nextTime = 0;
         this.fadeDuration = Math.max(0.0001, duration);
         this.fadeTime = 0;
         this.playing = true;
     }
 
-    public Start(): void {
-        this.previousTime = performance.now();
-    }
-
     public Update() {
+        if (!this.playing) return;
         const now = performance.now();
         const dt = (now - this.previousTime) / 1000;
         this.previousTime = now;
 
-        if (!this.playing || !this.current) return;
-
-        // advance times
-        this.current.time += dt * (this.current.speed);
-        if (this.next) {
-            this.next.time += dt * (this.next.speed);
+        this.currentTime += dt;
+        if (this.nextClipIndex !== null) {
+            this.nextTime += dt;
             this.fadeTime += dt;
         }
 
-        // apply poses
-        if (!this.next) {
-            // no blend
-            this.apply(this.current.clip, this.current.time);
+        if (this.nextClipIndex === null) {
+            for (const track of this.tracks) {
+                track.apply(this.clipIndex, this.currentTime);
+            }
         } else {
             const alpha = Math.min(1, this.fadeTime / this.fadeDuration);
-            this.applyBlended(this.current.clip, this.current.time, this.next.clip, this.next.time, alpha);
-
-            // finish blend
+            for (const track of this.tracks) {
+                track.applyBlended(this.clipIndex, this.currentTime, this.nextClipIndex, this.nextTime, alpha);
+            }
             if (alpha >= 1) {
-                this.current = this.next;
-                this.next = undefined;
+                this.clipIndex = this.nextClipIndex;
+                this.currentTime = this.nextTime;
+                this.nextClipIndex = null;
                 this.fadeDuration = 0;
                 this.fadeTime = 0;
             }
         }
     }
 
-    // unchanged sampler
-    private sampleSampler(sampler: AnimationSampler, t: number, out: Vector3 | Quaternion): Quaternion | Vector3 {
-        const times = sampler.times;
-        const lastT = times[sampler.keyCount - 1];
-        const time = sampler.keyCount > 1 ? (t % lastT) : 0;
-        let i1 = 0; while (i1 < sampler.keyCount && times[i1] < time) ++i1;
-        if (i1 === 0) i1 = 1;
-        if (i1 >= sampler.keyCount) i1 = sampler.keyCount - 1;
-        const i0 = i1 - 1;
-        const t0 = times[i0];
-        const t1 = times[i1];
-        const u = t1 > t0 ? (time - t0) / (t1 - t0) : 0;
-        const c = sampler.compCount;
-        const base0 = i0 * c;
-        const base1 = i1 * c;
-        if (c === 4 && out instanceof Quaternion) {
-            const qa = sampler.values.subarray(base0, base0 + 4);
-            const qb = sampler.values.subarray(base1, base1 + 4);
-            const _qa = new Quaternion(...qa);
-            const _qb = new Quaternion(...qb);
-            out.copy(_qa).slerp(_qb, u);
-        } else if (c === 3 && out instanceof Vector3) {
-            const a = sampler.values.subarray(base0, base0 + 3);
-            const b = sampler.values.subarray(base1, base1 + 3);
-            const _a = new Vector3(...a);
-            const _b = new Vector3(...b);
-            out.copy(_a).lerp(_b, u);
-        } else {
-            throw Error("Not implemented");
+    public GetClipIndexByName(name: string): number {
+        if (!this.tracks.length) {
+            this.tracks = [];
+            this.collectTracks(this.gameObject.transform);
         }
-        return out;
-    }
-
-    // find a channel in `clip` matching the same target transform & path
-    private findChannel(clip: AnimationClip, target: Transform, path: AnimationPath) {
-        // You could hash on IDs if your Transform has them; this simple version compares object identity.
-        return clip.channels.find(ch => ch.targetTransform === target && ch.path === path);
-    }
-
-    // original apply (no blend)
-    apply(clip: AnimationClip, time: number) {
-        for (const ch of clip.channels) {
-            switch (ch.path) {
-                case 'translation': this.sampleSampler(ch.sampler, time, ch.targetTransform.localPosition); break;
-                case 'scale':       this.sampleSampler(ch.sampler, time, ch.targetTransform.scale); break;
-                case 'rotation':    this.sampleSampler(ch.sampler, time, ch.targetTransform.localRotation).normalize(); break;
-                default: break;
-            }
-        }
-    }
-
-    // blended apply between two clips at times tA/tB and factor alpha
-    private applyBlended(clipA: AnimationClip, tA: number, clipB: AnimationClip, tB: number, alpha: number) {
-        // Iterate over union of targets/paths from A and B.
-        // We’ll iterate A, then handle any extra channels from B that weren’t in A.
-        const visited = new Set<AnimationChannel>();
-
-        // temp holders to avoid allocations
-        const tmpV0 = new Vector3();
-        const tmpV1 = new Vector3();
-        const tmpQ0 = new Quaternion();
-        const tmpQ1 = new Quaternion();
-
-        for (const chA of clipA.channels) {
-            visited.add(chA);
-            const chB = this.findChannel(clipB, chA.targetTransform, chA.path);
-            const tr = chA.targetTransform;
-
-            if (chA.path === 'translation') {
-                this.sampleSampler(chA.sampler, tA, tmpV0);
-                if (chB) this.sampleSampler(chB.sampler, tB, tmpV1);
-                tr.localPosition.copy(chB ? tmpV0.lerp(tmpV1, alpha) : tmpV0);
-            } else if (chA.path === 'scale') {
-                this.sampleSampler(chA.sampler, tA, tmpV0);
-                if (chB) this.sampleSampler(chB.sampler, tB, tmpV1);
-                tr.scale.copy(chB ? tmpV0.lerp(tmpV1, alpha) : tmpV0);
-            } else if (chA.path === 'rotation') {
-                this.sampleSampler(chA.sampler, tA, tmpQ0);
-                if (chB) this.sampleSampler(chB.sampler, tB, tmpQ1);
-                tr.localRotation.copy(chB ? tmpQ0.slerp(tmpQ1, alpha) : tmpQ0).normalize();
-            }
-        }
-
-        // Channels that exist only in B
-        for (const chB of clipB.channels) {
-            // "visited" is by object; we must check if there's any A-channel matching B's target/path.
-            const chA = this.findChannel(clipA, chB.targetTransform, chB.path);
-            if (chA) continue; // already blended above
-
-            const tr = chB.targetTransform;
-            if (chB.path === 'translation') {
-                this.sampleSampler(chB.sampler, tB, tmpV1);
-                // Blend from current transform (what A left there) to B — or just snap toward B:
-                tr.localPosition.lerp(tmpV1, alpha);
-            } else if (chB.path === 'scale') {
-                this.sampleSampler(chB.sampler, tB, tmpV1);
-                tr.scale.lerp(tmpV1, alpha);
-            } else if (chB.path === 'rotation') {
-                this.sampleSampler(chB.sampler, tB, tmpQ1);
-                tr.localRotation.slerp(tmpQ1, alpha).normalize();
-            }
-        }
+        if (!this.clips.length) return -1;
+        return this.clips.findIndex(c => c.name === name);
     }
 }
+
+Component.Registry.set(Animator.type, Animator);

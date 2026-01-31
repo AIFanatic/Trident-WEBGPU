@@ -10,7 +10,8 @@ import {
     IndexAttribute, VertexAttribute,
     Prefab,
     GPU,
-    Assets
+    Assets,
+    Utils
 } from "@trident/core";
 
 import { GLTFParser, MeshPrimitive, Texture, Node, AccessorComponentType, GLTF, TextureInfo, Accessor } from './GLTFParser'
@@ -174,7 +175,7 @@ export class GLTFLoader {
 
     // ---------- Primitive / Node parsing to Object3D (your existing pipeline, tidied) ----------
 
-    private static async parsePrimitive(primitive: MeshPrimitive, textures?: Texture[]): Promise<{geometry: Geometry, material: GPU.Material}> {
+    private static async parsePrimitive(primitive: MeshPrimitive, textures?: Texture[]): Promise<{ geometry: Geometry, material: GPU.Material }> {
         const geometry = new Geometry();
 
         if (primitive.attributes.POSITION) geometry.attributes.set("position", new VertexAttribute(this.readAccessorAsFloat32(primitive.attributes.POSITION)));
@@ -220,7 +221,7 @@ export class GLTFLoader {
             if (pbr.baseColorFactor) materialParams.albedoColor = new Mathf.Color(...pbr.baseColorFactor);
 
             if (pbr.baseColorTexture) materialParams.albedoMap = await this.getTexture(textures, pbr.baseColorTexture, "bgra8unorm-srgb");
-            if (pbr.metallicRoughnessTexture) materialParams.metalnessMap = await this.getTexture(textures, pbr.metallicRoughnessTexture, "bgra8unorm");
+            if (pbr.metallicRoughnessTexture) materialParams.armMap = await this.getTexture(textures, pbr.metallicRoughnessTexture, "bgra8unorm");
 
             if (pbr.roughnessFactor !== undefined) materialParams.roughness = pbr.roughnessFactor;
             if (pbr.metallicFactor !== undefined) materialParams.metalness = pbr.metallicFactor;
@@ -326,6 +327,90 @@ export class GLTFLoader {
             }
         }
 
+        if (gltf.skins) {
+            for (let skinIndex = 0; skinIndex < gltf.skins.length; skinIndex++) {
+                const s = gltf.skins[skinIndex];
+                const ibm = s.inverseBindMatricesData as Float32Array;
+                if (!ibm) continue;
+
+                for (let i = 0; i < s.joints.length; i++) {
+                    const jointIdx = nodeIndex.get(s.joints[i])!;
+                    const jointGO = nodes[jointIdx];
+
+                    jointGO.components.push({
+                        type: Components.Bone.type,
+                        index: i,
+                        skinId: skinIndex,
+                        inverseBindMatrix: Array.from(new Float32Array(ibm.buffer, ibm.byteOffset + Float32Array.BYTES_PER_ELEMENT * 16 * i, 16))
+                    });
+                }
+            }
+        }
+
+        if (gltf.animations && gltf.animations.length) {
+            const compCountForPath = (path: string) =>
+                path === 'translation' || path === 'scale' ? 3 :
+                    path === 'rotation' ? 4 : 1;
+
+            const clipDefs: SerializedAnimationClipDef[] = [];
+            const nodeTracks: SerializedAnimationTrackClip[][] = gltf.nodes.map(() => []);
+
+            for (let a = 0; a < gltf.animations.length; a++) {
+                const anim = gltf.animations[a];
+                const perNodeChannels: Map<number, SerializedAnimationChannel[]> = new Map();
+                let duration = 0;
+
+                for (const ch of anim.channels) {
+                    const targetIdx = ch.target.nodeID!;
+                    const times = Array.from(ch.sampler.keyFrameIndices as Float32Array);
+                    const values = Array.from(ch.sampler.keyFrameRaw as Float32Array);
+                    duration = Math.max(duration, times[times.length - 1] ?? 0);
+
+                    const channel: SerializedAnimationChannel = {
+                        path: ch.target.path as any,
+                        sampler: {
+                            times,
+                            values,
+                            keyCount: times.length,
+                            compCount: compCountForPath(ch.target.path)
+                        }
+                    };
+
+                    if (!perNodeChannels.has(targetIdx)) perNodeChannels.set(targetIdx, []);
+                    perNodeChannels.get(targetIdx)!.push(channel);
+                }
+
+                const clipIndex = clipDefs.length;
+                clipDefs.push({
+                    name: anim.name || `Animation ${a}`,
+                    duration
+                });
+
+                for (const [nodeId, channels] of perNodeChannels) {
+                    nodeTracks[nodeId].push({
+                        clipIndex,
+                        channels
+                    });
+                }
+            }
+
+            for (let i = 0; i < nodes.length; i++) {
+                if (nodeTracks[i].length) {
+                    nodes[i].components.push({
+                        id: Utils.UUID(),
+                        type: Components.AnimationTrack.type,
+                        clips: nodeTracks[i]
+                    });
+                }
+            }
+
+            (nodes[0] as any).__rootAnimator = {
+                id: Utils.UUID(),
+                type: Components.Animator.type,
+                clips: clipDefs
+            };
+        }
+
         // Mesh primitives -> child GOs
         for (let i = 0; i < gltf.nodes.length; i++) {
             const node = gltf.nodes[i];
@@ -346,21 +431,26 @@ export class GLTFLoader {
                 await Assets.SetInstance(geometryKey, geometryInstance);
                 await Assets.SetInstance(materialKey, materialInstance);
 
+                const primGO = this.createEmptyGO(`${nodeGO.name}_Prim_${pIndex++}`);
+
                 const hasSkin = primitive.attributes && primitive.attributes.JOINTS_0 && primitive.attributes.WEIGHTS_0;
                 if (hasSkin) {
-                    // SkinnedMesh serialization is not implemented; skip for now.
-                    continue;
+                    primGO.components.push({
+                        type: Components.SkinnedMesh.type,
+                        geometry: { assetPath: geometryKey },
+                        material: { assetPath: materialKey },
+                        enableShadows: true
+                    });
+                }
+                else {
+                    primGO.components.push({
+                        type: Components.Mesh.type,
+                        geometry: { assetPath: geometryKey },
+                        material: { assetPath: materialKey },
+                        enableShadows: true
+                    });
                 }
 
-                const meshComponent = {
-                    type: Components.Mesh.type,
-                    geometry: {assetPath: geometryKey},
-                    material: {assetPath: materialKey},
-                    enableShadows: true
-                };
-
-                const primGO = this.createEmptyGO(`${nodeGO.name}_Prim_${pIndex++}`);
-                primGO.components.push(meshComponent);
                 nodeGO.children.push(primGO);
             }
         }
@@ -376,178 +466,10 @@ export class GLTFLoader {
             if (!childIDs.has(i)) root.children.push(nodes[i]);
         }
 
+        if ((nodes[0] as any).__rootAnimator) {
+            root.components.push((nodes[0] as any).__rootAnimator);
+        }
+
         return root;
-    }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-    public static async loadAsGameObjects(scene: Scene, url: string, format?: "glb" | "gltf"): Promise<GameObject> {
-        let cached = GLTFLoader.cache.get(url);
-        if (!cached) {
-            if (url.endsWith(".glb") || format === "glb") cached = await new GLTFParser().loadGLBUrl(url);
-            else if (url.endsWith(".gltf") || format === "gltf") cached = await new GLTFParser().loadGLTF(url);
-            GLTFLoader.cache.set(url, cached);
-        }
-
-        return this.parseAsGameObjects(scene, cached);
-    }
-
-    public static async loadAsGameObjectsFromArrayBuffer(scene: Scene, arrayBuffer: ArrayBuffer, key?: any): Promise<GameObject> {
-        let cached = GLTFLoader.cache.get(key);
-        if (!cached) {
-            cached = await new GLTFParser().parseGLB(arrayBuffer);
-            GLTFLoader.cache.set(key, cached);
-        }
-        return this.parseAsGameObjects(scene, cached);
-    }
-
-    private static async parseAsGameObjects(scene: Scene, gltf: GLTF): Promise<GameObject> {
-        const gameObjects: GameObject[] = [];
-        const nodeGOs: GameObject[] = [];
-        const skins: Components.Skin[] = [];
-        const clips: Components.AnimationClip[] = [];
-
-        if (!gltf.nodes) return null;
-
-        // Build quick lookup to avoid indexOf on nodes later
-        const nodeIndex = new Map<Node, number>();
-        gltf.nodes.forEach((n, i) => nodeIndex.set(n, i));
-
-        let transforms: Map<GameObject, { position: Mathf.Vector3, rotation: Mathf.Quaternion, scale: Mathf.Vector3 }> = new Map();
-
-        // 1) Create empty GOs (set transforms after parenting)
-        for (let i = 0; i < gltf.nodes.length; i++) {
-            const n = gltf.nodes[i];
-            const go = new GameObject(scene);
-            go.name = n.name || `Node_${i}`;
-
-            nodeGOs.push(go);
-            gameObjects.push(go);
-        }
-
-        // 2) Wire hierarchy
-        for (let i = 0; i < gltf.nodes.length; i++) {
-            const n = gltf.nodes[i];
-            const go = nodeGOs[i];
-            for (const childId of n.childrenID) {
-                nodeGOs[childId].transform.parent = go.transform;
-            }
-        }
-
-        for (let i = 0; i < gltf.nodes.length; i++) {
-            const n = gltf.nodes[i];
-            const go = nodeGOs[i];
-            go.transform.localPosition.set(n.translation.x, n.translation.y, n.translation.z);
-            go.transform.localRotation.set(n.rotation.x, n.rotation.y, n.rotation.z, n.rotation.w);
-            go.transform.scale.set(n.scale.x, n.scale.y, n.scale.z);
-        }
-
-        // 3) Skins
-        if (gltf.skins) {
-            for (const s of gltf.skins) {
-                const jointTransforms = s.joints.map(j => nodeGOs[nodeIndex.get(j)!].transform);
-                const ibm = s.inverseBindMatricesData;
-                if (!ibm) continue;
-                skins.push(new Components.Skin(jointTransforms, ibm as Float32Array));
-            }
-        }
-
-        // 4) Animations
-        if (gltf.animations) {
-            const compCountForPath = (path: string) =>
-                path === 'translation' || path === 'scale' ? 3 :
-                    path === 'rotation' ? 4 :
-                        path === 'weights' ? 1 : 1;
-
-            for (const a of gltf.animations) {
-                const channels: any[] = [];
-                let duration = 0;
-
-                for (const ch of a.channels) {
-                    const targetIdx = ch.target.nodeID!;
-                    const targetTransform = nodeGOs[targetIdx].transform;
-                    const times = ch.sampler.keyFrameIndices as Float32Array;
-                    const values = ch.sampler.keyFrameRaw as Float32Array;
-
-                    duration = Math.max(duration, times[times.length - 1] ?? 0);
-
-                    const sampler: Components.AnimationSampler = {
-                        times,
-                        values,
-                        keyCount: times.length,
-                        compCount: compCountForPath(ch.target.path)
-                    };
-                    channels.push({ sampler, targetTransform, path: ch.target.path });
-                }
-                clips.push(new Components.AnimationClip(a.name || `Animation ${clips.length}`, channels, duration));
-            }
-        }
-
-        // 5) Attach mesh components (one child GO per primitive)
-        for (let i = 0; i < gltf.nodes.length; i++) {
-            const node = gltf.nodes[i];
-            if (!node.mesh) continue;
-
-            const nodeGO = nodeGOs[i];
-            const skinIdx = node.skin ? gltf.skins!.indexOf(node.skin) : -1;
-            const skin = skinIdx >= 0 ? skins[skinIdx] : undefined;
-
-            const primitives = node.mesh.primitives ?? [];
-            let pIndex = 0;
-            for (const primitive of primitives) {
-                const primGO = new GameObject(scene);
-                primGO.name = `${nodeGO.name}_Prim_${pIndex++}`;
-                primGO.transform.parent = nodeGO.transform;
-
-                const { geometry, material } = await this.parsePrimitive(primitive, gltf.textures);
-
-                const hasSkin = !!primitive.attributes && !!(primitive.attributes as any).JOINTS_0 && !!(primitive.attributes as any).WEIGHTS_0;
-
-                const mesh = hasSkin && skin ? primGO.AddComponent(Components.SkinnedMesh) : primGO.AddComponent(Components.Mesh);
-                if (mesh instanceof Components.SkinnedMesh) mesh.skin = skin;
-
-                mesh.geometry = geometry;
-                mesh.material = material;
-            }
-        }
-
-        if (clips.length && gameObjects.length) {
-            const animator = gameObjects[0].AddComponent(Components.Animator);
-            animator.clips = clips;
-        }
-
-
-        // Get root gameobjects
-        const childIDs = new Set<number>();
-        for (const n of gltf.nodes) {
-            for (const childId of n.childrenID) {
-                childIDs.add(childId);
-            }
-        }
-
-        const rootGameObjects = gltf.nodes.map((n, i) => ({ n, go: nodeGOs[i] })).filter(({ n }, i) => !childIDs.has(i)).map(({ go }) => go);
-
-        const sceneGameObject = new GameObject(scene);
-        // sceneGameObject.name = url.slice(url.lastIndexOf("/") + 1);
-        for (const rootGameObject of rootGameObjects) rootGameObject.transform.parent = sceneGameObject.transform;
-
-        return sceneGameObject;
     }
 }

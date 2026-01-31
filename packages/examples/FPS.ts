@@ -186,7 +186,9 @@ async function Application(canvas: HTMLCanvasElement) {
     }
 
     // Player
-    const sceneGameObject = await GLTFLoader.loadAsGameObjects(scene, "./assets/models/Shadow.glb");
+    const shadowPrefab = await GLTFLoader.LoadFromURL("./assets/models/Shadow.glb");
+    console.log(shadowPrefab)
+    const sceneGameObject = scene.Instantiate(shadowPrefab);
 
     let animator: Components.Animator = undefined;
     traverse([sceneGameObject], gameObject => {
@@ -195,24 +197,11 @@ async function Application(canvas: HTMLCanvasElement) {
     })
 
     if (!animator) throw Error("Could not find an animator component");
-
-    // animator.SetClipByIndex(1);
-
-    function GetClipIndexByName(animator: Components.Animator, name: string, partialMatch = true): number {
-        for (let i = 0; i < animator.clips.length; i++) {
-            const clip = animator.clips[i];
-            if (partialMatch && animator.clips[i].name.toLowerCase().includes(name.toLocaleLowerCase())) return i;
-            else if (animator.clips[i].name === name) return i;
-        }
-        return -1;
-    }
-
+    console.log(animator)
 
     const playerGameObject = new GameObject(scene);
-    // playerGameObject.transform.position.y = 200;
-    // playerGameObject.transform.position.set(0, 100, 0);
-    // playerGameObject.transform.position.set(-125, 30, 255);
     playerGameObject.transform.position.set(20, 33, 185);
+    // playerGameObject.transform.scale.set(0.01, 0.01, 0.01);
 
 
     const playerCollider = playerGameObject.AddComponent(CapsuleCollider);
@@ -224,7 +213,13 @@ async function Application(canvas: HTMLCanvasElement) {
     thirdPersonController._model = sceneGameObject;
     thirdPersonController._mainCamera = camera.gameObject;
     thirdPersonController._animator = animator;
-    thirdPersonController._animationIDS = { idle: GetClipIndexByName(animator, "Rig|Rig|Idle_Loop", false), walk: GetClipIndexByName(animator, "Rig|Rig|Walk_Loop", false), sprint: GetClipIndexByName(animator, "sprint"), jump: GetClipIndexByName(animator, "Jump_Start"), fall: GetClipIndexByName(animator, "fall") };
+    thirdPersonController._animationIDS = {
+        idle: animator.GetClipIndexByName("Rig|Rig|Idle_Loop"), 
+        walk: animator.GetClipIndexByName("Rig|Rig|Walk_Loop"), 
+        sprint: animator.GetClipIndexByName("Rig|Rig|Sprint_Loop"), 
+        jump: animator.GetClipIndexByName("Rig|Rig|Jump_Start"),
+        fall: animator.GetClipIndexByName("Rig|Rig|Jump_Land")
+    };
     thirdPersonController.animationSpeedRatio = 0.8;
     thirdPersonController.boostMultiplier = 20;
 
