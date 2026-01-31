@@ -27,7 +27,7 @@
             <script type="module">
                 const canvas = document.createElement("canvas");
                 document.body.appendChild(canvas);
-                            import { GPU, Scene, GameObject, Components, Mathf, Geometry, PBRMaterial } from '@trident/core';
+                            import { GPU, Scene, GameObject, Components, Mathf, Geometry } from '@trident/core';
             import { OrbitControls } from '@trident/plugins/OrbitControls.js';
             import { GLTFLoader } from '@trident/plugins/GLTF/GLTFLoader.js';
             import { Debugger } from '@trident/plugins/Debugger.js';
@@ -149,11 +149,8 @@
                         for (const component of p2.components) {
                           if (component.type === Components.Mesh.type) {
                             const instancedMesh = rootGameObject.AddComponent(Components.InstancedMesh);
-                            const geometry = new Geometry();
-                            geometry.Deserialize(component.renderable.geometry);
-                            const material = PBRMaterial.Deserialize(component.renderable.material);
-                            instancedMesh.geometry = geometry;
-                            instancedMesh.material = material;
+                            instancedMesh.geometry = Geometry.Deserialize(component.geometry);
+                            instancedMesh.material = GPU.Material.Deserialize(component.material);
                             record.instancedMeshes.push(instancedMesh);
                           }
                         }

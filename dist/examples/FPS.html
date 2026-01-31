@@ -164,22 +164,25 @@
                 async function TerrainObjectSpawner(glbURL, count, _options) {
                   const defaults = { spawnAroundTarget: void 0, enableShadows: true, heightRandom: -0.5 };
                   const options = Object.assign({}, defaults, _options);
-                  const tree1 = await GLTFLoader.loadAsGameObjects(scene, glbURL);
+                  function traversePrefab(gameObjects, fn) {
+                    for (const gameObject of gameObjects) {
+                      fn(gameObject);
+                      for (const child of gameObject.children) {
+                        traversePrefab([child], fn);
+                      }
+                    }
+                  }
+                  const prefab = await GLTFLoader.LoadFromURL(glbURL);
                   let lodGroupEntries = [];
-                  traverse([tree1], (gameObject) => {
-                    const mesh = gameObject.GetComponent(Components.Mesh);
-                    if (mesh) {
-                      const geometrySerialized = mesh.geometry.Serialize();
-                      const materialSerialized = mesh.material.Serialize();
-                      console.log(materialSerialized.params);
-                      materialSerialized.params.doubleSided = true;
-                      const materialClone = GPU.Material.Deserialize(materialSerialized);
-                      const geometryClone = new Geometry();
-                      geometryClone.Deserialize(geometrySerialized);
-                      lodGroupEntries.push({ geometry: geometryClone, material: materialClone });
+                  traversePrefab([prefab], (prefab2) => {
+                    for (const component of prefab2.components) {
+                      if (component.type === Components.Mesh.type) {
+                        const geometry = Geometry.Deserialize(component.geometry);
+                        const material = GPU.Material.Deserialize(component.material);
+                        lodGroupEntries.push({ geometry, material });
+                      }
                     }
                   });
-                  tree1.Destroy();
                   const lodGameObject = new GameObject(scene);
                   const lodInstanceRenderable = lodGameObject.AddComponent(LODInstanceRenderable);
                   if (lodGroupEntries.length >= 2) lodInstanceRenderable.lods.push({ renderers: lodGroupEntries.slice(0, 2), screenSize: 10 });
@@ -254,7 +257,8 @@
                   const file = e.dataTransfer?.files?.[0];
                   if (!file) return;
                   const url = URL.createObjectURL(file);
-                  const obj = await GLTFLoader.loadAsGameObjects(scene, url, "glb");
+                  const prefab = await GLTFLoader.LoadFromURL(url, "glb");
+                  const obj = scene.Instantiate(prefab);
                   obj.transform.position.copy(playerGameObject.transform.position);
                   obj.transform.eulerAngles.x += 90;
                 });
