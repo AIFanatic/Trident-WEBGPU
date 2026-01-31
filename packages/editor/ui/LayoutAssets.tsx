@@ -1,12 +1,15 @@
 import { createElement, Component } from "../gooact";
 import { BaseProps } from "./Layout";
-import { DirectoryEvents, EventSystem, FileEvents, ProjectEvents } from "../Events";
+import { DirectoryEvents, EventSystem, FileEvents, ProjectEvents, SceneEvents } from "../Events";
 import { FileWatcher } from "../helpers/FileWatcher";
 import { ITreeMap, ITreeMapType } from "./TreeView/ITreeMap";
 import { StringUtils } from "../helpers/StringUtils";
 import { Tree } from "./TreeView/Tree";
 
+import { ExtendedDataTransfer } from "../helpers/ExtendedDataTransfer";
 import { GLTFLoader } from "@trident/plugins/GLTF/GLTFLoader";
+import { IPrefab } from "../engine-api/trident/components/IPrefab";
+import { Scene } from "@trident/core";
 
 export interface FileData {
     file: FileSystemDirectoryHandle | FileSystemFileHandle;
@@ -39,12 +42,14 @@ export class LayoutAssets extends Component<BaseProps, LayoutAssetsState> {
             this.fileWatcher.watch(path);
         }
         if (!this.state.currentTreeMap.has(path)) {
+            let type = file instanceof FileSystemFileHandle ? ITreeMapType.File : ITreeMapType.Folder;
+
             this.state.currentTreeMap.set(path, {
                 id: path,
                 name: file.name,
                 isSelected: false,
                 parent: StringUtils.Dirname(path) == path ? null : StringUtils.Dirname(path),
-                type: file instanceof FileSystemFileHandle ? ITreeMapType.File : ITreeMapType.Folder,
+                type: type,
                 data: {
                     file: file,
                     instance: null
@@ -52,11 +57,11 @@ export class LayoutAssets extends Component<BaseProps, LayoutAssetsState> {
             })
             // this.forceUpdate();
         }
-        console.log(this.state.currentTreeMap)
+        console.log("onFileOrDirectoryCreated", path, this.state.currentTreeMap)
         this.setState({ currentTreeMap: this.state.currentTreeMap });
     }
 
-    private onToggled(item) {
+    private async onToggled(item) {
         console.log("onToggled", item);
     }
 
@@ -64,23 +69,67 @@ export class LayoutAssets extends Component<BaseProps, LayoutAssetsState> {
         console.log("onItemClicked", item);
 
         if (!item.data.instance) {
+            await this.LoadFile(item);
+        }
+    }
+
+    private async onItemDoubleClicked(item: ITreeMap<FileData>) {
+        console.log("onItemDoubleClicked", item);
+
+        if (!item.data.instance) {
+            await this.LoadFile(item);
+        }
+        
+        if (item.data.instance.type === Scene.type) {
+            this.props.engineAPI.currentScene.Clear();
+            this.props.engineAPI.currentScene.Deserialize(item.data.instance);
+            EventSystem.emit(SceneEvents.Loaded, item.data.instance);
+
+        }
+    }
+
+    private async LoadFile(item: ITreeMap<FileData>) {
+        return new Promise(async (resolve, reject) => {
             if (item.data.file instanceof FileSystemFileHandle) {
                 // Just match by extension for now
                 const extension = item.data.file.name.slice(item.data.file.name.lastIndexOf(".") + 1);
                 if (extension === "glb") {
-                    console.log(extension)
-    
                     const data = await item.data.file.getFile();
                     const arrayBuffer = await data.arrayBuffer();
                     const prefab = await GLTFLoader.LoadFromArrayBuffer(arrayBuffer);
-                    console.log(prefab)
+                    item.data.instance = prefab;
+                    resolve(prefab);
+                }
+                else if (extension == "prefab") {
+                    const data = await item.data.file.getFile();
+                    const text = await data.text();
+                    const prefab = JSON.parse(text) as IPrefab;
+                    if (!prefab["type"]) throw Error("Prefab doesn't have a type");
+                    item.data.instance = prefab;
                 }
             }
-        }
+        })
     }
 
     private onDropped(from, to) {
         console.log("onDropped");
+    }
+
+    private onDragStarted(event: DragEvent, item: ProjectTreeMap) {
+        console.log("Assets onDragStarted", event, item)
+
+        if (!item.data.instance) {
+            this.LoadFile(item).then(() => {
+                ExtendedDataTransfer.set({
+                    data: item.data.instance,
+                })
+            })
+
+        }
+
+        ExtendedDataTransfer.set({
+            data: item.data.instance,
+        });
     }
 
     render() {
@@ -89,11 +138,12 @@ export class LayoutAssets extends Component<BaseProps, LayoutAssetsState> {
             treeMapArr.push(entry);
         }
 
+        // Sort by folders first and then alphabetically
         treeMapArr.sort(function (a, b) {
-            if ((a.type == ITreeMapType.Folder) != (b.type == ITreeMapType.Folder)) {        // Is one a folder and
-                return (a.type == ITreeMapType.Folder ? -1 : 1);       //  the other a file?
-            }                                      // If not, compare the
-            return a.name.localeCompare(b.name);   //  the names.
+            if ((a.type == ITreeMapType.Folder) != (b.type == ITreeMapType.Folder)) {
+                return (a.type == ITreeMapType.Folder ? -1 : 1);
+            }
+            return a.name.localeCompare(b.name);
         });
 
         return (
@@ -108,9 +158,9 @@ export class LayoutAssets extends Component<BaseProps, LayoutAssetsState> {
                     onToggled={(item) => this.onToggled(item)}
                     onDropped={(from, to) => this.onDropped(from, to)}
                     onClicked={(data) => this.onItemClicked(data)}
-                    // onDoubleClicked={(data) => this.onItemDoubleClicked(data)}
+                    onDoubleClicked={(data) => this.onItemDoubleClicked(data)}
+                    onDragStarted={(event, data) => this.onDragStarted(event, data)}
                     data={treeMapArr}
-                // onDragStarted={(event, data) => this.onDragStarted(event, data)}
                 />
             </div>
         );

@@ -4,6 +4,7 @@ import { BaseProps } from "./Layout";
 import { ITreeMap } from "./TreeView/ITreeMap";
 import { Tree } from "./TreeView/Tree";
 import { EventSystem, GameObjectEvents, LayoutHierarchyEvents } from "../Events";
+import { ExtendedDataTransfer } from "../helpers/ExtendedDataTransfer";
 
 interface LayoutHierarchyState {
     gameObject: IGameObject;
@@ -34,6 +35,24 @@ export class LayoutHierarchy extends Component<BaseProps, LayoutHierarchyState> 
     }
 
     private onDragStarted(event, data) {
+        console.log("onDragStarted", event)
+    }
+
+    private onDrop(event) {
+        console.log("onDrop", event)
+        const extendedEvent = ExtendedDataTransfer.get();
+        console.log("extendedEvent", extendedEvent.data)
+        const instance = extendedEvent.data;
+        if (instance && this.props.engineAPI.isPrefab(instance)) {
+            const gameObject = this.props.engineAPI.currentScene.Instantiate(instance);
+            this.selectGameObject(gameObject);
+        }
+        // const fromUuid = event.dataTransfer.getData("from-uuid");
+        // const fromGameObject = this.getGameObjectFromUuid(this.state.scene, fromUuid);
+        // if (fromGameObject) {
+        //     fromGameObject.transform.parent = null;
+        //     this.forceUpdate();
+        // }
     }
 
     private buildTreeFromGameObjects(gameObjects: IGameObject[]): ITreeMap<IGameObject>[] {
@@ -57,7 +76,11 @@ export class LayoutHierarchy extends Component<BaseProps, LayoutHierarchyState> 
         const nodes = this.buildTreeFromGameObjects(this.props.engineAPI.currentScene.gameObjects);
 
         return (
-            <div style="width: 100%; overflow: auto;">
+            <div
+                style="width: 100%; overflow: auto;"
+                onDrop={(event) => this.onDrop(event)}
+                onDragOver={(e) => e.preventDefault()}
+            >
                 <Tree
                     onDropped={(from, to) => this.onDropped(from, to)}
                     onClicked={(data) => this.selectGameObject(data.data)}

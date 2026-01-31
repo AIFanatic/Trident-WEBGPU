@@ -119,7 +119,7 @@ export class FileWatcher {
         }).then(() => {
             setTimeout(() => {
                 this.update();
-            }, 1000);
+            }, 100);
         })
     }
 }

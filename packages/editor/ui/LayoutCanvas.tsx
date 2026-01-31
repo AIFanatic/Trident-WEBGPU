@@ -2,11 +2,10 @@ import { IComponents } from "../engine-api/trident/components";
 import { createElement, Component } from "../gooact";
 import { BaseProps } from "./Layout";
 
-import { OrbitControls } from "@trident/plugins/OrbitControls.js";
+import { EventSystem, SceneEvents } from "../Events";
 
-import { GLTFLoader } from '@trident/plugins/GLTF/GLTFLoader.js';
-import { EventSystem, GameObjectEvents } from "../Events";
-import { IGameObject } from "../engine-api/trident/components/IGameObject";
+import { OrbitControls } from "@trident/plugins/OrbitControls.js";
+import { Components } from "@trident/core";
 
 export class LayoutCanvas extends Component<BaseProps> {
 
@@ -92,7 +91,11 @@ export class LayoutCanvas extends Component<BaseProps> {
 
         // EventSystem.emit(GameObjectEvents.Created, gameObjects[0]);
 
-    
+
+        EventSystem.on(SceneEvents.Loaded, scene => {
+            const mainCamera = Components.Camera.mainCamera;
+            const controls = new OrbitControls(canvas, mainCamera);
+        })
 
         currentScene.Start();
     }

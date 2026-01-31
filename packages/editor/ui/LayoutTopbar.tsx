@@ -1,7 +1,7 @@
 import { EventSystem, GameObjectEvents, LayoutHierarchyEvents, ProjectEvents } from "../Events";
 import { IGameObject } from "../engine-api/trident/components/IGameObject";
 import { createElement, Component } from "../gooact";
-import { FileBrowser } from "../helpers/FileBrowser";
+import { FileBrowser, MODE } from "../helpers/FileBrowser";
 import { BaseProps } from "./Layout";
 
 import { Menu } from './MenuDropdown/Menu';
@@ -40,6 +40,13 @@ export class LayoutTopbar extends Component<BaseProps, LayoutTopbarState> {
         FileBrowser.init().then(() => {
             EventSystem.emit(ProjectEvents.Opened);
         })
+    }
+
+    private async saveProject() {
+        console.log("save project");
+        const serializedScene = this.props.engineAPI.currentScene.Serialize();
+        const handle = await FileBrowser.fopen("Scene.prefab", MODE.W)
+        FileBrowser.fwrite(handle, JSON.stringify(serializedScene))
     }
 
     render() {

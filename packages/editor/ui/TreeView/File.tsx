@@ -90,7 +90,7 @@ export class File extends Component<FileProps, FileState> {
                     onDrop={(event) => this.onDrop(event)}
                     onDragOver={(event) => this.onDragOver(event)}
                     onClick={(event) => this.onClicked(event)}
-                    onDoubleClick={(event) => this.onDoubleClicked(event)}
+                    onDblClick={(event) => this.onDoubleClicked(event)}
                 >
                     <span
                         style={{paddingLeft: "15px"}}

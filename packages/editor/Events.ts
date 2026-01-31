@@ -1,4 +1,5 @@
 import { IGameObject } from "./engine-api/trident/components/IGameObject";
+import { IScene } from "./engine-api/trident/IScene";
 
 export class GameObjectEvents {
     public static Selected = (gameObject: IGameObject) => {};
@@ -23,6 +24,10 @@ export class DirectoryEvents {
 
 export class LayoutHierarchyEvents {
     public static Selected = (gameObject: IGameObject) => {};
+}
+
+export class SceneEvents {
+    public static Loaded = (scene: IScene) => {};
 }
 
 export class EventSystem {

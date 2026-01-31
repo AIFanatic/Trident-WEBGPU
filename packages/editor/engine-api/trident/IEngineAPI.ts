@@ -10,8 +10,8 @@ import { IVector3 } from "./math/IVector3";
 
 import { IVector2 } from "./math/IVector2";
 
-import { ISerializableFieldsMap } from "./utils/ISerializeField";
 import { IComponent } from "./components/IComponent";
+import { IPrefab } from "./components/IPrefab";
 
 export interface IEngineAPI {
     currentScene?: IScene;
@@ -31,11 +31,12 @@ export interface IEngineAPI {
     isVector3(vector3: IVector3): boolean;
 
     isComponent(component: IComponent): boolean;
+    isPrefab(prefab: IPrefab): boolean;
 
     createPlaneGeometry(): IGeometry;
     createCubeGeometry(): IGeometry;
     
     createPBRMaterial(args?): IMaterial;
 
-    SerializableFields: ISerializableFieldsMap;
+    GetSerializedFields: (instance: object) => string[];
 }

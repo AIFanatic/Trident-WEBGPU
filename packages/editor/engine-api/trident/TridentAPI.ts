@@ -1,4 +1,4 @@
-import { GameObject, Renderer, Scene, Mathf, Geometry, PBRMaterial, Utils, Component } from "@trident/core";
+import { GameObject, Renderer, Scene, Mathf, Geometry, PBRMaterial, Utils, Component, Prefab } from "@trident/core";
 
 import { IEngineAPI } from "./IEngineAPI";
 import { IGameObject } from "./components/IGameObject";
@@ -9,6 +9,7 @@ import { IMaterial } from "./components/IMaterial";
 import { IColor } from "./math/IColor";
 import { IVector2 } from "./math/IVector2";
 import { IComponent } from "./components/IComponent";
+import { IPrefab } from "./components/IPrefab";
 
 export class TridentAPI implements IEngineAPI {
 
@@ -66,6 +67,10 @@ export class TridentAPI implements IEngineAPI {
         return component.constructor === Component;
     }
 
+    public isPrefab(prefab: IPrefab): boolean {
+        return prefab.constructor === Prefab;
+    }
+
     public createPlaneGeometry(): IGeometry {
         return Geometry.Plane();
     }
@@ -78,5 +83,5 @@ export class TridentAPI implements IEngineAPI {
         return new PBRMaterial(args);
     }
 
-    public SerializableFields = Utils.SerializableFields;
+    public GetSerializedFields = Utils.GetSerializedFields;
 }
