@@ -1,4 +1,4 @@
-import { Renderer, Scene, GameObject, Mathf, Component as Component$1, Geometry, PBRMaterial, Utils, Components } from '@trident/core';
+import { Renderer, Scene, GameObject, Mathf, Component as Component$1, Prefab, Geometry, PBRMaterial, Utils, Components } from '@trident/core';
 import { OrbitControls } from '@trident/plugins/OrbitControls.js';
 import { GLTFLoader } from '@trident/plugins/GLTF/GLTFLoader.js';
 
@@ -44,6 +44,9 @@ class TridentAPI {
   isComponent(component) {
     return component.constructor === Component$1;
   }
+  isPrefab(prefab) {
+    return prefab.constructor === Prefab;
+  }
   createPlaneGeometry() {
     return Geometry.Plane();
   }
@@ -53,7 +56,7 @@ class TridentAPI {
   createPBRMaterial(args) {
     return new PBRMaterial(args);
   }
-  SerializableFields = Utils.SerializableFields;
+  GetSerializedFields = Utils.GetSerializedFields;
 }
 
 const createElement = (type, props, ...children) => {
@@ -278,6 +281,56 @@ const IComponents = {
   Mesh: Components.Mesh
 };
 
+class GameObjectEvents {
+  static Selected = (gameObject) => {
+  };
+  static Created = (gameObject) => {
+  };
+  static Deleted = (gameObject) => {
+  };
+}
+class ProjectEvents {
+  static Opened = () => {
+  };
+}
+class FileEvents {
+  static Created = (path, handle) => {
+  };
+  static Changed = (path, handle) => {
+  };
+  static Deleted = (path, handle) => {
+  };
+}
+class DirectoryEvents {
+  static Created = (path, handle) => {
+  };
+  static Deleted = (path, handle) => {
+  };
+}
+class LayoutHierarchyEvents {
+  static Selected = (gameObject) => {
+  };
+}
+class SceneEvents {
+  static Loaded = (scene) => {
+  };
+}
+class EventSystem {
+  static events = /* @__PURE__ */ new Map();
+  static on(event, callback) {
+    const events = this.events.get(event) || [];
+    events.push(callback);
+    this.events.set(event, events);
+  }
+  static emit(event, ...args) {
+    const callbacks = this.events.get(event);
+    if (callbacks === void 0) return;
+    for (let i = 0; i < callbacks.length; i++) {
+      callbacks[i](...args);
+    }
+  }
+}
+
 class LayoutCanvas extends Component {
   async canvasRef(canvas) {
     canvas.style.width = "100%";
@@ -317,6 +370,10 @@ class LayoutCanvas extends Component {
     const cubeMesh = cubeGameObject.AddComponent(IComponents.Mesh);
     cubeMesh.geometry = EngineAPI.createCubeGeometry();
     cubeMesh.material = EngineAPI.createPBRMaterial();
+    EventSystem.on(SceneEvents.Loaded, (scene) => {
+      const mainCamera = Components.Camera.mainCamera;
+      new OrbitControls(canvas, mainCamera);
+    });
     currentScene.Start();
   }
   render() {
@@ -324,52 +381,12 @@ class LayoutCanvas extends Component {
   }
 }
 
-class GameObjectEvents {
-  static Selected = (gameObject) => {
-  };
-  static Created = (gameObject) => {
-  };
-  static Deleted = (gameObject) => {
-  };
-}
-class ProjectEvents {
-  static Opened = () => {
-  };
-}
-class FileEvents {
-  static Created = (path, handle) => {
-  };
-  static Changed = (path, handle) => {
-  };
-  static Deleted = (path, handle) => {
-  };
-}
-class DirectoryEvents {
-  static Created = (path, handle) => {
-  };
-  static Deleted = (path, handle) => {
-  };
-}
-class LayoutHierarchyEvents {
-  static Selected = (gameObject) => {
-  };
-}
-class EventSystem {
-  static events = /* @__PURE__ */ new Map();
-  static on(event, callback) {
-    const events = this.events.get(event) || [];
-    events.push(callback);
-    this.events.set(event, events);
-  }
-  static emit(event, ...args) {
-    const callbacks = this.events.get(event);
-    if (callbacks === void 0) return;
-    for (let i = 0; i < callbacks.length; i++) {
-      callbacks[i](...args);
-    }
-  }
-}
-
+var MODE = /* @__PURE__ */ ((MODE2) => {
+  MODE2[MODE2["R"] = 0] = "R";
+  MODE2[MODE2["W"] = 1] = "W";
+  MODE2[MODE2["A"] = 2] = "A";
+  return MODE2;
+})(MODE || {});
 class _FileBrowser {
   rootFolderHandle;
   constructor() {
@@ -584,7 +601,7 @@ class FileWatcher {
     }).then(() => {
       setTimeout(() => {
         this.update();
-      }, 1e3);
+      }, 100);
     });
   }
 }
@@ -693,7 +710,7 @@ class Folder extends Component {
           onDrop: (event) => this.onDrop(event),
           onDragOver: (event) => this.onDragOver(event),
           onClick: (event) => this.onClicked(event),
-          onDoubleClick: (event) => this.onDoubleClicked(event)
+          onDblClick: (event) => this.onDoubleClicked(event)
         },
         /* @__PURE__ */ createElement(
           "span",
@@ -787,7 +804,7 @@ class File extends Component {
           onDrop: (event) => this.onDrop(event),
           onDragOver: (event) => this.onDragOver(event),
           onClick: (event) => this.onClicked(event),
-          onDoubleClick: (event) => this.onDoubleClicked(event)
+          onDblClick: (event) => this.onDoubleClicked(event)
         },
         /* @__PURE__ */ createElement(
           "span",
@@ -867,6 +884,23 @@ class Tree extends Component {
   }
 }
 
+class _ExtendedDataTransfer {
+  data;
+  constructor() {
+    this.data = null;
+  }
+  set(data) {
+    this.data = data;
+  }
+  get() {
+    return this.data;
+  }
+  remove(e) {
+    this.data = null;
+  }
+}
+const ExtendedDataTransfer = new _ExtendedDataTransfer();
+
 class LayoutAssets extends Component {
   fileWatcher;
   constructor(props) {
@@ -888,41 +922,77 @@ class LayoutAssets extends Component {
       this.fileWatcher.watch(path);
     }
     if (!this.state.currentTreeMap.has(path)) {
+      let type = file instanceof FileSystemFileHandle ? ITreeMapType.File : ITreeMapType.Folder;
       this.state.currentTreeMap.set(path, {
         id: path,
         name: file.name,
         isSelected: false,
         parent: StringUtils.Dirname(path) == path ? null : StringUtils.Dirname(path),
-        type: file instanceof FileSystemFileHandle ? ITreeMapType.File : ITreeMapType.Folder,
+        type,
         data: {
           file,
           instance: null
         }
       });
     }
-    console.log(this.state.currentTreeMap);
+    console.log("onFileOrDirectoryCreated", path, this.state.currentTreeMap);
     this.setState({ currentTreeMap: this.state.currentTreeMap });
   }
-  onToggled(item) {
+  async onToggled(item) {
     console.log("onToggled", item);
   }
   async onItemClicked(item) {
     console.log("onItemClicked", item);
     if (!item.data.instance) {
+      await this.LoadFile(item);
+    }
+  }
+  async onItemDoubleClicked(item) {
+    console.log("onItemDoubleClicked", item);
+    if (!item.data.instance) {
+      await this.LoadFile(item);
+    }
+    if (item.data.instance.type === Scene.type) {
+      this.props.engineAPI.currentScene.Clear();
+      this.props.engineAPI.currentScene.Deserialize(item.data.instance);
+      EventSystem.emit(SceneEvents.Loaded, item.data.instance);
+    }
+  }
+  async LoadFile(item) {
+    return new Promise(async (resolve, reject) => {
       if (item.data.file instanceof FileSystemFileHandle) {
         const extension = item.data.file.name.slice(item.data.file.name.lastIndexOf(".") + 1);
         if (extension === "glb") {
-          console.log(extension);
           const data = await item.data.file.getFile();
           const arrayBuffer = await data.arrayBuffer();
           const prefab = await GLTFLoader.LoadFromArrayBuffer(arrayBuffer);
-          console.log(prefab);
+          item.data.instance = prefab;
+          resolve(prefab);
+        } else if (extension == "prefab") {
+          const data = await item.data.file.getFile();
+          const text = await data.text();
+          const prefab = JSON.parse(text);
+          if (!prefab["type"]) throw Error("Prefab doesn't have a type");
+          item.data.instance = prefab;
         }
       }
-    }
+    });
   }
   onDropped(from, to) {
     console.log("onDropped");
+  }
+  onDragStarted(event, item) {
+    console.log("Assets onDragStarted", event, item);
+    if (!item.data.instance) {
+      this.LoadFile(item).then(() => {
+        ExtendedDataTransfer.set({
+          data: item.data.instance
+        });
+      });
+    }
+    ExtendedDataTransfer.set({
+      data: item.data.instance
+    });
   }
   render() {
     let treeMapArr = [];
@@ -949,6 +1019,8 @@ class LayoutAssets extends Component {
           onToggled: (item) => this.onToggled(item),
           onDropped: (from, to) => this.onDropped(from, to),
           onClicked: (data) => this.onItemClicked(data),
+          onDoubleClicked: (data) => this.onItemDoubleClicked(data),
+          onDragStarted: (event, data) => this.onDragStarted(event, data),
           data: treeMapArr
         }
       )
@@ -975,6 +1047,17 @@ class LayoutHierarchy extends Component {
   onDropped(from, to) {
   }
   onDragStarted(event, data) {
+    console.log("onDragStarted", event);
+  }
+  onDrop(event) {
+    console.log("onDrop", event);
+    const extendedEvent = ExtendedDataTransfer.get();
+    console.log("extendedEvent", extendedEvent.data);
+    const instance = extendedEvent.data;
+    if (instance && this.props.engineAPI.isPrefab(instance)) {
+      const gameObject = this.props.engineAPI.currentScene.Instantiate(instance);
+      this.selectGameObject(gameObject);
+    }
   }
   buildTreeFromGameObjects(gameObjects) {
     const treeMap = [];
@@ -992,15 +1075,23 @@ class LayoutHierarchy extends Component {
   render() {
     if (!this.props.engineAPI.currentScene) return;
     const nodes = this.buildTreeFromGameObjects(this.props.engineAPI.currentScene.gameObjects);
-    return /* @__PURE__ */ createElement("div", { style: "width: 100%; overflow: auto;" }, /* @__PURE__ */ createElement(
-      Tree,
+    return /* @__PURE__ */ createElement(
+      "div",
       {
-        onDropped: (from, to) => this.onDropped(from, to),
-        onClicked: (data) => this.selectGameObject(data.data),
-        onDragStarted: (event, data) => this.onDragStarted(event, data),
-        data: nodes
-      }
-    ));
+        style: "width: 100%; overflow: auto;",
+        onDrop: (event) => this.onDrop(event),
+        onDragOver: (e) => e.preventDefault()
+      },
+      /* @__PURE__ */ createElement(
+        Tree,
+        {
+          onDropped: (from, to) => this.onDropped(from, to),
+          onClicked: (data) => this.selectGameObject(data.data),
+          onDragStarted: (event, data) => this.onDragStarted(event, data),
+          data: nodes
+        }
+      )
+    );
   }
 }
 
@@ -1314,6 +1405,7 @@ class LayoutInspectorGameObject extends Component {
     const type = typeof component[property];
     component.constructor.name;
     const customType = component[property];
+    console.log(type, component, property, value);
     if (customType) {
       component[property] = value;
     } else if (this.props.engineAPI.isVector3(component[property]) && this.props.engineAPI.isVector3(value)) {
@@ -1330,21 +1422,11 @@ class LayoutInspectorGameObject extends Component {
     const input = event.currentTarget;
     gameObject.name = input.value;
   }
-  getInstanceParentInstance(instance) {
-    const prototype = Object.getPrototypeOf(instance);
-    const prototypeParent = Object.getPrototypeOf(prototype);
-    if (prototypeParent.constructor.name == "Object" || prototypeParent.constructor.name == "EventDispatcher") {
-      return prototype.constructor;
-    }
-    return this.getInstanceParentInstance(prototype);
-  }
-  renderInspectorForComponentProperty(component, property, checkCustomTypeOnly = false) {
+  renderInspectorForComponentProperty(component, property) {
     component.constructor.name;
     const type = typeof component[property];
     if (type == "function") return null;
     const title = StringUtils.CapitalizeStrArray(StringUtils.CamelCaseToArray(property)).join(" ");
-    component[property];
-    if (checkCustomTypeOnly) return;
     if (this.props.engineAPI.isVector3(component[property])) {
       return /* @__PURE__ */ createElement(InspectorVector3, { title, onChanged: (value) => {
         this.onComponentPropertyChanged(component, property, value);
@@ -1385,11 +1467,9 @@ class LayoutInspectorGameObject extends Component {
     }
   }
   renderInspectorForComponent(component) {
-    console.log("component", component);
     let componentPropertiesHTML = [];
-    for (let property of Object.getOwnPropertyNames(Object.getPrototypeOf(component))) {
-      if (!component[property]) continue;
-      if (!this.props.engineAPI.SerializableFields.has(component, property)) continue;
+    const serializedProperties = this.props.engineAPI.GetSerializedFields(component);
+    for (let property of serializedProperties) {
       try {
         const componentPropertyElement = this.renderInspectorForComponentProperty(component, property);
         if (componentPropertyElement) {
@@ -1397,16 +1477,6 @@ class LayoutInspectorGameObject extends Component {
         }
       } catch (error) {
         console.warn(error);
-      }
-    }
-    for (let property in component) {
-      try {
-        if (!this.props.engineAPI.SerializableFields.has(component, property)) continue;
-        const componentPropertyElement = this.renderInspectorForComponentProperty(component, property, false);
-        if (componentPropertyElement && !componentPropertiesHTML.includes(componentPropertyElement)) {
-          componentPropertiesHTML.push(componentPropertyElement);
-        }
-      } catch (error) {
       }
     }
     return componentPropertiesHTML;
@@ -1467,11 +1537,11 @@ class LayoutInspectorGameObject extends Component {
         }
       }
     )), /* @__PURE__ */ createElement(Collapsible, { header: "Transform" }, /* @__PURE__ */ createElement(InspectorVector3, { title: "Position", onChanged: (value) => {
-      this.onComponentPropertyChanged(this.state.gameObject.transform, "position", value);
-    }, vector3: this.state.gameObject.transform.position }), /* @__PURE__ */ createElement(InspectorVector3, { title: "Rotation", onChanged: (value) => {
+      this.onComponentPropertyChanged(this.state.gameObject.transform, "localPosition", value);
+    }, vector3: this.state.gameObject.transform.localPosition }), /* @__PURE__ */ createElement(InspectorVector3, { title: "Rotation", onChanged: (value) => {
       this.onComponentPropertyChanged(this.state.gameObject.transform, "localEulerAngles", value);
-    }, vector3: this.state.gameObject.transform.eulerAngles }), /* @__PURE__ */ createElement(InspectorVector3, { title: "Scale", onChanged: (value) => {
-      this.onComponentPropertyChanged(this.state.gameObject.transform, "localScale", value);
+    }, vector3: this.state.gameObject.transform.localEulerAngles }), /* @__PURE__ */ createElement(InspectorVector3, { title: "Scale", onChanged: (value) => {
+      this.onComponentPropertyChanged(this.state.gameObject.transform, "scale", value);
     }, vector3: this.state.gameObject.transform.scale })), componentsElements);
   }
 }
@@ -1657,6 +1727,12 @@ class LayoutTopbar extends Component {
     FileBrowser.init().then(() => {
       EventSystem.emit(ProjectEvents.Opened);
     });
+  }
+  async saveProject() {
+    console.log("save project");
+    const serializedScene = this.props.engineAPI.currentScene.Serialize();
+    const handle = await FileBrowser.fopen("Scene.prefab", MODE.W);
+    FileBrowser.fwrite(handle, JSON.stringify(serializedScene));
   }
   render() {
     return /* @__PURE__ */ createElement("div", { style: "padding: 5px" }, /* @__PURE__ */ createElement(Menu, { name: "File" }, /* @__PURE__ */ createElement(MenuItem, { name: "Open Project...", onClicked: () => {

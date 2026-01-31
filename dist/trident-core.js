@@ -1390,6 +1390,68 @@ __decorateElement$5(_init$5, 2, "scale", _scale_dec, Transform);
 __decoratorMetadata$5(_init$5, Transform);
 __publicField$5(Transform, "type", "@trident/core/components/Transform");
 
+class Assets {
+  static cache = /* @__PURE__ */ new Map();
+  static instanceCache = /* @__PURE__ */ new Map();
+  static GetInstance(path) {
+    return Assets.instanceCache.get(path);
+  }
+  static SetInstance(path, instance) {
+    return Assets.instanceCache.set(path, instance);
+  }
+  static async Register(path, resource, force = false) {
+    if (Assets.cache.has(path) && force === false) throw Error(`Assets[Register]: ${path} already set, use "force" to bypass.`);
+    Assets.cache.set(path, Promise.resolve(resource));
+  }
+  static async Load(url, type) {
+    const cached = Assets.cache.get(url);
+    if (cached !== void 0) {
+      return cached;
+    }
+    const promise = fetch(url).then((response) => {
+      if (!response.ok) throw Error(`File not found ${url}`);
+      if (type === "json") return response.json();
+      else if (type === "text") return response.text();
+      else if (type === "binary") return response.arrayBuffer();
+    }).then((result) => {
+      Assets.cache.set(url, Promise.resolve(result));
+      return result;
+    }).catch((error) => {
+      Assets.cache.delete(url);
+      throw error;
+    });
+    Assets.cache.set(url, promise);
+    return promise;
+  }
+  static async LoadURL(url, type) {
+    const cached = Assets.cache.get(url.href);
+    if (cached !== void 0) {
+      return cached;
+    }
+    const promise = fetch(url).then((response) => {
+      if (!response.ok) throw Error(`File not found ${url}`);
+      if (type === "json") return response.json();
+      else if (type === "text") return response.text();
+      else if (type === "binary") return response.arrayBuffer();
+    }).then((result) => {
+      Assets.cache.set(url.href, Promise.resolve(result));
+      return result;
+    }).catch((error) => {
+      Assets.cache.delete(url.href);
+      throw error;
+    });
+    Assets.cache.set(url.href, promise);
+    return promise;
+  }
+}
+class Prefab {
+  name;
+  type;
+  components = [];
+  transform;
+  children = [];
+}
+
 function getCtorChain$1(ctor) {
   const chain = [];
   for (let c = ctor; c && c !== Component; c = Object.getPrototypeOf(c)) {
@@ -1471,12 +1533,12 @@ class GameObject {
   Serialize(metadata = {}) {
     let serializedChildren = [];
     for (const childGameObject of this.transform.children) serializedChildren.push(childGameObject.gameObject.Serialize(metadata));
-    return {
-      name: this.name,
-      transform: this.transform.Serialize(),
-      components: this.allComponents.map((c) => c.Serialize(metadata)),
-      children: serializedChildren
-    };
+    const prefab = new Prefab();
+    prefab.name = this.name;
+    prefab.transform = this.transform.Serialize();
+    prefab.components = this.allComponents.map((c) => c.Serialize(metadata));
+    prefab.children = serializedChildren;
+    return prefab;
   }
   Deserialize(data) {
     this.name = data.name;
@@ -1738,61 +1800,6 @@ class Renderer {
   static OnFrameCompleted() {
     if (Renderer.type === "webgpu") return WEBGPURenderer.OnFrameCompleted();
     throw Error("Unknown render api type.");
-  }
-}
-
-class Assets {
-  static cache = /* @__PURE__ */ new Map();
-  static instanceCache = /* @__PURE__ */ new Map();
-  static GetInstance(path) {
-    return Assets.instanceCache.get(path);
-  }
-  static SetInstance(path, instance) {
-    return Assets.instanceCache.set(path, instance);
-  }
-  static async Register(path, resource, force = false) {
-    if (Assets.cache.has(path) && force === false) throw Error(`Assets[Register]: ${path} already set, use "force" to bypass.`);
-    Assets.cache.set(path, Promise.resolve(resource));
-  }
-  static async Load(url, type) {
-    const cached = Assets.cache.get(url);
-    if (cached !== void 0) {
-      return cached;
-    }
-    const promise = fetch(url).then((response) => {
-      if (!response.ok) throw Error(`File not found ${url}`);
-      if (type === "json") return response.json();
-      else if (type === "text") return response.text();
-      else if (type === "binary") return response.arrayBuffer();
-    }).then((result) => {
-      Assets.cache.set(url, Promise.resolve(result));
-      return result;
-    }).catch((error) => {
-      Assets.cache.delete(url);
-      throw error;
-    });
-    Assets.cache.set(url, promise);
-    return promise;
-  }
-  static async LoadURL(url, type) {
-    const cached = Assets.cache.get(url.href);
-    if (cached !== void 0) {
-      return cached;
-    }
-    const promise = fetch(url).then((response) => {
-      if (!response.ok) throw Error(`File not found ${url}`);
-      if (type === "json") return response.json();
-      else if (type === "text") return response.text();
-      else if (type === "binary") return response.arrayBuffer();
-    }).then((result) => {
-      Assets.cache.set(url.href, Promise.resolve(result));
-      return result;
-    }).catch((error) => {
-      Assets.cache.delete(url.href);
-      throw error;
-    });
-    Assets.cache.set(url.href, promise);
-    return promise;
   }
 }
 
@@ -7679,6 +7686,7 @@ function getCtorChain(ctor) {
   return chain;
 }
 class Scene {
+  static type = "@trident/core/Scene";
   static Events = {
     OnStarted: (scene) => {
     }
@@ -7794,7 +7802,7 @@ class Scene {
     this.gameObjects.length = 0;
   }
   Serialize() {
-    let serializedScene = { name: this.name, mainCamera: Camera.mainCamera.id, gameObjects: [] };
+    let serializedScene = { type: Scene.type, name: this.name, mainCamera: Camera.mainCamera.id, gameObjects: [] };
     for (const gameObject of this.GetRootGameObjects()) {
       serializedScene.gameObjects.push(gameObject.Serialize());
     }
@@ -7825,4 +7833,4 @@ class Scene {
   }
 }
 
-export { Assets, Component, index as Components, Console, EventSystem, EventSystemLocal, index$1 as GPU, GameObject, Geometry, IndexAttribute, Input, InterleavedVertexAttribute, KeyCodes, index$2 as Mathf, MouseCodes, PBRMaterial, Renderer, Scene, Texture, index$3 as Utils, VertexAttribute };
+export { Assets, Component, index as Components, Console, EventSystem, EventSystemLocal, index$1 as GPU, GameObject, Geometry, IndexAttribute, Input, InterleavedVertexAttribute, KeyCodes, index$2 as Mathf, MouseCodes, PBRMaterial, Prefab, Renderer, Scene, Texture, index$3 as Utils, VertexAttribute };

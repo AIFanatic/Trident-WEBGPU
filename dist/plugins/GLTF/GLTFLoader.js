@@ -1,4 +1,4 @@
-import { IndexAttribute, VertexAttribute, Texture, Geometry, Mathf, PBRMaterial, Components, Utils, Assets } from '@trident/core';
+import { IndexAttribute, VertexAttribute, Texture, Geometry, Mathf, PBRMaterial, Components, Prefab, Utils, Assets } from '@trident/core';
 import { AccessorComponentType, GLTFParser } from './GLTFParser.js';
 
 class GLTFLoader {
@@ -216,16 +216,10 @@ class GLTFLoader {
     };
   }
   static createEmptyGO(name, position, rotation, scale) {
-    return {
-      name,
-      transform: this.serializeTransform(
-        position ?? new Mathf.Vector3(),
-        rotation ?? new Mathf.Quaternion(),
-        scale ?? new Mathf.Vector3(1, 1, 1)
-      ),
-      components: [],
-      children: []
-    };
+    const prefab = new Prefab();
+    prefab.name = name;
+    prefab.transform = this.serializeTransform(position ?? new Mathf.Vector3(), rotation ?? new Mathf.Quaternion(), scale ?? new Mathf.Vector3(1, 1, 1));
+    return prefab;
   }
   static async LoadFromURL(url, format) {
     let cached = GLTFLoader.cache.get(url);
