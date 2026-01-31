@@ -1,4 +1,4 @@
-import { IndexAttribute, VertexAttribute, Texture, Geometry, Mathf, PBRMaterial, Components, Assets, GameObject } from '@trident/core';
+import { IndexAttribute, VertexAttribute, Texture, Geometry, Mathf, PBRMaterial, Components, Utils, Assets } from '@trident/core';
 import { AccessorComponentType, GLTFParser } from './GLTFParser.js';
 
 class GLTFLoader {
@@ -180,7 +180,7 @@ class GLTFLoader {
       const pbr = mat.pbrMetallicRoughness;
       if (pbr.baseColorFactor) materialParams.albedoColor = new Mathf.Color(...pbr.baseColorFactor);
       if (pbr.baseColorTexture) materialParams.albedoMap = await this.getTexture(textures, pbr.baseColorTexture, "bgra8unorm-srgb");
-      if (pbr.metallicRoughnessTexture) materialParams.metalnessMap = await this.getTexture(textures, pbr.metallicRoughnessTexture, "bgra8unorm");
+      if (pbr.metallicRoughnessTexture) materialParams.armMap = await this.getTexture(textures, pbr.metallicRoughnessTexture, "bgra8unorm");
       if (pbr.roughnessFactor !== void 0) materialParams.roughness = pbr.roughnessFactor;
       if (pbr.metallicFactor !== void 0) materialParams.metalness = pbr.metallicFactor;
     }
@@ -267,6 +267,75 @@ class GLTFLoader {
         nodes[i].children.push(nodes[childId]);
       }
     }
+    if (gltf.skins) {
+      for (let skinIndex = 0; skinIndex < gltf.skins.length; skinIndex++) {
+        const s = gltf.skins[skinIndex];
+        const ibm = s.inverseBindMatricesData;
+        if (!ibm) continue;
+        for (let i = 0; i < s.joints.length; i++) {
+          const jointIdx = nodeIndex.get(s.joints[i]);
+          const jointGO = nodes[jointIdx];
+          jointGO.components.push({
+            type: Components.Bone.type,
+            index: i,
+            skinId: skinIndex,
+            inverseBindMatrix: Array.from(new Float32Array(ibm.buffer, ibm.byteOffset + Float32Array.BYTES_PER_ELEMENT * 16 * i, 16))
+          });
+        }
+      }
+    }
+    if (gltf.animations && gltf.animations.length) {
+      const compCountForPath = (path) => path === "translation" || path === "scale" ? 3 : path === "rotation" ? 4 : 1;
+      const clipDefs = [];
+      const nodeTracks = gltf.nodes.map(() => []);
+      for (let a = 0; a < gltf.animations.length; a++) {
+        const anim = gltf.animations[a];
+        const perNodeChannels = /* @__PURE__ */ new Map();
+        let duration = 0;
+        for (const ch of anim.channels) {
+          const targetIdx = ch.target.nodeID;
+          const times = Array.from(ch.sampler.keyFrameIndices);
+          const values = Array.from(ch.sampler.keyFrameRaw);
+          duration = Math.max(duration, times[times.length - 1] ?? 0);
+          const channel = {
+            path: ch.target.path,
+            sampler: {
+              times,
+              values,
+              keyCount: times.length,
+              compCount: compCountForPath(ch.target.path)
+            }
+          };
+          if (!perNodeChannels.has(targetIdx)) perNodeChannels.set(targetIdx, []);
+          perNodeChannels.get(targetIdx).push(channel);
+        }
+        const clipIndex = clipDefs.length;
+        clipDefs.push({
+          name: anim.name || `Animation ${a}`,
+          duration
+        });
+        for (const [nodeId, channels] of perNodeChannels) {
+          nodeTracks[nodeId].push({
+            clipIndex,
+            channels
+          });
+        }
+      }
+      for (let i = 0; i < nodes.length; i++) {
+        if (nodeTracks[i].length) {
+          nodes[i].components.push({
+            id: Utils.UUID(),
+            type: Components.AnimationTrack.type,
+            clips: nodeTracks[i]
+          });
+        }
+      }
+      nodes[0].__rootAnimator = {
+        id: Utils.UUID(),
+        type: Components.Animator.type,
+        clips: clipDefs
+      };
+    }
     for (let i = 0; i < gltf.nodes.length; i++) {
       const node = gltf.nodes[i];
       if (!node.mesh) continue;
@@ -282,18 +351,23 @@ class GLTFLoader {
         const materialKey = `material:${nodeGO.name}_Prim_${primitiveIndex}:Material`;
         await Assets.SetInstance(geometryKey, geometryInstance);
         await Assets.SetInstance(materialKey, materialInstance);
+        const primGO = this.createEmptyGO(`${nodeGO.name}_Prim_${pIndex++}`);
         const hasSkin = primitive.attributes && primitive.attributes.JOINTS_0 && primitive.attributes.WEIGHTS_0;
         if (hasSkin) {
-          continue;
+          primGO.components.push({
+            type: Components.SkinnedMesh.type,
+            geometry: { assetPath: geometryKey },
+            material: { assetPath: materialKey },
+            enableShadows: true
+          });
+        } else {
+          primGO.components.push({
+            type: Components.Mesh.type,
+            geometry: { assetPath: geometryKey },
+            material: { assetPath: materialKey },
+            enableShadows: true
+          });
         }
-        const meshComponent = {
-          type: Components.Mesh.type,
-          geometry: { assetPath: geometryKey },
-          material: { assetPath: materialKey },
-          enableShadows: true
-        };
-        const primGO = this.createEmptyGO(`${nodeGO.name}_Prim_${pIndex++}`);
-        primGO.components.push(meshComponent);
         nodeGO.children.push(primGO);
       }
     }
@@ -305,118 +379,10 @@ class GLTFLoader {
     for (let i = 0; i < gltf.nodes.length; i++) {
       if (!childIDs.has(i)) root.children.push(nodes[i]);
     }
+    if (nodes[0].__rootAnimator) {
+      root.components.push(nodes[0].__rootAnimator);
+    }
     return root;
-  }
-  static async loadAsGameObjects(scene, url, format) {
-    let cached = GLTFLoader.cache.get(url);
-    if (!cached) {
-      if (url.endsWith(".glb") || format === "glb") cached = await new GLTFParser().loadGLBUrl(url);
-      else if (url.endsWith(".gltf") || format === "gltf") cached = await new GLTFParser().loadGLTF(url);
-      GLTFLoader.cache.set(url, cached);
-    }
-    return this.parseAsGameObjects(scene, cached);
-  }
-  static async loadAsGameObjectsFromArrayBuffer(scene, arrayBuffer, key) {
-    let cached = GLTFLoader.cache.get(key);
-    if (!cached) {
-      cached = await new GLTFParser().parseGLB(arrayBuffer);
-      GLTFLoader.cache.set(key, cached);
-    }
-    return this.parseAsGameObjects(scene, cached);
-  }
-  static async parseAsGameObjects(scene, gltf) {
-    const gameObjects = [];
-    const nodeGOs = [];
-    const skins = [];
-    const clips = [];
-    if (!gltf.nodes) return null;
-    const nodeIndex = /* @__PURE__ */ new Map();
-    gltf.nodes.forEach((n, i) => nodeIndex.set(n, i));
-    for (let i = 0; i < gltf.nodes.length; i++) {
-      const n = gltf.nodes[i];
-      const go = new GameObject(scene);
-      go.name = n.name || `Node_${i}`;
-      nodeGOs.push(go);
-      gameObjects.push(go);
-    }
-    for (let i = 0; i < gltf.nodes.length; i++) {
-      const n = gltf.nodes[i];
-      const go = nodeGOs[i];
-      for (const childId of n.childrenID) {
-        nodeGOs[childId].transform.parent = go.transform;
-      }
-    }
-    for (let i = 0; i < gltf.nodes.length; i++) {
-      const n = gltf.nodes[i];
-      const go = nodeGOs[i];
-      go.transform.localPosition.set(n.translation.x, n.translation.y, n.translation.z);
-      go.transform.localRotation.set(n.rotation.x, n.rotation.y, n.rotation.z, n.rotation.w);
-      go.transform.scale.set(n.scale.x, n.scale.y, n.scale.z);
-    }
-    if (gltf.skins) {
-      for (const s of gltf.skins) {
-        const jointTransforms = s.joints.map((j) => nodeGOs[nodeIndex.get(j)].transform);
-        const ibm = s.inverseBindMatricesData;
-        if (!ibm) continue;
-        skins.push(new Components.Skin(jointTransforms, ibm));
-      }
-    }
-    if (gltf.animations) {
-      const compCountForPath = (path) => path === "translation" || path === "scale" ? 3 : path === "rotation" ? 4 : path === "weights" ? 1 : 1;
-      for (const a of gltf.animations) {
-        const channels = [];
-        let duration = 0;
-        for (const ch of a.channels) {
-          const targetIdx = ch.target.nodeID;
-          const targetTransform = nodeGOs[targetIdx].transform;
-          const times = ch.sampler.keyFrameIndices;
-          const values = ch.sampler.keyFrameRaw;
-          duration = Math.max(duration, times[times.length - 1] ?? 0);
-          const sampler = {
-            times,
-            values,
-            keyCount: times.length,
-            compCount: compCountForPath(ch.target.path)
-          };
-          channels.push({ sampler, targetTransform, path: ch.target.path });
-        }
-        clips.push(new Components.AnimationClip(a.name || `Animation ${clips.length}`, channels, duration));
-      }
-    }
-    for (let i = 0; i < gltf.nodes.length; i++) {
-      const node = gltf.nodes[i];
-      if (!node.mesh) continue;
-      const nodeGO = nodeGOs[i];
-      const skinIdx = node.skin ? gltf.skins.indexOf(node.skin) : -1;
-      const skin = skinIdx >= 0 ? skins[skinIdx] : void 0;
-      const primitives = node.mesh.primitives ?? [];
-      let pIndex = 0;
-      for (const primitive of primitives) {
-        const primGO = new GameObject(scene);
-        primGO.name = `${nodeGO.name}_Prim_${pIndex++}`;
-        primGO.transform.parent = nodeGO.transform;
-        const { geometry, material } = await this.parsePrimitive(primitive, gltf.textures);
-        const hasSkin = !!primitive.attributes && !!primitive.attributes.JOINTS_0 && !!primitive.attributes.WEIGHTS_0;
-        const mesh = hasSkin && skin ? primGO.AddComponent(Components.SkinnedMesh) : primGO.AddComponent(Components.Mesh);
-        if (mesh instanceof Components.SkinnedMesh) mesh.skin = skin;
-        mesh.geometry = geometry;
-        mesh.material = material;
-      }
-    }
-    if (clips.length && gameObjects.length) {
-      const animator = gameObjects[0].AddComponent(Components.Animator);
-      animator.clips = clips;
-    }
-    const childIDs = /* @__PURE__ */ new Set();
-    for (const n of gltf.nodes) {
-      for (const childId of n.childrenID) {
-        childIDs.add(childId);
-      }
-    }
-    const rootGameObjects = gltf.nodes.map((n, i) => ({ n, go: nodeGOs[i] })).filter(({ n }, i) => !childIDs.has(i)).map(({ go }) => go);
-    const sceneGameObject = new GameObject(scene);
-    for (const rootGameObject of rootGameObjects) rootGameObject.transform.parent = sceneGameObject.transform;
-    return sceneGameObject;
   }
 }
 
