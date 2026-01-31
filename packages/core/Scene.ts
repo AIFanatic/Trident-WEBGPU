@@ -1,5 +1,6 @@
+import { Prefab } from "./Assets";
 import { EventSystem } from "./Events";
-import { GameObject, Prefab } from "./GameObject";
+import { GameObject } from "./GameObject";
 import { Input, KeyCodes } from "./Input";
 import { Camera } from "./components";
 import { Component, ComponentEvents, SerializedComponent } from "./components/Component";
@@ -18,6 +19,7 @@ function getCtorChain(ctor: Function): Function[] {
 
 
 export class Scene {
+    public static type = "@trident/core/Scene";
     public static Events = {
         OnStarted: (scene: Scene) => { }
     }
@@ -151,14 +153,14 @@ export class Scene {
     }
 
     public Serialize(): { name: string, mainCamera: string, gameObjects: { components: SerializedComponent[], transform: Object }[] } {
-        let serializedScene = { name: this.name, mainCamera: Camera.mainCamera.id, gameObjects: [] };
+        let serializedScene = { type: Scene.type, name: this.name, mainCamera: Camera.mainCamera.id, gameObjects: [] };
         for (const gameObject of this.GetRootGameObjects()) {
             serializedScene.gameObjects.push(gameObject.Serialize());
         }
         return serializedScene;
     }
 
-    public Deserialize(data: { name: string, mainCamera: string, gameObjects: { name: string, components: SerializedComponent[], transform: Object }[] }) {
+    public Deserialize(data: { name: string, mainCamera: string, gameObjects: Prefab[] }) {
         for (const serializedGameObject of data.gameObjects) {
             const gameObject = new GameObject(this);
             gameObject.Deserialize(serializedGameObject);

@@ -267,16 +267,10 @@ export class GLTFLoader {
     }
 
     private static createEmptyGO(name: string, position?: Mathf.Vector3, rotation?: Mathf.Quaternion, scale?: Mathf.Vector3): Prefab {
-        return {
-            name,
-            transform: this.serializeTransform(
-                position ?? new Mathf.Vector3(),
-                rotation ?? new Mathf.Quaternion(),
-                scale ?? new Mathf.Vector3(1, 1, 1)
-            ),
-            components: [],
-            children: []
-        };
+        const prefab = new Prefab();
+        prefab.name = name;
+        prefab.transform = this.serializeTransform(position ?? new Mathf.Vector3(), rotation ?? new Mathf.Quaternion(), scale ?? new Mathf.Vector3(1, 1, 1));
+        return prefab;
     }
 
     public static async LoadFromURL(url: string, format?: "glb" | "gltf"): Promise<Prefab> {

@@ -1,16 +1,9 @@
-import { Component, SerializedComponent } from "./components/Component";
+import { Component } from "./components/Component";
 import { Scene } from "./Scene";
 import { Transform } from "./components/Transform";
 import { UUID } from "./utils";
+import { Prefab } from "./Assets";
 
-export interface SerializedGameObject {
-    name: string;
-    components: SerializedComponent[];
-    transform: Object;
-    children: SerializedGameObject[];
-};
-
-export type Prefab = SerializedGameObject;
 
 function getCtorChain(ctor: Function): Function[] {
     const chain: Function[] = [];
@@ -115,12 +108,12 @@ export class GameObject {
         let serializedChildren: Prefab[] = [];
         for (const childGameObject of this.transform.children) serializedChildren.push(childGameObject.gameObject.Serialize(metadata));
 
-        return {
-            name: this.name,
-            transform: this.transform.Serialize(),
-            components: this.allComponents.map(c => c.Serialize(metadata)),
-            children: serializedChildren,
-        };
+        const prefab = new Prefab();
+        prefab.name = this.name;
+        prefab.transform = this.transform.Serialize();
+        prefab.components = this.allComponents.map(c => c.Serialize(metadata));
+        prefab.children = serializedChildren;
+        return prefab;
     }
 
     public Deserialize(data: Prefab) {

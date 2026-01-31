@@ -1,3 +1,5 @@
+import { SerializedComponent } from "./components/Component";
+
 type ResponseType<T> = T extends 'json' ? object
                       : T extends 'text' ? string
                       : T extends 'binary' ? ArrayBuffer
@@ -65,4 +67,12 @@ export class Assets {
         Assets.cache.set(url.href, promise);
         return promise;
     }
+}
+
+export class Prefab {
+    public name: string;
+    public type: string;
+    public components: SerializedComponent[] = [];
+    public transform: SerializedComponent;
+    public children: Prefab[] = [];
 }
