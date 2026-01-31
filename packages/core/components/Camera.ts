@@ -14,6 +14,7 @@ export class CameraEvents {
 export class Camera extends Component {
     public static type = "@trident/core/components/Camera";
 
+    @SerializeField
     public backgroundColor: Color = new Color(0.0, 0.0, 0.0, 1);
 
     public projectionMatrix = new Matrix4();
@@ -31,22 +32,22 @@ export class Camera extends Component {
     }
 
     
-    private _near: number;
+    private _near: number = 0.05;
     @SerializeField
     public get near(): number { return this._near; }
     public set near(near: number) { this.SetPerspective(this.fov, this.aspect, near, this.far); }
 
-    private _far: number;
+    private _far: number = 1000;
     @SerializeField
     public get far(): number { return this._far; }
     public set far(far: number) { this.SetPerspective(this.fov, this.aspect, this.near, far); }
 
-    private _fov: number;
+    private _fov: number = 60;
     @SerializeField
     public get fov(): number { return this._fov; }
     public set fov(fov: number) { this.SetPerspective(fov, this.aspect, this.near, this.far); }
 
-    private _aspect: number;
+    private _aspect: number = window.innerWidth / window.innerHeight;
     @SerializeField
     public get aspect(): number { return this._aspect; }
     public set aspect(aspect: number) { this.SetPerspective(this.fov, aspect, this.near, this.far); }
@@ -76,29 +77,6 @@ export class Camera extends Component {
         this.projectionScreenMatrix.multiplyMatrices(this.projectionMatrix, this.transform.worldToLocalMatrix);
         this.frustum.setFromProjectionMatrix(this.projectionScreenMatrix);
         this.projectionViewMatrix.multiplyMatrices(this.projectionMatrix, this.viewMatrix);
-    }
-
-    public Serialize() {
-        return {
-            type: Camera.type,
-            name: this.name,
-            id: this.id,
-            backgroundColor: this.backgroundColor.Serialize(),
-            near: this.near,
-            far: this.far,
-            fov: this.fov,
-            aspect: this.aspect,
-        }
-    }
-
-    public Deserialize(data: any): void {
-        this.backgroundColor.Deserialize(data.backgroundColor);
-        this.name = data.name;
-        this.id = data.id;
-        this.near = data.near;
-        this.far = data.far;
-        this.fov = data.fov;
-        this.aspect = data.aspect;
     }
 }
 

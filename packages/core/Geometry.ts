@@ -4,6 +4,7 @@ import { Vector3 } from "./math/Vector3";
 import { Buffer, BufferType } from "./renderer/Buffer";
 import { Vector2 } from "./math";
 import { CRC32 } from "./utils/CRC32";
+import { Assets } from "./Assets";
 
 export class GeometryAttribute {
     public type = "@trident/core/Geometry/GeometryAttribute";
@@ -169,6 +170,7 @@ export class IndexAttribute extends GeometryAttribute {
 }
 
 export class Geometry {
+    public assetPath?: string;
     public id = UUID();
     public name: string = "";
     public index?: IndexAttribute;
@@ -399,7 +401,7 @@ export class Geometry {
     public ToNonIndexed(): Geometry {
         if (!this.attributes.has("position") || !this.index) throw Error("Cannot convert to non indexed without vertices and indices");
         const geometry = new Geometry();
-        
+
         const indices = this.index.array as Uint32Array | Uint16Array;
         const positions = this.attributes.get("position")?.array as Float32Array;
         const normals = this.attributes.get("normal")?.array as Float32Array;
@@ -506,12 +508,24 @@ export class Geometry {
         this.id = data.id;
         this.name = data.name;
 
-        for (const attribute of data.attributes) {
-            this.attributes.set(attribute.name, VertexAttribute.Deserialize(attribute));
+        for (const attribute of data.attributes) this.attributes.set(attribute.name, VertexAttribute.Deserialize(attribute));
+        if (data.index) this.index = IndexAttribute.Deserialize(data.index);
+    }
+
+    public static Deserialize(data): Geometry {
+        if (data.assetPath) {
+            const instance = Assets.GetInstance(data.assetPath);
+            if (instance) return instance;
+            // Store instance immediately because async Load
+            const geometry = new Geometry();
+            geometry.assetPath = data.asset_path;
+            Assets.SetInstance(data.asset_path, geometry);
+            Assets.Load(data.assetPath, "json").then(json => { geometry.Deserialize(json) })
+            return geometry;
         }
 
-        if (data.index) {
-            this.index = IndexAttribute.Deserialize(data.index);
-        }
+        const geometry = new Geometry();
+        geometry.Deserialize(data);
+        return geometry;
     }
 }

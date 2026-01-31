@@ -1,7 +1,7 @@
 import { EventSystem } from "../Events";
 import { GameObject } from "../GameObject";
 import { Scene } from "../Scene";
-import { UUID } from "../utils";
+import { GetSerializedFields, UUID } from "../utils";
 import { Transform } from "./Transform";
 
 export type SerializedComponent = { type: string } & Record<string, unknown>;
@@ -37,6 +37,26 @@ export class Component {
     public Start() {}
     public Update() {}
     public Destroy() {}
-    public Serialize(metadata: any = {}): SerializedComponent { throw Error(`Serialize not implemented for ${this.constructor.name}`)};
-    public Deserialize(data: any) { throw Error(`Deserialize not implemented for ${this.constructor.name}`) }
+    public Serialize(metadata: any = {}): SerializedComponent {
+        const serializedFields = GetSerializedFields(this);
+
+        let fields = {};
+        for (const property of serializedFields) {
+            const value = this[property];
+            if (typeof value["Serialize"] === "function") fields[property] = value["Serialize"]();
+            else if (typeof value === "boolean" || typeof value === "number" || typeof value === "string") fields[property] = value;
+            else throw Error(`Could not serialize ${this.constructor["type"]}::${property as string}`)
+        }
+        return {type: this.constructor["type"], id: this.id, name: this.name, ...fields};
+    }
+
+    public Deserialize(data: any) {
+        for (const property in data) {
+            const value = data[property];
+
+            if (typeof value === "boolean" || typeof value === "number" || typeof value === "string") this[property] = value;
+            else if (this[property]["Deserialize"]) this[property]["Deserialize"](value);
+            else throw Error(`Could not Deserialize ${this.constructor["type"]}::${property as string}`);
+        }
+    }
 }

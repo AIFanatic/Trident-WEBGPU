@@ -1,8 +1,8 @@
 import { EventSystemLocal } from "../Events";
 import { GameObject } from "../GameObject";
-import { Buffer, BufferType, RendererContext, Shader } from "../renderer";
+import { BufferType, RendererContext, Shader } from "../renderer";
 import { DynamicBufferMemoryAllocatorDynamic } from "../renderer/MemoryAllocator";
-import { Component, SerializedComponent } from "./Component";
+import { Component } from "./Component";
 import { Renderable } from "./Renderable";
 import { TransformEvents } from "./Transform";
 
@@ -32,21 +32,10 @@ export class Mesh extends Renderable {
 
     public OnRenderObject(shaderOverride: Shader): void {
         const shader = shaderOverride ? shaderOverride : this.material?.shader;
-        if (!this.geometry || !this.material || !shader) return;
+        if (!this.geometry || !this.geometry.attributes.has("position") || !this.material || !shader) return;
 
         Mesh.modelMatrices.getBuffer().dynamicOffset = this.modelMatrixOffset * Mesh.modelMatrices.getStride();
         RendererContext.DrawGeometry(this.geometry, shader);
-    }
-
-    public Serialize(metadata: any = {}): SerializedComponent {
-        return {
-            type: Mesh.type,
-            renderable: super.Serialize(metadata)
-        }
-    }
-
-    public Deserialize(data: any) {
-        super.Deserialize(data.renderable);
     }
 }
 

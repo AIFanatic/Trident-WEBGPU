@@ -15,6 +15,8 @@ export class Renderable extends Component {
     public static Renderables: Map<string, Renderable> = new Map();
 
     public static type = "@trident/core/components/Renderable";
+    
+    @SerializeField
     public enableShadows: boolean = true;
     
     private _geometry: Geometry;
@@ -47,7 +49,7 @@ export class Renderable extends Component {
 
     public Serialize(metadata: any = {}): SerializedComponent {
         return {
-            type: Renderable.type,
+            type: this.constructor.type,
             geometry: this.geometry.Serialize(metadata),
             material: this.material.Serialize(metadata),
             enableShadows: this.enableShadows
@@ -55,11 +57,8 @@ export class Renderable extends Component {
     }
 
     public Deserialize(data: any) {
-        this.geometry = new Geometry();
-        this.geometry.Deserialize(data.geometry);
-        this.material = Material.Deserialize(data.material);
         this.enableShadows = data.enableShadows;
+        this.geometry = Geometry.Deserialize(data.geometry);
+        this.material = Material.Deserialize(data.material);
     }
 }
-
-Component.Registry.set(Renderable.type, Renderable);

@@ -3,13 +3,14 @@ import {
     GameObject,
     Scene,
     Components,
-    Object3D,
     Mathf,
     PBRMaterial,
     PBRMaterialParams,
     Texture as TridentTexture,
     IndexAttribute, VertexAttribute,
-    Prefab
+    Prefab,
+    GPU,
+    Assets
 } from "@trident/core";
 
 import { GLTFParser, MeshPrimitive, Texture, Node, AccessorComponentType, GLTF, TextureInfo, Accessor } from './GLTFParser'
@@ -173,7 +174,7 @@ export class GLTFLoader {
 
     // ---------- Primitive / Node parsing to Object3D (your existing pipeline, tidied) ----------
 
-    private static async parsePrimitive(primitive: MeshPrimitive, textures?: Texture[]): Promise<Object3D> {
+    private static async parsePrimitive(primitive: MeshPrimitive, textures?: Texture[]): Promise<{geometry: Geometry, material: GPU.Material}> {
         const geometry = new Geometry();
 
         if (primitive.attributes.POSITION) geometry.attributes.set("position", new VertexAttribute(this.readAccessorAsFloat32(primitive.attributes.POSITION)));
@@ -218,8 +219,6 @@ export class GLTFLoader {
             const pbr = mat.pbrMetallicRoughness;
             if (pbr.baseColorFactor) materialParams.albedoColor = new Mathf.Color(...pbr.baseColorFactor);
 
-            console.log(textures)
-            console.log(pbr.baseColorTexture)
             if (pbr.baseColorTexture) materialParams.albedoMap = await this.getTexture(textures, pbr.baseColorTexture, "bgra8unorm-srgb");
             if (pbr.metallicRoughnessTexture) materialParams.metalnessMap = await this.getTexture(textures, pbr.metallicRoughnessTexture, "bgra8unorm");
 
@@ -248,17 +247,156 @@ export class GLTFLoader {
         geometry.ComputeBoundingVolume();
 
         return {
-            name: "",
-            geometry,
+            geometry: geometry,
             material: new PBRMaterial(materialParams),
-            children: [],
-            localMatrix: new Mathf.Matrix4(),
         };
     }
 
     // ---------- Public: load as GameObjects (Unity-style) ----------
 
     private static cache: Map<any, GLTF> = new Map();
+
+    private static serializeTransform(position: Mathf.Vector3, rotation: Mathf.Quaternion, scale: Mathf.Vector3) {
+        return {
+            type: Components.Transform.type,
+            localPosition: position.Serialize(),
+            localRotation: rotation.Serialize(),
+            scale: scale.Serialize()
+        };
+    }
+
+    private static createEmptyGO(name: string, position?: Mathf.Vector3, rotation?: Mathf.Quaternion, scale?: Mathf.Vector3): Prefab {
+        return {
+            name,
+            transform: this.serializeTransform(
+                position ?? new Mathf.Vector3(),
+                rotation ?? new Mathf.Quaternion(),
+                scale ?? new Mathf.Vector3(1, 1, 1)
+            ),
+            components: [],
+            children: []
+        };
+    }
+
+    public static async LoadFromURL(url: string, format?: "glb" | "gltf"): Promise<Prefab> {
+        let cached = GLTFLoader.cache.get(url);
+        if (!cached) {
+            if (url.endsWith(".glb") || format === "glb") cached = await new GLTFParser().loadGLBUrl(url);
+            else if (url.endsWith(".gltf") || format === "gltf") cached = await new GLTFParser().loadGLTF(url);
+            GLTFLoader.cache.set(url, cached);
+        }
+
+        return this.Parse(cached);
+    }
+
+    public static async LoadFromArrayBuffer(arrayBuffer: ArrayBuffer, key?: any): Promise<Prefab> {
+        const cacheKey = key ?? arrayBuffer;
+        let cached = GLTFLoader.cache.get(cacheKey);
+        if (!cached) {
+            cached = await new GLTFParser().parseGLB(arrayBuffer);
+            GLTFLoader.cache.set(cacheKey, cached);
+        }
+        return this.Parse(cached);
+    }
+
+    private static async Parse(gltf: GLTF): Promise<Prefab> {
+        if (!gltf.nodes) {
+            return this.createEmptyGO("GLTFPrefab");
+        }
+
+        const nodeIndex = new Map<Node, number>();
+        gltf.nodes.forEach((n, i) => nodeIndex.set(n, i));
+
+        const nodes: Prefab[] = [];
+        for (let i = 0; i < gltf.nodes.length; i++) {
+            const n = gltf.nodes[i];
+            nodes.push(this.createEmptyGO(
+                n.name || `Node_${i}`,
+                new Mathf.Vector3(n.translation.x, n.translation.y, n.translation.z),
+                new Mathf.Quaternion(n.rotation.x, n.rotation.y, n.rotation.z, n.rotation.w),
+                new Mathf.Vector3(n.scale.x, n.scale.y, n.scale.z)
+            ));
+        }
+
+        // Hierarchy
+        for (let i = 0; i < gltf.nodes.length; i++) {
+            const n = gltf.nodes[i];
+            for (const childId of n.childrenID) {
+                nodes[i].children.push(nodes[childId]);
+            }
+        }
+
+        // Mesh primitives -> child GOs
+        for (let i = 0; i < gltf.nodes.length; i++) {
+            const node = gltf.nodes[i];
+            if (!node.mesh) continue;
+
+            const nodeGO = nodes[i];
+            const primitives = node.mesh.primitives ?? [];
+            let pIndex = 0;
+
+            for (const primitive of primitives) {
+                const parsedPrimitive = await this.parsePrimitive(primitive, gltf.textures);
+                // Cache geometry and material
+                const geometryInstance = parsedPrimitive.geometry;
+                const materialInstance = parsedPrimitive.material;
+                const primitiveIndex = pIndex++;
+                const geometryKey = `geometry:${nodeGO.name}_Prim_${primitiveIndex}:Geometry`;
+                const materialKey = `material:${nodeGO.name}_Prim_${primitiveIndex}:Material`;
+                await Assets.SetInstance(geometryKey, geometryInstance);
+                await Assets.SetInstance(materialKey, materialInstance);
+
+                const hasSkin = primitive.attributes && primitive.attributes.JOINTS_0 && primitive.attributes.WEIGHTS_0;
+                if (hasSkin) {
+                    // SkinnedMesh serialization is not implemented; skip for now.
+                    continue;
+                }
+
+                const meshComponent = {
+                    type: Components.Mesh.type,
+                    geometry: {assetPath: geometryKey},
+                    material: {assetPath: materialKey},
+                    enableShadows: true
+                };
+
+                const primGO = this.createEmptyGO(`${nodeGO.name}_Prim_${pIndex++}`);
+                primGO.components.push(meshComponent);
+                nodeGO.children.push(primGO);
+            }
+        }
+
+        // Roots
+        const childIDs = new Set<number>();
+        for (const n of gltf.nodes) {
+            for (const childId of n.childrenID) childIDs.add(childId);
+        }
+
+        const root = this.createEmptyGO("GLTFPrefab");
+        for (let i = 0; i < gltf.nodes.length; i++) {
+            if (!childIDs.has(i)) root.children.push(nodes[i]);
+        }
+
+        return root;
+    }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
     public static async loadAsGameObjects(scene: Scene, url: string, format?: "glb" | "gltf"): Promise<GameObject> {
         let cached = GLTFLoader.cache.get(url);
@@ -411,128 +549,5 @@ export class GLTFLoader {
         for (const rootGameObject of rootGameObjects) rootGameObject.transform.parent = sceneGameObject.transform;
 
         return sceneGameObject;
-    }
-
-
-
-
-    private static serializeTransform(position: Mathf.Vector3, rotation: Mathf.Quaternion, scale: Mathf.Vector3) {
-        return {
-            type: Components.Transform.type,
-            position: position.Serialize(),
-            rotation: rotation.Serialize(),
-            scale: scale.Serialize()
-        };
-    }
-
-    private static createEmptyGO(name: string, position?: Mathf.Vector3, rotation?: Mathf.Quaternion, scale?: Mathf.Vector3): Prefab {
-        return {
-            name,
-            transform: this.serializeTransform(
-                position ?? new Mathf.Vector3(),
-                rotation ?? new Mathf.Quaternion(),
-                scale ?? new Mathf.Vector3(1, 1, 1)
-            ),
-            components: [],
-            children: []
-        };
-    }
-
-    public static async LoadFromURL(url: string, format?: "glb" | "gltf"): Promise<Prefab> {
-        let cached = GLTFLoader.cache.get(url);
-        if (!cached) {
-            if (url.endsWith(".glb") || format === "glb") cached = await new GLTFParser().loadGLBUrl(url);
-            else if (url.endsWith(".gltf") || format === "gltf") cached = await new GLTFParser().loadGLTF(url);
-            GLTFLoader.cache.set(url, cached);
-        }
-
-        return this.Parse(cached);
-    }
-
-    public static async LoadFromArrayBuffer(arrayBuffer: ArrayBuffer, key?: any): Promise<Prefab> {
-        const cacheKey = key ?? arrayBuffer;
-        let cached = GLTFLoader.cache.get(cacheKey);
-        if (!cached) {
-            cached = await new GLTFParser().parseGLB(arrayBuffer);
-            GLTFLoader.cache.set(cacheKey, cached);
-        }
-        return this.Parse(cached);
-    }
-
-    private static async Parse(gltf: GLTF): Promise<Prefab> {
-        if (!gltf.nodes) {
-            return this.createEmptyGO("GLTFPrefab");
-        }
-
-        const nodeIndex = new Map<Node, number>();
-        gltf.nodes.forEach((n, i) => nodeIndex.set(n, i));
-
-        const nodes: Prefab[] = [];
-        for (let i = 0; i < gltf.nodes.length; i++) {
-            const n = gltf.nodes[i];
-            nodes.push(this.createEmptyGO(
-                n.name || `Node_${i}`,
-                new Mathf.Vector3(n.translation.x, n.translation.y, n.translation.z),
-                new Mathf.Quaternion(n.rotation.x, n.rotation.y, n.rotation.z, n.rotation.w),
-                new Mathf.Vector3(n.scale.x, n.scale.y, n.scale.z)
-            ));
-        }
-
-        // Hierarchy
-        for (let i = 0; i < gltf.nodes.length; i++) {
-            const n = gltf.nodes[i];
-            for (const childId of n.childrenID) {
-                nodes[i].children.push(nodes[childId]);
-            }
-        }
-
-        // Mesh primitives -> child GOs
-        for (let i = 0; i < gltf.nodes.length; i++) {
-            const node = gltf.nodes[i];
-            if (!node.mesh) continue;
-
-            const nodeGO = nodes[i];
-            const primitives = node.mesh.primitives ?? [];
-            let pIndex = 0;
-
-            for (const primitive of primitives) {
-                const { geometry, material } = await this.parsePrimitive(primitive, gltf.textures);
-
-                const hasSkin = primitive.attributes && primitive.attributes.JOINTS_0 && primitive.attributes.WEIGHTS_0;
-                if (hasSkin) {
-                    // SkinnedMesh serialization is not implemented; skip for now.
-                    continue;
-                }
-
-                const renderable = {
-                    type: Components.Renderable.type,
-                    geometry: geometry.Serialize(),
-                    material: material.Serialize(),
-                    enableShadows: true
-                };
-
-                const meshComponent = {
-                    type: Components.Mesh.type,
-                    renderable: renderable
-                };
-
-                const primGO = this.createEmptyGO(`${nodeGO.name}_Prim_${pIndex++}`);
-                primGO.components.push(meshComponent);
-                nodeGO.children.push(primGO);
-            }
-        }
-
-        // Roots
-        const childIDs = new Set<number>();
-        for (const n of gltf.nodes) {
-            for (const childId of n.childrenID) childIDs.add(childId);
-        }
-
-        const root = this.createEmptyGO("GLTFPrefab");
-        for (let i = 0; i < gltf.nodes.length; i++) {
-            if (!childIDs.has(i)) root.children.push(nodes[i]);
-        }
-
-        return root;
     }
 }

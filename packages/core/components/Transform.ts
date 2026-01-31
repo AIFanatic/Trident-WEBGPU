@@ -2,6 +2,7 @@ import { EventSystemLocal, EventSystem } from "../Events";
 import { Matrix4 } from "../math/Matrix4";
 import { ObservableQuaternion, Quaternion } from "../math/Quaternion";
 import { ObservableVector3, Vector3 } from "../math/Vector3";
+import { SerializeField } from "../utils";
 import { Component, ComponentEvents } from "./Component";
 
 export class TransformEvents {
@@ -39,10 +40,10 @@ export class Transform extends Component {
     // NEW: which space was edited last (source-of-truth for this update)
     private _lastChanged: "local" | "world" = "local";
 
-    public get localPosition(): Vector3 { return this._localPosition; }
+    @SerializeField public get localPosition(): Vector3 { return this._localPosition; }
     public set localPosition(value: Vector3) { this._localPosition.copy(value); }
 
-    public get localRotation(): Quaternion { return this._localRotation; }
+    @SerializeField public get localRotation(): Quaternion { return this._localRotation; }
     public set localRotation(value: Quaternion) { this._localRotation.copy(value); }
 
     public get localEulerAngles(): Vector3 { return this._localEulerAngles; }
@@ -57,7 +58,7 @@ export class Transform extends Component {
     public get eulerAngles(): Vector3 { return this._eulerAngles; }
     public set eulerAngles(value: Vector3) { this._eulerAngles.copy(value); }
 
-    public get scale(): Vector3 { return this._localScale; }
+    @SerializeField public get scale(): Vector3 { return this._localScale; }
     public set scale(value: Vector3) { this._localScale.copy(value); }
 
     public children: Set<Transform> = new Set();
@@ -249,24 +250,5 @@ export class Transform extends Component {
 
     public LookAtV1(target: Vector3): void {
         this.LookAt(target);
-    }
-
-    public Serialize() {
-        return {
-            type: Transform.type,
-            position: this.localPosition.Serialize(),
-            rotation: this.localRotation.Serialize(),
-            scale: this.scale.Serialize(),
-        };
-    }
-
-    public Deserialize(data: any) {
-        this.localPosition.Deserialize(data.position);
-        this.localRotation.Deserialize(data.rotation);
-        this.scale.Deserialize(data.scale);
-
-        // after deserializing locals, recompute world
-        this._lastChanged = "local";
-        this.UpdateMatrices();
     }
 }

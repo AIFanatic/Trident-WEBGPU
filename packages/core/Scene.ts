@@ -71,6 +71,7 @@ export class Scene {
     public AddGameObject(gameObject: GameObject) { this.gameObjects.push(gameObject) }
     public GetGameObjects(): GameObject[] { return this.gameObjects }
     public GetComponents<T extends Component>(Ctor: new (...a: any[]) => T): T[] { return (this.componentsByType.get(Ctor) as T[] | undefined) ?? [] }
+    public GetRootGameObjects(): GameObject[] { return this.gameObjects.filter(go => !go.transform.parent); }
     public RemoveGameObject(gameObject: GameObject) {
         const i = this.gameObjects.indexOf(gameObject);
         if (i !== -1) this.gameObjects.splice(i, 1);
@@ -138,9 +139,20 @@ export class Scene {
         Input.Update();
     }
 
+    public Clear(): void {
+        // Destroy roots so children are handled once through hierarchy.
+        const roots = this.GetRootGameObjects();
+        for (const gameObject of roots) {
+            gameObject.Destroy();
+        }
+        this.toUpdate.clear();
+        this.componentsByType.clear();
+        this.gameObjects.length = 0;
+    }
+
     public Serialize(): { name: string, mainCamera: string, gameObjects: { components: SerializedComponent[], transform: Object }[] } {
         let serializedScene = { name: this.name, mainCamera: Camera.mainCamera.id, gameObjects: [] };
-        for (const gameObject of this.gameObjects) {
+        for (const gameObject of this.GetRootGameObjects()) {
             serializedScene.gameObjects.push(gameObject.Serialize());
         }
         return serializedScene;
@@ -160,21 +172,6 @@ export class Scene {
             }
         }
     }
-
-    // private static serializedCache: Map<string, {name: string, components: SerializedComponent[], transform: Object }> = new Map();
-    // public static Instantiate(gameObject: GameObject, position?: Vector3, rotation?: Quaternion): GameObject {
-    //     let serializedGameObject = Scene.serializedCache.get(gameObject.id);
-    //     if (!serializedGameObject) {
-    //         serializedGameObject = gameObject.Serialize({base64Textures: false});
-    //         Scene.serializedCache.set(gameObject.id, serializedGameObject);
-    //     }
-    //     const newGameObject = new GameObject(Scene.mainScene);
-    //     newGameObject.Deserialize(serializedGameObject);
-    //     if (position) newGameObject.transform.position.copy(position);
-    //     if (rotation) newGameObject.transform.rotation.copy(rotation);
-
-    //     return newGameObject;
-    // }
 
     public static Instantiate(prefab: Prefab, position?: Vector3, rotation?: Quaternion): GameObject {
         const newGameObject = new GameObject(Scene.mainScene);

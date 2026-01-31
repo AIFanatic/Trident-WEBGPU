@@ -239,46 +239,27 @@ async function Application(canvas: HTMLCanvasElement) {
             const defaults: TerrainObjectSpawnerOptions = { spawnAroundTarget: undefined, enableShadows: true, heightRandom: -0.5 };
             const options = Object.assign({}, defaults, _options);
 
-            // function traversePrefab(gameObjects: Prefab[], fn: (gameObject: SerializedGameObject) => void) {
-            //     for (const gameObject of gameObjects) {
-            //         fn(gameObject);
-            //         for (const child of gameObject.children) {
-            //             traversePrefab([child], fn);
-            //         }
-            //     }
-            // }
-            // const prefab = await GLTFLoader.LoadFromURL(glbURL);
-
-            // let lodGroupEntries: { geometry: Geometry, material: GPU.Material }[] = []
-            // traversePrefab([prefab], gameObject => {
-            //     const meshes = gameObject.components.filter(value => value.type == Components.Mesh.type);
-            //     if (meshes.length > 0) {
-            //         const renderable = meshes[0].renderable;
-            //         const geometry = new Geometry();
-            //         const material = GPU.Material.Deserialize(renderable.material);
-            //         geometry.Deserialize(renderable.geometry);
-            //         lodGroupEntries.push({ geometry: geometry, material: material });
-            //     }
-            // })
-
-            const tree1 = await GLTFLoader.loadAsGameObjects(scene, glbURL);
+            function traversePrefab(gameObjects: Prefab[], fn: (gameObject: SerializedGameObject) => void) {
+                for (const gameObject of gameObjects) {
+                    fn(gameObject);
+                    for (const child of gameObject.children) {
+                        traversePrefab([child], fn);
+                    }
+                }
+            }
+            const prefab = await GLTFLoader.LoadFromURL(glbURL);
 
             let lodGroupEntries: { geometry: Geometry, material: GPU.Material }[] = []
-            traverse([tree1], gameObject => {
-                const mesh = gameObject.GetComponent(Components.Mesh);
-                if (mesh) {
-                    const geometrySerialized = mesh.geometry.Serialize();
-                    const materialSerialized = mesh.material.Serialize();
-                    console.log(materialSerialized.params)
-                    materialSerialized.params.doubleSided = true
-                    const materialClone = GPU.Material.Deserialize(materialSerialized);
-                    const geometryClone = new Geometry();
-                    geometryClone.Deserialize(geometrySerialized);
-
-                    lodGroupEntries.push({ geometry: geometryClone, material: materialClone });
+            traversePrefab([prefab], prefab => {
+                for (const component of prefab.components) {
+                    if (component.type === Components.Mesh.type) {
+                        const geometry = Geometry.Deserialize(component.geometry);
+                        const material = GPU.Material.Deserialize(component.material);
+                        // Double sided?
+                        lodGroupEntries.push({ geometry: geometry, material: material });
+                    }
                 }
             })
-            tree1.Destroy();
 
             const lodGameObject = new GameObject(scene);
             const lodInstanceRenderable = lodGameObject.AddComponent(LODInstanceRenderable);
@@ -549,7 +530,8 @@ async function Application(canvas: HTMLCanvasElement) {
             if (!file) return;
 
             const url = URL.createObjectURL(file);
-            const obj = await GLTFLoader.loadAsGameObjects(scene, url, "glb");
+            const prefab = await GLTFLoader.LoadFromURL(url, "glb");
+            const obj = scene.Instantiate(prefab);
             obj.transform.position.copy(playerGameObject.transform.position);
             obj.transform.eulerAngles.x += 90
         });

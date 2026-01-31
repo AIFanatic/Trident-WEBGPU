@@ -169,13 +169,8 @@ async function Application(canvas: HTMLCanvasElement) {
                             if (component.type === Components.Mesh.type) {
                                 const instancedMesh = rootGameObject.AddComponent(Components.InstancedMesh);
 
-                                const geometry = new Geometry();
-                                geometry.Deserialize(component.renderable.geometry);
-
-                                const material = PBRMaterial.Deserialize(component.renderable.material);
-
-                                instancedMesh.geometry = geometry;
-                                instancedMesh.material = material;
+                                instancedMesh.geometry = Geometry.Deserialize(component.geometry);
+                                instancedMesh.material = GPU.Material.Deserialize(component.material);
 
                                 record.instancedMeshes.push(instancedMesh);
                             }

@@ -13,7 +13,10 @@ export interface SerializedTexture {
     type: TextureType;
     dimension: TextureDimension;
     mipLevels: number;
-    data: ImageBitmap | string;
+    data: {
+        type: "ImageBitmap" | "Base64" | "AssetPath",
+        data: any
+    };
 }
 
 export interface ImageLoadOptions {
@@ -120,7 +123,7 @@ export class Texture {
     public SetSubData(data: BufferSource, width: number, height: number, mip: number, offsetX: number = 0, offsetY: number = 0, layer: number = 0) {}
     
     public Serialize(metadata: any = {}): SerializedTexture {throw Error("Base class.")}
-    public static Deserialize(data: SerializedTexture): Texture {
+    public static async Deserialize(data: SerializedTexture): Promise<Texture> {
         if (Renderer.type === "webgpu") return WEBGPUTexture.Deserialize(data);
         throw Error("Renderer type invalid");
     }

@@ -52,9 +52,8 @@ struct VertexOutput {
 @group(0) @binding(4) var AlbedoMap: texture_2d<f32>;
 @group(0) @binding(5) var NormalMap: texture_2d<f32>;
 @group(0) @binding(6) var HeightMap: texture_2d<f32>;
-@group(0) @binding(7) var MetalnessMap: texture_2d<f32>;
+@group(0) @binding(7) var ARMMap: texture_2d<f32>;
 @group(0) @binding(8) var EmissiveMap: texture_2d<f32>;
-@group(0) @binding(9) var AOMap: texture_2d<f32>;
 
 
 #if USE_SKINNING
@@ -159,8 +158,8 @@ fn fragmentMain(input: VertexOutput) -> FragmentOutput {
         normal = normalize(tbn * normalSample);
     #endif
 
-    #if USE_METALNESS_MAP
-        let metalnessRoughness = textureSample(MetalnessMap, TextureSampler, uv);
+    #if USE_ARM_MAP
+        let metalnessRoughness = textureSample(ARMMap, TextureSampler, uv);
 
         occlusion *= metalnessRoughness.r;
         roughness *= metalnessRoughness.g;

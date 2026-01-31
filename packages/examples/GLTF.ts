@@ -1,4 +1,4 @@
-import { Components, Scene, GPU, Mathf, GameObject, Geometry, IndexAttribute, PBRMaterial, VertexAttribute } from "@trident/core";
+import { Components, Scene, GPU, Mathf, GameObject, Geometry, IndexAttribute, PBRMaterial, VertexAttribute, Prefab } from "@trident/core";
 
 import { OrbitControls } from "@trident/plugins/OrbitControls";
 import { GLTFLoader } from "@trident/plugins/GLTF/GLTFLoader";
@@ -35,9 +35,40 @@ async function Application(canvas: HTMLCanvasElement) {
     const environment = new Environment(scene, skyTexture);
     await environment.init();
 
-    // const prefab = await GLTFLoader.LoadFromURL("./assets/models/DamagedHelmet/DamagedHelmet.gltf");
-    const prefab = await GLTFLoader.LoadFromURL("./assets/models/Fox.glb");
-    scene.Instantiate(prefab);
+    const prefab = await GLTFLoader.LoadFromURL("./assets/models/DamagedHelmet/DamagedHelmet.gltf");
+    // const prefab = await GLTFLoader.LoadFromURL("./assets/models/Fox.glb");
+    console.log(prefab.transform.rotation)
+    const gameObject = scene.Instantiate(prefab);
+
+    {
+        function traverse(objects: Prefab[], fn: (object: Prefab) => void) {
+            for (const object of objects) {
+                fn(object);
+                for (const child of object.children) {
+                    traverse([child], fn);
+                }
+            }
+        }
+        
+        const serialized = scene.Serialize();
+        console.log("serialized", serialized)
+        
+        traverse(serialized.gameObjects, gameObject => {
+            for (const componet of gameObject.components) {
+                if (componet.type === Components.Mesh.type) {
+                    console.log("MESH", componet)
+                    componet.geometry.assetPath = "/extra/test-assets/DamagedHelmet.mesh";
+                    componet.material.assetPath = "/extra/test-assets/DamagedHelmet.mat";
+                }
+            }
+        })
+
+
+        scene.Clear();
+        scene.Deserialize(serialized);
+        Components.Camera.mainCamera = scene.GetGameObjects()[0].GetComponents(Components.Camera)[0];
+        const controls = new OrbitControls(canvas, Components.Camera.mainCamera);
+    }
     Debugger.Enable();
 
     scene.Start();

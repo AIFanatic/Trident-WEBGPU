@@ -167,4 +167,8 @@ export class WEBGPUShader extends WEBGPUBaseShader implements Shader {
             cullMode: this.params.cullMode,
         };
     }
+
+    public Deserialize(data) {
+        throw Error("Not implemented");
+    }
 }

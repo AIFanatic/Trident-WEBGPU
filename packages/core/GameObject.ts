@@ -111,8 +111,8 @@ export class GameObject {
         this.scene.RemoveGameObject(this);
     }
 
-    public Serialize(metadata: any = {}): SerializedGameObject {
-        let serializedChildren: SerializedGameObject[] = [];
+    public Serialize(metadata: any = {}): Prefab {
+        let serializedChildren: Prefab[] = [];
         for (const childGameObject of this.transform.children) serializedChildren.push(childGameObject.gameObject.Serialize(metadata));
 
         return {
@@ -123,7 +123,7 @@ export class GameObject {
         };
     }
 
-    public Deserialize(data: SerializedGameObject) {
+    public Deserialize(data: Prefab) {
         this.name = data.name;
         this.transform.Deserialize(data.transform);
 

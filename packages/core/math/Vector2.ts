@@ -74,4 +74,13 @@ export class Vector2 {
     public toString(): string {
         return `(${this.x.toPrecision(2)}, ${this.y.toPrecision(2)})`;
     }
+
+    public Serialize(): { type: string } & Record<string, unknown> {
+        return {type: "@trident/core/math/Vector2", x: this.x, y: this.y};
+    }
+
+    public Deserialize(data: any): Vector2 {
+        this.set(data.x, data.y);
+        return this;
+    }
 }

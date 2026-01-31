@@ -1,11 +1,7 @@
 import { EventSystem, EventSystemLocal } from "../Events";
-import { GameObject } from "../GameObject";
 import { Color } from "../math/Color";
-import { Matrix4 } from "../math/Matrix4";
 import { Vector3 } from "../math/Vector3";
-import { Vector4 } from "../math/Vector4";
 import { Renderer } from "../renderer/Renderer";
-import { DepthTexture, RenderTexture } from "../renderer/Texture";
 import { SerializeField } from "../utils/SerializeField";
 import { Camera } from "./Camera";
 import { Component } from "./Component";
@@ -18,7 +14,8 @@ export class LightEvents {
 export class Light extends Component {
     public static type = "@trident/core/components/Light";
 
-    public camera: Camera;
+    @SerializeField
+    public camera: Camera = new Camera(this.gameObject);
     @SerializeField
     public color: Color = new Color(1,1,1);
     @SerializeField
@@ -26,31 +23,15 @@ export class Light extends Component {
     @SerializeField
     public castShadows: boolean = true;
 
-    constructor(gameObject: GameObject) {
-        super(gameObject);
-        this.camera = new Camera(this.gameObject);
-    }
-    
     public Start(): void {
-        // this.camera = this.gameObject.AddComponent(Camera);
         EventSystemLocal.on(TransformEvents.Updated, this.transform, () => {
             EventSystem.emit(LightEvents.Updated, this);
         })
     }
-
-    public Serialize() {
-        return {
-            type: Light.type,
-            camera: this.camera.Serialize(),
-            color: this.color.Serialize(),
-            intensity: this.intensity,
-            // range: this.range,
-            castShadows: this.castShadows
-        }
-    }
 }
 
 export class SpotLight extends Light {
+    public static type = "@trident/core/components/SpotLight";
     public direction = new Vector3(0,-1,0);
 
     private _angle: number = 1;
@@ -70,9 +51,6 @@ export class SpotLight extends Light {
     };
 
     protected UpdateLight() {
-        // this.transform.scale.set(this.range, this.range, this.range);
-        // this.transform.scale.set(this.angle * 10, this.range, this.angle * 10);
-
         const radius = Math.tan(this.angle) * this.range; // if angle is full cone angle
          this.transform.scale.set(radius, this.range, radius);
     }
@@ -85,6 +63,7 @@ export class SpotLight extends Light {
 }
 
 export class PointLight extends Light {
+    public static type = "@trident/core/components/PointLight";
     private _range: number = 10;
     @SerializeField
     public get range(): number { return this._range };
@@ -106,6 +85,7 @@ export class PointLight extends Light {
 
 // TODO: Harder, maybe can be faked with a perspective camera and some scale hacks
 export class AreaLight extends Light {
+    public static type = "@trident/core/components/AreaLight";
     public Start(): void {
         super.Start();
         // TODO: Ortographic camera
@@ -123,22 +103,6 @@ export class DirectionalLight extends Light {
         super.Start();
         const size = 1;
         this.camera.SetOrthographic(-size, size, -size, size, 0.1, 100);
-    }
-
-    public Serialize() {
-        return Object.assign(super.Serialize(), {
-            type: DirectionalLight.type,
-            direction: this.direction.Serialize(),
-        });
-    }
-
-    public Deserialize(data: any): void {
-        this.direction.Deserialize(data.direction);
-        this.camera.Deserialize(data.camera);
-        this.color.Deserialize(data.color);
-        this.intensity = data.intensity;
-        this.range = data.range;
-        this.castShadows = data.castShadows;
     }
 }
 

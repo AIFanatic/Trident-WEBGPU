@@ -5,8 +5,16 @@ type ResponseType<T> = T extends 'json' ? object
 
 export class Assets {
     private static cache: Map<string, Promise<any>> = new Map();
+    private static instanceCache: Map<string, any> = new Map();
 
-    // Register a path
+    public static GetInstance(path: string) {
+        return Assets.instanceCache.get(path);
+    }
+
+    public static SetInstance(path: string, instance: any) {
+        return Assets.instanceCache.set(path, instance);
+    }
+
     public static async Register(path: string, resource: Promise<any> | any, force = false) {
         if (Assets.cache.has(path) && force === false) throw Error(`Assets[Register]: ${path} already set, use "force" to bypass.`);
         Assets.cache.set(path, Promise.resolve(resource));
