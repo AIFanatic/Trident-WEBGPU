@@ -92,10 +92,42 @@ function GetSerializedFields(classInstance) {
   return own.filter((f) => !base.includes(f));
 }
 
+class Pool {
+  items = [];
+  free = [];
+  /** Add an item, return its ID */
+  add(value) {
+    if (this.free.length > 0) {
+      const id2 = this.free.pop();
+      this.items[id2] = value;
+      return id2;
+    }
+    const id = this.items.length;
+    this.items.push(value);
+    return id;
+  }
+  /** Get item by ID (undefined if removed) */
+  get(id) {
+    return this.items[id];
+  }
+  /** Replace item at ID */
+  set(id, value) {
+    this.items[id] = value;
+  }
+  /** Remove item and free its ID */
+  remove(id) {
+    if (this.items[id] !== void 0) {
+      this.items[id] = void 0;
+      this.free.push(id);
+    }
+  }
+}
+
 var index$3 = /*#__PURE__*/Object.freeze({
     __proto__: null,
     CRC32: CRC32,
     GetSerializedFields: GetSerializedFields,
+    Pool: Pool,
     SerializeField: SerializeField,
     StringFindAllBetween: StringFindAllBetween,
     UUID: UUID
@@ -2469,6 +2501,52 @@ class WEBGPUTexture {
       console.warn(error);
     }
   }
+  async GetPixels(x, y, blockWidth, blockHeight, mipLevel) {
+    if (Renderer.HasActiveFrame()) {
+      throw Error("Texture.GetPixels() cannot run inside an active render frame. Call it after EndRenderFrame().");
+    }
+    const bppByFormat = {
+      r8unorm: 1,
+      rg8unorm: 2,
+      rgba8unorm: 4,
+      r16float: 2,
+      rg16float: 4,
+      rgba16float: 8,
+      r32uint: 4,
+      rg32uint: 8,
+      rgba32uint: 16,
+      r32float: 4,
+      rg32float: 8,
+      rgba32float: 16
+    };
+    const bpp = bppByFormat[this.format];
+    if (!bpp) throw Error(`GetPixels unsupported format: ${this.format}`);
+    const bytesPerRow = Math.ceil(blockWidth * bpp / 256) * 256;
+    const size = bytesPerRow * blockHeight;
+    const buffer = Buffer.Create(size, BufferType.STORAGE);
+    Renderer.BeginRenderFrame();
+    RendererContext.CopyTextureToBufferV2(
+      { texture: this, mipLevel, origin: [x, y, 0] },
+      { buffer, offset: 0, bytesPerRow },
+      [blockWidth, blockHeight, 1]
+    );
+    Renderer.EndRenderFrame();
+    await Renderer.OnFrameCompleted();
+    const data = await buffer.GetData();
+    const bytes = new Uint8Array(data);
+    const packed = new Uint8Array(blockWidth * blockHeight * bpp);
+    for (let row = 0; row < blockHeight; row++) {
+      const src = row * bytesPerRow;
+      const dst = row * blockWidth * bpp;
+      packed.set(bytes.subarray(src, src + blockWidth * bpp), dst);
+    }
+    buffer.Destroy();
+    if (this.format.endsWith("uint")) return new Uint32Array(packed.buffer);
+    if (this.format.endsWith("sint")) return new Uint32Array(packed.buffer);
+    if (this.format.endsWith("float")) return new Float32Array(packed.buffer);
+    if (this.format.includes("16")) return new Uint16Array(packed.buffer);
+    return packed;
+  }
   // Format and types are very limited for now
   // https://github.com/gpuweb/gpuweb/issues/2322
   static FromImageBitmap(imageBitmap, width, height, format, flipY, generateMips) {
@@ -3653,6 +3731,9 @@ class Texture {
     throw Error("Base class.");
   }
   GenerateMips() {
+  }
+  GetPixels(x, y, blockWidth, blockHeight, mipLevel) {
+    throw Error("Base class.");
   }
   Destroy() {
   }
@@ -5499,37 +5580,6 @@ class TextureViewer extends RenderPass {
   }
 }
 
-class Pool {
-  items = [];
-  free = [];
-  /** Add an item, return its ID */
-  add(value) {
-    if (this.free.length > 0) {
-      const id2 = this.free.pop();
-      this.items[id2] = value;
-      return id2;
-    }
-    const id = this.items.length;
-    this.items.push(value);
-    return id;
-  }
-  /** Get item by ID (undefined if removed) */
-  get(id) {
-    return this.items[id];
-  }
-  /** Replace item at ID */
-  set(id, value) {
-    this.items[id] = value;
-  }
-  /** Remove item and free its ID */
-  remove(id) {
-    if (this.items[id] !== void 0) {
-      this.items[id] = void 0;
-      this.free.push(id);
-    }
-  }
-}
-
 const MaterialPool = new Pool();
 class Material {
   static type = "@trident/core/renderer/Material";
@@ -5796,9 +5846,9 @@ const _Renderable = class _Renderable extends (_a$2 = Component, _enableShadows_
     this._material = material;
     EventSystem.emit(RenderableEvents.MaterialUpdated, this.gameObject, material);
   }
-  OnPreFrame() {
+  OnPreFrame(shaderOverride) {
   }
-  OnPreRender() {
+  OnPreRender(shaderOverride) {
   }
   OnRenderObject(shaderOverride) {
   }
@@ -6454,9 +6504,10 @@ class Mesh extends Renderable {
       this.modelMatrixOffset = Mesh.modelMatrices.set(this.id, this.transform.localToWorldMatrix.elements);
     });
   }
-  OnPreRender() {
-    if (!this.geometry || !this.material || !this.material?.shader) return;
-    this.material.shader.SetBuffer("modelMatrix", Mesh.modelMatrices.getBuffer());
+  OnPreRender(shaderOverride) {
+    const shader = shaderOverride ? shaderOverride : this.material?.shader;
+    if (!this.geometry || !this.material || !shader) return;
+    shader.SetBuffer("modelMatrix", Mesh.modelMatrices.getBuffer());
   }
   OnRenderObject(shaderOverride) {
     const shader = shaderOverride ? shaderOverride : this.material?.shader;
@@ -7323,11 +7374,14 @@ class Input {
   static keysUp = {};
   static mouseDown = {};
   static mouseUp = {};
-  static mousePosition = new Vector2();
+  static _mousePosition = new Vector2();
   static horizontalAxis = 0;
   static verticalAxis = 0;
   static previousTouch = new Vector2();
   static initialized = false;
+  static get mousePosition() {
+    return Input._mousePosition;
+  }
   static Init() {
     if (this.initialized === true) return;
     if (!Renderer.canvas) throw Error("Renderer has no canvas.");
@@ -7353,15 +7407,15 @@ class Input {
   }
   static OnTouchMove(event) {
     event.preventDefault();
-    this.mousePosition.x = event.touches[0].clientX;
-    this.mousePosition.y = event.touches[0].clientY;
-    this.horizontalAxis += Math.round(this.mousePosition.x - this.previousTouch.x);
-    this.verticalAxis += Math.round(this.mousePosition.y - this.previousTouch.y);
-    this.previousTouch.set(this.mousePosition.x, this.mousePosition.y);
+    this._mousePosition.x = event.touches[0].clientX;
+    this._mousePosition.y = event.touches[0].clientY;
+    this.horizontalAxis += Math.round(this._mousePosition.x - this.previousTouch.x);
+    this.verticalAxis += Math.round(this._mousePosition.y - this.previousTouch.y);
+    this.previousTouch.set(this._mousePosition.x, this._mousePosition.y);
   }
   static OnMouseMove(event) {
-    this.mousePosition.x = event.clientX;
-    this.mousePosition.y = event.clientY;
+    this._mousePosition.x = event.clientX;
+    this._mousePosition.y = event.clientY;
     this.horizontalAxis += event.movementX;
     this.verticalAxis += event.movementY;
   }
@@ -7761,6 +7815,7 @@ class Scene {
         }
       }
     });
+    Input.Init();
   }
   AddGameObject(gameObject) {
     this.gameObjects.push(gameObject);

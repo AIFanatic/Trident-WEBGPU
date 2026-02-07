@@ -1,4 +1,4 @@
-import { Renderer, Scene, GameObject, Mathf, Component as Component$1, Prefab, Geometry, PBRMaterial, Utils, Components } from '@trident/core';
+import { Renderer, Scene, GameObject, Mathf, Component as Component$1, Prefab, Geometry, PBRMaterial, Utils, Components, GPU, Input } from '@trident/core';
 import { OrbitControls } from '@trident/plugins/OrbitControls.js';
 import { Environment } from '@trident/plugins/Environment/Environment.js';
 import { Sky } from '@trident/plugins/Environment/Sky.js';
@@ -333,6 +333,104 @@ class EventSystem {
   }
 }
 
+const DYNAMIC_SLOT_BYTES = 256;
+const DYNAMIC_SLOT_FLOATS = DYNAMIC_SLOT_BYTES / 4;
+class Raycaster {
+  shader;
+  renderTarget;
+  idMap;
+  initialized = false;
+  constructor() {
+    this.init();
+  }
+  async init() {
+    this.shader = await GPU.Shader.Create({
+      code: `
+                struct VertexInput {
+                    @location(0) position : vec3<f32>,
+                };
+
+                struct VertexOutput {
+                    @builtin(position) position : vec4<f32>,
+                };
+
+                @group(0) @binding(0) var<storage, read> projectionMatrix: mat4x4<f32>;
+                @group(0) @binding(1) var<storage, read> viewMatrix: mat4x4<f32>;
+                @group(0) @binding(2) var<storage, read> modelMatrix: array<mat4x4<f32>>;
+                @group(0) @binding(3) var<storage, read> id: f32;
+
+                @vertex
+                fn vertexMain(input: VertexInput) -> VertexOutput {
+                    var output : VertexOutput;
+                    output.position = projectionMatrix * viewMatrix * modelMatrix[0] * vec4(input.position, 1.0);
+                    return output;
+                }
+
+                                  
+                fn rand(x: f32) -> f32 {
+                    return fract(sin(x) * 43758.5453123);
+                }
+
+                @fragment
+                fn fragmentMain(input: VertexOutput) -> @location(0) u32 {
+                    // store object id in red channel
+                    return u32(id);
+                }
+              `,
+      colorOutputs: [{ format: "r32uint" }]
+    });
+    this.renderTarget = GPU.RenderTexture.Create(GPU.Renderer.width, GPU.Renderer.height, 1, "r32uint");
+    this.idMap = GPU.DynamicBuffer.Create(1e4 * DYNAMIC_SLOT_BYTES * 4, GPU.BufferType.STORAGE, DYNAMIC_SLOT_BYTES);
+    this.shader.SetBuffer("id", this.idMap);
+    this.initialized = true;
+  }
+  mouseToPixel() {
+    const mousePosition = Input.mousePosition;
+    const rect = GPU.Renderer.canvas.getBoundingClientRect();
+    const u = (mousePosition.x - rect.left) / rect.width;
+    const v = (mousePosition.y - rect.top) / rect.height;
+    const texWidth = this.renderTarget.width;
+    const texHeight = this.renderTarget.height;
+    const x = Math.floor(u * texWidth);
+    const y = Math.floor(v * texHeight);
+    return {
+      x: Math.max(0, Math.min(texWidth - 1, x)),
+      y: Math.max(0, Math.min(texHeight - 1, y))
+    };
+  }
+  async execute() {
+    if (!this.initialized) return;
+    const resources = Scene.mainScene.renderPipeline.renderGraph.resourcePool;
+    const gBufferDepth = resources.getResource(GPU.PassParams.GBufferDepth);
+    if (!gBufferDepth) return;
+    const camera = Components.Camera.mainCamera;
+    this.shader.SetMatrix4("projectionMatrix", camera.projectionMatrix);
+    this.shader.SetMatrix4("viewMatrix", camera.viewMatrix);
+    const all = Scene.mainScene.GetComponents(Components.Renderable);
+    const pickables = all.filter((r) => !!r.geometry);
+    const ids = new Float32Array(pickables.length * DYNAMIC_SLOT_FLOATS);
+    for (let slot = 0; slot < pickables.length; slot++) {
+      pickables[slot].OnPreRender(this.shader);
+      ids[slot * DYNAMIC_SLOT_FLOATS] = slot + 1;
+    }
+    this.idMap.SetArray(ids);
+    GPU.Renderer.BeginRenderFrame();
+    GPU.RendererContext.BeginRenderPass("Raycaster", [{ target: this.renderTarget, clear: true }], gBufferDepth, true);
+    for (let slot = 0; slot < pickables.length; slot++) {
+      this.idMap.dynamicOffset = slot * DYNAMIC_SLOT_BYTES;
+      pickables[slot].OnRenderObject(this.shader);
+    }
+    GPU.RendererContext.EndRenderPass();
+    GPU.Renderer.EndRenderFrame();
+    const mousePixel = this.mouseToPixel();
+    const id = (await this.renderTarget.GetPixels(mousePixel.x, mousePixel.y, 1, 1, 0))[0];
+    if (id > 0) {
+      return pickables[id - 1].gameObject;
+    }
+    return null;
+  }
+}
+
 class LayoutCanvas extends Component {
   async canvasRef(canvas) {
     canvas.style.width = "100%";
@@ -378,6 +476,22 @@ class LayoutCanvas extends Component {
     const skyTexture = sky.skyTextureCubemap;
     const environment = new Environment(EngineAPI.currentScene, skyTexture);
     await environment.init();
+    const raycaster = new Raycaster();
+    let mouseDownPosition = { x: 0, y: 0 };
+    let mouseUpPosition = { x: 0, y: 0 };
+    canvas.addEventListener("mousedown", (event) => {
+      mouseDownPosition = { x: event.clientX, y: event.clientY };
+    });
+    canvas.addEventListener("mouseup", async (event) => {
+      mouseUpPosition = { x: event.clientX, y: event.clientY };
+      const mouseDrif = { x: mouseDownPosition.x - mouseUpPosition.x, y: mouseDownPosition.y - mouseUpPosition.y };
+      if (mouseDrif.x == 0 && mouseDrif.y == 0) {
+        const pickedGameObject = await raycaster.execute();
+        if (pickedGameObject) {
+          EventSystem.emit(GameObjectEvents.Selected, pickedGameObject);
+        }
+      }
+    });
     EventSystem.on(SceneEvents.Loaded, (scene) => {
       const mainCamera = Components.Camera.mainCamera;
       new OrbitControls(canvas, mainCamera);
@@ -1154,6 +1268,9 @@ class LayoutHierarchy extends Component {
     EventSystem.on(GameObjectEvents.Deleted, (gameObject) => {
       if (gameObject === this.state.gameObject) this.setState({ gameObject: null });
     });
+    EventSystem.on(GameObjectEvents.Selected, (gameObject) => {
+      this.selectGameObject(gameObject);
+    });
   }
   selectGameObject(gameObject) {
     console.log("selected", gameObject);
@@ -1297,7 +1414,8 @@ class InspectorCheckbox extends Component {
 class InspectorVector3 extends Component {
   constructor(props) {
     super(props);
-    this.state = { vector3: this.props.vector3.clone() };
+    this.setState({ vector3: this.props.vector3 });
+    console.log(this.props.vector3);
   }
   onChanged(property, event) {
     if (this.props.onChanged) {
@@ -1315,11 +1433,29 @@ class InspectorVector3 extends Component {
   }
   componentDidUpdate() {
     if (!this.Vector3Equals(this.props.vector3, this.state.vector3)) {
-      this.setState({ vector3: this.props.vector3.clone() });
+      this.setState({ vector3: this.props.vector3 });
     }
   }
+  onClicked(property, event) {
+    event.preventDefault();
+    const MouseMoveEvent = (event2) => {
+      const delta = event2.movementX;
+      if (property === 0 /* X */) this.state.vector3.x += delta / 10;
+      if (property === 1 /* Y */) this.state.vector3.y += delta / 10;
+      if (property === 2 /* Z */) this.state.vector3.z += delta / 10;
+      this.setState({ vector3: this.props.vector3 });
+    };
+    const MouseUpEvent = (event2) => {
+      document.body.removeEventListener("mousemove", MouseMoveEvent);
+      document.body.removeEventListener("mouseup", MouseUpEvent);
+    };
+    document.body.addEventListener("mousemove", MouseMoveEvent);
+    document.body.addEventListener("mouseup", MouseUpEvent);
+  }
   render() {
-    return /* @__PURE__ */ createElement("div", { class: "InspectorComponent" }, /* @__PURE__ */ createElement("span", { class: "title" }, this.props.title), /* @__PURE__ */ createElement("div", { class: "edit" }, /* @__PURE__ */ createElement("div", { class: "value" }, /* @__PURE__ */ createElement("span", { class: "vec-label red-bg" }, "X"), /* @__PURE__ */ createElement(
+    return /* @__PURE__ */ createElement("div", { class: "InspectorComponent" }, /* @__PURE__ */ createElement("span", { class: "title" }, this.props.title), /* @__PURE__ */ createElement("div", { class: "edit" }, /* @__PURE__ */ createElement("div", { class: "value" }, /* @__PURE__ */ createElement("span", { class: "vec-label red-bg", onMouseDown: (event) => {
+      this.onClicked(0 /* X */, event);
+    } }, "X"), /* @__PURE__ */ createElement(
       "input",
       {
         class: "input vec-input",
@@ -1329,7 +1465,9 @@ class InspectorVector3 extends Component {
         },
         value: this.state.vector3.x.toPrecision(4)
       }
-    )), /* @__PURE__ */ createElement("div", { class: "value" }, /* @__PURE__ */ createElement("span", { class: "vec-label green-bg" }, "Y"), /* @__PURE__ */ createElement(
+    )), /* @__PURE__ */ createElement("div", { class: "value" }, /* @__PURE__ */ createElement("span", { class: "vec-label green-bg", onMouseDown: (event) => {
+      this.onClicked(1 /* Y */, event);
+    } }, "Y"), /* @__PURE__ */ createElement(
       "input",
       {
         class: "input vec-input",
@@ -1339,7 +1477,9 @@ class InspectorVector3 extends Component {
         },
         value: this.state.vector3.y.toPrecision(4)
       }
-    )), /* @__PURE__ */ createElement("div", { class: "value" }, /* @__PURE__ */ createElement("span", { class: "vec-label blue-bg" }, "Z"), /* @__PURE__ */ createElement(
+    )), /* @__PURE__ */ createElement("div", { class: "value" }, /* @__PURE__ */ createElement("span", { class: "vec-label blue-bg", onMouseDown: (event) => {
+      this.onClicked(2 /* Z */, event);
+    } }, "Z"), /* @__PURE__ */ createElement(
       "input",
       {
         class: "input vec-input",
@@ -1660,11 +1800,11 @@ class LayoutInspectorGameObject extends Component {
           this.onGameObjectNameChanged(this.state.gameObject, event);
         }
       }
-    )), /* @__PURE__ */ createElement(Collapsible, { header: "Transform" }, /* @__PURE__ */ createElement(InspectorVector3, { title: "Position", onChanged: (value) => {
+    )), /* @__PURE__ */ createElement(Collapsible, { header: "Transform" }, /* @__PURE__ */ createElement(InspectorVector3, { key: `position-${this.state.gameObject.id}`, title: "Position", onChanged: (value) => {
       this.onComponentPropertyChanged(this.state.gameObject.transform, "localPosition", value);
-    }, vector3: this.state.gameObject.transform.localPosition }), /* @__PURE__ */ createElement(InspectorVector3, { title: "Rotation", onChanged: (value) => {
+    }, vector3: this.state.gameObject.transform.localPosition }), /* @__PURE__ */ createElement(InspectorVector3, { key: `rotation-${this.state.gameObject.id}`, title: "Rotation", onChanged: (value) => {
       this.onComponentPropertyChanged(this.state.gameObject.transform, "localEulerAngles", value);
-    }, vector3: this.state.gameObject.transform.localEulerAngles }), /* @__PURE__ */ createElement(InspectorVector3, { title: "Scale", onChanged: (value) => {
+    }, vector3: this.state.gameObject.transform.localEulerAngles }), /* @__PURE__ */ createElement(InspectorVector3, { key: `scale-${this.state.gameObject.id}`, title: "Scale", onChanged: (value) => {
       this.onComponentPropertyChanged(this.state.gameObject.transform, "scale", value);
     }, vector3: this.state.gameObject.transform.scale })), componentsElements);
   }

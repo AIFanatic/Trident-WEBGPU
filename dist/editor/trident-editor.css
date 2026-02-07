@@ -371,6 +371,10 @@ input[type=number] {
     border-bottom-left-radius: 2px;
 }
 
+.InspectorComponent .vec-label:hover {
+    cursor: col-resize;
+}
+
 .InspectorComponent .vec-input {
     padding: 4px;
     font-size: 9px;
