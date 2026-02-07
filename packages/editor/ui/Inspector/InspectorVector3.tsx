@@ -6,8 +6,9 @@ import './InspectorComponent.css';
 
 interface InspectorVector3Props {
     title: string;
-    vector3: IVector3
+    vector3: IVector3;
     onChanged?: (value: IVector3) => void;
+    key: string;
 };
 
 interface InspectorVector3State {
@@ -23,7 +24,9 @@ enum ChangedProperty {
 export class InspectorVector3 extends Component<InspectorVector3Props, InspectorVector3State> {
     constructor(props: InspectorVector3Props) {
         super(props);
-        this.state = {vector3: this.props.vector3.clone()};
+        // this.state = {vector3: this.props.vector3.clone()};
+        this.setState({vector3: this.props.vector3});
+        console.log(this.props.vector3)
     }
 
     private onChanged(property: ChangedProperty, event: Event) {
@@ -36,7 +39,7 @@ export class InspectorVector3 extends Component<InspectorVector3Props, Inspector
             else if (property == ChangedProperty.Y) this.state.vector3.y = value;
             else if (property == ChangedProperty.Z) this.state.vector3.z = value;
 
-            this.props.onChanged(this.state.vector3)
+            this.props.onChanged(this.state.vector3);
         }
     }
       
@@ -46,8 +49,27 @@ export class InspectorVector3 extends Component<InspectorVector3Props, Inspector
 
     public componentDidUpdate() {
         if (!this.Vector3Equals(this.props.vector3, this.state.vector3)) {
-            this.setState({vector3: this.props.vector3.clone()});
+            this.setState({vector3: this.props.vector3});
         }
+    }
+
+    private onClicked(property: ChangedProperty, event: MouseEvent) {
+        event.preventDefault();
+        const MouseMoveEvent = (event: MouseEvent) => {
+            const delta = event.movementX;
+            if (property === ChangedProperty.X) this.state.vector3.x += delta / 10;
+            if (property === ChangedProperty.Y) this.state.vector3.y += delta / 10;
+            if (property === ChangedProperty.Z) this.state.vector3.z += delta / 10;
+            this.setState({vector3: this.props.vector3});
+        }
+        
+        const MouseUpEvent = (event: MouseEvent) => {
+            document.body.removeEventListener("mousemove", MouseMoveEvent);
+            document.body.removeEventListener("mouseup", MouseUpEvent);
+        }
+
+        document.body.addEventListener("mousemove", MouseMoveEvent);
+        document.body.addEventListener("mouseup", MouseUpEvent);
     }
 
     public render() {
@@ -56,7 +78,7 @@ export class InspectorVector3 extends Component<InspectorVector3Props, Inspector
 
             <div class="edit">
                 <div class="value">
-                    <span class="vec-label red-bg">X</span>
+                    <span class="vec-label red-bg" onMouseDown={(event) => {this.onClicked(ChangedProperty.X, event)}}>X</span>
                     <input 
                         class="input vec-input"
                         type="number"
@@ -66,7 +88,7 @@ export class InspectorVector3 extends Component<InspectorVector3Props, Inspector
                 </div>
 
                 <div class="value">
-                    <span class="vec-label green-bg">Y</span>
+                    <span class="vec-label green-bg" onMouseDown={(event) => {this.onClicked(ChangedProperty.Y, event)}}>Y</span>
                     <input
                         class="input vec-input"
                         type="number"
@@ -76,7 +98,7 @@ export class InspectorVector3 extends Component<InspectorVector3Props, Inspector
                 </div>
 
                 <div class="value">
-                    <span class="vec-label blue-bg">Z</span>
+                    <span class="vec-label blue-bg" onMouseDown={(event) => {this.onClicked(ChangedProperty.Z, event)}}>Z</span>
                     <input
                         class="input vec-input"
                         type="number"

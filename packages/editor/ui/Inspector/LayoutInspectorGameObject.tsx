@@ -205,9 +205,9 @@ export class LayoutInspectorGameObject extends Component<LayoutInspectorProps, L
                 </div>
 
                 <Collapsible header="Transform">
-                    <InspectorVector3 title="Position" onChanged={(value) => { this.onComponentPropertyChanged(this.state.gameObject.transform, "localPosition", value) }} vector3={this.state.gameObject.transform.localPosition} />
-                    <InspectorVector3 title="Rotation" onChanged={(value) => { this.onComponentPropertyChanged(this.state.gameObject.transform, "localEulerAngles", value) }} vector3={this.state.gameObject.transform.localEulerAngles} />
-                    <InspectorVector3 title="Scale" onChanged={(value) => { this.onComponentPropertyChanged(this.state.gameObject.transform, "scale", value) }} vector3={this.state.gameObject.transform.scale} />
+                    <InspectorVector3 key={`position-${this.state.gameObject.id}`} title="Position" onChanged={(value) => { this.onComponentPropertyChanged(this.state.gameObject.transform, "localPosition", value) }} vector3={this.state.gameObject.transform.localPosition} />
+                    <InspectorVector3 key={`rotation-${this.state.gameObject.id}`} title="Rotation" onChanged={(value) => { this.onComponentPropertyChanged(this.state.gameObject.transform, "localEulerAngles", value) }} vector3={this.state.gameObject.transform.localEulerAngles} />
+                    <InspectorVector3 key={`scale-${this.state.gameObject.id}`} title="Scale" onChanged={(value) => { this.onComponentPropertyChanged(this.state.gameObject.transform, "scale", value) }} vector3={this.state.gameObject.transform.scale} />
                 </Collapsible>
 
                 {componentsElements}

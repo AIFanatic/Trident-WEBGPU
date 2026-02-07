@@ -25,9 +25,10 @@ export class Mesh extends Renderable {
         })
     }
 
-    public OnPreRender(): void {
-        if (!this.geometry || !this.material || !this.material?.shader) return;
-        this.material.shader.SetBuffer("modelMatrix", Mesh.modelMatrices.getBuffer()); // Set here because the buffer is dynamic
+    public OnPreRender(shaderOverride?: Shader): void {
+        const shader = shaderOverride ? shaderOverride : this.material?.shader;
+        if (!this.geometry || !this.material || !shader) return;
+        shader.SetBuffer("modelMatrix", Mesh.modelMatrices.getBuffer()); // Set here because the buffer is dynamic
     }
 
     public OnRenderObject(shaderOverride: Shader): void {

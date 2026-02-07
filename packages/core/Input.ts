@@ -132,7 +132,7 @@ export class Input {
     private static mouseDown: any = {};
     private static mouseUp: any = {};
 
-    private static mousePosition: Vector2 = new Vector2();
+    private static _mousePosition: Vector2 = new Vector2();
     private static horizontalAxis: number = 0;
     private static verticalAxis: number = 0;
 
@@ -140,7 +140,9 @@ export class Input {
 
     private static initialized = false;
 
-    private static Init() {
+    public static get mousePosition(): Vector2 {return Input._mousePosition; }
+
+    public static Init() {
         if (this.initialized === true) return;
 
         if (!Renderer.canvas) throw Error("Renderer has no canvas.");
@@ -159,16 +161,16 @@ export class Input {
 
     private static OnTouchMove(event: TouchEvent) {
         event.preventDefault();
-        this.mousePosition.x = event.touches[0].clientX;
-        this.mousePosition.y = event.touches[0].clientY;
-        this.horizontalAxis += Math.round(this.mousePosition.x - this.previousTouch.x);
-        this.verticalAxis += Math.round(this.mousePosition.y - this.previousTouch.y);
-        this.previousTouch.set(this.mousePosition.x, this.mousePosition.y);
+        this._mousePosition.x = event.touches[0].clientX;
+        this._mousePosition.y = event.touches[0].clientY;
+        this.horizontalAxis += Math.round(this._mousePosition.x - this.previousTouch.x);
+        this.verticalAxis += Math.round(this._mousePosition.y - this.previousTouch.y);
+        this.previousTouch.set(this._mousePosition.x, this._mousePosition.y);
     }
 
     private static OnMouseMove(event: MouseEvent) {
-        this.mousePosition.x = event.clientX;
-        this.mousePosition.y = event.clientY;
+        this._mousePosition.x = event.clientX;
+        this._mousePosition.y = event.clientY;
         this.horizontalAxis += event.movementX;
         this.verticalAxis += event.movementY;
     }

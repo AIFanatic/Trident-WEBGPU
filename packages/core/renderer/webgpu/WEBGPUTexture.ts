@@ -6,6 +6,10 @@ import { WEBGPUCubeMipsGenerator } from "./utils/WEBGPUCubeMipsGenerator";
 import { WEBGPURenderer } from "./WEBGPURenderer";
 import { Assets } from "../../Assets";
 
+import { Buffer, BufferType } from "../Buffer";
+import { RendererContext } from "../../renderer";
+import { Color } from "../../math";
+
 const TextureFormatToBits: Partial<Record<TextureFormat, number>> = {
     rgba8unorm: 32, "rgba8unorm-srgb": 32, bgra8unorm: 32, "bgra8unorm-srgb": 32,
     rgba16float: 64, rg16float: 32, r16float: 16,
@@ -210,6 +214,63 @@ export class WEBGPUTexture implements Texture {
         }
     }
 
+    public async GetPixels(x: number, y: number, blockWidth: number, blockHeight: number, mipLevel: number): Promise<Uint8Array | Uint16Array | Uint32Array | Float32Array> {
+        if (Renderer.HasActiveFrame()) {
+            throw Error("Texture.GetPixels() cannot run inside an active render frame. Call it after EndRenderFrame().");
+        }
+
+        const bppByFormat: Partial<Record<TextureFormat, number>> = {
+            r8unorm: 1,
+            rg8unorm: 2,
+            rgba8unorm: 4,
+            r16float: 2,
+            rg16float: 4,
+            rgba16float: 8,
+            r32uint: 4,
+            rg32uint: 8,
+            rgba32uint: 16,
+            r32float: 4,
+            rg32float: 8,
+            rgba32float: 16,
+        };
+
+        const bpp = bppByFormat[this.format];
+        if (!bpp) throw Error(`GetPixels unsupported format: ${this.format}`);
+
+        const bytesPerRow = Math.ceil((blockWidth * bpp) / 256) * 256;
+        const size = bytesPerRow * blockHeight;
+
+        const buffer = Buffer.Create(size, BufferType.STORAGE);
+
+        Renderer.BeginRenderFrame();
+        RendererContext.CopyTextureToBufferV2(
+            { texture: this, mipLevel, origin: [x, y, 0] },
+            { buffer, offset: 0, bytesPerRow },
+            [blockWidth, blockHeight, 1]
+        );
+        Renderer.EndRenderFrame();
+        await Renderer.OnFrameCompleted();
+
+        const data = await buffer.GetData();
+        const bytes = new Uint8Array(data as ArrayBuffer);
+
+        // Strip row padding and return tightly packed pixels
+        const packed = new Uint8Array(blockWidth * blockHeight * bpp);
+        for (let row = 0; row < blockHeight; row++) {
+            const src = row * bytesPerRow;
+            const dst = row * blockWidth * bpp;
+            packed.set(bytes.subarray(src, src + blockWidth * bpp), dst);
+        }
+
+        buffer.Destroy();
+
+        if (this.format.endsWith("uint")) return new Uint32Array(packed.buffer);
+        if (this.format.endsWith("sint")) return new Uint32Array(packed.buffer); // swap to Int32Array if you need signed
+        if (this.format.endsWith("float")) return new Float32Array(packed.buffer); // note: rgba16float is NOT float32
+        if (this.format.includes("16")) return new Uint16Array(packed.buffer);
+        return packed;
+    }
+
     // Format and types are very limited for now
     // https://github.com/gpuweb/gpuweb/issues/2322
     public static FromImageBitmap(imageBitmap: ImageBitmap, width: number, height: number, format: TextureFormat, flipY: boolean, generateMips: boolean): WEBGPUTexture {
@@ -233,81 +294,81 @@ export class WEBGPUTexture implements Texture {
     }
 
     public Serialize(metadata: any = {}): SerializedTexture {
-            let cachedTexture = WEBGPUTexture.SerializedTextureCache.get(this.id);
-            if (cachedTexture) return cachedTexture.serialized;
-    
-            let data: {type: "AssetPath" | "ImageBitmap" | "Base64", data: any};
-    
-            if (this.assetPath) {
-                data = {type: "AssetPath", data: this.assetPath};
-            }
-            else if (metadata["base64Textures"] === true) {
-                const canvas = new OffscreenCanvas(this.width, this.height);
-                const ctx = canvas.getContext("2d");
-                ctx.drawImage(this.imageBitmap, 0, 0);
-                data = {type: "Base64", data: new TextDecoder('latin1').decode(ctx.getImageData(0, 0, this.width, this.height).data)}
-            }
-            else if (this.imageBitmap) {
-                data = {type: "ImageBitmap", data: this.imageBitmap}
-            }
-           
-            cachedTexture = {
-                serialized: {
-                    name: this.name,
-                    id: this.id,
-                    width: this.width,
-                    height: this.height,
-                    depth: this.depth,
-                    format: this.format,
-                    type: this.type,
-                    dimension: this.dimension,
-                    mipLevels: this.mipLevels,
-                    data: data
-                },
-                texture: this
-            };
-    
-            WEBGPUTexture.SerializedTextureCache.set(this.id, cachedTexture);
-    
-            return cachedTexture.serialized;
+        let cachedTexture = WEBGPUTexture.SerializedTextureCache.get(this.id);
+        if (cachedTexture) return cachedTexture.serialized;
+
+        let data: { type: "AssetPath" | "ImageBitmap" | "Base64", data: any };
+
+        if (this.assetPath) {
+            data = { type: "AssetPath", data: this.assetPath };
         }
-    
-        public static async Deserialize(data: SerializedTexture): Promise<WEBGPUTexture> {
-            let cachedTexture = WEBGPUTexture.SerializedTextureCache.get(data.id);
-            if (cachedTexture) return cachedTexture.texture;
-    
-            const texture = new WEBGPUTexture(data.width, data.height, data.depth, data.format, data.type, data.dimension, data.mipLevels);
-            texture.name = data.name;
-            let iamgeBitmap: ImageBitmap = undefined;
-            if (data.data.type === "ImageBitmap") {
-                iamgeBitmap = data.data.data;
-            }
-            else if (data.data.type === "Base64") {
-                const uint8 = new TextEncoder().encode(data.data.data);
-                const blob = new Blob([uint8], { type: "image/png" });
-                iamgeBitmap = await createImageBitmap(blob);
-            }
-            else if (data.data.type === "AssetPath") {
-                const bytes = await Assets.Load(data.data.data, "binary");
-                const blob = new Blob([bytes]);
-                iamgeBitmap = await createImageBitmap(blob);
-            }
-            try {
-                WEBGPURenderer.device.queue.copyExternalImageToTexture(
-                    { source: iamgeBitmap, flipY: false },
-                    { texture: texture.GetBuffer() },
-                    [data.width, data.height]
-                );
-            } catch (error) {
-                console.warn(error)
-            }
-    
-            if (data.mipLevels > 1) texture.GenerateMips();
-    
-            cachedTexture = { serialized: data, texture: texture };
-            WEBGPUTexture.SerializedTextureCache.set(data.id, cachedTexture); // What id to use? New or data one? Should ids be set, probably a unique path or crc should be used instead
-            return texture;
+        else if (metadata["base64Textures"] === true) {
+            const canvas = new OffscreenCanvas(this.width, this.height);
+            const ctx = canvas.getContext("2d");
+            ctx.drawImage(this.imageBitmap, 0, 0);
+            data = { type: "Base64", data: new TextDecoder('latin1').decode(ctx.getImageData(0, 0, this.width, this.height).data) }
         }
-    
-        private static SerializedTextureCache: Map<string, { serialized: SerializedTexture, texture: WEBGPUTexture }> = new Map();
+        else if (this.imageBitmap) {
+            data = { type: "ImageBitmap", data: this.imageBitmap }
+        }
+
+        cachedTexture = {
+            serialized: {
+                name: this.name,
+                id: this.id,
+                width: this.width,
+                height: this.height,
+                depth: this.depth,
+                format: this.format,
+                type: this.type,
+                dimension: this.dimension,
+                mipLevels: this.mipLevels,
+                data: data
+            },
+            texture: this
+        };
+
+        WEBGPUTexture.SerializedTextureCache.set(this.id, cachedTexture);
+
+        return cachedTexture.serialized;
+    }
+
+    public static async Deserialize(data: SerializedTexture): Promise<WEBGPUTexture> {
+        let cachedTexture = WEBGPUTexture.SerializedTextureCache.get(data.id);
+        if (cachedTexture) return cachedTexture.texture;
+
+        const texture = new WEBGPUTexture(data.width, data.height, data.depth, data.format, data.type, data.dimension, data.mipLevels);
+        texture.name = data.name;
+        let iamgeBitmap: ImageBitmap = undefined;
+        if (data.data.type === "ImageBitmap") {
+            iamgeBitmap = data.data.data;
+        }
+        else if (data.data.type === "Base64") {
+            const uint8 = new TextEncoder().encode(data.data.data);
+            const blob = new Blob([uint8], { type: "image/png" });
+            iamgeBitmap = await createImageBitmap(blob);
+        }
+        else if (data.data.type === "AssetPath") {
+            const bytes = await Assets.Load(data.data.data, "binary");
+            const blob = new Blob([bytes]);
+            iamgeBitmap = await createImageBitmap(blob);
+        }
+        try {
+            WEBGPURenderer.device.queue.copyExternalImageToTexture(
+                { source: iamgeBitmap, flipY: false },
+                { texture: texture.GetBuffer() },
+                [data.width, data.height]
+            );
+        } catch (error) {
+            console.warn(error)
+        }
+
+        if (data.mipLevels > 1) texture.GenerateMips();
+
+        cachedTexture = { serialized: data, texture: texture };
+        WEBGPUTexture.SerializedTextureCache.set(data.id, cachedTexture); // What id to use? New or data one? Should ids be set, probably a unique path or crc should be used instead
+        return texture;
+    }
+
+    private static SerializedTextureCache: Map<string, { serialized: SerializedTexture, texture: WEBGPUTexture }> = new Map();
 }

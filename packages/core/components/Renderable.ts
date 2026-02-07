@@ -37,8 +37,8 @@ export class Renderable extends Component {
         Renderable.Renderables.set(this.id, this);
     }
 
-    public OnPreFrame() { }
-    public OnPreRender() { }
+    public OnPreFrame(shaderOverride?: Shader) { }
+    public OnPreRender(shaderOverride?: Shader) { }
     public OnRenderObject(shaderOverride?: Shader) { }
 
     public Destroy(): void {

@@ -68,6 +68,8 @@ export class Scene {
                 }
             }
         });
+
+        Input.Init();
     }
 
     public AddGameObject(gameObject: GameObject) { this.gameObjects.push(gameObject) }

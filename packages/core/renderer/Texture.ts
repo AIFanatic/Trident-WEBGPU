@@ -1,3 +1,4 @@
+import { Color } from "../math";
 import { Vector2 } from "../math/Vector2";
 import { Renderer } from "./Renderer";
 import { WEBGPUTexture } from "./webgpu/WEBGPUTexture";
@@ -115,6 +116,8 @@ export class Texture {
     public GetActiveMipCount(): number {throw Error("Base class.")}
 
     public GenerateMips() {}
+
+    public GetPixels(x: number, y: number, blockWidth: number, blockHeight: number, mipLevel: number): Promise<Uint8Array | Uint16Array | Uint32Array | Float32Array> {throw Error("Base class.")}
 
     public Destroy() {}
 

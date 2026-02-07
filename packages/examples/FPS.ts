@@ -207,16 +207,16 @@ async function Application(canvas: HTMLCanvasElement) {
     // playerGameObject.transform.scale.set(0.01, 0.01, 0.01);
 
     // Weapon
-    // const weaponPrefab = await GLTFLoader.LoadFromURL("/extra/test-assets/ak47u.worldmodel.glb");
-    const weaponPrefab = await GLTFLoader.LoadFromURL("/extra/test-assets/semi_auto_rifle.worldmodel.glb");
+    const weaponPrefab = await GLTFLoader.LoadFromURL("/extra/test-assets/ak47u.worldmodel.glb");
+    // const weaponPrefab = await GLTFLoader.LoadFromURL("/extra/test-assets/semi_auto_rifle.worldmodel.glb");
     const weaponGameObject = scene.Instantiate(weaponPrefab);
     weaponGameObject.transform.position.copy(camera.transform.position);
     weaponGameObject.transform.parent = camera.transform;
-    // weaponGameObject.transform.localEulerAngles.set(175, 10, 180);
-    // weaponGameObject.transform.localPosition.set(0.15, -0.25, -0.3);
+    weaponGameObject.transform.localEulerAngles.set(175, 10, 180);
+    weaponGameObject.transform.localPosition.set(0.15, -0.25, -0.3);
 
-    weaponGameObject.transform.localEulerAngles.set(175, 10 - 90, 180);
-    weaponGameObject.transform.localPosition.set(0.15, -0.10, -0.3);
+    // weaponGameObject.transform.localEulerAngles.set(175, 10 - 90, 180);
+    // weaponGameObject.transform.localPosition.set(0.15, -0.10, -0.3);
     console.log(weaponGameObject)
 
     const playerCollider = playerGameObject.AddComponent(CapsuleCollider);

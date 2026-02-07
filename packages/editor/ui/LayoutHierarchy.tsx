@@ -26,6 +26,10 @@ export class LayoutHierarchy extends Component<BaseProps, LayoutHierarchyState> 
         EventSystem.on(GameObjectEvents.Deleted, gameObject => {
             if (gameObject === this.state.gameObject) this.setState({ gameObject: null });
         });
+
+        EventSystem.on(GameObjectEvents.Selected, gameObject => {
+            this.selectGameObject(gameObject);
+        });
     }
 
     private selectGameObject(gameObject: IGameObject) {

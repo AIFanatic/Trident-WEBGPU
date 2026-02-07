@@ -2,12 +2,16 @@ import { IComponents } from "../engine-api/trident/components";
 import { createElement, Component } from "../gooact";
 import { BaseProps } from "./Layout";
 
-import { EventSystem, SceneEvents } from "../Events";
+import { EventSystem, GameObjectEvents, SceneEvents } from "../Events";
 
-import { Components } from "@trident/core";
+import { Components, Input, MouseCodes } from "@trident/core";
 import { OrbitControls } from "@trident/plugins/OrbitControls.js";
 import { Environment } from "@trident/plugins/Environment/Environment";
 import { Sky } from "@trident/plugins/Environment/Sky";
+import { Raycaster } from "../helpers/Raycaster";
+
+import { Debugger } from "@trident/plugins/Debugger";
+import { UITextureViewer } from "@trident/plugins/ui/UIStats";
 
 export class LayoutCanvas extends Component<BaseProps> {
 
@@ -31,7 +35,6 @@ export class LayoutCanvas extends Component<BaseProps> {
             camera.SetPerspective(72, canvas.width / canvas.height, 0.05, 500);
         });
         observer.observe(canvas);
-
 
         mainCameraGameObject.transform.position.set(0, 0, 10);
         mainCameraGameObject.transform.LookAtV1(EngineAPI.createVector3(0, 0, 0));
@@ -78,6 +81,26 @@ export class LayoutCanvas extends Component<BaseProps> {
 
 
 
+
+        const raycaster = new Raycaster();
+
+        let mouseDownPosition = {x: 0, y: 0};
+        let mouseUpPosition = {x: 0, y: 0};
+
+        canvas.addEventListener("mousedown", event => {
+            mouseDownPosition = {x: event.clientX, y: event.clientY};
+        });
+
+        canvas.addEventListener("mouseup", async event => {
+            mouseUpPosition = {x: event.clientX, y: event.clientY};
+            const mouseDrif = {x: mouseDownPosition.x - mouseUpPosition.x, y: mouseDownPosition.y - mouseUpPosition.y};
+            if (mouseDrif.x == 0 && mouseDrif.y == 0) {
+                const pickedGameObject = await raycaster.execute();
+                if (pickedGameObject) {
+                    EventSystem.emit(GameObjectEvents.Selected, pickedGameObject);
+                }
+            }
+        });
 
         // function traverse(gameObjects: IGameObject[], fn: (gameObject: IGameObject) => void) {
         //     for (const gameObject of gameObjects) {
