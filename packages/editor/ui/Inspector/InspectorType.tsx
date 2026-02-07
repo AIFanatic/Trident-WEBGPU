@@ -2,7 +2,7 @@
 import { createElement, Component } from "../../gooact";
 import './InspectorComponent.css';
 
-export class Class {};
+export class Class { };
 
 interface InspectorTypeProps {
     title: string;
@@ -64,7 +64,7 @@ export class InspectorType extends Component<InspectorTypeProps> {
 
     private onDragLeave(event: DragEvent) {
         const input = event.currentTarget as HTMLInputElement;
-        if(input.classList.contains("active")) {
+        if (input.classList.contains("active")) {
             input.classList.remove("active");
         }
     }
@@ -73,25 +73,28 @@ export class InspectorType extends Component<InspectorTypeProps> {
         return <div className="InspectorComponent">
             <span className="title">{this.props.title}</span>
 
-            <input 
-                className="input"
-                disabled
-                value={this.props.value}
-                onDragEnter={(event) => this.onDragEnter(event)}
-                onDragLeave={(event) => this.onDragLeave(event)}
-                onDrop={(event) => this.onDrop(event)}
-                onDragOver={(event) => this.onDragOver(event)}
-            />
+            <div class="edit">
 
-            <span
-            style={{
-                width: "15px",
-                height: "15px",
-                position: "relative",
-                right: "10px",
-                textAlign: "center"
-            }}
-            >o</span>
+                <input
+                    className="input"
+                    disabled
+                    value={this.props.value}
+                    onDragEnter={(event) => this.onDragEnter(event)}
+                    onDragLeave={(event) => this.onDragLeave(event)}
+                    onDrop={(event) => this.onDrop(event)}
+                    onDragOver={(event) => this.onDragOver(event)}
+                />
+
+                <span
+                    style={{
+                        width: "15px",
+                        height: "15px",
+                        position: "absolute",
+                        right: "10px",
+                        alignSelf: "center"
+                    }}
+                >o</span>
+            </div>
         </div>
     }
 }

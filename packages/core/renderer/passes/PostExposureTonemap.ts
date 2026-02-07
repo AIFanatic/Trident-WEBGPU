@@ -110,7 +110,7 @@ export class PostExposureTonemap extends RenderPass {
             return mix(a, b, c);
         }
 
-          fn luminance(c: vec3f) -> f32 { return dot(c, vec3f(0.2126, 0.7152, 0.0722)); }
+        fn luminance(c: vec3f) -> f32 { return dot(c, vec3f(0.2126, 0.7152, 0.0722)); }
 
         fn applyContrast(color: vec3f, contrast: f32) -> vec3f {
             return (color - vec3f(0.5)) * contrast + vec3f(0.5);

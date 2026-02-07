@@ -421,7 +421,7 @@ export class PathTracer extends GPU.RenderPass {
                 indexBuffer.push(indices[i + 0] + vertexBase, indices[i + 1] + vertexBase, indices[i + 2] + vertexBase, 0);
             }
 
-            const pbrParams = renderable.material.params;
+            const pbrParams = renderable.material;
             materialsBuffer.push(...[...pbrParams.albedoColor.elements, ...pbrParams.emissiveColor.elements, pbrParams.metalness, pbrParams.roughness, 0, 0])
 
         }

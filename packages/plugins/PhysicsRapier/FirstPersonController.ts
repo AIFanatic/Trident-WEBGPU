@@ -1,198 +1,154 @@
-import { Component, Components } from "@trident/core";
-import { Transform } from "@trident/core/components/Transform";
-import { Mathf } from "@trident/core";
+import { Component, Components, Mathf, GPU, GameObject, Input, KeyCodes } from "@trident/core";
 import { PhysicsRapier } from "./PhysicsRapier";
 import { RigidBody } from "./RigidBody";
-import { Collider } from "./colliders/Collider";
 
-export enum CharacterState {
-    GROUNDED,
-    MOVING,
-    RUNNING,
-    JUMPING,
-    FALLING,
-    NOCLIP
-}
+enum State {
+    Idle,
+    Walking,
+    Running,
+    Jumping,
+    Falling
+};
 
 export class FirstPersonController extends Component {
-    public camera: Components.Camera;
-    public collider: Collider;
-    public rigidbody: RigidBody;
-    public speed = 5;
-    public boostMultiplier = 10;
+    public _controller: RigidBody;
+    public _model: GameObject;
+    public _mainCamera: GameObject;
+
+    public move = new Mathf.Vector2();
+    private look = new Mathf.Vector2();
+    private jump = false;
+    private sprint = false;
+    private isPointerLocked = false;
+    private isGrounded = false;
+
+    private v = new Mathf.Vector3();
+
+    public speed = 2;
+    public boostMultiplier = 5;
+
     public orbitSpeed = 0.01;
     public rayDistance = 1;
     public playHeight = 1.80;
+    public blendRotation = 0.15;
 
-    private v = new Mathf.Vector3();
-    private keysPressed = {
-        forward: false,
-        backward: false,
-        left: false,
-        right: false,
-        boost: false,
-        up: false,
-        down: false,
-        jump: false,
-        noclip: false
-    }
-    private mouse = { deltaX: 0, deltaY: 0, left: false };
+    public animationSpeedRatio = 1;
 
+    private state: State = State.Walking;
 
-    private target: Transform;
+    public Start() {
+        if (!this._controller) throw Error("No controller attached");
+        if (!this._model) throw Error("No model attached");
+        if (!this._mainCamera) throw Error("No camera attached");
 
-    public state: CharacterState = CharacterState.FALLING;
-
-    public async Start() {
-        if (!this.camera) throw Error("Camera parameter not set");
-
-        const collider = this.gameObject.GetComponent(Collider);
-        if (!collider) throw Error("FirstPersonController needs a collider attached to it");
-        this.collider = collider;
-
-        const rigidbody = this.gameObject.GetComponent(RigidBody);
-        if (!rigidbody) throw Error("FirstPersonController needs a rigidbody attached to it");
-        this.rigidbody = rigidbody;
-        this.camera.transform.position.copy(this.transform.position);
-
-        this.rigidbody.rigidBody.lockRotations(true, true)
-        
-        document.addEventListener("keydown", event => {
-            if (event.key === "w") this.keysPressed.forward = true;
-            if (event.key === "s") this.keysPressed.backward = true;
-            if (event.key === "a") this.keysPressed.left = true;
-            if (event.key === "d") this.keysPressed.right = true;
-            if (event.key === "q") this.keysPressed.up = true;
-            if (event.key === "e") this.keysPressed.down = true;
-            if (event.key === " ") this.keysPressed.jump = true;
-            if (event.key === "n") this.keysPressed.noclip = true;
-            if (event.key === "Shift") this.keysPressed.boost = true;
-        })
-        document.addEventListener("keyup", event => {
-            if (event.key === "w") this.keysPressed.forward = false;
-            if (event.key === "s") this.keysPressed.backward = false;
-            if (event.key === "a") this.keysPressed.left = false;
-            if (event.key === "d") this.keysPressed.right = false;
-            if (event.key === "q") this.keysPressed.up = false;
-            if (event.key === "e") this.keysPressed.down = false;
-            if (event.key === " ") this.keysPressed.jump = false;
-            if (event.key === "n") this.keysPressed.noclip = false;
-            if (event.key === "Shift") this.keysPressed.boost = false;
+        GPU.Renderer.canvas.addEventListener("pointerdown", event => {
+            if (!this.isPointerLocked) document.body.requestPointerLock();
         })
 
-        document.addEventListener("mousedown", event => { 
-            if (!(event.target instanceof HTMLCanvasElement)) return
-            document.body.requestPointerLock();
-            this.mouse.left = true;
-        });
-
-        document.addEventListener("mouseup", event => {
-            document.exitPointerLock();
-            this.mouse.left = false;
-        });
-
-        document.addEventListener("mousemove", event => {
-            if (this.mouse.left === false) return;
-
-            this.mouse.deltaX -= event.movementX * this.orbitSpeed;
-            this.mouse.deltaY -= event.movementY * this.orbitSpeed;
-            this.camera.transform.rotation.setFromEuler(new Mathf.Vector3(this.mouse.deltaY, this.mouse.deltaX, 0));
-        })
-
-        this.target = this.transform;
-    }
-
-    private GroundRayCast() {
-        // if (this.state === CharacterState.NOCLIP) return;
-
-        const direction = this.target.up.clone().mul(-1);
-        const from = this.target.position.clone();
-        // const to = from.clone().add(direction.clone().mul(this.rayDistance));
-        // this.line.SetFrom(from);
-        // this.line.SetTo(to);
-
-        let ray = new PhysicsRapier.Physics.Ray(from, direction);
-        let hit = PhysicsRapier.PhysicsWorld.castRay(ray, this.rayDistance + 2, true, undefined, undefined, this.collider.collider);
-
-        if (hit !== null) {
-            this.state = CharacterState.GROUNDED;
-            this.floorY = ray.pointAt(hit.timeOfImpact).y;
-            return;   
+        document.onpointerlockchange = event => {
+            this.isPointerLocked = !this.isPointerLocked;
         }
-        this.state = CharacterState.FALLING;
     }
 
-    private CanMove(): boolean {
-        return (
-            this.state == CharacterState.GROUNDED ||
-            this.state == CharacterState.MOVING ||
-            this.state == CharacterState.RUNNING
-        );
+    public Update() {
+        this.UpdateInput();
+        this.GroundedCheck();
+        this.Move();
+        this.CameraRotation();
+        const cam = this._mainCamera.GetComponent(Components.Camera);
+        if (cam) cam.Update();
+        this.UpdateState();
     }
 
-    private SetPosition(position: Mathf.Vector3) {
-        // this.transform.position.copy(position);
-        // this.rigidbody.rigidBody.setNextKinematicTranslation(position);
-        // this.rigidbody.rigidBody.setLinvel(position);
-        this.camera.transform.position.copy(position).add(new Mathf.Vector3(0, 1, 0));
+    private UpdateState() {
+        const isGrounded = this.isGrounded;
+        const isJumping = this.jump;
+        const isMoving = this.move.length() > 1e-5;
+        const isRunning = this.sprint;
+
+        if (isGrounded === true && !isMoving) this.state = State.Idle;
+        else if (isGrounded === true && isMoving) isRunning ? this.state = State.Running : this.state = State.Walking;
+        else if (isGrounded === true && isMoving && isRunning) this.state = State.Running;
+        else if (isJumping === true) this.state = State.Jumping;
     }
-
-    private HandleMovement() {
-        // if (!this.CanMove() && this.state !== CharacterState.NOCLIP) {
-        //     const g = new Mathf.Vector3(PhysicsRapier.PhysicsWorld.gravity.x, PhysicsRapier.PhysicsWorld.gravity.y, PhysicsRapier.PhysicsWorld.gravity.z);
-        //     const p = this.target.position.clone().add(g.mul(1/60));
-        //     this.SetPosition(p);
-        //     return;
-        // }
-
-        let speed = this.speed;
-        this.v.set(0,0,0);
-        if (this.keysPressed.forward === true) this.v.z = -1;
-        if (this.keysPressed.backward === true) this.v.z = 1;
-        if (this.keysPressed.right === true) this.v.x = 1;
-        if (this.keysPressed.left === true) this.v.x = -1;
-        if (this.keysPressed.up === true) this.v.y = 1;
-        if (this.keysPressed.down === true) this.v.y = -1;
-        if (this.keysPressed.boost === true) speed = this.boostMultiplier;
-        
-        this.v.applyQuaternion(this.camera.transform.rotation);
-
-
-        const forward = this.keysPressed.forward ? 1: 0;
-        const backward = this.keysPressed.backward ? 1: 0;
-        const left = this.keysPressed.left ? 1: 0;
-        const right = this.keysPressed.right ? 1: 0;
-        const r = this.rigidbody.rigidBody;
-        const velocity = r.linvel()
-        // update camera
-        // state.camera.position.set(...ref.current.translation())
-        // movement
-        const frontVector = new Mathf.Vector3(0, 0, backward - forward)
-        const sideVector = new Mathf.Vector3(left - right, 0, 0)
-        const direction = this.v.mul(speed);
-        r.setLinvel({ x: direction.x, y: velocity.y, z: direction.z }, true);
-        // jumping
-        const p = r.translation();
+    
+    private UpdateInput() {
+        this.move.x = (Input.GetKey(KeyCodes.D) ? 1 : 0) - (Input.GetKey(KeyCodes.A) ? 1 : 0);
+        this.move.y = (Input.GetKey(KeyCodes.W) ? 1 : 0) - (Input.GetKey(KeyCodes.S) ? 1 : 0);
+        this.jump = Input.GetKey(KeyCodes.SPACE);
+        this.sprint = Input.GetKey(KeyCodes.SHIFT);
+        this.look.x = -Input.GetAxis("Horizontal");
+        this.look.y = -Input.GetAxis("Vertical");
+    }
+    
+    private GroundedCheck() {
+        const rigidbody = this._controller.rigidBody;
+        const p = rigidbody.translation();
         const ray = new PhysicsRapier.Physics.Ray(p, { x: 0, y: -1, z: 0 });
-        const rayHit = PhysicsRapier.PhysicsWorld.castRay(ray, this.rayDistance + 2, true, undefined, undefined, this.collider.collider);
+        const rayHit = PhysicsRapier.PhysicsWorld.castRay(ray, this.rayDistance + 2, true, undefined, undefined, undefined, rigidbody);
 
-        const grounded = rayHit && rayHit.collider && Math.abs(rayHit.timeOfImpact) <= 1.75
-        if (this.keysPressed.jump && grounded) r.setLinvel({ x: 0, y: 7.5, z: 0 }, true);
+        this.isGrounded = rayHit && rayHit.collider && Math.abs(rayHit.timeOfImpact) <= 1.75;
 
-        this.transform.position.set(p.x, p.y, p.z);
-        this.camera.transform.position.set(p.x, p.y, p.z).add(new Mathf.Vector3(0, -1.5 + this.playHeight, 0));
-    }
-
-    private HandleNoClip() {
-        if (this.keysPressed.noclip === true) {
-            if (this.state === CharacterState.NOCLIP) this.state = CharacterState.FALLING;
-            else this.state = CharacterState.NOCLIP;
-            console.log(this.state)
+        if (rayHit) {
+            const groundPoint = ray.pointAt(rayHit.timeOfImpact);
+            this.groundPoint.set(groundPoint.x, groundPoint.y, groundPoint.z);
+            this.time = rayHit.timeOfImpact;
         }
     }
-    public Update(): void {
-        this.GroundRayCast();
-        this.HandleNoClip();
-        this.HandleMovement();
+
+    private groundPoint = new Mathf.Vector3();
+    private time = 0;
+
+    private Move() {
+        this.v.set(0, 0, 0);
+        this.v.set(this.move.x, 0, -this.move.y);
+
+        this.v.applyQuaternion(this._mainCamera.transform.rotation);
+
+        const rigidbody = this._controller.rigidBody;
+        const velocity = rigidbody.linvel()
+        const direction = this.v.mul(this.sprint ? this.boostMultiplier : this.speed);
+        rigidbody.setLinvel({ x: direction.x, y: velocity.y, z: direction.z }, true);
+        // Ground player, helps with slopes
+        if (this.isGrounded && !this.jump && this.time > 1.5) {
+            const t = rigidbody.translation();
+            t.y = this.groundPoint.y + 1.5;
+            rigidbody.setTranslation(t, false);
+        }
+
+        // jumping
+        if (this.jump && this.isGrounded) rigidbody.setLinvel({ x: 0, y: 7.5, z: 0 }, true);
+
+        const p = rigidbody.translation();
+        this._mainCamera.transform.position.set(p.x, p.y, p.z).add(new Mathf.Vector3(0, this.playHeight, 0));
+        this._model.transform.position.set(p.x, p.y - 1, p.z); // Slighly above player
+
+        // keep/store model rotation
+        if (Math.abs(this.move.x) > Mathf.Epsilon || Math.abs(this.move.y) > Mathf.Epsilon) {
+            const targetRotation = (Mathf.Atan2(-this.move.x, this.move.y) + this.yaw) * Mathf.Rad2Deg;
+            this.currentRotation = Mathf.Lerp(this.currentRotation, targetRotation, this.blendRotation);
+            this._model.transform.rotation.setFromEuler(new Mathf.Vector3(0, this.currentRotation, 0), true);
+        }
+    }
+    private currentRotation = 0;
+
+    private yaw = 0;
+    private pitch = 0;
+
+    private CameraRotation() {
+        const minPhi = -Math.PI / 2;
+        const maxPhi = Math.PI / 2;
+
+        if (this.isPointerLocked) {
+            this.yaw += this.look.x * this.orbitSpeed;
+            this.pitch += this.look.y * this.orbitSpeed;
+            this.pitch = Math.min(maxPhi, Math.max(minPhi, this.pitch));
+        }
+
+        this._mainCamera.transform.rotation.setFromEuler(new Mathf.Vector3(this.pitch, this.yaw, 0));
+
+        // const currentRot = new Mathf.Quaternion().setFromEuler(new Mathf.Vector3(this.pitch, this.yaw, 0));
+        // const q = this._mainCamera.transform.rotation.clone().slerp(currentRot, GPU.Renderer.info.deltaTime / 100);
+        // this._mainCamera.transform.rotation.copy(q);
     }
 }

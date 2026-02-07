@@ -64,8 +64,7 @@ async function Application(canvas: HTMLCanvasElement) {
     traverse(model, prefab => {
         for (const component of prefab.components) {
             if (component.type === Components.Mesh.type) {
-                geometry = new Geometry();
-                geometry.Deserialize(component.renderable.geometry);
+                geometry = Geometry.Deserialize(component.geometry);
             }
         }
     })

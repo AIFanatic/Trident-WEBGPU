@@ -75,4 +75,11 @@ export class Prefab {
     public components: SerializedComponent[] = [];
     public transform: SerializedComponent;
     public children: Prefab[] = [];
+
+    public traverse(fn: (prefab: Prefab) => void, prefab: Prefab = this) {
+        fn(prefab);
+        for (const child of prefab.children) {
+            this.traverse(fn, child);
+        }
+    }
 }

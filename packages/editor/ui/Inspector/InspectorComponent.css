@@ -6,11 +6,11 @@
 .InspectorComponent .title {
     font-size: 9px;
     width: 30%;
-    margin-right: 10px;
     margin-left: 10px;
-    white-space: nowrap;
-    overflow: hidden;
-    display: inline-flex;
+}
+
+.InspectorComponent .value {
+    display: flex;
     align-items: center;
 }
 
@@ -21,22 +21,12 @@
     color: white;
     border: 1px solid black;
     outline: none;
-    width: 65%;
-    float: right;
-    padding-left: 5px;
-    padding-top: 0px;
-    padding-bottom: 0px;
-    margin-right: 10px;
+    width: 100%;
+    padding: 5px;
 }
 
 .InspectorComponent .input:hover {
     border: 1px solid #4d4d4d;
-}
-
-.InspectorComponent .input-vector3 {
-    margin-right: 3px;
-    width: 100%;
-    margin-left: 3px;
 }
 
 .InspectorComponent .input.active {
@@ -81,4 +71,36 @@
     background: #bfbfbf;
     cursor: pointer;
     border-radius: 50%;
+}
+
+.InspectorComponent .red-bg {
+    background-color: #e74c3c50;
+}
+
+.InspectorComponent .green-bg {
+    background-color: #2ecc7150;
+}
+
+.InspectorComponent .blue-bg {
+    background-color: #3498db50;
+}
+
+.InspectorComponent .vec-label {
+    padding: 4px;
+    font-size: 9px;
+    border-top-left-radius: 2px;
+    border-bottom-left-radius: 2px;
+}
+
+.InspectorComponent .vec-input {
+    padding: 4px;
+    font-size: 9px;
+    border-top-left-radius: 0px;
+    border-bottom-left-radius: 0px;
+}
+
+.InspectorComponent .edit {
+    display: flex;
+    width: 100%;
+    margin-right: 5px;
 }

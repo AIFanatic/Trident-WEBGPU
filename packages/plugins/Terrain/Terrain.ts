@@ -5,6 +5,8 @@ import {
     VertexAttribute,
     Components,
     Mathf,
+    Scene,
+    PBRMaterial,
 } from "@trident/core";
 import { TerrainMaterial } from "./TerrainMaterial";
 
@@ -158,5 +160,52 @@ export class Terrain extends Components.Mesh {
         worldPosition.y = height * this.height;
 
         return height * this.height;
+    }
+
+    public SampleNormal(worldPosition: Mathf.Vector3): Mathf.Vector3 {
+        if (!this.heights) return new Mathf.Vector3(0, 1, 0);
+
+        const size = Math.sqrt(this.heights.length);
+
+        // Convert world position → heightmap space (once)
+        const localX = (worldPosition.x - this.transform.position.x) / this.width;
+        const localZ = (worldPosition.z - this.transform.position.z) / this.length;
+
+        const fx = Math.max(0, Math.min(1, localX)) * (size - 1);
+        const fz = Math.max(0, Math.min(1, localZ)) * (size - 1);
+
+        const x = Math.floor(fx);
+        const z = Math.floor(fz);
+
+        const idx = (x: number, z: number) => x * size + z;
+
+        // Clamp neighbors
+        const x0 = Math.max(0, x - 1);
+        const x1 = Math.min(size - 1, x + 1);
+        const z0 = Math.max(0, z - 1);
+        const z1 = Math.min(size - 1, z + 1);
+
+        // Sample heights directly (normalized 0–1)
+        const hL = this.heights[idx(x0, z)];
+        const hR = this.heights[idx(x1, z)];
+        const hD = this.heights[idx(x, z0)];
+        const hU = this.heights[idx(x, z1)];
+
+        // World-space scale per heightmap cell
+        const scaleX = this.width / (size - 1);
+        const scaleZ = this.length / (size - 1);
+
+        // Height differences in world units
+        const dx = (hR - hL) * this.height;
+        const dz = (hU - hD) * this.height;
+
+        // Gradient → normal
+        const normal = new Mathf.Vector3(
+            -dx / scaleX,
+            2.0,
+            -dz / scaleZ
+        );
+
+        return normal.normalize();
     }
 }

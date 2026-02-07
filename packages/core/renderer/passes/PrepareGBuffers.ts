@@ -23,7 +23,7 @@ export class PrepareGBuffers extends RenderPass {
     public skyboxPrefilter: CubeTexture;
     public skyboxBRDFLUT: Texture;
 
-    public GBufferFormat: TextureFormat = "rgba8unorm";
+    public GBufferFormat: TextureFormat = "rgba16float";
 
     private FrameBuffer: Buffer;
     private FrameBufferValues = new ArrayBuffer(464);

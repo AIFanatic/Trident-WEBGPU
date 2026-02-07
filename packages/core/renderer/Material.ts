@@ -93,8 +93,8 @@ export class PBRMaterial extends Material {
     // Parameters directly in class
     public albedoColor = new Color(1, 1, 1, 1);
     public emissiveColor = new Color(0, 0, 0, 0);
-    public roughness = 0.5;
-    public metalness = 0;
+    public roughness = 1.0;
+    public metalness = 0.0;
 
     public albedoMap?: Texture;
     public normalMap?: Texture;
@@ -106,7 +106,7 @@ export class PBRMaterial extends Material {
     public offset = new Vector2(0, 0);
 
     public doubleSided = false;
-    public alphaCutoff = 0;
+    public alphaCutoff = 0.5;
     public unlit = false;
     public wireframe = false;
     public isSkinned = false;
@@ -140,7 +140,7 @@ export class PBRMaterial extends Material {
                 defines,
                 colorOutputs: Array(3).fill({ format: gbufferFormat }),
                 depthOutput: "depth24plus",
-                cullMode: this.doubleSided ? "none" : undefined
+                cullMode: this.doubleSided === true ? "none" : "back"
             };
 
             const shader = await Shader.Create(shaderParams);

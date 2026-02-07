@@ -278,6 +278,8 @@ export class SSGIRenderPass extends GPU.RenderPass {
         const inputNormal = resources.getResource(GPU.PassParams.GBufferNormal);
         const inputLight = resources.getResource(GPU.PassParams.LightingPassOutput);
 
+        if (!inputLight) return;
+
         const indirectBlurred = this.bilateralFilter.Process(this.output, inputDepth, inputNormal);
         const upscaled = this.upscaler.Process(indirectBlurred, GPU.Renderer.width, GPU.Renderer.height);
         const ta = this.textureBlender.Process(upscaled, inputLight);

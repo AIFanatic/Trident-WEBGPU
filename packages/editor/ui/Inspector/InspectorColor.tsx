@@ -60,8 +60,8 @@ export class InspectorColor extends Component<InspectorColorProps, InspectorColo
     constructor(props: InspectorColorProps) {
         super(props);
 
-        
-        this.state = {color: this.props.color.clone()};
+
+        this.state = { color: this.props.color.clone() };
     }
 
     private onChanged(event: Event) {
@@ -74,14 +74,18 @@ export class InspectorColor extends Component<InspectorColorProps, InspectorColo
 
     public render() {
         return <div className="InspectorComponent">
-        <span className="title">{this.props.title}</span>
+            <span className="title">{this.props.title}</span>
 
-            <input
-                className="input"
-                type="color"
-                onChange={(event) => {this.onChanged(event)}}
-                value={this.state.color.toHex().slice(0, 7)}
-            />
+            <div class="edit">
+
+                <input
+                    className="input"
+                    style="padding: 2px;"
+                    type="color"
+                    onChange={(event) => { this.onChanged(event) }}
+                    value={this.state.color.toHex().slice(0, 7)}
+                />
+            </div>
         </div>
     }
 }

@@ -6,6 +6,7 @@ import {
     Mathf,
     PBRMaterial,
     GPU,
+    Prefab,
 } from "@trident/core";
 
 import { OrbitControls } from "@trident/plugins/OrbitControls";
@@ -14,6 +15,8 @@ import { GLTFLoader } from "@trident/plugins/GLTF/GLTFLoader";
 
 import { MeshletMesh as MeshletMesh } from "@trident/plugins/meshlets_v4/MeshletMesh";
 import { MeshletDraw } from "@trident/plugins/meshlets_v4/passes/MeshletDraw";
+import { HDRParser } from "@trident/plugins/HDRParser";
+import { Environment } from "@trident/plugins/Environment/Environment";
 
 async function Application(canvas: HTMLCanvasElement) {
     const renderer = GPU.Renderer.Create(canvas, "webgpu");
@@ -23,7 +26,7 @@ async function Application(canvas: HTMLCanvasElement) {
     mainCameraGameObject.transform.position.set(0, 0, -15);
     mainCameraGameObject.name = "MainCamera";
     const camera = mainCameraGameObject.AddComponent(Components.Camera);
-    camera.SetPerspective(60, canvas.width / canvas.height, 0.5, 50000);
+    camera.SetPerspective(60, canvas.width / canvas.height, 0.05, 1000);
 
 
     mainCameraGameObject.transform.position.set(0, 0, 5);
@@ -68,102 +71,79 @@ async function Application(canvas: HTMLCanvasElement) {
 
 
 
-    {
-        const mesh = await OBJLoaderIndexed.load("/dist/examples/assets/models/bunny.obj");
-        // const mesh = await OBJLoaderIndexed.load("/extra/test-assets/lucy.obj");
-        mesh.geometry.ComputeNormals();
-        mesh.geometry.ComputeTangents();
-        const mat = new PBRMaterial({albedoMap: await GPU.Texture.Load("/dist/examples/assets/textures/brick.png")})
-        // const mesh = await OBJLoaderIndexed.load("/extra/test-assets/tree-01/tree-01.obj");
-        const meshletGameObject = new GameObject(scene);
-        meshletGameObject.transform.position.x = 2;
-        const meshletMesh = meshletGameObject.AddComponent(MeshletMesh);
-        meshletMesh.enableShadows = false;
-        meshletMesh.geometry = mesh.geometry;
-        meshletMesh.material = mat;
-
-
-        const c = 20;
-        const off = 10;
-        for (let x = 0; x < c; x++) {
-            for (let y = 0; y < c; y++) {
-                for (let z = 0; z < c; z++) {
-                    const go2 = new GameObject(scene);
-                    const meshletB = go2.AddComponent(MeshletMesh);
-                    meshletB.geometry = mesh.geometry;
-                    meshletB.transform.position.set(x * off,y * off,z * off);
-                    meshletB.material = mat;
-                }
-            }
-        }
-        // for (let i = 0; i < c; i++) {
-        //     const go2 = new GameObject(scene);
-        //     const meshletB = go2.AddComponent(MeshletMesh);
-        //     meshletB.geometry = mesh.geometry;
-        //     meshletB.transform.position.set(Mathf.RandomRange(-off, off), 0, Mathf.RandomRange(-off, off));
-        //     meshletB.material = mat;
-        // }
-    }
-
-
-
-
-
-
     // {
-    //     function traverse(gameObjects: GameObject[], fn: (gameObject: GameObject) => void) {
-    //         for (const gameObject of gameObjects) {
-    //             fn(gameObject);
-    //             for (const child of gameObject.transform.children) {
-    //                 traverse([child.gameObject], fn);
+    //     const mesh = await OBJLoaderIndexed.load("/dist/examples/assets/models/bunny.obj");
+    //     // const mesh = await OBJLoaderIndexed.load("/extra/test-assets/lucy.obj");
+    //     mesh.geometry.ComputeNormals();
+    //     mesh.geometry.ComputeTangents();
+    //     const mat = new PBRMaterial({albedoMap: await GPU.Texture.Load("/dist/examples/assets/textures/brick.png")})
+    //     // const mesh = await OBJLoaderIndexed.load("/extra/test-assets/tree-01/tree-01.obj");
+    //     const meshletGameObject = new GameObject(scene);
+    //     meshletGameObject.transform.position.x = 2;
+    //     const meshletMesh = meshletGameObject.AddComponent(MeshletMesh);
+    //     meshletMesh.enableShadows = false;
+    //     meshletMesh.geometry = mesh.geometry;
+    //     meshletMesh.material = mat;
+
+
+    //     const c = 20;
+    //     const off = 10;
+    //     for (let x = 0; x < c; x++) {
+    //         for (let y = 0; y < c; y++) {
+    //             for (let z = 0; z < c; z++) {
+    //                 const go2 = new GameObject(scene);
+    //                 const meshletB = go2.AddComponent(MeshletMesh);
+    //                 meshletB.geometry = mesh.geometry;
+    //                 meshletB.transform.position.set(x * off,y * off,z * off);
+    //                 meshletB.material = mat;
     //             }
     //         }
     //     }
-
-    //     const tree1 = await GLTFLoader.loadAsGameObjects(scene, "/extra/test-assets/tree-01/tree-01.glb");
-
-    //     let lodGroupEntries: { geometry: Geometry, material: GPU.Material }[] = []
-    //     traverse([tree1], gameObject => {
-    //         const mesh = gameObject.GetComponent(Components.Mesh);
-    //         if (mesh) {
-    //             const geometrySerialized = mesh.geometry.Serialize();
-    //             const materialSerialized = mesh.material.Serialize();
-    //             const materialClone = GPU.Material.Deserialize(materialSerialized);
-    //             const geometryClone = new Geometry();
-    //             geometryClone.Deserialize(geometrySerialized);
-
-    //             lodGroupEntries.push({ geometry: geometryClone, material: materialClone });
-    //         }
-    //     })
-    //     tree1.Destroy();
-
-    //     // console.log(lodGroupEntries[0])
-
-    //     console.log(lodGroupEntries[0].material.params)
-    //     // (lodGroupEntries[0].material as PBRMaterial).params.albedoColor.set(1, 0, 0, 1)
-
-    //     const entries = lodGroupEntries.slice(0, 2);
-    //     for (const treeLOD of entries) {
-    //         const go2 = new GameObject(scene);
-    //         const meshletB = go2.AddComponent(MeshletMesh);
-    //         meshletB.geometry = treeLOD.geometry;
-    //         meshletB.material = treeLOD.material;
-    //     }
-
-    //     const c = 10000;
-    //     const off = 1000;
-    //     for (let i = 0; i < c; i++) {
-    //         const x = Mathf.RandomRange(-off, off);
-    //         const z = Mathf.RandomRange(-off, off);
-    //         for (const treeLOD of entries) {
-    //             const go2 = new GameObject(scene);
-    //             go2.transform.position.set(x, 0, z);
-    //             const meshletB = go2.AddComponent(MeshletMesh);
-    //             meshletB.geometry = treeLOD.geometry;
-    //             meshletB.material = treeLOD.material;
-    //         }
-    //     }
+    //     // for (let i = 0; i < c; i++) {
+    //     //     const go2 = new GameObject(scene);
+    //     //     const meshletB = go2.AddComponent(MeshletMesh);
+    //     //     meshletB.geometry = mesh.geometry;
+    //     //     meshletB.transform.position.set(Mathf.RandomRange(-off, off), 0, Mathf.RandomRange(-off, off));
+    //     //     meshletB.material = mat;
+    //     // }
     // }
+
+
+
+
+
+
+    {
+        const prefab = await GLTFLoader.LoadFromURL("/extra/test-assets/trellis2/rock_pile.glb");
+
+        let mesh: { geometry: Geometry, material: GPU.Material };
+        prefab.traverse(prefab, prefab => {
+            for (const component of prefab.components) {
+                if (component.type === Components.Mesh.type) {
+                    console.log("GOT IT", component)
+                    mesh = {
+                        geometry: Geometry.Deserialize(component.geometry),
+                        material: GPU.Material.Deserialize(component.material)
+                    }
+                    mesh.geometry.ComputeTangents();
+                }
+            }
+        })
+
+        console.log(mesh)
+
+        const hdr = await HDRParser.Load("/dist/examples/assets/textures/HDR/autumn_field_puresky_1k.hdr");
+        const skyTexture = await HDRParser.ToCubemap(hdr);
+    
+        const environment = new Environment(scene, skyTexture);
+        await environment.init();
+        
+        const meshletGameObject = new GameObject(scene);
+        const meshletMesh = meshletGameObject.AddComponent(MeshletMesh);
+        meshletMesh.enableShadows = false;
+        meshletMesh.geometry = mesh.geometry;
+        meshletMesh.material = new PBRMaterial({albedoColor: new Mathf.Color(1,1,1,1), roughness: 0.99, metalness: 0.01, wireframe: false});
+    }
 
     scene.Start();
 };

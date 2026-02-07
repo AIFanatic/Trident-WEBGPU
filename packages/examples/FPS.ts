@@ -22,6 +22,7 @@ import { PlaneCollider } from "@trident/plugins/PhysicsRapier/colliders/PlaneCol
 import { CapsuleCollider } from "@trident/plugins/PhysicsRapier/colliders/CapsuleCollider";
 import { BoxCollider } from "@trident/plugins/PhysicsRapier/colliders/BoxCollider";
 import { ThirdPersonController } from "@trident/plugins/PhysicsRapier/ThirdPersonController";
+import { FirstPersonController } from "@trident/plugins/PhysicsRapier/FirstPersonController";
 import { RigidBody, RigidbodyConstraints } from "@trident/plugins/PhysicsRapier/RigidBody";
 import { Debugger } from "@trident/plugins/Debugger";
 import { HDRParser } from "@trident/plugins/HDRParser";
@@ -57,7 +58,7 @@ async function Application(canvas: HTMLCanvasElement) {
     mainCameraGameObject.transform.position.set(0, 0, 5);
     mainCameraGameObject.name = "MainCamera";
     const camera = mainCameraGameObject.AddComponent(Components.Camera);
-    camera.SetPerspective(70, canvas.width / canvas.height, 0.2, 10000);
+    camera.SetPerspective(60, canvas.width / canvas.height, 0.05, 1000);
     mainCameraGameObject.transform.LookAtV1(new Mathf.Vector3(0, 0, 0));
 
     const lightGameObject = new GameObject(scene);
@@ -99,9 +100,9 @@ async function Application(canvas: HTMLCanvasElement) {
     // const terrain = new TerrainBuilder(terrainSize);
     const terrainGameObject = new GameObject(scene);
     const terrain = terrainGameObject.AddComponent(Terrain);
-    terrain.width = 1000;
-    terrain.length = 1000;
-    terrain.height = 200;
+    terrain.width = 10000;
+    terrain.length = 10000;
+    terrain.height = 2000;
     await terrain.HeightmapFromPNG("/extra/test-assets/terrain/heightmaps/elevation_1024x1024.png", true, 0.25);
 
     async function LoadTerrainTextures(urls: string[]): Promise<GPU.Texture[]> {
@@ -169,7 +170,7 @@ async function Application(canvas: HTMLCanvasElement) {
         light.intensity = sky.SUN_ELEVATION_DEGREES / 10;
     }, 100);
 
-    // const hdr = await HDRParser.Load("/dist/examples/assets/textures/HDR/autumn_field_puresky_1k.hdr");
+    // const hdr = await HDRParser.Load("/dist/examples/assets/textures/HDR/spruit_sunrise_1k.hdr");
     // const skyTexture = await HDRParser.ToCubemap(hdr);
 
 
@@ -187,7 +188,6 @@ async function Application(canvas: HTMLCanvasElement) {
 
     // Player
     const shadowPrefab = await GLTFLoader.LoadFromURL("./assets/models/Shadow.glb");
-    console.log(shadowPrefab)
     const sceneGameObject = scene.Instantiate(shadowPrefab);
 
     let animator: Components.Animator = undefined;
@@ -200,258 +200,295 @@ async function Application(canvas: HTMLCanvasElement) {
     console.log(animator)
 
     const playerGameObject = new GameObject(scene);
-    playerGameObject.transform.position.set(20, 33, 185);
+    const p = new Mathf.Vector3(20, 0, 185);
+    terrain.SampleHeight(p)
+    p.y += 1;
+    playerGameObject.transform.position.copy(p);
     // playerGameObject.transform.scale.set(0.01, 0.01, 0.01);
 
+    // Weapon
+    // const weaponPrefab = await GLTFLoader.LoadFromURL("/extra/test-assets/ak47u.worldmodel.glb");
+    const weaponPrefab = await GLTFLoader.LoadFromURL("/extra/test-assets/semi_auto_rifle.worldmodel.glb");
+    const weaponGameObject = scene.Instantiate(weaponPrefab);
+    weaponGameObject.transform.position.copy(camera.transform.position);
+    weaponGameObject.transform.parent = camera.transform;
+    // weaponGameObject.transform.localEulerAngles.set(175, 10, 180);
+    // weaponGameObject.transform.localPosition.set(0.15, -0.25, -0.3);
+
+    weaponGameObject.transform.localEulerAngles.set(175, 10 - 90, 180);
+    weaponGameObject.transform.localPosition.set(0.15, -0.10, -0.3);
+    console.log(weaponGameObject)
 
     const playerCollider = playerGameObject.AddComponent(CapsuleCollider);
     const playerRigidbody = playerGameObject.AddComponent(RigidBody);
     playerRigidbody.Create("dynamic");
     playerRigidbody.constraints = RigidbodyConstraints.FreezeRotation;
-    const thirdPersonController = playerGameObject.AddComponent(ThirdPersonController);
+    // const thirdPersonController = playerGameObject.AddComponent(ThirdPersonController);
+    const thirdPersonController = playerGameObject.AddComponent(FirstPersonController);
     thirdPersonController._controller = playerRigidbody;
     thirdPersonController._model = sceneGameObject;
     thirdPersonController._mainCamera = camera.gameObject;
     thirdPersonController._animator = animator;
     thirdPersonController._animationIDS = {
-        idle: animator.GetClipIndexByName("Rig|Rig|Idle_Loop"), 
-        walk: animator.GetClipIndexByName("Rig|Rig|Walk_Loop"), 
-        sprint: animator.GetClipIndexByName("Rig|Rig|Sprint_Loop"), 
+        idle: animator.GetClipIndexByName("Rig|Rig|Idle_Loop"),
+        walk: animator.GetClipIndexByName("Rig|Rig|Walk_Loop"),
+        sprint: animator.GetClipIndexByName("Rig|Rig|Sprint_Loop"),
         jump: animator.GetClipIndexByName("Rig|Rig|Jump_Start"),
         fall: animator.GetClipIndexByName("Rig|Rig|Jump_Land")
     };
     thirdPersonController.animationSpeedRatio = 0.8;
     thirdPersonController.boostMultiplier = 20;
 
-    // Trees
+
+
+
+
+
+
     {
-        interface TerrainObjectSpawnerOptions {
-            spawnAroundTarget?: Mathf.Vector3;
-            enableShadows?: boolean;
-            heightRandom?: number;
+        interface AddLODOptions {
+            count: number;
+            enableShadows: boolean;
         }
-        async function TerrainObjectSpawner(glbURL, count, _options?: TerrainObjectSpawnerOptions) {
-            const defaults: TerrainObjectSpawnerOptions = { spawnAroundTarget: undefined, enableShadows: true, heightRandom: -0.5 };
-            const options = Object.assign({}, defaults, _options);
+        async function addLOD(url, options: AddLODOptions = {count: 1, enableShadows: false}) {
 
-            function traversePrefab(gameObjects: Prefab[], fn: (gameObject: SerializedGameObject) => void) {
-                for (const gameObject of gameObjects) {
-                    fn(gameObject);
-                    for (const child of gameObject.children) {
-                        traversePrefab([child], fn);
-                    }
-                }
-            }
-            const prefab = await GLTFLoader.LoadFromURL(glbURL);
-
+            const prefab = await GLTFLoader.LoadFromURL(url);
+        
             let lodGroupEntries: { geometry: Geometry, material: GPU.Material }[] = []
-            traversePrefab([prefab], prefab => {
+            prefab.traverse(prefab => {
                 for (const component of prefab.components) {
                     if (component.type === Components.Mesh.type) {
-                        const geometry = Geometry.Deserialize(component.geometry);
-                        const material = GPU.Material.Deserialize(component.material);
-                        // Double sided?
-                        lodGroupEntries.push({ geometry: geometry, material: material });
+                        const mat = GPU.Material.Deserialize(component.material) as PBRMaterial;
+                        mat.doubleSided = true;
+                        mat.alphaCutoff = 0.1;
+                        // mat.roughness = 10.0;
+                        const matSerialized = mat.Serialize()
+                        lodGroupEntries.push({ geometry: Geometry.Deserialize(component.geometry), material: GPU.Material.Deserialize(matSerialized) });
                     }
                 }
             })
-
+        
             const lodGameObject = new GameObject(scene);
             const lodInstanceRenderable = lodGameObject.AddComponent(LODInstanceRenderable);
-            if (lodGroupEntries.length >= 2) lodInstanceRenderable.lods.push({ renderers: lodGroupEntries.slice(0, 2), screenSize: 10 });
-            if (lodGroupEntries.length >= 4) lodInstanceRenderable.lods.push({ renderers: lodGroupEntries.slice(2, 4), screenSize: 20 });
-            if (lodGroupEntries.length >= 6) lodInstanceRenderable.lods.push({ renderers: lodGroupEntries.slice(4, 6), screenSize: 100 });
-            if (lodGroupEntries.length >= 7) lodInstanceRenderable.lods.push({ renderers: lodGroupEntries.slice(6, 7), screenSize: 300 });
-            else if (lodGroupEntries.length >= 1) lodInstanceRenderable.lods.push({ renderers: lodGroupEntries.slice(0, 1), screenSize: 300 });
-
             lodInstanceRenderable.enableShadows = options.enableShadows;
-
+            if (lodGroupEntries.length > 0) lodInstanceRenderable.lods.push({ renderers: lodGroupEntries.slice(0, 1), screenSize: 100 });
+            if (lodGroupEntries.length > 1) lodInstanceRenderable.lods.push({ renderers: lodGroupEntries.slice(1, 2), screenSize: 200 });
+            if (lodGroupEntries.length > 2) lodInstanceRenderable.lods.push({ renderers: lodGroupEntries.slice(2, 3), screenSize: 300 });
+            if (lodGroupEntries.length > 3) lodInstanceRenderable.lods.push({ renderers: lodGroupEntries.slice(3, 4), screenSize: 400 });
+            // else if (lodGroupEntries.length >= 1) lodInstanceRenderable.lods.push({ renderers: lodGroupEntries.slice(0, 1), screenSize: 300 });
+    
+        
             const p = new Mathf.Vector3();
             const r = new Mathf.Vector3();
             const q = new Mathf.Quaternion();
             const s = new Mathf.Vector3(1, 1, 1);
             const m = new Mathf.Matrix4();
-
-            const c = count;
-            const off = 500;
-
-            let treeCount = 0;
-            for (let i = 0; i < c; i++) {
-
-                let x = Mathf.RandomRange(-off, off);
-                let z = Mathf.RandomRange(-off, off);
-
-                if (options.spawnAroundTarget) {
-                    const angle = i / c * Math.PI * 2;
-                    const radius = Mathf.RandomRange(0, 200);
-
-                    x = options.spawnAroundTarget.x + Mathf.Cos(angle) * radius;
-                    z = options.spawnAroundTarget.z + Mathf.Sin(angle) * radius;
-                }
-
-                p.set(x, 0, z);
-                terrain.SampleHeight(p);
-
+        
+            const off = terrain.width;
+        
+            // let i = 0;
+            // for (let x = 0; x < c2; x++) {
+            //     for (let z = 0; z < c2; z++) {
+            //         p.set(x * off, 0, z * off);
+            //         m.compose(p,r,s);
+            //         lodInstanceRenderable.SetMatrixAt(i, m);
+            //         i++;
+            //     }
+            // }
+            let matrices = new Float32Array(options.count * 16);
+            for (let i = 0; i < options.count; i++) {
+                p.set(Mathf.RandomRange(-off, off), 0, Mathf.RandomRange(-off, off));
+                
                 r.y = Mathf.RandomRange(0, 360);
                 q.setFromEuler(r);
-                if (options.heightRandom) {
-                    p.y += Mathf.RandomRange(options.heightRandom, 0);
-                }
+                terrain.SampleHeight(p);
                 m.compose(p, q, s);
-
-                if (p.y > 25 && p.y < 100) {
-                    lodInstanceRenderable.SetMatrixAt(treeCount, m);
-                    treeCount++
-                }
+                matrices.set(m.elements, i * 16);
+                // lodInstanceRenderable.SetMatrixAt(i, m);
             }
-
-            console.log(treeCount)
+            lodInstanceRenderable.SetMatricesBulk(matrices);
         }
 
-        const ta = 5000;
-        await TerrainObjectSpawner("/extra/test-assets/Mountain Environment/Pine_trees/Prefabs/Prefab_Forest_pine_01.glb", ta);
-        // await TerrainObjectSpawner("/extra/test-assets/Mountain Environment/Pine_trees/Prefabs/Prefab_Forest_pine_02.glb", ta);
-        // await TerrainObjectSpawner("/extra/test-assets/Mountain Environment/Pine_trees/Prefabs/Prefab_Forest_pine_03.glb", ta);
-        // await TerrainObjectSpawner("/extra/test-assets/Mountain Environment/Pine_trees/Prefabs/Prefab_Forest_pine_04.glb", ta);
-        // await TerrainObjectSpawner("/extra/test-assets/Mountain Environment/Pine_trees/Prefabs/Prefab_Forest_pine_06.glb", ta);
-        // await TerrainObjectSpawner("/extra/test-assets/Mountain Environment/Pine_trees/Prefabs/Prefab_Forest_pine_07.glb", ta);
-        // await TerrainObjectSpawner("/extra/test-assets/Mountain Environment/Pine_trees/Prefabs/Prefab_Forest_pine_08.glb", ta);
-        // await TerrainObjectSpawner("/extra/test-assets/Mountain Environment/Pine_trees/Prefabs/Prefab_Forest_pine_09.glb", ta);
-        // await TerrainObjectSpawner("/extra/test-assets/Mountain Environment/Pine_trees/Prefabs/Prefab_Forest_pine_plant_01.glb", ta);
-        // await TerrainObjectSpawner("/extra/test-assets/Mountain Environment/Pine_trees/Prefabs/Prefab_Forest_pine_plant_02.glb", ta);
-        // await TerrainObjectSpawner("/extra/test-assets/Mountain Environment/Pine_trees/Prefabs/Prefab_Forest_pine_plant_03.glb", ta);
-        // await TerrainObjectSpawner("/extra/test-assets/Mountain Environment/Pine_trees/Prefabs/Prefab_Forest_pine_tree_00_A.glb", ta);
 
+        const trees = [
+            "./bush_mormon_tea/mormon_tea_d.glb",
+            "./bush_mormon_tea/mormon_tea_b.glb",
+            "./bush_mormon_tea/mormon_tea_c.glb",
+            "./bush_mormon_tea/mormon_tea_a.glb",
+            "./bush_ocotillo/ocotillo_a.glb",
+            "./bush_ocotillo/ocotillo_c.glb",
+            "./bush_ocotillo/ocotillo_b.glb",
+            "./bush_ocotillo/ocotillo_d.glb",
+            "./bush_ocotillo/ocotillo_dry_d.glb",
+            "./bush_ocotillo/ocotillo_dry_c.glb",
+            "./bush_ocotillo/ocotillo_dry_b.glb",
+            "./bush_ocotillo/ocotillo_dry_a.glb",
+            "./oak/oak_e_tundra.glb",
+            "./oak/oak_b_tundra.glb",
+            "./oak/oak_a_tundra.glb",
+            "./oak/oak_e.glb",
+            "./oak/oak_f_tundra.glb",
+            "./oak/oak_d.glb",
+            "./oak/oak_f.glb",
+            "./oak/oak_c.glb",
+            "./oak/oak_b.glb",
+            "./oak/oak_a.glb",
+            "./bush_creosote/creosote_bush_dry_a.glb",
+            "./bush_creosote/creosote_bush_dry_b.glb",
+            "./bush_creosote/creosote_bush_b.glb",
+            "./bush_creosote/creosote_bush_c.glb",
+            "./bush_creosote/creosote_bush_a.glb",
+            "./bush_creosote/creosote_bush_d.glb",
+            "./american_beech/american_beech_a.glb",
+            "./american_beech/american_beech_c.glb",
+            "./american_beech/american_beech_b.glb",
+            "./american_beech/american_beech_e.glb",
+            "./american_beech/american_beech_d.glb",
+            "./american_beech/american_beech_e_dead.glb",
+            "./american_beech/american_beech_d_dead.glb",
+            "./american_beech/american_beech_a_dead.glb",
+            "./pine/pine_sapling_a_snow.glb",
+            "./pine/Pine_d_snow.glb",
+            "./pine/Pine_b_snow.glb",
+            "./pine/Pine_c_snow.glb",
+            "./pine/Pine_d.glb",
+            "./pine/Pine_a.glb",
+            "./pine/Pine_c.glb",
+            "./pine/Pine_b.glb",
+            "./pine/pine_sapling_b.glb",
+            "./pine/pine_sapling_c.glb",
+            "./pine/pine_sapling_a.glb",
+            "./pine/pine_sapling_d.glb",
+            "./pine/pine_sapling_c_snow.glb",
+            "./pine/pine_sapling_b_snow.glb",
+            "./pine/pine_sapling_e.glb",
+            "./pine/pine_sapling_d_snow.glb",
+            "./pine/pine_sapling_e_snow.glb",
+            "./pine/Pine_a_snow.glb",
+            "./swamp_trees/swamp_tree_d.glb",
+            "./swamp_trees/swamp_tree_e.glb",
+            "./swamp_trees/swamp_tree_f.glb",
+            "./swamp_trees/swamp_tree_b.glb",
+            "./swamp_trees/swamp_tree_c.glb",
+            "./swamp_trees/swamp_tree_a.glb",
+            "./swamp_trees/swamp_hero_tree_b.glb",
+            "./swamp_trees/swamp_hero_tree_a.glb",
+            "./birch/birch_small_temp.glb",
+            "./birch/birch_tiny_temp.glb",
+            "./birch/birch_big_temp.glb",
+            "./birch/birch_medium_tundra.glb",
+            "./birch/birch_medium_temp.glb",
+            "./birch/birch_tiny_tundra.glb",
+            "./birch/birch_large_temp.glb",
+            "./birch/birch_large_tundra.glb",
+            "./birch/birch_small_tundra.glb",
+            "./birch/birch_big_tundra.glb",
+            "./douglas_fir/douglas_fir_b_snow.glb",
+            "./douglas_fir/douglas_fir_c_snow.glb",
+            "./douglas_fir/douglas_fir_d_snow.glb",
+            "./douglas_fir/douglas_fir_d.glb",
+            "./douglas_fir/douglas_fir_c.glb",
+            "./douglas_fir/douglas_fir_a_snow.glb",
+            "./douglas_fir/douglas_fir_b.glb",
+            "./douglas_fir/douglas_fir_a.glb",
+            "./bush_spicebush/bush_spicebush_d.glb",
+            "./bush_spicebush/bush_spicebush_b_tundra.glb",
+            "./bush_spicebush/bush_spicebush_c.glb",
+            "./bush_spicebush/bush_spicebush_b.glb",
+            "./bush_spicebush/bush_spicebush_a.glb",
+            "./bush_spicebush/bush_spicebush_c_snow.glb",
+            "./bush_spicebush/bush_spicebush_c_tundra.glb",
+            "./bush_spicebush/bush_spicebush_a_tundra.glb",
+            "./bush_spicebush/bush_spicebush_a_snow.glb",
+            "./bush_spicebush/bush_spicebush_d_tundra.glb",
+            "./palm_trees/palm_tree_small_c.glb",
+            "./palm_trees/palm_tree_small_b.glb",
+            "./palm_trees/palm_tree_small_a.glb",
+            "./palm_trees/palm_tree_tall_b.glb",
+            "./palm_trees/palm_tree_tall_a.glb",
+            "./palm_trees/palm_tree_short_c.glb",
+            "./palm_trees/palm_tree_short_b.glb",
+            "./palm_trees/palm_tree_short_a.glb",
+            "./palm_trees/palm_tree_short_e.glb",
+            "./palm_trees/palm_tree_short_d.glb",
+            "./palm_trees/palm_tree_med_b.glb",
+            "./palm_trees/palm_tree_med_a.glb",
+            "./bush_willow/bush_willow_d.glb",
+            "./bush_willow/bush_willow_c.glb",
+            "./bush_willow/bush_willow_b.glb",
+            "./bush_willow/bush_willow_a.glb",
+            "./bush_willow/bush_willow_snow_small_a.glb",
+            "./bush_willow/bush_willow_snow_a.glb",
+            "./bush_willow/bush_willow_snow_c.glb",
+            "./bush_willow/bush_willow_snow_small_b.glb",
+            "./bush_willow/bush_willow_snow_b.glb",
+            "./bush_willow/bush_willow_snow_d.glb",
+        ]
+        // addLOD("/extra/test-assets/tree-01/american_beech_a_lod.glb", 2000)
+        console.log(trees.length)
+        for (let i = 0; i < 1; i++) {
+            const name = trees[i];
+            if (name.includes("swamp")) continue;
+            if (name.includes("tundra")) continue;
+            if (name.includes("snow")) continue;
+            // if (!name.includes("palm")) continue;
+            addLOD("/extra/test-assets/nature/treessource/" + name, {count: 50000, enableShadows: false})
+        }
 
-        // // await TerrainObjectSpawner("/extra/test-assets/tree-01/grass.glb", 50000000);
-        // const grassOptions: TerrainObjectSpawnerOptions = {spawnAroundTarget: playerGameObject.transform.position, enableShadows: false, heightRandom: undefined};
-        // await TerrainObjectSpawner("/extra/test-assets/Mountain Environment/Foliage and Grass/Prefabs/Prefab_grass_01_1.glb", 50000, grassOptions);
-        // await TerrainObjectSpawner("/extra/test-assets/Mountain Environment/Foliage and Grass/Prefabs/Prefab_grass_01_4.glb", 50000, grassOptions);
-        // await TerrainObjectSpawner("/extra/test-assets/Mountain Environment/Foliage and Grass/Prefabs/Prefab_grass_03_C_1.glb", 5000, grassOptions);
-        // await TerrainObjectSpawner("/extra/test-assets/Mountain Environment/Foliage and Grass/Prefabs/Prefab_grass_03_A_1.glb", 50000, grassOptions);
+        const prefab = await GLTFLoader.LoadFromURL("/extra/test-assets/nature/overgrowth/patch_grass_medium.glb");
+    
+        let prefabMesh: { geometry: Geometry, material: GPU.Material };
+        prefab.traverse(prefab => {
+            for (const component of prefab.components) {
+                if (component.type === Components.Mesh.type) {
+                    const mat = GPU.Material.Deserialize(component.material) as PBRMaterial;
+                    mat.doubleSided = false;
+                    mat.alphaCutoff = 0.1;
+                    // mat.roughness = 10.0;
+                    const matSerialized = mat.Serialize()
+                    
+                    prefabMesh = { geometry: Geometry.Deserialize(component.geometry), material: GPU.Material.Deserialize(matSerialized) };
+                    return;
+                }
+            }
+        })
 
+        {
+            const gameObject = new GameObject(scene);
+            const instancedMesh = gameObject.AddComponent(Components.InstancedMesh);
+            instancedMesh.enableShadows = false;
+            instancedMesh.geometry = prefabMesh.geometry
+            instancedMesh.material = prefabMesh.material;
+    
+            const count = 1000;
+            let position = new Mathf.Vector3();
+            let rotation = new Mathf.Vector3();
+            let quaternion = new Mathf.Quaternion();
+            let scale = new Mathf.Vector3(1,1,1);
+            let matrix = new Mathf.Matrix4();
+    
+            const offset = 20;
+            const _p = new Mathf.Vector3();
+            const up = new Mathf.Vector3(0,1,0)
+            let i = 0;
+            for (let i = 0; i < count; i++) {
+                position.copy(playerGameObject.transform.position);
+                _p.set(Mathf.Cos(i % count), 0, Mathf.Sin(i * count)).mul(offset);
+                position.add(_p);
+                terrain.SampleHeight(position);
 
+                const normal = terrain.SampleNormal(position);
+                const qAlign = new Mathf.Quaternion().setFromUnitVectors(up, normal);
+                const qTwist = new Mathf.Quaternion().setFromAxisAngle(up, Mathf.RandomRange(0, 360));
+                quaternion = qAlign.mul(qTwist);
 
-        // {
-        //     const tree1 = await GLTFLoader.loadAsGameObjects(scene, "/extra/test-assets/Mountain Environment/Foliage and Grass/Prefabs/Prefab_grass_01_1.glb");
+                matrix.compose(position, quaternion, scale);
 
-        //     let lodGroupEntries: { geometry: Geometry, material: GPU.Material }[] = []
-        //     traverse([tree1], gameObject => {
-        //         const mesh = gameObject.GetComponent(Components.Mesh);
-        //         if (mesh) {
-        //             const geometrySerialized = mesh.geometry.Serialize();
-        //             const materialSerialized = mesh.material.Serialize();
-        //             const materialClone = GPU.Material.Deserialize(materialSerialized);
-        //             const geometryClone = new Geometry();
-        //             geometryClone.Deserialize(geometrySerialized);
-
-        //             lodGroupEntries.push({ geometry: geometryClone, material: materialClone });
-        //         }
-        //     })
-        //     tree1.Destroy();
-
-        //     const gameObject = new GameObject(scene);
-        //     const instancedMesh = gameObject.AddComponent(Components.InstancedMesh);
-        //     instancedMesh.enableShadows = false;
-
-        //     console.log(lodGroupEntries)
-        //     instancedMesh.geometry = lodGroupEntries[0].geometry;
-        //     instancedMesh.material = lodGroupEntries[0].material;
-
-        //     const count = 100000;
-        //     const p = new Mathf.Vector3();
-        //     const r = new Mathf.Vector3();
-        //     const q = new Mathf.Quaternion();
-        //     const s = new Mathf.Vector3(1, 1, 1);
-        //     const m = new Mathf.Matrix4();
-
-        //     const c = count;
-        //     const off = 500;
-
-        //     let treeCount = 0;
-        //     for (let i = 0; i < c; i++) {
-
-        //         let x = Mathf.RandomRange(-off, off);
-        //         let z = Mathf.RandomRange(-off, off);
-
-        //         p.set(x, 0, z);
-        //         terrain.SampleHeight(p);
-
-        //         r.y = Mathf.RandomRange(0, 360);
-        //         q.setFromEuler(r);
-        //         m.compose(p, q, s);
-
-        //         if (p.y > 25) {
-        //             instancedMesh.SetMatrixAt(treeCount, m);
-        //             treeCount++
-        //         }
-        //     }
-        // }
+                instancedMesh.SetMatrixAt(i, matrix);
+                i++;
+            }
+        }
     }
-
-    // // Grass
-    // {
-    //     const tree1 = await GLTFLoader.loadAsGameObjects(scene, "/extra/test-assets/tree-01/grass.glb");
-
-    //     let lodGroupEntries: { geometry: Geometry, material: GPU.Material }[] = []
-    //     traverse([tree1], gameObject => {
-    //         const mesh = gameObject.GetComponent(Components.Mesh);
-    //         if (mesh) {
-    //             const geometrySerialized = mesh.geometry.Serialize();
-    //             const materialSerialized = mesh.material.Serialize();
-    //             console.log(materialSerialized.params.roughness, materialSerialized.params.metalness)
-    //             const materialClone = GPU.Material.Deserialize(materialSerialized);
-    //             const geometryClone = new Geometry();
-    //             geometryClone.Deserialize(geometrySerialized);
-
-    //             lodGroupEntries.push({ geometry: geometryClone, material: materialClone });
-    //         }
-    //     })
-    //     tree1.Destroy();
-
-    //     const lodGameObject = new GameObject(scene);
-    //     const lodInstanceRenderable = lodGameObject.AddComponent(LODInstanceRenderable);
-    //     lodInstanceRenderable.enableShadows = false;
-    //     lodInstanceRenderable.lods.push({ renderers: lodGroupEntries, screenSize: 0 });
-    //     lodInstanceRenderable.lods.push({ renderers: lodGroupEntries, screenSize: 1000 });
-
-    //     const p = new Mathf.Vector3();
-    //     const r = new Mathf.Vector3();
-    //     const q = new Mathf.Quaternion();
-    //     const s = new Mathf.Vector3(1, 1, 1);
-    //     const m = new Mathf.Matrix4();
-
-    //     const c = 20000;
-    //     const off = 500;
-
-    //     const center = playerGameObject.transform.position;
-
-    //     for (let i = 0; i < c; i++) {
-
-    //         const angle = i / c * Math.PI * 2;
-    //         // const radius = Mathf.RandomRange(20, 1000);
-    //         const radius = Mathf.RandomRange(0, 100);
-
-    //         const x = center.x + Mathf.Cos(angle) * radius;
-    //         const z = center.z + Mathf.Sin(angle) * radius;
-
-    //         // const x = Mathf.RandomRange(-off, off);
-    //         // const z = Mathf.RandomRange(-off, off);            
-
-    //         p.set(x, 0, z);
-    //         terrain.SampleHeight(p);
-
-    //         r.y = Mathf.RandomRange(0, 360);
-    //         q.setFromEuler(r);
-    //         p.y += 0.1;
-    //         m.compose(p, q, s);
-
-    //         if (p.y > 25) {
-    //             lodInstanceRenderable.SetMatrixAt(i, m);
-    //         }
-    //     }
-    // }
-
 
 
 
@@ -505,15 +542,6 @@ async function Application(canvas: HTMLCanvasElement) {
 
     // Drag and drop models
     {
-    const floorGameObject = new GameObject(scene);
-    floorGameObject.transform.eulerAngles.x = -90;
-    floorGameObject.transform.position.y = playerGameObject.transform.position.y - 5;
-    floorGameObject.transform.scale.set(1000, 1000, 1000);
-    const floorMesh = floorGameObject.AddComponent(Components.Mesh);
-    floorMesh.geometry = Geometry.Plane();
-    floorGameObject.AddComponent(PlaneCollider);
-    floorMesh.material = new PBRMaterial();
-    
         window.addEventListener("dragover", (e) => {
             e.preventDefault(); // allow drop
         });
@@ -527,9 +555,25 @@ async function Application(canvas: HTMLCanvasElement) {
             const url = URL.createObjectURL(file);
             const prefab = await GLTFLoader.LoadFromURL(url, "glb");
             const obj = scene.Instantiate(prefab);
-            obj.transform.position.copy(playerGameObject.transform.position);
-            obj.transform.eulerAngles.x += 90
+            
+            
+            
+            const p = playerGameObject.transform.position.clone();
+            terrain.SampleHeight(p);
+            p.y += 2.5;
+            obj.transform.position.copy(p);
+
+            // const normal = terrain.SampleNormal(p);
+            // console.log(p)
+            // // obj.transform.rotation.setFromUnitVectors(new Mathf.Vector3(0, 1, 0), normal.normalize());
+            // const q = new Mathf.Quaternion().setFromUnitVectors(new Mathf.Vector3(0,1,0), normal.normalize());
+            // obj.transform.rotation.copy(q);
+            // console.log(obj)
         });
+
+        setTimeout(() => {
+            terrain.SampleNormal(playerGameObject.transform.position)
+        }, 2000);
     }
 
     scene.Start();

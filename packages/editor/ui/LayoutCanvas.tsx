@@ -4,8 +4,10 @@ import { BaseProps } from "./Layout";
 
 import { EventSystem, SceneEvents } from "../Events";
 
-import { OrbitControls } from "@trident/plugins/OrbitControls.js";
 import { Components } from "@trident/core";
+import { OrbitControls } from "@trident/plugins/OrbitControls.js";
+import { Environment } from "@trident/plugins/Environment/Environment";
+import { Sky } from "@trident/plugins/Environment/Sky";
 
 export class LayoutCanvas extends Component<BaseProps> {
 
@@ -29,13 +31,13 @@ export class LayoutCanvas extends Component<BaseProps> {
             camera.SetPerspective(72, canvas.width / canvas.height, 0.05, 500);
         });
         observer.observe(canvas);
-    
-    
+
+
         mainCameraGameObject.transform.position.set(0, 0, 10);
         mainCameraGameObject.transform.LookAtV1(EngineAPI.createVector3(0, 0, 0));
-    
+
         const controls = new OrbitControls(canvas, camera);
-    
+
         const lightGameObject = EngineAPI.createGameObject(EngineAPI.currentScene);
         lightGameObject.name = "Light";
         lightGameObject.transform.position.set(-10, 10, 10);
@@ -46,7 +48,7 @@ export class LayoutCanvas extends Component<BaseProps> {
         // setInterval(() => {
         //     light.castShadows = !light.castShadows;
         // }, 1000);
-    
+
         const floorGameObject = EngineAPI.createGameObject(EngineAPI.currentScene);
         floorGameObject.name = "Floor"
         floorGameObject.transform.eulerAngles.x = -90;
@@ -66,6 +68,17 @@ export class LayoutCanvas extends Component<BaseProps> {
 
 
 
+
+        const sky = new Sky();
+        sky.SUN_ELEVATION_DEGREES = 60;
+        await sky.init();
+        const skyTexture = sky.skyTextureCubemap;
+        const environment = new Environment(EngineAPI.currentScene, skyTexture);
+        await environment.init();
+
+
+
+
         // function traverse(gameObjects: IGameObject[], fn: (gameObject: IGameObject) => void) {
         //     for (const gameObject of gameObjects) {
         //         fn(gameObject);
@@ -78,14 +91,14 @@ export class LayoutCanvas extends Component<BaseProps> {
         // const gameObjects = await GLTFLoader.loadAsGameObjects(currentScene, "/extra/dist_bak/test-assets/GLTF/scenes/JunkShop.glb");
         // // const gameObjects = await GLTFLoader.loadAsGameObjects(scene, "/extra/dist_bak/test-assets/GLTF/scenes/Sponza/Sponza.gltf");
         // console.log(gameObjects)
-        
+
         // traverse(gameObjects, gameObject => {
         //     const mesh = gameObject.GetComponent(IComponents.Mesh);
         //     if (mesh) {
         //         mesh.enableShadows = false;
         //     }
         // })
-    
+
         // const gameObjects = await GLTFLoader.loadAsGameObjects(currentScene, "/dist/examples/assets/models/glb/CommonTree_1.glb");
         // gameObjects[0].transform.scale.mul(0.1);
 

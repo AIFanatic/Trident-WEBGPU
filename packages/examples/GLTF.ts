@@ -7,7 +7,7 @@ import { HDRParser } from "@trident/plugins/HDRParser";
 import { Environment } from "@trident/plugins/Environment/Environment";
 
 async function Application(canvas: HTMLCanvasElement) {
-    const renderer = GPU.Renderer.Create(canvas, "webgpu", 1);
+    const renderer = GPU.Renderer.Create(canvas, "webgpu", 2);
     const scene = new Scene(renderer);
 
     const mainCameraGameObject = new GameObject(scene);
@@ -27,17 +27,25 @@ async function Application(canvas: HTMLCanvasElement) {
     lightGameObject.transform.LookAtV1(new Mathf.Vector3(0, 0, 0));
     const light = lightGameObject.AddComponent(Components.DirectionalLight);
     light.castShadows = true;
-    light.intensity = 1
+    light.intensity = 2
 
-    const hdr = await HDRParser.Load("/dist/examples/assets/textures/HDR/autumn_field_puresky_1k.hdr");
-    const skyTexture = await HDRParser.ToCubemap(hdr);
+    // const hdr = await HDRParser.Load("/dist/examples/assets/textures/HDR/spruit_sunrise_1k.hdr");
+    // const skyTexture = await HDRParser.ToCubemap(hdr);
 
-    const environment = new Environment(scene, skyTexture);
-    await environment.init();
+    // const environment = new Environment(scene, skyTexture);
+    // await environment.init();
 
     // const prefab = await GLTFLoader.LoadFromURL("./assets/models/DamagedHelmet/DamagedHelmet.gltf");
-    const prefab = await GLTFLoader.LoadFromURL("./assets/models/Fox.glb");
+    const prefab = await GLTFLoader.LoadFromURL("/extra/test-assets/semi_auto_rifle.worldmodel.glb");
+    // const prefab = await GLTFLoader.LoadFromURL("/extra/test-assets/tree-01/american_beech_a/american_beech_a.glb");
+    // const prefab = await GLTFLoader.LoadFromURL("/extra/test-assets/sphere/sphere.gltf");
+    // // const prefab = await GLTFLoader.LoadFromURL("./assets/models/Fox.glb");
     const gameObject = scene.Instantiate(prefab);
+
+    // const go = new GameObject(scene);
+    // const mesh = go.AddComponent(Components.Mesh);
+    // mesh.geometry = Geometry.Sphere();
+    // mesh.material = new PBRMaterial({roughness: 0.0, metallic: 1.0});
 
     // {
     //     function traverse(objects: Prefab[], fn: (object: Prefab) => void) {
@@ -68,6 +76,25 @@ async function Application(canvas: HTMLCanvasElement) {
     //     Components.Camera.mainCamera = scene.GetGameObjects()[0].GetComponents(Components.Camera)[0];
     //     const controls = new OrbitControls(canvas, Components.Camera.mainCamera);
     // }
+
+
+    // Drag and drop models
+    {
+        window.addEventListener("dragover", (e) => {
+            e.preventDefault(); // allow drop
+        });
+
+        window.addEventListener("drop", async (e) => {
+            e.preventDefault();
+
+            const file = e.dataTransfer?.files?.[0];
+            if (!file) return;
+
+            const url = URL.createObjectURL(file);
+            const prefab = await GLTFLoader.LoadFromURL(url, "glb");
+            const obj = scene.Instantiate(prefab);
+        });
+    }
     Debugger.Enable();
 
     scene.Start();

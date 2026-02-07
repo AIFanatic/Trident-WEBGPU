@@ -113,8 +113,11 @@ export class PrepareMeshletData extends GPU.RenderPass {
 
     public async preFrame(resources: GPU.ResourcePool) {
         if (this.needsUpdate) {
+            resources.setResource(MeshletPassParams.CurrentMeshletCount, 0); // Set here in case of no meshlets
+
             const scene = Components.Camera.mainCamera.gameObject.scene;
             const sceneMeshlets = scene.GetComponents(MeshletMesh);
+            if (sceneMeshlets.length === 0) return;
 
             // Sort frame meshlets per material
             let frameMeshlets: Map<PBRMaterial, MeshletMesh[]> = new Map();
@@ -148,12 +151,12 @@ export class PrepareMeshletData extends GPU.RenderPass {
                 const materialIndex = materialIndices.get(material);
 
                 const materialInfoIndex = this.getOrSet(this.materialInfoBuffer, material, new Float32Array([
-                    material.params.albedoColor.r, material.params.albedoColor.g, material.params.albedoColor.b, material.params.albedoColor.a,
-                    material.params.emissiveColor.r, material.params.emissiveColor.g, material.params.emissiveColor.b, material.params.emissiveColor.a,
-                    material.params.roughness, material.params.metalness, +material.params.unlit, material.params.alphaCutoff,
-                    material.params.repeat.x, material.params.repeat.y,
-                    material.params.offset.x, material.params.offset.y,
-                    +material.params.wireframe,
+                    material.albedoColor.r, material.albedoColor.g, material.albedoColor.b, material.albedoColor.a,
+                    material.emissiveColor.r, material.emissiveColor.g, material.emissiveColor.b, material.emissiveColor.a,
+                    material.roughness, material.metalness, +material.unlit, material.alphaCutoff,
+                    material.repeat.x, material.repeat.y,
+                    material.offset.x, material.offset.y,
+                    +material.wireframe,
                     0, 0, 0
                 ]));
 

@@ -51,55 +51,39 @@ export class InspectorVector3 extends Component<InspectorVector3Props, Inspector
     }
 
     public render() {
-        return <div className="InspectorComponent">
-            <span className="title">{this.props.title}</span>
+        return <div class="InspectorComponent">
+            <span class="title">{this.props.title}</span>
 
-            <div style={{
-                width: "22%",
-                display: "flex",
-                alignItems: "center"
-            }}>
-                <span style={{
-                    fontSize: "12px",
-                }}>X</span>
-                <input 
-                    className="input input-vector3"
-                    type="number"
-                    onChange={(event) => {this.onChanged(ChangedProperty.X, event)}}
-                    value={this.state.vector3.x}
-                />
-            </div>
+            <div class="edit">
+                <div class="value">
+                    <span class="vec-label red-bg">X</span>
+                    <input 
+                        class="input vec-input"
+                        type="number"
+                        onChange={(event) => {this.onChanged(ChangedProperty.X, event)}}
+                        value={this.state.vector3.x.toPrecision(4)}
+                    />
+                </div>
 
-            <div style={{
-                width: "22%",
-                display: "flex",
-                alignItems: "center"
-            }}>
-                <span style={{
-                    fontSize: "12px",
-                }}>Y</span>
-                <input
-                    className="input input-vector3"
-                    type="number"
-                    onChange={(event) => {this.onChanged(ChangedProperty.Y, event)}}
-                    value={this.state.vector3.y}
-                />
-            </div>
+                <div class="value">
+                    <span class="vec-label green-bg">Y</span>
+                    <input
+                        class="input vec-input"
+                        type="number"
+                        onChange={(event) => {this.onChanged(ChangedProperty.Y, event)}}
+                        value={this.state.vector3.y.toPrecision(4)}
+                    />
+                </div>
 
-            <div style={{
-                width: "22%",
-                display: "flex",
-                alignItems: "center"
-            }}>
-                <span style={{
-                    fontSize: "12px",
-                }}>Z</span>
-                <input
-                    className="input input-vector3"
-                    type="number"
-                    onChange={(event) => {this.onChanged(ChangedProperty.Z, event)}}
-                    value={this.state.vector3.z}
-                />
+                <div class="value">
+                    <span class="vec-label blue-bg">Z</span>
+                    <input
+                        class="input vec-input"
+                        type="number"
+                        onChange={(event) => {this.onChanged(ChangedProperty.Z, event)}}
+                        value={this.state.vector3.z.toPrecision(4)}
+                    />
+                </div>
             </div>
         </div>
     }

@@ -35,6 +35,11 @@ export class LODGroup extends Components.Renderable {
         this._instanceCount = Math.max(this._instanceCount, index + 1);
     }
 
+    public SetMatricesBulk(matrices: Float32Array) {
+        this.matrices.set(0, matrices);
+        this._instanceCount = matrices.length / 16;
+    }
+
     // Expose a representative geometry so shadow passes can at least draw something.
     public get geometry(): Geometry | undefined {
         const lod0 = this.lods[0];
@@ -89,7 +94,7 @@ export class LODInstanceRenderable extends LODGroup {
 
             const lodMatrixCapacity: u32 = ${LODGroup.MATRICES_PER_LOD}u;
 
-            const blockSize: u32 = 1;
+            const blockSize: u32 = 4;
 
             fn computeRadiusScale(modelMatrix: mat4x4<f32>) -> f32 {
                 let sx = length(modelMatrix[0].xyz);
@@ -120,8 +125,16 @@ export class LODInstanceRenderable extends LODGroup {
 
             @compute @workgroup_size(blockSize, blockSize, blockSize)
             fn main(@builtin(global_invocation_id) grid: vec3<u32>) {
-                let size = u32(ceil(pow(meshCount, 1.0 / 3.0)));
-                let objectIndex = grid.x + (grid.y * size) + (grid.z * size * size);
+                let dim: u32 = u32(ceil(pow(meshCount, 1.0 / 3.0)));
+
+                let objectIndex =
+                    grid.x +
+                    grid.y * dim +
+                    grid.z * dim * dim;
+
+                if (objectIndex >= u32(meshCount)) {
+                    return;
+                }
 
                 if (objectIndex >= u32(meshCount)) {
                     return;
@@ -131,7 +144,7 @@ export class LODInstanceRenderable extends LODGroup {
                 let modelPosition = modelMatrixInstance[3].xyz;
 
                 if (outsideFrustum(modelMatrixInstance, boundingSphere)) {
-                    // return;
+                    return;
                 }
 
                 let lc = u32(lodCount);
@@ -249,9 +262,10 @@ export class LODInstanceRenderable extends LODGroup {
         this.drawCompute.SetValue("lodCount", this.lods.length);
         this.drawCompute.SetBuffer("lodMatrices", this.lodMatricesScratch);
 
-        GPU.ComputeContext.BeginComputePass("LODGroup");
-        const dispatchSize = Math.max(1, Math.ceil(Math.cbrt(this.instanceCount)));
-        GPU.ComputeContext.Dispatch(this.drawCompute, dispatchSize, dispatchSize, dispatchSize);
+        GPU.ComputeContext.BeginComputePass("LODGroup", true);
+        const dim = Math.max(1, Math.ceil(Math.cbrt(this.instanceCount)));
+        const dispatch = Math.ceil(dim / 4);
+        GPU.ComputeContext.Dispatch(this.drawCompute, dispatch, dispatch, dispatch);
         GPU.ComputeContext.EndComputePass();
 
         GPU.Renderer.EndRenderFrame();

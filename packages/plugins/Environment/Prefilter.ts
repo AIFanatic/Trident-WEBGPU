@@ -137,7 +137,7 @@ export class Prefilter {
                         
                             let mipLevel = select(0.5 * log2(saSample / saTexel), 0.0, roughness.x == 0.0);
                         
-                            prefilteredColor += textureSampleLevel(environmentMap, environmentSampler, l, mipLevel).rgb * nDotL;
+                            prefilteredColor += textureSampleLevel(environmentMap, environmentSampler, l, mipLevel + 1.0).rgb * nDotL;
                             totalWeight += nDotL;
                         }
                     }

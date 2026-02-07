@@ -125,7 +125,7 @@ fn edgeFactor(bary: vec3f) -> f32 {
 }
 
 @fragment
-fn fragmentMain(input: VertexOutput) -> FragmentOutput {
+fn fragmentMain(@builtin(front_facing) isFrontFace: bool, input: VertexOutput) -> FragmentOutput {
     var output: FragmentOutput;
 
 
@@ -157,11 +157,14 @@ fn fragmentMain(input: VertexOutput) -> FragmentOutput {
         let normalSample = textureSample(NormalMap, TextureSampler, uv).xyz * 2.0 - 1.0;
         normal = normalize(tbn * normalSample);
     #endif
+    if (!isFrontFace) {
+        normal = -normal;
+    }
 
     #if USE_ARM_MAP
         let metalnessRoughness = textureSample(ARMMap, TextureSampler, uv);
 
-        occlusion *= metalnessRoughness.r;
+        // occlusion *= metalnessRoughness.r;
         roughness *= metalnessRoughness.g;
         metalness *= metalnessRoughness.b;
 

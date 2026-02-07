@@ -23,6 +23,7 @@ export const Random = mulberry32(1337);
 export const RandomRange = (min: number, max: number) => Random() * (max - min) + min;
 export const Lerp = (a: number, b: number, f: number) => a * (1.0 - f) + (b * f);
 export const Clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(max, value));
+export const Clamp01 = (value: number) => Clamp(value, 0, 1);
 
 export const Round = Math.round;
 export const Sqrt = Math.sqrt;

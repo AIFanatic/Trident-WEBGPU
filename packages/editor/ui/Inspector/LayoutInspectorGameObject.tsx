@@ -177,7 +177,8 @@ export class LayoutInspectorGameObject extends Component<LayoutInspectorProps, L
         return (
             <div style={{
                 height: "100%",
-                overflow: "auto"
+                overflow: "auto",
+                width: "100%"
             }}>
                 <div style={{
                     display: "flex",

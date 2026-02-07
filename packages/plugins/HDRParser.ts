@@ -221,9 +221,9 @@ export class HDRParser {
             g *= exposureMul;
             b *= exposureMul;
 
-            // r = acesToneMapping(r);
-            // g = acesToneMapping(g);
-            // b = acesToneMapping(b);
+            r = acesToneMapping(r);
+            g = acesToneMapping(g);
+            b = acesToneMapping(b);
 
             // r = linearToSRGB(r);
             // g = linearToSRGB(g);
@@ -244,8 +244,7 @@ export class HDRParser {
 
     public static async ToCubemap(hdr: GPU.Texture): Promise<GPU.RenderTextureCube> {
         const faceSize = Math.min((hdr.width / 2) | 0, hdr.height | 0);
-        console.log("faceSize", faceSize)
-        const renderTarget = GPU.RenderTextureCube.Create(faceSize, faceSize, 6, "rgba8unorm");
+        const renderTarget = GPU.RenderTextureCube.Create(faceSize, faceSize, 6, "rgba16float");
         renderTarget.SetName("Skybox");
 
         const hdrSampler = GPU.TextureSampler.Create({

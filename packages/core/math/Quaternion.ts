@@ -110,6 +110,31 @@ export class Quaternion {
         return out;
     }
 
+	public setFromUnitVectors(vFrom: Vector3, vTo: Vector3): Quaternion {
+		let r = vFrom.dot( vTo ) + 1;
+
+		if ( r < 1e-8 ) { // the epsilon value has been discussed in #31286
+			r = 0;
+			if ( Math.abs( vFrom.x ) > Math.abs( vFrom.z ) ) {
+				this.x = - vFrom.y;
+				this.y = vFrom.x;
+				this.z = 0;
+				this.w = r;
+			} else {
+				this.x = 0;
+				this.y = - vFrom.z;
+				this.z = vFrom.y;
+				this.w = r;
+			}
+		} else {
+			this.x = vFrom.y * vTo.z - vFrom.z * vTo.y;
+			this.y = vFrom.z * vTo.x - vFrom.x * vTo.z;
+			this.z = vFrom.x * vTo.y - vFrom.y * vTo.x;
+			this.w = r;
+		}
+		return this.normalize();
+	}
+
     public mul(b: Quaternion): Quaternion {
         // from http://www.euclideanspace.com/maths/algebra/realNormedAlgebra/quaternions/code/index.htm
 

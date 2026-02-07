@@ -26,12 +26,14 @@ export class InspectorInput extends Component<InspectorInputProps> {
         return <div className="InspectorComponent">
             <span className="title">{this.props.title}</span>
 
-            <input
-                className="input"
-                type={this.props.type ? this.props.type : "text"}
-                onChange={(event) => {this.onChanged(event)}}
-                value={this.props.value}
-            />
+            <div class="edit">
+                <input
+                    className="input"
+                    type={this.props.type ? this.props.type : "text"}
+                    onChange={(event) => { this.onChanged(event) }}
+                    value={this.props.value}
+                />
+            </div>
         </div>
     }
 }
