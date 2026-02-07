@@ -86,6 +86,10 @@ struct VertexOutput {
     
     output.instance = input.instanceIndex;
 
+    // emit a barycentric coordinate
+    output.barycenticCoord = vec3f(0);
+    output.barycenticCoord[input.vertexIndex % 3] = 1.0;
+
     return output;
 }
 
@@ -94,6 +98,13 @@ struct FragmentOutput {
     @location(1) normal : vec4f,
     @location(2) RMO    : vec4f,
 };
+
+fn edgeFactor(bary: vec3f) -> f32 {
+    let lineThickness = 1.0;
+    let d = fwidth(bary);
+    let a3 = smoothstep(vec3f(0.0), d * lineThickness, bary);
+    return min(min(a3.x, a3.y), a3.z);
+}
 
 @fragment fn fragmentMain(input: VertexOutput) -> FragmentOutput {
     var output: FragmentOutput;
@@ -165,8 +176,8 @@ struct FragmentOutput {
     output.RMO = vec4(emissive.rgb, mat.Unlit);
 
 
-    // // Wireframe
-    // output.albedo *= 1.0 - edgeFactor(input.barycenticCoord) * mat.Wireframe;
+    // Wireframe
+    output.albedo *= 1.0 - edgeFactor(input.barycenticCoord) * mat.Wireframe;
 
     // // Flat shading
     // let xTangent: vec3f = dpdx( input.vPosition );

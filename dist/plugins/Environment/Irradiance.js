@@ -48,6 +48,28 @@ class Irradiance {
                     }
                 }
         
+ fn radicalInverseVdC(bits: u32) -> f32 {
+      var b = bits;
+      b = (b << 16u) | (b >> 16u);
+      b = ((b & 0x55555555u) << 1u) | ((b & 0xAAAAAAAAu) >> 1u);
+      b = ((b & 0x33333333u) << 2u) | ((b & 0xCCCCCCCCu) >> 2u);
+      b = ((b & 0x0F0F0F0Fu) << 4u) | ((b & 0xF0F0F0F0u) >> 4u);
+      b = ((b & 0x00FF00FFu) << 8u) | ((b & 0xFF00FF00u) >> 8u);
+      return f32(b) * 2.3283064365386963e-10; // 1/2^32
+  }
+
+  fn hammersley(i: u32, n: u32) -> vec2f {
+      return vec2f(f32(i)/f32(n), radicalInverseVdC(i));
+  }
+
+  fn cosineSampleHemisphere(xi: vec2f) -> vec3f {
+      let r = sqrt(xi.x);
+      let phi = 2.0 * PI * xi.y;
+      let x = r * cos(phi);
+      let y = r * sin(phi);
+      let z = sqrt(1.0 - xi.x); // cosTheta
+      return vec3f(x, y, z);
+  }
                 const PI = 3.14159265359;
         
                 @fragment
@@ -55,45 +77,28 @@ class Irradiance {
                     // Per-pixel normal for this output cubemap face
                     let normal = dirFromFaceUV(u32(face.x), uv.x, uv.y);
             
-                    var irradiance = vec3<f32>(0.0);
 
-                    var up = vec3<f32>(0.0, 1.0, 0.0);
-                    let tangent = normalize(cross(up, normal));
-                    let bitangent = normalize(cross(normal, tangent));
+  var up = select(vec3f(0.0, 0.0, 1.0), vec3f(0.0, 1.0, 0.0), abs(normal.y) < 0.999);
+  let tangent = normalize(cross(up, normal));
+  let bitangent = cross(normal, tangent);
 
-                    let sampleCount = 32u;
-                    let invSampleCount = 1.0 / f32(sampleCount);
+                    let SAMPLE_COUNT = 2048u;
+  var irradiance = vec3f(0.0);
 
-                    for (var i = 0u; i < sampleCount; i++) {
-                        for (var j = 0u; j < sampleCount; j++) {
-                            let u1 = (f32(i) + 0.5) * invSampleCount;
-                            let u2 = (f32(j) + 0.5) * invSampleCount;
+  for (var i = 0u; i < SAMPLE_COUNT; i++) {
+      let xi = hammersley(i, SAMPLE_COUNT);
+      let sampleVec = cosineSampleHemisphere(xi);
+      let worldSample =
+          sampleVec.x * tangent +
+          sampleVec.y * bitangent +
+          sampleVec.z * normal;
 
-                            let cosTheta = sqrt(u1);
-                            let sinTheta = sqrt(1.0 - u1);
-                            let phi = 2.0 * PI * u2;
+    //   irradiance += textureSample(environmentMap, environmentMapSampler, worldSample).rgb;
+        irradiance += textureSampleLevel(environmentMap, environmentMapSampler, worldSample, 6.0).rgb;
+  }
 
-                            let cosPhi = cos(phi);
-                            let sinPhi = sin(phi);
-
-                            let sampleVec = vec3<f32>(
-                                sinTheta * cosPhi,
-                                sinTheta * sinPhi,
-                                cosTheta
-                            );
-
-                            let worldSample = sampleVec.x * tangent +
-                                            sampleVec.y * bitangent +
-                                            sampleVec.z * normal;
-
-                            let sampleColor = textureSample(environmentMap, environmentMapSampler, worldSample);
-                            irradiance += sampleColor.rgb;
-                        }
-                    }
-
-                    irradiance = irradiance * PI * invSampleCount * invSampleCount;
-
-                    return vec4<f32>(irradiance, 1.0);
+  irradiance = irradiance / f32(SAMPLE_COUNT);
+  return vec4f(irradiance, 1.0);
                 }
             `,
       colorOutputs: [{ format: this.irradianceTexture.format }],

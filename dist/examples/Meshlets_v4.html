@@ -27,11 +27,13 @@
             <script type="module">
                 const canvas = document.createElement("canvas");
                 document.body.appendChild(canvas);
-                            import { GPU, Scene, GameObject, Components, Mathf, PBRMaterial } from '@trident/core';
+                            import { GPU, Scene, GameObject, Components, Mathf, Geometry, PBRMaterial } from '@trident/core';
             import { OrbitControls } from '@trident/plugins/OrbitControls.js';
-            import { OBJLoaderIndexed } from '@trident/plugins/OBJLoader.js';
+            import { GLTFLoader } from '@trident/plugins/GLTF/GLTFLoader.js';
             import { MeshletMesh } from '@trident/plugins/meshlets_v4/MeshletMesh.js';
             import { MeshletDraw } from '@trident/plugins/meshlets_v4/passes/MeshletDraw.js';
+            import { HDRParser } from '@trident/plugins/HDRParser.js';
+            import { Environment } from '@trident/plugins/Environment/Environment.js';
             
             async function Application(canvas) {
               const renderer = GPU.Renderer.Create(canvas, "webgpu");
@@ -40,7 +42,7 @@
               mainCameraGameObject.transform.position.set(0, 0, -15);
               mainCameraGameObject.name = "MainCamera";
               const camera = mainCameraGameObject.AddComponent(Components.Camera);
-              camera.SetPerspective(60, canvas.width / canvas.height, 0.5, 5e4);
+              camera.SetPerspective(60, canvas.width / canvas.height, 0.05, 1e3);
               mainCameraGameObject.transform.position.set(0, 0, 5);
               mainCameraGameObject.transform.LookAtV1(new Mathf.Vector3(0, 0, 0));
               new OrbitControls(canvas, camera);
@@ -53,29 +55,30 @@
               light.color.set(1, 1, 1, 1);
               light.castShadows = true;
               {
-                const mesh = await OBJLoaderIndexed.load("/dist/examples/assets/models/bunny.obj");
-                mesh.geometry.ComputeNormals();
-                mesh.geometry.ComputeTangents();
-                const mat = new PBRMaterial({ albedoMap: await GPU.Texture.Load("/dist/examples/assets/textures/brick.png") });
+                const prefab = await GLTFLoader.LoadFromURL("/extra/test-assets/trellis2/rock_pile.glb");
+                let mesh;
+                prefab.traverse(prefab, (prefab2) => {
+                  for (const component of prefab2.components) {
+                    if (component.type === Components.Mesh.type) {
+                      console.log("GOT IT", component);
+                      mesh = {
+                        geometry: Geometry.Deserialize(component.geometry),
+                        material: GPU.Material.Deserialize(component.material)
+                      };
+                      mesh.geometry.ComputeTangents();
+                    }
+                  }
+                });
+                console.log(mesh);
+                const hdr = await HDRParser.Load("/dist/examples/assets/textures/HDR/autumn_field_puresky_1k.hdr");
+                const skyTexture = await HDRParser.ToCubemap(hdr);
+                const environment = new Environment(scene, skyTexture);
+                await environment.init();
                 const meshletGameObject = new GameObject(scene);
-                meshletGameObject.transform.position.x = 2;
                 const meshletMesh = meshletGameObject.AddComponent(MeshletMesh);
                 meshletMesh.enableShadows = false;
                 meshletMesh.geometry = mesh.geometry;
-                meshletMesh.material = mat;
-                const c = 20;
-                const off = 10;
-                for (let x = 0; x < c; x++) {
-                  for (let y = 0; y < c; y++) {
-                    for (let z = 0; z < c; z++) {
-                      const go2 = new GameObject(scene);
-                      const meshletB = go2.AddComponent(MeshletMesh);
-                      meshletB.geometry = mesh.geometry;
-                      meshletB.transform.position.set(x * off, y * off, z * off);
-                      meshletB.material = mat;
-                    }
-                  }
-                }
+                meshletMesh.material = new PBRMaterial({ albedoColor: new Mathf.Color(1, 1, 1, 1), roughness: 0.99, metalness: 0.01, wireframe: false });
               }
               scene.Start();
             }

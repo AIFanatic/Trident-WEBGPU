@@ -1,139 +1,112 @@
-import { Component, Mathf } from '@trident/core';
+import { Component, Mathf, GPU, Components, Input, KeyCodes } from '@trident/core';
 import { PhysicsRapier } from './PhysicsRapier.js';
-import { RigidBody } from './RigidBody.js';
-import { Collider } from './colliders/Collider.js';
 
 class FirstPersonController extends Component {
-  camera;
-  collider;
-  rigidbody;
-  speed = 5;
-  boostMultiplier = 10;
+  _controller;
+  _model;
+  _mainCamera;
+  move = new Mathf.Vector2();
+  look = new Mathf.Vector2();
+  jump = false;
+  sprint = false;
+  isPointerLocked = false;
+  isGrounded = false;
+  v = new Mathf.Vector3();
+  speed = 2;
+  boostMultiplier = 5;
   orbitSpeed = 0.01;
   rayDistance = 1;
   playHeight = 1.8;
-  v = new Mathf.Vector3();
-  keysPressed = {
-    forward: false,
-    backward: false,
-    left: false,
-    right: false,
-    boost: false,
-    up: false,
-    down: false,
-    jump: false,
-    noclip: false
-  };
-  mouse = { deltaX: 0, deltaY: 0, left: false };
-  target;
-  state = 4 /* FALLING */;
-  async Start() {
-    if (!this.camera) throw Error("Camera parameter not set");
-    const collider = this.gameObject.GetComponent(Collider);
-    if (!collider) throw Error("FirstPersonController needs a collider attached to it");
-    this.collider = collider;
-    const rigidbody = this.gameObject.GetComponent(RigidBody);
-    if (!rigidbody) throw Error("FirstPersonController needs a rigidbody attached to it");
-    this.rigidbody = rigidbody;
-    this.camera.transform.position.copy(this.transform.position);
-    this.rigidbody.rigidBody.lockRotations(true, true);
-    document.addEventListener("keydown", (event) => {
-      if (event.key === "w") this.keysPressed.forward = true;
-      if (event.key === "s") this.keysPressed.backward = true;
-      if (event.key === "a") this.keysPressed.left = true;
-      if (event.key === "d") this.keysPressed.right = true;
-      if (event.key === "q") this.keysPressed.up = true;
-      if (event.key === "e") this.keysPressed.down = true;
-      if (event.key === " ") this.keysPressed.jump = true;
-      if (event.key === "n") this.keysPressed.noclip = true;
-      if (event.key === "Shift") this.keysPressed.boost = true;
+  blendRotation = 0.15;
+  animationSpeedRatio = 1;
+  state = 1 /* Walking */;
+  Start() {
+    if (!this._controller) throw Error("No controller attached");
+    if (!this._model) throw Error("No model attached");
+    if (!this._mainCamera) throw Error("No camera attached");
+    GPU.Renderer.canvas.addEventListener("pointerdown", (event) => {
+      if (!this.isPointerLocked) document.body.requestPointerLock();
     });
-    document.addEventListener("keyup", (event) => {
-      if (event.key === "w") this.keysPressed.forward = false;
-      if (event.key === "s") this.keysPressed.backward = false;
-      if (event.key === "a") this.keysPressed.left = false;
-      if (event.key === "d") this.keysPressed.right = false;
-      if (event.key === "q") this.keysPressed.up = false;
-      if (event.key === "e") this.keysPressed.down = false;
-      if (event.key === " ") this.keysPressed.jump = false;
-      if (event.key === "n") this.keysPressed.noclip = false;
-      if (event.key === "Shift") this.keysPressed.boost = false;
-    });
-    document.addEventListener("mousedown", (event) => {
-      if (!(event.target instanceof HTMLCanvasElement)) return;
-      document.body.requestPointerLock();
-      this.mouse.left = true;
-    });
-    document.addEventListener("mouseup", (event) => {
-      document.exitPointerLock();
-      this.mouse.left = false;
-    });
-    document.addEventListener("mousemove", (event) => {
-      if (this.mouse.left === false) return;
-      this.mouse.deltaX -= event.movementX * this.orbitSpeed;
-      this.mouse.deltaY -= event.movementY * this.orbitSpeed;
-      this.camera.transform.rotation.setFromEuler(new Mathf.Vector3(this.mouse.deltaY, this.mouse.deltaX, 0));
-    });
-    this.target = this.transform;
-  }
-  GroundRayCast() {
-    const direction = this.target.up.clone().mul(-1);
-    const from = this.target.position.clone();
-    let ray = new PhysicsRapier.Physics.Ray(from, direction);
-    let hit = PhysicsRapier.PhysicsWorld.castRay(ray, this.rayDistance + 2, true, void 0, void 0, this.collider.collider);
-    if (hit !== null) {
-      this.state = 0 /* GROUNDED */;
-      this.floorY = ray.pointAt(hit.timeOfImpact).y;
-      return;
-    }
-    this.state = 4 /* FALLING */;
-  }
-  CanMove() {
-    return this.state == 0 /* GROUNDED */ || this.state == 1 /* MOVING */ || this.state == 2 /* RUNNING */;
-  }
-  SetPosition(position) {
-    this.camera.transform.position.copy(position).add(new Mathf.Vector3(0, 1, 0));
-  }
-  HandleMovement() {
-    let speed = this.speed;
-    this.v.set(0, 0, 0);
-    if (this.keysPressed.forward === true) this.v.z = -1;
-    if (this.keysPressed.backward === true) this.v.z = 1;
-    if (this.keysPressed.right === true) this.v.x = 1;
-    if (this.keysPressed.left === true) this.v.x = -1;
-    if (this.keysPressed.up === true) this.v.y = 1;
-    if (this.keysPressed.down === true) this.v.y = -1;
-    if (this.keysPressed.boost === true) speed = this.boostMultiplier;
-    this.v.applyQuaternion(this.camera.transform.rotation);
-    const forward = this.keysPressed.forward ? 1 : 0;
-    const backward = this.keysPressed.backward ? 1 : 0;
-    const left = this.keysPressed.left ? 1 : 0;
-    const right = this.keysPressed.right ? 1 : 0;
-    const r = this.rigidbody.rigidBody;
-    const velocity = r.linvel();
-    new Mathf.Vector3(0, 0, backward - forward);
-    new Mathf.Vector3(left - right, 0, 0);
-    const direction = this.v.mul(speed);
-    r.setLinvel({ x: direction.x, y: velocity.y, z: direction.z }, true);
-    const p = r.translation();
-    const ray = new PhysicsRapier.Physics.Ray(p, { x: 0, y: -1, z: 0 });
-    const rayHit = PhysicsRapier.PhysicsWorld.castRay(ray, this.rayDistance + 2, true, void 0, void 0, this.collider.collider);
-    const grounded = rayHit && rayHit.collider && Math.abs(rayHit.timeOfImpact) <= 1.75;
-    if (this.keysPressed.jump && grounded) r.setLinvel({ x: 0, y: 7.5, z: 0 }, true);
-    this.transform.position.set(p.x, p.y, p.z);
-    this.camera.transform.position.set(p.x, p.y, p.z).add(new Mathf.Vector3(0, -1.5 + this.playHeight, 0));
-  }
-  HandleNoClip() {
-    if (this.keysPressed.noclip === true) {
-      if (this.state === 5 /* NOCLIP */) this.state = 4 /* FALLING */;
-      else this.state = 5 /* NOCLIP */;
-      console.log(this.state);
-    }
+    document.onpointerlockchange = (event) => {
+      this.isPointerLocked = !this.isPointerLocked;
+    };
   }
   Update() {
-    this.GroundRayCast();
-    this.HandleNoClip();
-    this.HandleMovement();
+    this.UpdateInput();
+    this.GroundedCheck();
+    this.Move();
+    this.CameraRotation();
+    const cam = this._mainCamera.GetComponent(Components.Camera);
+    if (cam) cam.Update();
+    this.UpdateState();
+  }
+  UpdateState() {
+    const isGrounded = this.isGrounded;
+    const isJumping = this.jump;
+    const isMoving = this.move.length() > 1e-5;
+    const isRunning = this.sprint;
+    if (isGrounded === true && !isMoving) this.state = 0 /* Idle */;
+    else if (isGrounded === true && isMoving) isRunning ? this.state = 2 /* Running */ : this.state = 1 /* Walking */;
+    else if (isGrounded === true && isMoving && isRunning) this.state = 2 /* Running */;
+    else if (isJumping === true) this.state = 3 /* Jumping */;
+  }
+  UpdateInput() {
+    this.move.x = (Input.GetKey(KeyCodes.D) ? 1 : 0) - (Input.GetKey(KeyCodes.A) ? 1 : 0);
+    this.move.y = (Input.GetKey(KeyCodes.W) ? 1 : 0) - (Input.GetKey(KeyCodes.S) ? 1 : 0);
+    this.jump = Input.GetKey(KeyCodes.SPACE);
+    this.sprint = Input.GetKey(KeyCodes.SHIFT);
+    this.look.x = -Input.GetAxis("Horizontal");
+    this.look.y = -Input.GetAxis("Vertical");
+  }
+  GroundedCheck() {
+    const rigidbody = this._controller.rigidBody;
+    const p = rigidbody.translation();
+    const ray = new PhysicsRapier.Physics.Ray(p, { x: 0, y: -1, z: 0 });
+    const rayHit = PhysicsRapier.PhysicsWorld.castRay(ray, this.rayDistance + 2, true, void 0, void 0, void 0, rigidbody);
+    this.isGrounded = rayHit && rayHit.collider && Math.abs(rayHit.timeOfImpact) <= 1.75;
+    if (rayHit) {
+      const groundPoint = ray.pointAt(rayHit.timeOfImpact);
+      this.groundPoint.set(groundPoint.x, groundPoint.y, groundPoint.z);
+      this.time = rayHit.timeOfImpact;
+    }
+  }
+  groundPoint = new Mathf.Vector3();
+  time = 0;
+  Move() {
+    this.v.set(0, 0, 0);
+    this.v.set(this.move.x, 0, -this.move.y);
+    this.v.applyQuaternion(this._mainCamera.transform.rotation);
+    const rigidbody = this._controller.rigidBody;
+    const velocity = rigidbody.linvel();
+    const direction = this.v.mul(this.sprint ? this.boostMultiplier : this.speed);
+    rigidbody.setLinvel({ x: direction.x, y: velocity.y, z: direction.z }, true);
+    if (this.isGrounded && !this.jump && this.time > 1.5) {
+      const t = rigidbody.translation();
+      t.y = this.groundPoint.y + 1.5;
+      rigidbody.setTranslation(t, false);
+    }
+    if (this.jump && this.isGrounded) rigidbody.setLinvel({ x: 0, y: 7.5, z: 0 }, true);
+    const p = rigidbody.translation();
+    this._mainCamera.transform.position.set(p.x, p.y, p.z).add(new Mathf.Vector3(0, this.playHeight, 0));
+    this._model.transform.position.set(p.x, p.y - 1, p.z);
+    if (Math.abs(this.move.x) > Mathf.Epsilon || Math.abs(this.move.y) > Mathf.Epsilon) {
+      const targetRotation = (Mathf.Atan2(-this.move.x, this.move.y) + this.yaw) * Mathf.Rad2Deg;
+      this.currentRotation = Mathf.Lerp(this.currentRotation, targetRotation, this.blendRotation);
+      this._model.transform.rotation.setFromEuler(new Mathf.Vector3(0, this.currentRotation, 0), true);
+    }
+  }
+  currentRotation = 0;
+  yaw = 0;
+  pitch = 0;
+  CameraRotation() {
+    const minPhi = -Math.PI / 2;
+    const maxPhi = Math.PI / 2;
+    if (this.isPointerLocked) {
+      this.yaw += this.look.x * this.orbitSpeed;
+      this.pitch += this.look.y * this.orbitSpeed;
+      this.pitch = Math.min(maxPhi, Math.max(minPhi, this.pitch));
+    }
+    this._mainCamera.transform.rotation.setFromEuler(new Mathf.Vector3(this.pitch, this.yaw, 0));
   }
 }
 

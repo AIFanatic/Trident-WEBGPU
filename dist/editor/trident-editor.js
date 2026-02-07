@@ -1,5 +1,7 @@
 import { Renderer, Scene, GameObject, Mathf, Component as Component$1, Prefab, Geometry, PBRMaterial, Utils, Components } from '@trident/core';
 import { OrbitControls } from '@trident/plugins/OrbitControls.js';
+import { Environment } from '@trident/plugins/Environment/Environment.js';
+import { Sky } from '@trident/plugins/Environment/Sky.js';
 import { GLTFLoader } from '@trident/plugins/GLTF/GLTFLoader.js';
 
 class TridentAPI {
@@ -370,6 +372,12 @@ class LayoutCanvas extends Component {
     const cubeMesh = cubeGameObject.AddComponent(IComponents.Mesh);
     cubeMesh.geometry = EngineAPI.createCubeGeometry();
     cubeMesh.material = EngineAPI.createPBRMaterial();
+    const sky = new Sky();
+    sky.SUN_ELEVATION_DEGREES = 60;
+    await sky.init();
+    const skyTexture = sky.skyTextureCubemap;
+    const environment = new Environment(EngineAPI.currentScene, skyTexture);
+    await environment.init();
     EventSystem.on(SceneEvents.Loaded, (scene) => {
       const mainCamera = Components.Camera.mainCamera;
       new OrbitControls(canvas, mainCamera);
@@ -1028,6 +1036,114 @@ class LayoutAssets extends Component {
   }
 }
 
+class MenuItem extends Component {
+  constructor(props) {
+    super(props);
+  }
+  onClicked(event) {
+    if (this.props.closeMenu) {
+      this.props.closeMenu();
+    }
+    if (this.props.onClicked) {
+      this.props.onClicked();
+    }
+  }
+  render() {
+    return /* @__PURE__ */ createElement(
+      "button",
+      {
+        className: "dropdown-btn dropdown-item-btn",
+        onClick: (event) => {
+          this.onClicked(event);
+        },
+        ...this.props.disabled ? { disabled: true } : {}
+      },
+      this.props.name
+    );
+  }
+}
+
+class Menu extends Component {
+  constructor(props) {
+    super(props);
+    this.state = { isDropdownVisible: false };
+  }
+  toggleDropdown() {
+    if (this.props.onToggled) this.props.onToggled(!this.state.isDropdownVisible);
+    this.setState({ isDropdownVisible: !this.state.isDropdownVisible });
+  }
+  onOptionClicked(option) {
+    this.toggleDropdown();
+    if (this.props.onOptionClicked) {
+      this.props.onOptionClicked(option);
+    }
+  }
+  render() {
+    return /* @__PURE__ */ createElement(
+      "div",
+      {
+        className: "dropdown"
+      },
+      /* @__PURE__ */ createElement(
+        "button",
+        {
+          className: "dropdown-btn",
+          onClick: (event) => this.toggleDropdown()
+        },
+        this.props.name
+      ),
+      this.state.isDropdownVisible ? /* @__PURE__ */ createElement("div", null, /* @__PURE__ */ createElement("div", { className: "dropdown-overlay", onClick: (event) => this.toggleDropdown() }), /* @__PURE__ */ createElement("div", { className: "dropdown-content" }, this.props.children)) : ""
+    );
+  }
+}
+
+class MenuDropdown extends Component {
+  constructor(props) {
+    super(props);
+    this.state = { isDropdownVisible: false };
+  }
+  toggleDropdown() {
+    if (this.props.onToggled) this.props.onToggled(!this.state.isDropdownVisible);
+    this.setState({ isDropdownVisible: !this.state.isDropdownVisible });
+  }
+  onOptionClicked(option) {
+    this.toggleDropdown();
+    if (this.props.onOptionClicked) {
+      this.props.onOptionClicked(option);
+    }
+  }
+  async contentRef(container) {
+    if (!container) return;
+    setTimeout(() => {
+      if (this.props.children) {
+        const w = container.parentElement.clientWidth;
+        container.parentElement.clientHeight;
+        container.style.marginLeft = w + "px";
+        container.style.marginTop = "-25px";
+        container.style.display = "";
+      }
+    }, 1);
+  }
+  render() {
+    return /* @__PURE__ */ createElement(
+      "div",
+      {
+        className: "dropdown-menu"
+      },
+      /* @__PURE__ */ createElement(
+        "button",
+        {
+          className: "dropdown-btn dropdown-item-btn",
+          onClick: (event) => this.toggleDropdown()
+        },
+        this.props.name
+      ),
+      /* @__PURE__ */ createElement("span", { className: "dropdown-right-icon" }, "\u25B6"),
+      this.state.isDropdownVisible ? /* @__PURE__ */ createElement("div", null, /* @__PURE__ */ createElement("div", { ref: (ref) => this.contentRef(ref), className: "dropdown-content", style: "display: none;" }, this.props.children)) : ""
+    );
+  }
+}
+
 class LayoutHierarchy extends Component {
   constructor(props) {
     super(props);
@@ -1072,13 +1188,37 @@ class LayoutHierarchy extends Component {
     }
     return treeMap;
   }
+  createEmptyGameObject() {
+    const gameObject = this.props.engineAPI.createGameObject(this.props.engineAPI.currentScene);
+    EventSystem.emit(GameObjectEvents.Created, gameObject);
+  }
   render() {
     if (!this.props.engineAPI.currentScene) return;
     const nodes = this.buildTreeFromGameObjects(this.props.engineAPI.currentScene.gameObjects);
-    return /* @__PURE__ */ createElement(
+    return /* @__PURE__ */ createElement("div", { class: "Layout" }, /* @__PURE__ */ createElement("div", { class: "header" }, /* @__PURE__ */ createElement("div", { class: "title" }, "Sample scene"), /* @__PURE__ */ createElement("div", { class: "right-action" }, /* @__PURE__ */ createElement(Menu, { name: "\u22EE" }, /* @__PURE__ */ createElement(MenuItem, { name: "Create Empty", onClicked: () => {
+      this.createEmptyGameObject();
+    } }), /* @__PURE__ */ createElement(MenuDropdown, { name: "3D Object" }, /* @__PURE__ */ createElement(MenuItem, { name: "Cube", onClicked: () => {
+      this.createPrimitive(PrimitiveType.Cube);
+    } }), /* @__PURE__ */ createElement(MenuItem, { name: "Capsule", onClicked: () => {
+      this.createPrimitive(PrimitiveType.Capsule);
+    } }), /* @__PURE__ */ createElement(MenuItem, { name: "Plane", onClicked: () => {
+      this.createPrimitive(PrimitiveType.Plane);
+    } }), /* @__PURE__ */ createElement(MenuItem, { name: "Sphere", onClicked: () => {
+      this.createPrimitive(PrimitiveType.Sphere);
+    } }), /* @__PURE__ */ createElement(MenuItem, { name: "Cylinder", onClicked: () => {
+      this.createPrimitive(PrimitiveType.Cylinder);
+    } })), /* @__PURE__ */ createElement(MenuDropdown, { name: "Lights" }, /* @__PURE__ */ createElement(MenuItem, { name: "Directional Light", onClicked: () => {
+      this.createLight(LightTypes.Directional);
+    } }), /* @__PURE__ */ createElement(MenuItem, { name: "Point Light", onClicked: () => {
+      this.createLight(LightTypes.Point);
+    } }), /* @__PURE__ */ createElement(MenuItem, { name: "Spot Light", onClicked: () => {
+      this.createLight(LightTypes.Spot);
+    } }), /* @__PURE__ */ createElement(MenuItem, { name: "Area Light", onClicked: () => {
+      this.createLight(LightTypes.Area);
+    } }))))), /* @__PURE__ */ createElement(
       "div",
       {
-        style: "width: 100%; overflow: auto;",
+        style: "width: 100%; height: 100%; overflow: auto;padding-top:5px",
         onDrop: (event) => this.onDrop(event),
         onDragOver: (e) => e.preventDefault()
       },
@@ -1091,7 +1231,7 @@ class LayoutHierarchy extends Component {
           data: nodes
         }
       )
-    );
+    ));
   }
 }
 
@@ -1107,7 +1247,7 @@ class InspectorInput extends Component {
     }
   }
   render() {
-    return /* @__PURE__ */ createElement("div", { className: "InspectorComponent" }, /* @__PURE__ */ createElement("span", { className: "title" }, this.props.title), /* @__PURE__ */ createElement(
+    return /* @__PURE__ */ createElement("div", { className: "InspectorComponent" }, /* @__PURE__ */ createElement("span", { className: "title" }, this.props.title), /* @__PURE__ */ createElement("div", { class: "edit" }, /* @__PURE__ */ createElement(
       "input",
       {
         className: "input",
@@ -1117,7 +1257,7 @@ class InspectorInput extends Component {
         },
         value: this.props.value
       }
-    ));
+    )));
   }
 }
 
@@ -1179,55 +1319,37 @@ class InspectorVector3 extends Component {
     }
   }
   render() {
-    return /* @__PURE__ */ createElement("div", { className: "InspectorComponent" }, /* @__PURE__ */ createElement("span", { className: "title" }, this.props.title), /* @__PURE__ */ createElement("div", { style: {
-      width: "22%",
-      display: "flex",
-      alignItems: "center"
-    } }, /* @__PURE__ */ createElement("span", { style: {
-      fontSize: "12px"
-    } }, "X"), /* @__PURE__ */ createElement(
+    return /* @__PURE__ */ createElement("div", { class: "InspectorComponent" }, /* @__PURE__ */ createElement("span", { class: "title" }, this.props.title), /* @__PURE__ */ createElement("div", { class: "edit" }, /* @__PURE__ */ createElement("div", { class: "value" }, /* @__PURE__ */ createElement("span", { class: "vec-label red-bg" }, "X"), /* @__PURE__ */ createElement(
       "input",
       {
-        className: "input input-vector3",
+        class: "input vec-input",
         type: "number",
         onChange: (event) => {
           this.onChanged(0 /* X */, event);
         },
-        value: this.state.vector3.x
+        value: this.state.vector3.x.toPrecision(4)
       }
-    )), /* @__PURE__ */ createElement("div", { style: {
-      width: "22%",
-      display: "flex",
-      alignItems: "center"
-    } }, /* @__PURE__ */ createElement("span", { style: {
-      fontSize: "12px"
-    } }, "Y"), /* @__PURE__ */ createElement(
+    )), /* @__PURE__ */ createElement("div", { class: "value" }, /* @__PURE__ */ createElement("span", { class: "vec-label green-bg" }, "Y"), /* @__PURE__ */ createElement(
       "input",
       {
-        className: "input input-vector3",
+        class: "input vec-input",
         type: "number",
         onChange: (event) => {
           this.onChanged(1 /* Y */, event);
         },
-        value: this.state.vector3.y
+        value: this.state.vector3.y.toPrecision(4)
       }
-    )), /* @__PURE__ */ createElement("div", { style: {
-      width: "22%",
-      display: "flex",
-      alignItems: "center"
-    } }, /* @__PURE__ */ createElement("span", { style: {
-      fontSize: "12px"
-    } }, "Z"), /* @__PURE__ */ createElement(
+    )), /* @__PURE__ */ createElement("div", { class: "value" }, /* @__PURE__ */ createElement("span", { class: "vec-label blue-bg" }, "Z"), /* @__PURE__ */ createElement(
       "input",
       {
-        className: "input input-vector3",
+        class: "input vec-input",
         type: "number",
         onChange: (event) => {
           this.onChanged(2 /* Z */, event);
         },
-        value: this.state.vector3.z
+        value: this.state.vector3.z.toPrecision(4)
       }
-    )));
+    ))));
   }
 }
 
@@ -1332,17 +1454,18 @@ class InspectorColor extends Component {
     }
   }
   render() {
-    return /* @__PURE__ */ createElement("div", { className: "InspectorComponent" }, /* @__PURE__ */ createElement("span", { className: "title" }, this.props.title), /* @__PURE__ */ createElement(
+    return /* @__PURE__ */ createElement("div", { className: "InspectorComponent" }, /* @__PURE__ */ createElement("span", { className: "title" }, this.props.title), /* @__PURE__ */ createElement("div", { class: "edit" }, /* @__PURE__ */ createElement(
       "input",
       {
         className: "input",
+        style: "padding: 2px;",
         type: "color",
         onChange: (event) => {
           this.onChanged(event);
         },
         value: this.state.color.toHex().slice(0, 7)
       }
-    ));
+    )));
   }
 }
 
@@ -1364,7 +1487,7 @@ class InspectorType extends Component {
     }
   }
   render() {
-    return /* @__PURE__ */ createElement("div", { className: "InspectorComponent" }, /* @__PURE__ */ createElement("span", { className: "title" }, this.props.title), /* @__PURE__ */ createElement(
+    return /* @__PURE__ */ createElement("div", { className: "InspectorComponent" }, /* @__PURE__ */ createElement("span", { className: "title" }, this.props.title), /* @__PURE__ */ createElement("div", { class: "edit" }, /* @__PURE__ */ createElement(
       "input",
       {
         className: "input",
@@ -1381,13 +1504,13 @@ class InspectorType extends Component {
         style: {
           width: "15px",
           height: "15px",
-          position: "relative",
+          position: "absolute",
           right: "10px",
-          textAlign: "center"
+          alignSelf: "center"
         }
       },
       "o"
-    ));
+    )));
   }
 }
 
@@ -1508,7 +1631,8 @@ class LayoutInspectorGameObject extends Component {
     const componentsElements = this.renderInspectorForGameObject(this.state.gameObject);
     return /* @__PURE__ */ createElement("div", { style: {
       height: "100%",
-      overflow: "auto"
+      overflow: "auto",
+      width: "100%"
     } }, /* @__PURE__ */ createElement("div", { style: {
       display: "flex",
       padding: "10px"
@@ -1592,115 +1716,15 @@ class LayoutTab extends Component {
       }, class: classes }, entry.title);
     });
     const content = this.props.entries[this.state.selected].node;
-    return /* @__PURE__ */ createElement("div", { class: "LayoutTab" }, /* @__PURE__ */ createElement("div", { class: "header" }, ...headers), content);
-  }
-}
-
-class Menu extends Component {
-  constructor(props) {
-    super(props);
-    this.state = { isDropdownVisible: false };
-  }
-  toggleDropdown() {
-    if (this.props.onToggled) this.props.onToggled(!this.state.isDropdownVisible);
-    this.setState({ isDropdownVisible: !this.state.isDropdownVisible });
-  }
-  onOptionClicked(option) {
-    this.toggleDropdown();
-    if (this.props.onOptionClicked) {
-      this.props.onOptionClicked(option);
-    }
-  }
-  render() {
-    return /* @__PURE__ */ createElement(
-      "div",
-      {
-        className: "dropdown"
-      },
-      /* @__PURE__ */ createElement(
-        "button",
-        {
-          className: "dropdown-btn",
-          onClick: (event) => this.toggleDropdown()
-        },
-        this.props.name
-      ),
-      this.state.isDropdownVisible ? /* @__PURE__ */ createElement("div", null, /* @__PURE__ */ createElement("div", { className: "dropdown-overlay", onClick: (event) => this.toggleDropdown() }), /* @__PURE__ */ createElement("div", { className: "dropdown-content" }, this.props.children)) : ""
-    );
-  }
-}
-
-class MenuDropdown extends Component {
-  constructor(props) {
-    super(props);
-    this.state = { isDropdownVisible: false };
-  }
-  toggleDropdown() {
-    if (this.props.onToggled) this.props.onToggled(!this.state.isDropdownVisible);
-    this.setState({ isDropdownVisible: !this.state.isDropdownVisible });
-  }
-  onOptionClicked(option) {
-    this.toggleDropdown();
-    if (this.props.onOptionClicked) {
-      this.props.onOptionClicked(option);
-    }
-  }
-  async contentRef(container) {
-    if (!container) return;
-    setTimeout(() => {
-      if (this.props.children) {
-        const w = container.parentElement.clientWidth;
-        container.parentElement.clientHeight;
-        container.style.marginLeft = w + "px";
-        container.style.marginTop = "-25px";
-        container.style.display = "";
-      }
-    }, 1);
-  }
-  render() {
-    return /* @__PURE__ */ createElement(
-      "div",
-      {
-        className: "dropdown-menu"
-      },
-      /* @__PURE__ */ createElement(
-        "button",
-        {
-          className: "dropdown-btn dropdown-item-btn",
-          onClick: (event) => this.toggleDropdown()
-        },
-        this.props.name
-      ),
-      /* @__PURE__ */ createElement("span", { className: "dropdown-right-icon" }, "\u25B6"),
-      this.state.isDropdownVisible ? /* @__PURE__ */ createElement("div", null, /* @__PURE__ */ createElement("div", { ref: (ref) => this.contentRef(ref), className: "dropdown-content", style: "display: none;" }, this.props.children)) : ""
-    );
-  }
-}
-
-class MenuItem extends Component {
-  constructor(props) {
-    super(props);
-  }
-  onClicked(event) {
-    if (this.props.closeMenu) {
-      this.props.closeMenu();
-    }
-    if (this.props.onClicked) {
-      this.props.onClicked();
-    }
-  }
-  render() {
-    return /* @__PURE__ */ createElement(
-      "button",
-      {
-        className: "dropdown-btn dropdown-item-btn",
-        onClick: (event) => {
-          this.onClicked(event);
-        },
-        ...this.props.disabled ? { disabled: true } : {}
-      },
-      this.props.name
-    );
+    return /* @__PURE__ */ createElement("div", { class: "Layout" }, /* @__PURE__ */ createElement("div", { class: "header" }, ...headers, /* @__PURE__ */ createElement("div", { class: "right-action" }, /* @__PURE__ */ createElement(Menu, { name: "\u22EE" }, /* @__PURE__ */ createElement(MenuItem, { name: "Folder", onClicked: () => {
+      this.createFolder();
+    } }), /* @__PURE__ */ createElement(MenuItem, { name: "Material", onClicked: () => {
+      this.createMaterial();
+    } }), /* @__PURE__ */ createElement(MenuItem, { name: "Script", onClicked: () => {
+      this.createScript();
+    } }), /* @__PURE__ */ createElement(MenuItem, { name: "Scene", onClicked: () => {
+      this.createScene();
+    } })))), content);
   }
 }
 

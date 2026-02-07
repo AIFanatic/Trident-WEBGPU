@@ -4,12 +4,12 @@ html, body {
     color: white;
     font-family: monospace;
     font-size: 10px;
+    background-color: black;
 }
 
 flex {
     display: flex;
     overflow: hidden;
-    background-color: #272727;
 }
 
 flex.h {
@@ -51,6 +51,9 @@ flex.v>flex-resizer::before {
 flex-item {
     display: flex;
     overflow: hidden;
+    border-radius: 20px;
+    background: #222;
+    margin: 10px;
 }
 
 flex.h>flex-resizer:hover {
@@ -97,27 +100,36 @@ input[type=number] {
     color: red;
 }
 
-.LayoutTab {
+.Layout {
     width: 100%;
 }
 
-.LayoutTab > .header {
+.Layout > .header {
     display: flex;
+    align-items: center;
     width: 100%;
-    background-color: black;
+    border-bottom: 1px solid #2b2b2b;
+    padding-left: 10px;
+    padding-top: 5px;
 }
 
-.LayoutTab > .header > .title {
+.Layout > .header > .title {
     height: 15px;
     padding: 2px;
-    padding-right: 5px;
-    padding-left: 5px;
     cursor: pointer;
 }
 
-.LayoutTab > .header > .selected {
+.Layout > .header > .selected {
     background-color: #272727;
 }
+
+.Layout > .header > .right-action {
+    color: red;
+    margin-left: auto;
+    margin-right: 20px;
+    font-size: 12px;
+}
+
 .dropdown-overlay {
     /* background-color: #ffffff50; */
     position: fixed;
@@ -220,6 +232,51 @@ input[type=number] {
 .treeview .item .item-content {
     overflow: hidden;
 }
+.collapsible-content-edonec {
+    overflow: auto;
+    transition: height 0.2s ease-in-out;
+    border-bottom: 1px solid black;
+}
+.title-text-edonec {
+    display: inline-block;
+    font-size: 10px;
+    font-weight: bold;
+}
+.title-right-menu {
+    float: right;
+    margin-right: 10px;
+    text-align: center;
+    width: 15px;
+    font-weight: bold;
+}
+.title-right-menu:hover {
+    background-color: #404040;
+}
+
+.collapsible-header-edonec {
+    width: 100%;
+    display: inline-block;
+    align-items: center;
+    padding: 3px 0px 3px 0px;
+    cursor: pointer;
+    background-color: #2b2b2b;
+}
+.collapsible-content-padding-edonec {
+    padding-top: 3px;
+}
+
+.collapsible-icon-button-edonec {
+    cursor: pointer;
+    background-color: Transparent;
+    background-repeat: no-repeat;
+    border: none;
+    cursor: pointer;
+    overflow: hidden;
+    outline: none;
+    color: white;
+    font-size: 10px;
+    width: 25px;
+}
 .InspectorComponent {
     display: flex;
     align-items: center;
@@ -228,11 +285,11 @@ input[type=number] {
 .InspectorComponent .title {
     font-size: 9px;
     width: 30%;
-    margin-right: 10px;
     margin-left: 10px;
-    white-space: nowrap;
-    overflow: hidden;
-    display: inline-flex;
+}
+
+.InspectorComponent .value {
+    display: flex;
     align-items: center;
 }
 
@@ -243,22 +300,12 @@ input[type=number] {
     color: white;
     border: 1px solid black;
     outline: none;
-    width: 65%;
-    float: right;
-    padding-left: 5px;
-    padding-top: 0px;
-    padding-bottom: 0px;
-    margin-right: 10px;
+    width: 100%;
+    padding: 5px;
 }
 
 .InspectorComponent .input:hover {
     border: 1px solid #4d4d4d;
-}
-
-.InspectorComponent .input-vector3 {
-    margin-right: 3px;
-    width: 100%;
-    margin-left: 3px;
 }
 
 .InspectorComponent .input.active {
@@ -304,48 +351,35 @@ input[type=number] {
     cursor: pointer;
     border-radius: 50%;
 }
-.collapsible-content-edonec {
-    overflow: auto;
-    transition: height 0.2s ease-in-out;
-    border-bottom: 1px solid black;
-}
-.title-text-edonec {
-    display: inline-block;
-    font-size: 10px;
-    font-weight: bold;
-}
-.title-right-menu {
-    float: right;
-    margin-right: 10px;
-    text-align: center;
-    width: 15px;
-    font-weight: bold;
-}
-.title-right-menu:hover {
-    background-color: #404040;
+
+.InspectorComponent .red-bg {
+    background-color: #e74c3c50;
 }
 
-.collapsible-header-edonec {
+.InspectorComponent .green-bg {
+    background-color: #2ecc7150;
+}
+
+.InspectorComponent .blue-bg {
+    background-color: #3498db50;
+}
+
+.InspectorComponent .vec-label {
+    padding: 4px;
+    font-size: 9px;
+    border-top-left-radius: 2px;
+    border-bottom-left-radius: 2px;
+}
+
+.InspectorComponent .vec-input {
+    padding: 4px;
+    font-size: 9px;
+    border-top-left-radius: 0px;
+    border-bottom-left-radius: 0px;
+}
+
+.InspectorComponent .edit {
+    display: flex;
     width: 100%;
-    display: inline-block;
-    align-items: center;
-    padding: 3px 0px 3px 0px;
-    cursor: pointer;
-    background-color: #2b2b2b;
-}
-.collapsible-content-padding-edonec {
-    padding-top: 3px;
-}
-
-.collapsible-icon-button-edonec {
-    cursor: pointer;
-    background-color: Transparent;
-    background-repeat: no-repeat;
-    border: none;
-    cursor: pointer;
-    overflow: hidden;
-    outline: none;
-    color: white;
-    font-size: 10px;
-    width: 25px;
+    margin-right: 5px;
 }

@@ -31,11 +31,9 @@
             import { OrbitControls } from '@trident/plugins/OrbitControls.js';
             import { GLTFLoader } from '@trident/plugins/GLTF/GLTFLoader.js';
             import { Debugger } from '@trident/plugins/Debugger.js';
-            import { HDRParser } from '@trident/plugins/HDRParser.js';
-            import { Environment } from '@trident/plugins/Environment/Environment.js';
             
             async function Application(canvas) {
-              const renderer = GPU.Renderer.Create(canvas, "webgpu", 1);
+              const renderer = GPU.Renderer.Create(canvas, "webgpu", 2);
               const scene = new Scene(renderer);
               const mainCameraGameObject = new GameObject(scene);
               mainCameraGameObject.transform.position.set(0, 0, -15);
@@ -50,13 +48,22 @@
               lightGameObject.transform.LookAtV1(new Mathf.Vector3(0, 0, 0));
               const light = lightGameObject.AddComponent(Components.DirectionalLight);
               light.castShadows = true;
-              light.intensity = 1;
-              const hdr = await HDRParser.Load("/dist/examples/assets/textures/HDR/autumn_field_puresky_1k.hdr");
-              const skyTexture = await HDRParser.ToCubemap(hdr);
-              const environment = new Environment(scene, skyTexture);
-              await environment.init();
-              const prefab = await GLTFLoader.LoadFromURL("./assets/models/Fox.glb");
+              light.intensity = 2;
+              const prefab = await GLTFLoader.LoadFromURL("/extra/test-assets/semi_auto_rifle.worldmodel.glb");
               scene.Instantiate(prefab);
+              {
+                window.addEventListener("dragover", (e) => {
+                  e.preventDefault();
+                });
+                window.addEventListener("drop", async (e) => {
+                  e.preventDefault();
+                  const file = e.dataTransfer?.files?.[0];
+                  if (!file) return;
+                  const url = URL.createObjectURL(file);
+                  const prefab2 = await GLTFLoader.LoadFromURL(url, "glb");
+                  scene.Instantiate(prefab2);
+                });
+              }
               Debugger.Enable();
               scene.Start();
             }

@@ -1,4 +1,4 @@
-import { Components, Geometry, VertexAttribute, IndexAttribute } from '@trident/core';
+import { Components, Geometry, VertexAttribute, IndexAttribute, Mathf } from '@trident/core';
 import { TerrainMaterial } from './TerrainMaterial.js';
 
 class Terrain extends Components.Mesh {
@@ -125,6 +125,35 @@ class Terrain extends Components.Mesh {
     const height = h0 * (1 - tz) + h1 * tz;
     worldPosition.y = height * this.height;
     return height * this.height;
+  }
+  SampleNormal(worldPosition) {
+    if (!this.heights) return new Mathf.Vector3(0, 1, 0);
+    const size = Math.sqrt(this.heights.length);
+    const localX = (worldPosition.x - this.transform.position.x) / this.width;
+    const localZ = (worldPosition.z - this.transform.position.z) / this.length;
+    const fx = Math.max(0, Math.min(1, localX)) * (size - 1);
+    const fz = Math.max(0, Math.min(1, localZ)) * (size - 1);
+    const x = Math.floor(fx);
+    const z = Math.floor(fz);
+    const idx = (x2, z2) => x2 * size + z2;
+    const x0 = Math.max(0, x - 1);
+    const x1 = Math.min(size - 1, x + 1);
+    const z0 = Math.max(0, z - 1);
+    const z1 = Math.min(size - 1, z + 1);
+    const hL = this.heights[idx(x0, z)];
+    const hR = this.heights[idx(x1, z)];
+    const hD = this.heights[idx(x, z0)];
+    const hU = this.heights[idx(x, z1)];
+    const scaleX = this.width / (size - 1);
+    const scaleZ = this.length / (size - 1);
+    const dx = (hR - hL) * this.height;
+    const dz = (hU - hD) * this.height;
+    const normal = new Mathf.Vector3(
+      -dx / scaleX,
+      2,
+      -dz / scaleZ
+    );
+    return normal.normalize();
   }
 }
 
