@@ -5,6 +5,7 @@
             <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no">
             <meta name="mobile-web-app-capable" content="yes">
             <meta name="apple-mobile-web-app-capable" content="yes">
+            <meta charset="UTF-8">
             
             <style>
                 html, body {
@@ -50,7 +51,7 @@
               mainCameraGameObject.transform.position.set(0, 0, 5);
               mainCameraGameObject.name = "MainCamera";
               const camera = mainCameraGameObject.AddComponent(Components.Camera);
-              camera.SetPerspective(60, canvas.width / canvas.height, 0.05, 1e3);
+              camera.SetPerspective(72, canvas.width / canvas.height, 0.05, 1e4);
               mainCameraGameObject.transform.LookAtV1(new Mathf.Vector3(0, 0, 0));
               const lightGameObject = new GameObject(scene);
               lightGameObject.transform.position.set(4, 4, 4).mul(10);
@@ -66,9 +67,9 @@
               await physicsComponent.Load();
               const terrainGameObject = new GameObject(scene);
               const terrain = terrainGameObject.AddComponent(Terrain);
-              terrain.width = 1e4;
-              terrain.length = 1e4;
-              terrain.height = 2e3;
+              terrain.width = 4e3;
+              terrain.length = 4e3;
+              terrain.height = 1e3;
               await terrain.HeightmapFromPNG("/extra/test-assets/terrain/heightmaps/elevation_1024x1024.png", true, 0.25);
               async function LoadTerrainTextures(urls) {
                 let textures = [];
@@ -92,9 +93,9 @@
                 //"/extra/test-assets/terrain/heightmaps/splat0_island_1024x1024.png",
               ]);
               let transform = new Float32Array([10, 10, 0, 0]);
-              const albedoTexture = await LoadTexture(`/extra/test-assets/terrain/rocky_terrain_02_2k/rocky_terrain_02_diff_2k.jpg`, "rgba8unorm-srgb");
-              const normalTexture = await LoadTexture(`/extra/test-assets/terrain/rocky_terrain_02_2k/rocky_terrain_02_nor_gl_2k.jpg`, "rgba8unorm");
-              const armMap = await LoadTexture(`/extra/test-assets/terrain/rocky_terrain_02_2k/rocky_terrain_02_arm_2k.jpg`, "rgba8unorm");
+              const albedoTexture = await LoadTexture(`/extra/test-assets/terrain/brown_mud_leaves_01/brown_mud_leaves_01_diff_1k.jpg`, "rgba8unorm-srgb");
+              const normalTexture = await LoadTexture(`/extra/test-assets/terrain/brown_mud_leaves_01/brown_mud_leaves_01_nor_gl_1k.jpg`, "rgba8unorm");
+              const armMap = await LoadTexture(`/extra/test-assets/terrain/brown_mud_leaves_01/brown_mud_leaves_01_arm_1k.jpg`, "rgba8unorm");
               terrain.material.layers = [
                 { name: "TropicalForest", transform, albedoMap: albedoTexture, normalMap: normalTexture, armMap }
               ];
@@ -118,7 +119,7 @@
                 const sunPos = new Mathf.Vector3(x, y, z);
                 lightGameObject.transform.position = sunPos;
                 lightGameObject.transform.LookAtV1(new Mathf.Vector3(0, 0, 0));
-                light.intensity = sky.SUN_ELEVATION_DEGREES / 10;
+                light.intensity = sky.SUN_ELEVATION_DEGREES / 20;
               }, 100);
               const environment = new Environment(scene, skyTexture);
               await environment.init();
@@ -144,13 +145,12 @@
               terrain.SampleHeight(p);
               p.y += 1;
               playerGameObject.transform.position.copy(p);
-              const weaponPrefab = await GLTFLoader.LoadFromURL("/extra/test-assets/ak47u.worldmodel.glb");
+              const weaponPrefab = await GLTFLoader.LoadFromURL("/extra/test-assets/bouquet.glb");
               const weaponGameObject = scene.Instantiate(weaponPrefab);
               weaponGameObject.transform.position.copy(camera.transform.position);
               weaponGameObject.transform.parent = camera.transform;
-              weaponGameObject.transform.localEulerAngles.set(175, 10, 180);
-              weaponGameObject.transform.localPosition.set(0.15, -0.25, -0.3);
-              console.log(weaponGameObject);
+              weaponGameObject.transform.localEulerAngles.set(195, -80, 180);
+              weaponGameObject.transform.localPosition.set(0.95, -0.5, -1.5);
               playerGameObject.AddComponent(CapsuleCollider);
               const playerRigidbody = playerGameObject.AddComponent(RigidBody);
               playerRigidbody.Create("dynamic");
@@ -177,8 +177,8 @@
                     for (const component of prefab3.components) {
                       if (component.type === Components.Mesh.type) {
                         const mat = GPU.Material.Deserialize(component.material);
-                        mat.doubleSided = true;
-                        mat.alphaCutoff = 0.1;
+                        mat.params.doubleSided = true;
+                        mat.params.alphaCutoff = 0.1;
                         const matSerialized = mat.Serialize();
                         lodGroupEntries.push({ geometry: Geometry.Deserialize(component.geometry), material: GPU.Material.Deserialize(matSerialized) });
                       }
@@ -189,14 +189,15 @@
                   lodInstanceRenderable.enableShadows = options.enableShadows;
                   if (lodGroupEntries.length > 0) lodInstanceRenderable.lods.push({ renderers: lodGroupEntries.slice(0, 1), screenSize: 100 });
                   if (lodGroupEntries.length > 1) lodInstanceRenderable.lods.push({ renderers: lodGroupEntries.slice(1, 2), screenSize: 200 });
-                  if (lodGroupEntries.length > 2) lodInstanceRenderable.lods.push({ renderers: lodGroupEntries.slice(2, 3), screenSize: 300 });
-                  if (lodGroupEntries.length > 3) lodInstanceRenderable.lods.push({ renderers: lodGroupEntries.slice(3, 4), screenSize: 400 });
+                  if (lodGroupEntries.length > 2) lodInstanceRenderable.lods.push({ renderers: lodGroupEntries.slice(2, 3), screenSize: 500 });
+                  if (lodGroupEntries.length > 3) lodInstanceRenderable.lods.push({ renderers: lodGroupEntries.slice(3, 4), screenSize: 4e3 });
+                  console.log(lodInstanceRenderable.lods);
                   const p2 = new Mathf.Vector3();
                   const r = new Mathf.Vector3();
                   const q = new Mathf.Quaternion();
                   const s = new Mathf.Vector3(1, 1, 1);
                   const m = new Mathf.Matrix4();
-                  const off = terrain.width;
+                  const off = terrain.width * 0.4;
                   let matrices = new Float32Array(options.count * 16);
                   for (let i = 0; i < options.count; i++) {
                     p2.set(Mathf.RandomRange(-off, off), 0, Mathf.RandomRange(-off, off));
@@ -209,6 +210,7 @@
                   lodInstanceRenderable.SetMatricesBulk(matrices);
                 }
                 const trees = [
+                  "./american_beech/american_beech_a_new.glb",
                   "./bush_mormon_tea/mormon_tea_d.glb",
                   "./bush_mormon_tea/mormon_tea_b.glb",
                   "./bush_mormon_tea/mormon_tea_c.glb",
@@ -323,55 +325,60 @@
                   "./bush_willow/bush_willow_snow_d.glb"
                 ];
                 console.log(trees.length);
-                for (let i = 0; i < 1; i++) {
+                for (let i = 0; i < 50; i++) {
                   const name = trees[i];
                   if (name.includes("swamp")) continue;
                   if (name.includes("tundra")) continue;
                   if (name.includes("snow")) continue;
-                  addLOD("/extra/test-assets/nature/treessource/" + name, { count: 5e4, enableShadows: false });
+                  if (!name.includes("american_beech_a_new.glb")) continue;
+                  console.log("Loading", name);
+                  addLOD("/extra/test-assets/nature/treessource/" + name, { count: 1e3, enableShadows: false });
                 }
-                const prefab = await GLTFLoader.LoadFromURL("/extra/test-assets/nature/overgrowth/patch_grass_medium.glb");
-                let prefabMesh;
+                const prefab = await GLTFLoader.LoadFromURL("/extra/test-assets/patch_grass_medium.glb");
+                let _prefabMeshes = [];
                 prefab.traverse((prefab2) => {
                   for (const component of prefab2.components) {
                     if (component.type === Components.Mesh.type) {
                       const mat = GPU.Material.Deserialize(component.material);
-                      mat.doubleSided = false;
-                      mat.alphaCutoff = 0.1;
                       const matSerialized = mat.Serialize();
-                      prefabMesh = { geometry: Geometry.Deserialize(component.geometry), material: GPU.Material.Deserialize(matSerialized) };
+                      _prefabMeshes.push({ geometry: Geometry.Deserialize(component.geometry), material: GPU.Material.Deserialize(matSerialized) });
                       return;
                     }
                   }
                 });
+                console.log(_prefabMeshes);
+                const prefabMesh = _prefabMeshes[_prefabMeshes.length - 1];
+                console.log(_prefabMeshes);
                 {
                   const gameObject = new GameObject(scene);
                   const instancedMesh = gameObject.AddComponent(Components.InstancedMesh);
                   instancedMesh.enableShadows = false;
                   instancedMesh.geometry = prefabMesh.geometry;
                   instancedMesh.material = prefabMesh.material;
-                  const count = 1e3;
-                  let position = new Mathf.Vector3();
+                  const count = 1e4;
+                  let p2 = new Mathf.Vector3();
                   new Mathf.Vector3();
-                  let quaternion = new Mathf.Quaternion();
-                  let scale = new Mathf.Vector3(1, 1, 1);
-                  let matrix = new Mathf.Matrix4();
-                  const offset = 20;
+                  let q = new Mathf.Quaternion();
+                  let s = new Mathf.Vector3(1, 1, 1);
+                  let m = new Mathf.Matrix4();
+                  let matrices = [];
+                  terrain.width * 0.4;
                   const _p = new Mathf.Vector3();
                   const up = new Mathf.Vector3(0, 1, 0);
                   for (let i2 = 0; i2 < count; i2++) {
-                    position.copy(playerGameObject.transform.position);
-                    _p.set(Mathf.Cos(i2 % count), 0, Mathf.Sin(i2 * count)).mul(offset);
-                    position.add(_p);
-                    terrain.SampleHeight(position);
-                    const normal = terrain.SampleNormal(position);
+                    p2.copy(playerGameObject.transform.position);
+                    _p.set(Mathf.Cos(i2 % count) * 0.5, 0, Mathf.Sin(i2 * count) * 0.5).mul(100);
+                    p2.add(_p);
+                    terrain.SampleHeight(p2);
+                    const normal = terrain.SampleNormal(p2);
                     const qAlign = new Mathf.Quaternion().setFromUnitVectors(up, normal);
                     const qTwist = new Mathf.Quaternion().setFromAxisAngle(up, Mathf.RandomRange(0, 360));
-                    quaternion = qAlign.mul(qTwist);
-                    matrix.compose(position, quaternion, scale);
-                    instancedMesh.SetMatrixAt(i2, matrix);
+                    q = qAlign.mul(qTwist);
+                    m.compose(p2, q, s);
+                    matrices.push(...m.elements);
                     i2++;
                   }
+                  instancedMesh.SetMatricesBulk(new Float32Array(matrices));
                 }
               }
               Console.getVar("r_exposure").value = 0;

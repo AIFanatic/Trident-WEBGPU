@@ -122,7 +122,7 @@ fn compute_inscattering(ray_origin: vec3f, ray_dir: vec3f, t_d: f32) -> ComputeI
 
         let ms = get_multiple_scattering(TransmittanceLUTTexture, sample_cos_theta, normalized_altitude, distance_to_earth_center);
 
-        let S = sun_spectral_irradiance * (molecular_scattering * (molecular_phase * transmittance_to_sun + ms) + aerosol_scattering   * (aerosol_phase   * transmittance_to_sun + ms));
+        let S = sun_spectral_irradiance * (molecular_scattering * (molecular_phase * transmittance_to_sun + ms) + aerosol_scattering * (aerosol_phase * transmittance_to_sun + ms));
 
         let step_transmittance = exp(-dt * extinction);
 
@@ -137,7 +137,20 @@ fn compute_inscattering(ray_origin: vec3f, ray_dir: vec3f, t_d: f32) -> ComputeI
     out.L_inscattering = L_inscattering;
     return out;
 }
+
+// fn sunWithBloom(rayDir: vec3f, sunDir: vec3f) -> vec3f {
+//     const sunSolidAngle = 0.53*PI/180.0;
+//     const minSunCosTheta = cos(sunSolidAngle);
+
+//     let cosTheta = dot(rayDir, sunDir);
+//     if (cosTheta >= minSunCosTheta) { return vec3(1.0); }
     
+//     let offset = minSunCosTheta - cosTheta;
+//     let gaussianBloom = exp(-offset*50000.0)*0.5;
+//     let invBloom = 1.0/(0.02 + offset*300.0)*0.1;
+//     return vec3(gaussianBloom+invBloom * vec3(2.0, 1.0, 1.0));
+// }
+
 @fragment
 fn fragmentMain(input: VertexOutput) -> @location(0) vec4<f32> {
     let uv = input.uv;
@@ -184,6 +197,9 @@ fn fragmentMain(input: VertexOutput) -> @location(0) vec4<f32> {
             }
         }
     }
+
+    let sun_dir = get_sun_direction();
+    // let sunLum = sunWithBloom(ray_dir, sun_dir);
 
     let inscattering = compute_inscattering(ray_origin, ray_dir, t_d);
     let L = inscattering.L_inscattering;

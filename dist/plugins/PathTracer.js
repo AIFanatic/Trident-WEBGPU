@@ -398,7 +398,7 @@ class PathTracer extends GPU.RenderPass {
         indexBuffer.push(indices[i + 0] + vertexBase, indices[i + 1] + vertexBase, indices[i + 2] + vertexBase, 0);
       }
       const pbrParams = renderable.material;
-      materialsBuffer.push(...[...pbrParams.albedoColor.elements, ...pbrParams.emissiveColor.elements, pbrParams.metalness, pbrParams.roughness, 0, 0]);
+      materialsBuffer.push(...[...pbrParams.params.albedoColor.elements, ...pbrParams.params.emissiveColor.elements, pbrParams.params.metalness, pbrParams.params.roughness, 0, 0]);
     }
     this.shader.SetArray("vertex", new Float32Array(vertexBuffer));
     this.shader.SetArray("index", new Uint32Array(indexBuffer));

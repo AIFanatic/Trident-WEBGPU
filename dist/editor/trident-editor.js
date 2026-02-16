@@ -1,4 +1,4 @@
-import { Renderer, Scene, GameObject, Mathf, Component as Component$1, Prefab, Geometry, PBRMaterial, Utils, Components, GPU, Input } from '@trident/core';
+import { Renderer, Scene, GameObject, Mathf, Component as Component$1, Prefab, Geometry, PBRMaterial, GPU, Utils, Components, Input, Assets } from '@trident/core';
 import { OrbitControls } from '@trident/plugins/OrbitControls.js';
 import { Environment } from '@trident/plugins/Environment/Environment.js';
 import { Sky } from '@trident/plugins/Environment/Sky.js';
@@ -49,14 +49,38 @@ class TridentAPI {
   isPrefab(prefab) {
     return prefab.constructor === Prefab;
   }
+  isGeometry(geometry) {
+    return geometry.constructor === Prefab;
+  }
+  isMaterial(material) {
+    return material.constructor === Prefab;
+  }
   createPlaneGeometry() {
     return Geometry.Plane();
   }
   createCubeGeometry() {
     return Geometry.Cube();
   }
+  createSphereGeometry() {
+    return Geometry.Sphere();
+  }
+  createCapsuleGeometry() {
+    return Geometry.Capsule();
+  }
   createPBRMaterial(args) {
     return new PBRMaterial(args);
+  }
+  createPrefab() {
+    return new Prefab();
+  }
+  deserializeGeometry(serialized) {
+    return Geometry.Deserialize(serialized);
+  }
+  deserializeMaterial(serialized) {
+    return GPU.Material.Deserialize(serialized);
+  }
+  deserializePrefab(serialized) {
+    return Prefab.Deserialize(serialized);
   }
   GetSerializedFields = Utils.GetSerializedFields;
 }
@@ -279,16 +303,25 @@ class LayoutResizer extends Component {
 const IComponents = {
   Camera: Components.Camera,
   SpotLight: Components.SpotLight,
+  PointLight: Components.PointLight,
   DirectionalLight: Components.DirectionalLight,
   Mesh: Components.Mesh
 };
 
+class ComponentEvents {
+  static Created = (gameObject, component) => {
+  };
+  static Deleted = (gameObject, component) => {
+  };
+}
 class GameObjectEvents {
   static Selected = (gameObject) => {
   };
   static Created = (gameObject) => {
   };
   static Deleted = (gameObject) => {
+  };
+  static Changed = (gameObject) => {
   };
 }
 class ProjectEvents {
@@ -496,6 +529,19 @@ class LayoutCanvas extends Component {
       const mainCamera = Components.Camera.mainCamera;
       new OrbitControls(canvas, mainCamera);
     });
+    {
+      canvas.addEventListener("dragover", (e) => {
+        e.preventDefault();
+      });
+      canvas.addEventListener("drop", async (e) => {
+        e.preventDefault();
+        const file = e.dataTransfer?.files?.[0];
+        if (!file) return;
+        const url = URL.createObjectURL(file);
+        const prefab = await GLTFLoader.LoadFromURL(url, "glb");
+        currentScene.Instantiate(prefab);
+      });
+    }
     currentScene.Start();
   }
   render() {
@@ -516,6 +562,12 @@ class _FileBrowser {
       alert("FileSystem API not supported.");
       throw Error("FileSystem API not supported.");
     }
+  }
+  setRootFolderHandle(handle) {
+    this.rootFolderHandle = handle;
+  }
+  getRootFolderHandle() {
+    return this.rootFolderHandle;
   }
   init() {
     return new Promise((resolve, reject) => {
@@ -761,6 +813,12 @@ class StringUtils {
   }
 }
 
+class Arrow extends Component {
+  render() {
+    return /* @__PURE__ */ createElement("span", { style: `display: inline-block; rotate: ${this.props.isOpen ? "-90deg" : "180deg"}` }, "\u3031");
+  }
+}
+
 class Folder extends Component {
   folderRef;
   constructor(props) {
@@ -782,6 +840,7 @@ class Folder extends Component {
     event.dataTransfer.setData("from-uuid", this.props.item.id);
   }
   onDrop(event) {
+    console.log("Folder onDrop");
     this.folderRef.style.backgroundColor = "";
     const fromUuid = event.dataTransfer.getData("from-uuid");
     if (fromUuid != "") {
@@ -795,14 +854,10 @@ class Folder extends Component {
   }
   onClicked(event) {
     this.props.onClicked(this.props.item);
-    event.preventDefault();
-    event.stopPropagation();
   }
   onDoubleClicked(event) {
     if (this.props.onDoubleClicked) {
       this.props.onDoubleClicked(this.props.item);
-      event.preventDefault();
-      event.stopPropagation();
     }
   }
   onDragEnter(event) {
@@ -831,18 +886,18 @@ class Folder extends Component {
           onDragLeave: (event) => this.onDragLeave(event),
           onDrop: (event) => this.onDrop(event),
           onDragOver: (event) => this.onDragOver(event),
-          onClick: (event) => this.onClicked(event),
+          onPointerDown: (event) => this.onClicked(event),
           onDblClick: (event) => this.onDoubleClicked(event)
         },
         /* @__PURE__ */ createElement(
           "span",
           {
             style: { width: "15px", height: "15px", fontSize: "10px" },
-            onClick: (event) => {
+            onPointerDown: (event) => {
               this.handleToggle(event);
             }
           },
-          this.state.isOpen ? "\u25BC " : "\u25B6 "
+          /* @__PURE__ */ createElement(Arrow, { isOpen: this.state.isOpen })
         ),
         /* @__PURE__ */ createElement("span", null, this.props.item.name)
       ),
@@ -888,16 +943,17 @@ class File extends Component {
     event.preventDefault();
   }
   onClicked(event) {
+    console.log("onClicked");
     this.props.onClicked(this.props.data);
-    event.preventDefault();
-    event.stopPropagation();
   }
-  onDoubleClicked(event) {
-    if (this.props.onDoubleClicked) {
-      this.props.onDoubleClicked(this.props.data);
-      event.preventDefault();
-      event.stopPropagation();
-    }
+  lastClickTs = 0;
+  dblMs = 220;
+  onPointerDown(event) {
+    this.props.onClicked(this.props.data);
+    const now = performance.now();
+    const elapsed = now - this.lastClickTs;
+    this.lastClickTs = now;
+    if (elapsed < this.dblMs && this.props.onDoubleClicked) this.props.onDoubleClicked(this.props.data);
   }
   onDragEnter(event) {
     this.FileRef.style.backgroundColor = "#3498db80";
@@ -925,8 +981,7 @@ class File extends Component {
           onDragLeave: (event) => this.onDragLeave(event),
           onDrop: (event) => this.onDrop(event),
           onDragOver: (event) => this.onDragOver(event),
-          onClick: (event) => this.onClicked(event),
-          onDblClick: (event) => this.onDoubleClicked(event)
+          onPointerDown: (event) => this.onPointerDown(event)
         },
         /* @__PURE__ */ createElement(
           "span",
@@ -1006,147 +1061,42 @@ class Tree extends Component {
   }
 }
 
-class _ExtendedDataTransfer {
-  data;
-  constructor() {
-    this.data = null;
-  }
-  set(data) {
-    this.data = data;
-  }
-  get() {
-    return this.data;
-  }
-  remove(e) {
-    this.data = null;
-  }
+class ExtendedDataTransfer {
+  static data;
 }
-const ExtendedDataTransfer = new _ExtendedDataTransfer();
 
-class LayoutAssets extends Component {
-  fileWatcher;
+class Menu extends Component {
   constructor(props) {
     super(props);
-    this.setState({ currentTreeMap: /* @__PURE__ */ new Map() });
-    this.fileWatcher = new FileWatcher();
-    EventSystem.on(ProjectEvents.Opened, () => {
-      this.fileWatcher.watch("");
-    });
-    EventSystem.on(FileEvents.Created, (path, handle) => {
-      this.onFileOrDirectoryCreated(path, handle);
-    });
-    EventSystem.on(DirectoryEvents.Created, (path, handle) => {
-      this.onFileOrDirectoryCreated(path, handle);
-    });
+    this.state = { isDropdownVisible: false };
   }
-  onFileOrDirectoryCreated(path, file) {
-    if (file instanceof FileSystemDirectoryHandle) {
-      this.fileWatcher.watch(path);
-    }
-    if (!this.state.currentTreeMap.has(path)) {
-      let type = file instanceof FileSystemFileHandle ? ITreeMapType.File : ITreeMapType.Folder;
-      this.state.currentTreeMap.set(path, {
-        id: path,
-        name: file.name,
-        isSelected: false,
-        parent: StringUtils.Dirname(path) == path ? null : StringUtils.Dirname(path),
-        type,
-        data: {
-          file,
-          instance: null
+  toggleDropdown() {
+    const next = !this.state.isDropdownVisible;
+    if (this.props.onToggled) this.props.onToggled(next);
+    this.setState({ isDropdownVisible: next });
+  }
+  closeSelfAndParent = () => {
+    this.setState({ isDropdownVisible: false });
+    if (this.props.closeMenu) this.props.closeMenu();
+  };
+  toArray(children) {
+    if (children === void 0 || children === null) return [];
+    return Array.isArray(children) ? children : [children];
+  }
+  withCloseMenu(children) {
+    return children.map((child) => {
+      if (!child || typeof child !== "object") return child;
+      return {
+        ...child,
+        props: {
+          ...child.props || {},
+          closeMenu: this.closeSelfAndParent
         }
-      });
-    }
-    console.log("onFileOrDirectoryCreated", path, this.state.currentTreeMap);
-    this.setState({ currentTreeMap: this.state.currentTreeMap });
-  }
-  async onToggled(item) {
-    console.log("onToggled", item);
-  }
-  async onItemClicked(item) {
-    console.log("onItemClicked", item);
-    if (!item.data.instance) {
-      await this.LoadFile(item);
-    }
-  }
-  async onItemDoubleClicked(item) {
-    console.log("onItemDoubleClicked", item);
-    if (!item.data.instance) {
-      await this.LoadFile(item);
-    }
-    if (item.data.instance.type === Scene.type) {
-      this.props.engineAPI.currentScene.Clear();
-      this.props.engineAPI.currentScene.Deserialize(item.data.instance);
-      EventSystem.emit(SceneEvents.Loaded, item.data.instance);
-    }
-  }
-  async LoadFile(item) {
-    return new Promise(async (resolve, reject) => {
-      if (item.data.file instanceof FileSystemFileHandle) {
-        const extension = item.data.file.name.slice(item.data.file.name.lastIndexOf(".") + 1);
-        if (extension === "glb") {
-          const data = await item.data.file.getFile();
-          const arrayBuffer = await data.arrayBuffer();
-          const prefab = await GLTFLoader.LoadFromArrayBuffer(arrayBuffer);
-          item.data.instance = prefab;
-          resolve(prefab);
-        } else if (extension == "prefab") {
-          const data = await item.data.file.getFile();
-          const text = await data.text();
-          const prefab = JSON.parse(text);
-          if (!prefab["type"]) throw Error("Prefab doesn't have a type");
-          item.data.instance = prefab;
-        }
-      }
-    });
-  }
-  onDropped(from, to) {
-    console.log("onDropped");
-  }
-  onDragStarted(event, item) {
-    console.log("Assets onDragStarted", event, item);
-    if (!item.data.instance) {
-      this.LoadFile(item).then(() => {
-        ExtendedDataTransfer.set({
-          data: item.data.instance
-        });
-      });
-    }
-    ExtendedDataTransfer.set({
-      data: item.data.instance
+      };
     });
   }
   render() {
-    let treeMapArr = [];
-    for (const [name, entry] of this.state.currentTreeMap) {
-      treeMapArr.push(entry);
-    }
-    treeMapArr.sort(function(a, b) {
-      if (a.type == ITreeMapType.Folder != (b.type == ITreeMapType.Folder)) {
-        return a.type == ITreeMapType.Folder ? -1 : 1;
-      }
-      return a.name.localeCompare(b.name);
-    });
-    return /* @__PURE__ */ createElement(
-      "div",
-      {
-        style: {
-          overflow: "auto",
-          height: "100%"
-        }
-      },
-      /* @__PURE__ */ createElement(
-        Tree,
-        {
-          onToggled: (item) => this.onToggled(item),
-          onDropped: (from, to) => this.onDropped(from, to),
-          onClicked: (data) => this.onItemClicked(data),
-          onDoubleClicked: (data) => this.onItemDoubleClicked(data),
-          onDragStarted: (event, data) => this.onDragStarted(event, data),
-          data: treeMapArr
-        }
-      )
-    );
+    return /* @__PURE__ */ createElement("div", { className: "dropdown" }, /* @__PURE__ */ createElement("button", { className: "dropdown-btn", onPointerDown: () => this.toggleDropdown() }, this.props.name), this.state.isDropdownVisible ? /* @__PURE__ */ createElement("div", null, /* @__PURE__ */ createElement("div", { className: "dropdown-overlay", onPointerDown: () => this.toggleDropdown() }), /* @__PURE__ */ createElement("div", { className: "dropdown-content" }, this.withCloseMenu(this.toArray(this.props.children)))) : "");
   }
 }
 
@@ -1167,7 +1117,7 @@ class MenuItem extends Component {
       "button",
       {
         className: "dropdown-btn dropdown-item-btn",
-        onClick: (event) => {
+        onPointerDown: (event) => {
           this.onClicked(event);
         },
         ...this.props.disabled ? { disabled: true } : {}
@@ -1177,36 +1127,224 @@ class MenuItem extends Component {
   }
 }
 
-class Menu extends Component {
+async function dir(h) {
+  const r = indexedDB.open("d", 1);
+  await new Promise((res) => (r.onupgradeneeded = () => r.result.createObjectStore("s"), r.onsuccess = res));
+  const db = r.result;
+  const t = db.transaction("s", h ? "readwrite" : "readonly").objectStore("s");
+  if (h) return t.put(h, "h"), h;
+  return new Promise((res) => t.get("h").onsuccess = (e) => res(e.target.result || null));
+}
+Assets.ResourceFetchFn = async (input, init) => {
+  if (input instanceof Request || input instanceof URL) throw Error("Not implemented");
+  const handle = await FileBrowser.fopen(input, MODE.R);
+  if (!handle) throw Error(`Could not get file at ${input}`);
+  const file = await handle.getFile();
+  return new Response(file);
+};
+class LayoutAssets extends Component {
+  fileWatcher;
   constructor(props) {
     super(props);
-    this.state = { isDropdownVisible: false };
+    this.setState({ currentTreeMap: /* @__PURE__ */ new Map(), selected: void 0 });
+    this.fileWatcher = new FileWatcher();
+    EventSystem.on(ProjectEvents.Opened, () => {
+      this.fileWatcher.watch("");
+      dir(FileBrowser.getRootFolderHandle());
+    });
+    EventSystem.on(FileEvents.Created, (path, handle) => {
+      this.onFileOrDirectoryCreated(path, handle);
+    });
+    EventSystem.on(DirectoryEvents.Created, (path, handle) => {
+      this.onFileOrDirectoryCreated(path, handle);
+    });
+    EventSystem.on(DirectoryEvents.Deleted, (path, handle) => {
+      this.onFileOrDirectoryDeleted(path);
+    });
+    EventSystem.on(FileEvents.Deleted, (path, handle) => {
+      this.onFileOrDirectoryDeleted(path);
+    });
+    dir().then((handle) => {
+      if (handle) {
+        FileBrowser.setRootFolderHandle(handle);
+        EventSystem.emit(ProjectEvents.Opened);
+      }
+    });
   }
-  toggleDropdown() {
-    if (this.props.onToggled) this.props.onToggled(!this.state.isDropdownVisible);
-    this.setState({ isDropdownVisible: !this.state.isDropdownVisible });
+  onFileOrDirectoryDeleted(path) {
+    this.fileWatcher.unwatch(path);
+    this.state.currentTreeMap.delete(path);
+    this.setState({ currentTreeMap: this.state.currentTreeMap, selected: void 0 });
   }
-  onOptionClicked(option) {
-    this.toggleDropdown();
-    if (this.props.onOptionClicked) {
-      this.props.onOptionClicked(option);
+  onFileOrDirectoryCreated(path, file) {
+    if (file instanceof FileSystemDirectoryHandle) {
+      this.fileWatcher.watch(path);
+    }
+    if (!this.state.currentTreeMap.has(path)) {
+      let type = file instanceof FileSystemFileHandle ? ITreeMapType.File : ITreeMapType.Folder;
+      this.state.currentTreeMap.set(path, {
+        id: path,
+        name: file.name,
+        isSelected: false,
+        parent: StringUtils.Dirname(path) == path ? null : StringUtils.Dirname(path),
+        type,
+        data: {
+          path,
+          file,
+          instance: null
+        }
+      });
+    }
+    this.setState({ currentTreeMap: this.state.currentTreeMap, selected: this.state.selected });
+  }
+  async onToggled(item) {
+    console.log("onToggled", item);
+  }
+  async onItemClicked(item) {
+    if (!item.data.instance) {
+      await this.LoadTreeItem(item);
+    }
+    this.setState({ currentTreeMap: this.state.currentTreeMap, selected: item.data });
+  }
+  async onItemDoubleClicked(item) {
+    console.log("onItemDoubleClicked", item);
+    if (!item.data.instance) {
+      await this.LoadTreeItem(item);
+    }
+    if (item.data.instance.type === Scene.type) {
+      this.props.engineAPI.currentScene.Clear();
+      this.props.engineAPI.currentScene.Deserialize(item.data.instance);
+      EventSystem.emit(SceneEvents.Loaded, item.data.instance);
     }
   }
+  async LoadTreeItem(item) {
+    if (item.data.file.kind === "file") {
+      const loadedFile = await this.LoadFile(item.data.path, item.data.file);
+      item.data.instance = loadedFile;
+      return loadedFile;
+    } else if (item.data.file.kind === "directory") {
+      return item.data.file;
+    }
+  }
+  async LoadFile(path, file) {
+    return new Promise(async (resolve, reject) => {
+      const extension = file.name.slice(file.name.lastIndexOf(".") + 1);
+      if (extension === "glb") {
+        const data = await file.getFile();
+        const arrayBuffer = await data.arrayBuffer();
+        const prefab = await GLTFLoader.LoadFromArrayBuffer(arrayBuffer);
+        console.log(prefab);
+        resolve(prefab);
+      } else if (extension == "prefab") {
+        const data = await file.getFile();
+        const text = await data.text();
+        const json = JSON.parse(text);
+        const prefab = this.props.engineAPI.deserializePrefab(json);
+        resolve(prefab);
+      } else if (extension == "geometry") {
+        const data = await file.getFile();
+        const text = await data.text();
+        const json = JSON.parse(text);
+        const geometry = this.props.engineAPI.deserializeGeometry(json);
+        geometry.assetPath = path;
+        resolve(geometry);
+      } else if (extension == "material") {
+        const data = await file.getFile();
+        const text = await data.text();
+        const json = JSON.parse(text);
+        const material = this.props.engineAPI.deserializeMaterial(json);
+        material.assetPath = path;
+        resolve(material);
+      }
+    });
+  }
+  onDropped(from, to) {
+    console.log("onDropped");
+  }
+  onDragStarted(event, item) {
+    if (!item.data.instance) {
+      this.LoadTreeItem(item).then(() => {
+        ExtendedDataTransfer.data = item.data.instance;
+      });
+    }
+    ExtendedDataTransfer.data = item.data.instance;
+    console.log("HERE", ExtendedDataTransfer.data);
+  }
+  getCurrentPath() {
+    if (!this.state.selected) return "";
+    if (this.state.selected.file instanceof FileSystemFileHandle) return this.state.selected.path.slice(0, this.state.selected.path.lastIndexOf("/"));
+    else if (this.state.selected.file instanceof FileSystemDirectoryHandle) return this.state.selected.path;
+    throw Error("Invalid selected file");
+  }
+  async createFolder() {
+    const path = `${this.getCurrentPath()}/New folder`;
+    const handle = await FileBrowser.mkdir(path);
+    EventSystem.emit(DirectoryEvents.Created, path, handle);
+  }
+  async deleteAsset() {
+    if (!this.state.selected) return;
+    if (this.state.selected.file instanceof FileSystemFileHandle) {
+      FileBrowser.remove(this.state.selected.path);
+      EventSystem.emit(FileEvents.Deleted, this.state.selected.path, void 0);
+    } else if (this.state.selected.file instanceof FileSystemDirectoryHandle) {
+      FileBrowser.rmdir(this.state.selected.path);
+      EventSystem.emit(DirectoryEvents.Deleted, this.state.selected.path, void 0);
+    }
+  }
+  onDragOver(event) {
+    event.preventDefault();
+  }
+  async onDrop(event) {
+    console.log("on drop", event);
+    event.preventDefault();
+    const file = event.dataTransfer?.files?.[0];
+    if (!file) return;
+    const newFileName = `${this.getCurrentPath()}/${file.name}`;
+    const arrayBuffer = await file.arrayBuffer();
+    const copyFile = await FileBrowser.fopen(newFileName, MODE.W);
+    FileBrowser.fwrite(copyFile, arrayBuffer);
+  }
   render() {
+    let treeMapArr = [];
+    for (const [name, entry] of this.state.currentTreeMap) {
+      entry.isSelected = this.state.selected && entry.id === this.state.selected.path ? true : false;
+      treeMapArr.push(entry);
+    }
+    treeMapArr.sort(function(a, b) {
+      if (a.type == ITreeMapType.Folder != (b.type == ITreeMapType.Folder)) {
+        return a.type == ITreeMapType.Folder ? -1 : 1;
+      }
+      return a.name.localeCompare(b.name);
+    });
     return /* @__PURE__ */ createElement(
       "div",
       {
-        className: "dropdown"
+        class: "Layout",
+        onDrop: (event) => this.onDrop(event),
+        onDragOver: (event) => this.onDragOver(event)
       },
+      /* @__PURE__ */ createElement("div", { class: "header" }, /* @__PURE__ */ createElement("div", { class: "title" }, "Assets"), /* @__PURE__ */ createElement("div", { class: "right-action" }, /* @__PURE__ */ createElement(Menu, { name: "\u22EE" }, /* @__PURE__ */ createElement(MenuItem, { name: "Folder", onClicked: () => {
+        this.createFolder();
+      } }), /* @__PURE__ */ createElement(MenuItem, { name: "Material", onClicked: () => {
+        this.createMaterial();
+      } }), /* @__PURE__ */ createElement(MenuItem, { name: "Script", onClicked: () => {
+        this.createScript();
+      } }), /* @__PURE__ */ createElement(MenuItem, { name: "Scene", onClicked: () => {
+        this.createScene();
+      } }), /* @__PURE__ */ createElement(MenuItem, { name: "Delete", onClicked: () => {
+        this.deleteAsset();
+      } })))),
       /* @__PURE__ */ createElement(
-        "button",
+        Tree,
         {
-          className: "dropdown-btn",
-          onClick: (event) => this.toggleDropdown()
-        },
-        this.props.name
-      ),
-      this.state.isDropdownVisible ? /* @__PURE__ */ createElement("div", null, /* @__PURE__ */ createElement("div", { className: "dropdown-overlay", onClick: (event) => this.toggleDropdown() }), /* @__PURE__ */ createElement("div", { className: "dropdown-content" }, this.props.children)) : ""
+          onToggled: (item) => this.onToggled(item),
+          onDropped: (from, to) => this.onDropped(from, to),
+          onClicked: (data) => this.onItemClicked(data),
+          onDoubleClicked: (data) => this.onItemDoubleClicked(data),
+          onDragStarted: (event, data) => this.onDragStarted(event, data),
+          data: treeMapArr
+        }
+      )
     );
   }
 }
@@ -1238,6 +1376,22 @@ class MenuDropdown extends Component {
       }
     }, 1);
   }
+  closeSelfAndParent = () => {
+    this.setState({ isDropdownVisible: false });
+    if (this.props.closeMenu) this.props.closeMenu();
+  };
+  withCloseMenu(children) {
+    return children.map((child) => {
+      if (!child || typeof child !== "object") return child;
+      return {
+        ...child,
+        props: {
+          ...child.props || {},
+          closeMenu: this.closeSelfAndParent
+        }
+      };
+    });
+  }
   render() {
     return /* @__PURE__ */ createElement(
       "div",
@@ -1248,12 +1402,12 @@ class MenuDropdown extends Component {
         "button",
         {
           className: "dropdown-btn dropdown-item-btn",
-          onClick: (event) => this.toggleDropdown()
+          onPointerDown: (event) => this.toggleDropdown()
         },
         this.props.name
       ),
       /* @__PURE__ */ createElement("span", { className: "dropdown-right-icon" }, "\u25B6"),
-      this.state.isDropdownVisible ? /* @__PURE__ */ createElement("div", null, /* @__PURE__ */ createElement("div", { ref: (ref) => this.contentRef(ref), className: "dropdown-content", style: "display: none;" }, this.props.children)) : ""
+      this.state.isDropdownVisible ? /* @__PURE__ */ createElement("div", null, /* @__PURE__ */ createElement("div", { ref: (ref) => this.contentRef(ref), className: "dropdown-content", style: "display: none;" }, this.withCloseMenu([].concat(this.props.children)))) : ""
     );
   }
 }
@@ -1261,21 +1415,24 @@ class MenuDropdown extends Component {
 class LayoutHierarchy extends Component {
   constructor(props) {
     super(props);
-    this.setState({ gameObject: null });
+    this.setState({ selectedGameObject: null });
     EventSystem.on(GameObjectEvents.Created, (gameObject) => {
       this.selectGameObject(gameObject);
     });
     EventSystem.on(GameObjectEvents.Deleted, (gameObject) => {
-      if (gameObject === this.state.gameObject) this.setState({ gameObject: null });
+      if (gameObject === this.state.selectedGameObject) this.setState({ selectedGameObject: null });
     });
     EventSystem.on(GameObjectEvents.Selected, (gameObject) => {
+      this.selectGameObject(gameObject);
+    });
+    EventSystem.on(GameObjectEvents.Changed, (gameObject) => {
       this.selectGameObject(gameObject);
     });
   }
   selectGameObject(gameObject) {
     console.log("selected", gameObject);
     EventSystem.emit(LayoutHierarchyEvents.Selected, gameObject);
-    this.setState({ gameObject });
+    this.setState({ selectedGameObject: gameObject });
   }
   onDropped(from, to) {
   }
@@ -1283,10 +1440,8 @@ class LayoutHierarchy extends Component {
     console.log("onDragStarted", event);
   }
   onDrop(event) {
-    console.log("onDrop", event);
-    const extendedEvent = ExtendedDataTransfer.get();
-    console.log("extendedEvent", extendedEvent.data);
-    const instance = extendedEvent.data;
+    const extendedEvent = ExtendedDataTransfer.data;
+    const instance = extendedEvent;
     if (instance && this.props.engineAPI.isPrefab(instance)) {
       const gameObject = this.props.engineAPI.currentScene.Instantiate(instance);
       this.selectGameObject(gameObject);
@@ -1298,7 +1453,7 @@ class LayoutHierarchy extends Component {
       treeMap.push({
         id: gameObject.transform.id,
         name: gameObject.name,
-        isSelected: this.state.gameObject && this.state.gameObject == gameObject ? true : false,
+        isSelected: this.state.selectedGameObject && this.state.selectedGameObject == gameObject ? true : false,
         parent: gameObject.transform.parent ? gameObject.transform.parent.id : "",
         data: gameObject
       });
@@ -1309,29 +1464,50 @@ class LayoutHierarchy extends Component {
     const gameObject = this.props.engineAPI.createGameObject(this.props.engineAPI.currentScene);
     EventSystem.emit(GameObjectEvents.Created, gameObject);
   }
+  deleteGameObject() {
+    if (this.state.selectedGameObject === null) return;
+    this.state.selectedGameObject.Destroy();
+    EventSystem.emit(GameObjectEvents.Deleted, this.state.selectedGameObject);
+    this.setState({ selectedGameObject: null });
+  }
+  createPrimitive(primitiveType) {
+    const gameObject = this.props.engineAPI.createGameObject(this.props.engineAPI.currentScene);
+    const mesh = gameObject.AddComponent(IComponents.Mesh);
+    if (primitiveType === "Cube") mesh.geometry = this.props.engineAPI.createCubeGeometry(), gameObject.name = "Cube";
+    else if (primitiveType === "Capsule") mesh.geometry = this.props.engineAPI.createCapsuleGeometry(), gameObject.name = "Capsule";
+    else if (primitiveType === "Plane") mesh.geometry = this.props.engineAPI.createPlaneGeometry(), gameObject.name = "Plane";
+    else if (primitiveType === "Sphere") mesh.geometry = this.props.engineAPI.createSphereGeometry(), gameObject.name = "Sphere";
+    mesh.material = this.props.engineAPI.createPBRMaterial();
+    EventSystem.emit(GameObjectEvents.Created, gameObject);
+  }
+  createLight(lightType) {
+    const gameObject = this.props.engineAPI.createGameObject(this.props.engineAPI.currentScene);
+    if (lightType === "Directional") gameObject.AddComponent(IComponents.DirectionalLight), gameObject.name = "DirectionalLight";
+    else if (lightType === "Point") gameObject.AddComponent(IComponents.PointLight), gameObject.name = "PointLight";
+    else if (lightType === "Spot") gameObject.AddComponent(IComponents.SpotLight), gameObject.name = "SpotLight";
+    EventSystem.emit(GameObjectEvents.Created, gameObject);
+  }
   render() {
     if (!this.props.engineAPI.currentScene) return;
     const nodes = this.buildTreeFromGameObjects(this.props.engineAPI.currentScene.gameObjects);
     return /* @__PURE__ */ createElement("div", { class: "Layout" }, /* @__PURE__ */ createElement("div", { class: "header" }, /* @__PURE__ */ createElement("div", { class: "title" }, "Sample scene"), /* @__PURE__ */ createElement("div", { class: "right-action" }, /* @__PURE__ */ createElement(Menu, { name: "\u22EE" }, /* @__PURE__ */ createElement(MenuItem, { name: "Create Empty", onClicked: () => {
       this.createEmptyGameObject();
+    } }), /* @__PURE__ */ createElement(MenuItem, { name: "Delete", onClicked: () => {
+      this.deleteGameObject();
     } }), /* @__PURE__ */ createElement(MenuDropdown, { name: "3D Object" }, /* @__PURE__ */ createElement(MenuItem, { name: "Cube", onClicked: () => {
-      this.createPrimitive(PrimitiveType.Cube);
+      this.createPrimitive("Cube");
     } }), /* @__PURE__ */ createElement(MenuItem, { name: "Capsule", onClicked: () => {
-      this.createPrimitive(PrimitiveType.Capsule);
+      this.createPrimitive("Capsule");
     } }), /* @__PURE__ */ createElement(MenuItem, { name: "Plane", onClicked: () => {
-      this.createPrimitive(PrimitiveType.Plane);
+      this.createPrimitive("Plane");
     } }), /* @__PURE__ */ createElement(MenuItem, { name: "Sphere", onClicked: () => {
-      this.createPrimitive(PrimitiveType.Sphere);
-    } }), /* @__PURE__ */ createElement(MenuItem, { name: "Cylinder", onClicked: () => {
-      this.createPrimitive(PrimitiveType.Cylinder);
+      this.createPrimitive("Sphere");
     } })), /* @__PURE__ */ createElement(MenuDropdown, { name: "Lights" }, /* @__PURE__ */ createElement(MenuItem, { name: "Directional Light", onClicked: () => {
-      this.createLight(LightTypes.Directional);
+      this.createLight("Directional");
     } }), /* @__PURE__ */ createElement(MenuItem, { name: "Point Light", onClicked: () => {
-      this.createLight(LightTypes.Point);
+      this.createLight("Point");
     } }), /* @__PURE__ */ createElement(MenuItem, { name: "Spot Light", onClicked: () => {
-      this.createLight(LightTypes.Spot);
-    } }), /* @__PURE__ */ createElement(MenuItem, { name: "Area Light", onClicked: () => {
-      this.createLight(LightTypes.Area);
+      this.createLight("Spot");
     } }))))), /* @__PURE__ */ createElement(
       "div",
       {
@@ -1352,29 +1528,63 @@ class LayoutHierarchy extends Component {
   }
 }
 
-class InspectorInput extends Component {
+class InspectorNumber extends Component {
   constructor(props) {
     super(props);
+    this.setState({ value: this.props.value });
   }
   onChanged(event) {
     if (this.props.onChanged) {
       const input = event.currentTarget;
       if (input.value == "") return;
-      this.props.onChanged(input.value);
+      this.props.onChanged(parseFloat(input.value));
     }
   }
+  onClicked(event) {
+    const MouseMoveEvent = (event2) => {
+      const delta = event2.movementX;
+      this.state.value += delta / 10;
+      this.setState({ value: this.state.value });
+      this.props.onChanged(this.state.value);
+    };
+    const MouseUpEvent = (event2) => {
+      document.body.removeEventListener("mousemove", MouseMoveEvent);
+      document.body.removeEventListener("mouseup", MouseUpEvent);
+    };
+    document.body.addEventListener("mousemove", MouseMoveEvent);
+    document.body.addEventListener("mouseup", MouseUpEvent);
+  }
   render() {
-    return /* @__PURE__ */ createElement("div", { className: "InspectorComponent" }, /* @__PURE__ */ createElement("span", { className: "title" }, this.props.title), /* @__PURE__ */ createElement("div", { class: "edit" }, /* @__PURE__ */ createElement(
+    return /* @__PURE__ */ createElement("div", { class: "value" }, /* @__PURE__ */ createElement("span", { class: `vec-label ${this.props.titleClass}`, onMouseDown: (event) => {
+      this.onClicked(event);
+    } }, this.props.title), /* @__PURE__ */ createElement(
       "input",
       {
-        className: "input",
-        type: this.props.type ? this.props.type : "text",
+        class: "input vec-input",
+        type: "number",
         onChange: (event) => {
           this.onChanged(event);
         },
-        value: this.props.value
+        value: this.state.value.toPrecision(4)
       }
-    )));
+    ));
+  }
+}
+
+class InspectorInput extends Component {
+  constructor(props) {
+    super(props);
+  }
+  onChanged(value) {
+    if (this.props.onChanged) {
+      if (value == "") return;
+      this.props.onChanged(value);
+    }
+  }
+  render() {
+    return /* @__PURE__ */ createElement("div", { className: "InspectorComponent" }, /* @__PURE__ */ createElement("span", { className: "title" }, this.props.title), /* @__PURE__ */ createElement("div", { class: "edit" }, /* @__PURE__ */ createElement(InspectorNumber, { title: "N", titleClass: "gray-bg", value: this.props.value, onChanged: (value) => {
+      this.onChanged(value);
+    } })));
   }
 }
 
@@ -1393,7 +1603,7 @@ class InspectorCheckbox extends Component {
       "div",
       {
         style: {
-          width: "70%"
+          width: "100%"
         }
       },
       /* @__PURE__ */ createElement(
@@ -1415,13 +1625,11 @@ class InspectorVector3 extends Component {
   constructor(props) {
     super(props);
     this.setState({ vector3: this.props.vector3 });
-    console.log(this.props.vector3);
   }
-  onChanged(property, event) {
+  onChanged(property, _value) {
     if (this.props.onChanged) {
-      const input = event.currentTarget;
-      if (input.value == "") return;
-      const value = parseFloat(input.value);
+      if (_value == "") return;
+      const value = parseFloat(_value);
       if (property == 0 /* X */) this.state.vector3.x = value;
       else if (property == 1 /* Y */) this.state.vector3.y = value;
       else if (property == 2 /* Z */) this.state.vector3.z = value;
@@ -1453,43 +1661,13 @@ class InspectorVector3 extends Component {
     document.body.addEventListener("mouseup", MouseUpEvent);
   }
   render() {
-    return /* @__PURE__ */ createElement("div", { class: "InspectorComponent" }, /* @__PURE__ */ createElement("span", { class: "title" }, this.props.title), /* @__PURE__ */ createElement("div", { class: "edit" }, /* @__PURE__ */ createElement("div", { class: "value" }, /* @__PURE__ */ createElement("span", { class: "vec-label red-bg", onMouseDown: (event) => {
-      this.onClicked(0 /* X */, event);
-    } }, "X"), /* @__PURE__ */ createElement(
-      "input",
-      {
-        class: "input vec-input",
-        type: "number",
-        onChange: (event) => {
-          this.onChanged(0 /* X */, event);
-        },
-        value: this.state.vector3.x.toPrecision(4)
-      }
-    )), /* @__PURE__ */ createElement("div", { class: "value" }, /* @__PURE__ */ createElement("span", { class: "vec-label green-bg", onMouseDown: (event) => {
-      this.onClicked(1 /* Y */, event);
-    } }, "Y"), /* @__PURE__ */ createElement(
-      "input",
-      {
-        class: "input vec-input",
-        type: "number",
-        onChange: (event) => {
-          this.onChanged(1 /* Y */, event);
-        },
-        value: this.state.vector3.y.toPrecision(4)
-      }
-    )), /* @__PURE__ */ createElement("div", { class: "value" }, /* @__PURE__ */ createElement("span", { class: "vec-label blue-bg", onMouseDown: (event) => {
-      this.onClicked(2 /* Z */, event);
-    } }, "Z"), /* @__PURE__ */ createElement(
-      "input",
-      {
-        class: "input vec-input",
-        type: "number",
-        onChange: (event) => {
-          this.onChanged(2 /* Z */, event);
-        },
-        value: this.state.vector3.z.toPrecision(4)
-      }
-    ))));
+    return /* @__PURE__ */ createElement("div", { class: "InspectorComponent" }, /* @__PURE__ */ createElement("span", { class: "title" }, this.props.title), /* @__PURE__ */ createElement("div", { class: "edit" }, /* @__PURE__ */ createElement(InspectorNumber, { title: "X", titleClass: "red-bg", value: this.state.vector3.x, onChanged: (value) => {
+      this.onChanged(0 /* X */, value);
+    } }), /* @__PURE__ */ createElement(InspectorNumber, { title: "Y", titleClass: "green-bg", value: this.state.vector3.y, onChanged: (value) => {
+      this.onChanged(1 /* Y */, value);
+    } }), /* @__PURE__ */ createElement(InspectorNumber, { title: "Z", titleClass: "blue-bg", value: this.state.vector3.z, onChanged: (value) => {
+      this.onChanged(2 /* Z */, value);
+    } })));
   }
 }
 
@@ -1573,9 +1751,9 @@ class Collapsible extends Component {
     event.stopPropagation();
   }
   render() {
-    return /* @__PURE__ */ createElement("div", { className: "collapsible-card-edonec", id: this.props.id ? this.props.id : "" }, /* @__PURE__ */ createElement("div", null, /* @__PURE__ */ createElement("div", { className: "collapsible-header-edonec", onClick: () => {
+    return /* @__PURE__ */ createElement("div", { className: "collapsible-card-edonec", id: this.props.id ? this.props.id : "" }, /* @__PURE__ */ createElement("div", null, /* @__PURE__ */ createElement("div", { className: "collapsible-header-edonec", onPointerDown: () => {
       this.handleFilterOpening();
-    } }, /* @__PURE__ */ createElement("button", { type: "button", className: "collapsible-icon-button-edonec" }, this.state.isOpen ? "\u25BC" : "\u25B6"), /* @__PURE__ */ createElement("div", { className: "title-text-edonec" }, this.props.header), this.props.rightMenuText ? /* @__PURE__ */ createElement("div", { className: "title-right-menu", onClick: (event) => {
+    } }, /* @__PURE__ */ createElement("button", { type: "button", className: `collapsible-icon-button-edonec` }, /* @__PURE__ */ createElement(Arrow, { isOpen: this.state.isOpen })), /* @__PURE__ */ createElement("div", { className: "title-text-edonec" }, this.props.header), this.props.rightMenuText ? /* @__PURE__ */ createElement("div", { className: "title-right-menu", onPointerDown: (event) => {
       this.onRightMenuClicked(event);
     } }, this.props.rightMenuText) : "")), /* @__PURE__ */ createElement("div", { className: "collapsible-content-edonec", style: { height: `${this.state.height}` } }, /* @__PURE__ */ createElement("div", null, /* @__PURE__ */ createElement("div", { className: "collapsible-content-padding-edonec collapsible-children" }, this.props.children))));
   }
@@ -1609,16 +1787,295 @@ class InspectorColor extends Component {
   }
 }
 
+class DrillDownMenu extends Component {
+  constructor(props) {
+    super(props);
+    this.state = { items: this.props.items, currentParent: this.props.currentParent };
+  }
+  onItemClicked(item) {
+    const children = this.getItemChildren(item);
+    if (children.length == 0) {
+      this.props.onItemClicked(item);
+    }
+    this.setState({ currentParent: item.id, items: this.state.items });
+  }
+  onBackClicked() {
+    const parentItem = this.getItemById(this.state.currentParent);
+    if (parentItem) {
+      this.setState({ currentParent: parentItem.parentId, items: this.state.items });
+    } else {
+      this.setState({ currentParent: null, items: this.state.items });
+    }
+  }
+  getItemById(id) {
+    for (let item of this.state.items) {
+      if (item.id == id) return item;
+    }
+    return null;
+  }
+  getItemChildren(item) {
+    let children = [];
+    for (let _item of this.state.items) {
+      if (_item.parentId == item.id) children.push(_item);
+    }
+    return children;
+  }
+  prepareItems() {
+    let items = [];
+    for (let item of this.state.items) {
+      if (item.parentId == this.state.currentParent) {
+        const hasChildren = this.getItemChildren(item).length > 0;
+        const itemElement = /* @__PURE__ */ createElement(
+          "li",
+          {
+            className: "item",
+            key: item.id,
+            onClick: (event) => {
+              this.onItemClicked(item);
+            }
+          },
+          item.name,
+          hasChildren ? /* @__PURE__ */ createElement("span", { className: "item-caret" }, "\u276F") : ""
+        );
+        items.push(itemElement);
+      }
+    }
+    return items;
+  }
+  render() {
+    const itemsElements = this.prepareItems();
+    return /* @__PURE__ */ createElement("div", { className: "DrillDownMenu" }, /* @__PURE__ */ createElement("button", { className: "backBtn", onClick: (event) => this.onBackClicked() }, "Back"), itemsElements);
+  }
+}
+
+const data = [
+  {
+    parentId: null,
+    id: "Physics",
+    name: "Physics"
+  },
+  {
+    parentId: "Physics",
+    id: "Rigidbody",
+    name: "Rigidbody"
+  },
+  {
+    parentId: "Physics",
+    id: "BoxCollider",
+    name: "BoxCollider"
+  },
+  {
+    parentId: "Physics",
+    id: "CapsuleCollider",
+    name: "CapsuleCollider"
+  },
+  {
+    parentId: "Physics",
+    id: "MeshCollider",
+    name: "MeshCollider"
+  },
+  {
+    parentId: "Physics",
+    id: "PlaneCollider",
+    name: "PlaneCollider"
+  },
+  {
+    parentId: "Physics",
+    id: "SphereCollider",
+    name: "SphereCollider"
+  },
+  {
+    parentId: null,
+    id: "Mesh",
+    name: "Mesh"
+  },
+  {
+    parentId: "Mesh",
+    id: "MeshFilter",
+    name: "MeshFilter"
+  },
+  {
+    parentId: "Mesh",
+    id: "MeshRenderer",
+    name: "MeshRenderer"
+  },
+  {
+    parentId: null,
+    id: "Lights",
+    name: "Lights"
+  },
+  {
+    parentId: "Lights",
+    id: "AreaLight",
+    name: "AreaLight"
+  },
+  {
+    parentId: "Lights",
+    id: "DirectionalLight",
+    name: "DirectionalLight"
+  },
+  {
+    parentId: "Lights",
+    id: "PointLight",
+    name: "PointLight"
+  },
+  {
+    parentId: "Lights",
+    id: "SpotLight",
+    name: "SpotLight"
+  },
+  {
+    parentId: null,
+    id: "Primitives",
+    name: "Primitives"
+  },
+  {
+    parentId: "Primitives",
+    id: "Capsule",
+    name: "Capsule"
+  },
+  {
+    parentId: "Primitives",
+    id: "Cube",
+    name: "Cube"
+  },
+  {
+    parentId: "Primitives",
+    id: "Plane",
+    name: "Plane"
+  },
+  {
+    parentId: "Primitives",
+    id: "Sphere",
+    name: "Sphere"
+  },
+  {
+    parentId: null,
+    id: "Miscellaneous",
+    name: "Miscellaneous"
+  },
+  {
+    parentId: "Miscellaneous",
+    id: "Animation",
+    name: "Animation"
+  },
+  {
+    parentId: "Miscellaneous",
+    id: "ArticulationBody",
+    name: "ArticulationBody"
+  },
+  {
+    parentId: "Miscellaneous",
+    id: "LineRenderer",
+    name: "LineRenderer"
+  }
+];
+class AddComponent extends Component {
+  constructor(props) {
+    super(props);
+    this.state = { isMenuOpen: false };
+  }
+  onAddComponentClicked(gameObject, event) {
+    console.log("clciked");
+    this.setState({ isMenuOpen: !this.state.isMenuOpen });
+  }
+  onMenuItemClicked(item) {
+    const componentClass = Components[item.id] ? Components[item.id] : Component$1.Registry.get(item.id);
+    console.log("onMenuItemClicked", item, componentClass);
+    const componentInstance = this.props.gameObject.AddComponent(componentClass);
+    EventSystem.emit(ComponentEvents.Created, this.props.gameObject, componentInstance);
+    this.setState({ isMenuOpen: false });
+  }
+  render() {
+    console.warn("TODO");
+    let dataDynamic = JSON.parse(JSON.stringify(data));
+    dataDynamic.push({
+      parentId: null,
+      id: "Scripts",
+      name: "Scripts"
+    });
+    for (let componentPair of Component$1.Registry.entries()) {
+      const path = componentPair[0];
+      componentPair[1];
+      const pathSplit = path.split("/");
+      const nameWithExtension = pathSplit[pathSplit.length - 1];
+      const name = nameWithExtension.split(".")[0];
+      dataDynamic.push({
+        parentId: "Scripts",
+        id: path,
+        name
+      });
+    }
+    return /* @__PURE__ */ createElement("div", { style: {
+      marginTop: "10px"
+    } }, /* @__PURE__ */ createElement("div", { style: {
+      textAlign: "center"
+    } }, /* @__PURE__ */ createElement(
+      "button",
+      {
+        style: {
+          width: "70%",
+          backgroundColor: "#404040",
+          color: "inherit",
+          border: "none",
+          borderRadius: "2px",
+          padding: "3px",
+          cursor: "pointer"
+        },
+        onClick: (event) => {
+          this.onAddComponentClicked(this.props.gameObject, event);
+        }
+      },
+      "Add component"
+    )), this.state.isMenuOpen ? /* @__PURE__ */ createElement(DrillDownMenu, { onItemClicked: (item) => this.onMenuItemClicked(item), currentParent: null, items: dataDynamic }) : "");
+  }
+}
+
 class InspectorType extends Component {
   constructor(props) {
     super(props);
   }
   onDrop(event) {
+    const draggedItem = ExtendedDataTransfer.data;
+    const component = this.props.component[this.props.property];
+    if (!draggedItem.constructor || !component.constructor) {
+      console.warn("Invalid component");
+      return;
+    }
+    const isValid = draggedItem.constructor === component.constructor;
+    if (!isValid) return;
+    this.props.component[this.props.property] = draggedItem;
+    const input = event.currentTarget;
+    if (input.classList.contains("active")) {
+      input.classList.remove("active");
+    }
+    if (this.props.onChanged) {
+      event.currentTarget;
+      this.props.onChanged(draggedItem);
+    }
+    event.preventDefault();
+    event.stopPropagation();
   }
   onDragOver(event) {
     event.preventDefault();
   }
   onDragEnter(event) {
+    const draggedItem = ExtendedDataTransfer.data;
+    const component = this.props.component[this.props.property];
+    if (!draggedItem.constructor || !component.constructor) {
+      console.warn("Invalid component");
+      return;
+    }
+    const isValid = draggedItem.constructor === component.constructor;
+    if (!isValid) {
+      event.preventDefault();
+      event.stopPropagation();
+      return;
+    }
+    const input = event.currentTarget;
+    if (!input.classList.contains("active")) {
+      input.classList.add("active");
+    }
   }
   onDragLeave(event) {
     const input = event.currentTarget;
@@ -1627,7 +2084,7 @@ class InspectorType extends Component {
     }
   }
   render() {
-    return /* @__PURE__ */ createElement("div", { className: "InspectorComponent" }, /* @__PURE__ */ createElement("span", { className: "title" }, this.props.title), /* @__PURE__ */ createElement("div", { class: "edit" }, /* @__PURE__ */ createElement(
+    return /* @__PURE__ */ createElement("div", { className: "InspectorComponent" }, /* @__PURE__ */ createElement("span", { className: "title" }, this.props.title), /* @__PURE__ */ createElement("div", { class: "edit" }, /* @__PURE__ */ createElement("span", { class: `vec-label`, style: `background-color: #e67e2250; cursor: auto` }, "\u25C9"), /* @__PURE__ */ createElement(
       "input",
       {
         className: "input",
@@ -1638,18 +2095,6 @@ class InspectorType extends Component {
         onDrop: (event) => this.onDrop(event),
         onDragOver: (event) => this.onDragOver(event)
       }
-    ), /* @__PURE__ */ createElement(
-      "span",
-      {
-        style: {
-          width: "15px",
-          height: "15px",
-          position: "absolute",
-          right: "10px",
-          alignSelf: "center"
-        }
-      },
-      "o"
     )));
   }
 }
@@ -1661,6 +2106,12 @@ class LayoutInspectorGameObject extends Component {
     EventSystem.on(LayoutHierarchyEvents.Selected, (gameObject) => {
       this.setState({ gameObject });
     });
+    EventSystem.on(ComponentEvents.Created, (gameObject, component) => {
+      this.setState({ gameObject });
+    });
+    EventSystem.on(GameObjectEvents.Changed, (gameObject, component) => {
+      this.setState({ gameObject });
+    });
   }
   onRemoveComponent(component) {
   }
@@ -1668,7 +2119,6 @@ class LayoutInspectorGameObject extends Component {
     const type = typeof component[property];
     component.constructor.name;
     const customType = component[property];
-    console.log(type, component, property, value);
     if (customType) {
       component[property] = value;
     } else if (this.props.engineAPI.isVector3(component[property]) && this.props.engineAPI.isVector3(value)) {
@@ -1684,6 +2134,7 @@ class LayoutInspectorGameObject extends Component {
   onGameObjectNameChanged(gameObject, event) {
     const input = event.currentTarget;
     gameObject.name = input.value;
+    EventSystem.emit(GameObjectEvents.Changed, gameObject);
   }
   renderInspectorForComponentProperty(component, property) {
     component.constructor.name;
@@ -1789,10 +2240,7 @@ class LayoutInspectorGameObject extends Component {
           color: "white",
           border: "none",
           outline: "none",
-          paddingLeft: "5px",
-          paddingTop: "2px",
-          paddingBottom: "2px",
-          marginRight: "10px"
+          paddingLeft: "5px"
         },
         type: "text",
         value: this.state.gameObject.name,
@@ -1806,65 +2254,13 @@ class LayoutInspectorGameObject extends Component {
       this.onComponentPropertyChanged(this.state.gameObject.transform, "localEulerAngles", value);
     }, vector3: this.state.gameObject.transform.localEulerAngles }), /* @__PURE__ */ createElement(InspectorVector3, { key: `scale-${this.state.gameObject.id}`, title: "Scale", onChanged: (value) => {
       this.onComponentPropertyChanged(this.state.gameObject.transform, "scale", value);
-    }, vector3: this.state.gameObject.transform.scale })), componentsElements);
+    }, vector3: this.state.gameObject.transform.scale })), componentsElements, /* @__PURE__ */ createElement(AddComponent, { gameObject: this.state.gameObject }));
   }
 }
 
 class LayoutInspector extends Component {
   render() {
     return /* @__PURE__ */ createElement(LayoutInspectorGameObject, { engineAPI: this.props.engineAPI });
-  }
-}
-
-class LayoutConsole extends Component {
-  constructor(props) {
-    super(props);
-    this.setState({ messages: [] });
-    this.consoleOverride("log");
-    this.consoleOverride("warn");
-    this.consoleOverride("error");
-  }
-  consoleOverride(type) {
-    const originalMethod = window.console[type];
-    window.console[type] = (data) => {
-      this.setState({ messages: this.state.messages.concat({ text: data, type }) });
-      originalMethod.call(this, data);
-    };
-  }
-  render() {
-    let messages = [];
-    for (const message of this.state.messages) {
-      messages.push(/* @__PURE__ */ createElement("div", { class: message.type }, message.text));
-    }
-    return /* @__PURE__ */ createElement("div", { class: "LayoutConsole" }, "Console", ...messages);
-  }
-}
-
-class LayoutTab extends Component {
-  constructor(props) {
-    super(props);
-    this.setState({ selected: 0 });
-  }
-  onClicked(index) {
-    this.setState({ selected: index });
-  }
-  render() {
-    const headers = this.props.entries.map((entry, index) => {
-      const classes = `title ${index === this.state.selected ? "selected" : ""}`;
-      return /* @__PURE__ */ createElement("div", { onClick: (event) => {
-        this.onClicked(index);
-      }, class: classes }, entry.title);
-    });
-    const content = this.props.entries[this.state.selected].node;
-    return /* @__PURE__ */ createElement("div", { class: "Layout" }, /* @__PURE__ */ createElement("div", { class: "header" }, ...headers, /* @__PURE__ */ createElement("div", { class: "right-action" }, /* @__PURE__ */ createElement(Menu, { name: "\u22EE" }, /* @__PURE__ */ createElement(MenuItem, { name: "Folder", onClicked: () => {
-      this.createFolder();
-    } }), /* @__PURE__ */ createElement(MenuItem, { name: "Material", onClicked: () => {
-      this.createMaterial();
-    } }), /* @__PURE__ */ createElement(MenuItem, { name: "Script", onClicked: () => {
-      this.createScript();
-    } }), /* @__PURE__ */ createElement(MenuItem, { name: "Scene", onClicked: () => {
-      this.createScene();
-    } })))), content);
   }
 }
 
@@ -1876,73 +2272,34 @@ class LayoutTopbar extends Component {
       this.setState({ selectedGameObject: gameObject });
     });
   }
-  createEmptyGameObject() {
-    const gameObject = this.props.engineAPI.createGameObject(this.props.engineAPI.currentScene);
-    EventSystem.emit(GameObjectEvents.Created, gameObject);
-  }
-  deleteGameObject() {
-    if (this.state.selectedGameObject === null) return;
-    this.state.selectedGameObject.Destroy();
-    EventSystem.emit(GameObjectEvents.Deleted, this.state.selectedGameObject);
-    this.setState({ selectedGameObject: null });
-  }
   openProject() {
-    console.log("open project");
     FileBrowser.init().then(() => {
       EventSystem.emit(ProjectEvents.Opened);
     });
   }
   async saveProject() {
-    console.log("save project");
     const serializedScene = this.props.engineAPI.currentScene.Serialize();
     const handle = await FileBrowser.fopen("Scene.prefab", MODE.W);
     FileBrowser.fwrite(handle, JSON.stringify(serializedScene));
+  }
+  async test() {
+    const serializedScene = this.props.engineAPI.currentScene.Serialize();
+    console.log(JSON.stringify(serializedScene));
   }
   render() {
     return /* @__PURE__ */ createElement("div", { style: "padding: 5px" }, /* @__PURE__ */ createElement(Menu, { name: "File" }, /* @__PURE__ */ createElement(MenuItem, { name: "Open Project...", onClicked: () => {
       this.openProject();
     } }), /* @__PURE__ */ createElement(MenuItem, { name: "Save Project", onClicked: () => {
       this.saveProject();
-    } })), /* @__PURE__ */ createElement(Menu, { name: "Edit" }, /* @__PURE__ */ createElement(MenuItem, { name: "Delete", onClicked: () => {
-      this.deleteGameObject();
-    } })), /* @__PURE__ */ createElement(Menu, { name: "Assets" }, /* @__PURE__ */ createElement(MenuDropdown, { name: "Create" }, /* @__PURE__ */ createElement(MenuItem, { name: "Folder", onClicked: () => {
-      this.createFolder();
-    } }), /* @__PURE__ */ createElement(MenuItem, { name: "Material", onClicked: () => {
-      this.createMaterial();
-    } }), /* @__PURE__ */ createElement(MenuItem, { name: "Script", onClicked: () => {
-      this.createScript();
-    } }), /* @__PURE__ */ createElement(MenuItem, { name: "Scene", onClicked: () => {
-      this.createScene();
-    } }))), /* @__PURE__ */ createElement(Menu, { name: "GameObject" }, /* @__PURE__ */ createElement(MenuItem, { name: "Create Empty", onClicked: () => {
-      this.createEmptyGameObject();
-    } }), /* @__PURE__ */ createElement(MenuDropdown, { name: "3D Object" }, /* @__PURE__ */ createElement(MenuItem, { name: "Cube", onClicked: () => {
-      this.createPrimitive(PrimitiveType.Cube);
-    } }), /* @__PURE__ */ createElement(MenuItem, { name: "Capsule", onClicked: () => {
-      this.createPrimitive(PrimitiveType.Capsule);
-    } }), /* @__PURE__ */ createElement(MenuItem, { name: "Plane", onClicked: () => {
-      this.createPrimitive(PrimitiveType.Plane);
-    } }), /* @__PURE__ */ createElement(MenuItem, { name: "Sphere", onClicked: () => {
-      this.createPrimitive(PrimitiveType.Sphere);
-    } }), /* @__PURE__ */ createElement(MenuItem, { name: "Cylinder", onClicked: () => {
-      this.createPrimitive(PrimitiveType.Cylinder);
-    } })), /* @__PURE__ */ createElement(MenuDropdown, { name: "Lights" }, /* @__PURE__ */ createElement(MenuItem, { name: "Directional Light", onClicked: () => {
-      this.createLight(LightTypes.Directional);
-    } }), /* @__PURE__ */ createElement(MenuItem, { name: "Point Light", onClicked: () => {
-      this.createLight(LightTypes.Point);
-    } }), /* @__PURE__ */ createElement(MenuItem, { name: "Spot Light", onClicked: () => {
-      this.createLight(LightTypes.Spot);
-    } }), /* @__PURE__ */ createElement(MenuItem, { name: "Area Light", onClicked: () => {
-      this.createLight(LightTypes.Area);
-    } }))));
+    } }), /* @__PURE__ */ createElement(MenuItem, { name: "Test", onClicked: () => {
+      this.test();
+    } })));
   }
 }
 
 class Layout extends Component {
   render() {
-    return /* @__PURE__ */ createElement("flex", { class: "v", style: "flex: 1; height: 100%;" }, /* @__PURE__ */ createElement("flex-item", null, /* @__PURE__ */ createElement(LayoutTopbar, { engineAPI: this.props.engineAPI })), /* @__PURE__ */ createElement(LayoutResizer, null), /* @__PURE__ */ createElement("flex", { class: "h", style: "flex: 1; height: 100%;" }, /* @__PURE__ */ createElement("flex", { class: "v", style: "flex: 2;" }, /* @__PURE__ */ createElement("flex-item", { style: "flex: 2;" }, /* @__PURE__ */ createElement(LayoutCanvas, { engineAPI: this.props.engineAPI })), /* @__PURE__ */ createElement(LayoutResizer, null), /* @__PURE__ */ createElement("flex", { class: "h", style: "flex: 1;" }, /* @__PURE__ */ createElement("flex-item", { style: "flex: 1;" }, /* @__PURE__ */ createElement(LayoutTab, { entries: [
-      { title: "Assets", node: /* @__PURE__ */ createElement(LayoutAssets, { engineAPI: this.props.engineAPI }) },
-      { title: "Console", node: /* @__PURE__ */ createElement(LayoutConsole, { engineAPI: this.props.engineAPI }) }
-    ] })))), /* @__PURE__ */ createElement(LayoutResizer, null), /* @__PURE__ */ createElement("flex-item", { style: "flex: 1;" }, /* @__PURE__ */ createElement(LayoutHierarchy, { engineAPI: this.props.engineAPI })), /* @__PURE__ */ createElement(LayoutResizer, null), /* @__PURE__ */ createElement("flex", { class: "v", style: "flex: 1;" }, /* @__PURE__ */ createElement("flex-item", { style: "flex: 1;" }, /* @__PURE__ */ createElement(LayoutInspector, { engineAPI: this.props.engineAPI })))));
+    return /* @__PURE__ */ createElement("flex", { class: "v", style: "flex: 1; height: 100%;" }, /* @__PURE__ */ createElement("flex-item", null, /* @__PURE__ */ createElement(LayoutTopbar, { engineAPI: this.props.engineAPI })), /* @__PURE__ */ createElement(LayoutResizer, null), /* @__PURE__ */ createElement("flex", { class: "h", style: "flex: 1; height: 100%;" }, /* @__PURE__ */ createElement("flex", { class: "v", style: "flex: 2;" }, /* @__PURE__ */ createElement("flex-item", { style: "flex: 2;" }, /* @__PURE__ */ createElement(LayoutCanvas, { engineAPI: this.props.engineAPI })), /* @__PURE__ */ createElement(LayoutResizer, null), /* @__PURE__ */ createElement("flex-item", { style: "flex: 1;" }, /* @__PURE__ */ createElement(LayoutAssets, { engineAPI: this.props.engineAPI }))), /* @__PURE__ */ createElement(LayoutResizer, null), /* @__PURE__ */ createElement("flex-item", { style: "flex: 1;" }, /* @__PURE__ */ createElement(LayoutHierarchy, { engineAPI: this.props.engineAPI })), /* @__PURE__ */ createElement(LayoutResizer, null), /* @__PURE__ */ createElement("flex", { class: "v", style: "flex: 1;" }, /* @__PURE__ */ createElement("flex-item", { style: "flex: 1;" }, /* @__PURE__ */ createElement(LayoutInspector, { engineAPI: this.props.engineAPI })))));
   }
 }
 

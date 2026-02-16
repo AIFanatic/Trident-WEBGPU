@@ -5,6 +5,7 @@
             <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no">
             <meta name="mobile-web-app-capable" content="yes">
             <meta name="apple-mobile-web-app-capable" content="yes">
+            <meta charset="UTF-8">
             
             <style>
                 html, body {
@@ -31,6 +32,9 @@
             import { OrbitControls } from '@trident/plugins/OrbitControls.js';
             import { GLTFLoader } from '@trident/plugins/GLTF/GLTFLoader.js';
             import { Debugger } from '@trident/plugins/Debugger.js';
+            import { HDRParser } from '@trident/plugins/HDRParser.js';
+            import { Environment } from '@trident/plugins/Environment/Environment.js';
+            import { DirectionalLightHelper } from '@trident/plugins/DirectionalLightHelper.js';
             
             async function Application(canvas) {
               const renderer = GPU.Renderer.Create(canvas, "webgpu", 2);
@@ -39,18 +43,38 @@
               mainCameraGameObject.transform.position.set(0, 0, -15);
               mainCameraGameObject.name = "MainCamera";
               const camera = mainCameraGameObject.AddComponent(Components.Camera);
-              camera.SetPerspective(72, canvas.width / canvas.height, 0.05, 1e3);
+              camera.SetPerspective(60, canvas.width / canvas.height, 0.05, 1e3);
               mainCameraGameObject.transform.position.set(0, 0, 2);
               mainCameraGameObject.transform.LookAtV1(new Mathf.Vector3(0, 0, 0));
               new OrbitControls(canvas, camera);
               const lightGameObject = new GameObject(scene);
-              lightGameObject.transform.position.set(-4, 4, 4);
+              lightGameObject.transform.position.set(2, 0, 0);
               lightGameObject.transform.LookAtV1(new Mathf.Vector3(0, 0, 0));
               const light = lightGameObject.AddComponent(Components.DirectionalLight);
-              light.castShadows = true;
+              light.castShadows = false;
               light.intensity = 2;
-              const prefab = await GLTFLoader.LoadFromURL("/extra/test-assets/semi_auto_rifle.worldmodel.glb");
+              const lightHelper = lightGameObject.AddComponent(DirectionalLightHelper);
+              lightHelper.light = light;
+              const hdr = await HDRParser.Load("/dist/examples/assets/textures/HDR/spruit_sunrise_1k.hdr");
+              const skyTexture = await HDRParser.ToCubemap(hdr);
+              const environment = new Environment(scene, skyTexture);
+              await environment.init();
+              const prefab = await GLTFLoader.LoadFromURL("/extra/test-assets/bouquet.glb");
               scene.Instantiate(prefab);
+              setTimeout(() => {
+                const serialized = scene.Serialize();
+                console.log("serialized", serialized);
+              }, 1e3);
+              console.warn(`
+                    glb imports to:
+                        mesh
+                        material
+                        shader (always pbr)
+                        animation
+                        bones/skin
+            
+                    even on editor create those files separately (can deal with animation and bones later)
+                `);
               {
                 window.addEventListener("dragover", (e) => {
                   e.preventDefault();

@@ -7,7 +7,7 @@ class Irradiance {
   geometry;
   irradianceShader;
   res;
-  constructor(res = 32, outputFormat = "rgba16float") {
+  constructor(res = 128, outputFormat = "rgba16float") {
     this.res = res;
     this.irradianceTexture = GPU.RenderTextureCube.Create(this.res, this.res, 6, outputFormat);
     this.irradianceTexture.name = "Irradiance";

@@ -3,16 +3,6 @@ import { Matrix4, Vector3, Quaternion } from './Math.js';
 function fnv1a(bytes) {
   return bytes.byteLength;
 }
-var AccessorComponentType = /* @__PURE__ */ ((AccessorComponentType2) => {
-  AccessorComponentType2[AccessorComponentType2["GL_BYTE"] = 5120] = "GL_BYTE";
-  AccessorComponentType2[AccessorComponentType2["GL_UNSIGNED_BYTE"] = 5121] = "GL_UNSIGNED_BYTE";
-  AccessorComponentType2[AccessorComponentType2["GL_SHORT"] = 5122] = "GL_SHORT";
-  AccessorComponentType2[AccessorComponentType2["GL_UNSIGNED_SHORT"] = 5123] = "GL_UNSIGNED_SHORT";
-  AccessorComponentType2[AccessorComponentType2["GL_INT"] = 5124] = "GL_INT";
-  AccessorComponentType2[AccessorComponentType2["GL_UNSIGNED_INT"] = 5125] = "GL_UNSIGNED_INT";
-  AccessorComponentType2[AccessorComponentType2["GL_FLOAT"] = 5126] = "GL_FLOAT";
-  return AccessorComponentType2;
-})(AccessorComponentType || {});
 class Scene {
   nodes;
   name;
@@ -952,4 +942,4 @@ var glTFLoaderBasic;
   glTFLoaderBasic2.getAccessorData = getAccessorData;
 })(glTFLoaderBasic || (glTFLoaderBasic = {}));
 
-export { Accessor, AccessorComponentType, Animation, AnimationChannel, AnimationSampler, GLTF, GLTFParser, MeshPrimitive, Node, Scene, Texture, TextureInfo, glTFLoaderBasic };
+export { Accessor, Animation, AnimationChannel, AnimationSampler, GLTF, GLTFParser, MeshPrimitive, Node, Scene, Texture, TextureInfo, glTFLoaderBasic };

@@ -5,6 +5,7 @@
             <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no">
             <meta name="mobile-web-app-capable" content="yes">
             <meta name="apple-mobile-web-app-capable" content="yes">
+            <meta charset="UTF-8">
             
             <style>
                 html, body {
@@ -33,6 +34,8 @@
             import { ImpostorMesh } from '@trident/plugins/Impostors/ImpostorMesh.js';
             import { Debugger } from '@trident/plugins/Debugger.js';
             import { UITextureViewer } from '@trident/plugins/ui/UIStats.js';
+            import { HDRParser } from '@trident/plugins/HDRParser.js';
+            import { Environment } from '@trident/plugins/Environment/Environment.js';
             
             async function Application(canvas) {
               const renderer = GPU.Renderer.Create(canvas, "webgpu");
@@ -48,21 +51,23 @@
                 lightGameObject.transform.position.set(-4, 4, -4);
                 lightGameObject.transform.LookAtV1(new Mathf.Vector3(0, 0, 0));
                 const light = lightGameObject.AddComponent(Components.DirectionalLight);
-                light.intensity = 5;
+                light.intensity = 1;
                 light.range = 1;
                 light.color.set(1, 1, 1, 1);
+                const hdr = await HDRParser.Load("/dist/examples/assets/textures/HDR/spruit_sunrise_1k.hdr");
+                const skyTexture = await HDRParser.ToCubemap(hdr);
+                const environment = new Environment(scene, skyTexture);
+                await environment.init();
               }
-              const model = await GLTFLoader.LoadFromURL("./assets/models/bunny.glb");
-              function traverse(object3D, func) {
-                func(object3D);
-                for (const child of object3D.children) traverse(child, func);
-              }
+              const prefab = await GLTFLoader.LoadFromURL("/extra/test-assets/nature/treessource/american_beech/american_beech_a.glb");
               let geometry;
               let material = new PBRMaterial();
-              traverse(model, (prefab) => {
-                for (const component of prefab.components) {
+              prefab.traverse((prefab2) => {
+                if (geometry) return;
+                for (const component of prefab2.components) {
                   if (component.type === Components.Mesh.type) {
                     geometry = Geometry.Deserialize(component.geometry);
+                    material = GPU.Material.Deserialize(component.material);
                   }
                 }
               });
@@ -70,9 +75,9 @@
               const bunnyImpostor = go.AddComponent(ImpostorMesh);
               await bunnyImpostor.Create(geometry, material);
               new UITextureViewer(Debugger.ui, "Atlas", bunnyImpostor.albedoTexture);
-              new UITextureViewer(Debugger.ui, "Atlas", bunnyImpostor.normalTexture);
+              new UITextureViewer(Debugger.ui, "Atlas2", bunnyImpostor.normalTexture);
               {
-                Scene.Instantiate(model, new Mathf.Vector3(3, 0, 0));
+                Scene.Instantiate(prefab, new Mathf.Vector3(3, 0, 0));
               }
               Debugger.Enable();
               scene.Start();

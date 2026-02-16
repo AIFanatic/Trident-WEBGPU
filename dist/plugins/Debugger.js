@@ -95,7 +95,7 @@ class DebuggerRenderPass extends GPU.RenderPass {
                     let depth = textureLoad(inputDepth, vec2<i32>(floor(input.position.xy)), 0);
                     if (u32(viewType) == 0) {} // Lighting
                     else if (u32(viewType) == 1) {} // Albedo
-                    else if (u32(viewType) == 2) { color = vec4(OctDecode(color.rg), 1.0); } // Normal
+                    else if (u32(viewType) == 2) { color = vec4(OctDecode(color.rg) * 0.5 + 0.5, 1.0); } // Normal
                     else if (u32(viewType) == 3) { color = vec4(color.a); } // Metalness
                     else if (u32(viewType) == 4) { color = vec4(color.a); } // Roughness
                     else if (u32(viewType) == 5) { color = vec4(color.rgb, 1.0); } // Emissive

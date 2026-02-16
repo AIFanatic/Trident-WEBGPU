@@ -4,7 +4,7 @@ html, body {
     color: white;
     font-family: monospace;
     font-size: 10px;
-    background-color: black;
+    background-color: #1a1a1a;
 }
 
 flex {
@@ -22,8 +22,6 @@ flex.v {
 
 flex>flex-resizer {
     flex: 0 0 1px;
-    /* background: white; */
-    background-color: black;
     background-repeat: no-repeat;
     background-position: center;
     position: relative; 
@@ -129,7 +127,6 @@ input[type=number] {
     margin-right: 20px;
     font-size: 12px;
 }
-
 .dropdown-overlay {
     /* background-color: #ffffff50; */
     position: fixed;
@@ -232,54 +229,10 @@ input[type=number] {
 .treeview .item .item-content {
     overflow: hidden;
 }
-.collapsible-content-edonec {
-    overflow: auto;
-    transition: height 0.2s ease-in-out;
-    border-bottom: 1px solid black;
-}
-.title-text-edonec {
-    display: inline-block;
-    font-size: 10px;
-    font-weight: bold;
-}
-.title-right-menu {
-    float: right;
-    margin-right: 10px;
-    text-align: center;
-    width: 15px;
-    font-weight: bold;
-}
-.title-right-menu:hover {
-    background-color: #404040;
-}
-
-.collapsible-header-edonec {
-    width: 100%;
-    display: inline-block;
-    align-items: center;
-    padding: 3px 0px 3px 0px;
-    cursor: pointer;
-    background-color: #2b2b2b;
-}
-.collapsible-content-padding-edonec {
-    padding-top: 3px;
-}
-
-.collapsible-icon-button-edonec {
-    cursor: pointer;
-    background-color: Transparent;
-    background-repeat: no-repeat;
-    border: none;
-    cursor: pointer;
-    overflow: hidden;
-    outline: none;
-    color: white;
-    font-size: 10px;
-    width: 25px;
-}
 .InspectorComponent {
     display: flex;
     align-items: center;
+    margin-bottom: 5px;
 }
 
 .InspectorComponent .title {
@@ -291,6 +244,7 @@ input[type=number] {
 .InspectorComponent .value {
     display: flex;
     align-items: center;
+    width: 100%;
 }
 
 .InspectorComponent .input {
@@ -352,6 +306,10 @@ input[type=number] {
     border-radius: 50%;
 }
 
+.InspectorComponent .gray-bg {
+    background-color: #7f8c8d50;
+}
+
 .InspectorComponent .red-bg {
     background-color: #e74c3c50;
 }
@@ -369,6 +327,8 @@ input[type=number] {
     font-size: 9px;
     border-top-left-radius: 2px;
     border-bottom-left-radius: 2px;
+    display: flex;
+    align-items: center;
 }
 
 .InspectorComponent .vec-label:hover {
@@ -376,7 +336,6 @@ input[type=number] {
 }
 
 .InspectorComponent .vec-input {
-    padding: 4px;
     font-size: 9px;
     border-top-left-radius: 0px;
     border-bottom-left-radius: 0px;
@@ -386,4 +345,86 @@ input[type=number] {
     display: flex;
     width: 100%;
     margin-right: 5px;
+    align-items: center;
+}
+.collapsible-content-edonec {
+    overflow: auto;
+    transition: height 0.2s ease-in-out;
+}
+.title-text-edonec {
+    display: inline-block;
+    font-size: 10px;
+    font-weight: bold;
+}
+.title-right-menu {
+    float: right;
+    margin-right: 10px;
+    text-align: center;
+    width: 15px;
+    font-weight: bold;
+}
+.title-right-menu:hover {
+    background-color: #404040;
+}
+
+.collapsible-card-edonec {
+    margin: 10px;
+    border-radius: 10px;
+    background-color: #1a1a1a;
+    box-shadow: 1px 1px 3px 0px black;
+}
+
+.collapsible-header-edonec {
+    align-items: center;
+    padding: 7px;
+    cursor: pointer;
+    border-radius: 10px;
+}
+.collapsible-content-padding-edonec {
+    padding-top: 3px;
+}
+
+.collapsible-icon-button-edonec {
+    cursor: pointer;
+    background-color: Transparent;
+    background-repeat: no-repeat;
+    border: none;
+    cursor: pointer;
+    overflow: hidden;
+    outline: none;
+    color: white;
+    font-size: 10px;
+    width: 25px;
+}
+.DrillDownMenu {
+    border: 1px solid black;
+}
+
+.DrillDownMenu .item {
+    list-style: none;
+    cursor: pointer;
+    padding-left: 10px;
+    font-size: 12px;
+    padding-top: 2px;
+    padding-bottom: 2px;
+}
+
+.DrillDownMenu .item .item-caret {
+    float: right;
+    padding-right: 10px;
+    font-size: 10px;
+    color: #808080;
+}
+
+.DrillDownMenu .item:hover {
+    background-color: #2875ff;
+}
+
+.DrillDownMenu .backBtn {
+    width: 100%;
+    background-color: #404040;
+    color: inherit;
+    border: none;
+    padding: 3px;
+    cursor: pointer;
 }

@@ -170,7 +170,10 @@ class Component {
       const value = this[property];
       if (typeof value["Serialize"] === "function") fields[property] = value["Serialize"]();
       else if (typeof value === "boolean" || typeof value === "number" || typeof value === "string") fields[property] = value;
-      else throw Error(`Could not serialize ${this.constructor["type"]}::${property}`);
+      else if (value instanceof Array || value instanceof Float32Array) fields[property] = value;
+      else {
+        throw Error(`Could not serialize ${this.constructor["type"]}::${property} ${value instanceof Float32Array}`);
+      }
     }
     return { type: this.constructor["type"], id: this.id, name: this.name, ...fields };
   }
@@ -1446,6 +1449,7 @@ __decoratorMetadata$5(_init$5, Transform);
 __publicField$5(Transform, "type", "@trident/core/components/Transform");
 
 class Assets {
+  static ResourceFetchFn = fetch;
   static cache = /* @__PURE__ */ new Map();
   static instanceCache = /* @__PURE__ */ new Map();
   static GetInstance(path) {
@@ -1463,7 +1467,7 @@ class Assets {
     if (cached !== void 0) {
       return cached;
     }
-    const promise = fetch(url).then((response) => {
+    const promise = Assets.ResourceFetchFn(url).then((response) => {
       if (!response.ok) throw Error(`File not found ${url}`);
       if (type === "json") return response.json();
       else if (type === "text") return response.text();
@@ -1483,7 +1487,7 @@ class Assets {
     if (cached !== void 0) {
       return cached;
     }
-    const promise = fetch(url).then((response) => {
+    const promise = Assets.ResourceFetchFn(url).then((response) => {
       if (!response.ok) throw Error(`File not found ${url}`);
       if (type === "json") return response.json();
       else if (type === "text") return response.text();
@@ -1510,6 +1514,15 @@ class Prefab {
     for (const child of prefab.children) {
       this.traverse(fn, child);
     }
+  }
+  static Deserialize(data) {
+    const prefab = new Prefab();
+    prefab.name = data.name;
+    prefab.type = data.type;
+    prefab.transform = data.transform;
+    prefab.components = Array.isArray(data?.components) ? data.components : [];
+    prefab.children = Array.isArray(data?.children) ? data.children.map((c) => Prefab.Deserialize(c)) : [];
+    return prefab;
   }
 }
 
@@ -1710,7 +1723,6 @@ for (const key in adapter.limits) requiredLimits[key] = adapter.limits[key];
 const features = [];
 if (adapter.features.has("timestamp-query")) features.push("timestamp-query");
 if (adapter.features.has("indirect-first-instance")) features.push("indirect-first-instance");
-console.log(features);
 const device = adapter ? await adapter.requestDevice({
   requiredFeatures: features,
   requiredLimits
@@ -1864,11 +1876,11 @@ class Renderer {
   }
 }
 
-var WGSL_Shader_Draw_URL = "#include \"@trident/core/resources/webgpu/shaders/deferred/Common.wgsl\";\n\nstruct VertexInput {\n    @builtin(instance_index) instance : u32, \n    @builtin(vertex_index) vertex : u32,\n    @location(0) position : vec3<f32>,\n    @location(1) normal : vec3<f32>,\n    @location(2) uv : vec2<f32>,\n\n    #if USE_NORMAL_MAP\n        @location(3) tangent : vec4<f32>,\n        #if USE_SKINNING\n            @location(4) joints: vec4<u32>,\n            @location(5) weights: vec4<f32>,\n        #endif\n    #else\n        #if USE_SKINNING\n            @location(3) joints: vec4<u32>,\n            @location(4) weights: vec4<f32>,\n        #endif\n    #endif\n};\n\nstruct Material {\n    AlbedoColor: vec4<f32>,\n    EmissiveColor: vec4<f32>,\n    Roughness: f32,\n    Metalness: f32,\n    Unlit: f32,\n    AlphaCutoff: f32,\n    RepeatOffset: vec4<f32>, // xy = repeat, zw = offset\n    Wireframe: f32,\n};\n\nstruct VertexOutput {\n    @builtin(position) position : vec4<f32>,\n    @location(0) vPosition : vec3<f32>,\n    @location(1) vNormal : vec3<f32>,\n    @location(2) vUv : vec2<f32>,\n    @location(3) @interpolate(flat) instance : u32,\n    @location(4) barycenticCoord : vec3<f32>,\n    @location(5) tangent : vec3<f32>,\n    @location(6) bitangent : vec3<f32>,\n};\n\n@group(0) @binding(0) var<storage, read> frameBuffer: FrameBuffer;\n@group(0) @binding(1) var<storage, read> modelMatrix: array<mat4x4<f32>>;\n@group(0) @binding(2) var<storage, read> material: Material;\n@group(0) @binding(3) var TextureSampler: sampler;\n\n// These get optimized out based on \"USE*\" defines\n@group(0) @binding(4) var AlbedoMap: texture_2d<f32>;\n@group(0) @binding(5) var NormalMap: texture_2d<f32>;\n@group(0) @binding(6) var HeightMap: texture_2d<f32>;\n@group(0) @binding(7) var ARMMap: texture_2d<f32>;\n@group(0) @binding(8) var EmissiveMap: texture_2d<f32>;\n\n\n#if USE_SKINNING\n    @group(1) @binding(0) var<storage, read> boneMatrices: array<mat4x4<f32>>;\n#endif\n\n\n@vertex\nfn vertexMain(input: VertexInput) -> VertexOutput {\n    var output : VertexOutput;\n\n      var finalPosition = vec4(input.position, 1.0);\n      var finalNormal = vec4(input.normal, 0.0);\n\n    #if USE_SKINNING\n        var skinnedPosition = vec4(0.0);\n        var skinnedNormal = vec4(0.0);\n\n        let skinMatrix: mat4x4<f32> = \n            boneMatrices[input.joints[0]] * input.weights[0] +\n            boneMatrices[input.joints[1]] * input.weights[1] +\n            boneMatrices[input.joints[2]] * input.weights[2] +\n            boneMatrices[input.joints[3]] * input.weights[3];\n        \n        finalPosition = skinMatrix * vec4(input.position, 1.0);\n        finalNormal   = normalize(skinMatrix * vec4(input.normal, 0.0));\n    #endif\n\n    let modelMatrixInstance = modelMatrix[input.instance];\n    let modelViewMatrix = frameBuffer.viewMatrix * modelMatrixInstance;\n\n    output.instance = input.instance;\n    output.position = frameBuffer.projectionMatrix * modelViewMatrix * vec4(finalPosition.xyz, 1.0);\n    output.vPosition = finalPosition.xyz;\n    output.vUv = input.uv;\n    let worldNormal = normalize(modelMatrixInstance * vec4(finalNormal.xyz, 0.0)).xyz;\n    output.vNormal = worldNormal;\n\n    #if USE_NORMAL_MAP\n        let worldTangent = normalize(modelMatrixInstance * vec4(input.tangent.xyz, 0.0)).xyz;\n        let worldBitangent = cross(worldNormal, worldTangent) * input.tangent.w;\n\n        output.tangent = worldTangent;\n        output.bitangent = worldBitangent;\n    #endif\n\n    // emit a barycentric coordinate\n    output.barycenticCoord = vec3f(0);\n    output.barycenticCoord[input.vertex % 3] = 1.0;\n\n    return output;\n}\n\nstruct FragmentOutput {\n    @location(0) albedo : vec4f,\n    @location(1) normal : vec4f,\n    @location(2) RMO : vec4f,\n};\n\nfn inversesqrt(v: f32) -> f32 {\n    return 1.0 / sqrt(v);\n}\n\nfn edgeFactor(bary: vec3f) -> f32 {\n    let lineThickness = 1.0;\n    let d = fwidth(bary);\n    let a3 = smoothstep(vec3f(0.0), d * lineThickness, bary);\n    return min(min(a3.x, a3.y), a3.z);\n}\n\n@fragment\nfn fragmentMain(@builtin(front_facing) isFrontFace: bool, input: VertexOutput) -> FragmentOutput {\n    var output: FragmentOutput;\n\n\n    let mat = material;\n\n    var uv = input.vUv * mat.RepeatOffset.xy + mat.RepeatOffset.zw;\n\n    var albedo = mat.AlbedoColor;\n    var roughness = mat.Roughness;\n    var metalness = mat.Metalness;\n    var occlusion = 1.0;\n\n    // var albedo = mat.AlbedoColor;\n    #if USE_ALBEDO_MAP\n        albedo *= textureSample(AlbedoMap, TextureSampler, uv);\n    #endif\n\n    if (albedo.a < mat.AlphaCutoff) {\n        discard;\n    }\n\n    var normal: vec3f = normalize(input.vNormal);\n    #if USE_NORMAL_MAP\n        var tbn: mat3x3<f32>;\n        tbn[0] = input.tangent;      // column-major: T, B, N\n        tbn[1] = input.bitangent;\n        tbn[2] = input.vNormal;\n\n        let normalSample = textureSample(NormalMap, TextureSampler, uv).xyz * 2.0 - 1.0;\n        normal = normalize(tbn * normalSample);\n    #endif\n    if (!isFrontFace) {\n        normal = -normal;\n    }\n\n    #if USE_ARM_MAP\n        let metalnessRoughness = textureSample(ARMMap, TextureSampler, uv);\n\n        // occlusion *= metalnessRoughness.r;\n        roughness *= metalnessRoughness.g;\n        metalness *= metalnessRoughness.b;\n\n        // // Unity style - Mask map MT(R) AO(G) SM(A)\n        // metalness *= metalnessRoughness.r;\n        // occlusion *= metalnessRoughness.g; \n        // roughness *= metalnessRoughness.a;\n    #endif\n\n    var emissive = mat.EmissiveColor;\n    #if USE_EMISSIVE_MAP\n        emissive *= textureSample(EmissiveMap, TextureSampler, uv);\n    #endif\n\n    output.albedo = vec4(albedo.rgb, roughness);\n\n    output.normal = vec4(OctEncode(normal.xyz), occlusion, metalness);\n    output.RMO = vec4(emissive.rgb, mat.Unlit);\n\n\n    // Wireframe\n    output.albedo *= 1.0 - edgeFactor(input.barycenticCoord) * mat.Wireframe;\n\n    // // Flat shading\n    // let xTangent: vec3f = dpdx( input.vPosition );\n    // let yTangent: vec3f = dpdy( input.vPosition );\n    // let faceNormal: vec3f = normalize( cross( xTangent, yTangent ) );\n\n    // output.normal = vec4(OctEncode(faceNormal.xyz), occlusion, metalness);\n\n    return output;\n}";
+var WGSL_Shader_Draw_URL = "#include \"@trident/core/resources/webgpu/shaders/deferred/Common.wgsl\";\n\nstruct VertexInput {\n    @builtin(instance_index) instance : u32, \n    @builtin(vertex_index) vertex : u32,\n    @location(0) position : vec3<f32>,\n    @location(1) normal : vec3<f32>,\n    @location(2) uv : vec2<f32>,\n\n    #if USE_NORMAL_MAP\n        @location(3) tangent : vec4<f32>,\n        #if USE_SKINNING\n            @location(4) joints: vec4<u32>,\n            @location(5) weights: vec4<f32>,\n        #endif\n    #else\n        #if USE_SKINNING\n            @location(3) joints: vec4<u32>,\n            @location(4) weights: vec4<f32>,\n        #endif\n    #endif\n};\n\nstruct Material {\n    AlbedoColor: vec4<f32>,\n    EmissiveColor: vec4<f32>,\n    Roughness: f32,\n    Metalness: f32,\n    Unlit: f32,\n    AlphaCutoff: f32,\n    RepeatOffset: vec4<f32>, // xy = repeat, zw = offset\n    Wireframe: f32,\n};\n\nstruct VertexOutput {\n    @builtin(position) position : vec4<f32>,\n    @location(0) vPosition : vec3<f32>,\n    @location(1) vNormal : vec3<f32>,\n    @location(2) vUv : vec2<f32>,\n    @location(3) @interpolate(flat) instance : u32,\n    @location(4) barycenticCoord : vec3<f32>,\n    @location(5) tangent : vec3<f32>,\n    @location(6) bitangent : vec3<f32>,\n    @location(7) normal : vec3<f32>,\n};\n\n@group(0) @binding(0) var<storage, read> frameBuffer: FrameBuffer;\n@group(0) @binding(1) var<storage, read> modelMatrix: array<mat4x4<f32>>;\n@group(0) @binding(2) var<storage, read> material: Material;\n@group(0) @binding(3) var TextureSampler: sampler;\n\n// These get optimized out based on \"USE*\" defines\n@group(0) @binding(4) var AlbedoMap: texture_2d<f32>;\n@group(0) @binding(5) var NormalMap: texture_2d<f32>;\n@group(0) @binding(6) var HeightMap: texture_2d<f32>;\n@group(0) @binding(7) var ARMMap: texture_2d<f32>;\n@group(0) @binding(8) var EmissiveMap: texture_2d<f32>;\n\n\n#if USE_SKINNING\n    @group(1) @binding(0) var<storage, read> boneMatrices: array<mat4x4<f32>>;\n#endif\n\n@vertex\nfn vertexMain(input: VertexInput) -> VertexOutput {\n    var output : VertexOutput;\n\n      var finalPosition = vec4(input.position, 1.0);\n      var finalNormal = vec4(input.normal, 0.0);\n\n    #if USE_SKINNING\n        var skinnedPosition = vec4(0.0);\n        var skinnedNormal = vec4(0.0);\n\n        let skinMatrix: mat4x4<f32> = \n            boneMatrices[input.joints[0]] * input.weights[0] +\n            boneMatrices[input.joints[1]] * input.weights[1] +\n            boneMatrices[input.joints[2]] * input.weights[2] +\n            boneMatrices[input.joints[3]] * input.weights[3];\n        \n        finalPosition = skinMatrix * vec4(input.position, 1.0);\n        finalNormal   = normalize(skinMatrix * vec4(input.normal, 0.0));\n    #endif\n\n    let cameraPos = frameBuffer.viewInverseMatrix[3].xyz;\n\n    let modelMatrixInstance = modelMatrix[input.instance];\n    let modelViewMatrix = frameBuffer.viewMatrix * modelMatrixInstance;\n\n    output.instance = input.instance;\n    output.position = frameBuffer.projectionMatrix * modelViewMatrix * vec4(finalPosition.xyz, 1.0);\n    output.vPosition = finalPosition.xyz;\n    output.vUv = input.uv;\n    let worldNormal = normalize(modelMatrixInstance * vec4(finalNormal.xyz, 0.0)).xyz;\n    output.vNormal = worldNormal;\n    output.normal = finalNormal.xyz;\n\n    #if USE_NORMAL_MAP\n        let worldTangent = normalize(modelMatrixInstance * vec4(input.tangent.xyz, 0.0)).xyz;\n        let worldBitangent = cross(worldNormal, worldTangent) * input.tangent.w;\n\n        output.tangent = worldTangent;\n        output.bitangent = worldBitangent;\n    #endif\n\n    // emit a barycentric coordinate\n    output.barycenticCoord = vec3f(0);\n    output.barycenticCoord[input.vertex % 3] = 1.0;\n\n    return output;\n}\n\nstruct FragmentOutput {\n    @location(0) albedo : vec4f,\n    @location(1) normal : vec4f,\n    @location(2) RMO : vec4f,\n};\n\nfn inversesqrt(v: f32) -> f32 {\n    return 1.0 / sqrt(v);\n}\n\nfn edgeFactor(bary: vec3f) -> f32 {\n    let lineThickness = 1.0;\n    let d = fwidth(bary);\n    let a3 = smoothstep(vec3f(0.0), d * lineThickness, bary);\n    return min(min(a3.x, a3.y), a3.z);\n}\n\n@fragment\nfn fragmentMain(@builtin(front_facing) isFrontFace: bool, input: VertexOutput) -> FragmentOutput {\n    var output: FragmentOutput;\n\n\n    let mat = material;\n\n    var uv = input.vUv * mat.RepeatOffset.xy + mat.RepeatOffset.zw;\n\n    var albedo = mat.AlbedoColor;\n    var roughness = mat.Roughness;\n    var metalness = mat.Metalness;\n    var occlusion = 1.0;\n\n    // var albedo = mat.AlbedoColor;\n    #if USE_ALBEDO_MAP\n        albedo *= textureSample(AlbedoMap, TextureSampler, uv);\n    #endif\n\n    if (albedo.a < mat.AlphaCutoff) {\n        discard;\n    }\n\n    var normal: vec3f = normalize(input.vNormal);\n    #if USE_NORMAL_MAP\n        var tbn: mat3x3<f32>;\n        tbn[0] = input.tangent;      // column-major: T, B, N\n        tbn[1] = input.bitangent;\n        tbn[2] = input.vNormal;\n        if (!isFrontFace) {\n            // tbn[0] = -tbn[0];\n            tbn[1] = -tbn[1];\n            tbn[2] = -tbn[2];\n        }\n        let normalSample = textureSample(NormalMap, TextureSampler, uv).xyz * 2.0 - 1.0;\n        normal = normalize(tbn * normalSample);\n    #else\n        if (!isFrontFace) {\n            normal = -normal;\n        }\n    #endif\n\n    #if USE_ARM_MAP\n        let metalnessRoughness = textureSample(ARMMap, TextureSampler, uv);\n\n        occlusion *= metalnessRoughness.r;\n        roughness *= metalnessRoughness.g;\n        metalness *= metalnessRoughness.b;\n\n        // // Unity style - Mask map MT(R) AO(G) SM(A)\n        // metalness *= metalnessRoughness.r;\n        // occlusion *= metalnessRoughness.g; \n        // roughness *= metalnessRoughness.a;\n\n    #endif\n\n    var emissive = mat.EmissiveColor;\n    #if USE_EMISSIVE_MAP\n        emissive *= textureSample(EmissiveMap, TextureSampler, uv);\n    #endif\n\n    output.albedo = vec4(albedo.rgb, roughness);\n    output.normal = vec4(OctEncode(normal.xyz), occlusion, metalness);\n    output.RMO = vec4(emissive.rgb, mat.Unlit);\n\n\n    // Wireframe\n    output.albedo *= 1.0 - edgeFactor(input.barycenticCoord) * mat.Wireframe;\n\n    // // Flat shading\n    // let xTangent: vec3f = dpdx( input.vPosition );\n    // let yTangent: vec3f = dpdy( input.vPosition );\n    // let faceNormal: vec3f = normalize( cross( xTangent, yTangent ) );\n\n    // output.normal = vec4(OctEncode(faceNormal.xyz), occlusion, metalness);\n\n    return output;\n}";
 
-var WGSL_Shader_DeferredLighting_URL = "#include \"@trident/core/resources/webgpu/shaders/deferred/Common.wgsl\";\n#include \"@trident/core/resources/webgpu/shaders/deferred/SurfaceStruct.wgsl\";\n#include \"@trident/core/resources/webgpu/shaders/deferred/LightStruct.wgsl\";\n#include \"@trident/core/resources/webgpu/shaders/deferred/ShadowMap.wgsl\";\n#include \"@trident/core/resources/webgpu/shaders/deferred/ShadowMapCSM.wgsl\";\n\nstruct Settings {\n    debugDepthPass: f32,\n    debugDepthMipLevel: f32,\n    debugDepthExposure: f32,\n    viewType: f32,\n    useHeightMap: f32,\n    heightScale: f32,\n\n    debugShadowCascades: f32,\n    pcfResolution: f32,\n    blendThreshold: f32,\n    viewBlendThreshold: f32,\n\n    cameraPosition: vec4<f32>,\n};\n\nstruct VertexInput {\n    @builtin(instance_index) instance : u32, \n    @location(0) position : vec3<f32>,\n    @location(1) normal : vec3<f32>,\n    @location(2) uv : vec2<f32>,\n};\n\nstruct VertexOutput {\n    @builtin(position) position: vec4<f32>,\n    @location(0) vUv: vec2<f32>,\n    @location(1) @interpolate(flat) lightIndex: u32,\n};\n\n@group(0) @binding(0) var textureSampler: sampler;\n\n@group(0) @binding(1) var albedoTexture: texture_2d<f32>;\n@group(0) @binding(2) var normalTexture: texture_2d<f32>;\n@group(0) @binding(3) var ermoTexture: texture_2d<f32>;\n@group(0) @binding(4) var depthTexture: texture_depth_2d;\n@group(0) @binding(5) var shadowPassDepth: texture_depth_2d_array;\n\n@group(0) @binding(6) var<storage, read> lights: array<Light>;\n@group(0) @binding(7) var<storage, read> lightCount: u32;\n\nstruct View {\n    projectionOutputSize: vec4<f32>,\n    viewPosition: vec4<f32>,\n    projectionInverseMatrix: mat4x4<f32>,\n    viewInverseMatrix: mat4x4<f32>,\n    viewMatrix: mat4x4<f32>,\n    projectionMatrix: mat4x4<f32>,\n};\n@group(0) @binding(8) var<storage, read> view: View;\n\n\nconst numCascades = 4;\n\n@group(0) @binding(9) var shadowSamplerComp: sampler_comparison;\n\n@group(0) @binding(10) var<storage, read> settings: Settings;\n\n@vertex\nfn vertexMain(input: VertexInput) -> VertexOutput {\n    var output: VertexOutput;\n    let light = lights[input.instance];\n    let lightType = u32(light.color.a);\n\n    output.position = view.projectionMatrix * view.viewMatrix * light.lightModelMatrix * vec4(input.position, 1.0);\n    if (lightType == DIRECTIONAL_LIGHT) {\n        // Flip X so the quad becomes back-facing (survives front-face cull).\n        // Place it at the far plane so it passes depthCompare \"greater-equal\".\n        output.position = vec4(-input.position.x, input.position.y, 1.0, 1.0);\n    }\n\n    output.vUv = input.uv;\n    output.lightIndex = input.instance;\n    return output;\n}\n\nconst PI = 3.141592653589793;\n\nconst SPOT_LIGHT: u32 = 0;\nconst DIRECTIONAL_LIGHT: u32 = 1;\nconst POINT_LIGHT: u32 = 2;\nconst AREA_LIGHT: u32 = 3;\n\nfn reconstructWorldPosFromZ(\n    coords: vec2<f32>,\n    size: vec2<f32>,\n    depth: f32,\n    projInverse: mat4x4<f32>,\n    viewInverse: mat4x4<f32>\n    ) -> vec4<f32> {\n    let uv = coords.xy / size;\n    let x = uv.x * 2.0 - 1.0;\n    let y = (1.0 - uv.y) * 2.0 - 1.0;\n    let projectedPos = vec4(x, y, depth, 1.0);\n    var worldPosition = projInverse * projectedPos;\n    worldPosition = vec4(worldPosition.xyz / worldPosition.w, 1.0);\n    worldPosition = viewInverse * worldPosition;\n    return worldPosition;\n}\n\nfn DistributionGGX(n: vec3f, h: vec3f, roughness: f32) -> f32 {\n  let a = roughness * roughness;\n  let a2 = a * a;\n  let nDotH = max(dot(n, h), 0.0);\n  let nDotH2 = nDotH * nDotH;\n  var denom = (nDotH2 * (a2 - 1.0) + 1.0);\n  denom = PI * denom * denom;\n  return a2 / denom;\n}\n\nfn GeometrySchlickGGX(nDotV: f32, roughness: f32) -> f32 {\n  let r = (roughness + 1.0);\n  let k = (r * r) / 8.0;\n  return nDotV / (nDotV * (1.0 - k) + k);\n}\n\nfn GeometrySmith(n: vec3f, v: vec3f, l: vec3f, roughness: f32) -> f32 {\n  let nDotV = max(dot(n, v), 0.0);\n  let nDotL = max(dot(n, l), 0.0);\n  let ggx2 = GeometrySchlickGGX(nDotV, roughness);\n  let ggx1 = GeometrySchlickGGX(nDotL, roughness);\n  return ggx1 * ggx2;\n}\n\nfn FresnelSchlick(cosTheta: f32, f0: vec3f) -> vec3f {\n  return f0 + (1.0 - f0) * pow(clamp(1.0 - cosTheta, 0.0, 1.0), 5.0);\n}\n\nfn CalculateBRDF(surface: Surface, pointToLight: vec3<f32>) -> vec3<f32> {\n    // cook-torrance brdf\n    let L = normalize(pointToLight);\n    let H = normalize(surface.V + L);\n    let distance = length(pointToLight);\n\n    let NDF = DistributionGGX(surface.N, H, surface.roughness);\n    let G = GeometrySmith(surface.N, surface.V, L, surface.roughness);\n    let F = FresnelSchlick(max(dot(H, surface.V), 0.0), surface.F0);\n\n    let kD = (vec3(1.0, 1.0, 1.0) - F) * (1.0 - surface.metallic);\n\n    let NdotL = max(dot(surface.N, L), 0.0);\n\n    let numerator = NDF * G * F;\n    let denominator = max(4.0 * max(dot(surface.N, surface.V), 0.0) * NdotL, 0.001);\n    let specular = numerator / vec3(denominator, denominator, denominator);\n\n    return (kD * surface.albedo.rgb / vec3(PI, PI, PI) + specular) * NdotL;\n}\n\nfn DirectionalLightRadiance(light: DirectionalLight, surface : Surface) -> vec3<f32> {\n    return CalculateBRDF(surface, light.direction) * light.color * light.intensity;\n}\n\nfn rangeAttenuation(range : f32, distance : f32) -> f32 {\n    if (range <= 0.0) {\n        // Negative range means no cutoff\n        return 1.0 / pow(distance, 2.0);\n    }\n    return clamp(1.0 - pow(distance / range, 4.0), 0.0, 1.0) / pow(distance, 2.0);\n}\n\nfn SpotLightRadiance(light : SpotLight, surface : Surface) -> vec3<f32> {\n    // pointToLight is SURFACE -> LIGHT (as you already set)\n    let dist = length(light.pointToLight);\n\n    // For cone test we need LIGHT -> SURFACE\n    let L_ls = normalize(-light.pointToLight);   // light -> surface\n    let cd   = dot(light.direction, L_ls);       // cos(theta), 1 at center\n\n    // Smooth falloff from edge to center: 0 at cos(angle), 1 at 1.0\n    let spot = smoothstep(cos(light.angle), 1.0, cd);\n\n    // Range attenuation as you have it\n    let attenuation = rangeAttenuation(light.range, dist) * spot;\n\n    // BRDF usually expects wi = SURFACE -> LIGHT\n    let wi = -L_ls; // (surface -> light)\n    let radiance = CalculateBRDF(surface, wi) * light.color * light.intensity * attenuation;\n    return radiance;\n}\n\nfn PointLightRadiance(light: PointLight, surface: Surface) -> vec3<f32> {\n    let dist = length(light.pointToLight);\n    let wi   = normalize(light.pointToLight);        // surface -> light\n    let att  = rangeAttenuation(light.range, dist);  // your smooth cutoff / r^2\n    return CalculateBRDF(surface, wi) * light.color * light.intensity * att;\n}\n\n@fragment\nfn fragmentMain(input: VertexOutput) -> @location(0) vec4<f32> {\n    // Load depth once\n    let pix = vec2<i32>(input.position.xy);\n    let depth = textureLoad(depthTexture, pix, 0);\n\n    if (depth > 0.99999) {\n        discard;\n    }\n\n    let fragCoord = input.position.xy;\n    let screenSize = view.projectionOutputSize.xy;\n\n    let uv = fragCoord / screenSize;\n\n    let worldPosition = reconstructWorldPosFromZ(\n        input.position.xy,\n        view.projectionOutputSize.xy,\n        depth,\n        view.projectionInverseMatrix,\n        view.viewInverseMatrix\n    );\n\n    let albedo = textureLoad(albedoTexture, pix, 0);\n    let normal = textureLoad(normalTexture, pix, 0);\n    let ermo   = textureLoad(ermoTexture,   pix, 0);\n\n    let unlit = ermo.a;\n\n    if (unlit > 0.5) {\n        var color = albedo.rgb;\n        return vec4f(color, 1.0);\n    }\n\n    var surface: Surface;\n    surface.depth          = depth;\n    surface.albedo         = albedo.rgb;\n    surface.roughness      = clamp(albedo.a, 0.0, 0.99);\n    surface.occlusion      = normal.z;\n    surface.metallic       = normal.a;\n    surface.emissive       = ermo.rgb;\n    surface.worldPosition  = worldPosition.xyz;\n    \n    surface.N              = OctDecode(normal.rg);\n    surface.F0             = mix(vec3(0.04), surface.albedo.rgb, vec3(surface.metallic));\n    surface.V              = normalize(view.viewPosition.xyz - surface.worldPosition);\n\n    var lo = vec3f(0.0);\n    var selectedCascade = 0;\n\n    var light = lights[input.lightIndex];\n    let lightType = u32(light.color.a);\n\n    if (lightType == DIRECTIONAL_LIGHT) {\n        var directionalLight: DirectionalLight;\n        directionalLight.direction = normalize((light.viewMatrixInverse * vec4(0.0, 0.0, 1.0, 0.0)).xyz);\n        // directionalLight.direction = light.direction.xyz;\n        directionalLight.color = light.color.rgb;\n        directionalLight.intensity = light.params1.x;\n\n        let castShadows = light.params1.z > 0.5;\n        var shadow = 1.0;\n        if (castShadows) {\n            let shadowCSM = CalculateShadowCSM(shadowPassDepth, shadowSamplerComp, surface, light, input.lightIndex);\n            shadow = shadowCSM.visibility;\n            selectedCascade = shadowCSM.selectedCascade;\n        }\n\n        // lo += shadow * DirectionalLightRadiance(directionalLight, surface) * radiance;\n        lo += shadow * DirectionalLightRadiance(directionalLight, surface);\n    }\n\n    else if (lightType == SPOT_LIGHT) {\n        var spotLight: SpotLight;\n        \n        // light.position.x *= -1.0;\n        // light.position.z *= -1.0;\n        spotLight.pointToLight = light.position.xyz - surface.worldPosition;\n        spotLight.color = light.color.rgb;\n        spotLight.intensity = light.params1.r;\n        spotLight.range = light.params1.g;\n        spotLight.direction = normalize((light.viewMatrixInverse * vec4(0.0, 0.0, -1.0, 0.0)).xyz);\n        // spotLight.direction = normalize(light.params2.xyz);\n        // spotLight.direction = light.direction.xyz;\n        spotLight.angle = light.params2.w;\n\n        let castShadows = light.params1.z > 0.5;\n        var shadow = 1.0;\n        if (castShadows) {\n            let shadowCSM = CalculateShadowCSMSpot(shadowPassDepth, shadowSamplerComp, surface, light, input.lightIndex);\n            shadow = shadowCSM.visibility;\n            selectedCascade = shadowCSM.selectedCascade;\n            // shadow = SampleSpotShadowMap(surface, light); // <— single 2D map on this layer\n\n        }\n\n        lo += shadow * SpotLightRadiance(spotLight, surface);\n    }\n\n    else if (lightType == POINT_LIGHT) {\n        var p: PointLight;\n        p.pointToLight = light.position.xyz - surface.worldPosition;\n        p.color        = light.color.rgb;\n        p.intensity    = light.params1.x;\n        p.range        = light.params1.y;\n\n        var shadow = 1.0;\n        let castShadows = light.params1.z > 0.5;\n        // if (castShadows) {\n        //     shadow = SamplePointShadow(surface, light, i);\n        // }\n\n        lo += shadow * PointLightRadiance(p, surface);\n    }\n\n    return vec4f(lo, 0.0);\n}";
+var WGSL_Shader_DeferredLighting_URL = "#include \"@trident/core/resources/webgpu/shaders/deferred/Common.wgsl\";\n#include \"@trident/core/resources/webgpu/shaders/deferred/SurfaceStruct.wgsl\";\n#include \"@trident/core/resources/webgpu/shaders/deferred/LightStruct.wgsl\";\n#include \"@trident/core/resources/webgpu/shaders/deferred/ShadowMap.wgsl\";\n#include \"@trident/core/resources/webgpu/shaders/deferred/ShadowMapCSM.wgsl\";\n\nstruct Settings {\n    debugDepthPass: f32,\n    debugDepthMipLevel: f32,\n    debugDepthExposure: f32,\n    viewType: f32,\n    useHeightMap: f32,\n    heightScale: f32,\n\n    debugShadowCascades: f32,\n    pcfResolution: f32,\n    blendThreshold: f32,\n    viewBlendThreshold: f32,\n\n    cameraPosition: vec4<f32>,\n};\n\nstruct VertexInput {\n    @builtin(instance_index) instance : u32, \n    @location(0) position : vec3<f32>,\n    @location(1) normal : vec3<f32>,\n    @location(2) uv : vec2<f32>,\n};\n\nstruct VertexOutput {\n    @builtin(position) position: vec4<f32>,\n    @location(0) vUv: vec2<f32>,\n    @location(1) @interpolate(flat) lightIndex: u32,\n};\n\n@group(0) @binding(0) var textureSampler: sampler;\n\n@group(0) @binding(1) var albedoTexture: texture_2d<f32>;\n@group(0) @binding(2) var normalTexture: texture_2d<f32>;\n@group(0) @binding(3) var ermoTexture: texture_2d<f32>;\n@group(0) @binding(4) var depthTexture: texture_depth_2d;\n@group(0) @binding(5) var shadowPassDepth: texture_depth_2d_array;\n\n@group(0) @binding(6) var<storage, read> lights: array<Light>;\n@group(0) @binding(7) var<storage, read> lightCount: u32;\n\nstruct View {\n    projectionOutputSize: vec4<f32>,\n    viewPosition: vec4<f32>,\n    projectionInverseMatrix: mat4x4<f32>,\n    viewInverseMatrix: mat4x4<f32>,\n    viewMatrix: mat4x4<f32>,\n    projectionMatrix: mat4x4<f32>,\n};\n@group(0) @binding(8) var<storage, read> view: View;\n\n\nconst numCascades = 4;\n\n@group(0) @binding(9) var shadowSamplerComp: sampler_comparison;\n\n@group(0) @binding(10) var<storage, read> settings: Settings;\n\n@vertex\nfn vertexMain(input: VertexInput) -> VertexOutput {\n    var output: VertexOutput;\n    let light = lights[input.instance];\n    let lightType = u32(light.color.a);\n\n    output.position = view.projectionMatrix * view.viewMatrix * light.lightModelMatrix * vec4(input.position, 1.0);\n    if (lightType == DIRECTIONAL_LIGHT) {\n        // Flip X so the quad becomes back-facing (survives front-face cull).\n        // Place it at the far plane so it passes depthCompare \"greater-equal\".\n        output.position = vec4(-input.position.x, input.position.y, 1.0, 1.0);\n    }\n\n    output.vUv = input.uv;\n    output.lightIndex = input.instance;\n    return output;\n}\n\nconst PI = 3.141592653589793;\n\nconst SPOT_LIGHT: u32 = 0;\nconst DIRECTIONAL_LIGHT: u32 = 1;\nconst POINT_LIGHT: u32 = 2;\nconst AREA_LIGHT: u32 = 3;\n\nfn reconstructWorldPosFromZ(\n    coords: vec2<f32>,\n    size: vec2<f32>,\n    depth: f32,\n    projInverse: mat4x4<f32>,\n    viewInverse: mat4x4<f32>\n    ) -> vec4<f32> {\n    let uv = coords.xy / size;\n    let x = uv.x * 2.0 - 1.0;\n    let y = (1.0 - uv.y) * 2.0 - 1.0;\n    let projectedPos = vec4(x, y, depth, 1.0);\n    var worldPosition = projInverse * projectedPos;\n    worldPosition = vec4(worldPosition.xyz / worldPosition.w, 1.0);\n    worldPosition = viewInverse * worldPosition;\n    return worldPosition;\n}\n\nfn DistributionGGX(n: vec3f, h: vec3f, roughness: f32) -> f32 {\n  let a = roughness * roughness;\n  let a2 = a * a;\n  let nDotH = max(dot(n, h), 0.0);\n  let nDotH2 = nDotH * nDotH;\n  var denom = (nDotH2 * (a2 - 1.0) + 1.0);\n  denom = PI * denom * denom;\n  return a2 / denom;\n}\n\nfn GeometrySchlickGGX(nDotV: f32, roughness: f32) -> f32 {\n  let r = (roughness + 1.0);\n  let k = (r * r) / 8.0;\n  return nDotV / (nDotV * (1.0 - k) + k);\n}\n\nfn GeometrySmith(n: vec3f, v: vec3f, l: vec3f, roughness: f32) -> f32 {\n  let nDotV = max(dot(n, v), 0.0);\n  let nDotL = max(dot(n, l), 0.0);\n  let ggx2 = GeometrySchlickGGX(nDotV, roughness);\n  let ggx1 = GeometrySchlickGGX(nDotL, roughness);\n  return ggx1 * ggx2;\n}\n\nfn FresnelSchlick(cosTheta: f32, f0: vec3f) -> vec3f {\n  return f0 + (1.0 - f0) * pow(clamp(1.0 - cosTheta, 0.0, 1.0), 5.0);\n}\n\nfn CalculateBRDF(surface: Surface, pointToLight: vec3<f32>) -> vec3<f32> {\n    // cook-torrance brdf\n    let L = normalize(pointToLight);\n    let H = normalize(surface.V + L);\n    let distance = length(pointToLight);\n\n    let NDF = DistributionGGX(surface.N, H, surface.roughness);\n    let G = GeometrySmith(surface.N, surface.V, L, surface.roughness);\n    let F = FresnelSchlick(max(dot(H, surface.V), 0.0), surface.F0);\n\n    let kD = (vec3(1.0, 1.0, 1.0) - F) * (1.0 - surface.metallic);\n\n    let NdotL = max(dot(surface.N, L), 0.0);\n\n    let numerator = NDF * G * F;\n    let denominator = max(4.0 * max(dot(surface.N, surface.V), 0.0) * NdotL, 0.001);\n    let specular = numerator / vec3(denominator, denominator, denominator);\n\n    return (kD * surface.albedo.rgb / vec3(PI, PI, PI) + specular) * NdotL;\n}\n\nfn DirectionalLightRadiance(light: DirectionalLight, surface : Surface) -> vec3<f32> {\n    return CalculateBRDF(surface, light.direction) * light.color * light.intensity;\n}\n\nfn rangeAttenuation(range : f32, distance : f32) -> f32 {\n    if (range <= 0.0) {\n        // Negative range means no cutoff\n        return 1.0 / pow(distance, 2.0);\n    }\n    return clamp(1.0 - pow(distance / range, 4.0), 0.0, 1.0) / pow(distance, 2.0);\n}\n\nfn SpotLightRadiance(light : SpotLight, surface : Surface) -> vec3<f32> {\n    // pointToLight is SURFACE -> LIGHT (as you already set)\n    let dist = length(light.pointToLight);\n\n    // For cone test we need LIGHT -> SURFACE\n    let L_ls = normalize(-light.pointToLight);   // light -> surface\n    let cd   = dot(light.direction, L_ls);       // cos(theta), 1 at center\n\n    // Smooth falloff from edge to center: 0 at cos(angle), 1 at 1.0\n    let spot = smoothstep(cos(light.angle), 1.0, cd);\n\n    // Range attenuation as you have it\n    let attenuation = rangeAttenuation(light.range, dist) * spot;\n\n    // BRDF usually expects wi = SURFACE -> LIGHT\n    let wi = -L_ls; // (surface -> light)\n    let radiance = CalculateBRDF(surface, wi) * light.color * light.intensity * attenuation;\n    return radiance;\n}\n\nfn PointLightRadiance(light: PointLight, surface: Surface) -> vec3<f32> {\n    let dist = length(light.pointToLight);\n    let wi   = normalize(light.pointToLight);        // surface -> light\n    let att  = rangeAttenuation(light.range, dist);  // your smooth cutoff / r^2\n    return CalculateBRDF(surface, wi) * light.color * light.intensity * att;\n}\n\n@fragment\nfn fragmentMain(input: VertexOutput) -> @location(0) vec4<f32> {\n    // Load depth once\n    let pix = vec2<i32>(input.position.xy);\n    let depth = textureLoad(depthTexture, pix, 0);\n\n    if (depth > 0.99999) {\n        discard;\n    }\n\n    let fragCoord = input.position.xy;\n    let screenSize = view.projectionOutputSize.xy;\n\n    let uv = fragCoord / screenSize;\n\n    let worldPosition = reconstructWorldPosFromZ(\n        input.position.xy,\n        view.projectionOutputSize.xy,\n        depth,\n        view.projectionInverseMatrix,\n        view.viewInverseMatrix\n    );\n\n    let albedo = textureLoad(albedoTexture, pix, 0);\n    var normal = textureLoad(normalTexture, pix, 0);\n    let ermo   = textureLoad(ermoTexture,   pix, 0);\n\n\n    let unlit = ermo.a;\n\n    if (unlit > 0.5) {\n        var color = albedo.rgb;\n        return vec4f(color, 1.0);\n    }\n\n    var surface: Surface;\n    surface.depth          = depth;\n    surface.albedo         = albedo.rgb;\n    surface.roughness      = clamp(albedo.a, 0.0, 0.99);\n    surface.occlusion      = normal.z;\n    surface.metallic       = normal.a;\n    surface.emissive       = ermo.rgb;\n    surface.worldPosition  = worldPosition.xyz;\n    \n    surface.N = OctDecode(normal.rg);\n    surface.F0             = mix(vec3(0.04), surface.albedo.rgb, vec3(surface.metallic));\n    surface.V              = normalize(view.viewPosition.xyz - surface.worldPosition);\n\n    var lo = vec3f(0.0);\n    var selectedCascade = 0;\n\n    var light = lights[input.lightIndex];\n    let lightType = u32(light.color.a);\n\n    if (lightType == DIRECTIONAL_LIGHT) {\n        var directionalLight: DirectionalLight;\n        directionalLight.direction = normalize((light.viewMatrixInverse * vec4(0.0, 0.0, 1.0, 0.0)).xyz);\n        // directionalLight.direction = light.direction.xyz;\n        directionalLight.color = light.color.rgb;\n        directionalLight.intensity = light.params1.x;\n\n        let castShadows = light.params1.z > 0.5;\n        var shadow = 1.0;\n        if (castShadows) {\n            let shadowCSM = CalculateShadowCSM(shadowPassDepth, shadowSamplerComp, surface, light, input.lightIndex);\n            shadow = shadowCSM.visibility;\n            selectedCascade = shadowCSM.selectedCascade;\n        }\n\n        // lo += shadow * DirectionalLightRadiance(directionalLight, surface) * radiance;\n        lo += shadow * DirectionalLightRadiance(directionalLight, surface);\n    }\n\n    else if (lightType == SPOT_LIGHT) {\n        var spotLight: SpotLight;\n        \n        // light.position.x *= -1.0;\n        // light.position.z *= -1.0;\n        spotLight.pointToLight = light.position.xyz - surface.worldPosition;\n        spotLight.color = light.color.rgb;\n        spotLight.intensity = light.params1.r;\n        spotLight.range = light.params1.g;\n        spotLight.direction = normalize((light.viewMatrixInverse * vec4(0.0, 0.0, -1.0, 0.0)).xyz);\n        // spotLight.direction = normalize(light.params2.xyz);\n        // spotLight.direction = light.direction.xyz;\n        spotLight.angle = light.params2.w;\n\n        let castShadows = light.params1.z > 0.5;\n        var shadow = 1.0;\n        if (castShadows) {\n            let shadowCSM = CalculateShadowCSMSpot(shadowPassDepth, shadowSamplerComp, surface, light, input.lightIndex);\n            shadow = shadowCSM.visibility;\n            selectedCascade = shadowCSM.selectedCascade;\n            // shadow = SampleSpotShadowMap(surface, light); // <— single 2D map on this layer\n\n        }\n\n        lo += shadow * SpotLightRadiance(spotLight, surface);\n    }\n\n    else if (lightType == POINT_LIGHT) {\n        var p: PointLight;\n        p.pointToLight = light.position.xyz - surface.worldPosition;\n        p.color        = light.color.rgb;\n        p.intensity    = light.params1.x;\n        p.range        = light.params1.y;\n\n        var shadow = 1.0;\n        let castShadows = light.params1.z > 0.5;\n        // if (castShadows) {\n        //     shadow = SamplePointShadow(surface, light, i);\n        // }\n\n        lo += shadow * PointLightRadiance(p, surface);\n    }\n\n    return vec4f(lo, 0.0);\n}";
 
-var WGSL_Shader_IBLLighting_URL = "#include \"@trident/core/resources/webgpu/shaders/deferred/Common.wgsl\";\n#include \"@trident/core/resources/webgpu/shaders/deferred/SurfaceStruct.wgsl\";\n\nstruct VertexOutput {\n    @builtin(position) position: vec4<f32>,\n    @location(0) vUv: vec2<f32>,\n};\n\n@group(0) @binding(0) var textureSampler: sampler;\n\n@group(0) @binding(1) var albedoTexture: texture_2d<f32>;\n@group(0) @binding(2) var normalTexture: texture_2d<f32>;\n@group(0) @binding(3) var ermoTexture: texture_2d<f32>;\n@group(0) @binding(4) var depthTexture: texture_depth_2d;\n\n@group(0) @binding(7) var skyboxIrradianceTexture: texture_cube<f32>;\n@group(0) @binding(8) var skyboxPrefilterTexture: texture_cube<f32>;\n@group(0) @binding(9) var skyboxBRDFLUT: texture_2d<f32>;\n\n@group(0) @binding(10) var brdfSampler: sampler;\n@group(0) @binding(11) var skybox: texture_cube<f32>;\n\nstruct View {\n    projectionOutputSize: vec4<f32>,\n    viewPosition: vec4<f32>,\n    projectionInverseMatrix: mat4x4<f32>,\n    viewInverseMatrix: mat4x4<f32>,\n    viewMatrix: mat4x4<f32>,\n    projectionMatrix: mat4x4<f32>,\n};\n@group(0) @binding(13) var<storage, read> view: View;\n\n\n// Full-screen triangle (covers screen with 3 verts)\nconst p = array<vec2f, 3>(\n    vec2f(-1.0, -1.0),\n    vec2f( 3.0, -1.0),\n    vec2f(-1.0,  3.0)\n);\n\n@vertex\nfn vertexMain(@builtin(vertex_index) vertexIndex : u32) -> VertexOutput {\n    var output: VertexOutput;\n    output.position = vec4(p[vertexIndex], 0.0, 1.0);\n    let uv = 0.5 * (p[vertexIndex] + vec2f(1.0, 1.0));\n    output.vUv = vec2f(uv.x, 1.0 - uv.y);\n    return output;\n}\n\nfn reconstructWorldPosFromZ(\n    coords: vec2<f32>,\n    size: vec2<f32>,\n    depth: f32,\n    projInverse: mat4x4<f32>,\n    viewInverse: mat4x4<f32>\n    ) -> vec4<f32> {\n    let uv = coords.xy / size;\n    let x = uv.x * 2.0 - 1.0;\n    let y = (1.0 - uv.y) * 2.0 - 1.0;\n    let projectedPos = vec4(x, y, depth, 1.0);\n    var worldPosition = projInverse * projectedPos;\n    worldPosition = vec4(worldPosition.xyz / worldPosition.w, 1.0);\n    worldPosition = viewInverse * worldPosition;\n    return worldPosition;\n}\n\nfn FresnelSchlick(cosTheta: f32, f0: vec3f) -> vec3f {\n  return f0 + (1.0 - f0) * pow(clamp(1.0 - cosTheta, 0.0, 1.0), 5.0);\n}\n\nfn FresnelSchlickRoughness(cosTheta: f32, f0: vec3f, roughness: f32) -> vec3f {\n  return f0 + (max(vec3(1.0 - roughness), f0) - f0) * pow(clamp(1.0 - cosTheta, 0.0, 1.0), 5.0);\n}\n\nfn clampedDot(x: vec3f, y: vec3f) -> f32\n{\n    return clamp(dot(x, y), 0.0, 1.0);\n}\n\nfn getIBLGGXFresnel(n: vec3f, v: vec3f, roughness: f32, F0: vec3f, specularWeight: f32) -> vec3f\n{\n    // see https://bruop.github.io/ibl/#single_scattering_results at Single Scattering Results\n    // Roughness dependent fresnel, from Fdez-Aguera\n    let NdotV = clampedDot(n, v);\n    let brdfSamplePoint = clamp(vec2(NdotV, roughness), vec2(0.0, 0.0), vec2(1.0, 1.0));\n    // let f_ab = texture(u_GGXLUT, brdfSamplePoint).rg;\n    let f_ab = textureSample(skyboxBRDFLUT, textureSampler, brdfSamplePoint).rg;\n    let Fr = max(vec3(1.0 - roughness), F0) - F0;\n    let k_S = F0 + Fr * pow(1.0 - NdotV, 5.0);\n    let FssEss = specularWeight * (k_S * f_ab.x + f_ab.y);\n\n    // Multiple scattering, from Fdez-Aguera\n    let Ems = (1.0 - (f_ab.x + f_ab.y));\n    let F_avg = specularWeight * (F0 + (1.0 - F0) / 21.0);\n    let FmsEms = Ems * FssEss * F_avg / (1.0 - F_avg * Ems);\n\n    return FssEss + FmsEms;\n}\n\nconst PI = 3.141592653589793;\n\n@fragment\nfn fragmentMain(input: VertexOutput) -> @location(0) vec4<f32> {\n    let uv = input.vUv;\n\n    let pix = vec2<i32>(input.position.xy);\n    let albedo = textureLoad(albedoTexture, pix, 0);\n    let normal = textureLoad(normalTexture, pix, 0);\n    let ermo   = textureLoad(ermoTexture,   pix, 0);\n    let depth  = textureLoad(depthTexture,  pix, 0);    \n\n    let worldPosition = reconstructWorldPosFromZ(\n        input.position.xy,\n        view.projectionOutputSize.xy,\n        depth,\n        view.projectionInverseMatrix,\n        view.viewInverseMatrix\n    );\n\n    var surface: Surface;\n    surface.depth          = depth;\n    surface.albedo         = albedo.rgb;\n    surface.roughness      = clamp(albedo.a, 0.01, 0.99);\n    surface.occlusion      = normal.z;\n    surface.metallic       = normal.a;\n    surface.emissive       = ermo.rgb;\n    surface.worldPosition  = worldPosition.xyz;\n    \n    surface.N              = OctDecode(normal.rg);\n    surface.F0             = mix(vec3(0.04), surface.albedo.rgb, vec3(surface.metallic));\n    surface.V              = normalize(view.viewPosition.xyz - surface.worldPosition);\n\n\n    let n = surface.N;\n    let v = surface.V;\n    let r = reflect(-v, n);\n\n    // let irradiance = textureSample(skyboxIrradianceTexture, textureSampler, n).rgb;\n    // let diffuse = irradiance * surface.albedo.xyz;\n\n    // let f = FresnelSchlickRoughness(max(dot(n, v), 0.00001), surface.F0, surface.roughness);\n    // let kS = f;\n    // var kD = vec3f(1.0) - kS;\n    // kD *= 1.0 - surface.metallic;\n\n    // let MAX_REFLECTION_LOD = f32(textureNumLevels(skyboxPrefilterTexture) - 1u);\n    // let prefilteredColor = textureSampleLevel(skyboxPrefilterTexture, textureSampler, r, surface.roughness * MAX_REFLECTION_LOD).rgb;\n    // let brdf = textureSample(skyboxBRDFLUT, brdfSampler, vec2f(max(dot(n, v), 0.0), surface.roughness)).rg;\n    // let specular = prefilteredColor * (f * brdf.x + brdf.y);\n\n    // let ambient = kD * diffuse * (1.0 - surface.occlusion) + specular;\n\n    // let color = ambient + surface.emissive;\n\n\n    // return vec4f(color, 1.0);\n    \n    // let f_diffuse = diffuse;\n    // let f_metal_fresnel_ibl = getIBLGGXFresnel(n, v, surface.roughness, surface.albedo.rgb, 1.0);\n    // let f_metal_brdf_ibl = vec3f(0.0);\n\n    // let f_specular_dielectric = vec3f(0.0);\n    // let specularWeight = 1.0;\n    // let f_dielectric_fresnel_ibl = getIBLGGXFresnel(n, v, surface.roughness, surface.F0, specularWeight);\n    // let f_dielectric_brdf_ibl = mix(f_diffuse, f_specular_dielectric,  f_dielectric_fresnel_ibl);\n\n    // let color = mix(f_dielectric_brdf_ibl, f_metal_brdf_ibl, surface.metallic) + surface.emissive;\n\n    // return vec4f(color, 1.0);\n\n\n\n\n\n\n  let NdotV = max(dot(n, v), 0.0);\n\n  let MAX_REFLECTION_LOD = f32(textureNumLevels(skyboxPrefilterTexture) - 1u);\n  let prefiltered = textureSampleLevel(\n      skyboxPrefilterTexture,\n      textureSampler,\n      r,\n      surface.roughness * MAX_REFLECTION_LOD\n  ).rgb;\n\n  let brdf = textureSample(\n      skyboxBRDFLUT,\n      brdfSampler,\n      vec2f(NdotV, surface.roughness)\n  ).rg;\n\n  // diffuse from irradiance\n  let irradiance = textureSample(skyboxIrradianceTexture, textureSampler, n).rgb;\n  let diffuse = irradiance * surface.albedo;\n\n  // fresnel term (glTF-style)\n  let f_metal_fresnel_ibl = getIBLGGXFresnel(n, v, surface.roughness, surface.albedo, 1.0);\n  let f_metal_brdf_ibl = prefiltered * f_metal_fresnel_ibl;\n\n  // dielectrics: F0 is ~0.04\n  let f_dielectric_fresnel_ibl = getIBLGGXFresnel(n, v, surface.roughness, surface.F0, 1.0);\n  let f_dielectric_brdf_ibl = mix(diffuse, prefiltered * f_dielectric_fresnel_ibl, f_dielectric_fresnel_ibl);\n\n  var color = mix(f_dielectric_brdf_ibl, f_metal_brdf_ibl, surface.metallic) + surface.emissive;\n\n  let occlusionStrength = 1.0; // match glTF default\n  color = color * (1.0 + occlusionStrength * (1.0 - surface.occlusion));\n\n  return vec4f(color, 1.0);\n}\n";
+var WGSL_Shader_IBLLighting_URL = "#include \"@trident/core/resources/webgpu/shaders/deferred/Common.wgsl\";\n#include \"@trident/core/resources/webgpu/shaders/deferred/SurfaceStruct.wgsl\";\n\nstruct VertexOutput {\n    @builtin(position) position: vec4<f32>,\n    @location(0) vUv: vec2<f32>,\n};\n\n@group(0) @binding(0) var textureSampler: sampler;\n\n@group(0) @binding(1) var albedoTexture: texture_2d<f32>;\n@group(0) @binding(2) var normalTexture: texture_2d<f32>;\n@group(0) @binding(3) var ermoTexture: texture_2d<f32>;\n@group(0) @binding(4) var depthTexture: texture_depth_2d;\n\n@group(0) @binding(7) var skyboxIrradianceTexture: texture_cube<f32>;\n@group(0) @binding(8) var skyboxPrefilterTexture: texture_cube<f32>;\n@group(0) @binding(9) var skyboxBRDFLUT: texture_2d<f32>;\n\n@group(0) @binding(10) var brdfSampler: sampler;\n@group(0) @binding(11) var skybox: texture_cube<f32>;\n\nstruct View {\n    projectionOutputSize: vec4<f32>,\n    viewPosition: vec4<f32>,\n    projectionInverseMatrix: mat4x4<f32>,\n    viewInverseMatrix: mat4x4<f32>,\n    viewMatrix: mat4x4<f32>,\n    projectionMatrix: mat4x4<f32>,\n};\n@group(0) @binding(13) var<storage, read> view: View;\n\n\n// Full-screen triangle (covers screen with 3 verts)\nconst p = array<vec2f, 3>(\n    vec2f(-1.0, -1.0),\n    vec2f( 3.0, -1.0),\n    vec2f(-1.0,  3.0)\n);\n\n@vertex\nfn vertexMain(@builtin(vertex_index) vertexIndex : u32) -> VertexOutput {\n    var output: VertexOutput;\n    output.position = vec4(p[vertexIndex], 0.0, 1.0);\n    let uv = 0.5 * (p[vertexIndex] + vec2f(1.0, 1.0));\n    output.vUv = vec2f(uv.x, 1.0 - uv.y);\n    return output;\n}\n\nfn reconstructWorldPosFromZ(\n    coords: vec2<f32>,\n    size: vec2<f32>,\n    depth: f32,\n    projInverse: mat4x4<f32>,\n    viewInverse: mat4x4<f32>\n    ) -> vec4<f32> {\n    let uv = coords.xy / size;\n    let x = uv.x * 2.0 - 1.0;\n    let y = (1.0 - uv.y) * 2.0 - 1.0;\n    let projectedPos = vec4(x, y, depth, 1.0);\n    var worldPosition = projInverse * projectedPos;\n    worldPosition = vec4(worldPosition.xyz / worldPosition.w, 1.0);\n    worldPosition = viewInverse * worldPosition;\n    return worldPosition;\n}\n\nfn FresnelSchlick(cosTheta: f32, f0: vec3f) -> vec3f {\n  return f0 + (1.0 - f0) * pow(clamp(1.0 - cosTheta, 0.0, 1.0), 5.0);\n}\n\nfn FresnelSchlickRoughness(cosTheta: f32, f0: vec3f, roughness: f32) -> vec3f {\n  return f0 + (max(vec3(1.0 - roughness), f0) - f0) * pow(clamp(1.0 - cosTheta, 0.0, 1.0), 5.0);\n}\n\nfn clampedDot(x: vec3f, y: vec3f) -> f32\n{\n    return clamp(dot(x, y), 0.0, 1.0);\n}\n\nfn getIBLGGXFresnel(n: vec3f, v: vec3f, roughness: f32, F0: vec3f, specularWeight: f32) -> vec3f\n{\n    // see https://bruop.github.io/ibl/#single_scattering_results at Single Scattering Results\n    // Roughness dependent fresnel, from Fdez-Aguera\n    let NdotV = clampedDot(n, v);\n    let brdfSamplePoint = clamp(vec2(NdotV, roughness), vec2(0.0, 0.0), vec2(1.0, 1.0));\n    // let f_ab = texture(u_GGXLUT, brdfSamplePoint).rg;\n    let f_ab = textureSample(skyboxBRDFLUT, textureSampler, brdfSamplePoint).rg;\n    let Fr = max(vec3(1.0 - roughness), F0) - F0;\n    let k_S = F0 + Fr * pow(1.0 - NdotV, 5.0);\n    let FssEss = specularWeight * (k_S * f_ab.x + f_ab.y);\n\n    // Multiple scattering, from Fdez-Aguera\n    let Ems = (1.0 - (f_ab.x + f_ab.y));\n    let F_avg = specularWeight * (F0 + (1.0 - F0) / 21.0);\n    let FmsEms = Ems * FssEss * F_avg / (1.0 - F_avg * Ems);\n\n    return FssEss + FmsEms;\n}\n\nconst PI = 3.141592653589793;\n\n@fragment\nfn fragmentMain(input: VertexOutput) -> @location(0) vec4<f32> {\n    let uv = input.vUv;\n\n    let pix = vec2<i32>(input.position.xy);\n    let albedo = textureLoad(albedoTexture, pix, 0);\n    let normal = textureLoad(normalTexture, pix, 0);\n    let ermo   = textureLoad(ermoTexture,   pix, 0);\n    let depth  = textureLoad(depthTexture,  pix, 0);    \n\n    let worldPosition = reconstructWorldPosFromZ(\n        input.position.xy,\n        view.projectionOutputSize.xy,\n        depth,\n        view.projectionInverseMatrix,\n        view.viewInverseMatrix\n    );\n\n    var surface: Surface;\n    surface.depth          = depth;\n    surface.albedo         = albedo.rgb;\n    surface.roughness      = clamp(albedo.a, 0.01, 0.99);\n    surface.occlusion      = normal.z;\n    surface.metallic       = normal.a;\n    surface.emissive       = ermo.rgb;\n    surface.worldPosition  = worldPosition.xyz;\n    \n    surface.N              = OctDecode(normal.rg);\n    surface.F0             = mix(vec3(0.04), surface.albedo.rgb, vec3(surface.metallic));\n    surface.V              = normalize(view.viewPosition.xyz - surface.worldPosition);\n\n\n    let n = surface.N;\n    let v = surface.V;\n    let r = reflect(-v, n);\n\n    // let irradiance = textureSample(skyboxIrradianceTexture, textureSampler, n).rgb;\n    // let diffuse = irradiance * surface.albedo.xyz;\n\n    // let f = FresnelSchlickRoughness(max(dot(n, v), 0.00001), surface.F0, surface.roughness);\n    // let kS = f;\n    // var kD = vec3f(1.0) - kS;\n    // kD *= 1.0 - surface.metallic;\n\n    // let MAX_REFLECTION_LOD = f32(textureNumLevels(skyboxPrefilterTexture) - 1u);\n    // let prefilteredColor = textureSampleLevel(skyboxPrefilterTexture, textureSampler, r, surface.roughness * MAX_REFLECTION_LOD).rgb;\n    // let brdf = textureSample(skyboxBRDFLUT, brdfSampler, vec2f(max(dot(n, v), 0.0), surface.roughness)).rg;\n    // let specular = prefilteredColor * (f * brdf.x + brdf.y);\n\n    // let ambient = kD * diffuse * (1.0 - surface.occlusion) + specular;\n\n    // let color = ambient + surface.emissive;\n\n\n    // return vec4f(color, 1.0);\n    \n    // let f_diffuse = diffuse;\n    // let f_metal_fresnel_ibl = getIBLGGXFresnel(n, v, surface.roughness, surface.albedo.rgb, 1.0);\n    // let f_metal_brdf_ibl = vec3f(0.0);\n\n    // let f_specular_dielectric = vec3f(0.0);\n    // let specularWeight = 1.0;\n    // let f_dielectric_fresnel_ibl = getIBLGGXFresnel(n, v, surface.roughness, surface.F0, specularWeight);\n    // let f_dielectric_brdf_ibl = mix(f_diffuse, f_specular_dielectric,  f_dielectric_fresnel_ibl);\n\n    // let color = mix(f_dielectric_brdf_ibl, f_metal_brdf_ibl, surface.metallic) + surface.emissive;\n\n    // return vec4f(color, 1.0);\n\n\n\n\n\n\n  let NdotV = max(dot(n, v), 0.0);\n\n  let MAX_REFLECTION_LOD = f32(textureNumLevels(skyboxPrefilterTexture) - 1u);\n  let prefiltered = textureSampleLevel(\n      skyboxPrefilterTexture,\n      textureSampler,\n      r,\n      surface.roughness * MAX_REFLECTION_LOD\n  ).rgb;\n\n  let brdf = textureSample(\n      skyboxBRDFLUT,\n      brdfSampler,\n      vec2f(NdotV, surface.roughness)\n  ).rg;\n\n  // diffuse from irradiance\n  let irradiance = textureSample(skyboxIrradianceTexture, textureSampler, n).rgb;\n  let diffuse = irradiance * surface.albedo;\n\n  // fresnel term (glTF-style)\n  let f_metal_fresnel_ibl = getIBLGGXFresnel(n, v, surface.roughness, surface.albedo, 1.0);\n  let f_metal_brdf_ibl = prefiltered * f_metal_fresnel_ibl;\n\n  // dielectrics: F0 is ~0.04\n  let specularWeight = 1.0;\n  let f_dielectric_fresnel_ibl = getIBLGGXFresnel(n, v, surface.roughness, surface.F0, specularWeight);\n  let f_dielectric_brdf_ibl = mix(diffuse, prefiltered * f_dielectric_fresnel_ibl, f_dielectric_fresnel_ibl);\n\n  var color = mix(f_dielectric_brdf_ibl, f_metal_brdf_ibl, surface.metallic) + surface.emissive;\n\n  let occlusionStrength = 1.0; // match glTF default\n  color = color * (1.0 + occlusionStrength * (1.0 - surface.occlusion));\n\n  return vec4f(color, 1.0);\n}\n";
 
 var WGSL_Shader_Deferred_SurfaceStruct = "struct Surface {\n    albedo: vec3<f32>,\n    emissive: vec3<f32>,\n    metallic: f32,\n    roughness: f32,\n    occlusion: f32,\n    worldPosition: vec3<f32>,\n    N: vec3<f32>,\n    F0: vec3<f32>,\n    V: vec3<f32>,\n    depth: f32\n};";
 
@@ -2509,6 +2521,8 @@ class WEBGPUTexture {
       r8unorm: 1,
       rg8unorm: 2,
       rgba8unorm: 4,
+      bgra8unorm: 4,
+      "bgra8unorm-srgb": 4,
       r16float: 2,
       rg16float: 4,
       rgba16float: 8,
@@ -3421,7 +3435,26 @@ class Geometry {
     geometry.attributes.set("uv", new VertexAttribute(new Float32Array(uvs)));
     return geometry;
   }
+  static Capsule() {
+    const vertices = new Float32Array([0, -1, 0, 0, -1, 0, 0, -1, 0, 0, -1, 0, 0, -1, 0, 0, -1, 0, 0, -1, 0, 0, -1, 0, 0, -1, 0, -0.1913, -0.9619, 0, -0.1353, -0.9619, 0.1353, 0, -0.9619, 0.1913, 0.1353, -0.9619, 0.1353, 0.1913, -0.9619, 0, 0.1353, -0.9619, -0.1353, 0, -0.9619, -0.1913, -0.1353, -0.9619, -0.1353, -0.1913, -0.9619, 0, -0.3536, -0.8536, 0, -0.25, -0.8536, 0.25, 0, -0.8536, 0.3536, 0.25, -0.8536, 0.25, 0.3536, -0.8536, 0, 0.25, -0.8536, -0.25, 0, -0.8536, -0.3536, -0.25, -0.8536, -0.25, -0.3536, -0.8536, 0, -0.4619, -0.6913, 0, -0.3266, -0.6913, 0.3266, 0, -0.6913, 0.4619, 0.3266, -0.6913, 0.3266, 0.4619, -0.6913, 0, 0.3266, -0.6913, -0.3266, 0, -0.6913, -0.4619, -0.3266, -0.6913, -0.3266, -0.4619, -0.6913, 0, -0.5, -0.5, 0, -0.3536, -0.5, 0.3536, 0, -0.5, 0.5, 0.3536, -0.5, 0.3536, 0.5, -0.5, 0, 0.3536, -0.5, -0.3536, 0, -0.5, -0.5, -0.3536, -0.5, -0.3536, -0.5, -0.5, 0, -0.5, 0.5, 0, -0.3536, 0.5, 0.3536, 0, 0.5, 0.5, 0.3536, 0.5, 0.3536, 0.5, 0.5, 0, 0.3536, 0.5, -0.3536, 0, 0.5, -0.5, -0.3536, 0.5, -0.3536, -0.5, 0.5, 0, -0.4619, 0.6913, 0, -0.3266, 0.6913, 0.3266, 0, 0.6913, 0.4619, 0.3266, 0.6913, 0.3266, 0.4619, 0.6913, 0, 0.3266, 0.6913, -0.3266, 0, 0.6913, -0.4619, -0.3266, 0.6913, -0.3266, -0.4619, 0.6913, 0, -0.3536, 0.8536, 0, -0.25, 0.8536, 0.25, 0, 0.8536, 0.3536, 0.25, 0.8536, 0.25, 0.3536, 0.8536, 0, 0.25, 0.8536, -0.25, 0, 0.8536, -0.3536, -0.25, 0.8536, -0.25, -0.3536, 0.8536, 0, -0.1913, 0.9619, 0, -0.1353, 0.9619, 0.1353, 0, 0.9619, 0.1913, 0.1353, 0.9619, 0.1353, 0.1913, 0.9619, 0, 0.1353, 0.9619, -0.1353, 0, 0.9619, -0.1913, -0.1353, 0.9619, -0.1353, -0.1913, 0.9619, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0]);
+    const normals = new Float32Array([0, -1, 0, 0, -1, 0, 0, -1, 0, 0, -1, 0, 0, -1, 0, 0, -1, 0, 0, -1, 0, 0, -1, 0, 0, -1, 0, -0.3827, -0.9239, 0, -0.2706, -0.9239, 0.2706, 0, -0.9239, 0.3827, 0.2706, -0.9239, 0.2706, 0.3827, -0.9239, 0, 0.2706, -0.9239, -0.2706, 0, -0.9239, -0.3827, -0.2706, -0.9239, -0.2706, -0.3827, -0.9239, 0, -0.7071, -0.7071, 0, -0.5, -0.7071, 0.5, 0, -0.7071, 0.7071, 0.5, -0.7071, 0.5, 0.7071, -0.7071, 0, 0.5, -0.7071, -0.5, 0, -0.7071, -0.7071, -0.5, -0.7071, -0.5, -0.7071, -0.7071, 0, -0.9239, -0.3827, 0, -0.6533, -0.3827, 0.6533, 0, -0.3827, 0.9239, 0.6533, -0.3827, 0.6533, 0.9239, -0.3827, 0, 0.6533, -0.3827, -0.6533, 0, -0.3827, -0.9239, -0.6533, -0.3827, -0.6533, -0.9239, -0.3827, 0, -1, 0, 0, -0.7071, 0, 0.7071, 0, 0, 1, 0.7071, 0, 0.7071, 1, 0, 0, 0.7071, 0, -0.7071, 0, 0, -1, -0.7071, 0, -0.7071, -1, 0, 0, -1, 0, 0, -0.7071, 0, 0.7071, 0, 0, 1, 0.7071, 0, 0.7071, 1, 0, 0, 0.7071, 0, -0.7071, 0, 0, -1, -0.7071, 0, -0.7071, -1, 0, 0, -0.9239, 0.3827, 0, -0.6533, 0.3827, 0.6533, 0, 0.3827, 0.9239, 0.6533, 0.3827, 0.6533, 0.9239, 0.3827, 0, 0.6533, 0.3827, -0.6533, 0, 0.3827, -0.9239, -0.6533, 0.3827, -0.6533, -0.9239, 0.3827, 0, -0.7071, 0.7071, 0, -0.5, 0.7071, 0.5, 0, 0.7071, 0.7071, 0.5, 0.7071, 0.5, 0.7071, 0.7071, 0, 0.5, 0.7071, -0.5, 0, 0.7071, -0.7071, -0.5, 0.7071, -0.5, -0.7071, 0.7071, 0, -0.3827, 0.9239, 0, -0.2706, 0.9239, 0.2706, 0, 0.9239, 0.3827, 0.2706, 0.9239, 0.2706, 0.3827, 0.9239, 0, 0.2706, 0.9239, -0.2706, 0, 0.9239, -0.3827, -0.2706, 0.9239, -0.2706, -0.3827, 0.9239, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0]);
+    const uvs = new Float32Array([0.0625, 0, 0.1875, 0, 0.3125, 0, 0.4375, 0, 0.5625, 0, 0.6875, 0, 0.8125, 0, 0.9375, 0, 1.0625, 0, 0, 0.0764, 0.125, 0.0764, 0.25, 0.0764, 0.375, 0.0764, 0.5, 0.0764, 0.625, 0.0764, 0.75, 0.0764, 0.875, 0.0764, 1, 0.0764, 0, 0.1528, 0.125, 0.1528, 0.25, 0.1528, 0.375, 0.1528, 0.5, 0.1528, 0.625, 0.1528, 0.75, 0.1528, 0.875, 0.1528, 1, 0.1528, 0, 0.2291, 0.125, 0.2291, 0.25, 0.2291, 0.375, 0.2291, 0.5, 0.2291, 0.625, 0.2291, 0.75, 0.2291, 0.875, 0.2291, 1, 0.2291, 0, 0.3055, 0.125, 0.3055, 0.25, 0.3055, 0.375, 0.3055, 0.5, 0.3055, 0.625, 0.3055, 0.75, 0.3055, 0.875, 0.3055, 1, 0.3055, 0, 0.6945, 0.125, 0.6945, 0.25, 0.6945, 0.375, 0.6945, 0.5, 0.6945, 0.625, 0.6945, 0.75, 0.6945, 0.875, 0.6945, 1, 0.6945, 0, 0.7709, 0.125, 0.7709, 0.25, 0.7709, 0.375, 0.7709, 0.5, 0.7709, 0.625, 0.7709, 0.75, 0.7709, 0.875, 0.7709, 1, 0.7709, 0, 0.8472, 0.125, 0.8472, 0.25, 0.8472, 0.375, 0.8472, 0.5, 0.8472, 0.625, 0.8472, 0.75, 0.8472, 0.875, 0.8472, 1, 0.8472, 0, 0.9236, 0.125, 0.9236, 0.25, 0.9236, 0.375, 0.9236, 0.5, 0.9236, 0.625, 0.9236, 0.75, 0.9236, 0.875, 0.9236, 1, 0.9236, -0.0625, 1, 0.0625, 1, 0.1875, 1, 0.3125, 1, 0.4375, 1, 0.5625, 1, 0.6875, 1, 0.8125, 1, 0.9375, 1]);
+    const indices = new Uint32Array([0, 1, 9, 1, 10, 9, 1, 2, 10, 2, 11, 10, 2, 3, 11, 3, 12, 11, 3, 4, 12, 4, 13, 12, 4, 5, 13, 5, 14, 13, 5, 6, 14, 6, 15, 14, 6, 7, 15, 7, 16, 15, 7, 8, 16, 8, 17, 16, 9, 10, 18, 10, 19, 18, 10, 11, 19, 11, 20, 19, 11, 12, 20, 12, 21, 20, 12, 13, 21, 13, 22, 21, 13, 14, 22, 14, 23, 22, 14, 15, 23, 15, 24, 23, 15, 16, 24, 16, 25, 24, 16, 17, 25, 17, 26, 25, 18, 19, 27, 19, 28, 27, 19, 20, 28, 20, 29, 28, 20, 21, 29, 21, 30, 29, 21, 22, 30, 22, 31, 30, 22, 23, 31, 23, 32, 31, 23, 24, 32, 24, 33, 32, 24, 25, 33, 25, 34, 33, 25, 26, 34, 26, 35, 34, 27, 28, 36, 28, 37, 36, 28, 29, 37, 29, 38, 37, 29, 30, 38, 30, 39, 38, 30, 31, 39, 31, 40, 39, 31, 32, 40, 32, 41, 40, 32, 33, 41, 33, 42, 41, 33, 34, 42, 34, 43, 42, 34, 35, 43, 35, 44, 43, 36, 37, 45, 37, 46, 45, 37, 38, 46, 38, 47, 46, 38, 39, 47, 39, 48, 47, 39, 40, 48, 40, 49, 48, 40, 41, 49, 41, 50, 49, 41, 42, 50, 42, 51, 50, 42, 43, 51, 43, 52, 51, 43, 44, 52, 44, 53, 52, 45, 46, 54, 46, 55, 54, 46, 47, 55, 47, 56, 55, 47, 48, 56, 48, 57, 56, 48, 49, 57, 49, 58, 57, 49, 50, 58, 50, 59, 58, 50, 51, 59, 51, 60, 59, 51, 52, 60, 52, 61, 60, 52, 53, 61, 53, 62, 61, 54, 55, 63, 55, 64, 63, 55, 56, 64, 56, 65, 64, 56, 57, 65, 57, 66, 65, 57, 58, 66, 58, 67, 66, 58, 59, 67, 59, 68, 67, 59, 60, 68, 60, 69, 68, 60, 61, 69, 61, 70, 69, 61, 62, 70, 62, 71, 70, 63, 64, 72, 64, 73, 72, 64, 65, 73, 65, 74, 73, 65, 66, 74, 66, 75, 74, 66, 67, 75, 67, 76, 75, 67, 68, 76, 68, 77, 76, 68, 69, 77, 69, 78, 77, 69, 70, 78, 70, 79, 78, 70, 71, 79, 71, 80, 79, 72, 73, 81, 73, 82, 81, 73, 74, 82, 74, 83, 82, 74, 75, 83, 75, 84, 83, 75, 76, 84, 76, 85, 84, 76, 77, 85, 77, 86, 85, 77, 78, 86, 78, 87, 86, 78, 79, 87, 79, 88, 87, 79, 80, 88, 80, 89, 88]);
+    const geometry = new Geometry();
+    geometry.index = new IndexAttribute(new Uint32Array(indices));
+    geometry.attributes.set("position", new VertexAttribute(new Float32Array(vertices)));
+    geometry.attributes.set("normal", new VertexAttribute(new Float32Array(normals)));
+    geometry.attributes.set("uv", new VertexAttribute(new Float32Array(uvs)));
+    return geometry;
+  }
   Serialize(metadata = {}) {
+    if (this.assetPath) {
+      return {
+        id: this.id,
+        name: this.name,
+        assetPath: this.assetPath
+      };
+    }
     return {
       id: this.id,
       name: this.name,
@@ -3440,8 +3473,8 @@ class Geometry {
       const instance = Assets.GetInstance(data.assetPath);
       if (instance) return instance;
       const geometry2 = new Geometry();
-      geometry2.assetPath = data.asset_path;
-      Assets.SetInstance(data.asset_path, geometry2);
+      geometry2.assetPath = data.assetPath;
+      Assets.SetInstance(data.assetPath, geometry2);
       Assets.Load(data.assetPath, "json").then((json) => {
         geometry2.Deserialize(json);
       });
@@ -4956,18 +4989,18 @@ var __privateIn$1 = (member, obj) => Object(obj) !== obj ? __typeError$3('Cannot
 var __privateGet$1 = (obj, member, getter) => (__accessCheck$1(obj, member, "read from private field"), getter ? getter.call(obj) : member.get(obj));
 var __privateSet$1 = (obj, member, value, setter) => (__accessCheck$1(obj, member, "write to private field"), setter ? setter.call(obj, value) : member.set(obj, value), value);
 var __privateMethod$1 = (obj, member, method) => (__accessCheck$1(obj, member, "access private method"), method);
-var _castShadows_dec, _intensity_dec, _color_dec, _camera_dec, _a$3, _init$3, _range_dec, _angle_dec, _b$1, _init2$1, _range_dec2, _c, _init3, _direction_dec, _d, _init4;
+var _castShadows_dec, _intensity_dec, _color_dec, _a$3, _init$3, _range_dec, _angle_dec, _b$1, _init2$1, _range_dec2, _c, _init3, _direction_dec, _d, _init4;
 class LightEvents {
   static Updated = (light) => {
   };
 }
-class Light extends (_a$3 = Component, _camera_dec = [SerializeField], _color_dec = [SerializeField], _intensity_dec = [SerializeField], _castShadows_dec = [SerializeField], _a$3) {
+class Light extends (_a$3 = Component, _color_dec = [SerializeField], _intensity_dec = [SerializeField], _castShadows_dec = [SerializeField], _a$3) {
   constructor() {
     super(...arguments);
-    __publicField$3(this, "camera", __runInitializers$3(_init$3, 8, this, new Camera(this.gameObject))), __runInitializers$3(_init$3, 11, this);
-    __publicField$3(this, "color", __runInitializers$3(_init$3, 12, this, new Color(1, 1, 1))), __runInitializers$3(_init$3, 15, this);
-    __publicField$3(this, "intensity", __runInitializers$3(_init$3, 16, this, 1)), __runInitializers$3(_init$3, 19, this);
-    __publicField$3(this, "castShadows", __runInitializers$3(_init$3, 20, this, true)), __runInitializers$3(_init$3, 23, this);
+    __publicField$3(this, "camera", new Camera(this.gameObject));
+    __publicField$3(this, "color", __runInitializers$3(_init$3, 8, this, new Color(1, 1, 1))), __runInitializers$3(_init$3, 11, this);
+    __publicField$3(this, "intensity", __runInitializers$3(_init$3, 12, this, 1)), __runInitializers$3(_init$3, 15, this);
+    __publicField$3(this, "castShadows", __runInitializers$3(_init$3, 16, this, true)), __runInitializers$3(_init$3, 19, this);
   }
   Start() {
     EventSystemLocal.on(TransformEvents.Updated, this.transform, () => {
@@ -4976,7 +5009,6 @@ class Light extends (_a$3 = Component, _camera_dec = [SerializeField], _color_de
   }
 }
 _init$3 = __decoratorStart$3(_a$3);
-__decorateElement$3(_init$3, 5, "camera", _camera_dec, Light);
 __decorateElement$3(_init$3, 5, "color", _color_dec, Light);
 __decorateElement$3(_init$3, 5, "intensity", _intensity_dec, Light);
 __decorateElement$3(_init$3, 5, "castShadows", _castShadows_dec, Light);
@@ -5582,6 +5614,7 @@ class TextureViewer extends RenderPass {
 
 const MaterialPool = new Pool();
 class Material {
+  id = UUID();
   static type = "@trident/core/renderer/Material";
   assetPath;
   _shader;
@@ -5612,9 +5645,17 @@ class Material {
     return new Material();
   }
   Serialize(metadata = {}) {
+    if (this.assetPath) {
+      return {
+        id: this.id,
+        assetPath: this.assetPath
+      };
+    }
     return {
       shader: this._shader ? this._shader.Serialize(metadata) : void 0,
-      isDeferred: this.params.isDeferred
+      params: {
+        isDeferred: this.params.isDeferred
+      }
     };
   }
   Deserialize(data) {
@@ -5625,8 +5666,8 @@ class Material {
       const instance = Assets.GetInstance(data.assetPath);
       if (instance) return instance;
       const material2 = Material.Create(data.type);
-      material2.assetPath = data.asset_path;
-      Assets.SetInstance(data.asset_path, material2);
+      material2.assetPath = data.assetPath;
+      Assets.SetInstance(data.assetPath, material2);
       Assets.Load(data.assetPath, "json").then((json) => {
         material2.Deserialize(json);
       });
@@ -5644,28 +5685,28 @@ class Material {
 }
 class PBRMaterial extends Material {
   static type = "@trident/core/renderer/Material/PBRMaterial";
-  id = UUID();
-  // Parameters directly in class
-  albedoColor = new Color(1, 1, 1, 1);
-  emissiveColor = new Color(0, 0, 0, 0);
-  roughness = 1;
-  metalness = 0;
-  albedoMap;
-  normalMap;
-  heightMap;
-  armMap;
-  emissiveMap;
-  repeat = new Vector2(1, 1);
-  offset = new Vector2(0, 0);
-  doubleSided = false;
-  alphaCutoff = 0.5;
-  unlit = false;
-  wireframe = false;
-  isSkinned = false;
-  isDeferred = true;
+  params = {
+    albedoColor: new Color(1, 1, 1, 1),
+    emissiveColor: new Color(0, 0, 0, 0),
+    roughness: 1,
+    metalness: 0,
+    albedoMap: void 0,
+    normalMap: void 0,
+    heightMap: void 0,
+    armMap: void 0,
+    emissiveMap: void 0,
+    repeat: new Vector2(1, 1),
+    offset: new Vector2(0, 0),
+    doubleSided: false,
+    alphaCutoff: 0.5,
+    unlit: false,
+    wireframe: false,
+    isSkinned: false,
+    isDeferred: true
+  };
   constructor(params) {
     super({ isDeferred: params?.isDeferred ?? true });
-    Object.assign(this, params);
+    Object.assign(this.params, params);
     this.createShader();
   }
   pendingShaderCreation;
@@ -5674,97 +5715,104 @@ class PBRMaterial extends Material {
     this.pendingShaderCreation = (async () => {
       const gbufferFormat = Scene.mainScene.renderPipeline.GBufferFormat;
       const defines = {
-        USE_ALBEDO_MAP: !!this.albedoMap,
-        USE_NORMAL_MAP: !!this.normalMap,
-        USE_HEIGHT_MAP: !!this.heightMap,
-        USE_ARM_MAP: !!this.armMap,
-        USE_EMISSIVE_MAP: !!this.emissiveMap,
-        USE_SKINNING: !!this.isSkinned
+        USE_ALBEDO_MAP: !!this.params.albedoMap,
+        USE_NORMAL_MAP: !!this.params.normalMap,
+        USE_HEIGHT_MAP: !!this.params.heightMap,
+        USE_ARM_MAP: !!this.params.armMap,
+        USE_EMISSIVE_MAP: !!this.params.emissiveMap,
+        USE_SKINNING: !!this.params.isSkinned
       };
       const shaderParams = {
         code: await ShaderLoader.Draw,
         defines,
         colorOutputs: Array(3).fill({ format: gbufferFormat }),
         depthOutput: "depth24plus",
-        cullMode: this.doubleSided === true ? "none" : "back"
+        cullMode: this.params.doubleSided === true ? "none" : "back"
       };
       const shader = await Shader.Create(shaderParams);
       if (Object.values(defines).some((v) => v)) {
         shader.SetSampler("TextureSampler", TextureSampler.Create());
       }
       shader.SetArray("material", new Float32Array([
-        this.albedoColor.r,
-        this.albedoColor.g,
-        this.albedoColor.b,
-        this.albedoColor.a,
-        this.emissiveColor.r,
-        this.emissiveColor.g,
-        this.emissiveColor.b,
-        this.emissiveColor.a,
-        this.roughness,
-        this.metalness,
-        +this.unlit,
-        this.alphaCutoff,
-        this.repeat.x,
-        this.repeat.y,
-        this.offset.x,
-        this.offset.y,
-        +this.wireframe,
+        this.params.albedoColor.r,
+        this.params.albedoColor.g,
+        this.params.albedoColor.b,
+        this.params.albedoColor.a,
+        this.params.emissiveColor.r,
+        this.params.emissiveColor.g,
+        this.params.emissiveColor.b,
+        this.params.emissiveColor.a,
+        this.params.roughness,
+        this.params.metalness,
+        +this.params.unlit,
+        this.params.alphaCutoff,
+        this.params.repeat.x,
+        this.params.repeat.y,
+        this.params.offset.x,
+        this.params.offset.y,
+        +this.params.wireframe,
         0,
         0,
         0
       ]));
-      if (this.albedoMap) shader.SetTexture("AlbedoMap", this.albedoMap);
-      if (this.normalMap) shader.SetTexture("NormalMap", this.normalMap);
-      if (this.heightMap) shader.SetTexture("HeightMap", this.heightMap);
-      if (this.armMap) shader.SetTexture("ARMMap", this.armMap);
-      if (this.emissiveMap) shader.SetTexture("EmissiveMap", this.emissiveMap);
+      if (this.params.albedoMap) shader.SetTexture("AlbedoMap", this.params.albedoMap);
+      if (this.params.normalMap) shader.SetTexture("NormalMap", this.params.normalMap);
+      if (this.params.heightMap) shader.SetTexture("HeightMap", this.params.heightMap);
+      if (this.params.armMap) shader.SetTexture("ARMMap", this.params.armMap);
+      if (this.params.emissiveMap) shader.SetTexture("EmissiveMap", this.params.emissiveMap);
       this._shader = shader;
       return shader;
     })();
     return this.pendingShaderCreation;
   }
   Serialize(metadata = {}) {
+    if (this.assetPath) {
+      return {
+        id: this.id,
+        assetPath: this.assetPath
+      };
+    }
     return {
       type: PBRMaterial.type,
+      shader: void 0,
       params: {
-        albedoColor: this.albedoColor.Serialize(),
-        emissiveColor: this.emissiveColor.Serialize(),
-        roughness: this.roughness,
-        metalness: this.metalness,
-        albedoMap: this.albedoMap?.Serialize(metadata),
-        normalMap: this.normalMap?.Serialize(metadata),
-        heightMap: this.heightMap?.Serialize(metadata),
-        armMap: this.armMap?.Serialize(metadata),
-        emissiveMap: this.emissiveMap?.Serialize(metadata),
-        repeat: this.repeat.Serialize(),
-        offset: this.offset.Serialize(),
-        doubleSided: this.doubleSided,
-        alphaCutoff: this.alphaCutoff,
-        unlit: this.unlit,
-        wireframe: this.wireframe,
-        isSkinned: this.isSkinned,
-        isDeferred: this.isDeferred
+        albedoColor: this.params.albedoColor.Serialize(),
+        emissiveColor: this.params.emissiveColor.Serialize(),
+        roughness: this.params.roughness,
+        metalness: this.params.metalness,
+        albedoMap: this.params.albedoMap?.Serialize(metadata),
+        normalMap: this.params.normalMap?.Serialize(metadata),
+        heightMap: this.params.heightMap?.Serialize(metadata),
+        armMap: this.params.armMap?.Serialize(metadata),
+        emissiveMap: this.params.emissiveMap?.Serialize(metadata),
+        repeat: this.params.repeat.Serialize(),
+        offset: this.params.offset.Serialize(),
+        doubleSided: this.params.doubleSided,
+        alphaCutoff: this.params.alphaCutoff,
+        unlit: this.params.unlit,
+        wireframe: this.params.wireframe,
+        isSkinned: this.params.isSkinned,
+        isDeferred: this.params.isDeferred
       }
     };
   }
   async Deserialize(data) {
     const p = data.params;
-    this.albedoColor = new Color().Deserialize(p.albedoColor);
-    this.emissiveColor = new Color().Deserialize(p.emissiveColor);
-    this.roughness = p.roughness;
-    this.metalness = p.metalness;
-    this.albedoMap = p.albedoMap && await Texture.Deserialize(p.albedoMap);
-    this.normalMap = p.normalMap && await Texture.Deserialize(p.normalMap);
-    this.heightMap = p.heightMap && await Texture.Deserialize(p.heightMap);
-    this.armMap = p.armMap && await Texture.Deserialize(p.armMap);
-    this.emissiveMap = p.emissiveMap && await Texture.Deserialize(p.emissiveMap);
-    this.doubleSided = p.doubleSided;
-    this.alphaCutoff = p.alphaCutoff;
-    this.unlit = p.unlit;
-    this.wireframe = p.wireframe;
-    this.isSkinned = p.isSkinned;
-    this.isDeferred = p.isDeferred;
+    this.params.albedoColor = new Color().Deserialize(p.albedoColor);
+    this.params.emissiveColor = new Color().Deserialize(p.emissiveColor);
+    this.params.roughness = p.roughness;
+    this.params.metalness = p.metalness;
+    this.params.albedoMap = p.albedoMap && await Texture.Deserialize(p.albedoMap);
+    this.params.normalMap = p.normalMap && await Texture.Deserialize(p.normalMap);
+    this.params.heightMap = p.heightMap && await Texture.Deserialize(p.heightMap);
+    this.params.armMap = p.armMap && await Texture.Deserialize(p.armMap);
+    this.params.emissiveMap = p.emissiveMap && await Texture.Deserialize(p.emissiveMap);
+    this.params.doubleSided = p.doubleSided;
+    this.params.alphaCutoff = p.alphaCutoff;
+    this.params.unlit = p.unlit;
+    this.params.wireframe = p.wireframe;
+    this.params.isSkinned = p.isSkinned;
+    this.params.isDeferred = p.isDeferred;
     this._shader?.Destroy();
     this.pendingShaderCreation = void 0;
     await this.createShader();
@@ -6498,7 +6546,7 @@ class Mesh extends Renderable {
   constructor(gameObject) {
     super(gameObject);
     if (!Mesh.modelMatrices) {
-      Mesh.modelMatrices = new DynamicBufferMemoryAllocatorDynamic(256, BufferType.STORAGE, 256 * 10);
+      Mesh.modelMatrices = new DynamicBufferMemoryAllocatorDynamic(256 * 1e3, BufferType.STORAGE, 256 * 10);
     }
     EventSystemLocal.on(TransformEvents.Updated, this.transform, () => {
       this.modelMatrixOffset = Mesh.modelMatrices.set(this.id, this.transform.localToWorldMatrix.elements);
@@ -6534,6 +6582,10 @@ class InstancedMesh extends Renderable {
   SetMatrixAt(index, matrix) {
     this.matrices.set(index, matrix.elements);
     this._instanceCount = Math.max(this._instanceCount, index + 1);
+  }
+  SetMatricesBulk(matrices) {
+    this.matrices.set(0, matrices);
+    this._instanceCount = matrices.length / 16;
   }
   OnPreRender() {
     if (!this.geometry || !this.material || !this.material?.shader || this._instanceCount === 0) return;
@@ -6802,6 +6854,7 @@ class RenderablePass extends RenderPass {
   }
   async preRender(resources) {
     for (const renderable of this.renderables) {
+      if (!renderable.gameObject.enabled) continue;
       renderable.OnPreRender();
     }
   }
@@ -6825,6 +6878,7 @@ class RenderablePass extends RenderPass {
       true
     );
     for (const renderable of this.renderables) {
+      if (!renderable.gameObject.enabled) continue;
       renderable.OnRenderObject();
     }
     resources.setResource(PassParams.GBufferDepth, inputGBufferDepth);
