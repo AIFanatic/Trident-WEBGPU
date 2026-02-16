@@ -1,11 +1,13 @@
 import { SerializedComponent } from "./components/Component";
 
 type ResponseType<T> = T extends 'json' ? object
-                      : T extends 'text' ? string
-                      : T extends 'binary' ? ArrayBuffer
-                      : never;
+    : T extends 'text' ? string
+    : T extends 'binary' ? ArrayBuffer
+    : never;
 
 export class Assets {
+    public static ResourceFetchFn: (input: RequestInfo | URL, init?: RequestInit) => Promise<Response> = fetch;
+
     private static cache: Map<string, Promise<any>> = new Map();
     private static instanceCache: Map<string, any> = new Map();
 
@@ -28,7 +30,7 @@ export class Assets {
             return cached;
         }
 
-        const promise = fetch(url).then(response => {
+        const promise = Assets.ResourceFetchFn(url).then(response => {
             if (!response.ok) throw Error(`File not found ${url}`);
             if (type === "json") return response.json();
             else if (type === "text") return response.text();
@@ -51,7 +53,7 @@ export class Assets {
             return cached;
         }
 
-        const promise = fetch(url).then(response => {
+        const promise = Assets.ResourceFetchFn(url).then(response => {
             if (!response.ok) throw Error(`File not found ${url}`);
             if (type === "json") return response.json();
             else if (type === "text") return response.text();
@@ -81,5 +83,15 @@ export class Prefab {
         for (const child of prefab.children) {
             this.traverse(fn, child);
         }
+    }
+
+    public static Deserialize(data: any): Prefab {
+        const prefab = new Prefab();
+        prefab.name = data.name;
+        prefab.type = data.type;
+        prefab.transform = data.transform;
+        prefab.components = Array.isArray(data?.components) ? data.components : [];
+        prefab.children = Array.isArray(data?.children) ? data.children.map((c: any) => Prefab.Deserialize(c)) : [];
+        return prefab;
     }
 }

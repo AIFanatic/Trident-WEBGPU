@@ -16,6 +16,8 @@ import { GLTFLoader } from "@trident/plugins/GLTF/GLTFLoader";
 import { ImpostorMesh } from "@trident/plugins/Impostors/ImpostorMesh";
 import { Debugger } from "@trident/plugins/Debugger";
 import { UITextureViewer } from "@trident/plugins/ui/UIStats";
+import { HDRParser } from "@trident/plugins/HDRParser";
+import { Environment } from "@trident/plugins/Environment/Environment";
 
 
 // GLTFLoader.Load("./assets/DamagedHelmet/DamagedHelmet.gltf");
@@ -37,9 +39,15 @@ async function Application(canvas: HTMLCanvasElement) {
         lightGameObject.transform.position.set(-4, 4, -4);
         lightGameObject.transform.LookAtV1(new Mathf.Vector3(0, 0, 0))
         const light = lightGameObject.AddComponent(Components.DirectionalLight);
-        light.intensity = 5;
+        light.intensity = 1;
         light.range = 1;
         light.color.set(1, 1, 1, 1);
+
+        const hdr = await HDRParser.Load("/dist/examples/assets/textures/HDR/spruit_sunrise_1k.hdr");
+        const skyTexture = await HDRParser.ToCubemap(hdr);
+
+        const environment = new Environment(scene, skyTexture);
+        await environment.init();
     }
 
     // {
@@ -53,18 +61,15 @@ async function Application(canvas: HTMLCanvasElement) {
     // }
 
     // const model = await GLTFLoader.LoadFromURL("./assets/models/Tree.glb");
-    const model = await GLTFLoader.LoadFromURL("./assets/models/bunny.glb");
-    function traverse(object3D: Prefab, func: (o: Prefab) => void | Promise<void>) {
-        func(object3D);
-        for (const child of object3D.children) traverse(child, func);
-    }
-
+    const prefab = await GLTFLoader.LoadFromURL("/extra/test-assets/nature/treessource/american_beech/american_beech_a.glb");
     let geometry: Geometry;
     let material = new PBRMaterial();
-    traverse(model, prefab => {
+    prefab.traverse(prefab => {
+        if (geometry) return;
         for (const component of prefab.components) {
             if (component.type === Components.Mesh.type) {
                 geometry = Geometry.Deserialize(component.geometry);
+                material = GPU.Material.Deserialize(component.material);
             }
         }
     })
@@ -83,11 +88,11 @@ async function Application(canvas: HTMLCanvasElement) {
     // im.material = m;
 
     new UITextureViewer(Debugger.ui, "Atlas", bunnyImpostor.albedoTexture);
-    new UITextureViewer(Debugger.ui, "Atlas", bunnyImpostor.normalTexture);
+    new UITextureViewer(Debugger.ui, "Atlas2", bunnyImpostor.normalTexture);
 
 
     {
-        Scene.Instantiate(model, new Mathf.Vector3(3, 0, 0));
+        Scene.Instantiate(prefab, new Mathf.Vector3(3, 0, 0));
     }
 
 

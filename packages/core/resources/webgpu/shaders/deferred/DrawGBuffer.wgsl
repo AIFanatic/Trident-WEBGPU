@@ -41,6 +41,7 @@ struct VertexOutput {
     @location(4) barycenticCoord : vec3<f32>,
     @location(5) tangent : vec3<f32>,
     @location(6) bitangent : vec3<f32>,
+    @location(7) normal : vec3<f32>,
 };
 
 @group(0) @binding(0) var<storage, read> frameBuffer: FrameBuffer;
@@ -59,7 +60,6 @@ struct VertexOutput {
 #if USE_SKINNING
     @group(1) @binding(0) var<storage, read> boneMatrices: array<mat4x4<f32>>;
 #endif
-
 
 @vertex
 fn vertexMain(input: VertexInput) -> VertexOutput {
@@ -82,6 +82,8 @@ fn vertexMain(input: VertexInput) -> VertexOutput {
         finalNormal   = normalize(skinMatrix * vec4(input.normal, 0.0));
     #endif
 
+    let cameraPos = frameBuffer.viewInverseMatrix[3].xyz;
+
     let modelMatrixInstance = modelMatrix[input.instance];
     let modelViewMatrix = frameBuffer.viewMatrix * modelMatrixInstance;
 
@@ -91,6 +93,7 @@ fn vertexMain(input: VertexInput) -> VertexOutput {
     output.vUv = input.uv;
     let worldNormal = normalize(modelMatrixInstance * vec4(finalNormal.xyz, 0.0)).xyz;
     output.vNormal = worldNormal;
+    output.normal = finalNormal.xyz;
 
     #if USE_NORMAL_MAP
         let worldTangent = normalize(modelMatrixInstance * vec4(input.tangent.xyz, 0.0)).xyz;
@@ -153,18 +156,23 @@ fn fragmentMain(@builtin(front_facing) isFrontFace: bool, input: VertexOutput) -
         tbn[0] = input.tangent;      // column-major: T, B, N
         tbn[1] = input.bitangent;
         tbn[2] = input.vNormal;
-
+        if (!isFrontFace) {
+            // tbn[0] = -tbn[0];
+            tbn[1] = -tbn[1];
+            tbn[2] = -tbn[2];
+        }
         let normalSample = textureSample(NormalMap, TextureSampler, uv).xyz * 2.0 - 1.0;
         normal = normalize(tbn * normalSample);
+    #else
+        if (!isFrontFace) {
+            normal = -normal;
+        }
     #endif
-    if (!isFrontFace) {
-        normal = -normal;
-    }
 
     #if USE_ARM_MAP
         let metalnessRoughness = textureSample(ARMMap, TextureSampler, uv);
 
-        // occlusion *= metalnessRoughness.r;
+        occlusion *= metalnessRoughness.r;
         roughness *= metalnessRoughness.g;
         metalness *= metalnessRoughness.b;
 
@@ -172,6 +180,7 @@ fn fragmentMain(@builtin(front_facing) isFrontFace: bool, input: VertexOutput) -
         // metalness *= metalnessRoughness.r;
         // occlusion *= metalnessRoughness.g; 
         // roughness *= metalnessRoughness.a;
+
     #endif
 
     var emissive = mat.EmissiveColor;
@@ -180,7 +189,6 @@ fn fragmentMain(@builtin(front_facing) isFrontFace: bool, input: VertexOutput) -
     #endif
 
     output.albedo = vec4(albedo.rgb, roughness);
-
     output.normal = vec4(OctEncode(normal.xyz), occlusion, metalness);
     output.RMO = vec4(emissive.rgb, mat.Unlit);
 

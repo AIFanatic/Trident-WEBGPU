@@ -11,7 +11,7 @@ export class Irradiance {
     
     private res: number;
 
-    constructor(res: number = 32, outputFormat: GPU.TextureFormat = "rgba16float") {
+    constructor(res: number = 128, outputFormat: GPU.TextureFormat = "rgba16float") {
         this.res = res;
         this.irradianceTexture = GPU.RenderTextureCube.Create(this.res, this.res, 6, outputFormat);
         this.irradianceTexture.name = "Irradiance";

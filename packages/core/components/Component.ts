@@ -45,7 +45,10 @@ export class Component {
             const value = this[property];
             if (typeof value["Serialize"] === "function") fields[property] = value["Serialize"]();
             else if (typeof value === "boolean" || typeof value === "number" || typeof value === "string") fields[property] = value;
-            else throw Error(`Could not serialize ${this.constructor["type"]}::${property as string}`)
+            else if (value instanceof Array || value instanceof Float32Array) fields[property] = value; // This doesnt work if the array contains an object
+            else {
+                throw Error(`Could not serialize ${this.constructor["type"]}::${property as string} ${value instanceof Float32Array}`)
+            }
         }
         return {type: this.constructor["type"], id: this.id, name: this.name, ...fields};
     }

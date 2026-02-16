@@ -27,6 +27,7 @@ export class RenderablePass extends RenderPass {
 
     public async preRender(resources: ResourcePool) {
         for (const renderable of this.renderables) {
+            if (!renderable.gameObject.enabled) continue;
             renderable.OnPreRender();
         }
     }
@@ -52,6 +53,7 @@ export class RenderablePass extends RenderPass {
         , true);
 
         for (const renderable of this.renderables) {
+            if (!renderable.gameObject.enabled) continue;
             renderable.OnRenderObject();
         }
 

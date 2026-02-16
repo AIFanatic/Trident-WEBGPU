@@ -2,7 +2,7 @@ import { Component } from "./components/Component";
 import { Scene } from "./Scene";
 import { Transform } from "./components/Transform";
 import { UUID } from "./utils";
-import { Prefab } from "./Assets";
+import { Assets, Prefab } from "./Assets";
 
 
 function getCtorChain(ctor: Function): Function[] {

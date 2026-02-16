@@ -17,7 +17,7 @@ export class Mesh extends Renderable {
         super(gameObject);
 
         if (!Mesh.modelMatrices) {
-            Mesh.modelMatrices = new DynamicBufferMemoryAllocatorDynamic(256, BufferType.STORAGE, 256 * 10);
+            Mesh.modelMatrices = new DynamicBufferMemoryAllocatorDynamic(256 * 1000, BufferType.STORAGE, 256 * 10);
         }
 
         EventSystemLocal.on(TransformEvents.Updated, this.transform, () => {

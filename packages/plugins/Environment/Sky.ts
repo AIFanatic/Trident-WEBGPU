@@ -44,11 +44,6 @@ export class Sky {
         this.skyTextureShader = await GPU.Shader.Create({
             code: await GPU.ShaderPreprocessor.ProcessIncludesV2(SkyAtmosphereWGSL),
             colorOutputs: [ { format: "rgba16float" } ],
-            uniforms: {
-                params: {group: 0, binding: 0, type: "storage"},
-                textureSampler: { group: 0, binding: 1, type: "sampler" },
-                TransmittanceLUTTexture: { group: 0, binding: 2, type: "texture" },
-            },
         });
 
         this.cubemapShader = await GPU.Shader.Create({

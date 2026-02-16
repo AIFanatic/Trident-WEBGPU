@@ -381,7 +381,7 @@ export class PathTracer extends GPU.RenderPass {
                     return c + p;
                 }
             `,
-            colorOutputs: [{format: "rgba16float"}],
+            colorOutputs: [{ format: "rgba16float" }],
         });
         this.customBlender.SetSampler("texSampler", GPU.TextureSampler.Create());
         this.customBlenderGeometry = Geometry.Plane();
@@ -422,7 +422,7 @@ export class PathTracer extends GPU.RenderPass {
             }
 
             const pbrParams = renderable.material;
-            materialsBuffer.push(...[...pbrParams.albedoColor.elements, ...pbrParams.emissiveColor.elements, pbrParams.metalness, pbrParams.roughness, 0, 0])
+            materialsBuffer.push(...[...pbrParams.params.albedoColor.elements, ...pbrParams.params.emissiveColor.elements, pbrParams.params.metalness, pbrParams.params.roughness, 0, 0])
 
         }
 
@@ -478,7 +478,7 @@ export class PathTracer extends GPU.RenderPass {
 
         // resolution info
         this.UniformsViews.resolution.set([this.outputTexture.width, this.outputTexture.height, tanHalfFov, aspect]);
-        
+
         this.UniformsViews.mesh_count.set([this.currentMeshCount]);
 
         this.shader.SetArray("uniforms", new Float32Array(this.uniformsBuffer));
@@ -505,15 +505,15 @@ export class PathTracer extends GPU.RenderPass {
             GPU.ComputeContext.Dispatch(this.shader, Math.ceil(this.outputTexture.width / 8), Math.ceil(this.outputTexture.height / 8), 1);
             GPU.ComputeContext.EndComputePass();
         }
-                
-        
-        
+
+
+
         // copy output -> accumulation
         GPU.RendererContext.CopyTextureToTexture(this.outputTexture, this.accumulation);
         // GPU.RendererContext.CopyTextureToTextureV3({ texture: this.outputTexture }, { texture: LightingOutput });
 
 
-        GPU.RendererContext.BeginRenderPass(this.name + "- Blend", [{target: this.customBlenderTarget, clear: true}]);
+        GPU.RendererContext.BeginRenderPass(this.name + "- Blend", [{ target: this.customBlenderTarget, clear: true }]);
         GPU.RendererContext.DrawGeometry(this.customBlenderGeometry, this.customBlender);
         GPU.RendererContext.EndRenderPass();
         GPU.RendererContext.CopyTextureToTextureV3({ texture: this.customBlenderTarget }, { texture: LightingOutput });

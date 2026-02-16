@@ -198,7 +198,8 @@ fn fragmentMain(input: VertexOutput) -> @location(0) vec4<f32> {
   let f_metal_brdf_ibl = prefiltered * f_metal_fresnel_ibl;
 
   // dielectrics: F0 is ~0.04
-  let f_dielectric_fresnel_ibl = getIBLGGXFresnel(n, v, surface.roughness, surface.F0, 1.0);
+  let specularWeight = 1.0;
+  let f_dielectric_fresnel_ibl = getIBLGGXFresnel(n, v, surface.roughness, surface.F0, specularWeight);
   let f_dielectric_brdf_ibl = mix(diffuse, prefiltered * f_dielectric_fresnel_ibl, f_dielectric_fresnel_ibl);
 
   var color = mix(f_dielectric_brdf_ibl, f_metal_brdf_ibl, surface.metallic) + surface.emissive;

@@ -14,7 +14,6 @@ export class LightEvents {
 export class Light extends Component {
     public static type = "@trident/core/components/Light";
 
-    @SerializeField
     public camera: Camera = new Camera(this.gameObject);
     @SerializeField
     public color: Color = new Color(1,1,1);

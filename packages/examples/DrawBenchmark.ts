@@ -74,8 +74,7 @@ async function Application(canvas: HTMLCanvasElement) {
     traverse(model, prefab => {
         for (const component of prefab.components) {
             if (component.type === Components.Mesh.type) {
-                geometry = new Geometry();
-                geometry.Deserialize(component.renderable.geometry);
+                geometry = Geometry.Deserialize(component.geometry);
             }
         }
     })
@@ -87,20 +86,23 @@ async function Application(canvas: HTMLCanvasElement) {
         const q = rotation || new Mathf.Quaternion();
         const s = scale || new Mathf.Vector3(1, 1, 1);
         const m = new Mathf.Matrix4();
-        const c = 10;
+        const c = 100;
         const off = 10;
         const half = c * off * 0.5;
         let i = 0;
+        const matrices = new Float32Array(c * c * c * 16);
         for (let x = 0; x < c; x++) {
             for (let y = 0; y < c; y++) {
                 for (let z = 0; z < c; z++) {
                     p.set(x * off - half, y * off - half, z * off - half);
                     m.compose(p, q, s);
-                    instancedMesh.SetMatrixAt(i, m);
+                    // instancedMesh.SetMatrixAt(i, m);
+                    matrices.set(m.elements, i * 16);
                     i++;
                 }
             }
         }
+        instancedMesh.SetMatricesBulk(matrices);
     }
 
     // // Billboards
@@ -148,6 +150,7 @@ async function Application(canvas: HTMLCanvasElement) {
         
         const gameObject = new GameObject(scene);
         const instancedMesh = gameObject.AddComponent(Components.InstancedMesh);
+        instancedMesh.enableShadows = false;
         instancedMesh.geometry = impostor.geometry;
         instancedMesh.material = impostor.material;
 

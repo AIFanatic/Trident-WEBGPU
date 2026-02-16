@@ -215,8 +215,9 @@ fn fragmentMain(input: VertexOutput) -> @location(0) vec4<f32> {
     );
 
     let albedo = textureLoad(albedoTexture, pix, 0);
-    let normal = textureLoad(normalTexture, pix, 0);
+    var normal = textureLoad(normalTexture, pix, 0);
     let ermo   = textureLoad(ermoTexture,   pix, 0);
+
 
     let unlit = ermo.a;
 
@@ -234,7 +235,7 @@ fn fragmentMain(input: VertexOutput) -> @location(0) vec4<f32> {
     surface.emissive       = ermo.rgb;
     surface.worldPosition  = worldPosition.xyz;
     
-    surface.N              = OctDecode(normal.rg);
+    surface.N = OctDecode(normal.rg);
     surface.F0             = mix(vec3(0.04), surface.albedo.rgb, vec3(surface.metallic));
     surface.V              = normalize(view.viewPosition.xyz - surface.worldPosition);
 

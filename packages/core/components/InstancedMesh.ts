@@ -19,6 +19,11 @@ export class InstancedMesh extends Renderable {
         this.matrices.set(index, matrix.elements);
         this._instanceCount = Math.max(this._instanceCount, index + 1);
     }
+    
+    public SetMatricesBulk(matrices: Float32Array) {
+        this.matrices.set(0, matrices);
+        this._instanceCount = matrices.length / 16;
+    }
 
     public OnPreRender(): void {
         if (!this.geometry || !this.material || !this.material?.shader || this._instanceCount === 0) return;

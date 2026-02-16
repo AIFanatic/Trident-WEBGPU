@@ -1,7 +1,5 @@
 import {
     Geometry,
-    GameObject,
-    Scene,
     Components,
     Mathf,
     PBRMaterial,
@@ -11,47 +9,13 @@ import {
     Prefab,
     GPU,
     Assets,
-    Utils
+    Utils,
 } from "@trident/core";
 
 import { GLTFParser, MeshPrimitive, Texture, Node, AccessorComponentType, GLTF, TextureInfo, Accessor } from './GLTFParser'
 
 export class GLTFLoader {
     private static TextureCache: Map<number, Promise<TridentTexture>> = new Map();
-
-    // ---------- Small generic helpers ----------
-
-    private static getTypedArrayView(bytes: Uint8Array, componentType: AccessorComponentType) {
-        const buf = bytes.buffer;
-        const off = bytes.byteOffset;
-
-        switch (componentType) {
-            case AccessorComponentType.GL_UNSIGNED_BYTE:
-                return new Uint8Array(buf, off, bytes.byteLength);
-
-            case AccessorComponentType.GL_UNSIGNED_SHORT:
-                return new Uint16Array(buf, off, (bytes.byteLength / 2) | 0);
-
-            case AccessorComponentType.GL_UNSIGNED_INT:
-                return new Uint32Array(buf, off, (bytes.byteLength / 4) | 0);
-
-            case AccessorComponentType.GL_FLOAT:
-                return new Float32Array(buf, off, (bytes.byteLength / 4) | 0);
-
-            default:
-                throw new Error(`Unsupported component type: ${componentType}`);
-        }
-    }
-
-    private static byteSize(componentType: AccessorComponentType) {
-        switch (componentType) {
-            case AccessorComponentType.GL_UNSIGNED_BYTE: return 1;
-            case AccessorComponentType.GL_UNSIGNED_SHORT: return 2;
-            case AccessorComponentType.GL_UNSIGNED_INT: return 4;
-            case AccessorComponentType.GL_FLOAT: return 4;
-            default: return 0;
-        }
-    }
 
     private static finalizeGeometry(geom: Geometry) {
         const posAttr = geom.attributes.get("position");
@@ -88,129 +52,61 @@ export class GLTFLoader {
         return cached;
     }
 
-    private static componentCount(type: "SCALAR" | "VEC2" | "VEC3" | "VEC4" | "MAT2" | "MAT3" | "MAT4") {
-        switch (type) {
-            case "SCALAR": return 1;
-            case "VEC2": return 2;
-            case "VEC3": return 3;
-            case "VEC4": return 4;
-            case "MAT2": return 4;
-            case "MAT3": return 9;
-            case "MAT4": return 16;
-        }
-    }
-
-    // TODO: Support true interleaved vertex buffers
-    private static readAccessorAsFloat32(acc: Accessor): Float32Array {
-        const stride = acc.bufferView.byteStride ?? 0;
-        const comps = GLTFLoader.componentCount(acc.type);
-        const compSize = GLTFLoader.byteSize(acc.componentType);
-
-        const bvU8 = acc.bufferView.data;
-        const baseInBV = acc.byteOffset ?? 0; // offset INSIDE bufferView
-        const baseInAB = bvU8.byteOffset + baseInBV; // absolute offset into underlying ArrayBuffer
-
-        const interleaved = stride > 0;
-        const out = new Float32Array(acc.count * comps);
-
-        const dv = new DataView(bvU8.buffer); // one DataView, reuse it
-
-        const readScalarAt = (absByteOffset: number) => {
-            switch (acc.componentType) {
-                case AccessorComponentType.GL_FLOAT: return dv.getFloat32(absByteOffset, true);
-                case AccessorComponentType.GL_UNSIGNED_BYTE: return acc.normalized ? dv.getUint8(absByteOffset) / 255 : dv.getUint8(absByteOffset);
-                case AccessorComponentType.GL_UNSIGNED_SHORT: return acc.normalized ? dv.getUint16(absByteOffset, true) / 65535 : dv.getUint16(absByteOffset, true);
-                case AccessorComponentType.GL_BYTE: return acc.normalized ? Math.max(-1, dv.getInt8(absByteOffset) / 127) : dv.getInt8(absByteOffset);
-                case AccessorComponentType.GL_SHORT: return acc.normalized ? Math.max(-1, dv.getInt16(absByteOffset, true) / 32767) : dv.getInt16(absByteOffset, true);
-                default: throw Error("Unsupported attribute componentType");
-            }
-        };
-
-        for (let i = 0; i < acc.count; i++) {
-            const elementBaseAbs = interleaved
-                ? baseInAB + i * stride
-                : baseInAB + i * comps * compSize;
-
-            for (let c = 0; c < comps; c++) {
-                out[i * comps + c] = readScalarAt(elementBaseAbs + c * compSize);
-            }
-        }
-
-        return out;
-    }
-
-    private static readAccessorAsUint32(acc: Accessor): Uint32Array {
-        const stride = acc.bufferView.byteStride ?? 0;
-        const comps = GLTFLoader.componentCount(acc.type);
-        const compSize = GLTFLoader.byteSize(acc.componentType);
-
-        const bvU8 = acc.bufferView.data;
-        const baseInBV = acc.byteOffset ?? 0;
-        const baseInAB = bvU8.byteOffset + baseInBV;
-
-        const interleaved = stride > 0;
-        const out = new Uint32Array(acc.count * comps);
-        const dv = new DataView(bvU8.buffer);
-
-        const readScalarAt = (absByteOffset: number) => {
-            switch (acc.componentType) {
-                case AccessorComponentType.GL_UNSIGNED_BYTE: return dv.getUint8(absByteOffset);
-                case AccessorComponentType.GL_UNSIGNED_SHORT: return dv.getUint16(absByteOffset, true);
-                case AccessorComponentType.GL_UNSIGNED_INT: return dv.getUint32(absByteOffset, true);
-                default: throw Error("Unsupported componentType");
-            }
-        };
-
-        for (let i = 0; i < acc.count; i++) {
-            const elementBaseAbs = interleaved
-                ? baseInAB + i * stride
-                : baseInAB + i * comps * compSize;
-
-            for (let c = 0; c < comps; c++) {
-                out[i * comps + c] = readScalarAt(elementBaseAbs + c * compSize);
-            }
-        }
-        return out;
-    }
-
     // ---------- Primitive / Node parsing to Object3D (your existing pipeline, tidied) ----------
+
+    // From threejs
+    private static parseAccessor(accessorDef: Accessor): Float32Array | Uint32Array | Uint16Array | Int16Array | Uint8Array | Int8Array {
+        const WEBGL_TYPE_SIZES = { 'SCALAR': 1, 'VEC2': 2, 'VEC3': 3, 'VEC4': 4, 'MAT2': 4, 'MAT3': 9, 'MAT4': 16};
+        const WEBGL_COMPONENT_TYPES = { 5120: Int8Array, 5121: Uint8Array, 5122: Int16Array, 5123: Uint16Array, 5125: Uint32Array, 5126: Float32Array};
+
+        const bufferView = accessorDef.bufferView;
+        const itemSize = WEBGL_TYPE_SIZES[accessorDef.type];
+        const TypedArray = WEBGL_COMPONENT_TYPES[accessorDef.componentType];
+
+        const elementBytes = TypedArray.BYTES_PER_ELEMENT;
+        const itemBytes = elementBytes * itemSize;
+        const byteOffset = accessorDef.bufferView.data.byteOffset || 0;
+        const byteStride = accessorDef.bufferView !== undefined ? accessorDef.bufferView.byteStride : undefined;
+        const normalized = accessorDef.normalized === true;
+        let array;
+
+        // Interleaved
+        if (byteStride && byteStride !== itemBytes) {
+            const ibSlice = Math.floor(byteOffset / byteStride);
+            const ibCacheKey = 'InterleavedBuffer:' + accessorDef.bufferView + ':' + accessorDef.componentType + ':' + ibSlice + ':' + accessorDef.count;
+            let ib: Float32Array = this.cache.get(ibCacheKey);
+
+            if (!ib) {
+                array = new TypedArray(bufferView.data.buffer, ibSlice * byteStride, accessorDef.count * byteStride / elementBytes);
+                ib = array;
+                this.cache.set(ibCacheKey, ib);
+            }
+
+            // bufferAttribute = new InterleavedVertexAttribute(ib, (byteOffset % byteStride) / elementBytes);
+            console.warn("TODO: INTERLEAVED");
+        } else {
+            if (bufferView === null) array = new TypedArray(accessorDef.count * itemSize);
+            else array = new TypedArray(bufferView.data.buffer, byteOffset, accessorDef.count * itemSize);
+            // bufferAttribute = new VertexAttribute(array);
+        }
+
+        return array;
+    }
 
     private static async parsePrimitive(primitive: MeshPrimitive, textures?: Texture[]): Promise<{ geometry: Geometry, material: GPU.Material }> {
         const geometry = new Geometry();
 
-        if (primitive.attributes.POSITION) geometry.attributes.set("position", new VertexAttribute(this.readAccessorAsFloat32(primitive.attributes.POSITION)));
-        if (primitive.attributes.NORMAL) geometry.attributes.set("normal", new VertexAttribute(this.readAccessorAsFloat32(primitive.attributes.NORMAL)));
-        if (primitive.attributes.TEXCOORD_0) geometry.attributes.set("uv", new VertexAttribute(this.readAccessorAsFloat32(primitive.attributes.TEXCOORD_0)));
-
-        if (primitive.attributes.JOINTS_0) {
-            const jointsU32 = this.readAccessorAsUint32(primitive.attributes.JOINTS_0);
-            geometry.attributes.set("joints", new VertexAttribute(jointsU32));
-        }
-        if (primitive.attributes.WEIGHTS_0) {
-            const acc = primitive.attributes.WEIGHTS_0;
-
-            // Read like other attributes (handles normalized + stride)
-            const weightsF32 = this.readAccessorAsFloat32(acc);
-            geometry.attributes.set("weights", new VertexAttribute(weightsF32));
-        }
-
+        // if (primitive.attributes.POSITION) geometry.attributes.set("position", new VertexAttribute(this.readAccessorAsFloat32(primitive.attributes.POSITION)));
+        if (primitive.attributes.POSITION) geometry.attributes.set("position", new VertexAttribute(this.parseAccessor(primitive.attributes.POSITION) as Float32Array));
+        if (primitive.attributes.NORMAL) geometry.attributes.set("normal", new VertexAttribute(this.parseAccessor(primitive.attributes.NORMAL) as Float32Array));
+        if (primitive.attributes.TEXCOORD_0) geometry.attributes.set("uv", new VertexAttribute(this.parseAccessor(primitive.attributes.TEXCOORD_0) as Float32Array));
+        if (primitive.attributes.TANGENT) geometry.attributes.set("tangent", new VertexAttribute(this.parseAccessor(primitive.attributes.TANGENT) as Float32Array));
+        if (primitive.attributes.JOINTS_0) geometry.attributes.set("joints", new VertexAttribute(this.parseAccessor(primitive.attributes.JOINTS_0) as Float32Array));
+        if (primitive.attributes.WEIGHTS_0) geometry.attributes.set("weights", new VertexAttribute(this.parseAccessor(primitive.attributes.WEIGHTS_0) as Float32Array));
         if (primitive.indices) {
-            const acc = primitive.indices;
-            const bv = acc.bufferView;
-
-            const byteLen = acc.count * this.byteSize(acc.componentType);
-            const bytes = bv.data.subarray(acc.byteOffset, acc.byteOffset + byteLen);
-
-            let indices = this.getTypedArrayView(bytes, acc.componentType);
-
-            // WebGPU index buffers must be u16/u32
-            if (indices instanceof Uint8Array) {
-                const promoted = new Uint16Array(indices.length);
-                for (let i = 0; i < indices.length; i++) promoted[i] = indices[i];
-                indices = promoted;
-            }
-
-            geometry.index = new IndexAttribute(indices as Uint16Array | Uint32Array);
+            let indices = this.parseAccessor(primitive.indices) as Uint32Array | Uint16Array | Uint8Array;
+            if (indices instanceof Uint8Array) indices = new Uint16Array(indices);
+            geometry.index = new IndexAttribute(indices);
         }
 
         let materialParams: Partial<PBRMaterialParams> = {};
@@ -241,8 +137,10 @@ export class GLTFLoader {
 
         this.finalizeGeometry(geometry);
         // tangents if needed
-        if (geometry.attributes.has("position") && geometry.attributes.has("normal") && geometry.attributes.has("uv") && materialParams.normalMap) {
-            geometry.ComputeTangents();
+        if (!geometry.attributes.has("tangent")) {
+            if (geometry.attributes.has("position") && geometry.attributes.has("normal") && geometry.attributes.has("uv") && materialParams.normalMap) {
+                geometry.ComputeTangents();
+            }
         }
 
         geometry.ComputeBoundingVolume();
@@ -335,7 +233,7 @@ export class GLTFLoader {
                         type: Components.Bone.type,
                         index: i,
                         skinId: skinIndex,
-                        inverseBindMatrix: Array.from(new Float32Array(ibm.buffer, ibm.byteOffset + Float32Array.BYTES_PER_ELEMENT * 16 * i, 16))
+                        inverseBindMatrix: new Float32Array(ibm.buffer, ibm.byteOffset + Float32Array.BYTES_PER_ELEMENT * 16 * i, 16)
                     });
                 }
             }

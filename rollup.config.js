@@ -133,6 +133,7 @@ function wrapJsInHtml() {
             <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no">
             <meta name="mobile-web-app-capable" content="yes">
             <meta name="apple-mobile-web-app-capable" content="yes">
+            <meta charset="UTF-8">
             
             <style>
                 html, body {
@@ -242,6 +243,7 @@ function editorHtml() {
             <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no">
             <meta name="mobile-web-app-capable" content="yes">
             <meta name="apple-mobile-web-app-capable" content="yes">
+            <meta charset="UTF-8">
             
             <link rel="stylesheet" href="trident-editor.css">
         </head>

@@ -13,8 +13,6 @@ const features: GPUFeatureName[] = [];
 if (adapter.features.has("timestamp-query")) features.push("timestamp-query");
 if (adapter.features.has("indirect-first-instance")) features.push("indirect-first-instance"); // TODO: Needed for meshlets. Figure out a way for plugins to request these
 
-console.log(features)
-
 const device = adapter ? await adapter.requestDevice({
     requiredFeatures: features,
     requiredLimits: requiredLimits

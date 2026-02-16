@@ -5,7 +5,7 @@ import { SerializeField } from "../utils/SerializeField";
 
 export type AnimationPath = "translation" | "rotation" | "scale" | "weights";
 
-export interface SerializedAnimationClipDef {
+export interface SerializedAnimationClip {
     name: string;
     duration: number;
 }
@@ -25,12 +25,6 @@ export interface SerializedAnimationSampler {
 export interface SerializedAnimationChannel {
     path: AnimationPath;
     sampler: SerializedAnimationSampler;
-}
-
-export interface SerializedAnimationClip {
-    name: string;
-    duration: number;
-    channels: SerializedAnimationChannel[];
 }
 
 export class AnimationTrack extends Component {
@@ -156,7 +150,7 @@ export class Animator extends Component {
     public static type = "@trident/core/components/Animator";
 
     @SerializeField
-    public clips: SerializedAnimationClipDef[] = [];
+    public clips: SerializedAnimationClip[] = [];
 
     public clipIndex = 0;
     private playing = false;

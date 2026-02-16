@@ -223,6 +223,8 @@ export class WEBGPUTexture implements Texture {
             r8unorm: 1,
             rg8unorm: 2,
             rgba8unorm: 4,
+            bgra8unorm: 4,
+            "bgra8unorm-srgb": 4,
             r16float: 2,
             rg16float: 4,
             rgba16float: 8,
