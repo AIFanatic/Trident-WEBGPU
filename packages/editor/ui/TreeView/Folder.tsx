@@ -1,4 +1,5 @@
 import { createElement, Component } from "../../gooact";
+import { Arrow } from "../Arrow";
 import { ITreeMap } from './ITreeMap';
 
 interface FolderProps {
@@ -41,6 +42,7 @@ export class Folder extends Component<FolderProps, FolderState> {
     }
 
     private onDrop(event: DragEvent) {
+        console.log("Folder onDrop")
         this.folderRef.style.backgroundColor = "";
         
         const fromUuid = event.dataTransfer.getData("from-uuid");
@@ -58,15 +60,11 @@ export class Folder extends Component<FolderProps, FolderState> {
     
     private onClicked(event: MouseEvent) {
         this.props.onClicked(this.props.item);
-        event.preventDefault();
-        event.stopPropagation();
     }
     
     private onDoubleClicked(event: MouseEvent) {
         if (this.props.onDoubleClicked) {
             this.props.onDoubleClicked(this.props.item);
-            event.preventDefault();
-            event.stopPropagation();
         }
     }
 
@@ -96,13 +94,15 @@ export class Folder extends Component<FolderProps, FolderState> {
                     onDragLeave={(event) => this.onDragLeave(event)}
                     onDrop={(event) => this.onDrop(event)}
                     onDragOver={(event) => this.onDragOver(event)}
-                    onClick={(event) => this.onClicked(event)}
+                    onPointerDown={(event) => this.onClicked(event)}
                     onDblClick={(event) => this.onDoubleClicked(event)}
                 >
                     <span
                         style={{width: "15px", height: "15px", fontSize: "10px"}}
-                        onClick={(event) => {this.handleToggle(event)}}
-                    >{this.state.isOpen ? "▼ " : "▶ "}</span>
+                        onPointerDown={(event) => {this.handleToggle(event)}}
+                    >
+                        <Arrow isOpen={this.state.isOpen}/>
+                    </span>
 
                     <span>{this.props.item.name}</span>
                 </div>

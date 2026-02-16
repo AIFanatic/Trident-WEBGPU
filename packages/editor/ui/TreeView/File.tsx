@@ -22,7 +22,7 @@ export class File extends Component<FileProps, FileState> {
 
     constructor(props: FileProps) {
         super(props);
-        this.state = {isSelected: false};
+        this.state = { isSelected: false };
     }
 
     private onDragStart(event: DragEvent) {
@@ -35,7 +35,7 @@ export class File extends Component<FileProps, FileState> {
 
     private onDrop(event: DragEvent) {
         this.FileRef.style.backgroundColor = "";
-        
+
         const fromUuid = event.dataTransfer.getData("from-uuid");
 
         if (fromUuid != "") {
@@ -48,19 +48,23 @@ export class File extends Component<FileProps, FileState> {
     private onDragOver(event: DragEvent) {
         event.preventDefault();
     }
-    
+
     private onClicked(event: MouseEvent) {
+        console.log("onClicked")
         this.props.onClicked(this.props.data);
-        event.preventDefault();
-        event.stopPropagation();
     }
 
-    private onDoubleClicked(event: MouseEvent) {
-        if (this.props.onDoubleClicked) {
-            this.props.onDoubleClicked(this.props.data);
-            event.preventDefault();
-            event.stopPropagation();
-        }
+    private lastClickTs = 0;
+    private readonly dblMs = 220;
+
+    private onPointerDown(event: MouseEvent) {
+        this.props.onClicked(this.props.data);
+
+        const now = performance.now();
+        const elapsed = now - this.lastClickTs;
+        this.lastClickTs = now;
+
+        if (elapsed < this.dblMs && this.props.onDoubleClicked) this.props.onDoubleClicked(this.props.data);
     }
 
     private onDragEnter(event: DragEvent) {
@@ -77,11 +81,11 @@ export class File extends Component<FileProps, FileState> {
 
         return (
             <div
-                className = "item"
+                className="item"
                 ref={(ref) => this.FileRefCreated(ref)}
             >
                 <div
-                    style={{display: "flex", alignItems: "center"}}
+                    style={{ display: "flex", alignItems: "center" }}
                     className={classes}
                     draggable={true}
                     onDragStart={(event) => this.onDragStart(event)}
@@ -89,18 +93,18 @@ export class File extends Component<FileProps, FileState> {
                     onDragLeave={(event) => this.onDragLeave(event)}
                     onDrop={(event) => this.onDrop(event)}
                     onDragOver={(event) => this.onDragOver(event)}
-                    onClick={(event) => this.onClicked(event)}
-                    onDblClick={(event) => this.onDoubleClicked(event)}
+                    onPointerDown={(event) => this.onPointerDown(event)}
+                    // onDblClick={(event) => this.onDoubleClicked(event)}
                 >
                     <span
-                        style={{paddingLeft: "15px"}}
+                        style={{ paddingLeft: "15px" }}
                     ></span>
-                    
+
                     <span>{this.props.data.name}</span>
                 </div>
 
                 <div
-                    className = "item-content"
+                    className="item-content"
                 >
                 </div>
             </div>

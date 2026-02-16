@@ -1,1 +1,3 @@
-export interface IMaterial {}
+export interface IMaterial {
+    assetPath?: string;
+}

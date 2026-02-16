@@ -15,6 +15,9 @@ class _FileBrowser {
         }
     }
 
+    public setRootFolderHandle(handle: FileSystemDirectoryHandle) { this.rootFolderHandle = handle }
+    public getRootFolderHandle(): FileSystemDirectoryHandle { return this.rootFolderHandle }
+
     public init() {
         return new Promise((resolve: any, reject: any) => {
             window.showDirectoryPicker().then(folderHandle => {

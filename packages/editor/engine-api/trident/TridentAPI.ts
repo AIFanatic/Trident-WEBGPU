@@ -1,4 +1,4 @@
-import { GameObject, Renderer, Scene, Mathf, Geometry, PBRMaterial, Utils, Component, Prefab } from "@trident/core";
+import { GameObject, Renderer, Scene, Mathf, Geometry, PBRMaterial, Utils, Component, Prefab, GPU } from "@trident/core";
 
 import { IEngineAPI } from "./IEngineAPI";
 import { IGameObject } from "./components/IGameObject";
@@ -67,8 +67,16 @@ export class TridentAPI implements IEngineAPI {
         return component.constructor === Component;
     }
 
-    public isPrefab(prefab: IPrefab): boolean {
+    public isPrefab(prefab: object): boolean {
         return prefab.constructor === Prefab;
+    }
+
+    public isGeometry(geometry: object): boolean {
+        return geometry.constructor === Prefab;
+    }
+
+    public isMaterial(material: IMaterial): boolean {
+        return material.constructor === Prefab;
     }
 
     public createPlaneGeometry(): IGeometry {
@@ -79,8 +87,32 @@ export class TridentAPI implements IEngineAPI {
         return Geometry.Cube();
     }
 
+    public createSphereGeometry(): IGeometry {
+        return Geometry.Sphere();
+    }
+
+    public createCapsuleGeometry(): IGeometry {
+        return Geometry.Capsule();
+    }
+
     public createPBRMaterial(args): IMaterial {
         return new PBRMaterial(args);
+    }
+
+    public createPrefab(): IPrefab {
+        return new Prefab();
+    }
+
+    public deserializeGeometry(serialized): IGeometry {
+        return Geometry.Deserialize(serialized);
+    }
+
+    public deserializeMaterial(serialized): IMaterial {
+        return GPU.Material.Deserialize(serialized);
+    }
+
+    public deserializePrefab(serialized): IPrefab {
+        return Prefab.Deserialize(serialized);
     }
 
     public GetSerializedFields = Utils.GetSerializedFields;

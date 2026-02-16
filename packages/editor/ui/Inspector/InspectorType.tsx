@@ -1,4 +1,5 @@
 // import { ExtendedDataTransfer } from '../../helpers/ExtendedDataTransfer';
+import { ExtendedDataTransfer } from "../../helpers/ExtendedDataTransfer";
 import { createElement, Component } from "../../gooact";
 import './InspectorComponent.css';
 
@@ -18,30 +19,31 @@ export class InspectorType extends Component<InspectorTypeProps> {
     }
 
     private onDrop(event: DragEvent) {
-        // const isValid = ExtendedDataTransfer.validate(this.props.component[this.props.property]);
-        // if (!isValid) {
-        //     ExtendedDataTransfer.remove(event);
-        //     return;
-        // }
+        const draggedItem = ExtendedDataTransfer.data;
+        const component = this.props.component[this.props.property];
 
-        // console.log("onDrop", this.props)
-        // const data = ExtendedDataTransfer.get();
-        // this.props.component[this.props.property] = data;
+        if (!draggedItem.constructor || !component.constructor) {
+            console.warn("Invalid component");
+            return;
+        }
 
-        // const input = event.currentTarget as HTMLInputElement;
-        // if(input.classList.contains("active")) {
-        //     input.classList.remove("active");
-        // }
+        const isValid = draggedItem.constructor === component.constructor;
+        if (!isValid) return;
 
-        // ExtendedDataTransfer.remove(event);
+        this.props.component[this.props.property] = draggedItem;
 
-        // if (this.props.onChanged) {
-        //     const input = event.currentTarget as HTMLInputElement;
-        //     this.props.onChanged(data)
-        // }
+        const input = event.currentTarget as HTMLInputElement;
+        if(input.classList.contains("active")) {
+            input.classList.remove("active");
+        }
 
-        // event.preventDefault();
-        // event.stopPropagation();
+        if (this.props.onChanged) {
+            const input = event.currentTarget as HTMLInputElement;
+            this.props.onChanged(draggedItem)
+        }
+
+        event.preventDefault();
+        event.stopPropagation();
     }
 
     private onDragOver(event: DragEvent) {
@@ -49,17 +51,25 @@ export class InspectorType extends Component<InspectorTypeProps> {
     }
 
     private onDragEnter(event: DragEvent) {
-        // const isValid = ExtendedDataTransfer.validate(this.props.component[this.props.property]);
-        // if (!isValid) {
-        //     event.preventDefault();
-        //     event.stopPropagation();
-        //     return;
-        // }
+        const draggedItem = ExtendedDataTransfer.data;
+        const component = this.props.component[this.props.property];
 
-        // const input = event.currentTarget as HTMLInputElement;
-        // if(!input.classList.contains("active")) {
-        //     input.classList.add("active");
-        // }
+        if (!draggedItem.constructor || !component.constructor) {
+            console.warn("Invalid component");
+            return;
+        }
+
+        const isValid = draggedItem.constructor === component.constructor;
+        if (!isValid) {
+            event.preventDefault();
+            event.stopPropagation();
+            return;
+        }
+
+        const input = event.currentTarget as HTMLInputElement;
+        if(!input.classList.contains("active")) {
+            input.classList.add("active");
+        }
     }
 
     private onDragLeave(event: DragEvent) {
@@ -74,7 +84,7 @@ export class InspectorType extends Component<InspectorTypeProps> {
             <span className="title">{this.props.title}</span>
 
             <div class="edit">
-
+                <span class={`vec-label`} style={`background-color: #e67e2250; cursor: auto`}>{"◉"}</span>
                 <input
                     className="input"
                     disabled
@@ -84,16 +94,6 @@ export class InspectorType extends Component<InspectorTypeProps> {
                     onDrop={(event) => this.onDrop(event)}
                     onDragOver={(event) => this.onDragOver(event)}
                 />
-
-                <span
-                    style={{
-                        width: "15px",
-                        height: "15px",
-                        position: "absolute",
-                        right: "10px",
-                        alignSelf: "center"
-                    }}
-                >o</span>
             </div>
         </div>
     }

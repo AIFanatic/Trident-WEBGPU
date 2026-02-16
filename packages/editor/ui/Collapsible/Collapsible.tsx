@@ -1,4 +1,5 @@
 import { createElement, Component } from "../../gooact";
+import { Arrow } from "../Arrow";
 
 import './Collapsible.css';
 
@@ -46,16 +47,14 @@ export class Collapsible extends Component<ICollapsibleProps, ICollapsibleState>
         return (
             <div className="collapsible-card-edonec" id={this.props.id ? this.props.id : ""}>
                 <div>
-                    <div className="collapsible-header-edonec" onClick={() => {this.handleFilterOpening() }}>
-                        <button type="button" className="collapsible-icon-button-edonec">
-                        {
-                            this.state.isOpen ? "▼" : "▶"
-                        }
+                    <div className="collapsible-header-edonec" onPointerDown={() => {this.handleFilterOpening() }}>
+                        <button type="button" className={`collapsible-icon-button-edonec`}>
+                            <Arrow isOpen={this.state.isOpen}/>
                         </button>
                         <div className="title-text-edonec">{this.props.header}</div>
                         {
                             this.props.rightMenuText ? 
-                            <div className="title-right-menu" onClick={(event) => {this.onRightMenuClicked(event)}}>{this.props.rightMenuText}</div>
+                            <div className="title-right-menu" onPointerDown={(event) => {this.onRightMenuClicked(event)}}>{this.props.rightMenuText}</div>
                             : ""
                         }
                     </div>

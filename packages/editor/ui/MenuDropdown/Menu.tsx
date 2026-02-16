@@ -1,6 +1,5 @@
 import { createElement, Component } from "../../gooact";
-
-import './MenuDropdown.css';
+import "./MenuDropdown.css";
 
 interface MenuButtonState {
     isDropdownVisible: boolean;
@@ -11,51 +10,62 @@ interface MenuButtonProps {
     onToggled?: (isOpen: boolean) => void;
     name: string;
     enabled?: boolean;
+    closeMenu?: () => void; // allow bubbling if Menu is nested
 }
 
 export class Menu extends Component<MenuButtonProps, MenuButtonState> {
     constructor(props: MenuButtonProps) {
         super(props);
-
-        this.state = {isDropdownVisible: false};
+        this.state = { isDropdownVisible: false };
     }
 
     public toggleDropdown() {
-        if (this.props.onToggled) this.props.onToggled(!this.state.isDropdownVisible);
-
-        this.setState({isDropdownVisible: !this.state.isDropdownVisible});
+        const next = !this.state.isDropdownVisible;
+        if (this.props.onToggled) this.props.onToggled(next);
+        this.setState({ isDropdownVisible: next });
     }
 
-    private onOptionClicked(option: string) {
-        this.toggleDropdown();
+    private closeSelfAndParent = () => {
+        this.setState({ isDropdownVisible: false });
+        if (this.props.closeMenu) this.props.closeMenu();
+    };
 
-        if (this.props.onOptionClicked) {
-            this.props.onOptionClicked(option);
-        }
+    private toArray(children: any): any[] {
+        if (children === undefined || children === null) return [];
+        return Array.isArray(children) ? children : [children];
+    }
+
+    private withCloseMenu(children: any[]): any[] {
+        return children.map((child) => {
+            if (!child || typeof child !== "object") return child;
+            return {
+                ...child,
+                props: {
+                    ...(child.props || {}),
+                    closeMenu: this.closeSelfAndParent,
+                },
+            };
+        });
     }
 
     public render() {
-        return <div
-        className="dropdown">
-            <button
-                className="dropdown-btn"
-                onClick={(event) => this.toggleDropdown()}
-            >
-                {this.props.name}
-            </button>
+        return (
+            <div className="dropdown">
+                <button className="dropdown-btn" onPointerDown={() => this.toggleDropdown()}>
+                    {this.props.name}
+                </button>
 
-            {
-                this.state.isDropdownVisible ?
-                <div>
-                    
-                    <div className="dropdown-overlay" onClick={(event) => this.toggleDropdown()}></div>
-
-                    <div className="dropdown-content">
-                        {this.props.children}
+                {this.state.isDropdownVisible ? (
+                    <div>
+                        <div className="dropdown-overlay" onPointerDown={() => this.toggleDropdown()}></div>
+                        <div className="dropdown-content">
+                            {this.withCloseMenu(this.toArray(this.props.children))}
+                        </div>
                     </div>
-                </div>
-                : ""
-            }
-        </div>
+                ) : (
+                    ""
+                )}
+            </div>
+        );
     }
 }

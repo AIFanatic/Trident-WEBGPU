@@ -25,7 +25,7 @@ export class InspectorCheckbox extends Component<InspectorCheckboxProps> {
             <span className="title">{this.props.title}</span>
             <div
                 style={{
-                    width: "70%"
+                    width: "100%"
                 }}
             >
 

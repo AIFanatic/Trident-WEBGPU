@@ -1,7 +1,6 @@
 .collapsible-content-edonec {
     overflow: auto;
     transition: height 0.2s ease-in-out;
-    border-bottom: 1px solid black;
 }
 .title-text-edonec {
     display: inline-block;
@@ -19,13 +18,18 @@
     background-color: #404040;
 }
 
+.collapsible-card-edonec {
+    margin: 10px;
+    border-radius: 10px;
+    background-color: #1a1a1a;
+    box-shadow: 1px 1px 3px 0px black;
+}
+
 .collapsible-header-edonec {
-    width: 100%;
-    display: inline-block;
     align-items: center;
-    padding: 3px 0px 3px 0px;
+    padding: 7px;
     cursor: pointer;
-    background-color: #2b2b2b;
+    border-radius: 10px;
 }
 .collapsible-content-padding-edonec {
     padding-top: 3px;

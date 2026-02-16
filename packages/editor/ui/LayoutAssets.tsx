@@ -9,11 +9,17 @@ import { Tree } from "./TreeView/Tree";
 import { ExtendedDataTransfer } from "../helpers/ExtendedDataTransfer";
 import { GLTFLoader } from "@trident/plugins/GLTF/GLTFLoader";
 import { IPrefab } from "../engine-api/trident/components/IPrefab";
-import { Scene } from "@trident/core";
+import { Assets, Scene } from "@trident/core";
+import { Menu } from "./MenuDropdown/Menu";
+import { MenuItem } from "./MenuDropdown/MenuItem";
+import { FileBrowser, MODE } from "../helpers/FileBrowser";
+import { IGeometry } from "../engine-api/trident/components/IGeometry";
+import { IMaterial } from "../engine-api/trident/IMaterial";
 
 export interface FileData {
     file: FileSystemDirectoryHandle | FileSystemFileHandle;
     instance: any;
+    path: string;
 }
 
 interface ProjectTreeMap extends ITreeMap<FileData> {
@@ -22,19 +28,56 @@ interface ProjectTreeMap extends ITreeMap<FileData> {
 
 interface LayoutAssetsState {
     currentTreeMap: Map<string, ProjectTreeMap>;
+    selected: FileData;
 };
+
+export async function dir(h?: FileSystemDirectoryHandle): Promise<FileSystemDirectoryHandle> {
+    const r = indexedDB.open("d", 1);
+    await new Promise(res => (r.onupgradeneeded = () => r.result.createObjectStore("s"), r.onsuccess = res));
+    const db = r.result;
+    const t = db.transaction("s", h ? "readwrite" : "readonly").objectStore("s");
+    if (h) return t.put(h, "h"), h;
+    return new Promise(res => (t.get("h").onsuccess = e => res((e.target as any).result || null)));
+}
+
+Assets.ResourceFetchFn = async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+    if (input instanceof Request || input instanceof URL) throw Error("Not implemented");
+    const handle = await FileBrowser.fopen(input, MODE.R);
+    if (!handle) throw Error(`Could not get file at ${input}`);
+
+    const file = await handle.getFile();
+    return new Response(file);
+}
 
 export class LayoutAssets extends Component<BaseProps, LayoutAssetsState> {
     private fileWatcher: FileWatcher;
     constructor(props: BaseProps) {
         super(props);
-        this.setState({ currentTreeMap: new Map() });
+        this.setState({ currentTreeMap: new Map(), selected: undefined });
 
         this.fileWatcher = new FileWatcher();
 
-        EventSystem.on(ProjectEvents.Opened, () => { this.fileWatcher.watch("") });
+        EventSystem.on(ProjectEvents.Opened, () => {
+            this.fileWatcher.watch("");
+            dir(FileBrowser.getRootFolderHandle());
+        });
         EventSystem.on(FileEvents.Created, (path, handle) => { this.onFileOrDirectoryCreated(path, handle) });
         EventSystem.on(DirectoryEvents.Created, (path, handle) => { this.onFileOrDirectoryCreated(path, handle) });
+        EventSystem.on(DirectoryEvents.Deleted, (path, handle) => { this.onFileOrDirectoryDeleted(path) });
+        EventSystem.on(FileEvents.Deleted, (path, handle) => { this.onFileOrDirectoryDeleted(path) });
+
+        dir().then(handle => {
+            if (handle) {
+                FileBrowser.setRootFolderHandle(handle);
+                EventSystem.emit(ProjectEvents.Opened);
+            }
+        })
+    }
+
+    private onFileOrDirectoryDeleted(path: string) {
+        this.fileWatcher.unwatch(path);
+        this.state.currentTreeMap.delete(path);
+        this.setState({ currentTreeMap: this.state.currentTreeMap, selected: undefined });
     }
 
     private onFileOrDirectoryCreated(path: string, file: FileSystemDirectoryHandle | FileSystemFileHandle) {
@@ -51,14 +94,14 @@ export class LayoutAssets extends Component<BaseProps, LayoutAssetsState> {
                 parent: StringUtils.Dirname(path) == path ? null : StringUtils.Dirname(path),
                 type: type,
                 data: {
+                    path: path,
                     file: file,
                     instance: null
                 }
             })
             // this.forceUpdate();
         }
-        console.log("onFileOrDirectoryCreated", path, this.state.currentTreeMap)
-        this.setState({ currentTreeMap: this.state.currentTreeMap });
+        this.setState({ currentTreeMap: this.state.currentTreeMap, selected: this.state.selected });
     }
 
     private async onToggled(item) {
@@ -66,20 +109,20 @@ export class LayoutAssets extends Component<BaseProps, LayoutAssetsState> {
     }
 
     private async onItemClicked(item: ITreeMap<FileData>) {
-        console.log("onItemClicked", item);
-
         if (!item.data.instance) {
-            await this.LoadFile(item);
+            await this.LoadTreeItem(item);
         }
+
+        this.setState({ currentTreeMap: this.state.currentTreeMap, selected: item.data });
     }
 
     private async onItemDoubleClicked(item: ITreeMap<FileData>) {
         console.log("onItemDoubleClicked", item);
 
         if (!item.data.instance) {
-            await this.LoadFile(item);
+            await this.LoadTreeItem(item);
         }
-        
+
         if (item.data.instance.type === Scene.type) {
             this.props.engineAPI.currentScene.Clear();
             this.props.engineAPI.currentScene.Deserialize(item.data.instance);
@@ -88,25 +131,50 @@ export class LayoutAssets extends Component<BaseProps, LayoutAssetsState> {
         }
     }
 
-    private async LoadFile(item: ITreeMap<FileData>) {
-        return new Promise(async (resolve, reject) => {
-            if (item.data.file instanceof FileSystemFileHandle) {
-                // Just match by extension for now
-                const extension = item.data.file.name.slice(item.data.file.name.lastIndexOf(".") + 1);
-                if (extension === "glb") {
-                    const data = await item.data.file.getFile();
-                    const arrayBuffer = await data.arrayBuffer();
-                    const prefab = await GLTFLoader.LoadFromArrayBuffer(arrayBuffer);
-                    item.data.instance = prefab;
-                    resolve(prefab);
-                }
-                else if (extension == "prefab") {
-                    const data = await item.data.file.getFile();
-                    const text = await data.text();
-                    const prefab = JSON.parse(text) as IPrefab;
-                    if (!prefab["type"]) throw Error("Prefab doesn't have a type");
-                    item.data.instance = prefab;
-                }
+    private async LoadTreeItem(item: ITreeMap<FileData>) {
+        if (item.data.file.kind === "file") {
+            const loadedFile = await this.LoadFile(item.data.path, item.data.file);
+            item.data.instance = loadedFile;
+            return loadedFile;
+        }
+        else if (item.data.file.kind === "directory") {
+            return item.data.file;
+        }
+    }
+
+    private async LoadFile(path: string, file: FileSystemFileHandle) {
+        return new Promise<IPrefab | IGeometry | IMaterial>(async (resolve, reject) => {
+            // Just match by extension for now
+            const extension = file.name.slice(file.name.lastIndexOf(".") + 1);
+            if (extension === "glb") {
+                const data = await file.getFile();
+                const arrayBuffer = await data.arrayBuffer();
+                const prefab = await GLTFLoader.LoadFromArrayBuffer(arrayBuffer);
+                console.log(prefab)
+                resolve(prefab);
+            }
+            else if (extension == "prefab") {
+                const data = await file.getFile();
+                const text = await data.text();
+                const json = JSON.parse(text);
+                const prefab = this.props.engineAPI.deserializePrefab(json);
+                resolve(prefab);
+            }
+            else if (extension == "geometry") {
+                const data = await file.getFile();
+                const text = await data.text();
+                const json = JSON.parse(text);
+                const geometry = this.props.engineAPI.deserializeGeometry(json);
+                geometry.assetPath = path;
+                resolve(geometry);
+            }
+            else if (extension == "material") {
+                const data = await file.getFile();
+                const text = await data.text();
+                const json = JSON.parse(text);
+                const material = this.props.engineAPI.deserializeMaterial(json);
+                material.assetPath = path;
+                resolve(material);
             }
         })
     }
@@ -116,25 +184,71 @@ export class LayoutAssets extends Component<BaseProps, LayoutAssetsState> {
     }
 
     private onDragStarted(event: DragEvent, item: ProjectTreeMap) {
-        console.log("Assets onDragStarted", event, item)
-
         if (!item.data.instance) {
-            this.LoadFile(item).then(() => {
-                ExtendedDataTransfer.set({
-                    data: item.data.instance,
-                })
+            this.LoadTreeItem(item).then(() => {
+                ExtendedDataTransfer.data = item.data.instance;
             })
-
         }
+        
+        ExtendedDataTransfer.data = item.data.instance;
 
-        ExtendedDataTransfer.set({
-            data: item.data.instance,
-        });
+        console.log("HERE", ExtendedDataTransfer.data)
+    }
+
+    private getCurrentPath(): string {
+        if (!this.state.selected) return "";
+
+        if (this.state.selected.file instanceof FileSystemFileHandle) return this.state.selected.path.slice(0, this.state.selected.path.lastIndexOf("/"));
+        else if (this.state.selected.file instanceof FileSystemDirectoryHandle) return this.state.selected.path;
+
+        throw Error("Invalid selected file");
+    }
+
+    private async createFolder() {
+        const path = `${this.getCurrentPath()}/New folder`;
+        const handle = await FileBrowser.mkdir(path);
+        EventSystem.emit(DirectoryEvents.Created, path, handle);
+    }
+
+    private async deleteAsset() {
+        if (!this.state.selected) return;
+
+        if (this.state.selected.file instanceof FileSystemFileHandle) {
+            FileBrowser.remove(this.state.selected.path);
+            EventSystem.emit(FileEvents.Deleted, this.state.selected.path, undefined);
+        }
+        else if (this.state.selected.file instanceof FileSystemDirectoryHandle) {
+            FileBrowser.rmdir(this.state.selected.path);
+            EventSystem.emit(DirectoryEvents.Deleted, this.state.selected.path, undefined);
+        }
+    }
+
+    public onDragOver(event: DragEvent) {
+        event.preventDefault();
+    }
+
+    public async onDrop(event: DragEvent) {
+        console.log("on drop", event);
+        event.preventDefault();
+
+        const file = event.dataTransfer?.files?.[0];
+        if (!file) return;
+
+        const newFileName = `${this.getCurrentPath()}/${file.name}`;
+        const arrayBuffer = await file.arrayBuffer();
+        const copyFile = await FileBrowser.fopen(newFileName, MODE.W);
+        FileBrowser.fwrite(copyFile, arrayBuffer);
+
+        // const url = URL.createObjectURL(file);
+        // const prefab = await GLTFLoader.LoadFromURL(url, "glb");
+        // console.log(JSON.stringify(prefab))
+        // // const obj = currentScene.Instantiate(prefab);
     }
 
     render() {
         let treeMapArr: ProjectTreeMap[] = [];
         for (const [name, entry] of this.state.currentTreeMap) {
+            entry.isSelected = this.state.selected && entry.id === this.state.selected.path ? true : false;
             treeMapArr.push(entry);
         }
 
@@ -147,13 +261,22 @@ export class LayoutAssets extends Component<BaseProps, LayoutAssetsState> {
         });
 
         return (
-            <div
-                style={{
-                    overflow: "auto",
-                    height: "100%"
-                }}
-            // onClick={(event) => { this.onPanelClicked(event)}}
+            <div class="Layout"
+                onDrop={(event) => this.onDrop(event)}
+                onDragOver={(event) => this.onDragOver(event)}
             >
+                <div class="header">
+                    <div class="title">Assets</div>
+                    <div class="right-action">
+                        <Menu name="⋮">
+                            <MenuItem name="Folder" onClicked={() => { this.createFolder() }} />
+                            <MenuItem name="Material" onClicked={() => { this.createMaterial() }} />
+                            <MenuItem name="Script" onClicked={() => { this.createScript() }} />
+                            <MenuItem name="Scene" onClicked={() => { this.createScene() }} />
+                            <MenuItem name="Delete" onClicked={() => { this.deleteAsset() }} />
+                        </Menu>
+                    </div>
+                </div>
                 <Tree
                     onToggled={(item) => this.onToggled(item)}
                     onDropped={(from, to) => this.onDropped(from, to)}

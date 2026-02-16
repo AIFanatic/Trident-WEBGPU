@@ -1,10 +1,17 @@
+import { IComponent } from "./engine-api/trident/components/IComponent";
 import { IGameObject } from "./engine-api/trident/components/IGameObject";
 import { IScene } from "./engine-api/trident/IScene";
+
+export class ComponentEvents {
+    public static Created = (gameObject: IGameObject, component: IComponent) => {};
+    public static Deleted = (gameObject: IGameObject, component: IComponent) => {};
+}
 
 export class GameObjectEvents {
     public static Selected = (gameObject: IGameObject) => {};
     public static Created = (gameObject: IGameObject) => {};
     public static Deleted = (gameObject: IGameObject) => {};
+    public static Changed = (gameObject: IGameObject) => {};
 }
 
 export class ProjectEvents {

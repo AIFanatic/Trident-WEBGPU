@@ -1,6 +1,7 @@
 import { createElement, Component } from "../../gooact";
 
 import './InspectorComponent.css';
+import { InspectorNumber } from "./InspectorNumber";
 
 interface InspectorInputProps {
     title: string;
@@ -14,11 +15,10 @@ export class InspectorInput extends Component<InspectorInputProps> {
         super(props);
     }
 
-    private onChanged(event: Event) {
+    private onChanged(value: string | number) {
         if (this.props.onChanged) {
-            const input = event.currentTarget as HTMLInputElement;
-            if (input.value == "") return;
-            this.props.onChanged(input.value)
+            if (value == "") return;
+            this.props.onChanged(value)
         }
     }
 
@@ -27,12 +27,8 @@ export class InspectorInput extends Component<InspectorInputProps> {
             <span className="title">{this.props.title}</span>
 
             <div class="edit">
-                <input
-                    className="input"
-                    type={this.props.type ? this.props.type : "text"}
-                    onChange={(event) => { this.onChanged(event) }}
-                    value={this.props.value}
-                />
+
+                <InspectorNumber title="N" titleClass="gray-bg" value={this.props.value} onChanged={value => { this.onChanged(value) }} />
             </div>
         </div>
     }

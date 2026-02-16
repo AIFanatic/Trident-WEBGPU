@@ -26,7 +26,7 @@ export class MenuItem extends Component<MenuItemProps> {
         return (
             <button
                 className="dropdown-btn dropdown-item-btn"
-                onClick={(event) => {this.onClicked(event)}}
+                onPointerDown={(event) => {this.onClicked(event)}}
                 {...(this.props.disabled ? { disabled: true } : {})}
             >
                 {this.props.name}

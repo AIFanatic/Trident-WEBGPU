@@ -4,7 +4,7 @@ html, body {
     color: white;
     font-family: monospace;
     font-size: 10px;
-    background-color: black;
+    background-color: #1a1a1a;
 }
 
 flex {
@@ -22,8 +22,6 @@ flex.v {
 
 flex>flex-resizer {
     flex: 0 0 1px;
-    /* background: white; */
-    background-color: black;
     background-repeat: no-repeat;
     background-position: center;
     position: relative; 

@@ -31,12 +31,22 @@ export interface IEngineAPI {
     isVector3(vector3: IVector3): boolean;
 
     isComponent(component: IComponent): boolean;
-    isPrefab(prefab: IPrefab): boolean;
+    isPrefab(prefab: object): boolean;
+    isGeometry(geometry: object): boolean;
+    isMaterial(material: object): boolean;
 
     createPlaneGeometry(): IGeometry;
     createCubeGeometry(): IGeometry;
+    createSphereGeometry(): IGeometry;
+    createCapsuleGeometry(): IGeometry;
     
     createPBRMaterial(args?): IMaterial;
+
+    createPrefab(): IPrefab;
+
+    deserializeGeometry(serialized): IGeometry;
+    deserializeMaterial(serialized): IMaterial;
+    deserializePrefab(args?): IPrefab;
 
     GetSerializedFields: (instance: object) => string[];
 }

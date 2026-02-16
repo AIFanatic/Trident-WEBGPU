@@ -1,6 +1,7 @@
 .InspectorComponent {
     display: flex;
     align-items: center;
+    margin-bottom: 5px;
 }
 
 .InspectorComponent .title {
@@ -12,6 +13,7 @@
 .InspectorComponent .value {
     display: flex;
     align-items: center;
+    width: 100%;
 }
 
 .InspectorComponent .input {
@@ -73,6 +75,10 @@
     border-radius: 50%;
 }
 
+.InspectorComponent .gray-bg {
+    background-color: #7f8c8d50;
+}
+
 .InspectorComponent .red-bg {
     background-color: #e74c3c50;
 }
@@ -90,6 +96,8 @@
     font-size: 9px;
     border-top-left-radius: 2px;
     border-bottom-left-radius: 2px;
+    display: flex;
+    align-items: center;
 }
 
 .InspectorComponent .vec-label:hover {
@@ -97,7 +105,6 @@
 }
 
 .InspectorComponent .vec-input {
-    padding: 4px;
     font-size: 9px;
     border-top-left-radius: 0px;
     border-bottom-left-radius: 0px;
@@ -107,4 +114,5 @@
     display: flex;
     width: 100%;
     margin-right: 5px;
+    align-items: center;
 }

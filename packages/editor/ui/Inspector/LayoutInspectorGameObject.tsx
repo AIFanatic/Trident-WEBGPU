@@ -8,7 +8,7 @@ import { InspectorVector2 } from './InspectorVector2';
 import { Collapsible } from '../Collapsible/Collapsible';
 // // import { StringUtils } from '../helpers/StringUtils';
 import { InspectorColor } from './InspectorColor';
-// // import { AddComponent } from './AddComponent';
+import { AddComponent } from './AddComponent';
 
 import { InspectorClass } from './InspectorClass';
 import { InspectorType } from './InspectorType';
@@ -16,7 +16,7 @@ import { IGameObject } from '../../engine-api/trident/components/IGameObject';
 import { IComponent } from '../../engine-api/trident/components/IComponent';
 import { ITransform } from '../../engine-api/trident/components/ITransform';
 import { IEngineAPI } from '../../engine-api/trident/IEngineAPI';
-import { EventSystem, LayoutHierarchyEvents } from "../../Events";
+import { ComponentEvents, EventSystem, GameObjectEvents, LayoutHierarchyEvents } from "../../Events";
 import { StringUtils } from "../../helpers/StringUtils";
 
 interface LayoutInspectorProps {
@@ -37,13 +37,13 @@ export class LayoutInspectorGameObject extends Component<LayoutInspectorProps, L
             this.setState({ gameObject: gameObject });
         });
 
-        // EventEmitter.on("onGameObjectComponentsChanged", (gameObject) => {
-        //     this.forceUpdate();
-        // })
+        EventSystem.on(ComponentEvents.Created, (gameObject, component) => {
+            this.setState({ gameObject: gameObject });
+        })
 
-        // EventEmitter.on("onGameObjectComponentUpdated", (gameObject) => {
-        //     this.forceUpdate();
-        // })
+        EventSystem.on(GameObjectEvents.Changed, (gameObject, component) => {
+            this.setState({ gameObject: gameObject });
+        })
     }
 
     private onRemoveComponent(component: IComponent) {
@@ -56,8 +56,6 @@ export class LayoutInspectorGameObject extends Component<LayoutInspectorProps, L
         const classname = component.constructor.name;
         // const customType = SerializableTypesInstance.get(classname, property);
         const customType = component[property];
-
-        console.log(type, component, property, value);
 
         if (customType) {
             component[property] = value;
@@ -82,7 +80,7 @@ export class LayoutInspectorGameObject extends Component<LayoutInspectorProps, L
         const input = event.currentTarget as HTMLInputElement;
         gameObject.name = input.value;
 
-        // EventEmitter.emit("onGameObjectNameChanged", gameObject, gameObject.name);
+        EventSystem.emit(GameObjectEvents.Changed, gameObject);
 
         // this.forceUpdate()
     }
@@ -194,9 +192,6 @@ export class LayoutInspectorGameObject extends Component<LayoutInspectorProps, L
                         border: "none",
                         outline: "none",
                         paddingLeft: "5px",
-                        paddingTop: "2px",
-                        paddingBottom: "2px",
-                        marginRight: "10px"
                     }}
                         type="text"
                         value={this.state.gameObject.name}
@@ -212,7 +207,7 @@ export class LayoutInspectorGameObject extends Component<LayoutInspectorProps, L
 
                 {componentsElements}
 
-                {/* <AddComponent gameObject={this.state.gameObject}/> */}
+                <AddComponent gameObject={this.state.gameObject}/>
             </div>
         )
     }

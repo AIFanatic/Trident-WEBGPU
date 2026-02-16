@@ -12,6 +12,7 @@ import { Raycaster } from "../helpers/Raycaster";
 
 import { Debugger } from "@trident/plugins/Debugger";
 import { UITextureViewer } from "@trident/plugins/ui/UIStats";
+import { GLTFLoader } from "@trident/plugins/GLTF/GLTFLoader";
 
 export class LayoutCanvas extends Component<BaseProps> {
 
@@ -84,16 +85,16 @@ export class LayoutCanvas extends Component<BaseProps> {
 
         const raycaster = new Raycaster();
 
-        let mouseDownPosition = {x: 0, y: 0};
-        let mouseUpPosition = {x: 0, y: 0};
+        let mouseDownPosition = { x: 0, y: 0 };
+        let mouseUpPosition = { x: 0, y: 0 };
 
         canvas.addEventListener("mousedown", event => {
-            mouseDownPosition = {x: event.clientX, y: event.clientY};
+            mouseDownPosition = { x: event.clientX, y: event.clientY };
         });
 
         canvas.addEventListener("mouseup", async event => {
-            mouseUpPosition = {x: event.clientX, y: event.clientY};
-            const mouseDrif = {x: mouseDownPosition.x - mouseUpPosition.x, y: mouseDownPosition.y - mouseUpPosition.y};
+            mouseUpPosition = { x: event.clientX, y: event.clientY };
+            const mouseDrif = { x: mouseDownPosition.x - mouseUpPosition.x, y: mouseDownPosition.y - mouseUpPosition.y };
             if (mouseDrif.x == 0 && mouseDrif.y == 0) {
                 const pickedGameObject = await raycaster.execute();
                 if (pickedGameObject) {
@@ -102,36 +103,27 @@ export class LayoutCanvas extends Component<BaseProps> {
             }
         });
 
-        // function traverse(gameObjects: IGameObject[], fn: (gameObject: IGameObject) => void) {
-        //     for (const gameObject of gameObjects) {
-        //         fn(gameObject);
-        //         for (const child of gameObject.transform.children) {
-        //             traverse([child.gameObject], fn);
-        //         }
-        //     }
-        // }
-
-        // const gameObjects = await GLTFLoader.loadAsGameObjects(currentScene, "/extra/dist_bak/test-assets/GLTF/scenes/JunkShop.glb");
-        // // const gameObjects = await GLTFLoader.loadAsGameObjects(scene, "/extra/dist_bak/test-assets/GLTF/scenes/Sponza/Sponza.gltf");
-        // console.log(gameObjects)
-
-        // traverse(gameObjects, gameObject => {
-        //     const mesh = gameObject.GetComponent(IComponents.Mesh);
-        //     if (mesh) {
-        //         mesh.enableShadows = false;
-        //     }
-        // })
-
-        // const gameObjects = await GLTFLoader.loadAsGameObjects(currentScene, "/dist/examples/assets/models/glb/CommonTree_1.glb");
-        // gameObjects[0].transform.scale.mul(0.1);
-
-        // EventSystem.emit(GameObjectEvents.Created, gameObjects[0]);
-
-
         EventSystem.on(SceneEvents.Loaded, scene => {
             const mainCamera = Components.Camera.mainCamera;
             const controls = new OrbitControls(canvas, mainCamera);
         })
+
+        {
+            canvas.addEventListener("dragover", (e) => {
+                e.preventDefault(); // allow drop
+            });
+
+            canvas.addEventListener("drop", async (e) => {
+                e.preventDefault();
+
+                const file = e.dataTransfer?.files?.[0];
+                if (!file) return;
+
+                const url = URL.createObjectURL(file);
+                const prefab = await GLTFLoader.LoadFromURL(url, "glb");
+                const obj = currentScene.Instantiate(prefab);
+            });
+        }
 
         currentScene.Start();
     }

@@ -5,37 +5,42 @@ import { ITreeMap } from "./TreeView/ITreeMap";
 import { Tree } from "./TreeView/Tree";
 import { EventSystem, GameObjectEvents, LayoutHierarchyEvents } from "../Events";
 import { ExtendedDataTransfer } from "../helpers/ExtendedDataTransfer";
-import { MenuItem } from "./MenuDropdown/MenuItem";
 import { Menu } from "./MenuDropdown/Menu";
+import { MenuItem } from "./MenuDropdown/MenuItem";
 import { MenuDropdown } from "./MenuDropdown/MenuDropdown";
+import { IComponents } from "../engine-api/trident/components";
 
 interface LayoutHierarchyState {
-    gameObject: IGameObject;
+    selectedGameObject: IGameObject;
 };
 
 export class LayoutHierarchy extends Component<BaseProps, LayoutHierarchyState> {
 
     constructor(props) {
         super(props);
-        this.setState({ gameObject: null });
+        this.setState({ selectedGameObject: null });
 
         EventSystem.on(GameObjectEvents.Created, gameObject => {
             this.selectGameObject(gameObject);
         });
 
         EventSystem.on(GameObjectEvents.Deleted, gameObject => {
-            if (gameObject === this.state.gameObject) this.setState({ gameObject: null });
+            if (gameObject === this.state.selectedGameObject) this.setState({ selectedGameObject: null });
         });
 
         EventSystem.on(GameObjectEvents.Selected, gameObject => {
             this.selectGameObject(gameObject);
         });
+
+        EventSystem.on(GameObjectEvents.Changed, (gameObject) => {
+            this.selectGameObject(gameObject);
+        })
     }
 
     private selectGameObject(gameObject: IGameObject) {
         console.log("selected", gameObject);
         EventSystem.emit(LayoutHierarchyEvents.Selected, gameObject);
-        this.setState({ gameObject: gameObject });
+        this.setState({ selectedGameObject: gameObject });
     }
 
     private onDropped(from: string, to: string) {
@@ -46,10 +51,8 @@ export class LayoutHierarchy extends Component<BaseProps, LayoutHierarchyState> 
     }
 
     private onDrop(event) {
-        console.log("onDrop", event)
-        const extendedEvent = ExtendedDataTransfer.get();
-        console.log("extendedEvent", extendedEvent.data)
-        const instance = extendedEvent.data;
+        const extendedEvent = ExtendedDataTransfer.data;
+        const instance = extendedEvent;
         if (instance && this.props.engineAPI.isPrefab(instance)) {
             const gameObject = this.props.engineAPI.currentScene.Instantiate(instance);
             this.selectGameObject(gameObject);
@@ -69,7 +72,7 @@ export class LayoutHierarchy extends Component<BaseProps, LayoutHierarchyState> 
             treeMap.push({
                 id: gameObject.transform.id,
                 name: gameObject.name,
-                isSelected: this.state.gameObject && this.state.gameObject == gameObject ? true : false,
+                isSelected: this.state.selectedGameObject && this.state.selectedGameObject == gameObject ? true : false,
                 parent: gameObject.transform.parent ? gameObject.transform.parent.id : "",
                 data: gameObject
             })
@@ -79,6 +82,33 @@ export class LayoutHierarchy extends Component<BaseProps, LayoutHierarchyState> 
 
     private createEmptyGameObject() {
         const gameObject = this.props.engineAPI.createGameObject(this.props.engineAPI.currentScene);
+        EventSystem.emit(GameObjectEvents.Created, gameObject);
+    }
+
+    private deleteGameObject() {
+        if (this.state.selectedGameObject === null) return;
+
+        this.state.selectedGameObject.Destroy();
+        EventSystem.emit(GameObjectEvents.Deleted, this.state.selectedGameObject);
+        this.setState({selectedGameObject: null});
+    }
+
+    private createPrimitive(primitiveType: "Cube" | "Capsule" | "Plane" | "Sphere") {
+        const gameObject = this.props.engineAPI.createGameObject(this.props.engineAPI.currentScene);
+        const mesh = gameObject.AddComponent(IComponents.Mesh);
+        if (primitiveType === "Cube") mesh.geometry = this.props.engineAPI.createCubeGeometry(), gameObject.name = "Cube";
+        else if (primitiveType === "Capsule") mesh.geometry = this.props.engineAPI.createCapsuleGeometry(), gameObject.name = "Capsule";
+        else if (primitiveType === "Plane") mesh.geometry = this.props.engineAPI.createPlaneGeometry(), gameObject.name = "Plane";
+        else if (primitiveType === "Sphere") mesh.geometry = this.props.engineAPI.createSphereGeometry(), gameObject.name = "Sphere";
+        mesh.material = this.props.engineAPI.createPBRMaterial();
+        EventSystem.emit(GameObjectEvents.Created, gameObject);
+    }
+
+    private createLight(lightType: "Directional" | "Point" | "Spot" | "Area") {
+        const gameObject = this.props.engineAPI.createGameObject(this.props.engineAPI.currentScene);
+        if (lightType === "Directional") gameObject.AddComponent(IComponents.DirectionalLight), gameObject.name = "DirectionalLight";
+        else if (lightType === "Point") gameObject.AddComponent(IComponents.PointLight), gameObject.name = "PointLight";
+        else if (lightType === "Spot") gameObject.AddComponent(IComponents.SpotLight), gameObject.name = "SpotLight";
         EventSystem.emit(GameObjectEvents.Created, gameObject);
     }
 
@@ -95,19 +125,18 @@ export class LayoutHierarchy extends Component<BaseProps, LayoutHierarchyState> 
                     <div class="right-action">
                         <Menu name="⋮" >
                             <MenuItem name="Create Empty" onClicked={() => { this.createEmptyGameObject() }} />
+                            <MenuItem name="Delete" onClicked={() => { this.deleteGameObject() }} />
                             <MenuDropdown name="3D Object" >
-                                <MenuItem name="Cube" onClicked={() => { this.createPrimitive(PrimitiveType.Cube) }} />
-                                <MenuItem name="Capsule" onClicked={() => { this.createPrimitive(PrimitiveType.Capsule) }} />
-                                <MenuItem name="Plane" onClicked={() => { this.createPrimitive(PrimitiveType.Plane) }} />
-                                <MenuItem name="Sphere" onClicked={() => { this.createPrimitive(PrimitiveType.Sphere) }} />
-                                <MenuItem name="Cylinder" onClicked={() => { this.createPrimitive(PrimitiveType.Cylinder) }} />
+                                <MenuItem name="Cube" onClicked={() => { this.createPrimitive("Cube") }} />
+                                <MenuItem name="Capsule" onClicked={() => { this.createPrimitive("Capsule") }} />
+                                <MenuItem name="Plane" onClicked={() => { this.createPrimitive("Plane") }} />
+                                <MenuItem name="Sphere" onClicked={() => { this.createPrimitive("Sphere") }} />
                             </MenuDropdown>
 
                             <MenuDropdown name="Lights" >
-                                <MenuItem name="Directional Light" onClicked={() => { this.createLight(LightTypes.Directional) }} />
-                                <MenuItem name="Point Light" onClicked={() => { this.createLight(LightTypes.Point) }} />
-                                <MenuItem name="Spot Light" onClicked={() => { this.createLight(LightTypes.Spot) }} />
-                                <MenuItem name="Area Light" onClicked={() => { this.createLight(LightTypes.Area) }} />
+                                <MenuItem name="Directional Light" onClicked={() => { this.createLight("Directional") }} />
+                                <MenuItem name="Point Light" onClicked={() => { this.createLight("Point") }} />
+                                <MenuItem name="Spot Light" onClicked={() => { this.createLight("Spot") }} />
                             </MenuDropdown>
                         </Menu>
                     </div>

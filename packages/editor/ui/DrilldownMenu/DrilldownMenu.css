@@ -1,0 +1,32 @@
+.DrillDownMenu {
+    border: 1px solid black;
+}
+
+.DrillDownMenu .item {
+    list-style: none;
+    cursor: pointer;
+    padding-left: 10px;
+    font-size: 12px;
+    padding-top: 2px;
+    padding-bottom: 2px;
+}
+
+.DrillDownMenu .item .item-caret {
+    float: right;
+    padding-right: 10px;
+    font-size: 10px;
+    color: #808080;
+}
+
+.DrillDownMenu .item:hover {
+    background-color: #2875ff;
+}
+
+.DrillDownMenu .backBtn {
+    width: 100%;
+    background-color: #404040;
+    color: inherit;
+    border: none;
+    padding: 3px;
+    cursor: pointer;
+}

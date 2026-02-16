@@ -16,6 +16,7 @@ export type ComponentInterface<T> =
 export type ComponentCtor = typeof IComponents[keyof typeof IComponents];
 
 export interface IGameObject {
+    id: string;
     transform: ITransform;
     name: string;
     enabled: boolean;

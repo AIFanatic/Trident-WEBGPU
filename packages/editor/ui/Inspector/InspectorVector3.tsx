@@ -3,6 +3,7 @@ import { createElement, Component } from "../../gooact";
 import { IVector3 } from "../../engine-api/trident/math/IVector3";
 
 import './InspectorComponent.css';
+import { InspectorNumber } from "./InspectorNumber";
 
 interface InspectorVector3Props {
     title: string;
@@ -26,14 +27,12 @@ export class InspectorVector3 extends Component<InspectorVector3Props, Inspector
         super(props);
         // this.state = {vector3: this.props.vector3.clone()};
         this.setState({vector3: this.props.vector3});
-        console.log(this.props.vector3)
     }
 
-    private onChanged(property: ChangedProperty, event: Event) {
+    private onChanged(property: ChangedProperty, _value) {
         if (this.props.onChanged) {
-            const input = event.currentTarget as HTMLInputElement;
-            if (input.value == "") return;
-            const value = parseFloat(input.value);
+            if (_value == "") return;
+            const value = parseFloat(_value);
 
             if (property == ChangedProperty.X) this.state.vector3.x = value;
             else if (property == ChangedProperty.Y) this.state.vector3.y = value;
@@ -77,35 +76,9 @@ export class InspectorVector3 extends Component<InspectorVector3Props, Inspector
             <span class="title">{this.props.title}</span>
 
             <div class="edit">
-                <div class="value">
-                    <span class="vec-label red-bg" onMouseDown={(event) => {this.onClicked(ChangedProperty.X, event)}}>X</span>
-                    <input 
-                        class="input vec-input"
-                        type="number"
-                        onChange={(event) => {this.onChanged(ChangedProperty.X, event)}}
-                        value={this.state.vector3.x.toPrecision(4)}
-                    />
-                </div>
-
-                <div class="value">
-                    <span class="vec-label green-bg" onMouseDown={(event) => {this.onClicked(ChangedProperty.Y, event)}}>Y</span>
-                    <input
-                        class="input vec-input"
-                        type="number"
-                        onChange={(event) => {this.onChanged(ChangedProperty.Y, event)}}
-                        value={this.state.vector3.y.toPrecision(4)}
-                    />
-                </div>
-
-                <div class="value">
-                    <span class="vec-label blue-bg" onMouseDown={(event) => {this.onClicked(ChangedProperty.Z, event)}}>Z</span>
-                    <input
-                        class="input vec-input"
-                        type="number"
-                        onChange={(event) => {this.onChanged(ChangedProperty.Z, event)}}
-                        value={this.state.vector3.z.toPrecision(4)}
-                    />
-                </div>
+                <InspectorNumber title="X" titleClass="red-bg" value={this.state.vector3.x} onChanged={value => {this.onChanged(ChangedProperty.X, value)}} />
+                <InspectorNumber title="Y" titleClass="green-bg" value={this.state.vector3.y} onChanged={value => {this.onChanged(ChangedProperty.Y, value)}} />
+                <InspectorNumber title="Z" titleClass="blue-bg" value={this.state.vector3.z} onChanged={value => {this.onChanged(ChangedProperty.Z, value)}} />
             </div>
         </div>
     }
