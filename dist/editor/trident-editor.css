@@ -197,11 +197,14 @@ input[type=number] {
 }
 .treeview {
     line-height: 1.5;
+    overflow: auto;
+    height: 100%;
 }
 
 .treeview .item {
     counter-increment: section;
     counter-reset: section;
+    overflow-anchor: none;
 }
 
 .treeview .item .drag-hover {
@@ -228,6 +231,23 @@ input[type=number] {
 
 .treeview .item .item-content {
     overflow: hidden;
+}
+
+.treeview::-webkit-scrollbar {
+    width: 8px;
+}
+
+.treeview::-webkit-scrollbar-track {
+    background: transparent; 
+}
+
+.treeview::-webkit-scrollbar-thumb {
+    background: #333;
+    border-radius: 5px;
+}
+
+.treeview::-webkit-scrollbar-thumb:hover {
+    background: #444; 
 }
 .InspectorComponent {
     display: flex;
@@ -427,4 +447,58 @@ input[type=number] {
     border: none;
     padding: 3px;
     cursor: pointer;
+}
+.treeview {
+    line-height: 1.5;
+    overflow: auto;
+    height: 100%;
+}
+
+.treeview .item {
+    counter-increment: section;
+    counter-reset: section;
+    overflow-anchor: none;
+}
+
+.treeview .item .drag-hover {
+    background-color: red;
+}
+
+.treeview .item .item-title {
+    cursor: pointer;
+}
+
+.treeview .item .active {
+    background-color: #3498db;
+}
+
+.treeview .item .item-title:before {
+    content: counters(section, '--');
+    opacity: 0;
+}
+
+.treeview .item .item-title:hover {
+    /* background-color: #383838; */
+    opacity: 0.5;
+}
+
+.treeview .item .item-content {
+    overflow: hidden;
+}
+
+.treeview::-webkit-scrollbar {
+    width: 8px;
+}
+
+.treeview::-webkit-scrollbar-track {
+    background: transparent; 
+}
+
+.treeview::-webkit-scrollbar-thumb {
+    background: #333;
+    border-radius: 5px;
+}
+
+.treeview::-webkit-scrollbar-thumb:hover {
+    background: #444; 
 }

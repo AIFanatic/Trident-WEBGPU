@@ -678,12 +678,13 @@ class GLTFParser {
       for (let i = 0; i < this._glTF.images.length; i++) {
         if (this.glTF.images[i]) continue;
         const img = this._glTF.images[i];
+        const name = img.name;
         if (typeof img.bufferView === "number") {
           const bv = this.glTF.bufferViews[img.bufferView];
           const bytes = bv.data;
           const checksum = fnv1a(bytes);
           const mimeType = img.mimeType ?? "image/png";
-          this.glTF.images[i] = { bytes, mimeType, checksum };
+          this.glTF.images[i] = { name, bytes, mimeType, checksum };
           continue;
         }
         if (img.uri) {
@@ -700,7 +701,7 @@ class GLTFParser {
             }
             const checksum = fnv1a(bytes);
             const mimeType = img.mimeType ?? "image/png";
-            this.glTF.images[i] = { bytes, mimeType, checksum };
+            this.glTF.images[i] = { name, bytes, mimeType, checksum };
           } catch {
           }
         }

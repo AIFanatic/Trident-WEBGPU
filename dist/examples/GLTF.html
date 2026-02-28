@@ -34,7 +34,6 @@
             import { Debugger } from '@trident/plugins/Debugger.js';
             import { HDRParser } from '@trident/plugins/HDRParser.js';
             import { Environment } from '@trident/plugins/Environment/Environment.js';
-            import { DirectionalLightHelper } from '@trident/plugins/DirectionalLightHelper.js';
             
             async function Application(canvas) {
               const renderer = GPU.Renderer.Create(canvas, "webgpu", 2);
@@ -53,8 +52,6 @@
               const light = lightGameObject.AddComponent(Components.DirectionalLight);
               light.castShadows = false;
               light.intensity = 2;
-              const lightHelper = lightGameObject.AddComponent(DirectionalLightHelper);
-              lightHelper.light = light;
               const hdr = await HDRParser.Load("/dist/examples/assets/textures/HDR/spruit_sunrise_1k.hdr");
               const skyTexture = await HDRParser.ToCubemap(hdr);
               const environment = new Environment(scene, skyTexture);
@@ -85,7 +82,8 @@
                   if (!file) return;
                   const url = URL.createObjectURL(file);
                   const prefab2 = await GLTFLoader.LoadFromURL(url, "glb");
-                  scene.Instantiate(prefab2);
+                  const obj = scene.Instantiate(prefab2);
+                  console.log(obj);
                 });
               }
               Debugger.Enable();

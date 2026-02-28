@@ -1,4 +1,4 @@
-import { GPU, Geometry, Mathf } from '@trident/core';
+import { GPU, Geometry, EventSystem, Mathf } from '@trident/core';
 import { SMAATextures } from './resources/SMAATextures.js';
 
 const SMAA_THRESHOLD = 0.1;
@@ -14,7 +14,7 @@ class PostProcessingSMAA extends GPU.RenderPass {
   edgeTex;
   weightsTex;
   blendTex;
-  // private sampleTexture: GPU.RenderTexture;
+  sampleTexture;
   async init() {
     const common = `
             const SMAA_THRESHOLD = ${SMAA_THRESHOLD};
@@ -396,7 +396,16 @@ class PostProcessingSMAA extends GPU.RenderPass {
                             weights = vec4(SMAAArea(areaTex, areaTexSampler, sqrt_d, e1, e2, subsampleIndices.y), weights.ba);
 
                             coords.y = texcoord.y;
-                            weights = vec4(SMAADetectHorizontalCornerPattern(edgesTex, edgesTexSampler, weights.rg, coords.xyzy, d), weights.ba);
+                            // weights = vec4(SMAADetectHorizontalCornerPattern(edgesTex, edgesTexSampler, weights.rg, coords.xyzy, d), weights.ba);
+
+  let hArea = SMAAArea(areaTex, areaTexSampler, sqrt_d, e1, e2, subsampleIndices.y);
+  var hWeights = hArea;
+
+  coords.y = texcoord.y;
+  hWeights = SMAADetectHorizontalCornerPattern(edgesTex, edgesTexSampler, hWeights, coords.xyzy, d);
+
+  // Swap horizontal channels for WebGPU convention mismatch:
+  weights = vec4(hWeights.yx, weights.ba);
                         } else {
                             e.r = 0.0;
                         }
@@ -474,7 +483,9 @@ class PostProcessingSMAA extends GPU.RenderPass {
                 @group(0) @binding(0) var<storage, read> u_resolution: vec4<f32>;
                 @group(0) @binding(1) var colorTex: texture_2d<f32>;
                 @group(0) @binding(2) var weightsTex: texture_2d<f32>;
-                @group(0) @binding(3) var linearSampler: sampler;
+                
+                @group(0) @binding(3) var colorSampler: sampler;
+                @group(0) @binding(4) var weightsSampler: sampler;
 
                 ${common}
 
@@ -502,15 +513,15 @@ class PostProcessingSMAA extends GPU.RenderPass {
                     resolution: vec4f
                 ) -> vec4f {
                     var a: vec4f;
-                    a.x = textureSample(weightsTex, linearSampler, offset.xy).a;
-                    a.y = textureSample(weightsTex, linearSampler, offset.zw).g;
-                    // a.wz = texture(weightsTex, texcoord).xz;
-                    let o1 = textureSample(weightsTex, linearSampler, texcoord).xz;
-                    a.w = o1.x;
-                    a.z = o1.y;
+                    a.x = textureSample(weightsTex, weightsSampler, offset.xy).a;
+  // rg were swapped in pass 2, so top/bottom must be read swapped here.
+  a.y = textureSample(weightsTex, weightsSampler, offset.zw).r; // Top (was .g)
+  let o1_rgz = textureSample(weightsTex, weightsSampler, texcoord);
+  a.w = o1_rgz.g; // Bottom (was .r)
+  a.z = o1_rgz.b; // Left (unchanged)
 
                     if (dot(a, vec4(1.0, 1.0, 1.0, 1.0)) < 1e-5) {
-                        let color = sampleLevelZero(colorTex, linearSampler, texcoord);
+                        let color = sampleLevelZero(colorTex, colorSampler, texcoord);
                         return color;
                     }
                     else {
@@ -523,8 +534,8 @@ class PostProcessingSMAA extends GPU.RenderPass {
                         blendingWeight /= dot(blendingWeight, vec2(1.0, 1.0));
 
                         let blendingCoord: vec4f = mad(blendingOffset, vec4(resolution.xy, -resolution.xy), texcoord.xyxy);
-                        var color: vec4f = blendingWeight.x * sampleLevelZero(colorTex, linearSampler, blendingCoord.xy);
-                        color += blendingWeight.y * sampleLevelZero(colorTex, linearSampler, blendingCoord.zw);
+                        var color: vec4f = blendingWeight.x * sampleLevelZero(colorTex, colorSampler, blendingCoord.xy);
+                        color += blendingWeight.y * sampleLevelZero(colorTex, colorSampler, blendingCoord.zw);
 
                         return color;
                     }
@@ -536,31 +547,44 @@ class PostProcessingSMAA extends GPU.RenderPass {
                     let resolution = input.resolution;
 
                     return SMAANeighborhoodBlendingPS(texcoord, offset, colorTex, weightsTex, resolution);
+
+                    // return textureSample(weightsTex, linearSampler, texcoord);
                 }
             `,
       colorOutputs: [{ format: "rgba16float" }]
     });
     this.quadGeometry = Geometry.Plane();
-    const w = GPU.Renderer.width;
-    const h = GPU.Renderer.height;
-    const u_resolution = new Mathf.Vector4(1 / w, 1 / h, w, h);
-    this.edgeTex = GPU.RenderTexture.Create(w, h, 1, format);
-    this.weightsTex = GPU.RenderTexture.Create(w, h, 1, format);
-    this.blendTex = GPU.RenderTexture.Create(w, h, 1, "rgba16float");
-    const searchTex = await GPU.Texture.Load(new URL(SMAATextures.search, import.meta.url), "rgba16float", true);
-    const areaTex = await GPU.Texture.Load(new URL(SMAATextures.area, import.meta.url), "rgba16float", false);
+    const resize = () => {
+      const width = GPU.Renderer.width;
+      const height = GPU.Renderer.height;
+      const u_resolution = new Mathf.Vector4(1 / width, 1 / height, width, height);
+      if (this.edgeTex) this.edgeTex.Destroy();
+      if (this.weightsTex) this.weightsTex.Destroy();
+      if (this.blendTex) this.blendTex.Destroy();
+      this.edgeTex = GPU.RenderTexture.Create(width, height, 1, format);
+      this.weightsTex = GPU.RenderTexture.Create(width, height, 1, format);
+      this.blendTex = GPU.RenderTexture.Create(width, height, 1, "rgba16float");
+      this.edgeDetectionPass.SetArray("u_resolution", u_resolution.elements);
+      this.weightsShader.SetArray("u_resolution", u_resolution.elements);
+      this.blendShader.SetArray("u_resolution", u_resolution.elements);
+    };
+    EventSystem.on(GPU.RendererEvents.Resized, () => {
+      resize();
+    });
+    resize();
+    const searchTex = await GPU.Texture.Load(new URL(SMAATextures.search, import.meta.url), "r8unorm", { generateMips: false, flipY: true });
+    const areaTex = await GPU.Texture.Load(new URL(SMAATextures.area, import.meta.url), "rg8unorm", { generateMips: false, flipY: false });
     const nearestSampler = GPU.TextureSampler.Create({ addressModeU: "clamp-to-edge", addressModeV: "clamp-to-edge", minFilter: "nearest", magFilter: "nearest" });
     const linearSampler = GPU.TextureSampler.Create({ addressModeU: "clamp-to-edge", addressModeV: "clamp-to-edge", minFilter: "linear", magFilter: "linear" });
     this.edgeDetectionPass.SetSampler("nearestSampler", nearestSampler);
     this.weightsShader.SetSampler("edgesTexSampler", linearSampler);
-    this.weightsShader.SetSampler("searchTexSampler", nearestSampler);
+    this.weightsShader.SetSampler("searchTexSampler", linearSampler);
     this.weightsShader.SetSampler("areaTexSampler", linearSampler);
-    this.blendShader.SetSampler("linearSampler", linearSampler);
+    this.blendShader.SetSampler("weightsSampler", linearSampler);
+    this.blendShader.SetSampler("colorSampler", linearSampler);
     this.weightsShader.SetTexture("searchTex", searchTex);
     this.weightsShader.SetTexture("areaTex", areaTex);
-    this.edgeDetectionPass.SetArray("u_resolution", u_resolution.elements);
-    this.weightsShader.SetArray("u_resolution", u_resolution.elements);
-    this.blendShader.SetArray("u_resolution", u_resolution.elements);
+    this.sampleTexture = await GPU.Texture.Load(new URL("/extra/research/glsl-smaa-main/sample.png", import.meta.url), "rgba16float", false);
     this.initialized = true;
   }
   async execute(resources) {
@@ -582,7 +606,9 @@ class PostProcessingSMAA extends GPU.RenderPass {
     GPU.RendererContext.BeginRenderPass(this.name + " - Blend", [{ clear: true, target: this.blendTex }], void 0, true);
     GPU.RendererContext.DrawGeometry(this.quadGeometry, this.blendShader);
     GPU.RendererContext.EndRenderPass();
-    GPU.RendererContext.CopyTextureToTexture(this.blendTex, lightingOutput);
+    if (this.blendTex.width === lightingOutput.width && this.blendTex.height === lightingOutput.height) {
+      GPU.RendererContext.CopyTextureToTexture(this.blendTex, lightingOutput);
+    }
   }
 }
 

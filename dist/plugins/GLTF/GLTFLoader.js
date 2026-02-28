@@ -1,8 +1,18 @@
-import { IndexAttribute, VertexAttribute, Texture, Geometry, Mathf, PBRMaterial, Components, Prefab, Utils, Assets } from '@trident/core';
+import { Utils, IndexAttribute, VertexAttribute, Texture, Geometry, Mathf, PBRMaterial, Components, Prefab, Assets } from '@trident/core';
 import { GLTFParser } from './GLTFParser.js';
 
 class GLTFLoader {
   static TextureCache = /* @__PURE__ */ new Map();
+  static ParseCounter = 0;
+  static makeCacheNamespace(value) {
+    if (typeof value === "string" && value.length > 0) return value;
+    if (typeof value === "number" || typeof value === "bigint" || typeof value === "boolean") return String(value);
+    if (value && typeof value === "object") {
+      const id = value.id ?? value.uuid ?? value.name;
+      if (id !== void 0) return String(id);
+    }
+    return `gltf:${Utils.UUID()}:${GLTFLoader.ParseCounter++}`;
+  }
   static finalizeGeometry(geom) {
     const posAttr = geom.attributes.get("position");
     if (!posAttr) throw Error("Geometry missing position attribute.");
@@ -27,7 +37,7 @@ class GLTFLoader {
     if (!tex?.source) throw Error("Invalid texture");
     let cached = this.TextureCache.get(tex.source.checksum);
     if (!cached) {
-      cached = Texture.LoadImageSource(new Blob([tex.source.bytes], { type: tex.source.mimeType }), textureFormat);
+      cached = Texture.LoadBlob(new Blob([tex.source.bytes], { type: tex.source.mimeType }), textureFormat, { name: tex.source.name, storeSource: true });
       this.TextureCache.set(tex.source.checksum, cached);
     }
     return cached;
@@ -131,20 +141,29 @@ class GLTFLoader {
       else if (url.endsWith(".gltf") || format === "gltf") cached = await new GLTFParser().loadGLTF(url);
       GLTFLoader.cache.set(url, cached);
     }
-    return this.Parse(cached);
+    const rootName = url.slice(url.lastIndexOf("/"), url.lastIndexOf("."));
+    const cacheNamespace = this.makeCacheNamespace(url);
+    return this.Parse(rootName, cached, cacheNamespace);
   }
-  static async LoadFromArrayBuffer(arrayBuffer, key) {
+  static async LoadFromArrayBuffer(arrayBuffer, key, name) {
     const cacheKey = key ?? arrayBuffer;
     let cached = GLTFLoader.cache.get(cacheKey);
     if (!cached) {
       cached = await new GLTFParser().parseGLB(arrayBuffer);
       GLTFLoader.cache.set(cacheKey, cached);
     }
-    return this.Parse(cached);
+    const cacheNamespace = this.makeCacheNamespace(key ?? arrayBuffer);
+    return this.Parse(name ?? "GameObject", cached, cacheNamespace);
   }
-  static async Parse(gltf) {
+  // Hacky, replaces instance with assetPath based version only
+  static SetAssetPathForInstance(instance, assetPath) {
+    if (Assets.GetInstance(assetPath)) return;
+    instance.assetPath = assetPath;
+    Assets.SetInstance(assetPath, instance);
+  }
+  static async Parse(rootName, gltf, cacheNamespace) {
     if (!gltf.nodes) {
-      return this.createEmptyGO("GLTFPrefab");
+      return this.createEmptyGO(rootName);
     }
     const nodeIndex = /* @__PURE__ */ new Map();
     gltf.nodes.forEach((n, i) => nodeIndex.set(n, i));
@@ -244,24 +263,31 @@ class GLTFLoader {
         const geometryInstance = parsedPrimitive.geometry;
         const materialInstance = parsedPrimitive.material;
         const primitiveIndex = pIndex++;
-        const geometryKey = `geometry:${nodeGO.name}_Prim_${primitiveIndex}:Geometry`;
-        const materialKey = `material:${nodeGO.name}_Prim_${primitiveIndex}:Material`;
-        await Assets.SetInstance(geometryKey, geometryInstance);
-        await Assets.SetInstance(materialKey, materialInstance);
-        const primGO = this.createEmptyGO(`${nodeGO.name}_Prim_${pIndex++}`);
+        const geometryPath = `${rootName}.glb/${node.mesh.name}_${primitiveIndex}.geometry`;
+        const materialPath = `${rootName}.glb/${primitive.material.name}.material`;
+        geometryInstance.assetPath = geometryPath;
+        materialInstance.assetPath = materialPath;
+        this.SetAssetPathForInstance(geometryInstance, geometryPath);
+        this.SetAssetPathForInstance(materialInstance, materialPath);
+        if (materialInstance.params.albedoMap) this.SetAssetPathForInstance(materialInstance.params.albedoMap, `${rootName}.glb/${materialInstance.params.albedoMap.name}.png`);
+        if (materialInstance.params.armMap) this.SetAssetPathForInstance(materialInstance.params.armMap, `${rootName}.glb/${materialInstance.params.armMap.name}.png`);
+        if (materialInstance.params.normalMap) this.SetAssetPathForInstance(materialInstance.params.normalMap, `${rootName}.glb/${materialInstance.params.normalMap.name}.png`);
+        if (materialInstance.params.emissiveMap) this.SetAssetPathForInstance(materialInstance.params.emissiveMap, `${rootName}.glb/${materialInstance.params.emissiveMap.name}.png`);
+        if (materialInstance.params.heightMap) this.SetAssetPathForInstance(materialInstance.params.heightMap, `${rootName}.glb/${materialInstance.params.heightMap.name}.png`);
+        const primGO = this.createEmptyGO(nodeGO.name);
         const hasSkin = primitive.attributes && primitive.attributes.JOINTS_0 && primitive.attributes.WEIGHTS_0;
         if (hasSkin) {
           primGO.components.push({
             type: Components.SkinnedMesh.type,
-            geometry: { assetPath: geometryKey },
-            material: { assetPath: materialKey },
+            geometry: { assetPath: geometryPath },
+            material: { assetPath: materialPath },
             enableShadows: true
           });
         } else {
           primGO.components.push({
             type: Components.Mesh.type,
-            geometry: { assetPath: geometryKey },
-            material: { assetPath: materialKey },
+            geometry: { assetPath: geometryPath },
+            material: { assetPath: materialPath },
             enableShadows: true
           });
         }
@@ -272,7 +298,7 @@ class GLTFLoader {
     for (const n of gltf.nodes) {
       for (const childId of n.childrenID) childIDs.add(childId);
     }
-    const root = this.createEmptyGO("GLTFPrefab");
+    const root = this.createEmptyGO(rootName);
     for (let i = 0; i < gltf.nodes.length; i++) {
       if (!childIDs.has(i)) root.children.push(nodes[i]);
     }

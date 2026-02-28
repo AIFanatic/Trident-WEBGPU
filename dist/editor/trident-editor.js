@@ -3,6 +3,8 @@ import { OrbitControls } from '@trident/plugins/OrbitControls.js';
 import { Environment } from '@trident/plugins/Environment/Environment.js';
 import { Sky } from '@trident/plugins/Environment/Sky.js';
 import { GLTFLoader } from '@trident/plugins/GLTF/GLTFLoader.js';
+import { PostProcessingPass } from '@trident/plugins/PostProcessing/PostProcessingPass.js';
+import { PostProcessingSMAA } from '@trident/plugins/PostProcessing/effects/SMAA.js';
 
 class TridentAPI {
   currentScene;
@@ -135,11 +137,33 @@ const patch = (dom, vdom, parent = dom.parentNode) => {
       const key = child.__gooactKey || `__index_${index}`;
       pool[key] = child;
     });
-    [].concat(...vdom.children).map((child, index) => {
-      const key = child.props && child.props.key || `__index_${index}`;
-      dom.appendChild(pool[key] ? patch(pool[key], child) : render(child, dom));
-      delete pool[key];
-    });
+    const newChildren = [].concat(...vdom.children);
+    const domChildren = dom.childNodes;
+    let i = 0;
+    for (const child of newChildren) {
+      const key = child && child.props && child.props.key || `__index_${i}`;
+      let existing = pool[key];
+      let updatedNode;
+      if (existing) {
+        updatedNode = patch(existing, child);
+        delete pool[key];
+      } else {
+        updatedNode = render(child, null);
+      }
+      const currentNodeAtIndex = domChildren[i];
+      if (currentNodeAtIndex !== updatedNode) {
+        dom.insertBefore(updatedNode, currentNodeAtIndex || null);
+      }
+      i++;
+    }
+    for (const key in pool) {
+      const leftover = pool[key];
+      const instance = leftover.__gooactInstance;
+      if (instance) instance.componentWillUnmount();
+      if (leftover.parentNode) {
+        leftover.parentNode.removeChild(leftover);
+      }
+    }
     for (const key in pool) {
       const instance = pool[key].__gooactInstance;
       if (instance) instance.componentWillUnmount();
@@ -476,14 +500,13 @@ class LayoutCanvas extends Component {
     const mainCameraGameObject = EngineAPI.createGameObject(currentScene);
     mainCameraGameObject.name = "MainCamera";
     const camera = mainCameraGameObject.AddComponent(IComponents.Camera);
-    camera.SetPerspective(72, canvas.width / canvas.height, 0.5, 500);
-    const observer = new ResizeObserver((entries) => {
-      camera.SetPerspective(72, canvas.width / canvas.height, 0.05, 500);
+    camera.SetPerspective(72, canvas.width / canvas.height, 0.5, 5e4);
+    EventSystem.on(GPU.RendererEvents.Resized, () => {
+      camera.SetPerspective(72, canvas.width / canvas.height, 0.05, 5e4);
     });
-    observer.observe(canvas);
     mainCameraGameObject.transform.position.set(0, 0, 10);
     mainCameraGameObject.transform.LookAtV1(EngineAPI.createVector3(0, 0, 0));
-    new OrbitControls(canvas, camera);
+    const controls = new OrbitControls(canvas, camera);
     const lightGameObject = EngineAPI.createGameObject(EngineAPI.currentScene);
     lightGameObject.name = "Light";
     lightGameObject.transform.position.set(-10, 10, 10);
@@ -525,6 +548,10 @@ class LayoutCanvas extends Component {
         }
       }
     });
+    EventSystem.on(LayoutHierarchyEvents.Selected, (pickedGameObject) => {
+      console.log("TRIGGGEr");
+      controls.center.copy(pickedGameObject.transform.position);
+    });
     EventSystem.on(SceneEvents.Loaded, (scene) => {
       const mainCamera = Components.Camera.mainCamera;
       new OrbitControls(canvas, mainCamera);
@@ -542,6 +569,10 @@ class LayoutCanvas extends Component {
         currentScene.Instantiate(prefab);
       });
     }
+    const postProcessing = new PostProcessingPass();
+    const smaa = new PostProcessingSMAA();
+    postProcessing.effects.push(smaa);
+    currentScene.renderPipeline.AddPass(postProcessing, GPU.RenderPassOrder.BeforeScreenOutput);
     currentScene.Start();
   }
   render() {
@@ -694,7 +725,7 @@ class FileWatcher {
   watches;
   constructor() {
     this.watches = /* @__PURE__ */ new Map();
-    this.update();
+    setInterval(() => this.update(), 500);
   }
   watch(directoryPath) {
     FileBrowser.opendir(directoryPath).then((directoryHandle) => {
@@ -716,67 +747,58 @@ class FileWatcher {
     return this.watches;
   }
   async update() {
-    return new Promise(async (resolve, reject) => {
-      for (let watchPair of this.watches) {
-        const directoryPath = watchPair[0];
-        const directoryWatch = watchPair[1];
-        if (directoryPath[0] == ".") continue;
-        const directoryPathExists = await FileBrowser.exists(directoryPath);
-        if (!directoryPathExists) {
-          this.watches.delete(directoryPath);
-          EventSystem.emit(DirectoryEvents.Deleted, directoryPath, directoryWatch.handle);
-          continue;
-        }
-        for (let watchFilesPair of directoryWatch.files) {
-          const watchFilePath = watchFilesPair[0];
-          const watchFile = watchFilesPair[1];
-          const fileExists = await FileBrowser.exists(watchFilePath);
-          if (!fileExists) {
-            directoryWatch.files.delete(watchFile.path);
-            if (watchFile.handle instanceof FileSystemFileHandle) {
-              EventSystem.emit(FileEvents.Deleted, watchFile.path, watchFile.handle);
-            }
-          }
-        }
-        const files = await FileBrowser.readdir(directoryWatch.handle);
-        for (let file of files) {
-          if (file.name[0] == ".") continue;
-          if (file.kind == "file") {
-            const fileHandle = await file.getFile();
-            const filePath = directoryPath + "/" + file.name;
-            if (!directoryWatch.files.has(filePath)) {
-              directoryWatch.files.set(filePath, {
-                path: filePath,
-                handle: file,
-                lastModified: fileHandle.lastModified
-              });
-              EventSystem.emit(FileEvents.Created, filePath, file);
-            } else {
-              const storedFile = directoryWatch.files.get(filePath);
-              if (storedFile.lastModified != fileHandle.lastModified) {
-                storedFile.lastModified = fileHandle.lastModified;
-                EventSystem.emit(FileEvents.Changed, filePath, file);
-              }
-            }
-          } else if (file.kind == "directory") {
-            const directoryDirectoryPath = directoryPath + "/" + file.name;
-            if (!directoryWatch.files.has(directoryDirectoryPath)) {
-              directoryWatch.files.set(directoryDirectoryPath, {
-                path: directoryDirectoryPath,
-                handle: file,
-                lastModified: 0
-              });
-              EventSystem.emit(DirectoryEvents.Created, directoryDirectoryPath, file);
-            }
+    for (const [directoryPath, directoryWatch] of this.watches) {
+      if (directoryPath[0] == ".") continue;
+      const directoryPathExists = await FileBrowser.exists(directoryPath);
+      if (!directoryPathExists) {
+        this.watches.delete(directoryPath);
+        EventSystem.emit(DirectoryEvents.Deleted, directoryPath, directoryWatch.handle);
+        continue;
+      }
+      for (let watchFilesPair of directoryWatch.files) {
+        const watchFilePath = watchFilesPair[0];
+        const watchFile = watchFilesPair[1];
+        const fileExists = await FileBrowser.exists(watchFilePath);
+        if (!fileExists) {
+          directoryWatch.files.delete(watchFile.path);
+          if (watchFile.handle instanceof FileSystemFileHandle) {
+            EventSystem.emit(FileEvents.Deleted, watchFile.path, watchFile.handle);
           }
         }
       }
-      resolve();
-    }).then(() => {
-      setTimeout(() => {
-        this.update();
-      }, 100);
-    });
+      const files = await FileBrowser.readdir(directoryWatch.handle);
+      for (let file of files) {
+        if (file.name[0] == ".") continue;
+        if (file.kind == "file") {
+          const fileHandle = await file.getFile();
+          const filePath = directoryPath + "/" + file.name;
+          if (!directoryWatch.files.has(filePath)) {
+            directoryWatch.files.set(filePath, {
+              path: filePath,
+              handle: file,
+              lastModified: fileHandle.lastModified
+            });
+            EventSystem.emit(FileEvents.Created, filePath, file);
+          } else {
+            const storedFile = directoryWatch.files.get(filePath);
+            if (storedFile.lastModified != fileHandle.lastModified) {
+              storedFile.lastModified = fileHandle.lastModified;
+              EventSystem.emit(FileEvents.Changed, filePath, file);
+            }
+          }
+        } else if (file.kind == "directory") {
+          const directoryDirectoryPath = directoryPath + "/" + file.name;
+          if (!directoryWatch.files.has(directoryDirectoryPath)) {
+            directoryWatch.files.set(directoryDirectoryPath, {
+              path: directoryDirectoryPath,
+              handle: file,
+              lastModified: 0
+            });
+            EventSystem.emit(DirectoryEvents.Created, directoryDirectoryPath, file);
+          }
+        }
+      }
+    }
   }
 }
 
@@ -802,9 +824,8 @@ class StringUtils {
     return keys.length > 0 ? keys[0] : null;
   }
   static GetNameForPath(path) {
-    const pathArray = path.split("/");
-    const nameArr = pathArray[pathArray.length - 1].split(".");
-    return nameArr[0];
+    const extensionIndex = path.lastIndexOf(".");
+    return path.slice(path.lastIndexOf("/") + 1, extensionIndex !== -1 ? extensionIndex : path.length);
   }
   static Dirname(path) {
     const pathArr = path.split("/");
@@ -941,10 +962,6 @@ class File extends Component {
   }
   onDragOver(event) {
     event.preventDefault();
-  }
-  onClicked(event) {
-    console.log("onClicked");
-    this.props.onClicked(this.props.data);
   }
   lastClickTs = 0;
   dblMs = 220;
@@ -1232,14 +1249,19 @@ class LayoutAssets extends Component {
       if (extension === "glb") {
         const data = await file.getFile();
         const arrayBuffer = await data.arrayBuffer();
-        const prefab = await GLTFLoader.LoadFromArrayBuffer(arrayBuffer);
-        console.log(prefab);
+        const prefab = await GLTFLoader.LoadFromArrayBuffer(arrayBuffer, void 0, file.name.slice(0, file.name.lastIndexOf(".")));
         resolve(prefab);
+      } else if (extension == "scene") {
+        const data = await file.getFile();
+        const text = await data.text();
+        const json = JSON.parse(text);
+        resolve(json);
       } else if (extension == "prefab") {
         const data = await file.getFile();
         const text = await data.text();
         const json = JSON.parse(text);
         const prefab = this.props.engineAPI.deserializePrefab(json);
+        prefab.assetPath = path;
         resolve(prefab);
       } else if (extension == "geometry") {
         const data = await file.getFile();
@@ -1299,10 +1321,40 @@ class LayoutAssets extends Component {
     event.preventDefault();
     const file = event.dataTransfer?.files?.[0];
     if (!file) return;
-    const newFileName = `${this.getCurrentPath()}/${file.name}`;
-    const arrayBuffer = await file.arrayBuffer();
-    const copyFile = await FileBrowser.fopen(newFileName, MODE.W);
-    FileBrowser.fwrite(copyFile, arrayBuffer);
+    const extension = file.name.slice(file.name.lastIndexOf(".") + 1);
+    if (extension === "glb") {
+      const arrayBuffer = await file.arrayBuffer();
+      const prefab = await GLTFLoader.LoadFromArrayBuffer(arrayBuffer, void 0, file.name.slice(0, file.name.lastIndexOf(".")));
+      await FileBrowser.mkdir(file.name);
+      prefab.traverse(async (prefab2) => {
+        for (const component of prefab2.components) {
+          if (component.type === IComponents.Mesh.type) {
+            async function SaveToFile(path, blob) {
+              const file2 = await FileBrowser.fopen(path, MODE.W);
+              await FileBrowser.fwrite(file2, blob);
+            }
+            {
+              const geometry = Assets.GetInstance(component.geometry.assetPath);
+              const geometrySerialized = geometry.SerializeAsset();
+              SaveToFile(geometry.assetPath, new Blob([JSON.stringify(geometrySerialized)]));
+            }
+            {
+              const material = Assets.GetInstance(component.material.assetPath);
+              const materialSerialized = material.SerializeAsset();
+              SaveToFile(material.assetPath, new Blob([JSON.stringify(materialSerialized)]));
+              if (material.params.albedoMap && material.params.albedoMap.blob) SaveToFile(material.params.albedoMap.assetPath, material.params.albedoMap.blob);
+              if (material.params.normalMap && material.params.normalMap.blob) SaveToFile(material.params.normalMap.assetPath, material.params.normalMap.blob);
+              if (material.params.armMap && material.params.armMap.blob) SaveToFile(material.params.armMap.assetPath, material.params.armMap.blob);
+              if (material.params.heightMap && material.params.heightMap.blob) SaveToFile(material.params.heightMap.assetPath, material.params.heightMap.blob);
+              if (material.params.emissiveMap && material.params.emissiveMap.blob) SaveToFile(material.params.emissiveMap.assetPath, material.params.emissiveMap.blob);
+            }
+            {
+              SaveToFile(`${file.name}/${file.name}.prefab`, new Blob([JSON.stringify(prefab2)]));
+            }
+          }
+        }
+      });
+    }
   }
   render() {
     let treeMapArr = [];
@@ -1428,13 +1480,28 @@ class LayoutHierarchy extends Component {
     EventSystem.on(GameObjectEvents.Changed, (gameObject) => {
       this.selectGameObject(gameObject);
     });
+    EventSystem.on(SceneEvents.Loaded, (scene) => {
+      this.setState({ selectedGameObject: null });
+    });
   }
   selectGameObject(gameObject) {
-    console.log("selected", gameObject);
     EventSystem.emit(LayoutHierarchyEvents.Selected, gameObject);
     this.setState({ selectedGameObject: gameObject });
   }
-  onDropped(from, to) {
+  getGameObjectById(id) {
+    console.log(this.props.engineAPI.currentScene.gameObjects);
+    for (const gameObject of this.props.engineAPI.currentScene.gameObjects) {
+      if (gameObject.transform.id === id) return gameObject;
+    }
+    return void 0;
+  }
+  onDropped(fromId, toId) {
+    const fromGameObject = this.getGameObjectById(fromId);
+    const toGameObject = this.getGameObjectById(toId);
+    if (fromGameObject && toGameObject) {
+      fromGameObject.transform.parent = toGameObject.transform;
+      this.selectGameObject(toGameObject);
+    }
   }
   onDragStarted(event, data) {
     console.log("onDragStarted", event);
@@ -1445,6 +1512,14 @@ class LayoutHierarchy extends Component {
     if (instance && this.props.engineAPI.isPrefab(instance)) {
       const gameObject = this.props.engineAPI.currentScene.Instantiate(instance);
       this.selectGameObject(gameObject);
+      ExtendedDataTransfer.data = void 0;
+    } else {
+      const fromUuid = event.dataTransfer.getData("from-uuid");
+      const gameObject = this.getGameObjectById(fromUuid);
+      if (gameObject) {
+        gameObject.transform.parent = null;
+        this.selectGameObject(gameObject);
+      }
     }
   }
   buildTreeFromGameObjects(gameObjects) {
@@ -1546,10 +1621,12 @@ class InspectorNumber extends Component {
       this.state.value += delta / 10;
       this.setState({ value: this.state.value });
       this.props.onChanged(this.state.value);
+      event2.currentTarget.requestPointerLock();
     };
     const MouseUpEvent = (event2) => {
       document.body.removeEventListener("mousemove", MouseMoveEvent);
       document.body.removeEventListener("mouseup", MouseUpEvent);
+      document.exitPointerLock();
     };
     document.body.addEventListener("mousemove", MouseMoveEvent);
     document.body.addEventListener("mouseup", MouseUpEvent);
@@ -1627,6 +1704,7 @@ class InspectorVector3 extends Component {
     this.setState({ vector3: this.props.vector3 });
   }
   onChanged(property, _value) {
+    console.log("CAHHH");
     if (this.props.onChanged) {
       if (_value == "") return;
       const value = parseFloat(_value);
@@ -2051,6 +2129,7 @@ class InspectorType extends Component {
     }
     if (this.props.onChanged) {
       event.currentTarget;
+      console.log("ON CHA");
       this.props.onChanged(draggedItem);
     }
     event.preventDefault();
@@ -2130,6 +2209,7 @@ class LayoutInspectorGameObject extends Component {
     } else if (type == "number") {
       component[property] = parseFloat(value);
     }
+    this.setState({ gameObject: this.state.gameObject });
   }
   onGameObjectNameChanged(gameObject, event) {
     const input = event.currentTarget;
@@ -2163,8 +2243,8 @@ class LayoutInspectorGameObject extends Component {
       }, title, selected: component[property] });
     } else if (type == "object") {
       let valueForType = component[property].constructor.name;
-      if (component[property].userData && component[property].userData.fileId) {
-        valueForType = StringUtils.GetNameForPath(component[property].userData.fileId);
+      if (component[property].assetPath) {
+        valueForType = StringUtils.GetNameForPath(component[property].assetPath);
       }
       return /* @__PURE__ */ createElement(
         InspectorType,
@@ -2279,7 +2359,7 @@ class LayoutTopbar extends Component {
   }
   async saveProject() {
     const serializedScene = this.props.engineAPI.currentScene.Serialize();
-    const handle = await FileBrowser.fopen("Scene.prefab", MODE.W);
+    const handle = await FileBrowser.fopen(`${this.props.engineAPI.currentScene.name}.scene`, MODE.W);
     FileBrowser.fwrite(handle, JSON.stringify(serializedScene));
   }
   async test() {

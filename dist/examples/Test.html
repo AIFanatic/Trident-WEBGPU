@@ -144,7 +144,7 @@
                     const arrayBuffer = await runReadLimited(() => file.arrayBuffer());
                     await runParseLimited(async () => {
                       console.log("Loading", assetPath);
-                      const prefab = await GLTFLoader.LoadFromArrayBuffer(arrayBuffer);
+                      const prefab = await GLTFLoader.LoadFromArrayBuffer(arrayBuffer, assetPath, assetPath);
                       const rootGameObject = record.rootGameObject;
                       traverse([prefab], (p2) => {
                         for (const component of p2.components) {
@@ -159,7 +159,6 @@
                     });
                   }
                   for (const actor of sceneFile.actors) {
-                    if (actor.class !== "StaticMeshActor") continue;
                     if (instanceCount >= MAX_INSTANCES) break;
                     for (const m of actor.static_meshes) {
                       if (instanceCount >= MAX_INSTANCES) break;
@@ -189,43 +188,59 @@
                   console.log("Unique assets:", uniques.size);
                   await Promise.all([...uniques.values()].map((u) => u.loadPromise));
                   const p = new Mathf.Vector3();
-                  const e = new Mathf.Vector3();
                   const r = new Mathf.Quaternion();
                   const s = new Mathf.Vector3(1, 1, 1);
-                  const mat = new Mathf.Matrix4();
+                  new Mathf.Matrix4();
+                  const rotation_correction = new Mathf.Quaternion().setFromAxisAngle(new Mathf.Vector3(0, 1, 0), -Math.PI / 2);
                   instanceCount = 0;
                   for (const actor of sceneFile.actors) {
-                    if (actor.class !== "StaticMeshActor") continue;
                     if (instanceCount >= MAX_INSTANCES) break;
+                    const { location, rotation_quat, scale } = actor.transform;
+                    let actorMatrix = new Mathf.Matrix4();
+                    p.set(-location.y / 100, location.z / 100, location.x / 100);
+                    r.set(rotation_quat.y, rotation_quat.z, -rotation_quat.x, -rotation_quat.w);
+                    r.mul(rotation_correction);
+                    s.set(scale.y, scale.z, scale.x);
+                    actorMatrix.compose(p, r, s);
                     for (const static_mesh of actor.static_meshes) {
                       if (instanceCount >= MAX_INSTANCES) break;
+                      if (actor.name.includes("GreenLight")) {
+                        console.log("HERE", actor);
+                      }
                       const assetName = static_mesh.asset_name;
                       let assetPath = static_mesh.asset_path.replace("/Game", "GLB");
                       assetPath = assetPath.slice(0, assetPath.lastIndexOf(".")) + ".glb";
                       if (!assetName) continue;
                       const record = uniques.get(assetPath);
+                      if (actor.name.includes("GreenLight")) {
+                        console.log(uniques);
+                        console.log("HERE2", record, assetPath);
+                      }
                       if (!record || record.instancedMeshes.length === 0) {
                         instanceCount++;
                         continue;
                       }
-                      const { location, rotation_euler_deg, scale } = actor.transform;
-                      p.set(-location.y / 100, location.z / 100, location.x / 100);
-                      e.set(rotation_euler_deg.roll, -90 + rotation_euler_deg.yaw, rotation_euler_deg.pitch);
-                      r.setFromEuler(e, true);
-                      s.set(scale.x, scale.y, scale.z);
-                      mat.compose(p, r, s);
+                      const { location: location2, rotation_quat: rotation_quat2, scale: scale2 } = static_mesh.relative_transform;
+                      let staticMeshMatrix = new Mathf.Matrix4();
+                      {
+                        p.set(-location2.y / 100, location2.z / 100, location2.x / 100);
+                        r.set(rotation_quat2.y, rotation_quat2.z, -rotation_quat2.x, -rotation_quat2.w);
+                        let rotation_correction_clone = rotation_correction.clone();
+                        if (location2.x == 0 && location2.y == 0 && location2.z == 0) {
+                          rotation_correction_clone.mul(new Mathf.Quaternion().setFromAxisAngle(new Mathf.Vector3(0, 1, 0), Math.PI / 2));
+                        }
+                        r.mul(rotation_correction_clone);
+                        s.set(scale2.y, scale2.z, scale2.x);
+                        staticMeshMatrix.compose(p, r, s);
+                        if (location2.x == 0 && location2.y == 0 && location2.z == 0) {
+                          staticMeshMatrix.copy(actorMatrix.clone().mul(staticMeshMatrix));
+                        }
+                      }
                       for (const inst of record.instancedMeshes) {
-                        inst.SetMatrixAt(inst.instanceCount, mat);
+                        inst.SetMatrixAt(inst.instanceCount, staticMeshMatrix);
                       }
                       instanceCount++;
                     }
-                  }
-                  for (const [assetPath, record] of uniques) {
-                    if (record.instancedMeshes.length === 0) {
-                      console.warn(assetPath, "loaded 0 meshes (failed load or no mesh components).");
-                      continue;
-                    }
-                    console.log(`${assetPath} has ${record.instancedMeshes[0].instanceCount} instances`);
                   }
                 });
               }
