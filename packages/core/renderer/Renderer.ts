@@ -6,6 +6,7 @@ import { EventSystem } from "../Events";
 export type RendererAPIType = "webgpu";
 
 export class RendererEvents {
+    public static Created = (renderer: Renderer) => {}
     public static Resized = (canvas: HTMLCanvasElement) => {}
 }
 
@@ -49,6 +50,7 @@ export class Renderer {
 
         if (type === "webgpu") {
             this.activeRenderer = new WEBGPURenderer(canvas);
+            EventSystem.emit(RendererEvents.Created, this);
             return this.activeRenderer;
         }
         throw Error("Unknown render api type.");

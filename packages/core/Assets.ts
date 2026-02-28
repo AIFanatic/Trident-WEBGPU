@@ -11,6 +11,10 @@ export class Assets {
     private static cache: Map<string, Promise<any>> = new Map();
     private static instanceCache: Map<string, any> = new Map();
 
+    public static RemoveInstance(path: string) {
+        return Assets.instanceCache.delete(path);
+    }
+
     public static GetInstance(path: string) {
         return Assets.instanceCache.get(path);
     }
@@ -77,6 +81,7 @@ export class Prefab {
     public components: SerializedComponent[] = [];
     public transform: SerializedComponent;
     public children: Prefab[] = [];
+    public assetPath?: string;
 
     public traverse(fn: (prefab: Prefab) => void, prefab: Prefab = this) {
         fn(prefab);
@@ -85,13 +90,18 @@ export class Prefab {
         }
     }
 
+    public Deserialize(data: any): Prefab {
+        this.name = data.name;
+        this.type = data.type;
+        this.transform = data.transform;
+        this.components = Array.isArray(data?.components) ? data.components : [];
+        this.children = Array.isArray(data?.children) ? data.children.map((c: any) => Prefab.Deserialize(c)) : [];
+        return this;
+    }
+
     public static Deserialize(data: any): Prefab {
         const prefab = new Prefab();
-        prefab.name = data.name;
-        prefab.type = data.type;
-        prefab.transform = data.transform;
-        prefab.components = Array.isArray(data?.components) ? data.components : [];
-        prefab.children = Array.isArray(data?.children) ? data.children.map((c: any) => Prefab.Deserialize(c)) : [];
+        prefab.Deserialize(data);
         return prefab;
     }
 }

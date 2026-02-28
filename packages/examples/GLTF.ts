@@ -31,8 +31,8 @@ async function Application(canvas: HTMLCanvasElement) {
     light.castShadows = false;
     light.intensity = 2;
 
-    const lightHelper = lightGameObject.AddComponent(DirectionalLightHelper);
-    lightHelper.light = light;
+    // const lightHelper = lightGameObject.AddComponent(DirectionalLightHelper);
+    // lightHelper.light = light;
 
 
     // const cube = new GameObject(scene);
@@ -146,6 +146,8 @@ async function Application(canvas: HTMLCanvasElement) {
             const url = URL.createObjectURL(file);
             const prefab = await GLTFLoader.LoadFromURL(url, "glb");
             const obj = scene.Instantiate(prefab);
+
+            console.log(obj)
         });
     }
     Debugger.Enable();

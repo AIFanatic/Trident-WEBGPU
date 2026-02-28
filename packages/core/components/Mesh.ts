@@ -38,6 +38,11 @@ export class Mesh extends Renderable {
         Mesh.modelMatrices.getBuffer().dynamicOffset = this.modelMatrixOffset * Mesh.modelMatrices.getStride();
         RendererContext.DrawGeometry(this.geometry, shader);
     }
+
+    public Destroy(): void {
+        super.Destroy();
+        Mesh.modelMatrices.delete(this.id);
+    }
 }
 
 Component.Registry.set(Mesh.type, Mesh);

@@ -30,6 +30,8 @@ export class Buffer {
 
 export class DynamicBuffer {
     public readonly size: number;
+    public set name(name: string) {};
+    public get name(): string { return "DynamicBuffer" };
     public readonly minBindingSize: number | undefined;
     public dynamicOffset: number = 0;
 

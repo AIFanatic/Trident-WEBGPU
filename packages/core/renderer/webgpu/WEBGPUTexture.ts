@@ -1,6 +1,6 @@
 import { UUID } from "../../utils";
 import { Renderer } from "../Renderer";
-import { SerializedTexture, Texture, TextureDimension, TextureFormat, TextureType } from "../Texture";
+import { ImageLoadOptions, SerializedTexture, Texture, TextureDimension, TextureFormat, TextureType } from "../Texture";
 import { WEBGPUMipsGenerator } from "./utils/WEBGPUMipsGenerator";
 import { WEBGPUCubeMipsGenerator } from "./utils/WEBGPUCubeMipsGenerator";
 import { WEBGPURenderer } from "./WEBGPURenderer";
@@ -8,7 +8,6 @@ import { Assets } from "../../Assets";
 
 import { Buffer, BufferType } from "../Buffer";
 import { RendererContext } from "../../renderer";
-import { Color } from "../../math";
 
 const TextureFormatToBits: Partial<Record<TextureFormat, number>> = {
     rgba8unorm: 32, "rgba8unorm-srgb": 32, bgra8unorm: 32, "bgra8unorm-srgb": 32,
@@ -55,7 +54,8 @@ export class WEBGPUTexture implements Texture {
     private currentMip: number = 0;
     private activeMipCount: number = 1;
 
-    private imageBitmap: ImageBitmap; // Used for Serialized/Deserialize
+    public blob: Blob;
+    public assetPath: string;
 
     constructor(width: number, height: number, depth: number, format: TextureFormat, type: TextureType, dimension: TextureDimension, mipLevels: number) {
         let textureUsage: GPUTextureUsageFlags = GPUTextureUsage.COPY_DST;
@@ -275,12 +275,15 @@ export class WEBGPUTexture implements Texture {
 
     // Format and types are very limited for now
     // https://github.com/gpuweb/gpuweb/issues/2322
-    public static FromImageBitmap(imageBitmap: ImageBitmap, width: number, height: number, format: TextureFormat, flipY: boolean, generateMips: boolean): WEBGPUTexture {
-        const texture = new WEBGPUTexture(width, height, 1, format, TextureType.RENDER_TARGET, "2d", 1);
+    public static async FromBlob(blob: Blob, format: TextureFormat, options: ImageLoadOptions): Promise<WEBGPUTexture> {
+        const imageBitmap = await createImageBitmap(blob, {resizeWidth: options.resizeWidth, resizeHeight: options.resizeHeight});
+
+        const texture = new WEBGPUTexture(imageBitmap.width, imageBitmap.height, 1, format, TextureType.RENDER_TARGET, "2d", 1);
+        texture.SetName(options.name);
 
         try {
             WEBGPURenderer.device.queue.copyExternalImageToTexture(
-                { source: imageBitmap, flipY: flipY },
+                { source: imageBitmap, flipY: options.flipY },
                 { texture: texture.GetBuffer() },
                 [imageBitmap.width, imageBitmap.height]
             );
@@ -288,44 +291,25 @@ export class WEBGPUTexture implements Texture {
             console.warn(error)
         }
 
-        texture.imageBitmap = imageBitmap;
-
-        if (generateMips) texture.GenerateMips();
+        if (options.storeSource) texture.blob = blob;
+        if (options.generateMips) texture.GenerateMips();
 
         return texture;
     }
 
-    public Serialize(metadata: any = {}): SerializedTexture {
+    public Serialize(): SerializedTexture {
+        if (!this.assetPath) throw Error("Texture doesn't have an assetPath.");
+
         let cachedTexture = WEBGPUTexture.SerializedTextureCache.get(this.id);
         if (cachedTexture) return cachedTexture.serialized;
 
-        let data: { type: "AssetPath" | "ImageBitmap" | "Base64", data: any };
-
-        if (this.assetPath) {
-            data = { type: "AssetPath", data: this.assetPath };
-        }
-        else if (metadata["base64Textures"] === true) {
-            const canvas = new OffscreenCanvas(this.width, this.height);
-            const ctx = canvas.getContext("2d");
-            ctx.drawImage(this.imageBitmap, 0, 0);
-            data = { type: "Base64", data: new TextDecoder('latin1').decode(ctx.getImageData(0, 0, this.width, this.height).data) }
-        }
-        else if (this.imageBitmap) {
-            data = { type: "ImageBitmap", data: this.imageBitmap }
-        }
-
         cachedTexture = {
             serialized: {
+                assetPath: this.assetPath,
                 name: this.name,
                 id: this.id,
-                width: this.width,
-                height: this.height,
-                depth: this.depth,
                 format: this.format,
-                type: this.type,
-                dimension: this.dimension,
-                mipLevels: this.mipLevels,
-                data: data
+                generateMips: this.mipLevels > 1
             },
             texture: this
         };
@@ -336,39 +320,13 @@ export class WEBGPUTexture implements Texture {
     }
 
     public static async Deserialize(data: SerializedTexture): Promise<WEBGPUTexture> {
-        let cachedTexture = WEBGPUTexture.SerializedTextureCache.get(data.id);
+        const cachedTexture = WEBGPUTexture.SerializedTextureCache.get(data.id);
         if (cachedTexture) return cachedTexture.texture;
 
-        const texture = new WEBGPUTexture(data.width, data.height, data.depth, data.format, data.type, data.dimension, data.mipLevels);
-        texture.name = data.name;
-        let iamgeBitmap: ImageBitmap = undefined;
-        if (data.data.type === "ImageBitmap") {
-            iamgeBitmap = data.data.data;
-        }
-        else if (data.data.type === "Base64") {
-            const uint8 = new TextEncoder().encode(data.data.data);
-            const blob = new Blob([uint8], { type: "image/png" });
-            iamgeBitmap = await createImageBitmap(blob);
-        }
-        else if (data.data.type === "AssetPath") {
-            const bytes = await Assets.Load(data.data.data, "binary");
-            const blob = new Blob([bytes]);
-            iamgeBitmap = await createImageBitmap(blob);
-        }
-        try {
-            WEBGPURenderer.device.queue.copyExternalImageToTexture(
-                { source: iamgeBitmap, flipY: false },
-                { texture: texture.GetBuffer() },
-                [data.width, data.height]
-            );
-        } catch (error) {
-            console.warn(error)
-        }
+        const bytes = await Assets.Load(data.assetPath, "binary");
+        const texture = await WEBGPUTexture.FromBlob(new Blob([bytes]), data.format, { name: data.name, generateMips: data.generateMips });
 
-        if (data.mipLevels > 1) texture.GenerateMips();
-
-        cachedTexture = { serialized: data, texture: texture };
-        WEBGPUTexture.SerializedTextureCache.set(data.id, cachedTexture); // What id to use? New or data one? Should ids be set, probably a unique path or crc should be used instead
+        WEBGPUTexture.SerializedTextureCache.set(data.id, { serialized: data, texture: texture }); // What id to use? New or data one? Should ids be set, probably a unique path or crc should be used instead
         return texture;
     }
 

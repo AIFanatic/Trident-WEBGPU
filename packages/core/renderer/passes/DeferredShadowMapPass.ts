@@ -14,6 +14,7 @@ import { TransformEvents } from "../../components/Transform";
 import { Vector3 } from "../../math/Vector3";
 import { DepthTextureArray } from "../Texture";
 import { Console, ConsoleVarConfigs } from "../../Console";
+import { FrameRenderData, InstancedRenderable } from "./SceneExtractPass";
 
 interface LightShadowInfoBase {
     numCascades: number;
@@ -33,21 +34,6 @@ interface PreparedShadowViewport {
     width: number;
     height: number;
 }
-
-interface Cascade {
-    splitDepth: number;
-    viewProjMatrix: Matrix4;
-}
-
-type InstancedRenderable = Renderable & {
-    matricesBuffer: Buffer;
-    instanceCount: number;
-    geometry?: any;
-};
-
-const isInstancedRenderable = (renderable: Renderable): renderable is InstancedRenderable => {
-    return (renderable as any).matricesBuffer !== undefined && (renderable as any).instanceCount !== undefined;
-};
 
 export const ShadowMapSettings = Console.define({
     r_shadows_width: { default: 2048, help: "Shadow map width" },
@@ -361,15 +347,9 @@ export class DeferredShadowMapPass extends RenderPass {
         }
     }
 
-    private prepareRenderables() {
-        const renderables: Renderable[] = []
-        for (const [id, r] of Renderable.Renderables) {
-            if (r.enableShadows && r.enabled && r.gameObject.enabled && r.geometry && r.geometry.attributes?.has("position")) renderables.push(r);
-        }
-
-        const shadowCasters = renderables.filter(r => !isInstancedRenderable(r));
-        const instancedMeshes = renderables.filter(r => isInstancedRenderable(r) && r.instanceCount > 0) as InstancedRenderable[];
-
+    private prepareRenderables(frameData: FrameRenderData) {
+        const shadowCasters = frameData.shadowCasters;
+        const instancedMeshes = frameData.shadowInstancedMeshes;
         if (shadowCasters.length > 0) {
             const requiredSize = shadowCasters.length * 256;
             if (!this.modelMatrices || this.modelMatrices.size !== requiredSize) {
@@ -392,17 +372,18 @@ export class DeferredShadowMapPass extends RenderPass {
         if (!mainCamera) return;
         if (!ShadowMapSettings.r_shadows_enabled) return;
 
-        const scene = mainCamera.gameObject.scene;
+        const frameData = resources.getResource(PassParams.FrameRenderData) as FrameRenderData | undefined;
+        if (!frameData) return;
         this.lightShadowData.clear();
         this.preparedRenderables.length = 0;
         this.preparedInstancedMeshes.length = 0;
 
-        const lights = scene.GetComponents(Light).filter(light => light.castShadows === true);
+        const lights = frameData.lights.filter(light => light.castShadows === true);
 
-        if (lights.length === 0 ) return;
+        if (lights.length === 0) return;
 
         this.ensureBuffers(lights.length);
-        this.prepareRenderables();
+        this.prepareRenderables(frameData);
 
         let shadowLayer = 0;
         for (let i = 0; i < lights.length; i++) {

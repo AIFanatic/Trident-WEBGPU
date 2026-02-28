@@ -16,6 +16,17 @@ import { GLTFParser, MeshPrimitive, Texture, Node, AccessorComponentType, GLTF, 
 
 export class GLTFLoader {
     private static TextureCache: Map<number, Promise<TridentTexture>> = new Map();
+    private static ParseCounter = 0;
+
+    private static makeCacheNamespace(value?: unknown): string {
+        if (typeof value === "string" && value.length > 0) return value;
+        if (typeof value === "number" || typeof value === "bigint" || typeof value === "boolean") return String(value);
+        if (value && typeof value === "object") {
+            const id = (value as any).id ?? (value as any).uuid ?? (value as any).name;
+            if (id !== undefined) return String(id);
+        }
+        return `gltf:${Utils.UUID()}:${GLTFLoader.ParseCounter++}`;
+    }
 
     private static finalizeGeometry(geom: Geometry) {
         const posAttr = geom.attributes.get("position");
@@ -46,7 +57,7 @@ export class GLTFLoader {
         let cached = this.TextureCache.get(tex.source.checksum);
         if (!cached) {
             // cached = TridentTexture.LoadImageSource(new Blob([tex.source.bytes], { type: tex.source.mimeType }), textureFormat, {resizeWidth: 1024, resizeHeight: 1024});
-            cached = TridentTexture.LoadImageSource(new Blob([tex.source.bytes], { type: tex.source.mimeType }), textureFormat);
+            cached = TridentTexture.LoadBlob(new Blob([tex.source.bytes], { type: tex.source.mimeType }), textureFormat, { name: tex.source.name, storeSource: true });
             this.TextureCache.set(tex.source.checksum, cached);
         }
         return cached;
@@ -56,8 +67,8 @@ export class GLTFLoader {
 
     // From threejs
     private static parseAccessor(accessorDef: Accessor): Float32Array | Uint32Array | Uint16Array | Int16Array | Uint8Array | Int8Array {
-        const WEBGL_TYPE_SIZES = { 'SCALAR': 1, 'VEC2': 2, 'VEC3': 3, 'VEC4': 4, 'MAT2': 4, 'MAT3': 9, 'MAT4': 16};
-        const WEBGL_COMPONENT_TYPES = { 5120: Int8Array, 5121: Uint8Array, 5122: Int16Array, 5123: Uint16Array, 5125: Uint32Array, 5126: Float32Array};
+        const WEBGL_TYPE_SIZES = { 'SCALAR': 1, 'VEC2': 2, 'VEC3': 3, 'VEC4': 4, 'MAT2': 4, 'MAT3': 9, 'MAT4': 16 };
+        const WEBGL_COMPONENT_TYPES = { 5120: Int8Array, 5121: Uint8Array, 5122: Int16Array, 5123: Uint16Array, 5125: Uint32Array, 5126: Float32Array };
 
         const bufferView = accessorDef.bufferView;
         const itemSize = WEBGL_TYPE_SIZES[accessorDef.type];
@@ -93,7 +104,7 @@ export class GLTFLoader {
         return array;
     }
 
-    private static async parsePrimitive(primitive: MeshPrimitive, textures?: Texture[]): Promise<{ geometry: Geometry, material: GPU.Material }> {
+    private static async parsePrimitive(primitive: MeshPrimitive, textures?: Texture[]): Promise<{ geometry: Geometry, material: PBRMaterial }> {
         const geometry = new Geometry();
 
         // if (primitive.attributes.POSITION) geometry.attributes.set("position", new VertexAttribute(this.readAccessorAsFloat32(primitive.attributes.POSITION)));
@@ -179,22 +190,32 @@ export class GLTFLoader {
             GLTFLoader.cache.set(url, cached);
         }
 
-        return this.Parse(cached);
+        const rootName = url.slice(url.lastIndexOf("/"), url.lastIndexOf("."));
+        const cacheNamespace = this.makeCacheNamespace(url);
+        return this.Parse(rootName, cached, cacheNamespace);
     }
 
-    public static async LoadFromArrayBuffer(arrayBuffer: ArrayBuffer, key?: any): Promise<Prefab> {
+    public static async LoadFromArrayBuffer(arrayBuffer: ArrayBuffer, key?: any, name?: string): Promise<Prefab> {
         const cacheKey = key ?? arrayBuffer;
         let cached = GLTFLoader.cache.get(cacheKey);
         if (!cached) {
             cached = await new GLTFParser().parseGLB(arrayBuffer);
             GLTFLoader.cache.set(cacheKey, cached);
         }
-        return this.Parse(cached);
+        const cacheNamespace = this.makeCacheNamespace(key ?? arrayBuffer);
+        return this.Parse(name ?? "GameObject", cached, cacheNamespace);
     }
 
-    private static async Parse(gltf: GLTF): Promise<Prefab> {
+    // Hacky, replaces instance with assetPath based version only
+    private static SetAssetPathForInstance(instance: any, assetPath: string) {
+        if (Assets.GetInstance(assetPath)) return;
+        instance.assetPath = assetPath;
+        Assets.SetInstance(assetPath, instance);
+    }
+
+    private static async Parse(rootName: string, gltf: GLTF, cacheNamespace: string): Promise<Prefab> {
         if (!gltf.nodes) {
-            return this.createEmptyGO("GLTFPrefab");
+            return this.createEmptyGO(rootName);
         }
 
         const nodeIndex = new Map<Node, number>();
@@ -314,31 +335,41 @@ export class GLTFLoader {
 
             for (const primitive of primitives) {
                 const parsedPrimitive = await this.parsePrimitive(primitive, gltf.textures);
-                // Cache geometry and material
+                // Set geometry material and textures assetpaths and asset instances
                 const geometryInstance = parsedPrimitive.geometry;
                 const materialInstance = parsedPrimitive.material;
                 const primitiveIndex = pIndex++;
-                const geometryKey = `geometry:${nodeGO.name}_Prim_${primitiveIndex}:Geometry`;
-                const materialKey = `material:${nodeGO.name}_Prim_${primitiveIndex}:Material`;
-                await Assets.SetInstance(geometryKey, geometryInstance);
-                await Assets.SetInstance(materialKey, materialInstance);
+                const geometryPath = `${rootName}.glb/${node.mesh.name}_${primitiveIndex}.geometry`;
+                const materialPath = `${rootName}.glb/${primitive.material.name}.material`;
 
-                const primGO = this.createEmptyGO(`${nodeGO.name}_Prim_${pIndex++}`);
+                geometryInstance.assetPath = geometryPath;
+                materialInstance.assetPath = materialPath;
+
+                this.SetAssetPathForInstance(geometryInstance, geometryPath);
+                this.SetAssetPathForInstance(materialInstance, materialPath);
+
+                if (materialInstance.params.albedoMap) this.SetAssetPathForInstance(materialInstance.params.albedoMap, `${rootName}.glb/${materialInstance.params.albedoMap.name}.png`);
+                if (materialInstance.params.armMap) this.SetAssetPathForInstance(materialInstance.params.armMap, `${rootName}.glb/${materialInstance.params.armMap.name}.png`);
+                if (materialInstance.params.normalMap) this.SetAssetPathForInstance(materialInstance.params.normalMap, `${rootName}.glb/${materialInstance.params.normalMap.name}.png`);
+                if (materialInstance.params.emissiveMap) this.SetAssetPathForInstance(materialInstance.params.emissiveMap, `${rootName}.glb/${materialInstance.params.emissiveMap.name}.png`);
+                if (materialInstance.params.heightMap) this.SetAssetPathForInstance(materialInstance.params.heightMap, `${rootName}.glb/${materialInstance.params.heightMap.name}.png`);
+
+                const primGO = this.createEmptyGO(nodeGO.name);
 
                 const hasSkin = primitive.attributes && primitive.attributes.JOINTS_0 && primitive.attributes.WEIGHTS_0;
                 if (hasSkin) {
                     primGO.components.push({
                         type: Components.SkinnedMesh.type,
-                        geometry: { assetPath: geometryKey },
-                        material: { assetPath: materialKey },
+                        geometry: { assetPath: geometryPath },
+                        material: { assetPath: materialPath },
                         enableShadows: true
                     });
                 }
                 else {
                     primGO.components.push({
                         type: Components.Mesh.type,
-                        geometry: { assetPath: geometryKey },
-                        material: { assetPath: materialKey },
+                        geometry: { assetPath: geometryPath },
+                        material: { assetPath: materialPath },
                         enableShadows: true
                     });
                 }
@@ -353,7 +384,7 @@ export class GLTFLoader {
             for (const childId of n.childrenID) childIDs.add(childId);
         }
 
-        const root = this.createEmptyGO("GLTFPrefab");
+        const root = this.createEmptyGO(rootName);
         for (let i = 0; i < gltf.nodes.length; i++) {
             if (!childIDs.has(i)) root.children.push(nodes[i]);
         }

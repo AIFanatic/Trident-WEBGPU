@@ -267,6 +267,7 @@ interface Image {
 	bytes: Uint8Array;   // encoded PNG/JPG/etc
 	mimeType: string;
 	checksum: number;
+	name: string;
 }
 
 interface MaterialBase {
@@ -1135,6 +1136,7 @@ export class GLTFParser {
 				if (this.glTF.images[i]) continue;
 
 				const img = this._glTF.images[i];
+				const name = img.name;
 
 				// (a) bufferView-backed images (.glb)
 				if (typeof img.bufferView === "number") {
@@ -1142,7 +1144,7 @@ export class GLTFParser {
 					const bytes = bv.data;
 					const checksum = fnv1a(bytes);
 					const mimeType = img.mimeType ?? "image/png";
-					this.glTF.images[i] = { bytes, mimeType, checksum };
+					this.glTF.images[i] = { name, bytes, mimeType, checksum };
 					continue;
 				}
 
@@ -1163,7 +1165,7 @@ export class GLTFParser {
 
 						const checksum = fnv1a(bytes);
 						const mimeType = img.mimeType ?? "image/png";
-						this.glTF.images[i] = { bytes, mimeType, checksum };
+						this.glTF.images[i] = { name, bytes, mimeType, checksum };
 					} catch {
 						// leave undefined if it fails
 					}
@@ -1336,49 +1338,6 @@ export class GLTFParser {
 			}
 			resolve();
 		});
-
-		// const loadImage: Promise<void> = new Promise(async (resolve) => {
-		// 	if (this._glTF && this._glTF.images) {
-		// 		const imagePromises: Promise<Image>[] = [];
-		// 		for (const imageInfo of this._glTF.images) {
-		// 			if (!imageInfo.uri) {
-		// 				// Possibly external bufferView-based image
-		// 				// For simplicity, ignoring that path here
-		// 				imagePromises.push(Promise.resolve({ data: new ImageBitmap(), checksum: -1 }));
-		// 				continue;
-		// 			}
-		// 			try {
-		// 				const base64Magic = "data:image/png;base64,";
-		// 				if (imageInfo.uri.indexOf(base64Magic) === 0) {
-		// 					const base64Data = imageInfo.uri.slice(base64Magic.length);
-		// 					const arrayBuffer = Uint8Array.from(atob(base64Data), c => c.charCodeAt(0)).buffer;
-		// 					imagePromises.push(
-		// 						createImageBitmap(new Blob([arrayBuffer]))
-		// 							.then(data => ({ data, checksum: fnv1a(new Uint8Array(arrayBuffer)) }))
-		// 					)
-		// 				} else {
-		// 					const url = this.baseUri + imageInfo.uri;
-		// 					imagePromises.push(
-		// 						fetch(url)
-		// 							.then(r => { if (!r.ok) throw new Error("LoadingError: Could not fetch image."); return r.blob() })
-		// 							.then(blob =>
-		// 								createImageBitmap(blob)
-		// 									.then(async data => ({ data, checksum: fnv1a(new Uint8Array(await blob.arrayBuffer())) }))
-		// 							)
-		// 					)
-		// 				}
-		// 			} catch (err) {
-		// 				console.error(err);
-		// 				// fallback dummy image
-		// 				imagePromises.push(Promise.resolve({ data: new ImageBitmap(), checksum: -1 }));
-		// 			}
-		// 		}
-
-		// 		const images = await Promise.all(imagePromises);
-		// 		for (let i = 0; i < images.length; i++) this.glTF.images[i] = images[i];
-		// 	}
-		// 	resolve();
-		// });
 
 		await loadBuffer;
 		// await loadImage;

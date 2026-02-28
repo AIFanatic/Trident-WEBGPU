@@ -69,14 +69,11 @@ export class WEBGPUMipsGenerator {
         const encoder = device.createCommandEncoder({ label: 'mip gen encoder' });
 
         const destinationBuffer = device.createTexture({
-            label: "destinationBuffer",
-        format: sourceBuffer.format,
-        mipLevelCount: this.numMipLevels(source.width, source.height),
-        size: [source.width, source.height, 1],
-        usage: GPUTextureUsage.TEXTURE_BINDING |
-                GPUTextureUsage.COPY_DST |
-                GPUTextureUsage.COPY_SRC |
-                GPUTextureUsage.RENDER_ATTACHMENT,
+            label: sourceBuffer.label,
+            format: sourceBuffer.format,
+            mipLevelCount: this.numMipLevels(source.width, source.height),
+            size: [source.width, source.height, 1],
+            usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST | GPUTextureUsage.COPY_SRC | GPUTextureUsage.RENDER_ATTACHMENT,
         });
 
         let width = sourceBuffer.width;

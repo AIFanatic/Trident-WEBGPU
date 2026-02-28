@@ -44,7 +44,7 @@ async function Application(canvas: HTMLCanvasElement) {
 
                     fileEntry.file(
                         (file: File) => {
-                            resolve([ { type: "file", path: path + entry.name, file } ]);
+                            resolve([{ type: "file", path: path + entry.name, file }]);
                         },
                         (err) => reject(err)
                     );
@@ -151,9 +151,15 @@ async function Application(canvas: HTMLCanvasElement) {
             let instanceCount = 0;
 
             // assetPath -> { rootGameObject, instancedMeshes, loadPromise }
-            const uniques = new Map();
+            interface InstanceRecord {
+                rootGameObject: GameObject;
+                instancedMeshes: Components.InstancedMesh[];
+                loadPromise: any;
+            };
 
-            async function loadUniqueGLB(assetPath, file, record) {
+            const uniques: Map<string, InstanceRecord> = new Map();
+
+            async function loadUniqueGLB(assetPath: string, file, record: InstanceRecord) {
                 // (1) read with low concurrency
                 const arrayBuffer = await runReadLimited(() => file.arrayBuffer());
 
@@ -161,7 +167,7 @@ async function Application(canvas: HTMLCanvasElement) {
                 await runParseLimited(async () => {
                     console.log("Loading", assetPath);
 
-                    const prefab = await GLTFLoader.LoadFromArrayBuffer(arrayBuffer);
+                    const prefab = await GLTFLoader.LoadFromArrayBuffer(arrayBuffer, assetPath, assetPath);
 
                     const rootGameObject = record.rootGameObject;
                     traverse([prefab], (p) => {
@@ -181,7 +187,7 @@ async function Application(canvas: HTMLCanvasElement) {
 
             // Collect unique assets + schedule loads
             for (const actor of sceneFile.actors) {
-                if (actor.class !== "StaticMeshActor") continue;
+                // if (actor.class !== "StaticMeshActor") continue;
                 if (instanceCount >= MAX_INSTANCES) break;
 
                 for (const m of actor.static_meshes) {
@@ -229,71 +235,106 @@ async function Application(canvas: HTMLCanvasElement) {
             // Apply instance transforms
             // ----------------------------
             const p = new Mathf.Vector3();
-            const e = new Mathf.Vector3();
             const r = new Mathf.Quaternion();
             const s = new Mathf.Vector3(1, 1, 1);
             const mat = new Mathf.Matrix4();
+            const rotation_correction = new Mathf.Quaternion().setFromAxisAngle(new Mathf.Vector3(0, 1, 0), -Math.PI / 2);
 
             instanceCount = 0;
 
             for (const actor of sceneFile.actors) {
-                if (actor.class !== "StaticMeshActor") continue;
+                // if (actor.class !== "StaticMeshActor") continue;
                 if (instanceCount >= MAX_INSTANCES) break;
+
+                const { location, rotation_quat, scale } = actor.transform;
+                let actorMatrix = new Mathf.Matrix4();
+                p.set(-location.y / 100, location.z / 100, location.x / 100);
+                r.set(rotation_quat.y, rotation_quat.z, -rotation_quat.x, -rotation_quat.w);
+                r.mul(rotation_correction);
+                s.set(scale.y, scale.z, scale.x);
+                actorMatrix.compose(p, r, s);
 
                 for (const static_mesh of actor.static_meshes) {
                     if (instanceCount >= MAX_INSTANCES) break;
 
+                    if (actor.name.includes("GreenLight")) {
+                        console.log("HERE", actor)
+                    }
                     const assetName = static_mesh.asset_name;
+                    // if (assetName !== "SM_TunnelWallPanel" && assetName !== "SM_TunnelBaseCover") continue;
                     let assetPath = static_mesh.asset_path.replace("/Game", "GLB");
                     assetPath = assetPath.slice(0, assetPath.lastIndexOf(".")) + ".glb";
                     if (!assetName) continue;
 
                     const record = uniques.get(assetPath);
+                    if (actor.name.includes("GreenLight")) {
+                        console.log(uniques)
+                        console.log("HERE2", record, assetPath)
+                    }
                     if (!record || record.instancedMeshes.length === 0) {
                         // asset missing or failed to load
                         instanceCount++;
                         continue;
                     }
 
-                    const { location, rotation_euler_deg, scale } = actor.transform;
+                    const { location, rotation_quat, scale } = static_mesh.relative_transform;
 
-                    p.set(-location.y / 100, location.z / 100, location.x / 100);
-                    e.set(rotation_euler_deg.roll, -90 + rotation_euler_deg.yaw, rotation_euler_deg.pitch);
-                    r.setFromEuler(e, true);
-                    s.set(scale.x, scale.y, scale.z);
-                    mat.compose(p, r, s);
+                    // if (static_mesh.asset_label !== "S_TunnelWallPanel6" && assetName !== "SM_TunnelBaseCover") continue;
+                    // if (static_mesh.asset_label == "S_TunnelWallPanel6") {
+                    //     console.log(actor)
+                    // }
+
+                    let staticMeshMatrix = new Mathf.Matrix4();
+                    {
+                        p.set(-location.y / 100, location.z / 100, location.x / 100);
+                        r.set(rotation_quat.y, rotation_quat.z, -rotation_quat.x, -rotation_quat.w);
+
+                        let rotation_correction_clone = rotation_correction.clone();
+                        if (location.x == 0 && location.y == 0 && location.z == 0) {
+                            rotation_correction_clone.mul(new Mathf.Quaternion().setFromAxisAngle(new Mathf.Vector3(0, 1, 0), Math.PI / 2));
+                        }
+
+                        r.mul(rotation_correction_clone);
+                        s.set(scale.y, scale.z, scale.x);
+                        staticMeshMatrix.compose(p, r, s);
+
+                        if (location.x == 0 && location.y == 0 && location.z == 0) {
+                            staticMeshMatrix.copy(actorMatrix.clone().mul(staticMeshMatrix));
+                        }
+                    }
+
 
                     for (const inst of record.instancedMeshes) {
-                        inst.SetMatrixAt(inst.instanceCount, mat);
+                        inst.SetMatrixAt(inst.instanceCount, staticMeshMatrix);
                     }
 
                     instanceCount++;
                 }
             }
 
-            // ----------------------------
-            // Debug info
-            // ----------------------------
-            for (const [assetPath, record] of uniques) {
-                if (record.instancedMeshes.length === 0) {
-                    console.warn(assetPath, "loaded 0 meshes (failed load or no mesh components).");
-                    continue;
-                }
-                console.log(`${assetPath} has ${record.instancedMeshes[0].instanceCount} instances`);
-            }
+            // // ----------------------------
+            // // Debug info
+            // // ----------------------------
+            // for (const [assetPath, record] of uniques) {
+            //     if (record.instancedMeshes.length === 0) {
+            //         console.warn(assetPath, "loaded 0 meshes (failed load or no mesh components).");
+            //         continue;
+            //     }
+            //     console.log(`${assetPath} has ${record.instancedMeshes[0].instanceCount} instances`);
+            // }
 
             // // Load lights
             // for (const actor of sceneFile.actors) {
-            //     if (actor.class !== "StaticMeshActor") continue;
+            //     // if (actor.class !== "StaticMeshActor") continue;
             //     // if (instanceCount >= MAX_INSTANCES) break;
 
-            //     for (const m of actor.static_meshes) {
+            //     // for (const m of actor.static_meshes) {
             //         // if (instanceCount >= MAX_INSTANCES) break;
 
-            //         const assetName = m.asset_name as string;
-            //         if (!assetName) continue;
+            //         // const assetName = m.asset_name as string;
+            //         // if (!assetName) continue;
 
-            //         if (!assetName.toLowerCase().includes("light")) continue;
+            //         if (!actor.name.toLowerCase().includes("light")) continue;
 
             //         const { location, rotation_euler_deg, scale } = actor.transform;
 
@@ -301,11 +342,11 @@ async function Application(canvas: HTMLCanvasElement) {
             //         const lightGameObject = new GameObject(scene);
             //         lightGameObject.transform.position.set(-location.y / 100, location.z / 100, location.x / 100);
             //         const light = lightGameObject.AddComponent(Components.PointLight);
-            //         light.color.set(0.533, 0.847, 1.0, 1.0);
-            //         light.intensity = 10;
-            //         light.range = 50;
-            //         console.log(`Added light ${assetName} at ${lightGameObject.transform.position}`)
-            //     }
+            //         light.color.set(1, 0.445, 0.139, 1.0);
+            //         light.intensity = 6;
+            //         light.range = 10;
+            //         console.log(`Added light ${actor.name} at ${lightGameObject.transform.position}`)
+            //     // }
             // }
         });
     }

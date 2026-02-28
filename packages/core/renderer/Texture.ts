@@ -1,37 +1,32 @@
-import { Color } from "../math";
 import { Vector2 } from "../math/Vector2";
 import { Renderer } from "./Renderer";
 import { WEBGPUTexture } from "./webgpu/WEBGPUTexture";
 import { WEBGPUBlit } from "./webgpu/utils/WEBGBPUBlit";
 
 export interface SerializedTexture {
+    assetPath: string;
     name: string;
     id: string;
-    width: number;
-    height: number;
-    depth: number;
     format: TextureFormat;
-    type: TextureType;
-    dimension: TextureDimension;
-    mipLevels: number;
-    data: {
-        type: "ImageBitmap" | "Base64" | "AssetPath",
-        data: any
-    };
+    generateMips: boolean;
 }
 
 export interface ImageLoadOptions {
+    name?: string;
     flipY?: boolean;
     generateMips?: boolean;
     resizeWidth?: number;
     resizeHeight?: number;
+    storeSource?: boolean;
 };
 
 const DefaultOptions: ImageLoadOptions = {
+    name: "Image",
     flipY: false,
     generateMips: true,
     resizeWidth: undefined,
-    resizeHeight: undefined
+    resizeHeight: undefined,
+    storeSource: false
 };
 
 export type TextureFormat =
@@ -102,6 +97,7 @@ export class Texture {
     public readonly format: TextureFormat;
     public mipLevels: number;
     public name: string;
+    public assetPath: string;
 
     public SetName(name: string) {}
     public GetName(): string {throw Error("Base class.")}
@@ -137,13 +133,12 @@ export class Texture {
 
     public static async Load(url: string | URL, format: TextureFormat = Renderer.SwapChainFormat, options?: ImageLoadOptions): Promise<Texture> {
         const response = await fetch(url);
-        return Texture.LoadImageSource(await response.blob(), format, options);
+        return Texture.LoadBlob(await response.blob(), format, options);
     }
 
-    public static async LoadImageSource(imageSource: ImageBitmapSource, format: TextureFormat = Renderer.SwapChainFormat, options?: ImageLoadOptions): Promise<Texture> {
+    public static async LoadBlob(blob: Blob, format: TextureFormat = Renderer.SwapChainFormat, options?: ImageLoadOptions): Promise<Texture> {
         const _options = Object.assign({}, DefaultOptions, options);
-        const imageBitmap = await createImageBitmap(imageSource, {resizeWidth: _options.resizeWidth, resizeHeight: _options.resizeHeight});
-        if (Renderer.type === "webgpu") return WEBGPUTexture.FromImageBitmap(imageBitmap, imageBitmap.width, imageBitmap.height, format, _options.flipY, _options.generateMips);
+        if (Renderer.type === "webgpu") return WEBGPUTexture.FromBlob(blob, format, _options);
         throw Error("Renderer type invalid");
     }
 

@@ -3,6 +3,7 @@ import { RendererContext } from "../RendererContext";
 import { RenderPass, ResourcePool } from "../RenderGraph";
 import { PassParams } from "../RenderingPipeline";
 import { Renderable } from "../../components/Renderable";
+import { FrameRenderData } from "./SceneExtractPass";
 
 export class RenderablePass extends RenderPass {
     public name: string = "RenderablePass";
@@ -12,15 +13,14 @@ export class RenderablePass extends RenderPass {
         this.renderables.length = 0;
 
         const FrameBuffer = resources.getResource(PassParams.FrameBuffer);
-        const potentialRenderables = Renderable.Renderables;
-        for (const [id, renderable] of potentialRenderables) {
+        const frameData = resources.getResource(PassParams.FrameRenderData) as FrameRenderData;
+        if (!frameData) return;
+        for (const renderable of frameData.deferredRenderables) {
             renderable.OnPreFrame();
 
             if (!renderable.material || !renderable.material.shader) continue;
-            if (renderable.material.params.isDeferred === false) continue;
-        
             renderable.material.shader.SetBuffer("frameBuffer", FrameBuffer);
-            
+
             this.renderables.push(renderable);
         }
     }
@@ -34,6 +34,7 @@ export class RenderablePass extends RenderPass {
 
     public async execute(resources: ResourcePool) {
         if (this.renderables.length === 0) return;
+        
         const inputCamera = Camera.mainCamera;
         if (!inputCamera) throw Error(`No inputs passed to ${this.name}`);
         const backgroundColor = inputCamera.backgroundColor;
@@ -45,12 +46,12 @@ export class RenderablePass extends RenderPass {
 
         RendererContext.BeginRenderPass(this.name,
             [
-                {target: inputGBufferAlbedo, clear: false, color: backgroundColor},
-                {target: inputGBufferNormal, clear: false, color: backgroundColor},
-                {target: inputGBufferERMO, clear: false, color: backgroundColor},
+                { target: inputGBufferAlbedo, clear: false, color: backgroundColor },
+                { target: inputGBufferNormal, clear: false, color: backgroundColor },
+                { target: inputGBufferERMO, clear: false, color: backgroundColor },
             ],
-            {target: inputGBufferDepth, clear: false}
-        , true);
+            { target: inputGBufferDepth, clear: false }
+            , true);
 
         for (const renderable of this.renderables) {
             if (!renderable.gameObject.enabled) continue;

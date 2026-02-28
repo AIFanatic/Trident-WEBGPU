@@ -2,10 +2,9 @@ import { RenderPass, ResourcePool } from "../RenderGraph";
 import { RendererContext } from "../RendererContext";
 import { PassParams } from "../RenderingPipeline";
 import { Camera } from "../../components/Camera";
-import { Mesh } from "../../components/Mesh";
-import { InstancedMesh } from "../../components/InstancedMesh";
 import { Buffer, BufferType } from "../Buffer";
 import { DynamicBufferMemoryAllocator } from "../MemoryAllocator";
+import { FrameRenderData } from "./SceneExtractPass";
 
 export class ForwardPass extends RenderPass {
     public name: string = "ForwardPass";
@@ -26,9 +25,10 @@ export class ForwardPass extends RenderPass {
         this.drawCommands.length = 0;
 
         const mainCamera = Camera.mainCamera;
-        const scene = mainCamera.gameObject.scene;
-        const meshes = scene.GetComponents(Mesh);
-        const instancedMeshes = scene.GetComponents(InstancedMesh);
+        const frameData = resources.getResource(PassParams.FrameRenderData) as FrameRenderData;
+        if (!frameData) return;
+        const meshes = frameData.forwardMeshes;
+        const instancedMeshes = frameData.forwardInstancedMeshes;
         if (meshes.length === 0 && instancedMeshes.length === 0) return;
 
         this.projectionMatrix.SetArray(mainCamera.projectionMatrix.elements);

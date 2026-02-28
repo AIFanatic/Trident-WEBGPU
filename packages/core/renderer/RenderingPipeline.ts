@@ -8,11 +8,12 @@ import { PrepareGBuffers } from "./passes/PrepareGBuffers";
 import { DeferredShadowMapPass } from "./passes/DeferredShadowMapPass";
 import { CubeTexture, RenderTexture, TextureFormat } from "./Texture";
 import { ForwardPass } from "./passes/ForwardPass";
-import { IBLLightingPass } from "./passes/IBLIBLLightingPass";
+import { IBLLightingPass } from "./passes/IBLLightingPass";
 import { SkyboxPass } from "./passes/SkyboxPass";
 import { RenderablePass } from "./passes/RenderablePass";
 import { PostExposureTonemap } from "./passes/PostExposureTonemap";
 import { BasePass } from "./passes/BasePass";
+import { SceneExtractPass } from "./passes/SceneExtractPass";
 
 export const PassParams = {
     DebugSettings: "DebugSettings",
@@ -39,6 +40,7 @@ export const PassParams = {
     LightingPassOutput: "LightingPassOutput",
     
     FrameBuffer: "FrameBuffer",
+    FrameRenderData: "FrameRenderData",
 };
 
 export enum RenderPassOrder {
@@ -90,6 +92,7 @@ export class RenderingPipeline {
         
         this.renderGraph = new RenderGraph();
         this.beforeGBufferPasses = [
+            new SceneExtractPass(),
             this.prepareGBuffersPass,
         ];
         

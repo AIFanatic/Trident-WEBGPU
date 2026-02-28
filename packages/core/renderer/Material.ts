@@ -51,20 +51,26 @@ export class Material {
         return new Material();
     }
 
-    public Serialize(metadata: any = {}) {
-        if (this.assetPath) {
-            return {
-                id: this.id,
-                assetPath: this.assetPath,
-            }
-        }
-
+    public SerializeAsset() {
         return {
-            shader: this._shader ? this._shader.Serialize(metadata) : undefined,
+            type: Material.type,
+            assetPath: this.assetPath,
+            shader: this._shader ? this._shader.Serialize() : undefined,
             params: {
                 isDeferred: this.params.isDeferred
             }
         }
+    }
+
+    public Serialize(metadata: any = {}) {
+        if (this.assetPath) {
+            return {
+                type: Material.type,
+                id: this.id,
+                assetPath: this.assetPath,
+            }
+        }
+        return this.SerializeAsset();
     }
 
     public Deserialize(data) {
@@ -72,6 +78,7 @@ export class Material {
     }
 
     public static Deserialize(data): Material {
+        console.warn("DEE MAT", data.assetPath)
         if (data.assetPath) {
             const instance = Assets.GetInstance(data.assetPath);
             if (instance) return instance;
@@ -80,7 +87,10 @@ export class Material {
             material.assetPath = data.assetPath;
             Assets.SetInstance(data.assetPath, material);
 
-            Assets.Load(data.assetPath, "json").then(json => { material.Deserialize(json) });
+            Assets.Load(data.assetPath, "json").then(json => {
+                console.log("json", json, material);
+                material.Deserialize(json)
+            });
             
             return material;
         }
@@ -122,7 +132,7 @@ interface PBRMaterialParams extends MaterialParams {
 export class PBRMaterial extends Material {
     public static type = "@trident/core/renderer/Material/PBRMaterial";
 
-    public params = {
+    public params: PBRMaterialParams = {
         albedoColor: new Color(1, 1, 1, 1),
         emissiveColor: new Color(0, 0, 0, 0),
         roughness: 1.0,
@@ -205,15 +215,44 @@ export class PBRMaterial extends Material {
         return this.pendingShaderCreation;
     }
 
+    public SerializeAsset() {
+        return {
+            assetPath: this.assetPath,
+            type: PBRMaterial.type,
+            shader: undefined,
+            params: {
+                albedoColor: this.params.albedoColor.Serialize(),
+                emissiveColor: this.params.emissiveColor.Serialize(),
+                roughness: this.params.roughness,
+                metalness: this.params.metalness,
+                albedoMap: this.params.albedoMap?.Serialize(),
+                normalMap: this.params.normalMap?.Serialize(),
+                heightMap: this.params.heightMap?.Serialize(),
+                armMap: this.params.armMap?.Serialize(),
+                emissiveMap: this.params.emissiveMap?.Serialize(),
+                repeat: this.params.repeat.Serialize(),
+                offset: this.params.offset.Serialize(),
+                doubleSided: this.params.doubleSided,
+                alphaCutoff: this.params.alphaCutoff,
+                unlit: this.params.unlit,
+                wireframe: this.params.wireframe,
+                isSkinned: this.params.isSkinned,
+                isDeferred: this.params.isDeferred
+            }
+        };
+    }
+
     public Serialize(metadata: any = {}) {
         if (this.assetPath) {
             return {
+                type: PBRMaterial.type,
                 id: this.id,
                 assetPath: this.assetPath,
             }
         }
 
         return {
+            assetPath: "",
             type: PBRMaterial.type,
             shader: undefined,
             params: {
