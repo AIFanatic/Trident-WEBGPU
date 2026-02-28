@@ -3,7 +3,7 @@ import { IGameObject } from "../engine-api/trident/components/IGameObject";
 import { BaseProps } from "./Layout";
 import { ITreeMap } from "./TreeView/ITreeMap";
 import { Tree } from "./TreeView/Tree";
-import { EventSystem, GameObjectEvents, LayoutHierarchyEvents } from "../Events";
+import { EventSystem, GameObjectEvents, LayoutHierarchyEvents, SceneEvents } from "../Events";
 import { ExtendedDataTransfer } from "../helpers/ExtendedDataTransfer";
 import { Menu } from "./MenuDropdown/Menu";
 import { MenuItem } from "./MenuDropdown/MenuItem";
@@ -35,15 +35,32 @@ export class LayoutHierarchy extends Component<BaseProps, LayoutHierarchyState> 
         EventSystem.on(GameObjectEvents.Changed, (gameObject) => {
             this.selectGameObject(gameObject);
         })
+
+        EventSystem.on(SceneEvents.Loaded, scene => {
+            this.setState({ selectedGameObject: null });
+        });
     }
 
     private selectGameObject(gameObject: IGameObject) {
-        console.log("selected", gameObject);
         EventSystem.emit(LayoutHierarchyEvents.Selected, gameObject);
         this.setState({ selectedGameObject: gameObject });
     }
 
-    private onDropped(from: string, to: string) {
+    private getGameObjectById(id: string): IGameObject {
+        console.log(this.props.engineAPI.currentScene.gameObjects)
+        for (const gameObject of this.props.engineAPI.currentScene.gameObjects) {
+            if (gameObject.transform.id === id) return gameObject;
+        }
+        return undefined;
+    }
+
+    private onDropped(fromId: string, toId: string) {
+        const fromGameObject = this.getGameObjectById(fromId);
+        const toGameObject = this.getGameObjectById(toId);
+        if (fromGameObject && toGameObject) {
+            fromGameObject.transform.parent = toGameObject.transform;
+            this.selectGameObject(toGameObject);
+        }
     }
 
     private onDragStarted(event, data) {
@@ -56,13 +73,16 @@ export class LayoutHierarchy extends Component<BaseProps, LayoutHierarchyState> 
         if (instance && this.props.engineAPI.isPrefab(instance)) {
             const gameObject = this.props.engineAPI.currentScene.Instantiate(instance);
             this.selectGameObject(gameObject);
+            ExtendedDataTransfer.data = undefined;
         }
-        // const fromUuid = event.dataTransfer.getData("from-uuid");
-        // const fromGameObject = this.getGameObjectFromUuid(this.state.scene, fromUuid);
-        // if (fromGameObject) {
-        //     fromGameObject.transform.parent = null;
-        //     this.forceUpdate();
-        // }
+        else {
+            const fromUuid = event.dataTransfer.getData("from-uuid");
+            const gameObject = this.getGameObjectById(fromUuid);
+            if (gameObject) {
+                gameObject.transform.parent = null;
+                this.selectGameObject(gameObject);
+            }
+        }
     }
 
     private buildTreeFromGameObjects(gameObjects: IGameObject[]): ITreeMap<IGameObject>[] {

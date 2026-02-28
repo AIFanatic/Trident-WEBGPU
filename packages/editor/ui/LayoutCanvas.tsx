@@ -2,17 +2,21 @@ import { IComponents } from "../engine-api/trident/components";
 import { createElement, Component } from "../gooact";
 import { BaseProps } from "./Layout";
 
-import { EventSystem, GameObjectEvents, SceneEvents } from "../Events";
+import { EventSystem, GameObjectEvents, LayoutHierarchyEvents, SceneEvents } from "../Events";
 
-import { Components, Input, MouseCodes } from "@trident/core";
+import { Components } from "@trident/core";
 import { OrbitControls } from "@trident/plugins/OrbitControls.js";
-import { Environment } from "@trident/plugins/Environment/Environment";
-import { Sky } from "@trident/plugins/Environment/Sky";
 import { Raycaster } from "../helpers/Raycaster";
 
-import { Debugger } from "@trident/plugins/Debugger";
-import { UITextureViewer } from "@trident/plugins/ui/UIStats";
+import { Environment } from "@trident/plugins/Environment/Environment";
+import { Sky } from "@trident/plugins/Environment/Sky";
 import { GLTFLoader } from "@trident/plugins/GLTF/GLTFLoader";
+import { PostProcessingPass } from "@trident/plugins/PostProcessing/PostProcessingPass";
+import { PostProcessingSMAA } from "@trident/plugins/PostProcessing/effects/SMAA";
+
+
+
+import { GameObject, Mathf, Geometry, GPU } from "@trident/core";
 
 export class LayoutCanvas extends Component<BaseProps> {
 
@@ -30,12 +34,11 @@ export class LayoutCanvas extends Component<BaseProps> {
         const mainCameraGameObject = EngineAPI.createGameObject(currentScene);
         mainCameraGameObject.name = "MainCamera";
         const camera = mainCameraGameObject.AddComponent(IComponents.Camera);
-        camera.SetPerspective(72, canvas.width / canvas.height, 0.5, 500);
+        camera.SetPerspective(72, canvas.width / canvas.height, 0.5, 50000);
 
-        const observer = new ResizeObserver(entries => {
-            camera.SetPerspective(72, canvas.width / canvas.height, 0.05, 500);
+        EventSystem.on(GPU.RendererEvents.Resized, () => {
+            camera.SetPerspective(72, canvas.width / canvas.height, 0.05, 50000);
         });
-        observer.observe(canvas);
 
         mainCameraGameObject.transform.position.set(0, 0, 10);
         mainCameraGameObject.transform.LookAtV1(EngineAPI.createVector3(0, 0, 0));
@@ -103,6 +106,11 @@ export class LayoutCanvas extends Component<BaseProps> {
             }
         });
 
+        EventSystem.on(LayoutHierarchyEvents.Selected, pickedGameObject => {
+            console.log("TRIGGGEr")
+            controls.center.copy(pickedGameObject.transform.position);
+        });
+
         EventSystem.on(SceneEvents.Loaded, scene => {
             const mainCamera = Components.Camera.mainCamera;
             const controls = new OrbitControls(canvas, mainCamera);
@@ -124,6 +132,12 @@ export class LayoutCanvas extends Component<BaseProps> {
                 const obj = currentScene.Instantiate(prefab);
             });
         }
+
+
+        const postProcessing = new PostProcessingPass();
+        const smaa = new PostProcessingSMAA();
+        postProcessing.effects.push(smaa);
+        currentScene.renderPipeline.AddPass(postProcessing, GPU.RenderPassOrder.BeforeScreenOutput);
 
         currentScene.Start();
     }

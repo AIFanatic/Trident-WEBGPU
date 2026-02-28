@@ -1,10 +1,13 @@
 .treeview {
     line-height: 1.5;
+    overflow: auto;
+    height: 100%;
 }
 
 .treeview .item {
     counter-increment: section;
     counter-reset: section;
+    overflow-anchor: none;
 }
 
 .treeview .item .drag-hover {
@@ -31,4 +34,21 @@
 
 .treeview .item .item-content {
     overflow: hidden;
+}
+
+.treeview::-webkit-scrollbar {
+    width: 8px;
+}
+
+.treeview::-webkit-scrollbar-track {
+    background: transparent; 
+}
+
+.treeview::-webkit-scrollbar-thumb {
+    background: #333;
+    border-radius: 5px;
+}
+
+.treeview::-webkit-scrollbar-thumb:hover {
+    background: #444; 
 }

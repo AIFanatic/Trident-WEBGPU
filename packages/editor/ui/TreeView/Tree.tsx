@@ -27,7 +27,7 @@ export class Tree extends Component<TreeProps> {
         }
         return out;
     }
-    
+
     render() {
         let children = this.props.item ? this.getChildrenForParent(this.props.data, this.props.item.id) : this.getChildrenForParent(this.props.data, "");
 
@@ -40,9 +40,8 @@ export class Tree extends Component<TreeProps> {
                         const itemChildren = this.getChildrenForParent(this.props.data, item.id);
 
                         if (itemChildren.length > 0 || item.type == ITreeMapType.Folder) {
-                            return <Folder 
+                            return <Folder
                                 onToggled={this.props.onToggled ? (item) => this.props.onToggled(item) : null}
-                                // key={item.id}
                                 item={item}
                                 data={this.props.data}
                                 onDropped={(from, to) => this.props.onDropped(from, to)}
@@ -57,12 +56,11 @@ export class Tree extends Component<TreeProps> {
                                     onDragStarted={(event, data) => this.props.onDragStarted(event, data)}
                                     data={this.props.data}
                                 />
-    
+
                             </Folder>
                         }
                         else {
                             return <File
-                                // key={item.id}
                                 data={item}
                                 onDropped={this.props.onDropped ? (from, to) => this.props.onDropped(from, to) : null}
                                 onClicked={this.props.onClicked ? (data) => this.props.onClicked(data) : null}

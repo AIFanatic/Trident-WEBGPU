@@ -49,11 +49,6 @@ export class File extends Component<FileProps, FileState> {
         event.preventDefault();
     }
 
-    private onClicked(event: MouseEvent) {
-        console.log("onClicked")
-        this.props.onClicked(this.props.data);
-    }
-
     private lastClickTs = 0;
     private readonly dblMs = 220;
 

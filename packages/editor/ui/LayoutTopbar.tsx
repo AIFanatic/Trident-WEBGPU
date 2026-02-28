@@ -29,7 +29,7 @@ export class LayoutTopbar extends Component<BaseProps, LayoutTopbarState> {
 
     private async saveProject() {
         const serializedScene = this.props.engineAPI.currentScene.Serialize();
-        const handle = await FileBrowser.fopen("Scene.prefab", MODE.W)
+        const handle = await FileBrowser.fopen(`${this.props.engineAPI.currentScene.name}.scene`, MODE.W)
         FileBrowser.fwrite(handle, JSON.stringify(serializedScene))
     }
 

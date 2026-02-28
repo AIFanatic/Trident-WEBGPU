@@ -18,9 +18,8 @@ export class StringUtils {
     }
 
     static GetNameForPath(path: string): string {
-        const pathArray = path.split("/");
-        const nameArr = pathArray[pathArray.length-1].split(".");
-        return nameArr[0];
+        const extensionIndex = path.lastIndexOf(".");
+        return path.slice(path.lastIndexOf("/") + 1, extensionIndex !== -1 ? extensionIndex : path.length);
     }
 
     static Dirname(path: string): string {

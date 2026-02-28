@@ -2,6 +2,7 @@ import { IGameObject } from "./components/IGameObject";
 import { IPrefab } from "./components/IPrefab";
 
 export interface IScene {
+    name: string;
     gameObjects: IGameObject[];
     Start();
     Clear();

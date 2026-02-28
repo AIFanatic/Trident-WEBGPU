@@ -73,7 +73,7 @@ export class LayoutInspectorGameObject extends Component<LayoutInspectorProps, L
             component[property] = parseFloat(value);
         }
 
-        // this.forceUpdate();
+        this.setState({ gameObject: this.state.gameObject }); // force update
     }
 
     private onGameObjectNameChanged(gameObject: IGameObject, event: Event) {
@@ -110,8 +110,8 @@ export class LayoutInspectorGameObject extends Component<LayoutInspectorProps, L
         }
         else if (type == "object") {
             let valueForType = component[property].constructor.name;
-            if (component[property].userData && component[property].userData.fileId) {
-                valueForType = StringUtils.GetNameForPath(component[property].userData.fileId);
+            if (component[property].assetPath) {
+                valueForType = StringUtils.GetNameForPath(component[property].assetPath);
             }
 
             return <InspectorType

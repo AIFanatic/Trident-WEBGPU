@@ -1,3 +1,5 @@
+// TODO: This and Tree are very inefficient
+
 import { createElement, Component } from "../gooact";
 import { BaseProps } from "./Layout";
 import { DirectoryEvents, EventSystem, FileEvents, ProjectEvents, SceneEvents } from "../Events";
@@ -9,12 +11,13 @@ import { Tree } from "./TreeView/Tree";
 import { ExtendedDataTransfer } from "../helpers/ExtendedDataTransfer";
 import { GLTFLoader } from "@trident/plugins/GLTF/GLTFLoader";
 import { IPrefab } from "../engine-api/trident/components/IPrefab";
-import { Assets, Scene } from "@trident/core";
+import { Assets, PBRMaterial, Scene } from "@trident/core";
 import { Menu } from "./MenuDropdown/Menu";
 import { MenuItem } from "./MenuDropdown/MenuItem";
 import { FileBrowser, MODE } from "../helpers/FileBrowser";
 import { IGeometry } from "../engine-api/trident/components/IGeometry";
 import { IMaterial } from "../engine-api/trident/IMaterial";
+import { IComponents } from "../engine-api/trident/components";
 
 export interface FileData {
     file: FileSystemDirectoryHandle | FileSystemFileHandle;
@@ -101,6 +104,7 @@ export class LayoutAssets extends Component<BaseProps, LayoutAssetsState> {
             })
             // this.forceUpdate();
         }
+
         this.setState({ currentTreeMap: this.state.currentTreeMap, selected: this.state.selected });
     }
 
@@ -127,7 +131,6 @@ export class LayoutAssets extends Component<BaseProps, LayoutAssetsState> {
             this.props.engineAPI.currentScene.Clear();
             this.props.engineAPI.currentScene.Deserialize(item.data.instance);
             EventSystem.emit(SceneEvents.Loaded, item.data.instance);
-
         }
     }
 
@@ -149,15 +152,21 @@ export class LayoutAssets extends Component<BaseProps, LayoutAssetsState> {
             if (extension === "glb") {
                 const data = await file.getFile();
                 const arrayBuffer = await data.arrayBuffer();
-                const prefab = await GLTFLoader.LoadFromArrayBuffer(arrayBuffer);
-                console.log(prefab)
+                const prefab = await GLTFLoader.LoadFromArrayBuffer(arrayBuffer, undefined, file.name.slice(0, file.name.lastIndexOf(".")));
                 resolve(prefab);
+            }
+            else if (extension == "scene") {
+                const data = await file.getFile();
+                const text = await data.text();
+                const json = JSON.parse(text);
+                resolve(json);
             }
             else if (extension == "prefab") {
                 const data = await file.getFile();
                 const text = await data.text();
                 const json = JSON.parse(text);
                 const prefab = this.props.engineAPI.deserializePrefab(json);
+                prefab.assetPath = path;
                 resolve(prefab);
             }
             else if (extension == "geometry") {
@@ -189,7 +198,7 @@ export class LayoutAssets extends Component<BaseProps, LayoutAssetsState> {
                 ExtendedDataTransfer.data = item.data.instance;
             })
         }
-        
+
         ExtendedDataTransfer.data = item.data.instance;
 
         console.log("HERE", ExtendedDataTransfer.data)
@@ -234,10 +243,54 @@ export class LayoutAssets extends Component<BaseProps, LayoutAssetsState> {
         const file = event.dataTransfer?.files?.[0];
         if (!file) return;
 
-        const newFileName = `${this.getCurrentPath()}/${file.name}`;
-        const arrayBuffer = await file.arrayBuffer();
-        const copyFile = await FileBrowser.fopen(newFileName, MODE.W);
-        FileBrowser.fwrite(copyFile, arrayBuffer);
+        // const newFileName = `${this.getCurrentPath()}/${file.name}`;
+        // const arrayBuffer = await file.arrayBuffer();
+        // const copyFile = await FileBrowser.fopen(newFileName, MODE.W);
+        // FileBrowser.fwrite(copyFile, arrayBuffer);
+
+        const extension = file.name.slice(file.name.lastIndexOf(".") + 1);
+        if (extension === "glb") {
+            const arrayBuffer = await file.arrayBuffer();
+            const prefab = await GLTFLoader.LoadFromArrayBuffer(arrayBuffer, undefined, file.name.slice(0, file.name.lastIndexOf(".")));
+
+            await FileBrowser.mkdir(file.name);
+            prefab.traverse(async prefab => {
+                for (const component of prefab.components) {
+                    if (component.type === IComponents.Mesh.type) {
+
+                        async function SaveToFile(path: string, blob: Blob) {
+                            const file = await FileBrowser.fopen(path, MODE.W);
+                            await FileBrowser.fwrite(file, blob);
+                        }
+
+                        // Save geometry
+                        {
+                            const geometry = Assets.GetInstance((component.geometry as IGeometry).assetPath) as IGeometry;
+                            const geometrySerialized = geometry.SerializeAsset();
+                            SaveToFile(geometry.assetPath, new Blob([JSON.stringify(geometrySerialized)]));
+                        }
+                        // Save material
+                        {
+                            const material = Assets.GetInstance((component.material as PBRMaterial).assetPath) as PBRMaterial;
+                            const materialSerialized = material.SerializeAsset();
+                            SaveToFile(material.assetPath, new Blob([JSON.stringify(materialSerialized)]));
+
+                            // Save textures
+                            if (material.params.albedoMap && material.params.albedoMap.blob) SaveToFile(material.params.albedoMap.assetPath, material.params.albedoMap.blob);
+                            if (material.params.normalMap && material.params.normalMap.blob) SaveToFile(material.params.normalMap.assetPath, material.params.normalMap.blob);
+                            if (material.params.armMap && material.params.armMap.blob) SaveToFile(material.params.armMap.assetPath, material.params.armMap.blob);
+                            if (material.params.heightMap && material.params.heightMap.blob) SaveToFile(material.params.heightMap.assetPath, material.params.heightMap.blob);
+                            if (material.params.emissiveMap && material.params.emissiveMap.blob) SaveToFile(material.params.emissiveMap.assetPath, material.params.emissiveMap.blob);
+                        }
+
+                        // Save prefab
+                        {
+                            SaveToFile(`${file.name}/${file.name}.prefab`, new Blob([JSON.stringify(prefab)]));
+                        }
+                    }
+                }
+            })
+        }
 
         // const url = URL.createObjectURL(file);
         // const prefab = await GLTFLoader.LoadFromURL(url, "glb");

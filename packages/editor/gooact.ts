@@ -57,9 +57,9 @@ const setAttribute = (dom: GooactHTMLElement, key: string, value: any): void => 
 
 export const render = (vdom: VNodeChild, parent: HTMLElement | null = null): GooactNode => {
     const mount = parent ? (el: GooactNode) => {
-            parent.appendChild(el);
-            return el;
-        } : (el: GooactNode) => el;
+        parent.appendChild(el);
+        return el;
+    } : (el: GooactNode) => el;
 
     if (typeof vdom == 'string' || typeof vdom == 'number') return mount(document.createTextNode(String(vdom)) as GooactNode);
     else if (typeof vdom == 'boolean' || vdom === null) return mount(document.createTextNode('') as GooactNode);
@@ -91,11 +91,42 @@ const patch = (dom: GooactNode, vdom: VNodeChild, parent: (Node & ParentNode) | 
             const key = (child as any).__gooactKey || `__index_${index}`;
             pool[key] = child;
         });
-        ([] as any[]).concat(...(((vdom as VNode).children) as any)).map((child: any, index: number) => {
-            const key = (child.props && child.props.key) || `__index_${index}`;
-            (dom as HTMLElement).appendChild(pool[key] ? (patch(pool[key], child) as Node) : (render(child, dom as any) as Node));
-            delete pool[key];
-        });
+        const newChildren = ([] as any[]).concat(...(((vdom as VNode).children) as any));
+        const domChildren = dom.childNodes;
+
+        let i = 0;
+
+        for (const child of newChildren) {
+            const key = (child && child.props && child.props.key) || `__index_${i}`;
+            let existing = pool[key];
+            let updatedNode: Node;
+
+            if (existing) {
+                updatedNode = patch(existing, child) as Node;
+                delete pool[key];
+            } else {
+                updatedNode = render(child, null) as Node;
+            }
+
+            const currentNodeAtIndex = domChildren[i];
+
+            // Only move if it's not already in the correct position
+            if (currentNodeAtIndex !== updatedNode) {
+                dom.insertBefore(updatedNode, currentNodeAtIndex || null);
+            }
+
+            i++;
+        }
+
+        // Remove leftover nodes
+        for (const key in pool) {
+            const leftover = pool[key];
+            const instance = (leftover as GooactNode).__gooactInstance;
+            if (instance) instance.componentWillUnmount();
+            if (leftover.parentNode) {
+                leftover.parentNode.removeChild(leftover);
+            }
+        }
         for (const key in pool) {
             const instance = (pool[key] as GooactNode).__gooactInstance;
             if (instance) instance.componentWillUnmount();
@@ -110,7 +141,8 @@ const patch = (dom: GooactNode, vdom: VNodeChild, parent: (Node & ParentNode) | 
     return dom;
 };
 
-export class Component<P = any, S = any> {props: PropsWithChildren<P>; state: S | null; base?: GooactNode;
+export class Component<P = any, S = any> {
+    props: PropsWithChildren<P>; state: S | null; base?: GooactNode;
     constructor(props?: PropsWithChildren<P>) {
         this.props = (props || {}) as PropsWithChildren<P>;
         this.state = null;
