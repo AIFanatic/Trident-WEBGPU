@@ -38,8 +38,6 @@ export class InspectorType extends Component<InspectorTypeProps> {
         }
 
         if (this.props.onChanged) {
-            const input = event.currentTarget as HTMLInputElement;
-            console.log("ON CHA")
             this.props.onChanged(draggedItem)
         }
 

@@ -36,7 +36,8 @@ export class Component {
 
     public Start() {}
     public Update() {}
-    public Destroy() {}
+    public Destroy() { this.gameObject.RemoveComponent(this) }
+
     public Serialize(metadata: any = {}): SerializedComponent {
         const serializedFields = GetSerializedFields(this);
 

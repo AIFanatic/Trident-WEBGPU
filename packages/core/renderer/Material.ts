@@ -19,6 +19,8 @@ export class MaterialParams {
 }
 
 export class Material {
+    public name = "Material";
+
     public id = UUID();
     public static type = "@trident/core/renderer/Material";
 
@@ -78,7 +80,6 @@ export class Material {
     }
 
     public static Deserialize(data): Material {
-        console.warn("DEE MAT", data.assetPath)
         if (data.assetPath) {
             const instance = Assets.GetInstance(data.assetPath);
             if (instance) return instance;
@@ -88,7 +89,6 @@ export class Material {
             Assets.SetInstance(data.assetPath, material);
 
             Assets.Load(data.assetPath, "json").then(json => {
-                console.log("json", json, material);
                 material.Deserialize(json)
             });
             
@@ -131,6 +131,7 @@ interface PBRMaterialParams extends MaterialParams {
 
 export class PBRMaterial extends Material {
     public static type = "@trident/core/renderer/Material/PBRMaterial";
+    public name = "PBRMaterial";
 
     public params: PBRMaterialParams = {
         albedoColor: new Color(1, 1, 1, 1),

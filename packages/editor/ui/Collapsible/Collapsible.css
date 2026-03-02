@@ -15,7 +15,7 @@
     font-weight: bold;
 }
 .title-right-menu:hover {
-    background-color: #404040;
+    opacity: 0.5;
 }
 
 .collapsible-card-edonec {

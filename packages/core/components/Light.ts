@@ -9,6 +9,7 @@ import { TransformEvents } from "./Transform";
 
 export class LightEvents {
     public static Updated = (light: Light) => {};
+    public static Destroyed = (light: Light) => {};
 }
 
 export class Light extends Component {
@@ -26,6 +27,10 @@ export class Light extends Component {
         EventSystemLocal.on(TransformEvents.Updated, this.transform, () => {
             EventSystem.emit(LightEvents.Updated, this);
         })
+    }
+
+    public Destroy(): void {
+        EventSystem.emit(LightEvents.Destroyed, this);
     }
 }
 

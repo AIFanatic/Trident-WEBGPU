@@ -14,17 +14,20 @@ import { GLTFLoader } from "@trident/plugins/GLTF/GLTFLoader";
 import { PostProcessingPass } from "@trident/plugins/PostProcessing/PostProcessingPass";
 import { PostProcessingSMAA } from "@trident/plugins/PostProcessing/effects/SMAA";
 
-
-
-import { GameObject, Mathf, Geometry, GPU } from "@trident/core";
+import { GPU } from "@trident/core";
 
 export class LayoutCanvas extends Component<BaseProps> {
 
     private async canvasRef(canvas: HTMLCanvasElement) {
-        canvas.style.width = "100%";
-        canvas.style.height = "100%";
-        canvas.width = 1280;
-        canvas.height = 720;
+        
+        const resize = () => {
+            canvas.style.width = "100%";
+            canvas.style.height = "100%";
+            canvas.width = canvas.parentElement.clientWidth;
+            canvas.height = canvas.parentElement.clientHeight;
+            camera.SetPerspective(72, canvas.width / canvas.height, 0.05, 10000);
+        };
+        new ResizeObserver(resize).observe(canvas);
 
         const EngineAPI = this.props.engineAPI;
         EngineAPI.createRenderer(canvas);
@@ -34,10 +37,10 @@ export class LayoutCanvas extends Component<BaseProps> {
         const mainCameraGameObject = EngineAPI.createGameObject(currentScene);
         mainCameraGameObject.name = "MainCamera";
         const camera = mainCameraGameObject.AddComponent(IComponents.Camera);
-        camera.SetPerspective(72, canvas.width / canvas.height, 0.5, 50000);
-
+        camera.SetPerspective(72, canvas.width / canvas.height, 0.05, 10000);
         EventSystem.on(GPU.RendererEvents.Resized, () => {
-            camera.SetPerspective(72, canvas.width / canvas.height, 0.05, 50000);
+            console.log(canvas.getBoundingClientRect(), canvas.width, canvas.height)
+            camera.SetPerspective(72, canvas.width / canvas.height, 0.05, 10000);
         });
 
         mainCameraGameObject.transform.position.set(0, 0, 10);
@@ -107,7 +110,6 @@ export class LayoutCanvas extends Component<BaseProps> {
         });
 
         EventSystem.on(LayoutHierarchyEvents.Selected, pickedGameObject => {
-            console.log("TRIGGGEr")
             controls.center.copy(pickedGameObject.transform.position);
         });
 
@@ -140,6 +142,10 @@ export class LayoutCanvas extends Component<BaseProps> {
         currentScene.renderPipeline.AddPass(postProcessing, GPU.RenderPassOrder.BeforeScreenOutput);
 
         currentScene.Start();
+
+        new ResizeObserver(resize).observe(canvas);
+        
+
     }
 
     render() {

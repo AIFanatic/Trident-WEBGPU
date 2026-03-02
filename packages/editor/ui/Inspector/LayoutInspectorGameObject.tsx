@@ -47,8 +47,8 @@ export class LayoutInspectorGameObject extends Component<LayoutInspectorProps, L
     }
 
     private onRemoveComponent(component: IComponent) {
-        // component.Destroy();
-        // this.forceUpdate();
+        component.Destroy();
+        this.setState({ gameObject: this.state.gameObject }); // force update
     }
 
     private onComponentPropertyChanged(component: IComponent | ITransform, property: string, value: any) {

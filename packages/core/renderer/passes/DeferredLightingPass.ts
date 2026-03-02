@@ -84,10 +84,14 @@ export class DeferredLightingPass extends RenderPass {
         this.dummyShadowPassDepth = DepthTextureArray.Create(1, 1, 1);
         this.gBufferDepthClone = DepthTexture.Create(Renderer.width, Renderer.height);
 
-
-        EventSystem.on(LightEvents.Updated, component => {
+        EventSystem.on(LightEvents.Updated, light => {
             this.needsUpdate = true;
         })
+
+        EventSystem.on(LightEvents.Destroyed, light => {
+            this.lightsBuffer.delete(light.id);
+            this.needsUpdate = true;
+        })        
 
         this.initialized = true;
     }

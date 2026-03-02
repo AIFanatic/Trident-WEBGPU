@@ -23,7 +23,13 @@ export class InspectorNumber extends Component<InspectorNumberProps, InspectorNu
         if (this.props.onChanged) {
             const input = event.currentTarget as HTMLInputElement;
             if (input.value == "") return;
-            this.props.onChanged(parseFloat(input.value));
+
+            const value = parseFloat(input.value)
+
+            this.props.onChanged(value);
+
+            this.state.value = value;
+            this.setState({value: this.state.value});
         }
     }
 

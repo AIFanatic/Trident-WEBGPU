@@ -2,30 +2,30 @@ import { createElement, Component } from "../gooact";
 import { IGameObject } from "../engine-api/trident/components/IGameObject";
 import { BaseProps } from "./Layout";
 import { ITreeMap } from "./TreeView/ITreeMap";
-import { Tree } from "./TreeView/Tree";
 import { EventSystem, GameObjectEvents, LayoutHierarchyEvents, SceneEvents } from "../Events";
 import { ExtendedDataTransfer } from "../helpers/ExtendedDataTransfer";
-import { Menu } from "./MenuDropdown/Menu";
-import { MenuItem } from "./MenuDropdown/MenuItem";
-import { MenuDropdown } from "./MenuDropdown/MenuDropdown";
 import { IComponents } from "../engine-api/trident/components";
+import { TreeFolder } from "./TreeView/TreeFolder";
+import { TreeItem } from "./TreeView/TreeItem";
+import { Tree } from "./TreeView/Tree";
 
 interface LayoutHierarchyState {
     selectedGameObject: IGameObject;
+    headerMenuOpen: boolean;
 };
 
 export class LayoutHierarchy extends Component<BaseProps, LayoutHierarchyState> {
 
     constructor(props) {
         super(props);
-        this.setState({ selectedGameObject: null });
+        this.setState({ selectedGameObject: null, headerMenuOpen: false });
 
         EventSystem.on(GameObjectEvents.Created, gameObject => {
             this.selectGameObject(gameObject);
         });
 
         EventSystem.on(GameObjectEvents.Deleted, gameObject => {
-            if (gameObject === this.state.selectedGameObject) this.setState({ selectedGameObject: null });
+            if (gameObject === this.state.selectedGameObject) this.setState({...this.state, selectedGameObject: null });
         });
 
         EventSystem.on(GameObjectEvents.Selected, gameObject => {
@@ -37,13 +37,13 @@ export class LayoutHierarchy extends Component<BaseProps, LayoutHierarchyState> 
         })
 
         EventSystem.on(SceneEvents.Loaded, scene => {
-            this.setState({ selectedGameObject: null });
+            this.setState({ ...this.state, selectedGameObject: null });
         });
     }
 
     private selectGameObject(gameObject: IGameObject) {
         EventSystem.emit(LayoutHierarchyEvents.Selected, gameObject);
-        this.setState({ selectedGameObject: gameObject });
+        this.setState({ ...this.state, selectedGameObject: gameObject });
     }
 
     private getGameObjectById(id: string): IGameObject {
@@ -57,6 +57,7 @@ export class LayoutHierarchy extends Component<BaseProps, LayoutHierarchyState> 
     private onDropped(fromId: string, toId: string) {
         const fromGameObject = this.getGameObjectById(fromId);
         const toGameObject = this.getGameObjectById(toId);
+        if (fromGameObject === toGameObject) return;
         if (fromGameObject && toGameObject) {
             fromGameObject.transform.parent = toGameObject.transform;
             this.selectGameObject(toGameObject);
@@ -103,6 +104,7 @@ export class LayoutHierarchy extends Component<BaseProps, LayoutHierarchyState> 
     private createEmptyGameObject() {
         const gameObject = this.props.engineAPI.createGameObject(this.props.engineAPI.currentScene);
         EventSystem.emit(GameObjectEvents.Created, gameObject);
+        this.setState({ ...this.state, headerMenuOpen: !this.state.headerMenuOpen });
     }
 
     private deleteGameObject() {
@@ -110,7 +112,7 @@ export class LayoutHierarchy extends Component<BaseProps, LayoutHierarchyState> 
 
         this.state.selectedGameObject.Destroy();
         EventSystem.emit(GameObjectEvents.Deleted, this.state.selectedGameObject);
-        this.setState({selectedGameObject: null});
+        this.setState({ headerMenuOpen: !this.state.headerMenuOpen, selectedGameObject: null });
     }
 
     private createPrimitive(primitiveType: "Cube" | "Capsule" | "Plane" | "Sphere") {
@@ -122,6 +124,7 @@ export class LayoutHierarchy extends Component<BaseProps, LayoutHierarchyState> 
         else if (primitiveType === "Sphere") mesh.geometry = this.props.engineAPI.createSphereGeometry(), gameObject.name = "Sphere";
         mesh.material = this.props.engineAPI.createPBRMaterial();
         EventSystem.emit(GameObjectEvents.Created, gameObject);
+        this.setState({ ...this.state, headerMenuOpen: !this.state.headerMenuOpen });
     }
 
     private createLight(lightType: "Directional" | "Point" | "Spot" | "Area") {
@@ -130,6 +133,34 @@ export class LayoutHierarchy extends Component<BaseProps, LayoutHierarchyState> 
         else if (lightType === "Point") gameObject.AddComponent(IComponents.PointLight), gameObject.name = "PointLight";
         else if (lightType === "Spot") gameObject.AddComponent(IComponents.SpotLight), gameObject.name = "SpotLight";
         EventSystem.emit(GameObjectEvents.Created, gameObject);
+        this.setState({ ...this.state, headerMenuOpen: !this.state.headerMenuOpen });
+    }
+
+    private renderGameObjects(gameObjects: IGameObject[]) {
+        return gameObjects.map(go => {
+            const isSelected = this.state.selectedGameObject === go;
+            const children = go.transform.children;
+
+            if (children.size > 0) {                          // .size not .length
+                return <TreeFolder
+                    name={go.name}
+                    id={go.transform.id}
+                    isSelected={isSelected}
+                    onClicked={() => this.selectGameObject(go)}
+                    onDropped={(from, to) => this.onDropped(from, to)}
+                >
+                    {this.renderGameObjects(Array.from(children).map(c => c.gameObject))}
+                </TreeFolder>                                  // Array.from() to iterate Set
+            }
+            return <TreeItem
+                name={go.name}
+                id={go.transform.id}
+                isSelected={isSelected}
+                onClicked={() => this.selectGameObject(go)}
+                onDropped={(from, to) => this.onDropped(from, to)}
+                onDragStarted={(event) => this.onDragStarted(event, null)}
+            />
+        });
     }
 
     render() {
@@ -137,28 +168,32 @@ export class LayoutHierarchy extends Component<BaseProps, LayoutHierarchyState> 
 
         const nodes = this.buildTreeFromGameObjects(this.props.engineAPI.currentScene.gameObjects);
 
+        const rootGameObjects = this.props.engineAPI.currentScene.gameObjects.filter(go => !go.transform.parent);
+
         return (
 
             <div class="Layout">
                 <div class="header">
                     <div class="title">Sample scene</div>
                     <div class="right-action">
-                        <Menu name="⋮" >
-                            <MenuItem name="Create Empty" onClicked={() => { this.createEmptyGameObject() }} />
-                            <MenuItem name="Delete" onClicked={() => { this.deleteGameObject() }} />
-                            <MenuDropdown name="3D Object" >
-                                <MenuItem name="Cube" onClicked={() => { this.createPrimitive("Cube") }} />
-                                <MenuItem name="Capsule" onClicked={() => { this.createPrimitive("Capsule") }} />
-                                <MenuItem name="Plane" onClicked={() => { this.createPrimitive("Plane") }} />
-                                <MenuItem name="Sphere" onClicked={() => { this.createPrimitive("Sphere") }} />
-                            </MenuDropdown>
-
-                            <MenuDropdown name="Lights" >
-                                <MenuItem name="Directional Light" onClicked={() => { this.createLight("Directional") }} />
-                                <MenuItem name="Point Light" onClicked={() => { this.createLight("Point") }} />
-                                <MenuItem name="Spot Light" onClicked={() => { this.createLight("Spot") }} />
-                            </MenuDropdown>
-                        </Menu>
+                        <button onClick={event => { this.setState({...this.state, headerMenuOpen: !this.state.headerMenuOpen})}}>⋮</button>
+                        <div class="Floating-Menu" style={`display: ${this.state.headerMenuOpen ? "inherit" : "none"}`}>
+                            <Tree>
+                                <TreeItem name="Create Empty" onClicked={() => this.createEmptyGameObject()} />
+                                <TreeItem name="Delete" onClicked={() => this.deleteGameObject()} />
+                                <TreeFolder name="3D Object">
+                                    <TreeItem name="Cube" onClicked={() => this.createPrimitive("Cube")} />
+                                    <TreeItem name="Capsule" onClicked={() => this.createPrimitive("Capsule")} />
+                                    <TreeItem name="Plane" onClicked={() => this.createPrimitive("Plane")} />
+                                    <TreeItem name="Sphere" onClicked={() => this.createPrimitive("Sphere")} />
+                                </TreeFolder>
+                                <TreeFolder name="Lights">
+                                    <TreeItem name="Directional Light" onClicked={() => this.createLight("Directional")} />
+                                    <TreeItem name="Point Light" onClicked={() => this.createLight("Point")} />
+                                    <TreeItem name="Spot Light" onClicked={() => this.createLight("Spot")} />
+                                </TreeFolder>
+                            </Tree>
+                        </div>
                     </div>
                 </div>
                 <div
@@ -166,12 +201,17 @@ export class LayoutHierarchy extends Component<BaseProps, LayoutHierarchyState> 
                     onDrop={(event) => this.onDrop(event)}
                     onDragOver={(e) => e.preventDefault()}
                 >
-                    <Tree
+                    {/* <Tree
                         onDropped={(from, to) => this.onDropped(from, to)}
                         onClicked={(data) => this.selectGameObject(data.data)}
                         onDragStarted={(event, data) => this.onDragStarted(event, data)}
                         data={nodes}
-                    />
+                    /> */}
+
+
+                    <Tree>
+                        {this.renderGameObjects(rootGameObjects)}
+                    </Tree>
                 </div>
             </div>
         );

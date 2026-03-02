@@ -156,9 +156,12 @@ export class GLTFLoader {
 
         geometry.ComputeBoundingVolume();
 
+        const material = new PBRMaterial(materialParams);
+        if (primitive.material && primitive.material.name) material.name = primitive.material.name;
+
         return {
             geometry: geometry,
-            material: new PBRMaterial(materialParams),
+            material: material,
         };
     }
 
@@ -221,11 +224,13 @@ export class GLTFLoader {
         const nodeIndex = new Map<Node, number>();
         gltf.nodes.forEach((n, i) => nodeIndex.set(n, i));
 
+        console.log(gltf)
         const nodes: Prefab[] = [];
         for (let i = 0; i < gltf.nodes.length; i++) {
             const n = gltf.nodes[i];
+            console.log("HERE")
             nodes.push(this.createEmptyGO(
-                n.name || `Node_${i}`,
+                n.name || `Nodea_${i}`,
                 new Mathf.Vector3(n.translation.x, n.translation.y, n.translation.z),
                 new Mathf.Quaternion(n.rotation.x, n.rotation.y, n.rotation.z, n.rotation.w),
                 new Mathf.Vector3(n.scale.x, n.scale.y, n.scale.z)
@@ -340,7 +345,7 @@ export class GLTFLoader {
                 const materialInstance = parsedPrimitive.material;
                 const primitiveIndex = pIndex++;
                 const geometryPath = `${rootName}.glb/${node.mesh.name}_${primitiveIndex}.geometry`;
-                const materialPath = `${rootName}.glb/${primitive.material.name}.material`;
+                const materialPath = `${rootName}.glb/${materialInstance.name}.material`;
 
                 geometryInstance.assetPath = geometryPath;
                 materialInstance.assetPath = materialPath;
@@ -360,16 +365,16 @@ export class GLTFLoader {
                 if (hasSkin) {
                     primGO.components.push({
                         type: Components.SkinnedMesh.type,
-                        geometry: { assetPath: geometryPath },
-                        material: { assetPath: materialPath },
+                        geometry: geometryInstance.Serialize(),
+                        material: materialInstance.Serialize(),
                         enableShadows: true
                     });
                 }
                 else {
                     primGO.components.push({
                         type: Components.Mesh.type,
-                        geometry: { assetPath: geometryPath },
-                        material: { assetPath: materialPath },
+                        geometry: geometryInstance.Serialize(),
+                        material: materialInstance.Serialize(),
                         enableShadows: true
                     });
                 }

@@ -30,7 +30,6 @@ export class InspectorVector3 extends Component<InspectorVector3Props, Inspector
     }
 
     private onChanged(property: ChangedProperty, _value) {
-        console.log("CAHHH")
         if (this.props.onChanged) {
             if (_value == "") return;
             const value = parseFloat(_value);

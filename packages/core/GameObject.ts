@@ -52,6 +52,25 @@ export class GameObject {
         return componentInstance;
     }
 
+    public RemoveComponent<T extends Component>(component: T): void {
+        const idx = this.allComponents.indexOf(component);
+        if (idx === -1) return;
+
+        // Remove from allComponents
+        this.allComponents.splice(idx, 1);
+
+        // Remove from componentsByCtor map
+        for (const ctor of getCtorChain(component.constructor)) {
+            const arr = this.componentsByCtor.get(ctor);
+            if (!arr) continue;
+            const i = arr.indexOf(component);
+            if (i !== -1) arr.splice(i, 1);
+            if (arr.length === 0) this.componentsByCtor.delete(ctor);
+        }
+
+        component.Destroy();
+    }
+
     public GetComponent<T extends Component>(Ctor: new (...a: any[]) => T): T | null {
         const arr = this.componentsByCtor.get(Ctor);
         return (arr && arr.length) ? (arr[0] as T) : null;

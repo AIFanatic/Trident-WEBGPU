@@ -25,6 +25,10 @@ export class Mesh extends Renderable {
         })
     }
 
+    public Start(): void {
+        this.modelMatrixOffset = Mesh.modelMatrices.set(this.id, this.transform.localToWorldMatrix.elements);
+    }
+
     public OnPreRender(shaderOverride?: Shader): void {
         const shader = shaderOverride ? shaderOverride : this.material?.shader;
         if (!this.geometry || !this.material || !shader) return;
@@ -41,7 +45,7 @@ export class Mesh extends Renderable {
 
     public Destroy(): void {
         super.Destroy();
-        Mesh.modelMatrices.delete(this.id);
+        if (Mesh.modelMatrices.has(this.id)) Mesh.modelMatrices.delete(this.id);
     }
 }
 

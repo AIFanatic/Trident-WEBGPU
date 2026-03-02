@@ -2,7 +2,7 @@ import { EventSystem } from "../Events";
 import { GameObject } from "../GameObject";
 import { Geometry } from "../Geometry";
 import { Shader } from "../renderer";
-import { Material } from "../renderer/Material";
+import { Material, PBRMaterial } from "../renderer/Material";
 import { SerializeField } from "../utils/SerializeField";
 import { Component, SerializedComponent } from "./Component";
 
@@ -19,12 +19,12 @@ export class Renderable extends Component {
     @SerializeField
     public enableShadows: boolean = true;
     
-    private _geometry: Geometry;
+    private _geometry: Geometry = new Geometry();
     @SerializeField
     public get geometry(): Geometry { return this._geometry; };
     public set geometry(geometry: Geometry) { this._geometry = geometry; };
 
-    protected _material: Material;
+    protected _material: Material = new PBRMaterial();
     @SerializeField
     public get material(): Material { return this._material; };
     public set material(material: Material) {
@@ -42,6 +42,7 @@ export class Renderable extends Component {
     public OnRenderObject(shaderOverride?: Shader) { }
 
     public Destroy(): void {
+        super.Destroy();
         this.geometry.Destroy();
         this.material.Destroy();
         Renderable.Renderables.delete(this.id);

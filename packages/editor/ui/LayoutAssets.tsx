@@ -4,9 +4,7 @@ import { createElement, Component } from "../gooact";
 import { BaseProps } from "./Layout";
 import { DirectoryEvents, EventSystem, FileEvents, ProjectEvents, SceneEvents } from "../Events";
 import { FileWatcher } from "../helpers/FileWatcher";
-import { ITreeMap, ITreeMapType } from "./TreeView/ITreeMap";
 import { StringUtils } from "../helpers/StringUtils";
-import { Tree } from "./TreeView/Tree";
 
 import { ExtendedDataTransfer } from "../helpers/ExtendedDataTransfer";
 import { GLTFLoader } from "@trident/plugins/GLTF/GLTFLoader";
@@ -18,6 +16,23 @@ import { FileBrowser, MODE } from "../helpers/FileBrowser";
 import { IGeometry } from "../engine-api/trident/components/IGeometry";
 import { IMaterial } from "../engine-api/trident/IMaterial";
 import { IComponents } from "../engine-api/trident/components";
+import { TreeFolder } from "./TreeView/TreeFolder";
+import { TreeItem } from "./TreeView/TreeItem";
+import { Tree } from "./TreeView/Tree";
+
+export enum ITreeMapType {
+    Folder,
+    File
+}
+
+export interface ITreeMap<T> {
+    name: string;
+    id: string;
+    isSelected: boolean;
+    parent: string;
+    type?: ITreeMapType;
+    data?: T;
+}
 
 export interface FileData {
     file: FileSystemDirectoryHandle | FileSystemFileHandle;
@@ -32,6 +47,7 @@ interface ProjectTreeMap extends ITreeMap<FileData> {
 interface LayoutAssetsState {
     currentTreeMap: Map<string, ProjectTreeMap>;
     selected: FileData;
+    headerMenuOpen: boolean;
 };
 
 export async function dir(h?: FileSystemDirectoryHandle): Promise<FileSystemDirectoryHandle> {
@@ -56,7 +72,7 @@ export class LayoutAssets extends Component<BaseProps, LayoutAssetsState> {
     private fileWatcher: FileWatcher;
     constructor(props: BaseProps) {
         super(props);
-        this.setState({ currentTreeMap: new Map(), selected: undefined });
+        this.setState({ currentTreeMap: new Map(), selected: undefined, headerMenuOpen: false });
 
         this.fileWatcher = new FileWatcher();
 
@@ -80,7 +96,7 @@ export class LayoutAssets extends Component<BaseProps, LayoutAssetsState> {
     private onFileOrDirectoryDeleted(path: string) {
         this.fileWatcher.unwatch(path);
         this.state.currentTreeMap.delete(path);
-        this.setState({ currentTreeMap: this.state.currentTreeMap, selected: undefined });
+        this.setState({ ...this.state, currentTreeMap: this.state.currentTreeMap, selected: undefined });
     }
 
     private onFileOrDirectoryCreated(path: string, file: FileSystemDirectoryHandle | FileSystemFileHandle) {
@@ -105,7 +121,7 @@ export class LayoutAssets extends Component<BaseProps, LayoutAssetsState> {
             // this.forceUpdate();
         }
 
-        this.setState({ currentTreeMap: this.state.currentTreeMap, selected: this.state.selected });
+        this.setState({ ...this.state, currentTreeMap: this.state.currentTreeMap, selected: this.state.selected });
     }
 
     private async onToggled(item) {
@@ -117,7 +133,7 @@ export class LayoutAssets extends Component<BaseProps, LayoutAssetsState> {
             await this.LoadTreeItem(item);
         }
 
-        this.setState({ currentTreeMap: this.state.currentTreeMap, selected: item.data });
+        this.setState({ ...this.state, currentTreeMap: this.state.currentTreeMap, selected: item.data });
     }
 
     private async onItemDoubleClicked(item: ITreeMap<FileData>) {
@@ -200,8 +216,6 @@ export class LayoutAssets extends Component<BaseProps, LayoutAssetsState> {
         }
 
         ExtendedDataTransfer.data = item.data.instance;
-
-        console.log("HERE", ExtendedDataTransfer.data)
     }
 
     private getCurrentPath(): string {
@@ -217,6 +231,7 @@ export class LayoutAssets extends Component<BaseProps, LayoutAssetsState> {
         const path = `${this.getCurrentPath()}/New folder`;
         const handle = await FileBrowser.mkdir(path);
         EventSystem.emit(DirectoryEvents.Created, path, handle);
+        this.setState({...this.state, headerMenuOpen: !this.state.headerMenuOpen});
     }
 
     private async deleteAsset() {
@@ -230,6 +245,7 @@ export class LayoutAssets extends Component<BaseProps, LayoutAssetsState> {
             FileBrowser.rmdir(this.state.selected.path);
             EventSystem.emit(DirectoryEvents.Deleted, this.state.selected.path, undefined);
         }
+        this.setState({...this.state, headerMenuOpen: !this.state.headerMenuOpen});
     }
 
     public onDragOver(event: DragEvent) {
@@ -253,16 +269,24 @@ export class LayoutAssets extends Component<BaseProps, LayoutAssetsState> {
             const arrayBuffer = await file.arrayBuffer();
             const prefab = await GLTFLoader.LoadFromArrayBuffer(arrayBuffer, undefined, file.name.slice(0, file.name.lastIndexOf(".")));
 
+            console.log("Dropped glb", prefab)
+
+
             await FileBrowser.mkdir(file.name);
+
+            async function SaveToFile(path: string, blob: Blob) {
+                const file = await FileBrowser.fopen(path, MODE.W);
+                await FileBrowser.fwrite(file, blob);
+            }
+
+            // Save prefab
+            {
+                console.log("Saving prefab", `${file.name}/${file.name}.prefab`)
+                SaveToFile(`${file.name}/${file.name}.prefab`, new Blob([JSON.stringify(prefab)]));
+            }
             prefab.traverse(async prefab => {
                 for (const component of prefab.components) {
                     if (component.type === IComponents.Mesh.type) {
-
-                        async function SaveToFile(path: string, blob: Blob) {
-                            const file = await FileBrowser.fopen(path, MODE.W);
-                            await FileBrowser.fwrite(file, blob);
-                        }
-
                         // Save geometry
                         {
                             const geometry = Assets.GetInstance((component.geometry as IGeometry).assetPath) as IGeometry;
@@ -282,11 +306,6 @@ export class LayoutAssets extends Component<BaseProps, LayoutAssetsState> {
                             if (material.params.heightMap && material.params.heightMap.blob) SaveToFile(material.params.heightMap.assetPath, material.params.heightMap.blob);
                             if (material.params.emissiveMap && material.params.emissiveMap.blob) SaveToFile(material.params.emissiveMap.assetPath, material.params.emissiveMap.blob);
                         }
-
-                        // Save prefab
-                        {
-                            SaveToFile(`${file.name}/${file.name}.prefab`, new Blob([JSON.stringify(prefab)]));
-                        }
                     }
                 }
             })
@@ -296,6 +315,35 @@ export class LayoutAssets extends Component<BaseProps, LayoutAssetsState> {
         // const prefab = await GLTFLoader.LoadFromURL(url, "glb");
         // console.log(JSON.stringify(prefab))
         // // const obj = currentScene.Instantiate(prefab);
+    }
+
+    private renderTreeItems(items: ProjectTreeMap[], allItems: ProjectTreeMap[]) {
+        return items.map(item => {
+            const children = allItems.filter(i => i.parent === item.id);
+
+            if (item.type === ITreeMapType.Folder || children.length > 0) {
+                return <TreeFolder
+                    name={item.name}
+                    id={item.id}
+                    isSelected={item.isSelected}
+                    onClicked={() => this.onItemClicked(item)}
+                    onDoubleClicked={() => this.onItemDoubleClicked(item)}
+                    onDropped={(from, to) => this.onDropped(from, to)}
+                    onToggled={() => this.onToggled(item)}
+                >
+                    {this.renderTreeItems(children, allItems)}
+                </TreeFolder>
+            }
+            return <TreeItem
+                name={item.name}
+                id={item.id}
+                isSelected={item.isSelected}
+                onClicked={() => this.onItemClicked(item)}
+                onDoubleClicked={() => this.onItemDoubleClicked(item)}
+                onDropped={(from, to) => this.onDropped(from, to)}
+                onDragStarted={(event) => this.onDragStarted(event, item)}
+            />
+        });
     }
 
     render() {
@@ -313,6 +361,8 @@ export class LayoutAssets extends Component<BaseProps, LayoutAssetsState> {
             return a.name.localeCompare(b.name);
         });
 
+        const rootItems = treeMapArr.filter(item => !item.parent);
+
         return (
             <div class="Layout"
                 onDrop={(event) => this.onDrop(event)}
@@ -321,23 +371,23 @@ export class LayoutAssets extends Component<BaseProps, LayoutAssetsState> {
                 <div class="header">
                     <div class="title">Assets</div>
                     <div class="right-action">
-                        <Menu name="⋮">
-                            <MenuItem name="Folder" onClicked={() => { this.createFolder() }} />
-                            <MenuItem name="Material" onClicked={() => { this.createMaterial() }} />
-                            <MenuItem name="Script" onClicked={() => { this.createScript() }} />
-                            <MenuItem name="Scene" onClicked={() => { this.createScene() }} />
-                            <MenuItem name="Delete" onClicked={() => { this.deleteAsset() }} />
-                        </Menu>
+                        <button onClick={event => { this.setState({...this.state, headerMenuOpen: !this.state.headerMenuOpen})}}>⋮</button>
+                        <div class="Floating-Menu" style={`display: ${this.state.headerMenuOpen ? "inherit" : "none"}`}>
+                            <Tree>
+                                <TreeItem name="Folder" onClicked={() => { this.createFolder() }} />
+                                <TreeItem name="Material" onClicked={() => { this.createMaterial() }} />
+                                <TreeItem name="Script" onClicked={() => { this.createScript() }} />
+                                <TreeItem name="Scene" onClicked={() => { this.createScene() }} />
+                                <TreeItem name="Delete" onClicked={() => { this.deleteAsset() }} />
+                            </Tree>
+                        </div>
                     </div>
+
                 </div>
-                <Tree
-                    onToggled={(item) => this.onToggled(item)}
-                    onDropped={(from, to) => this.onDropped(from, to)}
-                    onClicked={(data) => this.onItemClicked(data)}
-                    onDoubleClicked={(data) => this.onItemDoubleClicked(data)}
-                    onDragStarted={(event, data) => this.onDragStarted(event, data)}
-                    data={treeMapArr}
-                />
+
+                <Tree>
+                    {this.renderTreeItems(rootItems, treeMapArr)}
+                </Tree>
             </div>
         );
     }
