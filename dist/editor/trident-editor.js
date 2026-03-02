@@ -490,19 +490,24 @@ class Raycaster {
 
 class LayoutCanvas extends Component {
   async canvasRef(canvas) {
-    canvas.style.width = "100%";
-    canvas.style.height = "100%";
-    canvas.width = 1280;
-    canvas.height = 720;
+    const resize = () => {
+      canvas.style.width = "100%";
+      canvas.style.height = "100%";
+      canvas.width = canvas.parentElement.clientWidth;
+      canvas.height = canvas.parentElement.clientHeight;
+      camera.SetPerspective(72, canvas.width / canvas.height, 0.05, 1e4);
+    };
+    new ResizeObserver(resize).observe(canvas);
     const EngineAPI = this.props.engineAPI;
     EngineAPI.createRenderer(canvas);
     const currentScene = EngineAPI.createScene();
     const mainCameraGameObject = EngineAPI.createGameObject(currentScene);
     mainCameraGameObject.name = "MainCamera";
     const camera = mainCameraGameObject.AddComponent(IComponents.Camera);
-    camera.SetPerspective(72, canvas.width / canvas.height, 0.5, 5e4);
+    camera.SetPerspective(72, canvas.width / canvas.height, 0.05, 1e4);
     EventSystem.on(GPU.RendererEvents.Resized, () => {
-      camera.SetPerspective(72, canvas.width / canvas.height, 0.05, 5e4);
+      console.log(canvas.getBoundingClientRect(), canvas.width, canvas.height);
+      camera.SetPerspective(72, canvas.width / canvas.height, 0.05, 1e4);
     });
     mainCameraGameObject.transform.position.set(0, 0, 10);
     mainCameraGameObject.transform.LookAtV1(EngineAPI.createVector3(0, 0, 0));
@@ -549,7 +554,6 @@ class LayoutCanvas extends Component {
       }
     });
     EventSystem.on(LayoutHierarchyEvents.Selected, (pickedGameObject) => {
-      console.log("TRIGGGEr");
       controls.center.copy(pickedGameObject.transform.position);
     });
     EventSystem.on(SceneEvents.Loaded, (scene) => {
@@ -574,6 +578,7 @@ class LayoutCanvas extends Component {
     postProcessing.effects.push(smaa);
     currentScene.renderPipeline.AddPass(postProcessing, GPU.RenderPassOrder.BeforeScreenOutput);
     currentScene.Start();
+    new ResizeObserver(resize).observe(canvas);
   }
   render() {
     return /* @__PURE__ */ createElement("canvas", { ref: (canvas) => this.canvasRef(canvas) });
@@ -802,12 +807,6 @@ class FileWatcher {
   }
 }
 
-var ITreeMapType = /* @__PURE__ */ ((ITreeMapType2) => {
-  ITreeMapType2[ITreeMapType2["Folder"] = 0] = "Folder";
-  ITreeMapType2[ITreeMapType2["File"] = 1] = "File";
-  return ITreeMapType2;
-})(ITreeMapType || {});
-
 class StringUtils {
   static CamelCaseToArray(str) {
     return str.split(/(?=[A-Z])/);
@@ -834,38 +833,37 @@ class StringUtils {
   }
 }
 
+class ExtendedDataTransfer {
+  static data;
+}
+
 class Arrow extends Component {
   render() {
     return /* @__PURE__ */ createElement("span", { style: `display: inline-block; rotate: ${this.props.isOpen ? "-90deg" : "180deg"}` }, "\u3031");
   }
 }
 
-class Folder extends Component {
+class TreeFolder extends Component {
   folderRef;
   constructor(props) {
     super(props);
-    this.state = { isOpen: false, isSelected: false };
-  }
-  FolderRefCreated(ref) {
-    this.folderRef = ref;
+    this.state = { isOpen: false };
   }
   handleToggle(e) {
     e.preventDefault();
     e.stopPropagation();
-    if (this.props.onToggled) {
-      this.props.onToggled(this.props.item);
-    }
-    this.setState({ isOpen: !this.state.isOpen, isSelected: this.state.isSelected });
+    if (this.props.onToggled) this.props.onToggled();
+    this.setState({ isOpen: !this.state.isOpen });
   }
   onDragStart(event) {
-    event.dataTransfer.setData("from-uuid", this.props.item.id);
+    if (this.props.id) event.dataTransfer.setData("from-uuid", this.props.id);
+    if (this.props.onDragStarted) this.props.onDragStarted(event);
   }
   onDrop(event) {
-    console.log("Folder onDrop");
-    this.folderRef.style.backgroundColor = "";
+    if (this.folderRef) this.folderRef.style.backgroundColor = "";
     const fromUuid = event.dataTransfer.getData("from-uuid");
-    if (fromUuid != "") {
-      this.props.onDropped(fromUuid, this.props.item.id);
+    if (fromUuid && this.props.onDropped && this.props.id) {
+      this.props.onDropped(fromUuid, this.props.id);
     }
     event.preventDefault();
     event.stopPropagation();
@@ -873,274 +871,106 @@ class Folder extends Component {
   onDragOver(event) {
     event.preventDefault();
   }
-  onClicked(event) {
-    this.props.onClicked(this.props.item);
-  }
-  onDoubleClicked(event) {
-    if (this.props.onDoubleClicked) {
-      this.props.onDoubleClicked(this.props.item);
-    }
-  }
   onDragEnter(event) {
-    this.folderRef.style.backgroundColor = "#3498db80";
+    if (this.folderRef) this.folderRef.style.backgroundColor = "#3498db80";
   }
   onDragLeave(event) {
-    this.folderRef.style.backgroundColor = "";
+    if (this.folderRef) this.folderRef.style.backgroundColor = "";
   }
   render() {
     let classes = "item-title";
-    if (this.props.item.isSelected) classes += " active";
-    return /* @__PURE__ */ createElement(
+    if (this.props.isSelected) classes += " active";
+    return /* @__PURE__ */ createElement("div", { className: "item", ref: (ref) => this.folderRef = ref }, /* @__PURE__ */ createElement(
       "div",
       {
-        className: "item",
-        ref: (ref) => this.FolderRefCreated(ref)
+        style: { display: "flex", alignItems: "center" },
+        className: classes,
+        draggable: true,
+        onDragStart: (event) => this.onDragStart(event),
+        onDragEnter: (event) => this.onDragEnter(event),
+        onDragLeave: (event) => this.onDragLeave(event),
+        onDrop: (event) => this.onDrop(event),
+        onDragOver: (event) => this.onDragOver(event),
+        onPointerDown: (event) => {
+          this.handleToggle(event);
+          if (this.props.onClicked) this.props.onClicked();
+        },
+        onDblClick: () => {
+          if (this.props.onDoubleClicked) this.props.onDoubleClicked();
+        }
       },
       /* @__PURE__ */ createElement(
-        "div",
+        "span",
         {
-          style: { display: "flex", alignItems: "center" },
-          className: classes,
-          draggable: true,
-          onDragStart: (event) => this.onDragStart(event),
-          onDragEnter: (event) => this.onDragEnter(event),
-          onDragLeave: (event) => this.onDragLeave(event),
-          onDrop: (event) => this.onDrop(event),
-          onDragOver: (event) => this.onDragOver(event),
-          onPointerDown: (event) => this.onClicked(event),
-          onDblClick: (event) => this.onDoubleClicked(event)
+          style: { width: "15px", height: "15px", fontSize: "10px" },
+          onPointerDown: (event) => this.handleToggle(event)
         },
-        /* @__PURE__ */ createElement(
-          "span",
-          {
-            style: { width: "15px", height: "15px", fontSize: "10px" },
-            onPointerDown: (event) => {
-              this.handleToggle(event);
-            }
-          },
-          /* @__PURE__ */ createElement(Arrow, { isOpen: this.state.isOpen })
-        ),
-        /* @__PURE__ */ createElement("span", null, this.props.item.name)
+        /* @__PURE__ */ createElement(Arrow, { isOpen: this.state.isOpen })
       ),
-      /* @__PURE__ */ createElement(
-        "div",
-        {
-          className: "item-content",
-          style: {
-            height: this.state.isOpen ? "auto" : "0"
-          }
-        },
-        this.props.children
-      )
-    );
+      /* @__PURE__ */ createElement("span", null, this.props.name)
+    ), /* @__PURE__ */ createElement("div", { className: "item-content", style: { height: this.state.isOpen ? "auto" : "0" } }, [this.props.children].flat(Infinity)));
   }
 }
 
-class File extends Component {
-  FileRef;
-  FileRefCreated(ref) {
-    this.FileRef = ref;
-  }
-  constructor(props) {
-    super(props);
-    this.state = { isSelected: false };
-  }
+class TreeItem extends Component {
+  itemRef;
   onDragStart(event) {
-    event.dataTransfer.setData("from-uuid", this.props.data.id);
-    if (this.props.onDragStarted) {
-      this.props.onDragStarted(event, this.props.data);
-    }
+    if (this.props.id) event.dataTransfer.setData("from-uuid", this.props.id);
+    if (this.props.onDragStarted) this.props.onDragStarted(event);
   }
   onDrop(event) {
-    this.FileRef.style.backgroundColor = "";
+    if (this.itemRef) this.itemRef.style.backgroundColor = "";
     const fromUuid = event.dataTransfer.getData("from-uuid");
-    if (fromUuid != "") {
-      this.props.onDropped(fromUuid, this.props.data.id);
+    if (fromUuid && this.props.onDropped && this.props.id) {
+      this.props.onDropped(fromUuid, this.props.id);
     }
     event.preventDefault();
     event.stopPropagation();
   }
   onDragOver(event) {
     event.preventDefault();
+  }
+  onDragEnter(event) {
+    if (this.itemRef) this.itemRef.style.backgroundColor = "#3498db80";
+  }
+  onDragLeave(event) {
+    if (this.itemRef) this.itemRef.style.backgroundColor = "";
   }
   lastClickTs = 0;
   dblMs = 220;
   onPointerDown(event) {
-    this.props.onClicked(this.props.data);
+    if (this.props.onClicked) this.props.onClicked();
     const now = performance.now();
-    const elapsed = now - this.lastClickTs;
+    if (now - this.lastClickTs < this.dblMs && this.props.onDoubleClicked) {
+      this.props.onDoubleClicked();
+    }
     this.lastClickTs = now;
-    if (elapsed < this.dblMs && this.props.onDoubleClicked) this.props.onDoubleClicked(this.props.data);
-  }
-  onDragEnter(event) {
-    this.FileRef.style.backgroundColor = "#3498db80";
-  }
-  onDragLeave(event) {
-    this.FileRef.style.backgroundColor = "";
   }
   render() {
     let classes = "item-title";
-    if (this.props.data.isSelected) classes += " active";
-    return /* @__PURE__ */ createElement(
+    if (this.props.isSelected) classes += " active";
+    return /* @__PURE__ */ createElement("div", { className: "item", ref: (ref) => this.itemRef = ref }, /* @__PURE__ */ createElement(
       "div",
       {
-        className: "item",
-        ref: (ref) => this.FileRefCreated(ref)
+        style: { display: "flex", alignItems: "center" },
+        className: classes,
+        draggable: true,
+        onDragStart: (event) => this.onDragStart(event),
+        onDragEnter: (event) => this.onDragEnter(event),
+        onDragLeave: (event) => this.onDragLeave(event),
+        onDrop: (event) => this.onDrop(event),
+        onDragOver: (event) => this.onDragOver(event),
+        onPointerDown: (event) => this.onPointerDown(event)
       },
-      /* @__PURE__ */ createElement(
-        "div",
-        {
-          style: { display: "flex", alignItems: "center" },
-          className: classes,
-          draggable: true,
-          onDragStart: (event) => this.onDragStart(event),
-          onDragEnter: (event) => this.onDragEnter(event),
-          onDragLeave: (event) => this.onDragLeave(event),
-          onDrop: (event) => this.onDrop(event),
-          onDragOver: (event) => this.onDragOver(event),
-          onPointerDown: (event) => this.onPointerDown(event)
-        },
-        /* @__PURE__ */ createElement(
-          "span",
-          {
-            style: { paddingLeft: "15px" }
-          }
-        ),
-        /* @__PURE__ */ createElement("span", null, this.props.data.name)
-      ),
-      /* @__PURE__ */ createElement(
-        "div",
-        {
-          className: "item-content"
-        }
-      )
-    );
+      /* @__PURE__ */ createElement("span", { style: { paddingLeft: "15px" } }),
+      /* @__PURE__ */ createElement("span", null, this.props.name)
+    ));
   }
 }
 
 class Tree extends Component {
-  constructor(props) {
-    super(props);
-  }
-  getChildrenForParent(data, parentId) {
-    let out = [];
-    for (let entry of data) {
-      if (entry.parent == parentId) out.push(entry);
-    }
-    return out;
-  }
   render() {
-    let children = this.props.item ? this.getChildrenForParent(this.props.data, this.props.item.id) : this.getChildrenForParent(this.props.data, "");
-    return /* @__PURE__ */ createElement(
-      "div",
-      {
-        className: "treeview"
-      },
-      children.map((item) => {
-        const itemChildren = this.getChildrenForParent(this.props.data, item.id);
-        if (itemChildren.length > 0 || item.type == ITreeMapType.Folder) {
-          return /* @__PURE__ */ createElement(
-            Folder,
-            {
-              onToggled: this.props.onToggled ? (item2) => this.props.onToggled(item2) : null,
-              item,
-              data: this.props.data,
-              onDropped: (from, to) => this.props.onDropped(from, to),
-              onClicked: (data) => this.props.onClicked(data),
-              onDoubleClicked: (data) => this.props.onDoubleClicked(data)
-            },
-            /* @__PURE__ */ createElement(
-              Tree,
-              {
-                item,
-                onToggled: this.props.onToggled ? (item2) => this.props.onToggled(item2) : null,
-                onDropped: (from, to) => this.props.onDropped(from, to),
-                onClicked: (data) => this.props.onClicked(data),
-                onDragStarted: (event, data) => this.props.onDragStarted(event, data),
-                data: this.props.data
-              }
-            )
-          );
-        } else {
-          return /* @__PURE__ */ createElement(
-            File,
-            {
-              data: item,
-              onDropped: this.props.onDropped ? (from, to) => this.props.onDropped(from, to) : null,
-              onClicked: this.props.onClicked ? (data) => this.props.onClicked(data) : null,
-              onDoubleClicked: this.props.onDoubleClicked ? (data) => this.props.onDoubleClicked(data) : null,
-              onDragStarted: this.props.onDragStarted ? (event, data) => this.props.onDragStarted(event, data) : null
-            }
-          );
-        }
-      })
-    );
-  }
-}
-
-class ExtendedDataTransfer {
-  static data;
-}
-
-class Menu extends Component {
-  constructor(props) {
-    super(props);
-    this.state = { isDropdownVisible: false };
-  }
-  toggleDropdown() {
-    const next = !this.state.isDropdownVisible;
-    if (this.props.onToggled) this.props.onToggled(next);
-    this.setState({ isDropdownVisible: next });
-  }
-  closeSelfAndParent = () => {
-    this.setState({ isDropdownVisible: false });
-    if (this.props.closeMenu) this.props.closeMenu();
-  };
-  toArray(children) {
-    if (children === void 0 || children === null) return [];
-    return Array.isArray(children) ? children : [children];
-  }
-  withCloseMenu(children) {
-    return children.map((child) => {
-      if (!child || typeof child !== "object") return child;
-      return {
-        ...child,
-        props: {
-          ...child.props || {},
-          closeMenu: this.closeSelfAndParent
-        }
-      };
-    });
-  }
-  render() {
-    return /* @__PURE__ */ createElement("div", { className: "dropdown" }, /* @__PURE__ */ createElement("button", { className: "dropdown-btn", onPointerDown: () => this.toggleDropdown() }, this.props.name), this.state.isDropdownVisible ? /* @__PURE__ */ createElement("div", null, /* @__PURE__ */ createElement("div", { className: "dropdown-overlay", onPointerDown: () => this.toggleDropdown() }), /* @__PURE__ */ createElement("div", { className: "dropdown-content" }, this.withCloseMenu(this.toArray(this.props.children)))) : "");
-  }
-}
-
-class MenuItem extends Component {
-  constructor(props) {
-    super(props);
-  }
-  onClicked(event) {
-    if (this.props.closeMenu) {
-      this.props.closeMenu();
-    }
-    if (this.props.onClicked) {
-      this.props.onClicked();
-    }
-  }
-  render() {
-    return /* @__PURE__ */ createElement(
-      "button",
-      {
-        className: "dropdown-btn dropdown-item-btn",
-        onPointerDown: (event) => {
-          this.onClicked(event);
-        },
-        ...this.props.disabled ? { disabled: true } : {}
-      },
-      this.props.name
-    );
+    return /* @__PURE__ */ createElement("div", { className: "treeview" }, [this.props.children].flat(Infinity));
   }
 }
 
@@ -1163,7 +993,7 @@ class LayoutAssets extends Component {
   fileWatcher;
   constructor(props) {
     super(props);
-    this.setState({ currentTreeMap: /* @__PURE__ */ new Map(), selected: void 0 });
+    this.setState({ currentTreeMap: /* @__PURE__ */ new Map(), selected: void 0, headerMenuOpen: false });
     this.fileWatcher = new FileWatcher();
     EventSystem.on(ProjectEvents.Opened, () => {
       this.fileWatcher.watch("");
@@ -1191,14 +1021,14 @@ class LayoutAssets extends Component {
   onFileOrDirectoryDeleted(path) {
     this.fileWatcher.unwatch(path);
     this.state.currentTreeMap.delete(path);
-    this.setState({ currentTreeMap: this.state.currentTreeMap, selected: void 0 });
+    this.setState({ ...this.state, currentTreeMap: this.state.currentTreeMap, selected: void 0 });
   }
   onFileOrDirectoryCreated(path, file) {
     if (file instanceof FileSystemDirectoryHandle) {
       this.fileWatcher.watch(path);
     }
     if (!this.state.currentTreeMap.has(path)) {
-      let type = file instanceof FileSystemFileHandle ? ITreeMapType.File : ITreeMapType.Folder;
+      let type = file instanceof FileSystemFileHandle ? 1 /* File */ : 0 /* Folder */;
       this.state.currentTreeMap.set(path, {
         id: path,
         name: file.name,
@@ -1212,7 +1042,7 @@ class LayoutAssets extends Component {
         }
       });
     }
-    this.setState({ currentTreeMap: this.state.currentTreeMap, selected: this.state.selected });
+    this.setState({ ...this.state, currentTreeMap: this.state.currentTreeMap, selected: this.state.selected });
   }
   async onToggled(item) {
     console.log("onToggled", item);
@@ -1221,7 +1051,7 @@ class LayoutAssets extends Component {
     if (!item.data.instance) {
       await this.LoadTreeItem(item);
     }
-    this.setState({ currentTreeMap: this.state.currentTreeMap, selected: item.data });
+    this.setState({ ...this.state, currentTreeMap: this.state.currentTreeMap, selected: item.data });
   }
   async onItemDoubleClicked(item) {
     console.log("onItemDoubleClicked", item);
@@ -1290,7 +1120,6 @@ class LayoutAssets extends Component {
       });
     }
     ExtendedDataTransfer.data = item.data.instance;
-    console.log("HERE", ExtendedDataTransfer.data);
   }
   getCurrentPath() {
     if (!this.state.selected) return "";
@@ -1302,6 +1131,7 @@ class LayoutAssets extends Component {
     const path = `${this.getCurrentPath()}/New folder`;
     const handle = await FileBrowser.mkdir(path);
     EventSystem.emit(DirectoryEvents.Created, path, handle);
+    this.setState({ ...this.state, headerMenuOpen: !this.state.headerMenuOpen });
   }
   async deleteAsset() {
     if (!this.state.selected) return;
@@ -1312,6 +1142,7 @@ class LayoutAssets extends Component {
       FileBrowser.rmdir(this.state.selected.path);
       EventSystem.emit(DirectoryEvents.Deleted, this.state.selected.path, void 0);
     }
+    this.setState({ ...this.state, headerMenuOpen: !this.state.headerMenuOpen });
   }
   onDragOver(event) {
     event.preventDefault();
@@ -1325,14 +1156,19 @@ class LayoutAssets extends Component {
     if (extension === "glb") {
       const arrayBuffer = await file.arrayBuffer();
       const prefab = await GLTFLoader.LoadFromArrayBuffer(arrayBuffer, void 0, file.name.slice(0, file.name.lastIndexOf(".")));
+      console.log("Dropped glb", prefab);
       await FileBrowser.mkdir(file.name);
+      async function SaveToFile(path, blob) {
+        const file2 = await FileBrowser.fopen(path, MODE.W);
+        await FileBrowser.fwrite(file2, blob);
+      }
+      {
+        console.log("Saving prefab", `${file.name}/${file.name}.prefab`);
+        SaveToFile(`${file.name}/${file.name}.prefab`, new Blob([JSON.stringify(prefab)]));
+      }
       prefab.traverse(async (prefab2) => {
         for (const component of prefab2.components) {
           if (component.type === IComponents.Mesh.type) {
-            async function SaveToFile(path, blob) {
-              const file2 = await FileBrowser.fopen(path, MODE.W);
-              await FileBrowser.fwrite(file2, blob);
-            }
             {
               const geometry = Assets.GetInstance(component.geometry.assetPath);
               const geometrySerialized = geometry.SerializeAsset();
@@ -1348,13 +1184,42 @@ class LayoutAssets extends Component {
               if (material.params.heightMap && material.params.heightMap.blob) SaveToFile(material.params.heightMap.assetPath, material.params.heightMap.blob);
               if (material.params.emissiveMap && material.params.emissiveMap.blob) SaveToFile(material.params.emissiveMap.assetPath, material.params.emissiveMap.blob);
             }
-            {
-              SaveToFile(`${file.name}/${file.name}.prefab`, new Blob([JSON.stringify(prefab2)]));
-            }
           }
         }
       });
     }
+  }
+  renderTreeItems(items, allItems) {
+    return items.map((item) => {
+      const children = allItems.filter((i) => i.parent === item.id);
+      if (item.type === 0 /* Folder */ || children.length > 0) {
+        return /* @__PURE__ */ createElement(
+          TreeFolder,
+          {
+            name: item.name,
+            id: item.id,
+            isSelected: item.isSelected,
+            onClicked: () => this.onItemClicked(item),
+            onDoubleClicked: () => this.onItemDoubleClicked(item),
+            onDropped: (from, to) => this.onDropped(from, to),
+            onToggled: () => this.onToggled(item)
+          },
+          this.renderTreeItems(children, allItems)
+        );
+      }
+      return /* @__PURE__ */ createElement(
+        TreeItem,
+        {
+          name: item.name,
+          id: item.id,
+          isSelected: item.isSelected,
+          onClicked: () => this.onItemClicked(item),
+          onDoubleClicked: () => this.onItemDoubleClicked(item),
+          onDropped: (from, to) => this.onDropped(from, to),
+          onDragStarted: (event) => this.onDragStarted(event, item)
+        }
+      );
+    });
   }
   render() {
     let treeMapArr = [];
@@ -1363,11 +1228,12 @@ class LayoutAssets extends Component {
       treeMapArr.push(entry);
     }
     treeMapArr.sort(function(a, b) {
-      if (a.type == ITreeMapType.Folder != (b.type == ITreeMapType.Folder)) {
-        return a.type == ITreeMapType.Folder ? -1 : 1;
+      if (a.type == 0 /* Folder */ != (b.type == 0 /* Folder */)) {
+        return a.type == 0 /* Folder */ ? -1 : 1;
       }
       return a.name.localeCompare(b.name);
     });
+    const rootItems = treeMapArr.filter((item) => !item.parent);
     return /* @__PURE__ */ createElement(
       "div",
       {
@@ -1375,91 +1241,20 @@ class LayoutAssets extends Component {
         onDrop: (event) => this.onDrop(event),
         onDragOver: (event) => this.onDragOver(event)
       },
-      /* @__PURE__ */ createElement("div", { class: "header" }, /* @__PURE__ */ createElement("div", { class: "title" }, "Assets"), /* @__PURE__ */ createElement("div", { class: "right-action" }, /* @__PURE__ */ createElement(Menu, { name: "\u22EE" }, /* @__PURE__ */ createElement(MenuItem, { name: "Folder", onClicked: () => {
+      /* @__PURE__ */ createElement("div", { class: "header" }, /* @__PURE__ */ createElement("div", { class: "title" }, "Assets"), /* @__PURE__ */ createElement("div", { class: "right-action" }, /* @__PURE__ */ createElement("button", { onClick: (event) => {
+        this.setState({ ...this.state, headerMenuOpen: !this.state.headerMenuOpen });
+      } }, "\u22EE"), /* @__PURE__ */ createElement("div", { class: "Floating-Menu", style: `display: ${this.state.headerMenuOpen ? "inherit" : "none"}` }, /* @__PURE__ */ createElement(Tree, null, /* @__PURE__ */ createElement(TreeItem, { name: "Folder", onClicked: () => {
         this.createFolder();
-      } }), /* @__PURE__ */ createElement(MenuItem, { name: "Material", onClicked: () => {
+      } }), /* @__PURE__ */ createElement(TreeItem, { name: "Material", onClicked: () => {
         this.createMaterial();
-      } }), /* @__PURE__ */ createElement(MenuItem, { name: "Script", onClicked: () => {
+      } }), /* @__PURE__ */ createElement(TreeItem, { name: "Script", onClicked: () => {
         this.createScript();
-      } }), /* @__PURE__ */ createElement(MenuItem, { name: "Scene", onClicked: () => {
+      } }), /* @__PURE__ */ createElement(TreeItem, { name: "Scene", onClicked: () => {
         this.createScene();
-      } }), /* @__PURE__ */ createElement(MenuItem, { name: "Delete", onClicked: () => {
+      } }), /* @__PURE__ */ createElement(TreeItem, { name: "Delete", onClicked: () => {
         this.deleteAsset();
-      } })))),
-      /* @__PURE__ */ createElement(
-        Tree,
-        {
-          onToggled: (item) => this.onToggled(item),
-          onDropped: (from, to) => this.onDropped(from, to),
-          onClicked: (data) => this.onItemClicked(data),
-          onDoubleClicked: (data) => this.onItemDoubleClicked(data),
-          onDragStarted: (event, data) => this.onDragStarted(event, data),
-          data: treeMapArr
-        }
-      )
-    );
-  }
-}
-
-class MenuDropdown extends Component {
-  constructor(props) {
-    super(props);
-    this.state = { isDropdownVisible: false };
-  }
-  toggleDropdown() {
-    if (this.props.onToggled) this.props.onToggled(!this.state.isDropdownVisible);
-    this.setState({ isDropdownVisible: !this.state.isDropdownVisible });
-  }
-  onOptionClicked(option) {
-    this.toggleDropdown();
-    if (this.props.onOptionClicked) {
-      this.props.onOptionClicked(option);
-    }
-  }
-  async contentRef(container) {
-    if (!container) return;
-    setTimeout(() => {
-      if (this.props.children) {
-        const w = container.parentElement.clientWidth;
-        container.parentElement.clientHeight;
-        container.style.marginLeft = w + "px";
-        container.style.marginTop = "-25px";
-        container.style.display = "";
-      }
-    }, 1);
-  }
-  closeSelfAndParent = () => {
-    this.setState({ isDropdownVisible: false });
-    if (this.props.closeMenu) this.props.closeMenu();
-  };
-  withCloseMenu(children) {
-    return children.map((child) => {
-      if (!child || typeof child !== "object") return child;
-      return {
-        ...child,
-        props: {
-          ...child.props || {},
-          closeMenu: this.closeSelfAndParent
-        }
-      };
-    });
-  }
-  render() {
-    return /* @__PURE__ */ createElement(
-      "div",
-      {
-        className: "dropdown-menu"
-      },
-      /* @__PURE__ */ createElement(
-        "button",
-        {
-          className: "dropdown-btn dropdown-item-btn",
-          onPointerDown: (event) => this.toggleDropdown()
-        },
-        this.props.name
-      ),
-      /* @__PURE__ */ createElement("span", { className: "dropdown-right-icon" }, "\u25B6"),
-      this.state.isDropdownVisible ? /* @__PURE__ */ createElement("div", null, /* @__PURE__ */ createElement("div", { ref: (ref) => this.contentRef(ref), className: "dropdown-content", style: "display: none;" }, this.withCloseMenu([].concat(this.props.children)))) : ""
+      } }))))),
+      /* @__PURE__ */ createElement(Tree, null, this.renderTreeItems(rootItems, treeMapArr))
     );
   }
 }
@@ -1467,12 +1262,12 @@ class MenuDropdown extends Component {
 class LayoutHierarchy extends Component {
   constructor(props) {
     super(props);
-    this.setState({ selectedGameObject: null });
+    this.setState({ selectedGameObject: null, headerMenuOpen: false });
     EventSystem.on(GameObjectEvents.Created, (gameObject) => {
       this.selectGameObject(gameObject);
     });
     EventSystem.on(GameObjectEvents.Deleted, (gameObject) => {
-      if (gameObject === this.state.selectedGameObject) this.setState({ selectedGameObject: null });
+      if (gameObject === this.state.selectedGameObject) this.setState({ ...this.state, selectedGameObject: null });
     });
     EventSystem.on(GameObjectEvents.Selected, (gameObject) => {
       this.selectGameObject(gameObject);
@@ -1481,12 +1276,12 @@ class LayoutHierarchy extends Component {
       this.selectGameObject(gameObject);
     });
     EventSystem.on(SceneEvents.Loaded, (scene) => {
-      this.setState({ selectedGameObject: null });
+      this.setState({ ...this.state, selectedGameObject: null });
     });
   }
   selectGameObject(gameObject) {
     EventSystem.emit(LayoutHierarchyEvents.Selected, gameObject);
-    this.setState({ selectedGameObject: gameObject });
+    this.setState({ ...this.state, selectedGameObject: gameObject });
   }
   getGameObjectById(id) {
     console.log(this.props.engineAPI.currentScene.gameObjects);
@@ -1498,6 +1293,7 @@ class LayoutHierarchy extends Component {
   onDropped(fromId, toId) {
     const fromGameObject = this.getGameObjectById(fromId);
     const toGameObject = this.getGameObjectById(toId);
+    if (fromGameObject === toGameObject) return;
     if (fromGameObject && toGameObject) {
       fromGameObject.transform.parent = toGameObject.transform;
       this.selectGameObject(toGameObject);
@@ -1538,12 +1334,13 @@ class LayoutHierarchy extends Component {
   createEmptyGameObject() {
     const gameObject = this.props.engineAPI.createGameObject(this.props.engineAPI.currentScene);
     EventSystem.emit(GameObjectEvents.Created, gameObject);
+    this.setState({ ...this.state, headerMenuOpen: !this.state.headerMenuOpen });
   }
   deleteGameObject() {
     if (this.state.selectedGameObject === null) return;
     this.state.selectedGameObject.Destroy();
     EventSystem.emit(GameObjectEvents.Deleted, this.state.selectedGameObject);
-    this.setState({ selectedGameObject: null });
+    this.setState({ headerMenuOpen: !this.state.headerMenuOpen, selectedGameObject: null });
   }
   createPrimitive(primitiveType) {
     const gameObject = this.props.engineAPI.createGameObject(this.props.engineAPI.currentScene);
@@ -1554,6 +1351,7 @@ class LayoutHierarchy extends Component {
     else if (primitiveType === "Sphere") mesh.geometry = this.props.engineAPI.createSphereGeometry(), gameObject.name = "Sphere";
     mesh.material = this.props.engineAPI.createPBRMaterial();
     EventSystem.emit(GameObjectEvents.Created, gameObject);
+    this.setState({ ...this.state, headerMenuOpen: !this.state.headerMenuOpen });
   }
   createLight(lightType) {
     const gameObject = this.props.engineAPI.createGameObject(this.props.engineAPI.currentScene);
@@ -1561,44 +1359,52 @@ class LayoutHierarchy extends Component {
     else if (lightType === "Point") gameObject.AddComponent(IComponents.PointLight), gameObject.name = "PointLight";
     else if (lightType === "Spot") gameObject.AddComponent(IComponents.SpotLight), gameObject.name = "SpotLight";
     EventSystem.emit(GameObjectEvents.Created, gameObject);
+    this.setState({ ...this.state, headerMenuOpen: !this.state.headerMenuOpen });
+  }
+  renderGameObjects(gameObjects) {
+    return gameObjects.map((go) => {
+      const isSelected = this.state.selectedGameObject === go;
+      const children = go.transform.children;
+      if (children.size > 0) {
+        return /* @__PURE__ */ createElement(
+          TreeFolder,
+          {
+            name: go.name,
+            id: go.transform.id,
+            isSelected,
+            onClicked: () => this.selectGameObject(go),
+            onDropped: (from, to) => this.onDropped(from, to)
+          },
+          this.renderGameObjects(Array.from(children).map((c) => c.gameObject))
+        );
+      }
+      return /* @__PURE__ */ createElement(
+        TreeItem,
+        {
+          name: go.name,
+          id: go.transform.id,
+          isSelected,
+          onClicked: () => this.selectGameObject(go),
+          onDropped: (from, to) => this.onDropped(from, to),
+          onDragStarted: (event) => this.onDragStarted(event, null)
+        }
+      );
+    });
   }
   render() {
     if (!this.props.engineAPI.currentScene) return;
-    const nodes = this.buildTreeFromGameObjects(this.props.engineAPI.currentScene.gameObjects);
-    return /* @__PURE__ */ createElement("div", { class: "Layout" }, /* @__PURE__ */ createElement("div", { class: "header" }, /* @__PURE__ */ createElement("div", { class: "title" }, "Sample scene"), /* @__PURE__ */ createElement("div", { class: "right-action" }, /* @__PURE__ */ createElement(Menu, { name: "\u22EE" }, /* @__PURE__ */ createElement(MenuItem, { name: "Create Empty", onClicked: () => {
-      this.createEmptyGameObject();
-    } }), /* @__PURE__ */ createElement(MenuItem, { name: "Delete", onClicked: () => {
-      this.deleteGameObject();
-    } }), /* @__PURE__ */ createElement(MenuDropdown, { name: "3D Object" }, /* @__PURE__ */ createElement(MenuItem, { name: "Cube", onClicked: () => {
-      this.createPrimitive("Cube");
-    } }), /* @__PURE__ */ createElement(MenuItem, { name: "Capsule", onClicked: () => {
-      this.createPrimitive("Capsule");
-    } }), /* @__PURE__ */ createElement(MenuItem, { name: "Plane", onClicked: () => {
-      this.createPrimitive("Plane");
-    } }), /* @__PURE__ */ createElement(MenuItem, { name: "Sphere", onClicked: () => {
-      this.createPrimitive("Sphere");
-    } })), /* @__PURE__ */ createElement(MenuDropdown, { name: "Lights" }, /* @__PURE__ */ createElement(MenuItem, { name: "Directional Light", onClicked: () => {
-      this.createLight("Directional");
-    } }), /* @__PURE__ */ createElement(MenuItem, { name: "Point Light", onClicked: () => {
-      this.createLight("Point");
-    } }), /* @__PURE__ */ createElement(MenuItem, { name: "Spot Light", onClicked: () => {
-      this.createLight("Spot");
-    } }))))), /* @__PURE__ */ createElement(
+    this.buildTreeFromGameObjects(this.props.engineAPI.currentScene.gameObjects);
+    const rootGameObjects = this.props.engineAPI.currentScene.gameObjects.filter((go) => !go.transform.parent);
+    return /* @__PURE__ */ createElement("div", { class: "Layout" }, /* @__PURE__ */ createElement("div", { class: "header" }, /* @__PURE__ */ createElement("div", { class: "title" }, "Sample scene"), /* @__PURE__ */ createElement("div", { class: "right-action" }, /* @__PURE__ */ createElement("button", { onClick: (event) => {
+      this.setState({ ...this.state, headerMenuOpen: !this.state.headerMenuOpen });
+    } }, "\u22EE"), /* @__PURE__ */ createElement("div", { class: "Floating-Menu", style: `display: ${this.state.headerMenuOpen ? "inherit" : "none"}` }, /* @__PURE__ */ createElement(Tree, null, /* @__PURE__ */ createElement(TreeItem, { name: "Create Empty", onClicked: () => this.createEmptyGameObject() }), /* @__PURE__ */ createElement(TreeItem, { name: "Delete", onClicked: () => this.deleteGameObject() }), /* @__PURE__ */ createElement(TreeFolder, { name: "3D Object" }, /* @__PURE__ */ createElement(TreeItem, { name: "Cube", onClicked: () => this.createPrimitive("Cube") }), /* @__PURE__ */ createElement(TreeItem, { name: "Capsule", onClicked: () => this.createPrimitive("Capsule") }), /* @__PURE__ */ createElement(TreeItem, { name: "Plane", onClicked: () => this.createPrimitive("Plane") }), /* @__PURE__ */ createElement(TreeItem, { name: "Sphere", onClicked: () => this.createPrimitive("Sphere") })), /* @__PURE__ */ createElement(TreeFolder, { name: "Lights" }, /* @__PURE__ */ createElement(TreeItem, { name: "Directional Light", onClicked: () => this.createLight("Directional") }), /* @__PURE__ */ createElement(TreeItem, { name: "Point Light", onClicked: () => this.createLight("Point") }), /* @__PURE__ */ createElement(TreeItem, { name: "Spot Light", onClicked: () => this.createLight("Spot") })))))), /* @__PURE__ */ createElement(
       "div",
       {
         style: "width: 100%; height: 100%; overflow: auto;padding-top:5px",
         onDrop: (event) => this.onDrop(event),
         onDragOver: (e) => e.preventDefault()
       },
-      /* @__PURE__ */ createElement(
-        Tree,
-        {
-          onDropped: (from, to) => this.onDropped(from, to),
-          onClicked: (data) => this.selectGameObject(data.data),
-          onDragStarted: (event, data) => this.onDragStarted(event, data),
-          data: nodes
-        }
-      )
+      /* @__PURE__ */ createElement(Tree, null, this.renderGameObjects(rootGameObjects))
     ));
   }
 }
@@ -1612,7 +1418,10 @@ class InspectorNumber extends Component {
     if (this.props.onChanged) {
       const input = event.currentTarget;
       if (input.value == "") return;
-      this.props.onChanged(parseFloat(input.value));
+      const value = parseFloat(input.value);
+      this.props.onChanged(value);
+      this.state.value = value;
+      this.setState({ value: this.state.value });
     }
   }
   onClicked(event) {
@@ -1704,7 +1513,6 @@ class InspectorVector3 extends Component {
     this.setState({ vector3: this.props.vector3 });
   }
   onChanged(property, _value) {
-    console.log("CAHHH");
     if (this.props.onChanged) {
       if (_value == "") return;
       const value = parseFloat(_value);
@@ -1865,247 +1673,19 @@ class InspectorColor extends Component {
   }
 }
 
-class DrillDownMenu extends Component {
-  constructor(props) {
-    super(props);
-    this.state = { items: this.props.items, currentParent: this.props.currentParent };
-  }
-  onItemClicked(item) {
-    const children = this.getItemChildren(item);
-    if (children.length == 0) {
-      this.props.onItemClicked(item);
-    }
-    this.setState({ currentParent: item.id, items: this.state.items });
-  }
-  onBackClicked() {
-    const parentItem = this.getItemById(this.state.currentParent);
-    if (parentItem) {
-      this.setState({ currentParent: parentItem.parentId, items: this.state.items });
-    } else {
-      this.setState({ currentParent: null, items: this.state.items });
-    }
-  }
-  getItemById(id) {
-    for (let item of this.state.items) {
-      if (item.id == id) return item;
-    }
-    return null;
-  }
-  getItemChildren(item) {
-    let children = [];
-    for (let _item of this.state.items) {
-      if (_item.parentId == item.id) children.push(_item);
-    }
-    return children;
-  }
-  prepareItems() {
-    let items = [];
-    for (let item of this.state.items) {
-      if (item.parentId == this.state.currentParent) {
-        const hasChildren = this.getItemChildren(item).length > 0;
-        const itemElement = /* @__PURE__ */ createElement(
-          "li",
-          {
-            className: "item",
-            key: item.id,
-            onClick: (event) => {
-              this.onItemClicked(item);
-            }
-          },
-          item.name,
-          hasChildren ? /* @__PURE__ */ createElement("span", { className: "item-caret" }, "\u276F") : ""
-        );
-        items.push(itemElement);
-      }
-    }
-    return items;
-  }
-  render() {
-    const itemsElements = this.prepareItems();
-    return /* @__PURE__ */ createElement("div", { className: "DrillDownMenu" }, /* @__PURE__ */ createElement("button", { className: "backBtn", onClick: (event) => this.onBackClicked() }, "Back"), itemsElements);
-  }
-}
-
-const data = [
-  {
-    parentId: null,
-    id: "Physics",
-    name: "Physics"
-  },
-  {
-    parentId: "Physics",
-    id: "Rigidbody",
-    name: "Rigidbody"
-  },
-  {
-    parentId: "Physics",
-    id: "BoxCollider",
-    name: "BoxCollider"
-  },
-  {
-    parentId: "Physics",
-    id: "CapsuleCollider",
-    name: "CapsuleCollider"
-  },
-  {
-    parentId: "Physics",
-    id: "MeshCollider",
-    name: "MeshCollider"
-  },
-  {
-    parentId: "Physics",
-    id: "PlaneCollider",
-    name: "PlaneCollider"
-  },
-  {
-    parentId: "Physics",
-    id: "SphereCollider",
-    name: "SphereCollider"
-  },
-  {
-    parentId: null,
-    id: "Mesh",
-    name: "Mesh"
-  },
-  {
-    parentId: "Mesh",
-    id: "MeshFilter",
-    name: "MeshFilter"
-  },
-  {
-    parentId: "Mesh",
-    id: "MeshRenderer",
-    name: "MeshRenderer"
-  },
-  {
-    parentId: null,
-    id: "Lights",
-    name: "Lights"
-  },
-  {
-    parentId: "Lights",
-    id: "AreaLight",
-    name: "AreaLight"
-  },
-  {
-    parentId: "Lights",
-    id: "DirectionalLight",
-    name: "DirectionalLight"
-  },
-  {
-    parentId: "Lights",
-    id: "PointLight",
-    name: "PointLight"
-  },
-  {
-    parentId: "Lights",
-    id: "SpotLight",
-    name: "SpotLight"
-  },
-  {
-    parentId: null,
-    id: "Primitives",
-    name: "Primitives"
-  },
-  {
-    parentId: "Primitives",
-    id: "Capsule",
-    name: "Capsule"
-  },
-  {
-    parentId: "Primitives",
-    id: "Cube",
-    name: "Cube"
-  },
-  {
-    parentId: "Primitives",
-    id: "Plane",
-    name: "Plane"
-  },
-  {
-    parentId: "Primitives",
-    id: "Sphere",
-    name: "Sphere"
-  },
-  {
-    parentId: null,
-    id: "Miscellaneous",
-    name: "Miscellaneous"
-  },
-  {
-    parentId: "Miscellaneous",
-    id: "Animation",
-    name: "Animation"
-  },
-  {
-    parentId: "Miscellaneous",
-    id: "ArticulationBody",
-    name: "ArticulationBody"
-  },
-  {
-    parentId: "Miscellaneous",
-    id: "LineRenderer",
-    name: "LineRenderer"
-  }
-];
 class AddComponent extends Component {
   constructor(props) {
     super(props);
-    this.state = { isMenuOpen: false };
   }
-  onAddComponentClicked(gameObject, event) {
-    console.log("clciked");
-    this.setState({ isMenuOpen: !this.state.isMenuOpen });
-  }
-  onMenuItemClicked(item) {
-    const componentClass = Components[item.id] ? Components[item.id] : Component$1.Registry.get(item.id);
-    console.log("onMenuItemClicked", item, componentClass);
+  addComponent(registryEntry) {
+    const componentClass = Component$1.Registry.get(registryEntry);
+    if (!componentClass) throw Error(`Component ${registryEntry} does not exist in Components.Registry`);
     const componentInstance = this.props.gameObject.AddComponent(componentClass);
     EventSystem.emit(ComponentEvents.Created, this.props.gameObject, componentInstance);
     this.setState({ isMenuOpen: false });
   }
   render() {
-    console.warn("TODO");
-    let dataDynamic = JSON.parse(JSON.stringify(data));
-    dataDynamic.push({
-      parentId: null,
-      id: "Scripts",
-      name: "Scripts"
-    });
-    for (let componentPair of Component$1.Registry.entries()) {
-      const path = componentPair[0];
-      componentPair[1];
-      const pathSplit = path.split("/");
-      const nameWithExtension = pathSplit[pathSplit.length - 1];
-      const name = nameWithExtension.split(".")[0];
-      dataDynamic.push({
-        parentId: "Scripts",
-        id: path,
-        name
-      });
-    }
-    return /* @__PURE__ */ createElement("div", { style: {
-      marginTop: "10px"
-    } }, /* @__PURE__ */ createElement("div", { style: {
-      textAlign: "center"
-    } }, /* @__PURE__ */ createElement(
-      "button",
-      {
-        style: {
-          width: "70%",
-          backgroundColor: "#404040",
-          color: "inherit",
-          border: "none",
-          borderRadius: "2px",
-          padding: "3px",
-          cursor: "pointer"
-        },
-        onClick: (event) => {
-          this.onAddComponentClicked(this.props.gameObject, event);
-        }
-      },
-      "Add component"
-    )), this.state.isMenuOpen ? /* @__PURE__ */ createElement(DrillDownMenu, { onItemClicked: (item) => this.onMenuItemClicked(item), currentParent: null, items: dataDynamic }) : "");
+    return /* @__PURE__ */ createElement("div", { class: "Floating-Menu", style: { position: "inherit", padding: "5px", margin: "10px" } }, /* @__PURE__ */ createElement(Tree, null, /* @__PURE__ */ createElement(TreeFolder, { name: "Add Component" }, /* @__PURE__ */ createElement(TreeFolder, { name: "Physics" }, /* @__PURE__ */ createElement(TreeItem, { name: "Rigidbody", onClicked: () => this.addComponent("Rigidbody") }), /* @__PURE__ */ createElement(TreeItem, { name: "BoxCollider", onClicked: () => this.addComponent("BoxCollider") })), /* @__PURE__ */ createElement(TreeItem, { name: "Mesh", onClicked: () => this.addComponent(IComponents.Mesh.type) }), /* @__PURE__ */ createElement(TreeFolder, { name: "Lights" }, /* @__PURE__ */ createElement(TreeItem, { name: "DirectionalLight", onClicked: () => this.addComponent(IComponents.DirectionalLight.type) }), /* @__PURE__ */ createElement(TreeItem, { name: "PointLight", onClicked: () => this.addComponent(IComponents.PointLight.type) }), /* @__PURE__ */ createElement(TreeItem, { name: "SpotLight", onClicked: () => this.addComponent(IComponents.SpotLight.type) })))));
   }
 }
 
@@ -2128,8 +1708,6 @@ class InspectorType extends Component {
       input.classList.remove("active");
     }
     if (this.props.onChanged) {
-      event.currentTarget;
-      console.log("ON CHA");
       this.props.onChanged(draggedItem);
     }
     event.preventDefault();
@@ -2193,6 +1771,8 @@ class LayoutInspectorGameObject extends Component {
     });
   }
   onRemoveComponent(component) {
+    component.Destroy();
+    this.setState({ gameObject: this.state.gameObject });
   }
   onComponentPropertyChanged(component, property, value) {
     const type = typeof component[property];
@@ -2347,33 +1927,35 @@ class LayoutInspector extends Component {
 class LayoutTopbar extends Component {
   constructor(props) {
     super(props);
-    this.setState({ selectedGameObject: null });
-    EventSystem.on(LayoutHierarchyEvents.Selected, (gameObject) => {
-      this.setState({ selectedGameObject: gameObject });
-    });
+    this.setState({ fileMenuOpen: false });
   }
   openProject() {
     FileBrowser.init().then(() => {
       EventSystem.emit(ProjectEvents.Opened);
     });
+    this.setState({ fileMenuOpen: !this.state.fileMenuOpen });
   }
   async saveProject() {
     const serializedScene = this.props.engineAPI.currentScene.Serialize();
     const handle = await FileBrowser.fopen(`${this.props.engineAPI.currentScene.name}.scene`, MODE.W);
     FileBrowser.fwrite(handle, JSON.stringify(serializedScene));
+    this.setState({ fileMenuOpen: !this.state.fileMenuOpen });
   }
   async test() {
     const serializedScene = this.props.engineAPI.currentScene.Serialize();
     console.log(JSON.stringify(serializedScene));
+    this.setState({ fileMenuOpen: !this.state.fileMenuOpen });
   }
   render() {
-    return /* @__PURE__ */ createElement("div", { style: "padding: 5px" }, /* @__PURE__ */ createElement(Menu, { name: "File" }, /* @__PURE__ */ createElement(MenuItem, { name: "Open Project...", onClicked: () => {
+    return /* @__PURE__ */ createElement("div", { style: { padding: "10px", marginLeft: "5px" } }, /* @__PURE__ */ createElement("a", { onClick: (event) => {
+      this.setState({ ...this.state, fileMenuOpen: !this.state.fileMenuOpen });
+    }, style: { cursor: "pointer" } }, "File"), /* @__PURE__ */ createElement("div", { class: "Floating-Menu", style: `display: ${this.state.fileMenuOpen ? "inherit" : "none"}` }, /* @__PURE__ */ createElement(Tree, null, /* @__PURE__ */ createElement(TreeItem, { name: "Open Project...", onClicked: () => {
       this.openProject();
-    } }), /* @__PURE__ */ createElement(MenuItem, { name: "Save Project", onClicked: () => {
+    } }), /* @__PURE__ */ createElement(TreeItem, { name: "Save Project", onClicked: () => {
       this.saveProject();
-    } }), /* @__PURE__ */ createElement(MenuItem, { name: "Test", onClicked: () => {
+    } }), /* @__PURE__ */ createElement(TreeItem, { name: "Test", onClicked: () => {
       this.test();
-    } })));
+    } }))));
   }
 }
 

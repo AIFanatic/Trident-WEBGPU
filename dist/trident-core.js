@@ -162,6 +162,7 @@ class Component {
   Update() {
   }
   Destroy() {
+    this.gameObject.RemoveComponent(this);
   }
   Serialize(metadata = {}) {
     const serializedFields = GetSerializedFields(this);
@@ -1569,6 +1570,19 @@ class GameObject {
       componentInstance.hasStarted = true;
     }
     return componentInstance;
+  }
+  RemoveComponent(component) {
+    const idx = this.allComponents.indexOf(component);
+    if (idx === -1) return;
+    this.allComponents.splice(idx, 1);
+    for (const ctor of getCtorChain$1(component.constructor)) {
+      const arr = this.componentsByCtor.get(ctor);
+      if (!arr) continue;
+      const i = arr.indexOf(component);
+      if (i !== -1) arr.splice(i, 1);
+      if (arr.length === 0) this.componentsByCtor.delete(ctor);
+    }
+    component.Destroy();
   }
   GetComponent(Ctor) {
     const arr = this.componentsByCtor.get(Ctor);
@@ -5021,6 +5035,8 @@ var _castShadows_dec, _intensity_dec, _color_dec, _a$3, _init$3, _range_dec, _an
 class LightEvents {
   static Updated = (light) => {
   };
+  static Destroyed = (light) => {
+  };
 }
 class Light extends (_a$3 = Component, _color_dec = [SerializeField], _intensity_dec = [SerializeField], _castShadows_dec = [SerializeField], _a$3) {
   constructor() {
@@ -5034,6 +5050,9 @@ class Light extends (_a$3 = Component, _color_dec = [SerializeField], _intensity
     EventSystemLocal.on(TransformEvents.Updated, this.transform, () => {
       EventSystem.emit(LightEvents.Updated, this);
     });
+  }
+  Destroy() {
+    EventSystem.emit(LightEvents.Destroyed, this);
   }
 }
 _init$3 = __decoratorStart$3(_a$3);
@@ -5357,7 +5376,11 @@ class DeferredLightingPass extends RenderPass {
     });
     this.dummyShadowPassDepth = DepthTextureArray.Create(1, 1, 1);
     this.gBufferDepthClone = DepthTexture.Create(Renderer.width, Renderer.height);
-    EventSystem.on(LightEvents.Updated, (component) => {
+    EventSystem.on(LightEvents.Updated, (light) => {
+      this.needsUpdate = true;
+    });
+    EventSystem.on(LightEvents.Destroyed, (light) => {
+      this.lightsBuffer.delete(light.id);
       this.needsUpdate = true;
     });
     this.initialized = true;
@@ -5642,6 +5665,7 @@ class TextureViewer extends RenderPass {
 
 const MaterialPool = new Pool();
 class Material {
+  name = "Material";
   id = UUID();
   static type = "@trident/core/renderer/Material";
   assetPath;
@@ -5696,7 +5720,6 @@ class Material {
     this.params.isDeferred = data.isDeferred;
   }
   static Deserialize(data) {
-    console.warn("DEE MAT", data.assetPath);
     if (data.assetPath) {
       const instance = Assets.GetInstance(data.assetPath);
       if (instance) return instance;
@@ -5704,7 +5727,6 @@ class Material {
       material2.assetPath = data.assetPath;
       Assets.SetInstance(data.assetPath, material2);
       Assets.Load(data.assetPath, "json").then((json) => {
-        console.log("json", json, material2);
         material2.Deserialize(json);
       });
       return material2;
@@ -5721,6 +5743,7 @@ class Material {
 }
 class PBRMaterial extends Material {
   static type = "@trident/core/renderer/Material/PBRMaterial";
+  name = "PBRMaterial";
   params = {
     albedoColor: new Color(1, 1, 1, 1),
     emissiveColor: new Color(0, 0, 0, 0),
@@ -5941,8 +5964,8 @@ const _Renderable = class _Renderable extends (_a$2 = Component, _enableShadows_
     super(gameObject);
     __runInitializers$2(_init$2, 5, this);
     __publicField$2(this, "enableShadows", __runInitializers$2(_init$2, 8, this, true)), __runInitializers$2(_init$2, 11, this);
-    __publicField$2(this, "_geometry");
-    __publicField$2(this, "_material");
+    __publicField$2(this, "_geometry", new Geometry());
+    __publicField$2(this, "_material", new PBRMaterial());
     _Renderable.Renderables.set(this.id, this);
   }
   get geometry() {
@@ -5965,6 +5988,7 @@ const _Renderable = class _Renderable extends (_a$2 = Component, _enableShadows_
   OnRenderObject(shaderOverride) {
   }
   Destroy() {
+    super.Destroy();
     this.geometry.Destroy();
     this.material.Destroy();
     _Renderable.Renderables.delete(this.id);
@@ -7170,6 +7194,9 @@ class Mesh extends Renderable {
       this.modelMatrixOffset = Mesh.modelMatrices.set(this.id, this.transform.localToWorldMatrix.elements);
     });
   }
+  Start() {
+    this.modelMatrixOffset = Mesh.modelMatrices.set(this.id, this.transform.localToWorldMatrix.elements);
+  }
   OnPreRender(shaderOverride) {
     const shader = shaderOverride ? shaderOverride : this.material?.shader;
     if (!this.geometry || !this.material || !shader) return;
@@ -7183,7 +7210,7 @@ class Mesh extends Renderable {
   }
   Destroy() {
     super.Destroy();
-    Mesh.modelMatrices.delete(this.id);
+    if (Mesh.modelMatrices.has(this.id)) Mesh.modelMatrices.delete(this.id);
   }
 }
 Component.Registry.set(Mesh.type, Mesh);
