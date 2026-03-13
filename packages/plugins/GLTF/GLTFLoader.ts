@@ -45,6 +45,14 @@ export class GLTFLoader {
             const uv = new Float32Array(floatCount / 3 * 2);
             geom.attributes.set("uv", new VertexAttribute(uv));
         }
+        if (!geom.attributes.has("tangent") && geom.attributes.has("position") && geom.attributes.has("normal") && geom.attributes.has("uv")) {
+            geom.ComputeTangents();
+        }
+        if (!geom.attributes.has("tangent")) {
+            // Fallback: zero tangents
+            const vertexCount = geom.attributes.get("position").array.length / 3;
+            geom.attributes.set("tangent", new VertexAttribute(new Float32Array(vertexCount * 4)));
+        }
     }
 
     // ---------- Textures ----------
@@ -76,29 +84,36 @@ export class GLTFLoader {
 
         const elementBytes = TypedArray.BYTES_PER_ELEMENT;
         const itemBytes = elementBytes * itemSize;
-        const byteOffset = accessorDef.bufferView.data.byteOffset || 0;
         const byteStride = accessorDef.bufferView !== undefined ? accessorDef.bufferView.byteStride : undefined;
         const normalized = accessorDef.normalized === true;
         let array;
 
-        // Interleaved
+        // Interleaved - unpack into a contiguous array
         if (byteStride && byteStride !== itemBytes) {
-            const ibSlice = Math.floor(byteOffset / byteStride);
-            const ibCacheKey = 'InterleavedBuffer:' + accessorDef.bufferView + ':' + accessorDef.componentType + ':' + ibSlice + ':' + accessorDef.count;
-            let ib: Float32Array = this.cache.get(ibCacheKey);
+            array = new TypedArray(accessorDef.count * itemSize);
+            const srcByteStart = bufferView.data.byteOffset + accessorDef.byteOffset;
+            const src = new DataView(bufferView.data.buffer);
 
-            if (!ib) {
-                array = new TypedArray(bufferView.data.buffer, ibSlice * byteStride, accessorDef.count * byteStride / elementBytes);
-                ib = array;
-                this.cache.set(ibCacheKey, ib);
+            for (let i = 0; i < accessorDef.count; i++) {
+                const rowByte = srcByteStart + i * byteStride;
+                for (let j = 0; j < itemSize; j++) {
+                    const b = rowByte + j * elementBytes;
+                    if (elementBytes === 1) {
+                        array[i * itemSize + j] = accessorDef.componentType === 5120
+                            ? src.getInt8(b) : src.getUint8(b);
+                    } else if (elementBytes === 2) {
+                        array[i * itemSize + j] = accessorDef.componentType === 5122
+                            ? src.getInt16(b, true) : src.getUint16(b, true);
+                    } else {
+                        array[i * itemSize + j] = accessorDef.componentType === 5125
+                            ? src.getUint32(b, true) : src.getFloat32(b, true);
+                    }
+                }
             }
-
-            // bufferAttribute = new InterleavedVertexAttribute(ib, (byteOffset % byteStride) / elementBytes);
-            console.warn("TODO: INTERLEAVED");
         } else {
+            const byteOffset = (bufferView?.data.byteOffset || 0) + (accessorDef.byteOffset || 0);
             if (bufferView === null) array = new TypedArray(accessorDef.count * itemSize);
             else array = new TypedArray(bufferView.data.buffer, byteOffset, accessorDef.count * itemSize);
-            // bufferAttribute = new VertexAttribute(array);
         }
 
         return array;
@@ -112,7 +127,12 @@ export class GLTFLoader {
         if (primitive.attributes.NORMAL) geometry.attributes.set("normal", new VertexAttribute(this.parseAccessor(primitive.attributes.NORMAL) as Float32Array));
         if (primitive.attributes.TEXCOORD_0) geometry.attributes.set("uv", new VertexAttribute(this.parseAccessor(primitive.attributes.TEXCOORD_0) as Float32Array));
         if (primitive.attributes.TANGENT) geometry.attributes.set("tangent", new VertexAttribute(this.parseAccessor(primitive.attributes.TANGENT) as Float32Array));
-        if (primitive.attributes.JOINTS_0) geometry.attributes.set("joints", new VertexAttribute(this.parseAccessor(primitive.attributes.JOINTS_0) as Float32Array));
+        if (primitive.attributes.JOINTS_0) {
+            // Shader expects vec4<u32>; GLTF stores as u8 or u16 — widen to Uint32Array
+            const rawJoints = this.parseAccessor(primitive.attributes.JOINTS_0);
+            const joints32 = (rawJoints instanceof Uint32Array) ? rawJoints : new Uint32Array(rawJoints);
+            geometry.attributes.set("joints", new VertexAttribute(joints32));
+        }
         if (primitive.attributes.WEIGHTS_0) geometry.attributes.set("weights", new VertexAttribute(this.parseAccessor(primitive.attributes.WEIGHTS_0) as Float32Array));
         if (primitive.indices) {
             let indices = this.parseAccessor(primitive.indices) as Uint32Array | Uint16Array | Uint8Array;
@@ -194,8 +214,7 @@ export class GLTFLoader {
         }
 
         const rootName = url.slice(url.lastIndexOf("/"), url.lastIndexOf("."));
-        const cacheNamespace = this.makeCacheNamespace(url);
-        return this.Parse(rootName, cached, cacheNamespace);
+        return this.Parse(rootName, cached);
     }
 
     public static async LoadFromArrayBuffer(arrayBuffer: ArrayBuffer, key?: any, name?: string): Promise<Prefab> {
@@ -205,8 +224,7 @@ export class GLTFLoader {
             cached = await new GLTFParser().parseGLB(arrayBuffer);
             GLTFLoader.cache.set(cacheKey, cached);
         }
-        const cacheNamespace = this.makeCacheNamespace(key ?? arrayBuffer);
-        return this.Parse(name ?? "GameObject", cached, cacheNamespace);
+        return this.Parse(name ?? "GameObject", cached);
     }
 
     // Hacky, replaces instance with assetPath based version only
@@ -216,7 +234,7 @@ export class GLTFLoader {
         Assets.SetInstance(assetPath, instance);
     }
 
-    private static async Parse(rootName: string, gltf: GLTF, cacheNamespace: string): Promise<Prefab> {
+    private static async Parse(rootName: string, gltf: GLTF): Promise<Prefab> {
         if (!gltf.nodes) {
             return this.createEmptyGO(rootName);
         }
@@ -224,11 +242,9 @@ export class GLTFLoader {
         const nodeIndex = new Map<Node, number>();
         gltf.nodes.forEach((n, i) => nodeIndex.set(n, i));
 
-        console.log(gltf)
         const nodes: Prefab[] = [];
         for (let i = 0; i < gltf.nodes.length; i++) {
             const n = gltf.nodes[i];
-            console.log("HERE")
             nodes.push(this.createEmptyGO(
                 n.name || `Nodea_${i}`,
                 new Mathf.Vector3(n.translation.x, n.translation.y, n.translation.z),
@@ -259,7 +275,7 @@ export class GLTFLoader {
                         type: Components.Bone.type,
                         index: i,
                         skinId: skinIndex,
-                        inverseBindMatrix: new Float32Array(ibm.buffer, ibm.byteOffset + Float32Array.BYTES_PER_ELEMENT * 16 * i, 16)
+                        inverseBindMatrix: Array.from(new Float32Array(ibm.buffer, ibm.byteOffset + Float32Array.BYTES_PER_ELEMENT * 16 * i, 16))
                     });
                 }
             }
@@ -312,21 +328,34 @@ export class GLTFLoader {
                 }
             }
 
+            // Build tracks map keyed by node name
+            const tracksMap: { [nodeName: string]: SerializedAnimationTrackClip[] } = {};
             for (let i = 0; i < nodes.length; i++) {
                 if (nodeTracks[i].length) {
+                    const trackName = nodes[i].name;
+                    tracksMap[trackName] = nodeTracks[i];
                     nodes[i].components.push({
                         id: Utils.UUID(),
                         type: Components.AnimationTrack.type,
+                        trackName,
                         clips: nodeTracks[i]
                     });
                 }
             }
 
-            (nodes[0] as any).__rootAnimator = {
+            // Single .animation file with all clips + tracks
+            const animationPath = `${rootName}.glb/${rootName}.animation`;
+            const animatorData = {
                 id: Utils.UUID(),
                 type: Components.Animator.type,
-                clips: clipDefs
+                assetPath: animationPath,
+                clips: clipDefs,
+                tracks: tracksMap
             };
+            if (!Assets.GetInstance(animationPath)) {
+                Assets.SetInstance(animationPath, animatorData);
+            }
+            (nodes[0] as any).__rootAnimator = animatorData;
         }
 
         // Mesh primitives -> child GOs

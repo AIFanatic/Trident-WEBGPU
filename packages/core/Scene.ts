@@ -180,6 +180,7 @@ export class Scene {
     public static Instantiate(prefab: Prefab, position?: Vector3, rotation?: Quaternion): GameObject {
         const newGameObject = new GameObject(Scene.mainScene);
         newGameObject.Deserialize(prefab);
+        newGameObject.assetPath = prefab.assetPath;
         if (position) newGameObject.transform.position.copy(position);
         if (rotation) newGameObject.transform.rotation.copy(rotation);
 

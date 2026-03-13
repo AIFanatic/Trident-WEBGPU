@@ -32,6 +32,9 @@ export class Component {
         if (this.constructor.prototype.Update !== Component.prototype.Update) EventSystem.emit(ComponentEvents.CallUpdate, this, true);
 
         EventSystem.emit(ComponentEvents.AddedComponent, this, this.gameObject.scene);
+
+        const ctor = this.constructor as typeof Component;
+        Component.Registry.set(ctor.type, ctor);
     }
 
     public Start() {}
@@ -42,13 +45,14 @@ export class Component {
         const serializedFields = GetSerializedFields(this);
 
         let fields = {};
-        for (const property of serializedFields) {
-            const value = this[property];
-            if (typeof value["Serialize"] === "function") fields[property] = value["Serialize"]();
-            else if (typeof value === "boolean" || typeof value === "number" || typeof value === "string") fields[property] = value;
-            else if (value instanceof Array || value instanceof Float32Array) fields[property] = value; // This doesnt work if the array contains an object
+        for (const {name, type} of serializedFields) {
+            const value = this[name];
+            if (typeof value["Serialize"] === "function") fields[name] = value["Serialize"]();
+            else if (typeof value === "boolean" || typeof value === "number" || typeof value === "string") fields[name] = value;
+            else if (value instanceof Float32Array) fields[name] = Array.from(value);
+            else if (value instanceof Array) fields[name] = value; // This doesnt work if the array contains an object
             else {
-                throw Error(`Could not serialize ${this.constructor["type"]}::${property as string} ${value instanceof Float32Array}`)
+                throw Error(`Could not serialize ${this.constructor["type"]}::${name as string} ${value instanceof Float32Array}`)
             }
         }
         return {type: this.constructor["type"], id: this.id, name: this.name, ...fields};
@@ -60,9 +64,12 @@ export class Component {
 
             if (typeof value === "boolean" || typeof value === "number" || typeof value === "string") this[property] = value;
             // This is meh, basically relies on the property having an initializer on the class 
-            else if (this[property] instanceof Float32Array || this[property] instanceof Array) this[property] = value;
+            else if (this[property] instanceof Float32Array) this[property] = new Float32Array(value);
+            else if (this[property] instanceof Array) this[property] = value;
             else if (this[property]["Deserialize"]) this[property]["Deserialize"](value);
             else throw Error(`Could not Deserialize ${this.constructor["type"]}::${property as string}`);
         }
     }
 }
+
+console.log(Component.Registry)

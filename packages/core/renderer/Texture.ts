@@ -88,11 +88,12 @@ function CreateTexture(width: number, height: number, depth: number, format: Tex
 }
 
 export class Texture {
+    public static readonly type = "@trident/core/Texture";
     public readonly id: string;
     public readonly width: number;
     public readonly height: number;
     public readonly depth: number;
-    public readonly type: TextureType;
+    public readonly textureType: TextureType;
     public readonly dimension: TextureDimension;
     public readonly format: TextureFormat;
     public mipLevels: number;

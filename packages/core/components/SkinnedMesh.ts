@@ -13,21 +13,6 @@ export class Bone extends Component {
     @SerializeField public index: number = 0;
     @SerializeField public skinId: number = -1;
     @SerializeField public inverseBindMatrix: Float32Array = new Float32Array(16);
-
-    // public Serialize(metadata: any = {}): SerializedComponent {
-    //     return {
-    //         type: Bone.type,
-    //         index: this.index,
-    //         skinId: this.skinId,
-    //         inverseBindMatrix: Array.from(this.inverseBindMatrix)
-    //     };
-    // }
-
-    // public Deserialize(data: any) {
-    //     this.index = data.index ?? 0;
-    //     this.skinId = data.skinId ?? -1;
-    //     this.inverseBindMatrix = new Float32Array(data.inverseBindMatrix ?? 16);
-    // }
 }
 Component.Registry.set(Bone.type, Bone);
 
@@ -71,14 +56,22 @@ export class SkinnedMesh extends Renderable {
     }
 
     public Start(): void {
+        this.tryInitBones();
+    }
+
+    private tryInitBones(): boolean {
+        if (this.boneMatricesBuffer) return true;
+
         this.buildBones();
-        if (!this.bones.length) throw Error("SkinnedMesh needs bones");
+        if (!this.bones.length) return false;
 
         this.boneMatricesBuffer = Buffer.Create(this.jointData.length * 4, BufferType.STORAGE);
         this.boneMatricesBuffer.SetArray(this.jointData);
+        return true;
     }
 
     public Update(): void {
+        if (!this.boneMatricesBuffer && !this.tryInitBones()) return;
         if (!this.bones.length) return;
 
         const skinRootWorldMatrix = this.gameObject.transform.worldToLocalMatrix;
@@ -94,7 +87,7 @@ export class SkinnedMesh extends Renderable {
     }
 
     public OnPreRender() {
-        if (!this.geometry || !this.material || !this.material?.shader) return;
+        if (!this.geometry || !this.material || !this.material?.shader || !this.boneMatricesBuffer) return;
         this.material.shader.SetMatrix4("modelMatrix", this.transform.localToWorldMatrix);
         this.material.shader.SetBuffer("boneMatrices", this.boneMatricesBuffer);
     }
@@ -104,19 +97,6 @@ export class SkinnedMesh extends Renderable {
         if (!this.geometry || !this.material || !shader) return;
         RendererContext.DrawGeometry(this.geometry, shader);
     }
-
-    // public Serialize(metadata: any = {}): SerializedComponent {
-    //     return {
-    //         type: SkinnedMesh.type,
-    //         skinId: this.skinId,
-    //         renderable: super.Serialize(metadata)
-    //     }
-    // }
-
-    // public Deserialize(data: any) {
-    //     this.skinId = data.skinId ?? -1;
-    //     super.Deserialize(data.renderable);
-    // }
 }
 
 Component.Registry.set(SkinnedMesh.type, SkinnedMesh);

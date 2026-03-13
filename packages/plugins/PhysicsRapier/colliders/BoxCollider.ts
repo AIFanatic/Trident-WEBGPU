@@ -10,6 +10,7 @@ export class BoxCollider extends Collider {
         const q = new Mathf.Quaternion();
         const s = new Mathf.Vector3();
         this.transform.localToWorldMatrix.decompose(p, q, s);
+        s.mul(0.5);
 
         this.colliderDesc = PhysicsRapier.Physics.ColliderDesc.cuboid(s.x, s.y, s.z);
         this.collider = PhysicsRapier.PhysicsWorld.createCollider(this.colliderDesc);

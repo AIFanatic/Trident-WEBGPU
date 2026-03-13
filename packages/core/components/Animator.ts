@@ -2,6 +2,7 @@ import { Component } from "./Component";
 import { Quaternion, Vector3 } from "../math";
 import { Transform } from "./Transform";
 import { SerializeField } from "../utils/SerializeField";
+import { Assets } from "../Assets";
 
 export type AnimationPath = "translation" | "rotation" | "scale" | "weights";
 
@@ -30,11 +31,19 @@ export interface SerializedAnimationChannel {
 export class AnimationTrack extends Component {
     public static type = "@trident/core/components/AnimationTrack";
 
+    public trackName: string = "";
+
     @SerializeField
     public clips: SerializedAnimationTrackClip[] = [];
 
     // O(1) lookup cache (built once)
     private _clipsByIndex: (SerializedAnimationTrackClip | null)[] | null = null;
+
+    // Reusable scratch objects — no per-frame allocations
+    private _v0 = new Vector3();
+    private _v1 = new Vector3();
+    private _q0 = new Quaternion();
+    private _q1 = new Quaternion();
 
     private ensureClipCache() {
         if (this._clipsByIndex) return;
@@ -50,8 +59,9 @@ export class AnimationTrack extends Component {
         return this._clipsByIndex![clipIndex] ?? null;
     }
 
-    private sampleSampler(sampler: SerializedAnimationSampler, t: number, out: Vector3 | Quaternion): Quaternion | Vector3 {
+    private sampleVec3(sampler: SerializedAnimationSampler, t: number, out: Vector3): Vector3 {
         const times = sampler.times;
+        const vals = sampler.values;
         const lastT = times[sampler.keyCount - 1] ?? 0;
         const time = sampler.keyCount > 1 ? (t % lastT) : 0;
 
@@ -60,28 +70,55 @@ export class AnimationTrack extends Component {
         if (i1 >= sampler.keyCount) i1 = sampler.keyCount - 1;
         const i0 = i1 - 1;
 
-        const t0 = times[i0];
-        const t1 = times[i1];
+        const t0 = times[i0], t1 = times[i1];
         const u = t1 > t0 ? (time - t0) / (t1 - t0) : 0;
+        const b0 = i0 * 3, b1 = i1 * 3;
 
-        const c = sampler.compCount;
-        const base0 = i0 * c;
-        const base1 = i1 * c;
-
-        if (c === 4 && out instanceof Quaternion) {
-            const qa = sampler.values.slice(base0, base0 + 4);
-            const qb = sampler.values.slice(base1, base1 + 4);
-            const _qa = new Quaternion(...qa as any);
-            const _qb = new Quaternion(...qb as any);
-            out.copy(_qa).slerp(_qb, u);
-        } else if (c === 3 && out instanceof Vector3) {
-            const a = sampler.values.slice(base0, base0 + 3);
-            const b = sampler.values.slice(base1, base1 + 3);
-            const _a = new Vector3(...a as any);
-            const _b = new Vector3(...b as any);
-            out.copy(_a).lerp(_b, u);
-        }
+        out.set(
+            vals[b0]     + (vals[b1]     - vals[b0])     * u,
+            vals[b0 + 1] + (vals[b1 + 1] - vals[b0 + 1]) * u,
+            vals[b0 + 2] + (vals[b1 + 2] - vals[b0 + 2]) * u,
+        );
         return out;
+    }
+
+    private sampleQuat(sampler: SerializedAnimationSampler, t: number, out: Quaternion): Quaternion {
+        const times = sampler.times;
+        const vals = sampler.values;
+        const lastT = times[sampler.keyCount - 1] ?? 0;
+        const time = sampler.keyCount > 1 ? (t % lastT) : 0;
+
+        let i1 = 0; while (i1 < sampler.keyCount && times[i1] < time) ++i1;
+        if (i1 === 0) i1 = 1;
+        if (i1 >= sampler.keyCount) i1 = sampler.keyCount - 1;
+        const i0 = i1 - 1;
+
+        const t0 = times[i0], t1 = times[i1];
+        const u = t1 > t0 ? (time - t0) / (t1 - t0) : 0;
+        const b0 = i0 * 4, b1 = i1 * 4;
+
+        this._q1.set(vals[b0], vals[b0 + 1], vals[b0 + 2], vals[b0 + 3]);
+        out.set(vals[b1], vals[b1 + 1], vals[b1 + 2], vals[b1 + 3]);
+        this._q1.slerp(out, u);
+        out.copy(this._q1);
+        return out;
+    }
+
+    public Serialize(): any {
+        return {
+            type: AnimationTrack.type,
+            id: this.id,
+            trackName: this.trackName
+        };
+    }
+
+    public Deserialize(data: any) {
+        this.trackName = data.trackName ?? "";
+        // clips are populated by Animator.Start() from the animation asset
+        if (data.clips) {
+            this.clips = data.clips;
+            this._clipsByIndex = null;
+        }
     }
 
     public apply(clipIndex: number, time: number) {
@@ -91,11 +128,11 @@ export class AnimationTrack extends Component {
         const tr = this.gameObject.transform;
         for (const ch of clip.channels) {
             if (ch.path === "translation") {
-                this.sampleSampler(ch.sampler, time, tr.localPosition);
+                this.sampleVec3(ch.sampler, time, tr.localPosition);
             } else if (ch.path === "scale") {
-                this.sampleSampler(ch.sampler, time, tr.scale);
+                this.sampleVec3(ch.sampler, time, tr.scale);
             } else if (ch.path === "rotation") {
-                this.sampleSampler(ch.sampler, time, tr.localRotation).normalize();
+                this.sampleQuat(ch.sampler, time, tr.localRotation).normalize();
             }
         }
     }
@@ -104,8 +141,6 @@ export class AnimationTrack extends Component {
         const a = this.getClip(clipA);
         const b = this.getClip(clipB);
         if (!a && !b) return;
-
-        // if only one clip exists on this track
         if (a && !b) return this.apply(clipA, tA);
         if (!a && b) return this.apply(clipB, tB);
 
@@ -114,31 +149,24 @@ export class AnimationTrack extends Component {
         for (const chA of a.channels) {
             const chB = b.channels.find(ch => ch.path === chA.path);
             if (!chB) {
-                // no matching channel: just apply A
-                if (chA.path === "translation") this.sampleSampler(chA.sampler, tA, tr.localPosition);
-                else if (chA.path === "scale") this.sampleSampler(chA.sampler, tA, tr.scale);
-                else if (chA.path === "rotation") this.sampleSampler(chA.sampler, tA, tr.localRotation).normalize();
+                if (chA.path === "translation") this.sampleVec3(chA.sampler, tA, tr.localPosition);
+                else if (chA.path === "scale") this.sampleVec3(chA.sampler, tA, tr.scale);
+                else if (chA.path === "rotation") this.sampleQuat(chA.sampler, tA, tr.localRotation).normalize();
                 continue;
             }
 
             if (chA.path === "translation") {
-                const v0 = new Vector3();
-                const v1 = new Vector3();
-                this.sampleSampler(chA.sampler, tA, v0);
-                this.sampleSampler(chB.sampler, tB, v1);
-                tr.localPosition.copy(v0.lerp(v1, alpha));
+                this.sampleVec3(chA.sampler, tA, this._v0);
+                this.sampleVec3(chB.sampler, tB, this._v1);
+                tr.localPosition.copy(this._v0.lerp(this._v1, alpha));
             } else if (chA.path === "scale") {
-                const v0 = new Vector3();
-                const v1 = new Vector3();
-                this.sampleSampler(chA.sampler, tA, v0);
-                this.sampleSampler(chB.sampler, tB, v1);
-                tr.scale.copy(v0.lerp(v1, alpha));
+                this.sampleVec3(chA.sampler, tA, this._v0);
+                this.sampleVec3(chB.sampler, tB, this._v1);
+                tr.scale.copy(this._v0.lerp(this._v1, alpha));
             } else if (chA.path === "rotation") {
-                const q0 = new Quaternion();
-                const q1 = new Quaternion();
-                this.sampleSampler(chA.sampler, tA, q0);
-                this.sampleSampler(chB.sampler, tB, q1);
-                tr.localRotation.copy(q0.slerp(q1, alpha)).normalize();
+                this.sampleQuat(chA.sampler, tA, this._q0);
+                this.sampleQuat(chB.sampler, tB, this._q1);
+                tr.localRotation.copy(this._q0.slerp(this._q1, alpha)).normalize();
             }
         }
     }
@@ -149,8 +177,13 @@ Component.Registry.set(AnimationTrack.type, AnimationTrack);
 export class Animator extends Component {
     public static type = "@trident/core/components/Animator";
 
+    public assetPath?: string;
+
     @SerializeField
     public clips: SerializedAnimationClip[] = [];
+
+    // All tracks data keyed by node name — loaded from .animation file
+    public tracksData: { [nodeName: string]: SerializedAnimationTrackClip[] } = {};
 
     public clipIndex = 0;
     private playing = false;
@@ -169,6 +202,16 @@ export class Animator extends Component {
         this.previousTime = performance.now();
         this.tracks = [];
         this.collectTracks(this.gameObject.transform);
+
+        // Distribute track data from the animation asset
+        if (this.tracksData) {
+            for (const track of this.tracks) {
+                if (track.trackName && this.tracksData[track.trackName]) {
+                    track.clips = this.tracksData[track.trackName];
+                }
+            }
+        }
+
         this.playing = true;
     }
 
@@ -193,6 +236,64 @@ export class Animator extends Component {
         this.fadeDuration = Math.max(0.0001, duration);
         this.fadeTime = 0;
         this.playing = true;
+    }
+
+    public SerializeAsset() {
+        // Collect all track data from hierarchy
+        const tracks: { [nodeName: string]: SerializedAnimationTrackClip[] } = {};
+        const collectTrackData = (root: Transform) => {
+            const track = root.gameObject.GetComponent(AnimationTrack);
+            if (track && track.trackName && track.clips.length) {
+                tracks[track.trackName] = track.clips;
+            }
+            for (const child of root.children) collectTrackData(child);
+        };
+
+        // If we have live track data from the hierarchy, collect it
+        if (this.gameObject) {
+            collectTrackData(this.gameObject.transform);
+        }
+
+        return {
+            type: Animator.type,
+            assetPath: this.assetPath,
+            clips: this.clips,
+            tracks: Object.keys(tracks).length ? tracks : this.tracksData
+        };
+    }
+
+    public Serialize(): any {
+        if (this.assetPath) {
+            return {
+                type: Animator.type,
+                id: this.id,
+                assetPath: this.assetPath
+            };
+        }
+        return this.SerializeAsset();
+    }
+
+    public Deserialize(data: any) {
+        if (data.assetPath) {
+            this.assetPath = data.assetPath;
+
+            const instance = Assets.GetInstance(data.assetPath);
+            if (instance) {
+                this.clips = instance.clips ?? [];
+                this.tracksData = instance.tracks ?? instance.tracksData ?? {};
+                return;
+            }
+
+            Assets.SetInstance(data.assetPath, this);
+            Assets.Load(data.assetPath, "json").then(json => {
+                this.clips = json.clips ?? [];
+                this.tracksData = json.tracks ?? {};
+            });
+            return;
+        }
+
+        this.clips = data.clips ?? [];
+        this.tracksData = data.tracks ?? {};
     }
 
     public Update() {

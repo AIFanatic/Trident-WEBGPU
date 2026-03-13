@@ -7,17 +7,10 @@ struct VertexInput {
     @location(1) normal : vec3<f32>,
     @location(2) uv : vec2<f32>,
 
-    #if USE_NORMAL_MAP
-        @location(3) tangent : vec4<f32>,
-        #if USE_SKINNING
-            @location(4) joints: vec4<u32>,
-            @location(5) weights: vec4<f32>,
-        #endif
-    #else
-        #if USE_SKINNING
-            @location(3) joints: vec4<u32>,
-            @location(4) weights: vec4<f32>,
-        #endif
+    @location(3) tangent : vec4<f32>,
+    #if USE_SKINNING
+        @location(4) joints: vec4<u32>,
+        @location(5) weights: vec4<f32>,
     #endif
 };
 
@@ -95,13 +88,11 @@ fn vertexMain(input: VertexInput) -> VertexOutput {
     output.vNormal = worldNormal;
     output.normal = finalNormal.xyz;
 
-    #if USE_NORMAL_MAP
-        let worldTangent = normalize(modelMatrixInstance * vec4(input.tangent.xyz, 0.0)).xyz;
-        let worldBitangent = cross(worldNormal, worldTangent) * input.tangent.w;
+    let worldTangent = normalize(modelMatrixInstance * vec4(input.tangent.xyz, 0.0)).xyz;
+    let worldBitangent = cross(worldNormal, worldTangent) * input.tangent.w;
 
-        output.tangent = worldTangent;
-        output.bitangent = worldBitangent;
-    #endif
+    output.tangent = worldTangent;
+    output.bitangent = worldBitangent;
 
     // emit a barycentric coordinate
     output.barycenticCoord = vec3f(0);
@@ -142,51 +133,39 @@ fn fragmentMain(@builtin(front_facing) isFrontFace: bool, input: VertexOutput) -
     var occlusion = 1.0;
 
     // var albedo = mat.AlbedoColor;
-    #if USE_ALBEDO_MAP
-        albedo *= textureSample(AlbedoMap, TextureSampler, uv);
-    #endif
+    albedo *= textureSample(AlbedoMap, TextureSampler, uv);
 
     if (albedo.a < mat.AlphaCutoff) {
         discard;
     }
 
     var normal: vec3f = normalize(input.vNormal);
-    #if USE_NORMAL_MAP
-        var tbn: mat3x3<f32>;
-        tbn[0] = input.tangent;      // column-major: T, B, N
-        tbn[1] = input.bitangent;
-        tbn[2] = input.vNormal;
-        if (!isFrontFace) {
-            // tbn[0] = -tbn[0];
-            tbn[1] = -tbn[1];
-            tbn[2] = -tbn[2];
-        }
-        let normalSample = textureSample(NormalMap, TextureSampler, uv).xyz * 2.0 - 1.0;
-        normal = normalize(tbn * normalSample);
-    #else
-        if (!isFrontFace) {
-            normal = -normal;
-        }
-    #endif
+    var tbn: mat3x3<f32>;
+    tbn[0] = input.tangent;      // column-major: T, B, N
+    tbn[1] = input.bitangent;
+    tbn[2] = input.vNormal;
+    if (!isFrontFace) {
+        // tbn[0] = -tbn[0];
+        tbn[1] = -tbn[1];
+        tbn[2] = -tbn[2];
+    }
+    let normalSample = textureSample(NormalMap, TextureSampler, uv).xyz * 2.0 - 1.0;
+    normal = normalize(tbn * normalSample);
 
-    #if USE_ARM_MAP
-        let metalnessRoughness = textureSample(ARMMap, TextureSampler, uv);
+    let metalnessRoughness = textureSample(ARMMap, TextureSampler, uv);
 
-        occlusion *= metalnessRoughness.r;
-        roughness *= metalnessRoughness.g;
-        metalness *= metalnessRoughness.b;
+    // occlusion *= metalnessRoughness.r;
+    roughness *= metalnessRoughness.g;
+    metalness *= metalnessRoughness.b;
 
-        // // Unity style - Mask map MT(R) AO(G) SM(A)
-        // metalness *= metalnessRoughness.r;
-        // occlusion *= metalnessRoughness.g; 
-        // roughness *= metalnessRoughness.a;
+    // // Unity style - Mask map MT(R) AO(G) SM(A)
+    // metalness *= metalnessRoughness.r;
+    // occlusion *= metalnessRoughness.g; 
+    // roughness *= metalnessRoughness.a;
 
-    #endif
 
     var emissive = mat.EmissiveColor;
-    #if USE_EMISSIVE_MAP
-        emissive *= textureSample(EmissiveMap, TextureSampler, uv);
-    #endif
+    emissive *= textureSample(EmissiveMap, TextureSampler, uv);
 
     output.albedo = vec4(albedo.rgb, roughness);
     output.normal = vec4(OctEncode(normal.xyz), occlusion, metalness);

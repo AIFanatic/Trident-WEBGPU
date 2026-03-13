@@ -52,12 +52,12 @@ export class PointLightHelper extends Component {
     }
 
     public Start(): void {
-        if (!this.light) throw Error("SpotLightHelper.light not defined");
+        if (!this.light) throw Error("PointLightHelper.light not defined");
     }
 
     public Update(): void {
         this.transform.position.copy(this.light.transform.position);
         this.transform.rotation.copy(this.light.transform.rotation);
-        this.transform.scale.set(this.light.range, this.light.range, this.light.range);
+        this.transform.scale.set(this.light.range, this.light.range, this.light.range).mul(0.5);
     }
 }

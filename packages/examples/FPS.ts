@@ -49,6 +49,9 @@ import { MeshletMesh } from "@trident/plugins/meshlets_v4/MeshletMesh";
 import { MeshletDraw } from "@trident/plugins/meshlets_v4/passes/MeshletDraw";
 import { Bloom } from "@trident/plugins/Bloom";
 import { ImpostorMesh } from "@trident/plugins/Impostors/ImpostorMesh";
+import { SSS_V2 } from "@trident/plugins/SSS_V2";
+import { SSSRenderPass } from "@trident/plugins/SSS";
+import { FullscreenQuad } from "@trident/plugins/FullscreenQuad";
 
 async function Application(canvas: HTMLCanvasElement) {
     const renderer = GPU.Renderer.Create(canvas, "webgpu", 1);
@@ -67,7 +70,7 @@ async function Application(canvas: HTMLCanvasElement) {
     const light = lightGameObject.AddComponent(Components.DirectionalLight);
     light.color.set(1.0, 0.96, 0.88, 1);
     light.intensity = 1;
-    // light.castShadows = false;
+    light.castShadows = false;
 
     new UIColorStat(Debugger.ui, "Light Color:", light.color.toHex(), value => {
         light.color.setFromHex(value);
@@ -98,8 +101,7 @@ async function Application(canvas: HTMLCanvasElement) {
     }
 
     async function LoadTexture(url: string, format: GPU.TextureFormat = "rgba8unorm-srgb"): Promise<GPU.Texture> {
-        const texture = await GPU.Texture.Load(url, format);
-        texture.GenerateMips();
+        const texture = await GPU.Texture.Load(url, format, {generateMips: true});
         return texture;
     }
 
@@ -112,9 +114,9 @@ async function Application(canvas: HTMLCanvasElement) {
     ]);
 
     let transform = new Float32Array([10, 10, 0, 0]);
-    const albedoTexture = await LoadTexture(`/extra/test-assets/terrain/brown_mud_leaves_01/brown_mud_leaves_01_diff_1k.jpg`, "rgba8unorm-srgb");
-    const normalTexture = await LoadTexture(`/extra/test-assets/terrain/brown_mud_leaves_01/brown_mud_leaves_01_nor_gl_1k.jpg`, "rgba8unorm");
-    const armMap = await LoadTexture(`/extra/test-assets/terrain/brown_mud_leaves_01/brown_mud_leaves_01_arm_1k.jpg`, "rgba8unorm");
+    const albedoTexture = await LoadTexture(`/extra/test-assets/terrain/brown_mud_leaves_01/brown_mud_leaves_01_diff_4k.jpg`, "rgba8unorm-srgb");
+    const normalTexture = await LoadTexture(`/extra/test-assets/terrain/brown_mud_leaves_01/brown_mud_leaves_01_nor_gl_4k.jpg`, "rgba8unorm");
+    const armMap = await LoadTexture(`/extra/test-assets/terrain/brown_mud_leaves_01/brown_mud_leaves_01_arm_4k.jpg`, "rgba8unorm");
     terrain.material.layers = [
         { name: "TropicalForest", transform: transform, albedoMap: albedoTexture, normalMap: normalTexture, armMap: armMap },
     ]
@@ -191,8 +193,8 @@ async function Application(canvas: HTMLCanvasElement) {
 
     // Weapon
     // const weaponPrefab = await GLTFLoader.LoadFromURL("/extra/test-assets/ak47u.worldmodel.glb");
-    // const weaponPrefab = await GLTFLoader.LoadFromURL("/extra/test-assets/semi_auto_rifle.worldmodel.glb");
-    const weaponPrefab = await GLTFLoader.LoadFromURL("/extra/test-assets/bouquet.glb");
+    const weaponPrefab = await GLTFLoader.LoadFromURL("/extra/test-assets/semi_auto_rifle.worldmodel.glb");
+    // const weaponPrefab = await GLTFLoader.LoadFromURL("/extra/test-assets/bouquet.glb");
     const weaponGameObject = scene.Instantiate(weaponPrefab);
     weaponGameObject.transform.position.copy(camera.transform.position);
     weaponGameObject.transform.parent = camera.transform;
@@ -421,7 +423,7 @@ async function Application(canvas: HTMLCanvasElement) {
             if (name.includes("tundra")) continue;
             if (name.includes("snow")) continue;
             
-            if (!name.includes("american_beech_a_new.glb")) continue;
+            if (!name.includes("Pine_a.glb")) continue;
 
             console.log("Loading", name)
 
@@ -658,6 +660,11 @@ async function Application(canvas: HTMLCanvasElement) {
             terrain.SampleNormal(playerGameObject.transform.position)
         }, 2000);
     }
+
+    // const sss = new SSSRenderPass(light);
+    // scene.renderPipeline.AddPass(sss, GPU.RenderPassOrder.AfterLighting);
+    // // const sssPass = new SSS(light);
+    // // scene.renderPipeline.AddPass(sssPass, GPU.RenderPassOrder.AfterLighting);
 
     scene.Start();
 };

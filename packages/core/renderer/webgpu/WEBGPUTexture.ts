@@ -31,6 +31,7 @@ function totalBytesForTexture(format: TextureFormat, width: number, height: numb
 }
 
 export class WEBGPUTexture implements Texture {
+    public static readonly type = "@trident/core/Texture";
     private byteSize = 0;
     private lastBandwidthFrame = -1;
 
@@ -39,7 +40,7 @@ export class WEBGPUTexture implements Texture {
     public readonly height: number;
     public readonly depth: number;
     public readonly format: TextureFormat;
-    public readonly type: TextureType;
+    public readonly textureType: TextureType;
     public readonly dimension: TextureDimension;
     public mipLevels: number;
 
@@ -87,7 +88,7 @@ export class WEBGPUTexture implements Texture {
         this.height = height;
         this.depth = depth;
         this.format = format;
-        this.type = type;
+        this.textureType = type;
         this.dimension = dimension;
         this.mipLevels = mipLevels;
 
@@ -322,9 +323,10 @@ export class WEBGPUTexture implements Texture {
     public static async Deserialize(data: SerializedTexture): Promise<WEBGPUTexture> {
         const cachedTexture = WEBGPUTexture.SerializedTextureCache.get(data.id);
         if (cachedTexture) return cachedTexture.texture;
-
+        
         const bytes = await Assets.Load(data.assetPath, "binary");
         const texture = await WEBGPUTexture.FromBlob(new Blob([bytes]), data.format, { name: data.name, generateMips: data.generateMips });
+        texture.assetPath = data.assetPath;
 
         WEBGPUTexture.SerializedTextureCache.set(data.id, { serialized: data, texture: texture }); // What id to use? New or data one? Should ids be set, probably a unique path or crc should be used instead
         return texture;

@@ -25,6 +25,9 @@ export class Terrain extends Components.Mesh {
     public get material(): TerrainMaterial {
         return this._material as TerrainMaterial;
     }
+    public set material(mat: TerrainMaterial) {
+        this._material = mat;
+    }
 
     constructor(gameObject: GameObject) {
         super(gameObject);

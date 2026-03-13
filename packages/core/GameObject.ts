@@ -2,7 +2,7 @@ import { Component } from "./components/Component";
 import { Scene } from "./Scene";
 import { Transform } from "./components/Transform";
 import { UUID } from "./utils";
-import { Prefab } from "./Assets";
+import { Assets, Prefab } from "./Assets";
 
 
 function getCtorChain(ctor: Function): Function[] {
@@ -23,7 +23,15 @@ export class GameObject {
     private componentsByCtor = new Map<Function, Component[]>();
     private allComponents: Component[] = [];
 
-    public enabled: boolean = true;
+    public _enabled: boolean = true;
+
+    public get enabled(): boolean { return this._enabled };
+    public set enabled(enabled: boolean) {
+        this._enabled = enabled;
+        for (const child of this.transform.children) child.gameObject.enabled = enabled;
+    };
+
+    public assetPath?: string;
 
     constructor(scene: Scene) {
         this.scene = scene;
@@ -124,18 +132,25 @@ export class GameObject {
     }
 
     public Serialize(metadata: any = {}): Prefab {
-        let serializedChildren: Prefab[] = [];
-        for (const childGameObject of this.transform.children) serializedChildren.push(childGameObject.gameObject.Serialize(metadata));
-
         const prefab = new Prefab();
         prefab.name = this.name;
         prefab.transform = this.transform.Serialize();
+
+        if (this.assetPath) {
+            prefab.assetPath = this.assetPath;
+            // Only store transform + reference, skip components/children
+            return prefab;
+        }
+
+        // Non-prefab: full inline serialization (existing behavior)
         prefab.components = this.allComponents.map(c => c.Serialize(metadata));
-        prefab.children = serializedChildren;
+        for (const child of this.transform.children) {
+            prefab.children.push(child.gameObject.Serialize(metadata));
+        }
         return prefab;
     }
 
-    public Deserialize(data: Prefab) {
+    private DeserializeAsset(data: Prefab) {
         this.name = data.name;
         this.transform.Deserialize(data.transform);
 
@@ -162,5 +177,31 @@ export class GameObject {
             newGameObject.transform.parent = this.transform;
             newGameObject.Deserialize(data.children[i]);
         }
+    }
+
+    public Deserialize(data: Prefab) {
+        if (data.assetPath && data.components.length === 0) {
+            // Prefab reference — load from asset, apply transform override
+            this.assetPath = data.assetPath;
+            const instance = Assets.GetInstance(data.assetPath) as Prefab;
+            
+            if (instance) {
+                this.name = data.name;
+                // Deserialize from source prefab but use our transform
+                this.Deserialize(instance);
+                this.assetPath = data.assetPath;
+                this.transform.Deserialize(data.transform);
+                return;
+            }
+
+            Assets.SetInstance(data.assetPath, this);
+            Assets.Load(data.assetPath, "json").then(json => {
+                const prefab = Prefab.Deserialize(json);
+                this.DeserializeAsset(prefab);
+            });
+            return;
+        }
+
+        this.DeserializeAsset(data);
     }
 }

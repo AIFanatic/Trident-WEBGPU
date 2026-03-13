@@ -19,6 +19,7 @@ export * as Mathf from './math';
 export * as GPU from "./renderer";
 
 export * as Utils from "./utils";
+export { SerializeField } from "./utils";
 
 export { Assets, Prefab } from "./Assets";
 

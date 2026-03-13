@@ -20,12 +20,12 @@ export class Renderable extends Component {
     public enableShadows: boolean = true;
     
     private _geometry: Geometry = new Geometry();
-    @SerializeField
+    @SerializeField(Geometry)
     public get geometry(): Geometry { return this._geometry; };
     public set geometry(geometry: Geometry) { this._geometry = geometry; };
 
     protected _material: Material = new PBRMaterial();
-    @SerializeField
+    @SerializeField(Material)
     public get material(): Material { return this._material; };
     public set material(material: Material) {
         this._material = material;

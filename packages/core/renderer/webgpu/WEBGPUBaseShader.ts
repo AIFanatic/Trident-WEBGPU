@@ -101,7 +101,7 @@ export class WEBGPUBaseShader {
                 if (uniform.buffer.format.includes("32float")) sampleType = "unfilterable-float"
                 else if (uniform.buffer.format.includes("32uint")) sampleType = "uint"
                 else if (uniform.buffer.format.includes("32int")) sampleType = "sint"
-                if (uniform.buffer.type === TextureType.RENDER_TARGET_STORAGE) {
+                if (uniform.buffer.textureType === TextureType.RENDER_TARGET_STORAGE) {
                     layoutEntries.push({
                         binding: uniform.binding,
                         visibility: GPUShaderStage.COMPUTE | GPUShaderStage.FRAGMENT,

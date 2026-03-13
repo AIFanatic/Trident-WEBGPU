@@ -205,7 +205,14 @@ fn fragmentMain(input: VertexOutput) -> @location(0) vec4<f32> {
   var color = mix(f_dielectric_brdf_ibl, f_metal_brdf_ibl, surface.metallic) + surface.emissive;
 
   let occlusionStrength = 1.0; // match glTF default
-  color = color * (1.0 + occlusionStrength * (1.0 - surface.occlusion));
+  color = color * (1.0 + occlusionStrength * (surface.occlusion - 1.0));
+
+
+  let ao = mix(1.0, surface.occlusion, occlusionStrength);
+  let indirectDiffuse  = irradiance * surface.albedo * ao;
+  color = mix(f_dielectric_brdf_ibl, f_metal_brdf_ibl, surface.metallic) * ao + surface.emissive;
+
+  
 
   return vec4f(color, 1.0);
 }

@@ -183,7 +183,7 @@ export class VPLGenerator {
             lightGO.transform.LookAtV1(lightGO.transform.position.clone().add(vpl.direction));
             lightGO.transform.parent = group.transform;
 
-            const light = lightGO.AddComponent(Components.SpotLight);
+            const light = lightGO.AddComponent(Components.PointLight);
             light.angle = angleRad;
             light.range = vpl.range;
             light.intensity = vpl.intensity;

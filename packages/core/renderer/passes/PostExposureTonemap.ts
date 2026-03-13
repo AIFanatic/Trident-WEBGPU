@@ -9,7 +9,7 @@ import { Console, ConsoleVarConfigs } from "../../Console";
 import { RenderTexture } from "../Texture";
 
 const TextureViewerSettings = Console.define({
-    r_tonemapper: { default: 0.0, help: "Tonemapper type (disabled"},
+    r_tonemapper: { default: 1.0, help: "Tonemapper type (disabled"},
     r_exposure: { default: 0.0, help: "Exposure"},
     r_contrast: { default: 1.0, help: "Contrast"},
     r_saturation: { default: 1.0, help: "Saturation"},
@@ -129,12 +129,14 @@ export class PostExposureTonemap extends RenderPass {
             
             col = col * exp2(params.exposure);
 
-            // Tonemap
-            col = toneMapping(col);
+            // // Tonemap
+            if (i32(params.tonemapType) == 1) {
+                col = toneMapping(col);
+            }
 
-            col = applyContrast(col, params.contrast);
-            col = applySaturation(col, params.saturation);
-            col = clamp(col, vec3f(0.0), vec3f(1.0));
+            // col = applyContrast(col, params.contrast);
+            // col = applySaturation(col, params.saturation);
+            // col = clamp(col, vec3f(0.0), vec3f(1.0));
 
             return vec4f(col, 1.0);
         }

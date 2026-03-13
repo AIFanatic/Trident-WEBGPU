@@ -7,6 +7,7 @@ export { RenderingPipeline, RenderPassOrder, PassParams } from "./RenderingPipel
 export { Shader, Compute, Topology } from "./Shader";
 export { ShaderLoader, ShaderPreprocessor } from "./ShaderUtils";
 export { DepthTexture, RenderTexture, Texture, TextureArray, CubeTexture, RenderTexture3D, RenderTextureStorage3D, RenderTextureStorage2D, RenderTextureCube } from "./Texture";
+export type { ImageLoadOptions } from "./Texture";
 export { TextureSampler } from "./TextureSampler";
 export { Material } from "./Material";
 export { MemoryAllocator, BufferMemoryAllocator, DynamicBufferMemoryAllocator, DynamicBufferMemoryAllocatorDynamic } from "./MemoryAllocator";

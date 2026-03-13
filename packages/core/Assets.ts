@@ -6,7 +6,7 @@ type ResponseType<T> = T extends 'json' ? object
     : never;
 
 export class Assets {
-    public static ResourceFetchFn: (input: RequestInfo | URL, init?: RequestInit) => Promise<Response> = fetch;
+    public static ResourceFetchFn: (input: RequestInfo | URL, init?: RequestInit) => Promise<Response> = fetch.bind(globalThis);
 
     private static cache: Map<string, Promise<any>> = new Map();
     private static instanceCache: Map<string, any> = new Map();
@@ -42,8 +42,10 @@ export class Assets {
         }).then(result => {
             Assets.cache.set(url, Promise.resolve(result));
             return result;
-        }).catch(error => {
+        })
+        .catch(error => {
             Assets.cache.delete(url);
+            console.error(`Assets.ResourceFetchFn error loading file ${url}`);
             throw error;
         });
 

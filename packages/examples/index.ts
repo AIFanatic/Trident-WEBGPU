@@ -54,6 +54,7 @@ import "./ShadowTest";
 import "./VirtualTexturing";
 
 import "./VPL";
+import "./VPL_V2";
 import "./PathTracer";
 
 
@@ -64,3 +65,7 @@ import "./PBR2";
 import "./Billboard";
 
 import "./DrawBenchmark";
+
+
+import "./SSS_V2";
+import "./NMS";

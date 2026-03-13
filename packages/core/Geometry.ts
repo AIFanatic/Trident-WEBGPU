@@ -538,6 +538,7 @@ EventSystem.on(RendererEvents.Created, renderer => {
         geometry.attributes.set("uv", new VertexAttribute(uvs));
         geometry.attributes.set("normal", new VertexAttribute(normals));
         geometry.index = new IndexAttribute(indices);
+        geometry.ComputeTangents();
 
         Assets.SetInstance(instancePath, geometry);
     }
@@ -557,6 +558,7 @@ EventSystem.on(RendererEvents.Created, renderer => {
         geometry.attributes.set("normal", new VertexAttribute(normals));
         geometry.attributes.set("uv", new VertexAttribute(uvs));
         geometry.index = new IndexAttribute(indices);
+        geometry.ComputeTangents();
 
         Assets.SetInstance(instancePath, geometry);
     }
@@ -575,6 +577,7 @@ EventSystem.on(RendererEvents.Created, renderer => {
         geometry.attributes.set("position", new VertexAttribute(new Float32Array(vertices)));
         geometry.attributes.set("normal", new VertexAttribute(new Float32Array(normals)));
         geometry.attributes.set("uv", new VertexAttribute(new Float32Array(uvs)));
+        geometry.ComputeTangents();
 
         Assets.SetInstance(instancePath, geometry);
     }
@@ -593,6 +596,7 @@ EventSystem.on(RendererEvents.Created, renderer => {
         geometry.attributes.set("position", new VertexAttribute(new Float32Array(vertices)));
         geometry.attributes.set("normal", new VertexAttribute(new Float32Array(normals)));
         geometry.attributes.set("uv", new VertexAttribute(new Float32Array(uvs)));
+        geometry.ComputeTangents();
 
         Assets.SetInstance(instancePath, geometry);
     }
@@ -611,6 +615,7 @@ EventSystem.on(RendererEvents.Created, renderer => {
         geometry.attributes.set("position", new VertexAttribute(new Float32Array(vertices)));
         geometry.attributes.set("normal", new VertexAttribute(new Float32Array(normals)));
         geometry.attributes.set("uv", new VertexAttribute(new Float32Array(uvs)));
+        geometry.ComputeTangents();
 
         Assets.SetInstance(instancePath, geometry);
     }

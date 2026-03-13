@@ -58,7 +58,7 @@ export class DeferredLightingPass extends RenderPass {
             magFilter: "linear",
             mipmapFilter: "linear",
             addressModeU: "clamp-to-edge",
-            addressModeV: "clamp-to-edge"
+            addressModeV: "clamp-to-edge",
         });
         this.shader.SetSampler("textureSampler", this.sampler);
 

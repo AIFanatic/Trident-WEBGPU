@@ -13,7 +13,7 @@ export class LightEvents {
 }
 
 export class Light extends Component {
-    public static type = "@trident/core/components/Light";
+    public static type = "@trident/core/components/Light/Light";
 
     public camera: Camera = new Camera(this.gameObject);
     @SerializeField
@@ -35,7 +35,7 @@ export class Light extends Component {
 }
 
 export class SpotLight extends Light {
-    public static type = "@trident/core/components/SpotLight";
+    public static type = "@trident/core/components/Light/SpotLight";
     public direction = new Vector3(0,-1,0);
 
     private _angle: number = 1;
@@ -56,7 +56,7 @@ export class SpotLight extends Light {
 
     protected UpdateLight() {
         const radius = Math.tan(this.angle) * this.range; // if angle is full cone angle
-         this.transform.scale.set(radius, this.range, radius);
+        this.transform.scale.set(radius, this.range, radius);
     }
 
     public Start(): void {
@@ -67,9 +67,9 @@ export class SpotLight extends Light {
 }
 
 export class PointLight extends Light {
-    public static type = "@trident/core/components/PointLight";
+    public static type = "@trident/core/components/Light/PointLight";
     private _range: number = 10;
-    @SerializeField
+    @SerializeField(Number)
     public get range(): number { return this._range };
     public set range(range: number) {
         this._range = range;
@@ -89,7 +89,7 @@ export class PointLight extends Light {
 
 // TODO: Harder, maybe can be faked with a perspective camera and some scale hacks
 export class AreaLight extends Light {
-    public static type = "@trident/core/components/AreaLight";
+    public static type = "@trident/core/components/Light/AreaLight";
     public Start(): void {
         super.Start();
         // TODO: Ortographic camera
@@ -98,7 +98,7 @@ export class AreaLight extends Light {
 }
 
 export class DirectionalLight extends Light {
-    public static type = "@trident/core/components/DirectionalLight";
+    public static type = "@trident/core/components/Light/DirectionalLight";
 
     @SerializeField
     public direction = new Vector3(0,1,0);

@@ -55,7 +55,8 @@ async function Application(canvas: HTMLCanvasElement) {
     await environment.init();
 
     // const prefab = await GLTFLoader.LoadFromURL("./assets/models/DamagedHelmet/DamagedHelmet.gltf");
-    const prefab = await GLTFLoader.LoadFromURL("/extra/test-assets/bouquet.glb");
+    // const prefab = await GLTFLoader.LoadFromURL("/extra/test-assets/bouquet.glb");
+    const prefab = await GLTFLoader.LoadFromURL("./assets/models/Shadow.glb");
     // const prefab = await GLTFLoader.LoadFromURL("/extra/test-assets/nature/overgrowth/patch_grass_medium.glb");
     // const prefab = await GLTFLoader.LoadFromURL("/extra/test-assets/tree-01/american_beech_a/american_beech_a.glb");
     // const prefab = await GLTFLoader.LoadFromURL("/extra/test-assets/ak47u.worldmodel.glb");
@@ -63,23 +64,54 @@ async function Application(canvas: HTMLCanvasElement) {
     // const prefab = await GLTFLoader.LoadFromURL("/extra/test-assets/sphere/sphere.gltf");
     // const prefab = await GLTFLoader.LoadFromURL("./assets/models/Fox.glb");
 
-    // prefab.traverse(prefab => {
-    //     for (const component of prefab.components) {
-    //         if (component.type === Components.Mesh.type) {
-    //             const mat = GPU.Material.Deserialize(component.material) as PBRMaterial;
-    //             // mat.params.doubleSided = true;
-    //             mat.params.albedoColor.r = 29 / 255;
-    //             mat.params.albedoColor.g = 33 / 255;
-    //             mat.params.albedoColor.b = 21 / 255;
-    //             mat.params.alphaCutoff = 0.25;
-    //             // 29 33 21 255 0.25
-    //             // mat.params.roughness = 10.0;
+    prefab.traverse(prefab => {
+        for (const component of prefab.components) {
+            if (component.type === Components.Animator.type) {
+                console.log(component)
+                return;
+            }
+        }
+    })
 
-    //             return;
-    //         }
-    //     }
-    // })
-    const gameObject = scene.Instantiate(prefab);
+    {
+        const prefab = await GLTFLoader.LoadFromURL("./assets/models/Shadow.glb");
+        const gameObject = scene.Instantiate(prefab);
+        gameObject.transform.position.x = 2;
+        // gameObject.transform.scale.set(0.01, 0.01, 0.01);
+
+        const animator = gameObject.GetComponent(Components.Animator);
+//         console.log(animator)
+//         animator.SetClipByIndex(0)
+//           const animator = gameObject.GetComponent(Components.Animator);
+//   console.log("Available clips:", animator.clips);
+//         // animator.CrossFadeTo(0, 1000);
+
+//         // animator.SetLayerClip(1, 2, 0.8);
+
+  // Base: jog forward
+  animator.SetClipByIndex(45); // Jog_Fwd_Loop
+
+
+    }
+
+    {
+        const prefab = await GLTFLoader.LoadFromURL("/extra/test-assets/bouquet.glb");
+        const gameObject = scene.Instantiate(prefab);
+        gameObject.transform.position.x = -2;
+        // gameObject.transform.scale.set(0.01, 0.01, 0.01);
+
+        const animator = gameObject.GetComponent(Components.Animator);
+        console.log(animator)
+        // animator.SetClipByIndex(1)
+        // animator.CrossFadeTo(0, 1000);
+
+    }
+
+    // {
+    //     const gameObject = scene.Instantiate(prefab);
+    //     gameObject.transform.position.x = -2;
+    //     gameObject.transform.scale.set(0.01, 0.01, 0.01);
+    // }
 
     // const go = new GameObject(scene);
     // const mesh = go.AddComponent(Components.Mesh);

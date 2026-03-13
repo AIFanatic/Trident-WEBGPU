@@ -9,10 +9,14 @@ import {
 } from "@trident/core";
 
 import { OrbitControls } from "@trident/plugins/OrbitControls";
+
 import { PhysicsRapier } from "@trident/plugins/PhysicsRapier/PhysicsRapier";
-import { BoxCollider } from "@trident/plugins/PhysicsRapier/colliders/BoxCollider";
+import { PhysicsDebugger } from "@trident/plugins/PhysicsRapier/PhysicsDebugger";
 import { Collider } from "@trident/plugins/PhysicsRapier/colliders/Collider";
-import { VPLGenerator, FakeGI } from "@trident/plugins/VPLGenerator";
+import { BoxCollider } from "@trident/plugins/PhysicsRapier/colliders/BoxCollider";
+import { PlaneCollider } from "@trident/plugins/PhysicsRapier/colliders/PlaneCollider";
+
+import { VPLGeneratorV2 } from "@trident/plugins/VPLGeneratorV2";
 import { Debugger } from "@trident/plugins/Debugger";
 import { PointLightHelper } from "@trident/plugins/PointLightHelper";
 
@@ -42,21 +46,11 @@ async function Application(canvas: HTMLCanvasElement) {
     const sourceLight = sourceLightGO.AddComponent(Components.PointLight);
     
     const sourceLightGOHelper = new GameObject(scene);
-    const lightHelper = sourceLightGOHelper.AddComponent(PointLightHelper);
-    lightHelper.light = sourceLight;
+    // const lightHelper = sourceLightGOHelper.AddComponent(PointLightHelper);
+    // lightHelper.light = sourceLight;
     
-    sourceLight.intensity = 10.0;
+    sourceLight.intensity = 50.0;
     sourceLight.range = 30;
-    const fakeGI = sourceLightGO.AddComponent(FakeGI);
-    fakeGI.useRaycasting = false;
-    fakeGI.secondaryBounce = false;
-    fakeGI.useIndirectShadows = false;
-    fakeGI.automaticWeights = false;
-    fakeGI.distanceScale = 5.0;
-    fakeGI.minIntensity = 0.05;
-    fakeGI.forceEnable = true;
-    fakeGI.avgRefl = 0.4;
-    fakeGI.avgSecondaryDistance = 1.0;
 
     const physicsWorld = new GameObject(scene);
     const physicsComponent = physicsWorld.AddComponent(PhysicsRapier);
@@ -72,7 +66,7 @@ async function Application(canvas: HTMLCanvasElement) {
         const meshbottom = floor.AddComponent(Components.Mesh);
         meshbottom.geometry = Geometry.Plane();
         meshbottom.material = new PBRMaterial({ albedoColor: new Mathf.Color(1, 1, 1, 1), roughness: 0.7, metalness: 0.1 });
-        floor.AddComponent(BoxCollider);
+        floor.AddComponent(PlaneCollider);
 
         const left = new GameObject(scene);
         left.transform.scale.set(0.05, 10, 10);
@@ -107,7 +101,7 @@ async function Application(canvas: HTMLCanvasElement) {
         const meshtop = top.AddComponent(Components.Mesh);
         meshtop.geometry = Geometry.Plane();
         meshtop.material = new PBRMaterial({ albedoColor: new Mathf.Color(1, 1, 1, 1), roughness: 0.7, metalness: 0.1 });
-        top.AddComponent(BoxCollider);
+        top.AddComponent(PlaneCollider);
 
 
         const cube = new GameObject(scene);
@@ -131,12 +125,11 @@ async function Application(canvas: HTMLCanvasElement) {
 
     PhysicsRapier.PhysicsWorld.step();
 
-    const vplGen = new VPLGenerator({
-        maxNumVPLs: 20,
-        maxLevel: 2,
-        spacing: 1.5,
-        maxDistance: 40
-    });
+    const physicsDebuggerGO = new GameObject(scene);
+    physicsDebuggerGO.AddComponent(PhysicsDebugger);
+
+
+
 
     const colliderColorMap: Map<number, Mathf.Color> = new Map();
     for (const go of scene.GetGameObjects()) {
@@ -149,31 +142,13 @@ async function Application(canvas: HTMLCanvasElement) {
         colliderColorMap.set(handle, mesh.material.params.albedoColor.clone());
     }
 
-    const vpls = vplGen.GenerateFromLight(sourceLight, {
-        sampleColor: (hit) => {
-            const handle = (hit.collider as any)?.handle;
-            const color = handle !== undefined ? colliderColorMap.get(handle) : undefined;
-            return color ? color.clone() : sourceLight.color.clone();
-        }
-    });
-    const lightGameObjects = vplGen.CreateLights(scene, vpls, { enabled: false, spotAngleDeg: 160 });
-    fakeGI.RefreshVPLs();
-
-    function AddSphere(location: Mathf.Vector3) {
-        const g = new GameObject(scene);
-        g.transform.position.copy(location);
-        const m = g.AddComponent(Components.Mesh);
-        m.geometry = Geometry.Sphere();
-        m.material = new PBRMaterial({unlit: true});
+    const sampleColor = (hit) => {
+        const handle = (hit.collider as any)?.handle;
+        const color = handle !== undefined ? colliderColorMap.get(handle) : undefined;
+        return color ? color.clone() : sourceLight.color.clone();
     }
-    console.log(lightGameObjects)
-    for (const gameObject of lightGameObjects) {
-        const spotLight = gameObject.GetComponent(Components.PointLight);
-        if (spotLight) {
-            console.log("HERE", )
-            AddSphere(spotLight.transform.position)
-        }
-    }
+    const vplGen = new VPLGeneratorV2(scene);
+    vplGen.GenerateFromLight(sourceLight, sampleColor);
 
     Debugger.Enable();
 

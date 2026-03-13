@@ -73,4 +73,10 @@ export * from "./VirtualTexturing/";
 
 export * from "./VPLGenerator";
 
+export * from "./VPLGeneratorV2";
+
 export * from "./PathTracer";
+
+export * from "./FullscreenQuad";
+
+export * from "./SSS_V2";
