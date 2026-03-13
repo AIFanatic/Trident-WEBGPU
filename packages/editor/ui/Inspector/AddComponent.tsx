@@ -3,7 +3,6 @@ import { ComponentEvents, EventSystem } from "../../Events";
 
 import { Component } from '@trident/core';
 import { IGameObject } from "../../engine-api/trident/components/IGameObject";
-import { IComponents } from "../../engine-api/trident/components";
 import { Tree } from "../TreeView/Tree";
 import { TreeFolder } from "../TreeView/TreeFolder";
 import { TreeItem } from "../TreeView/TreeItem";
@@ -28,22 +27,45 @@ export class AddComponent extends GOActComponent<AddComponentProps> {
         this.setState({ isMenuOpen: false });
     }
 
+    private generateTree(entryMap: Map<string, typeof Component>) {
+        const entriesByPath = new Map<string, { name: string, type: string }[]>();
+
+        for (const [fullpath] of entryMap) {
+            const path = fullpath.slice(fullpath.lastIndexOf("components/") + "components/".length, fullpath.lastIndexOf("/") + 1);
+            const name = fullpath.slice(fullpath.lastIndexOf("/") + 1);
+            const pathEntries = entriesByPath.get(path) || [];
+            pathEntries.push({ name, type: fullpath });
+            entriesByPath.set(path, pathEntries);
+        }
+
+        return Array.from(entriesByPath).map(([path, entries]) => {
+            const items = entries.map(e =>
+                <TreeItem key={e.type} name={e.name} onPointerDown={() => this.addComponent(e.type)} />
+            );
+
+            return path === "" ? items : <TreeFolder key={path} name={path.replace("/", "")}>{items}</TreeFolder>;
+        });
+    }
+
     public render() {
         return (
-            <div class="Floating-Menu" style={{position: "inherit", padding: "5px", margin: "10px"}}>
+            <div class="Floating-Menu" style={{ position: "inherit", padding: "5px", margin: "10px" }}>
                 <Tree>
                     <TreeFolder name="Add Component">
-                        <TreeFolder name="Physics">
-                            <TreeItem name="Rigidbody" onClicked={() => this.addComponent("Rigidbody")} />
-                            <TreeItem name="BoxCollider" onClicked={() => this.addComponent("BoxCollider")} />
-                        </TreeFolder>
-                        <TreeItem name="Mesh" onClicked={() => this.addComponent(IComponents.Mesh.type)} />
-                        <TreeFolder name="Lights">
-                            <TreeItem name="DirectionalLight" onClicked={() => this.addComponent(IComponents.DirectionalLight.type)} />
-                            <TreeItem name="PointLight" onClicked={() => this.addComponent(IComponents.PointLight.type)} />
-                            <TreeItem name="SpotLight" onClicked={() => this.addComponent(IComponents.SpotLight.type)} />
-                        </TreeFolder>
+                        {this.generateTree(Component.Registry)}
                     </TreeFolder>
+                    {/* <TreeFolder name="Add Component">
+                        <TreeFolder name="Physics">
+                            <TreeItem name="Rigidbody" onPointerDown={() => this.addComponent("Rigidbody")} />
+                            <TreeItem name="BoxCollider" onPointerDown={() => this.addComponent("BoxCollider")} />
+                        </TreeFolder>
+                        <TreeItem name="Mesh" onPointerDown={() => this.addComponent(IComponents.Mesh.type)} />
+                        <TreeFolder name="Lights">
+                            <TreeItem name="DirectionalLight" onPointerDown={() => this.addComponent(IComponents.DirectionalLight.type)} />
+                            <TreeItem name="PointLight" onPointerDown={() => this.addComponent(IComponents.PointLight.type)} />
+                            <TreeItem name="SpotLight" onPointerDown={() => this.addComponent(IComponents.SpotLight.type)} />
+                        </TreeFolder>
+                    </TreeFolder> */}
                 </Tree>
             </div>
         )

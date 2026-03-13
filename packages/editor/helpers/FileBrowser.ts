@@ -79,20 +79,11 @@ class _FileBrowser {
     }
 
     public rmdir(path: string) {
-        const pathArray = path.split("/");
-        const directoryName = pathArray[pathArray.length - 1];
-        const pathWithoutDirectory = pathArray.splice(0, pathArray.length - 1).join("/");
+        // TODO: Validation around this
+        const parentPath = path.slice(0, path.lastIndexOf("/"));
+        const dirName = path.slice(path.lastIndexOf("/") + 1);
 
-        this.opendir(pathWithoutDirectory)
-        .then(async folderHandle => {
-            const files = await this.readdir(folderHandle);
-            for (let file of files) {
-                if (file.kind == "directory" && file.name == directoryName) {
-                    folderHandle.removeEntry(directoryName);
-                    break;
-                }
-            }
-        })
+        this.opendir(parentPath).then(async folderHandle => { folderHandle.removeEntry(dirName, {recursive: true}) });
     }
 
     public fopen(path: string, mode: MODE): Promise<FileSystemFileHandle> {

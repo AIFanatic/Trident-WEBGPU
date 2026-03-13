@@ -9,7 +9,6 @@ interface InspectorVector3Props {
     title: string;
     vector3: IVector3;
     onChanged?: (value: IVector3) => void;
-    key: string;
 };
 
 interface InspectorVector3State {

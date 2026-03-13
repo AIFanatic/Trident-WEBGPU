@@ -10,12 +10,11 @@ import { IColor } from "./math/IColor";
 import { IVector2 } from "./math/IVector2";
 import { IComponent } from "./components/IComponent";
 import { IPrefab } from "./components/IPrefab";
+import { ITexture } from "./components/ITexture";
 
 export class TridentAPI implements IEngineAPI {
 
     public currentScene: IScene;
-
-    private gameObjectRefs = new WeakSet<GameObject>();
 
     public createRenderer(canvas: HTMLCanvasElement) {
         Renderer.Create(canvas, "webgpu");
@@ -28,12 +27,7 @@ export class TridentAPI implements IEngineAPI {
 
     public createGameObject(scene: IScene): IGameObject {
         const gameObject = new GameObject(scene as Scene);
-        this.gameObjectRefs.add(gameObject);
         return gameObject;
-    }
-
-    public isEngineGameObject(obj: IGameObject): boolean {
-        return this.gameObjectRefs.has(obj as any);
     }
 
     public createVector3(x: number, y: number, z: number): IVector3 {
@@ -41,42 +35,14 @@ export class TridentAPI implements IEngineAPI {
         return vec3;
     }
 
-    public isVector3(vector3: IVector3): boolean {
-        return vector3.constructor === Mathf.Vector3;
-    }
-
     public createVector2(x: number, y: number, z: number): IVector2 {
         const vec2 = new Mathf.Vector2(x, y);
         return vec2;
     }
 
-    public isVector2(vector2: IVector2): boolean {
-        return vector2.constructor === Mathf.Vector2;
-    }
-
     public createColor(r: number, g: number, b: number, a: number): IColor {
         const color = new Mathf.Color(r, g, b, a);;
         return color;
-    }
-
-    public isColor(color: IColor): boolean {
-        return color.constructor === Mathf.Color;
-    }
-
-    public isComponent(component: IComponent): boolean {
-        return component.constructor === Component;
-    }
-
-    public isPrefab(prefab: object): boolean {
-        return prefab.constructor === Prefab;
-    }
-
-    public isGeometry(geometry: object): boolean {
-        return geometry.constructor === Prefab;
-    }
-
-    public isMaterial(material: IMaterial): boolean {
-        return material.constructor === Prefab;
     }
 
     public createPlaneGeometry(): IGeometry {
@@ -113,6 +79,80 @@ export class TridentAPI implements IEngineAPI {
 
     public deserializePrefab(serialized): IPrefab {
         return Prefab.Deserialize(serialized);
+    }
+
+    public async createTextureFromBlob(blob: Blob, format?: GPU.TextureFormat, options?: GPU.ImageLoadOptions): Promise<ITexture> {
+        return GPU.Texture.LoadBlob(blob);
+    }
+
+
+
+
+
+
+    private compareType(value: any, type: Function) {
+        if (typeof value === "function") return value === type;
+        if (value instanceof type) return true;
+        return value?.constructor?.type === (type as any).type;
+    }
+
+    public getFieldType(value: any): "Prefab" | "GameObject" | "Component" | "Vector3" | "Vector2" | "Color" | "Geometry" | "Material" | "Texture" | "unknown" {
+        if (this.compareType(value, Prefab)) return "Prefab";
+        else if (this.compareType(value, GameObject)) return "GameObject";
+        else if (this.compareType(value, Component)) return "Component";
+        else if (this.compareType(value, Mathf.Vector3)) return "Vector3";
+        else if (this.compareType(value, Mathf.Vector2)) return "Vector2";
+        else if (this.compareType(value, Mathf.Color)) return "Color";
+        else if (this.compareType(value, Geometry)) return "Geometry";
+        else if (this.compareType(value, GPU.Material)) return "Material";
+        else if (this.compareType(value, GPU.Texture)) return "Texture";
+        return "unknown";
+    }
+
+
+    public isGameObject(value: any): boolean {
+        if (typeof value === "function") return value === GameObject;
+        return value instanceof GameObject;
+    }
+
+    public isVector3(value: IVector3): boolean {
+        if (typeof value === "function") return value === Mathf.Vector3;
+        return value instanceof Mathf.Vector3;
+    }
+    
+    public isVector2(value: any): boolean {
+        if (typeof value === "function") return value === Mathf.Vector2;
+        return value instanceof Mathf.Vector2;
+    }
+
+    public isColor(value: any): boolean {
+        if (typeof value === "function") return value === Mathf.Color;
+        return value instanceof Mathf.Color;
+    }
+
+    public isComponent(value: any): boolean {
+        if (typeof value === "function") return value === Component;
+        return value instanceof Component;
+    }
+
+    public isPrefab(value: any): boolean {
+        if (typeof value === "function") return value === Prefab;
+        return value instanceof Prefab;
+    }
+
+    public isGeometry(value: any): boolean {
+        if (typeof value === "function") return value === Geometry;
+        return value instanceof Geometry;
+    }
+
+    public isMaterial(value: any): boolean {
+        if (typeof value === "function") return value === GPU.Material;
+        return value instanceof GPU.Material;
+    }
+
+    public isTexture(value: any): boolean {
+        if (typeof value === "function") return value === GPU.Texture;
+        return value instanceof GPU.Texture;
     }
 
     public GetSerializedFields = Utils.GetSerializedFields;

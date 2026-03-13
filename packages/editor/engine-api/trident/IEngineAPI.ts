@@ -1,3 +1,5 @@
+import { GPU } from "@trident/core";
+
 import { IGameObject } from "./components/IGameObject";
 import { IGeometry } from "./components/IGeometry";
 
@@ -12,6 +14,7 @@ import { IVector2 } from "./math/IVector2";
 
 import { IComponent } from "./components/IComponent";
 import { IPrefab } from "./components/IPrefab";
+import { ITexture } from "./components/ITexture";
 
 export interface IEngineAPI {
     currentScene?: IScene;
@@ -19,7 +22,7 @@ export interface IEngineAPI {
     createRenderer(canvas: HTMLCanvasElement);
     createScene(): IScene;
     createGameObject(scene: IScene): IGameObject;
-    isEngineGameObject(obj: IGameObject): boolean;
+    isGameObject(obj: IGameObject): boolean;
 
     createColor(r: number, g: number, b: number, a: number): IColor;
     isColor(color: IColor): boolean;
@@ -35,6 +38,8 @@ export interface IEngineAPI {
     isGeometry(geometry: object): boolean;
     isMaterial(material: object): boolean;
 
+    isTexture(texture: object): boolean;
+
     createPlaneGeometry(): IGeometry;
     createCubeGeometry(): IGeometry;
     createSphereGeometry(): IGeometry;
@@ -43,10 +48,13 @@ export interface IEngineAPI {
     createPBRMaterial(args?): IMaterial;
 
     createPrefab(): IPrefab;
+    createTextureFromBlob(blob: Blob, format?: GPU.TextureFormat, options?: GPU.ImageLoadOptions): Promise<ITexture>;
 
     deserializeGeometry(serialized): IGeometry;
     deserializeMaterial(serialized): IMaterial;
     deserializePrefab(args?): IPrefab;
 
-    GetSerializedFields: (instance: object) => string[];
+    GetSerializedFields: (instance: object) => { name: string | symbol, type?: Function }[];
+
+    getFieldType(value: any): "Prefab" | "GameObject" | "Component" | "Vector3" | "Vector2" | "Color" | "Geometry" | "Material" | "Texture" | "unknown";
 }

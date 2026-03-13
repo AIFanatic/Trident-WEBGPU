@@ -59,9 +59,7 @@ interface InspectorColorState {
 export class InspectorColor extends Component<InspectorColorProps, InspectorColorState> {
     constructor(props: InspectorColorProps) {
         super(props);
-
-
-        this.state = { color: this.props.color.clone() };
+        this.state = { color: this.props.color };
     }
 
     private onChanged(event: Event) {

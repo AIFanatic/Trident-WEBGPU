@@ -47,14 +47,13 @@ export class LayoutHierarchy extends Component<BaseProps, LayoutHierarchyState> 
     }
 
     private getGameObjectById(id: string): IGameObject {
-        console.log(this.props.engineAPI.currentScene.gameObjects)
         for (const gameObject of this.props.engineAPI.currentScene.gameObjects) {
             if (gameObject.transform.id === id) return gameObject;
         }
         return undefined;
     }
 
-    private onDropped(fromId: string, toId: string) {
+    private onDroppedItem(fromId: string, toId: string) {
         const fromGameObject = this.getGameObjectById(fromId);
         const toGameObject = this.getGameObjectById(toId);
         if (fromGameObject === toGameObject) return;
@@ -64,8 +63,8 @@ export class LayoutHierarchy extends Component<BaseProps, LayoutHierarchyState> 
         }
     }
 
-    private onDragStarted(event, data) {
-        console.log("onDragStarted", event)
+    private onDragStarted(event) {
+        ExtendedDataTransfer.data = this.state.selectedGameObject;
     }
 
     private onDrop(event) {
@@ -146,8 +145,9 @@ export class LayoutHierarchy extends Component<BaseProps, LayoutHierarchyState> 
                     name={go.name}
                     id={go.transform.id}
                     isSelected={isSelected}
-                    onClicked={() => this.selectGameObject(go)}
-                    onDropped={(from, to) => this.onDropped(from, to)}
+                    onPointerDown={() => this.selectGameObject(go)}
+                    onDroppedItem={(from, to) => this.onDroppedItem(from, to)}
+                    onDragStarted={(event) => this.onDragStarted(event)}
                 >
                     {this.renderGameObjects(Array.from(children).map(c => c.gameObject))}
                 </TreeFolder>                                  // Array.from() to iterate Set
@@ -156,9 +156,9 @@ export class LayoutHierarchy extends Component<BaseProps, LayoutHierarchyState> 
                 name={go.name}
                 id={go.transform.id}
                 isSelected={isSelected}
-                onClicked={() => this.selectGameObject(go)}
-                onDropped={(from, to) => this.onDropped(from, to)}
-                onDragStarted={(event) => this.onDragStarted(event, null)}
+                onPointerDown={() => this.selectGameObject(go)}
+                onDroppedItem={(from, to) => this.onDroppedItem(from, to)}
+                onDragStarted={(event) => this.onDragStarted(event)}
             />
         });
     }
@@ -179,18 +179,18 @@ export class LayoutHierarchy extends Component<BaseProps, LayoutHierarchyState> 
                         <button onClick={event => { this.setState({...this.state, headerMenuOpen: !this.state.headerMenuOpen})}}>⋮</button>
                         <div class="Floating-Menu" style={`display: ${this.state.headerMenuOpen ? "inherit" : "none"}`}>
                             <Tree>
-                                <TreeItem name="Create Empty" onClicked={() => this.createEmptyGameObject()} />
-                                <TreeItem name="Delete" onClicked={() => this.deleteGameObject()} />
+                                <TreeItem name="Create Empty" onPointerDown={() => this.createEmptyGameObject()} />
+                                <TreeItem name="Delete" onPointerDown={() => this.deleteGameObject()} />
                                 <TreeFolder name="3D Object">
-                                    <TreeItem name="Cube" onClicked={() => this.createPrimitive("Cube")} />
-                                    <TreeItem name="Capsule" onClicked={() => this.createPrimitive("Capsule")} />
-                                    <TreeItem name="Plane" onClicked={() => this.createPrimitive("Plane")} />
-                                    <TreeItem name="Sphere" onClicked={() => this.createPrimitive("Sphere")} />
+                                    <TreeItem name="Cube" onPointerDown={() => this.createPrimitive("Cube")} />
+                                    <TreeItem name="Capsule" onPointerDown={() => this.createPrimitive("Capsule")} />
+                                    <TreeItem name="Plane" onPointerDown={() => this.createPrimitive("Plane")} />
+                                    <TreeItem name="Sphere" onPointerDown={() => this.createPrimitive("Sphere")} />
                                 </TreeFolder>
                                 <TreeFolder name="Lights">
-                                    <TreeItem name="Directional Light" onClicked={() => this.createLight("Directional")} />
-                                    <TreeItem name="Point Light" onClicked={() => this.createLight("Point")} />
-                                    <TreeItem name="Spot Light" onClicked={() => this.createLight("Spot")} />
+                                    <TreeItem name="Directional Light" onPointerDown={() => this.createLight("Directional")} />
+                                    <TreeItem name="Point Light" onPointerDown={() => this.createLight("Point")} />
+                                    <TreeItem name="Spot Light" onPointerDown={() => this.createLight("Spot")} />
                                 </TreeFolder>
                             </Tree>
                         </div>
@@ -201,14 +201,6 @@ export class LayoutHierarchy extends Component<BaseProps, LayoutHierarchyState> 
                     onDrop={(event) => this.onDrop(event)}
                     onDragOver={(e) => e.preventDefault()}
                 >
-                    {/* <Tree
-                        onDropped={(from, to) => this.onDropped(from, to)}
-                        onClicked={(data) => this.selectGameObject(data.data)}
-                        onDragStarted={(event, data) => this.onDragStarted(event, data)}
-                        data={nodes}
-                    /> */}
-
-
                     <Tree>
                         {this.renderGameObjects(rootGameObjects)}
                     </Tree>

@@ -6,4 +6,7 @@ export const IComponents = {
     PointLight: Components.PointLight,
     DirectionalLight: Components.DirectionalLight,
     Mesh: Components.Mesh,
+    SkinnedMesh: Components.SkinnedMesh,
+    Animator: Components.Animator,
+    AnimationTrack: Components.AnimationTrack,
 };

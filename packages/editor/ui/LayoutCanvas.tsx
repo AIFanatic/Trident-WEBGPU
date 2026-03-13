@@ -93,6 +93,7 @@ export class LayoutCanvas extends Component<BaseProps> {
 
         let mouseDownPosition = { x: 0, y: 0 };
         let mouseUpPosition = { x: 0, y: 0 };
+        let pickedGameObject = undefined
 
         canvas.addEventListener("mousedown", event => {
             mouseDownPosition = { x: event.clientX, y: event.clientY };
@@ -102,15 +103,25 @@ export class LayoutCanvas extends Component<BaseProps> {
             mouseUpPosition = { x: event.clientX, y: event.clientY };
             const mouseDrif = { x: mouseDownPosition.x - mouseUpPosition.x, y: mouseDownPosition.y - mouseUpPosition.y };
             if (mouseDrif.x == 0 && mouseDrif.y == 0) {
-                const pickedGameObject = await raycaster.execute();
+                pickedGameObject = await raycaster.execute();
                 if (pickedGameObject) {
                     EventSystem.emit(GameObjectEvents.Selected, pickedGameObject);
                 }
             }
         });
 
-        EventSystem.on(LayoutHierarchyEvents.Selected, pickedGameObject => {
-            controls.center.copy(pickedGameObject.transform.position);
+        canvas.addEventListener("keydown", event => {
+            if (event.key === "f") {
+                if (pickedGameObject) {
+                    controls.center.copy(pickedGameObject.transform.position);
+                    const mainCamera = Components.Camera.mainCamera;
+                    controls.orbit(0,0); // force update
+                }
+            }
+        })
+
+        EventSystem.on(LayoutHierarchyEvents.Selected, _pickedGameObject => {
+            pickedGameObject = _pickedGameObject
         });
 
         EventSystem.on(SceneEvents.Loaded, scene => {
@@ -145,6 +156,24 @@ export class LayoutCanvas extends Component<BaseProps> {
 
         new ResizeObserver(resize).observe(canvas);
         
+
+
+        console.warn(`
+            TODO: Figure out better component registration, needs to be automatic or something.
+                Importing/Creating scripts is not that easy..need above otherwise need to register everything.
+                Also need to import @trident/core properly (this is a typescript pattern).
+                Also need to make SerializeField work somehow
+            `)
+        class Test extends Components.Component {
+            public static type = "@trident/core/components/Test";
+
+            public static types = (() => {
+                console.log("CALLED without new Test");
+            })();
+        }
+
+        // cubeGameObject.AddComponent(Test);
+        console.log(Components.Component.Registry.get("@trident/core/components/Test"))
 
     }
 

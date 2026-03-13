@@ -18,37 +18,21 @@ import { ITransform } from '../../engine-api/trident/components/ITransform';
 import { IEngineAPI } from '../../engine-api/trident/IEngineAPI';
 import { ComponentEvents, EventSystem, GameObjectEvents, LayoutHierarchyEvents } from "../../Events";
 import { StringUtils } from "../../helpers/StringUtils";
+import { ExtendedDataTransfer } from "../../helpers/ExtendedDataTransfer";
 
 interface LayoutInspectorProps {
     engineAPI: IEngineAPI;
-};
-
-interface LayoutInspectorState {
     gameObject: IGameObject;
 };
 
-export class LayoutInspectorGameObject extends Component<LayoutInspectorProps, LayoutInspectorState> {
+export class LayoutInspectorGameObject extends Component<LayoutInspectorProps> {
     constructor(props) {
         super(props);
-
-        this.state = { gameObject: null };
-
-        EventSystem.on(LayoutHierarchyEvents.Selected, gameObject => {
-            this.setState({ gameObject: gameObject });
-        });
-
-        EventSystem.on(ComponentEvents.Created, (gameObject, component) => {
-            this.setState({ gameObject: gameObject });
-        })
-
-        EventSystem.on(GameObjectEvents.Changed, (gameObject, component) => {
-            this.setState({ gameObject: gameObject });
-        })
     }
 
     private onRemoveComponent(component: IComponent) {
         component.Destroy();
-        this.setState({ gameObject: this.state.gameObject }); // force update
+        this.setState({}); // force update
     }
 
     private onComponentPropertyChanged(component: IComponent | ITransform, property: string, value: any) {
@@ -73,7 +57,7 @@ export class LayoutInspectorGameObject extends Component<LayoutInspectorProps, L
             component[property] = parseFloat(value);
         }
 
-        this.setState({ gameObject: this.state.gameObject }); // force update
+        this.setState({}); // force updated
     }
 
     private onGameObjectNameChanged(gameObject: IGameObject, event: Event) {
@@ -85,40 +69,29 @@ export class LayoutInspectorGameObject extends Component<LayoutInspectorProps, L
         // this.forceUpdate()
     }
 
-    private renderInspectorForComponentProperty(component: IComponent, property: string): Node {
-        const classname = component.constructor.name;
-        const type = typeof component[property];
+    private renderInspectorForComponentProperty(component: IComponent, property: { name: string | symbol, type?: Function }): Node {
+        const name = property.name as string;
+        const type = property.type;
+        const engineType = this.props.engineAPI.getFieldType(type);
 
-        if (type == "function") return null;
+        const title = StringUtils.CapitalizeStrArray(StringUtils.CamelCaseToArray(name)).join(" ");
 
-        const title = StringUtils.CapitalizeStrArray(StringUtils.CamelCaseToArray(property)).join(" ");
-
-        if (this.props.engineAPI.isVector3(component[property])) {
-            return <InspectorVector3 title={title} onChanged={(value) => { this.onComponentPropertyChanged(component, property, value) }} vector3={component[property]} />
-        }
-        else if (this.props.engineAPI.isColor(component[property])) {
-            return <InspectorColor title={title} onChanged={(value) => { this.onComponentPropertyChanged(component, property, value) }} color={component[property]} />
-        }
-        else if (this.props.engineAPI.isVector2(component[property])) {
-            return <InspectorVector2 title={title} onChanged={(value) => { this.onComponentPropertyChanged(component, property, value) }} vector2={component[property]} />
-        }
-        else if (type == "number") {
-            return <InspectorInput onChanged={(value) => { this.onComponentPropertyChanged(component, property, value) }} title={title} value={component[property]} type="number" />
-        }
-        else if (type == "boolean") {
-            return <InspectorCheckbox onChanged={(value) => { this.onComponentPropertyChanged(component, property, value) }} title={title} selected={component[property]} />
-        }
-        else if (type == "object") {
-            let valueForType = component[property].constructor.name;
-            if (component[property].assetPath) {
-                valueForType = StringUtils.GetNameForPath(component[property].assetPath);
+        if (engineType === "Vector3") return <InspectorVector3 title={title} onChanged={(value) => { this.onComponentPropertyChanged(component, name, value) }} vector3={component[name]} />
+        else if (engineType === "Vector2") return <InspectorVector2 title={title} onChanged={(value) => { this.onComponentPropertyChanged(component, name, value) }} vector2={component[name]} />
+        else if (engineType === "Color") return <InspectorColor title={title} onChanged={(value) => { this.onComponentPropertyChanged(component, name, value) }} color={component[name]} />
+        else if (type === Number) return <InspectorInput onChanged={(value) => { this.onComponentPropertyChanged(component, name, value) }} title={title} value={component[name]} type="number" />
+        else if (type === Boolean) return <InspectorCheckbox onChanged={(value) => { this.onComponentPropertyChanged(component, name, value) }} title={title} selected={component[name]} />
+        else if (typeof type === "function") {
+            let valueForType = component[name].constructor.name;
+            if (component[name].assetPath) {
+                valueForType = StringUtils.GetNameForPath(component[name].assetPath);
             }
 
             return <InspectorType
-                onChanged={(value) => { this.onComponentPropertyChanged(component, property, value) }}
+                onChanged={(value) => { this.onComponentPropertyChanged(component, name, value) }}
                 title={title}
                 component={component}
-                property={property}
+                property={name}
                 value={valueForType}
             />
         }
@@ -165,24 +138,43 @@ export class LayoutInspectorGameObject extends Component<LayoutInspectorProps, L
     }
 
     private onGameObjectEnabled(event) {
-        this.state.gameObject.enabled = event.target.checked;
+        this.props.gameObject.enabled = event.target.checked;
+    }
+    
+    private onDragEnter(event: DragEvent) {
+        event.preventDefault();
+    }
+    
+    private onDragOver(event: DragEvent) {
+        event.preventDefault();
+    }
+    
+    // TODO: This needs to be better
+    private onDrop(event: DragEvent) {
+        const draggedItem = ExtendedDataTransfer.data;
+        const component = draggedItem[Object.keys(draggedItem)[0]];
+        // console.log("onDrop", draggedItem, this.props.engineAPI.isComponent(component));
+        this.props.gameObject.AddComponent(component);
+        this.setState({}); // force updated
     }
 
     public render() {
-        if (!this.state.gameObject) return <div></div>;
-
-        const componentsElements = this.renderInspectorForGameObject(this.state.gameObject);
+        const componentsElements = this.renderInspectorForGameObject(this.props.gameObject);
         return (
             <div style={{
                 height: "100%",
                 overflow: "auto",
-                width: "100%"
-            }}>
+                width: "100%",
+            }}
+            onDragEnter={(event) => {this.onDragEnter(event)}}
+            onDrop={(event) => {this.onDrop(event)}}
+            onDragOver={(event) => this.onDragOver(event)}
+            >
                 <div style={{
                     display: "flex",
                     padding: "10px"
                 }}>
-                    <input type="checkbox" checked={this.state.gameObject.enabled} onChange={event => { this.onGameObjectEnabled(event) }} />
+                    <input type="checkbox" checked={this.props.gameObject.enabled} onChange={event => { this.onGameObjectEnabled(event) }} />
                     <input style={{
                         width: "100%",
                         fontSize: "12px",
@@ -194,20 +186,20 @@ export class LayoutInspectorGameObject extends Component<LayoutInspectorProps, L
                         paddingLeft: "5px",
                     }}
                         type="text"
-                        value={this.state.gameObject.name}
-                        onChange={(event) => { this.onGameObjectNameChanged(this.state.gameObject, event) }}
+                        value={this.props.gameObject.name}
+                        onChange={(event) => { this.onGameObjectNameChanged(this.props.gameObject, event) }}
                     />
                 </div>
 
                 <Collapsible header="Transform">
-                    <InspectorVector3 key={`position-${this.state.gameObject.id}`} title="Position" onChanged={(value) => { this.onComponentPropertyChanged(this.state.gameObject.transform, "localPosition", value) }} vector3={this.state.gameObject.transform.localPosition} />
-                    <InspectorVector3 key={`rotation-${this.state.gameObject.id}`} title="Rotation" onChanged={(value) => { this.onComponentPropertyChanged(this.state.gameObject.transform, "localEulerAngles", value) }} vector3={this.state.gameObject.transform.localEulerAngles} />
-                    <InspectorVector3 key={`scale-${this.state.gameObject.id}`} title="Scale" onChanged={(value) => { this.onComponentPropertyChanged(this.state.gameObject.transform, "scale", value) }} vector3={this.state.gameObject.transform.scale} />
+                    <InspectorVector3 key={`position-${this.props.gameObject.id}`} title="Position" onChanged={(value) => { this.onComponentPropertyChanged(this.props.gameObject.transform, "localPosition", value) }} vector3={this.props.gameObject.transform.localPosition} />
+                    <InspectorVector3 key={`rotation-${this.props.gameObject.id}`} title="Rotation" onChanged={(value) => { this.onComponentPropertyChanged(this.props.gameObject.transform, "localEulerAngles", value) }} vector3={this.props.gameObject.transform.localEulerAngles} />
+                    <InspectorVector3 key={`scale-${this.props.gameObject.id}`} title="Scale" onChanged={(value) => { this.onComponentPropertyChanged(this.props.gameObject.transform, "scale", value) }} vector3={this.props.gameObject.transform.scale} />
                 </Collapsible>
 
                 {componentsElements}
 
-                <AddComponent gameObject={this.state.gameObject}/>
+                <AddComponent gameObject={this.props.gameObject}/>
             </div>
         )
     }

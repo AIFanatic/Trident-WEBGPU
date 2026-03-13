@@ -5,9 +5,11 @@ interface TreeItemProps {
     id?: string;
     isSelected?: boolean;
     data?: any;
-    onClicked?: () => void;
+    onPointerDown?: () => void;
+    onPointerUp?: () => void;
     onDoubleClicked?: () => void;
-    onDropped?: (fromId: string, toId: string) => void;
+    onDropped?: (event: DragEvent) => void;
+    onDroppedItem?: (fromId: string, toId: string) => void;
     onDragStarted?: (event: DragEvent) => void;
 }
 
@@ -20,10 +22,12 @@ export class TreeItem extends Component<TreeItemProps> {
     }
 
     private onDrop(event: DragEvent) {
+        if (this.props.onDropped) this.props.onDropped(event);
+        
         if (this.itemRef) this.itemRef.style.backgroundColor = "";
         const fromUuid = event.dataTransfer.getData("from-uuid");
-        if (fromUuid && this.props.onDropped && this.props.id) {
-            this.props.onDropped(fromUuid, this.props.id);
+        if (fromUuid && this.props.onDroppedItem && this.props.id) {
+            this.props.onDroppedItem(fromUuid, this.props.id);
         }
         event.preventDefault();
         event.stopPropagation();
@@ -37,7 +41,7 @@ export class TreeItem extends Component<TreeItemProps> {
     private readonly dblMs = 220;
 
     private onPointerDown(event: MouseEvent) {
-        if (this.props.onClicked) this.props.onClicked();
+        if (this.props.onPointerDown) this.props.onPointerDown();
         const now = performance.now();
         if (now - this.lastClickTs < this.dblMs && this.props.onDoubleClicked) {
             this.props.onDoubleClicked();
@@ -61,6 +65,7 @@ export class TreeItem extends Component<TreeItemProps> {
                     onDrop={(event) => this.onDrop(event)}
                     onDragOver={(event) => this.onDragOver(event)}
                     onPointerDown={(event) => this.onPointerDown(event)}
+                    onPointerUp={(event) => { if (this.props.onPointerUp) this.props.onPointerUp(); }}
                 >
                     <span style={{ paddingLeft: "15px" }}></span>
                     <span>{this.props.name}</span>

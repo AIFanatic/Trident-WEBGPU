@@ -17,6 +17,7 @@ export class LayoutTopbar extends Component<BaseProps, LayoutTopbarState> {
     }
 
     private openProject() {
+        console.log("CCC")
         FileBrowser.init().then(() => {
             EventSystem.emit(ProjectEvents.Opened);
         })
@@ -42,9 +43,9 @@ export class LayoutTopbar extends Component<BaseProps, LayoutTopbarState> {
                 <a onClick={event => { this.setState({...this.state, fileMenuOpen: !this.state.fileMenuOpen})}} style={{cursor: "pointer"}}>File</a>
                 <div class="Floating-Menu" style={`display: ${this.state.fileMenuOpen ? "inherit" : "none"}`}>
                     <Tree>
-                        <TreeItem name="Open Project..." onClicked={() => { this.openProject() }} />
-                        <TreeItem name="Save Project" onClicked={() => { this.saveProject() }} />
-                        <TreeItem name="Test" onClicked={() => { this.test() }} />
+                        <TreeItem name="Open Project..." onPointerDown={() => { this.openProject() }} />
+                        <TreeItem name="Save Project" onPointerDown={() => { this.saveProject() }} />
+                        <TreeItem name="Test" onPointerDown={() => { this.test() }} />
                     </Tree>
                 </div>
             </div>

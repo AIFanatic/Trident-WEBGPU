@@ -2,13 +2,16 @@ import { createElement, Component } from "../../gooact";
 import { Arrow } from "../Arrow";
 
 interface TreeFolderProps {
+    key?: string;
     name: string;
     id?: string;
     isSelected?: boolean;
     data?: any;
-    onClicked?: () => void;
+    onPointerDown?: () => void;
+    onPointerUp?: () => void;
     onDoubleClicked?: () => void;
-    onDropped?: (fromId: string, toId: string) => void;
+    onDropped?: (event: DragEvent) => void;
+    onDroppedItem?: (fromId: string, toId: string) => void;
     onDragStarted?: (event: DragEvent) => void;
     onToggled?: () => void;
 }
@@ -38,10 +41,12 @@ export class TreeFolder extends Component<TreeFolderProps, TreeFolderState> {
     }
 
     private onDrop(event: DragEvent) {
+        if (this.props.onDropped) this.props.onDropped(event);
+
         if (this.folderRef) this.folderRef.style.backgroundColor = "";
         const fromUuid = event.dataTransfer.getData("from-uuid");
-        if (fromUuid && this.props.onDropped && this.props.id) {
-            this.props.onDropped(fromUuid, this.props.id);
+        if (fromUuid && this.props.onDroppedItem && this.props.id) {
+            this.props.onDroppedItem(fromUuid, this.props.id);
         }
         event.preventDefault();
         event.stopPropagation();
@@ -56,7 +61,7 @@ export class TreeFolder extends Component<TreeFolderProps, TreeFolderState> {
         if (this.props.isSelected) classes += " active";
 
         return (
-            <div className="item" ref={(ref) => this.folderRef = ref}>
+            <div key={this.props.key} className="item" ref={(ref) => this.folderRef = ref}>
                 <div
                     style={{ display: "flex", alignItems: "center" }}
                     className={classes}
@@ -66,7 +71,8 @@ export class TreeFolder extends Component<TreeFolderProps, TreeFolderState> {
                     onDragLeave={(event) => this.onDragLeave(event)}
                     onDrop={(event) => this.onDrop(event)}
                     onDragOver={(event) => this.onDragOver(event)}
-                    onPointerDown={(event) => { this.handleToggle(event); if (this.props.onClicked) this.props.onClicked(); }}
+                    onPointerDown={(event) => { if (this.props.onPointerDown) this.props.onPointerDown(); }}
+                    onPointerUp={(event) => { if (this.props.onPointerUp) this.props.onPointerUp(); }}
                     onDblClick={() => { if (this.props.onDoubleClicked) this.props.onDoubleClicked(); }}
                 >
                     <span style={{ width: "15px", height: "15px", fontSize: "10px" }}
