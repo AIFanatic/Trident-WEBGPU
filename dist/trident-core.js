@@ -78,18 +78,32 @@ class CRC32 {
 }
 
 const SERIAL_FIELDS = Symbol("serial_fields");
-function SerializeField(_v, context) {
-  context.addInitializer(function() {
-    const proto = Object.getPrototypeOf(this);
-    const arr = proto[SERIAL_FIELDS] ?? (proto[SERIAL_FIELDS] = []);
-    if (!arr.includes(context.name)) arr.push(context.name);
-  });
+function addField(instance, name, type) {
+  const proto = Object.getPrototypeOf(instance);
+  const arr = proto[SERIAL_FIELDS] ?? (proto[SERIAL_FIELDS] = []);
+  if (!arr.some((f) => f.name === name)) {
+    arr.push({ name, type: type ?? instance[name]?.constructor });
+  }
+}
+function SerializeField(first, second) {
+  if (second && typeof second === "object" && second.addInitializer) {
+    second.addInitializer(function() {
+      addField(this, second.name);
+    });
+    return;
+  }
+  const typeHint = first;
+  return function(_v, context) {
+    context.addInitializer(function() {
+      addField(this, context.name, typeHint);
+    });
+  };
 }
 function GetSerializedFields(classInstance) {
   const proto = Object.getPrototypeOf(classInstance);
   const own = proto[SERIAL_FIELDS] ?? [];
   const base = Object.getPrototypeOf(proto)?.[SERIAL_FIELDS] ?? [];
-  return own.filter((f) => !base.includes(f));
+  return own.filter((f) => !base.some((b) => b.name === f.name));
 }
 
 class Pool {
@@ -156,6 +170,8 @@ class Component {
     this.name = this.constructor.name;
     if (this.constructor.prototype.Update !== Component.prototype.Update) EventSystem.emit(ComponentEvents.CallUpdate, this, true);
     EventSystem.emit(ComponentEvents.AddedComponent, this, this.gameObject.scene);
+    const ctor = this.constructor;
+    Component.Registry.set(ctor.type, ctor);
   }
   Start() {
   }
@@ -167,13 +183,14 @@ class Component {
   Serialize(metadata = {}) {
     const serializedFields = GetSerializedFields(this);
     let fields = {};
-    for (const property of serializedFields) {
-      const value = this[property];
-      if (typeof value["Serialize"] === "function") fields[property] = value["Serialize"]();
-      else if (typeof value === "boolean" || typeof value === "number" || typeof value === "string") fields[property] = value;
-      else if (value instanceof Array || value instanceof Float32Array) fields[property] = value;
+    for (const { name, type } of serializedFields) {
+      const value = this[name];
+      if (typeof value["Serialize"] === "function") fields[name] = value["Serialize"]();
+      else if (typeof value === "boolean" || typeof value === "number" || typeof value === "string") fields[name] = value;
+      else if (value instanceof Float32Array) fields[name] = Array.from(value);
+      else if (value instanceof Array) fields[name] = value;
       else {
-        throw Error(`Could not serialize ${this.constructor["type"]}::${property} ${value instanceof Float32Array}`);
+        throw Error(`Could not serialize ${this.constructor["type"]}::${name} ${value instanceof Float32Array}`);
       }
     }
     return { type: this.constructor["type"], id: this.id, name: this.name, ...fields };
@@ -182,12 +199,14 @@ class Component {
     for (const property in data) {
       const value = data[property];
       if (typeof value === "boolean" || typeof value === "number" || typeof value === "string") this[property] = value;
-      else if (this[property] instanceof Float32Array || this[property] instanceof Array) this[property] = value;
+      else if (this[property] instanceof Float32Array) this[property] = new Float32Array(value);
+      else if (this[property] instanceof Array) this[property] = value;
       else if (this[property]["Deserialize"]) this[property]["Deserialize"](value);
       else throw Error(`Could not Deserialize ${this.constructor["type"]}::${property}`);
     }
   }
 }
+console.log(Component.Registry);
 
 const EPSILON = 1e-4;
 class Quaternion {
@@ -669,6 +688,14 @@ class Vector3 {
     this.y = this.y + t * (v.y - this.y);
     this.z = this.z + t * (v.z - this.z);
     return this;
+  }
+  transformDirection(m) {
+    const x = this.x, y = this.y, z = this.z;
+    const e = m.elements;
+    this.x = e[0] * x + e[4] * y + e[8] * z;
+    this.y = e[1] * x + e[5] * y + e[9] * z;
+    this.z = e[2] * x + e[6] * y + e[10] * z;
+    return this.normalize();
   }
   setFromSphericalCoords(radius, phi, theta) {
     const sinPhiRadius = Math.sin(phi) * radius;
@@ -1179,84 +1206,84 @@ class Matrix4 {
 const _v1 = new Vector3();
 const _m1 = new Matrix4();
 
-var __create$5 = Object.create;
-var __defProp$5 = Object.defineProperty;
+var __create$6 = Object.create;
+var __defProp$6 = Object.defineProperty;
 var __getOwnPropDesc$3 = Object.getOwnPropertyDescriptor;
-var __knownSymbol$5 = (name, symbol) => (symbol = Symbol[name]) ? symbol : Symbol.for("Symbol." + name);
-var __typeError$5 = (msg) => {
+var __knownSymbol$6 = (name, symbol) => (symbol = Symbol[name]) ? symbol : Symbol.for("Symbol." + name);
+var __typeError$6 = (msg) => {
   throw TypeError(msg);
 };
-var __defNormalProp$5 = (obj, key, value) => key in obj ? __defProp$5(obj, key, { enumerable: true, configurable: true, writable: true, value }) : obj[key] = value;
-var __decoratorStart$5 = (base) => [, , , __create$5(base?.[__knownSymbol$5("metadata")] ?? null)];
-var __decoratorStrings$5 = ["class", "method", "getter", "setter", "accessor", "field", "value", "get", "set"];
-var __expectFn$5 = (fn) => fn !== void 0 && typeof fn !== "function" ? __typeError$5("Function expected") : fn;
-var __decoratorContext$5 = (kind, name, done, metadata, fns) => ({ kind: __decoratorStrings$5[kind], name, metadata, addInitializer: (fn) => done._ ? __typeError$5("Already initialized") : fns.push(__expectFn$5(fn || null)) });
-var __decoratorMetadata$5 = (array, target) => __defNormalProp$5(target, __knownSymbol$5("metadata"), array[3]);
-var __runInitializers$5 = (array, flags, self, value) => {
+var __defNormalProp$6 = (obj, key, value) => key in obj ? __defProp$6(obj, key, { enumerable: true, configurable: true, writable: true, value }) : obj[key] = value;
+var __decoratorStart$6 = (base) => [, , , __create$6(base?.[__knownSymbol$6("metadata")] ?? null)];
+var __decoratorStrings$6 = ["class", "method", "getter", "setter", "accessor", "field", "value", "get", "set"];
+var __expectFn$6 = (fn) => fn !== void 0 && typeof fn !== "function" ? __typeError$6("Function expected") : fn;
+var __decoratorContext$6 = (kind, name, done, metadata, fns) => ({ kind: __decoratorStrings$6[kind], name, metadata, addInitializer: (fn) => done._ ? __typeError$6("Already initialized") : fns.push(__expectFn$6(fn || null)) });
+var __decoratorMetadata$6 = (array, target) => __defNormalProp$6(target, __knownSymbol$6("metadata"), array[3]);
+var __runInitializers$6 = (array, flags, self, value) => {
   for (var i = 0, fns = array[flags >> 1], n = fns && fns.length; i < n; i++) fns[i].call(self) ;
   return value;
 };
-var __decorateElement$5 = (array, flags, name, decorators, target, extra) => {
+var __decorateElement$6 = (array, flags, name, decorators, target, extra) => {
   var it, done, ctx, access, k = flags & 7, s = false, p = false;
-  var j = 2 , key = __decoratorStrings$5[k + 5];
+  var j = 2 , key = __decoratorStrings$6[k + 5];
   var extraInitializers = array[j] || (array[j] = []);
   var desc = ((target = target.prototype), __getOwnPropDesc$3(target , name));
   for (var i = decorators.length - 1; i >= 0; i--) {
-    ctx = __decoratorContext$5(k, name, done = {}, array[3], extraInitializers);
+    ctx = __decoratorContext$6(k, name, done = {}, array[3], extraInitializers);
     {
       ctx.static = s, ctx.private = p, access = ctx.access = { has: (x) => name in x };
       access.get = (x) => x[name];
     }
     it = (0, decorators[i])(desc[key]  , ctx), done._ = 1;
-    __expectFn$5(it) && (desc[key] = it );
+    __expectFn$6(it) && (desc[key] = it );
   }
-  return desc && __defProp$5(target, name, desc), target;
+  return desc && __defProp$6(target, name, desc), target;
 };
-var __publicField$5 = (obj, key, value) => __defNormalProp$5(obj, typeof key !== "symbol" ? key + "" : key, value);
-var _scale_dec, _localRotation_dec, _localPosition_dec, _a$5, _init$5;
+var __publicField$6 = (obj, key, value) => __defNormalProp$6(obj, typeof key !== "symbol" ? key + "" : key, value);
+var _scale_dec, _localRotation_dec, _localPosition_dec, _a$6, _init$6;
 class TransformEvents {
   static Updated = () => {
   };
 }
-class Transform extends (_a$5 = Component, _localPosition_dec = [SerializeField], _localRotation_dec = [SerializeField], _scale_dec = [SerializeField], _a$5) {
+class Transform extends (_a$6 = Component, _localPosition_dec = [SerializeField], _localRotation_dec = [SerializeField], _scale_dec = [SerializeField], _a$6) {
   constructor() {
     super(...arguments);
-    __runInitializers$5(_init$5, 5, this);
-    __publicField$5(this, "tempRotation", new Quaternion());
-    __publicField$5(this, "tempPosition", new Vector3());
-    __publicField$5(this, "tempQuaternion", new Quaternion());
-    __publicField$5(this, "up", new Vector3(0, 1, 0));
-    __publicField$5(this, "forward", new Vector3(0, 0, 1));
-    __publicField$5(this, "right", new Vector3(1, 0, 0));
-    __publicField$5(this, "_localToWorldMatrix", new Matrix4());
-    __publicField$5(this, "_worldToLocalMatrix", new Matrix4());
-    __publicField$5(this, "_localPosition", new ObservableVector3(() => {
+    __runInitializers$6(_init$6, 5, this);
+    __publicField$6(this, "tempRotation", new Quaternion());
+    __publicField$6(this, "tempPosition", new Vector3());
+    __publicField$6(this, "tempQuaternion", new Quaternion());
+    __publicField$6(this, "up", new Vector3(0, 1, 0));
+    __publicField$6(this, "forward", new Vector3(0, 0, 1));
+    __publicField$6(this, "right", new Vector3(1, 0, 0));
+    __publicField$6(this, "_localToWorldMatrix", new Matrix4());
+    __publicField$6(this, "_worldToLocalMatrix", new Matrix4());
+    __publicField$6(this, "_localPosition", new ObservableVector3(() => {
       this.onLocalPositionScaleChanged();
     }, 0, 0, 0));
-    __publicField$5(this, "_localRotation", new ObservableQuaternion(() => {
+    __publicField$6(this, "_localRotation", new ObservableQuaternion(() => {
       this.onLocalRotationChanged();
     }));
-    __publicField$5(this, "_localScale", new ObservableVector3(() => {
+    __publicField$6(this, "_localScale", new ObservableVector3(() => {
       this.onLocalPositionScaleChanged();
     }, 1, 1, 1));
-    __publicField$5(this, "_localEulerAngles", new ObservableVector3(() => {
+    __publicField$6(this, "_localEulerAngles", new ObservableVector3(() => {
       this.onLocalEulerChanged();
     }));
-    __publicField$5(this, "_position", new ObservableVector3(() => {
+    __publicField$6(this, "_position", new ObservableVector3(() => {
       this.onWorldPositionChanged();
     }, 0, 0, 0));
-    __publicField$5(this, "_rotation", new ObservableQuaternion(() => {
+    __publicField$6(this, "_rotation", new ObservableQuaternion(() => {
       this.onWorldRotationChanged();
     }));
-    __publicField$5(this, "_eulerAngles", new ObservableVector3(() => {
+    __publicField$6(this, "_eulerAngles", new ObservableVector3(() => {
       this.onWorldEulerChanged();
     }));
-    __publicField$5(this, "_suppressLocalCallbacks", false);
-    __publicField$5(this, "_suppressWorldCallbacks", false);
+    __publicField$6(this, "_suppressLocalCallbacks", false);
+    __publicField$6(this, "_suppressWorldCallbacks", false);
     // NEW: which space was edited last (source-of-truth for this update)
-    __publicField$5(this, "_lastChanged", "local");
-    __publicField$5(this, "children", /* @__PURE__ */ new Set());
-    __publicField$5(this, "_parent", null);
+    __publicField$6(this, "_lastChanged", "local");
+    __publicField$6(this, "children", /* @__PURE__ */ new Set());
+    __publicField$6(this, "_parent", null);
   }
   get localToWorldMatrix() {
     return this._localToWorldMatrix;
@@ -1442,15 +1469,15 @@ class Transform extends (_a$5 = Component, _localPosition_dec = [SerializeField]
     this.LookAt(target);
   }
 }
-_init$5 = __decoratorStart$5(_a$5);
-__decorateElement$5(_init$5, 2, "localPosition", _localPosition_dec, Transform);
-__decorateElement$5(_init$5, 2, "localRotation", _localRotation_dec, Transform);
-__decorateElement$5(_init$5, 2, "scale", _scale_dec, Transform);
-__decoratorMetadata$5(_init$5, Transform);
-__publicField$5(Transform, "type", "@trident/core/components/Transform");
+_init$6 = __decoratorStart$6(_a$6);
+__decorateElement$6(_init$6, 2, "localPosition", _localPosition_dec, Transform);
+__decorateElement$6(_init$6, 2, "localRotation", _localRotation_dec, Transform);
+__decorateElement$6(_init$6, 2, "scale", _scale_dec, Transform);
+__decoratorMetadata$6(_init$6, Transform);
+__publicField$6(Transform, "type", "@trident/core/components/Transform");
 
 class Assets {
-  static ResourceFetchFn = fetch;
+  static ResourceFetchFn = fetch.bind(globalThis);
   static cache = /* @__PURE__ */ new Map();
   static instanceCache = /* @__PURE__ */ new Map();
   static RemoveInstance(path) {
@@ -1481,6 +1508,7 @@ class Assets {
       return result;
     }).catch((error) => {
       Assets.cache.delete(url);
+      console.error(`Assets.ResourceFetchFn error loading file ${url}`);
       throw error;
     });
     Assets.cache.set(url, promise);
@@ -1549,7 +1577,15 @@ class GameObject {
   transform;
   componentsByCtor = /* @__PURE__ */ new Map();
   allComponents = [];
-  enabled = true;
+  _enabled = true;
+  get enabled() {
+    return this._enabled;
+  }
+  set enabled(enabled) {
+    this._enabled = enabled;
+    for (const child of this.transform.children) child.gameObject.enabled = enabled;
+  }
+  assetPath;
   constructor(scene) {
     this.scene = scene;
     this.transform = new Transform(this);
@@ -1627,16 +1663,20 @@ class GameObject {
     this.scene.RemoveGameObject(this);
   }
   Serialize(metadata = {}) {
-    let serializedChildren = [];
-    for (const childGameObject of this.transform.children) serializedChildren.push(childGameObject.gameObject.Serialize(metadata));
     const prefab = new Prefab();
     prefab.name = this.name;
     prefab.transform = this.transform.Serialize();
+    if (this.assetPath) {
+      prefab.assetPath = this.assetPath;
+      return prefab;
+    }
     prefab.components = this.allComponents.map((c) => c.Serialize(metadata));
-    prefab.children = serializedChildren;
+    for (const child of this.transform.children) {
+      prefab.children.push(child.gameObject.Serialize(metadata));
+    }
     return prefab;
   }
-  Deserialize(data) {
+  DeserializeAsset(data) {
     this.name = data.name;
     this.transform.Deserialize(data.transform);
     let componentInstances = [];
@@ -1657,6 +1697,26 @@ class GameObject {
       newGameObject.transform.parent = this.transform;
       newGameObject.Deserialize(data.children[i]);
     }
+  }
+  Deserialize(data) {
+    if (data.assetPath && data.components.length === 0) {
+      this.assetPath = data.assetPath;
+      const instance = Assets.GetInstance(data.assetPath);
+      if (instance) {
+        this.name = data.name;
+        this.Deserialize(instance);
+        this.assetPath = data.assetPath;
+        this.transform.Deserialize(data.transform);
+        return;
+      }
+      Assets.SetInstance(data.assetPath, this);
+      Assets.Load(data.assetPath, "json").then((json) => {
+        const prefab = Prefab.Deserialize(json);
+        this.DeserializeAsset(prefab);
+      });
+      return;
+    }
+    this.DeserializeAsset(data);
   }
 }
 
@@ -1901,11 +1961,11 @@ class Renderer {
   }
 }
 
-var WGSL_Shader_Draw_URL = "#include \"@trident/core/resources/webgpu/shaders/deferred/Common.wgsl\";\n\nstruct VertexInput {\n    @builtin(instance_index) instance : u32, \n    @builtin(vertex_index) vertex : u32,\n    @location(0) position : vec3<f32>,\n    @location(1) normal : vec3<f32>,\n    @location(2) uv : vec2<f32>,\n\n    #if USE_NORMAL_MAP\n        @location(3) tangent : vec4<f32>,\n        #if USE_SKINNING\n            @location(4) joints: vec4<u32>,\n            @location(5) weights: vec4<f32>,\n        #endif\n    #else\n        #if USE_SKINNING\n            @location(3) joints: vec4<u32>,\n            @location(4) weights: vec4<f32>,\n        #endif\n    #endif\n};\n\nstruct Material {\n    AlbedoColor: vec4<f32>,\n    EmissiveColor: vec4<f32>,\n    Roughness: f32,\n    Metalness: f32,\n    Unlit: f32,\n    AlphaCutoff: f32,\n    RepeatOffset: vec4<f32>, // xy = repeat, zw = offset\n    Wireframe: f32,\n};\n\nstruct VertexOutput {\n    @builtin(position) position : vec4<f32>,\n    @location(0) vPosition : vec3<f32>,\n    @location(1) vNormal : vec3<f32>,\n    @location(2) vUv : vec2<f32>,\n    @location(3) @interpolate(flat) instance : u32,\n    @location(4) barycenticCoord : vec3<f32>,\n    @location(5) tangent : vec3<f32>,\n    @location(6) bitangent : vec3<f32>,\n    @location(7) normal : vec3<f32>,\n};\n\n@group(0) @binding(0) var<storage, read> frameBuffer: FrameBuffer;\n@group(0) @binding(1) var<storage, read> modelMatrix: array<mat4x4<f32>>;\n@group(0) @binding(2) var<storage, read> material: Material;\n@group(0) @binding(3) var TextureSampler: sampler;\n\n// These get optimized out based on \"USE*\" defines\n@group(0) @binding(4) var AlbedoMap: texture_2d<f32>;\n@group(0) @binding(5) var NormalMap: texture_2d<f32>;\n@group(0) @binding(6) var HeightMap: texture_2d<f32>;\n@group(0) @binding(7) var ARMMap: texture_2d<f32>;\n@group(0) @binding(8) var EmissiveMap: texture_2d<f32>;\n\n\n#if USE_SKINNING\n    @group(1) @binding(0) var<storage, read> boneMatrices: array<mat4x4<f32>>;\n#endif\n\n@vertex\nfn vertexMain(input: VertexInput) -> VertexOutput {\n    var output : VertexOutput;\n\n      var finalPosition = vec4(input.position, 1.0);\n      var finalNormal = vec4(input.normal, 0.0);\n\n    #if USE_SKINNING\n        var skinnedPosition = vec4(0.0);\n        var skinnedNormal = vec4(0.0);\n\n        let skinMatrix: mat4x4<f32> = \n            boneMatrices[input.joints[0]] * input.weights[0] +\n            boneMatrices[input.joints[1]] * input.weights[1] +\n            boneMatrices[input.joints[2]] * input.weights[2] +\n            boneMatrices[input.joints[3]] * input.weights[3];\n        \n        finalPosition = skinMatrix * vec4(input.position, 1.0);\n        finalNormal   = normalize(skinMatrix * vec4(input.normal, 0.0));\n    #endif\n\n    let cameraPos = frameBuffer.viewInverseMatrix[3].xyz;\n\n    let modelMatrixInstance = modelMatrix[input.instance];\n    let modelViewMatrix = frameBuffer.viewMatrix * modelMatrixInstance;\n\n    output.instance = input.instance;\n    output.position = frameBuffer.projectionMatrix * modelViewMatrix * vec4(finalPosition.xyz, 1.0);\n    output.vPosition = finalPosition.xyz;\n    output.vUv = input.uv;\n    let worldNormal = normalize(modelMatrixInstance * vec4(finalNormal.xyz, 0.0)).xyz;\n    output.vNormal = worldNormal;\n    output.normal = finalNormal.xyz;\n\n    #if USE_NORMAL_MAP\n        let worldTangent = normalize(modelMatrixInstance * vec4(input.tangent.xyz, 0.0)).xyz;\n        let worldBitangent = cross(worldNormal, worldTangent) * input.tangent.w;\n\n        output.tangent = worldTangent;\n        output.bitangent = worldBitangent;\n    #endif\n\n    // emit a barycentric coordinate\n    output.barycenticCoord = vec3f(0);\n    output.barycenticCoord[input.vertex % 3] = 1.0;\n\n    return output;\n}\n\nstruct FragmentOutput {\n    @location(0) albedo : vec4f,\n    @location(1) normal : vec4f,\n    @location(2) RMO : vec4f,\n};\n\nfn inversesqrt(v: f32) -> f32 {\n    return 1.0 / sqrt(v);\n}\n\nfn edgeFactor(bary: vec3f) -> f32 {\n    let lineThickness = 1.0;\n    let d = fwidth(bary);\n    let a3 = smoothstep(vec3f(0.0), d * lineThickness, bary);\n    return min(min(a3.x, a3.y), a3.z);\n}\n\n@fragment\nfn fragmentMain(@builtin(front_facing) isFrontFace: bool, input: VertexOutput) -> FragmentOutput {\n    var output: FragmentOutput;\n\n\n    let mat = material;\n\n    var uv = input.vUv * mat.RepeatOffset.xy + mat.RepeatOffset.zw;\n\n    var albedo = mat.AlbedoColor;\n    var roughness = mat.Roughness;\n    var metalness = mat.Metalness;\n    var occlusion = 1.0;\n\n    // var albedo = mat.AlbedoColor;\n    #if USE_ALBEDO_MAP\n        albedo *= textureSample(AlbedoMap, TextureSampler, uv);\n    #endif\n\n    if (albedo.a < mat.AlphaCutoff) {\n        discard;\n    }\n\n    var normal: vec3f = normalize(input.vNormal);\n    #if USE_NORMAL_MAP\n        var tbn: mat3x3<f32>;\n        tbn[0] = input.tangent;      // column-major: T, B, N\n        tbn[1] = input.bitangent;\n        tbn[2] = input.vNormal;\n        if (!isFrontFace) {\n            // tbn[0] = -tbn[0];\n            tbn[1] = -tbn[1];\n            tbn[2] = -tbn[2];\n        }\n        let normalSample = textureSample(NormalMap, TextureSampler, uv).xyz * 2.0 - 1.0;\n        normal = normalize(tbn * normalSample);\n    #else\n        if (!isFrontFace) {\n            normal = -normal;\n        }\n    #endif\n\n    #if USE_ARM_MAP\n        let metalnessRoughness = textureSample(ARMMap, TextureSampler, uv);\n\n        occlusion *= metalnessRoughness.r;\n        roughness *= metalnessRoughness.g;\n        metalness *= metalnessRoughness.b;\n\n        // // Unity style - Mask map MT(R) AO(G) SM(A)\n        // metalness *= metalnessRoughness.r;\n        // occlusion *= metalnessRoughness.g; \n        // roughness *= metalnessRoughness.a;\n\n    #endif\n\n    var emissive = mat.EmissiveColor;\n    #if USE_EMISSIVE_MAP\n        emissive *= textureSample(EmissiveMap, TextureSampler, uv);\n    #endif\n\n    output.albedo = vec4(albedo.rgb, roughness);\n    output.normal = vec4(OctEncode(normal.xyz), occlusion, metalness);\n    output.RMO = vec4(emissive.rgb, mat.Unlit);\n\n\n    // Wireframe\n    output.albedo *= 1.0 - edgeFactor(input.barycenticCoord) * mat.Wireframe;\n\n    // // Flat shading\n    // let xTangent: vec3f = dpdx( input.vPosition );\n    // let yTangent: vec3f = dpdy( input.vPosition );\n    // let faceNormal: vec3f = normalize( cross( xTangent, yTangent ) );\n\n    // output.normal = vec4(OctEncode(faceNormal.xyz), occlusion, metalness);\n\n    return output;\n}";
+var WGSL_Shader_Draw_URL = "#include \"@trident/core/resources/webgpu/shaders/deferred/Common.wgsl\";\n\nstruct VertexInput {\n    @builtin(instance_index) instance : u32, \n    @builtin(vertex_index) vertex : u32,\n    @location(0) position : vec3<f32>,\n    @location(1) normal : vec3<f32>,\n    @location(2) uv : vec2<f32>,\n\n    @location(3) tangent : vec4<f32>,\n    #if USE_SKINNING\n        @location(4) joints: vec4<u32>,\n        @location(5) weights: vec4<f32>,\n    #endif\n};\n\nstruct Material {\n    AlbedoColor: vec4<f32>,\n    EmissiveColor: vec4<f32>,\n    Roughness: f32,\n    Metalness: f32,\n    Unlit: f32,\n    AlphaCutoff: f32,\n    RepeatOffset: vec4<f32>, // xy = repeat, zw = offset\n    Wireframe: f32,\n};\n\nstruct VertexOutput {\n    @builtin(position) position : vec4<f32>,\n    @location(0) vPosition : vec3<f32>,\n    @location(1) vNormal : vec3<f32>,\n    @location(2) vUv : vec2<f32>,\n    @location(3) @interpolate(flat) instance : u32,\n    @location(4) barycenticCoord : vec3<f32>,\n    @location(5) tangent : vec3<f32>,\n    @location(6) bitangent : vec3<f32>,\n    @location(7) normal : vec3<f32>,\n};\n\n@group(0) @binding(0) var<storage, read> frameBuffer: FrameBuffer;\n@group(0) @binding(1) var<storage, read> modelMatrix: array<mat4x4<f32>>;\n@group(0) @binding(2) var<storage, read> material: Material;\n@group(0) @binding(3) var TextureSampler: sampler;\n\n// These get optimized out based on \"USE*\" defines\n@group(0) @binding(4) var AlbedoMap: texture_2d<f32>;\n@group(0) @binding(5) var NormalMap: texture_2d<f32>;\n@group(0) @binding(6) var HeightMap: texture_2d<f32>;\n@group(0) @binding(7) var ARMMap: texture_2d<f32>;\n@group(0) @binding(8) var EmissiveMap: texture_2d<f32>;\n\n\n#if USE_SKINNING\n    @group(1) @binding(0) var<storage, read> boneMatrices: array<mat4x4<f32>>;\n#endif\n\n@vertex\nfn vertexMain(input: VertexInput) -> VertexOutput {\n    var output : VertexOutput;\n\n      var finalPosition = vec4(input.position, 1.0);\n      var finalNormal = vec4(input.normal, 0.0);\n\n    #if USE_SKINNING\n        var skinnedPosition = vec4(0.0);\n        var skinnedNormal = vec4(0.0);\n\n        let skinMatrix: mat4x4<f32> = \n            boneMatrices[input.joints[0]] * input.weights[0] +\n            boneMatrices[input.joints[1]] * input.weights[1] +\n            boneMatrices[input.joints[2]] * input.weights[2] +\n            boneMatrices[input.joints[3]] * input.weights[3];\n        \n        finalPosition = skinMatrix * vec4(input.position, 1.0);\n        finalNormal   = normalize(skinMatrix * vec4(input.normal, 0.0));\n    #endif\n\n    let cameraPos = frameBuffer.viewInverseMatrix[3].xyz;\n\n    let modelMatrixInstance = modelMatrix[input.instance];\n    let modelViewMatrix = frameBuffer.viewMatrix * modelMatrixInstance;\n\n    output.instance = input.instance;\n    output.position = frameBuffer.projectionMatrix * modelViewMatrix * vec4(finalPosition.xyz, 1.0);\n    output.vPosition = finalPosition.xyz;\n    output.vUv = input.uv;\n    let worldNormal = normalize(modelMatrixInstance * vec4(finalNormal.xyz, 0.0)).xyz;\n    output.vNormal = worldNormal;\n    output.normal = finalNormal.xyz;\n\n    let worldTangent = normalize(modelMatrixInstance * vec4(input.tangent.xyz, 0.0)).xyz;\n    let worldBitangent = cross(worldNormal, worldTangent) * input.tangent.w;\n\n    output.tangent = worldTangent;\n    output.bitangent = worldBitangent;\n\n    // emit a barycentric coordinate\n    output.barycenticCoord = vec3f(0);\n    output.barycenticCoord[input.vertex % 3] = 1.0;\n\n    return output;\n}\n\nstruct FragmentOutput {\n    @location(0) albedo : vec4f,\n    @location(1) normal : vec4f,\n    @location(2) RMO : vec4f,\n};\n\nfn inversesqrt(v: f32) -> f32 {\n    return 1.0 / sqrt(v);\n}\n\nfn edgeFactor(bary: vec3f) -> f32 {\n    let lineThickness = 1.0;\n    let d = fwidth(bary);\n    let a3 = smoothstep(vec3f(0.0), d * lineThickness, bary);\n    return min(min(a3.x, a3.y), a3.z);\n}\n\n@fragment\nfn fragmentMain(@builtin(front_facing) isFrontFace: bool, input: VertexOutput) -> FragmentOutput {\n    var output: FragmentOutput;\n\n\n    let mat = material;\n\n    var uv = input.vUv * mat.RepeatOffset.xy + mat.RepeatOffset.zw;\n\n    var albedo = mat.AlbedoColor;\n    var roughness = mat.Roughness;\n    var metalness = mat.Metalness;\n    var occlusion = 1.0;\n\n    // var albedo = mat.AlbedoColor;\n    albedo *= textureSample(AlbedoMap, TextureSampler, uv);\n\n    if (albedo.a < mat.AlphaCutoff) {\n        discard;\n    }\n\n    var normal: vec3f = normalize(input.vNormal);\n    var tbn: mat3x3<f32>;\n    tbn[0] = input.tangent;      // column-major: T, B, N\n    tbn[1] = input.bitangent;\n    tbn[2] = input.vNormal;\n    if (!isFrontFace) {\n        // tbn[0] = -tbn[0];\n        tbn[1] = -tbn[1];\n        tbn[2] = -tbn[2];\n    }\n    let normalSample = textureSample(NormalMap, TextureSampler, uv).xyz * 2.0 - 1.0;\n    normal = normalize(tbn * normalSample);\n\n    let metalnessRoughness = textureSample(ARMMap, TextureSampler, uv);\n\n    // occlusion *= metalnessRoughness.r;\n    roughness *= metalnessRoughness.g;\n    metalness *= metalnessRoughness.b;\n\n    // // Unity style - Mask map MT(R) AO(G) SM(A)\n    // metalness *= metalnessRoughness.r;\n    // occlusion *= metalnessRoughness.g; \n    // roughness *= metalnessRoughness.a;\n\n\n    var emissive = mat.EmissiveColor;\n    emissive *= textureSample(EmissiveMap, TextureSampler, uv);\n\n    output.albedo = vec4(albedo.rgb, roughness);\n    output.normal = vec4(OctEncode(normal.xyz), occlusion, metalness);\n    output.RMO = vec4(emissive.rgb, mat.Unlit);\n\n\n    // Wireframe\n    output.albedo *= 1.0 - edgeFactor(input.barycenticCoord) * mat.Wireframe;\n\n    // // Flat shading\n    // let xTangent: vec3f = dpdx( input.vPosition );\n    // let yTangent: vec3f = dpdy( input.vPosition );\n    // let faceNormal: vec3f = normalize( cross( xTangent, yTangent ) );\n\n    // output.normal = vec4(OctEncode(faceNormal.xyz), occlusion, metalness);\n\n    return output;\n}";
 
 var WGSL_Shader_DeferredLighting_URL = "#include \"@trident/core/resources/webgpu/shaders/deferred/Common.wgsl\";\n#include \"@trident/core/resources/webgpu/shaders/deferred/SurfaceStruct.wgsl\";\n#include \"@trident/core/resources/webgpu/shaders/deferred/LightStruct.wgsl\";\n#include \"@trident/core/resources/webgpu/shaders/deferred/ShadowMap.wgsl\";\n#include \"@trident/core/resources/webgpu/shaders/deferred/ShadowMapCSM.wgsl\";\n\nstruct Settings {\n    debugDepthPass: f32,\n    debugDepthMipLevel: f32,\n    debugDepthExposure: f32,\n    viewType: f32,\n    useHeightMap: f32,\n    heightScale: f32,\n\n    debugShadowCascades: f32,\n    pcfResolution: f32,\n    blendThreshold: f32,\n    viewBlendThreshold: f32,\n\n    cameraPosition: vec4<f32>,\n};\n\nstruct VertexInput {\n    @builtin(instance_index) instance : u32, \n    @location(0) position : vec3<f32>,\n    @location(1) normal : vec3<f32>,\n    @location(2) uv : vec2<f32>,\n};\n\nstruct VertexOutput {\n    @builtin(position) position: vec4<f32>,\n    @location(0) vUv: vec2<f32>,\n    @location(1) @interpolate(flat) lightIndex: u32,\n};\n\n@group(0) @binding(0) var textureSampler: sampler;\n\n@group(0) @binding(1) var albedoTexture: texture_2d<f32>;\n@group(0) @binding(2) var normalTexture: texture_2d<f32>;\n@group(0) @binding(3) var ermoTexture: texture_2d<f32>;\n@group(0) @binding(4) var depthTexture: texture_depth_2d;\n@group(0) @binding(5) var shadowPassDepth: texture_depth_2d_array;\n\n@group(0) @binding(6) var<storage, read> lights: array<Light>;\n@group(0) @binding(7) var<storage, read> lightCount: u32;\n\nstruct View {\n    projectionOutputSize: vec4<f32>,\n    viewPosition: vec4<f32>,\n    projectionInverseMatrix: mat4x4<f32>,\n    viewInverseMatrix: mat4x4<f32>,\n    viewMatrix: mat4x4<f32>,\n    projectionMatrix: mat4x4<f32>,\n};\n@group(0) @binding(8) var<storage, read> view: View;\n\n\nconst numCascades = 4;\n\n@group(0) @binding(9) var shadowSamplerComp: sampler_comparison;\n\n@group(0) @binding(10) var<storage, read> settings: Settings;\n\n@vertex\nfn vertexMain(input: VertexInput) -> VertexOutput {\n    var output: VertexOutput;\n    let light = lights[input.instance];\n    let lightType = u32(light.color.a);\n\n    output.position = view.projectionMatrix * view.viewMatrix * light.lightModelMatrix * vec4(input.position, 1.0);\n    if (lightType == DIRECTIONAL_LIGHT) {\n        // Flip X so the quad becomes back-facing (survives front-face cull).\n        // Place it at the far plane so it passes depthCompare \"greater-equal\".\n        output.position = vec4(-input.position.x, input.position.y, 1.0, 1.0);\n    }\n\n    output.vUv = input.uv;\n    output.lightIndex = input.instance;\n    return output;\n}\n\nconst PI = 3.141592653589793;\n\nconst SPOT_LIGHT: u32 = 0;\nconst DIRECTIONAL_LIGHT: u32 = 1;\nconst POINT_LIGHT: u32 = 2;\nconst AREA_LIGHT: u32 = 3;\n\nfn reconstructWorldPosFromZ(\n    coords: vec2<f32>,\n    size: vec2<f32>,\n    depth: f32,\n    projInverse: mat4x4<f32>,\n    viewInverse: mat4x4<f32>\n    ) -> vec4<f32> {\n    let uv = coords.xy / size;\n    let x = uv.x * 2.0 - 1.0;\n    let y = (1.0 - uv.y) * 2.0 - 1.0;\n    let projectedPos = vec4(x, y, depth, 1.0);\n    var worldPosition = projInverse * projectedPos;\n    worldPosition = vec4(worldPosition.xyz / worldPosition.w, 1.0);\n    worldPosition = viewInverse * worldPosition;\n    return worldPosition;\n}\n\nfn DistributionGGX(n: vec3f, h: vec3f, roughness: f32) -> f32 {\n  let a = roughness * roughness;\n  let a2 = a * a;\n  let nDotH = max(dot(n, h), 0.0);\n  let nDotH2 = nDotH * nDotH;\n  var denom = (nDotH2 * (a2 - 1.0) + 1.0);\n  denom = PI * denom * denom;\n  return a2 / denom;\n}\n\nfn GeometrySchlickGGX(nDotV: f32, roughness: f32) -> f32 {\n  let r = (roughness + 1.0);\n  let k = (r * r) / 8.0;\n  return nDotV / (nDotV * (1.0 - k) + k);\n}\n\nfn GeometrySmith(n: vec3f, v: vec3f, l: vec3f, roughness: f32) -> f32 {\n  let nDotV = max(dot(n, v), 0.0);\n  let nDotL = max(dot(n, l), 0.0);\n  let ggx2 = GeometrySchlickGGX(nDotV, roughness);\n  let ggx1 = GeometrySchlickGGX(nDotL, roughness);\n  return ggx1 * ggx2;\n}\n\nfn FresnelSchlick(cosTheta: f32, f0: vec3f) -> vec3f {\n  return f0 + (1.0 - f0) * pow(clamp(1.0 - cosTheta, 0.0, 1.0), 5.0);\n}\n\nfn CalculateBRDF(surface: Surface, pointToLight: vec3<f32>) -> vec3<f32> {\n    // cook-torrance brdf\n    let L = normalize(pointToLight);\n    let H = normalize(surface.V + L);\n    let distance = length(pointToLight);\n\n    let NDF = DistributionGGX(surface.N, H, surface.roughness);\n    let G = GeometrySmith(surface.N, surface.V, L, surface.roughness);\n    let F = FresnelSchlick(max(dot(H, surface.V), 0.0), surface.F0);\n\n    let kD = (vec3(1.0, 1.0, 1.0) - F) * (1.0 - surface.metallic);\n\n    let NdotL = max(dot(surface.N, L), 0.0);\n\n    let numerator = NDF * G * F;\n    let denominator = max(4.0 * max(dot(surface.N, surface.V), 0.0) * NdotL, 0.001);\n    let specular = numerator / vec3(denominator, denominator, denominator);\n\n    return (kD * surface.albedo.rgb / vec3(PI, PI, PI) + specular) * NdotL;\n}\n\nfn DirectionalLightRadiance(light: DirectionalLight, surface : Surface) -> vec3<f32> {\n    return CalculateBRDF(surface, light.direction) * light.color * light.intensity;\n}\n\nfn rangeAttenuation(range : f32, distance : f32) -> f32 {\n    if (range <= 0.0) {\n        // Negative range means no cutoff\n        return 1.0 / pow(distance, 2.0);\n    }\n    return clamp(1.0 - pow(distance / range, 4.0), 0.0, 1.0) / pow(distance, 2.0);\n}\n\nfn SpotLightRadiance(light : SpotLight, surface : Surface) -> vec3<f32> {\n    // pointToLight is SURFACE -> LIGHT (as you already set)\n    let dist = length(light.pointToLight);\n\n    // For cone test we need LIGHT -> SURFACE\n    let L_ls = normalize(-light.pointToLight);   // light -> surface\n    let cd   = dot(light.direction, L_ls);       // cos(theta), 1 at center\n\n    // Smooth falloff from edge to center: 0 at cos(angle), 1 at 1.0\n    let spot = smoothstep(cos(light.angle), 1.0, cd);\n\n    // Range attenuation as you have it\n    let attenuation = rangeAttenuation(light.range, dist) * spot;\n\n    // BRDF usually expects wi = SURFACE -> LIGHT\n    let wi = -L_ls; // (surface -> light)\n    let radiance = CalculateBRDF(surface, wi) * light.color * light.intensity * attenuation;\n    return radiance;\n}\n\nfn PointLightRadiance(light: PointLight, surface: Surface) -> vec3<f32> {\n    let dist = length(light.pointToLight);\n    let wi   = normalize(light.pointToLight);        // surface -> light\n    let att  = rangeAttenuation(light.range, dist);  // your smooth cutoff / r^2\n    return CalculateBRDF(surface, wi) * light.color * light.intensity * att;\n}\n\n@fragment\nfn fragmentMain(input: VertexOutput) -> @location(0) vec4<f32> {\n    // Load depth once\n    let pix = vec2<i32>(input.position.xy);\n    let depth = textureLoad(depthTexture, pix, 0);\n\n    if (depth > 0.99999) {\n        discard;\n    }\n\n    let fragCoord = input.position.xy;\n    let screenSize = view.projectionOutputSize.xy;\n\n    let uv = fragCoord / screenSize;\n\n    let worldPosition = reconstructWorldPosFromZ(\n        input.position.xy,\n        view.projectionOutputSize.xy,\n        depth,\n        view.projectionInverseMatrix,\n        view.viewInverseMatrix\n    );\n\n    let albedo = textureLoad(albedoTexture, pix, 0);\n    var normal = textureLoad(normalTexture, pix, 0);\n    let ermo   = textureLoad(ermoTexture,   pix, 0);\n\n\n    let unlit = ermo.a;\n\n    if (unlit > 0.5) {\n        var color = albedo.rgb;\n        return vec4f(color, 1.0);\n    }\n\n    var surface: Surface;\n    surface.depth          = depth;\n    surface.albedo         = albedo.rgb;\n    surface.roughness      = clamp(albedo.a, 0.0, 0.99);\n    surface.occlusion      = normal.z;\n    surface.metallic       = normal.a;\n    surface.emissive       = ermo.rgb;\n    surface.worldPosition  = worldPosition.xyz;\n    \n    surface.N = OctDecode(normal.rg);\n    surface.F0             = mix(vec3(0.04), surface.albedo.rgb, vec3(surface.metallic));\n    surface.V              = normalize(view.viewPosition.xyz - surface.worldPosition);\n\n    var lo = vec3f(0.0);\n    var selectedCascade = 0;\n\n    var light = lights[input.lightIndex];\n    let lightType = u32(light.color.a);\n\n    if (lightType == DIRECTIONAL_LIGHT) {\n        var directionalLight: DirectionalLight;\n        directionalLight.direction = normalize((light.viewMatrixInverse * vec4(0.0, 0.0, 1.0, 0.0)).xyz);\n        // directionalLight.direction = light.direction.xyz;\n        directionalLight.color = light.color.rgb;\n        directionalLight.intensity = light.params1.x;\n\n        let castShadows = light.params1.z > 0.5;\n        var shadow = 1.0;\n        if (castShadows) {\n            let shadowCSM = CalculateShadowCSM(shadowPassDepth, shadowSamplerComp, surface, light, input.lightIndex);\n            shadow = shadowCSM.visibility;\n            selectedCascade = shadowCSM.selectedCascade;\n        }\n\n        // lo += shadow * DirectionalLightRadiance(directionalLight, surface) * radiance;\n        lo += shadow * DirectionalLightRadiance(directionalLight, surface);\n    }\n\n    else if (lightType == SPOT_LIGHT) {\n        var spotLight: SpotLight;\n        \n        // light.position.x *= -1.0;\n        // light.position.z *= -1.0;\n        spotLight.pointToLight = light.position.xyz - surface.worldPosition;\n        spotLight.color = light.color.rgb;\n        spotLight.intensity = light.params1.r;\n        spotLight.range = light.params1.g;\n        spotLight.direction = normalize((light.viewMatrixInverse * vec4(0.0, 0.0, -1.0, 0.0)).xyz);\n        // spotLight.direction = normalize(light.params2.xyz);\n        // spotLight.direction = light.direction.xyz;\n        spotLight.angle = light.params2.w;\n\n        let castShadows = light.params1.z > 0.5;\n        var shadow = 1.0;\n        if (castShadows) {\n            let shadowCSM = CalculateShadowCSMSpot(shadowPassDepth, shadowSamplerComp, surface, light, input.lightIndex);\n            shadow = shadowCSM.visibility;\n            selectedCascade = shadowCSM.selectedCascade;\n            // shadow = SampleSpotShadowMap(surface, light); // <— single 2D map on this layer\n\n        }\n\n        lo += shadow * SpotLightRadiance(spotLight, surface);\n    }\n\n    else if (lightType == POINT_LIGHT) {\n        var p: PointLight;\n        p.pointToLight = light.position.xyz - surface.worldPosition;\n        p.color        = light.color.rgb;\n        p.intensity    = light.params1.x;\n        p.range        = light.params1.y;\n\n        var shadow = 1.0;\n        let castShadows = light.params1.z > 0.5;\n        // if (castShadows) {\n        //     shadow = SamplePointShadow(surface, light, i);\n        // }\n\n        lo += shadow * PointLightRadiance(p, surface);\n    }\n\n    return vec4f(lo, 0.0);\n}";
 
-var WGSL_Shader_IBLLighting_URL = "#include \"@trident/core/resources/webgpu/shaders/deferred/Common.wgsl\";\n#include \"@trident/core/resources/webgpu/shaders/deferred/SurfaceStruct.wgsl\";\n\nstruct VertexOutput {\n    @builtin(position) position: vec4<f32>,\n    @location(0) vUv: vec2<f32>,\n};\n\n@group(0) @binding(0) var textureSampler: sampler;\n\n@group(0) @binding(1) var albedoTexture: texture_2d<f32>;\n@group(0) @binding(2) var normalTexture: texture_2d<f32>;\n@group(0) @binding(3) var ermoTexture: texture_2d<f32>;\n@group(0) @binding(4) var depthTexture: texture_depth_2d;\n\n@group(0) @binding(7) var skyboxIrradianceTexture: texture_cube<f32>;\n@group(0) @binding(8) var skyboxPrefilterTexture: texture_cube<f32>;\n@group(0) @binding(9) var skyboxBRDFLUT: texture_2d<f32>;\n\n@group(0) @binding(10) var brdfSampler: sampler;\n@group(0) @binding(11) var skybox: texture_cube<f32>;\n\nstruct View {\n    projectionOutputSize: vec4<f32>,\n    viewPosition: vec4<f32>,\n    projectionInverseMatrix: mat4x4<f32>,\n    viewInverseMatrix: mat4x4<f32>,\n    viewMatrix: mat4x4<f32>,\n    projectionMatrix: mat4x4<f32>,\n};\n@group(0) @binding(13) var<storage, read> view: View;\n\n\n// Full-screen triangle (covers screen with 3 verts)\nconst p = array<vec2f, 3>(\n    vec2f(-1.0, -1.0),\n    vec2f( 3.0, -1.0),\n    vec2f(-1.0,  3.0)\n);\n\n@vertex\nfn vertexMain(@builtin(vertex_index) vertexIndex : u32) -> VertexOutput {\n    var output: VertexOutput;\n    output.position = vec4(p[vertexIndex], 0.0, 1.0);\n    let uv = 0.5 * (p[vertexIndex] + vec2f(1.0, 1.0));\n    output.vUv = vec2f(uv.x, 1.0 - uv.y);\n    return output;\n}\n\nfn reconstructWorldPosFromZ(\n    coords: vec2<f32>,\n    size: vec2<f32>,\n    depth: f32,\n    projInverse: mat4x4<f32>,\n    viewInverse: mat4x4<f32>\n    ) -> vec4<f32> {\n    let uv = coords.xy / size;\n    let x = uv.x * 2.0 - 1.0;\n    let y = (1.0 - uv.y) * 2.0 - 1.0;\n    let projectedPos = vec4(x, y, depth, 1.0);\n    var worldPosition = projInverse * projectedPos;\n    worldPosition = vec4(worldPosition.xyz / worldPosition.w, 1.0);\n    worldPosition = viewInverse * worldPosition;\n    return worldPosition;\n}\n\nfn FresnelSchlick(cosTheta: f32, f0: vec3f) -> vec3f {\n  return f0 + (1.0 - f0) * pow(clamp(1.0 - cosTheta, 0.0, 1.0), 5.0);\n}\n\nfn FresnelSchlickRoughness(cosTheta: f32, f0: vec3f, roughness: f32) -> vec3f {\n  return f0 + (max(vec3(1.0 - roughness), f0) - f0) * pow(clamp(1.0 - cosTheta, 0.0, 1.0), 5.0);\n}\n\nfn clampedDot(x: vec3f, y: vec3f) -> f32\n{\n    return clamp(dot(x, y), 0.0, 1.0);\n}\n\nfn getIBLGGXFresnel(n: vec3f, v: vec3f, roughness: f32, F0: vec3f, specularWeight: f32) -> vec3f\n{\n    // see https://bruop.github.io/ibl/#single_scattering_results at Single Scattering Results\n    // Roughness dependent fresnel, from Fdez-Aguera\n    let NdotV = clampedDot(n, v);\n    let brdfSamplePoint = clamp(vec2(NdotV, roughness), vec2(0.0, 0.0), vec2(1.0, 1.0));\n    // let f_ab = texture(u_GGXLUT, brdfSamplePoint).rg;\n    let f_ab = textureSample(skyboxBRDFLUT, textureSampler, brdfSamplePoint).rg;\n    let Fr = max(vec3(1.0 - roughness), F0) - F0;\n    let k_S = F0 + Fr * pow(1.0 - NdotV, 5.0);\n    let FssEss = specularWeight * (k_S * f_ab.x + f_ab.y);\n\n    // Multiple scattering, from Fdez-Aguera\n    let Ems = (1.0 - (f_ab.x + f_ab.y));\n    let F_avg = specularWeight * (F0 + (1.0 - F0) / 21.0);\n    let FmsEms = Ems * FssEss * F_avg / (1.0 - F_avg * Ems);\n\n    return FssEss + FmsEms;\n}\n\nconst PI = 3.141592653589793;\n\n@fragment\nfn fragmentMain(input: VertexOutput) -> @location(0) vec4<f32> {\n    let uv = input.vUv;\n\n    let pix = vec2<i32>(input.position.xy);\n    let albedo = textureLoad(albedoTexture, pix, 0);\n    let normal = textureLoad(normalTexture, pix, 0);\n    let ermo   = textureLoad(ermoTexture,   pix, 0);\n    let depth  = textureLoad(depthTexture,  pix, 0);    \n\n    let worldPosition = reconstructWorldPosFromZ(\n        input.position.xy,\n        view.projectionOutputSize.xy,\n        depth,\n        view.projectionInverseMatrix,\n        view.viewInverseMatrix\n    );\n\n    var surface: Surface;\n    surface.depth          = depth;\n    surface.albedo         = albedo.rgb;\n    surface.roughness      = clamp(albedo.a, 0.01, 0.99);\n    surface.occlusion      = normal.z;\n    surface.metallic       = normal.a;\n    surface.emissive       = ermo.rgb;\n    surface.worldPosition  = worldPosition.xyz;\n    \n    surface.N              = OctDecode(normal.rg);\n    surface.F0             = mix(vec3(0.04), surface.albedo.rgb, vec3(surface.metallic));\n    surface.V              = normalize(view.viewPosition.xyz - surface.worldPosition);\n\n\n    let n = surface.N;\n    let v = surface.V;\n    let r = reflect(-v, n);\n\n    // let irradiance = textureSample(skyboxIrradianceTexture, textureSampler, n).rgb;\n    // let diffuse = irradiance * surface.albedo.xyz;\n\n    // let f = FresnelSchlickRoughness(max(dot(n, v), 0.00001), surface.F0, surface.roughness);\n    // let kS = f;\n    // var kD = vec3f(1.0) - kS;\n    // kD *= 1.0 - surface.metallic;\n\n    // let MAX_REFLECTION_LOD = f32(textureNumLevels(skyboxPrefilterTexture) - 1u);\n    // let prefilteredColor = textureSampleLevel(skyboxPrefilterTexture, textureSampler, r, surface.roughness * MAX_REFLECTION_LOD).rgb;\n    // let brdf = textureSample(skyboxBRDFLUT, brdfSampler, vec2f(max(dot(n, v), 0.0), surface.roughness)).rg;\n    // let specular = prefilteredColor * (f * brdf.x + brdf.y);\n\n    // let ambient = kD * diffuse * (1.0 - surface.occlusion) + specular;\n\n    // let color = ambient + surface.emissive;\n\n\n    // return vec4f(color, 1.0);\n    \n    // let f_diffuse = diffuse;\n    // let f_metal_fresnel_ibl = getIBLGGXFresnel(n, v, surface.roughness, surface.albedo.rgb, 1.0);\n    // let f_metal_brdf_ibl = vec3f(0.0);\n\n    // let f_specular_dielectric = vec3f(0.0);\n    // let specularWeight = 1.0;\n    // let f_dielectric_fresnel_ibl = getIBLGGXFresnel(n, v, surface.roughness, surface.F0, specularWeight);\n    // let f_dielectric_brdf_ibl = mix(f_diffuse, f_specular_dielectric,  f_dielectric_fresnel_ibl);\n\n    // let color = mix(f_dielectric_brdf_ibl, f_metal_brdf_ibl, surface.metallic) + surface.emissive;\n\n    // return vec4f(color, 1.0);\n\n\n\n\n\n\n  let NdotV = max(dot(n, v), 0.0);\n\n  let MAX_REFLECTION_LOD = f32(textureNumLevels(skyboxPrefilterTexture) - 1u);\n  let prefiltered = textureSampleLevel(\n      skyboxPrefilterTexture,\n      textureSampler,\n      r,\n      surface.roughness * MAX_REFLECTION_LOD\n  ).rgb;\n\n  let brdf = textureSample(\n      skyboxBRDFLUT,\n      brdfSampler,\n      vec2f(NdotV, surface.roughness)\n  ).rg;\n\n  // diffuse from irradiance\n  let irradiance = textureSample(skyboxIrradianceTexture, textureSampler, n).rgb;\n  let diffuse = irradiance * surface.albedo;\n\n  // fresnel term (glTF-style)\n  let f_metal_fresnel_ibl = getIBLGGXFresnel(n, v, surface.roughness, surface.albedo, 1.0);\n  let f_metal_brdf_ibl = prefiltered * f_metal_fresnel_ibl;\n\n  // dielectrics: F0 is ~0.04\n  let specularWeight = 1.0;\n  let f_dielectric_fresnel_ibl = getIBLGGXFresnel(n, v, surface.roughness, surface.F0, specularWeight);\n  let f_dielectric_brdf_ibl = mix(diffuse, prefiltered * f_dielectric_fresnel_ibl, f_dielectric_fresnel_ibl);\n\n  var color = mix(f_dielectric_brdf_ibl, f_metal_brdf_ibl, surface.metallic) + surface.emissive;\n\n  let occlusionStrength = 1.0; // match glTF default\n  color = color * (1.0 + occlusionStrength * (1.0 - surface.occlusion));\n\n  return vec4f(color, 1.0);\n}\n";
+var WGSL_Shader_IBLLighting_URL = "#include \"@trident/core/resources/webgpu/shaders/deferred/Common.wgsl\";\n#include \"@trident/core/resources/webgpu/shaders/deferred/SurfaceStruct.wgsl\";\n\nstruct VertexOutput {\n    @builtin(position) position: vec4<f32>,\n    @location(0) vUv: vec2<f32>,\n};\n\n@group(0) @binding(0) var textureSampler: sampler;\n\n@group(0) @binding(1) var albedoTexture: texture_2d<f32>;\n@group(0) @binding(2) var normalTexture: texture_2d<f32>;\n@group(0) @binding(3) var ermoTexture: texture_2d<f32>;\n@group(0) @binding(4) var depthTexture: texture_depth_2d;\n\n@group(0) @binding(7) var skyboxIrradianceTexture: texture_cube<f32>;\n@group(0) @binding(8) var skyboxPrefilterTexture: texture_cube<f32>;\n@group(0) @binding(9) var skyboxBRDFLUT: texture_2d<f32>;\n\n@group(0) @binding(10) var brdfSampler: sampler;\n@group(0) @binding(11) var skybox: texture_cube<f32>;\n\nstruct View {\n    projectionOutputSize: vec4<f32>,\n    viewPosition: vec4<f32>,\n    projectionInverseMatrix: mat4x4<f32>,\n    viewInverseMatrix: mat4x4<f32>,\n    viewMatrix: mat4x4<f32>,\n    projectionMatrix: mat4x4<f32>,\n};\n@group(0) @binding(13) var<storage, read> view: View;\n\n\n// Full-screen triangle (covers screen with 3 verts)\nconst p = array<vec2f, 3>(\n    vec2f(-1.0, -1.0),\n    vec2f( 3.0, -1.0),\n    vec2f(-1.0,  3.0)\n);\n\n@vertex\nfn vertexMain(@builtin(vertex_index) vertexIndex : u32) -> VertexOutput {\n    var output: VertexOutput;\n    output.position = vec4(p[vertexIndex], 0.0, 1.0);\n    let uv = 0.5 * (p[vertexIndex] + vec2f(1.0, 1.0));\n    output.vUv = vec2f(uv.x, 1.0 - uv.y);\n    return output;\n}\n\nfn reconstructWorldPosFromZ(\n    coords: vec2<f32>,\n    size: vec2<f32>,\n    depth: f32,\n    projInverse: mat4x4<f32>,\n    viewInverse: mat4x4<f32>\n    ) -> vec4<f32> {\n    let uv = coords.xy / size;\n    let x = uv.x * 2.0 - 1.0;\n    let y = (1.0 - uv.y) * 2.0 - 1.0;\n    let projectedPos = vec4(x, y, depth, 1.0);\n    var worldPosition = projInverse * projectedPos;\n    worldPosition = vec4(worldPosition.xyz / worldPosition.w, 1.0);\n    worldPosition = viewInverse * worldPosition;\n    return worldPosition;\n}\n\nfn FresnelSchlick(cosTheta: f32, f0: vec3f) -> vec3f {\n  return f0 + (1.0 - f0) * pow(clamp(1.0 - cosTheta, 0.0, 1.0), 5.0);\n}\n\nfn FresnelSchlickRoughness(cosTheta: f32, f0: vec3f, roughness: f32) -> vec3f {\n  return f0 + (max(vec3(1.0 - roughness), f0) - f0) * pow(clamp(1.0 - cosTheta, 0.0, 1.0), 5.0);\n}\n\nfn clampedDot(x: vec3f, y: vec3f) -> f32\n{\n    return clamp(dot(x, y), 0.0, 1.0);\n}\n\nfn getIBLGGXFresnel(n: vec3f, v: vec3f, roughness: f32, F0: vec3f, specularWeight: f32) -> vec3f\n{\n    // see https://bruop.github.io/ibl/#single_scattering_results at Single Scattering Results\n    // Roughness dependent fresnel, from Fdez-Aguera\n    let NdotV = clampedDot(n, v);\n    let brdfSamplePoint = clamp(vec2(NdotV, roughness), vec2(0.0, 0.0), vec2(1.0, 1.0));\n    // let f_ab = texture(u_GGXLUT, brdfSamplePoint).rg;\n    let f_ab = textureSample(skyboxBRDFLUT, textureSampler, brdfSamplePoint).rg;\n    let Fr = max(vec3(1.0 - roughness), F0) - F0;\n    let k_S = F0 + Fr * pow(1.0 - NdotV, 5.0);\n    let FssEss = specularWeight * (k_S * f_ab.x + f_ab.y);\n\n    // Multiple scattering, from Fdez-Aguera\n    let Ems = (1.0 - (f_ab.x + f_ab.y));\n    let F_avg = specularWeight * (F0 + (1.0 - F0) / 21.0);\n    let FmsEms = Ems * FssEss * F_avg / (1.0 - F_avg * Ems);\n\n    return FssEss + FmsEms;\n}\n\nconst PI = 3.141592653589793;\n\n@fragment\nfn fragmentMain(input: VertexOutput) -> @location(0) vec4<f32> {\n    let uv = input.vUv;\n\n    let pix = vec2<i32>(input.position.xy);\n    let albedo = textureLoad(albedoTexture, pix, 0);\n    let normal = textureLoad(normalTexture, pix, 0);\n    let ermo   = textureLoad(ermoTexture,   pix, 0);\n    let depth  = textureLoad(depthTexture,  pix, 0);    \n\n    let worldPosition = reconstructWorldPosFromZ(\n        input.position.xy,\n        view.projectionOutputSize.xy,\n        depth,\n        view.projectionInverseMatrix,\n        view.viewInverseMatrix\n    );\n\n    var surface: Surface;\n    surface.depth          = depth;\n    surface.albedo         = albedo.rgb;\n    surface.roughness      = clamp(albedo.a, 0.01, 0.99);\n    surface.occlusion      = normal.z;\n    surface.metallic       = normal.a;\n    surface.emissive       = ermo.rgb;\n    surface.worldPosition  = worldPosition.xyz;\n    \n    surface.N              = OctDecode(normal.rg);\n    surface.F0             = mix(vec3(0.04), surface.albedo.rgb, vec3(surface.metallic));\n    surface.V              = normalize(view.viewPosition.xyz - surface.worldPosition);\n\n\n    let n = surface.N;\n    let v = surface.V;\n    let r = reflect(-v, n);\n\n    // let irradiance = textureSample(skyboxIrradianceTexture, textureSampler, n).rgb;\n    // let diffuse = irradiance * surface.albedo.xyz;\n\n    // let f = FresnelSchlickRoughness(max(dot(n, v), 0.00001), surface.F0, surface.roughness);\n    // let kS = f;\n    // var kD = vec3f(1.0) - kS;\n    // kD *= 1.0 - surface.metallic;\n\n    // let MAX_REFLECTION_LOD = f32(textureNumLevels(skyboxPrefilterTexture) - 1u);\n    // let prefilteredColor = textureSampleLevel(skyboxPrefilterTexture, textureSampler, r, surface.roughness * MAX_REFLECTION_LOD).rgb;\n    // let brdf = textureSample(skyboxBRDFLUT, brdfSampler, vec2f(max(dot(n, v), 0.0), surface.roughness)).rg;\n    // let specular = prefilteredColor * (f * brdf.x + brdf.y);\n\n    // let ambient = kD * diffuse * (1.0 - surface.occlusion) + specular;\n\n    // let color = ambient + surface.emissive;\n\n\n    // return vec4f(color, 1.0);\n    \n    // let f_diffuse = diffuse;\n    // let f_metal_fresnel_ibl = getIBLGGXFresnel(n, v, surface.roughness, surface.albedo.rgb, 1.0);\n    // let f_metal_brdf_ibl = vec3f(0.0);\n\n    // let f_specular_dielectric = vec3f(0.0);\n    // let specularWeight = 1.0;\n    // let f_dielectric_fresnel_ibl = getIBLGGXFresnel(n, v, surface.roughness, surface.F0, specularWeight);\n    // let f_dielectric_brdf_ibl = mix(f_diffuse, f_specular_dielectric,  f_dielectric_fresnel_ibl);\n\n    // let color = mix(f_dielectric_brdf_ibl, f_metal_brdf_ibl, surface.metallic) + surface.emissive;\n\n    // return vec4f(color, 1.0);\n\n\n\n\n\n\n  let NdotV = max(dot(n, v), 0.0);\n\n  let MAX_REFLECTION_LOD = f32(textureNumLevels(skyboxPrefilterTexture) - 1u);\n  let prefiltered = textureSampleLevel(\n      skyboxPrefilterTexture,\n      textureSampler,\n      r,\n      surface.roughness * MAX_REFLECTION_LOD\n  ).rgb;\n\n  let brdf = textureSample(\n      skyboxBRDFLUT,\n      brdfSampler,\n      vec2f(NdotV, surface.roughness)\n  ).rg;\n\n  // diffuse from irradiance\n  let irradiance = textureSample(skyboxIrradianceTexture, textureSampler, n).rgb;\n  let diffuse = irradiance * surface.albedo;\n\n  // fresnel term (glTF-style)\n  let f_metal_fresnel_ibl = getIBLGGXFresnel(n, v, surface.roughness, surface.albedo, 1.0);\n  let f_metal_brdf_ibl = prefiltered * f_metal_fresnel_ibl;\n\n  // dielectrics: F0 is ~0.04\n  let specularWeight = 1.0;\n  let f_dielectric_fresnel_ibl = getIBLGGXFresnel(n, v, surface.roughness, surface.F0, specularWeight);\n  let f_dielectric_brdf_ibl = mix(diffuse, prefiltered * f_dielectric_fresnel_ibl, f_dielectric_fresnel_ibl);\n\n  var color = mix(f_dielectric_brdf_ibl, f_metal_brdf_ibl, surface.metallic) + surface.emissive;\n\n  let occlusionStrength = 1.0; // match glTF default\n  color = color * (1.0 + occlusionStrength * (surface.occlusion - 1.0));\n\n\n  let ao = mix(1.0, surface.occlusion, occlusionStrength);\n  let indirectDiffuse  = irradiance * surface.albedo * ao;\n  color = mix(f_dielectric_brdf_ibl, f_metal_brdf_ibl, surface.metallic) * ao + surface.emissive;\n\n  \n\n  return vec4f(color, 1.0);\n}\n";
 
 var WGSL_Shader_Deferred_SurfaceStruct = "struct Surface {\n    albedo: vec3<f32>,\n    emissive: vec3<f32>,\n    metallic: f32,\n    roughness: f32,\n    occlusion: f32,\n    worldPosition: vec3<f32>,\n    N: vec3<f32>,\n    F0: vec3<f32>,\n    V: vec3<f32>,\n    depth: f32\n};";
 
@@ -2385,6 +2445,7 @@ function totalBytesForTexture(format, width, height, depth, mipLevels) {
   return totalPixels * bytesPerPixel(format);
 }
 class WEBGPUTexture {
+  static type = "@trident/core/Texture";
   byteSize = 0;
   lastBandwidthFrame = -1;
   id = UUID();
@@ -2392,7 +2453,7 @@ class WEBGPUTexture {
   height;
   depth;
   format;
-  type;
+  textureType;
   dimension;
   mipLevels;
   get name() {
@@ -2433,7 +2494,7 @@ class WEBGPUTexture {
     this.height = height;
     this.depth = depth;
     this.format = format;
-    this.type = type;
+    this.textureType = type;
     this.dimension = dimension;
     this.mipLevels = mipLevels;
     this.SetActiveMipCount(mipLevels);
@@ -2627,6 +2688,7 @@ class WEBGPUTexture {
     if (cachedTexture) return cachedTexture.texture;
     const bytes = await Assets.Load(data.assetPath, "binary");
     const texture = await WEBGPUTexture.FromBlob(new Blob([bytes]), data.format, { name: data.name, generateMips: data.generateMips });
+    texture.assetPath = data.assetPath;
     WEBGPUTexture.SerializedTextureCache.set(data.id, { serialized: data, texture });
     return texture;
   }
@@ -3457,6 +3519,7 @@ EventSystem.on(RendererEvents.Created, (renderer) => {
     geometry.attributes.set("uv", new VertexAttribute(uvs));
     geometry.attributes.set("normal", new VertexAttribute(normals));
     geometry.index = new IndexAttribute(indices);
+    geometry.ComputeTangents();
     Assets.SetInstance(instancePath, geometry);
   }
   {
@@ -3472,6 +3535,7 @@ EventSystem.on(RendererEvents.Created, (renderer) => {
     geometry.attributes.set("normal", new VertexAttribute(normals));
     geometry.attributes.set("uv", new VertexAttribute(uvs));
     geometry.index = new IndexAttribute(indices);
+    geometry.ComputeTangents();
     Assets.SetInstance(instancePath, geometry);
   }
   {
@@ -3487,6 +3551,7 @@ EventSystem.on(RendererEvents.Created, (renderer) => {
     geometry.attributes.set("position", new VertexAttribute(new Float32Array(vertices)));
     geometry.attributes.set("normal", new VertexAttribute(new Float32Array(normals)));
     geometry.attributes.set("uv", new VertexAttribute(new Float32Array(uvs)));
+    geometry.ComputeTangents();
     Assets.SetInstance(instancePath, geometry);
   }
   {
@@ -3502,6 +3567,7 @@ EventSystem.on(RendererEvents.Created, (renderer) => {
     geometry.attributes.set("position", new VertexAttribute(new Float32Array(vertices)));
     geometry.attributes.set("normal", new VertexAttribute(new Float32Array(normals)));
     geometry.attributes.set("uv", new VertexAttribute(new Float32Array(uvs)));
+    geometry.ComputeTangents();
     Assets.SetInstance(instancePath, geometry);
   }
   {
@@ -3517,6 +3583,7 @@ EventSystem.on(RendererEvents.Created, (renderer) => {
     geometry.attributes.set("position", new VertexAttribute(new Float32Array(vertices)));
     geometry.attributes.set("normal", new VertexAttribute(new Float32Array(normals)));
     geometry.attributes.set("uv", new VertexAttribute(new Float32Array(uvs)));
+    geometry.ComputeTangents();
     Assets.SetInstance(instancePath, geometry);
   }
 });
@@ -3771,11 +3838,12 @@ function CreateTexture(width, height, depth, format, type, dimension, mipLevels)
   throw Error("Renderer type invalid");
 }
 class Texture {
+  static type = "@trident/core/Texture";
   id;
   width;
   height;
   depth;
-  type;
+  textureType;
   dimension;
   format;
   mipLevels;
@@ -3948,7 +4016,7 @@ class WEBGPUBaseShader {
         if (uniform.buffer.format.includes("32float")) sampleType = "unfilterable-float";
         else if (uniform.buffer.format.includes("32uint")) sampleType = "uint";
         else if (uniform.buffer.format.includes("32int")) sampleType = "sint";
-        if (uniform.buffer.type === TextureType.RENDER_TARGET_STORAGE) {
+        if (uniform.buffer.textureType === TextureType.RENDER_TARGET_STORAGE) {
           layoutEntries.push({
             binding: uniform.binding,
             visibility: GPUShaderStage.COMPUTE | GPUShaderStage.FRAGMENT,
@@ -4854,27 +4922,27 @@ class ComputeContext {
   }
 }
 
-var __create$4 = Object.create;
-var __defProp$4 = Object.defineProperty;
+var __create$5 = Object.create;
+var __defProp$5 = Object.defineProperty;
 var __getOwnPropDesc$2 = Object.getOwnPropertyDescriptor;
-var __knownSymbol$4 = (name, symbol) => (symbol = Symbol[name]) ? symbol : Symbol.for("Symbol." + name);
-var __typeError$4 = (msg) => {
+var __knownSymbol$5 = (name, symbol) => (symbol = Symbol[name]) ? symbol : Symbol.for("Symbol." + name);
+var __typeError$5 = (msg) => {
   throw TypeError(msg);
 };
-var __defNormalProp$4 = (obj, key, value) => key in obj ? __defProp$4(obj, key, { enumerable: true, configurable: true, writable: true, value }) : obj[key] = value;
-var __name$2 = (target, value) => __defProp$4(target, "name", { value, configurable: true });
-var __decoratorStart$4 = (base) => [, , , __create$4(base?.[__knownSymbol$4("metadata")] ?? null)];
-var __decoratorStrings$4 = ["class", "method", "getter", "setter", "accessor", "field", "value", "get", "set"];
-var __expectFn$4 = (fn) => fn !== void 0 && typeof fn !== "function" ? __typeError$4("Function expected") : fn;
-var __decoratorContext$4 = (kind, name, done, metadata, fns) => ({ kind: __decoratorStrings$4[kind], name, metadata, addInitializer: (fn) => done._ ? __typeError$4("Already initialized") : fns.push(__expectFn$4(fn || null)) });
-var __decoratorMetadata$4 = (array, target) => __defNormalProp$4(target, __knownSymbol$4("metadata"), array[3]);
-var __runInitializers$4 = (array, flags, self, value) => {
+var __defNormalProp$5 = (obj, key, value) => key in obj ? __defProp$5(obj, key, { enumerable: true, configurable: true, writable: true, value }) : obj[key] = value;
+var __name$2 = (target, value) => __defProp$5(target, "name", { value, configurable: true });
+var __decoratorStart$5 = (base) => [, , , __create$5(base?.[__knownSymbol$5("metadata")] ?? null)];
+var __decoratorStrings$5 = ["class", "method", "getter", "setter", "accessor", "field", "value", "get", "set"];
+var __expectFn$5 = (fn) => fn !== void 0 && typeof fn !== "function" ? __typeError$5("Function expected") : fn;
+var __decoratorContext$5 = (kind, name, done, metadata, fns) => ({ kind: __decoratorStrings$5[kind], name, metadata, addInitializer: (fn) => done._ ? __typeError$5("Already initialized") : fns.push(__expectFn$5(fn || null)) });
+var __decoratorMetadata$5 = (array, target) => __defNormalProp$5(target, __knownSymbol$5("metadata"), array[3]);
+var __runInitializers$5 = (array, flags, self, value) => {
   for (var i = 0, fns = array[flags >> 1], n = fns && fns.length; i < n; i++) flags & 1 ? fns[i].call(self) : value = fns[i].call(self, value);
   return value;
 };
-var __decorateElement$4 = (array, flags, name, decorators, target, extra) => {
+var __decorateElement$5 = (array, flags, name, decorators, target, extra) => {
   var fn, it, done, ctx, access, k = flags & 7, s = !!(flags & 8), p = !!(flags & 16);
-  var j = k > 3 ? array.length + 1 : k ? s ? 1 : 2 : 0, key = __decoratorStrings$4[k + 5];
+  var j = k > 3 ? array.length + 1 : k ? s ? 1 : 2 : 0, key = __decoratorStrings$5[k + 5];
   var initializers = k > 3 && (array[j - 1] = []), extraInitializers = array[j] || (array[j] = []);
   var desc = k && (!p && !s && (target = target.prototype), k < 5 && (k > 3 || !p) && __getOwnPropDesc$2(k < 4 ? target : { get [name]() {
     return __privateGet$2(this, extra);
@@ -4883,44 +4951,44 @@ var __decorateElement$4 = (array, flags, name, decorators, target, extra) => {
   } }, name));
   k ? p && k < 4 && __name$2(extra, (k > 2 ? "set " : k > 1 ? "get " : "") + name) : __name$2(target, name);
   for (var i = decorators.length - 1; i >= 0; i--) {
-    ctx = __decoratorContext$4(k, name, done = {}, array[3], extraInitializers);
+    ctx = __decoratorContext$5(k, name, done = {}, array[3], extraInitializers);
     if (k) {
       ctx.static = s, ctx.private = p, access = ctx.access = { has: p ? (x) => __privateIn$2(target, x) : (x) => name in x };
       if (k ^ 3) access.get = p ? (x) => (k ^ 1 ? __privateGet$2 : __privateMethod$2)(x, target, k ^ 4 ? extra : desc.get) : (x) => x[name];
       if (k > 2) access.set = p ? (x, y) => __privateSet$2(x, target, y, k ^ 4 ? extra : desc.set) : (x, y) => x[name] = y;
     }
     it = (0, decorators[i])(k ? k < 4 ? p ? extra : desc[key] : k > 4 ? void 0 : { get: desc.get, set: desc.set } : target, ctx), done._ = 1;
-    if (k ^ 4 || it === void 0) __expectFn$4(it) && (k > 4 ? initializers.unshift(it) : k ? p ? extra = it : desc[key] = it : target = it);
-    else if (typeof it !== "object" || it === null) __typeError$4("Object expected");
-    else __expectFn$4(fn = it.get) && (desc.get = fn), __expectFn$4(fn = it.set) && (desc.set = fn), __expectFn$4(fn = it.init) && initializers.unshift(fn);
+    if (k ^ 4 || it === void 0) __expectFn$5(it) && (k > 4 ? initializers.unshift(it) : k ? p ? extra = it : desc[key] = it : target = it);
+    else if (typeof it !== "object" || it === null) __typeError$5("Object expected");
+    else __expectFn$5(fn = it.get) && (desc.get = fn), __expectFn$5(fn = it.set) && (desc.set = fn), __expectFn$5(fn = it.init) && initializers.unshift(fn);
   }
-  return k || __decoratorMetadata$4(array, target), desc && __defProp$4(target, name, desc), p ? k ^ 4 ? extra : desc : target;
+  return k || __decoratorMetadata$5(array, target), desc && __defProp$5(target, name, desc), p ? k ^ 4 ? extra : desc : target;
 };
-var __publicField$4 = (obj, key, value) => __defNormalProp$4(obj, typeof key !== "symbol" ? key + "" : key, value);
-var __accessCheck$2 = (obj, member, msg) => member.has(obj) || __typeError$4("Cannot " + msg);
-var __privateIn$2 = (member, obj) => Object(obj) !== obj ? __typeError$4('Cannot use the "in" operator on this value') : member.has(obj);
+var __publicField$5 = (obj, key, value) => __defNormalProp$5(obj, typeof key !== "symbol" ? key + "" : key, value);
+var __accessCheck$2 = (obj, member, msg) => member.has(obj) || __typeError$5("Cannot " + msg);
+var __privateIn$2 = (member, obj) => Object(obj) !== obj ? __typeError$5('Cannot use the "in" operator on this value') : member.has(obj);
 var __privateGet$2 = (obj, member, getter) => (__accessCheck$2(obj, member, "read from private field"), getter ? getter.call(obj) : member.get(obj));
 var __privateSet$2 = (obj, member, value, setter) => (__accessCheck$2(obj, member, "write to private field"), setter ? setter.call(obj, value) : member.set(obj, value), value);
 var __privateMethod$2 = (obj, member, method) => (__accessCheck$2(obj, member, "access private method"), method);
-var _aspect_dec, _fov_dec, _far_dec, _near_dec, _backgroundColor_dec, _a$4, _init$4;
+var _aspect_dec, _fov_dec, _far_dec, _near_dec, _backgroundColor_dec, _a$5, _init$5;
 class CameraEvents {
   static Updated = (camera) => {
   };
 }
-const _Camera = class _Camera extends (_a$4 = Component, _backgroundColor_dec = [SerializeField], _near_dec = [SerializeField], _far_dec = [SerializeField], _fov_dec = [SerializeField], _aspect_dec = [SerializeField], _a$4) {
+const _Camera = class _Camera extends (_a$5 = Component, _backgroundColor_dec = [SerializeField], _near_dec = [SerializeField], _far_dec = [SerializeField], _fov_dec = [SerializeField], _aspect_dec = [SerializeField], _a$5) {
   constructor(gameObject) {
     super(gameObject);
-    __runInitializers$4(_init$4, 5, this);
-    __publicField$4(this, "backgroundColor", __runInitializers$4(_init$4, 8, this, new Color(0, 0, 0, 1))), __runInitializers$4(_init$4, 11, this);
-    __publicField$4(this, "projectionMatrix", new Matrix4());
-    __publicField$4(this, "projectionScreenMatrix", new Matrix4());
-    __publicField$4(this, "projectionViewMatrix", new Matrix4());
-    __publicField$4(this, "viewMatrix", new Matrix4());
-    __publicField$4(this, "frustum", new Frustum());
-    __publicField$4(this, "_near", 0.05);
-    __publicField$4(this, "_far", 1e3);
-    __publicField$4(this, "_fov", 60);
-    __publicField$4(this, "_aspect", window.innerWidth / window.innerHeight);
+    __runInitializers$5(_init$5, 5, this);
+    __publicField$5(this, "backgroundColor", __runInitializers$5(_init$5, 8, this, new Color(0, 0, 0, 1))), __runInitializers$5(_init$5, 11, this);
+    __publicField$5(this, "projectionMatrix", new Matrix4());
+    __publicField$5(this, "projectionScreenMatrix", new Matrix4());
+    __publicField$5(this, "projectionViewMatrix", new Matrix4());
+    __publicField$5(this, "viewMatrix", new Matrix4());
+    __publicField$5(this, "frustum", new Frustum());
+    __publicField$5(this, "_near", 0.05);
+    __publicField$5(this, "_far", 1e3);
+    __publicField$5(this, "_fov", 60);
+    __publicField$5(this, "_aspect", window.innerWidth / window.innerHeight);
     if (!_Camera.mainCamera) _Camera.mainCamera = this;
   }
   get near() {
@@ -4971,39 +5039,39 @@ const _Camera = class _Camera extends (_a$4 = Component, _backgroundColor_dec = 
     this.projectionViewMatrix.multiplyMatrices(this.projectionMatrix, this.viewMatrix);
   }
 };
-_init$4 = __decoratorStart$4(_a$4);
-__decorateElement$4(_init$4, 2, "near", _near_dec, _Camera);
-__decorateElement$4(_init$4, 2, "far", _far_dec, _Camera);
-__decorateElement$4(_init$4, 2, "fov", _fov_dec, _Camera);
-__decorateElement$4(_init$4, 2, "aspect", _aspect_dec, _Camera);
-__decorateElement$4(_init$4, 5, "backgroundColor", _backgroundColor_dec, _Camera);
-__decoratorMetadata$4(_init$4, _Camera);
-__publicField$4(_Camera, "type", "@trident/core/components/Camera");
-__publicField$4(_Camera, "mainCamera");
+_init$5 = __decoratorStart$5(_a$5);
+__decorateElement$5(_init$5, 2, "near", _near_dec, _Camera);
+__decorateElement$5(_init$5, 2, "far", _far_dec, _Camera);
+__decorateElement$5(_init$5, 2, "fov", _fov_dec, _Camera);
+__decorateElement$5(_init$5, 2, "aspect", _aspect_dec, _Camera);
+__decorateElement$5(_init$5, 5, "backgroundColor", _backgroundColor_dec, _Camera);
+__decoratorMetadata$5(_init$5, _Camera);
+__publicField$5(_Camera, "type", "@trident/core/components/Camera");
+__publicField$5(_Camera, "mainCamera");
 let Camera = _Camera;
 Component.Registry.set(Camera.type, Camera);
 
-var __create$3 = Object.create;
-var __defProp$3 = Object.defineProperty;
+var __create$4 = Object.create;
+var __defProp$4 = Object.defineProperty;
 var __getOwnPropDesc$1 = Object.getOwnPropertyDescriptor;
-var __knownSymbol$3 = (name, symbol) => (symbol = Symbol[name]) ? symbol : Symbol.for("Symbol." + name);
-var __typeError$3 = (msg) => {
+var __knownSymbol$4 = (name, symbol) => (symbol = Symbol[name]) ? symbol : Symbol.for("Symbol." + name);
+var __typeError$4 = (msg) => {
   throw TypeError(msg);
 };
-var __defNormalProp$3 = (obj, key, value) => key in obj ? __defProp$3(obj, key, { enumerable: true, configurable: true, writable: true, value }) : obj[key] = value;
-var __name$1 = (target, value) => __defProp$3(target, "name", { value, configurable: true });
-var __decoratorStart$3 = (base) => [, , , __create$3(base?.[__knownSymbol$3("metadata")] ?? null)];
-var __decoratorStrings$3 = ["class", "method", "getter", "setter", "accessor", "field", "value", "get", "set"];
-var __expectFn$3 = (fn) => fn !== void 0 && typeof fn !== "function" ? __typeError$3("Function expected") : fn;
-var __decoratorContext$3 = (kind, name, done, metadata, fns) => ({ kind: __decoratorStrings$3[kind], name, metadata, addInitializer: (fn) => done._ ? __typeError$3("Already initialized") : fns.push(__expectFn$3(fn || null)) });
-var __decoratorMetadata$3 = (array, target) => __defNormalProp$3(target, __knownSymbol$3("metadata"), array[3]);
-var __runInitializers$3 = (array, flags, self, value) => {
+var __defNormalProp$4 = (obj, key, value) => key in obj ? __defProp$4(obj, key, { enumerable: true, configurable: true, writable: true, value }) : obj[key] = value;
+var __name$1 = (target, value) => __defProp$4(target, "name", { value, configurable: true });
+var __decoratorStart$4 = (base) => [, , , __create$4(base?.[__knownSymbol$4("metadata")] ?? null)];
+var __decoratorStrings$4 = ["class", "method", "getter", "setter", "accessor", "field", "value", "get", "set"];
+var __expectFn$4 = (fn) => fn !== void 0 && typeof fn !== "function" ? __typeError$4("Function expected") : fn;
+var __decoratorContext$4 = (kind, name, done, metadata, fns) => ({ kind: __decoratorStrings$4[kind], name, metadata, addInitializer: (fn) => done._ ? __typeError$4("Already initialized") : fns.push(__expectFn$4(fn || null)) });
+var __decoratorMetadata$4 = (array, target) => __defNormalProp$4(target, __knownSymbol$4("metadata"), array[3]);
+var __runInitializers$4 = (array, flags, self, value) => {
   for (var i = 0, fns = array[flags >> 1], n = fns && fns.length; i < n; i++) flags & 1 ? fns[i].call(self) : value = fns[i].call(self, value);
   return value;
 };
-var __decorateElement$3 = (array, flags, name, decorators, target, extra) => {
+var __decorateElement$4 = (array, flags, name, decorators, target, extra) => {
   var fn, it, done, ctx, access, k = flags & 7, s = !!(flags & 8), p = !!(flags & 16);
-  var j = k > 3 ? array.length + 1 : k ? s ? 1 : 2 : 0, key = __decoratorStrings$3[k + 5];
+  var j = k > 3 ? array.length + 1 : k ? s ? 1 : 2 : 0, key = __decoratorStrings$4[k + 5];
   var initializers = k > 3 && (array[j - 1] = []), extraInitializers = array[j] || (array[j] = []);
   var desc = k && (!p && !s && (target = target.prototype), k < 5 && (k > 3 || !p) && __getOwnPropDesc$1(k < 4 ? target : { get [name]() {
     return __privateGet$1(this, extra);
@@ -5012,39 +5080,39 @@ var __decorateElement$3 = (array, flags, name, decorators, target, extra) => {
   } }, name));
   k ? p && k < 4 && __name$1(extra, (k > 2 ? "set " : k > 1 ? "get " : "") + name) : __name$1(target, name);
   for (var i = decorators.length - 1; i >= 0; i--) {
-    ctx = __decoratorContext$3(k, name, done = {}, array[3], extraInitializers);
+    ctx = __decoratorContext$4(k, name, done = {}, array[3], extraInitializers);
     if (k) {
       ctx.static = s, ctx.private = p, access = ctx.access = { has: p ? (x) => __privateIn$1(target, x) : (x) => name in x };
       if (k ^ 3) access.get = p ? (x) => (k ^ 1 ? __privateGet$1 : __privateMethod$1)(x, target, k ^ 4 ? extra : desc.get) : (x) => x[name];
       if (k > 2) access.set = p ? (x, y) => __privateSet$1(x, target, y, k ^ 4 ? extra : desc.set) : (x, y) => x[name] = y;
     }
     it = (0, decorators[i])(k ? k < 4 ? p ? extra : desc[key] : k > 4 ? void 0 : { get: desc.get, set: desc.set } : target, ctx), done._ = 1;
-    if (k ^ 4 || it === void 0) __expectFn$3(it) && (k > 4 ? initializers.unshift(it) : k ? p ? extra = it : desc[key] = it : target = it);
-    else if (typeof it !== "object" || it === null) __typeError$3("Object expected");
-    else __expectFn$3(fn = it.get) && (desc.get = fn), __expectFn$3(fn = it.set) && (desc.set = fn), __expectFn$3(fn = it.init) && initializers.unshift(fn);
+    if (k ^ 4 || it === void 0) __expectFn$4(it) && (k > 4 ? initializers.unshift(it) : k ? p ? extra = it : desc[key] = it : target = it);
+    else if (typeof it !== "object" || it === null) __typeError$4("Object expected");
+    else __expectFn$4(fn = it.get) && (desc.get = fn), __expectFn$4(fn = it.set) && (desc.set = fn), __expectFn$4(fn = it.init) && initializers.unshift(fn);
   }
-  return k || __decoratorMetadata$3(array, target), desc && __defProp$3(target, name, desc), p ? k ^ 4 ? extra : desc : target;
+  return k || __decoratorMetadata$4(array, target), desc && __defProp$4(target, name, desc), p ? k ^ 4 ? extra : desc : target;
 };
-var __publicField$3 = (obj, key, value) => __defNormalProp$3(obj, typeof key !== "symbol" ? key + "" : key, value);
-var __accessCheck$1 = (obj, member, msg) => member.has(obj) || __typeError$3("Cannot " + msg);
-var __privateIn$1 = (member, obj) => Object(obj) !== obj ? __typeError$3('Cannot use the "in" operator on this value') : member.has(obj);
+var __publicField$4 = (obj, key, value) => __defNormalProp$4(obj, typeof key !== "symbol" ? key + "" : key, value);
+var __accessCheck$1 = (obj, member, msg) => member.has(obj) || __typeError$4("Cannot " + msg);
+var __privateIn$1 = (member, obj) => Object(obj) !== obj ? __typeError$4('Cannot use the "in" operator on this value') : member.has(obj);
 var __privateGet$1 = (obj, member, getter) => (__accessCheck$1(obj, member, "read from private field"), getter ? getter.call(obj) : member.get(obj));
 var __privateSet$1 = (obj, member, value, setter) => (__accessCheck$1(obj, member, "write to private field"), setter ? setter.call(obj, value) : member.set(obj, value), value);
 var __privateMethod$1 = (obj, member, method) => (__accessCheck$1(obj, member, "access private method"), method);
-var _castShadows_dec, _intensity_dec, _color_dec, _a$3, _init$3, _range_dec, _angle_dec, _b$1, _init2$1, _range_dec2, _c, _init3, _direction_dec, _d, _init4;
+var _castShadows_dec, _intensity_dec, _color_dec, _a$4, _init$4, _range_dec, _angle_dec, _b$1, _init2$1, _range_dec2, _c, _init3, _direction_dec, _d, _init4;
 class LightEvents {
   static Updated = (light) => {
   };
   static Destroyed = (light) => {
   };
 }
-class Light extends (_a$3 = Component, _color_dec = [SerializeField], _intensity_dec = [SerializeField], _castShadows_dec = [SerializeField], _a$3) {
+class Light extends (_a$4 = Component, _color_dec = [SerializeField], _intensity_dec = [SerializeField], _castShadows_dec = [SerializeField], _a$4) {
   constructor() {
     super(...arguments);
-    __publicField$3(this, "camera", new Camera(this.gameObject));
-    __publicField$3(this, "color", __runInitializers$3(_init$3, 8, this, new Color(1, 1, 1))), __runInitializers$3(_init$3, 11, this);
-    __publicField$3(this, "intensity", __runInitializers$3(_init$3, 12, this, 1)), __runInitializers$3(_init$3, 15, this);
-    __publicField$3(this, "castShadows", __runInitializers$3(_init$3, 16, this, true)), __runInitializers$3(_init$3, 19, this);
+    __publicField$4(this, "camera", new Camera(this.gameObject));
+    __publicField$4(this, "color", __runInitializers$4(_init$4, 8, this, new Color(1, 1, 1))), __runInitializers$4(_init$4, 11, this);
+    __publicField$4(this, "intensity", __runInitializers$4(_init$4, 12, this, 1)), __runInitializers$4(_init$4, 15, this);
+    __publicField$4(this, "castShadows", __runInitializers$4(_init$4, 16, this, true)), __runInitializers$4(_init$4, 19, this);
   }
   Start() {
     EventSystemLocal.on(TransformEvents.Updated, this.transform, () => {
@@ -5055,19 +5123,19 @@ class Light extends (_a$3 = Component, _color_dec = [SerializeField], _intensity
     EventSystem.emit(LightEvents.Destroyed, this);
   }
 }
-_init$3 = __decoratorStart$3(_a$3);
-__decorateElement$3(_init$3, 5, "color", _color_dec, Light);
-__decorateElement$3(_init$3, 5, "intensity", _intensity_dec, Light);
-__decorateElement$3(_init$3, 5, "castShadows", _castShadows_dec, Light);
-__decoratorMetadata$3(_init$3, Light);
-__publicField$3(Light, "type", "@trident/core/components/Light");
+_init$4 = __decoratorStart$4(_a$4);
+__decorateElement$4(_init$4, 5, "color", _color_dec, Light);
+__decorateElement$4(_init$4, 5, "intensity", _intensity_dec, Light);
+__decorateElement$4(_init$4, 5, "castShadows", _castShadows_dec, Light);
+__decoratorMetadata$4(_init$4, Light);
+__publicField$4(Light, "type", "@trident/core/components/Light/Light");
 class SpotLight extends (_b$1 = Light, _angle_dec = [SerializeField], _range_dec = [SerializeField], _b$1) {
   constructor() {
     super(...arguments);
-    __runInitializers$3(_init2$1, 5, this);
-    __publicField$3(this, "direction", new Vector3(0, -1, 0));
-    __publicField$3(this, "_angle", 1);
-    __publicField$3(this, "_range", 10);
+    __runInitializers$4(_init2$1, 5, this);
+    __publicField$4(this, "direction", new Vector3(0, -1, 0));
+    __publicField$4(this, "_angle", 1);
+    __publicField$4(this, "_range", 10);
   }
   get angle() {
     return this._angle;
@@ -5093,16 +5161,16 @@ class SpotLight extends (_b$1 = Light, _angle_dec = [SerializeField], _range_dec
     this.UpdateLight();
   }
 }
-_init2$1 = __decoratorStart$3(_b$1);
-__decorateElement$3(_init2$1, 2, "angle", _angle_dec, SpotLight);
-__decorateElement$3(_init2$1, 2, "range", _range_dec, SpotLight);
-__decoratorMetadata$3(_init2$1, SpotLight);
-__publicField$3(SpotLight, "type", "@trident/core/components/SpotLight");
-class PointLight extends (_c = Light, _range_dec2 = [SerializeField], _c) {
+_init2$1 = __decoratorStart$4(_b$1);
+__decorateElement$4(_init2$1, 2, "angle", _angle_dec, SpotLight);
+__decorateElement$4(_init2$1, 2, "range", _range_dec, SpotLight);
+__decoratorMetadata$4(_init2$1, SpotLight);
+__publicField$4(SpotLight, "type", "@trident/core/components/Light/SpotLight");
+class PointLight extends (_c = Light, _range_dec2 = [SerializeField(Number)], _c) {
   constructor() {
     super(...arguments);
-    __runInitializers$3(_init3, 5, this);
-    __publicField$3(this, "_range", 10);
+    __runInitializers$4(_init3, 5, this);
+    __publicField$4(this, "_range", 10);
   }
   get range() {
     return this._range;
@@ -5120,12 +5188,12 @@ class PointLight extends (_c = Light, _range_dec2 = [SerializeField], _c) {
     this.UpdateLight();
   }
 }
-_init3 = __decoratorStart$3(_c);
-__decorateElement$3(_init3, 2, "range", _range_dec2, PointLight);
-__decoratorMetadata$3(_init3, PointLight);
-__publicField$3(PointLight, "type", "@trident/core/components/PointLight");
+_init3 = __decoratorStart$4(_c);
+__decorateElement$4(_init3, 2, "range", _range_dec2, PointLight);
+__decoratorMetadata$4(_init3, PointLight);
+__publicField$4(PointLight, "type", "@trident/core/components/Light/PointLight");
 class AreaLight extends Light {
-  static type = "@trident/core/components/AreaLight";
+  static type = "@trident/core/components/Light/AreaLight";
   Start() {
     super.Start();
     this.camera.SetPerspective(60, Renderer.width / Renderer.height, 0.01, 1e3);
@@ -5134,7 +5202,7 @@ class AreaLight extends Light {
 class DirectionalLight extends (_d = Light, _direction_dec = [SerializeField], _d) {
   constructor() {
     super(...arguments);
-    __publicField$3(this, "direction", __runInitializers$3(_init4, 8, this, new Vector3(0, 1, 0))), __runInitializers$3(_init4, 11, this);
+    __publicField$4(this, "direction", __runInitializers$4(_init4, 8, this, new Vector3(0, 1, 0))), __runInitializers$4(_init4, 11, this);
   }
   Start() {
     super.Start();
@@ -5142,10 +5210,10 @@ class DirectionalLight extends (_d = Light, _direction_dec = [SerializeField], _
     this.camera.SetOrthographic(-size, size, -size, size, 0.1, 100);
   }
 }
-_init4 = __decoratorStart$3(_d);
-__decorateElement$3(_init4, 5, "direction", _direction_dec, DirectionalLight);
-__decoratorMetadata$3(_init4, DirectionalLight);
-__publicField$3(DirectionalLight, "type", "@trident/core/components/DirectionalLight");
+_init4 = __decoratorStart$4(_d);
+__decorateElement$4(_init4, 5, "direction", _direction_dec, DirectionalLight);
+__decoratorMetadata$4(_init4, DirectionalLight);
+__publicField$4(DirectionalLight, "type", "@trident/core/components/Light/DirectionalLight");
 Component.Registry.set(SpotLight.type, SpotLight);
 Component.Registry.set(PointLight.type, PointLight);
 Component.Registry.set(DirectionalLight.type, DirectionalLight);
@@ -5580,56 +5648,8 @@ class TextureViewer extends RenderPass {
             return out;
         }
 
-        fn toneMapping(color: vec3f) -> vec3f {
-            // Narkowicz 2015 ACES approx
-            let a = 2.51; let b = 0.03; let c = 2.43; let d = 0.59; let e = 0.14;
-            return clamp((color*(a*color+b)) / (color*(c*color+d)+e), vec3f(0.0), vec3f(1.0));
-        }
-
         fn gammaCorrection(color: vec3f) -> vec3f {
             return pow(color, vec3f(1.0 / 2.2));
-        }
-
-
-        /*
-        * ACES tonemapping fit for the sRGB color space
-        * https://github.com/TheRealMJP/BakingLab/blob/master/BakingLab/ACES.hlsl
-        */
-        // sRGB => XYZ => D65_2_D60 => AP1 => RRT_SAT
-        const aces_input_mat = mat3x3<f32>(
-            0.59719, 0.07600, 0.02840,
-            0.35458, 0.90834, 0.13383,
-            0.04823, 0.01566, 0.83777
-        );
-
-        // ODT_SAT => XYZ => D60_2_D65 => sRGB
-        const aces_output_mat = mat3x3<f32>(
-            1.60475, -0.10208, -0.00327,
-            -0.53108,  1.10813, -0.07276,
-            -0.07367, -0.00605,  1.07602
-        );
-
-        fn rrt_and_odt_fit(v: vec3f) -> vec3f {
-            let a = v * (v + 0.0245786) - 0.000090537;
-            let b = v * (0.983729 * v + 0.4329510) + 0.238081;
-            return a / b;
-        }
-            
-        fn aces_fitted(_color: vec3f) -> vec3f {
-            var color = _color;
-            color = aces_input_mat * color;
-            color = rrt_and_odt_fit(color);
-            color = aces_output_mat * color;
-            return clamp(color, vec3f(0.0), vec3f(1.0));
-        }
-
-        //-----------------------------------------------------------------------------
-
-        fn gamma_correct(linear_srgb: vec3f) -> vec3f {
-            let a = 12.92 * linear_srgb;
-            let b = 1.055 * pow(linear_srgb, vec3(1.0 / 2.4)) - 0.055;
-            let c = step(vec3(0.0031308), linear_srgb);
-            return mix(a, b, c);
         }
 
         @fragment fn fragmentMain(input: VertexOutput) -> @location(0) vec4f {
@@ -5663,7 +5683,47 @@ class TextureViewer extends RenderPass {
   }
 }
 
+var __create$3 = Object.create;
+var __defProp$3 = Object.defineProperty;
+var __knownSymbol$3 = (name, symbol) => (symbol = Symbol[name]) ? symbol : Symbol.for("Symbol." + name);
+var __typeError$3 = (msg) => {
+  throw TypeError(msg);
+};
+var __defNormalProp$3 = (obj, key, value) => key in obj ? __defProp$3(obj, key, { enumerable: true, configurable: true, writable: true, value }) : obj[key] = value;
+var __decoratorStart$3 = (base) => [, , , __create$3(base?.[__knownSymbol$3("metadata")] ?? null)];
+var __decoratorStrings$3 = ["class", "method", "getter", "setter", "accessor", "field", "value", "get", "set"];
+var __expectFn$3 = (fn) => fn !== void 0 && typeof fn !== "function" ? __typeError$3("Function expected") : fn;
+var __decoratorContext$3 = (kind, name, done, metadata, fns) => ({ kind: __decoratorStrings$3[kind], name, metadata, addInitializer: (fn) => done._ ? __typeError$3("Already initialized") : fns.push(__expectFn$3(fn || null)) });
+var __decoratorMetadata$3 = (array, target) => __defNormalProp$3(target, __knownSymbol$3("metadata"), array[3]);
+var __runInitializers$3 = (array, flags, self, value) => {
+  for (var i = 0, fns = array[flags >> 1], n = fns && fns.length; i < n; i++) flags & 1 ? fns[i].call(self) : value = fns[i].call(self, value);
+  return value;
+};
+var __decorateElement$3 = (array, flags, name, decorators, target, extra) => {
+  var it, done, ctx, access, k = flags & 7, s = false, p = false;
+  var j = array.length + 1 ;
+  var initializers = (array[j - 1] = []), extraInitializers = array[j] || (array[j] = []);
+  ((target = target.prototype), k < 5);
+  for (var i = decorators.length - 1; i >= 0; i--) {
+    ctx = __decoratorContext$3(k, name, done = {}, array[3], extraInitializers);
+    {
+      ctx.static = s, ctx.private = p, access = ctx.access = { has: (x) => name in x };
+      access.get = (x) => x[name];
+      access.set = (x, y) => x[name] = y;
+    }
+    it = (0, decorators[i])(void 0  , ctx), done._ = 1;
+    __expectFn$3(it) && (initializers.unshift(it) );
+  }
+  return target;
+};
+var __publicField$3 = (obj, key, value) => __defNormalProp$3(obj, typeof key !== "symbol" ? key + "" : key, value);
+var _isDeferred_dec, _isSkinned_dec, _wireframe_dec, _unlit_dec, _alphaCutoff_dec, _doubleSided_dec, _offset_dec, _repeat_dec, _emissiveMap_dec, _armMap_dec, _heightMap_dec, _normalMap_dec, _albedoMap_dec, _metalness_dec, _roughness_dec, _emissiveColor_dec, _albedoColor_dec, _a$3, _init$3;
 const MaterialPool = new Pool();
+class MaterialParams {
+  isDeferred = false;
+  shader;
+  materialID;
+}
 class Material {
   name = "Material";
   id = UUID();
@@ -5741,31 +5801,122 @@ class Material {
     return material;
   }
 }
+const _PBRMaterialParams = class _PBRMaterialParams extends (_a$3 = MaterialParams, _albedoColor_dec = [SerializeField], _emissiveColor_dec = [SerializeField], _roughness_dec = [SerializeField], _metalness_dec = [SerializeField], _albedoMap_dec = [SerializeField(Texture)], _normalMap_dec = [SerializeField(Texture)], _heightMap_dec = [SerializeField(Texture)], _armMap_dec = [SerializeField(Texture)], _emissiveMap_dec = [SerializeField(Texture)], _repeat_dec = [SerializeField], _offset_dec = [SerializeField], _doubleSided_dec = [SerializeField], _alphaCutoff_dec = [SerializeField], _unlit_dec = [SerializeField], _wireframe_dec = [SerializeField], _isSkinned_dec = [SerializeField], _isDeferred_dec = [SerializeField], _a$3) {
+  // 1x1 (255, roughness_default, 0) or just white
+  constructor() {
+    super();
+    __publicField$3(this, "albedoColor", __runInitializers$3(_init$3, 8, this, new Color(1, 1, 1, 1))), __runInitializers$3(_init$3, 11, this);
+    __publicField$3(this, "emissiveColor", __runInitializers$3(_init$3, 12, this, new Color(0, 0, 0, 0))), __runInitializers$3(_init$3, 15, this);
+    __publicField$3(this, "roughness", __runInitializers$3(_init$3, 16, this, 1)), __runInitializers$3(_init$3, 19, this);
+    __publicField$3(this, "metalness", __runInitializers$3(_init$3, 20, this, 0)), __runInitializers$3(_init$3, 23, this);
+    __publicField$3(this, "albedoMap", __runInitializers$3(_init$3, 24, this)), __runInitializers$3(_init$3, 27, this);
+    __publicField$3(this, "normalMap", __runInitializers$3(_init$3, 28, this)), __runInitializers$3(_init$3, 31, this);
+    __publicField$3(this, "heightMap", __runInitializers$3(_init$3, 32, this)), __runInitializers$3(_init$3, 35, this);
+    __publicField$3(this, "armMap", __runInitializers$3(_init$3, 36, this)), __runInitializers$3(_init$3, 39, this);
+    __publicField$3(this, "emissiveMap", __runInitializers$3(_init$3, 40, this)), __runInitializers$3(_init$3, 43, this);
+    __publicField$3(this, "repeat", __runInitializers$3(_init$3, 44, this, new Vector2(1, 1))), __runInitializers$3(_init$3, 47, this);
+    __publicField$3(this, "offset", __runInitializers$3(_init$3, 48, this, new Vector2(0, 0))), __runInitializers$3(_init$3, 51, this);
+    __publicField$3(this, "doubleSided", __runInitializers$3(_init$3, 52, this, false)), __runInitializers$3(_init$3, 55, this);
+    __publicField$3(this, "alphaCutoff", __runInitializers$3(_init$3, 56, this, 0.5)), __runInitializers$3(_init$3, 59, this);
+    __publicField$3(this, "unlit", __runInitializers$3(_init$3, 60, this, false)), __runInitializers$3(_init$3, 63, this);
+    __publicField$3(this, "wireframe", __runInitializers$3(_init$3, 64, this, false)), __runInitializers$3(_init$3, 67, this);
+    __publicField$3(this, "isSkinned", __runInitializers$3(_init$3, 68, this, false)), __runInitializers$3(_init$3, 71, this);
+    __publicField$3(this, "isDeferred", __runInitializers$3(_init$3, 72, this, true)), __runInitializers$3(_init$3, 75, this);
+    if (!_PBRMaterialParams.dummyAlbedo) _PBRMaterialParams.InitDummies();
+    this.albedoMap = _PBRMaterialParams.dummyAlbedo;
+    this.normalMap = _PBRMaterialParams.dummyNormal;
+    this.heightMap = _PBRMaterialParams.dummyBlack;
+    this.armMap = _PBRMaterialParams.dummyARM;
+    this.emissiveMap = _PBRMaterialParams.dummyBlack;
+  }
+  static InitDummies() {
+    _PBRMaterialParams.dummyAlbedo = Texture.Create(1, 1, 1, "bgra8unorm");
+    _PBRMaterialParams.dummyAlbedo.SetData(new Uint8Array([255, 255, 255, 255]), 4);
+    _PBRMaterialParams.dummyNormal = Texture.Create(1, 1, 1, "bgra8unorm");
+    _PBRMaterialParams.dummyNormal.SetData(new Uint8Array([255, 128, 128, 255]), 4);
+    _PBRMaterialParams.dummyBlack = Texture.Create(1, 1, 1, "bgra8unorm");
+    _PBRMaterialParams.dummyBlack.SetData(new Uint8Array([0, 0, 0, 255]), 4);
+    _PBRMaterialParams.dummyARM = Texture.Create(1, 1, 1, "bgra8unorm");
+    _PBRMaterialParams.dummyARM.SetData(new Uint8Array([255, 255, 255, 255]), 4);
+  }
+  Serialize() {
+    const isValidTexture = (texture, dummyTexture) => {
+      return texture && texture.assetPath && texture !== dummyTexture;
+    };
+    return {
+      albedoColor: this.albedoColor.Serialize(),
+      emissiveColor: this.emissiveColor.Serialize(),
+      roughness: this.roughness,
+      metalness: this.metalness,
+      albedoMap: isValidTexture(this.albedoMap, _PBRMaterialParams.dummyAlbedo) ? this.albedoMap.Serialize() : void 0,
+      normalMap: isValidTexture(this.normalMap, _PBRMaterialParams.dummyNormal) ? this.normalMap.Serialize() : void 0,
+      heightMap: isValidTexture(this.heightMap, _PBRMaterialParams.dummyBlack) ? this.heightMap.Serialize() : void 0,
+      armMap: isValidTexture(this.armMap, _PBRMaterialParams.dummyARM) ? this.armMap.Serialize() : void 0,
+      emissiveMap: isValidTexture(this.emissiveMap, _PBRMaterialParams.dummyBlack) ? this.emissiveMap.Serialize() : void 0,
+      repeat: this.repeat.Serialize(),
+      offset: this.offset.Serialize(),
+      doubleSided: this.doubleSided,
+      alphaCutoff: this.alphaCutoff,
+      unlit: this.unlit,
+      wireframe: this.wireframe,
+      isSkinned: this.isSkinned,
+      isDeferred: this.isDeferred
+    };
+  }
+  async Deserialize(data = {}) {
+    this.albedoColor = new Color().Deserialize(data.albedoColor);
+    this.emissiveColor = new Color().Deserialize(data.emissiveColor);
+    this.roughness = data.roughness;
+    this.metalness = data.metalness;
+    if (data.albedoMap) this.albedoMap = await Texture.Deserialize(data.albedoMap);
+    if (data.normalMap) this.normalMap = await Texture.Deserialize(data.normalMap);
+    if (data.heightMap) this.heightMap = await Texture.Deserialize(data.heightMap);
+    if (data.armMap) this.armMap = await Texture.Deserialize(data.armMap);
+    if (data.emissiveMap) this.emissiveMap = await Texture.Deserialize(data.emissiveMap);
+    this.doubleSided = data.doubleSided;
+    this.alphaCutoff = data.alphaCutoff;
+    this.unlit = data.unlit;
+    this.wireframe = data.wireframe;
+    this.isSkinned = data.isSkinned;
+    this.isDeferred = data.isDeferred;
+  }
+};
+_init$3 = __decoratorStart$3(_a$3);
+__decorateElement$3(_init$3, 5, "albedoColor", _albedoColor_dec, _PBRMaterialParams);
+__decorateElement$3(_init$3, 5, "emissiveColor", _emissiveColor_dec, _PBRMaterialParams);
+__decorateElement$3(_init$3, 5, "roughness", _roughness_dec, _PBRMaterialParams);
+__decorateElement$3(_init$3, 5, "metalness", _metalness_dec, _PBRMaterialParams);
+__decorateElement$3(_init$3, 5, "albedoMap", _albedoMap_dec, _PBRMaterialParams);
+__decorateElement$3(_init$3, 5, "normalMap", _normalMap_dec, _PBRMaterialParams);
+__decorateElement$3(_init$3, 5, "heightMap", _heightMap_dec, _PBRMaterialParams);
+__decorateElement$3(_init$3, 5, "armMap", _armMap_dec, _PBRMaterialParams);
+__decorateElement$3(_init$3, 5, "emissiveMap", _emissiveMap_dec, _PBRMaterialParams);
+__decorateElement$3(_init$3, 5, "repeat", _repeat_dec, _PBRMaterialParams);
+__decorateElement$3(_init$3, 5, "offset", _offset_dec, _PBRMaterialParams);
+__decorateElement$3(_init$3, 5, "doubleSided", _doubleSided_dec, _PBRMaterialParams);
+__decorateElement$3(_init$3, 5, "alphaCutoff", _alphaCutoff_dec, _PBRMaterialParams);
+__decorateElement$3(_init$3, 5, "unlit", _unlit_dec, _PBRMaterialParams);
+__decorateElement$3(_init$3, 5, "wireframe", _wireframe_dec, _PBRMaterialParams);
+__decorateElement$3(_init$3, 5, "isSkinned", _isSkinned_dec, _PBRMaterialParams);
+__decorateElement$3(_init$3, 5, "isDeferred", _isDeferred_dec, _PBRMaterialParams);
+__decoratorMetadata$3(_init$3, _PBRMaterialParams);
+__publicField$3(_PBRMaterialParams, "dummyAlbedo");
+// 1x1 white
+__publicField$3(_PBRMaterialParams, "dummyNormal");
+// 1x1 flat (128, 128, 255)
+__publicField$3(_PBRMaterialParams, "dummyBlack");
+// 1x1 black (for height, emissive)
+__publicField$3(_PBRMaterialParams, "dummyARM");
+let PBRMaterialParams = _PBRMaterialParams;
 class PBRMaterial extends Material {
   static type = "@trident/core/renderer/Material/PBRMaterial";
   name = "PBRMaterial";
-  params = {
-    albedoColor: new Color(1, 1, 1, 1),
-    emissiveColor: new Color(0, 0, 0, 0),
-    roughness: 1,
-    metalness: 0,
-    albedoMap: void 0,
-    normalMap: void 0,
-    heightMap: void 0,
-    armMap: void 0,
-    emissiveMap: void 0,
-    repeat: new Vector2(1, 1),
-    offset: new Vector2(0, 0),
-    doubleSided: false,
-    alphaCutoff: 0.5,
-    unlit: false,
-    wireframe: false,
-    isSkinned: false,
-    isDeferred: true
-  };
+  static sampler;
+  params = new PBRMaterialParams();
   constructor(params) {
     super({ isDeferred: params?.isDeferred ?? true });
     Object.assign(this.params, params);
+    if (!PBRMaterial.sampler) PBRMaterial.sampler = TextureSampler.Create();
     this.createShader();
   }
   pendingShaderCreation;
@@ -5774,11 +5925,6 @@ class PBRMaterial extends Material {
     this.pendingShaderCreation = (async () => {
       const gbufferFormat = Scene.mainScene.renderPipeline.GBufferFormat;
       const defines = {
-        USE_ALBEDO_MAP: !!this.params.albedoMap,
-        USE_NORMAL_MAP: !!this.params.normalMap,
-        USE_HEIGHT_MAP: !!this.params.heightMap,
-        USE_ARM_MAP: !!this.params.armMap,
-        USE_EMISSIVE_MAP: !!this.params.emissiveMap,
         USE_SKINNING: !!this.params.isSkinned
       };
       const shaderParams = {
@@ -5789,65 +5935,62 @@ class PBRMaterial extends Material {
         cullMode: this.params.doubleSided === true ? "none" : "back"
       };
       const shader = await Shader.Create(shaderParams);
-      if (Object.values(defines).some((v) => v)) {
-        shader.SetSampler("TextureSampler", TextureSampler.Create());
-      }
-      shader.SetArray("material", new Float32Array([
-        this.params.albedoColor.r,
-        this.params.albedoColor.g,
-        this.params.albedoColor.b,
-        this.params.albedoColor.a,
-        this.params.emissiveColor.r,
-        this.params.emissiveColor.g,
-        this.params.emissiveColor.b,
-        this.params.emissiveColor.a,
-        this.params.roughness,
-        this.params.metalness,
-        +this.params.unlit,
-        this.params.alphaCutoff,
-        this.params.repeat.x,
-        this.params.repeat.y,
-        this.params.offset.x,
-        this.params.offset.y,
-        +this.params.wireframe,
-        0,
-        0,
-        0
-      ]));
-      if (this.params.albedoMap) shader.SetTexture("AlbedoMap", this.params.albedoMap);
-      if (this.params.normalMap) shader.SetTexture("NormalMap", this.params.normalMap);
-      if (this.params.heightMap) shader.SetTexture("HeightMap", this.params.heightMap);
-      if (this.params.armMap) shader.SetTexture("ARMMap", this.params.armMap);
-      if (this.params.emissiveMap) shader.SetTexture("EmissiveMap", this.params.emissiveMap);
+      shader.SetSampler("TextureSampler", PBRMaterial.sampler);
       this._shader = shader;
+      const self = this;
+      const handler = {
+        set(obj, prop, value) {
+          obj[prop] = value;
+          if (prop === "doubleSided") {
+            self.shader.Destroy();
+            self.createShader();
+          } else {
+            self.assignParameters();
+          }
+          return true;
+        }
+      };
+      this.params = new Proxy(this.params, handler);
+      this.assignParameters();
       return shader;
     })();
     return this.pendingShaderCreation;
+  }
+  assignParameters() {
+    this.shader.SetArray("material", new Float32Array([
+      this.params.albedoColor.r,
+      this.params.albedoColor.g,
+      this.params.albedoColor.b,
+      this.params.albedoColor.a,
+      this.params.emissiveColor.r,
+      this.params.emissiveColor.g,
+      this.params.emissiveColor.b,
+      this.params.emissiveColor.a,
+      this.params.roughness,
+      this.params.metalness,
+      +this.params.unlit,
+      this.params.alphaCutoff,
+      this.params.repeat.x,
+      this.params.repeat.y,
+      this.params.offset.x,
+      this.params.offset.y,
+      +this.params.wireframe,
+      0,
+      0,
+      0
+    ]));
+    this.shader.SetTexture("AlbedoMap", this.params.albedoMap);
+    this.shader.SetTexture("NormalMap", this.params.normalMap);
+    this.shader.SetTexture("HeightMap", this.params.heightMap);
+    this.shader.SetTexture("ARMMap", this.params.armMap);
+    this.shader.SetTexture("EmissiveMap", this.params.emissiveMap);
   }
   SerializeAsset() {
     return {
       assetPath: this.assetPath,
       type: PBRMaterial.type,
       shader: void 0,
-      params: {
-        albedoColor: this.params.albedoColor.Serialize(),
-        emissiveColor: this.params.emissiveColor.Serialize(),
-        roughness: this.params.roughness,
-        metalness: this.params.metalness,
-        albedoMap: this.params.albedoMap?.Serialize(),
-        normalMap: this.params.normalMap?.Serialize(),
-        heightMap: this.params.heightMap?.Serialize(),
-        armMap: this.params.armMap?.Serialize(),
-        emissiveMap: this.params.emissiveMap?.Serialize(),
-        repeat: this.params.repeat.Serialize(),
-        offset: this.params.offset.Serialize(),
-        doubleSided: this.params.doubleSided,
-        alphaCutoff: this.params.alphaCutoff,
-        unlit: this.params.unlit,
-        wireframe: this.params.wireframe,
-        isSkinned: this.params.isSkinned,
-        isDeferred: this.params.isDeferred
-      }
+      params: this.params.Serialize()
     };
   }
   Serialize(metadata = {}) {
@@ -5858,48 +6001,11 @@ class PBRMaterial extends Material {
         assetPath: this.assetPath
       };
     }
-    return {
-      assetPath: "",
-      type: PBRMaterial.type,
-      shader: void 0,
-      params: {
-        albedoColor: this.params.albedoColor.Serialize(),
-        emissiveColor: this.params.emissiveColor.Serialize(),
-        roughness: this.params.roughness,
-        metalness: this.params.metalness,
-        albedoMap: this.params.albedoMap?.Serialize(metadata),
-        normalMap: this.params.normalMap?.Serialize(metadata),
-        heightMap: this.params.heightMap?.Serialize(metadata),
-        armMap: this.params.armMap?.Serialize(metadata),
-        emissiveMap: this.params.emissiveMap?.Serialize(metadata),
-        repeat: this.params.repeat.Serialize(),
-        offset: this.params.offset.Serialize(),
-        doubleSided: this.params.doubleSided,
-        alphaCutoff: this.params.alphaCutoff,
-        unlit: this.params.unlit,
-        wireframe: this.params.wireframe,
-        isSkinned: this.params.isSkinned,
-        isDeferred: this.params.isDeferred
-      }
-    };
+    return this.SerializeAsset();
   }
   async Deserialize(data) {
-    const p = data.params;
-    this.params.albedoColor = new Color().Deserialize(p.albedoColor);
-    this.params.emissiveColor = new Color().Deserialize(p.emissiveColor);
-    this.params.roughness = p.roughness;
-    this.params.metalness = p.metalness;
-    this.params.albedoMap = p.albedoMap && await Texture.Deserialize(p.albedoMap);
-    this.params.normalMap = p.normalMap && await Texture.Deserialize(p.normalMap);
-    this.params.heightMap = p.heightMap && await Texture.Deserialize(p.heightMap);
-    this.params.armMap = p.armMap && await Texture.Deserialize(p.armMap);
-    this.params.emissiveMap = p.emissiveMap && await Texture.Deserialize(p.emissiveMap);
-    this.params.doubleSided = p.doubleSided;
-    this.params.alphaCutoff = p.alphaCutoff;
-    this.params.unlit = p.unlit;
-    this.params.wireframe = p.wireframe;
-    this.params.isSkinned = p.isSkinned;
-    this.params.isDeferred = p.isDeferred;
+    this.params = new PBRMaterialParams();
+    await this.params.Deserialize(data.params);
     this._shader?.Destroy();
     this.pendingShaderCreation = void 0;
     await this.createShader();
@@ -5959,7 +6065,7 @@ class RenderableEvents {
   static MaterialUpdated = (gameObject, material) => {
   };
 }
-const _Renderable = class _Renderable extends (_a$2 = Component, _enableShadows_dec = [SerializeField], _geometry_dec = [SerializeField], _material_dec = [SerializeField], _a$2) {
+const _Renderable = class _Renderable extends (_a$2 = Component, _enableShadows_dec = [SerializeField], _geometry_dec = [SerializeField(Geometry)], _material_dec = [SerializeField(Material)], _a$2) {
   constructor(gameObject) {
     super(gameObject);
     __runInitializers$2(_init$2, 5, this);
@@ -6058,19 +6164,6 @@ class Bone extends (_a$1 = Component, _index_dec = [SerializeField], _skinId_dec
     __publicField$1(this, "skinId", __runInitializers$1(_init$1, 12, this, -1)), __runInitializers$1(_init$1, 15, this);
     __publicField$1(this, "inverseBindMatrix", __runInitializers$1(_init$1, 16, this, new Float32Array(16))), __runInitializers$1(_init$1, 19, this);
   }
-  // public Serialize(metadata: any = {}): SerializedComponent {
-  //     return {
-  //         type: Bone.type,
-  //         index: this.index,
-  //         skinId: this.skinId,
-  //         inverseBindMatrix: Array.from(this.inverseBindMatrix)
-  //     };
-  // }
-  // public Deserialize(data: any) {
-  //     this.index = data.index ?? 0;
-  //     this.skinId = data.skinId ?? -1;
-  //     this.inverseBindMatrix = new Float32Array(data.inverseBindMatrix ?? 16);
-  // }
 }
 _init$1 = __decoratorStart$1(_a$1);
 __decorateElement$1(_init$1, 5, "index", _index_dec, Bone);
@@ -6111,12 +6204,18 @@ class SkinnedMesh extends Renderable {
     this.jointData = new Float32Array(this.bones.length * 16);
   }
   Start() {
+    this.tryInitBones();
+  }
+  tryInitBones() {
+    if (this.boneMatricesBuffer) return true;
     this.buildBones();
-    if (!this.bones.length) throw Error("SkinnedMesh needs bones");
+    if (!this.bones.length) return false;
     this.boneMatricesBuffer = Buffer.Create(this.jointData.length * 4, BufferType.STORAGE);
     this.boneMatricesBuffer.SetArray(this.jointData);
+    return true;
   }
   Update() {
+    if (!this.boneMatricesBuffer && !this.tryInitBones()) return;
     if (!this.bones.length) return;
     const skinRootWorldMatrix = this.gameObject.transform.worldToLocalMatrix;
     for (let j = 0; j < this.bones.length; ++j) {
@@ -6126,7 +6225,7 @@ class SkinnedMesh extends Renderable {
     this.boneMatricesBuffer.SetArray(this.jointData);
   }
   OnPreRender() {
-    if (!this.geometry || !this.material || !this.material?.shader) return;
+    if (!this.geometry || !this.material || !this.material?.shader || !this.boneMatricesBuffer) return;
     this.material.shader.SetMatrix4("modelMatrix", this.transform.localToWorldMatrix);
     this.material.shader.SetBuffer("boneMatrices", this.boneMatricesBuffer);
   }
@@ -6135,17 +6234,6 @@ class SkinnedMesh extends Renderable {
     if (!this.geometry || !this.material || !shader) return;
     RendererContext.DrawGeometry(this.geometry, shader);
   }
-  // public Serialize(metadata: any = {}): SerializedComponent {
-  //     return {
-  //         type: SkinnedMesh.type,
-  //         skinId: this.skinId,
-  //         renderable: super.Serialize(metadata)
-  //     }
-  // }
-  // public Deserialize(data: any) {
-  //     this.skinId = data.skinId ?? -1;
-  //     super.Deserialize(data.renderable);
-  // }
 }
 Component.Registry.set(SkinnedMesh.type, SkinnedMesh);
 
@@ -6909,7 +6997,7 @@ class RenderablePass extends RenderPass {
 }
 
 const TextureViewerSettings = Console.define({
-  r_tonemapper: { default: 0, help: "Tonemapper type (disabled" },
+  r_tonemapper: { default: 1, help: "Tonemapper type (disabled" },
   r_exposure: { default: 0, help: "Exposure" },
   r_contrast: { default: 1, help: "Contrast" },
   r_saturation: { default: 1, help: "Saturation" }
@@ -7026,12 +7114,14 @@ class PostExposureTonemap extends RenderPass {
             
             col = col * exp2(params.exposure);
 
-            // Tonemap
-            col = toneMapping(col);
+            // // Tonemap
+            if (i32(params.tonemapType) == 1) {
+                col = toneMapping(col);
+            }
 
-            col = applyContrast(col, params.contrast);
-            col = applySaturation(col, params.saturation);
-            col = clamp(col, vec3f(0.0), vec3f(1.0));
+            // col = applyContrast(col, params.contrast);
+            // col = applySaturation(col, params.saturation);
+            // col = clamp(col, vec3f(0.0), vec3f(1.0));
 
             return vec4f(col, 1.0);
         }
@@ -7752,12 +7842,18 @@ var __decorateElement = (array, flags, name, decorators, target, extra) => {
 };
 var __publicField = (obj, key, value) => __defNormalProp(obj, typeof key !== "symbol" ? key + "" : key, value);
 var _clips_dec, _a, _init, _clips_dec2, _b, _init2;
-class AnimationTrack extends (_a = Component, _clips_dec = [SerializeField], _a) {
+const _AnimationTrack = class _AnimationTrack extends (_a = Component, _clips_dec = [SerializeField], _a) {
   constructor() {
     super(...arguments);
+    __publicField(this, "trackName", "");
     __publicField(this, "clips", __runInitializers(_init, 8, this, [])), __runInitializers(_init, 11, this);
     // O(1) lookup cache (built once)
     __publicField(this, "_clipsByIndex", null);
+    // Reusable scratch objects — no per-frame allocations
+    __publicField(this, "_v0", new Vector3());
+    __publicField(this, "_v1", new Vector3());
+    __publicField(this, "_q0", new Quaternion());
+    __publicField(this, "_q1", new Quaternion());
   }
   ensureClipCache() {
     if (this._clipsByIndex) return;
@@ -7771,8 +7867,9 @@ class AnimationTrack extends (_a = Component, _clips_dec = [SerializeField], _a)
     this.ensureClipCache();
     return this._clipsByIndex[clipIndex] ?? null;
   }
-  sampleSampler(sampler, t, out) {
+  sampleVec3(sampler, t, out) {
     const times = sampler.times;
+    const vals = sampler.values;
     const lastT = times[sampler.keyCount - 1] ?? 0;
     const time = sampler.keyCount > 1 ? t % lastT : 0;
     let i1 = 0;
@@ -7780,26 +7877,48 @@ class AnimationTrack extends (_a = Component, _clips_dec = [SerializeField], _a)
     if (i1 === 0) i1 = 1;
     if (i1 >= sampler.keyCount) i1 = sampler.keyCount - 1;
     const i0 = i1 - 1;
-    const t0 = times[i0];
-    const t1 = times[i1];
+    const t0 = times[i0], t1 = times[i1];
     const u = t1 > t0 ? (time - t0) / (t1 - t0) : 0;
-    const c = sampler.compCount;
-    const base0 = i0 * c;
-    const base1 = i1 * c;
-    if (c === 4 && out instanceof Quaternion) {
-      const qa = sampler.values.slice(base0, base0 + 4);
-      const qb = sampler.values.slice(base1, base1 + 4);
-      const _qa = new Quaternion(...qa);
-      const _qb = new Quaternion(...qb);
-      out.copy(_qa).slerp(_qb, u);
-    } else if (c === 3 && out instanceof Vector3) {
-      const a = sampler.values.slice(base0, base0 + 3);
-      const b = sampler.values.slice(base1, base1 + 3);
-      const _a2 = new Vector3(...a);
-      const _b2 = new Vector3(...b);
-      out.copy(_a2).lerp(_b2, u);
-    }
+    const b0 = i0 * 3, b1 = i1 * 3;
+    out.set(
+      vals[b0] + (vals[b1] - vals[b0]) * u,
+      vals[b0 + 1] + (vals[b1 + 1] - vals[b0 + 1]) * u,
+      vals[b0 + 2] + (vals[b1 + 2] - vals[b0 + 2]) * u
+    );
     return out;
+  }
+  sampleQuat(sampler, t, out) {
+    const times = sampler.times;
+    const vals = sampler.values;
+    const lastT = times[sampler.keyCount - 1] ?? 0;
+    const time = sampler.keyCount > 1 ? t % lastT : 0;
+    let i1 = 0;
+    while (i1 < sampler.keyCount && times[i1] < time) ++i1;
+    if (i1 === 0) i1 = 1;
+    if (i1 >= sampler.keyCount) i1 = sampler.keyCount - 1;
+    const i0 = i1 - 1;
+    const t0 = times[i0], t1 = times[i1];
+    const u = t1 > t0 ? (time - t0) / (t1 - t0) : 0;
+    const b0 = i0 * 4, b1 = i1 * 4;
+    this._q1.set(vals[b0], vals[b0 + 1], vals[b0 + 2], vals[b0 + 3]);
+    out.set(vals[b1], vals[b1 + 1], vals[b1 + 2], vals[b1 + 3]);
+    this._q1.slerp(out, u);
+    out.copy(this._q1);
+    return out;
+  }
+  Serialize() {
+    return {
+      type: _AnimationTrack.type,
+      id: this.id,
+      trackName: this.trackName
+    };
+  }
+  Deserialize(data) {
+    this.trackName = data.trackName ?? "";
+    if (data.clips) {
+      this.clips = data.clips;
+      this._clipsByIndex = null;
+    }
   }
   apply(clipIndex, time) {
     const clip = this.getClip(clipIndex);
@@ -7807,11 +7926,11 @@ class AnimationTrack extends (_a = Component, _clips_dec = [SerializeField], _a)
     const tr = this.gameObject.transform;
     for (const ch of clip.channels) {
       if (ch.path === "translation") {
-        this.sampleSampler(ch.sampler, time, tr.localPosition);
+        this.sampleVec3(ch.sampler, time, tr.localPosition);
       } else if (ch.path === "scale") {
-        this.sampleSampler(ch.sampler, time, tr.scale);
+        this.sampleVec3(ch.sampler, time, tr.scale);
       } else if (ch.path === "rotation") {
-        this.sampleSampler(ch.sampler, time, tr.localRotation).normalize();
+        this.sampleQuat(ch.sampler, time, tr.localRotation).normalize();
       }
     }
   }
@@ -7825,42 +7944,40 @@ class AnimationTrack extends (_a = Component, _clips_dec = [SerializeField], _a)
     for (const chA of a.channels) {
       const chB = b.channels.find((ch) => ch.path === chA.path);
       if (!chB) {
-        if (chA.path === "translation") this.sampleSampler(chA.sampler, tA, tr.localPosition);
-        else if (chA.path === "scale") this.sampleSampler(chA.sampler, tA, tr.scale);
-        else if (chA.path === "rotation") this.sampleSampler(chA.sampler, tA, tr.localRotation).normalize();
+        if (chA.path === "translation") this.sampleVec3(chA.sampler, tA, tr.localPosition);
+        else if (chA.path === "scale") this.sampleVec3(chA.sampler, tA, tr.scale);
+        else if (chA.path === "rotation") this.sampleQuat(chA.sampler, tA, tr.localRotation).normalize();
         continue;
       }
       if (chA.path === "translation") {
-        const v0 = new Vector3();
-        const v1 = new Vector3();
-        this.sampleSampler(chA.sampler, tA, v0);
-        this.sampleSampler(chB.sampler, tB, v1);
-        tr.localPosition.copy(v0.lerp(v1, alpha));
+        this.sampleVec3(chA.sampler, tA, this._v0);
+        this.sampleVec3(chB.sampler, tB, this._v1);
+        tr.localPosition.copy(this._v0.lerp(this._v1, alpha));
       } else if (chA.path === "scale") {
-        const v0 = new Vector3();
-        const v1 = new Vector3();
-        this.sampleSampler(chA.sampler, tA, v0);
-        this.sampleSampler(chB.sampler, tB, v1);
-        tr.scale.copy(v0.lerp(v1, alpha));
+        this.sampleVec3(chA.sampler, tA, this._v0);
+        this.sampleVec3(chB.sampler, tB, this._v1);
+        tr.scale.copy(this._v0.lerp(this._v1, alpha));
       } else if (chA.path === "rotation") {
-        const q0 = new Quaternion();
-        const q1 = new Quaternion();
-        this.sampleSampler(chA.sampler, tA, q0);
-        this.sampleSampler(chB.sampler, tB, q1);
-        tr.localRotation.copy(q0.slerp(q1, alpha)).normalize();
+        this.sampleQuat(chA.sampler, tA, this._q0);
+        this.sampleQuat(chB.sampler, tB, this._q1);
+        tr.localRotation.copy(this._q0.slerp(this._q1, alpha)).normalize();
       }
     }
   }
-}
+};
 _init = __decoratorStart(_a);
-__decorateElement(_init, 5, "clips", _clips_dec, AnimationTrack);
-__decoratorMetadata(_init, AnimationTrack);
-__publicField(AnimationTrack, "type", "@trident/core/components/AnimationTrack");
+__decorateElement(_init, 5, "clips", _clips_dec, _AnimationTrack);
+__decoratorMetadata(_init, _AnimationTrack);
+__publicField(_AnimationTrack, "type", "@trident/core/components/AnimationTrack");
+let AnimationTrack = _AnimationTrack;
 Component.Registry.set(AnimationTrack.type, AnimationTrack);
-class Animator extends (_b = Component, _clips_dec2 = [SerializeField], _b) {
+const _Animator = class _Animator extends (_b = Component, _clips_dec2 = [SerializeField], _b) {
   constructor() {
     super(...arguments);
+    __publicField(this, "assetPath");
     __publicField(this, "clips", __runInitializers(_init2, 8, this, [])), __runInitializers(_init2, 11, this);
+    // All tracks data keyed by node name — loaded from .animation file
+    __publicField(this, "tracksData", {});
     __publicField(this, "clipIndex", 0);
     __publicField(this, "playing", false);
     __publicField(this, "previousTime", 0);
@@ -7876,6 +7993,13 @@ class Animator extends (_b = Component, _clips_dec2 = [SerializeField], _b) {
     this.previousTime = performance.now();
     this.tracks = [];
     this.collectTracks(this.gameObject.transform);
+    if (this.tracksData) {
+      for (const track of this.tracks) {
+        if (track.trackName && this.tracksData[track.trackName]) {
+          track.clips = this.tracksData[track.trackName];
+        }
+      }
+    }
     this.playing = true;
   }
   collectTracks(root) {
@@ -7897,6 +8021,54 @@ class Animator extends (_b = Component, _clips_dec2 = [SerializeField], _b) {
     this.fadeDuration = Math.max(1e-4, duration);
     this.fadeTime = 0;
     this.playing = true;
+  }
+  SerializeAsset() {
+    const tracks = {};
+    const collectTrackData = (root) => {
+      const track = root.gameObject.GetComponent(AnimationTrack);
+      if (track && track.trackName && track.clips.length) {
+        tracks[track.trackName] = track.clips;
+      }
+      for (const child of root.children) collectTrackData(child);
+    };
+    if (this.gameObject) {
+      collectTrackData(this.gameObject.transform);
+    }
+    return {
+      type: _Animator.type,
+      assetPath: this.assetPath,
+      clips: this.clips,
+      tracks: Object.keys(tracks).length ? tracks : this.tracksData
+    };
+  }
+  Serialize() {
+    if (this.assetPath) {
+      return {
+        type: _Animator.type,
+        id: this.id,
+        assetPath: this.assetPath
+      };
+    }
+    return this.SerializeAsset();
+  }
+  Deserialize(data) {
+    if (data.assetPath) {
+      this.assetPath = data.assetPath;
+      const instance = Assets.GetInstance(data.assetPath);
+      if (instance) {
+        this.clips = instance.clips ?? [];
+        this.tracksData = instance.tracks ?? instance.tracksData ?? {};
+        return;
+      }
+      Assets.SetInstance(data.assetPath, this);
+      Assets.Load(data.assetPath, "json").then((json) => {
+        this.clips = json.clips ?? [];
+        this.tracksData = json.tracks ?? {};
+      });
+      return;
+    }
+    this.clips = data.clips ?? [];
+    this.tracksData = data.tracks ?? {};
   }
   Update() {
     if (!this.playing) return;
@@ -7934,11 +8106,12 @@ class Animator extends (_b = Component, _clips_dec2 = [SerializeField], _b) {
     if (!this.clips.length) return -1;
     return this.clips.findIndex((c) => c.name === name);
   }
-}
+};
 _init2 = __decoratorStart(_b);
-__decorateElement(_init2, 5, "clips", _clips_dec2, Animator);
-__decoratorMetadata(_init2, Animator);
-__publicField(Animator, "type", "@trident/core/components/Animator");
+__decorateElement(_init2, 5, "clips", _clips_dec2, _Animator);
+__decoratorMetadata(_init2, _Animator);
+__publicField(_Animator, "type", "@trident/core/components/Animator");
+let Animator = _Animator;
 Component.Registry.set(Animator.type, Animator);
 
 var index = /*#__PURE__*/Object.freeze({
@@ -8108,6 +8281,7 @@ class Scene {
   static Instantiate(prefab, position, rotation) {
     const newGameObject = new GameObject(Scene.mainScene);
     newGameObject.Deserialize(prefab);
+    newGameObject.assetPath = prefab.assetPath;
     if (position) newGameObject.transform.position.copy(position);
     if (rotation) newGameObject.transform.rotation.copy(rotation);
     return newGameObject;
@@ -8117,4 +8291,4 @@ class Scene {
   }
 }
 
-export { Assets, Component, index as Components, Console, EventSystem, EventSystemLocal, index$1 as GPU, GameObject, Geometry, IndexAttribute, Input, InterleavedVertexAttribute, KeyCodes, index$2 as Mathf, MouseCodes, PBRMaterial, Prefab, Renderer, Scene, Texture, index$3 as Utils, VertexAttribute };
+export { Assets, Component, index as Components, Console, EventSystem, EventSystemLocal, index$1 as GPU, GameObject, Geometry, IndexAttribute, Input, InterleavedVertexAttribute, KeyCodes, index$2 as Mathf, MouseCodes, PBRMaterial, Prefab, Renderer, Scene, SerializeField, Texture, index$3 as Utils, VertexAttribute };

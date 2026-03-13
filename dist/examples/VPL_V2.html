@@ -31,11 +31,12 @@
                             import { Renderer, Scene, GameObject, Mathf, Components, Geometry, PBRMaterial } from '@trident/core';
             import { OrbitControls } from '@trident/plugins/OrbitControls.js';
             import { PhysicsRapier } from '@trident/plugins/PhysicsRapier/PhysicsRapier.js';
-            import { BoxCollider } from '@trident/plugins/PhysicsRapier/colliders/BoxCollider.js';
+            import { PhysicsDebugger } from '@trident/plugins/PhysicsRapier/PhysicsDebugger.js';
             import { Collider } from '@trident/plugins/PhysicsRapier/colliders/Collider.js';
-            import { FakeGI, VPLGenerator } from '@trident/plugins/VPLGenerator.js';
+            import { BoxCollider } from '@trident/plugins/PhysicsRapier/colliders/BoxCollider.js';
+            import { PlaneCollider } from '@trident/plugins/PhysicsRapier/colliders/PlaneCollider.js';
+            import { VPLGeneratorV2 } from '@trident/plugins/VPLGeneratorV2.js';
             import { Debugger } from '@trident/plugins/Debugger.js';
-            import { PointLightHelper } from '@trident/plugins/PointLightHelper.js';
             
             async function Application(canvas) {
               const renderer = Renderer.Create(canvas, "webgpu");
@@ -57,21 +58,9 @@
               sourceLightGO.transform.position.set(0, 4, 0);
               sourceLightGO.transform.LookAtV1(new Mathf.Vector3(0, 2, 0));
               const sourceLight = sourceLightGO.AddComponent(Components.PointLight);
-              const sourceLightGOHelper = new GameObject(scene);
-              const lightHelper = sourceLightGOHelper.AddComponent(PointLightHelper);
-              lightHelper.light = sourceLight;
-              sourceLight.intensity = 10;
+              new GameObject(scene);
+              sourceLight.intensity = 50;
               sourceLight.range = 30;
-              const fakeGI = sourceLightGO.AddComponent(FakeGI);
-              fakeGI.useRaycasting = false;
-              fakeGI.secondaryBounce = false;
-              fakeGI.useIndirectShadows = false;
-              fakeGI.automaticWeights = false;
-              fakeGI.distanceScale = 5;
-              fakeGI.minIntensity = 0.05;
-              fakeGI.forceEnable = true;
-              fakeGI.avgRefl = 0.4;
-              fakeGI.avgSecondaryDistance = 1;
               const physicsWorld = new GameObject(scene);
               const physicsComponent = physicsWorld.AddComponent(PhysicsRapier);
               await physicsComponent.Load();
@@ -83,7 +72,7 @@
                 const meshbottom = floor.AddComponent(Components.Mesh);
                 meshbottom.geometry = Geometry.Plane();
                 meshbottom.material = new PBRMaterial({ albedoColor: new Mathf.Color(1, 1, 1, 1), roughness: 0.7, metalness: 0.1 });
-                floor.AddComponent(BoxCollider);
+                floor.AddComponent(PlaneCollider);
                 const left = new GameObject(scene);
                 left.transform.scale.set(0.05, 10, 10);
                 left.transform.position.x = -5;
@@ -113,7 +102,7 @@
                 const meshtop = top.AddComponent(Components.Mesh);
                 meshtop.geometry = Geometry.Plane();
                 meshtop.material = new PBRMaterial({ albedoColor: new Mathf.Color(1, 1, 1, 1), roughness: 0.7, metalness: 0.1 });
-                top.AddComponent(BoxCollider);
+                top.AddComponent(PlaneCollider);
                 const cube = new GameObject(scene);
                 cube.transform.scale.set(2, 4, 2);
                 cube.transform.position.set(-2, -3, -2);
@@ -132,12 +121,8 @@
                 cube2.AddComponent(BoxCollider);
               }
               PhysicsRapier.PhysicsWorld.step();
-              const vplGen = new VPLGenerator({
-                maxNumVPLs: 20,
-                maxLevel: 2,
-                spacing: 1.5,
-                maxDistance: 40
-              });
+              const physicsDebuggerGO = new GameObject(scene);
+              physicsDebuggerGO.AddComponent(PhysicsDebugger);
               const colliderColorMap = /* @__PURE__ */ new Map();
               for (const go of scene.GetGameObjects()) {
                 const collider = go.GetComponent(Collider);
@@ -148,30 +133,13 @@
                 if (handle === void 0) continue;
                 colliderColorMap.set(handle, mesh.material.params.albedoColor.clone());
               }
-              const vpls = vplGen.GenerateFromLight(sourceLight, {
-                sampleColor: (hit) => {
-                  const handle = hit.collider?.handle;
-                  const color = handle !== void 0 ? colliderColorMap.get(handle) : void 0;
-                  return color ? color.clone() : sourceLight.color.clone();
-                }
-              });
-              const lightGameObjects = vplGen.CreateLights(scene, vpls, { enabled: false, spotAngleDeg: 160 });
-              fakeGI.RefreshVPLs();
-              function AddSphere(location) {
-                const g = new GameObject(scene);
-                g.transform.position.copy(location);
-                const m = g.AddComponent(Components.Mesh);
-                m.geometry = Geometry.Sphere();
-                m.material = new PBRMaterial({ unlit: true });
-              }
-              console.log(lightGameObjects);
-              for (const gameObject of lightGameObjects) {
-                const spotLight = gameObject.GetComponent(Components.PointLight);
-                if (spotLight) {
-                  console.log("HERE");
-                  AddSphere(spotLight.transform.position);
-                }
-              }
+              const sampleColor = (hit) => {
+                const handle = hit.collider?.handle;
+                const color = handle !== void 0 ? colliderColorMap.get(handle) : void 0;
+                return color ? color.clone() : sourceLight.color.clone();
+              };
+              const vplGen = new VPLGeneratorV2(scene);
+              vplGen.GenerateFromLight(sourceLight, sampleColor);
               Debugger.Enable();
               scene.Start();
             }

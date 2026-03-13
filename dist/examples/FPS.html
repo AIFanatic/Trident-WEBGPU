@@ -59,6 +59,7 @@
               const light = lightGameObject.AddComponent(Components.DirectionalLight);
               light.color.set(1, 0.96, 0.88, 1);
               light.intensity = 1;
+              light.castShadows = false;
               new UIColorStat(Debugger.ui, "Light Color:", light.color.toHex(), (value) => {
                 light.color.setFromHex(value);
               });
@@ -81,8 +82,7 @@
                 return textures;
               }
               async function LoadTexture(url, format = "rgba8unorm-srgb") {
-                const texture = await GPU.Texture.Load(url, format);
-                texture.GenerateMips();
+                const texture = await GPU.Texture.Load(url, format, { generateMips: true });
                 return texture;
               }
               const biomes_splat_map = await GPU.Texture.Load("/extra/test-assets/terrain/heightmaps/biomeids_1024x1024.png");
@@ -93,9 +93,9 @@
                 //"/extra/test-assets/terrain/heightmaps/splat0_island_1024x1024.png",
               ]);
               let transform = new Float32Array([10, 10, 0, 0]);
-              const albedoTexture = await LoadTexture(`/extra/test-assets/terrain/brown_mud_leaves_01/brown_mud_leaves_01_diff_1k.jpg`, "rgba8unorm-srgb");
-              const normalTexture = await LoadTexture(`/extra/test-assets/terrain/brown_mud_leaves_01/brown_mud_leaves_01_nor_gl_1k.jpg`, "rgba8unorm");
-              const armMap = await LoadTexture(`/extra/test-assets/terrain/brown_mud_leaves_01/brown_mud_leaves_01_arm_1k.jpg`, "rgba8unorm");
+              const albedoTexture = await LoadTexture(`/extra/test-assets/terrain/brown_mud_leaves_01/brown_mud_leaves_01_diff_4k.jpg`, "rgba8unorm-srgb");
+              const normalTexture = await LoadTexture(`/extra/test-assets/terrain/brown_mud_leaves_01/brown_mud_leaves_01_nor_gl_4k.jpg`, "rgba8unorm");
+              const armMap = await LoadTexture(`/extra/test-assets/terrain/brown_mud_leaves_01/brown_mud_leaves_01_arm_4k.jpg`, "rgba8unorm");
               terrain.material.layers = [
                 { name: "TropicalForest", transform, albedoMap: albedoTexture, normalMap: normalTexture, armMap }
               ];
@@ -145,7 +145,7 @@
               terrain.SampleHeight(p);
               p.y += 1;
               playerGameObject.transform.position.copy(p);
-              const weaponPrefab = await GLTFLoader.LoadFromURL("/extra/test-assets/bouquet.glb");
+              const weaponPrefab = await GLTFLoader.LoadFromURL("/extra/test-assets/semi_auto_rifle.worldmodel.glb");
               const weaponGameObject = scene.Instantiate(weaponPrefab);
               weaponGameObject.transform.position.copy(camera.transform.position);
               weaponGameObject.transform.parent = camera.transform;
@@ -330,7 +330,7 @@
                   if (name.includes("swamp")) continue;
                   if (name.includes("tundra")) continue;
                   if (name.includes("snow")) continue;
-                  if (!name.includes("american_beech_a_new.glb")) continue;
+                  if (!name.includes("Pine_a.glb")) continue;
                   console.log("Loading", name);
                   addLOD("/extra/test-assets/nature/treessource/" + name, { count: 1e3, enableShadows: false });
                 }

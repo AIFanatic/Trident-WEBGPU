@@ -7,9 +7,10 @@ var ViewTypes = /* @__PURE__ */ ((ViewTypes2) => {
   ViewTypes2[ViewTypes2["Normal"] = 2] = "Normal";
   ViewTypes2[ViewTypes2["Metalness"] = 3] = "Metalness";
   ViewTypes2[ViewTypes2["Roughness"] = 4] = "Roughness";
-  ViewTypes2[ViewTypes2["Emissive"] = 5] = "Emissive";
-  ViewTypes2[ViewTypes2["Depth"] = 6] = "Depth";
-  ViewTypes2[ViewTypes2["ShadowsCSM"] = 7] = "ShadowsCSM";
+  ViewTypes2[ViewTypes2["AO"] = 5] = "AO";
+  ViewTypes2[ViewTypes2["Emissive"] = 6] = "Emissive";
+  ViewTypes2[ViewTypes2["Depth"] = 7] = "Depth";
+  ViewTypes2[ViewTypes2["ShadowsCSM"] = 8] = "ShadowsCSM";
   return ViewTypes2;
 })(ViewTypes || {});
 class DebuggerRenderPass extends GPU.RenderPass {
@@ -98,9 +99,10 @@ class DebuggerRenderPass extends GPU.RenderPass {
                     else if (u32(viewType) == 2) { color = vec4(OctDecode(color.rg) * 0.5 + 0.5, 1.0); } // Normal
                     else if (u32(viewType) == 3) { color = vec4(color.a); } // Metalness
                     else if (u32(viewType) == 4) { color = vec4(color.a); } // Roughness
-                    else if (u32(viewType) == 5) { color = vec4(color.rgb, 1.0); } // Emissive
-                    else if (u32(viewType) == 6) { color = vec4(vec3f(VisualizeDepth_Log(depth)), 1.0); } // Depth
-                    else if (u32(viewType) == 7) { // Shadows CSM
+                    else if (u32(viewType) == 5) { color = vec4(color.z); } // AO
+                    else if (u32(viewType) == 6) { color = vec4(color.rgb, 1.0); } // Emissive
+                    else if (u32(viewType) == 7) { color = vec4(vec3f(VisualizeDepth_Log(depth)), 1.0); } // Depth
+                    else if (u32(viewType) == 8) { // Shadows CSM
                         const debug_cascadeColors = array<vec4<f32>, 5>(
                             vec4<f32>(1.0, 0.0, 0.0, 1.0),
                             vec4<f32>(0.0, 1.0, 0.0, 1.0),
@@ -156,8 +158,9 @@ class DebuggerRenderPass extends GPU.RenderPass {
     else if (this.currentViewType === 2 /* Normal */) this.outputViewerShader.SetTexture("inputTexture", GBufferNormal);
     else if (this.currentViewType === 3 /* Metalness */) this.outputViewerShader.SetTexture("inputTexture", GBufferAlbedo);
     else if (this.currentViewType === 4 /* Roughness */) this.outputViewerShader.SetTexture("inputTexture", GBufferNormal);
-    else if (this.currentViewType === 5 /* Emissive */) this.outputViewerShader.SetTexture("inputTexture", GBufferERMO);
-    else if (this.currentViewType === 7 /* ShadowsCSM */) {
+    else if (this.currentViewType === 5 /* AO */) this.outputViewerShader.SetTexture("inputTexture", GBufferNormal);
+    else if (this.currentViewType === 6 /* Emissive */) this.outputViewerShader.SetTexture("inputTexture", GBufferERMO);
+    else if (this.currentViewType === 8 /* ShadowsCSM */) {
       GPU.RendererContext.CopyTextureToTextureV3({ texture: lightingOutput }, { texture: this.lightingOutputClone });
       this.outputViewerShader.SetTexture("inputTexture", this.lightingOutputClone);
     }

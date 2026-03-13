@@ -1,4 +1,4 @@
-import { Renderer, Scene, GameObject, Mathf, Component as Component$1, Prefab, Geometry, PBRMaterial, GPU, Utils, Components, Input, Assets } from '@trident/core';
+import { Renderer, Scene, GameObject, Mathf, Geometry, PBRMaterial, Prefab, GPU, Component as Component$1, Utils, Components, Input, Assets } from '@trident/core';
 import { OrbitControls } from '@trident/plugins/OrbitControls.js';
 import { Environment } from '@trident/plugins/Environment/Environment.js';
 import { Sky } from '@trident/plugins/Environment/Sky.js';
@@ -8,7 +8,6 @@ import { PostProcessingSMAA } from '@trident/plugins/PostProcessing/effects/SMAA
 
 class TridentAPI {
   currentScene;
-  gameObjectRefs = /* @__PURE__ */ new WeakSet();
   createRenderer(canvas) {
     Renderer.Create(canvas, "webgpu");
   }
@@ -18,44 +17,19 @@ class TridentAPI {
   }
   createGameObject(scene) {
     const gameObject = new GameObject(scene);
-    this.gameObjectRefs.add(gameObject);
     return gameObject;
-  }
-  isEngineGameObject(obj) {
-    return this.gameObjectRefs.has(obj);
   }
   createVector3(x, y, z) {
     const vec3 = new Mathf.Vector3(x, y, z);
     return vec3;
   }
-  isVector3(vector3) {
-    return vector3.constructor === Mathf.Vector3;
-  }
   createVector2(x, y, z) {
     const vec2 = new Mathf.Vector2(x, y);
     return vec2;
   }
-  isVector2(vector2) {
-    return vector2.constructor === Mathf.Vector2;
-  }
   createColor(r, g, b, a) {
     const color = new Mathf.Color(r, g, b, a);
     return color;
-  }
-  isColor(color) {
-    return color.constructor === Mathf.Color;
-  }
-  isComponent(component) {
-    return component.constructor === Component$1;
-  }
-  isPrefab(prefab) {
-    return prefab.constructor === Prefab;
-  }
-  isGeometry(geometry) {
-    return geometry.constructor === Prefab;
-  }
-  isMaterial(material) {
-    return material.constructor === Prefab;
   }
   createPlaneGeometry() {
     return Geometry.Plane();
@@ -83,6 +57,62 @@ class TridentAPI {
   }
   deserializePrefab(serialized) {
     return Prefab.Deserialize(serialized);
+  }
+  async createTextureFromBlob(blob, format, options) {
+    return GPU.Texture.LoadBlob(blob);
+  }
+  compareType(value, type) {
+    if (typeof value === "function") return value === type;
+    if (value instanceof type) return true;
+    return value?.constructor?.type === type.type;
+  }
+  getFieldType(value) {
+    if (this.compareType(value, Prefab)) return "Prefab";
+    else if (this.compareType(value, GameObject)) return "GameObject";
+    else if (this.compareType(value, Component$1)) return "Component";
+    else if (this.compareType(value, Mathf.Vector3)) return "Vector3";
+    else if (this.compareType(value, Mathf.Vector2)) return "Vector2";
+    else if (this.compareType(value, Mathf.Color)) return "Color";
+    else if (this.compareType(value, Geometry)) return "Geometry";
+    else if (this.compareType(value, GPU.Material)) return "Material";
+    else if (this.compareType(value, GPU.Texture)) return "Texture";
+    return "unknown";
+  }
+  isGameObject(value) {
+    if (typeof value === "function") return value === GameObject;
+    return value instanceof GameObject;
+  }
+  isVector3(value) {
+    if (typeof value === "function") return value === Mathf.Vector3;
+    return value instanceof Mathf.Vector3;
+  }
+  isVector2(value) {
+    if (typeof value === "function") return value === Mathf.Vector2;
+    return value instanceof Mathf.Vector2;
+  }
+  isColor(value) {
+    if (typeof value === "function") return value === Mathf.Color;
+    return value instanceof Mathf.Color;
+  }
+  isComponent(value) {
+    if (typeof value === "function") return value === Component$1;
+    return value instanceof Component$1;
+  }
+  isPrefab(value) {
+    if (typeof value === "function") return value === Prefab;
+    return value instanceof Prefab;
+  }
+  isGeometry(value) {
+    if (typeof value === "function") return value === Geometry;
+    return value instanceof Geometry;
+  }
+  isMaterial(value) {
+    if (typeof value === "function") return value === GPU.Material;
+    return value instanceof GPU.Material;
+  }
+  isTexture(value) {
+    if (typeof value === "function") return value === GPU.Texture;
+    return value instanceof GPU.Texture;
   }
   GetSerializedFields = Utils.GetSerializedFields;
 }
@@ -329,7 +359,10 @@ const IComponents = {
   SpotLight: Components.SpotLight,
   PointLight: Components.PointLight,
   DirectionalLight: Components.DirectionalLight,
-  Mesh: Components.Mesh
+  Mesh: Components.Mesh,
+  SkinnedMesh: Components.SkinnedMesh,
+  Animator: Components.Animator,
+  AnimationTrack: Components.AnimationTrack
 };
 
 class ComponentEvents {
@@ -540,6 +573,7 @@ class LayoutCanvas extends Component {
     const raycaster = new Raycaster();
     let mouseDownPosition = { x: 0, y: 0 };
     let mouseUpPosition = { x: 0, y: 0 };
+    let pickedGameObject = void 0;
     canvas.addEventListener("mousedown", (event) => {
       mouseDownPosition = { x: event.clientX, y: event.clientY };
     });
@@ -547,14 +581,23 @@ class LayoutCanvas extends Component {
       mouseUpPosition = { x: event.clientX, y: event.clientY };
       const mouseDrif = { x: mouseDownPosition.x - mouseUpPosition.x, y: mouseDownPosition.y - mouseUpPosition.y };
       if (mouseDrif.x == 0 && mouseDrif.y == 0) {
-        const pickedGameObject = await raycaster.execute();
+        pickedGameObject = await raycaster.execute();
         if (pickedGameObject) {
           EventSystem.emit(GameObjectEvents.Selected, pickedGameObject);
         }
       }
     });
-    EventSystem.on(LayoutHierarchyEvents.Selected, (pickedGameObject) => {
-      controls.center.copy(pickedGameObject.transform.position);
+    canvas.addEventListener("keydown", (event) => {
+      if (event.key === "f") {
+        if (pickedGameObject) {
+          controls.center.copy(pickedGameObject.transform.position);
+          Components.Camera.mainCamera;
+          controls.orbit(0, 0);
+        }
+      }
+    });
+    EventSystem.on(LayoutHierarchyEvents.Selected, (_pickedGameObject) => {
+      pickedGameObject = _pickedGameObject;
     });
     EventSystem.on(SceneEvents.Loaded, (scene) => {
       const mainCamera = Components.Camera.mainCamera;
@@ -579,6 +622,19 @@ class LayoutCanvas extends Component {
     currentScene.renderPipeline.AddPass(postProcessing, GPU.RenderPassOrder.BeforeScreenOutput);
     currentScene.Start();
     new ResizeObserver(resize).observe(canvas);
+    console.warn(`
+            TODO: Figure out better component registration, needs to be automatic or something.
+                Importing/Creating scripts is not that easy..need above otherwise need to register everything.
+                Also need to import @trident/core properly (this is a typescript pattern).
+                Also need to make SerializeField work somehow
+            `);
+    class Test extends Components.Component {
+      static type = "@trident/core/components/Test";
+      static types = (() => {
+        console.log("CALLED without new Test");
+      })();
+    }
+    console.log(Components.Component.Registry.get("@trident/core/components/Test"));
   }
   render() {
     return /* @__PURE__ */ createElement("canvas", { ref: (canvas) => this.canvasRef(canvas) });
@@ -651,17 +707,10 @@ class _FileBrowser {
     });
   }
   rmdir(path) {
-    const pathArray = path.split("/");
-    const directoryName = pathArray[pathArray.length - 1];
-    const pathWithoutDirectory = pathArray.splice(0, pathArray.length - 1).join("/");
-    this.opendir(pathWithoutDirectory).then(async (folderHandle) => {
-      const files = await this.readdir(folderHandle);
-      for (let file of files) {
-        if (file.kind == "directory" && file.name == directoryName) {
-          folderHandle.removeEntry(directoryName);
-          break;
-        }
-      }
+    const parentPath = path.slice(0, path.lastIndexOf("/"));
+    const dirName = path.slice(path.lastIndexOf("/") + 1);
+    this.opendir(parentPath).then(async (folderHandle) => {
+      folderHandle.removeEntry(dirName, { recursive: true });
     });
   }
   fopen(path, mode) {
@@ -860,10 +909,11 @@ class TreeFolder extends Component {
     if (this.props.onDragStarted) this.props.onDragStarted(event);
   }
   onDrop(event) {
+    if (this.props.onDropped) this.props.onDropped(event);
     if (this.folderRef) this.folderRef.style.backgroundColor = "";
     const fromUuid = event.dataTransfer.getData("from-uuid");
-    if (fromUuid && this.props.onDropped && this.props.id) {
-      this.props.onDropped(fromUuid, this.props.id);
+    if (fromUuid && this.props.onDroppedItem && this.props.id) {
+      this.props.onDroppedItem(fromUuid, this.props.id);
     }
     event.preventDefault();
     event.stopPropagation();
@@ -880,7 +930,7 @@ class TreeFolder extends Component {
   render() {
     let classes = "item-title";
     if (this.props.isSelected) classes += " active";
-    return /* @__PURE__ */ createElement("div", { className: "item", ref: (ref) => this.folderRef = ref }, /* @__PURE__ */ createElement(
+    return /* @__PURE__ */ createElement("div", { key: this.props.key, className: "item", ref: (ref) => this.folderRef = ref }, /* @__PURE__ */ createElement(
       "div",
       {
         style: { display: "flex", alignItems: "center" },
@@ -892,8 +942,10 @@ class TreeFolder extends Component {
         onDrop: (event) => this.onDrop(event),
         onDragOver: (event) => this.onDragOver(event),
         onPointerDown: (event) => {
-          this.handleToggle(event);
-          if (this.props.onClicked) this.props.onClicked();
+          if (this.props.onPointerDown) this.props.onPointerDown();
+        },
+        onPointerUp: (event) => {
+          if (this.props.onPointerUp) this.props.onPointerUp();
         },
         onDblClick: () => {
           if (this.props.onDoubleClicked) this.props.onDoubleClicked();
@@ -919,10 +971,11 @@ class TreeItem extends Component {
     if (this.props.onDragStarted) this.props.onDragStarted(event);
   }
   onDrop(event) {
+    if (this.props.onDropped) this.props.onDropped(event);
     if (this.itemRef) this.itemRef.style.backgroundColor = "";
     const fromUuid = event.dataTransfer.getData("from-uuid");
-    if (fromUuid && this.props.onDropped && this.props.id) {
-      this.props.onDropped(fromUuid, this.props.id);
+    if (fromUuid && this.props.onDroppedItem && this.props.id) {
+      this.props.onDroppedItem(fromUuid, this.props.id);
     }
     event.preventDefault();
     event.stopPropagation();
@@ -939,7 +992,7 @@ class TreeItem extends Component {
   lastClickTs = 0;
   dblMs = 220;
   onPointerDown(event) {
-    if (this.props.onClicked) this.props.onClicked();
+    if (this.props.onPointerDown) this.props.onPointerDown();
     const now = performance.now();
     if (now - this.lastClickTs < this.dblMs && this.props.onDoubleClicked) {
       this.props.onDoubleClicked();
@@ -960,7 +1013,10 @@ class TreeItem extends Component {
         onDragLeave: (event) => this.onDragLeave(event),
         onDrop: (event) => this.onDrop(event),
         onDragOver: (event) => this.onDragOver(event),
-        onPointerDown: (event) => this.onPointerDown(event)
+        onPointerDown: (event) => this.onPointerDown(event),
+        onPointerUp: (event) => {
+          if (this.props.onPointerUp) this.props.onPointerUp();
+        }
       },
       /* @__PURE__ */ createElement("span", { style: { paddingLeft: "15px" } }),
       /* @__PURE__ */ createElement("span", null, this.props.name)
@@ -974,6 +1030,12 @@ class Tree extends Component {
   }
 }
 
+class LayoutAssetEvents {
+  static Selected = (instance) => {
+  };
+  static RequestSaveMaterial = (material) => {
+  };
+}
 async function dir(h) {
   const r = indexedDB.open("d", 1);
   await new Promise((res) => (r.onupgradeneeded = () => r.result.createObjectStore("s"), r.onsuccess = res));
@@ -1011,6 +1073,11 @@ class LayoutAssets extends Component {
     EventSystem.on(FileEvents.Deleted, (path, handle) => {
       this.onFileOrDirectoryDeleted(path);
     });
+    EventSystem.on(LayoutAssetEvents.RequestSaveMaterial, (material) => {
+      if (!material.assetPath) throw Error(`LayoutAssetEvents.RequestSaveMaterial could not save material because it doesn't have an assetPath.`);
+      const materialSerialized = material.SerializeAsset();
+      this.SaveToFile(material.assetPath, new Blob([JSON.stringify(materialSerialized)]));
+    });
     dir().then((handle) => {
       if (handle) {
         FileBrowser.setRootFolderHandle(handle);
@@ -1045,13 +1112,14 @@ class LayoutAssets extends Component {
     this.setState({ ...this.state, currentTreeMap: this.state.currentTreeMap, selected: this.state.selected });
   }
   async onToggled(item) {
-    console.log("onToggled", item);
   }
   async onItemClicked(item) {
     if (!item.data.instance) {
       await this.LoadTreeItem(item);
     }
+    EventSystem.emit(LayoutAssetEvents.Selected, item.data.instance);
     this.setState({ ...this.state, currentTreeMap: this.state.currentTreeMap, selected: item.data });
+    console.log("onItemClicked");
   }
   async onItemDoubleClicked(item) {
     console.log("onItemDoubleClicked", item);
@@ -1107,11 +1175,22 @@ class LayoutAssets extends Component {
         const material = this.props.engineAPI.deserializeMaterial(json);
         material.assetPath = path;
         resolve(material);
+      } else if (extension == "png") {
+        const data = await file.getFile();
+        const arrayBuffer = await data.arrayBuffer();
+        const texture = await this.props.engineAPI.createTextureFromBlob(new Blob([arrayBuffer]));
+        texture.assetPath = path;
+        resolve(texture);
+      } else if (extension == "script") {
+        const data = await file.getFile();
+        const text = await data.text();
+        const blob = new Blob([text], { type: "text/javascript" });
+        const blobUrl = URL.createObjectURL(blob);
+        const script = await import(blobUrl);
+        console.log(script);
+        resolve(script);
       }
     });
-  }
-  onDropped(from, to) {
-    console.log("onDropped");
   }
   onDragStarted(event, item) {
     if (!item.data.instance) {
@@ -1120,6 +1199,7 @@ class LayoutAssets extends Component {
       });
     }
     ExtendedDataTransfer.data = item.data.instance;
+    console.log("onDragStarted", ExtendedDataTransfer.data);
   }
   getCurrentPath() {
     if (!this.state.selected) return "";
@@ -1131,6 +1211,29 @@ class LayoutAssets extends Component {
     const path = `${this.getCurrentPath()}/New folder`;
     const handle = await FileBrowser.mkdir(path);
     EventSystem.emit(DirectoryEvents.Created, path, handle);
+    this.setState({ ...this.state, headerMenuOpen: !this.state.headerMenuOpen });
+  }
+  async createMaterial() {
+    const material = this.props.engineAPI.createPBRMaterial();
+    material.assetPath = `${this.getCurrentPath()}/New Material.material`;
+    const materialSerialized = material.SerializeAsset();
+    this.SaveToFile(material.assetPath, new Blob([JSON.stringify(materialSerialized)]));
+    this.setState({ ...this.state, headerMenuOpen: !this.state.headerMenuOpen });
+  }
+  async createScript() {
+    const DefaultScript = `
+            import { Components, SerializeField } from "@trident/core";
+
+            export class NewComponent extends Components.Component {
+                @SerializeField public test = 123;
+                Start() {
+                
+                }
+                Update() {}
+            }
+        `;
+    const scriptPath = `${this.getCurrentPath()}/NewComponent.script`;
+    this.SaveToFile(scriptPath, new Blob([DefaultScript]));
     this.setState({ ...this.state, headerMenuOpen: !this.state.headerMenuOpen });
   }
   async deleteAsset() {
@@ -1147,46 +1250,67 @@ class LayoutAssets extends Component {
   onDragOver(event) {
     event.preventDefault();
   }
-  async onDrop(event) {
-    console.log("on drop", event);
-    event.preventDefault();
-    const file = event.dataTransfer?.files?.[0];
-    if (!file) return;
-    const extension = file.name.slice(file.name.lastIndexOf(".") + 1);
-    if (extension === "glb") {
-      const arrayBuffer = await file.arrayBuffer();
-      const prefab = await GLTFLoader.LoadFromArrayBuffer(arrayBuffer, void 0, file.name.slice(0, file.name.lastIndexOf(".")));
-      console.log("Dropped glb", prefab);
-      await FileBrowser.mkdir(file.name);
-      async function SaveToFile(path, blob) {
-        const file2 = await FileBrowser.fopen(path, MODE.W);
-        await FileBrowser.fwrite(file2, blob);
-      }
-      {
-        console.log("Saving prefab", `${file.name}/${file.name}.prefab`);
-        SaveToFile(`${file.name}/${file.name}.prefab`, new Blob([JSON.stringify(prefab)]));
-      }
-      prefab.traverse(async (prefab2) => {
-        for (const component of prefab2.components) {
-          if (component.type === IComponents.Mesh.type) {
-            {
-              const geometry = Assets.GetInstance(component.geometry.assetPath);
-              const geometrySerialized = geometry.SerializeAsset();
-              SaveToFile(geometry.assetPath, new Blob([JSON.stringify(geometrySerialized)]));
-            }
-            {
-              const material = Assets.GetInstance(component.material.assetPath);
-              const materialSerialized = material.SerializeAsset();
-              SaveToFile(material.assetPath, new Blob([JSON.stringify(materialSerialized)]));
-              if (material.params.albedoMap && material.params.albedoMap.blob) SaveToFile(material.params.albedoMap.assetPath, material.params.albedoMap.blob);
-              if (material.params.normalMap && material.params.normalMap.blob) SaveToFile(material.params.normalMap.assetPath, material.params.normalMap.blob);
-              if (material.params.armMap && material.params.armMap.blob) SaveToFile(material.params.armMap.assetPath, material.params.armMap.blob);
-              if (material.params.heightMap && material.params.heightMap.blob) SaveToFile(material.params.heightMap.assetPath, material.params.heightMap.blob);
-              if (material.params.emissiveMap && material.params.emissiveMap.blob) SaveToFile(material.params.emissiveMap.assetPath, material.params.emissiveMap.blob);
-            }
+  async SaveToFile(path, blob) {
+    try {
+      const file = await FileBrowser.fopen(path, MODE.W);
+      await FileBrowser.fwrite(file, blob);
+    } catch (error) {
+      console.error(`Failed to save at ${path}`);
+      console.error(error);
+    }
+  }
+  async SavePrefab(dir2, prefab) {
+    {
+      console.log("Saving prefab", prefab);
+      const name = prefab.name && prefab.name !== "" ? `${prefab.name}.prefab` : "Untitled.prefab";
+      this.SaveToFile(`${dir2}/${prefab.name}.glb/${name}`, new Blob([JSON.stringify(prefab)]));
+    }
+    prefab.traverse(async (childPrefab) => {
+      for (const component of childPrefab.components) {
+        if (component.type === IComponents.Mesh.type || component.type === IComponents.SkinnedMesh.type) {
+          {
+            const geometry = Assets.GetInstance(component.geometry.assetPath);
+            const geometrySerialized = geometry.SerializeAsset();
+            this.SaveToFile(`${dir2}/${geometry.assetPath}`, new Blob([JSON.stringify(geometrySerialized)]));
+          }
+          {
+            const material = Assets.GetInstance(component.material.assetPath);
+            const materialSerialized = material.SerializeAsset();
+            this.SaveToFile(`${dir2}/${material.assetPath}`, new Blob([JSON.stringify(materialSerialized)]));
+            if (material.params.albedoMap && material.params.albedoMap.blob) this.SaveToFile(`${dir2}/${material.params.albedoMap.assetPath}`, material.params.albedoMap.blob);
+            if (material.params.normalMap && material.params.normalMap.blob) this.SaveToFile(`${dir2}/${material.params.normalMap.assetPath}`, material.params.normalMap.blob);
+            if (material.params.armMap && material.params.armMap.blob) this.SaveToFile(`${dir2}/${material.params.armMap.assetPath}`, material.params.armMap.blob);
+            if (material.params.heightMap && material.params.heightMap.blob) this.SaveToFile(`${dir2}/${material.params.heightMap.assetPath}`, material.params.heightMap.blob);
+            if (material.params.emissiveMap && material.params.emissiveMap.blob) this.SaveToFile(`${dir2}/${material.params.emissiveMap.assetPath}`, material.params.emissiveMap.blob);
           }
         }
-      });
+        if (component.type === IComponents.Animator.type && component.assetPath) {
+          const instance = Assets.GetInstance(component.assetPath);
+          if (instance?.SerializeAsset) {
+            this.SaveToFile(`${dir2}/${component.assetPath}`, new Blob([JSON.stringify(instance.SerializeAsset())]));
+          } else if (instance) {
+            this.SaveToFile(`${dir2}/${component.assetPath}`, new Blob([JSON.stringify(instance)]));
+          }
+        }
+      }
+    });
+  }
+  async onDrop(event) {
+    event.preventDefault();
+    console.log("onDrop", event, this.getCurrentPath());
+    for (const file of event.dataTransfer?.files) {
+      const extension = file.name.slice(file.name.lastIndexOf(".") + 1);
+      if (extension === "glb") {
+        const arrayBuffer = await file.arrayBuffer();
+        const prefab = await GLTFLoader.LoadFromArrayBuffer(arrayBuffer, void 0, file.name.slice(0, file.name.lastIndexOf(".")));
+        const dir2 = `${this.getCurrentPath()}/${file.name}`;
+        await FileBrowser.mkdir(dir2);
+        this.SavePrefab(this.getCurrentPath(), prefab);
+      }
+    }
+    const extendedEventData = ExtendedDataTransfer.data;
+    if (this.props.engineAPI.isGameObject(extendedEventData)) {
+      this.SavePrefab(this.getCurrentPath(), extendedEventData.Serialize());
     }
   }
   renderTreeItems(items, allItems) {
@@ -1199,9 +1323,9 @@ class LayoutAssets extends Component {
             name: item.name,
             id: item.id,
             isSelected: item.isSelected,
-            onClicked: () => this.onItemClicked(item),
+            onPointerDown: () => this.onItemClicked(item),
             onDoubleClicked: () => this.onItemDoubleClicked(item),
-            onDropped: (from, to) => this.onDropped(from, to),
+            onDropped: (event) => this.onDrop(event),
             onToggled: () => this.onToggled(item)
           },
           this.renderTreeItems(children, allItems)
@@ -1213,9 +1337,9 @@ class LayoutAssets extends Component {
           name: item.name,
           id: item.id,
           isSelected: item.isSelected,
-          onClicked: () => this.onItemClicked(item),
+          onPointerUp: () => this.onItemClicked(item),
           onDoubleClicked: () => this.onItemDoubleClicked(item),
-          onDropped: (from, to) => this.onDropped(from, to),
+          onDropped: (event) => this.onDrop(event),
           onDragStarted: (event) => this.onDragStarted(event, item)
         }
       );
@@ -1243,15 +1367,15 @@ class LayoutAssets extends Component {
       },
       /* @__PURE__ */ createElement("div", { class: "header" }, /* @__PURE__ */ createElement("div", { class: "title" }, "Assets"), /* @__PURE__ */ createElement("div", { class: "right-action" }, /* @__PURE__ */ createElement("button", { onClick: (event) => {
         this.setState({ ...this.state, headerMenuOpen: !this.state.headerMenuOpen });
-      } }, "\u22EE"), /* @__PURE__ */ createElement("div", { class: "Floating-Menu", style: `display: ${this.state.headerMenuOpen ? "inherit" : "none"}` }, /* @__PURE__ */ createElement(Tree, null, /* @__PURE__ */ createElement(TreeItem, { name: "Folder", onClicked: () => {
+      } }, "\u22EE"), /* @__PURE__ */ createElement("div", { class: "Floating-Menu", style: `display: ${this.state.headerMenuOpen ? "inherit" : "none"}` }, /* @__PURE__ */ createElement(Tree, null, /* @__PURE__ */ createElement(TreeItem, { name: "Folder", onPointerDown: () => {
         this.createFolder();
-      } }), /* @__PURE__ */ createElement(TreeItem, { name: "Material", onClicked: () => {
+      } }), /* @__PURE__ */ createElement(TreeItem, { name: "Material", onPointerDown: () => {
         this.createMaterial();
-      } }), /* @__PURE__ */ createElement(TreeItem, { name: "Script", onClicked: () => {
+      } }), /* @__PURE__ */ createElement(TreeItem, { name: "Script", onPointerDown: () => {
         this.createScript();
-      } }), /* @__PURE__ */ createElement(TreeItem, { name: "Scene", onClicked: () => {
+      } }), /* @__PURE__ */ createElement(TreeItem, { name: "Scene", onPointerDown: () => {
         this.createScene();
-      } }), /* @__PURE__ */ createElement(TreeItem, { name: "Delete", onClicked: () => {
+      } }), /* @__PURE__ */ createElement(TreeItem, { name: "Delete", onPointerDown: () => {
         this.deleteAsset();
       } }))))),
       /* @__PURE__ */ createElement(Tree, null, this.renderTreeItems(rootItems, treeMapArr))
@@ -1284,13 +1408,12 @@ class LayoutHierarchy extends Component {
     this.setState({ ...this.state, selectedGameObject: gameObject });
   }
   getGameObjectById(id) {
-    console.log(this.props.engineAPI.currentScene.gameObjects);
     for (const gameObject of this.props.engineAPI.currentScene.gameObjects) {
       if (gameObject.transform.id === id) return gameObject;
     }
     return void 0;
   }
-  onDropped(fromId, toId) {
+  onDroppedItem(fromId, toId) {
     const fromGameObject = this.getGameObjectById(fromId);
     const toGameObject = this.getGameObjectById(toId);
     if (fromGameObject === toGameObject) return;
@@ -1299,8 +1422,8 @@ class LayoutHierarchy extends Component {
       this.selectGameObject(toGameObject);
     }
   }
-  onDragStarted(event, data) {
-    console.log("onDragStarted", event);
+  onDragStarted(event) {
+    ExtendedDataTransfer.data = this.state.selectedGameObject;
   }
   onDrop(event) {
     const extendedEvent = ExtendedDataTransfer.data;
@@ -1372,8 +1495,9 @@ class LayoutHierarchy extends Component {
             name: go.name,
             id: go.transform.id,
             isSelected,
-            onClicked: () => this.selectGameObject(go),
-            onDropped: (from, to) => this.onDropped(from, to)
+            onPointerDown: () => this.selectGameObject(go),
+            onDroppedItem: (from, to) => this.onDroppedItem(from, to),
+            onDragStarted: (event) => this.onDragStarted(event)
           },
           this.renderGameObjects(Array.from(children).map((c) => c.gameObject))
         );
@@ -1384,9 +1508,9 @@ class LayoutHierarchy extends Component {
           name: go.name,
           id: go.transform.id,
           isSelected,
-          onClicked: () => this.selectGameObject(go),
-          onDropped: (from, to) => this.onDropped(from, to),
-          onDragStarted: (event) => this.onDragStarted(event, null)
+          onPointerDown: () => this.selectGameObject(go),
+          onDroppedItem: (from, to) => this.onDroppedItem(from, to),
+          onDragStarted: (event) => this.onDragStarted(event)
         }
       );
     });
@@ -1397,7 +1521,7 @@ class LayoutHierarchy extends Component {
     const rootGameObjects = this.props.engineAPI.currentScene.gameObjects.filter((go) => !go.transform.parent);
     return /* @__PURE__ */ createElement("div", { class: "Layout" }, /* @__PURE__ */ createElement("div", { class: "header" }, /* @__PURE__ */ createElement("div", { class: "title" }, "Sample scene"), /* @__PURE__ */ createElement("div", { class: "right-action" }, /* @__PURE__ */ createElement("button", { onClick: (event) => {
       this.setState({ ...this.state, headerMenuOpen: !this.state.headerMenuOpen });
-    } }, "\u22EE"), /* @__PURE__ */ createElement("div", { class: "Floating-Menu", style: `display: ${this.state.headerMenuOpen ? "inherit" : "none"}` }, /* @__PURE__ */ createElement(Tree, null, /* @__PURE__ */ createElement(TreeItem, { name: "Create Empty", onClicked: () => this.createEmptyGameObject() }), /* @__PURE__ */ createElement(TreeItem, { name: "Delete", onClicked: () => this.deleteGameObject() }), /* @__PURE__ */ createElement(TreeFolder, { name: "3D Object" }, /* @__PURE__ */ createElement(TreeItem, { name: "Cube", onClicked: () => this.createPrimitive("Cube") }), /* @__PURE__ */ createElement(TreeItem, { name: "Capsule", onClicked: () => this.createPrimitive("Capsule") }), /* @__PURE__ */ createElement(TreeItem, { name: "Plane", onClicked: () => this.createPrimitive("Plane") }), /* @__PURE__ */ createElement(TreeItem, { name: "Sphere", onClicked: () => this.createPrimitive("Sphere") })), /* @__PURE__ */ createElement(TreeFolder, { name: "Lights" }, /* @__PURE__ */ createElement(TreeItem, { name: "Directional Light", onClicked: () => this.createLight("Directional") }), /* @__PURE__ */ createElement(TreeItem, { name: "Point Light", onClicked: () => this.createLight("Point") }), /* @__PURE__ */ createElement(TreeItem, { name: "Spot Light", onClicked: () => this.createLight("Spot") })))))), /* @__PURE__ */ createElement(
+    } }, "\u22EE"), /* @__PURE__ */ createElement("div", { class: "Floating-Menu", style: `display: ${this.state.headerMenuOpen ? "inherit" : "none"}` }, /* @__PURE__ */ createElement(Tree, null, /* @__PURE__ */ createElement(TreeItem, { name: "Create Empty", onPointerDown: () => this.createEmptyGameObject() }), /* @__PURE__ */ createElement(TreeItem, { name: "Delete", onPointerDown: () => this.deleteGameObject() }), /* @__PURE__ */ createElement(TreeFolder, { name: "3D Object" }, /* @__PURE__ */ createElement(TreeItem, { name: "Cube", onPointerDown: () => this.createPrimitive("Cube") }), /* @__PURE__ */ createElement(TreeItem, { name: "Capsule", onPointerDown: () => this.createPrimitive("Capsule") }), /* @__PURE__ */ createElement(TreeItem, { name: "Plane", onPointerDown: () => this.createPrimitive("Plane") }), /* @__PURE__ */ createElement(TreeItem, { name: "Sphere", onPointerDown: () => this.createPrimitive("Sphere") })), /* @__PURE__ */ createElement(TreeFolder, { name: "Lights" }, /* @__PURE__ */ createElement(TreeItem, { name: "Directional Light", onPointerDown: () => this.createLight("Directional") }), /* @__PURE__ */ createElement(TreeItem, { name: "Point Light", onPointerDown: () => this.createLight("Point") }), /* @__PURE__ */ createElement(TreeItem, { name: "Spot Light", onPointerDown: () => this.createLight("Spot") })))))), /* @__PURE__ */ createElement(
       "div",
       {
         style: "width: 100%; height: 100%; overflow: auto;padding-top:5px",
@@ -1406,6 +1530,34 @@ class LayoutHierarchy extends Component {
       },
       /* @__PURE__ */ createElement(Tree, null, this.renderGameObjects(rootGameObjects))
     ));
+  }
+}
+
+class Collapsible extends Component {
+  constructor(props) {
+    super(props);
+    this.state = { isOpen: this.props.open ? this.props.open : true, height: "" };
+  }
+  handleFilterOpening() {
+    if (this.state.isOpen) {
+      this.setState({ isOpen: false, height: "0px" });
+    } else {
+      this.setState({ isOpen: true, height: "" });
+    }
+  }
+  onRightMenuClicked(event) {
+    if (this.props.onRightMenuClicked) {
+      this.props.onRightMenuClicked();
+    }
+    event.preventDefault();
+    event.stopPropagation();
+  }
+  render() {
+    return /* @__PURE__ */ createElement("div", { className: "collapsible-card-edonec", id: this.props.id ? this.props.id : "" }, /* @__PURE__ */ createElement("div", null, /* @__PURE__ */ createElement("div", { className: "collapsible-header-edonec", onPointerDown: () => {
+      this.handleFilterOpening();
+    } }, /* @__PURE__ */ createElement("button", { type: "button", className: `collapsible-icon-button-edonec` }, /* @__PURE__ */ createElement(Arrow, { isOpen: this.state.isOpen })), /* @__PURE__ */ createElement("div", { className: "title-text-edonec" }, this.props.header), this.props.rightMenuText ? /* @__PURE__ */ createElement("div", { className: "title-right-menu", onPointerDown: (event) => {
+      this.onRightMenuClicked(event);
+    } }, this.props.rightMenuText) : "")), /* @__PURE__ */ createElement("div", { className: "collapsible-content-edonec", style: { height: `${this.state.height}` } }, /* @__PURE__ */ createElement("div", null, /* @__PURE__ */ createElement("div", { className: "collapsible-content-padding-edonec collapsible-children" }, this.props.children))));
   }
 }
 
@@ -1457,56 +1609,6 @@ class InspectorNumber extends Component {
   }
 }
 
-class InspectorInput extends Component {
-  constructor(props) {
-    super(props);
-  }
-  onChanged(value) {
-    if (this.props.onChanged) {
-      if (value == "") return;
-      this.props.onChanged(value);
-    }
-  }
-  render() {
-    return /* @__PURE__ */ createElement("div", { className: "InspectorComponent" }, /* @__PURE__ */ createElement("span", { className: "title" }, this.props.title), /* @__PURE__ */ createElement("div", { class: "edit" }, /* @__PURE__ */ createElement(InspectorNumber, { title: "N", titleClass: "gray-bg", value: this.props.value, onChanged: (value) => {
-      this.onChanged(value);
-    } })));
-  }
-}
-
-class InspectorCheckbox extends Component {
-  constructor(props) {
-    super(props);
-  }
-  onChanged(event) {
-    if (this.props.onChanged) {
-      const input = event.currentTarget;
-      this.props.onChanged(input.checked);
-    }
-  }
-  render() {
-    return /* @__PURE__ */ createElement("div", { className: "InspectorComponent" }, /* @__PURE__ */ createElement("span", { className: "title" }, this.props.title), /* @__PURE__ */ createElement(
-      "div",
-      {
-        style: {
-          width: "100%"
-        }
-      },
-      /* @__PURE__ */ createElement(
-        "input",
-        {
-          style: { marginLeft: "0px" },
-          type: "checkbox",
-          checked: this.props.selected,
-          onChange: (event) => {
-            this.onChanged(event);
-          }
-        }
-      )
-    ));
-  }
-}
-
 class InspectorVector3 extends Component {
   constructor(props) {
     super(props);
@@ -1554,6 +1656,34 @@ class InspectorVector3 extends Component {
     } }), /* @__PURE__ */ createElement(InspectorNumber, { title: "Z", titleClass: "blue-bg", value: this.state.vector3.z, onChanged: (value) => {
       this.onChanged(2 /* Z */, value);
     } })));
+  }
+}
+
+class InspectorColor extends Component {
+  constructor(props) {
+    super(props);
+    this.state = { color: this.props.color };
+  }
+  onChanged(event) {
+    if (this.props.onChanged) {
+      const input = event.currentTarget;
+      this.state.color.setFromHex(input.value);
+      this.props.onChanged(this.state.color);
+    }
+  }
+  render() {
+    return /* @__PURE__ */ createElement("div", { className: "InspectorComponent" }, /* @__PURE__ */ createElement("span", { className: "title" }, this.props.title), /* @__PURE__ */ createElement("div", { class: "edit" }, /* @__PURE__ */ createElement(
+      "input",
+      {
+        className: "input",
+        style: "padding: 2px;",
+        type: "color",
+        onChange: (event) => {
+          this.onChanged(event);
+        },
+        value: this.state.color.toHex().slice(0, 7)
+      }
+    )));
   }
 }
 
@@ -1617,59 +1747,210 @@ class InspectorVector2 extends Component {
   }
 }
 
-class Collapsible extends Component {
+class InspectorInput extends Component {
   constructor(props) {
     super(props);
-    this.state = { isOpen: this.props.open ? this.props.open : true, height: "" };
   }
-  handleFilterOpening() {
-    if (this.state.isOpen) {
-      this.setState({ isOpen: false, height: "0px" });
-    } else {
-      this.setState({ isOpen: true, height: "" });
+  onChanged(value) {
+    if (this.props.onChanged) {
+      if (value == "") return;
+      this.props.onChanged(value);
     }
-  }
-  onRightMenuClicked(event) {
-    if (this.props.onRightMenuClicked) {
-      this.props.onRightMenuClicked();
-    }
-    event.preventDefault();
-    event.stopPropagation();
   }
   render() {
-    return /* @__PURE__ */ createElement("div", { className: "collapsible-card-edonec", id: this.props.id ? this.props.id : "" }, /* @__PURE__ */ createElement("div", null, /* @__PURE__ */ createElement("div", { className: "collapsible-header-edonec", onPointerDown: () => {
-      this.handleFilterOpening();
-    } }, /* @__PURE__ */ createElement("button", { type: "button", className: `collapsible-icon-button-edonec` }, /* @__PURE__ */ createElement(Arrow, { isOpen: this.state.isOpen })), /* @__PURE__ */ createElement("div", { className: "title-text-edonec" }, this.props.header), this.props.rightMenuText ? /* @__PURE__ */ createElement("div", { className: "title-right-menu", onPointerDown: (event) => {
-      this.onRightMenuClicked(event);
-    } }, this.props.rightMenuText) : "")), /* @__PURE__ */ createElement("div", { className: "collapsible-content-edonec", style: { height: `${this.state.height}` } }, /* @__PURE__ */ createElement("div", null, /* @__PURE__ */ createElement("div", { className: "collapsible-content-padding-edonec collapsible-children" }, this.props.children))));
+    return /* @__PURE__ */ createElement("div", { className: "InspectorComponent" }, /* @__PURE__ */ createElement("span", { className: "title" }, this.props.title), /* @__PURE__ */ createElement("div", { class: "edit" }, /* @__PURE__ */ createElement(InspectorNumber, { title: "N", titleClass: "gray-bg", value: this.props.value, onChanged: (value) => {
+      this.onChanged(value);
+    } })));
   }
 }
 
-class InspectorColor extends Component {
+class InspectorCheckbox extends Component {
   constructor(props) {
     super(props);
-    this.state = { color: this.props.color.clone() };
   }
   onChanged(event) {
     if (this.props.onChanged) {
       const input = event.currentTarget;
-      this.state.color.setFromHex(input.value);
-      this.props.onChanged(this.state.color);
+      this.props.onChanged(input.checked);
     }
   }
   render() {
-    return /* @__PURE__ */ createElement("div", { className: "InspectorComponent" }, /* @__PURE__ */ createElement("span", { className: "title" }, this.props.title), /* @__PURE__ */ createElement("div", { class: "edit" }, /* @__PURE__ */ createElement(
+    return /* @__PURE__ */ createElement("div", { className: "InspectorComponent" }, /* @__PURE__ */ createElement("span", { className: "title" }, this.props.title), /* @__PURE__ */ createElement(
+      "div",
+      {
+        style: {
+          width: "100%"
+        }
+      },
+      /* @__PURE__ */ createElement(
+        "input",
+        {
+          style: { marginLeft: "0px" },
+          type: "checkbox",
+          checked: this.props.selected,
+          onChange: (event) => {
+            this.onChanged(event);
+          }
+        }
+      )
+    ));
+  }
+}
+
+class InspectorTexture extends Component {
+  constructor(props) {
+    super(props);
+  }
+  onDrop(event) {
+    const draggedItem = ExtendedDataTransfer.data;
+    const component = this.props.component[this.props.property];
+    if (!draggedItem.constructor || !component.constructor) {
+      console.warn("Invalid component");
+      return;
+    }
+    const isValid = draggedItem.constructor === component.constructor;
+    if (!isValid) return;
+    this.props.component[this.props.property] = draggedItem;
+    const input = event.currentTarget;
+    if (input.classList.contains("active")) {
+      input.classList.remove("active");
+    }
+    if (this.props.onChanged) {
+      this.props.onChanged(draggedItem);
+    }
+    event.preventDefault();
+    event.stopPropagation();
+  }
+  onDragOver(event) {
+    event.preventDefault();
+  }
+  onDragEnter(event) {
+    const draggedItem = ExtendedDataTransfer.data;
+    const component = this.props.component[this.props.property];
+    if (!draggedItem.constructor || !component.constructor) {
+      console.warn("Invalid component");
+      return;
+    }
+    const isValid = draggedItem.constructor === component.constructor;
+    if (!isValid) {
+      event.preventDefault();
+      event.stopPropagation();
+      return;
+    }
+    const input = event.currentTarget;
+    if (!input.classList.contains("active")) {
+      input.classList.add("active");
+    }
+  }
+  onDragLeave(event) {
+    const input = event.currentTarget;
+    if (input.classList.contains("active")) {
+      input.classList.remove("active");
+    }
+  }
+  render() {
+    return /* @__PURE__ */ createElement("div", { className: "InspectorComponent" }, /* @__PURE__ */ createElement("span", { className: "title" }, this.props.title), /* @__PURE__ */ createElement("div", { class: "edit" }, /* @__PURE__ */ createElement("span", { class: `vec-label`, style: `background-color: #e67e2250; cursor: auto` }, "T"), /* @__PURE__ */ createElement(
       "input",
       {
         className: "input",
-        style: "padding: 2px;",
-        type: "color",
-        onChange: (event) => {
-          this.onChanged(event);
-        },
-        value: this.state.color.toHex().slice(0, 7)
+        disabled: true,
+        value: this.props.value,
+        onDragEnter: (event) => this.onDragEnter(event),
+        onDragLeave: (event) => this.onDragLeave(event),
+        onDrop: (event) => this.onDrop(event),
+        onDragOver: (event) => this.onDragOver(event)
       }
     )));
+  }
+}
+
+class InspectorMaterial extends Component {
+  constructor(props) {
+    super(props);
+  }
+  onPropertyChanged(object, property, value) {
+    object[property] = value;
+    this.setState({});
+  }
+  renderInspectorForComponentProperty(component, property) {
+    const name = property.name;
+    const type = property.type;
+    const engineType = this.props.engineAPI.getFieldType(type);
+    const title = StringUtils.CapitalizeStrArray(StringUtils.CamelCaseToArray(name)).join(" ");
+    if (engineType === "Vector3") return /* @__PURE__ */ createElement(InspectorVector3, { title, onChanged: (value) => {
+      this.onPropertyChanged(component, name, value);
+    }, vector3: component[name] });
+    else if (engineType === "Vector2") return /* @__PURE__ */ createElement(InspectorVector2, { title, onChanged: (value) => {
+      this.onPropertyChanged(component, name, value);
+    }, vector2: component[name] });
+    else if (engineType === "Color") return /* @__PURE__ */ createElement(InspectorColor, { title, onChanged: (value) => {
+      this.onPropertyChanged(component, name, value);
+    }, color: component[name] });
+    else if (engineType === "Texture") {
+      let valueForType = component[name].constructor.name;
+      if (component[name].assetPath) {
+        valueForType = StringUtils.GetNameForPath(component[name].assetPath);
+      }
+      return /* @__PURE__ */ createElement(
+        InspectorTexture,
+        {
+          onChanged: (value) => {
+            this.onPropertyChanged(component, name, value);
+          },
+          title,
+          component,
+          property: name,
+          value: valueForType
+        }
+      );
+    } else if (type === Number) return /* @__PURE__ */ createElement(InspectorInput, { onChanged: (value) => {
+      this.onPropertyChanged(component, name, value);
+    }, title, value: component[name], type: "number" });
+    else if (type === Boolean) return /* @__PURE__ */ createElement(InspectorCheckbox, { onChanged: (value) => {
+      this.onPropertyChanged(component, name, value);
+    }, title, selected: component[name] });
+  }
+  renderInspectorForObject(object) {
+    let componentPropertiesHTML = [];
+    const serializedProperties = this.props.engineAPI.GetSerializedFields(object);
+    for (let property of serializedProperties) {
+      try {
+        const componentPropertyElement = this.renderInspectorForComponentProperty(object, property);
+        if (componentPropertyElement) {
+          componentPropertiesHTML.push(componentPropertyElement);
+        }
+      } catch (error) {
+        console.warn(error);
+      }
+    }
+    return componentPropertiesHTML;
+  }
+  SaveClicked() {
+    console.log("CLCLC", this.props.material, this.props.material.assetPath);
+    EventSystem.emit(LayoutAssetEvents.RequestSaveMaterial, this.props.material);
+  }
+  render() {
+    let title = this.props.material.name;
+    if (this.props.material.assetPath) {
+      const path = this.props.material.assetPath;
+      title = path.slice(path.lastIndexOf("/") + 1, path.lastIndexOf("."));
+    }
+    const componentsElements = this.renderInspectorForObject(this.props.material.params);
+    return /* @__PURE__ */ createElement("div", { style: {
+      height: "100%",
+      overflow: "auto",
+      width: "100%"
+    } }, /* @__PURE__ */ createElement(Collapsible, { header: `Material: ${title}` }, ...componentsElements), /* @__PURE__ */ createElement(
+      "button",
+      {
+        class: "Floating-Menu",
+        style: { position: "initial", margin: "10px", width: "calc(100% - 20px)", color: "white", cursor: "pointer" },
+        onClick: (event) => {
+          this.SaveClicked();
+        }
+      },
+      "SAVE"
+    ));
   }
 }
 
@@ -1684,8 +1965,24 @@ class AddComponent extends Component {
     EventSystem.emit(ComponentEvents.Created, this.props.gameObject, componentInstance);
     this.setState({ isMenuOpen: false });
   }
+  generateTree(entryMap) {
+    const entriesByPath = /* @__PURE__ */ new Map();
+    for (const [fullpath] of entryMap) {
+      const path = fullpath.slice(fullpath.lastIndexOf("components/") + "components/".length, fullpath.lastIndexOf("/") + 1);
+      const name = fullpath.slice(fullpath.lastIndexOf("/") + 1);
+      const pathEntries = entriesByPath.get(path) || [];
+      pathEntries.push({ name, type: fullpath });
+      entriesByPath.set(path, pathEntries);
+    }
+    return Array.from(entriesByPath).map(([path, entries]) => {
+      const items = entries.map(
+        (e) => /* @__PURE__ */ createElement(TreeItem, { key: e.type, name: e.name, onPointerDown: () => this.addComponent(e.type) })
+      );
+      return path === "" ? items : /* @__PURE__ */ createElement(TreeFolder, { key: path, name: path.replace("/", "") }, items);
+    });
+  }
   render() {
-    return /* @__PURE__ */ createElement("div", { class: "Floating-Menu", style: { position: "inherit", padding: "5px", margin: "10px" } }, /* @__PURE__ */ createElement(Tree, null, /* @__PURE__ */ createElement(TreeFolder, { name: "Add Component" }, /* @__PURE__ */ createElement(TreeFolder, { name: "Physics" }, /* @__PURE__ */ createElement(TreeItem, { name: "Rigidbody", onClicked: () => this.addComponent("Rigidbody") }), /* @__PURE__ */ createElement(TreeItem, { name: "BoxCollider", onClicked: () => this.addComponent("BoxCollider") })), /* @__PURE__ */ createElement(TreeItem, { name: "Mesh", onClicked: () => this.addComponent(IComponents.Mesh.type) }), /* @__PURE__ */ createElement(TreeFolder, { name: "Lights" }, /* @__PURE__ */ createElement(TreeItem, { name: "DirectionalLight", onClicked: () => this.addComponent(IComponents.DirectionalLight.type) }), /* @__PURE__ */ createElement(TreeItem, { name: "PointLight", onClicked: () => this.addComponent(IComponents.PointLight.type) }), /* @__PURE__ */ createElement(TreeItem, { name: "SpotLight", onClicked: () => this.addComponent(IComponents.SpotLight.type) })))));
+    return /* @__PURE__ */ createElement("div", { class: "Floating-Menu", style: { position: "inherit", padding: "5px", margin: "10px" } }, /* @__PURE__ */ createElement(Tree, null, /* @__PURE__ */ createElement(TreeFolder, { name: "Add Component" }, this.generateTree(Component$1.Registry))));
   }
 }
 
@@ -1759,20 +2056,10 @@ class InspectorType extends Component {
 class LayoutInspectorGameObject extends Component {
   constructor(props) {
     super(props);
-    this.state = { gameObject: null };
-    EventSystem.on(LayoutHierarchyEvents.Selected, (gameObject) => {
-      this.setState({ gameObject });
-    });
-    EventSystem.on(ComponentEvents.Created, (gameObject, component) => {
-      this.setState({ gameObject });
-    });
-    EventSystem.on(GameObjectEvents.Changed, (gameObject, component) => {
-      this.setState({ gameObject });
-    });
   }
   onRemoveComponent(component) {
     component.Destroy();
-    this.setState({ gameObject: this.state.gameObject });
+    this.setState({});
   }
   onComponentPropertyChanged(component, property, value) {
     const type = typeof component[property];
@@ -1789,7 +2076,7 @@ class LayoutInspectorGameObject extends Component {
     } else if (type == "number") {
       component[property] = parseFloat(value);
     }
-    this.setState({ gameObject: this.state.gameObject });
+    this.setState({});
   }
   onGameObjectNameChanged(gameObject, event) {
     const input = event.currentTarget;
@@ -1797,44 +2084,39 @@ class LayoutInspectorGameObject extends Component {
     EventSystem.emit(GameObjectEvents.Changed, gameObject);
   }
   renderInspectorForComponentProperty(component, property) {
-    component.constructor.name;
-    const type = typeof component[property];
-    if (type == "function") return null;
-    const title = StringUtils.CapitalizeStrArray(StringUtils.CamelCaseToArray(property)).join(" ");
-    if (this.props.engineAPI.isVector3(component[property])) {
-      return /* @__PURE__ */ createElement(InspectorVector3, { title, onChanged: (value) => {
-        this.onComponentPropertyChanged(component, property, value);
-      }, vector3: component[property] });
-    } else if (this.props.engineAPI.isColor(component[property])) {
-      return /* @__PURE__ */ createElement(InspectorColor, { title, onChanged: (value) => {
-        this.onComponentPropertyChanged(component, property, value);
-      }, color: component[property] });
-    } else if (this.props.engineAPI.isVector2(component[property])) {
-      return /* @__PURE__ */ createElement(InspectorVector2, { title, onChanged: (value) => {
-        this.onComponentPropertyChanged(component, property, value);
-      }, vector2: component[property] });
-    } else if (type == "number") {
-      return /* @__PURE__ */ createElement(InspectorInput, { onChanged: (value) => {
-        this.onComponentPropertyChanged(component, property, value);
-      }, title, value: component[property], type: "number" });
-    } else if (type == "boolean") {
-      return /* @__PURE__ */ createElement(InspectorCheckbox, { onChanged: (value) => {
-        this.onComponentPropertyChanged(component, property, value);
-      }, title, selected: component[property] });
-    } else if (type == "object") {
-      let valueForType = component[property].constructor.name;
-      if (component[property].assetPath) {
-        valueForType = StringUtils.GetNameForPath(component[property].assetPath);
+    const name = property.name;
+    const type = property.type;
+    const engineType = this.props.engineAPI.getFieldType(type);
+    const title = StringUtils.CapitalizeStrArray(StringUtils.CamelCaseToArray(name)).join(" ");
+    if (engineType === "Vector3") return /* @__PURE__ */ createElement(InspectorVector3, { title, onChanged: (value) => {
+      this.onComponentPropertyChanged(component, name, value);
+    }, vector3: component[name] });
+    else if (engineType === "Vector2") return /* @__PURE__ */ createElement(InspectorVector2, { title, onChanged: (value) => {
+      this.onComponentPropertyChanged(component, name, value);
+    }, vector2: component[name] });
+    else if (engineType === "Color") return /* @__PURE__ */ createElement(InspectorColor, { title, onChanged: (value) => {
+      this.onComponentPropertyChanged(component, name, value);
+    }, color: component[name] });
+    else if (type === Number) return /* @__PURE__ */ createElement(InspectorInput, { onChanged: (value) => {
+      this.onComponentPropertyChanged(component, name, value);
+    }, title, value: component[name], type: "number" });
+    else if (type === Boolean) return /* @__PURE__ */ createElement(InspectorCheckbox, { onChanged: (value) => {
+      this.onComponentPropertyChanged(component, name, value);
+    }, title, selected: component[name] });
+    else if (typeof type === "function") {
+      let valueForType = component[name].constructor.name;
+      if (component[name].assetPath) {
+        valueForType = StringUtils.GetNameForPath(component[name].assetPath);
       }
       return /* @__PURE__ */ createElement(
         InspectorType,
         {
           onChanged: (value) => {
-            this.onComponentPropertyChanged(component, property, value);
+            this.onComponentPropertyChanged(component, name, value);
           },
           title,
           component,
-          property,
+          property: name,
           value: valueForType
         }
       );
@@ -1875,52 +2157,101 @@ class LayoutInspectorGameObject extends Component {
     return inspectorHTML;
   }
   onGameObjectEnabled(event) {
-    this.state.gameObject.enabled = event.target.checked;
+    this.props.gameObject.enabled = event.target.checked;
+  }
+  onDragEnter(event) {
+    event.preventDefault();
+  }
+  onDragOver(event) {
+    event.preventDefault();
+  }
+  // TODO: This needs to be better
+  onDrop(event) {
+    const draggedItem = ExtendedDataTransfer.data;
+    const component = draggedItem[Object.keys(draggedItem)[0]];
+    this.props.gameObject.AddComponent(component);
+    this.setState({});
   }
   render() {
-    if (!this.state.gameObject) return /* @__PURE__ */ createElement("div", null);
-    const componentsElements = this.renderInspectorForGameObject(this.state.gameObject);
-    return /* @__PURE__ */ createElement("div", { style: {
-      height: "100%",
-      overflow: "auto",
-      width: "100%"
-    } }, /* @__PURE__ */ createElement("div", { style: {
-      display: "flex",
-      padding: "10px"
-    } }, /* @__PURE__ */ createElement("input", { type: "checkbox", checked: this.state.gameObject.enabled, onChange: (event) => {
-      this.onGameObjectEnabled(event);
-    } }), /* @__PURE__ */ createElement(
-      "input",
+    const componentsElements = this.renderInspectorForGameObject(this.props.gameObject);
+    return /* @__PURE__ */ createElement(
+      "div",
       {
         style: {
-          width: "100%",
-          fontSize: "12px",
-          background: "#121212",
-          borderRadius: "5px",
-          color: "white",
-          border: "none",
-          outline: "none",
-          paddingLeft: "5px"
+          height: "100%",
+          overflow: "auto",
+          width: "100%"
         },
-        type: "text",
-        value: this.state.gameObject.name,
-        onChange: (event) => {
-          this.onGameObjectNameChanged(this.state.gameObject, event);
+        onDragEnter: (event) => {
+          this.onDragEnter(event);
+        },
+        onDrop: (event) => {
+          this.onDrop(event);
+        },
+        onDragOver: (event) => this.onDragOver(event)
+      },
+      /* @__PURE__ */ createElement("div", { style: {
+        display: "flex",
+        padding: "10px"
+      } }, /* @__PURE__ */ createElement("input", { type: "checkbox", checked: this.props.gameObject.enabled, onChange: (event) => {
+        this.onGameObjectEnabled(event);
+      } }), /* @__PURE__ */ createElement(
+        "input",
+        {
+          style: {
+            width: "100%",
+            fontSize: "12px",
+            background: "#121212",
+            borderRadius: "5px",
+            color: "white",
+            border: "none",
+            outline: "none",
+            paddingLeft: "5px"
+          },
+          type: "text",
+          value: this.props.gameObject.name,
+          onChange: (event) => {
+            this.onGameObjectNameChanged(this.props.gameObject, event);
+          }
         }
-      }
-    )), /* @__PURE__ */ createElement(Collapsible, { header: "Transform" }, /* @__PURE__ */ createElement(InspectorVector3, { key: `position-${this.state.gameObject.id}`, title: "Position", onChanged: (value) => {
-      this.onComponentPropertyChanged(this.state.gameObject.transform, "localPosition", value);
-    }, vector3: this.state.gameObject.transform.localPosition }), /* @__PURE__ */ createElement(InspectorVector3, { key: `rotation-${this.state.gameObject.id}`, title: "Rotation", onChanged: (value) => {
-      this.onComponentPropertyChanged(this.state.gameObject.transform, "localEulerAngles", value);
-    }, vector3: this.state.gameObject.transform.localEulerAngles }), /* @__PURE__ */ createElement(InspectorVector3, { key: `scale-${this.state.gameObject.id}`, title: "Scale", onChanged: (value) => {
-      this.onComponentPropertyChanged(this.state.gameObject.transform, "scale", value);
-    }, vector3: this.state.gameObject.transform.scale })), componentsElements, /* @__PURE__ */ createElement(AddComponent, { gameObject: this.state.gameObject }));
+      )),
+      /* @__PURE__ */ createElement(Collapsible, { header: "Transform" }, /* @__PURE__ */ createElement(InspectorVector3, { key: `position-${this.props.gameObject.id}`, title: "Position", onChanged: (value) => {
+        this.onComponentPropertyChanged(this.props.gameObject.transform, "localPosition", value);
+      }, vector3: this.props.gameObject.transform.localPosition }), /* @__PURE__ */ createElement(InspectorVector3, { key: `rotation-${this.props.gameObject.id}`, title: "Rotation", onChanged: (value) => {
+        this.onComponentPropertyChanged(this.props.gameObject.transform, "localEulerAngles", value);
+      }, vector3: this.props.gameObject.transform.localEulerAngles }), /* @__PURE__ */ createElement(InspectorVector3, { key: `scale-${this.props.gameObject.id}`, title: "Scale", onChanged: (value) => {
+        this.onComponentPropertyChanged(this.props.gameObject.transform, "scale", value);
+      }, vector3: this.props.gameObject.transform.scale })),
+      componentsElements,
+      /* @__PURE__ */ createElement(AddComponent, { gameObject: this.props.gameObject })
+    );
   }
 }
 
 class LayoutInspector extends Component {
+  constructor(props) {
+    super(props);
+    EventSystem.on(LayoutAssetEvents.Selected, (instance) => {
+      if (this.props.engineAPI.isMaterial(instance)) {
+        this.setState({ selected: instance });
+      }
+    });
+    EventSystem.on(LayoutHierarchyEvents.Selected, (gameObject) => {
+      this.setState({ selected: gameObject });
+    });
+    EventSystem.on(ComponentEvents.Created, (gameObject, component) => {
+      this.setState({ selected: gameObject });
+    });
+    EventSystem.on(GameObjectEvents.Changed, (gameObject, component) => {
+      this.setState({ selected: gameObject });
+    });
+    this.state = { selected: void 0 };
+  }
   render() {
-    return /* @__PURE__ */ createElement(LayoutInspectorGameObject, { engineAPI: this.props.engineAPI });
+    let content = null;
+    if (this.props.engineAPI.isGameObject(this.state.selected)) content = /* @__PURE__ */ createElement(LayoutInspectorGameObject, { engineAPI: this.props.engineAPI, gameObject: this.state.selected });
+    else if (this.props.engineAPI.isMaterial(this.state.selected)) content = /* @__PURE__ */ createElement(InspectorMaterial, { engineAPI: this.props.engineAPI, material: this.state.selected });
+    return /* @__PURE__ */ createElement("div", { style: { height: "100%", overflow: "auto", width: "100%" } }, content);
   }
 }
 
@@ -1930,6 +2261,7 @@ class LayoutTopbar extends Component {
     this.setState({ fileMenuOpen: false });
   }
   openProject() {
+    console.log("CCC");
     FileBrowser.init().then(() => {
       EventSystem.emit(ProjectEvents.Opened);
     });
@@ -1949,11 +2281,11 @@ class LayoutTopbar extends Component {
   render() {
     return /* @__PURE__ */ createElement("div", { style: { padding: "10px", marginLeft: "5px" } }, /* @__PURE__ */ createElement("a", { onClick: (event) => {
       this.setState({ ...this.state, fileMenuOpen: !this.state.fileMenuOpen });
-    }, style: { cursor: "pointer" } }, "File"), /* @__PURE__ */ createElement("div", { class: "Floating-Menu", style: `display: ${this.state.fileMenuOpen ? "inherit" : "none"}` }, /* @__PURE__ */ createElement(Tree, null, /* @__PURE__ */ createElement(TreeItem, { name: "Open Project...", onClicked: () => {
+    }, style: { cursor: "pointer" } }, "File"), /* @__PURE__ */ createElement("div", { class: "Floating-Menu", style: `display: ${this.state.fileMenuOpen ? "inherit" : "none"}` }, /* @__PURE__ */ createElement(Tree, null, /* @__PURE__ */ createElement(TreeItem, { name: "Open Project...", onPointerDown: () => {
       this.openProject();
-    } }), /* @__PURE__ */ createElement(TreeItem, { name: "Save Project", onClicked: () => {
+    } }), /* @__PURE__ */ createElement(TreeItem, { name: "Save Project", onPointerDown: () => {
       this.saveProject();
-    } }), /* @__PURE__ */ createElement(TreeItem, { name: "Test", onClicked: () => {
+    } }), /* @__PURE__ */ createElement(TreeItem, { name: "Test", onPointerDown: () => {
       this.test();
     } }))));
   }

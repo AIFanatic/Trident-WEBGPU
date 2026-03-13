@@ -41,12 +41,12 @@ class PointLightHelper extends Component {
     this.lineRenderer.SetPositions(new Float32Array(positions));
   }
   Start() {
-    if (!this.light) throw Error("SpotLightHelper.light not defined");
+    if (!this.light) throw Error("PointLightHelper.light not defined");
   }
   Update() {
     this.transform.position.copy(this.light.transform.position);
     this.transform.rotation.copy(this.light.transform.rotation);
-    this.transform.scale.set(this.light.range, this.light.range, this.light.range);
+    this.transform.scale.set(this.light.range, this.light.range, this.light.range).mul(0.5);
   }
 }
 

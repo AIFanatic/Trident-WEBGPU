@@ -56,8 +56,29 @@
               const skyTexture = await HDRParser.ToCubemap(hdr);
               const environment = new Environment(scene, skyTexture);
               await environment.init();
-              const prefab = await GLTFLoader.LoadFromURL("/extra/test-assets/bouquet.glb");
-              scene.Instantiate(prefab);
+              const prefab = await GLTFLoader.LoadFromURL("./assets/models/Shadow.glb");
+              prefab.traverse((prefab2) => {
+                for (const component of prefab2.components) {
+                  if (component.type === Components.Animator.type) {
+                    console.log(component);
+                    return;
+                  }
+                }
+              });
+              {
+                const prefab2 = await GLTFLoader.LoadFromURL("./assets/models/Shadow.glb");
+                const gameObject = scene.Instantiate(prefab2);
+                gameObject.transform.position.x = 2;
+                const animator = gameObject.GetComponent(Components.Animator);
+                animator.SetClipByIndex(45);
+              }
+              {
+                const prefab2 = await GLTFLoader.LoadFromURL("/extra/test-assets/bouquet.glb");
+                const gameObject = scene.Instantiate(prefab2);
+                gameObject.transform.position.x = -2;
+                const animator = gameObject.GetComponent(Components.Animator);
+                console.log(animator);
+              }
               setTimeout(() => {
                 const serialized = scene.Serialize();
                 console.log("serialized", serialized);

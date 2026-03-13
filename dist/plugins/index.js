@@ -57,7 +57,10 @@ export { LODGroup, LODInstanceRenderable } from './LODGroup.js';
 export { VirtualTexturingPass } from './VirtualTexturing/VirtualTexturingPass.js';
 export { TilesGenerator } from './VirtualTexturing/TilesGenerator.js';
 export { FakeGI, VPLGenerator } from './VPLGenerator.js';
+export { VPLGeneratorV2 } from './VPLGeneratorV2.js';
 export { PathTracer } from './PathTracer.js';
+export { FullscreenQuad } from './FullscreenQuad.js';
+export { SSS_V2 } from './SSS_V2.js';
 
 Component.Registry.set(Water.type, Water);
 
