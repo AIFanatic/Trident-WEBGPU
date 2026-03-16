@@ -55,22 +55,13 @@
               const meshbottom = floor.AddComponent(Components.Mesh);
               meshbottom.geometry = Geometry.Plane();
               meshbottom.material = new PBRMaterial();
-              const model = await GLTFLoader.LoadFromURL("./assets/models/bunny.glb");
-              Scene.Instantiate(model);
-              function traverse(object3D, func) {
-                func(object3D);
-                for (const child of object3D.children) traverse(child, func);
-              }
+              const model = await GLTFLoader.Load("./assets/models/bunny.glb", scene);
               let geometry;
-              traverse(model, (prefab) => {
-                for (const component of prefab.components) {
-                  if (component.type === Components.Mesh.type) {
-                    geometry = new Geometry();
-                    geometry.Deserialize(component.renderable.geometry);
-                    component.renderable.material;
-                  }
-                }
-              });
+              const modelMeshes = model.GetComponentsInChildren(Components.Mesh);
+              for (const mesh of modelMeshes) {
+                geometry = mesh.geometry;
+                mesh.material;
+              }
               console.log("geometry", geometry);
               const albedoTexture = GPU.Texture.Create(1, 1);
               albedoTexture.SetSubData(new Float32Array([1, 1, 1, 1]), 1, 1, 0);

@@ -28,7 +28,7 @@
             <script type="module">
                 const canvas = document.createElement("canvas");
                 document.body.appendChild(canvas);
-                            import { GPU, Scene, GameObject, Components, Mathf, Geometry, Console } from '@trident/core';
+                            import { GPU, Scene, GameObject, Components, Mathf, PBRMaterial, Console } from '@trident/core';
             import { PhysicsRapier } from '@trident/plugins/PhysicsRapier/PhysicsRapier.js';
             import { TerrainCollider } from '@trident/plugins/PhysicsRapier/colliders/TerrainCollider.js';
             import { CapsuleCollider } from '@trident/plugins/PhysicsRapier/colliders/CapsuleCollider.js';
@@ -131,8 +131,7 @@
                   }
                 }
               }
-              const shadowPrefab = await GLTFLoader.LoadFromURL("./assets/models/Shadow.glb");
-              const sceneGameObject = scene.Instantiate(shadowPrefab);
+              const sceneGameObject = await GLTFLoader.Load("./assets/models/Shadow.glb", scene);
               let animator = void 0;
               traverse([sceneGameObject], (gameObject) => {
                 const _animator = gameObject.GetComponent(Components.Animator);
@@ -145,8 +144,7 @@
               terrain.SampleHeight(p);
               p.y += 1;
               playerGameObject.transform.position.copy(p);
-              const weaponPrefab = await GLTFLoader.LoadFromURL("/extra/test-assets/semi_auto_rifle.worldmodel.glb");
-              const weaponGameObject = scene.Instantiate(weaponPrefab);
+              const weaponGameObject = await GLTFLoader.Load("/extra/test-assets/semi_auto_rifle.worldmodel.glb", scene);
               weaponGameObject.transform.position.copy(camera.transform.position);
               weaponGameObject.transform.parent = camera.transform;
               weaponGameObject.transform.localEulerAngles.set(195, -80, 180);
@@ -171,19 +169,15 @@
               thirdPersonController.boostMultiplier = 20;
               {
                 async function addLOD(url, options = { count: 1, enableShadows: false }) {
-                  const prefab2 = await GLTFLoader.LoadFromURL(url);
+                  const loadedGO = await GLTFLoader.Load(url, scene);
                   let lodGroupEntries = [];
-                  prefab2.traverse((prefab3) => {
-                    for (const component of prefab3.components) {
-                      if (component.type === Components.Mesh.type) {
-                        const mat = GPU.Material.Deserialize(component.material);
-                        mat.params.doubleSided = true;
-                        mat.params.alphaCutoff = 0.1;
-                        const matSerialized = mat.Serialize();
-                        lodGroupEntries.push({ geometry: Geometry.Deserialize(component.geometry), material: GPU.Material.Deserialize(matSerialized) });
-                      }
-                    }
-                  });
+                  const meshes = loadedGO.GetComponentsInChildren(Components.Mesh);
+                  for (const mesh of meshes) {
+                    const mat = mesh.material;
+                    const clonedMat = new PBRMaterial({ ...mat.params, doubleSided: true, alphaCutoff: 0.1 });
+                    lodGroupEntries.push({ geometry: mesh.geometry, material: clonedMat });
+                  }
+                  loadedGO.enabled = false;
                   const lodGameObject = new GameObject(scene);
                   const lodInstanceRenderable = lodGameObject.AddComponent(LODInstanceRenderable);
                   lodInstanceRenderable.enableShadows = options.enableShadows;
@@ -334,18 +328,15 @@
                   console.log("Loading", name);
                   addLOD("/extra/test-assets/nature/treessource/" + name, { count: 1e3, enableShadows: false });
                 }
-                const prefab = await GLTFLoader.LoadFromURL("/extra/test-assets/patch_grass_medium.glb");
+                const grassGO = await GLTFLoader.Load("/extra/test-assets/patch_grass_medium.glb", scene);
                 let _prefabMeshes = [];
-                prefab.traverse((prefab2) => {
-                  for (const component of prefab2.components) {
-                    if (component.type === Components.Mesh.type) {
-                      const mat = GPU.Material.Deserialize(component.material);
-                      const matSerialized = mat.Serialize();
-                      _prefabMeshes.push({ geometry: Geometry.Deserialize(component.geometry), material: GPU.Material.Deserialize(matSerialized) });
-                      return;
-                    }
-                  }
-                });
+                const grassMeshes = grassGO.GetComponentsInChildren(Components.Mesh);
+                for (const mesh of grassMeshes) {
+                  const mat = mesh.material;
+                  _prefabMeshes.push({ geometry: mesh.geometry, material: new PBRMaterial(mat.params) });
+                  break;
+                }
+                grassGO.enabled = false;
                 console.log(_prefabMeshes);
                 const prefabMesh = _prefabMeshes[_prefabMeshes.length - 1];
                 console.log(_prefabMeshes);
@@ -404,8 +395,7 @@
                   const file = e.dataTransfer?.files?.[0];
                   if (!file) return;
                   const url = URL.createObjectURL(file);
-                  const prefab = await GLTFLoader.LoadFromURL(url, "glb");
-                  const obj = scene.Instantiate(prefab);
+                  const obj = await GLTFLoader.Load(url, scene, "glb");
                   const p2 = playerGameObject.transform.position.clone();
                   terrain.SampleHeight(p2);
                   p2.y += 2.5;

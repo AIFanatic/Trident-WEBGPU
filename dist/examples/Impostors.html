@@ -28,7 +28,7 @@
             <script type="module">
                 const canvas = document.createElement("canvas");
                 document.body.appendChild(canvas);
-                            import { GPU, Scene, GameObject, Components, Mathf, PBRMaterial, Geometry } from '@trident/core';
+                            import { GPU, Scene, GameObject, Components, Mathf, PBRMaterial } from '@trident/core';
             import { OrbitControls } from '@trident/plugins/OrbitControls.js';
             import { GLTFLoader } from '@trident/plugins/GLTF/GLTFLoader.js';
             import { ImpostorMesh } from '@trident/plugins/Impostors/ImpostorMesh.js';
@@ -59,25 +59,22 @@
                 const environment = new Environment(scene, skyTexture);
                 await environment.init();
               }
-              const prefab = await GLTFLoader.LoadFromURL("/extra/test-assets/nature/treessource/american_beech/american_beech_a.glb");
+              const loadedGO = await GLTFLoader.Load("/extra/test-assets/nature/treessource/american_beech/american_beech_a.glb", scene);
               let geometry;
               let material = new PBRMaterial();
-              prefab.traverse((prefab2) => {
-                if (geometry) return;
-                for (const component of prefab2.components) {
-                  if (component.type === Components.Mesh.type) {
-                    geometry = Geometry.Deserialize(component.geometry);
-                    material = GPU.Material.Deserialize(component.material);
-                  }
-                }
-              });
+              const loadedMeshes = loadedGO.GetComponentsInChildren(Components.Mesh);
+              for (const mesh of loadedMeshes) {
+                geometry = mesh.geometry;
+                material = mesh.material;
+                break;
+              }
               const go = new GameObject(scene);
               const bunnyImpostor = go.AddComponent(ImpostorMesh);
               await bunnyImpostor.Create(geometry, material);
               new UITextureViewer(Debugger.ui, "Atlas", bunnyImpostor.albedoTexture);
               new UITextureViewer(Debugger.ui, "Atlas2", bunnyImpostor.normalTexture);
               {
-                Scene.Instantiate(prefab, new Mathf.Vector3(3, 0, 0));
+                loadedGO.transform.position.set(3, 0, 0);
               }
               Debugger.Enable();
               scene.Start();

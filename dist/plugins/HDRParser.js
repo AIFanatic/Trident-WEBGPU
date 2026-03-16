@@ -492,7 +492,7 @@ class HDRParser {
   static async ToCubemap(hdr) {
     const faceSize = Math.min(hdr.width / 2 | 0, hdr.height | 0);
     const renderTarget = GPU.RenderTextureCube.Create(faceSize, faceSize, 6, "rgba16float");
-    renderTarget.SetName("Skybox");
+    renderTarget.name = "Skybox";
     const hdrSampler = GPU.TextureSampler.Create({
       minFilter: "linear",
       magFilter: "linear",

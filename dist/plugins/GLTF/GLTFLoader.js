@@ -1,18 +1,9 @@
-import { Utils, IndexAttribute, VertexAttribute, Texture, Geometry, Mathf, PBRMaterial, Components, Prefab, Assets } from '@trident/core';
+import { IndexAttribute, VertexAttribute, Texture, Geometry, Mathf, PBRMaterial, GameObject, Components } from '@trident/core';
 import { GLTFParser } from './GLTFParser.js';
 
 class GLTFLoader {
   static TextureCache = /* @__PURE__ */ new Map();
   static ParseCounter = 0;
-  static makeCacheNamespace(value) {
-    if (typeof value === "string" && value.length > 0) return value;
-    if (typeof value === "number" || typeof value === "bigint" || typeof value === "boolean") return String(value);
-    if (value && typeof value === "object") {
-      const id = value.id ?? value.uuid ?? value.name;
-      if (id !== void 0) return String(id);
-    }
-    return `gltf:${Utils.UUID()}:${GLTFLoader.ParseCounter++}`;
-  }
   static finalizeGeometry(geom) {
     const posAttr = geom.attributes.get("position");
     if (!posAttr) throw Error("Geometry missing position attribute.");
@@ -49,8 +40,7 @@ class GLTFLoader {
     }
     return cached;
   }
-  // ---------- Primitive / Node parsing to Object3D (your existing pipeline, tidied) ----------
-  // From threejs
+  // ---------- Accessor parsing ----------
   static parseAccessor(accessorDef) {
     const WEBGL_TYPE_SIZES = { "SCALAR": 1, "VEC2": 2, "VEC3": 3, "VEC4": 4, "MAT2": 4, "MAT3": 9, "MAT4": 16 };
     const WEBGL_COMPONENT_TYPES = { 5120: Int8Array, 5121: Uint8Array, 5122: Int16Array, 5123: Uint16Array, 5125: Uint32Array, 5126: Float32Array };
@@ -133,72 +123,60 @@ class GLTFLoader {
     geometry.ComputeBoundingVolume();
     const material = new PBRMaterial(materialParams);
     if (primitive.material && primitive.material.name) material.name = primitive.material.name;
-    return {
-      geometry,
-      material
-    };
+    return { geometry, material };
   }
-  // ---------- Public: load as GameObjects (Unity-style) ----------
+  // ---------- Public API ----------
   static cache = /* @__PURE__ */ new Map();
-  static serializeTransform(position, rotation, scale) {
-    return {
-      type: Components.Transform.type,
-      localPosition: position.Serialize(),
-      localRotation: rotation.Serialize(),
-      scale: scale.Serialize()
-    };
-  }
-  static createEmptyGO(name, position, rotation, scale) {
-    const prefab = new Prefab();
-    prefab.name = name;
-    prefab.transform = this.serializeTransform(position ?? new Mathf.Vector3(), rotation ?? new Mathf.Quaternion(), scale ?? new Mathf.Vector3(1, 1, 1));
-    return prefab;
-  }
-  static async LoadFromURL(url, format) {
+  /**
+   * Load a GLTF/GLB from URL and create live GameObjects in the scene.
+   * Returns the root GameObject.
+   */
+  static async Load(url, scene, format) {
     let cached = GLTFLoader.cache.get(url);
     if (!cached) {
       if (url.endsWith(".glb") || format === "glb") cached = await new GLTFParser().loadGLBUrl(url);
       else if (url.endsWith(".gltf") || format === "gltf") cached = await new GLTFParser().loadGLTF(url);
       GLTFLoader.cache.set(url, cached);
     }
-    const rootName = url.slice(url.lastIndexOf("/"), url.lastIndexOf("."));
-    return this.Parse(rootName, cached);
+    const rootName = url.slice(url.lastIndexOf("/") + 1, url.lastIndexOf("."));
+    return this.Build(rootName, cached, scene);
   }
-  static async LoadFromArrayBuffer(arrayBuffer, key, name) {
+  /**
+   * Load from an ArrayBuffer and create live GameObjects in the scene.
+   * Returns the root GameObject.
+   */
+  static async LoadFromArrayBuffer(arrayBuffer, scene, name, key) {
     const cacheKey = key ?? arrayBuffer;
     let cached = GLTFLoader.cache.get(cacheKey);
     if (!cached) {
       cached = await new GLTFParser().parseGLB(arrayBuffer);
       GLTFLoader.cache.set(cacheKey, cached);
     }
-    return this.Parse(name ?? "GameObject", cached);
+    return this.Build(name ?? "GameObject", cached, scene);
   }
-  // Hacky, replaces instance with assetPath based version only
-  static SetAssetPathForInstance(instance, assetPath) {
-    if (Assets.GetInstance(assetPath)) return;
-    instance.assetPath = assetPath;
-    Assets.SetInstance(assetPath, instance);
-  }
-  static async Parse(rootName, gltf) {
+  // ---------- Build live GameObjects from parsed GLTF ----------
+  static async Build(rootName, gltf, scene) {
     if (!gltf.nodes) {
-      return this.createEmptyGO(rootName);
+      const empty = new GameObject(scene);
+      empty.name = rootName;
+      return empty;
     }
     const nodeIndex = /* @__PURE__ */ new Map();
     gltf.nodes.forEach((n, i) => nodeIndex.set(n, i));
     const nodes = [];
     for (let i = 0; i < gltf.nodes.length; i++) {
       const n = gltf.nodes[i];
-      nodes.push(this.createEmptyGO(
-        n.name || `Nodea_${i}`,
-        new Mathf.Vector3(n.translation.x, n.translation.y, n.translation.z),
-        new Mathf.Quaternion(n.rotation.x, n.rotation.y, n.rotation.z, n.rotation.w),
-        new Mathf.Vector3(n.scale.x, n.scale.y, n.scale.z)
-      ));
+      const go = new GameObject(scene);
+      go.name = n.name || `Node_${i}`;
+      go.transform.localPosition.set(n.translation.x, n.translation.y, n.translation.z);
+      go.transform.localRotation.set(n.rotation.x, n.rotation.y, n.rotation.z, n.rotation.w);
+      go.transform.scale.set(n.scale.x, n.scale.y, n.scale.z);
+      nodes.push(go);
     }
     for (let i = 0; i < gltf.nodes.length; i++) {
       const n = gltf.nodes[i];
       for (const childId of n.childrenID) {
-        nodes[i].children.push(nodes[childId]);
+        nodes[childId].transform.parent = nodes[i].transform;
       }
     }
     if (gltf.skins) {
@@ -208,16 +186,18 @@ class GLTFLoader {
         if (!ibm) continue;
         for (let i = 0; i < s.joints.length; i++) {
           const jointIdx = nodeIndex.get(s.joints[i]);
-          const jointGO = nodes[jointIdx];
-          jointGO.components.push({
-            type: Components.Bone.type,
-            index: i,
-            skinId: skinIndex,
-            inverseBindMatrix: Array.from(new Float32Array(ibm.buffer, ibm.byteOffset + Float32Array.BYTES_PER_ELEMENT * 16 * i, 16))
-          });
+          const bone = nodes[jointIdx].AddComponent(Components.Bone);
+          bone.index = i;
+          bone.skinId = skinIndex;
+          bone.inverseBindMatrix = new Float32Array(
+            ibm.buffer,
+            ibm.byteOffset + Float32Array.BYTES_PER_ELEMENT * 16 * i,
+            16
+          ).slice();
         }
       }
     }
+    let animatorComponent = null;
     if (gltf.animations && gltf.animations.length) {
       const compCountForPath = (path) => path === "translation" || path === "scale" ? 3 : path === "rotation" ? 4 : 1;
       const clipDefs = [];
@@ -249,90 +229,61 @@ class GLTFLoader {
           duration
         });
         for (const [nodeId, channels] of perNodeChannels) {
-          nodeTracks[nodeId].push({
-            clipIndex,
-            channels
-          });
+          nodeTracks[nodeId].push({ clipIndex, channels });
         }
       }
-      const tracksMap = {};
+      const tracksData = {};
       for (let i = 0; i < nodes.length; i++) {
         if (nodeTracks[i].length) {
           const trackName = nodes[i].name;
-          tracksMap[trackName] = nodeTracks[i];
-          nodes[i].components.push({
-            id: Utils.UUID(),
-            type: Components.AnimationTrack.type,
-            trackName,
-            clips: nodeTracks[i]
-          });
+          tracksData[trackName] = nodeTracks[i];
+          const track = nodes[i].AddComponent(Components.AnimationTrack);
+          track.trackName = trackName;
+          track.clips = nodeTracks[i];
         }
       }
-      const animationPath = `${rootName}.glb/${rootName}.animation`;
-      const animatorData = {
-        id: Utils.UUID(),
-        type: Components.Animator.type,
-        assetPath: animationPath,
-        clips: clipDefs,
-        tracks: tracksMap
-      };
-      if (!Assets.GetInstance(animationPath)) {
-        Assets.SetInstance(animationPath, animatorData);
-      }
-      nodes[0].__rootAnimator = animatorData;
+      animatorComponent = { clipDefs, tracksData };
     }
     for (let i = 0; i < gltf.nodes.length; i++) {
       const node = gltf.nodes[i];
       if (!node.mesh) continue;
       const nodeGO = nodes[i];
       const primitives = node.mesh.primitives ?? [];
-      let pIndex = 0;
       for (const primitive of primitives) {
-        const parsedPrimitive = await this.parsePrimitive(primitive, gltf.textures);
-        const geometryInstance = parsedPrimitive.geometry;
-        const materialInstance = parsedPrimitive.material;
-        const primitiveIndex = pIndex++;
-        const geometryPath = `${rootName}.glb/${node.mesh.name}_${primitiveIndex}.geometry`;
-        const materialPath = `${rootName}.glb/${materialInstance.name}.material`;
-        geometryInstance.assetPath = geometryPath;
-        materialInstance.assetPath = materialPath;
-        this.SetAssetPathForInstance(geometryInstance, geometryPath);
-        this.SetAssetPathForInstance(materialInstance, materialPath);
-        if (materialInstance.params.albedoMap) this.SetAssetPathForInstance(materialInstance.params.albedoMap, `${rootName}.glb/${materialInstance.params.albedoMap.name}.png`);
-        if (materialInstance.params.armMap) this.SetAssetPathForInstance(materialInstance.params.armMap, `${rootName}.glb/${materialInstance.params.armMap.name}.png`);
-        if (materialInstance.params.normalMap) this.SetAssetPathForInstance(materialInstance.params.normalMap, `${rootName}.glb/${materialInstance.params.normalMap.name}.png`);
-        if (materialInstance.params.emissiveMap) this.SetAssetPathForInstance(materialInstance.params.emissiveMap, `${rootName}.glb/${materialInstance.params.emissiveMap.name}.png`);
-        if (materialInstance.params.heightMap) this.SetAssetPathForInstance(materialInstance.params.heightMap, `${rootName}.glb/${materialInstance.params.heightMap.name}.png`);
-        const primGO = this.createEmptyGO(nodeGO.name);
+        const parsed = await this.parsePrimitive(primitive, gltf.textures);
+        const primGO = new GameObject(scene);
+        primGO.name = nodeGO.name;
+        primGO.transform.parent = nodeGO.transform;
         const hasSkin = primitive.attributes && primitive.attributes.JOINTS_0 && primitive.attributes.WEIGHTS_0;
         if (hasSkin) {
-          primGO.components.push({
-            type: Components.SkinnedMesh.type,
-            geometry: geometryInstance.Serialize(),
-            material: materialInstance.Serialize(),
-            enableShadows: true
-          });
+          const mesh = primGO.AddComponent(Components.SkinnedMesh);
+          mesh.geometry = parsed.geometry;
+          mesh.material = parsed.material;
+          mesh.enableShadows = true;
         } else {
-          primGO.components.push({
-            type: Components.Mesh.type,
-            geometry: geometryInstance.Serialize(),
-            material: materialInstance.Serialize(),
-            enableShadows: true
-          });
+          const mesh = primGO.AddComponent(Components.Mesh);
+          mesh.geometry = parsed.geometry;
+          mesh.material = parsed.material;
+          mesh.enableShadows = true;
         }
-        nodeGO.children.push(primGO);
       }
     }
     const childIDs = /* @__PURE__ */ new Set();
     for (const n of gltf.nodes) {
       for (const childId of n.childrenID) childIDs.add(childId);
     }
-    const root = this.createEmptyGO(rootName);
+    const root = new GameObject(scene);
+    root.name = rootName;
     for (let i = 0; i < gltf.nodes.length; i++) {
-      if (!childIDs.has(i)) root.children.push(nodes[i]);
+      if (!childIDs.has(i)) {
+        nodes[i].transform.parent = root.transform;
+      }
     }
-    if (nodes[0].__rootAnimator) {
-      root.components.push(nodes[0].__rootAnimator);
+    if (animatorComponent) {
+      const data = animatorComponent;
+      const animator = root.AddComponent(Components.Animator);
+      animator.clips = data.clipDefs;
+      animator.tracksData = data.tracksData;
     }
     return root;
   }

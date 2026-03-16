@@ -63,7 +63,7 @@
               await environment.init();
               const lodGameObject = new GameObject(scene);
               const lodInstanceRenderable = lodGameObject.AddComponent(LODInstanceRenderable);
-              const tree = await GLTFLoader.loadAsGameObjects(scene, "/extra/test-assets/tree-01/tree.glb");
+              const tree = await GLTFLoader.Load("/extra/test-assets/tree-01/tree.glb", scene);
               function traverse(gameObjects, fn) {
                 for (const gameObject of gameObjects) {
                   fn(gameObject);
@@ -76,17 +76,12 @@
               traverse([tree], (gameObject) => {
                 const mesh = gameObject.GetComponent(Components.Mesh);
                 if (mesh) {
-                  const geometrySerialized = mesh.geometry.Serialize();
-                  const materialSerialized = mesh.material.Serialize();
-                  const materialClone = GPU.Material.Deserialize(materialSerialized);
-                  const geometryClone = new Geometry();
-                  geometryClone.Deserialize(geometrySerialized);
-                  console.log(materialSerialized.params);
-                  lodGroupEntries.push({ geometry: geometryClone, material: materialClone });
+                  const materialClone = new PBRMaterial(mesh.material.params);
+                  lodGroupEntries.push({ geometry: mesh.geometry, material: materialClone });
                 }
               });
               console.log(lodGroupEntries);
-              tree.Destroy();
+              tree.enabled = false;
               lodInstanceRenderable.lods.push({ renderers: lodGroupEntries, screenSize: 0 });
               lodInstanceRenderable.lods.push({ renderers: lodGroupEntries.slice(0, 2), screenSize: 20 });
               lodInstanceRenderable.lods.push({ renderers: lodGroupEntries.slice(2, 4), screenSize: 40 });

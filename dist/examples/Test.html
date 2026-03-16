@@ -28,7 +28,7 @@
             <script type="module">
                 const canvas = document.createElement("canvas");
                 document.body.appendChild(canvas);
-                            import { GPU, Scene, GameObject, Components, Mathf, Geometry } from '@trident/core';
+                            import { GPU, Scene, GameObject, Components, Mathf } from '@trident/core';
             import { OrbitControls } from '@trident/plugins/OrbitControls.js';
             import { GLTFLoader } from '@trident/plugins/GLTF/GLTFLoader.js';
             import { Debugger } from '@trident/plugins/Debugger.js';
@@ -99,12 +99,6 @@
                 });
                 window.addEventListener("drop", async (ev) => {
                   ev.preventDefault();
-                  function traverse(prefabs, fn) {
-                    for (const prefab of prefabs) {
-                      fn(prefab);
-                      for (const child of prefab.children) traverse([child], fn);
-                    }
-                  }
                   function makeLimiter(max) {
                     let inFlight = 0;
                     const queue = [];
@@ -144,18 +138,16 @@
                     const arrayBuffer = await runReadLimited(() => file.arrayBuffer());
                     await runParseLimited(async () => {
                       console.log("Loading", assetPath);
-                      const prefab = await GLTFLoader.LoadFromArrayBuffer(arrayBuffer, assetPath, assetPath);
+                      const loadedGO = await GLTFLoader.LoadFromArrayBuffer(arrayBuffer, scene, assetPath, assetPath);
                       const rootGameObject = record.rootGameObject;
-                      traverse([prefab], (p2) => {
-                        for (const component of p2.components) {
-                          if (component.type === Components.Mesh.type) {
-                            const instancedMesh = rootGameObject.AddComponent(Components.InstancedMesh);
-                            instancedMesh.geometry = Geometry.Deserialize(component.geometry);
-                            instancedMesh.material = GPU.Material.Deserialize(component.material);
-                            record.instancedMeshes.push(instancedMesh);
-                          }
-                        }
-                      });
+                      const meshes = loadedGO.GetComponentsInChildren(Components.Mesh);
+                      for (const mesh of meshes) {
+                        const instancedMesh = rootGameObject.AddComponent(Components.InstancedMesh);
+                        instancedMesh.geometry = mesh.geometry;
+                        instancedMesh.material = mesh.material;
+                        record.instancedMeshes.push(instancedMesh);
+                      }
+                      loadedGO.Destroy();
                     });
                   }
                   for (const actor of sceneFile.actors) {

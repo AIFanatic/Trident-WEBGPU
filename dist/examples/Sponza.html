@@ -48,18 +48,18 @@
               lightGameObject.transform.LookAtV1(new Mathf.Vector3(0, 0, 0));
               const light = lightGameObject.AddComponent(Components.DirectionalLight);
               light.castShadows = true;
-              function traverse(gameObjects2, fn) {
-                for (const gameObject of gameObjects2) {
+              function traverse(gameObjects, fn) {
+                for (const gameObject of gameObjects) {
                   fn(gameObject);
                   for (const child of gameObject.transform.children) {
                     traverse([child.gameObject], fn);
                   }
                 }
               }
-              const gameObjects = await GLTFLoader.loadAsGameObjects(scene, "/extra/dist_bak/test-assets/GLTF/scenes/Bistro.glb");
+              const rootGameObject = await GLTFLoader.Load("/extra/dist_bak/test-assets/GLTF/scenes/Bistro.glb", scene);
               Debugger.Enable();
               const mat = new PBRMaterial();
-              traverse(gameObjects, (gameObject) => {
+              traverse([rootGameObject], (gameObject) => {
                 const mesh = gameObject.GetComponent(Components.Mesh);
                 if (mesh) {
                   mesh.enableShadows = false;

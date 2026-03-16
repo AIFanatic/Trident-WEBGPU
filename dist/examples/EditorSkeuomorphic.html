@@ -62,9 +62,8 @@
               const skyTexture = await HDRParser.ToCubemap(hdr);
               const environment = new Environment(scene, skyTexture);
               await environment.init();
-              const prefab = await GLTFLoader.LoadFromURL("/extra/test-assets/editor/room.glb");
-              console.log(prefab);
-              const rootGameObject = scene.Instantiate(prefab);
+              const rootGameObject = await GLTFLoader.Load("/extra/test-assets/editor/room.glb", scene);
+              console.log(rootGameObject);
               rootGameObject.transform.Update();
               function traverse(gameObjects, fn) {
                 for (const gameObject of gameObjects) {
