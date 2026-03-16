@@ -69,8 +69,4 @@ export class WEBGPURenderer implements Renderer {
     public static HasActiveFrame(): boolean {
         return WEBGPURenderer.activeCommandEncoder !== null;
     }
-
-    public static OnFrameCompleted(): Promise<undefined> {
-        return WEBGPURenderer.device.queue.onSubmittedWorkDone();
-    }
 }

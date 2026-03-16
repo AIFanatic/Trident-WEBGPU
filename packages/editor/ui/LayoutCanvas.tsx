@@ -4,12 +4,13 @@ import { BaseProps } from "./Layout";
 
 import { EventSystem, GameObjectEvents, LayoutHierarchyEvents, SceneEvents } from "../Events";
 
-import { Components } from "@trident/core";
+import { Components, Console } from "@trident/core";
 import { OrbitControls } from "@trident/plugins/OrbitControls.js";
 import { Raycaster } from "../helpers/Raycaster";
 
 import { Environment } from "@trident/plugins/Environment/Environment";
 import { Sky } from "@trident/plugins/Environment/Sky";
+import { HDRParser } from "@trident/plugins/HDRParser";
 import { GLTFLoader } from "@trident/plugins/GLTF/GLTFLoader";
 import { PostProcessingPass } from "@trident/plugins/PostProcessing/PostProcessingPass";
 import { PostProcessingSMAA } from "@trident/plugins/PostProcessing/effects/SMAA";
@@ -19,13 +20,20 @@ import { GPU } from "@trident/core";
 export class LayoutCanvas extends Component<BaseProps> {
 
     private async canvasRef(canvas: HTMLCanvasElement) {
+
+        const cameraSettings = {
+            near: 0.05,
+            far: 10000
+        }
+
+        Console.getVar("r_shadows_csm_splittypepracticallambda").value = 0.99;
         
         const resize = () => {
             canvas.style.width = "100%";
             canvas.style.height = "100%";
             canvas.width = canvas.parentElement.clientWidth;
             canvas.height = canvas.parentElement.clientHeight;
-            camera.SetPerspective(72, canvas.width / canvas.height, 0.05, 10000);
+            camera.SetPerspective(72, canvas.width / canvas.height, cameraSettings.near, cameraSettings.far);
         };
         new ResizeObserver(resize).observe(canvas);
 
@@ -37,10 +45,10 @@ export class LayoutCanvas extends Component<BaseProps> {
         const mainCameraGameObject = EngineAPI.createGameObject(currentScene);
         mainCameraGameObject.name = "MainCamera";
         const camera = mainCameraGameObject.AddComponent(IComponents.Camera);
-        camera.SetPerspective(72, canvas.width / canvas.height, 0.05, 10000);
+        camera.SetPerspective(72, canvas.width / canvas.height, cameraSettings.near, cameraSettings.far);
         EventSystem.on(GPU.RendererEvents.Resized, () => {
             console.log(canvas.getBoundingClientRect(), canvas.width, canvas.height)
-            camera.SetPerspective(72, canvas.width / canvas.height, 0.05, 10000);
+            camera.SetPerspective(72, canvas.width / canvas.height, cameraSettings.near, cameraSettings.far);
         });
 
         mainCameraGameObject.transform.position.set(0, 0, 10);
@@ -82,11 +90,14 @@ export class LayoutCanvas extends Component<BaseProps> {
         const sky = new Sky();
         sky.SUN_ELEVATION_DEGREES = 60;
         await sky.init();
-        const skyTexture = sky.skyTextureCubemap;
+        // const skyTexture = sky.skyTextureCubemap;
+
+        const hdr = await HDRParser.Load("/dist/examples/assets/textures/HDR/autumn_field_puresky_1k.hdr");
+        // const hdr = await HDRParser.Load("/dist/examples/assets/textures/HDR/spruit_sunrise_1k.hdr");
+        const skyTexture = await HDRParser.ToCubemap(hdr);
+
         const environment = new Environment(EngineAPI.currentScene, skyTexture);
         await environment.init();
-
-
 
 
         const raycaster = new Raycaster();
@@ -140,9 +151,8 @@ export class LayoutCanvas extends Component<BaseProps> {
                 const file = e.dataTransfer?.files?.[0];
                 if (!file) return;
 
-                const url = URL.createObjectURL(file);
-                const prefab = await GLTFLoader.LoadFromURL(url, "glb");
-                const obj = currentScene.Instantiate(prefab);
+                const arrayBuffer = await file.arrayBuffer();
+                const obj = await GLTFLoader.LoadFromArrayBuffer(arrayBuffer, currentScene, file.name);
             });
         }
 

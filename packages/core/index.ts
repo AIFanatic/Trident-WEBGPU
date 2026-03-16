@@ -21,7 +21,7 @@ export * as GPU from "./renderer";
 export * as Utils from "./utils";
 export { SerializeField } from "./utils";
 
-export { Assets, Prefab } from "./Assets";
+export { Assets } from "./Assets";
 
 export { Input, KeyCodes, MouseCodes } from "./Input";
 

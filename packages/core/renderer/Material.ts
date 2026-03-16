@@ -1,4 +1,3 @@
-import { Assets } from "../Assets";
 import { Vector2 } from "../math";
 import { Color } from "../math/Color";
 import { Scene } from "../Scene";
@@ -47,63 +46,9 @@ export class Material {
         MaterialPool.remove(this.materialId);
     };
 
-    public static Create(type: string) {
-        if (type === PBRMaterial.type) return new PBRMaterial();
-        return new Material();
-    }
-
-    public SerializeAsset() {
-        return {
-            type: Material.type,
-            assetPath: this.assetPath,
-            shader: this._shader ? this._shader.Serialize() : undefined,
-            params: {
-                isDeferred: this.params.isDeferred
-            }
-        }
-    }
-
-    public Serialize(metadata: any = {}) {
-        if (this.assetPath) {
-            return {
-                type: Material.type,
-                id: this.id,
-                assetPath: this.assetPath,
-            }
-        }
-        return this.SerializeAsset();
-    }
-
-    public Deserialize(data) {
-        this.params.isDeferred = data.isDeferred;
-    }
-
-    public static Deserialize(data): Material {
-        if (data.assetPath) {
-            const instance = Assets.GetInstance(data.assetPath);
-            if (instance) return instance;
-
-            // Store instance immediately because async Load
-            const material = Material.Create(data.type);
-            material.assetPath = data.assetPath;
-            Assets.SetInstance(data.assetPath, material);
-
-            Assets.Load(data.assetPath, "json").then(json => {
-                material.Deserialize(json)
-            });
-
-            return material;
-        }
-        const material = Material.Create(data.type);
-        material.Deserialize(data);
-
-        return material;
-    }
-
-    public clone(): Material {
-        const material = new Material();
-        material.Deserialize(this.Serialize());
-        return material;
+    public static Create(type: string, params?: any) {
+        if (type === PBRMaterial.type) return new PBRMaterial(params);
+        return new Material(params);
     }
 }
 
@@ -160,49 +105,6 @@ class PBRMaterialParams extends MaterialParams {
         PBRMaterialParams.dummyARM.SetData(new Uint8Array([255, 255, 255, 255]), 4);
     }
 
-    public Serialize() {
-        const isValidTexture = (texture: Texture, dummyTexture: Texture) => {
-            return texture && texture.assetPath && texture !== dummyTexture;
-        }
-
-        return {
-            albedoColor: this.albedoColor.Serialize(),
-            emissiveColor: this.emissiveColor.Serialize(),
-            roughness: this.roughness,
-            metalness: this.metalness,
-            albedoMap: isValidTexture(this.albedoMap, PBRMaterialParams.dummyAlbedo) ? this.albedoMap.Serialize() : undefined,
-            normalMap: isValidTexture(this.normalMap, PBRMaterialParams.dummyNormal) ? this.normalMap.Serialize() : undefined,
-            heightMap: isValidTexture(this.heightMap, PBRMaterialParams.dummyBlack) ? this.heightMap.Serialize() : undefined,
-            armMap: isValidTexture(this.armMap, PBRMaterialParams.dummyARM) ? this.armMap.Serialize() : undefined,
-            emissiveMap: isValidTexture(this.emissiveMap, PBRMaterialParams.dummyBlack) ? this.emissiveMap.Serialize() : undefined,
-            repeat: this.repeat.Serialize(),
-            offset: this.offset.Serialize(),
-            doubleSided: this.doubleSided,
-            alphaCutoff: this.alphaCutoff,
-            unlit: this.unlit,
-            wireframe: this.wireframe,
-            isSkinned: this.isSkinned,
-            isDeferred: this.isDeferred
-        }
-    }
-
-    public async Deserialize(data: any = {}) {
-        this.albedoColor = new Color().Deserialize(data.albedoColor);
-        this.emissiveColor = new Color().Deserialize(data.emissiveColor);
-        this.roughness = data.roughness;
-        this.metalness = data.metalness;
-        if (data.albedoMap) this.albedoMap = await Texture.Deserialize(data.albedoMap);
-        if (data.normalMap) this.normalMap = await Texture.Deserialize(data.normalMap);
-        if (data.heightMap) this.heightMap = await Texture.Deserialize(data.heightMap);
-        if (data.armMap) this.armMap = await Texture.Deserialize(data.armMap);
-        if (data.emissiveMap) this.emissiveMap = await Texture.Deserialize(data.emissiveMap);
-        this.doubleSided = data.doubleSided;
-        this.alphaCutoff = data.alphaCutoff;
-        this.unlit = data.unlit;
-        this.wireframe = data.wireframe;
-        this.isSkinned = data.isSkinned;
-        this.isDeferred = data.isDeferred;
-    }
 }
 
 export class PBRMaterial extends Material {
@@ -255,7 +157,7 @@ export class PBRMaterial extends Material {
                 set(obj, prop, value) {
                     obj[prop] = value;
 
-                    if (prop === "doubleSided") {
+                    if (prop === "doubleSided" || prop === "isSkinned") {
                         self.shader.Destroy();
                         self.createShader();
                     }
@@ -293,33 +195,4 @@ export class PBRMaterial extends Material {
         this.shader.SetTexture("EmissiveMap", this.params.emissiveMap);
     }
 
-    public SerializeAsset() {
-        return {
-            assetPath: this.assetPath,
-            type: PBRMaterial.type,
-            shader: undefined,
-            params: this.params.Serialize()
-        };
-    }
-
-    public Serialize(metadata: any = {}) {
-        if (this.assetPath) {
-            return {
-                type: PBRMaterial.type,
-                id: this.id,
-                assetPath: this.assetPath,
-            }
-        }
-
-        return this.SerializeAsset();
-    }
-
-    public async Deserialize(data: any) {
-        this.params = new PBRMaterialParams();
-        await this.params.Deserialize(data.params);
-
-        this._shader?.Destroy();
-        this.pendingShaderCreation = undefined;
-        await this.createShader();
-    }
 }

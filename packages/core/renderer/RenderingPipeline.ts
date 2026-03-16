@@ -1,5 +1,5 @@
 import { Scene } from "../Scene";
-import { Renderer } from "./Renderer";
+import { Renderer, RendererEvents } from "./Renderer";
 import { RenderGraph, RenderPass } from "./RenderGraph";
 import { DeferredLightingPass } from "./passes/DeferredLightingPass";
 import { WEBGPUTimestampQuery } from "./webgpu/WEBGPUTimestampQuery";
@@ -14,6 +14,7 @@ import { RenderablePass } from "./passes/RenderablePass";
 import { PostExposureTonemap } from "./passes/PostExposureTonemap";
 import { BasePass } from "./passes/BasePass";
 import { SceneExtractPass } from "./passes/SceneExtractPass";
+import { EventSystem } from "../Events";
 
 export const PassParams = {
     DebugSettings: "DebugSettings",
@@ -166,6 +167,8 @@ export class RenderingPipeline {
             }
         });
 
+        EventSystem.emit(RendererEvents.FrameEnded);
+        
         const currentTime = performance.now();
         const elapsed = currentTime - this.previousTime;
         this.previousTime = currentTime;

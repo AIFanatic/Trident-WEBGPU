@@ -3,14 +3,6 @@ import { Renderer } from "./Renderer";
 import { WEBGPUTexture } from "./webgpu/WEBGPUTexture";
 import { WEBGPUBlit } from "./webgpu/utils/WEBGBPUBlit";
 
-export interface SerializedTexture {
-    assetPath: string;
-    name: string;
-    id: string;
-    format: TextureFormat;
-    generateMips: boolean;
-}
-
 export interface ImageLoadOptions {
     name?: string;
     flipY?: boolean;
@@ -100,9 +92,6 @@ export class Texture {
     public name: string;
     public assetPath: string;
 
-    public SetName(name: string) {}
-    public GetName(): string {throw Error("Base class.")}
-
     public SetActiveLayer(layer: number) {}
     public GetActiveLayer(): number {throw Error("Base class.")}
 
@@ -121,12 +110,6 @@ export class Texture {
     public SetData(data: BufferSource, bytesPerRow: number, rowsPerImage?: number) {}
 
     public SetSubData(data: BufferSource, width: number, height: number, mip: number, offsetX: number = 0, offsetY: number = 0, layer: number = 0) {}
-    
-    public Serialize(metadata: any = {}): SerializedTexture {throw Error("Base class.")}
-    public static async Deserialize(data: SerializedTexture): Promise<Texture> {
-        if (Renderer.type === "webgpu") return WEBGPUTexture.Deserialize(data);
-        throw Error("Renderer type invalid");
-    }
 
     public static Create(width: number, height: number, depth: number = 1, format: TextureFormat = Renderer.SwapChainFormat, mipLevels = 1): Texture {
         return CreateTexture(width, height, depth, format, TextureType.IMAGE, "2d", mipLevels);

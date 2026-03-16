@@ -50,8 +50,8 @@ export interface IEngineAPI {
     createPrefab(): IPrefab;
     createTextureFromBlob(blob: Blob, format?: GPU.TextureFormat, options?: GPU.ImageLoadOptions): Promise<ITexture>;
 
-    deserializeGeometry(serialized): IGeometry;
-    deserializeMaterial(serialized): IMaterial;
+    deserializeGeometry(serialized): Promise<IGeometry>;
+    deserializeMaterial(serialized): Promise<IMaterial>;
     deserializePrefab(args?): IPrefab;
 
     GetSerializedFields: (instance: object) => { name: string | symbol, type?: Function }[];

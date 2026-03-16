@@ -10,6 +10,7 @@ interface InspectorTypeProps {
     value: string;
     component: Class;
     property: string;
+    expectedType?: Function;
     onChanged?: (value: string) => void;
 };
 
@@ -18,17 +19,16 @@ export class InspectorType extends Component<InspectorTypeProps> {
         super(props);
     }
 
+    private isValidDrop(draggedItem: any): boolean {
+        if (!draggedItem) return false;
+        if (this.props.expectedType) return draggedItem instanceof this.props.expectedType;
+        const current = this.props.component[this.props.property];
+        return current && draggedItem.constructor === current.constructor;
+    }
+
     private onDrop(event: DragEvent) {
         const draggedItem = ExtendedDataTransfer.data;
-        const component = this.props.component[this.props.property];
-
-        if (!draggedItem.constructor || !component.constructor) {
-            console.warn("Invalid component");
-            return;
-        }
-
-        const isValid = draggedItem.constructor === component.constructor;
-        if (!isValid) return;
+        if (!this.isValidDrop(draggedItem)) return;
 
         this.props.component[this.props.property] = draggedItem;
 
@@ -51,15 +51,7 @@ export class InspectorType extends Component<InspectorTypeProps> {
 
     private onDragEnter(event: DragEvent) {
         const draggedItem = ExtendedDataTransfer.data;
-        const component = this.props.component[this.props.property];
-
-        if (!draggedItem.constructor || !component.constructor) {
-            console.warn("Invalid component");
-            return;
-        }
-
-        const isValid = draggedItem.constructor === component.constructor;
-        if (!isValid) {
+        if (!this.isValidDrop(draggedItem)) {
             event.preventDefault();
             event.stopPropagation();
             return;

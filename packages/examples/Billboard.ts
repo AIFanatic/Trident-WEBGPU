@@ -6,7 +6,6 @@ import {
     GameObject,
     Geometry,
     PBRMaterial,
-    Prefab,
 } from "@trident/core";
 
 import { OrbitControls } from "@trident/plugins/OrbitControls";
@@ -42,25 +41,15 @@ async function Application(canvas: HTMLCanvasElement) {
     meshbottom.geometry = Geometry.Plane();
     meshbottom.material = new PBRMaterial();
 
-    const model = await GLTFLoader.LoadFromURL("./assets/models/bunny.glb");
-    Scene.Instantiate(model);
-
-    function traverse(object3D: Prefab, func: (o: Prefab) => void | Promise<void>) {
-        func(object3D);
-        for (const child of object3D.children) traverse(child, func);
-    }
+    const model = await GLTFLoader.Load("./assets/models/bunny.glb", scene);
 
     let geometry: Geometry;
     let material: PBRMaterial;
-    traverse(model, prefab => {
-        for (const component of prefab.components) {
-            if (component.type === Components.Mesh.type) {
-                geometry = new Geometry();
-                geometry.Deserialize(component.renderable.geometry);
-                material = component.renderable.material;
-            }
-        }
-    })
+    const modelMeshes = model.GetComponentsInChildren(Components.Mesh);
+    for (const mesh of modelMeshes) {
+        geometry = mesh.geometry;
+        material = mesh.material as PBRMaterial;
+    }
 
     console.log("geometry", geometry);
 

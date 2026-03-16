@@ -1,4 +1,4 @@
-import { Components, Scene, GPU, Mathf, GameObject, Geometry, IndexAttribute, PBRMaterial, VertexAttribute, Prefab } from "@trident/core";
+import { Components, Scene, GPU, Mathf, GameObject, Geometry, IndexAttribute, PBRMaterial, VertexAttribute } from "@trident/core";
 
 import { OrbitControls } from "@trident/plugins/OrbitControls";
 import { GLTFLoader } from "@trident/plugins/GLTF/GLTFLoader";
@@ -42,8 +42,8 @@ async function Application(canvas: HTMLCanvasElement) {
     // cubeMesh.material = new PBRMaterial();
 
 
-    // const hdr = await HDRParser.Load("/dist/examples/assets/textures/HDR/autumn_field_puresky_1k.hdr");
-    const hdr = await HDRParser.Load("/dist/examples/assets/textures/HDR/spruit_sunrise_1k.hdr");
+    const hdr = await HDRParser.Load("/dist/examples/assets/textures/HDR/autumn_field_puresky_1k.hdr");
+    // const hdr = await HDRParser.Load("/dist/examples/assets/textures/HDR/spruit_sunrise_1k.hdr");
     const skyTexture = await HDRParser.ToCubemap(hdr);
 
     // const sky = new Sky();
@@ -54,28 +54,27 @@ async function Application(canvas: HTMLCanvasElement) {
     const environment = new Environment(scene, skyTexture);
     await environment.init();
 
-    // const prefab = await GLTFLoader.LoadFromURL("./assets/models/DamagedHelmet/DamagedHelmet.gltf");
-    // const prefab = await GLTFLoader.LoadFromURL("/extra/test-assets/bouquet.glb");
-    const prefab = await GLTFLoader.LoadFromURL("./assets/models/Shadow.glb");
-    // const prefab = await GLTFLoader.LoadFromURL("/extra/test-assets/nature/overgrowth/patch_grass_medium.glb");
-    // const prefab = await GLTFLoader.LoadFromURL("/extra/test-assets/tree-01/american_beech_a/american_beech_a.glb");
-    // const prefab = await GLTFLoader.LoadFromURL("/extra/test-assets/ak47u.worldmodel.glb");
-    // const prefab = await GLTFLoader.LoadFromURL("/extra/test-assets/semi_auto_rifle.worldmodel.glb");
-    // const prefab = await GLTFLoader.LoadFromURL("/extra/test-assets/sphere/sphere.gltf");
-    // const prefab = await GLTFLoader.LoadFromURL("./assets/models/Fox.glb");
+    // const rootGO = await GLTFLoader.Load("./assets/models/DamagedHelmet/DamagedHelmet.gltf", scene);
+    // const rootGO = await GLTFLoader.Load("/extra/test-assets/bouquet.glb", scene);
+    const rootGO = await GLTFLoader.Load("./assets/models/Shadow.glb", scene);
+    // const rootGO = await GLTFLoader.Load("/extra/test-assets/nature/overgrowth/patch_grass_medium.glb", scene);
+    // const rootGO = await GLTFLoader.Load("/extra/test-assets/tree-01/american_beech_a/american_beech_a.glb", scene);
+    // const rootGO = await GLTFLoader.Load("/extra/test-assets/ak47u.worldmodel.glb", scene);
+    // const rootGO = await GLTFLoader.Load("/extra/test-assets/semi_auto_rifle.worldmodel.glb", scene);
+    // const rootGO = await GLTFLoader.Load("/extra/test-assets/sphere/sphere.gltf", scene);
+    // const rootGO = await GLTFLoader.Load("./assets/models/Fox.glb", scene);
 
-    prefab.traverse(prefab => {
-        for (const component of prefab.components) {
-            if (component.type === Components.Animator.type) {
-                console.log(component)
-                return;
-            }
+    const meshComponents = rootGO.GetComponentsInChildren(Components.Mesh);
+    for (const mesh of meshComponents) {
+        const animator = mesh.gameObject.GetComponent(Components.Animator);
+        if (animator) {
+            console.log(animator);
+            break;
         }
-    })
+    }
 
     {
-        const prefab = await GLTFLoader.LoadFromURL("./assets/models/Shadow.glb");
-        const gameObject = scene.Instantiate(prefab);
+        const gameObject = await GLTFLoader.Load("./assets/models/Shadow.glb", scene);
         gameObject.transform.position.x = 2;
         // gameObject.transform.scale.set(0.01, 0.01, 0.01);
 
@@ -95,8 +94,7 @@ async function Application(canvas: HTMLCanvasElement) {
     }
 
     {
-        const prefab = await GLTFLoader.LoadFromURL("/extra/test-assets/bouquet.glb");
-        const gameObject = scene.Instantiate(prefab);
+        const gameObject = await GLTFLoader.Load("/extra/test-assets/bouquet.glb", scene);
         gameObject.transform.position.x = -2;
         // gameObject.transform.scale.set(0.01, 0.01, 0.01);
 
@@ -108,7 +106,7 @@ async function Application(canvas: HTMLCanvasElement) {
     }
 
     // {
-    //     const gameObject = scene.Instantiate(prefab);
+    //     const gameObject = await GLTFLoader.Load(url, scene);
     //     gameObject.transform.position.x = -2;
     //     gameObject.transform.scale.set(0.01, 0.01, 0.01);
     // }
@@ -119,20 +117,16 @@ async function Application(canvas: HTMLCanvasElement) {
     // mesh.material = new PBRMaterial({roughness: 0.0, metallic: 1.0});
 
     // {
-    //     function traverse(objects: Prefab[], fn: (object: Prefab) => void) {
+    //     function traverse(objects: GameObject[], fn: (object: GameObject) => void) {
     //         for (const object of objects) {
     //             fn(object);
-    //             for (const child of object.children) {
-    //                 traverse([child], fn);
+    //             for (const child of object.transform.children) {
+    //                 traverse([child.gameObject], fn);
     //             }
     //         }
     //     }
         
-    setTimeout(() => {
-        
-        const serialized = scene.Serialize();
-        console.log("serialized", serialized)
-    }, 1000);
+    // Scene serialization moved to editor
 
     console.warn(`
         glb imports to:
@@ -176,8 +170,7 @@ async function Application(canvas: HTMLCanvasElement) {
             if (!file) return;
 
             const url = URL.createObjectURL(file);
-            const prefab = await GLTFLoader.LoadFromURL(url, "glb");
-            const obj = scene.Instantiate(prefab);
+            const obj = await GLTFLoader.Load(url, scene, "glb");
 
             console.log(obj)
         });

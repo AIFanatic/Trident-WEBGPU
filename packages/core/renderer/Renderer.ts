@@ -8,6 +8,7 @@ export type RendererAPIType = "webgpu";
 export class RendererEvents {
     public static Created = (renderer: Renderer) => {}
     public static Resized = (canvas: HTMLCanvasElement) => {}
+    public static FrameEnded = () => {}
 }
 
 export class Renderer {
@@ -70,11 +71,6 @@ export class Renderer {
     }
     public static HasActiveFrame(): boolean {
         if (Renderer.type === "webgpu") return WEBGPURenderer.HasActiveFrame();
-        throw Error("Unknown render api type.");
-    }
-
-    public static OnFrameCompleted(): Promise<undefined> {
-        if (Renderer.type === "webgpu") return WEBGPURenderer.OnFrameCompleted();
         throw Error("Unknown render api type.");
     }
 }

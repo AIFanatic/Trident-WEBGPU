@@ -74,6 +74,7 @@ export class DeferredLightingPass extends RenderPass {
         this.shader.SetBuffer("lightCount", this.lightsCountBuffer);
 
         this.outputLightingPass = RenderTexture.Create(Renderer.width, Renderer.height, 1, "rgba16float");
+        this.outputLightingPass.name = "DeferredLighting";
 
         EventSystem.on(RendererEvents.Resized, canvas => {
             this.outputLightingPass.Destroy();

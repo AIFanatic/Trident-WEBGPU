@@ -44,16 +44,9 @@ async function Application(canvas: HTMLCanvasElement) {
 
     Debugger.Enable();
 
-    const serialized = JSON.stringify(scene.Serialize());
-    // console.log(scene.Serialize());
-
-    const scene2 = new Scene(renderer);
-    scene2.Deserialize(JSON.parse(serialized));
-
-    const cameras = scene2.GetComponents(Components.Camera);
     const controls = new OrbitControls(canvas, Components.Camera.mainCamera);
 
-    scene2.Start();
+    scene.Start();
 
     
 

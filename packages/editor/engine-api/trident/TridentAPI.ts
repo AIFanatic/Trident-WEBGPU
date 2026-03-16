@@ -1,4 +1,4 @@
-import { GameObject, Renderer, Scene, Mathf, Geometry, PBRMaterial, Utils, Component, Prefab, GPU } from "@trident/core";
+import { GameObject, Renderer, Scene, Mathf, Geometry, PBRMaterial, Utils, Component, GPU } from "@trident/core";
 
 import { IEngineAPI } from "./IEngineAPI";
 import { IGameObject } from "./components/IGameObject";
@@ -11,6 +11,7 @@ import { IVector2 } from "./math/IVector2";
 import { IComponent } from "./components/IComponent";
 import { IPrefab } from "./components/IPrefab";
 import { ITexture } from "./components/ITexture";
+import { Prefab, deserializeGeometryRef, deserializeMaterial } from "../../serialization";
 
 export class TridentAPI implements IEngineAPI {
 
@@ -69,12 +70,12 @@ export class TridentAPI implements IEngineAPI {
         return new Prefab();
     }
 
-    public deserializeGeometry(serialized): IGeometry {
-        return Geometry.Deserialize(serialized);
+    public async deserializeGeometry(serialized): Promise<IGeometry> {
+        return deserializeGeometryRef(serialized);
     }
 
-    public deserializeMaterial(serialized): IMaterial {
-        return GPU.Material.Deserialize(serialized);
+    public async deserializeMaterial(serialized): Promise<IMaterial> {
+        return deserializeMaterial(serialized);
     }
 
     public deserializePrefab(serialized): IPrefab {
@@ -84,11 +85,6 @@ export class TridentAPI implements IEngineAPI {
     public async createTextureFromBlob(blob: Blob, format?: GPU.TextureFormat, options?: GPU.ImageLoadOptions): Promise<ITexture> {
         return GPU.Texture.LoadBlob(blob);
     }
-
-
-
-
-
 
     private compareType(value: any, type: Function) {
         if (typeof value === "function") return value === type;
@@ -109,7 +105,6 @@ export class TridentAPI implements IEngineAPI {
         return "unknown";
     }
 
-
     public isGameObject(value: any): boolean {
         if (typeof value === "function") return value === GameObject;
         return value instanceof GameObject;
@@ -119,7 +114,7 @@ export class TridentAPI implements IEngineAPI {
         if (typeof value === "function") return value === Mathf.Vector3;
         return value instanceof Mathf.Vector3;
     }
-    
+
     public isVector2(value: any): boolean {
         if (typeof value === "function") return value === Mathf.Vector2;
         return value instanceof Mathf.Vector2;

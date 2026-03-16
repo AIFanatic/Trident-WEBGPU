@@ -6,7 +6,6 @@ import {
     Mathf,
     PBRMaterial,
     GPU,
-    Prefab,
 } from "@trident/core";
 
 import { OrbitControls } from "@trident/plugins/OrbitControls";
@@ -71,79 +70,77 @@ async function Application(canvas: HTMLCanvasElement) {
 
 
 
-    // {
-    //     const mesh = await OBJLoaderIndexed.load("/dist/examples/assets/models/bunny.obj");
-    //     // const mesh = await OBJLoaderIndexed.load("/extra/test-assets/lucy.obj");
-    //     mesh.geometry.ComputeNormals();
-    //     mesh.geometry.ComputeTangents();
-    //     const mat = new PBRMaterial({albedoMap: await GPU.Texture.Load("/dist/examples/assets/textures/brick.png")})
-    //     // const mesh = await OBJLoaderIndexed.load("/extra/test-assets/tree-01/tree-01.obj");
-    //     const meshletGameObject = new GameObject(scene);
-    //     meshletGameObject.transform.position.x = 2;
-    //     const meshletMesh = meshletGameObject.AddComponent(MeshletMesh);
-    //     meshletMesh.enableShadows = false;
-    //     meshletMesh.geometry = mesh.geometry;
-    //     meshletMesh.material = mat;
-
-
-    //     const c = 20;
-    //     const off = 10;
-    //     for (let x = 0; x < c; x++) {
-    //         for (let y = 0; y < c; y++) {
-    //             for (let z = 0; z < c; z++) {
-    //                 const go2 = new GameObject(scene);
-    //                 const meshletB = go2.AddComponent(MeshletMesh);
-    //                 meshletB.geometry = mesh.geometry;
-    //                 meshletB.transform.position.set(x * off,y * off,z * off);
-    //                 meshletB.material = mat;
-    //             }
-    //         }
-    //     }
-    //     // for (let i = 0; i < c; i++) {
-    //     //     const go2 = new GameObject(scene);
-    //     //     const meshletB = go2.AddComponent(MeshletMesh);
-    //     //     meshletB.geometry = mesh.geometry;
-    //     //     meshletB.transform.position.set(Mathf.RandomRange(-off, off), 0, Mathf.RandomRange(-off, off));
-    //     //     meshletB.material = mat;
-    //     // }
-    // }
-
-
-
-
-
-
     {
-        const prefab = await GLTFLoader.LoadFromURL("/extra/test-assets/trellis2/rock_pile.glb");
-
-        let mesh: { geometry: Geometry, material: GPU.Material };
-        prefab.traverse(prefab, prefab => {
-            for (const component of prefab.components) {
-                if (component.type === Components.Mesh.type) {
-                    console.log("GOT IT", component)
-                    mesh = {
-                        geometry: Geometry.Deserialize(component.geometry),
-                        material: GPU.Material.Deserialize(component.material)
-                    }
-                    mesh.geometry.ComputeTangents();
-                }
-            }
-        })
-
-        console.log(mesh)
-
-        const hdr = await HDRParser.Load("/dist/examples/assets/textures/HDR/autumn_field_puresky_1k.hdr");
-        const skyTexture = await HDRParser.ToCubemap(hdr);
-    
-        const environment = new Environment(scene, skyTexture);
-        await environment.init();
-        
+        const mesh = await OBJLoaderIndexed.load("/dist/examples/assets/models/bunny.obj");
+        // const mesh = await OBJLoaderIndexed.load("/extra/test-assets/lucy.obj");
+        mesh.geometry.ComputeNormals();
+        mesh.geometry.ComputeTangents();
+        const mat = new PBRMaterial({albedoMap: await GPU.Texture.Load("/dist/examples/assets/textures/brick.png")})
+        // const mesh = await OBJLoaderIndexed.load("/extra/test-assets/tree-01/tree-01.obj");
         const meshletGameObject = new GameObject(scene);
+        meshletGameObject.transform.position.x = 2;
         const meshletMesh = meshletGameObject.AddComponent(MeshletMesh);
         meshletMesh.enableShadows = false;
         meshletMesh.geometry = mesh.geometry;
-        meshletMesh.material = new PBRMaterial({albedoColor: new Mathf.Color(1,1,1,1), roughness: 0.99, metalness: 0.01, wireframe: false});
+        meshletMesh.material = mat;
+
+
+        const c = 20;
+        const off = 10;
+        for (let x = 0; x < c; x++) {
+            for (let y = 0; y < c; y++) {
+                for (let z = 0; z < c; z++) {
+                    const go2 = new GameObject(scene);
+                    const meshletB = go2.AddComponent(MeshletMesh);
+                    meshletB.geometry = mesh.geometry;
+                    meshletB.transform.position.set(x * off,y * off,z * off);
+                    meshletB.material = mat;
+                }
+            }
+        }
+        // for (let i = 0; i < c; i++) {
+        //     const go2 = new GameObject(scene);
+        //     const meshletB = go2.AddComponent(MeshletMesh);
+        //     meshletB.geometry = mesh.geometry;
+        //     meshletB.transform.position.set(Mathf.RandomRange(-off, off), 0, Mathf.RandomRange(-off, off));
+        //     meshletB.material = mat;
+        // }
     }
+
+
+
+
+
+
+    // {
+    //     const loadedGO = await GLTFLoader.Load("/extra/test-assets/trellis2/rock_pile.glb", scene);
+
+    //     let mesh: { geometry: Geometry, material: GPU.Material };
+    //     const loadedMeshes = loadedGO.GetComponentsInChildren(Components.Mesh);
+    //     for (const m of loadedMeshes) {
+    //         console.log("GOT IT", m)
+    //         mesh = {
+    //             geometry: m.geometry,
+    //             material: m.material
+    //         }
+    //         mesh.geometry.ComputeTangents();
+    //     }
+    //     loadedGO.Destroy();
+
+    //     console.log(mesh)
+
+    //     const hdr = await HDRParser.Load("/dist/examples/assets/textures/HDR/autumn_field_puresky_1k.hdr");
+    //     const skyTexture = await HDRParser.ToCubemap(hdr);
+    
+    //     const environment = new Environment(scene, skyTexture);
+    //     await environment.init();
+        
+    //     const meshletGameObject = new GameObject(scene);
+    //     const meshletMesh = meshletGameObject.AddComponent(MeshletMesh);
+    //     meshletMesh.enableShadows = false;
+    //     meshletMesh.geometry = mesh.geometry;
+    //     meshletMesh.material = new PBRMaterial({albedoColor: new Mathf.Color(1,1,1,1), roughness: 0.99, metalness: 0.01, wireframe: false});
+    // }
 
     scene.Start();
 };

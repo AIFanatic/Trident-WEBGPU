@@ -447,7 +447,9 @@ export class DeferredShadowMapPass extends RenderPass {
 
                     if (renderable instanceof SkinnedMesh) {
                         // TODO: Make this work with more than one skinned mesh, cannot use SetBuffer inside execute
-                        this.drawSkinnedMeshShadowShader.SetBuffer("boneMatrices", renderable.GetBoneMatricesBuffer());
+                        const bones = renderable.GetBoneMatricesBuffer();
+                        if (!bones) { renderableIndex++; continue; }
+                        this.drawSkinnedMeshShadowShader.SetBuffer("boneMatrices", bones);
                         renderable.OnRenderObject(this.drawSkinnedMeshShadowShader);
                     } else {
                         renderable.OnRenderObject(this.drawShadowShader);

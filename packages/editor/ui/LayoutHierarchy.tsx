@@ -8,6 +8,8 @@ import { IComponents } from "../engine-api/trident/components";
 import { TreeFolder } from "./TreeView/TreeFolder";
 import { TreeItem } from "./TreeView/TreeItem";
 import { Tree } from "./TreeView/Tree";
+import { Prefab, instantiatePrefab } from "../serialization";
+import { FloatingMenu } from "./FloatingMenu";
 
 interface LayoutHierarchyState {
     selectedGameObject: IGameObject;
@@ -67,11 +69,11 @@ export class LayoutHierarchy extends Component<BaseProps, LayoutHierarchyState> 
         ExtendedDataTransfer.data = this.state.selectedGameObject;
     }
 
-    private onDrop(event) {
+    private async onDrop(event) {
         const extendedEvent = ExtendedDataTransfer.data;
         const instance = extendedEvent;
-        if (instance && this.props.engineAPI.isPrefab(instance)) {
-            const gameObject = this.props.engineAPI.currentScene.Instantiate(instance);
+        if (instance && instance instanceof Prefab) {
+            const gameObject = await instantiatePrefab(this.props.engineAPI.currentScene, instance);
             this.selectGameObject(gameObject);
             ExtendedDataTransfer.data = undefined;
         }
@@ -177,7 +179,7 @@ export class LayoutHierarchy extends Component<BaseProps, LayoutHierarchyState> 
                     <div class="title">Sample scene</div>
                     <div class="right-action">
                         <button onClick={event => { this.setState({...this.state, headerMenuOpen: !this.state.headerMenuOpen})}}>⋮</button>
-                        <div class="Floating-Menu" style={`display: ${this.state.headerMenuOpen ? "inherit" : "none"}`}>
+                        <FloatingMenu visible={this.state.headerMenuOpen} onClose={() => this.setState({ ...this.state, headerMenuOpen: false })}>
                             <Tree>
                                 <TreeItem name="Create Empty" onPointerDown={() => this.createEmptyGameObject()} />
                                 <TreeItem name="Delete" onPointerDown={() => this.deleteGameObject()} />
@@ -193,7 +195,7 @@ export class LayoutHierarchy extends Component<BaseProps, LayoutHierarchyState> 
                                     <TreeItem name="Spot Light" onPointerDown={() => this.createLight("Spot")} />
                                 </TreeFolder>
                             </Tree>
-                        </div>
+                        </FloatingMenu>
                     </div>
                 </div>
                 <div

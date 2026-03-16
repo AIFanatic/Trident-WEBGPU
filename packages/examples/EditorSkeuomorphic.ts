@@ -46,11 +46,9 @@ async function Application(canvas: HTMLCanvasElement) {
     const environment = new Environment(scene, skyTexture);
     await environment.init();
 
-    // const prefab = await GLTFLoader.LoadFromURL("./assets/models/DamagedHelmet/DamagedHelmet.gltf");
-    const prefab = await GLTFLoader.LoadFromURL("/extra/test-assets/editor/room.glb");
-    console.log(prefab)
-
-    const rootGameObject = scene.Instantiate(prefab);
+    // const rootGameObject = await GLTFLoader.Load("./assets/models/DamagedHelmet/DamagedHelmet.gltf", scene);
+    const rootGameObject = await GLTFLoader.Load("/extra/test-assets/editor/room.glb", scene);
+    console.log(rootGameObject)
     rootGameObject.transform.Update();
     
     function traverse(gameObjects: GameObject[], fn: (gameObject: GameObject) => void) {

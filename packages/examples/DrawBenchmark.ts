@@ -6,7 +6,6 @@ import {
     GameObject,
     Geometry,
     PBRMaterial,
-    Prefab,
     VertexAttribute,
     IndexAttribute,
     InterleavedVertexAttribute,
@@ -60,24 +59,15 @@ async function Application(canvas: HTMLCanvasElement) {
     const environment = new Environment(scene, skyTexture);
     await environment.init();
 
-    const model = await GLTFLoader.LoadFromURL("./assets/models/bunny.glb");
+    const model = await GLTFLoader.Load("./assets/models/bunny.glb", scene);
     const material = new PBRMaterial({ albedoMap: await GPU.Texture.Load("/dist/examples/assets/textures/T_OmniDebugTexture_COL.jpg"), roughness: 1.0, metalness: 0.0, alphaCutoff: 0.1 });
-    Scene.Instantiate(model);
     console.log("model", model)
 
-    function traverse(object3D: Prefab, func: (o: Prefab) => void | Promise<void>) {
-        func(object3D);
-        for (const child of object3D.children) traverse(child, func);
-    }
-
     let geometry: Geometry;
-    traverse(model, prefab => {
-        for (const component of prefab.components) {
-            if (component.type === Components.Mesh.type) {
-                geometry = Geometry.Deserialize(component.geometry);
-            }
-        }
-    })
+    const modelMeshes = model.GetComponentsInChildren(Components.Mesh);
+    for (const mesh of modelMeshes) {
+        geometry = mesh.geometry;
+    }
     geometry.ComputeBoundingVolume();
     geometry = geometry.Center();
 
@@ -140,22 +130,22 @@ async function Application(canvas: HTMLCanvasElement) {
     //     }
     // }
 
-    // Impostors
-    {
-        const radius = 1;
-        console.log(radius)
-        const impostorGameObject = new GameObject(scene);
-        const impostor = impostorGameObject.AddComponent(ImpostorMesh);
-        await impostor.Create(geometry, material);
+    // // Impostors
+    // {
+    //     const radius = 1;
+    //     console.log(radius)
+    //     const impostorGameObject = new GameObject(scene);
+    //     const impostor = impostorGameObject.AddComponent(ImpostorMesh);
+    //     await impostor.Create(geometry, material);
         
-        const gameObject = new GameObject(scene);
-        const instancedMesh = gameObject.AddComponent(Components.InstancedMesh);
-        instancedMesh.enableShadows = false;
-        instancedMesh.geometry = impostor.geometry;
-        instancedMesh.material = impostor.material;
+    //     const gameObject = new GameObject(scene);
+    //     const instancedMesh = gameObject.AddComponent(Components.InstancedMesh);
+    //     instancedMesh.enableShadows = false;
+    //     instancedMesh.geometry = impostor.geometry;
+    //     instancedMesh.material = impostor.material;
 
-        MakeInstanced(instancedMesh, new Mathf.Quaternion(), new Mathf.Vector3(radius, radius, radius));
-    }
+    //     MakeInstanced(instancedMesh, new Mathf.Quaternion(), new Mathf.Vector3(radius, radius, radius));
+    // }
 
     // // Meshoptimizer, simplified, minimum
     // {
@@ -177,27 +167,27 @@ async function Application(canvas: HTMLCanvasElement) {
     //     MakeInstanced(instancedMesh);
     // }
 
-    // // Meshlets
-    // {
-    //     scene.renderPipeline.AddPass(new MeshletDraw(), GPU.RenderPassOrder.BeforeGBuffer);
-    //     geometry.ComputeNormals();
-    //     geometry.ComputeTangents();
+    // Meshlets
+    {
+        scene.renderPipeline.AddPass(new MeshletDraw(), GPU.RenderPassOrder.BeforeGBuffer);
+        geometry.ComputeNormals();
+        geometry.ComputeTangents();
 
-    //     const c = 50;
-    //     const off = 10;
-    //     const half = c * off * 0.5;
-    //     for (let x = 0; x < c; x++) {
-    //         for (let y = 0; y < c; y++) {
-    //             for (let z = 0; z < c; z++) {
-    //                 const go2 = new GameObject(scene);
-    //                 const meshletB = go2.AddComponent(MeshletMesh);
-    //                 meshletB.transform.position.set(x * off - half, y * off - half, z * off - half);
-    //                 meshletB.geometry = geometry;
-    //                 meshletB.material = material;
-    //             }
-    //         }
-    //     }
-    // }
+        const c = 50;
+        const off = 10;
+        const half = c * off * 0.5;
+        for (let x = 0; x < c; x++) {
+            for (let y = 0; y < c; y++) {
+                for (let z = 0; z < c; z++) {
+                    const go2 = new GameObject(scene);
+                    const meshletB = go2.AddComponent(MeshletMesh);
+                    meshletB.transform.position.set(x * off - half, y * off - half, z * off - half);
+                    meshletB.geometry = geometry;
+                    meshletB.material = material;
+                }
+            }
+        }
+    }
 
     // // LODS
     // {

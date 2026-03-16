@@ -7,6 +7,23 @@ export class EventSystem {
         this.events.set(event, events);
     }
 
+    public static off<N>(event: N, callback: typeof event) {
+        const events = this.events.get(event);
+        if (!events) return;
+        const filtered = events.filter(fn => fn !== callback);
+        if (filtered.length === 0) this.events.delete(event);
+        else this.events.set(event, filtered);
+    }
+
+    public static once<N>(event: N, callback: typeof event) {
+        const onceCallback = ((...args: any[]) => {
+            this.off(event, onceCallback as typeof event);
+            (callback as Function)(...args);
+        }) as typeof event;
+
+        this.on(event, onceCallback);
+    }
+
     public static emit<N>(event: N, ...args: N extends (...args: infer P) => void ? P : never) {
         const callbacks = this.events.get(event);
         if (callbacks === undefined) return;
@@ -25,6 +42,31 @@ export class EventSystemLocal {
         localEventsCallbacks.push(callback);
         localEvents.set(localId, localEventsCallbacks);
         this.events.set(event, localEvents);
+    }
+
+    public static off<N>(event: N, localId: any, callback: typeof event) {
+        const localEvents = this.events.get(event);
+        if (!localEvents) return;
+
+        const localEventsCallbacks = localEvents.get(localId);
+        if (!localEventsCallbacks) return;
+
+        const filtered = localEventsCallbacks.filter(fn => fn !== callback);
+        if (filtered.length === 0) {
+            localEvents.delete(localId);
+            if (localEvents.size === 0) this.events.delete(event);
+        } else {
+            localEvents.set(localId, filtered);
+        }
+    }
+
+    public static once<N>(event: N, localId: any, callback: typeof event) {
+        const onceCallback = ((...args: any[]) => {
+            this.off(event, localId, onceCallback as typeof event);
+            (callback as Function)(...args);
+        }) as typeof event;
+
+        this.on(event, localId, onceCallback);
     }
 
     public static emit<N>(event: N, localId: any, ...args: N extends (...args: infer P) => void ? P : never) {

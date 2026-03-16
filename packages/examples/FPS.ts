@@ -13,7 +13,6 @@ import {
     IndexAttribute,
     Console,
     Component,
-    Prefab,
 } from "@trident/core";
 
 import { PhysicsRapier } from "@trident/plugins/PhysicsRapier/PhysicsRapier";
@@ -172,8 +171,7 @@ async function Application(canvas: HTMLCanvasElement) {
     }
 
     // Player
-    const shadowPrefab = await GLTFLoader.LoadFromURL("./assets/models/Shadow.glb");
-    const sceneGameObject = scene.Instantiate(shadowPrefab);
+    const sceneGameObject = await GLTFLoader.Load("./assets/models/Shadow.glb", scene);
 
     let animator: Components.Animator = undefined;
     traverse([sceneGameObject], gameObject => {
@@ -192,10 +190,9 @@ async function Application(canvas: HTMLCanvasElement) {
     // playerGameObject.transform.scale.set(0.01, 0.01, 0.01);
 
     // Weapon
-    // const weaponPrefab = await GLTFLoader.LoadFromURL("/extra/test-assets/ak47u.worldmodel.glb");
-    const weaponPrefab = await GLTFLoader.LoadFromURL("/extra/test-assets/semi_auto_rifle.worldmodel.glb");
-    // const weaponPrefab = await GLTFLoader.LoadFromURL("/extra/test-assets/bouquet.glb");
-    const weaponGameObject = scene.Instantiate(weaponPrefab);
+    // const weaponGameObject = await GLTFLoader.Load("/extra/test-assets/ak47u.worldmodel.glb", scene);
+    const weaponGameObject = await GLTFLoader.Load("/extra/test-assets/semi_auto_rifle.worldmodel.glb", scene);
+    // const weaponGameObject = await GLTFLoader.Load("/extra/test-assets/bouquet.glb", scene);
     weaponGameObject.transform.position.copy(camera.transform.position);
     weaponGameObject.transform.parent = camera.transform;
     // weaponGameObject.transform.localEulerAngles.set(175, 10, 180);
@@ -240,21 +237,16 @@ async function Application(canvas: HTMLCanvasElement) {
         }
         async function addLOD(url, options: AddLODOptions = {count: 1, enableShadows: false}) {
 
-            const prefab = await GLTFLoader.LoadFromURL(url);
-        
+            const loadedGO = await GLTFLoader.Load(url, scene);
+
             let lodGroupEntries: { geometry: Geometry, material: GPU.Material }[] = []
-            prefab.traverse(prefab => {
-                for (const component of prefab.components) {
-                    if (component.type === Components.Mesh.type) {
-                        const mat = GPU.Material.Deserialize(component.material) as PBRMaterial;
-                        mat.params.doubleSided = true;
-                        mat.params.alphaCutoff = 0.1;
-                        // mat.roughness = 10.0;
-                        const matSerialized = mat.Serialize()
-                        lodGroupEntries.push({ geometry: Geometry.Deserialize(component.geometry), material: GPU.Material.Deserialize(matSerialized) });
-                    }
-                }
-            })
+            const meshes = loadedGO.GetComponentsInChildren(Components.Mesh);
+            for (const mesh of meshes) {
+                const mat = mesh.material as PBRMaterial;
+                const clonedMat = new PBRMaterial({...mat.params, doubleSided: true, alphaCutoff: 0.1});
+                lodGroupEntries.push({ geometry: mesh.geometry, material: clonedMat });
+            }
+            loadedGO.enabled = false;
         
             const lodGameObject = new GameObject(scene);
             const lodInstanceRenderable = lodGameObject.AddComponent(LODInstanceRenderable);
@@ -430,25 +422,21 @@ async function Application(canvas: HTMLCanvasElement) {
             addLOD("/extra/test-assets/nature/treessource/" + name, {count: 1000, enableShadows: false})
         }
 
-        // const prefab = await GLTFLoader.LoadFromURL("/extra/test-assets/nature/treessource/american_beech/american_beech_a.glb");
-        const prefab = await GLTFLoader.LoadFromURL("/extra/test-assets/patch_grass_medium.glb");
-    
-        let _prefabMeshes: { geometry: Geometry, material: GPU.Material }[] = [];
-        prefab.traverse(prefab => {
-            for (const component of prefab.components) {
-                if (component.type === Components.Mesh.type) {
-                    const mat = GPU.Material.Deserialize(component.material) as PBRMaterial;
-                    // mat.params.doubleSided = true;
-                    // mat.params.alphaCutoff = 0.1;
-                    // mat.params.roughness = 10.0;
+        // const grassGO = await GLTFLoader.Load("/extra/test-assets/nature/treessource/american_beech/american_beech_a.glb", scene);
+        const grassGO = await GLTFLoader.Load("/extra/test-assets/patch_grass_medium.glb", scene);
 
-                    const matSerialized = mat.Serialize()
-                    
-                    _prefabMeshes.push({geometry: Geometry.Deserialize(component.geometry), material: GPU.Material.Deserialize(matSerialized) });
-                    return;
-                }
-            }
-        })
+        let _prefabMeshes: { geometry: Geometry, material: GPU.Material }[] = [];
+        const grassMeshes = grassGO.GetComponentsInChildren(Components.Mesh);
+        for (const mesh of grassMeshes) {
+            const mat = mesh.material as PBRMaterial;
+            // mat.params.doubleSided = true;
+            // mat.params.alphaCutoff = 0.1;
+            // mat.params.roughness = 10.0;
+
+            _prefabMeshes.push({geometry: mesh.geometry, material: new PBRMaterial(mat.params) });
+            break;
+        }
+        grassGO.enabled = false;
 
         console.log(_prefabMeshes)
 
@@ -536,25 +524,23 @@ async function Application(canvas: HTMLCanvasElement) {
     //         instancedMesh.SetMatricesBulk(new Float32Array(matrices));
     //     }
         
-    //     const prefab = await GLTFLoader.LoadFromURL("/extra/test-assets/nature/treessource/american_beech/american_beech_a.glb");
-    
+    //     const treeGO = await GLTFLoader.Load("/extra/test-assets/nature/treessource/american_beech/american_beech_a.glb", scene);
+
     //     let prefabMesh: { geometry: Geometry, material: PBRMaterial };
-    //     prefab.traverse(prefab => {
-    //         if (prefabMesh) return;
-    //         for (const component of prefab.components) {
-    //             if (component.type === Components.Mesh.type) {
-    //                 const mat = GPU.Material.Deserialize(component.material) as PBRMaterial;
-    //                 // mat.doubleSided = false;
-    //                 // mat.alphaCutoff = 0.1;
-    //                 // mat.roughness = 10.0;
-    //                 const matSerialized = mat.Serialize()
-    //                 console.log("rrr", matSerialized.params.albedoMap)
-    //                 console.log("rrr", GPU.Material.Deserialize(matSerialized).params.albedoMap)
-                    
-    //                 prefabMesh = { geometry: Geometry.Deserialize(component.geometry), material: GPU.Material.Deserialize(component.material) };
-    //             }
-    //         }
-    //     })
+    //     const treeMeshes = treeGO.GetComponentsInChildren(Components.Mesh);
+    //     for (const mesh of treeMeshes) {
+    //         if (prefabMesh) break;
+    //         const mat = mesh.material as PBRMaterial;
+    //         // mat.doubleSided = false;
+    //         // mat.alphaCutoff = 0.1;
+    //         // mat.roughness = 10.0;
+    //         const matSerialized = mat.Serialize()
+    //         console.log("rrr", matSerialized.params.albedoMap)
+    //         console.log("rrr", GPU.Material.Deserialize(matSerialized).params.albedoMap)
+
+    //         prefabMesh = { geometry: mesh.geometry, material: mesh.material };
+    //     }
+    //     treeGO.Destroy();
 
     //     const radius = 1;
     //     console.log(radius)
@@ -638,8 +624,7 @@ async function Application(canvas: HTMLCanvasElement) {
             if (!file) return;
 
             const url = URL.createObjectURL(file);
-            const prefab = await GLTFLoader.LoadFromURL(url, "glb");
-            const obj = scene.Instantiate(prefab);
+            const obj = await GLTFLoader.Load(url, scene, "glb");
             
             
             

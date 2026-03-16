@@ -1,10 +1,7 @@
-import { Prefab } from "./Assets";
 import { EventSystem } from "./Events";
 import { GameObject } from "./GameObject";
-import { Input, KeyCodes } from "./Input";
-import { Camera } from "./components";
-import { Component, ComponentEvents, SerializedComponent } from "./components/Component";
-import { Quaternion, Vector3 } from "./math";
+import { Input } from "./Input";
+import { Component, ComponentEvents } from "./components/Component";
 import { Renderer } from "./renderer/Renderer";
 import { RenderingPipeline } from "./renderer/RenderingPipeline";
 import { UUID } from "./utils";
@@ -154,40 +151,4 @@ export class Scene {
         this.gameObjects.length = 0;
     }
 
-    public Serialize(): { name: string, mainCamera: string, gameObjects: { components: SerializedComponent[], transform: Object }[] } {
-        let serializedScene = { type: Scene.type, name: this.name, mainCamera: Camera.mainCamera.id, gameObjects: [] };
-        for (const gameObject of this.GetRootGameObjects()) {
-            serializedScene.gameObjects.push(gameObject.Serialize());
-        }
-        return serializedScene;
-    }
-
-    public Deserialize(data: { name: string, mainCamera: string, gameObjects: Prefab[] }) {
-        for (const serializedGameObject of data.gameObjects) {
-            const gameObject = new GameObject(this);
-            gameObject.Deserialize(serializedGameObject);
-        }
-
-        for (const gameObject of this.gameObjects) {
-            for (const component of gameObject.GetComponents(Camera)) {
-                if (component.id === data.mainCamera) {
-                    Camera.mainCamera = component;
-                }
-            }
-        }
-    }
-
-    public static Instantiate(prefab: Prefab, position?: Vector3, rotation?: Quaternion): GameObject {
-        const newGameObject = new GameObject(Scene.mainScene);
-        newGameObject.Deserialize(prefab);
-        newGameObject.assetPath = prefab.assetPath;
-        if (position) newGameObject.transform.position.copy(position);
-        if (rotation) newGameObject.transform.rotation.copy(rotation);
-
-        return newGameObject;
-    }
-
-    public Instantiate(prefab: Prefab, position?: Vector3, rotation?: Quaternion): GameObject {
-        return Scene.Instantiate(prefab, position, rotation);
-    }
 }

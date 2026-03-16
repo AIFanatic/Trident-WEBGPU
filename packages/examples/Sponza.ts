@@ -44,13 +44,13 @@ async function Application(canvas: HTMLCanvasElement) {
         }
     }
 
-    const gameObjects = await GLTFLoader.loadAsGameObjects(scene, "/extra/dist_bak/test-assets/GLTF/scenes/Bistro.glb");
-    // const gameObjects = await GLTFLoader.loadAsGameObjects(scene, "/extra/dist_bak/test-assets/GLTF/scenes/Sponza/Sponza.gltf");
-    
+    const rootGameObject = await GLTFLoader.Load("/extra/dist_bak/test-assets/GLTF/scenes/Bistro.glb", scene);
+    // const rootGameObject = await GLTFLoader.Load("/extra/dist_bak/test-assets/GLTF/scenes/Sponza/Sponza.gltf", scene);
+
     Debugger.Enable();
 
     const mat = new PBRMaterial();
-    traverse(gameObjects, gameObject => {
+    traverse([rootGameObject], gameObject => {
         const mesh = gameObject.GetComponent(Components.Mesh);
         if (mesh) {
             mesh.enableShadows = false;

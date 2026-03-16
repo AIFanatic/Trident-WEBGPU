@@ -1,4 +1,4 @@
-import { Components, Scene, GPU, Mathf, GameObject, Geometry, IndexAttribute, PBRMaterial, VertexAttribute, Prefab } from "@trident/core";
+import { Components, Scene, GPU, Mathf, GameObject, Geometry, IndexAttribute, PBRMaterial, VertexAttribute } from "@trident/core";
 
 import { OrbitControls } from "@trident/plugins/OrbitControls";
 import { GLTFLoader } from "@trident/plugins/GLTF/GLTFLoader";
@@ -93,10 +93,10 @@ async function Application(canvas: HTMLCanvasElement) {
             // ----------------------------
             // Helpers
             // ----------------------------
-            function traverse(prefabs, fn) {
-                for (const prefab of prefabs) {
-                    fn(prefab);
-                    for (const child of prefab.children) traverse([child], fn);
+            function traverse(gameObjects: GameObject[], fn: (go: GameObject) => void) {
+                for (const go of gameObjects) {
+                    fn(go);
+                    for (const child of go.transform.children) traverse([child.gameObject], fn);
                 }
             }
 
@@ -167,21 +167,19 @@ async function Application(canvas: HTMLCanvasElement) {
                 await runParseLimited(async () => {
                     console.log("Loading", assetPath);
 
-                    const prefab = await GLTFLoader.LoadFromArrayBuffer(arrayBuffer, assetPath, assetPath);
+                    const loadedGO = await GLTFLoader.LoadFromArrayBuffer(arrayBuffer, scene, assetPath, assetPath);
 
                     const rootGameObject = record.rootGameObject;
-                    traverse([prefab], (p) => {
-                        for (const component of p.components) {
-                            if (component.type === Components.Mesh.type) {
-                                const instancedMesh = rootGameObject.AddComponent(Components.InstancedMesh);
+                    const meshes = loadedGO.GetComponentsInChildren(Components.Mesh);
+                    for (const mesh of meshes) {
+                        const instancedMesh = rootGameObject.AddComponent(Components.InstancedMesh);
 
-                                instancedMesh.geometry = Geometry.Deserialize(component.geometry);
-                                instancedMesh.material = GPU.Material.Deserialize(component.material);
+                        instancedMesh.geometry = mesh.geometry;
+                        instancedMesh.material = mesh.material;
 
-                                record.instancedMeshes.push(instancedMesh);
-                            }
-                        }
-                    });
+                        record.instancedMeshes.push(instancedMesh);
+                    }
+                    loadedGO.Destroy();
                 });
             }
 

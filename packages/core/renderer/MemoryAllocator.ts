@@ -1,5 +1,6 @@
+import { EventSystem } from "../Events";
 import { Buffer, BufferType, DynamicBuffer } from "../renderer/Buffer";
-import { Renderer } from "../renderer/Renderer";
+import { Renderer, RendererEvents } from "../renderer/Renderer";
 import { RendererContext } from "../renderer/RendererContext";
 
 interface MemoryBlock {
@@ -198,7 +199,7 @@ export class DynamicBufferMemoryAllocator extends BufferMemoryAllocator {
                 if (!hasActiveFrame) Renderer.EndRenderFrame();
                 
                 const oldBuffer = this.buffer;
-                Renderer.OnFrameCompleted().then(() => {
+                EventSystem.once(RendererEvents.FrameEnded, () => {
                     oldBuffer.Destroy();
                 })
 

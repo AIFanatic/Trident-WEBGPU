@@ -52,8 +52,8 @@ async function Application(canvas: HTMLCanvasElement) {
     const lodGameObject = new GameObject(scene);
     const lodInstanceRenderable = lodGameObject.AddComponent(LODInstanceRenderable);
 
-    // const tree = await GLTFLoader.loadAsGameObjects(scene, "/extra/test-assets/Stylized Nature MegaKit[Standard]/glTF/CommonTree_1.gltf");
-    const tree = await GLTFLoader.loadAsGameObjects(scene, "/extra/test-assets/tree-01/tree.glb");
+    // const tree = await GLTFLoader.Load("/extra/test-assets/Stylized Nature MegaKit[Standard]/glTF/CommonTree_1.gltf", scene);
+    const tree = await GLTFLoader.Load("/extra/test-assets/tree-01/tree.glb", scene);
 
     function traverse(gameObjects: GameObject[], fn: (gameObject: GameObject) => void) {
         for (const gameObject of gameObjects) {
@@ -68,19 +68,12 @@ async function Application(canvas: HTMLCanvasElement) {
     traverse([tree], gameObject => {
         const mesh = gameObject.GetComponent(Components.Mesh);
         if (mesh) {
-            const geometrySerialized = mesh.geometry.Serialize();
-            const materialSerialized = mesh.material.Serialize();
-            const materialClone = GPU.Material.Deserialize(materialSerialized);
-            const geometryClone = new Geometry();
-            geometryClone.Deserialize(geometrySerialized);
-
-            console.log(materialSerialized.params)
-
-            lodGroupEntries.push({geometry: geometryClone, material: materialClone});
+            const materialClone = new PBRMaterial((mesh.material as PBRMaterial).params);
+            lodGroupEntries.push({geometry: mesh.geometry, material: materialClone});
         }
     })
     console.log(lodGroupEntries)
-    tree.Destroy();
+    tree.enabled = false;
 
     lodInstanceRenderable.lods.push({renderers: lodGroupEntries, screenSize: 0});
     lodInstanceRenderable.lods.push({renderers: lodGroupEntries.slice(0, 2), screenSize: 20});

@@ -2,7 +2,6 @@ import { Component } from "./components/Component";
 import { Scene } from "./Scene";
 import { Transform } from "./components/Transform";
 import { UUID } from "./utils";
-import { Assets, Prefab } from "./Assets";
 
 
 function getCtorChain(ctor: Function): Function[] {
@@ -129,79 +128,5 @@ export class GameObject {
             component.Destroy();
         }
         this.scene.RemoveGameObject(this);
-    }
-
-    public Serialize(metadata: any = {}): Prefab {
-        const prefab = new Prefab();
-        prefab.name = this.name;
-        prefab.transform = this.transform.Serialize();
-
-        if (this.assetPath) {
-            prefab.assetPath = this.assetPath;
-            // Only store transform + reference, skip components/children
-            return prefab;
-        }
-
-        // Non-prefab: full inline serialization (existing behavior)
-        prefab.components = this.allComponents.map(c => c.Serialize(metadata));
-        for (const child of this.transform.children) {
-            prefab.children.push(child.gameObject.Serialize(metadata));
-        }
-        return prefab;
-    }
-
-    private DeserializeAsset(data: Prefab) {
-        this.name = data.name;
-        this.transform.Deserialize(data.transform);
-
-        // Create first
-        let componentInstances: Component[] = [];
-        for (let i = 0; i < data.components.length; i++) {
-            const component = data.components[i];
-            const componentClass = Component.Registry.get(component.type);
-            if (!componentClass) throw Error(`Component ${component.type} not found in component registry.`);
-            const instance = this.AddComponent(componentClass);
-            componentInstances.push(instance);
-        }
-
-        // Deserialize after
-        for (let i = 0; i < data.components.length; i++) {
-            const componentInstance = componentInstances[i];
-            const componentSerialized = data.components[i];
-            componentInstance.Deserialize(componentSerialized);
-        }
-
-        // Deserialize children
-        for (let i = 0; i < data.children.length; i++) {
-            const newGameObject = new GameObject(Scene.mainScene);
-            newGameObject.transform.parent = this.transform;
-            newGameObject.Deserialize(data.children[i]);
-        }
-    }
-
-    public Deserialize(data: Prefab) {
-        if (data.assetPath && data.components.length === 0) {
-            // Prefab reference — load from asset, apply transform override
-            this.assetPath = data.assetPath;
-            const instance = Assets.GetInstance(data.assetPath) as Prefab;
-            
-            if (instance) {
-                this.name = data.name;
-                // Deserialize from source prefab but use our transform
-                this.Deserialize(instance);
-                this.assetPath = data.assetPath;
-                this.transform.Deserialize(data.transform);
-                return;
-            }
-
-            Assets.SetInstance(data.assetPath, this);
-            Assets.Load(data.assetPath, "json").then(json => {
-                const prefab = Prefab.Deserialize(json);
-                this.DeserializeAsset(prefab);
-            });
-            return;
-        }
-
-        this.DeserializeAsset(data);
     }
 }

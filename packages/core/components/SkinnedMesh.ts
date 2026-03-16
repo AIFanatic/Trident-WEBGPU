@@ -87,7 +87,8 @@ export class SkinnedMesh extends Renderable {
     }
 
     public OnPreRender() {
-        if (!this.geometry || !this.material || !this.material?.shader || !this.boneMatricesBuffer) return;
+        if (!this.geometry || !this.material || !this.material?.shader) return;
+        if (!this.boneMatricesBuffer && !this.tryInitBones()) return;
         this.material.shader.SetMatrix4("modelMatrix", this.transform.localToWorldMatrix);
         this.material.shader.SetBuffer("boneMatrices", this.boneMatricesBuffer);
     }

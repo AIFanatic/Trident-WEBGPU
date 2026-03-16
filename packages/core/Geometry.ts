@@ -62,40 +62,12 @@ export class GeometryAttribute {
     public Destroy() {
         this.buffer.Destroy();
     }
-
-    public Serialize(): Object {
-        let arrayType = "float32";
-        if (this.array instanceof Uint32Array) arrayType = "uint32";
-        else if (this.array instanceof Uint16Array) arrayType = "uint16";
-        else if (this.array instanceof Uint8Array) arrayType = "uint8";
-        return {
-            attributeType: this.type,
-            array: Array.from(this.array),
-            arrayType: arrayType,
-            currentOffset: this.currentOffset,
-            currentSize: this.currentSize
-        }
-    }
 };
 
 export class VertexAttribute extends GeometryAttribute {
     public type = "@trident/core/Geometry/VertexAttribute";
     constructor(array: Float32Array | Uint32Array | Uint16Array | Uint8Array) {
         super(array, BufferType.VERTEX);
-    }
-
-    public static Deserialize(data: any): VertexAttribute {
-        let array = undefined;
-        if (data.arrayType === "float32") array = new Float32Array(data.array);
-        else if (data.arrayType === "uint32") array = new Uint32Array(data.array);
-        else if (data.arrayType === "uint16") array = new Uint16Array(data.array);
-        else if (data.arrayType === "uint8") array = new Uint8Array(data.array);
-        if (array === undefined) throw Error(`Cannot deserialize VertexAttribute, invalid array type "${data.arrayType}"`);
-
-        const vertexAttribute = new VertexAttribute(array);
-        vertexAttribute.currentOffset = data.currentOffset;
-        vertexAttribute.currentSize = data.currentSize;
-        return vertexAttribute;
     }
 }
 
@@ -141,14 +113,6 @@ export class InterleavedVertexAttribute extends GeometryAttribute {
 
         return new InterleavedVertexAttribute(interleavedArray, interleavedStride);
     }
-
-    public static Deserialize(data: any): InterleavedVertexAttribute {
-        const array = new Float32Array(data.array);
-        const interleavedVertexAttribute = new InterleavedVertexAttribute(array, data.stride);
-        interleavedVertexAttribute.currentOffset = data.currentOffset;
-        interleavedVertexAttribute.currentSize = data.currentSize;
-        return interleavedVertexAttribute;
-    }
 }
 
 export class IndexAttribute extends GeometryAttribute {
@@ -157,18 +121,6 @@ export class IndexAttribute extends GeometryAttribute {
     constructor(array: Uint32Array | Uint16Array) {
         super(array, BufferType.INDEX);
         this.format = array instanceof Uint32Array ? "uint32" : "uint16";
-    }
-
-    public static Deserialize(data: any): IndexAttribute {
-        let array = undefined;
-        if (data.arrayType === "uint32") array = new Uint32Array(data.array);
-        else if (data.arrayType === "uint16") array = new Uint16Array(data.array);
-        if (array === undefined) throw Error(`Cannot deserialize VertexAttribute, invalid array type "${data.arrayType}"`);
-
-        const indexAttribute = new IndexAttribute(array);
-        indexAttribute.currentOffset = data.currentOffset;
-        indexAttribute.currentSize = data.currentSize;
-        return indexAttribute;
     }
 }
 
@@ -418,14 +370,13 @@ export class Geometry {
     }
 
     public Destroy() {
-        if (!this.assetPath) throw Error("Could not destroy geometry without assetpath");
-        // Dont destroy builtin
-        if (this.assetPath.includes("@builtin")) return;
+        // Don't destroy builtin geometries
+        if (this.assetPath && this.assetPath.includes("@builtin")) return;
 
         for (const [_, attribute] of this.attributes) attribute.Destroy();
         if (this.index) this.index.Destroy();
 
-        Assets.RemoveInstance(this.assetPath);
+        if (this.assetPath) Assets.RemoveInstance(this.assetPath);
     }
 
     public static ToNonIndexedAttribute(src: Float32Array, indices: Uint32Array | Uint16Array, stride: number, offset: number, itemSize: number): Float32Array {
@@ -472,50 +423,7 @@ export class Geometry {
         return instance;
     }
 
-    public SerializeAsset() {
-        return {
-            assetPath: this.assetPath,
-            id: this.id,
-            name: this.name,
-            attributes: Array.from(this.attributes, ([key, attribute]) => Object.assign(attribute.Serialize(), { name: key })),
-            index: this.index ? this.index.Serialize() : undefined
-        }
-    }
 
-    public Serialize(metadata: any = {}): Object {
-        if (!this.assetPath) throw Error("Geometry doesn't have an assetPath.");
-
-        return {
-            id: this.id,
-            name: this.name,
-            assetPath: this.assetPath
-        }
-    }
-
-    public Deserialize(data: any) {
-        this.id = data.id;
-        this.name = data.name;
-        this.assetPath = data.assetPath;
-
-        for (const attribute of data.attributes) this.attributes.set(attribute.name, VertexAttribute.Deserialize(attribute));
-        if (data.index) this.index = IndexAttribute.Deserialize(data.index);
-    }
-
-    public static Deserialize(data): Geometry {
-        if (!data.assetPath) throw Error("Geometry needs an assetPath.");
-
-        const instance = Assets.GetInstance(data.assetPath);
-        if (instance) return instance;
-        // Store instance immediately because async Load
-        const geometry = new Geometry();
-        geometry.assetPath = data.assetPath;
-        Assets.SetInstance(data.assetPath, geometry);
-        Assets.Load(data.assetPath, "json").then(json => {
-            geometry.Deserialize(json)
-        });
-        
-        return geometry;
-    }
 }
 
 // Register builtin assets.

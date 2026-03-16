@@ -56,6 +56,11 @@ export class PrepareGBuffers extends RenderPass {
         this.gBufferAlbedoRT = RenderTexture.Create(Renderer.width, Renderer.height, 1, this.GBufferFormat);
         this.gBufferNormalRT = RenderTexture.Create(Renderer.width, Renderer.height, 1, this.GBufferFormat);
         this.gBufferERMORT = RenderTexture.Create(Renderer.width, Renderer.height, 1, this.GBufferFormat);
+
+        this.depthTexture.name = "GBufferDepth";
+        this.gBufferAlbedoRT.name = "GBufferAlbedo";
+        this.gBufferNormalRT.name = "GBufferNormal";
+        this.gBufferERMORT.name = "GBufferERMO";
     }
 
     public async init(resources: ResourcePool) {

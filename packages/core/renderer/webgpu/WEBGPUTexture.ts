@@ -1,13 +1,12 @@
 import { UUID } from "../../utils";
-import { Renderer } from "../Renderer";
-import { ImageLoadOptions, SerializedTexture, Texture, TextureDimension, TextureFormat, TextureType } from "../Texture";
+import { Renderer, RendererEvents } from "../Renderer";
+import { ImageLoadOptions, Texture, TextureDimension, TextureFormat, TextureType } from "../Texture";
 import { WEBGPUMipsGenerator } from "./utils/WEBGPUMipsGenerator";
 import { WEBGPUCubeMipsGenerator } from "./utils/WEBGPUCubeMipsGenerator";
 import { WEBGPURenderer } from "./WEBGPURenderer";
-import { Assets } from "../../Assets";
-
 import { Buffer, BufferType } from "../Buffer";
 import { RendererContext } from "../../renderer";
+import { EventSystem } from "../../Events";
 
 const TextureFormatToBits: Partial<Record<TextureFormat, number>> = {
     rgba8unorm: 32, "rgba8unorm-srgb": 32, bgra8unorm: 32, "bgra8unorm-srgb": 32,
@@ -169,18 +168,13 @@ export class WEBGPUTexture implements Texture {
         return this.activeMipCount;
     }
 
-    public SetName(name: string) {
-        this.name = name;
-        this.buffer.label = name;
-    }
-    public GetName(): string {
-        return this.buffer.label;
-    }
-
     public Destroy() {
         Renderer.info.gpuTextureSizeTotal -= this.byteSize;
         Renderer.info.gpuTextureCount--;
-        this.buffer.destroy();
+
+        EventSystem.once(RendererEvents.FrameEnded, () => {
+            this.buffer.destroy();
+        })
     }
 
     public SetData(data: BufferSource, bytesPerRow: number, rowsPerImage?: number) {
@@ -252,7 +246,7 @@ export class WEBGPUTexture implements Texture {
             [blockWidth, blockHeight, 1]
         );
         Renderer.EndRenderFrame();
-        await Renderer.OnFrameCompleted();
+        // await Renderer.OnFrameCompleted();
 
         const data = await buffer.GetData();
         const bytes = new Uint8Array(data as ArrayBuffer);
@@ -280,7 +274,7 @@ export class WEBGPUTexture implements Texture {
         const imageBitmap = await createImageBitmap(blob, {resizeWidth: options.resizeWidth, resizeHeight: options.resizeHeight});
 
         const texture = new WEBGPUTexture(imageBitmap.width, imageBitmap.height, 1, format, TextureType.RENDER_TARGET, "2d", 1);
-        texture.SetName(options.name);
+        texture.name = options.name;
 
         try {
             WEBGPURenderer.device.queue.copyExternalImageToTexture(
@@ -298,39 +292,4 @@ export class WEBGPUTexture implements Texture {
         return texture;
     }
 
-    public Serialize(): SerializedTexture {
-        if (!this.assetPath) throw Error("Texture doesn't have an assetPath.");
-
-        let cachedTexture = WEBGPUTexture.SerializedTextureCache.get(this.id);
-        if (cachedTexture) return cachedTexture.serialized;
-
-        cachedTexture = {
-            serialized: {
-                assetPath: this.assetPath,
-                name: this.name,
-                id: this.id,
-                format: this.format,
-                generateMips: this.mipLevels > 1
-            },
-            texture: this
-        };
-
-        WEBGPUTexture.SerializedTextureCache.set(this.id, cachedTexture);
-
-        return cachedTexture.serialized;
-    }
-
-    public static async Deserialize(data: SerializedTexture): Promise<WEBGPUTexture> {
-        const cachedTexture = WEBGPUTexture.SerializedTextureCache.get(data.id);
-        if (cachedTexture) return cachedTexture.texture;
-        
-        const bytes = await Assets.Load(data.assetPath, "binary");
-        const texture = await WEBGPUTexture.FromBlob(new Blob([bytes]), data.format, { name: data.name, generateMips: data.generateMips });
-        texture.assetPath = data.assetPath;
-
-        WEBGPUTexture.SerializedTextureCache.set(data.id, { serialized: data, texture: texture }); // What id to use? New or data one? Should ids be set, probably a unique path or crc should be used instead
-        return texture;
-    }
-
-    private static SerializedTextureCache: Map<string, { serialized: SerializedTexture, texture: WEBGPUTexture }> = new Map();
 }

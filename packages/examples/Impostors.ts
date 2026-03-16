@@ -7,7 +7,6 @@ import {
     Geometry,
     PBRMaterial,
     Object3D,
-    Prefab,
 } from "@trident/core";
 
 import { OrbitControls } from "@trident/plugins/OrbitControls";
@@ -60,19 +59,16 @@ async function Application(canvas: HTMLCanvasElement) {
     //     light.color.set(1, 1, 1, 1);
     // }
 
-    // const model = await GLTFLoader.LoadFromURL("./assets/models/Tree.glb");
-    const prefab = await GLTFLoader.LoadFromURL("/extra/test-assets/nature/treessource/american_beech/american_beech_a.glb");
+    // const model = await GLTFLoader.Load("./assets/models/Tree.glb", scene);
+    const loadedGO = await GLTFLoader.Load("/extra/test-assets/nature/treessource/american_beech/american_beech_a.glb", scene);
     let geometry: Geometry;
-    let material = new PBRMaterial();
-    prefab.traverse(prefab => {
-        if (geometry) return;
-        for (const component of prefab.components) {
-            if (component.type === Components.Mesh.type) {
-                geometry = Geometry.Deserialize(component.geometry);
-                material = GPU.Material.Deserialize(component.material);
-            }
-        }
-    })
+    let material: GPU.Material = new PBRMaterial();
+    const loadedMeshes = loadedGO.GetComponentsInChildren(Components.Mesh);
+    for (const mesh of loadedMeshes) {
+        geometry = mesh.geometry;
+        material = mesh.material;
+        break;
+    }
     const go = new GameObject(scene);
 
     const bunnyImpostor = go.AddComponent(ImpostorMesh);
@@ -92,7 +88,7 @@ async function Application(canvas: HTMLCanvasElement) {
 
 
     {
-        Scene.Instantiate(prefab, new Mathf.Vector3(3, 0, 0));
+        loadedGO.transform.position.set(3, 0, 0);
     }
 
 

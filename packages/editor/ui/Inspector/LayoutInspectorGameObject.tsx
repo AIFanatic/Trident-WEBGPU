@@ -82,9 +82,10 @@ export class LayoutInspectorGameObject extends Component<LayoutInspectorProps> {
         else if (type === Number) return <InspectorInput onChanged={(value) => { this.onComponentPropertyChanged(component, name, value) }} title={title} value={component[name]} type="number" />
         else if (type === Boolean) return <InspectorCheckbox onChanged={(value) => { this.onComponentPropertyChanged(component, name, value) }} title={title} selected={component[name]} />
         else if (typeof type === "function") {
-            let valueForType = component[name].constructor.name;
-            if (component[name].assetPath) {
-                valueForType = StringUtils.GetNameForPath(component[name].assetPath);
+            const currentValue = component[name];
+            let valueForType = currentValue ? currentValue.constructor.name : "None";
+            if (currentValue?.assetPath) {
+                valueForType = StringUtils.GetNameForPath(currentValue.assetPath);
             }
 
             return <InspectorType
@@ -93,6 +94,7 @@ export class LayoutInspectorGameObject extends Component<LayoutInspectorProps> {
                 component={component}
                 property={name}
                 value={valueForType}
+                expectedType={type}
             />
         }
     }

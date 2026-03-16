@@ -147,28 +147,4 @@ export class WEBGPUShader extends WEBGPUBaseShader implements Shader {
     public GetAttributeSlot(name: string): number | undefined {
         return this.attributeMap.get(name)?.location;
     }
-
-    public Serialize(): Object {
-        return {
-            code: this.params.code,
-            defines: this.params.defines,
-            attributes: this.params.attributes,
-            uniforms: Object.entries(this.params.uniforms).map(([key, value]) => { return { group: value.group, binding: value.binding, type: value.type }}),
-            vertexEntrypoint: this.params.vertexEntrypoint,
-            fragmentEntrypoint: this.params.fragmentEntrypoint,
-            colorOutputs: this.params.colorOutputs,
-            depthOutput: this.params.depthOutput,
-            depthCompare: this.params.depthCompare,
-            depthBiasSlopeScale: this.params.depthBiasSlopeScale,
-            depthBiasClamp: this.params.depthBiasClamp,
-            depthWriteEnabled: this.params.depthWriteEnabled,
-            topology: this.params.topology,
-            frontFace: this.params.frontFace,
-            cullMode: this.params.cullMode,
-        };
-    }
-
-    public Deserialize(data) {
-        throw Error("Not implemented");
-    }
 }

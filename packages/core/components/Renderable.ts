@@ -4,7 +4,7 @@ import { Geometry } from "../Geometry";
 import { Shader } from "../renderer";
 import { Material, PBRMaterial } from "../renderer/Material";
 import { SerializeField } from "../utils/SerializeField";
-import { Component, SerializedComponent } from "./Component";
+import { Component } from "./Component";
 
 export class RenderableEvents {
     public static MaterialUpdated = (gameObject: GameObject, material: Material) => {};
@@ -48,18 +48,4 @@ export class Renderable extends Component {
         Renderable.Renderables.delete(this.id);
     }
 
-    public Serialize(metadata: any = {}): SerializedComponent {
-        return {
-            type: this.constructor.type,
-            geometry: this.geometry.Serialize(metadata),
-            material: this.material.Serialize(metadata),
-            enableShadows: this.enableShadows
-        }
-    }
-
-    public Deserialize(data: any) {
-        this.enableShadows = data.enableShadows;
-        this.geometry = Geometry.Deserialize(data.geometry);
-        this.material = Material.Deserialize(data.material);
-    }
 }

@@ -2,7 +2,6 @@ import { Component } from "./Component";
 import { Quaternion, Vector3 } from "../math";
 import { Transform } from "./Transform";
 import { SerializeField } from "../utils/SerializeField";
-import { Assets } from "../Assets";
 
 export type AnimationPath = "translation" | "rotation" | "scale" | "weights";
 
@@ -102,23 +101,6 @@ export class AnimationTrack extends Component {
         this._q1.slerp(out, u);
         out.copy(this._q1);
         return out;
-    }
-
-    public Serialize(): any {
-        return {
-            type: AnimationTrack.type,
-            id: this.id,
-            trackName: this.trackName
-        };
-    }
-
-    public Deserialize(data: any) {
-        this.trackName = data.trackName ?? "";
-        // clips are populated by Animator.Start() from the animation asset
-        if (data.clips) {
-            this.clips = data.clips;
-            this._clipsByIndex = null;
-        }
     }
 
     public apply(clipIndex: number, time: number) {
@@ -236,64 +218,6 @@ export class Animator extends Component {
         this.fadeDuration = Math.max(0.0001, duration);
         this.fadeTime = 0;
         this.playing = true;
-    }
-
-    public SerializeAsset() {
-        // Collect all track data from hierarchy
-        const tracks: { [nodeName: string]: SerializedAnimationTrackClip[] } = {};
-        const collectTrackData = (root: Transform) => {
-            const track = root.gameObject.GetComponent(AnimationTrack);
-            if (track && track.trackName && track.clips.length) {
-                tracks[track.trackName] = track.clips;
-            }
-            for (const child of root.children) collectTrackData(child);
-        };
-
-        // If we have live track data from the hierarchy, collect it
-        if (this.gameObject) {
-            collectTrackData(this.gameObject.transform);
-        }
-
-        return {
-            type: Animator.type,
-            assetPath: this.assetPath,
-            clips: this.clips,
-            tracks: Object.keys(tracks).length ? tracks : this.tracksData
-        };
-    }
-
-    public Serialize(): any {
-        if (this.assetPath) {
-            return {
-                type: Animator.type,
-                id: this.id,
-                assetPath: this.assetPath
-            };
-        }
-        return this.SerializeAsset();
-    }
-
-    public Deserialize(data: any) {
-        if (data.assetPath) {
-            this.assetPath = data.assetPath;
-
-            const instance = Assets.GetInstance(data.assetPath);
-            if (instance) {
-                this.clips = instance.clips ?? [];
-                this.tracksData = instance.tracks ?? instance.tracksData ?? {};
-                return;
-            }
-
-            Assets.SetInstance(data.assetPath, this);
-            Assets.Load(data.assetPath, "json").then(json => {
-                this.clips = json.clips ?? [];
-                this.tracksData = json.tracks ?? {};
-            });
-            return;
-        }
-
-        this.clips = data.clips ?? [];
-        this.tracksData = data.tracks ?? {};
     }
 
     public Update() {
