@@ -1,5 +1,7 @@
 import { string } from "rollup-plugin-string";
 import esbuild from 'rollup-plugin-esbuild'
+import resolve from "@rollup/plugin-node-resolve";
+import commonjs from "@rollup/plugin-commonjs";
 
 import fs from 'fs';
 import path from 'path';
@@ -306,6 +308,8 @@ const editor = {
     },
     plugins: [
         // typescript(),
+        resolve({ browser: true, preferBuiltins: false }),
+        commonjs(),
         esbuild({
             target: target,
             jsxFactory: 'createElement',

@@ -9,6 +9,3 @@ tsconfig.tsbuildinfo
 extra
 cloc.sh
 *.bak
-
-dist/editor/resources/SampleProject
-packages/editor/resources/SampleProject

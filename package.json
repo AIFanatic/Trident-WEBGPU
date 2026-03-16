@@ -1,18 +1,23 @@
 {
-    "name": "trident",
-    "version": "0.1.0",
-    "type": "module",
-    "scripts": {
-        "build:rollup": "rollup -c",
-        "dev": "rollup -c --watch"
-    },
-    "devDependencies": {
-        "@webgpu/types": "^0.1.64",
-        "esbuild": "^0.25.8",
-        "rollup": "^4.46.2",
-        "rollup-plugin-esbuild": "^6.2.1",
-        "rollup-plugin-string": "^3.0.0",
-        "typescript": "^5.1.0"
-    },
-    "dependencies": {}
+  "name": "trident",
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "build:rollup": "rollup -c",
+    "dev": "rollup -c --watch"
+  },
+  "devDependencies": {
+    "@rollup/plugin-commonjs": "^29.0.2",
+    "@rollup/plugin-node-resolve": "^16.0.3",
+    "@types/node": "^25.5.0",
+    "@webgpu/types": "^0.1.64",
+    "esbuild": "^0.25.8",
+    "rollup": "^4.46.2",
+    "rollup-plugin-esbuild": "^6.2.1",
+    "rollup-plugin-string": "^3.0.0",
+    "typescript": "^5.1.0"
+  },
+  "dependencies": {
+    "esbuild-wasm": "^0.27.4"
+  }
 }
