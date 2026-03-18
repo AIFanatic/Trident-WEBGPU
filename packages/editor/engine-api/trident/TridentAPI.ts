@@ -8,14 +8,17 @@ import { IGeometry } from "./components/IGeometry";
 import { IMaterial } from "./components/IMaterial";
 import { IColor } from "./math/IColor";
 import { IVector2 } from "./math/IVector2";
-import { IComponent } from "./components/IComponent";
 import { IPrefab } from "./components/IPrefab";
 import { ITexture } from "./components/ITexture";
-import { Prefab, deserializeGeometryRef, deserializeMaterial } from "../../serialization";
+import { Serializer, Deserializer } from "@trident/core";
+import { Prefab } from "../../serialization/Prefab";
+import "../../serialization/EditorLoad";
 
 export class TridentAPI implements IEngineAPI {
 
     public currentScene: IScene;
+    public serializer = Serializer;
+    public deserializer = Deserializer;
 
     public createRenderer(canvas: HTMLCanvasElement) {
         Renderer.Create(canvas, "webgpu");
@@ -71,11 +74,11 @@ export class TridentAPI implements IEngineAPI {
     }
 
     public async deserializeGeometry(serialized): Promise<IGeometry> {
-        return deserializeGeometryRef(serialized);
+        return Deserializer.Load(serialized.assetPath);
     }
 
     public async deserializeMaterial(serialized): Promise<IMaterial> {
-        return deserializeMaterial(serialized);
+        return Deserializer.Load(serialized.assetPath);
     }
 
     public deserializePrefab(serialized): IPrefab {

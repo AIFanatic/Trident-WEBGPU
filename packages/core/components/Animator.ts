@@ -159,12 +159,13 @@ Component.Registry.set(AnimationTrack.type, AnimationTrack);
 export class Animator extends Component {
     public static type = "@trident/core/components/Animator";
 
+    @SerializeField
     public assetPath?: string;
 
     @SerializeField
     public clips: SerializedAnimationClip[] = [];
 
-    // All tracks data keyed by node name — loaded from .animation file
+    @SerializeField
     public tracksData: { [nodeName: string]: SerializedAnimationTrackClip[] } = {};
 
     public clipIndex = 0;

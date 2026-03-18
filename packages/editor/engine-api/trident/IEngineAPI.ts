@@ -44,7 +44,7 @@ export interface IEngineAPI {
     createCubeGeometry(): IGeometry;
     createSphereGeometry(): IGeometry;
     createCapsuleGeometry(): IGeometry;
-    
+
     createPBRMaterial(args?): IMaterial;
 
     createPrefab(): IPrefab;
@@ -57,4 +57,18 @@ export interface IEngineAPI {
     GetSerializedFields: (instance: object) => { name: string | symbol, type?: Function }[];
 
     getFieldType(value: any): "Prefab" | "GameObject" | "Component" | "Vector3" | "Vector2" | "Color" | "Geometry" | "Material" | "Texture" | "unknown";
+
+    serializer: {
+        serializeScene(scene: any): any;
+        serializeGameObject(gameObject: any): any;
+        serializeComponent(component: any): any;
+        serializeFields(value: any): any;
+    };
+
+    deserializer: {
+        deserializeScene(scene: any, data: any): Promise<void>;
+        deserializeGameObject(scene: any, data: any, parent?: any): Promise<any>;
+        deserializeFields(target: any, data: any): Promise<void>;
+        Load(assetPath: string, data?: any): Promise<any>;
+    };
 }

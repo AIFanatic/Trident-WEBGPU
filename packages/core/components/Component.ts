@@ -18,6 +18,7 @@ export class Component {
     public enabled: boolean = true;
     public hasStarted: boolean = false;
     public name: string;
+    public assetPath: string;
 
     public readonly gameObject: GameObject;
     public readonly transform: Transform;

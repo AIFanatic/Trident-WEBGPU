@@ -1,4 +1,5 @@
 import { UUID } from "./utils/";
+import { SerializeField } from "./utils/SerializeField";
 import { BoundingVolume } from "./math/BoundingVolume";
 import { Vector3 } from "./math/Vector3";
 import { Buffer, BufferType } from "./renderer/Buffer";
@@ -9,12 +10,13 @@ import { EventSystem } from "./Events";
 import { RendererEvents } from "./renderer/Renderer";
 
 export class GeometryAttribute {
-    public type = "@trident/core/Geometry/GeometryAttribute";
-    public array: Float32Array | Uint32Array | Uint16Array | Uint8Array;
+    @SerializeField public type = "@trident/core/Geometry/GeometryAttribute";
+    @SerializeField public array: Float32Array | Uint32Array | Uint16Array | Uint8Array;
+    @SerializeField public arrayType: string;
     public buffer: Buffer;
     public bufferType: BufferType;
-    public currentOffset: number; // This can be used 
-    public currentSize: number;
+    @SerializeField public currentOffset: number;
+    @SerializeField public currentSize: number;
     public count: number;
 
     private _crc: number;
@@ -55,6 +57,10 @@ export class GeometryAttribute {
         this.currentOffset = 0;
         this.currentSize = array.byteLength;    // actual used size (not padded)
         this.count = array.length;              // number of elements
+        this.arrayType = array instanceof Uint32Array ? "uint32"
+            : array instanceof Uint16Array ? "uint16"
+            : array instanceof Uint8Array ? "uint8"
+            : "float32";
     }
 
     public GetBuffer(): Buffer { return this.buffer; }
@@ -75,8 +81,10 @@ export class VertexAttribute extends GeometryAttribute {
 // A buffer is shared, only offsets and count changes
 export class InterleavedVertexAttribute extends GeometryAttribute {
     public type = "@trident/core/Geometry/InterleavedVertexAttribute";
-    constructor(public array: Float32Array, public stride: number) {
+    @SerializeField public stride: number;
+    constructor(public array: Float32Array, stride: number) {
         super(array, BufferType.VERTEX);
+        this.stride = stride;
     }
 
     public static fromArrays(attributes: Float32Array[], inputStrides: number[], outputStrides?: number[]): InterleavedVertexAttribute {
@@ -125,11 +133,11 @@ export class IndexAttribute extends GeometryAttribute {
 }
 
 export class Geometry {
-    public assetPath?: string;
-    public id = UUID();
-    public name: string = "";
-    public index?: IndexAttribute;
-    public readonly attributes: Map<string, VertexAttribute | InterleavedVertexAttribute> = new Map();
+    @SerializeField public assetPath?: string;
+    @SerializeField public id = UUID();
+    @SerializeField public name: string = "";
+    @SerializeField public index?: IndexAttribute;
+    @SerializeField public readonly attributes: Map<string, VertexAttribute | InterleavedVertexAttribute> = new Map();
 
     public _boundingVolume: BoundingVolume;
     public get boundingVolume(): BoundingVolume {

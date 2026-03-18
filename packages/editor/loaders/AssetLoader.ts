@@ -1,5 +1,6 @@
 import { GLTFLoader } from "@trident/plugins/GLTF/GLTFLoader";
-import { Prefab, deserializeGeometryRef, deserializeMaterial } from "../serialization";
+import { Deserializer } from "@trident/core";
+import { Prefab } from "../serialization/Prefab";
 import { IEngineAPI } from "../engine-api/trident/IEngineAPI";
 
 export async function LoadFile( path: string, file: FileSystemFileHandle, engineAPI: IEngineAPI ): Promise<any> {
@@ -22,16 +23,12 @@ export async function LoadFile( path: string, file: FileSystemFileHandle, engine
         return Prefab.Deserialize(JSON.parse(text));
     }
     else if (extension === "geometry") {
-        const data = await file.getFile();
-        const text = await data.text();
-        const geometry = await deserializeGeometryRef(JSON.parse(text));
+        const geometry = await Deserializer.Load(path);
         geometry.assetPath = path;
         return geometry;
     }
     else if (extension === "material") {
-        const data = await file.getFile();
-        const text = await data.text();
-        const material = await deserializeMaterial(JSON.parse(text));
+        const material = await Deserializer.Load(path);
         material.assetPath = path;
         return material;
     }

@@ -13,7 +13,6 @@ import { TreeItem } from "./TreeView/TreeItem";
 import { Tree } from "./TreeView/Tree";
 import { FloatingMenu } from "./FloatingMenu";
 import { IGameObject } from "../engine-api/trident/components/IGameObject";
-import { deserializeScene } from "../serialization";
 
 import { LoadFile } from "../loaders/AssetLoader";
 import {
@@ -138,7 +137,7 @@ export class LayoutAssets extends Component<BaseProps, LayoutAssetsState> {
 
         if (item.data.instance.type === Scene.type) {
             this.props.engineAPI.currentScene.Clear();
-            await deserializeScene(this.props.engineAPI.currentScene, item.data.instance);
+            await this.props.engineAPI.deserializer.deserializeScene(this.props.engineAPI.currentScene, item.data.instance);
             EventSystem.emit(SceneEvents.Loaded, item.data.instance);
         }
     }

@@ -8,7 +8,7 @@ import { IComponents } from "../engine-api/trident/components";
 import { TreeFolder } from "./TreeView/TreeFolder";
 import { TreeItem } from "./TreeView/TreeItem";
 import { Tree } from "./TreeView/Tree";
-import { Prefab, instantiatePrefab } from "../serialization";
+import { Prefab } from "../serialization/Prefab";
 import { FloatingMenu } from "./FloatingMenu";
 
 interface LayoutHierarchyState {
@@ -73,7 +73,7 @@ export class LayoutHierarchy extends Component<BaseProps, LayoutHierarchyState> 
         const extendedEvent = ExtendedDataTransfer.data;
         const instance = extendedEvent;
         if (instance && instance instanceof Prefab) {
-            const gameObject = await instantiatePrefab(this.props.engineAPI.currentScene, instance);
+            const gameObject = await this.props.engineAPI.deserializer.deserializeGameObject(this.props.engineAPI.currentScene, instance);
             this.selectGameObject(gameObject);
             ExtendedDataTransfer.data = undefined;
         }
@@ -168,7 +168,7 @@ export class LayoutHierarchy extends Component<BaseProps, LayoutHierarchyState> 
     render() {
         if (!this.props.engineAPI.currentScene) return;
 
-        const nodes = this.buildTreeFromGameObjects(this.props.engineAPI.currentScene.gameObjects);
+        console.log(this.props.engineAPI.currentScene)
 
         const rootGameObjects = this.props.engineAPI.currentScene.gameObjects.filter(go => !go.transform.parent);
 
@@ -176,7 +176,7 @@ export class LayoutHierarchy extends Component<BaseProps, LayoutHierarchyState> 
 
             <div class="Layout">
                 <div class="header">
-                    <div class="title">Sample scene</div>
+                    <div class="title">{this.props.engineAPI.currentScene.name || "Untitled scene"}</div>
                     <div class="right-action">
                         <button onClick={event => { this.setState({...this.state, headerMenuOpen: !this.state.headerMenuOpen})}}>⋮</button>
                         <FloatingMenu visible={this.state.headerMenuOpen} onClose={() => this.setState({ ...this.state, headerMenuOpen: false })}>

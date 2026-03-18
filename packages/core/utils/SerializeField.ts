@@ -32,7 +32,5 @@ export function SerializeField(first: any, second?: ClassFieldDecoratorContext) 
 
 export function GetSerializedFields(classInstance: object): FieldInfo[] {
     const proto = Object.getPrototypeOf(classInstance);
-    const own = ((proto as any)[SERIAL_FIELDS] ?? []) as FieldInfo[];
-    const base = ((Object.getPrototypeOf(proto) as any)?.[SERIAL_FIELDS] ?? []) as FieldInfo[];
-    return own.filter(f => !base.some(b => b.name === f.name));
+    return ((proto as any)[SERIAL_FIELDS] ?? []) as FieldInfo[];
 }

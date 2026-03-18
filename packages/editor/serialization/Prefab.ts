@@ -8,14 +8,6 @@ export interface SerializedComponent {
     [key: string]: unknown;
 }
 
-export interface SerializedTexture {
-    assetPath: string;
-    name: string;
-    id: string;
-    format: string;
-    generateMips: boolean;
-}
-
 export class Prefab {
     public id?: string;
     public name: string;

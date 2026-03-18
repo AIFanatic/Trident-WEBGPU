@@ -19,10 +19,16 @@ export * as Mathf from './math';
 export * as GPU from "./renderer";
 
 export * as Utils from "./utils";
-export { SerializeField } from "./utils";
+export { SerializeField, GetSerializedFields } from "./utils";
 
 export { Assets } from "./Assets";
 
 export { Input, KeyCodes, MouseCodes } from "./Input";
 
 export { Console } from "./Console";
+
+
+
+
+export { Serializer } from "./serializer/Serializer";
+export { Deserializer } from "./serializer/Deserializer";

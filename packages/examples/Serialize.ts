@@ -1,4 +1,4 @@
-import { Components, Scene, GPU, Mathf, GameObject, Geometry, PBRMaterial, Component } from "@trident/core";
+import { Components, Scene, GPU, Mathf, GameObject, Geometry, PBRMaterial, Component, Serializer } from "@trident/core";
 
 import { OrbitControls } from "@trident/plugins/OrbitControls";
 import { Debugger } from "@trident/plugins/Debugger";
@@ -49,6 +49,9 @@ async function Application(canvas: HTMLCanvasElement) {
     scene.Start();
 
     
+
+    const serialized = Serializer.serializeScene(scene);
+    console.log(serialized)
 
 
 

@@ -2,7 +2,6 @@ import { EventSystem, ProjectEvents } from "../Events";
 import { createElement, Component } from "../gooact";
 import { FileBrowser, MODE } from "../helpers/FileBrowser";
 import { BaseProps } from "./Layout";
-import { serializeScene } from "../serialization";
 
 import { Tree } from "./TreeView/Tree";
 import { TreeItem } from "./TreeView/TreeItem";
@@ -27,14 +26,14 @@ export class LayoutTopbar extends Component<BaseProps, LayoutTopbarState> {
     }
 
     private async saveProject() {
-        const serializedScene = serializeScene(this.props.engineAPI.currentScene);
+        const serializedScene = this.props.engineAPI.serializer.serializeScene(this.props.engineAPI.currentScene);
         const handle = await FileBrowser.fopen(`${this.props.engineAPI.currentScene.name}.scene`, MODE.W)
         FileBrowser.fwrite(handle, JSON.stringify(serializedScene));
         this.setState({fileMenuOpen: !this.state.fileMenuOpen});
     }
 
     private async test() {
-        const serializedScene = serializeScene(this.props.engineAPI.currentScene);
+        const serializedScene = this.props.engineAPI.serializer.serializeScene(this.props.engineAPI.currentScene);
         console.log(JSON.stringify(serializedScene))
         this.setState({fileMenuOpen: !this.state.fileMenuOpen});
     }

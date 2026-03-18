@@ -1,5 +1,6 @@
 import { Vector2 } from "../math";
 import { Color } from "../math/Color";
+import { Assets } from "../Assets";
 import { Scene } from "../Scene";
 import { SerializeField, UUID } from "../utils/";
 import { Pool } from "../utils/Pool";
@@ -11,7 +12,7 @@ import { TextureSampler } from "./TextureSampler";
 export const MaterialPool = new Pool<Material>();
 
 export class MaterialParams {
-    public isDeferred?: boolean = false;
+    @SerializeField public isDeferred?: boolean = false;
     public shader?: Shader;
     public materialID?: number;
 }
@@ -22,11 +23,11 @@ export class Material {
     public id = UUID();
     public static type = "@trident/core/renderer/Material";
 
-    public assetPath?: string;
+    @SerializeField public assetPath?: string;
     protected _shader: Shader;
     public get shader(): Shader { return this._shader };
     public set shader(shader: Shader) { this._shader = shader };
-    public params: MaterialParams;
+    @SerializeField public params: MaterialParams;
     public materialId: number;
 
     constructor(params?: Partial<MaterialParams>) {
@@ -117,6 +118,11 @@ export class PBRMaterial extends Material {
     
     constructor(params?: Partial<PBRMaterialParams>) {
         super({ isDeferred: params?.isDeferred ?? true });
+        this.assetPath = "@builtin/material/pbr";
+
+        if (!Assets.GetInstance("@builtin/material/pbr")) {
+            Assets.SetInstance("@builtin/material/pbr", this);
+        }
 
         Object.assign(this.params, params);
 
