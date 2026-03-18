@@ -1,4 +1,4 @@
-import { Components, Scene, PBRMaterial, GPU, Utils, Mathf, GameObject, InterleavedVertexAttribute, Assets, Component as Component$1, Geometry, IndexAttribute, VertexAttribute, Texture, Renderer, Input, Console } from '@trident/core';
+import { Assets, Component as Component$1, Deserializer, Geometry, PBRMaterial, GPU, Texture, InterleavedVertexAttribute, IndexAttribute, VertexAttribute, Serializer, Renderer, Scene, GameObject, Mathf, Utils, Components, Input, Console, GetSerializedFields } from '@trident/core';
 import { OrbitControls } from '@trident/plugins/OrbitControls.js';
 import { Environment } from '@trident/plugins/Environment/Environment.js';
 import { Sky } from '@trident/plugins/Environment/Sky.js';
@@ -52,210 +52,6 @@ class AssetRegistry {
   static Clear() {
     AssetRegistry.instanceCache.clear();
   }
-}
-
-function serializeVector2(v) {
-  return { type: "@trident/core/math/Vector2", x: v.x, y: v.y };
-}
-function serializeVector3(v) {
-  return { type: "@trident/core/math/Vector3", x: v.x, y: v.y, z: v.z };
-}
-function serializeQuaternion(q) {
-  return { type: "@trident/core/math/Quaternion", x: q.x, y: q.y, z: q.z, w: q.w };
-}
-function serializeColor(c) {
-  return { type: "@trident/core/math/Color", r: c.r, g: c.g, b: c.b, a: c.a };
-}
-function getArrayTypeName(arr) {
-  if (arr instanceof Uint32Array) return "uint32";
-  if (arr instanceof Uint16Array) return "uint16";
-  if (arr instanceof Uint8Array) return "uint8";
-  return "float32";
-}
-function serializeGeometryAttribute(attr) {
-  const result = {
-    attributeType: attr.type,
-    array: Array.from(attr.array),
-    arrayType: getArrayTypeName(attr.array),
-    currentOffset: attr.currentOffset,
-    currentSize: attr.currentSize
-  };
-  if (attr instanceof InterleavedVertexAttribute) {
-    result.stride = attr.stride;
-  }
-  return result;
-}
-function serializeGeometryAsset(geometry) {
-  return {
-    assetPath: geometry.assetPath,
-    id: geometry.id,
-    name: geometry.name,
-    attributes: Array.from(
-      geometry.attributes,
-      ([key, attribute]) => Object.assign(serializeGeometryAttribute(attribute), { name: key })
-    ),
-    index: geometry.index ? serializeGeometryAttribute(geometry.index) : void 0
-  };
-}
-function serializeGeometryRef(geometry) {
-  if (!geometry.assetPath) throw Error("Geometry doesn't have an assetPath.");
-  return { id: geometry.id, name: geometry.name, assetPath: geometry.assetPath };
-}
-function serializeTexture(texture) {
-  if (!texture.assetPath) throw Error("Texture doesn't have an assetPath.");
-  return {
-    assetPath: texture.assetPath,
-    name: texture.name,
-    id: texture.id,
-    format: texture.format,
-    generateMips: texture.mipLevels > 1
-  };
-}
-const textureFields$1 = ["albedoMap", "normalMap", "armMap", "heightMap", "emissiveMap"];
-const scalarFields$1 = ["roughness", "metalness", "doubleSided", "alphaCutoff", "unlit", "wireframe", "isSkinned", "isDeferred"];
-function serializePBRMaterialParams(params) {
-  const result = {
-    albedoColor: serializeColor(params.albedoColor),
-    emissiveColor: serializeColor(params.emissiveColor),
-    repeat: serializeVector2(params.repeat),
-    offset: serializeVector2(params.offset)
-  };
-  for (const field of textureFields$1) {
-    const tex = params[field];
-    if (tex && tex.assetPath) result[field] = serializeTexture(tex);
-  }
-  for (const field of scalarFields$1) {
-    result[field] = params[field];
-  }
-  return result;
-}
-function serializeMaterialAsset(material) {
-  if (material instanceof PBRMaterial) {
-    return {
-      assetPath: material.assetPath,
-      type: PBRMaterial.type,
-      shader: void 0,
-      params: serializePBRMaterialParams(material.params)
-    };
-  }
-  return {
-    type: GPU.Material.type,
-    assetPath: material.assetPath,
-    shader: material.shader ? serializeShader(material.shader) : void 0,
-    params: { isDeferred: material.params.isDeferred }
-  };
-}
-function serializeMaterialRef(material) {
-  if (material.assetPath) {
-    const type = material instanceof PBRMaterial ? PBRMaterial.type : GPU.Material.type;
-    return { type, id: material.id, assetPath: material.assetPath };
-  }
-  return serializeMaterialAsset(material);
-}
-function serializeShader(shader) {
-  return {
-    code: shader.params.code,
-    defines: shader.params.defines,
-    attributes: shader.params.attributes,
-    uniforms: Object.entries(shader.params.uniforms).map(([key, value]) => ({
-      group: value.group,
-      binding: value.binding,
-      type: value.type
-    }))
-  };
-}
-function serializeValue(value) {
-  if (value === void 0 || value === null) return null;
-  if (typeof value === "boolean" || typeof value === "number" || typeof value === "string") return value;
-  if (value instanceof Float32Array) return Array.from(value);
-  if (value instanceof Array) return value;
-  if (value instanceof Mathf.Vector3) return serializeVector3(value);
-  if (value instanceof Mathf.Vector2) return serializeVector2(value);
-  if (value instanceof Mathf.Color) return serializeColor(value);
-  if (value instanceof Mathf.Quaternion) return serializeQuaternion(value);
-  if (value instanceof GameObject) return { __ref: "GameObject", id: value.id };
-  throw Error(`Could not serialize value: ${value}`);
-}
-function serializeComponent(component, metadata = {}) {
-  if (component instanceof Components.Renderable) return serializeRenderable(component);
-  if (component instanceof Components.Animator) return serializeAnimatorRef(component);
-  const serializedFields = Utils.GetSerializedFields(component);
-  const fields = {};
-  for (const { name } of serializedFields) {
-    fields[name] = serializeValue(component[name]);
-  }
-  const ctor = component.constructor;
-  const assetPath = ctor.assetPath;
-  const type = ctor.type || ctor.name;
-  return { type, id: component.id, name: component.name, ...assetPath ? { assetPath } : {}, ...fields };
-}
-function serializeTransform(transform) {
-  return {
-    type: Components.Transform.type,
-    localPosition: serializeVector3(transform.localPosition),
-    localRotation: serializeQuaternion(transform.localRotation),
-    scale: serializeVector3(transform.scale)
-  };
-}
-function serializeRenderable(renderable) {
-  return {
-    type: renderable.constructor.type,
-    geometry: serializeGeometryRef(renderable.geometry),
-    material: serializeMaterialRef(renderable.material),
-    enableShadows: renderable.enableShadows
-  };
-}
-function serializeAnimatorAsset(animator) {
-  const tracks = {};
-  const collectTrackData = (root) => {
-    const track = root.gameObject.GetComponent(Components.AnimationTrack);
-    if (track && track.trackName && track.clips.length) {
-      tracks[track.trackName] = track.clips;
-    }
-    for (const child of root.children) collectTrackData(child);
-  };
-  if (animator.gameObject) {
-    collectTrackData(animator.gameObject.transform);
-  }
-  return {
-    type: Components.Animator.type,
-    assetPath: animator.assetPath,
-    clips: animator.clips,
-    tracks: Object.keys(tracks).length ? tracks : animator.tracksData
-  };
-}
-function serializeAnimatorRef(animator) {
-  if (animator.assetPath) {
-    return { type: Components.Animator.type, id: animator.id, assetPath: animator.assetPath };
-  }
-  return serializeAnimatorAsset(animator);
-}
-function serializeGameObject(gameObject, metadata = {}) {
-  const prefab = new Prefab();
-  prefab.id = gameObject.id;
-  prefab.name = gameObject.name;
-  prefab.transform = serializeTransform(gameObject.transform);
-  if (gameObject.assetPath) {
-    prefab.assetPath = gameObject.assetPath;
-    return prefab;
-  }
-  prefab.components = gameObject.GetComponents().map((c) => serializeComponent(c, metadata));
-  for (const child of gameObject.transform.children) {
-    prefab.children.push(serializeGameObject(child.gameObject, metadata));
-  }
-  return prefab;
-}
-function serializeScene(scene) {
-  const serialized = {
-    type: Scene.type,
-    name: scene.name,
-    mainCamera: Components.Camera.mainCamera?.id,
-    gameObjects: []
-  };
-  for (const gameObject of scene.GetRootGameObjects()) {
-    serialized.gameObjects.push(serializeGameObject(gameObject));
-  }
-  return serialized;
 }
 
 var browser = {exports: {}};
@@ -3034,39 +2830,14 @@ var ScriptLoader = /*#__PURE__*/Object.freeze({
     LoadScript: LoadScript
 });
 
-function deserializeVector2(data, target) {
-  const v = target ?? new Mathf.Vector2();
-  v.set(data.x, data.y);
-  return v;
-}
-function deserializeVector3(data, target) {
-  const v = target ?? new Mathf.Vector3();
-  v.set(data.x, data.y, data.z);
-  return v;
-}
-function deserializeQuaternion(data, target) {
-  const q = target ?? new Mathf.Quaternion();
-  q.set(data.x, data.y, data.z, data.w);
-  return q;
-}
-function deserializeColor(data, target) {
-  const c = target ?? new Mathf.Color();
-  c.set(data.r, data.g, data.b, data.a);
-  return c;
-}
 const typedArrayCtors = {
   float32: Float32Array,
   uint32: Uint32Array,
   uint16: Uint16Array,
   uint8: Uint8Array
 };
-function makeTypedArray(data, arrayType) {
-  const Ctor = typedArrayCtors[arrayType];
-  if (!Ctor) throw Error(`Invalid array type "${arrayType}"`);
-  return new Ctor(data);
-}
 function deserializeAttribute(data) {
-  const array = makeTypedArray(data.array, data.arrayType);
+  const array = new typedArrayCtors[data.arrayType](data.array);
   let attr;
   if (data.attributeType === "@trident/core/Geometry/InterleavedVertexAttribute") {
     attr = new InterleavedVertexAttribute(array, data.stride);
@@ -3079,227 +2850,58 @@ function deserializeAttribute(data) {
   attr.currentSize = data.currentSize;
   return attr;
 }
-function deserializeGeometryData(data, target) {
-  const geometry = target ?? new Geometry();
-  geometry.id = data.id;
-  geometry.name = data.name;
-  geometry.assetPath = data.assetPath;
-  for (const attribute of data.attributes) {
-    geometry.attributes.set(attribute.name, deserializeAttribute(attribute));
-  }
-  if (data.index) geometry.index = deserializeAttribute(data.index);
-  return geometry;
-}
-async function deserializeGeometryRef(data) {
-  if (!data.assetPath) throw Error("Geometry needs an assetPath.");
-  const cached = AssetRegistry.GetInstance(data.assetPath);
+Deserializer.Load = async (assetPath, data) => {
+  const cached = AssetRegistry.GetInstance(assetPath);
   if (cached) return cached;
-  const coreInstance = Assets.GetInstance(data.assetPath);
+  const coreInstance = Assets.GetInstance(assetPath);
   if (coreInstance) return coreInstance;
-  const json = await Assets.Load(data.assetPath, "json");
-  const geometry = deserializeGeometryData(json);
-  AssetRegistry.SetInstance(data.assetPath, geometry);
-  return geometry;
-}
-async function deserializeTexture(data) {
-  const bytes = await Assets.Load(data.assetPath, "binary");
-  const texture = await Texture.LoadBlob(new Blob([bytes]), data.format, {
-    name: data.name,
-    generateMips: data.generateMips
-  });
-  texture.assetPath = data.assetPath;
-  return texture;
-}
-const textureFields = ["albedoMap", "normalMap", "armMap", "heightMap", "emissiveMap"];
-const scalarFields = ["roughness", "metalness", "doubleSided", "alphaCutoff", "unlit", "wireframe", "isSkinned", "isDeferred"];
-async function deserializePBRParams(data) {
-  const params = {};
-  const p = data?.params ?? {};
-  for (const field of scalarFields) {
-    if (p[field] !== void 0) params[field] = p[field];
-  }
-  if (p.albedoColor) params.albedoColor = deserializeColor(p.albedoColor);
-  if (p.emissiveColor) params.emissiveColor = deserializeColor(p.emissiveColor);
-  if (p.repeat) params.repeat = deserializeVector2(p.repeat);
-  if (p.offset) params.offset = deserializeVector2(p.offset);
-  for (const field of textureFields) {
-    if (p[field]) params[field] = await deserializeTexture(p[field]);
-  }
-  return params;
-}
-async function deserializePBRMaterial(data) {
-  const params = await deserializePBRParams(data);
-  return new PBRMaterial(params);
-}
-async function deserializeMaterialData(material, data) {
-  if (data.params) {
-    material.params.isDeferred = data.params.isDeferred;
-  }
-}
-async function deserializeMaterial(data) {
-  if (data.assetPath) {
-    const cached = AssetRegistry.GetInstance(data.assetPath);
-    if (cached) return cached;
-    const json = await Assets.Load(data.assetPath, "json");
-    const materialType = json?.type ?? data.type;
-    const material2 = materialType === PBRMaterial.type ? await deserializePBRMaterial(json) : GPU.Material.Create(materialType);
-    material2.assetPath = data.assetPath;
-    if (!(material2 instanceof PBRMaterial)) {
-      await deserializeMaterialData(material2, json);
+  const ext = assetPath.slice(assetPath.lastIndexOf(".") + 1);
+  if (ext === "geometry") {
+    const json = await Assets.Load(assetPath, "json");
+    const geometry = new Geometry();
+    geometry.id = json.id;
+    geometry.name = json.name;
+    geometry.assetPath = json.assetPath;
+    for (const attribute of json.attributes) {
+      geometry.attributes.set(attribute.name, deserializeAttribute(attribute));
     }
-    AssetRegistry.SetInstance(data.assetPath, material2);
-    return material2;
+    if (json.index) geometry.index = deserializeAttribute(json.index);
+    AssetRegistry.SetInstance(assetPath, geometry);
+    return geometry;
   }
-  const material = data?.type === PBRMaterial.type ? await deserializePBRMaterial(data) : GPU.Material.Create(data.type);
-  if (!(material instanceof PBRMaterial)) {
-    await deserializeMaterialData(material, data);
-  }
-  return material;
-}
-function deserializeValue(target, data) {
-  if (typeof data === "boolean" || typeof data === "number" || typeof data === "string") return data;
-  if (target instanceof Float32Array) return new Float32Array(data);
-  if (target instanceof Array) return data;
-  if (target instanceof Mathf.Vector3) {
-    deserializeVector3(data, target);
-    return target;
-  }
-  if (target instanceof Mathf.Vector2) {
-    deserializeVector2(data, target);
-    return target;
-  }
-  if (target instanceof Mathf.Color) {
-    deserializeColor(data, target);
-    return target;
-  }
-  if (target instanceof Mathf.Quaternion) {
-    deserializeQuaternion(data, target);
-    return target;
-  }
-  throw Error(`Could not deserialize value: ${data}`);
-}
-const deferredRefs = [];
-const idMap = /* @__PURE__ */ new Map();
-async function deserializeComponentFields(component, data) {
-  if (component instanceof Components.Renderable) {
-    await deserializeRenderable(component, data);
-    return;
-  }
-  if (component instanceof Components.Animator) {
-    await deserializeAnimatorFields(component, data);
-    return;
-  }
-  for (const property in data) {
-    if (property === "type" || property === "id" || property === "name" || property === "assetPath") continue;
-    const value = data[property];
-    if (value && typeof value === "object" && value.__ref === "GameObject") {
-      deferredRefs.push({ component, property, id: value.id });
-      continue;
+  if (ext === "material") {
+    const json = await Assets.Load(assetPath, "json");
+    const materialType = json?.type;
+    const material = materialType === PBRMaterial.type ? new PBRMaterial() : GPU.Material.Create(materialType);
+    material.assetPath = assetPath;
+    await Deserializer.deserializeFields(material.params, json?.params ?? {});
+    if (material.pendingShaderCreation) {
+      await material.pendingShaderCreation;
+      material.params.roughness = material.params.roughness;
     }
-    if (component[property] === void 0) continue;
-    component[property] = deserializeValue(component[property], value);
+    AssetRegistry.SetInstance(assetPath, material);
+    return material;
   }
-}
-function resolveDeferredRefs() {
-  for (const ref of deferredRefs) {
-    ref.component[ref.property] = idMap.get(ref.id) ?? null;
+  if (ext === "png" || ext === "jpg" || ext === "jpeg") {
+    const bytes = await Assets.Load(assetPath, "binary");
+    const texture = await Texture.LoadBlob(new Blob([bytes]), data?.format, {
+      name: data?.name,
+      generateMips: data?.generateMips
+    });
+    texture.assetPath = assetPath;
+    AssetRegistry.SetInstance(assetPath, texture);
+    return texture;
   }
-  deferredRefs.length = 0;
-  idMap.clear();
-}
-function deserializeTransform(transform, data) {
-  if (!data) return;
-  if (data.localPosition) deserializeVector3(data.localPosition, transform.localPosition);
-  if (data.localRotation) deserializeQuaternion(data.localRotation, transform.localRotation);
-  if (data.scale) deserializeVector3(data.scale, transform.scale);
-}
-async function deserializeRenderable(renderable, data) {
-  renderable.enableShadows = data.enableShadows;
-  renderable.geometry = await deserializeGeometryRef(data.geometry);
-  renderable.material = await deserializeMaterial(data.material);
-}
-async function deserializeAnimatorFields(animator, data) {
-  if (data.assetPath) {
-    animator.assetPath = data.assetPath;
-    const cached = AssetRegistry.GetInstance(data.assetPath);
-    if (cached) {
-      animator.clips = cached.clips ?? [];
-      animator.tracksData = cached.tracks ?? cached.tracksData ?? {};
-      return;
-    }
-    const json = await Assets.Load(data.assetPath, "json");
-    animator.clips = json.clips ?? [];
-    animator.tracksData = json.tracks ?? {};
-    AssetRegistry.SetInstance(data.assetPath, json);
-    return;
+  if (ext === "ts") {
+    return LoadScript(assetPath);
   }
-  animator.clips = data.clips ?? [];
-  animator.tracksData = data.tracks ?? {};
-}
-async function instantiatePrefab(scene, data, parent) {
-  const gameObject = new GameObject(scene);
-  if (data.id) idMap.set(data.id, gameObject);
-  gameObject.enabled = false;
-  if (parent) gameObject.transform.parent = parent;
-  if (data.assetPath && data.components.length === 0) {
-    gameObject.assetPath = data.assetPath;
-    let prefabData = AssetRegistry.GetInstance(data.assetPath);
-    if (!prefabData) {
-      const json = await Assets.Load(data.assetPath, "json");
-      prefabData = Prefab.Deserialize(json);
-      AssetRegistry.SetInstance(data.assetPath, prefabData);
-    }
-    gameObject.name = data.name;
-    await deserializeGameObjectFromPrefab(gameObject, prefabData);
-    gameObject.assetPath = data.assetPath;
-    deserializeTransform(gameObject.transform, data.transform);
-    if (!parent) gameObject.enabled = true;
-    return gameObject;
-  }
-  await deserializeGameObjectFromPrefab(gameObject, data);
-  if (!parent) gameObject.enabled = true;
-  return gameObject;
-}
-async function deserializeGameObjectFromPrefab(gameObject, data) {
-  gameObject.name = data.name;
-  deserializeTransform(gameObject.transform, data.transform);
-  const componentInstances = [];
-  for (const component of data.components) {
-    if (component.assetPath && !Component$1.Registry.get(component.type)) {
-      await LoadScript(component.assetPath);
-    }
-    const componentClass = Component$1.Registry.get(component.type);
-    if (!componentClass) throw Error(`Component ${component.type} not found in component registry.`);
-    const instance = gameObject.AddComponent(componentClass);
-    componentInstances.push(instance);
-  }
-  for (let i = 0; i < data.components.length; i++) {
-    await deserializeComponentFields(componentInstances[i], data.components[i]);
-  }
-  for (const childData of data.children) {
-    await instantiatePrefab(gameObject.scene, childData, gameObject.transform);
-  }
-}
-async function deserializeScene(scene, data) {
-  for (const serializedGameObject of data.gameObjects) {
-    await instantiatePrefab(scene, Prefab.Deserialize(serializedGameObject));
-  }
-  resolveDeferredRefs();
-  let firstCamera = null;
-  for (const gameObject of scene.GetGameObjects()) {
-    for (const component of gameObject.GetComponents(Components.Camera)) {
-      if (!firstCamera) firstCamera = component;
-      if (component.id === data.mainCamera) {
-        Components.Camera.mainCamera = component;
-        return;
-      }
-    }
-  }
-  if (firstCamera) Components.Camera.mainCamera = firstCamera;
-}
+  return Assets.Load(assetPath, "json");
+};
 
 class TridentAPI {
   currentScene;
+  serializer = Serializer;
+  deserializer = Deserializer;
   createRenderer(canvas) {
     Renderer.Create(canvas, "webgpu");
   }
@@ -3342,10 +2944,10 @@ class TridentAPI {
     return new Prefab();
   }
   async deserializeGeometry(serialized) {
-    return deserializeGeometryRef(serialized);
+    return Deserializer.Load(serialized.assetPath);
   }
   async deserializeMaterial(serialized) {
-    return deserializeMaterial(serialized);
+    return Deserializer.Load(serialized.assetPath);
   }
   deserializePrefab(serialized) {
     return Prefab.Deserialize(serialized);
@@ -4395,15 +3997,11 @@ async function LoadFile(path, file, engineAPI) {
     const text = await data.text();
     return Prefab.Deserialize(JSON.parse(text));
   } else if (extension === "geometry") {
-    const data = await file.getFile();
-    const text = await data.text();
-    const geometry = await deserializeGeometryRef(JSON.parse(text));
+    const geometry = await Deserializer.Load(path);
     geometry.assetPath = path;
     return geometry;
   } else if (extension === "material") {
-    const data = await file.getFile();
-    const text = await data.text();
-    const material = await deserializeMaterial(JSON.parse(text));
+    const material = await Deserializer.Load(path);
     material.assetPath = path;
     return material;
   } else if (extension === "png" || extension === "jpg") {
@@ -4438,8 +4036,8 @@ async function CreateFolder(currentPath) {
 async function CreateMaterial(engineAPI, currentPath) {
   const material = engineAPI.createPBRMaterial();
   material.assetPath = `${currentPath}/New Material.material`;
-  const materialSerialized = serializeMaterialAsset(material);
-  await SaveToFile(material.assetPath, new Blob([JSON.stringify(materialSerialized)]));
+  const ctor = material.constructor;
+  await SaveToFile(material.assetPath, new Blob([JSON.stringify({ type: ctor.type, ...Serializer.serializeFields(material) })]));
 }
 
 const DefaultScript = `
@@ -4476,7 +4074,7 @@ async function DeleteAsset(selected) {
 async function SavePrefab(baseDir, gameObject) {
   const rootName = gameObject.name;
   const prefabName = rootName && rootName !== "" ? `${rootName}.prefab` : "Untitled.prefab";
-  const prefab = serializeGameObject(gameObject);
+  const prefab = Serializer.serializeGameObject(gameObject);
   await SaveToFile(`${baseDir}/${prefabName}`, new Blob([JSON.stringify(prefab)]));
 }
 
@@ -4500,7 +4098,8 @@ async function SaveGameObjectAsAsset(baseDir, gameObject) {
         }
         const params = material?.params;
         if (params) {
-          for (const texName of ["albedoMap", "normalMap", "armMap", "heightMap", "emissiveMap"]) {
+          for (const { name: texName, type } of GetSerializedFields(params)) {
+            if (type !== Texture) continue;
             const tex = params[texName];
             if (tex && !tex.assetPath) {
               const rawName = typeof tex.name === "string" ? tex.name.trim() : "";
@@ -4527,7 +4126,7 @@ async function SaveGameObjectAsAsset(baseDir, gameObject) {
   };
   walkAndAssignPaths(gameObject);
   await FileBrowser.mkdir(fullAssetDir);
-  const prefab = serializeGameObject(gameObject);
+  const prefab = Serializer.serializeGameObject(gameObject);
   const prefabName = rootName && rootName !== "" ? `${rootName}.prefab` : "Untitled.prefab";
   SaveToFile(`${fullAssetDir}/${prefabName}`, new Blob([JSON.stringify(prefab)]));
   const saved = /* @__PURE__ */ new Set();
@@ -4538,13 +4137,14 @@ async function SaveGameObjectAsAsset(baseDir, gameObject) {
         const geometry = renderable.geometry;
         if (geometry && geometry.assetPath && !saved.has(geometry.assetPath)) {
           saved.add(geometry.assetPath);
-          SaveToFile(geometry.assetPath, new Blob([JSON.stringify(serializeGeometryAsset(geometry))]));
+          SaveToFile(geometry.assetPath, new Blob([JSON.stringify(Serializer.serializeFields(geometry))]));
         }
         const material = renderable.material;
         if (material && material.assetPath && !saved.has(material.assetPath)) {
           const params = material.params;
           if (params) {
-            for (const texName of ["albedoMap", "normalMap", "armMap", "heightMap", "emissiveMap"]) {
+            for (const { name: texName, type } of GetSerializedFields(params)) {
+              if (type !== Texture) continue;
               const tex = params[texName];
               if (tex && tex.assetPath && !tex.blob) {
                 console.warn(`Skipping texture without source blob: ${tex.assetPath}`);
@@ -4553,9 +4153,11 @@ async function SaveGameObjectAsAsset(baseDir, gameObject) {
             }
           }
           saved.add(material.assetPath);
-          SaveToFile(material.assetPath, new Blob([JSON.stringify(serializeMaterialAsset(material))]));
+          const ctor = material.constructor;
+          SaveToFile(material.assetPath, new Blob([JSON.stringify({ type: ctor.type, ...Serializer.serializeFields(material) })]));
           if (params) {
-            for (const texName of ["albedoMap", "normalMap", "armMap", "heightMap", "emissiveMap"]) {
+            for (const { name: texName, type } of GetSerializedFields(params)) {
+              if (type !== Texture) continue;
               const tex = params[texName];
               if (tex && tex.blob && tex.assetPath && !saved.has(tex.assetPath)) {
                 saved.add(tex.assetPath);
@@ -4565,12 +4167,11 @@ async function SaveGameObjectAsAsset(baseDir, gameObject) {
           }
         }
       }
-      if (component.constructor?.type === IComponents.Animator.type) {
-        const animator = component;
-        if (animator.assetPath && !saved.has(animator.assetPath)) {
-          saved.add(animator.assetPath);
-          SaveToFile(animator.assetPath, new Blob([JSON.stringify(serializeAnimatorAsset(animator))]));
-        }
+      const comp = component;
+      if (comp.assetPath && !saved.has(comp.assetPath) && (comp.constructor?.type !== IComponents.Mesh.type && comp.constructor?.type !== IComponents.SkinnedMesh.type)) {
+        saved.add(comp.assetPath);
+        const ctor = comp.constructor;
+        SaveToFile(comp.assetPath, new Blob([JSON.stringify({ type: ctor.type, ...Serializer.serializeFields(comp) })]));
       }
     }
     for (const child of go.transform.children) {
@@ -4584,8 +4185,8 @@ async function SaveMaterial(material) {
   if (!material.assetPath) {
     throw Error("SaveMaterial: material doesn't have an assetPath.");
   }
-  const materialSerialized = serializeMaterialAsset(material);
-  await SaveToFile(material.assetPath, new Blob([JSON.stringify(materialSerialized)]));
+  const ctor = material.constructor;
+  await SaveToFile(material.assetPath, new Blob([JSON.stringify({ type: ctor.type, ...Serializer.serializeFields(material) })]));
 }
 
 var ITreeMapType = /* @__PURE__ */ ((ITreeMapType2) => {
@@ -4688,7 +4289,7 @@ class LayoutAssets extends Component {
     }
     if (item.data.instance.type === Scene.type) {
       this.props.engineAPI.currentScene.Clear();
-      await deserializeScene(this.props.engineAPI.currentScene, item.data.instance);
+      await this.props.engineAPI.deserializer.deserializeScene(this.props.engineAPI.currentScene, item.data.instance);
       EventSystem.emit(SceneEvents.Loaded, item.data.instance);
     }
   }
@@ -4869,7 +4470,7 @@ class LayoutHierarchy extends Component {
     const extendedEvent = ExtendedDataTransfer.data;
     const instance = extendedEvent;
     if (instance && instance instanceof Prefab) {
-      const gameObject = await instantiatePrefab(this.props.engineAPI.currentScene, instance);
+      const gameObject = await this.props.engineAPI.deserializer.deserializeGameObject(this.props.engineAPI.currentScene, instance);
       this.selectGameObject(gameObject);
       ExtendedDataTransfer.data = void 0;
     } else {
@@ -4957,9 +4558,9 @@ class LayoutHierarchy extends Component {
   }
   render() {
     if (!this.props.engineAPI.currentScene) return;
-    this.buildTreeFromGameObjects(this.props.engineAPI.currentScene.gameObjects);
+    console.log(this.props.engineAPI.currentScene);
     const rootGameObjects = this.props.engineAPI.currentScene.gameObjects.filter((go) => !go.transform.parent);
-    return /* @__PURE__ */ createElement("div", { class: "Layout" }, /* @__PURE__ */ createElement("div", { class: "header" }, /* @__PURE__ */ createElement("div", { class: "title" }, "Sample scene"), /* @__PURE__ */ createElement("div", { class: "right-action" }, /* @__PURE__ */ createElement("button", { onClick: (event) => {
+    return /* @__PURE__ */ createElement("div", { class: "Layout" }, /* @__PURE__ */ createElement("div", { class: "header" }, /* @__PURE__ */ createElement("div", { class: "title" }, this.props.engineAPI.currentScene.name || "Untitled scene"), /* @__PURE__ */ createElement("div", { class: "right-action" }, /* @__PURE__ */ createElement("button", { onClick: (event) => {
       this.setState({ ...this.state, headerMenuOpen: !this.state.headerMenuOpen });
     } }, "\u22EE"), /* @__PURE__ */ createElement(FloatingMenu, { visible: this.state.headerMenuOpen, onClose: () => this.setState({ ...this.state, headerMenuOpen: false }) }, /* @__PURE__ */ createElement(Tree, null, /* @__PURE__ */ createElement(TreeItem, { name: "Create Empty", onPointerDown: () => this.createEmptyGameObject() }), /* @__PURE__ */ createElement(TreeItem, { name: "Delete", onPointerDown: () => this.deleteGameObject() }), /* @__PURE__ */ createElement(TreeFolder, { name: "3D Object" }, /* @__PURE__ */ createElement(TreeItem, { name: "Cube", onPointerDown: () => this.createPrimitive("Cube") }), /* @__PURE__ */ createElement(TreeItem, { name: "Capsule", onPointerDown: () => this.createPrimitive("Capsule") }), /* @__PURE__ */ createElement(TreeItem, { name: "Plane", onPointerDown: () => this.createPrimitive("Plane") }), /* @__PURE__ */ createElement(TreeItem, { name: "Sphere", onPointerDown: () => this.createPrimitive("Sphere") })), /* @__PURE__ */ createElement(TreeFolder, { name: "Lights" }, /* @__PURE__ */ createElement(TreeItem, { name: "Directional Light", onPointerDown: () => this.createLight("Directional") }), /* @__PURE__ */ createElement(TreeItem, { name: "Point Light", onPointerDown: () => this.createLight("Point") }), /* @__PURE__ */ createElement(TreeItem, { name: "Spot Light", onPointerDown: () => this.createLight("Spot") })))))), /* @__PURE__ */ createElement(
       "div",
@@ -5704,13 +5305,13 @@ class LayoutTopbar extends Component {
     this.setState({ fileMenuOpen: !this.state.fileMenuOpen });
   }
   async saveProject() {
-    const serializedScene = serializeScene(this.props.engineAPI.currentScene);
+    const serializedScene = this.props.engineAPI.serializer.serializeScene(this.props.engineAPI.currentScene);
     const handle = await FileBrowser.fopen(`${this.props.engineAPI.currentScene.name}.scene`, MODE.W);
     FileBrowser.fwrite(handle, JSON.stringify(serializedScene));
     this.setState({ fileMenuOpen: !this.state.fileMenuOpen });
   }
   async test() {
-    const serializedScene = serializeScene(this.props.engineAPI.currentScene);
+    const serializedScene = this.props.engineAPI.serializer.serializeScene(this.props.engineAPI.currentScene);
     console.log(JSON.stringify(serializedScene));
     this.setState({ fileMenuOpen: !this.state.fileMenuOpen });
   }

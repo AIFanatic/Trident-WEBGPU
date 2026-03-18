@@ -362,6 +362,10 @@ function SerializeField(first, second) {
     });
   };
 }
+function GetSerializedFields(classInstance) {
+  const proto = Object.getPrototypeOf(classInstance);
+  return proto[SERIAL_FIELDS] ?? [];
+}
 
 class Pool {
   items = [];
@@ -397,6 +401,7 @@ class Pool {
 var index$3 = /*#__PURE__*/Object.freeze({
     __proto__: null,
     CRC32: CRC32,
+    GetSerializedFields: GetSerializedFields,
     Pool: Pool,
     SerializeField: SerializeField,
     StringFindAllBetween: StringFindAllBetween,
@@ -2543,22 +2548,53 @@ var index$2 = /*#__PURE__*/Object.freeze({
     Vector4: Vector4
 });
 
-class GeometryAttribute {
-  type = "@trident/core/Geometry/GeometryAttribute";
-  array;
-  buffer;
-  bufferType;
-  currentOffset;
-  // This can be used 
-  currentSize;
-  count;
-  _crc;
-  get crc() {
-    if (this._crc) return this._crc;
-    this._crc = CRC32.forBytes(new Uint8Array(this.array));
-    return this._crc;
+var __create$7 = Object.create;
+var __defProp$7 = Object.defineProperty;
+var __knownSymbol$7 = (name, symbol) => (symbol = Symbol[name]) ? symbol : Symbol.for("Symbol." + name);
+var __typeError$7 = (msg) => {
+  throw TypeError(msg);
+};
+var __defNormalProp$7 = (obj, key, value) => key in obj ? __defProp$7(obj, key, { enumerable: true, configurable: true, writable: true, value }) : obj[key] = value;
+var __decoratorStart$7 = (base) => [, , , __create$7(base?.[__knownSymbol$7("metadata")] ?? null)];
+var __decoratorStrings$7 = ["class", "method", "getter", "setter", "accessor", "field", "value", "get", "set"];
+var __expectFn$7 = (fn) => fn !== void 0 && typeof fn !== "function" ? __typeError$7("Function expected") : fn;
+var __decoratorContext$7 = (kind, name, done, metadata, fns) => ({ kind: __decoratorStrings$7[kind], name, metadata, addInitializer: (fn) => done._ ? __typeError$7("Already initialized") : fns.push(__expectFn$7(fn || null)) });
+var __decoratorMetadata$7 = (array, target) => __defNormalProp$7(target, __knownSymbol$7("metadata"), array[3]);
+var __runInitializers$7 = (array, flags, self, value) => {
+  for (var i = 0, fns = array[flags >> 1], n = fns && fns.length; i < n; i++) flags & 1 ? fns[i].call(self) : value = fns[i].call(self, value);
+  return value;
+};
+var __decorateElement$7 = (array, flags, name, decorators, target, extra) => {
+  var it, done, ctx, access, k = flags & 7, s = false, p = false;
+  var j = array.length + 1 ;
+  var initializers = (array[j - 1] = []), extraInitializers = array[j] || (array[j] = []);
+  ((target = target.prototype), k < 5);
+  for (var i = decorators.length - 1; i >= 0; i--) {
+    ctx = __decoratorContext$7(k, name, done = {}, array[3], extraInitializers);
+    {
+      ctx.static = s, ctx.private = p, access = ctx.access = { has: (x) => name in x };
+      access.get = (x) => x[name];
+      access.set = (x, y) => x[name] = y;
+    }
+    it = (0, decorators[i])(void 0  , ctx), done._ = 1;
+    __expectFn$7(it) && (initializers.unshift(it) );
   }
+  return target;
+};
+var __publicField$7 = (obj, key, value) => __defNormalProp$7(obj, typeof key !== "symbol" ? key + "" : key, value);
+var _currentSize_dec, _currentOffset_dec, _arrayType_dec, _array_dec, _type_dec, _init$7, _stride_dec, _a$7, _init2$3, _attributes_dec, _index_dec$1, _name_dec, _id_dec, _assetPath_dec$2, _init3$2;
+_type_dec = [SerializeField], _array_dec = [SerializeField], _arrayType_dec = [SerializeField], _currentOffset_dec = [SerializeField], _currentSize_dec = [SerializeField];
+class GeometryAttribute {
   constructor(array, type) {
+    __publicField$7(this, "type", __runInitializers$7(_init$7, 8, this, "@trident/core/Geometry/GeometryAttribute")), __runInitializers$7(_init$7, 11, this);
+    __publicField$7(this, "array", __runInitializers$7(_init$7, 12, this)), __runInitializers$7(_init$7, 15, this);
+    __publicField$7(this, "arrayType", __runInitializers$7(_init$7, 16, this)), __runInitializers$7(_init$7, 19, this);
+    __publicField$7(this, "buffer");
+    __publicField$7(this, "bufferType");
+    __publicField$7(this, "currentOffset", __runInitializers$7(_init$7, 20, this)), __runInitializers$7(_init$7, 23, this);
+    __publicField$7(this, "currentSize", __runInitializers$7(_init$7, 24, this)), __runInitializers$7(_init$7, 27, this);
+    __publicField$7(this, "count");
+    __publicField$7(this, "_crc");
     if (array.length === 0) throw Error("GeometryAttribute data is empty");
     let bufferArray = array;
     let bufferSize = array.byteLength;
@@ -2583,6 +2619,12 @@ class GeometryAttribute {
     this.currentOffset = 0;
     this.currentSize = array.byteLength;
     this.count = array.length;
+    this.arrayType = array instanceof Uint32Array ? "uint32" : array instanceof Uint16Array ? "uint16" : array instanceof Uint8Array ? "uint8" : "float32";
+  }
+  get crc() {
+    if (this._crc) return this._crc;
+    this._crc = CRC32.forBytes(new Uint8Array(this.array));
+    return this._crc;
   }
   GetBuffer() {
     return this.buffer;
@@ -2591,19 +2633,27 @@ class GeometryAttribute {
     this.buffer.Destroy();
   }
 }
+_init$7 = __decoratorStart$7(null);
+__decorateElement$7(_init$7, 5, "type", _type_dec, GeometryAttribute);
+__decorateElement$7(_init$7, 5, "array", _array_dec, GeometryAttribute);
+__decorateElement$7(_init$7, 5, "arrayType", _arrayType_dec, GeometryAttribute);
+__decorateElement$7(_init$7, 5, "currentOffset", _currentOffset_dec, GeometryAttribute);
+__decorateElement$7(_init$7, 5, "currentSize", _currentSize_dec, GeometryAttribute);
+__decoratorMetadata$7(_init$7, GeometryAttribute);
 class VertexAttribute extends GeometryAttribute {
   type = "@trident/core/Geometry/VertexAttribute";
   constructor(array) {
     super(array, BufferType.VERTEX);
   }
 }
-class InterleavedVertexAttribute extends GeometryAttribute {
+const _InterleavedVertexAttribute = class _InterleavedVertexAttribute extends (_a$7 = GeometryAttribute, _stride_dec = [SerializeField], _a$7) {
   constructor(array, stride) {
     super(array, BufferType.VERTEX);
     this.array = array;
+    __publicField$7(this, "type", "@trident/core/Geometry/InterleavedVertexAttribute");
+    __publicField$7(this, "stride", __runInitializers$7(_init2$3, 8, this)), __runInitializers$7(_init2$3, 11, this);
     this.stride = stride;
   }
-  type = "@trident/core/Geometry/InterleavedVertexAttribute";
   static fromArrays(attributes, inputStrides, outputStrides) {
     function stridedCopy(target, values, offset2, inputStride, outputStride, interleavedStride2) {
       let writeIndex = offset2;
@@ -2632,9 +2682,13 @@ class InterleavedVertexAttribute extends GeometryAttribute {
       stridedCopy(interleavedArray, attribute, offset, inputStride, outputStride, interleavedStride);
       offset += outputStride;
     }
-    return new InterleavedVertexAttribute(interleavedArray, interleavedStride);
+    return new _InterleavedVertexAttribute(interleavedArray, interleavedStride);
   }
-}
+};
+_init2$3 = __decoratorStart$7(_a$7);
+__decorateElement$7(_init2$3, 5, "stride", _stride_dec, _InterleavedVertexAttribute);
+__decoratorMetadata$7(_init2$3, _InterleavedVertexAttribute);
+let InterleavedVertexAttribute = _InterleavedVertexAttribute;
 class IndexAttribute extends GeometryAttribute {
   type = "@trident/core/Geometry/IndexAttribute";
   format;
@@ -2643,13 +2697,16 @@ class IndexAttribute extends GeometryAttribute {
     this.format = array instanceof Uint32Array ? "uint32" : "uint16";
   }
 }
-class Geometry {
-  assetPath;
-  id = UUID();
-  name = "";
-  index;
-  attributes = /* @__PURE__ */ new Map();
-  _boundingVolume;
+_assetPath_dec$2 = [SerializeField], _id_dec = [SerializeField], _name_dec = [SerializeField], _index_dec$1 = [SerializeField], _attributes_dec = [SerializeField];
+const _Geometry = class _Geometry {
+  constructor() {
+    __publicField$7(this, "assetPath", __runInitializers$7(_init3$2, 8, this)), __runInitializers$7(_init3$2, 11, this);
+    __publicField$7(this, "id", __runInitializers$7(_init3$2, 12, this, UUID())), __runInitializers$7(_init3$2, 15, this);
+    __publicField$7(this, "name", __runInitializers$7(_init3$2, 16, this, "")), __runInitializers$7(_init3$2, 19, this);
+    __publicField$7(this, "index", __runInitializers$7(_init3$2, 20, this)), __runInitializers$7(_init3$2, 23, this);
+    __publicField$7(this, "attributes", __runInitializers$7(_init3$2, 24, this, /* @__PURE__ */ new Map())), __runInitializers$7(_init3$2, 27, this);
+    __publicField$7(this, "_boundingVolume");
+  }
   get boundingVolume() {
     const positions = this.attributes.get("position");
     if (!positions) throw Error("Geometry has no position attribute");
@@ -2662,7 +2719,7 @@ class Geometry {
     this._boundingVolume = BoundingVolume.FromVertices(positions.array);
   }
   Clone() {
-    const clone = new Geometry();
+    const clone = new _Geometry();
     for (const attribute of this.attributes) {
       clone.attributes.set(attribute[0], attribute[1]);
     }
@@ -2819,14 +2876,14 @@ class Geometry {
   // Interleaved not supported for now
   ToNonIndexed() {
     if (!this.attributes.has("position") || !this.index) throw Error("Cannot convert to non indexed without vertices and indices");
-    const geometry = new Geometry();
+    const geometry = new _Geometry();
     const indices = this.index.array;
     const positions = this.attributes.get("position")?.array;
     const normals = this.attributes.get("normal")?.array;
     const uvs = this.attributes.get("uv")?.array;
-    if (positions) geometry.attributes.set("position", new VertexAttribute(Geometry.ToNonIndexedAttribute(positions, indices, 3, 0, 3)));
-    if (normals) geometry.attributes.set("normal", new VertexAttribute(Geometry.ToNonIndexedAttribute(normals, indices, 3, 0, 3)));
-    if (uvs) geometry.attributes.set("uv", new VertexAttribute(Geometry.ToNonIndexedAttribute(uvs, indices, 2, 0, 2)));
+    if (positions) geometry.attributes.set("position", new VertexAttribute(_Geometry.ToNonIndexedAttribute(positions, indices, 3, 0, 3)));
+    if (normals) geometry.attributes.set("normal", new VertexAttribute(_Geometry.ToNonIndexedAttribute(normals, indices, 3, 0, 3)));
+    if (uvs) geometry.attributes.set("uv", new VertexAttribute(_Geometry.ToNonIndexedAttribute(uvs, indices, 2, 0, 2)));
     return geometry;
   }
   Destroy() {
@@ -2871,7 +2928,15 @@ class Geometry {
     if (!instance) throw Error("Capsule not registered as an asset");
     return instance;
   }
-}
+};
+_init3$2 = __decoratorStart$7(null);
+__decorateElement$7(_init3$2, 5, "assetPath", _assetPath_dec$2, _Geometry);
+__decorateElement$7(_init3$2, 5, "id", _id_dec, _Geometry);
+__decorateElement$7(_init3$2, 5, "name", _name_dec, _Geometry);
+__decorateElement$7(_init3$2, 5, "index", _index_dec$1, _Geometry);
+__decorateElement$7(_init3$2, 5, "attributes", _attributes_dec, _Geometry);
+__decoratorMetadata$7(_init3$2, _Geometry);
+let Geometry = _Geometry;
 EventSystem.on(RendererEvents.Created, (renderer) => {
   {
     const instancePath = "@builtin/geometry/cube";
@@ -4257,6 +4322,7 @@ class Component {
   enabled = true;
   hasStarted = false;
   name;
+  assetPath;
   gameObject;
   transform;
   static Registry = /* @__PURE__ */ new Map();
@@ -4726,7 +4792,7 @@ var __privateIn$1 = (member, obj) => Object(obj) !== obj ? __typeError$4('Cannot
 var __privateGet$1 = (obj, member, getter) => (__accessCheck$1(obj, member, "read from private field"), getter ? getter.call(obj) : member.get(obj));
 var __privateSet$1 = (obj, member, value, setter) => (__accessCheck$1(obj, member, "write to private field"), setter ? setter.call(obj, value) : member.set(obj, value), value);
 var __privateMethod$1 = (obj, member, method) => (__accessCheck$1(obj, member, "access private method"), method);
-var _castShadows_dec, _intensity_dec, _color_dec, _a$4, _init$4, _range_dec, _angle_dec, _b$1, _init2$1, _range_dec2, _c, _init3, _direction_dec, _d, _init4;
+var _castShadows_dec, _intensity_dec, _color_dec, _a$4, _init$4, _range_dec, _angle_dec, _b$1, _init2$2, _range_dec2, _c, _init3$1, _direction_dec, _d, _init4;
 class LightEvents {
   static Updated = (light) => {
   };
@@ -4759,7 +4825,7 @@ __publicField$4(Light, "type", "@trident/core/components/Light/Light");
 class SpotLight extends (_b$1 = Light, _angle_dec = [SerializeField], _range_dec = [SerializeField], _b$1) {
   constructor() {
     super(...arguments);
-    __runInitializers$4(_init2$1, 5, this);
+    __runInitializers$4(_init2$2, 5, this);
     __publicField$4(this, "direction", new Vector3(0, -1, 0));
     __publicField$4(this, "_angle", 1);
     __publicField$4(this, "_range", 10);
@@ -4788,15 +4854,15 @@ class SpotLight extends (_b$1 = Light, _angle_dec = [SerializeField], _range_dec
     this.UpdateLight();
   }
 }
-_init2$1 = __decoratorStart$4(_b$1);
-__decorateElement$4(_init2$1, 2, "angle", _angle_dec, SpotLight);
-__decorateElement$4(_init2$1, 2, "range", _range_dec, SpotLight);
-__decoratorMetadata$4(_init2$1, SpotLight);
+_init2$2 = __decoratorStart$4(_b$1);
+__decorateElement$4(_init2$2, 2, "angle", _angle_dec, SpotLight);
+__decorateElement$4(_init2$2, 2, "range", _range_dec, SpotLight);
+__decoratorMetadata$4(_init2$2, SpotLight);
 __publicField$4(SpotLight, "type", "@trident/core/components/Light/SpotLight");
 class PointLight extends (_c = Light, _range_dec2 = [SerializeField(Number)], _c) {
   constructor() {
     super(...arguments);
-    __runInitializers$4(_init3, 5, this);
+    __runInitializers$4(_init3$1, 5, this);
     __publicField$4(this, "_range", 10);
   }
   get range() {
@@ -4815,9 +4881,9 @@ class PointLight extends (_c = Light, _range_dec2 = [SerializeField(Number)], _c
     this.UpdateLight();
   }
 }
-_init3 = __decoratorStart$4(_c);
-__decorateElement$4(_init3, 2, "range", _range_dec2, PointLight);
-__decoratorMetadata$4(_init3, PointLight);
+_init3$1 = __decoratorStart$4(_c);
+__decorateElement$4(_init3$1, 2, "range", _range_dec2, PointLight);
+__decoratorMetadata$4(_init3$1, PointLight);
 __publicField$4(PointLight, "type", "@trident/core/components/Light/PointLight");
 class AreaLight extends Light {
   static type = "@trident/core/components/Light/AreaLight";
@@ -5345,28 +5411,28 @@ var __decorateElement$3 = (array, flags, name, decorators, target, extra) => {
   return target;
 };
 var __publicField$3 = (obj, key, value) => __defNormalProp$3(obj, typeof key !== "symbol" ? key + "" : key, value);
-var _isDeferred_dec, _isSkinned_dec, _wireframe_dec, _unlit_dec, _alphaCutoff_dec, _doubleSided_dec, _offset_dec, _repeat_dec, _emissiveMap_dec, _armMap_dec, _heightMap_dec, _normalMap_dec, _albedoMap_dec, _metalness_dec, _roughness_dec, _emissiveColor_dec, _albedoColor_dec, _a$3, _init$3;
+var _isDeferred_dec, _init$3, _params_dec, _assetPath_dec$1, _init2$1, _isDeferred_dec2, _isSkinned_dec, _wireframe_dec, _unlit_dec, _alphaCutoff_dec, _doubleSided_dec, _offset_dec, _repeat_dec, _emissiveMap_dec, _armMap_dec, _heightMap_dec, _normalMap_dec, _albedoMap_dec, _metalness_dec, _roughness_dec, _emissiveColor_dec, _albedoColor_dec, _a$3, _init3;
 const MaterialPool = new Pool();
+_isDeferred_dec = [SerializeField];
 class MaterialParams {
-  isDeferred = false;
-  shader;
-  materialID;
+  constructor() {
+    __publicField$3(this, "isDeferred", __runInitializers$3(_init$3, 8, this, false)), __runInitializers$3(_init$3, 11, this);
+    __publicField$3(this, "shader");
+    __publicField$3(this, "materialID");
+  }
 }
-class Material {
-  name = "Material";
-  id = UUID();
-  static type = "@trident/core/renderer/Material";
-  assetPath;
-  _shader;
-  get shader() {
-    return this._shader;
-  }
-  set shader(shader) {
-    this._shader = shader;
-  }
-  params;
-  materialId;
+_init$3 = __decoratorStart$3(null);
+__decorateElement$3(_init$3, 5, "isDeferred", _isDeferred_dec, MaterialParams);
+__decoratorMetadata$3(_init$3, MaterialParams);
+_assetPath_dec$1 = [SerializeField], _params_dec = [SerializeField];
+const _Material = class _Material {
   constructor(params) {
+    __publicField$3(this, "name", "Material");
+    __publicField$3(this, "id", UUID());
+    __publicField$3(this, "assetPath", __runInitializers$3(_init2$1, 8, this)), __runInitializers$3(_init2$1, 11, this);
+    __publicField$3(this, "_shader");
+    __publicField$3(this, "params", __runInitializers$3(_init2$1, 12, this)), __runInitializers$3(_init2$1, 15, this);
+    __publicField$3(this, "materialId");
     this.materialId = MaterialPool.add(this);
     const defaultParams = {
       isDeferred: false,
@@ -5376,36 +5442,48 @@ class Material {
     this.params = Object.assign({}, defaultParams, params);
     this._shader = this.params.shader;
   }
+  get shader() {
+    return this._shader;
+  }
+  set shader(shader) {
+    this._shader = shader;
+  }
   Destroy() {
     if (this._shader) this._shader.Destroy();
     MaterialPool.remove(this.materialId);
   }
   static Create(type, params) {
     if (type === PBRMaterial.type) return new PBRMaterial(params);
-    return new Material(params);
+    return new _Material(params);
   }
-}
-const _PBRMaterialParams = class _PBRMaterialParams extends (_a$3 = MaterialParams, _albedoColor_dec = [SerializeField], _emissiveColor_dec = [SerializeField], _roughness_dec = [SerializeField], _metalness_dec = [SerializeField], _albedoMap_dec = [SerializeField(Texture)], _normalMap_dec = [SerializeField(Texture)], _heightMap_dec = [SerializeField(Texture)], _armMap_dec = [SerializeField(Texture)], _emissiveMap_dec = [SerializeField(Texture)], _repeat_dec = [SerializeField], _offset_dec = [SerializeField], _doubleSided_dec = [SerializeField], _alphaCutoff_dec = [SerializeField], _unlit_dec = [SerializeField], _wireframe_dec = [SerializeField], _isSkinned_dec = [SerializeField], _isDeferred_dec = [SerializeField], _a$3) {
+};
+_init2$1 = __decoratorStart$3(null);
+__decorateElement$3(_init2$1, 5, "assetPath", _assetPath_dec$1, _Material);
+__decorateElement$3(_init2$1, 5, "params", _params_dec, _Material);
+__decoratorMetadata$3(_init2$1, _Material);
+__publicField$3(_Material, "type", "@trident/core/renderer/Material");
+let Material = _Material;
+const _PBRMaterialParams = class _PBRMaterialParams extends (_a$3 = MaterialParams, _albedoColor_dec = [SerializeField], _emissiveColor_dec = [SerializeField], _roughness_dec = [SerializeField], _metalness_dec = [SerializeField], _albedoMap_dec = [SerializeField(Texture)], _normalMap_dec = [SerializeField(Texture)], _heightMap_dec = [SerializeField(Texture)], _armMap_dec = [SerializeField(Texture)], _emissiveMap_dec = [SerializeField(Texture)], _repeat_dec = [SerializeField], _offset_dec = [SerializeField], _doubleSided_dec = [SerializeField], _alphaCutoff_dec = [SerializeField], _unlit_dec = [SerializeField], _wireframe_dec = [SerializeField], _isSkinned_dec = [SerializeField], _isDeferred_dec2 = [SerializeField], _a$3) {
   // 1x1 (255, roughness_default, 0) or just white
   constructor() {
     super();
-    __publicField$3(this, "albedoColor", __runInitializers$3(_init$3, 8, this, new Color(1, 1, 1, 1))), __runInitializers$3(_init$3, 11, this);
-    __publicField$3(this, "emissiveColor", __runInitializers$3(_init$3, 12, this, new Color(0, 0, 0, 0))), __runInitializers$3(_init$3, 15, this);
-    __publicField$3(this, "roughness", __runInitializers$3(_init$3, 16, this, 1)), __runInitializers$3(_init$3, 19, this);
-    __publicField$3(this, "metalness", __runInitializers$3(_init$3, 20, this, 0)), __runInitializers$3(_init$3, 23, this);
-    __publicField$3(this, "albedoMap", __runInitializers$3(_init$3, 24, this)), __runInitializers$3(_init$3, 27, this);
-    __publicField$3(this, "normalMap", __runInitializers$3(_init$3, 28, this)), __runInitializers$3(_init$3, 31, this);
-    __publicField$3(this, "heightMap", __runInitializers$3(_init$3, 32, this)), __runInitializers$3(_init$3, 35, this);
-    __publicField$3(this, "armMap", __runInitializers$3(_init$3, 36, this)), __runInitializers$3(_init$3, 39, this);
-    __publicField$3(this, "emissiveMap", __runInitializers$3(_init$3, 40, this)), __runInitializers$3(_init$3, 43, this);
-    __publicField$3(this, "repeat", __runInitializers$3(_init$3, 44, this, new Vector2(1, 1))), __runInitializers$3(_init$3, 47, this);
-    __publicField$3(this, "offset", __runInitializers$3(_init$3, 48, this, new Vector2(0, 0))), __runInitializers$3(_init$3, 51, this);
-    __publicField$3(this, "doubleSided", __runInitializers$3(_init$3, 52, this, false)), __runInitializers$3(_init$3, 55, this);
-    __publicField$3(this, "alphaCutoff", __runInitializers$3(_init$3, 56, this, 0.5)), __runInitializers$3(_init$3, 59, this);
-    __publicField$3(this, "unlit", __runInitializers$3(_init$3, 60, this, false)), __runInitializers$3(_init$3, 63, this);
-    __publicField$3(this, "wireframe", __runInitializers$3(_init$3, 64, this, false)), __runInitializers$3(_init$3, 67, this);
-    __publicField$3(this, "isSkinned", __runInitializers$3(_init$3, 68, this, false)), __runInitializers$3(_init$3, 71, this);
-    __publicField$3(this, "isDeferred", __runInitializers$3(_init$3, 72, this, true)), __runInitializers$3(_init$3, 75, this);
+    __publicField$3(this, "albedoColor", __runInitializers$3(_init3, 8, this, new Color(1, 1, 1, 1))), __runInitializers$3(_init3, 11, this);
+    __publicField$3(this, "emissiveColor", __runInitializers$3(_init3, 12, this, new Color(0, 0, 0, 0))), __runInitializers$3(_init3, 15, this);
+    __publicField$3(this, "roughness", __runInitializers$3(_init3, 16, this, 1)), __runInitializers$3(_init3, 19, this);
+    __publicField$3(this, "metalness", __runInitializers$3(_init3, 20, this, 0)), __runInitializers$3(_init3, 23, this);
+    __publicField$3(this, "albedoMap", __runInitializers$3(_init3, 24, this)), __runInitializers$3(_init3, 27, this);
+    __publicField$3(this, "normalMap", __runInitializers$3(_init3, 28, this)), __runInitializers$3(_init3, 31, this);
+    __publicField$3(this, "heightMap", __runInitializers$3(_init3, 32, this)), __runInitializers$3(_init3, 35, this);
+    __publicField$3(this, "armMap", __runInitializers$3(_init3, 36, this)), __runInitializers$3(_init3, 39, this);
+    __publicField$3(this, "emissiveMap", __runInitializers$3(_init3, 40, this)), __runInitializers$3(_init3, 43, this);
+    __publicField$3(this, "repeat", __runInitializers$3(_init3, 44, this, new Vector2(1, 1))), __runInitializers$3(_init3, 47, this);
+    __publicField$3(this, "offset", __runInitializers$3(_init3, 48, this, new Vector2(0, 0))), __runInitializers$3(_init3, 51, this);
+    __publicField$3(this, "doubleSided", __runInitializers$3(_init3, 52, this, false)), __runInitializers$3(_init3, 55, this);
+    __publicField$3(this, "alphaCutoff", __runInitializers$3(_init3, 56, this, 0.5)), __runInitializers$3(_init3, 59, this);
+    __publicField$3(this, "unlit", __runInitializers$3(_init3, 60, this, false)), __runInitializers$3(_init3, 63, this);
+    __publicField$3(this, "wireframe", __runInitializers$3(_init3, 64, this, false)), __runInitializers$3(_init3, 67, this);
+    __publicField$3(this, "isSkinned", __runInitializers$3(_init3, 68, this, false)), __runInitializers$3(_init3, 71, this);
+    __publicField$3(this, "isDeferred", __runInitializers$3(_init3, 72, this, true)), __runInitializers$3(_init3, 75, this);
     if (!_PBRMaterialParams.dummyAlbedo) _PBRMaterialParams.InitDummies();
     this.albedoMap = _PBRMaterialParams.dummyAlbedo;
     this.normalMap = _PBRMaterialParams.dummyNormal;
@@ -5424,25 +5502,25 @@ const _PBRMaterialParams = class _PBRMaterialParams extends (_a$3 = MaterialPara
     _PBRMaterialParams.dummyARM.SetData(new Uint8Array([255, 255, 255, 255]), 4);
   }
 };
-_init$3 = __decoratorStart$3(_a$3);
-__decorateElement$3(_init$3, 5, "albedoColor", _albedoColor_dec, _PBRMaterialParams);
-__decorateElement$3(_init$3, 5, "emissiveColor", _emissiveColor_dec, _PBRMaterialParams);
-__decorateElement$3(_init$3, 5, "roughness", _roughness_dec, _PBRMaterialParams);
-__decorateElement$3(_init$3, 5, "metalness", _metalness_dec, _PBRMaterialParams);
-__decorateElement$3(_init$3, 5, "albedoMap", _albedoMap_dec, _PBRMaterialParams);
-__decorateElement$3(_init$3, 5, "normalMap", _normalMap_dec, _PBRMaterialParams);
-__decorateElement$3(_init$3, 5, "heightMap", _heightMap_dec, _PBRMaterialParams);
-__decorateElement$3(_init$3, 5, "armMap", _armMap_dec, _PBRMaterialParams);
-__decorateElement$3(_init$3, 5, "emissiveMap", _emissiveMap_dec, _PBRMaterialParams);
-__decorateElement$3(_init$3, 5, "repeat", _repeat_dec, _PBRMaterialParams);
-__decorateElement$3(_init$3, 5, "offset", _offset_dec, _PBRMaterialParams);
-__decorateElement$3(_init$3, 5, "doubleSided", _doubleSided_dec, _PBRMaterialParams);
-__decorateElement$3(_init$3, 5, "alphaCutoff", _alphaCutoff_dec, _PBRMaterialParams);
-__decorateElement$3(_init$3, 5, "unlit", _unlit_dec, _PBRMaterialParams);
-__decorateElement$3(_init$3, 5, "wireframe", _wireframe_dec, _PBRMaterialParams);
-__decorateElement$3(_init$3, 5, "isSkinned", _isSkinned_dec, _PBRMaterialParams);
-__decorateElement$3(_init$3, 5, "isDeferred", _isDeferred_dec, _PBRMaterialParams);
-__decoratorMetadata$3(_init$3, _PBRMaterialParams);
+_init3 = __decoratorStart$3(_a$3);
+__decorateElement$3(_init3, 5, "albedoColor", _albedoColor_dec, _PBRMaterialParams);
+__decorateElement$3(_init3, 5, "emissiveColor", _emissiveColor_dec, _PBRMaterialParams);
+__decorateElement$3(_init3, 5, "roughness", _roughness_dec, _PBRMaterialParams);
+__decorateElement$3(_init3, 5, "metalness", _metalness_dec, _PBRMaterialParams);
+__decorateElement$3(_init3, 5, "albedoMap", _albedoMap_dec, _PBRMaterialParams);
+__decorateElement$3(_init3, 5, "normalMap", _normalMap_dec, _PBRMaterialParams);
+__decorateElement$3(_init3, 5, "heightMap", _heightMap_dec, _PBRMaterialParams);
+__decorateElement$3(_init3, 5, "armMap", _armMap_dec, _PBRMaterialParams);
+__decorateElement$3(_init3, 5, "emissiveMap", _emissiveMap_dec, _PBRMaterialParams);
+__decorateElement$3(_init3, 5, "repeat", _repeat_dec, _PBRMaterialParams);
+__decorateElement$3(_init3, 5, "offset", _offset_dec, _PBRMaterialParams);
+__decorateElement$3(_init3, 5, "doubleSided", _doubleSided_dec, _PBRMaterialParams);
+__decorateElement$3(_init3, 5, "alphaCutoff", _alphaCutoff_dec, _PBRMaterialParams);
+__decorateElement$3(_init3, 5, "unlit", _unlit_dec, _PBRMaterialParams);
+__decorateElement$3(_init3, 5, "wireframe", _wireframe_dec, _PBRMaterialParams);
+__decorateElement$3(_init3, 5, "isSkinned", _isSkinned_dec, _PBRMaterialParams);
+__decorateElement$3(_init3, 5, "isDeferred", _isDeferred_dec2, _PBRMaterialParams);
+__decoratorMetadata$3(_init3, _PBRMaterialParams);
 __publicField$3(_PBRMaterialParams, "dummyAlbedo");
 // 1x1 white
 __publicField$3(_PBRMaterialParams, "dummyNormal");
@@ -5458,6 +5536,10 @@ class PBRMaterial extends Material {
   params = new PBRMaterialParams();
   constructor(params) {
     super({ isDeferred: params?.isDeferred ?? true });
+    this.assetPath = "@builtin/material/pbr";
+    if (!Assets.GetInstance("@builtin/material/pbr")) {
+      Assets.SetInstance("@builtin/material/pbr", this);
+    }
     Object.assign(this.params, params);
     if (!PBRMaterial.sampler) PBRMaterial.sampler = TextureSampler.Create();
     this.createShader();
@@ -7584,7 +7666,7 @@ var __decorateElement = (array, flags, name, decorators, target, extra) => {
   return target;
 };
 var __publicField = (obj, key, value) => __defNormalProp(obj, typeof key !== "symbol" ? key + "" : key, value);
-var _clips_dec, _a, _init, _clips_dec2, _b, _init2;
+var _clips_dec, _a, _init, _tracksData_dec, _clips_dec2, _assetPath_dec, _b, _init2;
 class AnimationTrack extends (_a = Component, _clips_dec = [SerializeField], _a) {
   constructor() {
     super(...arguments);
@@ -7699,13 +7781,12 @@ __decorateElement(_init, 5, "clips", _clips_dec, AnimationTrack);
 __decoratorMetadata(_init, AnimationTrack);
 __publicField(AnimationTrack, "type", "@trident/core/components/AnimationTrack");
 Component.Registry.set(AnimationTrack.type, AnimationTrack);
-class Animator extends (_b = Component, _clips_dec2 = [SerializeField], _b) {
+class Animator extends (_b = Component, _assetPath_dec = [SerializeField], _clips_dec2 = [SerializeField], _tracksData_dec = [SerializeField], _b) {
   constructor() {
     super(...arguments);
-    __publicField(this, "assetPath");
-    __publicField(this, "clips", __runInitializers(_init2, 8, this, [])), __runInitializers(_init2, 11, this);
-    // All tracks data keyed by node name — loaded from .animation file
-    __publicField(this, "tracksData", {});
+    __publicField(this, "assetPath", __runInitializers(_init2, 8, this)), __runInitializers(_init2, 11, this);
+    __publicField(this, "clips", __runInitializers(_init2, 12, this, [])), __runInitializers(_init2, 15, this);
+    __publicField(this, "tracksData", __runInitializers(_init2, 16, this, {})), __runInitializers(_init2, 19, this);
     __publicField(this, "clipIndex", 0);
     __publicField(this, "playing", false);
     __publicField(this, "previousTime", 0);
@@ -7788,7 +7869,9 @@ class Animator extends (_b = Component, _clips_dec2 = [SerializeField], _b) {
   }
 }
 _init2 = __decoratorStart(_b);
+__decorateElement(_init2, 5, "assetPath", _assetPath_dec, Animator);
 __decorateElement(_init2, 5, "clips", _clips_dec2, Animator);
+__decorateElement(_init2, 5, "tracksData", _tracksData_dec, Animator);
 __decoratorMetadata(_init2, Animator);
 __publicField(Animator, "type", "@trident/core/components/Animator");
 Component.Registry.set(Animator.type, Animator);
@@ -7813,4 +7896,169 @@ var index = /*#__PURE__*/Object.freeze({
     TransformEvents: TransformEvents
 });
 
-export { Assets, Component, index as Components, Console, EventSystem, EventSystemLocal, index$1 as GPU, GameObject, Geometry, IndexAttribute, Input, InterleavedVertexAttribute, KeyCodes, index$2 as Mathf, MouseCodes, PBRMaterial, Renderer, Scene, SerializeField, Texture, index$3 as Utils, VertexAttribute };
+class Serializer {
+  static serializeValue(value) {
+    if (value == null || typeof value !== "object") return value;
+    if (Array.isArray(value)) return value.map((v) => this.serializeValue(v));
+    if (ArrayBuffer.isView(value)) return Array.from(value);
+    if (value instanceof GameObject) return { __ref: "GameObject", id: value.id };
+    if (value instanceof Texture) {
+      if (!value.assetPath) return void 0;
+      return { assetPath: value.assetPath, name: value.name, format: value.format, generateMips: value.mipLevels > 1 };
+    }
+    if (value instanceof Vector3) return { x: value.x, y: value.y, z: value.z };
+    if (value instanceof Vector2) return { x: value.x, y: value.y };
+    if (value instanceof Quaternion) return { x: value.x, y: value.y, z: value.z, w: value.w };
+    if (value instanceof Color) return { r: value.r, g: value.g, b: value.b, a: value.a };
+    if (value instanceof Map) return Array.from(value, ([k, v]) => [k, this.serializeValue(v)]);
+    if (value.assetPath) return { assetPath: value.assetPath };
+    const fields = GetSerializedFields(value);
+    if (fields.length > 0) return this.serializeFields(value);
+    return value;
+  }
+  static serializeFields(value) {
+    const out = {};
+    for (const { name } of GetSerializedFields(value)) {
+      out[name] = this.serializeValue(value[name]);
+    }
+    return out;
+  }
+  static serializeComponent(component) {
+    const ctor = component.constructor;
+    const out = { id: component.id, type: ctor.type || ctor.name };
+    if (ctor.assetPath) out.assetPath = ctor.assetPath;
+    for (const { name } of GetSerializedFields(component)) out[name] = this.serializeValue(component[name]);
+    return out;
+  }
+  static serializeGameObject(gameObject) {
+    const out = { id: gameObject.id, name: gameObject.name, transform: this.serializeComponent(gameObject.transform) };
+    if (gameObject.assetPath) {
+      out.assetPath = gameObject.assetPath;
+      return out;
+    }
+    out.components = gameObject.GetComponents().filter((c) => !(c instanceof Transform)).map((component) => {
+      return this.serializeComponent(component);
+    });
+    out.children = [];
+    for (const child of gameObject.transform.children) out.children.push(this.serializeGameObject(child.gameObject));
+    return out;
+  }
+  static serializeScene(scene) {
+    return {
+      type: Scene.type,
+      name: scene.name,
+      mainCamera: Camera.mainCamera?.id,
+      gameObjects: scene.GetRootGameObjects().map((gameObject) => {
+        return this.serializeGameObject(gameObject);
+      })
+    };
+  }
+}
+
+class Deserializer {
+  static Load = async () => {
+    throw Error("Deserializer.Load not set");
+  };
+  static deferredRefs = [];
+  static idMap = /* @__PURE__ */ new Map();
+  static deserializeValue(data, existing) {
+    if (data == null || typeof data !== "object") return data;
+    if (Array.isArray(data)) return data;
+    if (existing instanceof Vector3) {
+      existing.set(data.x, data.y, data.z);
+      return existing;
+    }
+    if (existing instanceof Vector2) {
+      existing.set(data.x, data.y);
+      return existing;
+    }
+    if (existing instanceof Quaternion) {
+      existing.set(data.x, data.y, data.z, data.w);
+      return existing;
+    }
+    if (existing instanceof Color) {
+      existing.set(data.r, data.g, data.b, data.a);
+      return existing;
+    }
+    const fields = GetSerializedFields(existing);
+    if (fields.length > 0) {
+      for (const { name } of fields) {
+        if (data[name] !== void 0) existing[name] = this.deserializeValue(data[name], existing[name]);
+      }
+      return existing;
+    }
+    return data;
+  }
+  /** Async field-by-field deserialization — handles assetPath loading. */
+  static async deserializeFields(target, data) {
+    for (const { name } of GetSerializedFields(target)) {
+      if (data[name] === void 0) continue;
+      const value = data[name];
+      if (value && typeof value === "object" && value.assetPath) {
+        target[name] = await this.Load(value.assetPath, value);
+        continue;
+      }
+      target[name] = this.deserializeValue(value, target[name]);
+    }
+  }
+  static async deserializeComponent(component, data) {
+    if (data.id) component.id = data.id;
+    for (const { name } of GetSerializedFields(component)) {
+      if (data[name] === void 0) continue;
+      const value = data[name];
+      if (value && typeof value === "object" && value.__ref === "GameObject") {
+        this.deferredRefs.push({ component, property: name, id: value.id });
+        continue;
+      }
+      if (value && typeof value === "object" && value.assetPath) {
+        component[name] = await this.Load(value.assetPath, value);
+        continue;
+      }
+      component[name] = this.deserializeValue(value, component[name]);
+    }
+  }
+  static async deserializeGameObject(scene, data, parent) {
+    let source = data;
+    if (data.assetPath) source = await this.Load(data.assetPath);
+    const go = new GameObject(scene);
+    if (data.id) go.id = data.id;
+    go.name = data.name ?? source.name;
+    if (data.id) this.idMap.set(data.id, go);
+    if (data.assetPath) go.assetPath = data.assetPath;
+    if (parent) go.transform.parent = parent;
+    await this.deserializeComponent(go.transform, source.transform);
+    if (data.assetPath) await this.deserializeComponent(go.transform, data.transform);
+    const instances = [];
+    for (const compData of source.components ?? []) {
+      if (compData.assetPath && !Component.Registry.get(compData.type)) await this.Load(compData.assetPath);
+      const Ctor = Component.Registry.get(compData.type);
+      if (!Ctor) throw Error(`Component ${compData.type} not found`);
+      instances.push(go.AddComponent(Ctor));
+    }
+    for (let i = 0; i < instances.length; i++) {
+      await this.deserializeComponent(instances[i], source.components[i]);
+    }
+    for (const child of source.children ?? []) {
+      await this.deserializeGameObject(scene, child, go.transform);
+    }
+    return go;
+  }
+  static async deserializeScene(scene, data) {
+    scene.name = data.name;
+    for (const goData of data.gameObjects) await this.deserializeGameObject(scene, goData);
+    for (const ref of this.deferredRefs) ref.component[ref.property] = this.idMap.get(ref.id) ?? null;
+    this.deferredRefs.length = 0;
+    Camera.mainCamera = null;
+    for (const go of scene.GetGameObjects()) {
+      const cam = go.GetComponent(Camera);
+      if (cam && cam.id === data.mainCamera) {
+        Camera.mainCamera = cam;
+        break;
+      }
+      if (cam && !Camera.mainCamera) Camera.mainCamera = cam;
+    }
+    this.idMap.clear();
+  }
+}
+
+export { Assets, Component, index as Components, Console, Deserializer, EventSystem, EventSystemLocal, index$1 as GPU, GameObject, Geometry, GetSerializedFields, IndexAttribute, Input, InterleavedVertexAttribute, KeyCodes, index$2 as Mathf, MouseCodes, PBRMaterial, Renderer, Scene, SerializeField, Serializer, Texture, index$3 as Utils, VertexAttribute };

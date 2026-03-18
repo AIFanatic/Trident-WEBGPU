@@ -28,7 +28,7 @@
             <script type="module">
                 const canvas = document.createElement("canvas");
                 document.body.appendChild(canvas);
-                            import { GPU, Scene, GameObject, Components, Mathf, Geometry, PBRMaterial } from '@trident/core';
+                            import { GPU, Scene, GameObject, Components, Mathf, Geometry, PBRMaterial, Serializer } from '@trident/core';
             import { OrbitControls } from '@trident/plugins/OrbitControls.js';
             import { Debugger } from '@trident/plugins/Debugger.js';
             
@@ -64,6 +64,8 @@
               Debugger.Enable();
               new OrbitControls(canvas, Components.Camera.mainCamera);
               scene.Start();
+              const serialized = Serializer.serializeScene(scene);
+              console.log(serialized);
             }
             Application(document.querySelector("canvas"));
             
