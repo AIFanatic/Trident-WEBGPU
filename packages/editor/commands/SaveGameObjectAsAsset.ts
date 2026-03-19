@@ -32,7 +32,7 @@ export async function SaveGameObjectAsAsset(baseDir: string, gameObject: IGameOb
                     for (const { name: texName, type } of GetSerializedFields(params)) {
                         if (type !== Texture) continue;
                         const tex = params[texName];
-                        if (tex && !tex.assetPath) {
+                        if (tex && !tex.assetPath && tex.blob) {
                             const rawName = typeof tex.name === "string" ? tex.name.trim() : "";
                             const invalidName = rawName.length === 0 || rawName.toLowerCase() === "undefined" || rawName.toLowerCase() === "null";
                             const textureName = invalidName ? `texture_${textureCounter++}` : rawName;

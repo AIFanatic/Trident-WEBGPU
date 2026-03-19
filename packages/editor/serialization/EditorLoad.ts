@@ -10,9 +10,10 @@ function deserializeAttribute(data: any): VertexAttribute | InterleavedVertexAtt
     const array = new (typedArrayCtors[data.arrayType])(data.array);
 
     let attr: VertexAttribute | InterleavedVertexAttribute | IndexAttribute;
-    if (data.attributeType === "@trident/core/Geometry/InterleavedVertexAttribute") {
+    const attrType = data.attributeType || data.type;
+    if (attrType === "@trident/core/Geometry/InterleavedVertexAttribute") {
         attr = new InterleavedVertexAttribute(array, data.stride);
-    } else if (data.attributeType === "@trident/core/Geometry/IndexAttribute") {
+    } else if (attrType === "@trident/core/Geometry/IndexAttribute") {
         attr = new IndexAttribute(array);
     } else {
         attr = new VertexAttribute(array);
@@ -37,11 +38,13 @@ Deserializer.Load = async (assetPath: string, data?: any): Promise<any> => {
         geometry.id = json.id;
         geometry.name = json.name;
         geometry.assetPath = json.assetPath;
-        for (const attribute of json.attributes) {
-            geometry.attributes.set(attribute.name, deserializeAttribute(attribute) as VertexAttribute | InterleavedVertexAttribute);
+        for (const entry of json.attributes) {
+            const [name, attrData] = Array.isArray(entry) ? entry : [entry.name, entry];
+            geometry.attributes.set(name, deserializeAttribute(attrData) as VertexAttribute | InterleavedVertexAttribute);
         }
         if (json.index) geometry.index = deserializeAttribute(json.index) as IndexAttribute;
         AssetRegistry.SetInstance(assetPath, geometry);
+        Assets.SetInstance(assetPath, geometry);
         return geometry;
     }
 
@@ -52,14 +55,16 @@ Deserializer.Load = async (assetPath: string, data?: any): Promise<any> => {
             ? new PBRMaterial()
             : GPU.Material.Create(materialType);
         material.assetPath = assetPath;
+
         await Deserializer.deserializeFields(material.params, json?.params ?? {});
 
         if ((material as any).pendingShaderCreation) {
             await (material as any).pendingShaderCreation;
-            material.params.roughness = material.params.roughness;
+            material.params.isSkinned = material.params.isSkinned;
         }
 
         AssetRegistry.SetInstance(assetPath, material);
+        Assets.SetInstance(assetPath, material);
         return material;
     }
 

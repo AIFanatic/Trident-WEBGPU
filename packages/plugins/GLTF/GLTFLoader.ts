@@ -156,6 +156,7 @@ export class GLTFLoader {
         geometry.ComputeBoundingVolume();
 
         const material = new PBRMaterial(materialParams);
+        material.assetPath = undefined;
         if (primitive.material && primitive.material.name) material.name = primitive.material.name;
 
         return { geometry, material };
@@ -210,21 +211,25 @@ export class GLTFLoader {
         // Create GameObjects for each node
         const nodes: GameObject[] = [];
         for (let i = 0; i < gltf.nodes.length; i++) {
-            const n = gltf.nodes[i];
             const go = new GameObject(scene);
-            go.name = n.name || `Node_${i}`;
-            go.transform.localPosition.set(n.translation.x, n.translation.y, n.translation.z);
-            go.transform.localRotation.set(n.rotation.x, n.rotation.y, n.rotation.z, n.rotation.w);
-            go.transform.scale.set(n.scale.x, n.scale.y, n.scale.z);
+            go.name = gltf.nodes[i].name || `Node_${i}`;
             nodes.push(go);
         }
 
-        // Set up hierarchy
+        // Set up hierarchy BEFORE applying transforms so that
+        // setting localPosition/localRotation correctly computes world values
         for (let i = 0; i < gltf.nodes.length; i++) {
-            const n = gltf.nodes[i];
-            for (const childId of n.childrenID) {
+            for (const childId of gltf.nodes[i].childrenID) {
                 nodes[childId].transform.parent = nodes[i].transform;
             }
+        }
+
+        // Now apply local transforms (parent is already set)
+        for (let i = 0; i < gltf.nodes.length; i++) {
+            const n = gltf.nodes[i];
+            nodes[i].transform.localPosition.set(n.translation.x, n.translation.y, n.translation.z);
+            nodes[i].transform.localRotation.set(n.rotation.x, n.rotation.y, n.rotation.z, n.rotation.w);
+            nodes[i].transform.scale.set(n.scale.x, n.scale.y, n.scale.z);
         }
 
         // Skins → Bone components
@@ -324,6 +329,10 @@ export class GLTFLoader {
                 const primGO = new GameObject(scene);
                 primGO.name = nodeGO.name;
                 primGO.transform.parent = nodeGO.transform;
+                // Reset locals to zero offset — set parent preserves world position,
+                // but we want the primitive at the node's position (identity local transform)
+                primGO.transform.localPosition.set(0, 0, 0);
+                primGO.transform.localRotation.set(0, 0, 0, 1);
 
                 const hasSkin = primitive.attributes && primitive.attributes.JOINTS_0 && primitive.attributes.WEIGHTS_0;
                 if (hasSkin) {

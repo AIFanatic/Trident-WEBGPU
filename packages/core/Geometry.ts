@@ -378,13 +378,10 @@ export class Geometry {
     }
 
     public Destroy() {
-        // Don't destroy builtin geometries
-        if (this.assetPath && this.assetPath.includes("@builtin")) return;
+        if (this.assetPath && Assets.GetInstance(this.assetPath) === this) return;
 
         for (const [_, attribute] of this.attributes) attribute.Destroy();
         if (this.index) this.index.Destroy();
-
-        if (this.assetPath) Assets.RemoveInstance(this.assetPath);
     }
 
     public static ToNonIndexedAttribute(src: Float32Array, indices: Uint32Array | Uint16Array, stride: number, offset: number, itemSize: number): Float32Array {

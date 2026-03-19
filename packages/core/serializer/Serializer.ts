@@ -6,12 +6,16 @@ import { Texture } from "../renderer/Texture";
 import { GetSerializedFields } from "../utils/SerializeField";
 
 export class Serializer {
+    private static isTextureLike(value: any): value is Texture {
+        return value instanceof Texture || value?.constructor?.type === Texture.type;
+    }
+
     public static serializeValue(value: any): any {
         if (value == null || typeof value !== 'object') return value;
         if (Array.isArray(value)) return value.map(v => this.serializeValue(v));
         if (ArrayBuffer.isView(value)) return Array.from(value as any);
         if (value instanceof GameObject) return { __ref: "GameObject", id: value.id };
-        if (value instanceof Texture) {
+        if (this.isTextureLike(value)) {
             if (!value.assetPath) return undefined;
             return { assetPath: value.assetPath, name: value.name, format: value.format, generateMips: value.mipLevels > 1 };
         }

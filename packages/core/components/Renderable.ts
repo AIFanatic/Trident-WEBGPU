@@ -43,8 +43,8 @@ export class Renderable extends Component {
 
     public Destroy(): void {
         super.Destroy();
-        this.geometry.Destroy();
-        this.material.Destroy();
+        if (this._geometry) { this._geometry.Destroy(); this._geometry = null; }
+        if (this._material) { this._material.Destroy(); this._material = null; }
         Renderable.Renderables.delete(this.id);
     }
 

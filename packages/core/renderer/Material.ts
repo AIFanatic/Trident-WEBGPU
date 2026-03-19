@@ -43,6 +43,8 @@ export class Material {
     }
 
     public Destroy() {
+        if (this.assetPath && Assets.GetInstance(this.assetPath) === this) return;
+
         if (this._shader) this._shader.Destroy();
         MaterialPool.remove(this.materialId);
     };
@@ -165,6 +167,8 @@ export class PBRMaterial extends Material {
 
                     if (prop === "doubleSided" || prop === "isSkinned") {
                         self.shader.Destroy();
+                        self.shader = undefined;
+                        self.pendingShaderCreation = undefined;
                         self.createShader();
                     }
                     else {

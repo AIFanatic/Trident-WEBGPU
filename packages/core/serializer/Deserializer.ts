@@ -3,6 +3,7 @@ import { GameObject } from "../GameObject";
 import { Component, Transform, Camera } from "../components";
 import { Vector3, Vector2, Quaternion, Color } from "../math";
 import { GetSerializedFields } from "../utils/SerializeField";
+import { Texture } from "../renderer/Texture";
 
 type DeferredRef = { component: Component; property: string; id: string };
 
@@ -33,9 +34,14 @@ export class Deserializer {
 
     /** Async field-by-field deserialization — handles assetPath loading. */
     public static async deserializeFields(target: any, data: any) {
-        for (const { name } of GetSerializedFields(target)) {
+        for (const { name, type } of GetSerializedFields(target)) {
             if (data[name] === undefined) continue;
             const value = data[name];
+
+            if (type === Texture && value && typeof value === 'object' && !value.assetPath) {
+                continue;
+            }
+
             if (value && typeof value === 'object' && value.assetPath) {
                 target[name] = await this.Load(value.assetPath, value);
                 continue;
