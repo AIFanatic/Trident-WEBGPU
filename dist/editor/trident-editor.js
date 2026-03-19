@@ -2839,9 +2839,10 @@ const typedArrayCtors = {
 function deserializeAttribute(data) {
   const array = new typedArrayCtors[data.arrayType](data.array);
   let attr;
-  if (data.attributeType === "@trident/core/Geometry/InterleavedVertexAttribute") {
+  const attrType = data.attributeType || data.type;
+  if (attrType === "@trident/core/Geometry/InterleavedVertexAttribute") {
     attr = new InterleavedVertexAttribute(array, data.stride);
-  } else if (data.attributeType === "@trident/core/Geometry/IndexAttribute") {
+  } else if (attrType === "@trident/core/Geometry/IndexAttribute") {
     attr = new IndexAttribute(array);
   } else {
     attr = new VertexAttribute(array);
@@ -2862,11 +2863,13 @@ Deserializer.Load = async (assetPath, data) => {
     geometry.id = json.id;
     geometry.name = json.name;
     geometry.assetPath = json.assetPath;
-    for (const attribute of json.attributes) {
-      geometry.attributes.set(attribute.name, deserializeAttribute(attribute));
+    for (const entry of json.attributes) {
+      const [name, attrData] = Array.isArray(entry) ? entry : [entry.name, entry];
+      geometry.attributes.set(name, deserializeAttribute(attrData));
     }
     if (json.index) geometry.index = deserializeAttribute(json.index);
     AssetRegistry.SetInstance(assetPath, geometry);
+    Assets.SetInstance(assetPath, geometry);
     return geometry;
   }
   if (ext === "material") {
@@ -2877,9 +2880,10 @@ Deserializer.Load = async (assetPath, data) => {
     await Deserializer.deserializeFields(material.params, json?.params ?? {});
     if (material.pendingShaderCreation) {
       await material.pendingShaderCreation;
-      material.params.roughness = material.params.roughness;
+      material.params.isSkinned = material.params.isSkinned;
     }
     AssetRegistry.SetInstance(assetPath, material);
+    Assets.SetInstance(assetPath, material);
     return material;
   }
   if (ext === "png" || ext === "jpg" || ext === "jpeg") {
@@ -4101,7 +4105,7 @@ async function SaveGameObjectAsAsset(baseDir, gameObject) {
           for (const { name: texName, type } of GetSerializedFields(params)) {
             if (type !== Texture) continue;
             const tex = params[texName];
-            if (tex && !tex.assetPath) {
+            if (tex && !tex.assetPath && tex.blob) {
               const rawName = typeof tex.name === "string" ? tex.name.trim() : "";
               const invalidName = rawName.length === 0 || rawName.toLowerCase() === "undefined" || rawName.toLowerCase() === "null";
               const textureName = invalidName ? `texture_${textureCounter++}` : rawName;

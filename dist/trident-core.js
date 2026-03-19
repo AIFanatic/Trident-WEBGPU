@@ -2887,10 +2887,9 @@ const _Geometry = class _Geometry {
     return geometry;
   }
   Destroy() {
-    if (this.assetPath && this.assetPath.includes("@builtin")) return;
+    if (this.assetPath && Assets.GetInstance(this.assetPath) === this) return;
     for (const [_, attribute] of this.attributes) attribute.Destroy();
     if (this.index) this.index.Destroy();
-    if (this.assetPath) Assets.RemoveInstance(this.assetPath);
   }
   static ToNonIndexedAttribute(src, indices, stride, offset, itemSize) {
     const dst = new Float32Array(indices.length * itemSize);
@@ -5449,6 +5448,7 @@ const _Material = class _Material {
     this._shader = shader;
   }
   Destroy() {
+    if (this.assetPath && Assets.GetInstance(this.assetPath) === this) return;
     if (this._shader) this._shader.Destroy();
     MaterialPool.remove(this.materialId);
   }
@@ -5568,6 +5568,8 @@ class PBRMaterial extends Material {
           obj[prop] = value;
           if (prop === "doubleSided" || prop === "isSkinned") {
             self.shader.Destroy();
+            self.shader = void 0;
+            self.pendingShaderCreation = void 0;
             self.createShader();
           } else {
             self.assignParameters();
@@ -5695,8 +5697,14 @@ const _Renderable = class _Renderable extends (_a$2 = Component, _enableShadows_
   }
   Destroy() {
     super.Destroy();
-    this.geometry.Destroy();
-    this.material.Destroy();
+    if (this._geometry) {
+      this._geometry.Destroy();
+      this._geometry = null;
+    }
+    if (this._material) {
+      this._material.Destroy();
+      this._material = null;
+    }
     _Renderable.Renderables.delete(this.id);
   }
 };
@@ -7897,12 +7905,15 @@ var index = /*#__PURE__*/Object.freeze({
 });
 
 class Serializer {
+  static isTextureLike(value) {
+    return value instanceof Texture || value?.constructor?.type === Texture.type;
+  }
   static serializeValue(value) {
     if (value == null || typeof value !== "object") return value;
     if (Array.isArray(value)) return value.map((v) => this.serializeValue(v));
     if (ArrayBuffer.isView(value)) return Array.from(value);
     if (value instanceof GameObject) return { __ref: "GameObject", id: value.id };
-    if (value instanceof Texture) {
+    if (this.isTextureLike(value)) {
       if (!value.assetPath) return void 0;
       return { assetPath: value.assetPath, name: value.name, format: value.format, generateMips: value.mipLevels > 1 };
     }
@@ -7991,9 +8002,12 @@ class Deserializer {
   }
   /** Async field-by-field deserialization — handles assetPath loading. */
   static async deserializeFields(target, data) {
-    for (const { name } of GetSerializedFields(target)) {
+    for (const { name, type } of GetSerializedFields(target)) {
       if (data[name] === void 0) continue;
       const value = data[name];
+      if (type === Texture && value && typeof value === "object" && !value.assetPath) {
+        continue;
+      }
       if (value && typeof value === "object" && value.assetPath) {
         target[name] = await this.Load(value.assetPath, value);
         continue;
