@@ -30,13 +30,13 @@ export class InspectorVector3 extends Component<InspectorVector3Props, Inspector
 
     private onChanged(property: ChangedProperty, _value) {
         if (this.props.onChanged) {
-            if (_value == "") return;
+            if (_value === "") return;
             const value = parseFloat(_value);
-
+            
             if (property == ChangedProperty.X) this.state.vector3.x = value;
             else if (property == ChangedProperty.Y) this.state.vector3.y = value;
             else if (property == ChangedProperty.Z) this.state.vector3.z = value;
-
+            
             this.props.onChanged(this.state.vector3);
         }
     }
@@ -49,25 +49,6 @@ export class InspectorVector3 extends Component<InspectorVector3Props, Inspector
         if (!this.Vector3Equals(this.props.vector3, this.state.vector3)) {
             this.setState({vector3: this.props.vector3});
         }
-    }
-
-    private onClicked(property: ChangedProperty, event: MouseEvent) {
-        event.preventDefault();
-        const MouseMoveEvent = (event: MouseEvent) => {
-            const delta = event.movementX;
-            if (property === ChangedProperty.X) this.state.vector3.x += delta / 10;
-            if (property === ChangedProperty.Y) this.state.vector3.y += delta / 10;
-            if (property === ChangedProperty.Z) this.state.vector3.z += delta / 10;
-            this.setState({vector3: this.props.vector3});
-        }
-        
-        const MouseUpEvent = (event: MouseEvent) => {
-            document.body.removeEventListener("mousemove", MouseMoveEvent);
-            document.body.removeEventListener("mouseup", MouseUpEvent);
-        }
-
-        document.body.addEventListener("mousemove", MouseMoveEvent);
-        document.body.addEventListener("mouseup", MouseUpEvent);
     }
 
     public render() {

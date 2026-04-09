@@ -1,10 +1,10 @@
-export type SerializedComponent = { type: string } & Record<string, unknown>;
-
 export interface IPrefab {
-    assetPath: string;
+    assetPath?: string;
     name: string;
-    type: string;
-    components: SerializedComponent[];
-    transform: SerializedComponent;
+    id?: string;
+    components: any[];
+    transform: any;
     children: IPrefab[];
+    data: any;
+    traverse(fn: (prefab: IPrefab) => void): void;
 };

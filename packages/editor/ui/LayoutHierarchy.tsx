@@ -8,7 +8,6 @@ import { IComponents } from "../engine-api/trident/components";
 import { TreeFolder } from "./TreeView/TreeFolder";
 import { TreeItem } from "./TreeView/TreeItem";
 import { Tree } from "./TreeView/Tree";
-import { Prefab } from "../serialization/Prefab";
 import { FloatingMenu } from "./FloatingMenu";
 
 interface LayoutHierarchyState {
@@ -18,7 +17,7 @@ interface LayoutHierarchyState {
 
 export class LayoutHierarchy extends Component<BaseProps, LayoutHierarchyState> {
 
-    constructor(props) {
+    constructor(props: BaseProps) {
         super(props);
         this.setState({ selectedGameObject: null, headerMenuOpen: false });
 
@@ -55,7 +54,7 @@ export class LayoutHierarchy extends Component<BaseProps, LayoutHierarchyState> 
         return undefined;
     }
 
-    private onDroppedItem(fromId: string, toId: string) {
+    private onDroppedItem(fromId: string, toId: string) {        
         const fromGameObject = this.getGameObjectById(fromId);
         const toGameObject = this.getGameObjectById(toId);
         if (fromGameObject === toGameObject) return;
@@ -65,14 +64,15 @@ export class LayoutHierarchy extends Component<BaseProps, LayoutHierarchyState> 
         }
     }
 
-    private onDragStarted(event) {
-        ExtendedDataTransfer.data = this.state.selectedGameObject;
+    private onDragStarted(go: IGameObject) {
+        ExtendedDataTransfer.data = go;
+        // console.log("onDroppedItem", fromId, toId);
     }
 
     private async onDrop(event) {
         const extendedEvent = ExtendedDataTransfer.data;
         const instance = extendedEvent;
-        if (instance && instance instanceof Prefab) {
+        if (instance && this.props.engineAPI.isPrefab(instance)) {
             const gameObject = await this.props.engineAPI.deserializer.deserializeGameObject(this.props.engineAPI.currentScene, instance);
             this.selectGameObject(gameObject);
             ExtendedDataTransfer.data = undefined;
@@ -85,21 +85,6 @@ export class LayoutHierarchy extends Component<BaseProps, LayoutHierarchyState> 
                 this.selectGameObject(gameObject);
             }
         }
-    }
-
-    private buildTreeFromGameObjects(gameObjects: IGameObject[]): ITreeMap<IGameObject>[] {
-        const treeMap: ITreeMap<IGameObject>[] = [];
-
-        for (let gameObject of gameObjects) {
-            treeMap.push({
-                id: gameObject.transform.id,
-                name: gameObject.name,
-                isSelected: this.state.selectedGameObject && this.state.selectedGameObject == gameObject ? true : false,
-                parent: gameObject.transform.parent ? gameObject.transform.parent.id : "",
-                data: gameObject
-            })
-        }
-        return treeMap;
     }
 
     private createEmptyGameObject() {
@@ -158,19 +143,17 @@ export class LayoutHierarchy extends Component<BaseProps, LayoutHierarchyState> 
                 name={go.name}
                 id={go.transform.id}
                 isSelected={isSelected}
-                onPointerDown={() => this.selectGameObject(go)}
+                onClicked={() => this.selectGameObject(go)}
                 onDroppedItem={(from, to) => this.onDroppedItem(from, to)}
-                onDragStarted={(event) => this.onDragStarted(event)}
+                onDragStarted={(event) => this.onDragStarted(go)}
             />
         });
     }
 
     render() {
-        if (!this.props.engineAPI.currentScene) return;
+        if (!this.props.engineAPI.currentScene) return <div></div>;
 
-        console.log(this.props.engineAPI.currentScene)
-
-        const rootGameObjects = this.props.engineAPI.currentScene.gameObjects.filter(go => !go.transform.parent);
+        const rootGameObjects = this.props.engineAPI.currentScene.GetGameObjects().filter(go => !go.transform.parent);
 
         return (
 

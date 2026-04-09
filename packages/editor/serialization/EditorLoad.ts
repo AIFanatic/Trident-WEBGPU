@@ -1,4 +1,4 @@
-import { Assets, Deserializer, GPU, Texture, Geometry, VertexAttribute, InterleavedVertexAttribute, IndexAttribute, PBRMaterial } from "@trident/core";
+import { Assets, Deserializer, GPU, Texture, Geometry, VertexAttribute, InterleavedVertexAttribute, IndexAttribute, PBRMaterial, Prefab } from "@trident/core";
 import { AssetRegistry } from "./AssetRegistry";
 import { LoadScript } from "../loaders/ScriptLoader";
 
@@ -83,6 +83,13 @@ Deserializer.Load = async (assetPath: string, data?: any): Promise<any> => {
         return LoadScript(assetPath);
     }
 
-    // .prefab, .scene, or unknown — return raw JSON for deserializeGameObject to handle
+    if (ext === "prefab") {
+        const json = await Assets.Load(assetPath, "json");
+        const prefab = Prefab.Deserialize(json);
+        prefab.assetPath = assetPath;
+        return prefab;
+    }
+
+    // .scene or unknown — return raw JSON
     return Assets.Load(assetPath, "json");
 };

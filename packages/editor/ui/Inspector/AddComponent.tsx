@@ -31,7 +31,8 @@ export class AddComponent extends GOActComponent<AddComponentProps> {
         const entriesByPath = new Map<string, { name: string, type: string }[]>();
 
         for (const [fullpath] of entryMap) {
-            const path = fullpath.slice(fullpath.lastIndexOf("components/") + "components/".length, fullpath.lastIndexOf("/") + 1);
+            const compIdx = fullpath.lastIndexOf("components/");
+            const path = compIdx !== -1 ? fullpath.slice(compIdx + "components/".length, fullpath.lastIndexOf("/") + 1) : fullpath.slice(0, fullpath.lastIndexOf("/") + 1);
             const name = fullpath.slice(fullpath.lastIndexOf("/") + 1);
             const pathEntries = entriesByPath.get(path) || [];
             pathEntries.push({ name, type: fullpath });

@@ -8,7 +8,7 @@ export async function LoadScript(assetPath: string): Promise<any> {
     const text = await response.text();
 
     if (!esbuildReady) {
-        await esbuild.initialize({ worker: true, wasmURL: "https://unpkg.com/esbuild-wasm/esbuild.wasm" });
+        await esbuild.initialize({ worker: true, wasmURL: "./resources/esbuild.wasm" });
         esbuildReady = true;
     }
 

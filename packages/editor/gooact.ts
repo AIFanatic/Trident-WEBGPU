@@ -205,3 +205,13 @@ export class Component<P = any, S = any> {
 
     render(_?: any): VNodeChild { return null; }
 }
+
+declare global {
+    namespace JSX {
+        interface IntrinsicElements {
+            [elemName: string]: any;
+        }
+        interface Element extends VNode { }
+        interface ElementClass extends Component<any, any> { }
+    }
+}

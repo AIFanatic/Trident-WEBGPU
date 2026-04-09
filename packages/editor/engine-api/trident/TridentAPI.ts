@@ -1,4 +1,4 @@
-import { GameObject, Renderer, Scene, Mathf, Geometry, PBRMaterial, Utils, Component, GPU } from "@trident/core";
+import { GameObject, Renderer, Scene, Mathf, Geometry, PBRMaterial, Utils, Component, GPU, Serializer, Deserializer, Prefab, Runtime } from "@trident/core";
 
 import { IEngineAPI } from "./IEngineAPI";
 import { IGameObject } from "./components/IGameObject";
@@ -8,24 +8,33 @@ import { IGeometry } from "./components/IGeometry";
 import { IMaterial } from "./components/IMaterial";
 import { IColor } from "./math/IColor";
 import { IVector2 } from "./math/IVector2";
-import { IPrefab } from "./components/IPrefab";
 import { ITexture } from "./components/ITexture";
-import { Serializer, Deserializer } from "@trident/core";
-import { Prefab } from "../../serialization/Prefab";
 import "../../serialization/EditorLoad";
+import "./Plugins";
+import { ISystem } from "./ISystem";
+import { IRenderer } from "./IRenderer";
+import { IRuntime } from "./IRuntime";
 
 export class TridentAPI implements IEngineAPI {
 
-    public currentScene: IScene;
+    public get currentScene(): IScene { return this.getRuntime().SceneManager.GetActiveScene()};
     public serializer = Serializer;
     public deserializer = Deserializer;
 
-    public createRenderer(canvas: HTMLCanvasElement) {
-        Renderer.Create(canvas, "webgpu");
+    public getRuntime(): IRuntime {
+        return Runtime;
+    }
+
+    public async createRuntime(canvas: HTMLCanvasElement): Promise<IRuntime> {
+        return await Runtime.Create(canvas);
+    }
+
+    public addSystem<T extends ISystem, A extends any[]>(ctor: new (...args: A) => T, ...args: A): Promise<T> {
+        return Runtime.AddSystem(ctor, ...args);
     }
 
     public createScene(): IScene {
-        this.currentScene = new Scene(Renderer);
+        this.currentScene = new Scene();
         return this.currentScene;
     }
 

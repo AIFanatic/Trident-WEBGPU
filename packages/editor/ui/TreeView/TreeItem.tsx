@@ -6,6 +6,7 @@ interface TreeItemProps {
     isSelected?: boolean;
     data?: any;
     onPointerDown?: () => void;
+    onClicked?: () => void;
     onPointerUp?: () => void;
     onDoubleClicked?: () => void;
     onDropped?: (event: DragEvent) => void;
@@ -49,6 +50,10 @@ export class TreeItem extends Component<TreeItemProps> {
         this.lastClickTs = now;
     }
 
+    private onClick(event: MouseEvent) {
+        if (this.props.onClicked) this.props.onClicked();
+    }
+
     public render() {
         let classes = "item-title";
         if (this.props.isSelected) classes += " active";
@@ -66,6 +71,7 @@ export class TreeItem extends Component<TreeItemProps> {
                     onDragOver={(event) => this.onDragOver(event)}
                     onPointerDown={(event) => this.onPointerDown(event)}
                     onPointerUp={(event) => { if (this.props.onPointerUp) this.props.onPointerUp(); }}
+                    onClick={(event) => this.onClick(event)}
                 >
                     <span style={{ paddingLeft: "15px" }}></span>
                     <span>{this.props.name}</span>

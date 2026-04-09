@@ -17,6 +17,8 @@ import { PostProcessingSMAA } from "@trident/plugins/PostProcessing/effects/SMAA
 
 import { GPU } from "@trident/core";
 
+import { PhysicsRapier } from "@trident/plugins/PhysicsRapier/PhysicsRapier";
+
 export class LayoutCanvas extends Component<BaseProps> {
 
     private async canvasRef(canvas: HTMLCanvasElement) {
@@ -28,28 +30,29 @@ export class LayoutCanvas extends Component<BaseProps> {
 
         Console.getVar("r_shadows_csm_splittypepracticallambda").value = 0.99;
         
-        const resize = () => {
-            canvas.style.width = "100%";
-            canvas.style.height = "100%";
-            canvas.width = canvas.parentElement.clientWidth;
-            canvas.height = canvas.parentElement.clientHeight;
-            camera.SetPerspective(72, canvas.width / canvas.height, cameraSettings.near, cameraSettings.far);
-        };
-        new ResizeObserver(resize).observe(canvas);
+        // const resize = () => {
+        //     canvas.style.width = "100%";
+        //     canvas.style.height = "100%";
+        //     canvas.width = canvas.parentElement.clientWidth;
+        //     canvas.height = canvas.parentElement.clientHeight;
+        //     camera.SetPerspective(72, canvas.width / canvas.height, cameraSettings.near, cameraSettings.far);
+        // };
+        // new ResizeObserver(resize).observe(canvas);
 
         const EngineAPI = this.props.engineAPI;
-        EngineAPI.createRenderer(canvas);
 
+        const Runtime = await EngineAPI.createRuntime(canvas);
+        const currentScene = Runtime.SceneManager.CreateScene("DefaultScene");
+        Runtime.SceneManager.SetActiveScene(currentScene);
 
-        const currentScene = EngineAPI.createScene();
         const mainCameraGameObject = EngineAPI.createGameObject(currentScene);
         mainCameraGameObject.name = "MainCamera";
         const camera = mainCameraGameObject.AddComponent(IComponents.Camera);
         camera.SetPerspective(72, canvas.width / canvas.height, cameraSettings.near, cameraSettings.far);
-        EventSystem.on(GPU.RendererEvents.Resized, () => {
-            console.log(canvas.getBoundingClientRect(), canvas.width, canvas.height)
-            camera.SetPerspective(72, canvas.width / canvas.height, cameraSettings.near, cameraSettings.far);
-        });
+        // EventSystem.on(GPU.RendererEvents.Resized, () => {
+        //     console.log(canvas.getBoundingClientRect(), canvas.width, canvas.height)
+        //     camera.SetPerspective(72, canvas.width / canvas.height, cameraSettings.near, cameraSettings.far);
+        // });
 
         mainCameraGameObject.transform.position.set(0, 0, 10);
         mainCameraGameObject.transform.LookAtV1(EngineAPI.createVector3(0, 0, 0));
@@ -98,7 +101,6 @@ export class LayoutCanvas extends Component<BaseProps> {
 
         const environment = new Environment(EngineAPI.currentScene, skyTexture);
         await environment.init();
-
 
         const raycaster = new Raycaster();
 
@@ -156,35 +158,16 @@ export class LayoutCanvas extends Component<BaseProps> {
             });
         }
 
+        // const postProcessing = new PostProcessingPass();
+        // const smaa = new PostProcessingSMAA();
+        // postProcessing.effects.push(smaa);
+        // currentScene.renderPipeline.AddPass(postProcessing, GPU.RenderPassOrder.BeforeScreenOutput);
 
-        const postProcessing = new PostProcessingPass();
-        const smaa = new PostProcessingSMAA();
-        postProcessing.effects.push(smaa);
-        currentScene.renderPipeline.AddPass(postProcessing, GPU.RenderPassOrder.BeforeScreenOutput);
+        Runtime.AddSystem(PhysicsRapier);
 
-        currentScene.Start();
+        Runtime.Play();
 
-        new ResizeObserver(resize).observe(canvas);
-        
-
-
-        console.warn(`
-            TODO: Figure out better component registration, needs to be automatic or something.
-                Importing/Creating scripts is not that easy..need above otherwise need to register everything.
-                Also need to import @trident/core properly (this is a typescript pattern).
-                Also need to make SerializeField work somehow
-            `)
-        class Test extends Components.Component {
-            public static type = "@trident/core/components/Test";
-
-            public static types = (() => {
-                console.log("CALLED without new Test");
-            })();
-        }
-
-        // cubeGameObject.AddComponent(Test);
-        console.log(Components.Component.Registry.get("@trident/core/components/Test"))
-
+        // new ResizeObserver(resize).observe(canvas);
     }
 
     render() {

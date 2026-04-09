@@ -84,9 +84,8 @@ export class LayoutInspectorGameObject extends Component<LayoutInspectorProps> {
         else if (typeof type === "function") {
             const currentValue = component[name];
             let valueForType = currentValue ? currentValue.constructor.name : "None";
-            if (currentValue?.assetPath) {
-                valueForType = StringUtils.GetNameForPath(currentValue.assetPath);
-            }
+            if (currentValue?.assetPath) valueForType = StringUtils.GetNameForPath(currentValue.assetPath);
+            else if (currentValue?.name) valueForType = currentValue.name;
 
             return <InspectorType
                 onChanged={(value) => { this.onComponentPropertyChanged(component, name, value) }}

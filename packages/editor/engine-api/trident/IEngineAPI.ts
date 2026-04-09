@@ -15,11 +15,16 @@ import { IVector2 } from "./math/IVector2";
 import { IComponent } from "./components/IComponent";
 import { IPrefab } from "./components/IPrefab";
 import { ITexture } from "./components/ITexture";
+import { ISystem } from "./ISystem";
+import { IRuntime } from "./IRuntime";
 
 export interface IEngineAPI {
-    currentScene?: IScene;
+    currentScene: IScene;
 
-    createRenderer(canvas: HTMLCanvasElement);
+    createRuntime(canvas: HTMLCanvasElement): Promise<IRuntime>;
+    
+    addSystem<T extends ISystem, A extends any[]>(ctor: new (...args: A) => T, ...args: A): Promise<T>;
+
     createScene(): IScene;
     createGameObject(scene: IScene): IGameObject;
     isGameObject(obj: IGameObject): boolean;

@@ -3,10 +3,9 @@ import { IPrefab } from "./components/IPrefab";
 
 export interface IScene {
     name: string;
-    gameObjects: IGameObject[];
-    Start();
-    Clear();
-    Deserialize(data: any);
-    Serialize();
-    Instantiate(prefab: IPrefab);
+    GetGameObjects(): IGameObject[];
+    Clear(): void;
+    Deserialize(data: any): any;
+    Serialize(): any;
+    Instantiate(prefab: IPrefab): any;
 };

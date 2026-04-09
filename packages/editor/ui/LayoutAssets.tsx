@@ -29,6 +29,7 @@ import {
 // Re-export types for backward compatibility
 export { ITreeMapType, ITreeMap, FileData, ProjectTreeMap } from "../types/AssetTypes";
 import { ITreeMapType, ITreeMap, FileData, ProjectTreeMap } from "../types/AssetTypes";
+import { ReloadScript } from "../commands/ReloadScript";
 
 export class LayoutAssetEvents {
     public static Selected = (instance: any) => { };
@@ -123,7 +124,7 @@ export class LayoutAssets extends Component<BaseProps, LayoutAssetsState> {
 
     private async onItemClicked(item: ITreeMap<FileData>) {
         if (!item.data.instance) {
-            await this.loadTreeItem(item);
+            await this.loadTreeItem(item.data);
         }
 
         EventSystem.emit(LayoutAssetEvents.Selected, item.data.instance);
@@ -132,7 +133,7 @@ export class LayoutAssets extends Component<BaseProps, LayoutAssetsState> {
 
     private async onItemDoubleClicked(item: ITreeMap<FileData>) {
         if (!item.data.instance) {
-            await this.loadTreeItem(item);
+            await this.loadTreeItem(item.data);
         }
 
         if (item.data.instance.type === Scene.type) {
@@ -142,13 +143,20 @@ export class LayoutAssets extends Component<BaseProps, LayoutAssetsState> {
         }
     }
 
-    private async loadTreeItem(item: ITreeMap<FileData>) {
-        if (item.data.file.kind === "file") {
-            const loadedFile = await LoadFile(item.data.path, item.data.file as FileSystemFileHandle, this.props.engineAPI);
-            item.data.instance = loadedFile;
+    private async onRefresh() {
+        if (!this.state.selected) return;
+        if (!this.state.selected.path.endsWith(".ts")) return;
+
+        await ReloadScript(this.props.engineAPI, this.state.selected.path);
+    }
+
+    private async loadTreeItem(data: FileData): Promise<any> {
+        if (data.file.kind === "file") {
+            const loadedFile = await LoadFile(data.path, data.file as FileSystemFileHandle, this.props.engineAPI);
+            data.instance = loadedFile;
             return loadedFile;
         }
-        return item.data.file;
+        return data.file;
     }
 
     private getCurrentPath(): string {
@@ -187,7 +195,7 @@ export class LayoutAssets extends Component<BaseProps, LayoutAssetsState> {
 
     private onDragStarted(event: DragEvent, item: ProjectTreeMap) {
         if (!item.data.instance) {
-            this.loadTreeItem(item).then(() => {
+            this.loadTreeItem(item.data).then(() => {
                 ExtendedDataTransfer.data = item.data.instance;
             })
         }
@@ -279,6 +287,7 @@ export class LayoutAssets extends Component<BaseProps, LayoutAssetsState> {
                                 <TreeItem name="Script" onPointerDown={() => { this.createScript() }} />
                                 <TreeItem name="Scene" onPointerDown={() => { this.createScene() }} />
                                 <TreeItem name="Delete" onPointerDown={() => { this.deleteAsset() }} />
+                                <TreeItem name="Refresh" onPointerDown={() => { this.onRefresh() }} />
                             </Tree>
                         </FloatingMenu>
                     </div>

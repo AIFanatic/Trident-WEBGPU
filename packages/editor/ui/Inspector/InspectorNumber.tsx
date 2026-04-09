@@ -23,22 +23,21 @@ export class InspectorNumber extends Component<InspectorNumberProps, InspectorNu
         if (this.props.onChanged) {
             const input = event.currentTarget as HTMLInputElement;
             if (input.value == "") return;
-
-            const value = parseFloat(input.value)
-
+            
+            const value = parseFloat(input.value);
+            
             this.props.onChanged(value);
-
-            this.state.value = value;
-            this.setState({value: this.state.value});
+            
+            this.setState({value: value});
         }
     }
 
     private onClicked(event: MouseEvent) {
         const MouseMoveEvent = (event: MouseEvent) => {
             const delta = event.movementX;
-            this.state.value += delta / 10;
-            this.setState({value: this.state.value});
-            this.props.onChanged(this.state.value);
+            let value = this.state.value += delta / 10;
+            this.setState({value: value});
+            this.props.onChanged(value);
             (event.currentTarget as HTMLElement).requestPointerLock();
         }
         

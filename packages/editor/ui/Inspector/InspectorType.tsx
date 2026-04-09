@@ -28,6 +28,7 @@ export class InspectorType extends Component<InspectorTypeProps> {
 
     private onDrop(event: DragEvent) {
         const draggedItem = ExtendedDataTransfer.data;
+        console.log("onDrop", draggedItem);
         if (!this.isValidDrop(draggedItem)) return;
 
         this.props.component[this.props.property] = draggedItem;
