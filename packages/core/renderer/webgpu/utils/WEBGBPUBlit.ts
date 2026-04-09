@@ -1,11 +1,10 @@
 import { Geometry } from "../../../Geometry";
 import { Vector2 } from "../../../math/Vector2";
-import { Renderer } from "../../Renderer";
 import { RendererContext } from "../../RendererContext";
 import { Shader } from "../../Shader";
 import { Texture, TextureFormat } from "../../Texture";
 import { TextureSampler } from "../../TextureSampler";
-import { WEBGPURenderer } from "../WEBGPURenderer";
+import { Renderer } from "../../Renderer";
 
 export class WEBGPUBlit {
     private static blitShader: Shader;
@@ -106,7 +105,7 @@ export class WEBGPUBlit {
         this.blitShader.SetTexture("texture", source);
         this.blitShader.SetArray("uv_scale", uv_scale.elements);
 
-        const activeCommandEncoder = WEBGPURenderer.GetActiveCommandEncoder();
+        const activeCommandEncoder = Renderer.GetActiveCommandEncoder();
         if (!activeCommandEncoder) Renderer.BeginRenderFrame();
         RendererContext.BeginRenderPass("Blit", [{ target: destination, clear: true }]);
         RendererContext.SetViewport(0, 0, width, height)
@@ -125,7 +124,7 @@ export class WEBGPUBlit {
         this.depthBlitShader.SetArray("uv_scale", uv_scale.elements);
         this.depthBlitShader.SetArray("src_size", new Float32Array([source.width, source.height]));
 
-        const activeCommandEncoder = WEBGPURenderer.GetActiveCommandEncoder();
+        const activeCommandEncoder = Renderer.GetActiveCommandEncoder();
         if (!activeCommandEncoder) Renderer.BeginRenderFrame();
         RendererContext.BeginRenderPass("BlitDepth", [], { target: destination, clear: true });
         RendererContext.SetViewport(0, 0, width, height);

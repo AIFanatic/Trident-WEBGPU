@@ -1,6 +1,8 @@
 import { EventSystemLocal } from "../Events";
 import { GameObject } from "../GameObject";
-import { BufferType, RendererContext, Shader } from "../renderer";
+import { BufferType } from "../renderer/Buffer";
+import { RendererContext } from "../renderer/RendererContext";
+import { Shader } from "../renderer/Shader";
 import { DynamicBufferMemoryAllocatorDynamic } from "../renderer/MemoryAllocator";
 import { Component } from "./Component";
 import { Renderable } from "./Renderable";

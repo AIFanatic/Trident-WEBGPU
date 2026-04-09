@@ -32,7 +32,7 @@ export class SceneExtractPass extends RenderPass {
         this.initialized = true;
     }
 
-    public async preFrame(resources: ResourcePool) {
+    public preFrame(resources: ResourcePool) {
         const camera = Camera.mainCamera;
         if (!camera) return;
 

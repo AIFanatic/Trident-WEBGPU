@@ -1,9 +1,9 @@
 import { EventSystem } from "./Events";
 import { GameObject } from "./GameObject";
-import { Input } from "./Input";
+import { Prefab } from "./Prefab";
 import { Component, ComponentEvents } from "./components/Component";
-import { Renderer } from "./renderer/Renderer";
-import { RenderingPipeline } from "./renderer/RenderingPipeline";
+import { Deserializer } from "./serializer/Deserializer";
+import { Transform } from "./components/Transform";
 import { UUID } from "./utils";
 
 function getCtorChain(ctor: Function): Function[] {
@@ -20,26 +20,18 @@ export class Scene {
     public static Events = {
         OnStarted: (scene: Scene) => { }
     }
-    public readonly renderer: Renderer;
-    public name: string = "Default scene"
     public id = UUID();
+    public name: string;
     private _hasStarted = false;
     public get hasStarted(): boolean { return this._hasStarted };
 
     private gameObjects: GameObject[] = [];
+    private toStart: Set<Component> = new Set();
     private toUpdate: Map<Component, boolean> = new Map();
     private componentsByType: Map<Function, Component[]> = new Map();
 
-    public readonly renderPipeline: RenderingPipeline;
-
-    public static mainScene: Scene;
-    private previousTime: number = 0;
-
-    constructor(renderer: Renderer) {
-        this.renderer = renderer;
-        this.renderPipeline = new RenderingPipeline(this.renderer);
-
-        if (!Scene.mainScene) Scene.mainScene = this;
+    constructor(name: string = "DefaultScene") {
+        this.name = name;
 
         EventSystem.on(ComponentEvents.CallUpdate, (component, flag) => {
             if (flag) this.toUpdate.set(component, true);
@@ -48,6 +40,7 @@ export class Scene {
 
         EventSystem.on(ComponentEvents.AddedComponent, (component: Component, scene: Scene) => {
             if (scene !== this) return;
+            this.toStart.add(component);
             for (const ctor of getCtorChain((component as any).constructor)) {
                 let arr = this.componentsByType.get(ctor);
                 if (!arr) this.componentsByType.set(ctor, arr = []);
@@ -57,6 +50,7 @@ export class Scene {
 
         EventSystem.on(ComponentEvents.RemovedComponent, (component: Component, scene: Scene) => {
             if (scene !== this) return;
+            this.toStart.delete(component);
             for (const ctor of getCtorChain((component as any).constructor)) {
                 const arr = this.componentsByType.get(ctor);
                 if (arr) {
@@ -65,8 +59,6 @@ export class Scene {
                 }
             }
         });
-
-        Input.Init();
     }
 
     public AddGameObject(gameObject: GameObject) { this.gameObjects.push(gameObject) }
@@ -89,66 +81,48 @@ export class Scene {
         }
     }
 
-
-    public Start() {
-        if (this.hasStarted) return;
-        for (const gameObject of this.gameObjects) gameObject.Start();
-        this._hasStarted = true;
-        EventSystem.emit(Scene.Events.OnStarted, this);
-
-        Renderer.info.frame = 0;
-        this.previousTime = performance.now();
-
-        // TODO: This handles deno and web, probably better to abstract distinction away
-        const webMainLoop = () => {
-            this.Tick();
-
-            // setTimeout(() => {
-            //     webMainLoop()
-            // }, 1000);
-            requestAnimationFrame(() => webMainLoop());
+    public Update() {
+        for (const component of this.toStart) {
+            if (component.gameObject.enabled === false) continue;
+            component.Start();
+            component.hasStarted = true;
         }
-
-        const denoMainLoop = () => {
-            globalThis.mainloop(async () => {
-                await this.Tick();
-                Renderer.canvas.surface.present();
-            }, false)
-        }
-
-        if (globalThis.mainloop) denoMainLoop();
-        else webMainLoop();
-    }
-
-    private async Tick() {
-        Renderer.info.frame++;
-        const currentTime = performance.now();
-        Renderer.info.deltaTime = currentTime - this.previousTime;
-        this.previousTime = currentTime;
+        this.toStart.clear();
 
         for (const [component, _] of this.toUpdate) {
             if (component.gameObject.enabled === false) continue;
-            if (!component.hasStarted) {
-                component.Start();
-                component.hasStarted = true;
-            }
             component.Update();
         }
+    }
 
-        await this.renderPipeline.Render(this);
-
-        Input.Update();
+    public async Instantiate(prefab: Prefab, parent?: Transform): Promise<GameObject> {
+        const data = prefab.data ?? prefab;
+        const go = await Deserializer.deserializeGameObject(this, data, parent);
+        if (this.hasStarted) go.Start();
+        return go;
     }
 
     public Clear(): void {
-        // Destroy roots so children are handled once through hierarchy.
+        const persistent = new Set<GameObject>();
+
         const roots = this.GetRootGameObjects();
         for (const gameObject of roots) {
+            if (gameObject.dontDestroyOnLoad === true) {
+                persistent.add(gameObject);
+                continue;
+            }
             gameObject.Destroy();
         }
-        this.toUpdate.clear();
-        this.componentsByType.clear();
-        this.gameObjects.length = 0;
-    }
 
+        // Rebuild lists keeping only persistent objects
+        for (const [component] of this.toUpdate) {
+            if (!persistent.has(component.gameObject)) this.toUpdate.delete(component);
+        }
+        for (const [ctor, arr] of this.componentsByType) {
+            const kept = arr.filter(c => persistent.has(c.gameObject));
+            if (kept.length > 0) this.componentsByType.set(ctor, kept);
+            else this.componentsByType.delete(ctor);
+        }
+        this.gameObjects = this.gameObjects.filter(go => persistent.has(go));
+    }
 }

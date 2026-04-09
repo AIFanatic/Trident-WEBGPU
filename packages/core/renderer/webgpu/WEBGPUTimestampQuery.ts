@@ -1,4 +1,4 @@
-import { WEBGPURenderer } from "./WEBGPURenderer";
+import { Renderer } from "../Renderer";
 
 export class WEBGPUTimestampQuery {
     private static querySet: GPUQuerySet;
@@ -12,22 +12,22 @@ export class WEBGPUTimestampQuery {
     public static BeginRenderTimestamp(name: string): GPURenderPassTimestampWrites | GPUComputePassTimestampWrites | undefined {
         if (this.links.has(name)) return undefined;
 
-        if (!WEBGPURenderer.adapter.features.has("timestamp-query")) return undefined;
+        if (!Renderer.adapter.features.has("timestamp-query")) return undefined;
         if (this.isTimestamping === true) throw Error("Already timestamping");
         if (!this.querySet) {
-            this.querySet = WEBGPURenderer.device.createQuerySet({
+            this.querySet = Renderer.device.createQuerySet({
                 type: 'timestamp',
                 count: 200,
              });
         }
         if (!this.resolveBuffer) {
-            this.resolveBuffer = WEBGPURenderer.device.createBuffer({
+            this.resolveBuffer = Renderer.device.createBuffer({
                 size: this.querySet.count * 8,
                 usage: GPUBufferUsage.QUERY_RESOLVE | GPUBufferUsage.COPY_SRC,
             })
         }
         if (!this.resultBuffer) {
-            this.resultBuffer = WEBGPURenderer.device.createBuffer({
+            this.resultBuffer = Renderer.device.createBuffer({
                 size: this.querySet.count * 8,
                 usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ,
             })
@@ -44,7 +44,7 @@ export class WEBGPUTimestampQuery {
     public static EndRenderTimestamp() {
         if (this.isTimestamping === false) return;
 
-        const activeCommandEncoder = WEBGPURenderer.GetActiveCommandEncoder();
+        const activeCommandEncoder = Renderer.GetActiveCommandEncoder();
         if (!activeCommandEncoder) throw Error("No active command encoder!!");
 
         if (this.resultBuffer.mapState === 'unmapped') {

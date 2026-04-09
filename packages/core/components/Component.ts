@@ -40,7 +40,8 @@ export class Component {
 
     public Start() {}
     public Update() {}
-    public Destroy() { this.gameObject.RemoveComponent(this) }
+    public Destroy() {
+      EventSystem.emit(ComponentEvents.CallUpdate, this, false);
+      EventSystem.emit(ComponentEvents.RemovedComponent, this, this.gameObject.scene);
+    }
 }
-
-console.log(Component.Registry)

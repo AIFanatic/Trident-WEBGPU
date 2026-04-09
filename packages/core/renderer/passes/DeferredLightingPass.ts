@@ -161,7 +161,7 @@ export class DeferredLightingPass extends RenderPass {
         // console.log("Updating light buffer");
     }
 
-    public async preFrame(resources: ResourcePool) {
+    public preFrame(resources: ResourcePool) {
         if (!this.initialized) return;
         this.drawCommands.length = 0;
         const camera = Camera.mainCamera;
@@ -207,7 +207,7 @@ export class DeferredLightingPass extends RenderPass {
     private sphere = Geometry.Sphere();
     private cone = Geometry.Cone();
 
-    public async execute(resources: ResourcePool) {
+    public execute(resources: ResourcePool) {
         if (!this.initialized) return;
         if (this.drawCommands.length === 0) return;
 

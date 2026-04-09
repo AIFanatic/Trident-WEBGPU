@@ -1,4 +1,3 @@
-import { Scene } from "../Scene";
 import { Renderer, RendererEvents } from "./Renderer";
 import { RenderGraph, RenderPass } from "./RenderGraph";
 import { DeferredLightingPass } from "./passes/DeferredLightingPass";
@@ -83,6 +82,8 @@ export class RenderingPipeline {
     public set skyboxBRDFLUT(skyboxBRDFLUT: RenderTexture) { this.prepareGBuffersPass.skyboxBRDFLUT = skyboxBRDFLUT};
 
     public get GBufferFormat(): TextureFormat { return this.prepareGBuffersPass.GBufferFormat};
+    
+    public static GBufferFormat: TextureFormat = "rgba16float"; // use the current value
 
     public readonly DeferredShadowMapPass = new DeferredShadowMapPass();
 
@@ -147,15 +148,15 @@ export class RenderingPipeline {
         this.UpdateRenderGraphPasses();
     }
 
-    public async Render(scene: Scene) {
+    public Render() {
         Renderer.info.ResetFrame();
         
         const renderPipelineStart = performance.now();
 
-        await this.renderGraph.preFrame();
+        this.renderGraph.preFrame();
         Renderer.BeginRenderFrame();
-        await this.renderGraph.preRender();
-        await this.renderGraph.execute();
+        this.renderGraph.preRender();
+        this.renderGraph.execute();
         Renderer.EndRenderFrame();
         Renderer.info.cpuTime = performance.now() - renderPipelineStart;
 

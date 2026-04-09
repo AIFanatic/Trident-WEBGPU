@@ -6,7 +6,6 @@ import { ComputeShaderParams, ShaderParams, ShaderUniform } from "../Shader";
 import { ShaderPreprocessor } from "../ShaderUtils";
 import { TextureType } from "../Texture";
 import { WEBGPUBuffer, WEBGPUDynamicBuffer } from "./WEBGPUBuffer";
-import { WEBGPURenderer } from "./WEBGPURenderer";
 import { WEBGPUTexture } from "./WEBGPUTexture";
 import { WEBGPUTextureSampler } from "./WEBGPUTextureSampler";
 import { Vector2 } from "../../math/Vector2";
@@ -63,7 +62,7 @@ export class WEBGPUBaseShader {
     constructor(params: ShaderParams | ComputeShaderParams) {
         const code = params.defines ? ShaderPreprocessor.ProcessDefines(params.code, params.defines) : params.code;
         this.params = params;
-        this.module = WEBGPURenderer.device.createShaderModule({code: code, label: params.name});
+        this.module = Renderer.device.createShaderModule({code: code, label: params.name});
         if (this.params.uniforms) {
             this.uniformMap = new Map(Object.entries(this.params.uniforms));
         }
@@ -134,7 +133,7 @@ export class WEBGPUBaseShader {
 
             let bindGroupLayout = BindGroupLayoutCache.get(crc);
             if (bindGroupLayout === undefined) {
-                bindGroupLayout = WEBGPURenderer.device.createBindGroupLayout({label: this.params.name, entries: bindGroupsLayoutEntry});
+                bindGroupLayout = Renderer.device.createBindGroupLayout({label: this.params.name, entries: bindGroupsLayoutEntry});
                 BindGroupLayoutCache.set(crc, bindGroupLayout);
                 Renderer.info.bindGroupLayoutsStat += 1;
             }
@@ -218,7 +217,7 @@ export class WEBGPUBaseShader {
 
             let bindGroup = BindGroupCache.get(crc);
             if (bindGroup === undefined) {
-                bindGroup = WEBGPURenderer.device.createBindGroup({ layout: bindGroupLayout, entries: bindGroupInfo.entries });
+                bindGroup = Renderer.device.createBindGroup({ layout: bindGroupLayout, entries: bindGroupInfo.entries });
                 Renderer.info.bindGroupsStat += 1;
                 BindGroupCache.set(crc, bindGroup);
             }
@@ -244,7 +243,7 @@ export class WEBGPUBaseShader {
             this.needsUpdate = true;
         }
 
-        WEBGPURenderer.device.queue.writeBuffer(uniform.buffer.GetBuffer() as GPUBuffer, bufferOffset, data, dataOffset, size);
+        Renderer.device.queue.writeBuffer(uniform.buffer.GetBuffer() as GPUBuffer, bufferOffset, data, dataOffset, size);
     }
     private SetUniformDataFromBuffer(name: string, data: WEBGPUTexture | WEBGPUTextureSampler | WEBGPUBuffer | WEBGPUDynamicBuffer) {
         if (!data) throw Error(`Invalid buffer ${name}`);

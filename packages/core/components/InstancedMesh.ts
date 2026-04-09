@@ -1,5 +1,6 @@
 import { Matrix4 } from "../math/Matrix4";
-import { RendererContext, Shader } from "../renderer";
+import { RendererContext } from "../renderer/RendererContext";
+import { Shader } from "../renderer/Shader";
 import { Buffer } from "../renderer/Buffer";
 import { DynamicBufferMemoryAllocator } from "../renderer/MemoryAllocator";
 import { Renderable } from "./Renderable";

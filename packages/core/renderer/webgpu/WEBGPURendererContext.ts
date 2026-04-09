@@ -3,7 +3,6 @@ import { BufferCopyParameters, DepthTarget, RenderTarget, RendererContext, Textu
 import { Renderer } from "../Renderer";
 import { Topology } from "../Shader";
 import { WEBGPUBuffer, WEBGPUDynamicBuffer } from "./WEBGPUBuffer";
-import { WEBGPURenderer } from "./WEBGPURenderer";
 import { WEBGPUShader } from "./WEBGPUShader";
 import { WEBGPUTexture } from "./WEBGPUTexture";
 import { WEBGPUTimestampQuery } from "./WEBGPUTimestampQuery";
@@ -14,7 +13,7 @@ export class WEBGPURendererContext implements RendererContext {
     public static HasActiveRenderPass(): boolean { return this.activeRenderPass instanceof GPURenderPassEncoder };
 
     public static BeginRenderPass(name: string, renderTargets: RenderTarget[], depthTarget?: DepthTarget, timestamp?: boolean) {
-        const activeCommandEncoder = WEBGPURenderer.GetActiveCommandEncoder();
+        const activeCommandEncoder = Renderer.GetActiveCommandEncoder();
         if (!activeCommandEncoder) throw Error("No active command encoder!!");
         if (this.activeRenderPass) throw Error("There is already an active render pass");
 
@@ -25,7 +24,7 @@ export class WEBGPURendererContext implements RendererContext {
         const attachments: GPURenderPassColorAttachment[] = [];
         for (const renderTarget of renderTargets) {
             attachments.push({
-                view: renderTarget.target ? (renderTarget.target as WEBGPUTexture).GetView() : WEBGPURenderer.context.getCurrentTexture().createView(),
+                view: renderTarget.target ? (renderTarget.target as WEBGPUTexture).GetView() : Renderer.context.getCurrentTexture().createView(),
                 clearValue: renderTarget.color,
                 loadOp: renderTarget.clear ? "clear" : "load",
                 storeOp: 'store',                
@@ -158,14 +157,14 @@ export class WEBGPURendererContext implements RendererContext {
     }
 
     public static CopyBufferToBuffer(source: WEBGPUBuffer, destination: WEBGPUBuffer, sourceOffset: number, destinationOffset: number, size: number) {
-        const activeCommandEncoder = WEBGPURenderer.GetActiveCommandEncoder();
+        const activeCommandEncoder = Renderer.GetActiveCommandEncoder();
         if (!activeCommandEncoder) throw Error("No active command encoder!!");
 
         activeCommandEncoder.copyBufferToBuffer(source.GetBuffer(), sourceOffset, destination.GetBuffer(), destinationOffset, size);
     }
 
     public static CopyBufferToTexture(source: BufferCopyParameters, destination: TextureCopyParameters, copySize?: number[]) {
-        const activeCommandEncoder = WEBGPURenderer.GetActiveCommandEncoder();
+        const activeCommandEncoder = Renderer.GetActiveCommandEncoder();
         if (!activeCommandEncoder) throw Error("No active command encoder!!");
 
         const sourceParameters: GPUImageCopyBuffer = {buffer: (source.buffer as WEBGPUBuffer).GetBuffer(), offset: source.offset, bytesPerRow: source.bytesPerRow, rowsPerImage: source.rowsPerImage};
@@ -177,7 +176,7 @@ export class WEBGPURendererContext implements RendererContext {
 
     // CopyTexture(Texture src, int srcElement, int srcMip, Texture dst, int dstElement, int dstMip);
     public static CopyTextureToTexture(source: WEBGPUTexture, destination: WEBGPUTexture, srcMip: number, dstMip: number, size?: number[]) {
-        const activeCommandEncoder = WEBGPURenderer.GetActiveCommandEncoder();
+        const activeCommandEncoder = Renderer.GetActiveCommandEncoder();
         if (!activeCommandEncoder) throw Error("No active command encoder!!");
 
         const extents = size ? size : [source.width, source.height, source.depth];
@@ -185,7 +184,7 @@ export class WEBGPURendererContext implements RendererContext {
     }
 
     public static CopyTextureToBuffer(source: WEBGPUTexture, destination: WEBGPUBuffer, srcMip: number, size?: number[]) {
-        const activeCommandEncoder = WEBGPURenderer.GetActiveCommandEncoder();
+        const activeCommandEncoder = Renderer.GetActiveCommandEncoder();
         if (!activeCommandEncoder) throw Error("No active command encoder!!");
 
         const extents = size ? size : [source.width, source.height, source.depth];
@@ -194,7 +193,7 @@ export class WEBGPURendererContext implements RendererContext {
     }    
 
     public static CopyTextureToBufferV2(source: TextureCopyParameters, destination: BufferCopyParameters, copySize?: number[]) {
-        const activeCommandEncoder = WEBGPURenderer.GetActiveCommandEncoder();
+        const activeCommandEncoder = Renderer.GetActiveCommandEncoder();
         if (!activeCommandEncoder) throw Error("No active command encoder!!");
 
         const sourceParameters: GPUImageCopyTexture = {texture: (source.texture as WEBGPUTexture).GetBuffer(), mipLevel: source.mipLevel, origin: source.origin};
@@ -204,7 +203,7 @@ export class WEBGPURendererContext implements RendererContext {
     }    
 
     public static CopyTextureToTextureV2(source: WEBGPUTexture, destination: WEBGPUTexture, srcMip: number, dstMip: number, size?: number[], depth?: number) {
-        const activeCommandEncoder = WEBGPURenderer.GetActiveCommandEncoder();
+        const activeCommandEncoder = Renderer.GetActiveCommandEncoder();
         if (!activeCommandEncoder) throw Error("No active command encoder!!");
 
         const extents = size ? size : [source.width, source.height, source.depth];
@@ -216,7 +215,7 @@ export class WEBGPURendererContext implements RendererContext {
     }
 
     public static CopyTextureToTextureV3(source: TextureCopyParameters, destination: TextureCopyParameters, copySize?: number[]) {
-        const activeCommandEncoder = WEBGPURenderer.GetActiveCommandEncoder();
+        const activeCommandEncoder = Renderer.GetActiveCommandEncoder();
         if (!activeCommandEncoder) throw Error("No active command encoder!!");
 
         const sourceParameters: GPUTexelCopyTextureInfo = {texture: (source.texture as WEBGPUTexture).GetBuffer(), mipLevel: source.mipLevel, origin: source.origin};
@@ -226,7 +225,7 @@ export class WEBGPURendererContext implements RendererContext {
     }
 
     public static ClearBuffer(buffer: WEBGPUBuffer, offset: number, size: number) {
-        const activeCommandEncoder = WEBGPURenderer.GetActiveCommandEncoder();
+        const activeCommandEncoder = Renderer.GetActiveCommandEncoder();
         if (!activeCommandEncoder) throw Error("No active command encoder!!");
 
         activeCommandEncoder.clearBuffer(buffer.GetBuffer(), offset, size);

@@ -1,5 +1,5 @@
 // import { ShaderCode } from "../ShaderCode";
-import { WEBGPURenderer } from "../WEBGPURenderer";
+import { Renderer } from "../../Renderer";
 import { WEBGPUTexture } from "../WEBGPUTexture";
 
 export class WEBGPUMipsGenerator {
@@ -11,9 +11,9 @@ export class WEBGPUMipsGenerator {
 
     // TODO: Cannot call this twice because of texture usages
     public static generateMips(source: WEBGPUTexture): GPUTexture {
-        if (!WEBGPURenderer.device) throw Error("WEBGPU not initialized");
+        if (!Renderer.device) throw Error("WEBGPU not initialized");
 
-        const device = WEBGPURenderer.device;
+        const device = Renderer.device;
         const sourceBuffer = source.GetBuffer();
 
         if (!this.module) {

@@ -1,7 +1,6 @@
 import { UUID } from "../../utils";
 import { Buffer, BufferType, DynamicBuffer } from "../Buffer";
 import { Renderer } from "../Renderer";
-import { WEBGPURenderer } from "./WEBGPURenderer";
 import { WEBGPURendererContext } from "./WEBGPURendererContext";
 
 class BaseBuffer {
@@ -25,7 +24,7 @@ class BaseBuffer {
         else if (type == 10) usage = GPUBufferUsage.INDEX | GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC | GPUBufferUsage.COPY_DST;
         if (!usage) throw Error("Invalid buffer usage");
 
-        this.buffer = WEBGPURenderer.device.createBuffer({ size: sizeInBytes, usage: usage});
+        this.buffer = Renderer.device.createBuffer({ size: sizeInBytes, usage: usage});
         this.size = sizeInBytes;
     }
 
@@ -36,22 +35,22 @@ class BaseBuffer {
             console.warn("Cannot set buffer data while there is an active render pass.");
             return;
         }
-        if (WEBGPURenderer.GetActiveCommandEncoder()) {
+        if (Renderer.GetActiveCommandEncoder()) {
             console.warn("Cannot set buffer data after a frame has started.");
             // return;
         }
-        WEBGPURenderer.device.queue.writeBuffer(this.buffer, bufferOffset, array, dataOffset, size);
+        Renderer.device.queue.writeBuffer(this.buffer, bufferOffset, array, dataOffset, size);
     }
 
     public async GetData(sourceOffset: number = 0, destinationOffset: number = 0, size?: number): Promise<BufferSource> {
-        const readBuffer = WEBGPURenderer.device.createBuffer({
+        const readBuffer = Renderer.device.createBuffer({
             size: size ? size : this.buffer.size,
             usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ,
         });
 
-        const commandEncoder = WEBGPURenderer.device.createCommandEncoder();
+        const commandEncoder = Renderer.device.createCommandEncoder();
         commandEncoder.copyBufferToBuffer(this.buffer, sourceOffset, readBuffer, destinationOffset, size ? size : this.buffer.size);
-        WEBGPURenderer.device.queue.submit([commandEncoder.finish()]);
+        Renderer.device.queue.submit([commandEncoder.finish()]);
 
         await readBuffer.mapAsync(GPUMapMode.READ);
         const arrayBuffer = readBuffer.getMappedRange().slice(0);

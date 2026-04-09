@@ -1,5 +1,4 @@
 import { WEBGPUBaseShader } from "./WEBGPUBaseShader";
-import { WEBGPURenderer } from "./WEBGPURenderer";
 import { BlendMode, Shader, ShaderAttribute, ShaderParams } from "../Shader";
 import { UUID } from "../../utils";
 import { Renderer } from "../Renderer";
@@ -77,7 +76,7 @@ export class WEBGPUShader extends WEBGPUBaseShader implements Shader {
 
         let pipelineLayout = pipelineLayoutCache.get(bindGroupLayoutsCRC);
         if (pipelineLayout === undefined) {
-            pipelineLayout = WEBGPURenderer.device.createPipelineLayout({
+            pipelineLayout = Renderer.device.createPipelineLayout({
                 bindGroupLayouts: this.bindGroupLayouts
             });
             pipelineLayout.label = UUID();
@@ -130,7 +129,7 @@ export class WEBGPUShader extends WEBGPUBaseShader implements Shader {
         const pipelineDescriptorKey = JSON.stringify(pipelineDescriptor) + this.params.code; // TODO: Use code CRC or something better
         let pipeline = pipelineCache.get(pipelineDescriptorKey);
         if (!pipeline) {
-            pipeline = WEBGPURenderer.device.createRenderPipeline(pipelineDescriptor);
+            pipeline = Renderer.device.createRenderPipeline(pipelineDescriptor);
             pipelineCache.set(pipelineDescriptorKey, pipeline);
             hasCompiled = true;
         }

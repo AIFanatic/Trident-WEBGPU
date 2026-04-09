@@ -3,9 +3,8 @@ import { Renderer, RendererEvents } from "../Renderer";
 import { ImageLoadOptions, Texture, TextureDimension, TextureFormat, TextureType } from "../Texture";
 import { WEBGPUMipsGenerator } from "./utils/WEBGPUMipsGenerator";
 import { WEBGPUCubeMipsGenerator } from "./utils/WEBGPUCubeMipsGenerator";
-import { WEBGPURenderer } from "./WEBGPURenderer";
 import { Buffer, BufferType } from "../Buffer";
-import { RendererContext } from "../../renderer";
+import { RendererContext } from "../RendererContext";
 import { EventSystem } from "../../Events";
 
 const TextureFormatToBits: Partial<Record<TextureFormat, number>> = {
@@ -73,7 +72,7 @@ export class WEBGPUTexture implements Texture {
         else if (dimension === "3d") dim = "3d";
 
         const textureBindingViewDimension = dimension === "cube" ? "cube" : undefined;
-        this.buffer = WEBGPURenderer.device.createTexture({
+        this.buffer = Renderer.device.createTexture({
             size: { width: width, height: height, depthOrArrayLayers: depth },
             // @ts-ignore
             textureBindingViewDimension: textureBindingViewDimension,
@@ -179,7 +178,7 @@ export class WEBGPUTexture implements Texture {
 
     public SetData(data: BufferSource, bytesPerRow: number, rowsPerImage?: number) {
         try {
-            WEBGPURenderer.device.queue.writeTexture(
+            Renderer.device.queue.writeTexture(
                 { texture: this.buffer },
                 data,
                 { bytesPerRow: bytesPerRow, rowsPerImage: rowsPerImage },
@@ -194,7 +193,7 @@ export class WEBGPUTexture implements Texture {
         try {
             const bpp = bytesPerPixel(this.format);
             const bytesPerRow = width * bpp;
-            WEBGPURenderer.device.queue.writeTexture(
+            Renderer.device.queue.writeTexture(
                 {
                     texture: this.buffer,
                     mipLevel: mip,
@@ -277,7 +276,7 @@ export class WEBGPUTexture implements Texture {
         texture.name = options.name;
 
         try {
-            WEBGPURenderer.device.queue.copyExternalImageToTexture(
+            Renderer.device.queue.copyExternalImageToTexture(
                 { source: imageBitmap, flipY: options.flipY },
                 { texture: texture.GetBuffer() },
                 [imageBitmap.width, imageBitmap.height]

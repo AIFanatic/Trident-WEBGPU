@@ -1,13 +1,14 @@
-import { EventSystem } from "../Events";
+import { EventSystem, EventSystemLocal } from "../Events";
 import { GameObject } from "../GameObject";
 import { Geometry } from "../Geometry";
-import { Shader } from "../renderer";
+import { Shader } from "../renderer/Shader";
 import { Material, PBRMaterial } from "../renderer/Material";
 import { SerializeField } from "../utils/SerializeField";
 import { Component } from "./Component";
 
 export class RenderableEvents {
     public static MaterialUpdated = (gameObject: GameObject, material: Material) => {};
+    public static GeometryUpdated = (gameObject: GameObject, geometry: Geometry) => {};
 }
 
 export class Renderable extends Component {
@@ -22,14 +23,17 @@ export class Renderable extends Component {
     private _geometry: Geometry = new Geometry();
     @SerializeField(Geometry)
     public get geometry(): Geometry { return this._geometry; };
-    public set geometry(geometry: Geometry) { this._geometry = geometry; };
+    public set geometry(geometry: Geometry) {
+        this._geometry = geometry;
+        EventSystemLocal.emit(RenderableEvents.GeometryUpdated, this.transform, this.gameObject, geometry);
+    };
 
     protected _material: Material = new PBRMaterial();
     @SerializeField(Material)
     public get material(): Material { return this._material; };
     public set material(material: Material) {
         this._material = material;
-        EventSystem.emit(RenderableEvents.MaterialUpdated, this.gameObject, material);
+        EventSystemLocal.emit(RenderableEvents.MaterialUpdated, this.transform, this.gameObject, material);
     };
 
     constructor(gameObject: GameObject) {

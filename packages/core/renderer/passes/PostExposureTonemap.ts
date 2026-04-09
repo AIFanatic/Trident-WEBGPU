@@ -160,7 +160,7 @@ export class PostExposureTonemap extends RenderPass {
         this.initialized = true;
     }
 
-    public async execute(resources: ResourcePool) {
+    public execute(resources: ResourcePool) {
         if (this.initialized === false) return;
 
         const LightingPassOutputTexture = resources.getResource(PassParams.LightingPassOutput);

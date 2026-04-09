@@ -366,7 +366,7 @@ export class DeferredShadowMapPass extends RenderPass {
         this.preparedInstancedMeshes = instancedMeshes;
     }
 
-    public async preFrame(resources: ResourcePool) {
+    public preFrame(resources: ResourcePool) {
         if (!this.initialized) return;
         const mainCamera = Camera.mainCamera;
         if (!mainCamera) return;
@@ -420,7 +420,7 @@ export class DeferredShadowMapPass extends RenderPass {
         resources.setResource(PassParams.ShadowPassDepth, this.shadowOutput);
     }
 
-    public async execute(resources: ResourcePool) {
+    public execute(resources: ResourcePool) {
         if (!this.initialized) return;
         if (this.lightShadowData.size === 0) return;
 

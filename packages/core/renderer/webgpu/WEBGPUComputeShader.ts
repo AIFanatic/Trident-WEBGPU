@@ -1,5 +1,4 @@
 import { Compute, ComputeShaderParams } from "../Shader";
-import { WEBGPURenderer } from "./WEBGPURenderer";
 import { WEBGPUBaseShader } from "./WEBGPUBaseShader";
 import { pipelineLayoutCache } from "./WEBGPUShader";
 import { Renderer } from "../Renderer";
@@ -27,7 +26,7 @@ export class WEBGPUComputeShader extends WEBGPUBaseShader implements Compute {
 
         // let pipelineLayout = pipelineLayoutCache.get(this.bindGroupLayouts);
         // if (pipelineLayout === undefined) {
-            let pipelineLayout = WEBGPURenderer.device.createPipelineLayout({
+            let pipelineLayout = Renderer.device.createPipelineLayout({
                 bindGroupLayouts: this.bindGroupLayouts
             });
         //     pipelineLayoutCache.set(this.bindGroupLayouts, pipelineLayout);
@@ -40,7 +39,7 @@ export class WEBGPUComputeShader extends WEBGPUBaseShader implements Compute {
         }
 
         // Pipeline
-        this._pipeline = WEBGPURenderer.device.createComputePipeline(pipelineDescriptor);
+        this._pipeline = Renderer.device.createComputePipeline(pipelineDescriptor);
 
         Renderer.info.compiledShadersStat += 1;
         

@@ -6,4 +6,4 @@ export { InstancedMesh } from "./InstancedMesh";
 export { SkinnedMesh, Bone } from "./SkinnedMesh";
 export { Animator, AnimationTrack } from "./Animator";
 export { Transform, TransformEvents } from "./Transform";
-export { Renderable } from "./Renderable";
+export { Renderable, RenderableEvents } from "./Renderable";

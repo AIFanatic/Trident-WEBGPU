@@ -6,8 +6,6 @@ import { Buffer, BufferType } from "./renderer/Buffer";
 import { Vector2 } from "./math";
 import { CRC32 } from "./utils/CRC32";
 import { Assets } from "./Assets";
-import { EventSystem } from "./Events";
-import { RendererEvents } from "./renderer/Renderer";
 
 export class GeometryAttribute {
     @SerializeField public type = "@trident/core/Geometry/GeometryAttribute";
@@ -435,7 +433,7 @@ export class Geometry {
 // These behave like local files but are builtin.
 // Ideally they shouldn't be bundled with core but having separate assets is messy.
 // They are needed for clustered lighting, full screen quads etc
-EventSystem.on(RendererEvents.Created, renderer => {
+export function RegisterBuiltinGeometries() {
     // Cube
     {
         const instancePath = "@builtin/geometry/cube";
@@ -532,4 +530,4 @@ EventSystem.on(RendererEvents.Created, renderer => {
 
         Assets.SetInstance(instancePath, geometry);
     }
-})
+}

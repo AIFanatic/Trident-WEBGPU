@@ -96,7 +96,7 @@ export class SkyboxPass extends RenderPass {
         this.initialized = true;
     }
 
-    public async preFrame(resources: ResourcePool) {
+    public preFrame(resources: ResourcePool) {
         if (!this.initialized) return;
         this.drawCommands.length = 0;
 
@@ -113,7 +113,7 @@ export class SkyboxPass extends RenderPass {
         this.drawCommands.push({geometry: this.quadGeometry, shader: this.shader, instanceCount: 1, firstInstance: 0});
     }
 
-    public async execute(resources: ResourcePool) {
+    public execute(resources: ResourcePool) {
         if (!this.initialized) return;
         if (this.drawCommands.length === 0) return;
 

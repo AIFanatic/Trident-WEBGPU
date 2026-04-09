@@ -1,4 +1,4 @@
-import { WEBGPURenderer } from "../WEBGPURenderer";
+import { Renderer } from "../../Renderer";
 import { WEBGPUTexture } from "../WEBGPUTexture";
 
 export class WEBGPUCubeMipsGenerator {
@@ -9,10 +9,10 @@ export class WEBGPUCubeMipsGenerator {
     public static numMipLevels(...sizes: number[]) { return 1 + Math.log2(Math.max(...sizes)) | 0 }
 
     public static generateMips(source: WEBGPUTexture): GPUTexture {
-        if (!WEBGPURenderer.device) throw Error("WEBGPU not initialized");
+        if (!Renderer.device) throw Error("WEBGPU not initialized");
         if (source.dimension !== "cube") throw Error("Cube mip generator requires cube texture");
 
-        const device = WEBGPURenderer.device;
+        const device = Renderer.device;
         const sourceBuffer = source.GetBuffer();
 
         if (!this.module) {

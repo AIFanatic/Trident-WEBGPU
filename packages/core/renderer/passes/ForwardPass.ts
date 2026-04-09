@@ -21,7 +21,7 @@ export class ForwardPass extends RenderPass {
         this.initialized = true;
     }
 
-    public async preFrame(resources: ResourcePool) {
+    public preFrame(resources: ResourcePool) {
         this.drawCommands.length = 0;
 
         const mainCamera = Camera.mainCamera;
@@ -72,7 +72,7 @@ export class ForwardPass extends RenderPass {
         }
     }
 
-    public async execute(resources: ResourcePool) {
+    public execute(resources: ResourcePool) {
         if (this.drawCommands.length === 0) return;
 
         const LightingPassOutput = resources.getResource(PassParams.LightingPassOutput);

@@ -1,7 +1,8 @@
-import { Component } from "./components/Component";
+import { Component, ComponentEvents } from "./components/Component";
 import { Scene } from "./Scene";
 import { Transform } from "./components/Transform";
 import { UUID } from "./utils";
+import { EventSystem } from "./Events";
 
 
 function getCtorChain(ctor: Function): Function[] {
@@ -32,15 +33,22 @@ export class GameObject {
 
     public assetPath?: string;
 
+    public dontDestroyOnLoad = false;
+
     constructor(scene: Scene) {
         this.scene = scene;
         this.transform = new Transform(this);
         this.scene.AddGameObject(this);
+
+        EventSystem.on(ComponentEvents.RemovedComponent, (component: Component, scene: Scene) => {
+            if (scene !== this.scene) return;
+            this.RemoveComponent(component);
+        });
     }
 
     public AddComponent<T extends Component>(Ctor: new (go: GameObject, ...args: any[]) => T, ...args: any[]): T {
         const componentInstance = new Ctor(this, ...args);
-        if (!(componentInstance instanceof Component)) throw new Error("Invalid component");
+        if (!(componentInstance instanceof Component)) throw new Error(`Invalid component ${Ctor.name}`);
         if (componentInstance instanceof Transform && this.GetComponent(Transform)) throw new Error("A GameObject can only have one Transform");
 
         this.allComponents.push(componentInstance);
@@ -121,12 +129,15 @@ export class GameObject {
     }
 
     public Destroy() {
-        for (const child of this.transform.children) {
+        // snapshot arrays with spread
+        for (const child of [...this.transform.children]) {
             child.gameObject.Destroy();
         }
-        for (const component of this.allComponents) {
+        for (const component of [...this.allComponents]) {
             component.Destroy();
         }
+        this.allComponents.length = 0;
+        this.componentsByCtor.clear();
         this.scene.RemoveGameObject(this);
     }
 }

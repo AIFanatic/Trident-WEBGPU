@@ -8,6 +8,7 @@ import { Shader, ShaderParams } from "./Shader";
 import { ShaderLoader } from "./ShaderUtils";
 import { Texture } from "./Texture";
 import { TextureSampler } from "./TextureSampler";
+import { RenderingPipeline } from "./RenderingPipeline";
 
 export const MaterialPool = new Pool<Material>();
 
@@ -61,11 +62,11 @@ class PBRMaterialParams extends MaterialParams {
     @SerializeField public roughness = 1.0;
     @SerializeField public metalness = 0.0;
 
-    @SerializeField(Texture) public albedoMap = undefined;
-    @SerializeField(Texture) public normalMap = undefined;
-    @SerializeField(Texture) public heightMap = undefined;
-    @SerializeField(Texture) public armMap = undefined;
-    @SerializeField(Texture) public emissiveMap = undefined;
+    @SerializeField(Texture) public albedoMap: Texture;
+    @SerializeField(Texture) public normalMap: Texture;
+    @SerializeField(Texture) public heightMap: Texture;
+    @SerializeField(Texture) public armMap: Texture;
+    @SerializeField(Texture) public emissiveMap: Texture;
 
     @SerializeField public repeat = new Vector2(1, 1);
     @SerializeField public offset = new Vector2(0, 0);
@@ -139,7 +140,7 @@ export class PBRMaterial extends Material {
         if (this.pendingShaderCreation) return this.pendingShaderCreation;
 
         this.pendingShaderCreation = (async () => {
-            const gbufferFormat = Scene.mainScene.renderPipeline.GBufferFormat;
+            const gbufferFormat = RenderingPipeline.GBufferFormat;
 
             const defines = {
                 USE_SKINNING: !!this.params.isSkinned

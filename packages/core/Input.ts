@@ -1,5 +1,6 @@
 import { Vector2 } from "./math/Vector2";
-import { Renderer } from "./renderer";
+import { Renderer } from "./renderer/Renderer";
+import { System } from "./System";
 
 export enum KeyCodes {
     CANCEL = 3,
@@ -125,7 +126,7 @@ export enum MouseCodes {
     MOUSE_MIDDLE,
 }
 
-export class Input {
+export class Input extends System {
     private static keysDown: any = {};
     private static keysUp: any = {};
 
@@ -200,10 +201,10 @@ export class Input {
     }
 
 
-    public static Update() {
-        if (!this.initialized) return;
-        this.horizontalAxis = 0;
-        this.verticalAxis = 0;
+    public Update() {
+        if (!Input.initialized) return;
+        Input.horizontalAxis = 0;
+        Input.verticalAxis = 0;
     }
 
     /**

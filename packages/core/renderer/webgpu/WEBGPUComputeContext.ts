@@ -1,14 +1,14 @@
 import { ComputeContext } from "../ComputeContext";
 import { WEBGPUDynamicBuffer } from "./WEBGPUBuffer";
 import { WEBGPUComputeShader } from "./WEBGPUComputeShader";
-import { WEBGPURenderer } from "./WEBGPURenderer";
+import { Renderer } from "../Renderer";
 import { WEBGPUTimestampQuery } from "./WEBGPUTimestampQuery";
 
 export class WEBGPUComputeContext implements ComputeContext {
     private static activeComputePass: GPUComputePassEncoder | null = null;
 
     public static BeginComputePass(name: string, timestamp?: boolean) {
-        const activeCommandEncoder = WEBGPURenderer.GetActiveCommandEncoder();
+        const activeCommandEncoder = Renderer.GetActiveCommandEncoder();
         if (!activeCommandEncoder) throw Error("No active command encoder!!");
         if (this.activeComputePass) throw Error("There is already an active compute pass");
 

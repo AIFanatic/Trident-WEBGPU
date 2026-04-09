@@ -25,14 +25,14 @@ export class RenderablePass extends RenderPass {
         }
     }
 
-    public async preRender(resources: ResourcePool) {
+    public preRender(resources: ResourcePool) {
         for (const renderable of this.renderables) {
             if (!renderable.gameObject.enabled) continue;
             renderable.OnPreRender();
         }
     }
 
-    public async execute(resources: ResourcePool) {
+    public execute(resources: ResourcePool) {
         if (this.renderables.length === 0) return;
         
         const inputCamera = Camera.mainCamera;

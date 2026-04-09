@@ -6,7 +6,6 @@ import { Geometry } from "../../Geometry";
 import { TextureSampler } from "../TextureSampler";
 import { PassParams } from "../RenderingPipeline";
 import { Console, ConsoleVarConfigs } from "../../Console";
-import { Texture } from "../Texture";
 
 const TextureViewerSettings = Console.define({r_exposure: { default: 0.0, help: "Final image exposure"}} satisfies ConsoleVarConfigs);
 
@@ -71,7 +70,7 @@ export class TextureViewer extends RenderPass {
         this.initialized = true;
     }
 
-    public async execute(resources: ResourcePool) {
+    public execute(resources: ResourcePool) {
         if (this.initialized === false) return;
 
         const LightingPassOutputTexture = resources.getResource(PassParams.LightingPassOutput);

@@ -1,6 +1,6 @@
 import { UUID } from "../../utils";
 import { TextureSampler, TextureSamplerParams } from "../TextureSampler";
-import { WEBGPURenderer } from "./WEBGPURenderer";
+import { Renderer } from "../Renderer";
 
 export class WEBGPUTextureSampler implements TextureSampler {
     public readonly id = UUID();
@@ -19,7 +19,7 @@ export class WEBGPUTextureSampler implements TextureSampler {
         if (params && params.addressModeV) samplerDescriptor.addressModeV = params.addressModeV;
         if (params && params.compare) samplerDescriptor.compare = params.compare;
         if (params && params.maxAnisotropy) samplerDescriptor.maxAnisotropy = params.maxAnisotropy;
-        this.sampler = WEBGPURenderer.device.createSampler(samplerDescriptor);
+        this.sampler = Renderer.device.createSampler(samplerDescriptor);
     }
 
     public GetBuffer(): GPUSampler { return this.sampler }

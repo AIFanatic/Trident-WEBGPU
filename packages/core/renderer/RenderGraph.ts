@@ -16,9 +16,9 @@ export class RenderPass {
     protected readonly drawCommands: DrawCommand[] = [];
 
     public async init(resources: ResourcePool) { };
-    public async preFrame(resources: ResourcePool) { };
-    public async preRender(resources: ResourcePool) { };
-    public async execute(resources: ResourcePool) { };
+    public preFrame(resources: ResourcePool) { };
+    public preRender(resources: ResourcePool) { };
+    public execute(resources: ResourcePool) { };
 }
 
 export class ResourcePool {
@@ -50,7 +50,7 @@ export class RenderGraph {
         }
     }
 
-    public async preFrame() { for (const pass of this.passes) if (pass.initialized) await pass.preFrame(this.resourcePool) }
-    public async preRender() { for (const pass of this.passes) if (pass.initialized) await pass.preRender(this.resourcePool) }
-    public async execute() { for (const pass of this.passes) if (pass.initialized) await pass.execute(this.resourcePool) }
+    public preFrame() { for (const pass of this.passes) if (pass.initialized) pass.preFrame(this.resourcePool) }
+    public preRender() { for (const pass of this.passes) if (pass.initialized) pass.preRender(this.resourcePool) }
+    public execute() { for (const pass of this.passes) if (pass.initialized) pass.execute(this.resourcePool) }
 }

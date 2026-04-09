@@ -71,7 +71,7 @@ export class PrepareGBuffers extends RenderPass {
         this.initialized = true;
     }
     
-    public async preFrame(resources: ResourcePool) {
+    public preFrame(resources: ResourcePool) {
         if (!this.initialized) return;
         if (!Camera.mainCamera) return;
 
@@ -131,7 +131,7 @@ export class PrepareGBuffers extends RenderPass {
         resources.setResource(PassParams.FrameBuffer, this.FrameBuffer);
     }
 
-    public async execute(resources: ResourcePool) {
+    public execute(resources: ResourcePool) {
         const colorTargets: RenderTarget[] = [
             {target: this.gBufferAlbedoRT, clear: true},
             {target: this.gBufferNormalRT, clear: true},
