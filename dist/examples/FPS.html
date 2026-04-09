@@ -28,7 +28,7 @@
             <script type="module">
                 const canvas = document.createElement("canvas");
                 document.body.appendChild(canvas);
-                            import { GPU, Scene, GameObject, Components, Mathf, PBRMaterial, Console } from '@trident/core';
+                            import { Runtime, GameObject, Components, Mathf, GPU, PBRMaterial, Console, Renderer } from '@trident/core';
             import { PhysicsRapier } from '@trident/plugins/PhysicsRapier/PhysicsRapier.js';
             import { TerrainCollider } from '@trident/plugins/PhysicsRapier/colliders/TerrainCollider.js';
             import { CapsuleCollider } from '@trident/plugins/PhysicsRapier/colliders/CapsuleCollider.js';
@@ -45,8 +45,9 @@
             import { LODInstanceRenderable } from '@trident/plugins/LODGroup.js';
             
             async function Application(canvas) {
-              const renderer = GPU.Renderer.Create(canvas, "webgpu", 1);
-              const scene = new Scene(renderer);
+              await Runtime.Create(canvas);
+              const scene = Runtime.SceneManager.CreateScene("DefaultScene");
+              Runtime.SceneManager.SetActiveScene(scene);
               const mainCameraGameObject = new GameObject(scene);
               mainCameraGameObject.transform.position.set(0, 0, 5);
               mainCameraGameObject.name = "MainCamera";
@@ -63,9 +64,7 @@
               new UIColorStat(Debugger.ui, "Light Color:", light.color.toHex(), (value) => {
                 light.color.setFromHex(value);
               });
-              const physicsWorld = new GameObject(scene);
-              const physicsComponent = physicsWorld.AddComponent(PhysicsRapier);
-              await physicsComponent.Load();
+              await Runtime.AddSystem(PhysicsRapier);
               const terrainGameObject = new GameObject(scene);
               const terrain = terrainGameObject.AddComponent(Terrain);
               terrain.width = 4e3;
@@ -378,7 +377,7 @@
               const postProcessing = new PostProcessingPass();
               const smaa = new PostProcessingSMAA();
               postProcessing.effects.push(smaa);
-              scene.renderPipeline.AddPass(postProcessing, GPU.RenderPassOrder.BeforeScreenOutput);
+              Renderer.RenderPipeline.AddPass(postProcessing, GPU.RenderPassOrder.BeforeScreenOutput);
               new UIButtonStat(Debugger.ui, "Disable SMAA:", async (value) => {
                 smaa.enabled = value;
               });
@@ -405,7 +404,7 @@
                   terrain.SampleNormal(playerGameObject.transform.position);
                 }, 2e3);
               }
-              scene.Start();
+              Runtime.Play();
             }
             Application(document.querySelector("canvas"));
             

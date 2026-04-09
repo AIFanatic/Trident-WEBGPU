@@ -1,4 +1,4 @@
-import { Components, GPU, Scene } from '@trident/core';
+import { Components, GPU, Runtime } from '@trident/core';
 
 class LODGroup extends Components.Renderable {
   static DefaultCapacity = 1e5;
@@ -172,7 +172,7 @@ class LODInstanceRenderable extends LODGroup {
         this.lodRendererData[i].push({ renderer, drawBuffer });
       }
     }
-    const gbufferFormat = Scene.mainScene.renderPipeline.GBufferFormat;
+    const gbufferFormat = Runtime.Renderer.RenderPipeline.GBufferFormat;
     this.material = new GPU.Material({
       isDeferred: true,
       shader: await GPU.Shader.Create({
@@ -212,7 +212,7 @@ class LODInstanceRenderable extends LODGroup {
     const lodInfo = [];
     for (const lod of this.lods) lodInfo.push(lod.screenSize);
     this.drawCompute.SetArray("lods", new Float32Array(lodInfo));
-    const resources = Scene.mainScene.renderPipeline.renderGraph.resourcePool;
+    const resources = Runtime.Renderer.RenderPipeline.renderGraph.resourcePool;
     const FrameBuffer = resources.getResource(GPU.PassParams.FrameBuffer);
     GPU.Renderer.BeginRenderFrame();
     this.drawCompute.SetBuffer("drawBuffer", this.drawIndirectBuffer);
@@ -230,7 +230,7 @@ class LODInstanceRenderable extends LODGroup {
   }
   OnPreRender() {
     if (!this.initialized) return;
-    const resources = Scene.mainScene.renderPipeline.renderGraph.resourcePool;
+    const resources = Runtime.Renderer.RenderPipeline.renderGraph.resourcePool;
     const FrameBuffer = resources.getResource(GPU.PassParams.FrameBuffer);
     for (let i = 0; i < this.lods.length; i++) {
       const lodMatricesOffset = i * LODGroup.MATRIX_STRIDE_BYTES;

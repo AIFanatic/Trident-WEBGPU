@@ -28,7 +28,7 @@
             <script type="module">
                 const canvas = document.createElement("canvas");
                 document.body.appendChild(canvas);
-                            import { Renderer, Scene, GameObject, Mathf, Components, Geometry, PBRMaterial } from '@trident/core';
+                            import { Runtime, GameObject, Mathf, Components, Geometry, PBRMaterial } from '@trident/core';
             import { OrbitControls } from '@trident/plugins/OrbitControls.js';
             import { PhysicsRapier } from '@trident/plugins/PhysicsRapier/PhysicsRapier.js';
             import { SphereCollider } from '@trident/plugins/PhysicsRapier/colliders/SphereCollider.js';
@@ -37,8 +37,9 @@
             import { PhysicsDebugger } from '@trident/plugins/PhysicsRapier/PhysicsDebugger.js';
             
             async function Application(canvas) {
-              const renderer = Renderer.Create(canvas, "webgpu");
-              const scene = new Scene(renderer);
+              await Runtime.Create(canvas);
+              const scene = Runtime.SceneManager.CreateScene("DefaultScene");
+              Runtime.SceneManager.SetActiveScene(scene);
               const mainCameraGameObject = new GameObject(scene);
               mainCameraGameObject.transform.position.set(0, 0, 20);
               mainCameraGameObject.transform.LookAtV1(new Mathf.Vector3(0, 0, 0));
@@ -50,14 +51,12 @@
               lightGameObject.transform.position.set(-4, 4, -4);
               lightGameObject.transform.LookAtV1(new Mathf.Vector3(0, 0, 0));
               lightGameObject.AddComponent(Components.DirectionalLight);
-              const physicsWorld = new GameObject(scene);
-              const physicsComponent = physicsWorld.AddComponent(PhysicsRapier);
-              await physicsComponent.Load();
+              await Runtime.AddSystem(PhysicsRapier);
               const sphereGO = new GameObject(scene);
               sphereGO.transform.position.y = 5;
               const sphereMesh = sphereGO.AddComponent(Components.Mesh);
               sphereMesh.geometry = Geometry.Sphere();
-              sphereMesh.material = new PBRMaterial({ albedoColor: new Mathf.Color(1, 0, 0, 1) });
+              sphereMesh.material = new PBRMaterial({ albedoColor: new Mathf.Color(1, 0, 0, 1), wireframe: true });
               sphereGO.AddComponent(SphereCollider);
               const sphereRigidbody = sphereGO.AddComponent(RigidBody);
               sphereRigidbody.Create("dynamic");
@@ -72,7 +71,7 @@
               floorRigidbody.Create("fixed");
               const physicsDebuggerGO = new GameObject(scene);
               physicsDebuggerGO.AddComponent(PhysicsDebugger);
-              scene.Start();
+              Runtime.Play();
             }
             Application(document.querySelector("canvas"));
             

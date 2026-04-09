@@ -1,42 +1,11 @@
-import { Assets, Component as Component$1, Deserializer, Geometry, PBRMaterial, GPU, Texture, InterleavedVertexAttribute, IndexAttribute, VertexAttribute, Serializer, Renderer, Scene, GameObject, Mathf, Utils, Components, Input, Console, GetSerializedFields } from '@trident/core';
+import { Assets, Component as Component$1, Deserializer, Geometry, PBRMaterial, GPU, Texture, Prefab, InterleavedVertexAttribute, IndexAttribute, VertexAttribute, Serializer, Runtime, Scene, GameObject, Mathf, Utils, Components, Input, Console, GetSerializedFields } from '@trident/core';
+import { PhysicsRapier } from '@trident/plugins/PhysicsRapier/PhysicsRapier.js';
+import { MeshCollider } from '@trident/plugins/PhysicsRapier/colliders/MeshCollider.js';
 import { OrbitControls } from '@trident/plugins/OrbitControls.js';
 import { Environment } from '@trident/plugins/Environment/Environment.js';
 import { Sky } from '@trident/plugins/Environment/Sky.js';
 import { HDRParser } from '@trident/plugins/HDRParser.js';
 import { GLTFLoader } from '@trident/plugins/GLTF/GLTFLoader.js';
-import { PostProcessingPass } from '@trident/plugins/PostProcessing/PostProcessingPass.js';
-import { PostProcessingSMAA } from '@trident/plugins/PostProcessing/effects/SMAA.js';
-
-class Prefab {
-  id;
-  name;
-  type;
-  components = [];
-  transform;
-  children = [];
-  assetPath;
-  traverse(fn, prefab = this) {
-    fn(prefab);
-    for (const child of prefab.children) {
-      this.traverse(fn, child);
-    }
-  }
-  Deserialize(data) {
-    this.id = data.id;
-    this.name = data.name;
-    this.type = data.type;
-    this.transform = data.transform;
-    this.assetPath = data.assetPath;
-    this.components = Array.isArray(data?.components) ? data.components : [];
-    this.children = Array.isArray(data?.children) ? data.children.map((c) => Prefab.Deserialize(c)) : [];
-    return this;
-  }
-  static Deserialize(data) {
-    const prefab = new Prefab();
-    prefab.Deserialize(data);
-    return prefab;
-  }
-}
 
 class AssetRegistry {
   static instanceCache = /* @__PURE__ */ new Map();
@@ -2803,7 +2772,7 @@ async function LoadScript(assetPath) {
   const response = await Assets.ResourceFetchFn(assetPath);
   const text = await response.text();
   if (!esbuildReady) {
-    await browserExports.initialize({ worker: true, wasmURL: "https://unpkg.com/esbuild-wasm/esbuild.wasm" });
+    await browserExports.initialize({ worker: true, wasmURL: "./resources/esbuild.wasm" });
     esbuildReady = true;
   }
   const transpiled = await browserExports.transform(text, {
@@ -2824,11 +2793,6 @@ async function LoadScript(assetPath) {
   }
   return module;
 }
-
-var ScriptLoader = /*#__PURE__*/Object.freeze({
-    __proto__: null,
-    LoadScript: LoadScript
-});
 
 const typedArrayCtors = {
   float32: Float32Array,
@@ -2899,18 +2863,35 @@ Deserializer.Load = async (assetPath, data) => {
   if (ext === "ts") {
     return LoadScript(assetPath);
   }
+  if (ext === "prefab") {
+    const json = await Assets.Load(assetPath, "json");
+    const prefab = Prefab.Deserialize(json);
+    prefab.assetPath = assetPath;
+    return prefab;
+  }
   return Assets.Load(assetPath, "json");
 };
 
+Component$1.Registry.set(PhysicsRapier.type, PhysicsRapier);
+Component$1.Registry.set(MeshCollider.type, MeshCollider);
+
 class TridentAPI {
-  currentScene;
+  get currentScene() {
+    return this.getRuntime().SceneManager.GetActiveScene();
+  }
   serializer = Serializer;
   deserializer = Deserializer;
-  createRenderer(canvas) {
-    Renderer.Create(canvas, "webgpu");
+  getRuntime() {
+    return Runtime;
+  }
+  async createRuntime(canvas) {
+    return await Runtime.Create(canvas);
+  }
+  addSystem(ctor, ...args) {
+    return Runtime.AddSystem(ctor, ...args);
   }
   createScene() {
-    this.currentScene = new Scene(Renderer);
+    this.currentScene = new Scene();
     return this.currentScene;
   }
   createGameObject(scene) {
@@ -3426,25 +3407,14 @@ class LayoutCanvas extends Component {
       far: 1e4
     };
     Console.getVar("r_shadows_csm_splittypepracticallambda").value = 0.99;
-    const resize = () => {
-      canvas.style.width = "100%";
-      canvas.style.height = "100%";
-      canvas.width = canvas.parentElement.clientWidth;
-      canvas.height = canvas.parentElement.clientHeight;
-      camera.SetPerspective(72, canvas.width / canvas.height, cameraSettings.near, cameraSettings.far);
-    };
-    new ResizeObserver(resize).observe(canvas);
     const EngineAPI = this.props.engineAPI;
-    EngineAPI.createRenderer(canvas);
-    const currentScene = EngineAPI.createScene();
+    const Runtime = await EngineAPI.createRuntime(canvas);
+    const currentScene = Runtime.SceneManager.CreateScene("DefaultScene");
+    Runtime.SceneManager.SetActiveScene(currentScene);
     const mainCameraGameObject = EngineAPI.createGameObject(currentScene);
     mainCameraGameObject.name = "MainCamera";
     const camera = mainCameraGameObject.AddComponent(IComponents.Camera);
     camera.SetPerspective(72, canvas.width / canvas.height, cameraSettings.near, cameraSettings.far);
-    EventSystem.on(GPU.RendererEvents.Resized, () => {
-      console.log(canvas.getBoundingClientRect(), canvas.width, canvas.height);
-      camera.SetPerspective(72, canvas.width / canvas.height, cameraSettings.near, cameraSettings.far);
-    });
     mainCameraGameObject.transform.position.set(0, 0, 10);
     mainCameraGameObject.transform.LookAtV1(EngineAPI.createVector3(0, 0, 0));
     const controls = new OrbitControls(canvas, camera);
@@ -3519,25 +3489,8 @@ class LayoutCanvas extends Component {
         await GLTFLoader.LoadFromArrayBuffer(arrayBuffer, currentScene, file.name);
       });
     }
-    const postProcessing = new PostProcessingPass();
-    const smaa = new PostProcessingSMAA();
-    postProcessing.effects.push(smaa);
-    currentScene.renderPipeline.AddPass(postProcessing, GPU.RenderPassOrder.BeforeScreenOutput);
-    currentScene.Start();
-    new ResizeObserver(resize).observe(canvas);
-    console.warn(`
-            TODO: Figure out better component registration, needs to be automatic or something.
-                Importing/Creating scripts is not that easy..need above otherwise need to register everything.
-                Also need to import @trident/core properly (this is a typescript pattern).
-                Also need to make SerializeField work somehow
-            `);
-    class Test extends Components.Component {
-      static type = "@trident/core/components/Test";
-      static types = (() => {
-        console.log("CALLED without new Test");
-      })();
-    }
-    console.log(Components.Component.Registry.get("@trident/core/components/Test"));
+    Runtime.AddSystem(PhysicsRapier);
+    Runtime.Play();
   }
   render() {
     return /* @__PURE__ */ createElement("canvas", { ref: (canvas) => this.canvasRef(canvas) });
@@ -3902,6 +3855,9 @@ class TreeItem extends Component {
     }
     this.lastClickTs = now;
   }
+  onClick(event) {
+    if (this.props.onClicked) this.props.onClicked();
+  }
   render() {
     let classes = "item-title";
     if (this.props.isSelected) classes += " active";
@@ -3919,7 +3875,8 @@ class TreeItem extends Component {
         onPointerDown: (event) => this.onPointerDown(event),
         onPointerUp: (event) => {
           if (this.props.onPointerUp) this.props.onPointerUp();
-        }
+        },
+        onClick: (event) => this.onClick(event)
       },
       /* @__PURE__ */ createElement("span", { style: { paddingLeft: "15px" } }),
       /* @__PURE__ */ createElement("span", null, this.props.name)
@@ -3999,7 +3956,9 @@ async function LoadFile(path, file, engineAPI) {
   } else if (extension === "prefab") {
     const data = await file.getFile();
     const text = await data.text();
-    return Prefab.Deserialize(JSON.parse(text));
+    const prefab = engineAPI.deserializePrefab(JSON.parse(text));
+    prefab.assetPath = path;
+    return prefab;
   } else if (extension === "geometry") {
     const geometry = await Deserializer.Load(path);
     geometry.assetPath = path;
@@ -4015,7 +3974,6 @@ async function LoadFile(path, file, engineAPI) {
     texture.assetPath = path;
     return texture;
   } else if (extension === "ts") {
-    const { LoadScript } = await Promise.resolve().then(function () { return ScriptLoader; });
     return LoadScript(path);
   }
   return file;
@@ -4199,6 +4157,31 @@ var ITreeMapType = /* @__PURE__ */ ((ITreeMapType2) => {
   return ITreeMapType2;
 })(ITreeMapType || {});
 
+async function ReloadScript(engineAPI, path) {
+  const loadedFile = await LoadScript(path);
+  const serializer = engineAPI.serializer;
+  const deserializer = engineAPI.deserializer;
+  for (const key of Object.keys(loadedFile)) {
+    const NewClass = loadedFile[key];
+    if (typeof NewClass !== "function") continue;
+    for (const go of engineAPI.currentScene.GetGameObjects()) {
+      const toReplace = [];
+      const components = go.GetComponents();
+      for (let i = 0; i < components.length; i++) {
+        if (components[i].constructor.name === NewClass.name) {
+          toReplace.push({ component: components[i], index: i });
+        }
+      }
+      for (const { component } of toReplace) {
+        const data = serializer.serializeComponent(component);
+        go.RemoveComponent(component);
+        const newComponent = go.AddComponent(NewClass);
+        await deserializer.deserializeComponent(newComponent, data);
+      }
+    }
+  }
+}
+
 class LayoutAssetEvents {
   static Selected = (instance) => {
   };
@@ -4282,14 +4265,14 @@ class LayoutAssets extends Component {
   }
   async onItemClicked(item) {
     if (!item.data.instance) {
-      await this.loadTreeItem(item);
+      await this.loadTreeItem(item.data);
     }
     EventSystem.emit(LayoutAssetEvents.Selected, item.data.instance);
     this.setState({ ...this.state, currentTreeMap: this.state.currentTreeMap, selected: item.data });
   }
   async onItemDoubleClicked(item) {
     if (!item.data.instance) {
-      await this.loadTreeItem(item);
+      await this.loadTreeItem(item.data);
     }
     if (item.data.instance.type === Scene.type) {
       this.props.engineAPI.currentScene.Clear();
@@ -4297,13 +4280,18 @@ class LayoutAssets extends Component {
       EventSystem.emit(SceneEvents.Loaded, item.data.instance);
     }
   }
-  async loadTreeItem(item) {
-    if (item.data.file.kind === "file") {
-      const loadedFile = await LoadFile(item.data.path, item.data.file, this.props.engineAPI);
-      item.data.instance = loadedFile;
+  async onRefresh() {
+    if (!this.state.selected) return;
+    if (!this.state.selected.path.endsWith(".ts")) return;
+    await ReloadScript(this.props.engineAPI, this.state.selected.path);
+  }
+  async loadTreeItem(data) {
+    if (data.file.kind === "file") {
+      const loadedFile = await LoadFile(data.path, data.file, this.props.engineAPI);
+      data.instance = loadedFile;
       return loadedFile;
     }
-    return item.data.file;
+    return data.file;
   }
   getCurrentPath() {
     if (!this.state.selected) return "";
@@ -4333,7 +4321,7 @@ class LayoutAssets extends Component {
   }
   onDragStarted(event, item) {
     if (!item.data.instance) {
-      this.loadTreeItem(item).then(() => {
+      this.loadTreeItem(item.data).then(() => {
         ExtendedDataTransfer.data = item.data.instance;
       });
     }
@@ -4422,6 +4410,8 @@ class LayoutAssets extends Component {
         this.createScene();
       } }), /* @__PURE__ */ createElement(TreeItem, { name: "Delete", onPointerDown: () => {
         this.deleteAsset();
+      } }), /* @__PURE__ */ createElement(TreeItem, { name: "Refresh", onPointerDown: () => {
+        this.onRefresh();
       } }))))),
       /* @__PURE__ */ createElement(Tree, null, this.renderTreeItems(rootItems, treeMapArr))
     );
@@ -4467,13 +4457,13 @@ class LayoutHierarchy extends Component {
       this.selectGameObject(toGameObject);
     }
   }
-  onDragStarted(event) {
-    ExtendedDataTransfer.data = this.state.selectedGameObject;
+  onDragStarted(go) {
+    ExtendedDataTransfer.data = go;
   }
   async onDrop(event) {
     const extendedEvent = ExtendedDataTransfer.data;
     const instance = extendedEvent;
-    if (instance && instance instanceof Prefab) {
+    if (instance && this.props.engineAPI.isPrefab(instance)) {
       const gameObject = await this.props.engineAPI.deserializer.deserializeGameObject(this.props.engineAPI.currentScene, instance);
       this.selectGameObject(gameObject);
       ExtendedDataTransfer.data = void 0;
@@ -4485,19 +4475,6 @@ class LayoutHierarchy extends Component {
         this.selectGameObject(gameObject);
       }
     }
-  }
-  buildTreeFromGameObjects(gameObjects) {
-    const treeMap = [];
-    for (let gameObject of gameObjects) {
-      treeMap.push({
-        id: gameObject.transform.id,
-        name: gameObject.name,
-        isSelected: this.state.selectedGameObject && this.state.selectedGameObject == gameObject ? true : false,
-        parent: gameObject.transform.parent ? gameObject.transform.parent.id : "",
-        data: gameObject
-      });
-    }
-    return treeMap;
   }
   createEmptyGameObject() {
     const gameObject = this.props.engineAPI.createGameObject(this.props.engineAPI.currentScene);
@@ -4553,17 +4530,16 @@ class LayoutHierarchy extends Component {
           name: go.name,
           id: go.transform.id,
           isSelected,
-          onPointerDown: () => this.selectGameObject(go),
+          onClicked: () => this.selectGameObject(go),
           onDroppedItem: (from, to) => this.onDroppedItem(from, to),
-          onDragStarted: (event) => this.onDragStarted(event)
+          onDragStarted: (event) => this.onDragStarted(go)
         }
       );
     });
   }
   render() {
-    if (!this.props.engineAPI.currentScene) return;
-    console.log(this.props.engineAPI.currentScene);
-    const rootGameObjects = this.props.engineAPI.currentScene.gameObjects.filter((go) => !go.transform.parent);
+    if (!this.props.engineAPI.currentScene) return /* @__PURE__ */ createElement("div", null);
+    const rootGameObjects = this.props.engineAPI.currentScene.GetGameObjects().filter((go) => !go.transform.parent);
     return /* @__PURE__ */ createElement("div", { class: "Layout" }, /* @__PURE__ */ createElement("div", { class: "header" }, /* @__PURE__ */ createElement("div", { class: "title" }, this.props.engineAPI.currentScene.name || "Untitled scene"), /* @__PURE__ */ createElement("div", { class: "right-action" }, /* @__PURE__ */ createElement("button", { onClick: (event) => {
       this.setState({ ...this.state, headerMenuOpen: !this.state.headerMenuOpen });
     } }, "\u22EE"), /* @__PURE__ */ createElement(FloatingMenu, { visible: this.state.headerMenuOpen, onClose: () => this.setState({ ...this.state, headerMenuOpen: false }) }, /* @__PURE__ */ createElement(Tree, null, /* @__PURE__ */ createElement(TreeItem, { name: "Create Empty", onPointerDown: () => this.createEmptyGameObject() }), /* @__PURE__ */ createElement(TreeItem, { name: "Delete", onPointerDown: () => this.deleteGameObject() }), /* @__PURE__ */ createElement(TreeFolder, { name: "3D Object" }, /* @__PURE__ */ createElement(TreeItem, { name: "Cube", onPointerDown: () => this.createPrimitive("Cube") }), /* @__PURE__ */ createElement(TreeItem, { name: "Capsule", onPointerDown: () => this.createPrimitive("Capsule") }), /* @__PURE__ */ createElement(TreeItem, { name: "Plane", onPointerDown: () => this.createPrimitive("Plane") }), /* @__PURE__ */ createElement(TreeItem, { name: "Sphere", onPointerDown: () => this.createPrimitive("Sphere") })), /* @__PURE__ */ createElement(TreeFolder, { name: "Lights" }, /* @__PURE__ */ createElement(TreeItem, { name: "Directional Light", onPointerDown: () => this.createLight("Directional") }), /* @__PURE__ */ createElement(TreeItem, { name: "Point Light", onPointerDown: () => this.createLight("Point") }), /* @__PURE__ */ createElement(TreeItem, { name: "Spot Light", onPointerDown: () => this.createLight("Spot") })))))), /* @__PURE__ */ createElement(
@@ -4617,16 +4593,15 @@ class InspectorNumber extends Component {
       if (input.value == "") return;
       const value = parseFloat(input.value);
       this.props.onChanged(value);
-      this.state.value = value;
-      this.setState({ value: this.state.value });
+      this.setState({ value });
     }
   }
   onClicked(event) {
     const MouseMoveEvent = (event2) => {
       const delta = event2.movementX;
-      this.state.value += delta / 10;
-      this.setState({ value: this.state.value });
-      this.props.onChanged(this.state.value);
+      let value = this.state.value += delta / 10;
+      this.setState({ value });
+      this.props.onChanged(value);
       event2.currentTarget.requestPointerLock();
     };
     const MouseUpEvent = (event2) => {
@@ -4661,7 +4636,7 @@ class InspectorVector3 extends Component {
   }
   onChanged(property, _value) {
     if (this.props.onChanged) {
-      if (_value == "") return;
+      if (_value === "") return;
       const value = parseFloat(_value);
       if (property == 0 /* X */) this.state.vector3.x = value;
       else if (property == 1 /* Y */) this.state.vector3.y = value;
@@ -4676,22 +4651,6 @@ class InspectorVector3 extends Component {
     if (!this.Vector3Equals(this.props.vector3, this.state.vector3)) {
       this.setState({ vector3: this.props.vector3 });
     }
-  }
-  onClicked(property, event) {
-    event.preventDefault();
-    const MouseMoveEvent = (event2) => {
-      const delta = event2.movementX;
-      if (property === 0 /* X */) this.state.vector3.x += delta / 10;
-      if (property === 1 /* Y */) this.state.vector3.y += delta / 10;
-      if (property === 2 /* Z */) this.state.vector3.z += delta / 10;
-      this.setState({ vector3: this.props.vector3 });
-    };
-    const MouseUpEvent = (event2) => {
-      document.body.removeEventListener("mousemove", MouseMoveEvent);
-      document.body.removeEventListener("mouseup", MouseUpEvent);
-    };
-    document.body.addEventListener("mousemove", MouseMoveEvent);
-    document.body.addEventListener("mouseup", MouseUpEvent);
   }
   render() {
     return /* @__PURE__ */ createElement("div", { class: "InspectorComponent" }, /* @__PURE__ */ createElement("span", { class: "title" }, this.props.title), /* @__PURE__ */ createElement("div", { class: "edit" }, /* @__PURE__ */ createElement(InspectorNumber, { title: "X", titleClass: "red-bg", value: this.state.vector3.x, onChanged: (value) => {
@@ -5013,7 +4972,8 @@ class AddComponent extends Component {
   generateTree(entryMap) {
     const entriesByPath = /* @__PURE__ */ new Map();
     for (const [fullpath] of entryMap) {
-      const path = fullpath.slice(fullpath.lastIndexOf("components/") + "components/".length, fullpath.lastIndexOf("/") + 1);
+      const compIdx = fullpath.lastIndexOf("components/");
+      const path = compIdx !== -1 ? fullpath.slice(compIdx + "components/".length, fullpath.lastIndexOf("/") + 1) : fullpath.slice(0, fullpath.lastIndexOf("/") + 1);
       const name = fullpath.slice(fullpath.lastIndexOf("/") + 1);
       const pathEntries = entriesByPath.get(path) || [];
       pathEntries.push({ name, type: fullpath });
@@ -5043,6 +5003,7 @@ class InspectorType extends Component {
   }
   onDrop(event) {
     const draggedItem = ExtendedDataTransfer.data;
+    console.log("onDrop", draggedItem);
     if (!this.isValidDrop(draggedItem)) return;
     this.props.component[this.props.property] = draggedItem;
     const input = event.currentTarget;
@@ -5145,9 +5106,8 @@ class LayoutInspectorGameObject extends Component {
     else if (typeof type === "function") {
       const currentValue = component[name];
       let valueForType = currentValue ? currentValue.constructor.name : "None";
-      if (currentValue?.assetPath) {
-        valueForType = StringUtils.GetNameForPath(currentValue.assetPath);
-      }
+      if (currentValue?.assetPath) valueForType = StringUtils.GetNameForPath(currentValue.assetPath);
+      else if (currentValue?.name) valueForType = currentValue.name;
       return /* @__PURE__ */ createElement(
         InspectorType,
         {

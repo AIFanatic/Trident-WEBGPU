@@ -13,6 +13,9 @@ import {
     IndexAttribute,
     Console,
     Component,
+    Runtime,
+    Renderer,
+    SceneManager,
 } from "@trident/core";
 
 import { PhysicsRapier } from "@trident/plugins/PhysicsRapier/PhysicsRapier";
@@ -53,8 +56,9 @@ import { SSSRenderPass } from "@trident/plugins/SSS";
 import { FullscreenQuad } from "@trident/plugins/FullscreenQuad";
 
 async function Application(canvas: HTMLCanvasElement) {
-    const renderer = GPU.Renderer.Create(canvas, "webgpu", 1);
-    const scene = new Scene(renderer);
+    await Runtime.Create(canvas);
+    const scene = Runtime.SceneManager.CreateScene("DefaultScene");
+    Runtime.SceneManager.SetActiveScene(scene);
 
     const mainCameraGameObject = new GameObject(scene);
     mainCameraGameObject.transform.position.set(0, 0, 5);
@@ -75,9 +79,7 @@ async function Application(canvas: HTMLCanvasElement) {
         light.color.setFromHex(value);
     })
 
-    const physicsWorld = new GameObject(scene);
-    const physicsComponent = physicsWorld.AddComponent(PhysicsRapier);
-    await physicsComponent.Load();
+    await Runtime.AddSystem(PhysicsRapier);
 
 
 
@@ -597,7 +599,7 @@ async function Application(canvas: HTMLCanvasElement) {
     // postProcessing.effects.push(new PostProcessingFXAA());
     const smaa = new PostProcessingSMAA();
     postProcessing.effects.push(smaa);
-    scene.renderPipeline.AddPass(postProcessing, GPU.RenderPassOrder.BeforeScreenOutput);
+    Renderer.RenderPipeline.AddPass(postProcessing, GPU.RenderPassOrder.BeforeScreenOutput);
 
     new UIButtonStat(Debugger.ui, "Disable SMAA:", async value => {
         smaa.enabled = value;
@@ -651,7 +653,7 @@ async function Application(canvas: HTMLCanvasElement) {
     // // const sssPass = new SSS(light);
     // // scene.renderPipeline.AddPass(sssPass, GPU.RenderPassOrder.AfterLighting);
 
-    scene.Start();
+    Runtime.Play();
 };
 
-Application(document.querySelector("canvas"));
+Application(document.querySelector("canvas") as HTMLCanvasElement);

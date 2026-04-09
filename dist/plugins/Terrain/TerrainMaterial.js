@@ -1,4 +1,4 @@
-import { GPU, Scene, Mathf } from '@trident/core';
+import { GPU, Mathf } from '@trident/core';
 
 class TerrainMaterial extends GPU.Material {
   // Used when no textures are passed
@@ -65,7 +65,7 @@ class TerrainMaterial extends GPU.Material {
     this.gameObject = gameObject;
   }
   async createShader() {
-    const gbufferFormat = Scene.mainScene.renderPipeline.GBufferFormat;
+    const gbufferFormat = GPU.RenderingPipeline.GBufferFormat;
     this.shader = await GPU.Shader.Create({
       code: `
                 #include "@trident/core/resources/webgpu/shaders/deferred/Common.wgsl";

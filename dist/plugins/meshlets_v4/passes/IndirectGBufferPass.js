@@ -1,4 +1,4 @@
-import { GPU, Scene, Geometry, VertexAttribute } from '@trident/core';
+import { GPU, Geometry, VertexAttribute } from '@trident/core';
 import { MeshletPassParams } from './MeshletDraw.js';
 
 class IndirectGBufferPass extends GPU.RenderPass {
@@ -7,7 +7,7 @@ class IndirectGBufferPass extends GPU.RenderPass {
   geometry;
   dummyTexture;
   async init(resources) {
-    const gbufferFormat = Scene.mainScene.renderPipeline.GBufferFormat;
+    const gbufferFormat = GPU.RenderingPipeline.GBufferFormat;
     this.shader = await GPU.Shader.Create({
       name: this.name,
       code: await GPU.ShaderLoader.LoadURL(new URL("../resources/DrawIndirectGBuffer.wgsl", import.meta.url)),
