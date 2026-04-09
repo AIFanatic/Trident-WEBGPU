@@ -11,7 +11,7 @@ export class IndirectGBufferPass extends GPU.RenderPass {
     private dummyTexture: GPU.Texture;
 
     public async init(resources: GPU.ResourcePool) {
-        const gbufferFormat = Scene.mainScene.renderPipeline.GBufferFormat;
+        const gbufferFormat = GPU.RenderingPipeline.GBufferFormat;
 
         this.shader = await GPU.Shader.Create({
             name: this.name,

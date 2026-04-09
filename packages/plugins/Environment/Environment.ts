@@ -1,4 +1,4 @@
-import { Scene, GPU } from "@trident/core";
+import { Scene, GPU, Renderer } from "@trident/core";
 import { Irradiance } from "./Irradiance";
 import { Prefilter } from "./Prefilter";
 import { BRDF } from "./BRDF";
@@ -33,9 +33,9 @@ export class Environment {
         this.irradiance.Update(this.skyTexture);
         this.prefilter.Update(this.skyTexture);
 
-        this.scene.renderPipeline.skybox = this.skyTexture;
-        this.scene.renderPipeline.skyboxIrradiance = this.irradiance.irradianceTexture;
-        this.scene.renderPipeline.skyboxPrefilter = this.prefilter.prefilterTexture;
-        this.scene.renderPipeline.skyboxBRDFLUT = this.brdf.brdfTexture;
+        Renderer.RenderPipeline.skybox = this.skyTexture;
+        Renderer.RenderPipeline.skyboxIrradiance = this.irradiance.irradianceTexture;
+        Renderer.RenderPipeline.skyboxPrefilter = this.prefilter.prefilterTexture;
+        Renderer.RenderPipeline.skyboxBRDFLUT = this.brdf.brdfTexture;
     }
 }

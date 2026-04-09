@@ -1,4 +1,4 @@
-import { Components, Geometry, GPU, Mathf, Scene } from "@trident/core";
+import { Components, Geometry, GPU, Mathf, Runtime, Scene } from "@trident/core";
 
 export interface LODRenderer {
     geometry: Geometry;
@@ -203,7 +203,7 @@ export class LODInstanceRenderable extends LODGroup {
             }
         }
 
-        const gbufferFormat = Scene.mainScene.renderPipeline.GBufferFormat;
+        const gbufferFormat = Runtime.Renderer.RenderPipeline.GBufferFormat;
         this.material = new GPU.Material({
             isDeferred: true,
             shader: await GPU.Shader.Create({
@@ -250,7 +250,7 @@ export class LODInstanceRenderable extends LODGroup {
         for (const lod of this.lods) lodInfo.push(lod.screenSize);
         this.drawCompute.SetArray("lods", new Float32Array(lodInfo));
 
-        const resources = Scene.mainScene.renderPipeline.renderGraph.resourcePool;
+        const resources = Runtime.Renderer.RenderPipeline.renderGraph.resourcePool;
         const FrameBuffer = resources.getResource(GPU.PassParams.FrameBuffer);
 
         GPU.Renderer.BeginRenderFrame();
@@ -274,7 +274,7 @@ export class LODInstanceRenderable extends LODGroup {
     public OnPreRender(): void {
         if (!this.initialized) return;
 
-        const resources = Scene.mainScene.renderPipeline.renderGraph.resourcePool;
+        const resources = Runtime.Renderer.RenderPipeline.renderGraph.resourcePool;
         const FrameBuffer = resources.getResource(GPU.PassParams.FrameBuffer);
 
         for (let i = 0; i < this.lods.length; i++) {

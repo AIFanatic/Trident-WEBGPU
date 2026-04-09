@@ -601,7 +601,6 @@ class HDRLoader {
 				break;
 
 			case HalfFloatType:
-                console.log("HalfFloatType");
 				numElements = image_rgba_data.length / 4;
 				const halfArray = new Uint16Array( numElements * 4 );
 
@@ -819,7 +818,6 @@ export class HDRParser {
             const l = new HDRLoader();
             l.setDataType(HalfFloatType)
             const d = l.parse(buffer);
-            console.log(d)
     
             const dstHDR = GPU.RenderTexture.Create(d.width, d.height, 1, HDRParser.ImageFormat);
             dstHDR.SetData(d.data, d.width * 8);

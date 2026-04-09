@@ -86,7 +86,7 @@ export class TerrainMaterial extends GPU.Material {
     }
 
     private async createShader() {
-        const gbufferFormat = Scene.mainScene.renderPipeline.GBufferFormat;
+        const gbufferFormat = GPU.RenderingPipeline.GBufferFormat;
 
         this.shader = await GPU.Shader.Create({
             code: `

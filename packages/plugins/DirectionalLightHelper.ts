@@ -18,7 +18,7 @@ export class DirectionalLightHelper extends Component {
             0, 0, 0,     0, 0, -1
 		];
 
-        this.lineRenderer.SetPositions(new Float32Array(positions))
+        this.lineRenderer.SetPositions(new Float32Array(positions));
     }
 
     public Start(): void {
