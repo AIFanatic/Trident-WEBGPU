@@ -8,6 +8,7 @@ import {
     VertexAttribute,
     IndexAttribute,
     Utils,
+    Runtime,
 } from "@trident/core";
 
 import { OrbitControls } from "@trident/plugins/OrbitControls";
@@ -30,7 +31,7 @@ class DynamicBufferMemoryAllocator {
 
     constructor(size: number, bufferType = GPU.BufferType.STORAGE, incrementAmount?: number) {
         this.allocator = new GPU.MemoryAllocator(size);
-        this.buffer = GPU.Buffer.Create(size * DynamicBufferMemoryAllocator.BYTES_PER_ELEMENT, bufferType);
+        this.buffer = new GPU.Buffer(size * DynamicBufferMemoryAllocator.BYTES_PER_ELEMENT, bufferType);
         this.links = new Map();
         this.bufferType = bufferType;
         this.incrementAmount = incrementAmount ? incrementAmount : size;
@@ -50,17 +51,11 @@ class DynamicBufferMemoryAllocator {
                 console.log(`Incrementing DynamicBuffer from ${o} to ${this.allocator.memorySize}`)
 
                 // Create new buffer
-                const buffer = GPU.Buffer.Create(this.allocator.memorySize * DynamicBufferMemoryAllocator.BYTES_PER_ELEMENT, this.bufferType);
+                const buffer = new GPU.Buffer(this.allocator.memorySize * DynamicBufferMemoryAllocator.BYTES_PER_ELEMENT, this.bufferType);
                 const hasActiveFrame = GPU.Renderer.HasActiveFrame();
                 if (!hasActiveFrame) GPU.Renderer.BeginRenderFrame();
                 GPU.RendererContext.CopyBufferToBuffer(this.buffer, buffer);
                 if (!hasActiveFrame) GPU.Renderer.EndRenderFrame();
-
-                const oldBuffer = this.buffer;
-                GPU.Renderer.OnFrameCompleted().then(() => {
-                    oldBuffer.Destroy();
-                })
-
                 this.buffer = buffer;
             }
 
@@ -86,8 +81,9 @@ class DynamicBufferMemoryAllocator {
 }
 
 async function Application(canvas: HTMLCanvasElement) {
-    const renderer = GPU.Renderer.Create(canvas, "webgpu");
-    const scene = new Scene(renderer);
+    await Runtime.Create(canvas);
+    const scene = Runtime.SceneManager.CreateScene("DefaultScene");
+    Runtime.SceneManager.SetActiveScene(scene);
 
     const mainCameraGameObject = new GameObject(scene);
     mainCameraGameObject.transform.position.set(0, 0, -15);
@@ -114,7 +110,7 @@ async function Application(canvas: HTMLCanvasElement) {
 
     const dataBuffer = new DynamicBufferMemoryAllocator(size, GPU.BufferType.STORAGE);
     const pointersBuffer = new DynamicBufferMemoryAllocator(size, GPU.BufferType.STORAGE);
-    // const pointersBuffer = GPU.Buffer.Create(size, GPU.BufferType.STORAGE);
+    // const pointersBuffer = new GPU.Buffer(size, GPU.BufferType.STORAGE);
 
     let objectCount = 0;
     class Object {
@@ -294,10 +290,10 @@ async function Application(canvas: HTMLCanvasElement) {
     }
 
     const bindlessDrawPass = new BindlessDrawPass();
-    scene.renderPipeline.AddPass(bindlessDrawPass, GPU.RenderPassOrder.AfterLighting);
+    Runtime.Renderer.RenderPipeline.AddPass(bindlessDrawPass, GPU.RenderPassOrder.AfterLighting);
     Debugger.Enable();
 
-    scene.Start();
+    Runtime.Play();
 
 };
 

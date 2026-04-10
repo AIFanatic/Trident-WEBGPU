@@ -115,10 +115,10 @@ export class RSMRenderPass extends GPU.RenderPass {
             },
         })
 
-        this.modelMatrixBuffer = GPU.Buffer.Create(16 * 4, GPU.BufferType.STORAGE);
-        this.colorBuffer = GPU.Buffer.Create(4 * 4, GPU.BufferType.STORAGE);
+        this.modelMatrixBuffer = new GPU.Buffer(16 * 4, GPU.BufferType.STORAGE);
+        this.colorBuffer = new GPU.Buffer(4 * 4, GPU.BufferType.STORAGE);
 
-        this.shader.SetSampler("texSampler", GPU.TextureSampler.Create());
+        this.shader.SetSampler("texSampler", new GPU.TextureSampler());
 
         this.initialized = true;
     }
@@ -163,14 +163,14 @@ export class RSMRenderPass extends GPU.RenderPass {
 
             let modelMatrixBuffer = this.matrices.get(mesh.transform);
             if (!modelMatrixBuffer) {
-                modelMatrixBuffer = GPU.Buffer.Create(16 * 4, GPU.BufferType.STORAGE);
+                modelMatrixBuffer = new GPU.Buffer(16 * 4, GPU.BufferType.STORAGE);
                 modelMatrixBuffer.SetArray(mesh.transform.localToWorldMatrix.elements);
                 this.matrices.set(mesh.transform, modelMatrixBuffer);
             }
 
             let colorBuffer = this.modelColors.get(mesh.transform);
             if (!colorBuffer) {
-                colorBuffer = GPU.Buffer.Create(4 * 4., GPU.BufferType.STORAGE);
+                colorBuffer = new GPU.Buffer(4 * 4., GPU.BufferType.STORAGE);
                 colorBuffer.SetArray(material.params.albedoColor.elements);
                 this.modelColors.set(mesh.transform, colorBuffer);
             }

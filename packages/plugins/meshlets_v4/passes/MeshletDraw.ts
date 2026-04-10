@@ -42,15 +42,15 @@ export class MeshletDraw extends GPU.RenderPass {
         await this.indirectGBufferPass.init(resources);
     }
 
-    public async preFrame(resources: GPU.ResourcePool) {
-        await this.prepareMeshletData.preFrame(resources);
-        await this.cullingPass.preFrame(resources);
-        await this.indirectGBufferPass.preFrame(resources);
+    public preFrame(resources: GPU.ResourcePool) {
+        this.prepareMeshletData.preFrame(resources);
+        this.cullingPass.preFrame(resources);
+        this.indirectGBufferPass.preFrame(resources);
     }
 
-    public async execute(resources: GPU.ResourcePool) {
-        await this.prepareMeshletData.execute(resources);
-        await this.cullingPass.execute(resources);
-        await this.indirectGBufferPass.execute(resources);
+    public execute(resources: GPU.ResourcePool) {
+        this.prepareMeshletData.execute(resources);
+        this.cullingPass.execute(resources);
+        this.indirectGBufferPass.execute(resources);
     }
 }

@@ -270,8 +270,8 @@ export class RSMIndirectLighting extends GPU.RenderPass {
         samplesTexture.SetData(new Float32Array(dat));
 
         this.shader.SetTexture("samplesTex", samplesTexture);
-        this.shader.SetSampler("texSampler", GPU.TextureSampler.Create());
-        this.shader.SetSampler("samplerSampler", GPU.TextureSampler.Create({minFilter: "nearest", magFilter: "nearest", mipmapFilter: "nearest", addressModeU: "repeat", addressModeV: "repeat"}));
+        this.shader.SetSampler("texSampler", new GPU.TextureSampler());
+        this.shader.SetSampler("samplerSampler", new GPU.TextureSampler({minFilter: "nearest", magFilter: "nearest", mipmapFilter: "nearest", addressModeU: "repeat", addressModeV: "repeat"}));
         // var samplesTexture = regl.texture({
         //     width: SAMPLES_TEX_SIZE,
         //     height: 1,

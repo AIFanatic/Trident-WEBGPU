@@ -118,9 +118,9 @@ async function Application(canvas: HTMLCanvasElement) {
     const postProcessing = new PostProcessingPass();
     const smaa = new PostProcessingSMAA();
     postProcessing.effects.push(smaa);
-    scene.renderPipeline.AddPass(postProcessing, GPU.RenderPassOrder.BeforeScreenOutput);
+    Runtime.Renderer.RenderPipeline.AddPass(postProcessing, GPU.RenderPassOrder.BeforeScreenOutput);
 
-    scene.Start();
+    Runtime.Play();
 };
 
 // Application(document.querySelector("canvas"));

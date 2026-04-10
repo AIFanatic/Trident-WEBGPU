@@ -6,7 +6,7 @@ import {
 
 export class VoxelGenerator {
     public static async Generate(geometry: Geometry, scale = new Mathf.Vector3(1,1,1)): Promise<GPU.RenderTexture3D> {
-        const compute = await GPU.Compute.Create({
+        const compute = await GPU.ShaderCompute.Create({
             code: `
             @group(0) @binding(0) var i_SDF: texture_storage_3d<r32uint, read_write>;
             
@@ -152,11 +152,11 @@ export class VoxelGenerator {
             verticesScaled[i + 2] *= scale.z;
         }
         const interleaved = InterleavedVertexAttribute.fromArrays([verticesScaled, normals, uvs], [3,3,2], [4,4,4]);
-        const vertexBuffer = GPU.Buffer.Create(interleaved.array.length * 4, GPU.BufferType.STORAGE);
+        const vertexBuffer = new GPU.Buffer(interleaved.array.length * 4, GPU.BufferType.STORAGE);
         vertexBuffer.SetArray(new Float32Array(interleaved.array));
         compute.SetBuffer("vertices", vertexBuffer);
         
-        const indexBuffer = GPU.Buffer.Create(indices.length * 4, GPU.BufferType.STORAGE);
+        const indexBuffer = new GPU.Buffer(indices.length * 4, GPU.BufferType.STORAGE);
         indexBuffer.SetArray(indices);
         compute.SetBuffer("indices", indexBuffer);
     

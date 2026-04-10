@@ -6,7 +6,8 @@ import {
     Mathf,
     GameObject,
     PBRMaterial,
-    GPU
+    GPU,
+    Runtime
 } from "@trident/core";
 
 import { OrbitControls } from "@trident/plugins/OrbitControls";
@@ -15,8 +16,9 @@ import { PathTracer } from "@trident/plugins/PathTracer";
 import { UITextureViewer } from "@trident/plugins/ui/UIStats";
 
 async function Application(canvas: HTMLCanvasElement) {
-    const renderer = Renderer.Create(canvas, "webgpu");
-    const scene = new Scene(renderer);
+    await Runtime.Create(canvas);
+    const scene = Runtime.SceneManager.CreateScene("DefaultScene");
+    Runtime.SceneManager.SetActiveScene(scene);
 
     const mainCameraGameObject = new GameObject(scene);
     mainCameraGameObject.transform.position.set(0, 6, 16);
@@ -99,11 +101,11 @@ async function Application(canvas: HTMLCanvasElement) {
 
 
     const pathTracer = new PathTracer();
-    scene.renderPipeline.AddPass(pathTracer, GPU.RenderPassOrder.AfterLighting);
+    Runtime.Renderer.RenderPipeline.AddPass(pathTracer, GPU.RenderPassOrder.AfterLighting);
 
     Debugger.Enable();
 
-    scene.Start();
+    Runtime.Play();
 };
 
 Application(document.querySelector("canvas"));

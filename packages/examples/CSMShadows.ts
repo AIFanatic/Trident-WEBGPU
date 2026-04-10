@@ -1,12 +1,11 @@
 import {
     GameObject,
     Geometry,
-    Scene,
     Components,
     Mathf,
     PBRMaterial,
     GPU,
-    Console
+    Runtime
 } from "@trident/core";
 
 import { OrbitControls } from "@trident/plugins/OrbitControls";
@@ -18,9 +17,9 @@ import { GLTFLoader } from "@trident/plugins/GLTF/GLTFLoader";
 
 
 async function Application(canvas: HTMLCanvasElement) {
-    const renderer = GPU.Renderer.Create(canvas, "webgpu");
-
-    const scene = new Scene(renderer);
+    await Runtime.Create(canvas);
+    const scene = Runtime.SceneManager.CreateScene("DefaultScene");
+    Runtime.SceneManager.SetActiveScene(scene);
 
     const mainCameraGameObject = new GameObject(scene);
     mainCameraGameObject.transform.position.set(0, 0, 3);
@@ -67,7 +66,7 @@ async function Application(canvas: HTMLCanvasElement) {
         const gameObject1 = new GameObject(scene);
         const cube1 = gameObject1.AddComponent(Components.Mesh);
         cube1.geometry = geometry;
-        cube1.material = i % 2 === 0 ? material1.clone() : material2.clone();
+        cube1.material = i % 2 === 0 ? material1 : material2;
         cube1.transform.position.set( - i * 25, 20, 30 );
         cube1.transform.scale.y = Math.random() * 2 + 6;
         cube1.transform.scale.mul(10);
@@ -75,7 +74,7 @@ async function Application(canvas: HTMLCanvasElement) {
         const gameObject2 = new GameObject(scene);
         const cube2 = gameObject2.AddComponent(Components.Mesh);
         cube2.geometry = geometry;
-        cube2.material = i % 2 === 0 ? material2.clone() : material1.clone();
+        cube2.material = i % 2 === 0 ? material2 : material1;
 
         cube2.transform.position.set( - i * 25, 20, - 30 );
         cube2.transform.scale.y = Math.random() * 2 + 6;
@@ -85,10 +84,10 @@ async function Application(canvas: HTMLCanvasElement) {
 
 
     // // const depthBufferRaymarchPass = new DepthBufferRaymarchPass();
-    // // scene.renderPipeline.AddPass(depthBufferRaymarchPass, GPU.RenderPassOrder.AfterLighting);
+    // // Runtime.Renderer.RenderPipeline.AddPass(depthBufferRaymarchPass, GPU.RenderPassOrder.AfterLighting);
 
     // // const sss = new SSSRenderPass(light);
-    // // scene.renderPipeline.AddPass(sss, GPU.RenderPassOrder.AfterLighting);
+    // // Runtime.Renderer.RenderPipeline.AddPass(sss, GPU.RenderPassOrder.AfterLighting);
     
     // {
     //     function worldCornersFromViewProj(viewProj: Mathf.Matrix4): Mathf.Vector3[] {
@@ -116,7 +115,7 @@ async function Application(canvas: HTMLCanvasElement) {
     //     const csmDebugGO = new GameObject(scene);
     //     const lineRenderer = csmDebugGO.AddComponent(LineRenderer);
 
-    //     const shadowPass = scene.renderPipeline.DeferredShadowMapPass;
+    //     const shadowPass = Runtime.Renderer.RenderPipeline.DeferredShadowMapPass;
     //     const lightsShadowData = shadowPass.lightShadowData;
     
     //     const CSMFolder = new UIFolder(Debugger.ui, "CSM");
@@ -228,7 +227,7 @@ async function Application(canvas: HTMLCanvasElement) {
     
     Debugger.Enable();
 
-    scene.Start();
+    Runtime.Play();
 };
 
 Application(document.querySelector("canvas"));

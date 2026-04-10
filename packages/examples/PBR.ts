@@ -6,6 +6,7 @@ import {
     GameObject,
     Geometry,
     PBRMaterial,
+    Runtime,
 } from "@trident/core";
 
 import { OrbitControls } from "@trident/plugins/OrbitControls";
@@ -16,8 +17,9 @@ import { HDRParser } from "@trident/plugins/HDRParser";
 import { Environment } from "@trident/plugins/Environment/Environment";
 
 async function Application(canvas: HTMLCanvasElement) {
-    const renderer = GPU.Renderer.Create(canvas, "webgpu");
-    const scene = new Scene(renderer);
+    await Runtime.Create(canvas);
+    const scene = Runtime.SceneManager.CreateScene("DefaultScene");
+    Runtime.SceneManager.SetActiveScene(scene);
 
     const mainCameraGameObject = new GameObject(scene);
     mainCameraGameObject.name = "MainCamera";
@@ -83,7 +85,7 @@ async function Application(canvas: HTMLCanvasElement) {
     const environment = new Environment(scene, skyTexture);
     await environment.init();
 
-    scene.Start();
+    Runtime.Play();
 };
 
 Application(document.querySelector("canvas"));

@@ -232,8 +232,8 @@ export class SSGIRenderPass extends GPU.RenderPass {
 
         this.geometry = Geometry.Plane();
         
-        this.shader.SetSampler("textureSampler", GPU.TextureSampler.Create());
-        this.shader.SetSampler("depthSampler", GPU.TextureSampler.Create({minFilter: "nearest", magFilter: "nearest", mipmapFilter: "nearest", compare: "less"}));
+        this.shader.SetSampler("textureSampler", new GPU.TextureSampler());
+        this.shader.SetSampler("depthSampler", new GPU.TextureSampler({minFilter: "nearest", magFilter: "nearest", mipmapFilter: "nearest", compare: "less"}));
 
         const W = GPU.Renderer.width / 4;
         const H = GPU.Renderer.height / 4;

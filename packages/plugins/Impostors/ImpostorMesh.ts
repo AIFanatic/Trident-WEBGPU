@@ -7,6 +7,7 @@ import {
     Geometry,
     PBRMaterial,
     Prefab,
+    Runtime,
 } from "@trident/core";
 
 
@@ -113,7 +114,7 @@ export class ImpostorMesh extends Components.Mesh {
                 USE_NORMAL_MAP: material?.params.normalMap ? true : false,
             },
         });
-        shader.SetSampler("textureSampler", GPU.TextureSampler.Create());
+        shader.SetSampler("textureSampler", new GPU.TextureSampler());
         if (material) {
             if (material.params.albedoColor) shader.SetArray("albedoColor", material.params.albedoColor.elements);
             if (material.params.albedoMap) shader.SetTexture("albedoMap", material.params.albedoMap);
@@ -204,7 +205,7 @@ export class ImpostorMesh extends Components.Mesh {
     private async createImpostorMesh(atlasTiles: number, albedoTexture: GPU.RenderTexture, normalTexture: GPU.RenderTexture, fitRadius: number) {
         const geometry = Geometry.Plane();
 
-        const gBufferFormat = Scene.mainScene.renderPipeline.GBufferFormat;
+        const gBufferFormat = Runtime.Renderer.RenderPipeline.GBufferFormat;
         const orthoMethods = `
         // http://jcgt.org/published/0003/02/01/paper.pdf
         // A Survey of Efficient Representations for Independent Unit Vectors 
@@ -798,7 +799,7 @@ export class ImpostorMesh extends Components.Mesh {
             depthOutput: "depth24plus",
             cullMode: "none"
         });
-        shader.SetSampler("textureSampler", GPU.TextureSampler.Create({ magFilter: "linear", minFilter: "linear", mipmapFilter: "linear", addressModeU: "repeat", addressModeV: "repeat" }));
+        shader.SetSampler("textureSampler", new GPU.TextureSampler({ magFilter: "linear", minFilter: "linear", mipmapFilter: "linear", addressModeU: "repeat", addressModeV: "repeat" }));
 
 
         // const textSDFTexture = await Texture.Load("./assets/text_sdf.png");

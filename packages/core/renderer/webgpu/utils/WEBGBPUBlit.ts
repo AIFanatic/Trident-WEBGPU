@@ -48,7 +48,7 @@ export class WEBGPUBlit {
             `,
             colorOutputs: [{ format: output }],
         });
-        const textureSampler = TextureSampler.Create();
+        const textureSampler = new TextureSampler();
         WEBGPUBlit.blitShader.SetSampler("textureSampler", textureSampler);
         WEBGPUBlit.blitShader.SetValue("mip", 0);
     }

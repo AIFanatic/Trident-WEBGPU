@@ -61,7 +61,7 @@
 //     const physicsDebuggerGO = new GameObject(scene);
 //     physicsDebuggerGO.AddComponent(PhysicsDebugger);
 
-//     scene.Start();
+//     Runtime.Play();
 // };
 
 // Application(document.querySelector("canvas"));

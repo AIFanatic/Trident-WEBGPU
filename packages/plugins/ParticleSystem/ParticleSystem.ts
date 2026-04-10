@@ -108,7 +108,7 @@ export class ParticleSystem extends Component {
         this.instancedMesh.geometry = this.geometry;
         this.instancedMesh.material = this.material;
 
-        this.compute = await GPU.Compute.Create({
+        this.compute = await GPU.ShaderCompute.Create({
             code: await GPU.ShaderPreprocessor.ProcessIncludesV2(WGSL_Compute),
             computeEntrypoint: "main",
             uniforms: {
@@ -136,7 +136,7 @@ export class ParticleSystem extends Component {
         const dispatchSizeZ = Math.ceil(Math.cbrt(particleCount) / 4);
 
         if (!this.texture) this.texture = GPU.Texture.Create(1, 1);
-        if (!this.textureSampler) this.textureSampler = GPU.TextureSampler.Create();
+        if (!this.textureSampler) this.textureSampler = new GPU.TextureSampler();
         this.material.shader.SetSampler("textureSampler", this.textureSampler);
         this.material.shader.SetTexture("texture", this.texture);
         this.material.shader.SetTexture("colorOverLifetimeRamp", this.colorOverLifetimeGradients.rampTexture);

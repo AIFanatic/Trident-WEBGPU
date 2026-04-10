@@ -382,7 +382,7 @@ async function Application() {
         });
 
         shader.SetTexture("image", texture);
-        shader.SetSampler("imageSampler", TextureSampler.Create({
+        shader.SetSampler("imageSampler", new TextureSampler({
             magFilter: "nearest",
             minFilter: "nearest",
             mipmapFilter: "nearest",
@@ -448,7 +448,7 @@ async function Application() {
     }
     render();
 
-    // scene.Start();
+    // Runtime.Play();
 };
 
 Application();

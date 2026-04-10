@@ -1,4 +1,4 @@
-import { Components, Scene, GPU, Mathf, GameObject } from "@trident/core";
+import { Components, Scene, GPU, Mathf, GameObject, Runtime } from "@trident/core";
 
 import { OrbitControls } from "@trident/plugins/OrbitControls";
 import { Debugger } from "@trident/plugins/Debugger";
@@ -9,11 +9,9 @@ import { UIButtonStat, UIColorStat, UIFolder, UIGradientStat, UISliderStat, UIVe
 import { GradientEditor } from "@trident/plugins/ui/GradientEditor";
 
 async function Application(canvas: HTMLCanvasElement) {
-    // const gradientEditor = new GradientEditor();
-    // document.body.append(gradientEditor.container)
-
-    const renderer = GPU.Renderer.Create(canvas, "webgpu");
-    const scene = new Scene(renderer);
+    await Runtime.Create(canvas);
+    const scene = Runtime.SceneManager.CreateScene("DefaultScene");
+    Runtime.SceneManager.SetActiveScene(scene);
 
     const mainCameraGameObject = new GameObject(scene);
     mainCameraGameObject.transform.position.set(0,0,-15);
@@ -89,7 +87,7 @@ async function Application(canvas: HTMLCanvasElement) {
 
     Debugger.Enable();
 
-    scene.Start();
+    Runtime.Play();
 };
 
 Application(document.querySelector("canvas"));

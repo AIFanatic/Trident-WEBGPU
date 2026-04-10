@@ -90,7 +90,7 @@ export class TextureViewer {
         });
         this.quadGeometry = new Geometry();
 
-        const sampler = GPU.TextureSampler.Create();
+        const sampler = new GPU.TextureSampler();
         this.shader.SetSampler("textureSampler", sampler);
         this.shader.SetTexture("texture", this.texture);
     }

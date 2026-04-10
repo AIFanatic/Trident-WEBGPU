@@ -64,7 +64,7 @@ export class TextureViewer extends RenderPass {
         });
         this.quadGeometry = new Geometry();
 
-        const sampler = TextureSampler.Create();
+        const sampler = new TextureSampler();
         this.shader.SetSampler("textureSampler", sampler);
 
         this.initialized = true;

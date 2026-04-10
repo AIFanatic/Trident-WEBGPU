@@ -103,11 +103,11 @@ export class GuassianBlur extends RenderPass {
             },
         });
 
-        this.shader.SetSampler("texSampler", TextureSampler.Create());
+        this.shader.SetSampler("texSampler", new TextureSampler());
 
-        this.blurDir = Buffer.Create(4 * 4, BufferType.STORAGE);
-        this.blurDirHorizontal = Buffer.Create(4 * 4, BufferType.STORAGE);
-        this.blurDirVertical = Buffer.Create(4 * 4, BufferType.STORAGE);
+        this.blurDir = new Buffer(4 * 4, BufferType.STORAGE);
+        this.blurDirHorizontal = new Buffer(4 * 4, BufferType.STORAGE);
+        this.blurDirVertical = new Buffer(4 * 4, BufferType.STORAGE);
 
         this.shader.SetBuffer("blurDir", this.blurDir);
         this.shader.SetValue("filterSize", this.filterSize);

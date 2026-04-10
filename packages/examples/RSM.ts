@@ -5,7 +5,8 @@ import {
     Components,
     Mathf,
     PBRMaterial,
-    GPU
+    GPU,
+    Runtime
 } from "@trident/core";
 
 import { OrbitControls } from "@trident/plugins/OrbitControls";
@@ -13,9 +14,9 @@ import { OBJLoaderIndexed } from "@trident/plugins/OBJLoader";
 import { RSMIndirectLighting } from "@trident/plugins/RSMIndirectLighting";
 
 async function Application(canvas: HTMLCanvasElement) {
-    const renderer = GPU.Renderer.Create(canvas, "webgpu");
-
-    const scene = new Scene(renderer);
+    await Runtime.Create(canvas);
+    const scene = Runtime.SceneManager.CreateScene("DefaultScene");
+    Runtime.SceneManager.SetActiveScene(scene);
 
     const mainCameraGameObject = new GameObject(scene);
     mainCameraGameObject.transform.position.set(0, 0, 20);
@@ -148,7 +149,7 @@ async function Application(canvas: HTMLCanvasElement) {
 
     {
         const rsmLight = new RSMIndirectLighting(light, 128, 64);
-        scene.renderPipeline.AddPass(rsmLight, GPU.RenderPassOrder.AfterLighting);
+        Runtime.Renderer.RenderPipeline.AddPass(rsmLight, GPU.RenderPassOrder.AfterLighting);
 
         // const viewerGO = new GameObject(scene);
         // const viewerMesh = viewerGO.AddComponent(Components.Mesh);
@@ -156,7 +157,7 @@ async function Application(canvas: HTMLCanvasElement) {
         // viewerMesh.material = new PBRMaterial({ albedoMap: rsmLight.indirectLighting, unlit: true });
     }
 
-    scene.Start();
+    Runtime.Play();
 };
 
 Application(document.querySelector("canvas"));

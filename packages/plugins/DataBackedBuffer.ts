@@ -22,7 +22,7 @@ export class DataBackedBuffer<T> {
 
         this.dataOffsets = dataOffsets;
         this.dataValues = new Float32Array(dataValues.flat(Infinity));
-        this.buffer = GPU.Buffer.Create(this.dataValues.length * 4, bufferType);
+        this.buffer = new GPU.Buffer(this.dataValues.length * 4, bufferType);
         this.buffer.SetArray(this.dataValues);
     }
 

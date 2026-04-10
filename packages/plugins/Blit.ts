@@ -53,7 +53,7 @@ export class Blit extends GPU.RenderPass {
             },
         });
 
-        this.shader.SetSampler("texSampler", GPU.TextureSampler.Create());
+        this.shader.SetSampler("texSampler", new GPU.TextureSampler());
 
         this.geometry = Geometry.Plane();
         this.initialized = true;

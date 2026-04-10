@@ -1,4 +1,4 @@
-import { Components, Scene, GPU, Mathf, GameObject, Geometry, IndexAttribute, PBRMaterial, VertexAttribute } from "@trident/core";
+import { Components, Scene, GPU, Mathf, GameObject, Geometry, IndexAttribute, PBRMaterial, VertexAttribute, Runtime } from "@trident/core";
 
 import { OrbitControls } from "@trident/plugins/OrbitControls";
 import { GLTFLoader } from "@trident/plugins/GLTF/GLTFLoader";
@@ -15,8 +15,9 @@ import { MeshCollider } from "@trident/plugins/PhysicsRapier/colliders/MeshColli
 import { SpotLightHelper } from "@trident/plugins/SpotLightHelper";
 
 async function Application(canvas: HTMLCanvasElement) {
-    const renderer = GPU.Renderer.Create(canvas, "webgpu", 2);
-    const scene = new Scene(renderer);
+    await Runtime.Create(canvas);
+    const scene = Runtime.SceneManager.CreateScene("DefaultScene");
+    Runtime.SceneManager.SetActiveScene(scene);
 
     const mainCameraGameObject = new GameObject(scene);
     mainCameraGameObject.transform.position.set(1.3214703183015142, 1.204350593000603, 0.8880642037210573);
@@ -95,7 +96,7 @@ async function Application(canvas: HTMLCanvasElement) {
     }, 2000);
     
     Debugger.Enable();
-    scene.Start();
+    Runtime.Play();
 };
 
 Application(document.querySelector("canvas"));

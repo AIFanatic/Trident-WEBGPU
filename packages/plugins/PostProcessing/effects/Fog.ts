@@ -158,7 +158,7 @@ export class PostProcessingFog extends GPU.RenderPass {
 
 		this.renderTarget = GPU.RenderTexture.Create(GPU.Renderer.width, GPU.Renderer.height, 1, "rgba16float");
 
-		this.shader.SetSampler("textureSampler", GPU.TextureSampler.Create());
+		this.shader.SetSampler("textureSampler", new GPU.TextureSampler());
 
 		this.initialized = true;
 	}

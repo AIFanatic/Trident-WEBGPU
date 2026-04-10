@@ -5,7 +5,8 @@ import {
     Components,
     Mathf,
     PBRMaterial,
-    GPU
+    GPU,
+    Runtime
 } from "@trident/core";
 
 import { OrbitControls } from "@trident/plugins/OrbitControls";
@@ -16,9 +17,9 @@ import { UIFolder, UISliderStat, UIVecStat } from "@trident/plugins/ui/UIStats";
 import { Debugger } from "@trident/plugins/Debugger";
 
 async function Application(canvas: HTMLCanvasElement) {
-    const renderer = GPU.Renderer.Create(canvas, "webgpu");
-
-    const scene = new Scene(renderer);
+    await Runtime.Create(canvas);
+    const scene = Runtime.SceneManager.CreateScene("DefaultScene");
+    Runtime.SceneManager.SetActiveScene(scene);
 
     const mainCameraGameObject = new GameObject(scene);
     mainCameraGameObject.transform.position.set(0, 0, 20);
@@ -155,9 +156,9 @@ async function Application(canvas: HTMLCanvasElement) {
 
     const bloom = new Bloom();
     // @ts-ignore
-    await bloom.init(scene.renderPipeline.renderGraph.resourcePool);
+    await bloom.init(Runtime.Renderer.RenderPipeline.renderGraph.resourcePool);
 
-    scene.renderPipeline.AddPass(bloom, GPU.RenderPassOrder.AfterLighting);
+    Runtime.Renderer.RenderPipeline.AddPass(bloom, GPU.RenderPassOrder.AfterLighting);
     
     // Viewer
     {
@@ -168,9 +169,9 @@ async function Application(canvas: HTMLCanvasElement) {
         viewerMesh.material = new PBRMaterial({ albedoMap: bloom.output, unlit: true });
     }
 
-    // scene.renderPipeline.AddPass(new DeferredGBufferPass(), RenderPassOrder.BeforeGBuffer);
+    // Runtime.Renderer.RenderPipeline.AddPass(new DeferredGBufferPass(), RenderPassOrder.BeforeGBuffer);
 
-    scene.Start();
+    Runtime.Play();
 };
 
 Application(document.querySelector("canvas"));

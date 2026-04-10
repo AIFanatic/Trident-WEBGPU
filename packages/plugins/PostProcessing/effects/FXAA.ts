@@ -108,7 +108,7 @@ export class PostProcessingFXAA extends GPU.RenderPass {
 
 		this.renderTarget = GPU.RenderTexture.Create(GPU.Renderer.width, GPU.Renderer.height, 1, "rgba16float");
 
-		this.shader.SetSampler("textureSampler", GPU.TextureSampler.Create());
+		this.shader.SetSampler("textureSampler", new GPU.TextureSampler());
 		this.shader.SetVector2("resolutionInv", new Mathf.Vector2(1 / GPU.Renderer.width, 1 / GPU.Renderer.height));
 
 

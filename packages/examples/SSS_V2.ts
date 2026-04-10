@@ -5,7 +5,8 @@ import {
     Components,
     Mathf,
     PBRMaterial,
-    GPU
+    GPU,
+    Runtime
 } from "@trident/core";
 
 import { OrbitControls } from "@trident/plugins/OrbitControls";
@@ -16,9 +17,9 @@ import { FullscreenQuad } from "@trident/plugins/FullscreenQuad";
 
 
 async function Application(canvas: HTMLCanvasElement) {
-    const renderer = GPU.Renderer.Create(canvas, "webgpu");
-
-    const scene = new Scene(renderer);
+    await Runtime.Create(canvas);
+    const scene = Runtime.SceneManager.CreateScene("DefaultScene");
+    Runtime.SceneManager.SetActiveScene(scene);
 
     const mainCameraGameObject = new GameObject(scene);
     mainCameraGameObject.transform.position.set(0, 0, 20);
@@ -115,11 +116,11 @@ async function Application(canvas: HTMLCanvasElement) {
 
 
     const sssPass = new SSS_V2(light);
-    scene.renderPipeline.AddPass(sssPass, GPU.RenderPassOrder.AfterLighting);
+    Runtime.Renderer.RenderPipeline.AddPass(sssPass, GPU.RenderPassOrder.AfterLighting);
 
     Debugger.Enable();
 
-    scene.Start();
+    Runtime.Play();
 };
 
 Application(document.querySelector("canvas"));

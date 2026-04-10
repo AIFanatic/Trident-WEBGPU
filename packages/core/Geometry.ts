@@ -49,7 +49,7 @@ export class GeometryAttribute {
         }
 
         this.array = array;                     // logical data
-        this.buffer = Buffer.Create(bufferSize, type);
+        this.buffer = new Buffer(bufferSize, type);
         this.buffer.SetArray(bufferArray);      // upload padded array
         this.bufferType = type;
         this.currentOffset = 0;

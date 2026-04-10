@@ -8,7 +8,8 @@ import {
     GPU,
     Input,
     MouseCodes,
-    KeyCodes
+    KeyCodes,
+    Runtime
 } from "@trident/core";
 
 import { OrbitControls } from "@trident/plugins/OrbitControls";
@@ -21,9 +22,9 @@ import { DirectionalLightHelper } from "@trident/plugins/DirectionalLightHelper"
 
 
 async function Application(canvas: HTMLCanvasElement) {
-    const renderer = GPU.Renderer.Create(canvas, "webgpu");
-
-    const scene = new Scene(renderer);
+    await Runtime.Create(canvas);
+    const scene = Runtime.SceneManager.CreateScene("DefaultScene");
+    Runtime.SceneManager.SetActiveScene(scene);
 
     const mainCameraGameObject = new GameObject(scene);
     mainCameraGameObject.transform.position.set(0, 0, 20);
@@ -247,7 +248,7 @@ async function Application(canvas: HTMLCanvasElement) {
         `,
         target: t,
         init: (resources, shader) => {
-            shader.SetSampler("texSampler", GPU.TextureSampler.Create());
+            shader.SetSampler("texSampler", new GPU.TextureSampler());
         },
         preFrame: (resources, shader) => {
             const lighting = resources.getResource(GPU.PassParams.LightingPassOutput);
@@ -281,7 +282,7 @@ async function Application(canvas: HTMLCanvasElement) {
         }
 
     });
-    scene.renderPipeline.AddPass(f, GPU.RenderPassOrder.AfterLighting);
+    Runtime.Renderer.RenderPipeline.AddPass(f, GPU.RenderPassOrder.AfterLighting);
 
     const lightSettings = new UIFolder(Debugger.ui, "Light");
     new UIVecStat(lightSettings, "Position:",
@@ -307,7 +308,7 @@ async function Application(canvas: HTMLCanvasElement) {
 
     Debugger.Enable();
 
-    scene.Start();
+    Runtime.Play();
 };
 
 Application(document.querySelector("canvas"));

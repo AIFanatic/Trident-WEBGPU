@@ -90,7 +90,7 @@ export class BufferMemoryAllocator {
 
     constructor(size: number, bufferType = BufferType.STORAGE) {
         this.allocator = new MemoryAllocator(size);
-        this.buffer = Buffer.Create(size * BufferMemoryAllocator.BYTES_PER_ELEMENT, bufferType);
+        this.buffer = new Buffer(size * BufferMemoryAllocator.BYTES_PER_ELEMENT, bufferType);
         this.links = new Map();
         this.bufferType = bufferType;
     }
@@ -131,7 +131,7 @@ export class DynamicBufferMemoryAllocatorDynamic {
     constructor(slotCount: number, bufferType = BufferType.STORAGE, minBindingSize: number = 256) {
         this.minBindingSize = minBindingSize;
         this.allocator = new MemoryAllocator(slotCount);
-        this.buffer = DynamicBuffer.Create(slotCount * minBindingSize, bufferType, minBindingSize);
+        this.buffer = new DynamicBuffer(slotCount * minBindingSize, bufferType, minBindingSize);
         this.links = new Map();
         this.bufferType = bufferType;
     }
@@ -192,7 +192,7 @@ export class DynamicBufferMemoryAllocator extends BufferMemoryAllocator {
                 this.allocator.freeBlocks.push({offset: oldMemorySize, size: incrementAmount});
 
                 // Create new buffer
-                const buffer = Buffer.Create(this.allocator.memorySize * BufferMemoryAllocator.BYTES_PER_ELEMENT, BufferType.STORAGE);
+                const buffer = new Buffer(this.allocator.memorySize * BufferMemoryAllocator.BYTES_PER_ELEMENT, BufferType.STORAGE);
                 const hasActiveFrame = Renderer.HasActiveFrame();
                 if (!hasActiveFrame) Renderer.BeginRenderFrame();
                 RendererContext.CopyBufferToBuffer(this.buffer, buffer);

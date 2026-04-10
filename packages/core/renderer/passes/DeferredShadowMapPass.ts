@@ -166,7 +166,7 @@ export class DeferredShadowMapPass extends RenderPass {
         });
 
         // 100 matrices 6.4Kb
-        this.skinnedBoneMatricesBuffer = Buffer.Create(16 * 100 * 4, BufferType.STORAGE);
+        this.skinnedBoneMatricesBuffer = new Buffer(16 * 100 * 4, BufferType.STORAGE);
         this.drawSkinnedMeshShadowShader.SetBuffer("boneMatrices", this.skinnedBoneMatricesBuffer);
 
         this.shadowOutput = DepthTextureArray.Create(ShadowMapSettings.r_shadows_width.value, ShadowMapSettings.r_shadows_height.value, 1);
@@ -328,7 +328,7 @@ export class DeferredShadowMapPass extends RenderPass {
         const requiredProjectionSize = lightCount * dynamicBufferBaseCapacity; // Dynamic buffer
 
         if (!this.lightProjectionMatrices || this.lightProjectionMatrices.size !== requiredProjectionSize) {
-            this.lightProjectionMatrices = DynamicBuffer.Create(requiredProjectionSize, BufferType.STORAGE, 256);
+            this.lightProjectionMatrices = new DynamicBuffer(requiredProjectionSize, BufferType.STORAGE, 256);
 
             this.drawShadowShader.SetBuffer("projectionMatrix", this.lightProjectionMatrices);
             this.drawSkinnedMeshShadowShader.SetBuffer("projectionMatrix", this.lightProjectionMatrices);
@@ -336,7 +336,7 @@ export class DeferredShadowMapPass extends RenderPass {
         }
 
         if (!this.cascadeIndexBuffer || this.cascadeIndexBuffer.size !== dynamicBufferBaseCapacity) {
-            this.cascadeIndexBuffer = DynamicBuffer.Create(dynamicBufferBaseCapacity, BufferType.STORAGE, 256);
+            this.cascadeIndexBuffer = new DynamicBuffer(dynamicBufferBaseCapacity, BufferType.STORAGE, 256);
             for (let i = 0; i < cascadeCapacity; i++) {
                 this.cascadeIndexBuffer.SetArray(new Uint32Array([i]), i * 256);
             }
@@ -353,7 +353,7 @@ export class DeferredShadowMapPass extends RenderPass {
         if (shadowCasters.length > 0) {
             const requiredSize = shadowCasters.length * 256;
             if (!this.modelMatrices || this.modelMatrices.size !== requiredSize) {
-                this.modelMatrices = DynamicBuffer.Create(requiredSize, BufferType.STORAGE, 256);
+                this.modelMatrices = new DynamicBuffer(requiredSize, BufferType.STORAGE, 256);
                 this.drawShadowShader.SetBuffer("modelMatrix", this.modelMatrices);
                 this.drawSkinnedMeshShadowShader.SetBuffer("modelMatrix", this.modelMatrices);
             }

@@ -1,5 +1,5 @@
+import { UUID } from "../utils";
 import { Renderer } from "./Renderer";
-import { WEBGPUTextureSampler } from "./webgpu/WEBGPUTextureSampler";
 
 export interface TextureSamplerParams {
     magFilter?: "linear" | "nearest";
@@ -21,11 +21,26 @@ const defaultSamplerParams: TextureSamplerParams = {
     maxAnisotropy: 1
 }
 
-export class TextureSampler {
+export class TextureSampler implements TextureSampler {
+    public readonly id = UUID();
     public readonly params: TextureSamplerParams;
-    public static Create(params?: TextureSamplerParams): TextureSampler {
+
+    private sampler: GPUSampler;
+
+    constructor(params?: TextureSamplerParams) {
         const samplerParams = Object.assign({}, defaultSamplerParams, params);
-        if (Renderer.type === "webgpu") return new WEBGPUTextureSampler(samplerParams);
-        throw Error("Renderer type invalid");
+        this.params = samplerParams;
+
+        const samplerDescriptor: GPUSamplerDescriptor = {}
+        if (samplerParams.minFilter) samplerDescriptor.minFilter = samplerParams.minFilter;
+        if (samplerParams.magFilter) samplerDescriptor.magFilter = samplerParams.magFilter;
+        if (samplerParams.mipmapFilter) samplerDescriptor.mipmapFilter = samplerParams.mipmapFilter;
+        if (samplerParams.addressModeU) samplerDescriptor.addressModeU = samplerParams.addressModeU;
+        if (samplerParams.addressModeV) samplerDescriptor.addressModeV = samplerParams.addressModeV;
+        if (samplerParams.compare) samplerDescriptor.compare = samplerParams.compare;
+        if (samplerParams.maxAnisotropy) samplerDescriptor.maxAnisotropy = samplerParams.maxAnisotropy;
+        this.sampler = Renderer.device.createSampler(samplerDescriptor);
     }
+
+    public GetBuffer(): GPUSampler { return this.sampler }
 }

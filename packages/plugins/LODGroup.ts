@@ -55,14 +55,14 @@ export class LODGroup extends Components.Renderable {
 export class LODInstanceRenderable extends LODGroup {
     private initialized = false;
 
-    private drawCompute: GPU.Compute;
+    private drawCompute: GPU.ShaderCompute;
     private drawIndirectBuffer: GPU.Buffer;
     private lodRendererData: LodRendererData[][] = [];
     private lodMatricesScratch: GPU.Buffer;
     private lodMatrixBuffers: GPU.Buffer[] = [];
 
     public async Start() {
-        this.drawCompute = await GPU.Compute.Create({
+        this.drawCompute = await GPU.ShaderCompute.Create({
             code: `
             #include "@trident/core/resources/webgpu/shaders/deferred/Common.wgsl";
             
@@ -173,9 +173,9 @@ export class LODInstanceRenderable extends LODGroup {
         `
         });
 
-        this.drawIndirectBuffer = GPU.Buffer.Create(this.lods.length * 5 * 4, GPU.BufferType.STORAGE_WRITE);
-        this.lodMatricesScratch = GPU.Buffer.Create(this.lods.length * LODGroup.MATRIX_STRIDE_BYTES, GPU.BufferType.STORAGE_WRITE);
-        this.lodMatrixBuffers = this.lods.map(() => GPU.Buffer.Create(LODGroup.MATRIX_STRIDE_BYTES, GPU.BufferType.STORAGE));
+        this.drawIndirectBuffer = new GPU.Buffer(this.lods.length * 5 * 4, GPU.BufferType.STORAGE_WRITE);
+        this.lodMatricesScratch = new GPU.Buffer(this.lods.length * LODGroup.MATRIX_STRIDE_BYTES, GPU.BufferType.STORAGE_WRITE);
+        this.lodMatrixBuffers = this.lods.map(() => new GPU.Buffer(LODGroup.MATRIX_STRIDE_BYTES, GPU.BufferType.STORAGE));
 
         this.lodRendererData.length = this.lods.length;
 
@@ -193,8 +193,8 @@ export class LODInstanceRenderable extends LODGroup {
                 if (!indexBuffer) throw Error("No index buffer");
                 if (!renderer.material) throw Error("No material or shader");
 
-                const drawBuffer = GPU.Buffer.Create(5 * 4, GPU.BufferType.INDIRECT);
-                const indexCountBuffer = GPU.Buffer.Create(4, GPU.BufferType.STORAGE);
+                const drawBuffer = new GPU.Buffer(5 * 4, GPU.BufferType.INDIRECT);
+                const indexCountBuffer = new GPU.Buffer(4, GPU.BufferType.STORAGE);
                 indexCountBuffer.SetArray(new Uint32Array([indexBuffer.count]));
                 drawBuffer.SetArray(new Uint32Array([indexBuffer.count, 0, 0, 0, 0]));
 

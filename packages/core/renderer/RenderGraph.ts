@@ -1,5 +1,5 @@
-import { Geometry } from "../Geometry";
-import { Shader } from "./Shader";
+import type { Geometry } from "../Geometry";
+import type { Shader } from "./Shader";
 
 export interface DrawCommand {
     geometry: Geometry;

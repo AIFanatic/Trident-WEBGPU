@@ -7,15 +7,17 @@ import {
     Mathf,
     GameObject,
     Geometry,
+    Runtime,
 } from "@trident/core";
 import { Debugger } from "@trident/plugins/Debugger";
 import { OrbitControls } from "@trident/plugins/OrbitControls";
 import { UITextureViewer } from "@trident/plugins/ui/UIStats";
 
 async function Application(canvas: HTMLCanvasElement) {
-    const renderer = GPU.Renderer.Create(canvas, "webgpu");
-    const scene = new Scene(renderer);
-
+    await Runtime.Create(canvas);
+    const scene = Runtime.SceneManager.CreateScene("DefaultScene");
+    Runtime.SceneManager.SetActiveScene(scene);
+    
     const mainCameraGameObject = new GameObject(scene);
     mainCameraGameObject.name = "MainCamera";
     const camera = mainCameraGameObject.AddComponent(Components.Camera);
@@ -52,7 +54,7 @@ async function Application(canvas: HTMLCanvasElement) {
             }
 
             private async createShader() {
-                const gbufferFormat = Scene.mainScene.renderPipeline.GBufferFormat;
+                const gbufferFormat = Runtime.Renderer.RenderPipeline.GBufferFormat;
                 this.shader = await GPU.Shader.Create({
                     code: `
                         #include "@trident/core/resources/webgpu/shaders/deferred/Common.wgsl";
@@ -128,7 +130,7 @@ async function Application(canvas: HTMLCanvasElement) {
                     depthOutput: "depth24plus"
                 })
 
-                this.shader.SetSampler("atlasSampler", GPU.TextureSampler.Create());
+                this.shader.SetSampler("atlasSampler", new GPU.TextureSampler());
                 this.shader.SetTexture("atlas", this.atlas);
 
                 this.shader.SetArray("regions", atlas.regionData);
@@ -146,7 +148,7 @@ async function Application(canvas: HTMLCanvasElement) {
     
     Debugger.Enable();
 
-    scene.Start();
+    Runtime.Play();
 
 };
 

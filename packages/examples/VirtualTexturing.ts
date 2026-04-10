@@ -8,6 +8,7 @@ import {
     Geometry,
     PBRMaterial,
     Renderer,
+    Runtime,
 } from "@trident/core";
 
 import { OrbitControls } from "@trident/plugins/OrbitControls";
@@ -21,8 +22,9 @@ async function Application(canvas: HTMLCanvasElement) {
     document.body.style.width = "1024px";
     document.body.style.height = "1024px";
 
-    const renderer = GPU.Renderer.Create(canvas, "webgpu");
-    const scene = new Scene(renderer);
+    await Runtime.Create(canvas);
+    const scene = Runtime.SceneManager.CreateScene("DefaultScene");
+    Runtime.SceneManager.SetActiveScene(scene);
 
     const mainCameraGameObject = new GameObject(scene);
     mainCameraGameObject.name = "MainCamera";
@@ -66,7 +68,7 @@ async function Application(canvas: HTMLCanvasElement) {
 
     console.log(tilesMap)
 
-    scene.renderPipeline.AddPass(virtualTexturingPass, GPU.RenderPassOrder.BeforeScreenOutput);
+    Runtime.Renderer.RenderPipeline.AddPass(virtualTexturingPass, GPU.RenderPassOrder.BeforeScreenOutput);
 
 
     const t = new UITextureViewer(Debugger.ui, "Atlas", virtualTexturingPass.page_manager.atlas_);
@@ -114,7 +116,7 @@ async function Application(canvas: HTMLCanvasElement) {
     }
 
 
-    scene.Start();
+    Runtime.Play();
 };
 
 Application(document.querySelector("canvas"));

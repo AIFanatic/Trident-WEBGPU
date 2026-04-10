@@ -1,5 +1,5 @@
 // From: https://github.com/ferminLR/webgpu-path-tracing
-import { Components, Geometry, GPU, Mathf, PBRMaterial, Scene } from "@trident/core";
+import { Components, Geometry, GPU, Mathf, PBRMaterial, Runtime, Scene } from "@trident/core";
 import { BilateralFilter } from "@trident/plugins/BilateralFilter";
 import { TextureBlender } from "@trident/plugins/TextureBlender";
 
@@ -48,7 +48,7 @@ export class PathTracer extends GPU.RenderPass {
 
     public async init(resources: GPU.ResourcePool) {
 
-        this.shader = await GPU.Compute.Create({
+        this.shader = await GPU.ShaderCompute.Create({
             code: `
             @group(0) @binding(0) var outputTex : texture_storage_2d<rgba16float, write>;
             @group(0) @binding(1) var inputTex : texture_2d<f32>;
@@ -383,7 +383,7 @@ export class PathTracer extends GPU.RenderPass {
             `,
             colorOutputs: [{ format: "rgba16float" }],
         });
-        this.customBlender.SetSampler("texSampler", GPU.TextureSampler.Create());
+        this.customBlender.SetSampler("texSampler", new GPU.TextureSampler());
         this.customBlenderGeometry = Geometry.Plane();
         this.customBlenderTarget = GPU.RenderTexture.Create(GPU.Renderer.width, GPU.Renderer.height, 1, "rgba16float");
 
@@ -391,7 +391,7 @@ export class PathTracer extends GPU.RenderPass {
     }
 
     private updateMeshBuffers() {
-        const renderables = Scene.mainScene.GetComponents(Components.Renderable);
+        const renderables = Runtime.SceneManager.GetActiveScene().GetComponents(Components.Renderable);
         if (renderables.length === 0) return;
 
         this.currentMeshCount = renderables.length;

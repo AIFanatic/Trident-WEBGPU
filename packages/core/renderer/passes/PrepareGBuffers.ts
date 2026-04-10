@@ -66,7 +66,7 @@ export class PrepareGBuffers extends RenderPass {
     public async init(resources: ResourcePool) {
         this.CreateGBufferTextures();
 
-        this.FrameBuffer = Buffer.Create(this.FrameBufferValues.byteLength, BufferType.STORAGE);
+        this.FrameBuffer = new Buffer(this.FrameBufferValues.byteLength, BufferType.STORAGE);
 
         this.initialized = true;
     }

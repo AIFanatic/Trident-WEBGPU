@@ -1,4 +1,4 @@
-import { Components, GPU, Scene, Mathf } from "@trident/core";
+import { Components, GPU, Scene, Mathf, Runtime } from "@trident/core";
 import { VTFeedbackPass } from "./VTFeedbackPass";
 import { PageManager } from "./PageManager";
 import { VTPaintPass } from "./VTPaintPass";
@@ -63,7 +63,7 @@ export class VirtualTexturingPass extends GPU.RenderPass {
         this.page_manager.FlushUploadQueue();
         this.page_manager.UpdatePageTables();
 
-        const renderables = Scene.mainScene.GetComponents(Components.Renderable);
+        const renderables = Runtime.SceneManager.GetActiveScene().GetComponents(Components.Renderable);
         this.vtFeedbackPass.renderables = renderables;
         this.vtPainPass.renderables = renderables;
         await this.vtFeedbackPass.preFrame(resources);

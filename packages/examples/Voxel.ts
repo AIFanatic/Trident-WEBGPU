@@ -6,7 +6,8 @@ import {
     Mathf,
     GPU,
     PBRMaterial,
-    Renderer
+    Renderer,
+    Runtime
 } from "@trident/core";
 
 import { OrbitControls } from "@trident/plugins/OrbitControls";
@@ -21,9 +22,10 @@ interface Object3D {
 };
 
 async function Application(canvas: HTMLCanvasElement) {
-    const renderer = Renderer.Create(canvas, "webgpu");
+    await Runtime.Create(canvas);
+    const scene = Runtime.SceneManager.CreateScene("DefaultScene");
+    Runtime.SceneManager.SetActiveScene(scene);
 
-    const scene = new Scene(renderer);
     const mainCameraGameObject = new GameObject(scene);
     // mainCameraGameObject.transform.position.set(0,0,15);
     mainCameraGameObject.transform.position.z = 5;
@@ -276,9 +278,9 @@ async function Application(canvas: HTMLCanvasElement) {
 
     const voxelRenderPass = new VoxelRenderPass();
     voxelRenderPass.voxelTextures.push(scene_sdf_texture);
-    scene.renderPipeline.AddPass(voxelRenderPass, GPU.RenderPassOrder.BeforeLighting);
+    Runtime.Renderer.RenderPipeline.AddPass(voxelRenderPass, GPU.RenderPassOrder.BeforeLighting);
 
-    scene.Start();
+    Runtime.Play();
 };
 
 Application(document.querySelector("canvas"));

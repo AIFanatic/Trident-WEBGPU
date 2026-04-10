@@ -5,6 +5,7 @@ import {
     GPU,
     GameObject,
     PBRMaterial,
+    Runtime,
 } from "@trident/core";
 
 import { OrbitControls } from "@trident/plugins/OrbitControls";
@@ -12,8 +13,9 @@ import { TerrainBuilder } from "@trident/plugins/TerrainGenerator/TerrainBuilder
 import { Debugger } from "@trident/plugins/Debugger";
 
 async function Application(canvas: HTMLCanvasElement) {
-    const renderer = GPU.Renderer.Create(canvas, "webgpu");
-    const scene = new Scene(renderer);
+    await Runtime.Create(canvas);
+    const scene = Runtime.SceneManager.CreateScene("DefaultScene");
+    Runtime.SceneManager.SetActiveScene(scene);
 
     const mainCameraGameObject = new GameObject(scene);
     mainCameraGameObject.transform.position.set(0,0,-15);
@@ -46,7 +48,7 @@ async function Application(canvas: HTMLCanvasElement) {
 
     Debugger.Enable();
 
-    scene.Start();
+    Runtime.Play();
 };
 
 Application(document.querySelector("canvas"));

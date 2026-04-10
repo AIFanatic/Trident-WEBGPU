@@ -6,6 +6,7 @@ import {
     Mathf,
     GameObject,
     PBRMaterial,
+    Runtime,
 } from "@trident/core";
 
 import { OrbitControls } from "@trident/plugins/OrbitControls";
@@ -17,8 +18,9 @@ import { Debugger } from "@trident/plugins/Debugger";
 import { PointLightHelper } from "@trident/plugins/PointLightHelper";
 
 async function Application(canvas: HTMLCanvasElement) {
-    const renderer = Renderer.Create(canvas, "webgpu");
-    const scene = new Scene(renderer);
+    await Runtime.Create(canvas);
+    const scene = Runtime.SceneManager.CreateScene("DefaultScene");
+    Runtime.SceneManager.SetActiveScene(scene);
 
     const mainCameraGameObject = new GameObject(scene);
     mainCameraGameObject.transform.position.set(0, 6, 16);
@@ -58,9 +60,7 @@ async function Application(canvas: HTMLCanvasElement) {
     fakeGI.avgRefl = 0.4;
     fakeGI.avgSecondaryDistance = 1.0;
 
-    const physicsWorld = new GameObject(scene);
-    const physicsComponent = physicsWorld.AddComponent(PhysicsRapier);
-    await physicsComponent.Load();
+    await Runtime.AddSystem(PhysicsRapier);
 
 
 
@@ -177,7 +177,7 @@ async function Application(canvas: HTMLCanvasElement) {
 
     Debugger.Enable();
 
-    scene.Start();
+    Runtime.Play();
 };
 
 Application(document.querySelector("canvas"));

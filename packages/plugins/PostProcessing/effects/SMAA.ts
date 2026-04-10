@@ -587,14 +587,14 @@ export class PostProcessingSMAA extends GPU.RenderPass {
             this.weightsShader.SetArray("u_resolution", u_resolution.elements);
             this.blendShader.SetArray("u_resolution", u_resolution.elements);
         }
-        EventSystem.on(GPU.RendererEvents.Resized, () => { resize() });
+        // EventSystem.on(GPU.RendererEvents.Resized, () => { resize() });
         resize();
 
         const searchTex = await GPU.Texture.Load(new URL(SMAATextures.search, import.meta.url), "r8unorm", {generateMips: false, flipY: true});
         const areaTex = await GPU.Texture.Load(new URL(SMAATextures.area, import.meta.url), "rg8unorm", {generateMips: false, flipY: false});
 
-        const nearestSampler = GPU.TextureSampler.Create({ addressModeU: "clamp-to-edge", addressModeV: "clamp-to-edge", minFilter: "nearest", magFilter: "nearest" });
-        const linearSampler = GPU.TextureSampler.Create({ addressModeU: "clamp-to-edge", addressModeV: "clamp-to-edge", minFilter: "linear", magFilter: "linear" });
+        const nearestSampler = new GPU.TextureSampler({ addressModeU: "clamp-to-edge", addressModeV: "clamp-to-edge", minFilter: "nearest", magFilter: "nearest" });
+        const linearSampler = new GPU.TextureSampler({ addressModeU: "clamp-to-edge", addressModeV: "clamp-to-edge", minFilter: "linear", magFilter: "linear" });
 
         this.edgeDetectionPass.SetSampler("nearestSampler", nearestSampler);
 

@@ -7,6 +7,7 @@ import {
     GameObject,
     PBRMaterial,
     Renderer,
+    Runtime,
 } from "@trident/core";
 
 import { OrbitControls } from "@trident/plugins/OrbitControls";
@@ -14,9 +15,9 @@ import { DirectionalLightHelper } from "@trident/plugins/DirectionalLightHelper"
 import { SpotLightHelper } from "@trident/plugins/SpotLightHelper";
 
 async function Application(canvas: HTMLCanvasElement) {
-    const renderer = Renderer.Create(canvas, "webgpu");
-
-    const scene = new Scene(renderer);
+    await Runtime.Create(canvas);
+    const scene = Runtime.SceneManager.CreateScene("DefaultScene");
+    Runtime.SceneManager.SetActiveScene(scene);
 
     const mainCameraGameObject = new GameObject(scene);
     mainCameraGameObject.transform.position.set(0, 0, 10);
@@ -93,7 +94,7 @@ async function Application(canvas: HTMLCanvasElement) {
         sphereMesh.material = mat;
     }
 
-    scene.Start();
+    Runtime.Play();
 };
 
 Application(document.querySelector("canvas"));

@@ -6,6 +6,7 @@ import {
     GameObject,
     Geometry,
     PBRMaterial,
+    Runtime,
 } from "@trident/core";
 
 import { OrbitControls } from "@trident/plugins/OrbitControls";
@@ -14,8 +15,9 @@ import { GLTFLoader } from "@trident/plugins/GLTF/GLTFLoader";
 import { Billboarder } from "@trident/plugins/Impostors/Billboarder";
 
 async function Application(canvas: HTMLCanvasElement) {
-    const renderer = GPU.Renderer.Create(canvas, "webgpu");
-    const scene = new Scene(renderer);
+    await Runtime.Create(canvas);
+    const scene = Runtime.SceneManager.CreateScene("DefaultScene");
+    Runtime.SceneManager.SetActiveScene(scene);
 
     const mainCameraGameObject = new GameObject(scene);
     mainCameraGameObject.name = "MainCamera";
@@ -67,7 +69,7 @@ async function Application(canvas: HTMLCanvasElement) {
     billboardMesh.material = new PBRMaterial({ albedoMap: billboardTexture });
 
     Debugger.Enable();
-    scene.Start();
+    Runtime.Play();
 };
 
 Application(document.querySelector("canvas"));

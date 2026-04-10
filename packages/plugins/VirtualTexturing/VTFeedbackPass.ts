@@ -37,7 +37,7 @@ export class VTFeedbackPass extends GPU.RenderPass {
         const feedbackBytesPerRow = alignTo(width * 4, 256);
         const bufferSize = feedbackBytesPerRow * height;
 
-        this.feedback_buffer = GPU.Buffer.Create(bufferSize, GPU.BufferType.STORAGE);
+        this.feedback_buffer = new GPU.Buffer(bufferSize, GPU.BufferType.STORAGE);
 
         this.gBufferClone = GPU.DepthTexture.Create(width, height, 1, "depth24plus");
         this.modelMatrices = new GPU.DynamicBufferMemoryAllocatorDynamic(256, GPU.BufferType.STORAGE, 256 * 10);

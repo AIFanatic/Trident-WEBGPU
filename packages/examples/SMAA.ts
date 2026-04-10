@@ -6,6 +6,7 @@ import {
     Mathf,
     PBRMaterial,
     GPU,
+    Runtime,
 } from "@trident/core";
 
 import { OrbitControls } from "@trident/plugins/OrbitControls";
@@ -17,8 +18,9 @@ import { UIButtonStat, UITextureViewer } from "@trident/plugins/ui/UIStats";
 import { Debugger } from "@trident/plugins/Debugger";
 
 async function Application(canvas: HTMLCanvasElement) {
-    const renderer = GPU.Renderer.Create(canvas, "webgpu");
-    const scene = new Scene(renderer);
+    await Runtime.Create(canvas);
+    const scene = Runtime.SceneManager.CreateScene("DefaultScene");
+    Runtime.SceneManager.SetActiveScene(scene);
 
     const mainCameraGameObject = new GameObject(scene);
     mainCameraGameObject.name = "MainCamera";
@@ -82,7 +84,7 @@ async function Application(canvas: HTMLCanvasElement) {
     const postProcessing = new PostProcessingPass();
     const smaa = new PostProcessingSMAA();
     postProcessing.effects.push(smaa);
-    scene.renderPipeline.AddPass(postProcessing, GPU.RenderPassOrder.BeforeScreenOutput);
+    Runtime.Renderer.RenderPipeline.AddPass(postProcessing, GPU.RenderPassOrder.BeforeScreenOutput);
 
     document.body.style.backgroundColor = "#404040";
 
@@ -100,7 +102,7 @@ async function Application(canvas: HTMLCanvasElement) {
     
     Debugger.Enable();
 
-    scene.Start();
+    Runtime.Play();
 
 };
 

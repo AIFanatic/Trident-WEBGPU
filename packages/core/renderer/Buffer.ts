@@ -1,5 +1,6 @@
 import { Renderer } from "./Renderer";
-import { WEBGPUBuffer, WEBGPUDynamicBuffer } from "./webgpu/WEBGPUBuffer";
+import { UUID } from "../utils";
+import { RendererContext } from "./RendererContext";
 
 export enum BufferType {
     STORAGE,
@@ -10,40 +11,83 @@ export enum BufferType {
     INDIRECT
 };
 
-export class Buffer {
+class BaseBuffer {
+    public id = UUID();
+    private buffer: GPUBuffer;
     public readonly size: number;
-    public set name(name: string) {};
-    public get name(): string { return "Buffer" };
 
-    protected constructor() {}
+    public set name(name: string) { this.buffer.label = name};
+    public get name(): string { return this.buffer.label };
 
-    public static Create(size: number, type: BufferType) {
-        if (size === 0) throw Error("Tried to create a buffer with size 0");
-        if (Renderer.type === "webgpu") return new WEBGPUBuffer(size, type);
-        else throw Error("Renderer type invalid");
+    constructor(sizeInBytes: number, type: BufferType) {
+        Renderer.info.gpuBufferSizeTotal += sizeInBytes;
+        Renderer.info.gpuBufferCount++;
+        let usage: GPUBufferUsageFlags | undefined = undefined;
+        if (type == BufferType.STORAGE) usage = GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC | GPUBufferUsage.COPY_DST;
+        else if (type == BufferType.STORAGE_WRITE) usage = GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC | GPUBufferUsage.COPY_DST;
+        else if (type == BufferType.VERTEX) usage = GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_SRC | GPUBufferUsage.COPY_DST | GPUBufferUsage.STORAGE;
+        else if (type == BufferType.INDEX) usage = GPUBufferUsage.INDEX | GPUBufferUsage.COPY_SRC | GPUBufferUsage.COPY_DST | GPUBufferUsage.STORAGE;
+        else if (type == BufferType.UNIFORM) usage = GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_SRC | GPUBufferUsage.COPY_DST;
+        else if (type == BufferType.INDIRECT) usage = GPUBufferUsage.INDIRECT | GPUBufferUsage.COPY_SRC | GPUBufferUsage.COPY_DST | GPUBufferUsage.STORAGE;
+        else if (type == 10) usage = GPUBufferUsage.INDEX | GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC | GPUBufferUsage.COPY_DST;
+        if (!usage) throw Error("Invalid buffer usage");
+
+        this.buffer = Renderer.device.createBuffer({ size: sizeInBytes, usage: usage});
+        this.size = sizeInBytes;
     }
 
-    public SetArray(array: AllowSharedBufferSource, bufferOffset: number = 0, dataOffset?: number | undefined, size?: number | undefined) {}
-    public async GetData(sourceOffset?: number, destinationOffset?: number, size?: number): Promise<BufferSource> {return new ArrayBuffer(1)}
-    public Destroy() {}
+    public GetBuffer(): GPUBuffer { return this.buffer };
+
+    public SetArray(array: BufferSource, bufferOffset: number = 0, dataOffset?: number | undefined, size?: number | undefined) {
+        if (RendererContext.HasActiveRenderPass()) {
+            console.warn("Cannot set buffer data while there is an active render pass.");
+            return;
+        }
+        if (Renderer.GetActiveCommandEncoder()) {
+            console.warn("Cannot set buffer data after a frame has started.");
+            // return;
+        }
+        Renderer.device.queue.writeBuffer(this.buffer, bufferOffset, array, dataOffset, size);
+    }
+
+    public async GetData(sourceOffset: number = 0, destinationOffset: number = 0, size?: number): Promise<BufferSource> {
+        const readBuffer = Renderer.device.createBuffer({
+            size: size ? size : this.buffer.size,
+            usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ,
+        });
+
+        const commandEncoder = Renderer.device.createCommandEncoder();
+        commandEncoder.copyBufferToBuffer(this.buffer, sourceOffset, readBuffer, destinationOffset, size ? size : this.buffer.size);
+        Renderer.device.queue.submit([commandEncoder.finish()]);
+
+        await readBuffer.mapAsync(GPUMapMode.READ);
+        const arrayBuffer = readBuffer.getMappedRange().slice(0);
+
+        readBuffer.unmap();
+        readBuffer.destroy();
+
+        return arrayBuffer;
+    }
+
+    public Destroy() {
+        Renderer.info.gpuBufferSizeTotal += -this.size;
+        Renderer.info.gpuBufferCount--;
+        this.buffer.destroy();
+    }
 }
 
-export class DynamicBuffer {
-    public readonly size: number;
-    public set name(name: string) {};
-    public get name(): string { return "DynamicBuffer" };
-    public readonly minBindingSize: number | undefined;
+export class Buffer extends BaseBuffer {
+    constructor(sizeInBytes: number, type: BufferType) {
+        super(sizeInBytes, type);
+    }
+}
+
+export class DynamicBuffer extends BaseBuffer {
+    public readonly minBindingSize: number;
     public dynamicOffset: number = 0;
 
-    protected constructor() {}
-    
-    public static Create(size: number, type: BufferType, minBindingSize: number) {
-        if (size === 0) throw Error("Tried to create a buffer with size 0");
-        if (Renderer.type === "webgpu") return new WEBGPUDynamicBuffer(size, type, minBindingSize);
-        else throw Error("Renderer type invalid");
+    constructor(sizeInBytes: number, type: BufferType, minBindingSize: number) {
+        super(sizeInBytes, type);
+        this.minBindingSize = minBindingSize;
     }
-
-    public SetArray(array: AllowSharedBufferSource, bufferOffset: number = 0, dataOffset?: number | undefined, size?: number | undefined) {}
-    public async GetData(sourceOffset?: number, destinationOffset?: number, size?: number): Promise<BufferSource> {return new ArrayBuffer(1)}
-    public Destroy() {}
 }

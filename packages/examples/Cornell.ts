@@ -6,7 +6,7 @@ import {
     GameObject,
     Geometry,
     PBRMaterial,
-    Object3D,
+    Runtime,
 } from "@trident/core";
 
 import { OrbitControls } from "@trident/plugins/OrbitControls";
@@ -18,8 +18,9 @@ import { PostProcessingPass } from "@trident/plugins/PostProcessing/PostProcessi
 import { UIFolder, UISliderStat, UIVecStat } from "@trident/plugins/ui/UIStats";
 
 async function Application(canvas: HTMLCanvasElement) {
-    const renderer = GPU.Renderer.Create(canvas, "webgpu");
-    const scene = new Scene(renderer);
+    await Runtime.Create(canvas);
+    const scene = Runtime.SceneManager.CreateScene("DefaultScene");
+    Runtime.SceneManager.SetActiveScene(scene);
 
     const mainCameraGameObject = new GameObject(scene);
     mainCameraGameObject.name = "MainCamera";
@@ -129,11 +130,11 @@ async function Application(canvas: HTMLCanvasElement) {
     const postProcessing = new PostProcessingPass();
     postProcessing.effects.push(new PostProcessingFXAA());
     // postProcessing.effects.push(new PostProcessingSMAA());
-    scene.renderPipeline.AddPass(postProcessing, GPU.RenderPassOrder.AfterLighting);
+    Runtime.Renderer.RenderPipeline.AddPass(postProcessing, GPU.RenderPassOrder.AfterLighting);
     Debugger.Enable();
 
 
-    scene.Start();
+    Runtime.Play();
 };
 
 Application(document.querySelector("canvas"));

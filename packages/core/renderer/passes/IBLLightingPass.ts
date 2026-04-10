@@ -25,7 +25,7 @@ export class IBLLightingPass extends RenderPass {
             colorOutputs: [{format: "rgba16float", blendMode: "add"}],
         });
 
-        this.sampler = TextureSampler.Create({
+        this.sampler = new TextureSampler({
             minFilter: "linear",
             magFilter: "linear",
             mipmapFilter: "linear",
@@ -34,7 +34,7 @@ export class IBLLightingPass extends RenderPass {
         });
         this.shader.SetSampler("textureSampler", this.sampler);
 
-        const brdfSampler = TextureSampler.Create({
+        const brdfSampler = new TextureSampler({
             minFilter: "linear",
             magFilter: "linear",
             addressModeU: "repeat",

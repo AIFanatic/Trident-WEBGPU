@@ -129,7 +129,7 @@ export class PBRMaterial extends Material {
 
         Object.assign(this.params, params);
 
-        if (!PBRMaterial.sampler) PBRMaterial.sampler = TextureSampler.Create();
+        if (!PBRMaterial.sampler) PBRMaterial.sampler = new TextureSampler();
 
         this.createShader();
     }
@@ -205,5 +205,4 @@ export class PBRMaterial extends Material {
         this.shader.SetTexture("ARMMap", this.params.armMap);
         this.shader.SetTexture("EmissiveMap", this.params.emissiveMap);
     }
-
 }

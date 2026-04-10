@@ -1,5 +1,5 @@
 
-import { Components, GameObject, GPU, Input, Scene } from "@trident/core";
+import { Components, GameObject, GPU, Input, Runtime, Scene } from "@trident/core";
 
 const DYNAMIC_SLOT_BYTES = 256;
 const DYNAMIC_SLOT_FLOATS = DYNAMIC_SLOT_BYTES / 4;
@@ -55,7 +55,7 @@ export class Raycaster {
         this.renderTarget = GPU.RenderTexture.Create(GPU.Renderer.width, GPU.Renderer.height, 1, "r32uint");
 
         // 10000 dynamic slots, each slot must be 256-byte aligned
-        this.idMap = GPU.DynamicBuffer.Create(10000 * DYNAMIC_SLOT_BYTES * 4, GPU.BufferType.STORAGE, DYNAMIC_SLOT_BYTES);
+        this.idMap = new GPU.DynamicBuffer(10000 * DYNAMIC_SLOT_BYTES * 4, GPU.BufferType.STORAGE, DYNAMIC_SLOT_BYTES);
         this.shader.SetBuffer("id", this.idMap);
         this.initialized = true;
     }
@@ -84,7 +84,7 @@ export class Raycaster {
     public async execute(): Promise<GameObject> {
         if (!this.initialized) return;
 
-        const resources = Scene.mainScene.renderPipeline.renderGraph.resourcePool;
+        const resources = Runtime.Renderer.RenderPipeline.renderGraph.resourcePool;
 
         const gBufferDepth = resources.getResource(GPU.PassParams.GBufferDepth);
         if (!gBufferDepth) return;
@@ -93,7 +93,7 @@ export class Raycaster {
         this.shader.SetMatrix4("projectionMatrix", camera.projectionMatrix);
         this.shader.SetMatrix4("viewMatrix", camera.viewMatrix);
 
-        const all = Scene.mainScene.GetComponents(Components.Renderable);
+        const all = Runtime.SceneManager.GetActiveScene().GetComponents(Components.Renderable);
         const pickables = all.filter(r => !!r.geometry);
 
         const ids = new Float32Array(pickables.length * DYNAMIC_SLOT_FLOATS);

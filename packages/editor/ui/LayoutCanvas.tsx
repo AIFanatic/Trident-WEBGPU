@@ -161,7 +161,7 @@ export class LayoutCanvas extends Component<BaseProps> {
         // const postProcessing = new PostProcessingPass();
         // const smaa = new PostProcessingSMAA();
         // postProcessing.effects.push(smaa);
-        // currentScene.renderPipeline.AddPass(postProcessing, GPU.RenderPassOrder.BeforeScreenOutput);
+        // currentRuntime.Renderer.RenderPipeline.AddPass(postProcessing, GPU.RenderPassOrder.BeforeScreenOutput);
 
         Runtime.AddSystem(PhysicsRapier);
 

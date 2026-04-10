@@ -86,34 +86,25 @@ export class ShaderPreprocessor {
 
 export class ShaderLoader {
     public static async Load(shader_url: string) {
-        if (Renderer.type === "webgpu") {
-            if (shader_url === "") throw Error(`Invalid shader ${shader_url}`);
+        if (shader_url === "") throw Error(`Invalid shader ${shader_url}`);
 
-            let code = await Assets.Load(shader_url, "text");
-            code = await ShaderPreprocessor.ProcessIncludes(code, shader_url);
-            return code;
-        }
-        throw Error("Unknown api");
+        let code = await Assets.Load(shader_url, "text");
+        code = await ShaderPreprocessor.ProcessIncludes(code, shader_url);
+        return code;
     }
 
     public static async LoadV2(shader_url: string) {
-        if (Renderer.type === "webgpu") {
-            if (shader_url === "") throw Error(`Invalid shader ${shader_url}`);
+        if (shader_url === "") throw Error(`Invalid shader ${shader_url}`);
 
-            let code = await Assets.Load(shader_url, "text");
-            code = await ShaderPreprocessor.ProcessIncludesV2(code, shader_url);
-            return code;
-        }
-        throw Error("Unknown api");
+        let code = await Assets.Load(shader_url, "text");
+        code = await ShaderPreprocessor.ProcessIncludesV2(code, shader_url);
+        return code;
     }
 
     public static async LoadURL(shader_url: URL) {
-        if (Renderer.type === "webgpu") {
-            let code = await Assets.LoadURL(shader_url, "text");
-            code = await ShaderPreprocessor.ProcessIncludesV2(code, shader_url.href);
-            return code;
-        }
-        throw Error("Unknown api");
+        let code = await Assets.LoadURL(shader_url, "text");
+        code = await ShaderPreprocessor.ProcessIncludesV2(code, shader_url.href);
+        return code;
     }
 
     public static get Draw(): Promise<string> { return ShaderPreprocessor.ProcessIncludesV2(WGSL_Shader_Draw_URL); }

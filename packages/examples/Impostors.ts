@@ -7,6 +7,7 @@ import {
     Geometry,
     PBRMaterial,
     Object3D,
+    Runtime,
 } from "@trident/core";
 
 import { OrbitControls } from "@trident/plugins/OrbitControls";
@@ -22,8 +23,9 @@ import { Environment } from "@trident/plugins/Environment/Environment";
 // GLTFLoader.Load("./assets/DamagedHelmet/DamagedHelmet.gltf");
 
 async function Application(canvas: HTMLCanvasElement) {
-    const renderer = GPU.Renderer.Create(canvas, "webgpu");
-    const scene = new Scene(renderer);
+    await Runtime.Create(canvas);
+    const scene = Runtime.SceneManager.CreateScene("DefaultScene");
+    Runtime.SceneManager.SetActiveScene(scene);
 
     const mainCameraGameObject = new GameObject(scene);
     mainCameraGameObject.transform.position.set(0,0,-5);
@@ -156,7 +158,7 @@ async function Application(canvas: HTMLCanvasElement) {
     // console.log(i)
 
     Debugger.Enable();
-    scene.Start();
+    Runtime.Play();
 };
 
 Application(document.querySelector("canvas"));

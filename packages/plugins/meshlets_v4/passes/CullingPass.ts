@@ -8,7 +8,7 @@ export class CullingPass extends GPU.RenderPass {
 
     private instanceInfoBuffer: GPU.Buffer;
 
-    private compute: GPU.Compute;
+    private compute: GPU.ShaderCompute;
 
     private debugBuffer: GPU.Buffer;
 
@@ -18,19 +18,19 @@ export class CullingPass extends GPU.RenderPass {
     private visibleTriangles = 0;
 
     public async init(resources: GPU.ResourcePool) {
-        this.compute = await GPU.Compute.Create({
+        this.compute = await GPU.ShaderCompute.Create({
             name: this.name,
             code: await GPU.ShaderLoader.LoadURL(new URL("../resources/CullingPass.wgsl", import.meta.url)),
             computeEntrypoint: "main",
         });
 
-        this.debugBuffer = GPU.Buffer.Create(4 * 4, GPU.BufferType.STORAGE);
-        this.instanceInfoBuffer = GPU.Buffer.Create(1 * 1 * 4, GPU.BufferType.STORAGE_WRITE);
+        this.debugBuffer = new GPU.Buffer(4 * 4, GPU.BufferType.STORAGE);
+        this.instanceInfoBuffer = new GPU.Buffer(1 * 1 * 4, GPU.BufferType.STORAGE_WRITE);
 
         this.compute.SetBuffer("instanceInfoBuffer", this.instanceInfoBuffer);
     }
 
-    public async preFrame(resources: GPU.ResourcePool) {
+    public preFrame(resources: GPU.ResourcePool) {
         const currentMeshletCount = resources.getResource(MeshletPassParams.CurrentMeshletCount);
         if (currentMeshletCount === 0) return;
         const frameBuffer = resources.getResource(GPU.PassParams.FrameBuffer) as GPU.Buffer;
@@ -42,7 +42,7 @@ export class CullingPass extends GPU.RenderPass {
         const drawIndirectBuffer = resources.getResource(MeshletPassParams.DrawIndirectBuffer) as GPU.Buffer;
 
         if (currentMeshletCount > this.instanceInfoBuffer.size / 4) {
-            this.instanceInfoBuffer = GPU.Buffer.Create(currentMeshletCount * 4, GPU.BufferType.STORAGE_WRITE);
+            this.instanceInfoBuffer = new GPU.Buffer(currentMeshletCount * 4, GPU.BufferType.STORAGE_WRITE);
             this.compute.SetBuffer("instanceInfoBuffer", this.instanceInfoBuffer);
         }
 
@@ -78,7 +78,7 @@ export class CullingPass extends GPU.RenderPass {
         drawIndirectBuffer.SetArray(drawInit);
     }
 
-    public async execute(resources: GPU.ResourcePool) {
+    public execute(resources: GPU.ResourcePool) {
         const currentMeshletCount = resources.getResource(MeshletPassParams.CurrentMeshletCount) as number;
         const drawIndirectBuffer = resources.getResource(MeshletPassParams.DrawIndirectBuffer) as GPU.Buffer;
         if (currentMeshletCount === 0) return;

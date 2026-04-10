@@ -15,8 +15,8 @@ export class ForwardPass extends RenderPass {
     private modelMatrices: DynamicBufferMemoryAllocator;
 
     public async init(resources: ResourcePool) {
-        this.projectionMatrix = Buffer.Create(16 * 4, BufferType.STORAGE);
-        this.viewMatrix = Buffer.Create(16 * 4, BufferType.STORAGE);
+        this.projectionMatrix = new Buffer(16 * 4, BufferType.STORAGE);
+        this.viewMatrix = new Buffer(16 * 4, BufferType.STORAGE);
         this.modelMatrices = new DynamicBufferMemoryAllocator(16 * 4 * 10);
         this.initialized = true;
     }

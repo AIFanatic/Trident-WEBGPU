@@ -138,7 +138,7 @@ export class Dilator {
 
         for (let i = 0; i < 50; i++) {
             shader.SetTexture("texture", input);
-            shader.SetSampler("textureSampler", TextureSampler.Create());
+            shader.SetSampler("textureSampler", new TextureSampler());
     
             RendererContext.BeginRenderPass("Dilator", [{target: output, clear: true}]);
             RendererContext.DrawGeometry(geometry, shader);

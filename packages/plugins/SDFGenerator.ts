@@ -138,11 +138,11 @@ export class SDFGenerator {
             verticesScaled[i + 2] *= scale.z;
         }
         const interleaved = InterleavedVertexAttribute.fromArrays([verticesScaled, normals, uvs], [3,3,2], [4,4,4]);
-        const vertexBuffer = Buffer.Create(interleaved.array.length * 4, BufferType.STORAGE);
+        const vertexBuffer = new Buffer(interleaved.array.length * 4, BufferType.STORAGE);
         vertexBuffer.SetArray(new Float32Array(interleaved.array));
         compute.SetBuffer("vertices", vertexBuffer);
         
-        const indexBuffer = Buffer.Create(indices.length * 4, BufferType.STORAGE);
+        const indexBuffer = new Buffer(indices.length * 4, BufferType.STORAGE);
         indexBuffer.SetArray(indices);
         compute.SetBuffer("indices", indexBuffer);
     

@@ -62,9 +62,9 @@ export class Sky {
         this.transmittanceLUT = GPU.RenderTexture.Create(GPU.Renderer.width, GPU.Renderer.height, 1, "rgba16float");
         this.skyTexture = GPU.RenderTexture.Create(GPU.Renderer.width, GPU.Renderer.height, 1, "rgba16float");
 
-        this.skyTextureShader.SetSampler("textureSampler", GPU.TextureSampler.Create());
+        this.skyTextureShader.SetSampler("textureSampler", new GPU.TextureSampler());
 
-        const hdrSampler = GPU.TextureSampler.Create({minFilter: "linear", magFilter: "linear", mipmapFilter: "linear", addressModeU: "repeat", addressModeV: "clamp-to-edge"});
+        const hdrSampler = new GPU.TextureSampler({minFilter: "linear", magFilter: "linear", mipmapFilter: "linear", addressModeU: "repeat", addressModeV: "clamp-to-edge"});
         this.cubemapShader.SetSampler("hdrSampler", hdrSampler);
 
         this.initialized = true;

@@ -7,6 +7,7 @@ import {
     Geometry,
     PBRMaterial,
     Object3D,
+    Runtime,
 } from "@trident/core";
 
 import { OrbitControls } from "@trident/plugins/OrbitControls";
@@ -15,8 +16,9 @@ import { Debugger } from "@trident/plugins/Debugger";
 import { GLTFLoader } from "@trident/plugins/GLTF/GLTFLoader";
 
 async function Application(canvas: HTMLCanvasElement) {
-    const renderer = GPU.Renderer.Create(canvas, "webgpu");
-    const scene = new Scene(renderer);
+    await Runtime.Create(canvas);
+    const scene = Runtime.SceneManager.CreateScene("DefaultScene");
+    Runtime.SceneManager.SetActiveScene(scene);
 
     const mainCameraGameObject = new GameObject(scene);
     mainCameraGameObject.name = "MainCamera";
@@ -58,7 +60,7 @@ async function Application(canvas: HTMLCanvasElement) {
         }
     })
 
-    scene.Start();
+    Runtime.Play();
 };
 
 Application(document.querySelector("canvas"));

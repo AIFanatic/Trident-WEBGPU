@@ -89,7 +89,7 @@ export class SkyboxPass extends RenderPass {
             colorOutputs: [{format: "rgba16float"}],
         });
 
-        this.shader.SetSampler("textureSampler", TextureSampler.Create());
+        this.shader.SetSampler("textureSampler", new TextureSampler());
 
         this.quadGeometry = new Geometry();
 

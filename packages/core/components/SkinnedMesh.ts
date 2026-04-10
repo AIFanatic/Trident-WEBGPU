@@ -65,7 +65,7 @@ export class SkinnedMesh extends Renderable {
         this.buildBones();
         if (!this.bones.length) return false;
 
-        this.boneMatricesBuffer = Buffer.Create(this.jointData.length * 4, BufferType.STORAGE);
+        this.boneMatricesBuffer = new Buffer(this.jointData.length * 4, BufferType.STORAGE);
         this.boneMatricesBuffer.SetArray(this.jointData);
         return true;
     }

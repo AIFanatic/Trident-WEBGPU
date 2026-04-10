@@ -1,7 +1,7 @@
 import { Renderer, RendererEvents } from "./Renderer";
 import { RenderGraph, RenderPass } from "./RenderGraph";
 import { DeferredLightingPass } from "./passes/DeferredLightingPass";
-import { WEBGPUTimestampQuery } from "./webgpu/WEBGPUTimestampQuery";
+import { WEBGPUTimestampQuery } from "./webgpu/utils/WEBGPUTimestampQuery";
 import { TextureViewer } from "./passes/TextureViewer";
 import { PrepareGBuffers } from "./passes/PrepareGBuffers";
 import { DeferredShadowMapPass } from "./passes/DeferredShadowMapPass";

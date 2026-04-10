@@ -1,4 +1,4 @@
-import { Shader } from "./Shader";
+import type { Shader } from "./Shader";
 
 export class RendererInfo {
     public frame: number = 0;

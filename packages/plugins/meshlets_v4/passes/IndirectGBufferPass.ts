@@ -27,7 +27,7 @@ export class IndirectGBufferPass extends GPU.RenderPass {
         this.geometry = new Geometry();
         this.geometry.attributes.set("position", new VertexAttribute(new Float32Array(1)));
 
-        this.shader.SetSampler("TextureSampler", GPU.TextureSampler.Create());
+        this.shader.SetSampler("TextureSampler", new GPU.TextureSampler());
 
         // Dummy
         this.dummyTexture = GPU.Texture.Create(1,1);
@@ -35,7 +35,7 @@ export class IndirectGBufferPass extends GPU.RenderPass {
         this.initialized = true;
     }
 
-    public async preFrame(resources: GPU.ResourcePool) {
+    public preFrame(resources: GPU.ResourcePool) {
         if (!this.initialized) return;
 
         const currentMeshletCount = resources.getResource(MeshletPassParams.CurrentMeshletCount);
@@ -62,7 +62,7 @@ export class IndirectGBufferPass extends GPU.RenderPass {
         this.shader.SetBuffer("instanceInfoBuffer", instanceInfoBuffer);
     }
 
-    public async execute(resources: GPU.ResourcePool) {
+    public execute(resources: GPU.ResourcePool) {
         if (!this.initialized) return;
 
         const currentMeshletCount = resources.getResource(MeshletPassParams.CurrentMeshletCount);

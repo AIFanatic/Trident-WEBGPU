@@ -153,7 +153,7 @@ export class PostExposureTonemap extends RenderPass {
         });
         this.quadGeometry = new Geometry();
 
-        const sampler = TextureSampler.Create();
+        const sampler = new TextureSampler();
         this.shader.SetSampler("textureSampler", sampler);
         this.renderTarget = RenderTexture.Create(Renderer.width, Renderer.height, 1, "rgba16float");
 

@@ -649,9 +649,9 @@ async function Application(canvas: HTMLCanvasElement) {
     }
 
     // const sss = new SSSRenderPass(light);
-    // scene.renderPipeline.AddPass(sss, GPU.RenderPassOrder.AfterLighting);
+    // Runtime.Renderer.RenderPipeline.AddPass(sss, GPU.RenderPassOrder.AfterLighting);
     // // const sssPass = new SSS(light);
-    // // scene.renderPipeline.AddPass(sssPass, GPU.RenderPassOrder.AfterLighting);
+    // // Runtime.Renderer.RenderPipeline.AddPass(sssPass, GPU.RenderPassOrder.AfterLighting);
 
     Runtime.Play();
 };

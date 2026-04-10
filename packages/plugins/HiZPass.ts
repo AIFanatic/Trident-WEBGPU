@@ -101,7 +101,7 @@ export class HiZPass extends GPU.RenderPass {
         let level = 0;
         while (w > 1) {
             this.targetTextures.push(GPU.DepthTexture.Create(w, h));
-            const passBuffer = GPU.Buffer.Create(4 * 4, GPU.BufferType.STORAGE);
+            const passBuffer = new GPU.Buffer(4 * 4, GPU.BufferType.STORAGE);
             passBuffer.SetArray(new Float32Array([level]));
             this.passBuffers.push(passBuffer);
             w /= 2;
@@ -113,10 +113,10 @@ export class HiZPass extends GPU.RenderPass {
         this.inputTexture.SetActiveMip(0);
         this.inputTexture.SetActiveMipCount(level);
 
-        this.shader.SetSampler("depthTextureInputSampler", GPU.TextureSampler.Create({minFilter: "nearest", magFilter: "nearest", mipmapFilter: "nearest", compare: "less"}));
+        this.shader.SetSampler("depthTextureInputSampler", new GPU.TextureSampler({minFilter: "nearest", magFilter: "nearest", mipmapFilter: "nearest", compare: "less"}));
         this.shader.SetTexture("depthTextureInput", this.inputTexture);
 
-        this.currentBuffer = GPU.Buffer.Create(4 * 4, GPU.BufferType.STORAGE);
+        this.currentBuffer = new GPU.Buffer(4 * 4, GPU.BufferType.STORAGE);
 
         console.log("mips", level)
 
@@ -166,7 +166,7 @@ export class HiZPass extends GPU.RenderPass {
             },
         });
 
-        this.blitShader.SetSampler("textureSampler", GPU.TextureSampler.Create({minFilter: "nearest", magFilter: "nearest", mipmapFilter: "nearest", compare: "less"}));
+        this.blitShader.SetSampler("textureSampler", new GPU.TextureSampler({minFilter: "nearest", magFilter: "nearest", mipmapFilter: "nearest", compare: "less"}));
         this.blitShader.SetValue("mip", 0);
 
         resources.setResource(GPU.PassParams.depthTexturePyramid, this.inputTexture);

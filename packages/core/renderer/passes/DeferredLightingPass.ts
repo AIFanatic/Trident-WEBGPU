@@ -53,7 +53,7 @@ export class DeferredLightingPass extends RenderPass {
             cullMode: "front"
         });
 
-        this.sampler = TextureSampler.Create({
+        this.sampler = new TextureSampler({
             minFilter: "linear",
             magFilter: "linear",
             mipmapFilter: "linear",
@@ -62,13 +62,13 @@ export class DeferredLightingPass extends RenderPass {
         });
         this.shader.SetSampler("textureSampler", this.sampler);
 
-        const shadowSamplerComp = TextureSampler.Create({minFilter: "linear", magFilter: "linear", compare: "less"});
+        const shadowSamplerComp = new TextureSampler({minFilter: "linear", magFilter: "linear", compare: "less"});
         this.shader.SetSampler("shadowSamplerComp", shadowSamplerComp);
 
         this.quadGeometry = new Geometry();
 
         this.lightsBuffer = new DynamicBufferMemoryAllocator(120 * 10000);
-        this.lightsCountBuffer = Buffer.Create(1 * 4, BufferType.STORAGE);
+        this.lightsCountBuffer = new Buffer(1 * 4, BufferType.STORAGE);
 
         this.shader.SetBuffer("lights", this.lightsBuffer.getBuffer());
         this.shader.SetBuffer("lightCount", this.lightsCountBuffer);

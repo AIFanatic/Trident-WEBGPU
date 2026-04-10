@@ -1,11 +1,11 @@
 import {
     GameObject,
     Geometry,
-    Scene,
     Components,
     Mathf,
     PBRMaterial,
-    Renderer
+    Renderer,
+    Runtime
 } from "@trident/core";
 
 import { Debugger } from "@trident/plugins/Debugger";
@@ -15,9 +15,9 @@ import { Water } from "@trident/plugins/Water/WaterPlugin";
 import { UIColorStat, UIFolder, UISliderStat, UIVecStat } from "@trident/plugins/ui/UIStats";
 
 async function Application(canvas: HTMLCanvasElement) {
-    const renderer = Renderer.Create(canvas, "webgpu");
-
-    const scene = new Scene(renderer);
+    await Runtime.Create(canvas);
+    const scene = Runtime.SceneManager.CreateScene("DefaultScene");
+    Runtime.SceneManager.SetActiveScene(scene);
 
     const mainCameraGameObject = new GameObject(scene);
     mainCameraGameObject.transform.position.set(0, 0, 20);
@@ -146,7 +146,7 @@ async function Application(canvas: HTMLCanvasElement) {
         console.log(Renderer.info.drawCalls)
     }, 1000);
 
-    scene.Start();
+    Runtime.Play();
 };
 
-Application(document.querySelector("canvas"));
+Application(document.querySelector("canvas") as HTMLCanvasElement);

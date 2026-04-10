@@ -1,4 +1,4 @@
-import { Renderer } from "../Renderer";
+import { Renderer } from "../../Renderer";
 
 export class WEBGPUTimestampQuery {
     private static querySet: GPUQuerySet;

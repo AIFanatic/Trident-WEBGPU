@@ -937,7 +937,7 @@ export class HDRParser {
         const renderTarget = GPU.RenderTextureCube.Create(faceSize, faceSize, 6, "rgba16float");
         renderTarget.name = "Skybox";
 
-        const hdrSampler = GPU.TextureSampler.Create({
+        const hdrSampler = new GPU.TextureSampler({
             minFilter: "linear", magFilter: "linear", mipmapFilter: "linear",
             addressModeU: "repeat", addressModeV: "clamp-to-edge",
         });
@@ -999,7 +999,7 @@ export class HDRParser {
             }
         });
 
-        const params = GPU.Buffer.Create(4 * 4, GPU.BufferType.STORAGE);
+        const params = new GPU.Buffer(4 * 4, GPU.BufferType.STORAGE);
 
         shader.SetTexture("hdrTexture", hdr);
         shader.SetSampler("hdrSampler", hdrSampler);
