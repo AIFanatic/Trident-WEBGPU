@@ -2152,30 +2152,21 @@ class ShaderPreprocessor {
 }
 class ShaderLoader {
   static async Load(shader_url) {
-    if (Renderer.type === "webgpu") {
-      if (shader_url === "") throw Error(`Invalid shader ${shader_url}`);
-      let code = await Assets.Load(shader_url, "text");
-      code = await ShaderPreprocessor.ProcessIncludes(code, shader_url);
-      return code;
-    }
-    throw Error("Unknown api");
+    if (shader_url === "") throw Error(`Invalid shader ${shader_url}`);
+    let code = await Assets.Load(shader_url, "text");
+    code = await ShaderPreprocessor.ProcessIncludes(code, shader_url);
+    return code;
   }
   static async LoadV2(shader_url) {
-    if (Renderer.type === "webgpu") {
-      if (shader_url === "") throw Error(`Invalid shader ${shader_url}`);
-      let code = await Assets.Load(shader_url, "text");
-      code = await ShaderPreprocessor.ProcessIncludesV2(code, shader_url);
-      return code;
-    }
-    throw Error("Unknown api");
+    if (shader_url === "") throw Error(`Invalid shader ${shader_url}`);
+    let code = await Assets.Load(shader_url, "text");
+    code = await ShaderPreprocessor.ProcessIncludesV2(code, shader_url);
+    return code;
   }
   static async LoadURL(shader_url) {
-    if (Renderer.type === "webgpu") {
-      let code = await Assets.LoadURL(shader_url, "text");
-      code = await ShaderPreprocessor.ProcessIncludesV2(code, shader_url.href);
-      return code;
-    }
-    throw Error("Unknown api");
+    let code = await Assets.LoadURL(shader_url, "text");
+    code = await ShaderPreprocessor.ProcessIncludesV2(code, shader_url.href);
+    return code;
   }
   static get Draw() {
     return ShaderPreprocessor.ProcessIncludesV2(WGSL_Shader_Draw_URL);
@@ -2186,85 +2177,6 @@ class ShaderLoader {
   static get IBLLighting() {
     return ShaderPreprocessor.ProcessIncludesV2(WGSL_Shader_IBLLighting_URL);
   }
-}
-
-const attributeTypeMap = {
-  "vec2<f32>": { size: 2, type: "vec2" },
-  "vec3<f32>": { size: 3, type: "vec3" },
-  "vec4<f32>": { size: 4, type: "vec4" },
-  "vec4<u32>": { size: 4, type: "vec4u" },
-  "vec2<u32>": { size: 2, type: "vec2u" },
-  "vec3<u32>": { size: 3, type: "vec3u" },
-  "mat4x4<f32>": { size: 16, type: "mat4" }
-};
-function mapUniformType(varQualifier, wgslType) {
-  if (wgslType.startsWith("texture_depth")) return "depthTexture";
-  if (wgslType.startsWith("texture_")) return "texture";
-  if (wgslType.startsWith("sampler_comparison")) return "sampler-compare";
-  if (wgslType.startsWith("sampler")) return "sampler";
-  if (!varQualifier) return null;
-  const qualifier = varQualifier.replace(/\s/g, "");
-  if (qualifier.startsWith("uniform")) return "uniform";
-  if (qualifier.startsWith("storage,read_write") || qualifier.startsWith("storage,readwrite")) return "storage-write";
-  if (qualifier.startsWith("storage,write")) return "storage-write";
-  if (qualifier.startsWith("storage")) return "storage";
-  return null;
-}
-function ReflectWGSL(code, entryPointName = "vertexMain") {
-  const attributes = {};
-  const uniforms = {};
-  const vertexInputStructs = /* @__PURE__ */ new Set();
-  const vertexFnRegex = /@vertex\s+fn\s+(\w+)\s*\(([^)]*)\)/g;
-  let vertexMatch;
-  while ((vertexMatch = vertexFnRegex.exec(code)) !== null) {
-    const fnName = vertexMatch[1];
-    const params = vertexMatch[2];
-    if (fnName !== entryPointName) continue;
-    const paramRegex = /([A-Za-z_][A-Za-z0-9_]*)\s*:\s*([A-Za-z_][A-Za-z0-9_]*)/g;
-    let paramMatch;
-    while ((paramMatch = paramRegex.exec(params)) !== null) {
-      const typeName = paramMatch[2];
-      if (/^[A-Z]/.test(typeName)) vertexInputStructs.add(typeName);
-    }
-  }
-  const structRegex = /struct\s+([A-Za-z_][A-Za-z0-9_]*)\s*{([^}]*)}/gs;
-  let structMatch;
-  while ((structMatch = structRegex.exec(code)) !== null) {
-    const structName = structMatch[1];
-    if (!vertexInputStructs.has(structName)) continue;
-    const body = structMatch[2];
-    const attributeRegex = /@location\((\d+)\)\s*([A-Za-z0-9_]+)\s*:\s*([A-Za-z0-9_<>]+)\s*[,;]/g;
-    let attrMatch;
-    while ((attrMatch = attributeRegex.exec(body)) !== null) {
-      const location = Number(attrMatch[1]);
-      const name = attrMatch[2];
-      const type = attrMatch[3];
-      const mapped = attributeTypeMap[type];
-      if (!mapped) continue;
-      attributes[name] = {
-        location,
-        size: mapped.size,
-        type: mapped.type
-      };
-    }
-  }
-  const bindingRegex = /@group\((\d+)\)\s*@binding\((\d+)\)\s*var(?:<([^>]+)>)?\s+([A-Za-z0-9_]+)\s*:\s*([^;]+);/g;
-  let bindingMatch;
-  while ((bindingMatch = bindingRegex.exec(code)) !== null) {
-    const group = Number(bindingMatch[1]);
-    const binding = Number(bindingMatch[2]);
-    const qualifier = bindingMatch[3] ? bindingMatch[3].trim() : null;
-    const name = bindingMatch[4];
-    const typeName = bindingMatch[5].trim();
-    const mappedType = mapUniformType(qualifier, typeName);
-    if (!mappedType) continue;
-    uniforms[name] = {
-      group,
-      binding,
-      type: mappedType
-    };
-  }
-  return { attributes, uniforms };
 }
 
 class Vector2 {
@@ -2338,107 +2250,152 @@ class Vector2 {
   }
 }
 
-class WEBGPUMipsGenerator {
-  static sampler;
-  static module;
-  static pipelineByFormat = {};
-  static numMipLevels(...sizes) {
-    return 1 + Math.log2(Math.max(...sizes)) | 0;
+const defaultSamplerParams = {
+  magFilter: "linear",
+  minFilter: "linear",
+  mipmapFilter: "linear",
+  addressModeU: "repeat",
+  addressModeV: "repeat",
+  compare: void 0,
+  maxAnisotropy: 1
+};
+class TextureSampler {
+  id = UUID();
+  params;
+  sampler;
+  constructor(params) {
+    const samplerParams = Object.assign({}, defaultSamplerParams, params);
+    this.params = samplerParams;
+    const samplerDescriptor = {};
+    if (samplerParams.minFilter) samplerDescriptor.minFilter = samplerParams.minFilter;
+    if (samplerParams.magFilter) samplerDescriptor.magFilter = samplerParams.magFilter;
+    if (samplerParams.mipmapFilter) samplerDescriptor.mipmapFilter = samplerParams.mipmapFilter;
+    if (samplerParams.addressModeU) samplerDescriptor.addressModeU = samplerParams.addressModeU;
+    if (samplerParams.addressModeV) samplerDescriptor.addressModeV = samplerParams.addressModeV;
+    if (samplerParams.compare) samplerDescriptor.compare = samplerParams.compare;
+    if (samplerParams.maxAnisotropy) samplerDescriptor.maxAnisotropy = samplerParams.maxAnisotropy;
+    this.sampler = Renderer.device.createSampler(samplerDescriptor);
   }
-  // TODO: Cannot call this twice because of texture usages
-  static generateMips(source) {
-    if (!Renderer.device) throw Error("WEBGPU not initialized");
-    const device = Renderer.device;
-    const sourceBuffer = source.GetBuffer();
-    if (!this.module) {
-      this.module = device.createShaderModule({
-        label: "textured quad shaders for mip level generation",
-        code: `
-                    struct VSOutput {
-                        @builtin(position) position: vec4f,
-                        @location(0) texcoord: vec2f,
-                    };
-                    
-                    @vertex fn vs(@builtin(vertex_index) vertexIndex : u32) -> VSOutput {
-                        const pos = array(
-                            vec2f( 0.0,  0.0),  // center
-                            vec2f( 1.0,  0.0),  // right, center
-                            vec2f( 0.0,  1.0),  // center, top
-                    
-                            // 2st triangle
-                            vec2f( 0.0,  1.0),  // center, top
-                            vec2f( 1.0,  0.0),  // right, center
-                            vec2f( 1.0,  1.0),  // right, top
-                        );
-                    
-                        var vsOutput: VSOutput;
-                        let xy = pos[vertexIndex];
-                        vsOutput.position = vec4f(xy * 2.0 - 1.0, 0.0, 1.0);
-                        vsOutput.texcoord = vec2f(xy.x, 1.0 - xy.y);
-                        return vsOutput;
-                    }
-                    
-                    @group(0) @binding(0) var ourSampler: sampler;
-                    @group(0) @binding(1) var ourTexture: texture_2d<f32>;
-                    
-                    @fragment fn fs(fsInput: VSOutput) -> @location(0) vec4f {
-                        return textureSample(ourTexture, ourSampler, fsInput.texcoord);
-                    }
-                `
-      });
-      this.sampler = device.createSampler({ minFilter: "linear", magFilter: "linear" });
-    }
-    if (!this.pipelineByFormat[sourceBuffer.format]) {
-      this.pipelineByFormat[sourceBuffer.format] = device.createRenderPipeline({
-        label: "mip level generator pipeline",
-        layout: "auto",
-        vertex: { module: this.module },
-        fragment: { module: this.module, targets: [{ format: sourceBuffer.format }] }
-      });
-    }
-    const pipeline = this.pipelineByFormat[sourceBuffer.format];
-    const encoder = device.createCommandEncoder({ label: "mip gen encoder" });
-    const destinationBuffer = device.createTexture({
-      label: sourceBuffer.label,
-      format: sourceBuffer.format,
-      mipLevelCount: this.numMipLevels(source.width, source.height),
-      size: [source.width, source.height, 1],
-      usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST | GPUTextureUsage.COPY_SRC | GPUTextureUsage.RENDER_ATTACHMENT
+  GetBuffer() {
+    return this.sampler;
+  }
+}
+
+class WEBGPUBlit {
+  static blitShader;
+  static depthBlitShader;
+  static blitGeometry;
+  static async Init(output = Renderer.SwapChainFormat) {
+    WEBGPUBlit.blitShader = await Shader.Create({
+      code: `
+            struct VertexInput {
+                @location(0) position : vec2<f32>,
+                @location(1) normal : vec3<f32>,
+                @location(2) uv : vec2<f32>,
+            };
+            
+            struct VertexOutput {
+                @builtin(position) position : vec4<f32>,
+                @location(0) vUv : vec2<f32>,
+            };
+            
+            @group(0) @binding(0) var texture: texture_2d<f32>;
+            @group(0) @binding(1) var textureSampler: sampler;
+            @group(0) @binding(2) var<storage, read> mip: f32;
+            @group(0) @binding(3) var<storage, read> uv_scale: vec2<f32>;
+            
+            @vertex
+            fn vertexMain(input: VertexInput) -> VertexOutput {
+                var output: VertexOutput;
+                output.position = vec4(input.position, 0.0, 1.0);
+                output.vUv = input.uv;
+                return output;
+            }
+            
+            @fragment
+            fn fragmentMain(input: VertexOutput) -> @location(0) vec4<f32> {
+                let uv = input.vUv;
+                var color = textureSampleLevel(texture, textureSampler, uv * uv_scale, mip);
+            
+                return color;
+            }
+            `,
+      colorOutputs: [{ format: output }]
     });
-    let width = sourceBuffer.width;
-    let height = sourceBuffer.height;
-    encoder.copyTextureToTexture({ texture: sourceBuffer }, { texture: destinationBuffer }, [width, height]);
-    let baseMipLevel = 0;
-    while (width > 1 || height > 1) {
-      width = Math.max(1, width / 2 | 0);
-      height = Math.max(1, height / 2 | 0);
-      const bindGroup = device.createBindGroup({
-        layout: pipeline.getBindGroupLayout(0),
-        entries: [
-          { binding: 0, resource: this.sampler },
-          { binding: 1, resource: destinationBuffer.createView({ baseMipLevel, mipLevelCount: 1 }) }
-        ]
-      });
-      ++baseMipLevel;
-      const renderPassDescriptor = {
-        label: "WEBGPUMipsGenerator",
-        colorAttachments: [
-          {
-            view: destinationBuffer.createView({ baseMipLevel, mipLevelCount: 1 }),
-            loadOp: "clear",
-            storeOp: "store"
-          }
-        ]
-      };
-      const pass = encoder.beginRenderPass(renderPassDescriptor);
-      pass.setPipeline(pipeline);
-      pass.setBindGroup(0, bindGroup);
-      pass.draw(6);
-      pass.end();
-    }
-    const commandBuffer = encoder.finish();
-    device.queue.submit([commandBuffer]);
-    return destinationBuffer;
+    const textureSampler = new TextureSampler();
+    WEBGPUBlit.blitShader.SetSampler("textureSampler", textureSampler);
+    WEBGPUBlit.blitShader.SetValue("mip", 0);
+  }
+  static async InitDepth(output = "depth24plus") {
+    WEBGPUBlit.depthBlitShader = await Shader.Create({
+      code: `
+              struct VertexInput {
+                  @location(0) position : vec2<f32>,
+                  @location(1) normal : vec3<f32>,
+                  @location(2) uv : vec2<f32>,
+              };
+
+              struct VertexOutput {
+                  @builtin(position) position : vec4<f32>,
+                  @location(0) vUv : vec2<f32>,
+              };
+
+              @group(0) @binding(0) var depthTexture: texture_depth_2d;
+              @group(0) @binding(1) var<storage, read> mip: f32;
+              @group(0) @binding(2) var<storage, read> uv_scale: vec2<f32>;
+              @group(0) @binding(3) var<storage, read> src_size: vec2<f32>;
+
+              @vertex
+              fn vertexMain(input: VertexInput) -> VertexOutput {
+                  var output: VertexOutput;
+                  output.position = vec4(input.position, 0.0, 1.0);
+                  output.vUv = input.uv;
+                  return output;
+              }
+
+              @fragment
+              fn fragmentMain(input: VertexOutput) -> @builtin(frag_depth) f32 {
+                  let uv = input.vUv * uv_scale;
+                  let max_coord = src_size - vec2(1.0, 1.0);
+                  let coord_f = clamp(uv * src_size, vec2(0.0, 0.0), max_coord);
+                  let coord = vec2<i32>(coord_f);
+                  return textureLoad(depthTexture, coord, i32(mip));
+              }
+              `,
+      colorOutputs: [],
+      depthOutput: output,
+      depthWriteEnabled: true,
+      depthCompare: "always"
+    });
+    WEBGPUBlit.depthBlitShader.SetValue("mip", 0);
+  }
+  static async Blit(source, destination, width, height, uv_scale) {
+    if (!this.blitShader || this.blitShader.params.colorOutputs[0].format !== destination.format) await this.Init(destination.format);
+    if (!this.blitGeometry) this.blitGeometry = Geometry.Plane();
+    this.blitShader.SetTexture("texture", source);
+    this.blitShader.SetArray("uv_scale", uv_scale.elements);
+    const activeCommandEncoder = Renderer.GetActiveCommandEncoder();
+    if (!activeCommandEncoder) Renderer.BeginRenderFrame();
+    RendererContext.BeginRenderPass("Blit", [{ target: destination, clear: true }]);
+    RendererContext.SetViewport(0, 0, width, height);
+    RendererContext.DrawGeometry(this.blitGeometry, this.blitShader);
+    RendererContext.EndRenderPass();
+    if (!activeCommandEncoder) Renderer.EndRenderFrame();
+  }
+  static async BlitDepth(source, destination, width, height, uv_scale, mip = 0) {
+    if (!this.depthBlitShader || this.depthBlitShader.params.depthOutput !== destination.format) await this.InitDepth(destination.format);
+    if (!this.blitGeometry) this.blitGeometry = Geometry.Plane();
+    this.depthBlitShader.SetTexture("depthTexture", source);
+    this.depthBlitShader.SetValue("mip", mip);
+    this.depthBlitShader.SetArray("uv_scale", uv_scale.elements);
+    this.depthBlitShader.SetArray("src_size", new Float32Array([source.width, source.height]));
+    const activeCommandEncoder = Renderer.GetActiveCommandEncoder();
+    if (!activeCommandEncoder) Renderer.BeginRenderFrame();
+    RendererContext.BeginRenderPass("BlitDepth", [], { target: destination, clear: true });
+    RendererContext.SetViewport(0, 0, width, height);
+    RendererContext.DrawGeometry(this.blitGeometry, this.depthBlitShader);
+    RendererContext.EndRenderPass();
+    if (!activeCommandEncoder) Renderer.EndRenderFrame();
   }
 }
 
@@ -2581,79 +2538,125 @@ class WEBGPUCubeMipsGenerator {
   }
 }
 
-class RendererContext {
-  constructor() {
+class WEBGPUMipsGenerator {
+  static sampler;
+  static module;
+  static pipelineByFormat = {};
+  static numMipLevels(...sizes) {
+    return 1 + Math.log2(Math.max(...sizes)) | 0;
   }
-  static BeginRenderPass(name, renderTargets, depthTarget, timestamp = false) {
-    if (Renderer.type === "webgpu") WEBGPURendererContext.BeginRenderPass(name, renderTargets, depthTarget, timestamp);
-    else throw Error("Unknown render api type.");
-  }
-  static EndRenderPass() {
-    if (Renderer.type === "webgpu") WEBGPURendererContext.EndRenderPass();
-    else throw Error("Unknown render api type.");
-  }
-  static SetViewport(x, y, width, height, minDepth = 0, maxDepth = 1) {
-    if (Renderer.type === "webgpu") WEBGPURendererContext.SetViewport(x, y, width, height, minDepth, maxDepth);
-    else throw Error("Unknown render api type.");
-  }
-  static SetScissor(x, y, width, height) {
-    if (Renderer.type === "webgpu") WEBGPURendererContext.SetScissor(x, y, width, height);
-    else throw Error("Unknown render api type.");
-  }
-  static DrawGeometry(geometry, shader, instanceCount, firstInstance) {
-    if (Renderer.type === "webgpu") WEBGPURendererContext.DrawGeometry(geometry, shader, instanceCount, firstInstance);
-    else throw Error("Unknown render api type.");
-  }
-  static DrawIndexed(geometry, shader, indexCount, instanceCount, firstIndex, baseVertex, firstInstance) {
-    if (Renderer.type === "webgpu") WEBGPURendererContext.DrawIndexed(geometry, shader, indexCount, instanceCount, firstIndex, baseVertex, firstInstance);
-    else throw Error("Unknown render api type.");
-  }
-  static Draw(geometry, shader, vertexCount, instanceCount, firstVertex, firstInstance) {
-    if (Renderer.type === "webgpu") WEBGPURendererContext.Draw(geometry, shader, vertexCount, instanceCount, firstVertex, firstInstance);
-    else throw Error("Unknown render api type.");
-  }
-  static DrawVertex(shader, vertexCount, instanceCount, firstVertex, firstInstance) {
-    if (Renderer.type === "webgpu") WEBGPURendererContext.DrawVertex(shader, vertexCount, instanceCount, firstVertex, firstInstance);
-    else throw Error("Unknown render api type.");
-  }
-  static DrawIndirect(geometry, shader, indirectBuffer, indirectOffset = 0) {
-    if (Renderer.type === "webgpu") WEBGPURendererContext.DrawIndirect(geometry, shader, indirectBuffer, indirectOffset);
-    else throw Error("Unknown render api type.");
-  }
-  static CopyBufferToBuffer(source, destination, sourceOffset = 0, destinationOffset = 0, size = void 0) {
-    if (Renderer.type === "webgpu") WEBGPURendererContext.CopyBufferToBuffer(source, destination, sourceOffset, destinationOffset, size ? size : source.size);
-    else throw Error("Unknown render api type.");
-  }
-  static CopyBufferToTexture(source, destination, copySize) {
-    if (Renderer.type === "webgpu") WEBGPURendererContext.CopyBufferToTexture(source, destination, copySize);
-    else throw Error("Unknown render api type.");
-  }
-  static CopyTextureToTexture(source, destination, srcMip = 0, dstMip = 0, size) {
-    if (Renderer.type === "webgpu") WEBGPURendererContext.CopyTextureToTexture(source, destination, srcMip, dstMip, size);
-    else throw Error("Unknown render api type.");
-  }
-  static CopyTextureToBuffer(source, destination, srcMip, size) {
-    if (Renderer.type === "webgpu") WEBGPURendererContext.CopyTextureToBuffer(source, destination, srcMip, size);
-    else throw Error("Unknown render api type.");
-  }
-  static CopyTextureToBufferV2(source, destination, copySize) {
-    if (Renderer.type === "webgpu") WEBGPURendererContext.CopyTextureToBufferV2(source, destination, copySize);
-    else throw Error("Unknown render api type.");
-  }
-  static CopyTextureToTextureV2(source, destination, srcMip = 0, dstMip = 0, size, depth) {
-    if (Renderer.type === "webgpu") WEBGPURendererContext.CopyTextureToTextureV2(source, destination, srcMip, dstMip, size, depth);
-    else throw Error("Unknown render api type.");
-  }
-  static CopyTextureToTextureV3(source, destination, copySize) {
-    if (Renderer.type === "webgpu") WEBGPURendererContext.CopyTextureToTextureV3(source, destination, copySize);
-    else throw Error("Unknown render api type.");
-  }
-  static ClearBuffer(buffer, offset = 0, size) {
-    if (Renderer.type === "webgpu") WEBGPURendererContext.ClearBuffer(buffer, offset, size ? size : buffer.size);
-    else throw Error("Unknown render api type.");
+  // TODO: Cannot call this twice because of texture usages
+  static generateMips(source) {
+    if (!Renderer.device) throw Error("WEBGPU not initialized");
+    const device = Renderer.device;
+    const sourceBuffer = source.GetBuffer();
+    if (!this.module) {
+      this.module = device.createShaderModule({
+        label: "textured quad shaders for mip level generation",
+        code: `
+                    struct VSOutput {
+                        @builtin(position) position: vec4f,
+                        @location(0) texcoord: vec2f,
+                    };
+                    
+                    @vertex fn vs(@builtin(vertex_index) vertexIndex : u32) -> VSOutput {
+                        const pos = array(
+                            vec2f( 0.0,  0.0),  // center
+                            vec2f( 1.0,  0.0),  // right, center
+                            vec2f( 0.0,  1.0),  // center, top
+                    
+                            // 2st triangle
+                            vec2f( 0.0,  1.0),  // center, top
+                            vec2f( 1.0,  0.0),  // right, center
+                            vec2f( 1.0,  1.0),  // right, top
+                        );
+                    
+                        var vsOutput: VSOutput;
+                        let xy = pos[vertexIndex];
+                        vsOutput.position = vec4f(xy * 2.0 - 1.0, 0.0, 1.0);
+                        vsOutput.texcoord = vec2f(xy.x, 1.0 - xy.y);
+                        return vsOutput;
+                    }
+                    
+                    @group(0) @binding(0) var ourSampler: sampler;
+                    @group(0) @binding(1) var ourTexture: texture_2d<f32>;
+                    
+                    @fragment fn fs(fsInput: VSOutput) -> @location(0) vec4f {
+                        return textureSample(ourTexture, ourSampler, fsInput.texcoord);
+                    }
+                `
+      });
+      this.sampler = device.createSampler({ minFilter: "linear", magFilter: "linear" });
+    }
+    if (!this.pipelineByFormat[sourceBuffer.format]) {
+      this.pipelineByFormat[sourceBuffer.format] = device.createRenderPipeline({
+        label: "mip level generator pipeline",
+        layout: "auto",
+        vertex: { module: this.module },
+        fragment: { module: this.module, targets: [{ format: sourceBuffer.format }] }
+      });
+    }
+    const pipeline = this.pipelineByFormat[sourceBuffer.format];
+    const encoder = device.createCommandEncoder({ label: "mip gen encoder" });
+    const destinationBuffer = device.createTexture({
+      label: sourceBuffer.label,
+      format: sourceBuffer.format,
+      mipLevelCount: this.numMipLevels(source.width, source.height),
+      size: [source.width, source.height, 1],
+      usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST | GPUTextureUsage.COPY_SRC | GPUTextureUsage.RENDER_ATTACHMENT
+    });
+    let width = sourceBuffer.width;
+    let height = sourceBuffer.height;
+    encoder.copyTextureToTexture({ texture: sourceBuffer }, { texture: destinationBuffer }, [width, height]);
+    let baseMipLevel = 0;
+    while (width > 1 || height > 1) {
+      width = Math.max(1, width / 2 | 0);
+      height = Math.max(1, height / 2 | 0);
+      const bindGroup = device.createBindGroup({
+        layout: pipeline.getBindGroupLayout(0),
+        entries: [
+          { binding: 0, resource: this.sampler },
+          { binding: 1, resource: destinationBuffer.createView({ baseMipLevel, mipLevelCount: 1 }) }
+        ]
+      });
+      ++baseMipLevel;
+      const renderPassDescriptor = {
+        label: "WEBGPUMipsGenerator",
+        colorAttachments: [
+          {
+            view: destinationBuffer.createView({ baseMipLevel, mipLevelCount: 1 }),
+            loadOp: "clear",
+            storeOp: "store"
+          }
+        ]
+      };
+      const pass = encoder.beginRenderPass(renderPassDescriptor);
+      pass.setPipeline(pipeline);
+      pass.setBindGroup(0, bindGroup);
+      pass.draw(6);
+      pass.end();
+    }
+    const commandBuffer = encoder.finish();
+    device.queue.submit([commandBuffer]);
+    return destinationBuffer;
   }
 }
 
+const DefaultOptions = {
+  name: "Image",
+  flipY: false,
+  generateMips: true,
+  resizeWidth: void 0,
+  resizeHeight: void 0,
+  storeSource: false
+};
+var TextureType = /* @__PURE__ */ ((TextureType2) => {
+  TextureType2[TextureType2["IMAGE"] = 0] = "IMAGE";
+  TextureType2[TextureType2["DEPTH"] = 1] = "DEPTH";
+  TextureType2[TextureType2["RENDER_TARGET"] = 2] = "RENDER_TARGET";
+  TextureType2[TextureType2["RENDER_TARGET_STORAGE"] = 3] = "RENDER_TARGET_STORAGE";
+  return TextureType2;
+})(TextureType || {});
 const TextureFormatToBits = {
   rgba8unorm: 32,
   "rgba8unorm-srgb": 32,
@@ -2684,7 +2687,7 @@ function totalBytesForTexture(format, width, height, depth, mipLevels) {
   }
   return totalPixels * bytesPerPixel(format);
 }
-class WEBGPUTexture {
+class Texture {
   static type = "@trident/core/Texture";
   byteSize = 0;
   lastBandwidthFrame = -1;
@@ -2713,9 +2716,9 @@ class WEBGPUTexture {
     let textureUsage = GPUTextureUsage.COPY_DST;
     let textureType = GPUTextureUsage.TEXTURE_BINDING;
     if (!type) textureType = GPUTextureUsage.TEXTURE_BINDING;
-    else if (type === TextureType.DEPTH) textureType = GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_SRC;
-    else if (type === TextureType.RENDER_TARGET) textureType = GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_SRC;
-    else if (type === TextureType.RENDER_TARGET_STORAGE) textureType = GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.STORAGE_BINDING | GPUTextureUsage.COPY_SRC;
+    else if (type === 1 /* DEPTH */) textureType = GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_SRC;
+    else if (type === 2 /* RENDER_TARGET */) textureType = GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_SRC;
+    else if (type === 3 /* RENDER_TARGET_STORAGE */) textureType = GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.STORAGE_BINDING | GPUTextureUsage.COPY_SRC;
     else throw Error(`Unknown texture format ${format}`);
     let dim = "2d";
     if (dimension === "1d") dim = "1d";
@@ -2858,7 +2861,7 @@ class WEBGPUTexture {
     if (!bpp) throw Error(`GetPixels unsupported format: ${this.format}`);
     const bytesPerRow = Math.ceil(blockWidth * bpp / 256) * 256;
     const size = bytesPerRow * blockHeight;
-    const buffer = Buffer.Create(size, BufferType.STORAGE);
+    const buffer = new Buffer(size, BufferType.STORAGE);
     Renderer.BeginRenderFrame();
     RendererContext.CopyTextureToBufferV2(
       { texture: this, mipLevel, origin: [x, y, 0] },
@@ -2885,8 +2888,8 @@ class WEBGPUTexture {
   // https://github.com/gpuweb/gpuweb/issues/2322
   static async FromBlob(blob, format, options) {
     const imageBitmap = await createImageBitmap(blob, { resizeWidth: options.resizeWidth, resizeHeight: options.resizeHeight });
-    const texture = new WEBGPUTexture(imageBitmap.width, imageBitmap.height, 1, format, TextureType.RENDER_TARGET, "2d", 1);
-    texture.name = options.name;
+    const texture = new Texture(imageBitmap.width, imageBitmap.height, 1, format, 2 /* RENDER_TARGET */, "2d", 1);
+    texture.name = options.name || "Texture";
     try {
       Renderer.device.queue.copyExternalImageToTexture(
         { source: imageBitmap, flipY: options.flipY },
@@ -2900,224 +2903,8 @@ class WEBGPUTexture {
     if (options.generateMips) texture.GenerateMips();
     return texture;
   }
-}
-
-class WEBGPUTextureSampler {
-  id = UUID();
-  params;
-  sampler;
-  constructor(params) {
-    this.params = params;
-    const samplerDescriptor = {};
-    if (params && params.minFilter) samplerDescriptor.minFilter = params.minFilter;
-    if (params && params.magFilter) samplerDescriptor.magFilter = params.magFilter;
-    if (params && params.mipmapFilter) samplerDescriptor.mipmapFilter = params.mipmapFilter;
-    if (params && params.addressModeU) samplerDescriptor.addressModeU = params.addressModeU;
-    if (params && params.addressModeV) samplerDescriptor.addressModeV = params.addressModeV;
-    if (params && params.compare) samplerDescriptor.compare = params.compare;
-    if (params && params.maxAnisotropy) samplerDescriptor.maxAnisotropy = params.maxAnisotropy;
-    this.sampler = Renderer.device.createSampler(samplerDescriptor);
-  }
-  GetBuffer() {
-    return this.sampler;
-  }
-}
-
-const defaultSamplerParams = {
-  magFilter: "linear",
-  minFilter: "linear",
-  mipmapFilter: "linear",
-  addressModeU: "repeat",
-  addressModeV: "repeat",
-  compare: void 0,
-  maxAnisotropy: 1
-};
-class TextureSampler {
-  params;
-  static Create(params) {
-    const samplerParams = Object.assign({}, defaultSamplerParams, params);
-    if (Renderer.type === "webgpu") return new WEBGPUTextureSampler(samplerParams);
-    throw Error("Renderer type invalid");
-  }
-}
-
-class WEBGPUBlit {
-  static blitShader;
-  static depthBlitShader;
-  static blitGeometry;
-  static async Init(output = Renderer.SwapChainFormat) {
-    WEBGPUBlit.blitShader = await Shader.Create({
-      code: `
-            struct VertexInput {
-                @location(0) position : vec2<f32>,
-                @location(1) normal : vec3<f32>,
-                @location(2) uv : vec2<f32>,
-            };
-            
-            struct VertexOutput {
-                @builtin(position) position : vec4<f32>,
-                @location(0) vUv : vec2<f32>,
-            };
-            
-            @group(0) @binding(0) var texture: texture_2d<f32>;
-            @group(0) @binding(1) var textureSampler: sampler;
-            @group(0) @binding(2) var<storage, read> mip: f32;
-            @group(0) @binding(3) var<storage, read> uv_scale: vec2<f32>;
-            
-            @vertex
-            fn vertexMain(input: VertexInput) -> VertexOutput {
-                var output: VertexOutput;
-                output.position = vec4(input.position, 0.0, 1.0);
-                output.vUv = input.uv;
-                return output;
-            }
-            
-            @fragment
-            fn fragmentMain(input: VertexOutput) -> @location(0) vec4<f32> {
-                let uv = input.vUv;
-                var color = textureSampleLevel(texture, textureSampler, uv * uv_scale, mip);
-            
-                return color;
-            }
-            `,
-      colorOutputs: [{ format: output }]
-    });
-    const textureSampler = TextureSampler.Create();
-    WEBGPUBlit.blitShader.SetSampler("textureSampler", textureSampler);
-    WEBGPUBlit.blitShader.SetValue("mip", 0);
-  }
-  static async InitDepth(output = "depth24plus") {
-    WEBGPUBlit.depthBlitShader = await Shader.Create({
-      code: `
-              struct VertexInput {
-                  @location(0) position : vec2<f32>,
-                  @location(1) normal : vec3<f32>,
-                  @location(2) uv : vec2<f32>,
-              };
-
-              struct VertexOutput {
-                  @builtin(position) position : vec4<f32>,
-                  @location(0) vUv : vec2<f32>,
-              };
-
-              @group(0) @binding(0) var depthTexture: texture_depth_2d;
-              @group(0) @binding(1) var<storage, read> mip: f32;
-              @group(0) @binding(2) var<storage, read> uv_scale: vec2<f32>;
-              @group(0) @binding(3) var<storage, read> src_size: vec2<f32>;
-
-              @vertex
-              fn vertexMain(input: VertexInput) -> VertexOutput {
-                  var output: VertexOutput;
-                  output.position = vec4(input.position, 0.0, 1.0);
-                  output.vUv = input.uv;
-                  return output;
-              }
-
-              @fragment
-              fn fragmentMain(input: VertexOutput) -> @builtin(frag_depth) f32 {
-                  let uv = input.vUv * uv_scale;
-                  let max_coord = src_size - vec2(1.0, 1.0);
-                  let coord_f = clamp(uv * src_size, vec2(0.0, 0.0), max_coord);
-                  let coord = vec2<i32>(coord_f);
-                  return textureLoad(depthTexture, coord, i32(mip));
-              }
-              `,
-      colorOutputs: [],
-      depthOutput: output,
-      depthWriteEnabled: true,
-      depthCompare: "always"
-    });
-    WEBGPUBlit.depthBlitShader.SetValue("mip", 0);
-  }
-  static async Blit(source, destination, width, height, uv_scale) {
-    if (!this.blitShader || this.blitShader.params.colorOutputs[0].format !== destination.format) await this.Init(destination.format);
-    if (!this.blitGeometry) this.blitGeometry = Geometry.Plane();
-    this.blitShader.SetTexture("texture", source);
-    this.blitShader.SetArray("uv_scale", uv_scale.elements);
-    const activeCommandEncoder = Renderer.GetActiveCommandEncoder();
-    if (!activeCommandEncoder) Renderer.BeginRenderFrame();
-    RendererContext.BeginRenderPass("Blit", [{ target: destination, clear: true }]);
-    RendererContext.SetViewport(0, 0, width, height);
-    RendererContext.DrawGeometry(this.blitGeometry, this.blitShader);
-    RendererContext.EndRenderPass();
-    if (!activeCommandEncoder) Renderer.EndRenderFrame();
-  }
-  static async BlitDepth(source, destination, width, height, uv_scale, mip = 0) {
-    if (!this.depthBlitShader || this.depthBlitShader.params.depthOutput !== destination.format) await this.InitDepth(destination.format);
-    if (!this.blitGeometry) this.blitGeometry = Geometry.Plane();
-    this.depthBlitShader.SetTexture("depthTexture", source);
-    this.depthBlitShader.SetValue("mip", mip);
-    this.depthBlitShader.SetArray("uv_scale", uv_scale.elements);
-    this.depthBlitShader.SetArray("src_size", new Float32Array([source.width, source.height]));
-    const activeCommandEncoder = Renderer.GetActiveCommandEncoder();
-    if (!activeCommandEncoder) Renderer.BeginRenderFrame();
-    RendererContext.BeginRenderPass("BlitDepth", [], { target: destination, clear: true });
-    RendererContext.SetViewport(0, 0, width, height);
-    RendererContext.DrawGeometry(this.blitGeometry, this.depthBlitShader);
-    RendererContext.EndRenderPass();
-    if (!activeCommandEncoder) Renderer.EndRenderFrame();
-  }
-}
-
-const DefaultOptions = {
-  name: "Image",
-  flipY: false,
-  generateMips: true,
-  resizeWidth: void 0,
-  resizeHeight: void 0,
-  storeSource: false
-};
-var TextureType = /* @__PURE__ */ ((TextureType2) => {
-  TextureType2[TextureType2["IMAGE"] = 0] = "IMAGE";
-  TextureType2[TextureType2["DEPTH"] = 1] = "DEPTH";
-  TextureType2[TextureType2["RENDER_TARGET"] = 2] = "RENDER_TARGET";
-  TextureType2[TextureType2["RENDER_TARGET_STORAGE"] = 3] = "RENDER_TARGET_STORAGE";
-  return TextureType2;
-})(TextureType || {});
-function CreateTexture(width, height, depth, format, type, dimension, mipLevels) {
-  if (Renderer.type === "webgpu") return new WEBGPUTexture(width, height, depth, format, type, dimension, mipLevels);
-  throw Error("Renderer type invalid");
-}
-class Texture {
-  static type = "@trident/core/Texture";
-  id;
-  width;
-  height;
-  depth;
-  textureType;
-  dimension;
-  format;
-  mipLevels;
-  name;
-  assetPath;
-  SetActiveLayer(layer) {
-  }
-  GetActiveLayer() {
-    throw Error("Base class.");
-  }
-  SetActiveMip(layer) {
-  }
-  GetActiveMip() {
-    throw Error("Base class.");
-  }
-  SetActiveMipCount(layer) {
-  }
-  GetActiveMipCount() {
-    throw Error("Base class.");
-  }
-  GenerateMips() {
-  }
-  GetPixels(x, y, blockWidth, blockHeight, mipLevel) {
-    throw Error("Base class.");
-  }
-  Destroy() {
-  }
-  SetData(data, bytesPerRow, rowsPerImage) {
-  }
-  SetSubData(data, width, height, mip, offsetX = 0, offsetY = 0, layer = 0) {
-  }
   static Create(width, height, depth = 1, format = Renderer.SwapChainFormat, mipLevels = 1) {
-    return CreateTexture(width, height, depth, format, 0 /* IMAGE */, "2d", mipLevels);
+    return new Texture(width, height, depth, format, 0 /* IMAGE */, "2d", mipLevels);
   }
   static async Load(url, format = Renderer.SwapChainFormat, options) {
     const response = await fetch(url);
@@ -3125,64 +2912,178 @@ class Texture {
   }
   static async LoadBlob(blob, format = Renderer.SwapChainFormat, options) {
     const _options = Object.assign({}, DefaultOptions, options);
-    if (Renderer.type === "webgpu") return WEBGPUTexture.FromBlob(blob, format, _options);
-    throw Error("Renderer type invalid");
+    return Texture.FromBlob(blob, format, _options);
   }
   static async Blit(source, destination, width, height, uv_scale = new Vector2(1, 1)) {
-    if (Renderer.type === "webgpu") return WEBGPUBlit.Blit(source, destination, width, height, uv_scale);
-    throw Error("Renderer type invalid");
+    return WEBGPUBlit.Blit(source, destination, width, height, uv_scale);
   }
   static async BlitDepth(source, destination, width, height, uv_scale = new Vector2(1, 1)) {
-    if (Renderer.type === "webgpu") return WEBGPUBlit.BlitDepth(source, destination, width, height, uv_scale);
-    throw Error("Renderer type invalid");
+    return WEBGPUBlit.BlitDepth(source, destination, width, height, uv_scale);
   }
 }
 class DepthTexture extends Texture {
   static Create(width, height, depth = 1, format = "depth24plus", mipLevels = 1) {
-    return CreateTexture(width, height, depth, format, 1 /* DEPTH */, "2d", mipLevels);
+    return new Texture(width, height, depth, format, 1 /* DEPTH */, "2d", mipLevels);
   }
 }
 class RenderTexture extends Texture {
   static Create(width, height, depth = 1, format = Renderer.SwapChainFormat, mipLevels = 1) {
-    return CreateTexture(width, height, depth, format, 2 /* RENDER_TARGET */, "2d", mipLevels);
+    return new Texture(width, height, depth, format, 2 /* RENDER_TARGET */, "2d", mipLevels);
   }
 }
 class RenderTextureStorage3D extends Texture {
   static Create(width, height, depth = 1, format = Renderer.SwapChainFormat, mipLevels = 1) {
-    return CreateTexture(width, height, depth, format, 3 /* RENDER_TARGET_STORAGE */, "3d", mipLevels);
+    return new Texture(width, height, depth, format, 3 /* RENDER_TARGET_STORAGE */, "3d", mipLevels);
   }
 }
 class RenderTextureStorage2D extends Texture {
   static Create(width, height, depth = 1, format = Renderer.SwapChainFormat, mipLevels = 1) {
-    return CreateTexture(width, height, depth, format, 3 /* RENDER_TARGET_STORAGE */, "2d", mipLevels);
+    return new Texture(width, height, depth, format, 3 /* RENDER_TARGET_STORAGE */, "2d", mipLevels);
   }
 }
 class RenderTextureCube extends Texture {
   static Create(width, height, depth = 1, format = Renderer.SwapChainFormat, mipLevels = 1) {
-    return CreateTexture(width, height, depth, format, 2 /* RENDER_TARGET */, "cube", mipLevels);
+    return new Texture(width, height, depth, format, 2 /* RENDER_TARGET */, "cube", mipLevels);
   }
 }
 class TextureArray extends Texture {
   static Create(width, height, depth = 1, format = Renderer.SwapChainFormat, mipLevels = 1) {
-    return CreateTexture(width, height, depth, format, 0 /* IMAGE */, "2d-array", mipLevels);
+    return new Texture(width, height, depth, format, 0 /* IMAGE */, "2d-array", mipLevels);
   }
 }
 class CubeTexture extends Texture {
   static Create(width, height, depth = 1, format = Renderer.SwapChainFormat, mipLevels = 1) {
-    return CreateTexture(width, height, depth, format, 0 /* IMAGE */, "cube", mipLevels);
+    return new Texture(width, height, depth, format, 0 /* IMAGE */, "cube", mipLevels);
   }
 }
 class DepthTextureArray extends Texture {
   static Create(width, height, depth = 1, format = "depth24plus", mipLevels = 1) {
-    return CreateTexture(width, height, depth, format, 1 /* DEPTH */, "2d-array", mipLevels);
+    return new Texture(width, height, depth, format, 1 /* DEPTH */, "2d-array", mipLevels);
   }
 }
 class RenderTexture3D extends Texture {
   static Create(width, height, depth = 1, format = Renderer.SwapChainFormat, mipLevels = 1) {
-    return CreateTexture(width, height, depth, format, 2 /* RENDER_TARGET */, "3d", mipLevels);
+    return new Texture(width, height, depth, format, 2 /* RENDER_TARGET */, "3d", mipLevels);
   }
 }
 
+const attributeTypeMap = {
+  "vec2<f32>": { size: 2, type: "vec2" },
+  "vec3<f32>": { size: 3, type: "vec3" },
+  "vec4<f32>": { size: 4, type: "vec4" },
+  "vec4<u32>": { size: 4, type: "vec4u" },
+  "vec2<u32>": { size: 2, type: "vec2u" },
+  "vec3<u32>": { size: 3, type: "vec3u" },
+  "mat4x4<f32>": { size: 16, type: "mat4" }
+};
+function mapUniformType(varQualifier, wgslType) {
+  if (wgslType.startsWith("texture_depth")) return "depthTexture";
+  if (wgslType.startsWith("texture_")) return "texture";
+  if (wgslType.startsWith("sampler_comparison")) return "sampler-compare";
+  if (wgslType.startsWith("sampler")) return "sampler";
+  if (!varQualifier) return null;
+  const qualifier = varQualifier.replace(/\s/g, "");
+  if (qualifier.startsWith("uniform")) return "uniform";
+  if (qualifier.startsWith("storage,read_write") || qualifier.startsWith("storage,readwrite")) return "storage-write";
+  if (qualifier.startsWith("storage,write")) return "storage-write";
+  if (qualifier.startsWith("storage")) return "storage";
+  return null;
+}
+function ReflectWGSL(code, entryPointName = "vertexMain") {
+  const attributes = {};
+  const uniforms = {};
+  const vertexInputStructs = /* @__PURE__ */ new Set();
+  const vertexFnRegex = /@vertex\s+fn\s+(\w+)\s*\(([^)]*)\)/g;
+  let vertexMatch;
+  while ((vertexMatch = vertexFnRegex.exec(code)) !== null) {
+    const fnName = vertexMatch[1];
+    const params = vertexMatch[2];
+    if (fnName !== entryPointName) continue;
+    const paramRegex = /([A-Za-z_][A-Za-z0-9_]*)\s*:\s*([A-Za-z_][A-Za-z0-9_]*)/g;
+    let paramMatch;
+    while ((paramMatch = paramRegex.exec(params)) !== null) {
+      const typeName = paramMatch[2];
+      if (/^[A-Z]/.test(typeName)) vertexInputStructs.add(typeName);
+    }
+  }
+  const structRegex = /struct\s+([A-Za-z_][A-Za-z0-9_]*)\s*{([^}]*)}/gs;
+  let structMatch;
+  while ((structMatch = structRegex.exec(code)) !== null) {
+    const structName = structMatch[1];
+    if (!vertexInputStructs.has(structName)) continue;
+    const body = structMatch[2];
+    const attributeRegex = /@location\((\d+)\)\s*([A-Za-z0-9_]+)\s*:\s*([A-Za-z0-9_<>]+)\s*[,;]/g;
+    let attrMatch;
+    while ((attrMatch = attributeRegex.exec(body)) !== null) {
+      const location = Number(attrMatch[1]);
+      const name = attrMatch[2];
+      const type = attrMatch[3];
+      const mapped = attributeTypeMap[type];
+      if (!mapped) continue;
+      attributes[name] = {
+        location,
+        size: mapped.size,
+        type: mapped.type
+      };
+    }
+  }
+  const bindingRegex = /@group\((\d+)\)\s*@binding\((\d+)\)\s*var(?:<([^>]+)>)?\s+([A-Za-z0-9_]+)\s*:\s*([^;]+);/g;
+  let bindingMatch;
+  while ((bindingMatch = bindingRegex.exec(code)) !== null) {
+    const group = Number(bindingMatch[1]);
+    const binding = Number(bindingMatch[2]);
+    const qualifier = bindingMatch[3] ? bindingMatch[3].trim() : null;
+    const name = bindingMatch[4];
+    const typeName = bindingMatch[5].trim();
+    const mappedType = mapUniformType(qualifier, typeName);
+    if (!mappedType) continue;
+    uniforms[name] = {
+      group,
+      binding,
+      type: mappedType
+    };
+  }
+  return { attributes, uniforms };
+}
+
+const pipelineLayoutCache = /* @__PURE__ */ new Map();
+const pipelineCache = /* @__PURE__ */ new Map();
+const WGSLShaderAttributeFormat = {
+  vec2: "float32x2",
+  vec3: "float32x3",
+  vec4: "float32x4",
+  vec2u: "uint32x2",
+  vec3u: "uint32x3",
+  vec4u: "uint32x4"
+};
+function blendState(mode) {
+  switch (mode) {
+    case "opaque":
+      return void 0;
+    // no blending
+    case "alpha":
+      return {
+        color: { srcFactor: "src-alpha", dstFactor: "one-minus-src-alpha", operation: "add" },
+        alpha: { srcFactor: "one", dstFactor: "one-minus-src-alpha", operation: "add" }
+      };
+    case "premultiplied":
+      return {
+        color: { srcFactor: "one", dstFactor: "one-minus-src-alpha", operation: "add" },
+        alpha: { srcFactor: "one", dstFactor: "one-minus-src-alpha", operation: "add" }
+      };
+    case "add":
+      return {
+        color: { srcFactor: "one", dstFactor: "one", operation: "add" },
+        alpha: { srcFactor: "one", dstFactor: "one", operation: "add" }
+      };
+  }
+}
+var Topology = /* @__PURE__ */ ((Topology2) => {
+  Topology2["Triangles"] = "triangle-list";
+  Topology2["Points"] = "point-list";
+  Topology2["Lines"] = "line-list";
+  return Topology2;
+})(Topology || {});
 const BindGroupLayoutCache = /* @__PURE__ */ new Map();
 const BindGroupCache = /* @__PURE__ */ new Map();
 const UniformTypeToWGSL = {
@@ -3192,7 +3093,7 @@ const UniformTypeToWGSL = {
   "storage-write-only": "storage",
   "storage-read-only": "storage"
 };
-class WEBGPUBaseShader {
+class BaseShader {
   id = UUID();
   needsUpdate = false;
   module;
@@ -3226,10 +3127,10 @@ class WEBGPUBaseShader {
     for (const [name, uniform] of this.uniformMap) {
       if (!bindGroupsLayoutEntries[uniform.group]) bindGroupsLayoutEntries[uniform.group] = [];
       const layoutEntries = bindGroupsLayoutEntries[uniform.group];
-      if (uniform.buffer instanceof WEBGPUBuffer) {
+      if (uniform.buffer instanceof Buffer) {
         const visibility = uniform.type === "storage-write" ? GPUShaderStage.FRAGMENT | GPUShaderStage.COMPUTE : GPUShaderStage.VERTEX | GPUShaderStage.FRAGMENT | GPUShaderStage.COMPUTE;
         layoutEntries.push({ binding: uniform.binding, visibility, buffer: { type: UniformTypeToWGSL[uniform.type] } });
-      } else if (uniform.buffer instanceof WEBGPUDynamicBuffer) {
+      } else if (uniform.buffer instanceof DynamicBuffer) {
         const visibility = uniform.type === "storage-write" ? GPUShaderStage.FRAGMENT | GPUShaderStage.COMPUTE : GPUShaderStage.VERTEX | GPUShaderStage.FRAGMENT | GPUShaderStage.COMPUTE;
         layoutEntries.push({
           binding: uniform.binding,
@@ -3240,7 +3141,7 @@ class WEBGPUBaseShader {
             minBindingSize: uniform.buffer.minBindingSize
           }
         });
-      } else if (uniform.buffer instanceof WEBGPUTexture) {
+      } else if (uniform.buffer instanceof Texture) {
         let sampleType = uniform.type === "depthTexture" ? "depth" : "float";
         if (uniform.buffer.format.includes("32float")) sampleType = "unfilterable-float";
         else if (uniform.buffer.format.includes("32uint")) sampleType = "uint";
@@ -3258,7 +3159,7 @@ class WEBGPUBaseShader {
         } else {
           layoutEntries.push({ binding: uniform.binding, visibility: GPUShaderStage.COMPUTE | GPUShaderStage.VERTEX | GPUShaderStage.FRAGMENT, texture: { sampleType, viewDimension: uniform.buffer.dimension } });
         }
-      } else if (uniform.buffer instanceof WEBGPUTextureSampler) {
+      } else if (uniform.buffer instanceof TextureSampler) {
         let type = void 0;
         if (uniform.type === "sampler") type = "filtering";
         else if (uniform.type === "sampler-compare") type = "comparison";
@@ -3295,10 +3196,10 @@ class WEBGPUBaseShader {
     for (const [name, uniform] of this.uniformMap) {
       if (!bindGroupsInfo[uniform.group]) bindGroupsInfo[uniform.group] = { entries: [], buffers: [] };
       const group = bindGroupsInfo[uniform.group];
-      if (uniform.buffer instanceof WEBGPUBuffer) {
+      if (uniform.buffer instanceof Buffer) {
         group.entries.push({ binding: uniform.binding, resource: { buffer: uniform.buffer.GetBuffer() } });
         group.buffers.push(uniform.buffer);
-      } else if (uniform.buffer instanceof WEBGPUDynamicBuffer) {
+      } else if (uniform.buffer instanceof DynamicBuffer) {
         group.entries.push({
           binding: uniform.binding,
           resource: {
@@ -3308,7 +3209,7 @@ class WEBGPUBaseShader {
           }
         });
         group.buffers.push(uniform.buffer);
-      } else if (uniform.buffer instanceof WEBGPUTexture) {
+      } else if (uniform.buffer instanceof Texture) {
         const view = {
           dimension: uniform.buffer.dimension,
           arrayLayerCount: uniform.buffer.dimension != "3d" ? uniform.buffer.GetBuffer().depthOrArrayLayers : 1,
@@ -3319,7 +3220,7 @@ class WEBGPUBaseShader {
         };
         group.entries.push({ binding: uniform.binding, resource: uniform.buffer.GetBuffer().createView(view) });
         group.buffers.push(uniform.buffer);
-      } else if (uniform.buffer instanceof WEBGPUTextureSampler) {
+      } else if (uniform.buffer instanceof TextureSampler) {
         group.entries.push({ binding: uniform.binding, resource: uniform.buffer.GetBuffer() });
         group.buffers.push(uniform.buffer);
       }
@@ -3351,7 +3252,7 @@ class WEBGPUBaseShader {
     if (!uniform.buffer) {
       let type = BufferType.STORAGE;
       if (uniform.type === "uniform") type = BufferType.UNIFORM;
-      uniform.buffer = Buffer.Create(data.byteLength, type);
+      uniform.buffer = new Buffer(data.byteLength, type);
       this.needsUpdate = true;
     }
     Renderer.device.queue.writeBuffer(uniform.buffer.GetBuffer(), bufferOffset, data, dataOffset, size);
@@ -3363,7 +3264,7 @@ class WEBGPUBaseShader {
       binding.buffer = data;
       this.needsUpdate = true;
     }
-    if (data instanceof WEBGPUTexture) {
+    if (data instanceof Texture) {
       binding.textureDimension = data.GetActiveLayer();
       binding.textureMip = data.GetActiveMip();
       binding.activeMipCount = data.GetActiveMipCount();
@@ -3424,70 +3325,7 @@ class WEBGPUBaseShader {
     Renderer.info.compiledShadersStat -= 1;
   }
 }
-
-class WEBGPUComputeShader extends WEBGPUBaseShader {
-  computeEntrypoint;
-  _pipeline = null;
-  get pipeline() {
-    return this._pipeline;
-  }
-  constructor(params) {
-    super(params);
-    this.params = params;
-    this.computeEntrypoint = params.computeEntrypoint;
-  }
-  Compile() {
-    if (!(this.needsUpdate || !this.pipeline || !this.bindGroups)) {
-      return;
-    }
-    this.bindGroupLayouts = this.BuildBindGroupLayouts();
-    this._bindGroups = this.BuildBindGroups();
-    let pipelineLayout = Renderer.device.createPipelineLayout({
-      bindGroupLayouts: this.bindGroupLayouts
-    });
-    const pipelineDescriptor = {
-      layout: pipelineLayout,
-      compute: { module: this.module, entryPoint: this.computeEntrypoint }
-    };
-    this._pipeline = Renderer.device.createComputePipeline(pipelineDescriptor);
-    Renderer.info.compiledShadersStat += 1;
-    this.needsUpdate = false;
-  }
-}
-
-const pipelineLayoutCache = /* @__PURE__ */ new Map();
-const pipelineCache = /* @__PURE__ */ new Map();
-const WGSLShaderAttributeFormat = {
-  vec2: "float32x2",
-  vec3: "float32x3",
-  vec4: "float32x4",
-  vec2u: "uint32x2",
-  vec3u: "uint32x3",
-  vec4u: "uint32x4"
-};
-function blendState(mode) {
-  switch (mode) {
-    case "opaque":
-      return void 0;
-    // no blending
-    case "alpha":
-      return {
-        color: { srcFactor: "src-alpha", dstFactor: "one-minus-src-alpha", operation: "add" },
-        alpha: { srcFactor: "one", dstFactor: "one-minus-src-alpha", operation: "add" }
-      };
-    case "premultiplied":
-      return {
-        color: { srcFactor: "one", dstFactor: "one-minus-src-alpha", operation: "add" },
-        alpha: { srcFactor: "one", dstFactor: "one-minus-src-alpha", operation: "add" }
-      };
-    case "add":
-      return {
-        color: { srcFactor: "one", dstFactor: "one", operation: "add" },
-        alpha: { srcFactor: "one", dstFactor: "one", operation: "add" }
-      };
-  }
-}
-class WEBGPUShader extends WEBGPUBaseShader {
+class Shader extends BaseShader {
   vertexEntrypoint;
   fragmentEntrypoint;
   attributeMap = /* @__PURE__ */ new Map();
@@ -3501,6 +3339,15 @@ class WEBGPUShader extends WEBGPUBaseShader {
     this.vertexEntrypoint = this.params.vertexEntrypoint;
     this.fragmentEntrypoint = this.params.fragmentEntrypoint;
     if (this.params.attributes) this.attributeMap = new Map(Object.entries(this.params.attributes));
+  }
+  static async Create(params) {
+    params.code = await ShaderPreprocessor.ProcessIncludesV2(params.code);
+    const reflectionSource = params.defines ? ShaderPreprocessor.ProcessDefines(params.code, params.defines) : params.code;
+    const reflection = ReflectWGSL(reflectionSource, params.vertexEntrypoint ?? "vertexMain");
+    if (!params.attributes) params.attributes = reflection.attributes;
+    if (!params.uniforms) params.uniforms = reflection.uniforms;
+    else for (const [name, uniform] of Object.entries(reflection.uniforms)) if (!params.uniforms[name]) params.uniforms[name] = uniform;
+    return new Shader(params);
   }
   // TODO: This needs cleaning
   Compile() {
@@ -3571,62 +3418,22 @@ class WEBGPUShader extends WEBGPUBaseShader {
     return this.attributeMap.get(name)?.location;
   }
 }
-
-var Topology = /* @__PURE__ */ ((Topology2) => {
-  Topology2["Triangles"] = "triangle-list";
-  Topology2["Points"] = "point-list";
-  Topology2["Lines"] = "line-list";
-  return Topology2;
-})(Topology || {});
-class BaseShader {
-  id;
+class ShaderCompute extends BaseShader {
+  computeEntrypoint;
   params;
-  constructor() {
+  _pipeline = null;
+  get pipeline() {
+    return this._pipeline;
   }
-  SetValue(name, value) {
+  constructor(params) {
+    super(params);
+    this.params = params;
+    this.computeEntrypoint = params.computeEntrypoint;
   }
-  SetMatrix4(name, matrix) {
-  }
-  SetVector2(name, vector) {
-  }
-  SetVector3(name, vector) {
-  }
-  SetVector4(name, vector) {
-  }
-  SetArray(name, array, bufferOffset, dataOffset, size) {
-  }
-  SetTexture(name, texture) {
-  }
-  SetSampler(name, texture) {
-  }
-  SetBuffer(name, buffer) {
-  }
-  HasBuffer(name) {
-    return false;
-  }
-  OnPreRender(geometry) {
-    return true;
-  }
-  Destroy() {
-  }
-}
-class Shader extends BaseShader {
-  static async Create(params) {
-    params.code = await ShaderPreprocessor.ProcessIncludesV2(params.code);
-    const reflectionSource = params.defines ? ShaderPreprocessor.ProcessDefines(params.code, params.defines) : params.code;
-    const reflection = ReflectWGSL(reflectionSource, params.vertexEntrypoint ?? "vertexMain");
-    if (!params.attributes) params.attributes = reflection.attributes;
-    if (!params.uniforms) params.uniforms = reflection.uniforms;
-    else for (const [name, uniform] of Object.entries(reflection.uniforms)) if (!params.uniforms[name]) params.uniforms[name] = uniform;
-    if (Renderer.type === "webgpu") return new WEBGPUShader(params);
-    throw Error("Unknown api");
-  }
-}
-class Compute extends BaseShader {
   /**
    * @example
    * ```js
-   * const = await GPU.Compute.Create({
+   * const = await GPU.ShaderCompute.Create({
    *     code: `
    *         @compute @workgroup_size(8, 8, 1)
    *         fn main(@builtin(global_invocation_id) grid: vec3<u32>) {
@@ -3645,8 +3452,24 @@ class Compute extends BaseShader {
     const reflection = ReflectWGSL(reflectionSource);
     if (!params.uniforms) params.uniforms = reflection.uniforms;
     else for (const [name, uniform] of Object.entries(reflection.uniforms)) if (!params.uniforms[name]) params.uniforms[name] = uniform;
-    if (Renderer.type === "webgpu") return new WEBGPUComputeShader(params);
-    throw Error("Unknown api");
+    return new ShaderCompute(params);
+  }
+  Compile() {
+    if (!(this.needsUpdate || !this.pipeline || !this.bindGroups)) {
+      return;
+    }
+    this.bindGroupLayouts = this.BuildBindGroupLayouts();
+    this._bindGroups = this.BuildBindGroups();
+    let pipelineLayout = Renderer.device.createPipelineLayout({
+      bindGroupLayouts: this.bindGroupLayouts
+    });
+    const pipelineDescriptor = {
+      layout: pipelineLayout,
+      compute: { module: this.module, entryPoint: this.computeEntrypoint }
+    };
+    this._pipeline = Renderer.device.createComputePipeline(pipelineDescriptor);
+    Renderer.info.compiledShadersStat += 1;
+    this.needsUpdate = false;
   }
 }
 
@@ -3715,12 +3538,12 @@ class WEBGPUTimestampQuery {
   }
 }
 
-class WEBGPURendererContext {
+class RendererContext {
   static activeRenderPass = null;
   static HasActiveRenderPass() {
     return this.activeRenderPass instanceof GPURenderPassEncoder;
   }
-  static BeginRenderPass(name, renderTargets, depthTarget, timestamp) {
+  static BeginRenderPass(name, renderTargets, depthTarget, timestamp = false) {
     const activeCommandEncoder = Renderer.GetActiveCommandEncoder();
     if (!activeCommandEncoder) throw Error("No active command encoder!!");
     if (this.activeRenderPass) throw Error("There is already an active render pass");
@@ -3763,7 +3586,7 @@ class WEBGPURendererContext {
     for (let i = 0; i < shader.bindGroups.length; i++) {
       let dynamicOffsets = [];
       for (const buffer of shader.bindGroupsInfo[i].buffers) {
-        if (buffer instanceof WEBGPUDynamicBuffer) {
+        if (buffer instanceof DynamicBuffer) {
           dynamicOffsets.push(buffer.dynamicOffset);
         }
       }
@@ -3812,7 +3635,7 @@ class WEBGPURendererContext {
     this.BindGeometry(shader);
     this.activeRenderPass.draw(vertexCount, instanceCount, firstVertex, firstInstance);
   }
-  static DrawIndirect(geometry, shader, indirectBuffer, indirectOffset) {
+  static DrawIndirect(geometry, shader, indirectBuffer, indirectOffset = 0) {
     if (!shader.OnPreRender(geometry)) return;
     this.BindGeometry(shader, geometry);
     if (!geometry.index) {
@@ -3821,7 +3644,7 @@ class WEBGPURendererContext {
       this.activeRenderPass.drawIndexedIndirect(indirectBuffer.GetBuffer(), indirectOffset);
     }
   }
-  static SetViewport(x, y, width, height, minDepth, maxDepth) {
+  static SetViewport(x, y, width, height, minDepth = 0, maxDepth = 1) {
     if (!this.activeRenderPass) throw Error("No active render pass");
     this.activeRenderPass.setViewport(x, y, width, height, minDepth, maxDepth);
   }
@@ -3829,7 +3652,7 @@ class WEBGPURendererContext {
     if (!this.activeRenderPass) throw Error("No active render pass");
     this.activeRenderPass.setScissorRect(x, y, width, height);
   }
-  static CopyBufferToBuffer(source, destination, sourceOffset, destinationOffset, size) {
+  static CopyBufferToBuffer(source, destination, sourceOffset = 0, destinationOffset = 0, size = void 0) {
     const activeCommandEncoder = Renderer.GetActiveCommandEncoder();
     if (!activeCommandEncoder) throw Error("No active command encoder!!");
     activeCommandEncoder.copyBufferToBuffer(source.GetBuffer(), sourceOffset, destination.GetBuffer(), destinationOffset, size);
@@ -3888,6 +3711,15 @@ class WEBGPURendererContext {
   }
 }
 
+var BufferType = /* @__PURE__ */ ((BufferType2) => {
+  BufferType2[BufferType2["STORAGE"] = 0] = "STORAGE";
+  BufferType2[BufferType2["STORAGE_WRITE"] = 1] = "STORAGE_WRITE";
+  BufferType2[BufferType2["UNIFORM"] = 2] = "UNIFORM";
+  BufferType2[BufferType2["VERTEX"] = 3] = "VERTEX";
+  BufferType2[BufferType2["INDEX"] = 4] = "INDEX";
+  BufferType2[BufferType2["INDIRECT"] = 5] = "INDIRECT";
+  return BufferType2;
+})(BufferType || {});
 class BaseBuffer {
   id = UUID();
   buffer;
@@ -3902,12 +3734,12 @@ class BaseBuffer {
     Renderer.info.gpuBufferSizeTotal += sizeInBytes;
     Renderer.info.gpuBufferCount++;
     let usage = void 0;
-    if (type == BufferType.STORAGE) usage = GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC | GPUBufferUsage.COPY_DST;
-    else if (type == BufferType.STORAGE_WRITE) usage = GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC | GPUBufferUsage.COPY_DST;
-    else if (type == BufferType.VERTEX) usage = GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_SRC | GPUBufferUsage.COPY_DST | GPUBufferUsage.STORAGE;
-    else if (type == BufferType.INDEX) usage = GPUBufferUsage.INDEX | GPUBufferUsage.COPY_SRC | GPUBufferUsage.COPY_DST | GPUBufferUsage.STORAGE;
-    else if (type == BufferType.UNIFORM) usage = GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_SRC | GPUBufferUsage.COPY_DST;
-    else if (type == BufferType.INDIRECT) usage = GPUBufferUsage.INDIRECT | GPUBufferUsage.COPY_SRC | GPUBufferUsage.COPY_DST | GPUBufferUsage.STORAGE;
+    if (type == 0 /* STORAGE */) usage = GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC | GPUBufferUsage.COPY_DST;
+    else if (type == 1 /* STORAGE_WRITE */) usage = GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC | GPUBufferUsage.COPY_DST;
+    else if (type == 3 /* VERTEX */) usage = GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_SRC | GPUBufferUsage.COPY_DST | GPUBufferUsage.STORAGE;
+    else if (type == 4 /* INDEX */) usage = GPUBufferUsage.INDEX | GPUBufferUsage.COPY_SRC | GPUBufferUsage.COPY_DST | GPUBufferUsage.STORAGE;
+    else if (type == 2 /* UNIFORM */) usage = GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_SRC | GPUBufferUsage.COPY_DST;
+    else if (type == 5 /* INDIRECT */) usage = GPUBufferUsage.INDIRECT | GPUBufferUsage.COPY_SRC | GPUBufferUsage.COPY_DST | GPUBufferUsage.STORAGE;
     else if (type == 10) usage = GPUBufferUsage.INDEX | GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC | GPUBufferUsage.COPY_DST;
     if (!usage) throw Error("Invalid buffer usage");
     this.buffer = Renderer.device.createBuffer({ size: sizeInBytes, usage });
@@ -3917,7 +3749,7 @@ class BaseBuffer {
     return this.buffer;
   }
   SetArray(array, bufferOffset = 0, dataOffset, size) {
-    if (WEBGPURendererContext.HasActiveRenderPass()) {
+    if (RendererContext.HasActiveRenderPass()) {
       console.warn("Cannot set buffer data while there is an active render pass.");
       return;
     }
@@ -3946,73 +3778,17 @@ class BaseBuffer {
     this.buffer.destroy();
   }
 }
-class WEBGPUBuffer extends BaseBuffer {
+class Buffer extends BaseBuffer {
   constructor(sizeInBytes, type) {
     super(sizeInBytes, type);
   }
 }
-class WEBGPUDynamicBuffer extends BaseBuffer {
+class DynamicBuffer extends BaseBuffer {
   minBindingSize;
   dynamicOffset = 0;
   constructor(sizeInBytes, type, minBindingSize) {
     super(sizeInBytes, type);
     this.minBindingSize = minBindingSize;
-  }
-}
-
-var BufferType = /* @__PURE__ */ ((BufferType2) => {
-  BufferType2[BufferType2["STORAGE"] = 0] = "STORAGE";
-  BufferType2[BufferType2["STORAGE_WRITE"] = 1] = "STORAGE_WRITE";
-  BufferType2[BufferType2["UNIFORM"] = 2] = "UNIFORM";
-  BufferType2[BufferType2["VERTEX"] = 3] = "VERTEX";
-  BufferType2[BufferType2["INDEX"] = 4] = "INDEX";
-  BufferType2[BufferType2["INDIRECT"] = 5] = "INDIRECT";
-  return BufferType2;
-})(BufferType || {});
-class Buffer {
-  size;
-  set name(name) {
-  }
-  get name() {
-    return "Buffer";
-  }
-  constructor() {
-  }
-  static Create(size, type) {
-    if (size === 0) throw Error("Tried to create a buffer with size 0");
-    if (Renderer.type === "webgpu") return new WEBGPUBuffer(size, type);
-    else throw Error("Renderer type invalid");
-  }
-  SetArray(array, bufferOffset = 0, dataOffset, size) {
-  }
-  async GetData(sourceOffset, destinationOffset, size) {
-    return new ArrayBuffer(1);
-  }
-  Destroy() {
-  }
-}
-class DynamicBuffer {
-  size;
-  set name(name) {
-  }
-  get name() {
-    return "DynamicBuffer";
-  }
-  minBindingSize;
-  dynamicOffset = 0;
-  constructor() {
-  }
-  static Create(size, type, minBindingSize) {
-    if (size === 0) throw Error("Tried to create a buffer with size 0");
-    if (Renderer.type === "webgpu") return new WEBGPUDynamicBuffer(size, type, minBindingSize);
-    else throw Error("Renderer type invalid");
-  }
-  SetArray(array, bufferOffset = 0, dataOffset, size) {
-  }
-  async GetData(sourceOffset, destinationOffset, size) {
-    return new ArrayBuffer(1);
-  }
-  Destroy() {
   }
 }
 
@@ -4186,7 +3962,7 @@ class GeometryAttribute {
       }
     }
     this.array = array;
-    this.buffer = Buffer.Create(bufferSize, type);
+    this.buffer = new Buffer(bufferSize, type);
     this.buffer.SetArray(bufferArray);
     this.bufferType = type;
     this.currentOffset = 0;
@@ -4750,7 +4526,7 @@ class BufferMemoryAllocator {
   bufferType;
   constructor(size, bufferType = BufferType.STORAGE) {
     this.allocator = new MemoryAllocator(size);
-    this.buffer = Buffer.Create(size * BufferMemoryAllocator.BYTES_PER_ELEMENT, bufferType);
+    this.buffer = new Buffer(size * BufferMemoryAllocator.BYTES_PER_ELEMENT, bufferType);
     this.links = /* @__PURE__ */ new Map();
     this.bufferType = bufferType;
   }
@@ -4788,7 +4564,7 @@ class DynamicBufferMemoryAllocatorDynamic {
   constructor(slotCount, bufferType = BufferType.STORAGE, minBindingSize = 256) {
     this.minBindingSize = minBindingSize;
     this.allocator = new MemoryAllocator(slotCount);
-    this.buffer = DynamicBuffer.Create(slotCount * minBindingSize, bufferType, minBindingSize);
+    this.buffer = new DynamicBuffer(slotCount * minBindingSize, bufferType, minBindingSize);
     this.links = /* @__PURE__ */ new Map();
     this.bufferType = bufferType;
   }
@@ -4842,7 +4618,7 @@ class DynamicBufferMemoryAllocator extends BufferMemoryAllocator {
         this.allocator.memorySize += incrementAmount;
         this.allocator.availableMemorySize += incrementAmount;
         this.allocator.freeBlocks.push({ offset: oldMemorySize, size: incrementAmount });
-        const buffer = Buffer.Create(this.allocator.memorySize * BufferMemoryAllocator.BYTES_PER_ELEMENT, BufferType.STORAGE);
+        const buffer = new Buffer(this.allocator.memorySize * BufferMemoryAllocator.BYTES_PER_ELEMENT, BufferType.STORAGE);
         const hasActiveFrame = Renderer.HasActiveFrame();
         if (!hasActiveFrame) Renderer.BeginRenderFrame();
         RendererContext.CopyBufferToBuffer(this.buffer, buffer);
@@ -4892,7 +4668,7 @@ class DeferredLightingPass extends RenderPass {
       depthCompare: "greater-equal",
       cullMode: "front"
     });
-    this.sampler = TextureSampler.Create({
+    this.sampler = new TextureSampler({
       minFilter: "linear",
       magFilter: "linear",
       mipmapFilter: "linear",
@@ -4900,11 +4676,11 @@ class DeferredLightingPass extends RenderPass {
       addressModeV: "clamp-to-edge"
     });
     this.shader.SetSampler("textureSampler", this.sampler);
-    const shadowSamplerComp = TextureSampler.Create({ minFilter: "linear", magFilter: "linear", compare: "less" });
+    const shadowSamplerComp = new TextureSampler({ minFilter: "linear", magFilter: "linear", compare: "less" });
     this.shader.SetSampler("shadowSamplerComp", shadowSamplerComp);
     this.quadGeometry = new Geometry();
     this.lightsBuffer = new DynamicBufferMemoryAllocator(120 * 1e4);
-    this.lightsCountBuffer = Buffer.Create(1 * 4, BufferType.STORAGE);
+    this.lightsCountBuffer = new Buffer(1 * 4, BufferType.STORAGE);
     this.shader.SetBuffer("lights", this.lightsBuffer.getBuffer());
     this.shader.SetBuffer("lightCount", this.lightsCountBuffer);
     this.outputLightingPass = RenderTexture.Create(Renderer.width, Renderer.height, 1, "rgba16float");
@@ -5138,7 +4914,7 @@ class TextureViewer extends RenderPass {
       colorOutputs: [{ format: Renderer.SwapChainFormat }]
     });
     this.quadGeometry = new Geometry();
-    const sampler = TextureSampler.Create();
+    const sampler = new TextureSampler();
     this.shader.SetSampler("textureSampler", sampler);
     this.initialized = true;
   }
@@ -5319,7 +5095,7 @@ class PBRMaterial extends Material {
       Assets.SetInstance("@builtin/material/pbr", this);
     }
     Object.assign(this.params, params);
-    if (!PBRMaterial.sampler) PBRMaterial.sampler = TextureSampler.Create();
+    if (!PBRMaterial.sampler) PBRMaterial.sampler = new TextureSampler();
     this.createShader();
   }
   pendingShaderCreation;
@@ -5586,7 +5362,7 @@ class SkinnedMesh extends Renderable {
     if (this.boneMatricesBuffer) return true;
     this.buildBones();
     if (!this.bones.length) return false;
-    this.boneMatricesBuffer = Buffer.Create(this.jointData.length * 4, BufferType.STORAGE);
+    this.boneMatricesBuffer = new Buffer(this.jointData.length * 4, BufferType.STORAGE);
     this.boneMatricesBuffer.SetArray(this.jointData);
     return true;
   }
@@ -5730,7 +5506,7 @@ class DeferredShadowMapPass extends RenderPass {
       depthOutput: "depth24plus",
       cullMode: "front"
     });
-    this.skinnedBoneMatricesBuffer = Buffer.Create(16 * 100 * 4, BufferType.STORAGE);
+    this.skinnedBoneMatricesBuffer = new Buffer(16 * 100 * 4, BufferType.STORAGE);
     this.drawSkinnedMeshShadowShader.SetBuffer("boneMatrices", this.skinnedBoneMatricesBuffer);
     this.shadowOutput = DepthTextureArray.Create(ShadowMapSettings.r_shadows_width.value, ShadowMapSettings.r_shadows_height.value, 1);
     this.initialized = true;
@@ -5852,13 +5628,13 @@ class DeferredShadowMapPass extends RenderPass {
     const dynamicBufferBaseCapacity = cascadeCapacity * 4 * 256;
     const requiredProjectionSize = lightCount * dynamicBufferBaseCapacity;
     if (!this.lightProjectionMatrices || this.lightProjectionMatrices.size !== requiredProjectionSize) {
-      this.lightProjectionMatrices = DynamicBuffer.Create(requiredProjectionSize, BufferType.STORAGE, 256);
+      this.lightProjectionMatrices = new DynamicBuffer(requiredProjectionSize, BufferType.STORAGE, 256);
       this.drawShadowShader.SetBuffer("projectionMatrix", this.lightProjectionMatrices);
       this.drawSkinnedMeshShadowShader.SetBuffer("projectionMatrix", this.lightProjectionMatrices);
       this.drawInstancedShadowShader.SetBuffer("projectionMatrix", this.lightProjectionMatrices);
     }
     if (!this.cascadeIndexBuffer || this.cascadeIndexBuffer.size !== dynamicBufferBaseCapacity) {
-      this.cascadeIndexBuffer = DynamicBuffer.Create(dynamicBufferBaseCapacity, BufferType.STORAGE, 256);
+      this.cascadeIndexBuffer = new DynamicBuffer(dynamicBufferBaseCapacity, BufferType.STORAGE, 256);
       for (let i = 0; i < cascadeCapacity; i++) {
         this.cascadeIndexBuffer.SetArray(new Uint32Array([i]), i * 256);
       }
@@ -5873,7 +5649,7 @@ class DeferredShadowMapPass extends RenderPass {
     if (shadowCasters.length > 0) {
       const requiredSize = shadowCasters.length * 256;
       if (!this.modelMatrices || this.modelMatrices.size !== requiredSize) {
-        this.modelMatrices = DynamicBuffer.Create(requiredSize, BufferType.STORAGE, 256);
+        this.modelMatrices = new DynamicBuffer(requiredSize, BufferType.STORAGE, 256);
         this.drawShadowShader.SetBuffer("modelMatrix", this.modelMatrices);
         this.drawSkinnedMeshShadowShader.SetBuffer("modelMatrix", this.modelMatrices);
       }
@@ -6012,7 +5788,7 @@ class PrepareGBuffers extends RenderPass {
   }
   async init(resources) {
     this.CreateGBufferTextures();
-    this.FrameBuffer = Buffer.Create(this.FrameBufferValues.byteLength, BufferType.STORAGE);
+    this.FrameBuffer = new Buffer(this.FrameBufferValues.byteLength, BufferType.STORAGE);
     this.initialized = true;
   }
   preFrame(resources) {
@@ -6100,8 +5876,8 @@ class ForwardPass extends RenderPass {
   viewMatrix;
   modelMatrices;
   async init(resources) {
-    this.projectionMatrix = Buffer.Create(16 * 4, BufferType.STORAGE);
-    this.viewMatrix = Buffer.Create(16 * 4, BufferType.STORAGE);
+    this.projectionMatrix = new Buffer(16 * 4, BufferType.STORAGE);
+    this.viewMatrix = new Buffer(16 * 4, BufferType.STORAGE);
     this.modelMatrices = new DynamicBufferMemoryAllocator(16 * 4 * 10);
     this.initialized = true;
   }
@@ -6166,7 +5942,7 @@ class IBLLightingPass extends RenderPass {
       code: await ShaderLoader.IBLLighting,
       colorOutputs: [{ format: "rgba16float", blendMode: "add" }]
     });
-    this.sampler = TextureSampler.Create({
+    this.sampler = new TextureSampler({
       minFilter: "linear",
       magFilter: "linear",
       mipmapFilter: "linear",
@@ -6174,7 +5950,7 @@ class IBLLightingPass extends RenderPass {
       addressModeV: "clamp-to-edge"
     });
     this.shader.SetSampler("textureSampler", this.sampler);
-    const brdfSampler = TextureSampler.Create({
+    const brdfSampler = new TextureSampler({
       minFilter: "linear",
       magFilter: "linear",
       addressModeU: "repeat",
@@ -6299,7 +6075,7 @@ class SkyboxPass extends RenderPass {
       },
       colorOutputs: [{ format: "rgba16float" }]
     });
-    this.shader.SetSampler("textureSampler", TextureSampler.Create());
+    this.shader.SetSampler("textureSampler", new TextureSampler());
     this.quadGeometry = new Geometry();
     this.initialized = true;
   }
@@ -6522,7 +6298,7 @@ class PostExposureTonemap extends RenderPass {
       }
     });
     this.quadGeometry = new Geometry();
-    const sampler = TextureSampler.Create();
+    const sampler = new TextureSampler();
     this.shader.SetSampler("textureSampler", sampler);
     this.renderTarget = RenderTexture.Create(Renderer.width, Renderer.height, 1, "rgba16float");
     this.initialized = true;
@@ -6593,7 +6369,7 @@ class BasePass extends RenderPass {
       },
       colorOutputs: [{ format: "rgba16float" }]
     });
-    this.shader.SetSampler("textureSampler", TextureSampler.Create());
+    this.shader.SetSampler("textureSampler", new TextureSampler());
     this.quadGeometry = new Geometry();
     this.initialized = true;
   }
@@ -7721,9 +7497,9 @@ __decoratorMetadata(_init, _Prefab);
 __publicField(_Prefab, "type", "@trident/core/Prefab");
 let Prefab = _Prefab;
 
-class WEBGPUComputeContext {
+class ComputeContext {
   static activeComputePass = null;
-  static BeginComputePass(name, timestamp) {
+  static BeginComputePass(name, timestamp = false) {
     const activeCommandEncoder = Renderer.GetActiveCommandEncoder();
     if (!activeCommandEncoder) throw Error("No active command encoder!!");
     if (this.activeComputePass) throw Error("There is already an active compute pass");
@@ -7738,7 +7514,7 @@ class WEBGPUComputeContext {
     this.activeComputePass = null;
     WEBGPUTimestampQuery.EndRenderTimestamp();
   }
-  static Dispatch(computeShader, workgroupCountX, workgroupCountY, workgroupCountZ) {
+  static Dispatch(computeShader, workgroupCountX, workgroupCountY = 1, workgroupCountZ = 1) {
     if (!this.activeComputePass) throw Error("No active render pass");
     if (!computeShader.OnPreRender()) return;
     computeShader.Compile();
@@ -7747,7 +7523,7 @@ class WEBGPUComputeContext {
     for (let i = 0; i < computeShader.bindGroups.length; i++) {
       let dynamicOffsetsV2 = [];
       for (const buffer of computeShader.bindGroupsInfo[i].buffers) {
-        if (buffer instanceof WEBGPUDynamicBuffer) {
+        if (buffer instanceof DynamicBuffer) {
           dynamicOffsetsV2.push(buffer.dynamicOffset);
         }
       }
@@ -7757,29 +7533,11 @@ class WEBGPUComputeContext {
   }
 }
 
-class ComputeContext {
-  constructor() {
-  }
-  static BeginComputePass(name, timestamp = false) {
-    if (Renderer.type === "webgpu") WEBGPUComputeContext.BeginComputePass(name, timestamp);
-    else throw Error("Unknown render api type.");
-  }
-  static EndComputePass() {
-    if (Renderer.type === "webgpu") WEBGPUComputeContext.EndComputePass();
-    else throw Error("Unknown render api type.");
-  }
-  static Dispatch(computeShader, workgroupCountX, workgroupCountY = 1, workgroupCountZ = 1) {
-    if (Renderer.type === "webgpu") WEBGPUComputeContext.Dispatch(computeShader, workgroupCountX, workgroupCountY, workgroupCountZ);
-    else throw Error("Unknown render api type.");
-  }
-}
-
 var index = /*#__PURE__*/Object.freeze({
     __proto__: null,
     Buffer: Buffer,
     BufferMemoryAllocator: BufferMemoryAllocator,
     BufferType: BufferType,
-    Compute: Compute,
     ComputeContext: ComputeContext,
     CubeTexture: CubeTexture,
     DepthTexture: DepthTexture,
@@ -7801,6 +7559,7 @@ var index = /*#__PURE__*/Object.freeze({
     RenderingPipeline: RenderingPipeline,
     ResourcePool: ResourcePool,
     Shader: Shader,
+    ShaderCompute: ShaderCompute,
     ShaderLoader: ShaderLoader,
     ShaderPreprocessor: ShaderPreprocessor,
     Texture: Texture,

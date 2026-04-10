@@ -39,7 +39,7 @@ class Billboarder {
             `,
       colorOutputs: [{ format: "rgba16float" }]
     });
-    this.material.shader.SetSampler("textureSampler", GPU.TextureSampler.Create());
+    this.material.shader.SetSampler("textureSampler", new GPU.TextureSampler());
   }
   static async Create(geometry, modelMatrix, outputTexture, sampleTexture) {
     await this.init();

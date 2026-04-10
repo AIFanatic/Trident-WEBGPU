@@ -28,15 +28,16 @@
             <script type="module">
                 const canvas = document.createElement("canvas");
                 document.body.appendChild(canvas);
-                            import { GPU, Scene, GameObject, Components, Mathf } from '@trident/core';
+                            import { Runtime, GameObject, Components, Mathf, GPU } from '@trident/core';
             import { OrbitControls } from '@trident/plugins/OrbitControls.js';
             import { Debugger } from '@trident/plugins/Debugger.js';
             import { ParticleSystem } from '@trident/plugins/ParticleSystem/ParticleSystem.js';
             import { UIFolder, UIVecStat, UISliderStat, UIButtonStat, UIGradientStat } from '@trident/plugins/ui/UIStats.js';
             
             async function Application(canvas) {
-              const renderer = GPU.Renderer.Create(canvas, "webgpu");
-              const scene = new Scene(renderer);
+              await Runtime.Create(canvas);
+              const scene = Runtime.SceneManager.CreateScene("DefaultScene");
+              Runtime.SceneManager.SetActiveScene(scene);
               const mainCameraGameObject = new GameObject(scene);
               mainCameraGameObject.transform.position.set(0, 0, -15);
               mainCameraGameObject.name = "MainCamera";
@@ -85,7 +86,7 @@
               }, particleSystem.colorOverLifetimeGradients);
               particlesFolder.Open();
               Debugger.Enable();
-              scene.Start();
+              Runtime.Play();
             }
             Application(document.querySelector("canvas"));
             

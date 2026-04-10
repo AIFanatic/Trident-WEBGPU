@@ -170,12 +170,12 @@ class Bloom extends GPU.RenderPass {
         _pass: { group: 1, binding: 6, type: "storage" }
       }
     });
-    this.shader.SetSampler("texSampler", GPU.TextureSampler.Create());
-    this.shader.SetSampler("_MainTexSampler", GPU.TextureSampler.Create());
-    this.shader.SetSampler("_BlendTargetSampler", GPU.TextureSampler.Create());
+    this.shader.SetSampler("texSampler", new GPU.TextureSampler());
+    this.shader.SetSampler("_MainTexSampler", new GPU.TextureSampler());
+    this.shader.SetSampler("_BlendTargetSampler", new GPU.TextureSampler());
     this.geometry = Geometry.Plane();
     const minUniformBufferOffsetAlignment = 256;
-    this.currentPassBuffer = GPU.DynamicBuffer.Create(minUniformBufferOffsetAlignment * 4 * 4, GPU.BufferType.STORAGE, 1 * 4);
+    this.currentPassBuffer = new GPU.DynamicBuffer(minUniformBufferOffsetAlignment * 4 * 4, GPU.BufferType.STORAGE, 1 * 4);
     this.currentPassBuffer.SetArray(
       new Float32Array(
         new Array().concat(

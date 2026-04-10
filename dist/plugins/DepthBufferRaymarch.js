@@ -730,8 +730,8 @@ class DepthBufferRaymarchPass extends GPU.RenderPass {
       }
     });
     this.geometry = new Geometry();
-    this.shader.SetSampler("depth_linear_sampler", GPU.TextureSampler.Create({ minFilter: "linear", magFilter: "linear" }));
-    this.shader.SetSampler("depth_nearest_sampler", GPU.TextureSampler.Create({ minFilter: "nearest", magFilter: "nearest", mipmapFilter: "nearest", addressModeU: "clamp-to-edge", addressModeV: "clamp-to-edge" }));
+    this.shader.SetSampler("depth_linear_sampler", new GPU.TextureSampler({ minFilter: "linear", magFilter: "linear" }));
+    this.shader.SetSampler("depth_nearest_sampler", new GPU.TextureSampler({ minFilter: "nearest", magFilter: "nearest", mipmapFilter: "nearest", addressModeU: "clamp-to-edge", addressModeV: "clamp-to-edge" }));
     this.initialized = true;
   }
   async preFrame(resources) {

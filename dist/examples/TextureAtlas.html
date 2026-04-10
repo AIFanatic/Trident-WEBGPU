@@ -29,14 +29,15 @@
                 const canvas = document.createElement("canvas");
                 document.body.appendChild(canvas);
                             import { Atlas } from '@trident/plugins/Atlas.js';
-            import { GPU, Scene, GameObject, Components, Mathf, Geometry } from '@trident/core';
+            import { Runtime, GameObject, Components, Mathf, GPU, Geometry } from '@trident/core';
             import { Debugger } from '@trident/plugins/Debugger.js';
             import { OrbitControls } from '@trident/plugins/OrbitControls.js';
             import { UITextureViewer } from '@trident/plugins/ui/UIStats.js';
             
             async function Application(canvas) {
-              const renderer = GPU.Renderer.Create(canvas, "webgpu");
-              const scene = new Scene(renderer);
+              await Runtime.Create(canvas);
+              const scene = Runtime.SceneManager.CreateScene("DefaultScene");
+              Runtime.SceneManager.SetActiveScene(scene);
               const mainCameraGameObject = new GameObject(scene);
               mainCameraGameObject.name = "MainCamera";
               const camera = mainCameraGameObject.AddComponent(Components.Camera);
@@ -64,7 +65,7 @@
                     this.createShader();
                   }
                   async createShader() {
-                    const gbufferFormat = Scene.mainScene.renderPipeline.GBufferFormat;
+                    const gbufferFormat = Runtime.Renderer.RenderPipeline.GBufferFormat;
                     this.shader = await GPU.Shader.Create({
                       code: `
                                     #include "@trident/core/resources/webgpu/shaders/deferred/Common.wgsl";
@@ -139,7 +140,7 @@
                       colorOutputs: [{ format: gbufferFormat }, { format: gbufferFormat }, { format: gbufferFormat }],
                       depthOutput: "depth24plus"
                     });
-                    this.shader.SetSampler("atlasSampler", GPU.TextureSampler.Create());
+                    this.shader.SetSampler("atlasSampler", new GPU.TextureSampler());
                     this.shader.SetTexture("atlas", this.atlas);
                     this.shader.SetArray("regions", atlas.regionData);
                   }
@@ -151,7 +152,7 @@
               }
               new UITextureViewer(Debugger.ui, "Atlas", atlas.buffer);
               Debugger.Enable();
-              scene.Start();
+              Runtime.Play();
             }
             Application(document.querySelector("canvas"));
             

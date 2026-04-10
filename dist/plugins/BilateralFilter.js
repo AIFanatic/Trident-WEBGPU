@@ -144,12 +144,12 @@ class BilateralFilter extends GPU.RenderPass {
         blurNormalThreshold: { group: 0, binding: 9, type: "storage" }
       }
     });
-    this.shader.SetSampler("texSampler", GPU.TextureSampler.Create());
-    this.shader.SetSampler("depthSampler", GPU.TextureSampler.Create({ minFilter: "nearest", magFilter: "nearest", mipmapFilter: "nearest", compare: "less" }));
-    this.shader.SetSampler("normalSampler", GPU.TextureSampler.Create());
-    this.blurDir = GPU.Buffer.Create(4 * 4, GPU.BufferType.STORAGE);
-    this.blurDirHorizontal = GPU.Buffer.Create(4 * 4, GPU.BufferType.STORAGE);
-    this.blurDirVertical = GPU.Buffer.Create(4 * 4, GPU.BufferType.STORAGE);
+    this.shader.SetSampler("texSampler", new GPU.TextureSampler());
+    this.shader.SetSampler("depthSampler", new GPU.TextureSampler({ minFilter: "nearest", magFilter: "nearest", mipmapFilter: "nearest", compare: "less" }));
+    this.shader.SetSampler("normalSampler", new GPU.TextureSampler());
+    this.blurDir = new GPU.Buffer(4 * 4, GPU.BufferType.STORAGE);
+    this.blurDirHorizontal = new GPU.Buffer(4 * 4, GPU.BufferType.STORAGE);
+    this.blurDirVertical = new GPU.Buffer(4 * 4, GPU.BufferType.STORAGE);
     this.shader.SetBuffer("blurDir", this.blurDir);
     this.shader.SetValue("filterSize", this.filterSize);
     this.shader.SetValue("blurDepthThreshold", this.blurDepthThreshold);

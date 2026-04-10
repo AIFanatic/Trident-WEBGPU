@@ -111,7 +111,7 @@ class Irradiance {
       }
     });
     this.geometry = Geometry.Plane();
-    const environmentMapSampler = GPU.TextureSampler.Create({
+    const environmentMapSampler = new GPU.TextureSampler({
       minFilter: "linear",
       magFilter: "linear",
       mipmapFilter: "linear",

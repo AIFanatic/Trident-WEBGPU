@@ -138,7 +138,7 @@ class VTPaintPass extends GPU.RenderPass {
     this.geometry = Geometry.Plane();
     this.shader.SetTexture("atlas", this.atlas);
     this.shader.SetTexture("pageTables", this.pageTables);
-    this.shader.SetSampler("texSampler", GPU.TextureSampler.Create());
+    this.shader.SetSampler("texSampler", new GPU.TextureSampler());
     this.initialized = true;
   }
   async preFrame(resources) {

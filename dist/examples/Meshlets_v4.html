@@ -28,15 +28,16 @@
             <script type="module">
                 const canvas = document.createElement("canvas");
                 document.body.appendChild(canvas);
-                            import { GPU, Scene, GameObject, Components, Mathf, PBRMaterial } from '@trident/core';
+                            import { Runtime, GameObject, Components, Mathf, GPU, PBRMaterial } from '@trident/core';
             import { OrbitControls } from '@trident/plugins/OrbitControls.js';
             import { OBJLoaderIndexed } from '@trident/plugins/OBJLoader.js';
             import { MeshletMesh } from '@trident/plugins/meshlets_v4/MeshletMesh.js';
             import { MeshletDraw } from '@trident/plugins/meshlets_v4/passes/MeshletDraw.js';
             
             async function Application(canvas) {
-              const renderer = GPU.Renderer.Create(canvas, "webgpu");
-              const scene = new Scene(renderer);
+              await Runtime.Create(canvas);
+              const scene = Runtime.SceneManager.CreateScene("DefaultScene");
+              Runtime.SceneManager.SetActiveScene(scene);
               const mainCameraGameObject = new GameObject(scene);
               mainCameraGameObject.transform.position.set(0, 0, -15);
               mainCameraGameObject.name = "MainCamera";
@@ -45,7 +46,7 @@
               mainCameraGameObject.transform.position.set(0, 0, 5);
               mainCameraGameObject.transform.LookAtV1(new Mathf.Vector3(0, 0, 0));
               new OrbitControls(canvas, camera);
-              scene.renderPipeline.AddPass(new MeshletDraw(), GPU.RenderPassOrder.BeforeGBuffer);
+              Runtime.Renderer.RenderPipeline.AddPass(new MeshletDraw(), GPU.RenderPassOrder.BeforeGBuffer);
               const lightGameObject = new GameObject(scene);
               lightGameObject.transform.position.set(-4, 4, 4);
               lightGameObject.transform.LookAtV1(new Mathf.Vector3(0, 0, 0));
@@ -78,7 +79,7 @@
                   }
                 }
               }
-              scene.Start();
+              Runtime.Play();
             }
             Application(document.querySelector("canvas"));
             

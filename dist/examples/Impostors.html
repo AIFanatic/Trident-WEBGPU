@@ -28,7 +28,7 @@
             <script type="module">
                 const canvas = document.createElement("canvas");
                 document.body.appendChild(canvas);
-                            import { GPU, Scene, GameObject, Components, Mathf, PBRMaterial } from '@trident/core';
+                            import { Runtime, GameObject, Components, Mathf, PBRMaterial } from '@trident/core';
             import { OrbitControls } from '@trident/plugins/OrbitControls.js';
             import { GLTFLoader } from '@trident/plugins/GLTF/GLTFLoader.js';
             import { ImpostorMesh } from '@trident/plugins/Impostors/ImpostorMesh.js';
@@ -38,8 +38,9 @@
             import { Environment } from '@trident/plugins/Environment/Environment.js';
             
             async function Application(canvas) {
-              const renderer = GPU.Renderer.Create(canvas, "webgpu");
-              const scene = new Scene(renderer);
+              await Runtime.Create(canvas);
+              const scene = Runtime.SceneManager.CreateScene("DefaultScene");
+              Runtime.SceneManager.SetActiveScene(scene);
               const mainCameraGameObject = new GameObject(scene);
               mainCameraGameObject.transform.position.set(0, 0, -5);
               mainCameraGameObject.name = "MainCamera";
@@ -77,7 +78,7 @@
                 loadedGO.transform.position.set(3, 0, 0);
               }
               Debugger.Enable();
-              scene.Start();
+              Runtime.Play();
             }
             Application(document.querySelector("canvas"));
             

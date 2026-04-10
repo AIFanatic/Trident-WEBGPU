@@ -136,8 +136,8 @@ class DebuggerRenderPass extends GPU.RenderPass {
       }
     });
     this.geometry = Geometry.Plane();
-    this.outputViewerShader.SetSampler("inputSampler", GPU.TextureSampler.Create());
-    this.outputViewerShader.SetSampler("inputDepthSampler", GPU.TextureSampler.Create());
+    this.outputViewerShader.SetSampler("inputSampler", new GPU.TextureSampler());
+    this.outputViewerShader.SetSampler("inputDepthSampler", new GPU.TextureSampler());
     this.initialized = true;
   }
   async execute(resources, ...args) {
@@ -164,7 +164,7 @@ class DebuggerRenderPass extends GPU.RenderPass {
       GPU.RendererContext.CopyTextureToTextureV3({ texture: lightingOutput }, { texture: this.lightingOutputClone });
       this.outputViewerShader.SetTexture("inputTexture", this.lightingOutputClone);
     }
-    const csmSplits = Components.Camera.mainCamera.gameObject.scene.renderPipeline.DeferredShadowMapPass.csmSplits;
+    const csmSplits = Components.Camera.mainCamera.gameObject.Runtime.Renderer.RenderPipeline.DeferredShadowMapPass.csmSplits;
     this.outputViewerShader.SetArray("csmSplits", new Float32Array(csmSplits));
     this.outputViewerShader.SetTexture("inputDepth", GBufferDepth);
     const mainCamera = Components.Camera.mainCamera;
@@ -246,7 +246,7 @@ class _Debugger {
     const debuggerRenderPass = new DebuggerRenderPass();
     EventSystem.on(Scene.Events.OnStarted, (scene) => {
       const mainCamera = Components.Camera.mainCamera;
-      mainCamera.gameObject.scene.renderPipeline.AddPass(debuggerRenderPass, GPU.RenderPassOrder.AfterLighting);
+      mainCamera.gameObject.Runtime.Renderer.RenderPipeline.AddPass(debuggerRenderPass, GPU.RenderPassOrder.AfterLighting);
     });
     this.viewTypeStat = new UIDropdownStat(this.rendererFolder, "Debug view:", Object.values(ViewTypes).filter((value) => typeof value === "string"), (index, value) => {
       debuggerRenderPass.currentViewType = index;

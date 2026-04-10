@@ -48,13 +48,13 @@ class PrepareMeshletData extends GPU.RenderPass {
   });
   async init(resources) {
     const s = 1e3;
-    this.meshletParams = GPU.Buffer.Create(92 * 4, GPU.BufferType.STORAGE);
+    this.meshletParams = new GPU.Buffer(92 * 4, GPU.BufferType.STORAGE);
     this.vertexAttribBuffer = new GPU.DynamicBufferMemoryAllocator(s * 64 * 12 * 4);
     this.meshletTrianglesBuffer = new GPU.DynamicBufferMemoryAllocator(s * 128 * 3 * 4);
     this.meshletInfoBuffer = new GPU.DynamicBufferMemoryAllocator(s * 4 * 4);
     this.meshInfoBuffer = new GPU.DynamicBufferMemoryAllocator(s * 16 * 4);
     this.lodMeshInfoBuffer = new GPU.DynamicBufferMemoryAllocator(s * 10 * 4);
-    this.objectInfoBuffer = GPU.Buffer.Create(s * 2 * 4, GPU.BufferType.STORAGE);
+    this.objectInfoBuffer = new GPU.Buffer(s * 2 * 4, GPU.BufferType.STORAGE);
     this.materialInfoBuffer = new GPU.DynamicBufferMemoryAllocator(s * 80 * 4);
     this.initialized = true;
     EventSystem.on(MeshletEvents.Updated, (meshlet) => {
@@ -67,7 +67,7 @@ class PrepareMeshletData extends GPU.RenderPass {
     if (buffer.has(link)) return buffer.get(link);
     return buffer.set(link, setValue);
   }
-  async preFrame(resources) {
+  preFrame(resources) {
     if (this.needsUpdate) {
       resources.setResource(MeshletPassParams.CurrentMeshletCount, 0);
       const scene = Components.Camera.mainCamera.gameObject.scene;
@@ -83,7 +83,7 @@ class PrepareMeshletData extends GPU.RenderPass {
       let materialIndices = /* @__PURE__ */ new Map();
       let i = 0;
       for (const [material, frameMeshlet] of frameMeshlets) materialIndices.set(material, i++);
-      const drawIndirectBuffer = GPU.Buffer.Create(frameMeshlets.size * 4 * 4, GPU.BufferType.INDIRECT);
+      const drawIndirectBuffer = new GPU.Buffer(frameMeshlets.size * 4 * 4, GPU.BufferType.INDIRECT);
       let totalMeshletCount = 0;
       for (const [, meshletMeshes] of frameMeshlets) {
         for (const meshletMesh of meshletMeshes) totalMeshletCount += meshletMesh.meshlets.length;
@@ -91,7 +91,7 @@ class PrepareMeshletData extends GPU.RenderPass {
       const requiredBytes = totalMeshletCount * 2 * 4;
       if (requiredBytes > this.objectInfoBuffer.size) {
         this.objectInfoBuffer.Destroy();
-        this.objectInfoBuffer = GPU.Buffer.Create(requiredBytes, GPU.BufferType.STORAGE_WRITE);
+        this.objectInfoBuffer = new GPU.Buffer(requiredBytes, GPU.BufferType.STORAGE_WRITE);
       }
       this.currentObjectCount = 0;
       console.time("build");

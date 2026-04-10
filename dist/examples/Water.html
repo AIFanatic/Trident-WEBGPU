@@ -28,15 +28,16 @@
             <script type="module">
                 const canvas = document.createElement("canvas");
                 document.body.appendChild(canvas);
-                            import { Renderer, Scene, GameObject, Components, Mathf, Geometry, PBRMaterial } from '@trident/core';
+                            import { Runtime, GameObject, Components, Mathf, Geometry, PBRMaterial, Renderer } from '@trident/core';
             import { Debugger } from '@trident/plugins/Debugger.js';
             import { OrbitControls } from '@trident/plugins/OrbitControls.js';
             import { Water } from '@trident/plugins/Water/WaterPlugin.js';
             import { UIFolder, UISliderStat, UIColorStat, UIVecStat } from '@trident/plugins/ui/UIStats.js';
             
             async function Application(canvas) {
-              const renderer = Renderer.Create(canvas, "webgpu");
-              const scene = new Scene(renderer);
+              await Runtime.Create(canvas);
+              const scene = Runtime.SceneManager.CreateScene("DefaultScene");
+              Runtime.SceneManager.SetActiveScene(scene);
               const mainCameraGameObject = new GameObject(scene);
               mainCameraGameObject.transform.position.set(0, 0, 20);
               mainCameraGameObject.name = "MainCamera";
@@ -144,7 +145,7 @@
               setTimeout(() => {
                 console.log(Renderer.info.drawCalls);
               }, 1e3);
-              scene.Start();
+              Runtime.Play();
             }
             Application(document.querySelector("canvas"));
             

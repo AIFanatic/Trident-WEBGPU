@@ -1,4 +1,4 @@
-import { GPU, Geometry, Scene, Components, Mathf, PBRMaterial } from '@trident/core';
+import { GPU, Geometry, Runtime, Components, Mathf, PBRMaterial } from '@trident/core';
 
 class PathTracer extends GPU.RenderPass {
   name = "PathTracer";
@@ -36,7 +36,7 @@ class PathTracer extends GPU.RenderPass {
     this.accumulation = GPU.Texture.Create(width, height, 1, "rgba16float");
   }
   async init(resources) {
-    this.shader = await GPU.Compute.Create({
+    this.shader = await GPU.ShaderCompute.Create({
       code: `
             @group(0) @binding(0) var outputTex : texture_storage_2d<rgba16float, write>;
             @group(0) @binding(1) var inputTex : texture_2d<f32>;
@@ -369,13 +369,13 @@ class PathTracer extends GPU.RenderPass {
             `,
       colorOutputs: [{ format: "rgba16float" }]
     });
-    this.customBlender.SetSampler("texSampler", GPU.TextureSampler.Create());
+    this.customBlender.SetSampler("texSampler", new GPU.TextureSampler());
     this.customBlenderGeometry = Geometry.Plane();
     this.customBlenderTarget = GPU.RenderTexture.Create(GPU.Renderer.width, GPU.Renderer.height, 1, "rgba16float");
     this.initialized = true;
   }
   updateMeshBuffers() {
-    const renderables = Scene.mainScene.GetComponents(Components.Renderable);
+    const renderables = Runtime.SceneManager.GetActiveScene().GetComponents(Components.Renderable);
     if (renderables.length === 0) return;
     this.currentMeshCount = renderables.length;
     let vertexBuffer = [];

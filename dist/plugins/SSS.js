@@ -155,7 +155,7 @@ class SSSRenderPass extends GPU.RenderPass {
     this.light = light;
   }
   async init(resources) {
-    this.compute = await GPU.Compute.Create({
+    this.compute = await GPU.ShaderCompute.Create({
       code: `
             //------------------------------------------------------------------------------
             // Bend Studio - Screen Space Shadow Projection (WGSL / WebGPU)
@@ -581,13 +581,13 @@ class SSSRenderPass extends GPU.RenderPass {
     });
     this.blendGeometry = Geometry.Plane();
     this.blendOutput = GPU.RenderTexture.Create(GPU.Renderer.width, GPU.Renderer.height, 1, "rgba16float");
-    this.blendShader.SetSampler("textureSampler", GPU.TextureSampler.Create());
+    this.blendShader.SetSampler("textureSampler", new GPU.TextureSampler());
     this.output = GPU.RenderTextureStorage2D.Create(GPU.Renderer.width, GPU.Renderer.height, 1, "r32float");
     this.output.name = "SSS";
     this.compute.SetTexture("g_outShadow", this.output);
-    this.compute.SetSampler("g_pointSampler", GPU.TextureSampler.Create());
-    this.WaveOffsetBuffer = GPU.DynamicBuffer.Create(10 * 256, GPU.BufferType.UNIFORM, 256);
-    this.settingsBuffer = GPU.Buffer.Create(this.SettingsArray.byteLength, GPU.BufferType.UNIFORM);
+    this.compute.SetSampler("g_pointSampler", new GPU.TextureSampler());
+    this.WaveOffsetBuffer = new GPU.DynamicBuffer(10 * 256, GPU.BufferType.UNIFORM, 256);
+    this.settingsBuffer = new GPU.Buffer(this.SettingsArray.byteLength, GPU.BufferType.UNIFORM);
     this.initialized = true;
   }
   WaveOffsetBuffer;

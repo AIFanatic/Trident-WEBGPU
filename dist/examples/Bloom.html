@@ -28,15 +28,16 @@
             <script type="module">
                 const canvas = document.createElement("canvas");
                 document.body.appendChild(canvas);
-                            import { GPU, Scene, GameObject, Components, Mathf, Geometry, PBRMaterial } from '@trident/core';
+                            import { Runtime, GameObject, Components, Mathf, Geometry, PBRMaterial, GPU } from '@trident/core';
             import { OrbitControls } from '@trident/plugins/OrbitControls.js';
             import { Bloom } from '@trident/plugins/Bloom.js';
             import { UIFolder, UIVecStat, UISliderStat } from '@trident/plugins/ui/UIStats.js';
             import { Debugger } from '@trident/plugins/Debugger.js';
             
             async function Application(canvas) {
-              const renderer = GPU.Renderer.Create(canvas, "webgpu");
-              const scene = new Scene(renderer);
+              await Runtime.Create(canvas);
+              const scene = Runtime.SceneManager.CreateScene("DefaultScene");
+              Runtime.SceneManager.SetActiveScene(scene);
               const mainCameraGameObject = new GameObject(scene);
               mainCameraGameObject.transform.position.set(0, 0, 20);
               mainCameraGameObject.name = "MainCamera";
@@ -140,8 +141,8 @@
               light2.castShadows = false;
               light2.transform.position.copy(cube2.transform.position);
               const bloom = new Bloom();
-              await bloom.init(scene.renderPipeline.renderGraph.resourcePool);
-              scene.renderPipeline.AddPass(bloom, GPU.RenderPassOrder.AfterLighting);
+              await bloom.init(Runtime.Renderer.RenderPipeline.renderGraph.resourcePool);
+              Runtime.Renderer.RenderPipeline.AddPass(bloom, GPU.RenderPassOrder.AfterLighting);
               {
                 const viewerGO = new GameObject(scene);
                 viewerGO.transform.scale.set(3, 3, 3);
@@ -149,7 +150,7 @@
                 viewerMesh.geometry = Geometry.Plane();
                 viewerMesh.material = new PBRMaterial({ albedoMap: bloom.output, unlit: true });
               }
-              scene.Start();
+              Runtime.Play();
             }
             Application(document.querySelector("canvas"));
             

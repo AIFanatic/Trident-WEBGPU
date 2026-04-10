@@ -151,7 +151,7 @@ class Prefilter {
       }
     });
     this.geometry = Geometry.Plane();
-    const environmentSampler = GPU.TextureSampler.Create({
+    const environmentSampler = new GPU.TextureSampler({
       minFilter: "linear",
       magFilter: "linear",
       mipmapFilter: "linear",

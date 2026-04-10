@@ -3349,7 +3349,7 @@ class Raycaster {
       colorOutputs: [{ format: "r32uint" }]
     });
     this.renderTarget = GPU.RenderTexture.Create(GPU.Renderer.width, GPU.Renderer.height, 1, "r32uint");
-    this.idMap = GPU.DynamicBuffer.Create(1e4 * DYNAMIC_SLOT_BYTES * 4, GPU.BufferType.STORAGE, DYNAMIC_SLOT_BYTES);
+    this.idMap = new GPU.DynamicBuffer(1e4 * DYNAMIC_SLOT_BYTES * 4, GPU.BufferType.STORAGE, DYNAMIC_SLOT_BYTES);
     this.shader.SetBuffer("id", this.idMap);
     this.initialized = true;
   }
@@ -3369,13 +3369,13 @@ class Raycaster {
   }
   async execute() {
     if (!this.initialized) return;
-    const resources = Scene.mainScene.renderPipeline.renderGraph.resourcePool;
+    const resources = Runtime.Renderer.RenderPipeline.renderGraph.resourcePool;
     const gBufferDepth = resources.getResource(GPU.PassParams.GBufferDepth);
     if (!gBufferDepth) return;
     const camera = Components.Camera.mainCamera;
     this.shader.SetMatrix4("projectionMatrix", camera.projectionMatrix);
     this.shader.SetMatrix4("viewMatrix", camera.viewMatrix);
-    const all = Scene.mainScene.GetComponents(Components.Renderable);
+    const all = Runtime.SceneManager.GetActiveScene().GetComponents(Components.Renderable);
     const pickables = all.filter((r) => !!r.geometry);
     const ids = new Float32Array(pickables.length * DYNAMIC_SLOT_FLOATS);
     for (let slot = 0; slot < pickables.length; slot++) {

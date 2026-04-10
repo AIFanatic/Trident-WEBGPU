@@ -28,7 +28,7 @@
             <script type="module">
                 const canvas = document.createElement("canvas");
                 document.body.appendChild(canvas);
-                            import { GPU, Scene, GameObject, Components, Mathf, PBRMaterial, Geometry } from '@trident/core';
+                            import { Runtime, GameObject, Components, Mathf, PBRMaterial, Geometry, GPU } from '@trident/core';
             import { OrbitControls } from '@trident/plugins/OrbitControls.js';
             import { Debugger } from '@trident/plugins/Debugger.js';
             import { FullscreenQuad } from '@trident/plugins/FullscreenQuad.js';
@@ -36,8 +36,9 @@
             import { DirectionalLightHelper } from '@trident/plugins/DirectionalLightHelper.js';
             
             async function Application(canvas) {
-              const renderer = GPU.Renderer.Create(canvas, "webgpu");
-              const scene = new Scene(renderer);
+              await Runtime.Create(canvas);
+              const scene = Runtime.SceneManager.CreateScene("DefaultScene");
+              Runtime.SceneManager.SetActiveScene(scene);
               const mainCameraGameObject = new GameObject(scene);
               mainCameraGameObject.transform.position.set(0, 0, 20);
               mainCameraGameObject.name = "MainCamera";
@@ -192,7 +193,7 @@
                     `,
                 target: t,
                 init: (resources, shader) => {
-                  shader.SetSampler("texSampler", GPU.TextureSampler.Create());
+                  shader.SetSampler("texSampler", new GPU.TextureSampler());
                 },
                 preFrame: (resources, shader) => {
                   const lighting = resources.getResource(GPU.PassParams.LightingPassOutput);
@@ -228,7 +229,7 @@
                   GPU.RendererContext.CopyTextureToTextureV3({ texture: t }, { texture: lighting });
                 }
               });
-              scene.renderPipeline.AddPass(f, GPU.RenderPassOrder.AfterLighting);
+              Runtime.Renderer.RenderPipeline.AddPass(f, GPU.RenderPassOrder.AfterLighting);
               const lightSettings = new UIFolder(Debugger.ui, "Light");
               new UIVecStat(
                 lightSettings,
@@ -250,7 +251,7 @@
                 light.transform.position.y = Math.cos(iTime * 2.5) * 10 - 1.5;
               }, 100);
               Debugger.Enable();
-              scene.Start();
+              Runtime.Play();
             }
             Application(document.querySelector("canvas"));
             

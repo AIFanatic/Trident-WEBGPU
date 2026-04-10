@@ -28,14 +28,15 @@
             <script type="module">
                 const canvas = document.createElement("canvas");
                 document.body.appendChild(canvas);
-                            import { Renderer, Scene, GameObject, Components, Mathf, GPU, Geometry, PBRMaterial } from '@trident/core';
+                            import { Runtime, GameObject, Components, Mathf, GPU, Geometry, PBRMaterial, Renderer } from '@trident/core';
             import { OrbitControls } from '@trident/plugins/OrbitControls.js';
             import { OBJLoaderIndexed } from '@trident/plugins/OBJLoader.js';
             import { VoxelGenerator } from '@trident/plugins/VoxelGenerator.js';
             
             async function Application(canvas) {
-              const renderer = Renderer.Create(canvas, "webgpu");
-              const scene = new Scene(renderer);
+              await Runtime.Create(canvas);
+              const scene = Runtime.SceneManager.CreateScene("DefaultScene");
+              Runtime.SceneManager.SetActiveScene(scene);
               const mainCameraGameObject = new GameObject(scene);
               mainCameraGameObject.transform.position.z = 5;
               mainCameraGameObject.name = "MainCamera";
@@ -272,8 +273,8 @@
               Renderer.EndRenderFrame();
               const voxelRenderPass = new VoxelRenderPass();
               voxelRenderPass.voxelTextures.push(scene_sdf_texture);
-              scene.renderPipeline.AddPass(voxelRenderPass, GPU.RenderPassOrder.BeforeLighting);
-              scene.Start();
+              Runtime.Renderer.RenderPipeline.AddPass(voxelRenderPass, GPU.RenderPassOrder.BeforeLighting);
+              Runtime.Play();
             }
             Application(document.querySelector("canvas"));
             

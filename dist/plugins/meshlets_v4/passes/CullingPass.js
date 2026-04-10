@@ -12,16 +12,16 @@ class CullingPass extends GPU.RenderPass {
   triangleCount = 0;
   visibleTriangles = 0;
   async init(resources) {
-    this.compute = await GPU.Compute.Create({
+    this.compute = await GPU.ShaderCompute.Create({
       name: this.name,
       code: await GPU.ShaderLoader.LoadURL(new URL("../resources/CullingPass.wgsl", import.meta.url)),
       computeEntrypoint: "main"
     });
-    this.debugBuffer = GPU.Buffer.Create(4 * 4, GPU.BufferType.STORAGE);
-    this.instanceInfoBuffer = GPU.Buffer.Create(1 * 1 * 4, GPU.BufferType.STORAGE_WRITE);
+    this.debugBuffer = new GPU.Buffer(4 * 4, GPU.BufferType.STORAGE);
+    this.instanceInfoBuffer = new GPU.Buffer(1 * 1 * 4, GPU.BufferType.STORAGE_WRITE);
     this.compute.SetBuffer("instanceInfoBuffer", this.instanceInfoBuffer);
   }
-  async preFrame(resources) {
+  preFrame(resources) {
     const currentMeshletCount = resources.getResource(MeshletPassParams.CurrentMeshletCount);
     if (currentMeshletCount === 0) return;
     const frameBuffer = resources.getResource(GPU.PassParams.FrameBuffer);
@@ -32,7 +32,7 @@ class CullingPass extends GPU.RenderPass {
     const objectInfoBuffer = resources.getResource(MeshletPassParams.ObjectInfoBuffer);
     const drawIndirectBuffer = resources.getResource(MeshletPassParams.DrawIndirectBuffer);
     if (currentMeshletCount > this.instanceInfoBuffer.size / 4) {
-      this.instanceInfoBuffer = GPU.Buffer.Create(currentMeshletCount * 4, GPU.BufferType.STORAGE_WRITE);
+      this.instanceInfoBuffer = new GPU.Buffer(currentMeshletCount * 4, GPU.BufferType.STORAGE_WRITE);
       this.compute.SetBuffer("instanceInfoBuffer", this.instanceInfoBuffer);
     }
     this.compute.SetBuffer("drawBuffer", drawIndirectBuffer);
@@ -59,7 +59,7 @@ class CullingPass extends GPU.RenderPass {
     }
     drawIndirectBuffer.SetArray(drawInit);
   }
-  async execute(resources) {
+  execute(resources) {
     const currentMeshletCount = resources.getResource(MeshletPassParams.CurrentMeshletCount);
     resources.getResource(MeshletPassParams.DrawIndirectBuffer);
     if (currentMeshletCount === 0) return;

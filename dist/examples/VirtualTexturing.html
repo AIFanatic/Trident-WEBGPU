@@ -28,7 +28,7 @@
             <script type="module">
                 const canvas = document.createElement("canvas");
                 document.body.appendChild(canvas);
-                            import { GPU, Scene, GameObject, Components, Mathf, Geometry, PBRMaterial } from '@trident/core';
+                            import { Runtime, GameObject, Components, Mathf, GPU, Geometry, PBRMaterial } from '@trident/core';
             import { OrbitControls } from '@trident/plugins/OrbitControls.js';
             import { Debugger } from '@trident/plugins/Debugger.js';
             import { VirtualTexturingPass } from '@trident/plugins/VirtualTexturing/VirtualTexturingPass.js';
@@ -38,8 +38,9 @@
             async function Application(canvas) {
               document.body.style.width = "1024px";
               document.body.style.height = "1024px";
-              const renderer = GPU.Renderer.Create(canvas, "webgpu");
-              const scene = new Scene(renderer);
+              await Runtime.Create(canvas);
+              const scene = Runtime.SceneManager.CreateScene("DefaultScene");
+              Runtime.SceneManager.SetActiveScene(scene);
               const mainCameraGameObject = new GameObject(scene);
               mainCameraGameObject.name = "MainCamera";
               const camera = mainCameraGameObject.AddComponent(Components.Camera);
@@ -67,7 +68,7 @@
               }
               await Load(0, "/extra/test-assets/8k/UV-CheckerMap_Maurus_01_8K.png");
               console.log(tilesMap);
-              scene.renderPipeline.AddPass(virtualTexturingPass, GPU.RenderPassOrder.BeforeScreenOutput);
+              Runtime.Renderer.RenderPipeline.AddPass(virtualTexturingPass, GPU.RenderPassOrder.BeforeScreenOutput);
               const t = new UITextureViewer(Debugger.ui, "Atlas", virtualTexturingPass.page_manager.atlas_);
               const t1 = new UITextureViewer(Debugger.ui, "Feedback", virtualTexturingPass.vtFeedbackPass.renderTarget);
               const t2 = new UITextureViewer(Debugger.ui, "PageTable", virtualTexturingPass.page_manager.PageTables());
@@ -97,7 +98,7 @@
                 floorMesh.geometry = Geometry.Sphere();
                 floorMesh.material = new PBRMaterial();
               }
-              scene.Start();
+              Runtime.Play();
             }
             Application(document.querySelector("canvas"));
             

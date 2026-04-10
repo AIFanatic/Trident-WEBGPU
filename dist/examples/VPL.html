@@ -28,7 +28,7 @@
             <script type="module">
                 const canvas = document.createElement("canvas");
                 document.body.appendChild(canvas);
-                            import { Renderer, Scene, GameObject, Mathf, Components, Geometry, PBRMaterial } from '@trident/core';
+                            import { Runtime, GameObject, Mathf, Components, Geometry, PBRMaterial } from '@trident/core';
             import { OrbitControls } from '@trident/plugins/OrbitControls.js';
             import { PhysicsRapier } from '@trident/plugins/PhysicsRapier/PhysicsRapier.js';
             import { BoxCollider } from '@trident/plugins/PhysicsRapier/colliders/BoxCollider.js';
@@ -38,8 +38,9 @@
             import { PointLightHelper } from '@trident/plugins/PointLightHelper.js';
             
             async function Application(canvas) {
-              const renderer = Renderer.Create(canvas, "webgpu");
-              const scene = new Scene(renderer);
+              await Runtime.Create(canvas);
+              const scene = Runtime.SceneManager.CreateScene("DefaultScene");
+              Runtime.SceneManager.SetActiveScene(scene);
               const mainCameraGameObject = new GameObject(scene);
               mainCameraGameObject.transform.position.set(0, 6, 16);
               mainCameraGameObject.transform.LookAtV1(new Mathf.Vector3(0, 2, 0));
@@ -72,9 +73,7 @@
               fakeGI.forceEnable = true;
               fakeGI.avgRefl = 0.4;
               fakeGI.avgSecondaryDistance = 1;
-              const physicsWorld = new GameObject(scene);
-              const physicsComponent = physicsWorld.AddComponent(PhysicsRapier);
-              await physicsComponent.Load();
+              await Runtime.AddSystem(PhysicsRapier);
               {
                 const floor = new GameObject(scene);
                 floor.transform.scale.set(5, 5, 5);
@@ -173,7 +172,7 @@
                 }
               }
               Debugger.Enable();
-              scene.Start();
+              Runtime.Play();
             }
             Application(document.querySelector("canvas"));
             

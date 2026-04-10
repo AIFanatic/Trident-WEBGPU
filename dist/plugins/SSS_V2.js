@@ -14,7 +14,7 @@ class SSS_V2 extends GPU.RenderPass {
     this.light = light;
   }
   async init(resources) {
-    this.shader = await GPU.Compute.Create({
+    this.shader = await GPU.ShaderCompute.Create({
       code: `
                 // Mariam Baradi del Alamo - 2024
                 // Screen-space shadows WGSL compute shader
@@ -170,7 +170,7 @@ class SSS_V2 extends GPU.RenderPass {
     this.blendGeometry = Geometry.Plane();
     this.blendInput = GPU.RenderTexture.Create(GPU.Renderer.width, GPU.Renderer.height, 1, "rgba16float");
     this.blendTarget = GPU.RenderTexture.Create(GPU.Renderer.width, GPU.Renderer.height, 1, "rgba16float");
-    this.blend.SetSampler("texSampler", GPU.TextureSampler.Create());
+    this.blend.SetSampler("texSampler", new GPU.TextureSampler());
     this.blend.SetTexture("sssTex", this.blendInput);
     this.initialized = true;
   }

@@ -28,14 +28,15 @@
             <script type="module">
                 const canvas = document.createElement("canvas");
                 document.body.appendChild(canvas);
-                            import { Renderer, Scene, GameObject, Mathf, Components, Geometry, PBRMaterial, GPU } from '@trident/core';
+                            import { Runtime, GameObject, Mathf, Components, Geometry, PBRMaterial, GPU } from '@trident/core';
             import { OrbitControls } from '@trident/plugins/OrbitControls.js';
             import { Debugger } from '@trident/plugins/Debugger.js';
             import { PathTracer } from '@trident/plugins/PathTracer.js';
             
             async function Application(canvas) {
-              const renderer = Renderer.Create(canvas, "webgpu");
-              const scene = new Scene(renderer);
+              await Runtime.Create(canvas);
+              const scene = Runtime.SceneManager.CreateScene("DefaultScene");
+              Runtime.SceneManager.SetActiveScene(scene);
               const mainCameraGameObject = new GameObject(scene);
               mainCameraGameObject.transform.position.set(0, 6, 16);
               mainCameraGameObject.transform.LookAtV1(new Mathf.Vector3(0, 2, 0));
@@ -105,9 +106,9 @@
                 lightMesh.material = new PBRMaterial({ albedoColor: new Mathf.Color(0.73, 0.73, 0.73, 1), emissiveColor: new Mathf.Color(15, 15, 15, 1), roughness: 0, metalness: 0 });
               }
               const pathTracer = new PathTracer();
-              scene.renderPipeline.AddPass(pathTracer, GPU.RenderPassOrder.AfterLighting);
+              Runtime.Renderer.RenderPipeline.AddPass(pathTracer, GPU.RenderPassOrder.AfterLighting);
               Debugger.Enable();
-              scene.Start();
+              Runtime.Play();
             }
             Application(document.querySelector("canvas"));
             

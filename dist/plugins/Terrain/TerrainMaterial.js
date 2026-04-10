@@ -214,7 +214,7 @@ class TerrainMaterial extends GPU.Material {
       depthOutput: "depth24plus"
     });
     this.blankTextureArray = GPU.TextureArray.Create(1, 1, 1);
-    this.shader.SetSampler("textureSampler", GPU.TextureSampler.Create({ minFilter: "linear", magFilter: "linear", mipmapFilter: "linear", addressModeU: "repeat", addressModeV: "repeat", maxAnisotropy: 16 }));
+    this.shader.SetSampler("textureSampler", new GPU.TextureSampler({ minFilter: "linear", magFilter: "linear", mipmapFilter: "linear", addressModeU: "repeat", addressModeV: "repeat", maxAnisotropy: 16 }));
     this.shader.SetTexture("albedoTextures", this.blankTextureArray);
     this.shader.SetTexture("normalTextures", this.blankTextureArray);
     this.shader.SetTexture("armTextures", this.blankTextureArray);

@@ -1,4 +1,4 @@
-import { GPU, Scene, Renderer, Components, Component, Geometry, IndexAttribute, VertexAttribute } from '@trident/core';
+import { GPU, Runtime, Renderer, Components, Component, Geometry, IndexAttribute, VertexAttribute } from '@trident/core';
 import { DataBackedBuffer } from '@trident/plugins/DataBackedBuffer.js';
 
 const WaterPassWGSL = "./resources/WaterPass.wgsl";
@@ -60,7 +60,7 @@ class WaterRenderPass extends GPU.RenderPass {
     this.waterGeometries = /* @__PURE__ */ new Map();
   }
   async init(resources) {
-    const GBufferFormat = Scene.mainScene.renderPipeline.GBufferFormat;
+    const GBufferFormat = Runtime.Renderer.RenderPipeline.GBufferFormat;
     this.waterShader = await GPU.Shader.Create({
       // code: await Assets.Load("./WaterPass.wgsl", "json"),
       code: await GPU.ShaderLoader.LoadURL(new URL(WaterPassWGSL, import.meta.url)),
@@ -85,11 +85,11 @@ class WaterRenderPass extends GPU.RenderPass {
     this.waterShader.SetTexture("normalmap_b_sampler", normalmap_b_sampler_texture);
     this.waterShader.SetTexture("foam_sampler", foam_sampler_texture);
     this.waterShader.SetTexture("caustic_sampler", caustic_sampler_texture);
-    this.waterShader.SetSampler("texture_sampler", GPU.TextureSampler.Create());
-    this.waterShader.SetSampler("depth_texture_sampler", GPU.TextureSampler.Create({ compare: "less-equal" }));
+    this.waterShader.SetSampler("texture_sampler", new GPU.TextureSampler());
+    this.waterShader.SetSampler("depth_texture_sampler", new GPU.TextureSampler({ compare: "less-equal" }));
     this.albedoClone = GPU.RenderTexture.Create(Renderer.width, Renderer.height, 1, GBufferFormat);
     this.depthClone = GPU.DepthTexture.Create(Renderer.width, Renderer.height);
-    this.waterSettingsBuffer = GPU.Buffer.Create(14 * 4 * 4, GPU.BufferType.STORAGE);
+    this.waterSettingsBuffer = new GPU.Buffer(14 * 4 * 4, GPU.BufferType.STORAGE);
     this.waterShader.SetBuffer("waveSettings", this.waterSettingsBuffer);
     this.initialized = true;
   }
@@ -150,7 +150,7 @@ class Water extends Component {
     if (!Water.WaterRenderPass || Water.WaterRenderPassScene !== gameObject.scene) {
       Water.WaterRenderPass = new WaterRenderPass();
       Water.WaterRenderPassScene = gameObject.scene;
-      this.gameObject.scene.renderPipeline.AddPass(Water.WaterRenderPass, GPU.RenderPassOrder.BeforeLighting);
+      Runtime.Renderer.RenderPipeline.AddPass(Water.WaterRenderPass, GPU.RenderPassOrder.BeforeLighting);
     }
     this.geometry = PlaneGeometry(1, 1, 256, 256);
     this.settings = new DataBackedBuffer({

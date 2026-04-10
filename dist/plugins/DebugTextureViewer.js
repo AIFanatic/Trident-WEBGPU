@@ -120,7 +120,7 @@ class DebugTextureViewer extends GPU.RenderPass {
       }
     });
     this.quadGeometry = Geometry.Plane();
-    const sampler = GPU.TextureSampler.Create();
+    const sampler = new GPU.TextureSampler();
     this.shaderCube.SetSampler("textureSampler", sampler);
     this.shaderCube.SetTexture("texture", this.texture);
     this.shader2D.SetSampler("textureSampler", sampler);
