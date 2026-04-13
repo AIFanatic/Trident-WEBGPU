@@ -86,10 +86,8 @@ async function Application(canvas: HTMLCanvasElement) {
     // const terrain = new TerrainBuilder(terrainSize);
     const terrainGameObject = new GameObject(scene);
     const terrain = terrainGameObject.AddComponent(Terrain);
-    terrain.width = 4000;
-    terrain.length = 4000;
-    terrain.height = 1000;
-    await terrain.HeightmapFromPNG("/extra/test-assets/terrain/heightmaps/elevation_1024x1024.png", true, 0.25);
+    terrain.terrainData.size.set(4000, 1000, 4000);
+    await terrain.terrainData.HeightmapFromPNG("/extra/test-assets/terrain/heightmaps/elevation_1024x1024.png", true, 0.25);
 
     async function LoadTerrainTextures(urls: string[]): Promise<GPU.Texture[]> {
         let textures: GPU.Texture[] = [];
@@ -122,15 +120,15 @@ async function Application(canvas: HTMLCanvasElement) {
         { name: "TropicalForest", transform: transform, albedoMap: albedoTexture, normalMap: normalTexture, armMap: armMap },
     ]
 
-    const heightsSize = Math.sqrt(terrain.heights.length);
+    const heightsSize = Math.sqrt(terrain.terrainData.GetHeights().length);
     console.log(heightsSize)
     // const terrainCenter = terrain.size * scale * 0.5;
     // console.log(terrain.size)
-    terrainGameObject.transform.position.z -= terrain.width * 0.5;
-    terrainGameObject.transform.position.x -= terrain.length * 0.5;
+    // terrainGameObject.transform.position.z -= terrain.terrainData.size.x * 0.5;
+    // terrainGameObject.transform.position.x -= terrain.terrainData.size.z * 0.5;
 
     const terrainCollider = terrainGameObject.AddComponent(TerrainCollider);
-    terrainCollider.SetTerrainData(heightsSize - 1, heightsSize - 1, terrain.heights, terrainGameObject.transform.scale);
+    terrainCollider.SetTerrainData(heightsSize - 1, heightsSize - 1, terrain.terrainData.GetHeights(), terrain.terrainData.size);
 
     const sky = new Sky();
     sky.SUN_ELEVATION_DEGREES = 60;
@@ -185,9 +183,10 @@ async function Application(canvas: HTMLCanvasElement) {
     console.log(animator)
 
     const playerGameObject = new GameObject(scene);
-    const p = new Mathf.Vector3(20, 0, 185);
+    const p = new Mathf.Vector3(20, 800, 185);
     terrain.SampleHeight(p)
     p.y += 1;
+    console.log("p", p.y)
     playerGameObject.transform.position.copy(p);
     // playerGameObject.transform.scale.set(0.01, 0.01, 0.01);
 
@@ -267,7 +266,7 @@ async function Application(canvas: HTMLCanvasElement) {
             const s = new Mathf.Vector3(1, 1, 1);
             const m = new Mathf.Matrix4();
         
-            const off = terrain.width * 0.4;
+            const off = terrain.terrainData.size.x * 0.4;
         
             // let i = 0;
             // for (let x = 0; x < c2; x++) {
@@ -460,7 +459,6 @@ async function Application(canvas: HTMLCanvasElement) {
             let m = new Mathf.Matrix4();
     
             let matrices: number[] = [];
-            const off = terrain.width * 0.4;
             const _p = new Mathf.Vector3();
             const up = new Mathf.Vector3(0,1,0)
             let i = 0;

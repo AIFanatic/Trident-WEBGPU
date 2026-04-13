@@ -8,6 +8,8 @@ import { Environment } from "@trident/plugins/Environment/Environment";
 import { DirectionalLightHelper } from "@trident/plugins/DirectionalLightHelper";
 import { Sky } from "@trident/plugins/Environment/Sky";
 
+import { WireframePass } from "@trident/plugins/WireframePass";
+
 async function Application(canvas: HTMLCanvasElement) {
     await Runtime.Create(canvas);
     const scene = Runtime.SceneManager.CreateScene("DefaultScene");
@@ -43,8 +45,8 @@ async function Application(canvas: HTMLCanvasElement) {
     // cubeMesh.material = new PBRMaterial();
 
 
-    const hdr = await HDRParser.Load("/dist/examples/assets/textures/HDR/autumn_field_puresky_1k.hdr");
-    // const hdr = await HDRParser.Load("/dist/examples/assets/textures/HDR/spruit_sunrise_1k.hdr");
+    // const hdr = await HDRParser.Load("/dist/examples/assets/textures/HDR/autumn_field_puresky_1k.hdr");
+    const hdr = await HDRParser.Load("/dist/examples/assets/textures/HDR/spruit_sunrise_1k.hdr");
     const skyTexture = await HDRParser.ToCubemap(hdr);
 
     // const sky = new Sky();
@@ -177,7 +179,7 @@ async function Application(canvas: HTMLCanvasElement) {
         });
     }
     Debugger.Enable();
-
+    
     Runtime.Play();
 };
 

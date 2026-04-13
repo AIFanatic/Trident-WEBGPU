@@ -6,11 +6,13 @@ import {
     GameObject,
     PBRMaterial,
     Runtime,
+    Geometry,
 } from "@trident/core";
 
 import { OrbitControls } from "@trident/plugins/OrbitControls";
-import { TerrainBuilder } from "@trident/plugins/TerrainGenerator/TerrainBuilder";
+import { Terrain } from "@trident/plugins/Terrain/Terrain";
 import { Debugger } from "@trident/plugins/Debugger";
+import { WireframePass } from "@trident/plugins/WireframePass";
 
 async function Application(canvas: HTMLCanvasElement) {
     await Runtime.Create(canvas);
@@ -21,7 +23,7 @@ async function Application(canvas: HTMLCanvasElement) {
     mainCameraGameObject.transform.position.set(0,0,-15);
     mainCameraGameObject.name = "MainCamera";
     const camera = mainCameraGameObject.AddComponent(Components.Camera);
-    camera.SetPerspective(72, canvas.width / canvas.height, 0.5, 5000);
+    camera.SetPerspective(72, canvas.width / canvas.height, 0.5, 1000000);
 
 
     mainCameraGameObject.transform.position.set(0, 0, 20);
@@ -34,18 +36,24 @@ async function Application(canvas: HTMLCanvasElement) {
     lightGameObject.transform.LookAtV1(new Mathf.Vector3(0, 0, 0));
     const light = lightGameObject.AddComponent(Components.DirectionalLight);
 
-    const terrainSize = 128;
-    const terrain = new TerrainBuilder(terrainSize);
-    const gameObject = new GameObject(scene);
-    gameObject.transform.position.z -= terrainSize * 0.5;
-    gameObject.transform.position.x -= terrainSize * 0.5;
-    gameObject.transform.position.y = -5;
-    const material = new PBRMaterial();
-    // const material = new PBRMaterial();
-    const mesh = gameObject.AddComponent(Components.Mesh);
-    mesh.geometry = terrain.geometry;
-    mesh.material = material;
+    const terrainGameObject = new GameObject(scene);
+    const terrain = terrainGameObject.AddComponent(Terrain);
 
+    {
+        const sphereGameObject = new GameObject(scene);
+        sphereGameObject.transform.scale.set(1000, 1, 1);
+        const sphereMesh = sphereGameObject.AddComponent(Components.Mesh);
+        sphereMesh.geometry = Geometry.Cube();
+        const mat = new PBRMaterial({ albedoColor: new Mathf.Color(1, 1, 1), metalness: 0.0, roughness: 1.0 });
+        sphereMesh.material = mat;
+    }
+
+
+    const wireframe = new WireframePass();
+    wireframe.color = [1, 1, 1];       // white lines
+    wireframe.enabled = true;           // toggle on/off
+    Runtime.Renderer.RenderPipeline.AddPass(wireframe, GPU.RenderPassOrder.AfterLighting);
+    
     Debugger.Enable();
 
     Runtime.Play();
