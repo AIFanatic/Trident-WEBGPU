@@ -1,7 +1,6 @@
-import { Components, EventSystem, EventSystemLocal, GameObject, Mathf, Component, Geometry } from "@trident/core";
+import { Components, EventSystemLocal, GameObject, Mathf, Geometry } from "@trident/core";
 import { PhysicsRapier } from "../PhysicsRapier";
 import { Collider } from "./Collider";
-import { RigidBody } from "../RigidBody";
 
 export class MeshCollider extends Collider {
     public static type = "@trident/plugins/PhysicsRapier/Colliders/MeshCollider";

@@ -3,6 +3,8 @@ import { PhysicsRapier } from "../PhysicsRapier";
 import { Collider } from "./Collider";
 
 export class BoxCollider extends Collider {
+    public static type = "@trident/plugins/PhysicsRapier/Colliders/BoxCollider";
+    
     constructor(gameObject: GameObject) {
         super(gameObject);
 

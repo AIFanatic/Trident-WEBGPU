@@ -18,7 +18,6 @@ export class PhysicsRapier extends System {
     public static fixedDeltaTime = 1 / 60;   // seconds
 
     public async Start() {
-        console.log("CALLED")
         await RAPIER_Module.init()
         let gravity = { x: 0.0, y: -9.81, z: 0.0 };
         let world = new RAPIER_Module.World(gravity);

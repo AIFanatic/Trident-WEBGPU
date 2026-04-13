@@ -3,6 +3,8 @@ import { PhysicsRapier } from "../PhysicsRapier";
 import { Collider } from "./Collider";
 
 export class TerrainCollider extends Collider {
+    public static type = "@trident/plugins/PhysicsRapier/Colliders/TerrainCollider";
+
     constructor(gameObject: GameObject) {
         super(gameObject);
     }
@@ -10,9 +12,7 @@ export class TerrainCollider extends Collider {
     public SetTerrainData(nrows: number, ncols: number, heights: Float32Array, scale: Mathf.Vector3) {
         this.colliderDesc = PhysicsRapier.Physics.ColliderDesc.heightfield(nrows, ncols, heights, scale);
         this.collider = PhysicsRapier.PhysicsWorld.createCollider(this.colliderDesc);
-        const p = this.transform.position.clone().add(scale.clone().mul(0.5));
-        p.sub(new Mathf.Vector3(0, scale.y * 0.5, 0));
-        this.collider.setTranslation(p);
+        this.collider.setTranslation(this.transform.position);
         this.collider.setRotation(this.transform.rotation);
     }
 }

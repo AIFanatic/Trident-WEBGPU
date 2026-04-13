@@ -3,6 +3,8 @@ import { PhysicsRapier } from "../PhysicsRapier";
 import { Collider } from "./Collider";
 
 export class PlaneCollider extends Collider {
+    public static type = "@trident/plugins/PhysicsRapier/Colliders/PlaneCollider";
+
     constructor(gameObject: GameObject) {
         super(gameObject);
         this.colliderDesc = PhysicsRapier.Physics.ColliderDesc.cuboid(this.transform.scale.x, this.transform.scale.y, 0.01);

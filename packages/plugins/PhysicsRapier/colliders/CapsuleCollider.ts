@@ -3,6 +3,8 @@ import { PhysicsRapier } from "../PhysicsRapier";
 import { Collider } from "./Collider";
 
 export class CapsuleCollider extends Collider {
+    public static type = "@trident/plugins/PhysicsRapier/Colliders/CapsuleCollider";
+
     constructor(gameObject: GameObject) {
         super(gameObject);
         this.colliderDesc = PhysicsRapier.Physics.ColliderDesc.capsule(this.transform.scale.y * 0.5, this.transform.scale.x * 0.5);

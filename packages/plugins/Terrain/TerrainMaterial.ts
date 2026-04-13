@@ -1,4 +1,4 @@
-import { GameObject, GPU, Mathf, Scene } from "@trident/core";
+import { GameObject, GPU, Mathf } from "@trident/core";
 
 interface Layer {
     name?: string;
@@ -10,6 +10,7 @@ interface Layer {
 
 export class TerrainMaterial extends GPU.Material {
     // Used when no textures are passed
+    private blankTexture: GPU.Texture;
     private blankTextureArray: GPU.TextureArray;
     private gameObject: GameObject;
 
@@ -94,6 +95,7 @@ export class TerrainMaterial extends GPU.Material {
 
                 struct VertexInput {
                     @builtin(instance_index) instance : u32,
+                    @builtin(vertex_index) vertex : u32,
                     @location(0) position : vec3<f32>,
                     @location(1) normal : vec3<f32>,
                     @location(2) uv : vec2<f32>,
@@ -110,9 +112,7 @@ export class TerrainMaterial extends GPU.Material {
                 };
 
                 @group(0) @binding(0) var<storage, read> frameBuffer: FrameBuffer;
-
-                @group(0) @binding(2) var<storage, read> modelMatrix: array<mat4x4<f32>>;
-                @group(0) @binding(4) var<storage, read> normalMatrix: mat4x4<f32>;
+                @group(0) @binding(1) var<storage, read> modelMatrix: array<mat4x4<f32>>;
 
 
                 @group(1) @binding(0) var textureSampler: sampler;
@@ -144,8 +144,8 @@ export class TerrainMaterial extends GPU.Material {
 
                     output.worldPosition = modelMatrixInstance * vec4(p, 1.0);
 
-                    let worldNormal = normalize(normalMatrix * vec4(input.normal.xyz, 0.0)).xyz;
-                    let worldTangent = normalize(normalMatrix * vec4(input.tangent.xyz, 0.0)).xyz;
+                    let worldNormal = normalize(modelMatrixInstance * vec4(input.normal.xyz, 0.0)).xyz;
+                    let worldTangent = normalize(modelMatrixInstance * vec4(input.tangent.xyz, 0.0)).xyz;
                     let worldBitangent = cross(worldNormal, worldTangent) * input.tangent.w;
                     
                     output.normal = worldNormal;
@@ -229,6 +229,11 @@ export class TerrainMaterial extends GPU.Material {
                     output.normal = vec4f(OctEncode(worldNormal), arm.x, arm.z);
                     output.RMO = vec4f(vec3(0.0), 0.0);
 
+
+                    // output.albedo = vec4f(vec3(1), 1.0);
+                    // output.normal = vec4f(OctEncode(vec3(0,1,0)), arm.x, arm.z);
+                    // output.RMO = vec4f(vec3(0.0), 0.0);
+
                     return output;
                 }
             `,
@@ -236,6 +241,7 @@ export class TerrainMaterial extends GPU.Material {
             depthOutput: "depth24plus",
         })
 
+        this.blankTexture = GPU.Texture.Create(1, 1);
         this.blankTextureArray = GPU.TextureArray.Create(1, 1, 1);
 
         this.shader.SetSampler("textureSampler", new GPU.TextureSampler({ minFilter: "linear", magFilter: "linear", mipmapFilter: "linear", addressModeU: "repeat", addressModeV: "repeat", maxAnisotropy: 16 }));
@@ -243,12 +249,7 @@ export class TerrainMaterial extends GPU.Material {
         this.shader.SetTexture("normalTextures", this.blankTextureArray);
         this.shader.SetTexture("armTextures", this.blankTextureArray);
         this.shader.SetTexture("splatMapTextures", this.blankTextureArray);
-
-        let normalMatrix = new Mathf.Matrix4();
-        this.shader.OnPreRender = geometry => {
-            normalMatrix.copy(this.gameObject.transform.localToWorldMatrix).invert().transpose();
-            this.shader.SetMatrix4("normalMatrix", normalMatrix);
-            return true;
-        }
+        this.shader.SetTexture("layerTexture", this.blankTexture);
+        this.shader.SetArray("Layers", new Float32Array(8));
     }
 }

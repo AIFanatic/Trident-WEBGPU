@@ -80,3 +80,5 @@ export * from "./PathTracer";
 export * from "./FullscreenQuad";
 
 export * from "./SSS_V2";
+
+export * from "./WireframePass";

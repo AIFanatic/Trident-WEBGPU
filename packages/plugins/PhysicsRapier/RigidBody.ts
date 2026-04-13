@@ -1,4 +1,4 @@
-import { GameObject, Component, Mathf } from "@trident/core";
+import { GameObject, Component, Mathf, SerializeField } from "@trident/core";
 import { PhysicsRapier } from "./PhysicsRapier";
 import { Collider } from "./colliders/Collider";
 import RAPIER from "./rapier/rapier";
@@ -23,6 +23,8 @@ export const RigidbodyConstraints = {
 type RigidbodyConstraints = (typeof RigidbodyConstraints)[keyof typeof RigidbodyConstraints];
 
 export class RigidBody extends Component {
+    public static type = "@trident/plugins/PhysicsRapier/RigidBody";
+
     private rigidBody: RAPIER.RigidBody;
     private rigidBodyDesc: RAPIER.RigidBodyDesc;
 
@@ -52,6 +54,15 @@ export class RigidBody extends Component {
             !(isFrozen(constraint, RigidbodyConstraints.FreezePositionZ) || freezePos),
             true
         );
+    }
+
+    private _isKinematic: boolean = true;
+    @SerializeField(Boolean)
+    public get isKinematic(): boolean { return this._isKinematic; }
+    public set isKinematic(isKinematic: boolean) {
+        if (isKinematic === true) this.Create("kinematicPosition");
+        else this.Create("dynamic");
+        this._isKinematic = isKinematic;
     }
 
     constructor(gameObject: GameObject) {
@@ -90,6 +101,9 @@ export class RigidBody extends Component {
         else if (type === "kinematicPosition") this.rigidBodyDesc = PhysicsRapier.Physics.RigidBodyDesc.kinematicPositionBased();
         else throw Error("Unknown type");
         // this.rigidBodyDesc.setTranslation(this.transform.position.x, this.transform.position.y, this.transform.position.z);
+
+        if (this.rigidBody) PhysicsRapier.PhysicsWorld.removeRigidBody(this.rigidBody);
+
         this.rigidBody = PhysicsRapier.PhysicsWorld.createRigidBody(this.rigidBodyDesc);
         this.rigidBody.setTranslation(this.transform.position, true);
         this.rigidBody.setRotation(this.transform.rotation, true);
