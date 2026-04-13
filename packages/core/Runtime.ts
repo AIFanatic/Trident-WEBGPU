@@ -14,10 +14,10 @@ export class Runtime {
 
     private static isPlaying = false;
 
-    public static async Create(canvas: HTMLCanvasElement): Promise<Runtime> {
+    public static async Create(canvas: HTMLCanvasElement, aspectRatio = 1): Promise<Runtime> {
         this.Input = new Input();
         this.SceneManager = new SceneManager();
-        this.Renderer = new Renderer(canvas);
+        this.Renderer = new Renderer(canvas, aspectRatio);
 
         await this.SceneManager.Start();
         await this.Renderer.Start();

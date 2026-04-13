@@ -40,7 +40,7 @@ export class RendererContext implements RendererContext {
         if (!activeCommandEncoder) throw Error("No active command encoder!!");
         if (this.activeRenderPass) throw Error("There is already an active render pass");
 
-        const renderPassDescriptor: GPURenderPassDescriptor = { colorAttachments: [], label: "RenderPassDescriptor: " + name};
+        const renderPassDescriptor: GPURenderPassDescriptor = { colorAttachments: [], label: "RenderPassDescriptor: " + name };
 
         if (timestamp === true) renderPassDescriptor.timestampWrites = WEBGPUTimestampQuery.BeginRenderTimestamp(name);
 
@@ -50,11 +50,11 @@ export class RendererContext implements RendererContext {
                 view: renderTarget.target ? (renderTarget.target as Texture).GetView() : Renderer.context.getCurrentTexture().createView(),
                 clearValue: renderTarget.color,
                 loadOp: renderTarget.clear ? "clear" : "load",
-                storeOp: 'store',                
+                storeOp: 'store',
             })
         }
         renderPassDescriptor.colorAttachments = attachments;
-        
+
         if (depthTarget?.target) {
             renderPassDescriptor.depthStencilAttachment = {
                 view: (depthTarget.target as Texture).GetView(),
@@ -73,7 +73,7 @@ export class RendererContext implements RendererContext {
         this.activeRenderPass.end();
 
         this.activeRenderPass = null;
-        
+
         WEBGPUTimestampQuery.EndRenderTimestamp();
     }
 
@@ -93,13 +93,13 @@ export class RendererContext implements RendererContext {
         for (let i = 0; i < shader.bindGroups.length; i++) {
             let dynamicOffsets: number[] = [];
             for (const buffer of shader.bindGroupsInfo[i].buffers) {
-                if (buffer instanceof DynamicBuffer)  {
+                if (buffer instanceof DynamicBuffer) {
                     dynamicOffsets.push(buffer.dynamicOffset);
                 }
             }
             this.activeRenderPass.setBindGroup(i, shader.bindGroups[i], dynamicOffsets);
         }
-        
+
         if (!geometry) return;
 
         // Bind buffers
@@ -136,8 +136,12 @@ export class RendererContext implements RendererContext {
             }
         }
         else if (shader.params.topology === Topology.Lines) {
-            const positions = geometry.attributes.get("position") as VertexAttribute;
-            this.activeRenderPass.draw(positions.GetBuffer().size / 3 / 4, instanceCount, 0, firstInstance);
+            if (geometry.index) {
+                this.activeRenderPass.drawIndexed(geometry.index.count, instanceCount, 0, 0, firstInstance);
+            } else {
+                const positions = geometry.attributes.get("position") as VertexAttribute;
+                this.activeRenderPass.draw(positions.GetBuffer().size / 3 / 4, instanceCount, 0, firstInstance);
+            }
         }
     }
 
@@ -190,8 +194,8 @@ export class RendererContext implements RendererContext {
         const activeCommandEncoder = Renderer.GetActiveCommandEncoder();
         if (!activeCommandEncoder) throw Error("No active command encoder!!");
 
-        const sourceParameters: GPUImageCopyBuffer = {buffer: (source.buffer as Buffer).GetBuffer(), offset: source.offset, bytesPerRow: source.bytesPerRow, rowsPerImage: source.rowsPerImage};
-        const destinationParameters: GPUImageCopyTexture = {texture: (destination.texture as Texture).GetBuffer(), mipLevel: destination.mipLevel, origin: destination.origin};
+        const sourceParameters: GPUImageCopyBuffer = { buffer: (source.buffer as Buffer).GetBuffer(), offset: source.offset, bytesPerRow: source.bytesPerRow, rowsPerImage: source.rowsPerImage };
+        const destinationParameters: GPUImageCopyTexture = { texture: (destination.texture as Texture).GetBuffer(), mipLevel: destination.mipLevel, origin: destination.origin };
         const extents = copySize ? copySize : [destination.texture.width, destination.texture.height, destination.texture.depth];
 
         activeCommandEncoder.copyBufferToTexture(sourceParameters, destinationParameters, extents);
@@ -203,7 +207,7 @@ export class RendererContext implements RendererContext {
         if (!activeCommandEncoder) throw Error("No active command encoder!!");
 
         const extents = size ? size : [source.width, source.height, source.depth];
-        activeCommandEncoder.copyTextureToTexture({texture: source.GetBuffer(), mipLevel: srcMip}, {texture: destination.GetBuffer(), mipLevel: dstMip}, extents);
+        activeCommandEncoder.copyTextureToTexture({ texture: source.GetBuffer(), mipLevel: srcMip }, { texture: destination.GetBuffer(), mipLevel: dstMip }, extents);
     }
 
     public static CopyTextureToBuffer(source: Texture, destination: Buffer, srcMip: number, size?: number[]) {
@@ -212,18 +216,18 @@ export class RendererContext implements RendererContext {
 
         const extents = size ? size : [source.width, source.height, source.depth];
         // TODO: Handle format in bytesPerRow or allow param
-        activeCommandEncoder.copyTextureToBuffer({texture: source.GetBuffer(), mipLevel: srcMip}, {buffer: destination.GetBuffer(), bytesPerRow: source.width * 4}, extents);
-    }    
+        activeCommandEncoder.copyTextureToBuffer({ texture: source.GetBuffer(), mipLevel: srcMip }, { buffer: destination.GetBuffer(), bytesPerRow: source.width * 4 }, extents);
+    }
 
     public static CopyTextureToBufferV2(source: TextureCopyParameters, destination: BufferCopyParameters, copySize?: number[]) {
         const activeCommandEncoder = Renderer.GetActiveCommandEncoder();
         if (!activeCommandEncoder) throw Error("No active command encoder!!");
 
-        const sourceParameters: GPUImageCopyTexture = {texture: (source.texture as Texture).GetBuffer(), mipLevel: source.mipLevel, origin: source.origin};
-        const destinationParameters: GPUImageCopyBuffer = {buffer: (destination.buffer as Buffer).GetBuffer(), offset: destination.offset, bytesPerRow: destination.bytesPerRow, rowsPerImage: destination.rowsPerImage};
+        const sourceParameters: GPUImageCopyTexture = { texture: (source.texture as Texture).GetBuffer(), mipLevel: source.mipLevel, origin: source.origin };
+        const destinationParameters: GPUImageCopyBuffer = { buffer: (destination.buffer as Buffer).GetBuffer(), offset: destination.offset, bytesPerRow: destination.bytesPerRow, rowsPerImage: destination.rowsPerImage };
         const extents = copySize ? copySize : [source.texture.width, source.texture.height, source.texture.depth];
         activeCommandEncoder.copyTextureToBuffer(sourceParameters, destinationParameters, extents);
-    }    
+    }
 
     public static CopyTextureToTextureV2(source: Texture, destination: Texture, srcMip: number, dstMip: number, size?: number[], depth?: number) {
         const activeCommandEncoder = Renderer.GetActiveCommandEncoder();
@@ -231,9 +235,9 @@ export class RendererContext implements RendererContext {
 
         const extents = size ? size : [source.width, source.height, source.depth];
         activeCommandEncoder.copyTextureToTexture(
-            { texture: source.GetBuffer(), mipLevel: srcMip, origin: {x: 0, y: 0, z: 0}}, 
-            { texture: destination.GetBuffer(), mipLevel: dstMip, origin: {x: 0, y: 0, z: depth ? depth : 0} },
-            extents 
+            { texture: source.GetBuffer(), mipLevel: srcMip, origin: { x: 0, y: 0, z: 0 } },
+            { texture: destination.GetBuffer(), mipLevel: dstMip, origin: { x: 0, y: 0, z: depth ? depth : 0 } },
+            extents
         );
     }
 
@@ -241,8 +245,8 @@ export class RendererContext implements RendererContext {
         const activeCommandEncoder = Renderer.GetActiveCommandEncoder();
         if (!activeCommandEncoder) throw Error("No active command encoder!!");
 
-        const sourceParameters: GPUTexelCopyTextureInfo = {texture: (source.texture as Texture).GetBuffer(), mipLevel: source.mipLevel, origin: source.origin};
-        const destinationParameters: GPUTexelCopyTextureInfo = {texture: (destination.texture as Texture).GetBuffer(), mipLevel: destination.mipLevel, origin: destination.origin};
+        const sourceParameters: GPUTexelCopyTextureInfo = { texture: (source.texture as Texture).GetBuffer(), mipLevel: source.mipLevel, origin: source.origin };
+        const destinationParameters: GPUTexelCopyTextureInfo = { texture: (destination.texture as Texture).GetBuffer(), mipLevel: destination.mipLevel, origin: destination.origin };
         const extents = copySize ? copySize : [source.texture.width, source.texture.height, source.texture.depth];
         activeCommandEncoder.copyTextureToTexture(sourceParameters, destinationParameters, extents);
     }

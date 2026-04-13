@@ -38,52 +38,26 @@ export class SpotLight extends Light {
     public static type = "@trident/core/components/Light/SpotLight";
     public direction = new Vector3(0,-1,0);
 
-    private _angle: number = 1;
     @SerializeField
-    public get angle(): number { return this._angle };
-    public set angle(angle: number) {
-        this._angle = angle;
-        this.UpdateLight();
-    };
+    public angle: number = 1;
 
-    private _range: number = 10;
     @SerializeField
-    public get range(): number { return this._range };
-    public set range(range: number) {
-        this._range = range;
-        this.UpdateLight();
-    };
-
-    protected UpdateLight() {
-        const radius = Math.tan(this.angle) * this.range; // if angle is full cone angle
-        this.transform.scale.set(radius, this.range, radius);
-    }
+    public range: number = 10;
 
     public Start(): void {
         super.Start();
         this.camera.SetPerspective(this.angle / Math.PI * 180 * 2, Renderer.width / Renderer.height, 0.01, 1000);
-        this.UpdateLight();
     }
 }
 
 export class PointLight extends Light {
     public static type = "@trident/core/components/Light/PointLight";
-    private _range: number = 10;
     @SerializeField(Number)
-    public get range(): number { return this._range };
-    public set range(range: number) {
-        this._range = range;
-        this.UpdateLight();
-    };
+    public range: number = 10;
     
-    protected UpdateLight(): void {
-        this.transform.scale.set(this.range, this.range, this.range);
-    }
-
     public Start(): void {
         super.Start();
         this.camera.SetPerspective(60, Renderer.width / Renderer.height, 0.01, 1000);
-        this.UpdateLight();
     }
 }
 

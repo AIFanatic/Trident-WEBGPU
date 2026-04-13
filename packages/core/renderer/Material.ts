@@ -74,7 +74,6 @@ class PBRMaterialParams extends MaterialParams {
     @SerializeField public doubleSided = false;
     @SerializeField public alphaCutoff = 0.5;
     @SerializeField public unlit = false;
-    @SerializeField public wireframe = false;
     @SerializeField public isSkinned = false;
     @SerializeField public isDeferred = true;
 
@@ -195,8 +194,6 @@ export class PBRMaterial extends Material {
             this.params.roughness, this.params.metalness, +this.params.unlit, this.params.alphaCutoff,
             this.params.repeat.x, this.params.repeat.y,
             this.params.offset.x, this.params.offset.y,
-            +this.params.wireframe,
-            0, 0, 0
         ]));
 
         this.shader.SetTexture("AlbedoMap", this.params.albedoMap);

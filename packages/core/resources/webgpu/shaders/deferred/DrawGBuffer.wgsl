@@ -22,7 +22,6 @@ struct Material {
     Unlit: f32,
     AlphaCutoff: f32,
     RepeatOffset: vec4<f32>, // xy = repeat, zw = offset
-    Wireframe: f32,
 };
 
 struct VertexOutput {
@@ -31,10 +30,9 @@ struct VertexOutput {
     @location(1) vNormal : vec3<f32>,
     @location(2) vUv : vec2<f32>,
     @location(3) @interpolate(flat) instance : u32,
-    @location(4) barycenticCoord : vec3<f32>,
-    @location(5) tangent : vec3<f32>,
-    @location(6) bitangent : vec3<f32>,
-    @location(7) normal : vec3<f32>,
+    @location(4) tangent : vec3<f32>,
+    @location(5) bitangent : vec3<f32>,
+    @location(6) normal : vec3<f32>,
 };
 
 @group(0) @binding(0) var<storage, read> frameBuffer: FrameBuffer;
@@ -80,23 +78,19 @@ fn vertexMain(input: VertexInput) -> VertexOutput {
     let modelMatrixInstance = modelMatrix[input.instance];
     let modelViewMatrix = frameBuffer.viewMatrix * modelMatrixInstance;
 
+    let worldNormal = normalize(modelMatrixInstance * vec4(finalNormal.xyz, 0.0)).xyz;
+    let worldTangent = normalize(modelMatrixInstance * vec4(input.tangent.xyz, 0.0)).xyz;
+    let worldBitangent = cross(worldNormal, worldTangent) * input.tangent.w;
+
     output.instance = input.instance;
     output.position = frameBuffer.projectionMatrix * modelViewMatrix * vec4(finalPosition.xyz, 1.0);
     output.vPosition = finalPosition.xyz;
     output.vUv = input.uv;
-    let worldNormal = normalize(modelMatrixInstance * vec4(finalNormal.xyz, 0.0)).xyz;
+    
     output.vNormal = worldNormal;
     output.normal = finalNormal.xyz;
-
-    let worldTangent = normalize(modelMatrixInstance * vec4(input.tangent.xyz, 0.0)).xyz;
-    let worldBitangent = cross(worldNormal, worldTangent) * input.tangent.w;
-
     output.tangent = worldTangent;
     output.bitangent = worldBitangent;
-
-    // emit a barycentric coordinate
-    output.barycenticCoord = vec3f(0);
-    output.barycenticCoord[input.vertex % 3] = 1.0;
 
     return output;
 }
@@ -109,13 +103,6 @@ struct FragmentOutput {
 
 fn inversesqrt(v: f32) -> f32 {
     return 1.0 / sqrt(v);
-}
-
-fn edgeFactor(bary: vec3f) -> f32 {
-    let lineThickness = 1.0;
-    let d = fwidth(bary);
-    let a3 = smoothstep(vec3f(0.0), d * lineThickness, bary);
-    return min(min(a3.x, a3.y), a3.z);
 }
 
 @fragment
@@ -171,9 +158,6 @@ fn fragmentMain(@builtin(front_facing) isFrontFace: bool, input: VertexOutput) -
     output.normal = vec4(OctEncode(normal.xyz), occlusion, metalness);
     output.RMO = vec4(emissive.rgb, mat.Unlit);
 
-
-    // Wireframe
-    output.albedo *= 1.0 - edgeFactor(input.barycenticCoord) * mat.Wireframe;
 
     // // Flat shading
     // let xTangent: vec3f = dpdx( input.vPosition );

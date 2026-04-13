@@ -13,6 +13,7 @@ import { PassParams } from "../RenderingPipeline";
 import { EventSystem } from "../../Events";
 import { LightShadowInfo } from "./DeferredShadowMapPass";
 import { DynamicBufferMemoryAllocator } from "../MemoryAllocator";
+import { Matrix4, Quaternion, Vector3 } from "../../math";
 
 enum LightType {
     SPOT_LIGHT,
@@ -38,6 +39,10 @@ export class DeferredLightingPass extends RenderPass {
 
     private dummyShadowPassDepth: RenderTexture;
     private gBufferDepthClone: DepthTexture;
+
+    private _volumeMatrix = new Matrix4();
+    private _volumeScale = new Vector3();
+    private _identityQuat = new Quaternion();
 
     public async init() {
         this.shader = await Shader.Create({
@@ -135,8 +140,23 @@ export class DeferredLightingPass extends RenderPass {
                 // console.log("HERE", light.id, lightsShadowData, params1)
             }
 
+            // In updateLightsBuffer, before building lightData:
+            const pos = light.transform.position;
+
+            if (light instanceof PointLight) {
+                this._volumeScale.set(light.range, light.range, light.range);
+                this._volumeMatrix.compose(pos, this._identityQuat, this._volumeScale);
+            } else if (light instanceof SpotLight) {
+                const radius = Math.tan(light.angle) * light.range;
+                this._volumeScale.set(radius, light.range, radius);
+                this._volumeMatrix.compose(pos, light.transform.rotation, this._volumeScale);
+            } else {
+                // Directional / Area: use identity-scaled transform (or identity)
+                this._volumeMatrix.copy(light.transform.localToWorldMatrix);
+            }
+            
             const lightData = new Float32Array([
-                ...light.transform.localToWorldMatrix.elements,
+                ...this._volumeMatrix.elements,
                 light.transform.position.x, light.transform.position.y, light.transform.position.z, 1.0,
                 ...light.camera.projectionMatrix.elements,
                 // ...lightsCSMProjectionMatrix[i].slice(0, 16 * 4),

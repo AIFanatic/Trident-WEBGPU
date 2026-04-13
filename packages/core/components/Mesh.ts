@@ -18,9 +18,7 @@ export class Mesh extends Renderable {
     constructor(gameObject: GameObject) {
         super(gameObject);
 
-        if (!Mesh.modelMatrices) {
-            Mesh.modelMatrices = new DynamicBufferMemoryAllocatorDynamic(256 * 1000, BufferType.STORAGE, 256 * 10);
-        }
+        if (!Mesh.modelMatrices) Mesh.modelMatrices = new DynamicBufferMemoryAllocatorDynamic(256 * 10, BufferType.STORAGE, 256 * 10);
 
         EventSystemLocal.on(TransformEvents.Updated, this.transform, () => {
             this.modelMatrixOffset = Mesh.modelMatrices.set(this.id, this.transform.localToWorldMatrix.elements);

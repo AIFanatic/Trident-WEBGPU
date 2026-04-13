@@ -13,7 +13,7 @@ export class ComponentEvents {
 }
 
 export class Component {
-    public static type;
+    public static type: string;
     public id = UUID();
     public enabled: boolean = true;
     public hasStarted: boolean = false;
