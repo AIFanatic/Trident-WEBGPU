@@ -3,6 +3,7 @@ import { PhysicsRapier } from '../PhysicsRapier.js';
 import { Collider } from './Collider.js';
 
 class BoxCollider extends Collider {
+  static type = "@trident/plugins/PhysicsRapier/Colliders/BoxCollider";
   constructor(gameObject) {
     super(gameObject);
     const p = new Mathf.Vector3();

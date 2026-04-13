@@ -7,6 +7,23 @@ html, body {
     background-color: #1a1a1a;
 }
 
+::-webkit-scrollbar {
+    width: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: transparent; 
+}
+
+::-webkit-scrollbar-thumb {
+    background: #333;
+    border-radius: 5px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: #444; 
+}
+
 flex {
     display: flex;
     overflow: hidden;
@@ -301,23 +318,6 @@ input[type=number] {
 
 .treeview .item .item-content {
     overflow: hidden;
-}
-
-.treeview::-webkit-scrollbar {
-    width: 8px;
-}
-
-.treeview::-webkit-scrollbar-track {
-    background: transparent; 
-}
-
-.treeview::-webkit-scrollbar-thumb {
-    background: #333;
-    border-radius: 5px;
-}
-
-.treeview::-webkit-scrollbar-thumb:hover {
-    background: #444; 
 }
 .collapsible-content-edonec {
     overflow: auto;

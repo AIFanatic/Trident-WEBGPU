@@ -9,7 +9,6 @@ class PhysicsRapier extends System {
   static fixedDeltaTime = 1 / 60;
   // seconds
   async Start() {
-    console.log("CALLED");
     await Tg.init();
     let gravity = { x: 0, y: -9.81, z: 0 };
     let world = new Tg.World(gravity);

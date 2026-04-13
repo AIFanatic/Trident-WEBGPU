@@ -28,10 +28,12 @@
             <script type="module">
                 const canvas = document.createElement("canvas");
                 document.body.appendChild(canvas);
-                            import { Runtime, GameObject, Components, Mathf, PBRMaterial } from '@trident/core';
+                            import { Runtime, GameObject, Components, Mathf, GPU } from '@trident/core';
             import { OrbitControls } from '@trident/plugins/OrbitControls.js';
             import { Debugger } from '@trident/plugins/Debugger.js';
             import { GLTFLoader } from '@trident/plugins/GLTF/GLTFLoader.js';
+            import { PostProcessingPass } from '@trident/plugins/PostProcessing/PostProcessingPass.js';
+            import { PostProcessingSMAA } from '@trident/plugins/PostProcessing/effects/SMAA.js';
             
             async function Application(canvas) {
               await Runtime.Create(canvas);
@@ -49,6 +51,7 @@
               lightGameObject.transform.LookAtV1(new Mathf.Vector3(0, 0, 0));
               const light = lightGameObject.AddComponent(Components.DirectionalLight);
               light.castShadows = true;
+              light.intensity = 0.01;
               function traverse(gameObjects, fn) {
                 for (const gameObject of gameObjects) {
                   fn(gameObject);
@@ -57,16 +60,29 @@
                   }
                 }
               }
-              const rootGameObject = await GLTFLoader.Load("/extra/dist_bak/test-assets/GLTF/scenes/Bistro.glb", scene);
+              const rootGameObject = await GLTFLoader.Load("/extra/test-assets/scenes/Bistro.glb", scene);
               Debugger.Enable();
-              const mat = new PBRMaterial();
+              let lightCount = 0;
               traverse([rootGameObject], (gameObject) => {
                 const mesh = gameObject.GetComponent(Components.Mesh);
                 if (mesh) {
-                  mesh.enableShadows = false;
-                  mesh.material = mat;
+                  const mat = mesh.material.params;
+                  if (mat.emissiveMap.width > 1 || mat.emissiveColor.r > 0) {
+                    const pointLight = gameObject.AddComponent(Components.PointLight);
+                    pointLight.intensity = 10;
+                    pointLight.range = 50;
+                    mat.emissiveMap.GetPixels(0, 0, 1, 1, 0).then((pixel) => {
+                      pointLight.color.set(pixel[0] / 255, pixel[1] / 255, pixel[2] / 255, 1);
+                    });
+                    lightCount++;
+                  }
                 }
               });
+              console.log(lightCount);
+              const postProcessing = new PostProcessingPass();
+              const smaa = new PostProcessingSMAA();
+              postProcessing.effects.push(smaa);
+              Runtime.Renderer.RenderPipeline.AddPass(postProcessing, GPU.RenderPassOrder.BeforeScreenOutput);
               Runtime.Play();
             }
             Application(document.querySelector("canvas"));

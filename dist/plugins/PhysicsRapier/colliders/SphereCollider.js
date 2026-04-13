@@ -2,6 +2,7 @@ import { PhysicsRapier } from '../PhysicsRapier.js';
 import { Collider } from './Collider.js';
 
 class SphereCollider extends Collider {
+  static type = "@trident/plugins/PhysicsRapier/Colliders/SphereCollider";
   constructor(gameObject) {
     super(gameObject);
     this.colliderDesc = PhysicsRapier.Physics.ColliderDesc.ball(this.transform.scale.x * 0.5);

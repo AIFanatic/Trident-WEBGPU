@@ -28,10 +28,11 @@
             <script type="module">
                 const canvas = document.createElement("canvas");
                 document.body.appendChild(canvas);
-                            import { Runtime, GameObject, Components, Mathf, PBRMaterial } from '@trident/core';
+                            import { Runtime, GameObject, Components, Mathf, Geometry, PBRMaterial, GPU } from '@trident/core';
             import { OrbitControls } from '@trident/plugins/OrbitControls.js';
-            import { TerrainBuilder } from '@trident/plugins/TerrainGenerator/TerrainBuilder.js';
+            import { Terrain } from '@trident/plugins/Terrain/Terrain.js';
             import { Debugger } from '@trident/plugins/Debugger.js';
+            import { WireframePass } from '@trident/plugins/WireframePass.js';
             
             async function Application(canvas) {
               await Runtime.Create(canvas);
@@ -41,7 +42,7 @@
               mainCameraGameObject.transform.position.set(0, 0, -15);
               mainCameraGameObject.name = "MainCamera";
               const camera = mainCameraGameObject.AddComponent(Components.Camera);
-              camera.SetPerspective(72, canvas.width / canvas.height, 0.5, 5e3);
+              camera.SetPerspective(72, canvas.width / canvas.height, 0.5, 1e6);
               mainCameraGameObject.transform.position.set(0, 0, 20);
               mainCameraGameObject.transform.LookAtV1(new Mathf.Vector3(0, 0, 0));
               new OrbitControls(canvas, camera);
@@ -49,16 +50,20 @@
               lightGameObject.transform.position.set(-4, 4, -4);
               lightGameObject.transform.LookAtV1(new Mathf.Vector3(0, 0, 0));
               lightGameObject.AddComponent(Components.DirectionalLight);
-              const terrainSize = 128;
-              const terrain = new TerrainBuilder(terrainSize);
-              const gameObject = new GameObject(scene);
-              gameObject.transform.position.z -= terrainSize * 0.5;
-              gameObject.transform.position.x -= terrainSize * 0.5;
-              gameObject.transform.position.y = -5;
-              const material = new PBRMaterial();
-              const mesh = gameObject.AddComponent(Components.Mesh);
-              mesh.geometry = terrain.geometry;
-              mesh.material = material;
+              const terrainGameObject = new GameObject(scene);
+              terrainGameObject.AddComponent(Terrain);
+              {
+                const sphereGameObject = new GameObject(scene);
+                sphereGameObject.transform.scale.set(1e3, 1, 1);
+                const sphereMesh = sphereGameObject.AddComponent(Components.Mesh);
+                sphereMesh.geometry = Geometry.Cube();
+                const mat = new PBRMaterial({ albedoColor: new Mathf.Color(1, 1, 1), metalness: 0, roughness: 1 });
+                sphereMesh.material = mat;
+              }
+              const wireframe = new WireframePass();
+              wireframe.color = [1, 1, 1];
+              wireframe.enabled = true;
+              Runtime.Renderer.RenderPipeline.AddPass(wireframe, GPU.RenderPassOrder.AfterLighting);
               Debugger.Enable();
               Runtime.Play();
             }

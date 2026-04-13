@@ -67,10 +67,8 @@
               await Runtime.AddSystem(PhysicsRapier);
               const terrainGameObject = new GameObject(scene);
               const terrain = terrainGameObject.AddComponent(Terrain);
-              terrain.width = 4e3;
-              terrain.length = 4e3;
-              terrain.height = 1e3;
-              await terrain.HeightmapFromPNG("/extra/test-assets/terrain/heightmaps/elevation_1024x1024.png", true, 0.25);
+              terrain.terrainData.size.set(4e3, 1e3, 4e3);
+              await terrain.terrainData.HeightmapFromPNG("/extra/test-assets/terrain/heightmaps/elevation_1024x1024.png", true, 0.25);
               async function LoadTerrainTextures(urls) {
                 let textures = [];
                 for (const url of urls) {
@@ -98,12 +96,10 @@
               terrain.material.layers = [
                 { name: "TropicalForest", transform, albedoMap: albedoTexture, normalMap: normalTexture, armMap }
               ];
-              const heightsSize = Math.sqrt(terrain.heights.length);
+              const heightsSize = Math.sqrt(terrain.terrainData.GetHeights().length);
               console.log(heightsSize);
-              terrainGameObject.transform.position.z -= terrain.width * 0.5;
-              terrainGameObject.transform.position.x -= terrain.length * 0.5;
               const terrainCollider = terrainGameObject.AddComponent(TerrainCollider);
-              terrainCollider.SetTerrainData(heightsSize - 1, heightsSize - 1, terrain.heights, terrainGameObject.transform.scale);
+              terrainCollider.SetTerrainData(heightsSize - 1, heightsSize - 1, terrain.terrainData.GetHeights(), terrain.terrainData.size);
               const sky = new Sky();
               sky.SUN_ELEVATION_DEGREES = 60;
               await sky.init();
@@ -139,9 +135,10 @@
               if (!animator) throw Error("Could not find an animator component");
               console.log(animator);
               const playerGameObject = new GameObject(scene);
-              const p = new Mathf.Vector3(20, 0, 185);
+              const p = new Mathf.Vector3(20, 800, 185);
               terrain.SampleHeight(p);
               p.y += 1;
+              console.log("p", p.y);
               playerGameObject.transform.position.copy(p);
               const weaponGameObject = await GLTFLoader.Load("/extra/test-assets/semi_auto_rifle.worldmodel.glb", scene);
               weaponGameObject.transform.position.copy(camera.transform.position);
@@ -190,7 +187,7 @@
                   const q = new Mathf.Quaternion();
                   const s = new Mathf.Vector3(1, 1, 1);
                   const m = new Mathf.Matrix4();
-                  const off = terrain.width * 0.4;
+                  const off = terrain.terrainData.size.x * 0.4;
                   let matrices = new Float32Array(options.count * 16);
                   for (let i = 0; i < options.count; i++) {
                     p2.set(Mathf.RandomRange(-off, off), 0, Mathf.RandomRange(-off, off));
@@ -352,7 +349,6 @@
                   let s = new Mathf.Vector3(1, 1, 1);
                   let m = new Mathf.Matrix4();
                   let matrices = [];
-                  terrain.width * 0.4;
                   const _p = new Mathf.Vector3();
                   const up = new Mathf.Vector3(0, 1, 0);
                   for (let i2 = 0; i2 < count; i2++) {

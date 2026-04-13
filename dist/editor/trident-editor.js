@@ -1,11 +1,17 @@
-import { Assets, Component as Component$1, Deserializer, Geometry, PBRMaterial, GPU, Texture, Prefab, InterleavedVertexAttribute, IndexAttribute, VertexAttribute, Serializer, Runtime, Scene, GameObject, Mathf, Utils, Components, Input, Console, GetSerializedFields } from '@trident/core';
-import { PhysicsRapier } from '@trident/plugins/PhysicsRapier/PhysicsRapier.js';
+import { Assets, Component as Component$1, Deserializer, Geometry, PBRMaterial, GPU, Texture, Prefab, InterleavedVertexAttribute, IndexAttribute, VertexAttribute, Components, Serializer, Runtime, Scene, GameObject, Mathf, Utils, Input, Console, GetSerializedFields } from '@trident/core';
+import { RigidBody } from '@trident/plugins/PhysicsRapier/RigidBody.js';
+import { BoxCollider } from '@trident/plugins/PhysicsRapier/colliders/BoxCollider.js';
+import { CapsuleCollider } from '@trident/plugins/PhysicsRapier/colliders/CapsuleCollider.js';
 import { MeshCollider } from '@trident/plugins/PhysicsRapier/colliders/MeshCollider.js';
+import { PlaneCollider } from '@trident/plugins/PhysicsRapier/colliders/PlaneCollider.js';
+import { SphereCollider } from '@trident/plugins/PhysicsRapier/colliders/SphereCollider.js';
+import { Terrain } from '@trident/plugins/Terrain/Terrain.js';
 import { OrbitControls } from '@trident/plugins/OrbitControls.js';
 import { Environment } from '@trident/plugins/Environment/Environment.js';
 import { Sky } from '@trident/plugins/Environment/Sky.js';
 import { HDRParser } from '@trident/plugins/HDRParser.js';
 import { GLTFLoader } from '@trident/plugins/GLTF/GLTFLoader.js';
+import { PhysicsRapier } from '@trident/plugins/PhysicsRapier/PhysicsRapier.js';
 
 class AssetRegistry {
   static instanceCache = /* @__PURE__ */ new Map();
@@ -2872,8 +2878,31 @@ Deserializer.Load = async (assetPath, data) => {
   return Assets.Load(assetPath, "json");
 };
 
-Component$1.Registry.set(PhysicsRapier.type, PhysicsRapier);
+const component = (ctor) => ctor;
+Component$1.Registry.set(RigidBody.type, RigidBody);
+Component$1.Registry.set(BoxCollider.type, BoxCollider);
+Component$1.Registry.set(CapsuleCollider.type, CapsuleCollider);
 Component$1.Registry.set(MeshCollider.type, MeshCollider);
+Component$1.Registry.set(PlaneCollider.type, PlaneCollider);
+Component$1.Registry.set(SphereCollider.type, SphereCollider);
+Component$1.Registry.set(Terrain.type, Terrain);
+const ComponentRegistry = {
+  Camera: component(Components.Camera),
+  SpotLight: component(Components.SpotLight),
+  PointLight: component(Components.PointLight),
+  DirectionalLight: component(Components.DirectionalLight),
+  Mesh: component(Components.Mesh),
+  SkinnedMesh: component(Components.SkinnedMesh),
+  Animator: component(Components.Animator),
+  AnimationTrack: component(Components.AnimationTrack),
+  RigidBody: component(RigidBody),
+  BoxCollider: component(BoxCollider),
+  CapsuleCollider: component(CapsuleCollider),
+  MeshCollider: component(MeshCollider),
+  PlaneCollider: component(PlaneCollider),
+  SphereCollider: component(SphereCollider),
+  Terrain: component(Terrain)
+};
 
 class TridentAPI {
   get currentScene() {
@@ -2927,6 +2956,9 @@ class TridentAPI {
   }
   createPrefab() {
     return new Prefab();
+  }
+  addComponent(gameObject, component) {
+    return gameObject.AddComponent(component);
   }
   async deserializeGeometry(serialized) {
     return Deserializer.Load(serialized.assetPath);
@@ -3091,7 +3123,7 @@ class Component {
   base;
   constructor(props) {
     this.props = props || {};
-    this.state = null;
+    this.state = {};
   }
   static render(vdom, parent = null) {
     const props = Object.assign({}, vdom.props, { children: vdom.children });
@@ -3232,17 +3264,6 @@ class LayoutResizer extends Component {
     } });
   }
 }
-
-const IComponents = {
-  Camera: Components.Camera,
-  SpotLight: Components.SpotLight,
-  PointLight: Components.PointLight,
-  DirectionalLight: Components.DirectionalLight,
-  Mesh: Components.Mesh,
-  SkinnedMesh: Components.SkinnedMesh,
-  Animator: Components.Animator,
-  AnimationTrack: Components.AnimationTrack
-};
 
 class ComponentEvents {
   static Created = (gameObject, component) => {
@@ -3413,7 +3434,7 @@ class LayoutCanvas extends Component {
     Runtime.SceneManager.SetActiveScene(currentScene);
     const mainCameraGameObject = EngineAPI.createGameObject(currentScene);
     mainCameraGameObject.name = "MainCamera";
-    const camera = mainCameraGameObject.AddComponent(IComponents.Camera);
+    const camera = EngineAPI.addComponent(mainCameraGameObject, ComponentRegistry.Camera);
     camera.SetPerspective(72, canvas.width / canvas.height, cameraSettings.near, cameraSettings.far);
     mainCameraGameObject.transform.position.set(0, 0, 10);
     mainCameraGameObject.transform.LookAtV1(EngineAPI.createVector3(0, 0, 0));
@@ -3422,19 +3443,19 @@ class LayoutCanvas extends Component {
     lightGameObject.name = "Light";
     lightGameObject.transform.position.set(-10, 10, 10);
     lightGameObject.transform.LookAtV1(EngineAPI.createVector3(0, 0, 0));
-    const light = lightGameObject.AddComponent(IComponents.DirectionalLight);
+    const light = EngineAPI.addComponent(lightGameObject, ComponentRegistry.DirectionalLight);
     light.castShadows = true;
     const floorGameObject = EngineAPI.createGameObject(EngineAPI.currentScene);
     floorGameObject.name = "Floor";
     floorGameObject.transform.eulerAngles.x = -90;
     floorGameObject.transform.position.y = -2;
     floorGameObject.transform.scale.set(100, 100, 100);
-    const floorMesh = floorGameObject.AddComponent(IComponents.Mesh);
+    const floorMesh = EngineAPI.addComponent(floorGameObject, ComponentRegistry.Mesh);
     floorMesh.geometry = EngineAPI.createPlaneGeometry();
     floorMesh.material = EngineAPI.createPBRMaterial();
     const cubeGameObject = EngineAPI.createGameObject(EngineAPI.currentScene);
     cubeGameObject.name = "Cube";
-    const cubeMesh = cubeGameObject.AddComponent(IComponents.Mesh);
+    const cubeMesh = EngineAPI.addComponent(cubeGameObject, ComponentRegistry.Mesh);
     cubeMesh.geometry = EngineAPI.createCubeGeometry();
     cubeMesh.material = EngineAPI.createPBRMaterial();
     const sky = new Sky();
@@ -3491,6 +3512,7 @@ class LayoutCanvas extends Component {
     }
     Runtime.AddSystem(PhysicsRapier);
     Runtime.Play();
+    EventSystem.emit(SceneEvents.Loaded, currentScene);
   }
   render() {
     return /* @__PURE__ */ createElement("canvas", { ref: (canvas) => this.canvasRef(canvas) });
@@ -4049,7 +4071,7 @@ async function SaveGameObjectAsAsset(baseDir, gameObject) {
   const walkAndAssignPaths = (go) => {
     for (const component of go.GetComponents()) {
       const renderable = component;
-      if (component.constructor?.type === IComponents.Mesh.type || component.constructor?.type === IComponents.SkinnedMesh.type) {
+      if (component.constructor?.type === ComponentRegistry.Mesh || component.constructor?.type === ComponentRegistry.SkinnedMesh) {
         const geometry = renderable.geometry;
         if (geometry && !geometry.assetPath) {
           geometry.assetPath = `${fullAssetDir}/${geometry.name || `geometry_${geometryCounter++}`}.geometry`;
@@ -4075,7 +4097,7 @@ async function SaveGameObjectAsAsset(baseDir, gameObject) {
           }
         }
       }
-      if (component.constructor?.type === IComponents.Animator.type) {
+      if (component.constructor?.type === ComponentRegistry.Animator) {
         const animator = component;
         if (!animator.assetPath) {
           animator.assetPath = `${fullAssetDir}/${rootName}.animation`;
@@ -4095,7 +4117,7 @@ async function SaveGameObjectAsAsset(baseDir, gameObject) {
   const walkAndSave = (go) => {
     for (const component of go.GetComponents()) {
       const renderable = component;
-      if (component.constructor?.type === IComponents.Mesh.type || component.constructor?.type === IComponents.SkinnedMesh.type) {
+      if (component.constructor?.type === ComponentRegistry.Mesh || component.constructor?.type === ComponentRegistry.SkinnedMesh) {
         const geometry = renderable.geometry;
         if (geometry && geometry.assetPath && !saved.has(geometry.assetPath)) {
           saved.add(geometry.assetPath);
@@ -4130,7 +4152,7 @@ async function SaveGameObjectAsAsset(baseDir, gameObject) {
         }
       }
       const comp = component;
-      if (comp.assetPath && !saved.has(comp.assetPath) && (comp.constructor?.type !== IComponents.Mesh.type && comp.constructor?.type !== IComponents.SkinnedMesh.type)) {
+      if (comp.assetPath && !saved.has(comp.assetPath) && (comp.constructor?.type !== ComponentRegistry.Mesh && comp.constructor?.type !== ComponentRegistry.SkinnedMesh)) {
         saved.add(comp.assetPath);
         const ctor = comp.constructor;
         SaveToFile(comp.assetPath, new Blob([JSON.stringify({ type: ctor.type, ...Serializer.serializeFields(comp) })]));
@@ -4175,7 +4197,7 @@ async function ReloadScript(engineAPI, path) {
       for (const { component } of toReplace) {
         const data = serializer.serializeComponent(component);
         go.RemoveComponent(component);
-        const newComponent = go.AddComponent(NewClass);
+        const newComponent = engineAPI.addComponent(go, NewClass);
         await deserializer.deserializeComponent(newComponent, data);
       }
     }
@@ -4489,7 +4511,7 @@ class LayoutHierarchy extends Component {
   }
   createPrimitive(primitiveType) {
     const gameObject = this.props.engineAPI.createGameObject(this.props.engineAPI.currentScene);
-    const mesh = gameObject.AddComponent(IComponents.Mesh);
+    const mesh = this.props.engineAPI.addComponent(gameObject, ComponentRegistry.Mesh);
     if (primitiveType === "Cube") mesh.geometry = this.props.engineAPI.createCubeGeometry(), gameObject.name = "Cube";
     else if (primitiveType === "Capsule") mesh.geometry = this.props.engineAPI.createCapsuleGeometry(), gameObject.name = "Capsule";
     else if (primitiveType === "Plane") mesh.geometry = this.props.engineAPI.createPlaneGeometry(), gameObject.name = "Plane";
@@ -4498,11 +4520,18 @@ class LayoutHierarchy extends Component {
     EventSystem.emit(GameObjectEvents.Created, gameObject);
     this.setState({ ...this.state, headerMenuOpen: !this.state.headerMenuOpen });
   }
+  createTerrain() {
+    const gameObject = this.props.engineAPI.createGameObject(this.props.engineAPI.currentScene);
+    gameObject.name = "Terrain";
+    this.props.engineAPI.addComponent(gameObject, ComponentRegistry.Terrain);
+    EventSystem.emit(GameObjectEvents.Created, gameObject);
+    this.setState({ ...this.state, headerMenuOpen: !this.state.headerMenuOpen });
+  }
   createLight(lightType) {
     const gameObject = this.props.engineAPI.createGameObject(this.props.engineAPI.currentScene);
-    if (lightType === "Directional") gameObject.AddComponent(IComponents.DirectionalLight), gameObject.name = "DirectionalLight";
-    else if (lightType === "Point") gameObject.AddComponent(IComponents.PointLight), gameObject.name = "PointLight";
-    else if (lightType === "Spot") gameObject.AddComponent(IComponents.SpotLight), gameObject.name = "SpotLight";
+    if (lightType === "Directional") this.props.engineAPI.addComponent(gameObject, ComponentRegistry.DirectionalLight), gameObject.name = "DirectionalLight";
+    else if (lightType === "Point") this.props.engineAPI.addComponent(gameObject, ComponentRegistry.PointLight), gameObject.name = "PointLight";
+    else if (lightType === "Spot") this.props.engineAPI.addComponent(gameObject, ComponentRegistry.SpotLight), gameObject.name = "SpotLight";
     EventSystem.emit(GameObjectEvents.Created, gameObject);
     this.setState({ ...this.state, headerMenuOpen: !this.state.headerMenuOpen });
   }
@@ -4542,7 +4571,7 @@ class LayoutHierarchy extends Component {
     const rootGameObjects = this.props.engineAPI.currentScene.GetGameObjects().filter((go) => !go.transform.parent);
     return /* @__PURE__ */ createElement("div", { class: "Layout" }, /* @__PURE__ */ createElement("div", { class: "header" }, /* @__PURE__ */ createElement("div", { class: "title" }, this.props.engineAPI.currentScene.name || "Untitled scene"), /* @__PURE__ */ createElement("div", { class: "right-action" }, /* @__PURE__ */ createElement("button", { onClick: (event) => {
       this.setState({ ...this.state, headerMenuOpen: !this.state.headerMenuOpen });
-    } }, "\u22EE"), /* @__PURE__ */ createElement(FloatingMenu, { visible: this.state.headerMenuOpen, onClose: () => this.setState({ ...this.state, headerMenuOpen: false }) }, /* @__PURE__ */ createElement(Tree, null, /* @__PURE__ */ createElement(TreeItem, { name: "Create Empty", onPointerDown: () => this.createEmptyGameObject() }), /* @__PURE__ */ createElement(TreeItem, { name: "Delete", onPointerDown: () => this.deleteGameObject() }), /* @__PURE__ */ createElement(TreeFolder, { name: "3D Object" }, /* @__PURE__ */ createElement(TreeItem, { name: "Cube", onPointerDown: () => this.createPrimitive("Cube") }), /* @__PURE__ */ createElement(TreeItem, { name: "Capsule", onPointerDown: () => this.createPrimitive("Capsule") }), /* @__PURE__ */ createElement(TreeItem, { name: "Plane", onPointerDown: () => this.createPrimitive("Plane") }), /* @__PURE__ */ createElement(TreeItem, { name: "Sphere", onPointerDown: () => this.createPrimitive("Sphere") })), /* @__PURE__ */ createElement(TreeFolder, { name: "Lights" }, /* @__PURE__ */ createElement(TreeItem, { name: "Directional Light", onPointerDown: () => this.createLight("Directional") }), /* @__PURE__ */ createElement(TreeItem, { name: "Point Light", onPointerDown: () => this.createLight("Point") }), /* @__PURE__ */ createElement(TreeItem, { name: "Spot Light", onPointerDown: () => this.createLight("Spot") })))))), /* @__PURE__ */ createElement(
+    } }, "\u22EE"), /* @__PURE__ */ createElement(FloatingMenu, { visible: this.state.headerMenuOpen, onClose: () => this.setState({ ...this.state, headerMenuOpen: false }) }, /* @__PURE__ */ createElement(Tree, null, /* @__PURE__ */ createElement(TreeItem, { name: "Create Empty", onPointerDown: () => this.createEmptyGameObject() }), /* @__PURE__ */ createElement(TreeItem, { name: "Delete", onPointerDown: () => this.deleteGameObject() }), /* @__PURE__ */ createElement(TreeFolder, { name: "3D Object" }, /* @__PURE__ */ createElement(TreeItem, { name: "Cube", onPointerDown: () => this.createPrimitive("Cube") }), /* @__PURE__ */ createElement(TreeItem, { name: "Capsule", onPointerDown: () => this.createPrimitive("Capsule") }), /* @__PURE__ */ createElement(TreeItem, { name: "Plane", onPointerDown: () => this.createPrimitive("Plane") }), /* @__PURE__ */ createElement(TreeItem, { name: "Sphere", onPointerDown: () => this.createPrimitive("Sphere") }), /* @__PURE__ */ createElement(TreeItem, { name: "Terrain", onPointerDown: () => this.createTerrain() })), /* @__PURE__ */ createElement(TreeFolder, { name: "Lights" }, /* @__PURE__ */ createElement(TreeItem, { name: "Directional Light", onPointerDown: () => this.createLight("Directional") }), /* @__PURE__ */ createElement(TreeItem, { name: "Point Light", onPointerDown: () => this.createLight("Point") }), /* @__PURE__ */ createElement(TreeItem, { name: "Spot Light", onPointerDown: () => this.createLight("Spot") })))))), /* @__PURE__ */ createElement(
       "div",
       {
         style: "width: 100%; height: 100%; overflow: auto;padding-top:5px",
@@ -4962,32 +4991,13 @@ class AddComponent extends Component {
   constructor(props) {
     super(props);
   }
-  addComponent(registryEntry) {
-    const componentClass = Component$1.Registry.get(registryEntry);
-    if (!componentClass) throw Error(`Component ${registryEntry} does not exist in Components.Registry`);
-    const componentInstance = this.props.gameObject.AddComponent(componentClass);
+  addComponent(component) {
+    const componentInstance = this.props.engineAPI.addComponent(this.props.gameObject, component);
     EventSystem.emit(ComponentEvents.Created, this.props.gameObject, componentInstance);
     this.setState({ isMenuOpen: false });
   }
-  generateTree(entryMap) {
-    const entriesByPath = /* @__PURE__ */ new Map();
-    for (const [fullpath] of entryMap) {
-      const compIdx = fullpath.lastIndexOf("components/");
-      const path = compIdx !== -1 ? fullpath.slice(compIdx + "components/".length, fullpath.lastIndexOf("/") + 1) : fullpath.slice(0, fullpath.lastIndexOf("/") + 1);
-      const name = fullpath.slice(fullpath.lastIndexOf("/") + 1);
-      const pathEntries = entriesByPath.get(path) || [];
-      pathEntries.push({ name, type: fullpath });
-      entriesByPath.set(path, pathEntries);
-    }
-    return Array.from(entriesByPath).map(([path, entries]) => {
-      const items = entries.map(
-        (e) => /* @__PURE__ */ createElement(TreeItem, { key: e.type, name: e.name, onPointerDown: () => this.addComponent(e.type) })
-      );
-      return path === "" ? items : /* @__PURE__ */ createElement(TreeFolder, { key: path, name: path.replace("/", "") }, items);
-    });
-  }
   render() {
-    return /* @__PURE__ */ createElement("div", { class: "Floating-Menu", style: { position: "inherit", padding: "5px", margin: "10px" } }, /* @__PURE__ */ createElement(Tree, null, /* @__PURE__ */ createElement(TreeFolder, { name: "Add Component" }, this.generateTree(Component$1.Registry))));
+    return /* @__PURE__ */ createElement("div", { class: "Floating-Menu", style: { position: "inherit", padding: "5px", margin: "10px" } }, /* @__PURE__ */ createElement(Tree, null, /* @__PURE__ */ createElement(TreeFolder, { name: "Add Component" }, /* @__PURE__ */ createElement(TreeFolder, { name: "Physics" }, /* @__PURE__ */ createElement(TreeItem, { name: "Rigidbody", onPointerDown: () => this.addComponent(ComponentRegistry.RigidBody) }), /* @__PURE__ */ createElement(TreeItem, { name: "BoxCollider", onPointerDown: () => this.addComponent(ComponentRegistry.BoxCollider) }), /* @__PURE__ */ createElement(TreeItem, { name: "CapsuleCollider", onPointerDown: () => this.addComponent(ComponentRegistry.CapsuleCollider) }), /* @__PURE__ */ createElement(TreeItem, { name: "MeshCollider", onPointerDown: () => this.addComponent(ComponentRegistry.MeshCollider) }), /* @__PURE__ */ createElement(TreeItem, { name: "PlaneCollider", onPointerDown: () => this.addComponent(ComponentRegistry.PlaneCollider) }), /* @__PURE__ */ createElement(TreeItem, { name: "SphereCollider", onPointerDown: () => this.addComponent(ComponentRegistry.SphereCollider) })), /* @__PURE__ */ createElement(TreeItem, { name: "Mesh", onPointerDown: () => this.addComponent(ComponentRegistry.Mesh) }), /* @__PURE__ */ createElement(TreeFolder, { name: "Lights" }, /* @__PURE__ */ createElement(TreeItem, { name: "DirectionalLight", onPointerDown: () => this.addComponent(ComponentRegistry.DirectionalLight) }), /* @__PURE__ */ createElement(TreeItem, { name: "PointLight", onPointerDown: () => this.addComponent(ComponentRegistry.PointLight) }), /* @__PURE__ */ createElement(TreeItem, { name: "SpotLight", onPointerDown: () => this.addComponent(ComponentRegistry.SpotLight) })))));
   }
 }
 
@@ -5170,7 +5180,7 @@ class LayoutInspectorGameObject extends Component {
   onDrop(event) {
     const draggedItem = ExtendedDataTransfer.data;
     const component = draggedItem[Object.keys(draggedItem)[0]];
-    this.props.gameObject.AddComponent(component);
+    this.props.engineAPI.addComponent(this.props.gameObject, component);
     this.setState({});
   }
   render() {
@@ -5224,7 +5234,7 @@ class LayoutInspectorGameObject extends Component {
         this.onComponentPropertyChanged(this.props.gameObject.transform, "scale", value);
       }, vector3: this.props.gameObject.transform.scale })),
       componentsElements,
-      /* @__PURE__ */ createElement(AddComponent, { gameObject: this.props.gameObject })
+      /* @__PURE__ */ createElement(AddComponent, { engineAPI: this.props.engineAPI, gameObject: this.props.gameObject })
     );
   }
 }

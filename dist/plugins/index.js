@@ -61,6 +61,7 @@ export { VPLGeneratorV2 } from './VPLGeneratorV2.js';
 export { PathTracer } from './PathTracer.js';
 export { FullscreenQuad } from './FullscreenQuad.js';
 export { SSS_V2 } from './SSS_V2.js';
+export { WireframePass } from './WireframePass.js';
 
 Component.Registry.set(Water.type, Water);
 
