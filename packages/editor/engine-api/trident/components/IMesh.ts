@@ -1,7 +1,8 @@
+import { IComponent } from "./IComponent";
 import { IGeometry } from "./IGeometry";
 import { IMaterial } from "./IMaterial";
 
-export interface IMesh {
+export interface IMesh extends IComponent {
     geometry: IGeometry;
-    material: IMaterial;    
+    material: IMaterial;
 }

@@ -1,7 +1,6 @@
 import { createElement, Component } from "../../gooact";
 
 import { InspectorInput } from './InspectorInput';
-import { InspectorDropdown, InspectorDropdownOptions } from './InspectorDropdown';
 import { InspectorCheckbox } from './InspectorCheckbox';
 import { InspectorVector3 } from './InspectorVector3';
 import { InspectorVector2 } from './InspectorVector2';
@@ -10,7 +9,6 @@ import { Collapsible } from '../Collapsible/Collapsible';
 import { InspectorColor } from './InspectorColor';
 import { AddComponent } from './AddComponent';
 
-import { InspectorClass } from './InspectorClass';
 import { InspectorType } from './InspectorType';
 import { IGameObject } from '../../engine-api/trident/components/IGameObject';
 import { IComponent } from '../../engine-api/trident/components/IComponent';
@@ -155,7 +153,7 @@ export class LayoutInspectorGameObject extends Component<LayoutInspectorProps> {
         const draggedItem = ExtendedDataTransfer.data;
         const component = draggedItem[Object.keys(draggedItem)[0]];
         // console.log("onDrop", draggedItem, this.props.engineAPI.isComponent(component));
-        this.props.gameObject.AddComponent(component);
+        this.props.engineAPI.addComponent(this.props.gameObject, component);
         this.setState({}); // force updated
     }
 
@@ -200,7 +198,7 @@ export class LayoutInspectorGameObject extends Component<LayoutInspectorProps> {
 
                 {componentsElements}
 
-                <AddComponent gameObject={this.props.gameObject}/>
+                <AddComponent engineAPI={this.props.engineAPI} gameObject={this.props.gameObject}/>
             </div>
         )
     }

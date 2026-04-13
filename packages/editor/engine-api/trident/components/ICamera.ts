@@ -13,6 +13,6 @@ export interface ICamera extends IComponent {
     near: number;
     far: number;
 
-    SetPerspective(fov: number, aspect: number, near: number, far: number);
-    SetOrthographic(left: number, right: number, top: number, bottom: number, near: number, far: number);
+    SetPerspective(fov: number, aspect: number, near: number, far: number): void;
+    SetOrthographic(left: number, right: number, top: number, bottom: number, near: number, far: number): void;
 }

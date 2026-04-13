@@ -1,10 +1,9 @@
 import { createElement, Component } from "../gooact";
 import { IGameObject } from "../engine-api/trident/components/IGameObject";
 import { BaseProps } from "./Layout";
-import { ITreeMap } from "./TreeView/ITreeMap";
 import { EventSystem, GameObjectEvents, LayoutHierarchyEvents, SceneEvents } from "../Events";
 import { ExtendedDataTransfer } from "../helpers/ExtendedDataTransfer";
-import { IComponents } from "../engine-api/trident/components";
+import { ComponentRegistry } from "../engine-api/trident/ComponentRegistry";
 import { TreeFolder } from "./TreeView/TreeFolder";
 import { TreeItem } from "./TreeView/TreeItem";
 import { Tree } from "./TreeView/Tree";
@@ -103,7 +102,7 @@ export class LayoutHierarchy extends Component<BaseProps, LayoutHierarchyState> 
 
     private createPrimitive(primitiveType: "Cube" | "Capsule" | "Plane" | "Sphere") {
         const gameObject = this.props.engineAPI.createGameObject(this.props.engineAPI.currentScene);
-        const mesh = gameObject.AddComponent(IComponents.Mesh);
+        const mesh = this.props.engineAPI.addComponent(gameObject, ComponentRegistry.Mesh);
         if (primitiveType === "Cube") mesh.geometry = this.props.engineAPI.createCubeGeometry(), gameObject.name = "Cube";
         else if (primitiveType === "Capsule") mesh.geometry = this.props.engineAPI.createCapsuleGeometry(), gameObject.name = "Capsule";
         else if (primitiveType === "Plane") mesh.geometry = this.props.engineAPI.createPlaneGeometry(), gameObject.name = "Plane";
@@ -113,11 +112,19 @@ export class LayoutHierarchy extends Component<BaseProps, LayoutHierarchyState> 
         this.setState({ ...this.state, headerMenuOpen: !this.state.headerMenuOpen });
     }
 
+    private createTerrain() {
+        const gameObject = this.props.engineAPI.createGameObject(this.props.engineAPI.currentScene);
+        gameObject.name = "Terrain";
+        this.props.engineAPI.addComponent(gameObject, ComponentRegistry.Terrain);
+        EventSystem.emit(GameObjectEvents.Created, gameObject);
+        this.setState({ ...this.state, headerMenuOpen: !this.state.headerMenuOpen });
+    }
+
     private createLight(lightType: "Directional" | "Point" | "Spot" | "Area") {
         const gameObject = this.props.engineAPI.createGameObject(this.props.engineAPI.currentScene);
-        if (lightType === "Directional") gameObject.AddComponent(IComponents.DirectionalLight), gameObject.name = "DirectionalLight";
-        else if (lightType === "Point") gameObject.AddComponent(IComponents.PointLight), gameObject.name = "PointLight";
-        else if (lightType === "Spot") gameObject.AddComponent(IComponents.SpotLight), gameObject.name = "SpotLight";
+        if (lightType === "Directional") this.props.engineAPI.addComponent(gameObject, ComponentRegistry.DirectionalLight), gameObject.name = "DirectionalLight";
+        else if (lightType === "Point") this.props.engineAPI.addComponent(gameObject, ComponentRegistry.PointLight), gameObject.name = "PointLight";
+        else if (lightType === "Spot") this.props.engineAPI.addComponent(gameObject, ComponentRegistry.SpotLight), gameObject.name = "SpotLight";
         EventSystem.emit(GameObjectEvents.Created, gameObject);
         this.setState({ ...this.state, headerMenuOpen: !this.state.headerMenuOpen });
     }
@@ -171,6 +178,7 @@ export class LayoutHierarchy extends Component<BaseProps, LayoutHierarchyState> 
                                     <TreeItem name="Capsule" onPointerDown={() => this.createPrimitive("Capsule")} />
                                     <TreeItem name="Plane" onPointerDown={() => this.createPrimitive("Plane")} />
                                     <TreeItem name="Sphere" onPointerDown={() => this.createPrimitive("Sphere")} />
+                                    <TreeItem name="Terrain" onPointerDown={() => this.createTerrain()} />
                                 </TreeFolder>
                                 <TreeFolder name="Lights">
                                     <TreeItem name="Directional Light" onPointerDown={() => this.createLight("Directional")} />

@@ -10,7 +10,14 @@ export interface IComponent {
     readonly gameObject: IGameObject;
     readonly transform: ITransform;
 
-    Start();
-    Update();
-    Destroy();
+    Start(): void;
+    Update(): void;
+    Destroy(): void;
 }
+
+export interface IComponentConstructor<T extends IComponent = IComponent> {
+    new(...args: any[]): T;
+    type?: string;
+}
+
+export type IComponentInstance<T extends IComponentConstructor> = T extends IComponentConstructor<infer I> ? I : never;

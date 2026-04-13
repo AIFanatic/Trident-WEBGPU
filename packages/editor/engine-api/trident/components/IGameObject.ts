@@ -1,19 +1,5 @@
-import { Components } from "@trident/core";
+import { IComponent, IComponentConstructor, IComponentInstance } from "./IComponent";
 import { ITransform } from "./ITransform";
-import { ICamera } from "./ICamera";
-import { IComponents } from "./index";
-import { ISpotLight } from "./ILight";
-import { IMesh } from "./IMesh";
-import { IComponent } from "./IComponent";
-
-export type ComponentInterface<T> =
-    T extends typeof Components.Camera ? ICamera :
-    T extends typeof Components.SpotLight ? ISpotLight :
-    T extends typeof Components.Mesh ? IMesh :
-    InstanceType<T>;  // fallback
-
-
-export type ComponentCtor = typeof IComponents[keyof typeof IComponents];
 
 export interface IGameObject {
     id: string;
@@ -21,9 +7,8 @@ export interface IGameObject {
     name: string;
     enabled: boolean;
 
-    // AddComponent<T extends ComponentCtor>(ctor: T): InstanceType<T>;
-    AddComponent<T extends ComponentCtor>(ctor: T): ComponentInterface<T>;
+    AddComponent<T extends IComponentConstructor>(ctor: T): IComponentInstance<T>;
 
-    GetComponents<T extends IComponent>(type?: new(...args: any[]) => T): T[];
-    Destroy();
-};
+    GetComponents<T extends IComponent>(type?: new (...args: any[]) => T): T[];
+    Destroy(): void;
+}

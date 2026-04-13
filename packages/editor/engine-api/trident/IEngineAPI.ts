@@ -12,7 +12,7 @@ import { IVector3 } from "./math/IVector3";
 
 import { IVector2 } from "./math/IVector2";
 
-import { IComponent } from "./components/IComponent";
+import { IComponent, IComponentConstructor } from "./components/IComponent";
 import { IPrefab } from "./components/IPrefab";
 import { ITexture } from "./components/ITexture";
 import { ISystem } from "./ISystem";
@@ -22,7 +22,7 @@ export interface IEngineAPI {
     currentScene: IScene;
 
     createRuntime(canvas: HTMLCanvasElement): Promise<IRuntime>;
-    
+
     addSystem<T extends ISystem, A extends any[]>(ctor: new (...args: A) => T, ...args: A): Promise<T>;
 
     createScene(): IScene;
@@ -53,6 +53,8 @@ export interface IEngineAPI {
     createPBRMaterial(args?): IMaterial;
 
     createPrefab(): IPrefab;
+    addComponent<T extends IComponent>(gameObject: IGameObject, component: IComponentConstructor<T>): T;
+
     createTextureFromBlob(blob: Blob, format?: GPU.TextureFormat, options?: GPU.ImageLoadOptions): Promise<ITexture>;
 
     deserializeGeometry(serialized): Promise<IGeometry>;

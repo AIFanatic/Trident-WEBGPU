@@ -27,7 +27,7 @@ export async function ReloadScript(engineAPI: IEngineAPI, path: string) {
                 go.RemoveComponent(component);
 
                 // 3. Create new instance
-                const newComponent = go.AddComponent(NewClass);
+                const newComponent = engineAPI.addComponent(go, NewClass);
 
                 // 4. Deserialize field values back
                 await deserializer.deserializeComponent(newComponent, data);

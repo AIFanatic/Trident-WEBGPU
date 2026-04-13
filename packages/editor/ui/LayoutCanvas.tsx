@@ -1,5 +1,5 @@
-import { IComponents } from "../engine-api/trident/components";
 import { createElement, Component } from "../gooact";
+import { ComponentRegistry } from "../engine-api/trident/ComponentRegistry";
 import { BaseProps } from "./Layout";
 
 import { EventSystem, GameObjectEvents, LayoutHierarchyEvents, SceneEvents } from "../Events";
@@ -47,7 +47,7 @@ export class LayoutCanvas extends Component<BaseProps> {
 
         const mainCameraGameObject = EngineAPI.createGameObject(currentScene);
         mainCameraGameObject.name = "MainCamera";
-        const camera = mainCameraGameObject.AddComponent(IComponents.Camera);
+        const camera = EngineAPI.addComponent(mainCameraGameObject, ComponentRegistry.Camera);
         camera.SetPerspective(72, canvas.width / canvas.height, cameraSettings.near, cameraSettings.far);
         // EventSystem.on(GPU.RendererEvents.Resized, () => {
         //     console.log(canvas.getBoundingClientRect(), canvas.width, canvas.height)
@@ -63,7 +63,7 @@ export class LayoutCanvas extends Component<BaseProps> {
         lightGameObject.name = "Light";
         lightGameObject.transform.position.set(-10, 10, 10);
         lightGameObject.transform.LookAtV1(EngineAPI.createVector3(0, 0, 0));
-        const light = lightGameObject.AddComponent(IComponents.DirectionalLight);
+        const light = EngineAPI.addComponent(lightGameObject, ComponentRegistry.DirectionalLight);
         light.castShadows = true;
 
         // setInterval(() => {
@@ -75,14 +75,14 @@ export class LayoutCanvas extends Component<BaseProps> {
         floorGameObject.transform.eulerAngles.x = -90;
         floorGameObject.transform.position.y = -2;
         floorGameObject.transform.scale.set(100, 100, 100);
-        const floorMesh = floorGameObject.AddComponent(IComponents.Mesh);
+        const floorMesh = EngineAPI.addComponent(floorGameObject, ComponentRegistry.Mesh);
         floorMesh.geometry = EngineAPI.createPlaneGeometry();
         floorMesh.material = EngineAPI.createPBRMaterial();
 
 
         const cubeGameObject = EngineAPI.createGameObject(EngineAPI.currentScene);
         cubeGameObject.name = "Cube"
-        const cubeMesh = cubeGameObject.AddComponent(IComponents.Mesh);
+        const cubeMesh = EngineAPI.addComponent(cubeGameObject, ComponentRegistry.Mesh);
         cubeMesh.geometry = EngineAPI.createCubeGeometry();
         cubeMesh.material = EngineAPI.createPBRMaterial();
 
@@ -168,6 +168,8 @@ export class LayoutCanvas extends Component<BaseProps> {
         Runtime.Play();
 
         // new ResizeObserver(resize).observe(canvas);
+
+        EventSystem.emit(SceneEvents.Loaded, currentScene);
     }
 
     render() {

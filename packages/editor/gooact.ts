@@ -142,10 +142,10 @@ const patch = (dom: GooactNode, vdom: VNodeChild, parent: (Node & ParentNode) | 
 };
 
 export class Component<P = any, S = any> {
-    props: PropsWithChildren<P>; state: S | null; base?: GooactNode;
+    props: PropsWithChildren<P>; state: S; base?: GooactNode;
     constructor(props?: PropsWithChildren<P>) {
         this.props = (props || {}) as PropsWithChildren<P>;
-        this.state = null;
+        this.state = {} as S;
     }
 
     static render(vdom: VNode, parent: HTMLElement | null = null): GooactNode {

@@ -1,5 +1,5 @@
 import { IGameObject } from "../engine-api/trident/components/IGameObject";
-import { IComponents } from "../engine-api/trident/components";
+import { ComponentRegistry } from "../engine-api/trident/ComponentRegistry";
 import { FileBrowser } from "../helpers/FileBrowser";
 import { Texture, GetSerializedFields, Serializer } from "@trident/core";
 import { SaveToFile } from "./SaveToFile";
@@ -15,8 +15,8 @@ export async function SaveGameObjectAsAsset(baseDir: string, gameObject: IGameOb
     const walkAndAssignPaths = (go: IGameObject) => {
         for (const component of go.GetComponents()) {
             const renderable = component as any;
-            if ((component as any).constructor?.type === IComponents.Mesh.type ||
-                (component as any).constructor?.type === IComponents.SkinnedMesh.type) {
+            if ((component as any).constructor?.type === ComponentRegistry.Mesh ||
+                (component as any).constructor?.type === ComponentRegistry.SkinnedMesh) {
                 const geometry = renderable.geometry;
                 if (geometry && !geometry.assetPath) {
                     geometry.assetPath = `${fullAssetDir}/${geometry.name || `geometry_${geometryCounter++}`}.geometry`;
@@ -45,7 +45,7 @@ export async function SaveGameObjectAsAsset(baseDir: string, gameObject: IGameOb
                 }
             }
 
-            if ((component as any).constructor?.type === IComponents.Animator.type) {
+            if ((component as any).constructor?.type === ComponentRegistry.Animator) {
                 const animator = component as any;
                 if (!animator.assetPath) {
                     animator.assetPath = `${fullAssetDir}/${rootName}.animation`;
@@ -69,8 +69,8 @@ export async function SaveGameObjectAsAsset(baseDir: string, gameObject: IGameOb
     const walkAndSave = (go: IGameObject) => {
         for (const component of go.GetComponents()) {
             const renderable = component as any;
-            if ((component as any).constructor?.type === IComponents.Mesh.type ||
-                (component as any).constructor?.type === IComponents.SkinnedMesh.type) {
+            if ((component as any).constructor?.type === ComponentRegistry.Mesh ||
+                (component as any).constructor?.type === ComponentRegistry.SkinnedMesh) {
                 const geometry = renderable.geometry;
                 if (geometry && geometry.assetPath && !saved.has(geometry.assetPath)) {
                     saved.add(geometry.assetPath);
@@ -110,7 +110,7 @@ export async function SaveGameObjectAsAsset(baseDir: string, gameObject: IGameOb
 
             const comp = component as any;
             if (comp.assetPath && !saved.has(comp.assetPath) &&
-                (comp.constructor?.type !== IComponents.Mesh.type && comp.constructor?.type !== IComponents.SkinnedMesh.type)) {
+                (comp.constructor?.type !== ComponentRegistry.Mesh && comp.constructor?.type !== ComponentRegistry.SkinnedMesh)) {
                 saved.add(comp.assetPath);
                 const ctor = comp.constructor as any;
                 SaveToFile(comp.assetPath, new Blob([JSON.stringify({ type: ctor.type, ...Serializer.serializeFields(comp) })]));
