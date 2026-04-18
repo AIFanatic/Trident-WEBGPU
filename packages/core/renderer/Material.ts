@@ -1,7 +1,6 @@
 import { Vector2 } from "../math";
 import { Color } from "../math/Color";
 import { Assets } from "../Assets";
-import { Scene } from "../Scene";
 import { SerializeField, UUID } from "../utils/";
 import { Pool } from "../utils/Pool";
 import { Shader, ShaderParams } from "./Shader";

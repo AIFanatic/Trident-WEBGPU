@@ -6,21 +6,21 @@ import { Material, PBRMaterial } from "../renderer/Material";
 import { SerializeField } from "../utils/SerializeField";
 import { Component } from "./Component";
 
+import { Texture } from "../renderer/Texture";
+
 export class RenderableEvents {
-    public static MaterialUpdated = (gameObject: GameObject, material: Material) => {};
-    public static GeometryUpdated = (gameObject: GameObject, geometry: Geometry) => {};
+    public static MaterialUpdated = (gameObject: GameObject, material: Material) => { };
+    public static GeometryUpdated = (gameObject: GameObject, geometry: Geometry) => { };
 }
-
 export class Renderable extends Component {
-
     public static Renderables: Map<string, Renderable> = new Map();
 
     public static type = "@trident/core/components/Renderable";
-    
+
     @SerializeField
     public enableShadows: boolean = true;
-    
-    private _geometry: Geometry = new Geometry();
+
+    protected _geometry: Geometry = new Geometry();
     @SerializeField(Geometry)
     public get geometry(): Geometry { return this._geometry; };
     public set geometry(geometry: Geometry) {

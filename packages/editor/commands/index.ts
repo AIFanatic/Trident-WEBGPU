@@ -6,4 +6,4 @@ export { CreateScene } from "./CreateScene";
 export { DeleteAsset } from "./DeleteAsset";
 export { SavePrefab } from "./SavePrefab";
 export { SaveGameObjectAsAsset } from "./SaveGameObjectAsAsset";
-export { SaveMaterial } from "./SaveMaterial";
+export { SaveAsset } from "./SaveAsset";

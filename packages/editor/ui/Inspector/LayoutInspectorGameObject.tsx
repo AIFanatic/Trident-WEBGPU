@@ -5,7 +5,6 @@ import { InspectorCheckbox } from './InspectorCheckbox';
 import { InspectorVector3 } from './InspectorVector3';
 import { InspectorVector2 } from './InspectorVector2';
 import { Collapsible } from '../Collapsible/Collapsible';
-// // import { StringUtils } from '../helpers/StringUtils';
 import { InspectorColor } from './InspectorColor';
 import { AddComponent } from './AddComponent';
 
@@ -14,9 +13,13 @@ import { IGameObject } from '../../engine-api/trident/components/IGameObject';
 import { IComponent } from '../../engine-api/trident/components/IComponent';
 import { ITransform } from '../../engine-api/trident/components/ITransform';
 import { IEngineAPI } from '../../engine-api/trident/IEngineAPI';
-import { ComponentEvents, EventSystem, GameObjectEvents, LayoutHierarchyEvents } from "../../Events";
+import { ComponentEvents, GameObjectEvents, LayoutHierarchyEvents } from "../../Events";
 import { StringUtils } from "../../helpers/StringUtils";
 import { ExtendedDataTransfer } from "../../helpers/ExtendedDataTransfer";
+import { InspectorDropdown, InspectorDropdownOptions } from "./InspectorDropdown";
+import { InspectorClass } from "./InspectorClass";
+import { InspectorArray } from "./InspectorArray";
+import { TridentAPI } from "../../engine-api/trident/TridentAPI";
 
 interface LayoutInspectorProps {
     engineAPI: IEngineAPI;
@@ -62,12 +65,12 @@ export class LayoutInspectorGameObject extends Component<LayoutInspectorProps> {
         const input = event.currentTarget as HTMLInputElement;
         gameObject.name = input.value;
 
-        EventSystem.emit(GameObjectEvents.Changed, gameObject);
+        TridentAPI.EventSystem.emit(GameObjectEvents.Changed, gameObject);
 
         // this.forceUpdate()
     }
 
-    private renderInspectorForComponentProperty(component: IComponent, property: { name: string | symbol, type?: Function }): Node {
+    private renderInspectorForComponentProperty(component: any, property: { name: string | symbol, type?: Function }): Node {
         const name = property.name as string;
         const type = property.type;
         const engineType = this.props.engineAPI.getFieldType(type);
@@ -79,6 +82,21 @@ export class LayoutInspectorGameObject extends Component<LayoutInspectorProps> {
         else if (engineType === "Color") return <InspectorColor title={title} onChanged={(value) => { this.onComponentPropertyChanged(component, name, value) }} color={component[name]} />
         else if (type === Number) return <InspectorInput onChanged={(value) => { this.onComponentPropertyChanged(component, name, value) }} title={title} value={component[name]} type="number" />
         else if (type === Boolean) return <InspectorCheckbox onChanged={(value) => { this.onComponentPropertyChanged(component, name, value) }} title={title} selected={component[name]} />
+        else if (Array.isArray(component[name])) {
+            return <InspectorArray
+                title={title}
+                array={component[name]}
+                elementType={type}
+                onChanged={() => this.setState({})}
+                renderItem={(item, index) => {
+                    if (!item) return null;
+
+                    return <div title={`${title} ${index}`}>
+                        {...this.renderInspectorForComponent(item)}
+                    </div>
+                }}
+            />
+        }
         else if (typeof type === "function") {
             const currentValue = component[name];
             let valueForType = currentValue ? currentValue.constructor.name : "None";
@@ -93,6 +111,15 @@ export class LayoutInspectorGameObject extends Component<LayoutInspectorProps> {
                 value={valueForType}
                 expectedType={type}
             />
+        }
+        else if (typeof type === "object") {
+            let selectOptions: InspectorDropdownOptions[] = []
+
+            for (let property in type) {
+                if (!isNaN(Number(property))) continue;
+                selectOptions.push({ text: property, value: type[property] });
+            }
+            return <InspectorDropdown title={title} options={selectOptions} selected={(component as any)[name]} onSelected={(value) => { this.onComponentPropertyChanged(component, name, value) }} />
         }
     }
 
@@ -139,15 +166,15 @@ export class LayoutInspectorGameObject extends Component<LayoutInspectorProps> {
     private onGameObjectEnabled(event) {
         this.props.gameObject.enabled = event.target.checked;
     }
-    
+
     private onDragEnter(event: DragEvent) {
         event.preventDefault();
     }
-    
+
     private onDragOver(event: DragEvent) {
         event.preventDefault();
     }
-    
+
     // TODO: This needs to be better
     private onDrop(event: DragEvent) {
         const draggedItem = ExtendedDataTransfer.data;
@@ -165,9 +192,9 @@ export class LayoutInspectorGameObject extends Component<LayoutInspectorProps> {
                 overflow: "auto",
                 width: "100%",
             }}
-            onDragEnter={(event) => {this.onDragEnter(event)}}
-            onDrop={(event) => {this.onDrop(event)}}
-            onDragOver={(event) => this.onDragOver(event)}
+                onDragEnter={(event) => { this.onDragEnter(event) }}
+                onDrop={(event) => { this.onDrop(event) }}
+                onDragOver={(event) => this.onDragOver(event)}
             >
                 <div style={{
                     display: "flex",
@@ -198,7 +225,7 @@ export class LayoutInspectorGameObject extends Component<LayoutInspectorProps> {
 
                 {componentsElements}
 
-                <AddComponent engineAPI={this.props.engineAPI} gameObject={this.props.gameObject}/>
+                <AddComponent engineAPI={this.props.engineAPI} gameObject={this.props.gameObject} />
             </div>
         )
     }

@@ -1,13 +1,21 @@
 import { createElement, Component } from "../gooact";
 import { IGameObject } from "../engine-api/trident/components/IGameObject";
 import { BaseProps } from "./Layout";
-import { EventSystem, GameObjectEvents, LayoutHierarchyEvents, SceneEvents } from "../Events";
+import { GameObjectEvents, SceneEvents } from "../Events";
 import { ExtendedDataTransfer } from "../helpers/ExtendedDataTransfer";
 import { ComponentRegistry } from "../engine-api/trident/ComponentRegistry";
 import { TreeFolder } from "./TreeView/TreeFolder";
 import { TreeItem } from "./TreeView/TreeItem";
 import { Tree } from "./TreeView/Tree";
 import { FloatingMenu } from "./FloatingMenu";
+import { SaveToFile } from "../commands/SaveToFile";
+import { TridentAPI } from "../engine-api/trident/TridentAPI";
+import { Serializer } from "@trident/core";
+import { SaveAsset } from "../commands/SaveAsset";
+
+export class LayoutHierarchyEvents {
+    public static Selected = (gameObject: IGameObject) => {};
+}
 
 interface LayoutHierarchyState {
     selectedGameObject: IGameObject;
@@ -20,29 +28,29 @@ export class LayoutHierarchy extends Component<BaseProps, LayoutHierarchyState> 
         super(props);
         this.setState({ selectedGameObject: null, headerMenuOpen: false });
 
-        EventSystem.on(GameObjectEvents.Created, gameObject => {
+        TridentAPI.EventSystem.on(GameObjectEvents.Created, gameObject => {
             this.selectGameObject(gameObject);
         });
 
-        EventSystem.on(GameObjectEvents.Deleted, gameObject => {
+        TridentAPI.EventSystem.on(GameObjectEvents.Deleted, gameObject => {
             if (gameObject === this.state.selectedGameObject) this.setState({...this.state, selectedGameObject: null });
         });
 
-        EventSystem.on(GameObjectEvents.Selected, gameObject => {
+        TridentAPI.EventSystem.on(GameObjectEvents.Selected, gameObject => {
             this.selectGameObject(gameObject);
         });
 
-        EventSystem.on(GameObjectEvents.Changed, (gameObject) => {
+        TridentAPI.EventSystem.on(GameObjectEvents.Changed, (gameObject) => {
             this.selectGameObject(gameObject);
         })
 
-        EventSystem.on(SceneEvents.Loaded, scene => {
+        TridentAPI.EventSystem.on(SceneEvents.Loaded, scene => {
             this.setState({ ...this.state, selectedGameObject: null });
         });
     }
 
     private selectGameObject(gameObject: IGameObject) {
-        EventSystem.emit(LayoutHierarchyEvents.Selected, gameObject);
+        TridentAPI.EventSystem.emit(LayoutHierarchyEvents.Selected, gameObject);
         this.setState({ ...this.state, selectedGameObject: gameObject });
     }
 
@@ -88,7 +96,7 @@ export class LayoutHierarchy extends Component<BaseProps, LayoutHierarchyState> 
 
     private createEmptyGameObject() {
         const gameObject = this.props.engineAPI.createGameObject(this.props.engineAPI.currentScene);
-        EventSystem.emit(GameObjectEvents.Created, gameObject);
+        TridentAPI.EventSystem.emit(GameObjectEvents.Created, gameObject);
         this.setState({ ...this.state, headerMenuOpen: !this.state.headerMenuOpen });
     }
 
@@ -96,7 +104,7 @@ export class LayoutHierarchy extends Component<BaseProps, LayoutHierarchyState> 
         if (this.state.selectedGameObject === null) return;
 
         this.state.selectedGameObject.Destroy();
-        EventSystem.emit(GameObjectEvents.Deleted, this.state.selectedGameObject);
+        TridentAPI.EventSystem.emit(GameObjectEvents.Deleted, this.state.selectedGameObject);
         this.setState({ headerMenuOpen: !this.state.headerMenuOpen, selectedGameObject: null });
     }
 
@@ -108,15 +116,21 @@ export class LayoutHierarchy extends Component<BaseProps, LayoutHierarchyState> 
         else if (primitiveType === "Plane") mesh.geometry = this.props.engineAPI.createPlaneGeometry(), gameObject.name = "Plane";
         else if (primitiveType === "Sphere") mesh.geometry = this.props.engineAPI.createSphereGeometry(), gameObject.name = "Sphere";
         mesh.material = this.props.engineAPI.createPBRMaterial();
-        EventSystem.emit(GameObjectEvents.Created, gameObject);
+        TridentAPI.EventSystem.emit(GameObjectEvents.Created, gameObject);
         this.setState({ ...this.state, headerMenuOpen: !this.state.headerMenuOpen });
     }
 
-    private createTerrain() {
+    private async createTerrain() {
         const gameObject = this.props.engineAPI.createGameObject(this.props.engineAPI.currentScene);
         gameObject.name = "Terrain";
-        this.props.engineAPI.addComponent(gameObject, ComponentRegistry.Terrain);
-        EventSystem.emit(GameObjectEvents.Created, gameObject);
+        const terrain = this.props.engineAPI.addComponent(gameObject, ComponentRegistry.Terrain) as any;
+        const terrainCollider = this.props.engineAPI.addComponent(gameObject, ComponentRegistry.TerrainCollider) as any;
+
+        const terrainPath = `${gameObject.name}_${gameObject.id}.terrain`;
+        terrain.terrainData.assetPath = terrainPath;
+        SaveAsset(terrain.terrainData);
+
+        TridentAPI.EventSystem.emit(GameObjectEvents.Created, gameObject);
         this.setState({ ...this.state, headerMenuOpen: !this.state.headerMenuOpen });
     }
 
@@ -125,7 +139,7 @@ export class LayoutHierarchy extends Component<BaseProps, LayoutHierarchyState> 
         if (lightType === "Directional") this.props.engineAPI.addComponent(gameObject, ComponentRegistry.DirectionalLight), gameObject.name = "DirectionalLight";
         else if (lightType === "Point") this.props.engineAPI.addComponent(gameObject, ComponentRegistry.PointLight), gameObject.name = "PointLight";
         else if (lightType === "Spot") this.props.engineAPI.addComponent(gameObject, ComponentRegistry.SpotLight), gameObject.name = "SpotLight";
-        EventSystem.emit(GameObjectEvents.Created, gameObject);
+        TridentAPI.EventSystem.emit(GameObjectEvents.Created, gameObject);
         this.setState({ ...this.state, headerMenuOpen: !this.state.headerMenuOpen });
     }
 

@@ -5,6 +5,7 @@ import { Vector3, Vector2, Quaternion, Color } from "../math";
 import { Prefab } from "../Prefab";
 import { Texture } from "../renderer/Texture";
 import { GetSerializedFields } from "../utils/SerializeField";
+import { Flags } from "../utils";
 
 export interface ISerializedGameObject {
     assetPath?: string;
@@ -66,22 +67,22 @@ export class Serializer {
         for (const { name } of GetSerializedFields(component)) out[name] = this.serializeValue(component[name]);
         return out;
     }
-    
+
     public static serializeGameObject(gameObject: GameObject): ISerializedGameObject {
         const out: ISerializedGameObject = { id: gameObject.id, name: gameObject.name, transform: this.serializeComponent(gameObject.transform), components: [], children: [] };
         if (gameObject.assetPath) { out.assetPath = gameObject.assetPath; return out; }
-        out.components = gameObject.GetComponents().filter(c => !(c instanceof Transform)).map(component => { return this.serializeComponent(component) });
+        out.components = gameObject.GetComponents().filter(c => !(c instanceof Transform)).filter(c => ((c.flags ?? Flags.None) & Flags.DontSaveInEditor) === 0).map(component => this.serializeComponent(component));
         out.children = [];
         for (const child of gameObject.transform.children) out.children.push(this.serializeGameObject(child.gameObject));
         return out;
     }
-    
+
     public static serializeScene(scene: Scene) {
         return {
             type: Scene.type,
             name: scene.name,
             mainCamera: Camera.mainCamera?.id,
-            gameObjects: scene.GetRootGameObjects().map(gameObject => { return this.serializeGameObject(gameObject)}),
+            gameObjects: scene.GetRootGameObjects().filter(gameObject => (gameObject.flags & Flags.DontSaveInEditor) === 0).map(gameObject => this.serializeGameObject(gameObject)),
         };
     }
 }

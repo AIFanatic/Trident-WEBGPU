@@ -27,7 +27,6 @@ export class InspectorInput extends Component<InspectorInputProps> {
             <span className="title">{this.props.title}</span>
 
             <div class="edit">
-
                 <InspectorNumber title="N" titleClass="gray-bg" value={this.props.value} onChanged={value => { this.onChanged(value) }} />
             </div>
         </div>

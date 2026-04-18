@@ -2,7 +2,7 @@ import { createElement, Component } from "../gooact";
 import { ComponentRegistry } from "../engine-api/trident/ComponentRegistry";
 import { BaseProps } from "./Layout";
 
-import { EventSystem, GameObjectEvents, LayoutHierarchyEvents, SceneEvents } from "../Events";
+import { GameObjectEvents, SceneEvents } from "../Events";
 
 import { Components, Console } from "@trident/core";
 import { OrbitControls } from "@trident/plugins/OrbitControls.js";
@@ -18,6 +18,9 @@ import { PostProcessingSMAA } from "@trident/plugins/PostProcessing/effects/SMAA
 import { GPU } from "@trident/core";
 
 import { PhysicsRapier } from "@trident/plugins/PhysicsRapier/PhysicsRapier";
+import { PhysicsDebugger } from "@trident/plugins/PhysicsRapier/PhysicsDebugger";
+import { TridentAPI } from "../engine-api/trident/TridentAPI";
+import { LayoutHierarchyEvents } from "./LayoutHierarchy";
 
 export class LayoutCanvas extends Component<BaseProps> {
 
@@ -93,11 +96,11 @@ export class LayoutCanvas extends Component<BaseProps> {
         const sky = new Sky();
         sky.SUN_ELEVATION_DEGREES = 60;
         await sky.init();
-        // const skyTexture = sky.skyTextureCubemap;
+        const skyTexture = sky.skyTextureCubemap;
 
-        const hdr = await HDRParser.Load("/dist/examples/assets/textures/HDR/autumn_field_puresky_1k.hdr");
+        // const hdr = await HDRParser.Load("/dist/examples/assets/textures/HDR/autumn_field_puresky_1k.hdr");
         // const hdr = await HDRParser.Load("/dist/examples/assets/textures/HDR/spruit_sunrise_1k.hdr");
-        const skyTexture = await HDRParser.ToCubemap(hdr);
+        // const skyTexture = await HDRParser.ToCubemap(hdr);
 
         const environment = new Environment(EngineAPI.currentScene, skyTexture);
         await environment.init();
@@ -118,7 +121,7 @@ export class LayoutCanvas extends Component<BaseProps> {
             if (mouseDrif.x == 0 && mouseDrif.y == 0) {
                 pickedGameObject = await raycaster.execute();
                 if (pickedGameObject) {
-                    EventSystem.emit(GameObjectEvents.Selected, pickedGameObject);
+                    TridentAPI.EventSystem.emit(GameObjectEvents.Selected, pickedGameObject);
                 }
             }
         });
@@ -133,11 +136,11 @@ export class LayoutCanvas extends Component<BaseProps> {
             }
         })
 
-        EventSystem.on(LayoutHierarchyEvents.Selected, _pickedGameObject => {
+        TridentAPI.EventSystem.on(LayoutHierarchyEvents.Selected, _pickedGameObject => {
             pickedGameObject = _pickedGameObject
         });
 
-        EventSystem.on(SceneEvents.Loaded, scene => {
+        TridentAPI.EventSystem.on(SceneEvents.Loaded, scene => {
             const mainCamera = Components.Camera.mainCamera;
             const controls = new OrbitControls(canvas, mainCamera);
         })
@@ -165,11 +168,15 @@ export class LayoutCanvas extends Component<BaseProps> {
 
         Runtime.AddSystem(PhysicsRapier);
 
+
+        // const physicsDebuggerGO = EngineAPI.createGameObject(currentScene);
+        // physicsDebuggerGO.AddComponent(PhysicsDebugger);
+
         Runtime.Play();
 
         // new ResizeObserver(resize).observe(canvas);
 
-        EventSystem.emit(SceneEvents.Loaded, currentScene);
+        TridentAPI.EventSystem.emit(SceneEvents.Loaded, currentScene);
     }
 
     render() {

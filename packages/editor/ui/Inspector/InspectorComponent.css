@@ -35,12 +35,11 @@
     background-color: #3498db80;
 }
 
-.InspectorComponent .InspectorComponent {
-    width: 70%;
-    margin-bottom: 0px;
+.InspectorComponent {
+    margin-bottom: 5px;
 }
 
-.InspectorComponent .InspectorComponent .input {
+.InspectorComponent .input {
     width: 100%;
 }
 

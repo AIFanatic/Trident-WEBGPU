@@ -41,11 +41,11 @@ export class Assets {
             Assets.cache.set(url, Promise.resolve(result));
             return result;
         })
-        .catch(error => {
-            Assets.cache.delete(url);
-            console.error(`Assets.ResourceFetchFn error loading file ${url}`);
-            throw error;
-        });
+            .catch(error => {
+                Assets.cache.delete(url);
+                console.error(`Assets.ResourceFetchFn error loading file ${url} with type ${type}`);
+                throw error;
+            });
 
         Assets.cache.set(url, promise);
         return promise;

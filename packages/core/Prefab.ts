@@ -1,4 +1,5 @@
 import { Assets } from "./Assets";
+import { TypeRegistry } from "./utils";
 import { SerializeField } from "./utils/SerializeField";
 
 export class Prefab {
@@ -18,22 +19,18 @@ export class Prefab {
         for (const child of this.children) child.traverse(fn);
     }
 
-    public static Deserialize(data: any): Prefab {
+    public static Deserialize(assetPath: string, data: any, asset: any): Prefab {
+        const source = asset ?? data;
         const prefab = new Prefab();
-        prefab.id = data.id;
-        prefab.name = data.name;
-        prefab.assetPath = data.assetPath;
-        prefab.transform = data.transform;
-        prefab.components = Array.isArray(data?.components) ? data.components : [];
-        prefab.children = Array.isArray(data?.children) ? data.children.map((c: any) => Prefab.Deserialize(c)) : [];
-        prefab.data = data;
-        return prefab;
-    }
-
-    public static async Load(assetPath: string): Promise<Prefab> {
-        const json = await Assets.Load(assetPath, "json");
-        const prefab = Prefab.Deserialize(json);
+        prefab.id = source.id;
+        prefab.name = source.name;
         prefab.assetPath = assetPath;
+        prefab.transform = source.transform;
+        prefab.components = Array.isArray(source?.components) ? source.components : [];
+        prefab.children = Array.isArray(source?.children) ? source.children.map((c: any) => Prefab.Deserialize(c.assetPath, null, c)) : [];
+        prefab.data = source;
         return prefab;
     }
 }
+
+TypeRegistry.set(Prefab.type, Prefab);

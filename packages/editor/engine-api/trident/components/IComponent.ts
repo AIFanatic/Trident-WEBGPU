@@ -1,7 +1,9 @@
+import { Utils } from "@trident/core";
 import { IGameObject } from "./IGameObject";
 import { ITransform } from "./ITransform";
 
 export interface IComponent {
+    flags: Utils.Flags;
     id: string;
     enabled: boolean;
     hasStarted: boolean;

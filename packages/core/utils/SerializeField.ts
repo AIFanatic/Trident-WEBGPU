@@ -1,4 +1,5 @@
 const SERIAL_FIELDS = Symbol("serial_fields");
+const NON_SERIALIZED = Symbol("non_serialized");
 
 export interface FieldInfo {
     name: string | symbol;
@@ -32,5 +33,14 @@ export function SerializeField(first: any, second?: ClassFieldDecoratorContext) 
 
 export function GetSerializedFields(classInstance: object): FieldInfo[] {
     const proto = Object.getPrototypeOf(classInstance);
-    return ((proto as any)[SERIAL_FIELDS] ?? []) as FieldInfo[];
+    const ignored: Set<string | symbol> = (proto as any)[NON_SERIALIZED] ?? new Set();
+    return ((proto as any)[SERIAL_FIELDS] ?? []).filter(f => !ignored.has(f.name)) as FieldInfo[];
+}
+
+export function NonSerialized(_v: any, context: any) {
+    context.addInitializer(function () {
+        const proto = Object.getPrototypeOf(this);
+        const set: Set<string | symbol> = proto[NON_SERIALIZED] ?? (proto[NON_SERIALIZED] = new Set());
+        set.add(context.name);
+    });
 }

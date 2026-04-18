@@ -3,6 +3,7 @@ import { Scene } from "./Scene";
 import { Transform } from "./components/Transform";
 import { UUID } from "./utils";
 import { EventSystem } from "./Events";
+import { Flags } from "./utils/Flags";
 
 
 function getCtorChain(ctor: Function): Function[] {
@@ -14,6 +15,7 @@ function getCtorChain(ctor: Function): Function[] {
 }
 
 export class GameObject {
+    public flags: Flags = Flags.None;
     public id = UUID();
     public name: string = "GameObject";
     public scene: Scene;

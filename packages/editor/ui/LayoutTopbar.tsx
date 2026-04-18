@@ -1,4 +1,4 @@
-import { EventSystem, ProjectEvents } from "../Events";
+import { ProjectEvents } from "../Events";
 import { createElement, Component } from "../gooact";
 import { FileBrowser, MODE } from "../helpers/FileBrowser";
 import { BaseProps } from "./Layout";
@@ -6,6 +6,7 @@ import { BaseProps } from "./Layout";
 import { Tree } from "./TreeView/Tree";
 import { TreeItem } from "./TreeView/TreeItem";
 import { FloatingMenu } from "./FloatingMenu";
+import { TridentAPI } from "../engine-api/trident/TridentAPI";
 
 interface LayoutTopbarState {
     fileMenuOpen: boolean;
@@ -20,7 +21,7 @@ export class LayoutTopbar extends Component<BaseProps, LayoutTopbarState> {
     private openProject() {
         console.log("CCC")
         FileBrowser.init().then(() => {
-            EventSystem.emit(ProjectEvents.Opened);
+            TridentAPI.EventSystem.emit(ProjectEvents.Opened);
         })
         this.setState({fileMenuOpen: !this.state.fileMenuOpen});
     }

@@ -51,6 +51,13 @@ export async function SaveGameObjectAsAsset(baseDir: string, gameObject: IGameOb
                     animator.assetPath = `${fullAssetDir}/${rootName}.animation`;
                 }
             }
+
+            if ((component as any).constructor?.type === ComponentRegistry.Terrain) {
+                const terrain = component as any;
+                if (!terrain.terrainData.assetPath) {
+                    terrain.terrainData.assetPath = `${fullAssetDir}/${rootName}.terrain`;
+                }
+            }
         }
 
         for (const child of go.transform.children) {
@@ -67,17 +74,16 @@ export async function SaveGameObjectAsAsset(baseDir: string, gameObject: IGameOb
 
     const saved = new Set<string>();
     const walkAndSave = (go: IGameObject) => {
-        for (const component of go.GetComponents()) {
-            const renderable = component as any;
-            if ((component as any).constructor?.type === ComponentRegistry.Mesh ||
-                (component as any).constructor?.type === ComponentRegistry.SkinnedMesh) {
-                const geometry = renderable.geometry;
+        for (const _component of go.GetComponents()) {
+            const component = _component as any;
+            if (component.constructor === ComponentRegistry.Mesh || component.constructor === ComponentRegistry.SkinnedMesh) {
+                const geometry = component.geometry;
                 if (geometry && geometry.assetPath && !saved.has(geometry.assetPath)) {
                     saved.add(geometry.assetPath);
                     SaveToFile(geometry.assetPath, new Blob([JSON.stringify(Serializer.serializeFields(geometry))]));
                 }
 
-                const material = renderable.material;
+                const material = component.material;
                 if (material && material.assetPath && !saved.has(material.assetPath)) {
                     const params = material.params;
                     if (params) {
@@ -108,12 +114,20 @@ export async function SaveGameObjectAsAsset(baseDir: string, gameObject: IGameOb
                 }
             }
 
-            const comp = component as any;
-            if (comp.assetPath && !saved.has(comp.assetPath) &&
-                (comp.constructor?.type !== ComponentRegistry.Mesh && comp.constructor?.type !== ComponentRegistry.SkinnedMesh)) {
-                saved.add(comp.assetPath);
-                const ctor = comp.constructor as any;
-                SaveToFile(comp.assetPath, new Blob([JSON.stringify({ type: ctor.type, ...Serializer.serializeFields(comp) })]));
+            if (component.assetPath && !saved.has(component.assetPath) && component.constructor !== ComponentRegistry.Mesh && component.constructor !== ComponentRegistry.SkinnedMesh) {
+                saved.add(component.assetPath);
+                const ctor = component.constructor as any;
+                SaveToFile(component.assetPath, new Blob([JSON.stringify({ type: ctor.type, ...Serializer.serializeFields(component) })]));
+            }
+
+            if (component.constructor === ComponentRegistry.Terrain) {
+                const terrain = component as any;
+                const terrainPath = terrain.terrainData?.assetPath;
+                if (terrainPath && !saved.has(terrainPath)) {
+                    saved.add(terrainPath);
+                    const ctor = component.constructor as any;
+                    SaveToFile(component.assetPath, new Blob([JSON.stringify({ type: ctor.type, ...Serializer.serializeFields(component) })]));
+                }
             }
         }
 

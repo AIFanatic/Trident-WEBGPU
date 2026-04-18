@@ -12,8 +12,8 @@ import { InspectorInput } from "./InspectorInput";
 import { InspectorCheckbox } from "./InspectorCheckbox";
 import { BaseProps } from "../Layout";
 import { InspectorTexture } from "./InspectorTexture";
-import { EventSystem } from "../../Events";
-import { LayoutAssetEvents } from "../LayoutAssets";
+import { TridentAPI } from "../../engine-api/trident/TridentAPI";
+import { LayoutAssetEvents } from "../../Events";
 
 interface InspectorMaterialProps extends BaseProps {
     material: IMaterial;
@@ -78,8 +78,7 @@ export class InspectorMaterial extends Component<InspectorMaterialProps> {
     }
 
     private SaveClicked() {
-        console.log("CLCLC", this.props.material, this.props.material.assetPath);
-        EventSystem.emit(LayoutAssetEvents.RequestSaveMaterial, this.props.material);
+        TridentAPI.EventSystem.emit(LayoutAssetEvents.RequestSaveAsset, this.props.material);
     }
 
     public render() {

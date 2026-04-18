@@ -1,8 +1,9 @@
 import { FileBrowser } from "../helpers/FileBrowser";
-import { DirectoryEvents, EventSystem } from "../Events";
+import { DirectoryEvents } from "../Events";
+import { TridentAPI } from "../engine-api/trident/TridentAPI";
 
 export async function CreateFolder(currentPath: string): Promise<void> {
     const path = `${currentPath}/New folder`;
     const handle = await FileBrowser.mkdir(path);
-    EventSystem.emit(DirectoryEvents.Created, path, handle);
+    TridentAPI.EventSystem.emit(DirectoryEvents.Created, path, handle);
 }

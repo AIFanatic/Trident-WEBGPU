@@ -1,4 +1,5 @@
-import { DirectoryEvents, EventSystem, FileEvents } from "../Events";
+import { TridentAPI } from "../engine-api/trident/TridentAPI";
+import { DirectoryEvents, FileEvents } from "../Events";
 import { FileBrowser } from "./FileBrowser";
 
 
@@ -54,7 +55,7 @@ export class FileWatcher {
             const directoryPathExists = await FileBrowser.exists(directoryPath);
             if (!directoryPathExists) {
                 this.watches.delete(directoryPath);
-                EventSystem.emit(DirectoryEvents.Deleted, directoryPath, directoryWatch.handle);
+                TridentAPI.EventSystem.emit(DirectoryEvents.Deleted, directoryPath, directoryWatch.handle);
                 continue;
             }
 
@@ -66,7 +67,7 @@ export class FileWatcher {
                 if (!fileExists) {
                     directoryWatch.files.delete(watchFile.path);
                     if (watchFile.handle instanceof FileSystemFileHandle) {
-                        EventSystem.emit(FileEvents.Deleted, watchFile.path, watchFile.handle);
+                        TridentAPI.EventSystem.emit(FileEvents.Deleted, watchFile.path, watchFile.handle);
                     }
                 }
             }
@@ -85,13 +86,13 @@ export class FileWatcher {
                             handle: file,
                             lastModified: fileHandle.lastModified
                         })
-                        EventSystem.emit(FileEvents.Created, filePath, file as FileSystemFileHandle);
+                        TridentAPI.EventSystem.emit(FileEvents.Created, filePath, file as FileSystemFileHandle);
                     }
                     else {
                         const storedFile = directoryWatch.files.get(filePath);
                         if (storedFile.lastModified != fileHandle.lastModified) {
                             storedFile.lastModified = fileHandle.lastModified;
-                            EventSystem.emit(FileEvents.Changed, filePath, file as FileSystemFileHandle);
+                            TridentAPI.EventSystem.emit(FileEvents.Changed, filePath, file as FileSystemFileHandle);
                         }
                     }
                 }
@@ -103,7 +104,7 @@ export class FileWatcher {
                             handle: file,
                             lastModified: 0
                         })
-                        EventSystem.emit(DirectoryEvents.Created, directoryDirectoryPath, file);
+                        TridentAPI.EventSystem.emit(DirectoryEvents.Created, directoryDirectoryPath, file);
                     }
                 }
             }

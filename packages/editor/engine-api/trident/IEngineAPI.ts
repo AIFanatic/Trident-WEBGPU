@@ -59,7 +59,6 @@ export interface IEngineAPI {
 
     deserializeGeometry(serialized): Promise<IGeometry>;
     deserializeMaterial(serialized): Promise<IMaterial>;
-    deserializePrefab(args?): IPrefab;
 
     GetSerializedFields: (instance: object) => { name: string | symbol, type?: Function }[];
 

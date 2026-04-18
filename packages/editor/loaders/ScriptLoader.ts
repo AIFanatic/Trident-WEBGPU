@@ -3,6 +3,17 @@ import * as esbuild from "esbuild-wasm";
 
 let esbuildReady = false;
 
+const addJsExtensionPlugin: esbuild.Plugin = {
+    name: "add-js-extension",
+    setup(build) {
+        build.onResolve({ filter: /^\..*[^\/]$/ }, (args) => {
+            // Skip if already has an extension
+            if (/\.\w+$/.test(args.path)) return null;
+            return { path: args.path + ".js", external: true };
+        });
+    },
+};
+
 export async function LoadScript(assetPath: string): Promise<any> {
     const response = await Assets.ResourceFetchFn(assetPath);
     const text = await response.text();
@@ -16,11 +27,25 @@ export async function LoadScript(assetPath: string): Promise<any> {
         loader: "ts",
         format: "esm",
         target: "es2022",
-        sourcemap: "inline",
         tsconfigRaw: { compilerOptions: { useDefineForClassFields: true } },
     });
 
-    const blob = new Blob([transpiled.code], { type: 'text/javascript' });
+    // Add .js to extensionless relative imports
+    const code = transpiled.code.replace(
+        /from\s+['"](@trident\/[^'"]+)['"]/g,
+        (match, path) => {
+            if (path === "@trident/core" || path === "@trident/plugins" || path === "@trident/editor" || path.endsWith(".js")) return match;
+            return `from '${path}.js'`;
+        }
+    ).replace(
+        /(from\s+['"])(\.\.?\/[^'"]+?)(['"])/g,
+        (match, from, path, quote) => {
+            if (path.endsWith(".js")) return match;
+            return `${from}${path}.js${quote}`;
+        }
+    );
+
+    const blob = new Blob([code], { type: 'text/javascript' });
     const blobUrl = URL.createObjectURL(blob);
     const module = await import(blobUrl);
     for (const key of Object.keys(module)) {

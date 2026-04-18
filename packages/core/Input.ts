@@ -143,21 +143,15 @@ export class Input extends System {
 
     public static get mousePosition(): Vector2 {return Input._mousePosition; }
 
-    public static Init() {
-        if (this.initialized === true) return;
-
-        if (!Renderer.canvas) throw Error("Renderer has no canvas.");
-
-        document.onkeydown = (event) => { this.OnKeyDown(event) };
-        document.onkeyup = (event) => { this.OnKeyUp(event) };
-        document.onmousemove = (event) => { this.OnMouseMove(event) };
-        document.onmousedown = (event) => { this.OnMouseDown(event) };
-        document.onmouseup = (event) => { this.OnMouseUp(event) };
-        document.ontouchmove = (event) => { this.OnTouchMove(event); };
+    public async  Start() {
+        document.onkeydown = (event) => { Input.OnKeyDown(event) };
+        document.onkeyup = (event) => { Input.OnKeyUp(event) };
+        document.onmousemove = (event) => { Input.OnMouseMove(event) };
+        document.onmousedown = (event) => { Input.OnMouseDown(event) };
+        document.onmouseup = (event) => { Input.OnMouseUp(event) };
+        document.ontouchmove = (event) => { Input.OnTouchMove(event); };
         // document.ontouchstart = (event) => { this.OnTouchStart(event); };
         // document.ontouchend = (event) => { this.OnTouchEnd(event); };
-
-        this.initialized = true;
     }
 
     private static OnTouchMove(event: TouchEvent) {
@@ -216,7 +210,6 @@ export class Input extends System {
      * @returns {boolean} - True if the key was pressed down during this frame.
      */
     public static GetKeyDown(key: KeyCodes): boolean {
-        this.Init();
         if (this.keysDown[key] == Renderer.info.frame - 1) {
             return true;
         }
@@ -232,7 +225,6 @@ export class Input extends System {
      * @returns {boolean} - True if the key was released during this frame.
      */
     public static GetKeyUp(key: KeyCodes): boolean {
-        this.Init();
         if (this.keysUp[key] == Renderer.info.frame - 1) {
             return true;
         }
@@ -247,7 +239,6 @@ export class Input extends System {
      * @returns {boolean} - True if the key is being pressed down.
      */
     public static GetKey(key: KeyCodes): boolean {
-        this.Init();
         if (this.keysDown[key] !== undefined) {
             return true;
         }
@@ -255,7 +246,6 @@ export class Input extends System {
     }
 
     public static GetMouseDown(key: MouseCodes): boolean {
-        this.Init();
         if (this.mouseDown[key] == Renderer.info.frame - 1) {
             return true;
         }
@@ -263,7 +253,6 @@ export class Input extends System {
     }
 
     public static GetMouseUp(key: MouseCodes): boolean {
-        this.Init();
         if (this.mouseUp[key] == Renderer.info.frame - 1) {
             return true;
         }
@@ -278,13 +267,13 @@ export class Input extends System {
      * @returns {number} - Mouse difference between the previous frame and the current fram.
      */
     public static GetAxis(axisName: "Horizontal" | "Vertical"): number {
-        this.Init();
-
         if (axisName == "Horizontal") {
             return this.horizontalAxis;
         }
         else if (axisName == "Vertical") {
             return this.verticalAxis;
         }
+
+        throw Error("Invalid axis");
     }
 }

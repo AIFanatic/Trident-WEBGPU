@@ -1,4 +1,4 @@
-import { GameObject, Scene, Mathf, Geometry, PBRMaterial, Utils, Component, GPU, Serializer, Deserializer, Prefab, Runtime } from "@trident/core";
+import { GameObject, Scene, Mathf, Geometry, PBRMaterial, Utils, Component, GPU, Serializer, Deserializer, Prefab, Runtime, EventSystem, EventSystemLocal } from "@trident/core";
 
 import { IEngineAPI } from "./IEngineAPI";
 import { IComponentConstructor, IComponentInstance } from "./components/IComponent";
@@ -95,10 +95,6 @@ export class TridentAPI implements IEngineAPI {
         return Deserializer.Load(serialized.assetPath);
     }
 
-    public deserializePrefab(serialized): IPrefab {
-        return Prefab.Deserialize(serialized);
-    }
-
     public async createTextureFromBlob(blob: Blob, format?: GPU.TextureFormat, options?: GPU.ImageLoadOptions): Promise<ITexture> {
         return GPU.Texture.LoadBlob(blob);
     }
@@ -168,4 +164,7 @@ export class TridentAPI implements IEngineAPI {
     }
 
     public GetSerializedFields = Utils.GetSerializedFields;
+
+    public static EventSystem = EventSystem;
+    public static EventSystemLocal = EventSystemLocal;
 }

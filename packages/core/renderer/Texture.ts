@@ -1,3 +1,4 @@
+import { Assets } from "../Assets";
 import { EventSystem } from "../Events";
 import { Vector2 } from "../math/Vector2";
 import { UUID } from "../utils";
@@ -316,7 +317,7 @@ export class Texture {
     // Format and types are very limited for now
     // https://github.com/gpuweb/gpuweb/issues/2322
     public static async FromBlob(blob: Blob, format: TextureFormat, options: ImageLoadOptions): Promise<Texture> {
-        const imageBitmap = await createImageBitmap(blob, {resizeWidth: options.resizeWidth, resizeHeight: options.resizeHeight});
+        const imageBitmap = await createImageBitmap(blob, { resizeWidth: options.resizeWidth, resizeHeight: options.resizeHeight });
 
         const texture = new Texture(imageBitmap.width, imageBitmap.height, 1, format, TextureType.RENDER_TARGET, "2d", 1);
         texture.name = options.name || "Texture";
@@ -351,12 +352,23 @@ export class Texture {
         return Texture.FromBlob(blob, format, _options);
     }
 
-    public static async Blit(source: Texture, destination: Texture, width: number, height: number, uv_scale = new Vector2(1,1)) {
+    public static async Blit(source: Texture, destination: Texture, width: number, height: number, uv_scale = new Vector2(1, 1)) {
         return WEBGPUBlit.Blit(source, destination, width, height, uv_scale);
     }
 
-    public static async BlitDepth(source: DepthTexture, destination: DepthTexture, width: number, height: number, uv_scale = new Vector2(1,1)) {
+    public static async BlitDepth(source: DepthTexture, destination: DepthTexture, width: number, height: number, uv_scale = new Vector2(1, 1)) {
         return WEBGPUBlit.BlitDepth(source, destination, width, height, uv_scale);
+    }
+
+    public static async Deserialize(assetPath: string, data?: any, bytes?: ArrayBuffer): Promise<Texture> {
+        const buffer = bytes ?? await Assets.Load(assetPath, "binary");
+        const texture = await Texture.LoadBlob(
+            new Blob([buffer]),
+            data?.format,
+            { name: data?.name, generateMips: data?.generateMips }
+        );
+        texture.assetPath = assetPath;
+        return texture;
     }
 }
 

@@ -2,6 +2,8 @@ import { EventSystem } from "../Events";
 import { GameObject } from "../GameObject";
 import { Scene } from "../Scene";
 import { UUID } from "../utils";
+import { Flags } from "../utils/Flags";
+import { TypeRegistry } from "../utils/TypeRegistry";
 import { Transform } from "./Transform";
 
 export type SerializedComponent = { type: string } & Record<string, unknown>;
@@ -13,6 +15,7 @@ export class ComponentEvents {
 }
 
 export class Component {
+    public flags: Flags = Flags.None;
     public static type: string;
     public id = UUID();
     public enabled: boolean = true;
@@ -23,7 +26,7 @@ export class Component {
     public readonly gameObject: GameObject;
     public readonly transform: Transform;
 
-    public static Registry: Map<string, typeof Component> = new Map();
+    public static Registry = TypeRegistry;
 
     constructor(gameObject: GameObject) {
         this.gameObject = gameObject;
@@ -35,7 +38,7 @@ export class Component {
         EventSystem.emit(ComponentEvents.AddedComponent, this, this.gameObject.scene);
 
         const ctor = this.constructor as typeof Component;
-        Component.Registry.set(ctor.name, ctor);
+        Component.Registry.set(ctor.type || ctor.name, ctor);
     }
 
     public Start() {}

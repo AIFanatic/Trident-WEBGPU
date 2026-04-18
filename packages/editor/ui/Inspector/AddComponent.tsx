@@ -1,5 +1,5 @@
 import { createElement, Component as GOActComponent } from "../../gooact";
-import { ComponentEvents, EventSystem } from "../../Events";
+import { ComponentEvents } from "../../Events";
 
 import { Component } from '@trident/core';
 import { IGameObject } from "../../engine-api/trident/components/IGameObject";
@@ -9,6 +9,7 @@ import { TreeFolder } from "../TreeView/TreeFolder";
 import { TreeItem } from "../TreeView/TreeItem";
 import { IEngineAPI } from "../../engine-api/trident/IEngineAPI";
 import { IComponent } from "../../engine-api/trident/components/IComponent";
+import { TridentAPI } from "../../engine-api/trident/TridentAPI";
 
 interface AddComponentProps {
     engineAPI: IEngineAPI;
@@ -22,7 +23,7 @@ export class AddComponent extends GOActComponent<AddComponentProps> {
 
     private addComponent(component: IComponent) {
         const componentInstance = this.props.engineAPI.addComponent(this.props.gameObject, component);
-        EventSystem.emit(ComponentEvents.Created, this.props.gameObject, componentInstance);
+        TridentAPI.EventSystem.emit(ComponentEvents.Created, this.props.gameObject, componentInstance);
 
         this.setState({ isMenuOpen: false });
     }

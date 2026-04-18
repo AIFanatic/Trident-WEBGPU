@@ -20,7 +20,7 @@ export * as Mathf from './math';
 export * as GPU from "./renderer";
 
 export * as Utils from "./utils";
-export { SerializeField, GetSerializedFields } from "./utils";
+export { SerializeField, NonSerialized, GetSerializedFields } from "./utils";
 
 export { Assets } from "./Assets";
 

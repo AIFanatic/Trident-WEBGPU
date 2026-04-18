@@ -1,6 +1,6 @@
 import { createElement, Component } from "../gooact";
 import { BaseProps } from "./Layout";
-import { DirectoryEvents, EventSystem, FileEvents, ProjectEvents, SceneEvents } from "../Events";
+import { DirectoryEvents, FileEvents, LayoutAssetEvents, ProjectEvents, SceneEvents } from "../Events";
 import { FileWatcher } from "../helpers/FileWatcher";
 import { StringUtils } from "../helpers/StringUtils";
 import { ExtendedDataTransfer } from "../helpers/ExtendedDataTransfer";
@@ -23,18 +23,14 @@ import {
     DeleteAsset,
     SavePrefab,
     SaveGameObjectAsAsset,
-    SaveMaterial,
+    SaveAsset,
 } from "../commands";
 
 // Re-export types for backward compatibility
 export { ITreeMapType, ITreeMap, FileData, ProjectTreeMap } from "../types/AssetTypes";
 import { ITreeMapType, ITreeMap, FileData, ProjectTreeMap } from "../types/AssetTypes";
 import { ReloadScript } from "../commands/ReloadScript";
-
-export class LayoutAssetEvents {
-    public static Selected = (instance: any) => { };
-    public static RequestSaveMaterial = (material: IMaterial) => { };
-}
+import { TridentAPI } from "../engine-api/trident/TridentAPI";
 
 export async function dir(h?: FileSystemDirectoryHandle): Promise<FileSystemDirectoryHandle> {
     const r = indexedDB.open("d", 1);
@@ -68,23 +64,23 @@ export class LayoutAssets extends Component<BaseProps, LayoutAssetsState> {
 
         this.fileWatcher = new FileWatcher();
 
-        EventSystem.on(ProjectEvents.Opened, () => {
+        TridentAPI.EventSystem.on(ProjectEvents.Opened, () => {
             this.fileWatcher.watch("");
             dir(FileBrowser.getRootFolderHandle());
         });
-        EventSystem.on(FileEvents.Created, (path, handle) => { this.onFileOrDirectoryCreated(path, handle) });
-        EventSystem.on(DirectoryEvents.Created, (path, handle) => { this.onFileOrDirectoryCreated(path, handle) });
-        EventSystem.on(DirectoryEvents.Deleted, (path, handle) => { this.onFileOrDirectoryDeleted(path) });
-        EventSystem.on(FileEvents.Deleted, (path, handle) => { this.onFileOrDirectoryDeleted(path) });
+        TridentAPI.EventSystem.on(FileEvents.Created, (path, handle) => { this.onFileOrDirectoryCreated(path, handle) });
+        TridentAPI.EventSystem.on(DirectoryEvents.Created, (path, handle) => { this.onFileOrDirectoryCreated(path, handle) });
+        TridentAPI.EventSystem.on(DirectoryEvents.Deleted, (path, handle) => { this.onFileOrDirectoryDeleted(path) });
+        TridentAPI.EventSystem.on(FileEvents.Deleted, (path, handle) => { this.onFileOrDirectoryDeleted(path) });
 
-        EventSystem.on(LayoutAssetEvents.RequestSaveMaterial, (material) => {
-            SaveMaterial(material);
+        TridentAPI.EventSystem.on(LayoutAssetEvents.RequestSaveAsset, (material) => {
+            SaveAsset(material);
         });
 
         dir().then(handle => {
             if (handle) {
                 FileBrowser.setRootFolderHandle(handle);
-                EventSystem.emit(ProjectEvents.Opened);
+                TridentAPI.EventSystem.emit(ProjectEvents.Opened);
             }
         })
     }
@@ -127,7 +123,7 @@ export class LayoutAssets extends Component<BaseProps, LayoutAssetsState> {
             await this.loadTreeItem(item.data);
         }
 
-        EventSystem.emit(LayoutAssetEvents.Selected, item.data.instance);
+        TridentAPI.EventSystem.emit(LayoutAssetEvents.Selected, item.data.instance);
         this.setState({ ...this.state, currentTreeMap: this.state.currentTreeMap, selected: item.data });
     }
 
@@ -139,7 +135,7 @@ export class LayoutAssets extends Component<BaseProps, LayoutAssetsState> {
         if (item.data.instance.type === Scene.type) {
             this.props.engineAPI.currentScene.Clear();
             await this.props.engineAPI.deserializer.deserializeScene(this.props.engineAPI.currentScene, item.data.instance);
-            EventSystem.emit(SceneEvents.Loaded, item.data.instance);
+            TridentAPI.EventSystem.emit(SceneEvents.Loaded, item.data.instance);
         }
     }
 

@@ -1,5 +1,4 @@
-import { Assets, Deserializer, GPU, Texture, Geometry, VertexAttribute, InterleavedVertexAttribute, IndexAttribute, PBRMaterial, Prefab } from "@trident/core";
-import { AssetRegistry } from "./AssetRegistry";
+import { Assets, Deserializer, GPU, Geometry, VertexAttribute, InterleavedVertexAttribute, IndexAttribute, PBRMaterial } from "@trident/core";
 import { LoadScript } from "../loaders/ScriptLoader";
 
 const typedArrayCtors: Record<string, any> = {
@@ -23,12 +22,11 @@ function deserializeAttribute(data: any): VertexAttribute | InterleavedVertexAtt
     return attr;
 }
 
-Deserializer.Load = async (assetPath: string, data?: any): Promise<any> => {
-    const cached = AssetRegistry.GetInstance(assetPath);
-    if (cached) return cached;
+const coreLoad = Deserializer.Load.bind(Deserializer);
 
-    const coreInstance = Assets.GetInstance(assetPath);
-    if (coreInstance) return coreInstance;
+Deserializer.Load = async (assetPath: string, data?: any, expectedType?: any): Promise<any> => {
+    const cached = Assets.GetInstance(assetPath);
+    if (cached) return cached;
 
     const ext = assetPath.slice(assetPath.lastIndexOf(".") + 1);
 
@@ -43,7 +41,6 @@ Deserializer.Load = async (assetPath: string, data?: any): Promise<any> => {
             geometry.attributes.set(name, deserializeAttribute(attrData) as VertexAttribute | InterleavedVertexAttribute);
         }
         if (json.index) geometry.index = deserializeAttribute(json.index) as IndexAttribute;
-        AssetRegistry.SetInstance(assetPath, geometry);
         Assets.SetInstance(assetPath, geometry);
         return geometry;
     }
@@ -63,33 +60,13 @@ Deserializer.Load = async (assetPath: string, data?: any): Promise<any> => {
             material.params.isSkinned = material.params.isSkinned;
         }
 
-        AssetRegistry.SetInstance(assetPath, material);
         Assets.SetInstance(assetPath, material);
         return material;
-    }
-
-    if (ext === "png" || ext === "jpg" || ext === "jpeg") {
-        const bytes = await Assets.Load(assetPath, "binary");
-        const texture = await Texture.LoadBlob(new Blob([bytes]), data?.format as GPU.TextureFormat, {
-            name: data?.name,
-            generateMips: data?.generateMips,
-        });
-        texture.assetPath = assetPath;
-        AssetRegistry.SetInstance(assetPath, texture);
-        return texture;
     }
 
     if (ext === "ts") {
         return LoadScript(assetPath);
     }
 
-    if (ext === "prefab") {
-        const json = await Assets.Load(assetPath, "json");
-        const prefab = Prefab.Deserialize(json);
-        prefab.assetPath = assetPath;
-        return prefab;
-    }
-
-    // .scene or unknown — return raw JSON
-    return Assets.Load(assetPath, "json");
+    return coreLoad(assetPath, data, expectedType);
 };
