@@ -1,32 +1,95 @@
-import { Components, Mathf, Geometry, VertexAttribute, IndexAttribute } from '@trident/core';
+import { SerializeField, Components, Mathf, Utils, Geometry, VertexAttribute, IndexAttribute, NonSerialized } from '@trident/core';
 import { TerrainMaterial } from './TerrainMaterial.js';
 
-class TerrainData {
-  size;
-  heights;
-  geometry;
-  material;
-  resolution = 64;
-  constructor(gameObject) {
+var __create = Object.create;
+var __defProp = Object.defineProperty;
+var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
+var __knownSymbol = (name, symbol) => (symbol = Symbol[name]) ? symbol : Symbol.for("Symbol." + name);
+var __typeError = (msg) => {
+  throw TypeError(msg);
+};
+var __defNormalProp = (obj, key, value) => key in obj ? __defProp(obj, key, { enumerable: true, configurable: true, writable: true, value }) : obj[key] = value;
+var __name = (target, value) => __defProp(target, "name", { value, configurable: true });
+var __decoratorStart = (base) => [, , , __create(base?.[__knownSymbol("metadata")] ?? null)];
+var __decoratorStrings = ["class", "method", "getter", "setter", "accessor", "field", "value", "get", "set"];
+var __expectFn = (fn) => fn !== void 0 && typeof fn !== "function" ? __typeError("Function expected") : fn;
+var __decoratorContext = (kind, name, done, metadata, fns) => ({ kind: __decoratorStrings[kind], name, metadata, addInitializer: (fn) => done._ ? __typeError("Already initialized") : fns.push(__expectFn(fn || null)) });
+var __decoratorMetadata = (array, target) => __defNormalProp(target, __knownSymbol("metadata"), array[3]);
+var __runInitializers = (array, flags, self, value) => {
+  for (var i = 0, fns = array[flags >> 1], n = fns && fns.length; i < n; i++) flags & 1 ? fns[i].call(self) : value = fns[i].call(self, value);
+  return value;
+};
+var __decorateElement = (array, flags, name, decorators, target, extra) => {
+  var fn, it, done, ctx, access, k = flags & 7, s = !!(flags & 8), p = !!(flags & 16);
+  var j = k > 3 ? array.length + 1 : k ? s ? 1 : 2 : 0, key = __decoratorStrings[k + 5];
+  var initializers = k > 3 && (array[j - 1] = []), extraInitializers = array[j] || (array[j] = []);
+  var desc = k && (!p && !s && (target = target.prototype), k < 5 && (k > 3 || !p) && __getOwnPropDesc(k < 4 ? target : { get [name]() {
+    return __privateGet(this, extra);
+  }, set [name](x) {
+    return __privateSet(this, extra, x);
+  } }, name));
+  k ? p && k < 4 && __name(extra, (k > 2 ? "set " : k > 1 ? "get " : "") + name) : __name(target, name);
+  for (var i = decorators.length - 1; i >= 0; i--) {
+    ctx = __decoratorContext(k, name, done = {}, array[3], extraInitializers);
+    if (k) {
+      ctx.static = s, ctx.private = p, access = ctx.access = { has: p ? (x) => __privateIn(target, x) : (x) => name in x };
+      if (k ^ 3) access.get = p ? (x) => (k ^ 1 ? __privateGet : __privateMethod)(x, target, k ^ 4 ? extra : desc.get) : (x) => x[name];
+      if (k > 2) access.set = p ? (x, y) => __privateSet(x, target, y, k ^ 4 ? extra : desc.set) : (x, y) => x[name] = y;
+    }
+    it = (0, decorators[i])(k ? k < 4 ? p ? extra : desc[key] : k > 4 ? void 0 : { get: desc.get, set: desc.set } : target, ctx), done._ = 1;
+    if (k ^ 4 || it === void 0) __expectFn(it) && (k > 4 ? initializers.unshift(it) : k ? p ? extra = it : desc[key] = it : target = it);
+    else if (typeof it !== "object" || it === null) __typeError("Object expected");
+    else __expectFn(fn = it.get) && (desc.get = fn), __expectFn(fn = it.set) && (desc.set = fn), __expectFn(fn = it.init) && initializers.unshift(fn);
+  }
+  return k || __decoratorMetadata(array, target), desc && __defProp(target, name, desc), p ? k ^ 4 ? extra : desc : target;
+};
+var __publicField = (obj, key, value) => __defNormalProp(obj, typeof key !== "symbol" ? key + "" : key, value);
+var __accessCheck = (obj, member, msg) => member.has(obj) || __typeError("Cannot " + msg);
+var __privateIn = (member, obj) => Object(obj) !== obj ? __typeError('Cannot use the "in" operator on this value') : member.has(obj);
+var __privateGet = (obj, member, getter) => (__accessCheck(obj, member, "read from private field"), getter ? getter.call(obj) : member.get(obj));
+var __privateSet = (obj, member, value, setter) => (__accessCheck(obj, member, "write to private field"), setter ? setter.call(obj, value) : member.set(obj, value), value);
+var __privateMethod = (obj, member, method) => (__accessCheck(obj, member, "access private method"), method);
+var _heights_dec, _material_dec, _geometry_dec, _size_dec, _init, _material_dec2, _geometry_dec2, _terrainData_dec, _a, _init2;
+_size_dec = [SerializeField], _geometry_dec = [NonSerialized], _material_dec = [SerializeField], _heights_dec = [SerializeField(Float32Array)];
+const _TerrainData = class _TerrainData {
+  constructor() {
+    __runInitializers(_init, 5, this);
+    __publicField(this, "size", __runInitializers(_init, 8, this)), __runInitializers(_init, 11, this);
+    __publicField(this, "geometry", __runInitializers(_init, 12, this)), __runInitializers(_init, 15, this);
+    __publicField(this, "material", __runInitializers(_init, 16, this)), __runInitializers(_init, 19, this);
+    __publicField(this, "_heights");
+    __publicField(this, "resolution", 64);
     this.size = new Mathf.Vector3(1e3, 600, 1e3);
-    this.material = new TerrainMaterial(gameObject);
+    this.material = new TerrainMaterial();
     const verticesPerSide = this.resolution + 1;
     this.heights = new Float32Array(verticesPerSide * verticesPerSide);
-    this.geometry = this.GenerateGeometryFromHeights(verticesPerSide, this.heights);
+    this.geometry = _TerrainData.GenerateGeometryFromHeights(verticesPerSide, this.heights, this.size);
   }
-  GenerateGeometryFromHeights(verticesPerSide, heights) {
+  get heights() {
+    return this._heights;
+  }
+  set heights(heights) {
+    this._heights = heights;
+    this.RebuildGeometry();
+  }
+  RebuildGeometry() {
+    const verticesPerSide = this.resolution + 1;
+    this.geometry = _TerrainData.GenerateGeometryFromHeights(verticesPerSide, this.heights, this.size);
+    this.geometry.name = this.assetPath;
+  }
+  static GenerateGeometryFromHeights(verticesPerSide, heights, size) {
     if (heights.length !== verticesPerSide * verticesPerSide) throw Error(`Heights length (${heights.length} don't match terrain size of ${verticesPerSide}x${verticesPerSide}(${verticesPerSide * verticesPerSide})`);
     const vertices = [];
     const uvs = [];
-    const half = this.size.clone().mul(0.5);
+    const half = size.clone().mul(0.5);
     const divisions = verticesPerSide - 1;
-    const ratio = this.size.clone().div(divisions);
+    const ratio = size.clone().div(divisions);
     let i = 0;
     for (let ix = 0; ix < verticesPerSide; ix++) {
       for (let iz = 0; iz < verticesPerSide; iz++) {
         const x = ix * ratio.x;
         const z = iz * ratio.z;
-        const height = heights[i] * this.size.y;
+        const height = heights[i] * size.y;
         vertices.push(x - half.x, height, z - half.z);
         uvs.push(ix / divisions, iz / divisions);
         i++;
@@ -89,8 +152,25 @@ class TerrainData {
       heights[j] = imageData.data[i] / 255;
     }
     this.heights = smoothHeights ? this.smoothHeightsLaplacian(heights, verticesPerSide, 4, 0.6) : heights;
-    this.geometry = this.GenerateGeometryFromHeights(verticesPerSide, this.heights);
+    this.geometry = _TerrainData.GenerateGeometryFromHeights(verticesPerSide, this.heights, this.size);
     return heights;
+  }
+  ApplyHeightsToGeometry() {
+    const geometry = this.GetGeometry();
+    const heights = this.GetHeights();
+    const positions = geometry.attributes.get("position");
+    if (!positions) return;
+    const vertices = positions.array;
+    const sizeH = Math.sqrt(heights.length);
+    for (let x = 0; x < sizeH; x++) {
+      for (let z = 0; z < sizeH; z++) {
+        const i = x * sizeH + z;
+        vertices[i * 3 + 1] = heights[i] * this.size.y;
+      }
+    }
+    positions.buffer.SetArray(vertices);
+    geometry.ComputeNormals();
+    geometry.ComputeTangents();
   }
   GetHeights() {
     return this.heights;
@@ -101,24 +181,32 @@ class TerrainData {
   GetMaterial() {
     return this.material;
   }
-}
-class Terrain extends Components.Mesh {
-  static type = "@trident/plugins/Terrain/Terrain";
-  get geometry() {
-    return this.terrainData.GetGeometry();
-  }
-  get material() {
-    return this.terrainData.GetMaterial();
-  }
-  terrainData;
+};
+_init = __decoratorStart(null);
+__decorateElement(_init, 2, "heights", _heights_dec, _TerrainData);
+__decorateElement(_init, 5, "size", _size_dec, _TerrainData);
+__decorateElement(_init, 5, "geometry", _geometry_dec, _TerrainData);
+__decorateElement(_init, 5, "material", _material_dec, _TerrainData);
+__decoratorMetadata(_init, _TerrainData);
+__publicField(_TerrainData, "type", "@trident/plugins/Terrain/TerrainData");
+let TerrainData = _TerrainData;
+class Terrain extends (_a = Components.Mesh, _terrainData_dec = [SerializeField(TerrainData)], _geometry_dec2 = [NonSerialized], _material_dec2 = [NonSerialized], _a) {
   constructor(gameObject) {
     super(gameObject);
-    this.terrainData = new TerrainData(this.gameObject);
+    __runInitializers(_init2, 5, this);
+    __publicField(this, "terrainData", __runInitializers(_init2, 8, this)), __runInitializers(_init2, 11, this);
+    this.terrainData = new TerrainData();
+  }
+  get geometry() {
+    return this.terrainData.geometry;
+  }
+  get material() {
+    return this.terrainData.material;
   }
   SampleHeight(worldPosition) {
     const heights = this.terrainData.GetHeights();
     const size = this.terrainData.size;
-    if (!heights || !this.geometry) return 0;
+    if (!heights) return 0;
     const sizeH = Math.sqrt(heights.length);
     const localX = (worldPosition.x - this.transform.position.x + size.x * 0.5) / size.x;
     const localZ = (worldPosition.z - this.transform.position.z + size.z * 0.5) / size.z;
@@ -173,5 +261,12 @@ class Terrain extends Components.Mesh {
     return normal.normalize();
   }
 }
+_init2 = __decoratorStart(_a);
+__decorateElement(_init2, 2, "geometry", _geometry_dec2, Terrain);
+__decorateElement(_init2, 2, "material", _material_dec2, Terrain);
+__decorateElement(_init2, 5, "terrainData", _terrainData_dec, Terrain);
+__decoratorMetadata(_init2, Terrain);
+__publicField(Terrain, "type", "@trident/plugins/Terrain/Terrain");
+Utils.TypeRegistry.set(TerrainData.type, TerrainData);
 
-export { Terrain };
+export { Terrain, TerrainData };

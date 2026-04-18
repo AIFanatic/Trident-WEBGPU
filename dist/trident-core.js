@@ -82,6 +82,42 @@ function StringFindAllBetween(source, start, end, exclusive = true) {
   return matches;
 }
 
+const SERIAL_FIELDS = Symbol("serial_fields");
+const NON_SERIALIZED = Symbol("non_serialized");
+function addField(instance, name, type) {
+  const proto = Object.getPrototypeOf(instance);
+  const arr = proto[SERIAL_FIELDS] ?? (proto[SERIAL_FIELDS] = []);
+  if (!arr.some((f) => f.name === name)) {
+    arr.push({ name, type: type ?? instance[name]?.constructor });
+  }
+}
+function SerializeField(first, second) {
+  if (second && typeof second === "object" && second.addInitializer) {
+    second.addInitializer(function() {
+      addField(this, second.name);
+    });
+    return;
+  }
+  const typeHint = first;
+  return function(_v, context) {
+    context.addInitializer(function() {
+      addField(this, context.name, typeHint);
+    });
+  };
+}
+function GetSerializedFields(classInstance) {
+  const proto = Object.getPrototypeOf(classInstance);
+  const ignored = proto[NON_SERIALIZED] ?? /* @__PURE__ */ new Set();
+  return (proto[SERIAL_FIELDS] ?? []).filter((f) => !ignored.has(f.name));
+}
+function NonSerialized(_v, context) {
+  context.addInitializer(function() {
+    const proto = Object.getPrototypeOf(this);
+    const set = proto[NON_SERIALIZED] ?? (proto[NON_SERIALIZED] = /* @__PURE__ */ new Set());
+    set.add(context.name);
+  });
+}
+
 class CRC32 {
   /**
    * Lookup table calculated for 0xEDB88320 divisor
@@ -109,33 +145,6 @@ class CRC32 {
     const crc = this.calculateBytes(bytes, 4294967295);
     return this.crcToUint(crc);
   }
-}
-
-const SERIAL_FIELDS = Symbol("serial_fields");
-function addField(instance, name, type) {
-  const proto = Object.getPrototypeOf(instance);
-  const arr = proto[SERIAL_FIELDS] ?? (proto[SERIAL_FIELDS] = []);
-  if (!arr.some((f) => f.name === name)) {
-    arr.push({ name, type: type ?? instance[name]?.constructor });
-  }
-}
-function SerializeField(first, second) {
-  if (second && typeof second === "object" && second.addInitializer) {
-    second.addInitializer(function() {
-      addField(this, second.name);
-    });
-    return;
-  }
-  const typeHint = first;
-  return function(_v, context) {
-    context.addInitializer(function() {
-      addField(this, context.name, typeHint);
-    });
-  };
-}
-function GetSerializedFields(classInstance) {
-  const proto = Object.getPrototypeOf(classInstance);
-  return proto[SERIAL_FIELDS] ?? [];
 }
 
 class Pool {
@@ -169,13 +178,26 @@ class Pool {
   }
 }
 
+var Flags = /* @__PURE__ */ ((Flags2) => {
+  Flags2[Flags2["None"] = 0] = "None";
+  Flags2[Flags2["HideInHierarchy"] = 1] = "HideInHierarchy";
+  Flags2[Flags2["HideInInspector"] = 2] = "HideInInspector";
+  Flags2[Flags2["DontSaveInEditor"] = 4] = "DontSaveInEditor";
+  return Flags2;
+})(Flags || {});
+
+const TypeRegistry = /* @__PURE__ */ new Map();
+
 var index$3 = /*#__PURE__*/Object.freeze({
     __proto__: null,
     CRC32: CRC32,
+    Flags: Flags,
     GetSerializedFields: GetSerializedFields,
+    NonSerialized: NonSerialized,
     Pool: Pool,
     SerializeField: SerializeField,
     StringFindAllBetween: StringFindAllBetween,
+    TypeRegistry: TypeRegistry,
     UUID: UUID
 });
 
@@ -188,6 +210,7 @@ class ComponentEvents {
   };
 }
 class Component {
+  flags = Flags.None;
   static type;
   id = UUID();
   enabled = true;
@@ -196,7 +219,7 @@ class Component {
   assetPath;
   gameObject;
   transform;
-  static Registry = /* @__PURE__ */ new Map();
+  static Registry = TypeRegistry;
   constructor(gameObject) {
     this.gameObject = gameObject;
     this.transform = gameObject.transform;
@@ -204,7 +227,7 @@ class Component {
     if (this.constructor.prototype.Update !== Component.prototype.Update) EventSystem.emit(ComponentEvents.CallUpdate, this, true);
     EventSystem.emit(ComponentEvents.AddedComponent, this, this.gameObject.scene);
     const ctor = this.constructor;
-    Component.Registry.set(ctor.name, ctor);
+    Component.Registry.set(ctor.type || ctor.name, ctor);
   }
   Start() {
   }
@@ -1478,6 +1501,7 @@ function getCtorChain$1(ctor) {
   return chain;
 }
 class GameObject {
+  flags = Flags.None;
   id = UUID();
   name = "GameObject";
   scene;
@@ -2029,7 +2053,7 @@ class Assets {
       return result;
     }).catch((error) => {
       Assets.cache.delete(url);
-      console.error(`Assets.ResourceFetchFn error loading file ${url}`);
+      console.error(`Assets.ResourceFetchFn error loading file ${url} with type ${type}`);
       throw error;
     });
     Assets.cache.set(url, promise);
@@ -2919,6 +2943,16 @@ class Texture {
   }
   static async BlitDepth(source, destination, width, height, uv_scale = new Vector2(1, 1)) {
     return WEBGPUBlit.BlitDepth(source, destination, width, height, uv_scale);
+  }
+  static async Deserialize(assetPath, data, bytes) {
+    const buffer = bytes ?? await Assets.Load(assetPath, "binary");
+    const texture = await Texture.LoadBlob(
+      new Blob([buffer]),
+      data?.format,
+      { name: data?.name, generateMips: data?.generateMips }
+    );
+    texture.assetPath = assetPath;
+    return texture;
   }
 }
 class DepthTexture extends Texture {
@@ -7164,14 +7198,49 @@ var index$1 = /*#__PURE__*/Object.freeze({
 });
 
 class Deserializer {
-  static Load = async () => {
-    throw Error("Deserializer.Load not set");
-  };
+  static binaryExtensions = /* @__PURE__ */ new Set(["png", "jpg", "jpeg", "bin", "wav", "mp3", "ogg", "glb"]);
+  static async Load(assetPath, data, expectedType) {
+    const cached = Assets.GetInstance(assetPath);
+    if (cached) return cached;
+    const ext = assetPath.slice(assetPath.lastIndexOf(".") + 1).toLowerCase();
+    const loadType = this.binaryExtensions.has(ext) ? "binary" : "json";
+    const asset = await Assets.Load(assetPath, loadType);
+    if (expectedType?.Deserialize) {
+      const instance = await expectedType.Deserialize(assetPath, data, asset);
+      Assets.SetInstance(assetPath, instance);
+      return instance;
+    }
+    if (asset?.type) {
+      const Ctor = TypeRegistry.get(asset.type);
+      if (!Ctor) throw Error(`Unknown type: ${asset.type}`);
+      const instance = new Ctor();
+      instance.assetPath = assetPath;
+      await this.deserializeFields(instance, asset);
+      if (instance.OnDeserialized) await instance.OnDeserialized();
+      Assets.SetInstance(assetPath, instance);
+      return instance;
+    }
+    return asset;
+  }
   static deferredRefs = [];
   static idMap = /* @__PURE__ */ new Map();
-  static deserializeValue(data, existing) {
+  static isAssetRef(data) {
+    return !!data && typeof data === "object" && typeof data.assetPath === "string";
+  }
+  static createExpectedInstance(type) {
+    if (type === Number || type === String || type === Boolean || type === Array || type === Object) {
+      return void 0;
+    }
+    return new type();
+  }
+  static async deserializeAny(data, expectedType, existing) {
     if (data == null || typeof data !== "object") return data;
-    if (Array.isArray(data)) return data;
+    if (this.isAssetRef(data)) {
+      return this.Load(data.assetPath, data, expectedType);
+    }
+    if (Array.isArray(data)) {
+      return Promise.all(data.map((item) => this.deserializeAny(item, expectedType)));
+    }
     if (existing instanceof Vector3) {
       existing.set(data.x, data.y, data.z);
       return existing;
@@ -7188,49 +7257,42 @@ class Deserializer {
       existing.set(data.r, data.g, data.b, data.a);
       return existing;
     }
-    const fields = GetSerializedFields(existing);
-    if (fields.length > 0) {
-      for (const { name } of fields) {
-        if (data[name] !== void 0) existing[name] = this.deserializeValue(data[name], existing[name]);
-      }
+    if (expectedType === Texture && !data.assetPath) {
       return existing;
+    }
+    const target = existing ?? (expectedType ? this.createExpectedInstance(expectedType) : void 0);
+    if (target) {
+      const fields = GetSerializedFields(target);
+      if (fields.length > 0) {
+        await this.deserializeFields(target, data);
+        return target;
+      }
     }
     return data;
   }
-  /** Async field-by-field deserialization — handles assetPath loading. */
   static async deserializeFields(target, data) {
     for (const { name, type } of GetSerializedFields(target)) {
       if (data[name] === void 0) continue;
-      const value = data[name];
-      if (type === Texture && value && typeof value === "object" && !value.assetPath) {
-        continue;
-      }
-      if (value && typeof value === "object" && value.assetPath) {
-        target[name] = await this.Load(value.assetPath, value);
-        continue;
-      }
-      target[name] = this.deserializeValue(value, target[name]);
+      target[name] = await this.deserializeAny(data[name], type, target[name]);
     }
   }
   static async deserializeComponent(component, data) {
     if (data.id) component.id = data.id;
-    for (const { name } of GetSerializedFields(component)) {
+    for (const { name, type } of GetSerializedFields(component)) {
       if (data[name] === void 0) continue;
       const value = data[name];
       if (value && typeof value === "object" && value.__ref === "GameObject") {
         this.deferredRefs.push({ component, property: name, id: value.id });
         continue;
       }
-      if (value && typeof value === "object" && value.assetPath) {
-        component[name] = await this.Load(value.assetPath, value);
-        continue;
-      }
-      component[name] = this.deserializeValue(value, component[name]);
+      component[name] = await this.deserializeAny(value, type, component[name]);
     }
   }
   static async deserializeGameObject(scene, data, parent) {
     let source = data;
-    if (data.assetPath) source = await this.Load(data.assetPath);
+    if (data.assetPath) {
+      source = await this.Load(data.assetPath);
+    }
     const go = new GameObject(scene);
     if (data.id) go.id = data.id;
     go.name = data.name ?? source.name;
@@ -7238,10 +7300,14 @@ class Deserializer {
     if (data.assetPath) go.assetPath = data.assetPath;
     if (parent) go.transform.parent = parent;
     await this.deserializeComponent(go.transform, source.transform);
-    if (data.assetPath) await this.deserializeComponent(go.transform, data.transform);
+    if (data.assetPath) {
+      await this.deserializeComponent(go.transform, data.transform);
+    }
     const instances = [];
     for (const compData of source.components ?? []) {
-      if (compData.assetPath && !Component.Registry.get(compData.type)) await this.Load(compData.assetPath);
+      if (compData.assetPath && !Component.Registry.get(compData.type)) {
+        await this.Load(compData.assetPath);
+      }
       const Ctor = Component.Registry.get(compData.type);
       if (!Ctor) throw Error(`Component ${compData.type} not found`);
       instances.push(go.AddComponent(Ctor));
@@ -7256,8 +7322,12 @@ class Deserializer {
   }
   static async deserializeScene(scene, data) {
     scene.name = data.name;
-    for (const goData of data.gameObjects) await this.deserializeGameObject(scene, goData);
-    for (const ref of this.deferredRefs) ref.component[ref.property] = this.idMap.get(ref.id) ?? null;
+    for (const goData of data.gameObjects) {
+      await this.deserializeGameObject(scene, goData);
+    }
+    for (const ref of this.deferredRefs) {
+      ref.component[ref.property] = this.idMap.get(ref.id) ?? null;
+    }
     this.deferredRefs.length = 0;
     Camera.mainCamera = null;
     for (const go of scene.GetGameObjects()) {
@@ -7266,7 +7336,9 @@ class Deserializer {
         Camera.mainCamera = cam;
         break;
       }
-      if (cam && !Camera.mainCamera) Camera.mainCamera = cam;
+      if (cam && !Camera.mainCamera) {
+        Camera.mainCamera = cam;
+      }
     }
     this.idMap.clear();
   }
@@ -7437,21 +7509,16 @@ const _Prefab = class _Prefab {
     fn(this);
     for (const child of this.children) child.traverse(fn);
   }
-  static Deserialize(data) {
+  static Deserialize(assetPath, data, asset) {
+    const source = asset ?? data;
     const prefab = new _Prefab();
-    prefab.id = data.id;
-    prefab.name = data.name;
-    prefab.assetPath = data.assetPath;
-    prefab.transform = data.transform;
-    prefab.components = Array.isArray(data?.components) ? data.components : [];
-    prefab.children = Array.isArray(data?.children) ? data.children.map((c) => _Prefab.Deserialize(c)) : [];
-    prefab.data = data;
-    return prefab;
-  }
-  static async Load(assetPath) {
-    const json = await Assets.Load(assetPath, "json");
-    const prefab = _Prefab.Deserialize(json);
+    prefab.id = source.id;
+    prefab.name = source.name;
     prefab.assetPath = assetPath;
+    prefab.transform = source.transform;
+    prefab.components = Array.isArray(source?.components) ? source.components : [];
+    prefab.children = Array.isArray(source?.children) ? source.children.map((c) => _Prefab.Deserialize(c.assetPath, null, c)) : [];
+    prefab.data = source;
     return prefab;
   }
 };
@@ -7460,6 +7527,7 @@ __decorateElement(_init, 5, "assetPath", _assetPath_dec, _Prefab);
 __decoratorMetadata(_init, _Prefab);
 __publicField(_Prefab, "type", "@trident/core/Prefab");
 let Prefab = _Prefab;
+TypeRegistry.set(Prefab.type, Prefab);
 
 class ComputeContext {
   static activeComputePass = null;
@@ -7669,28 +7737,25 @@ class Input extends System {
   static get mousePosition() {
     return Input._mousePosition;
   }
-  static Init() {
-    if (this.initialized === true) return;
-    if (!Renderer.canvas) throw Error("Renderer has no canvas.");
+  async Start() {
     document.onkeydown = (event) => {
-      this.OnKeyDown(event);
+      Input.OnKeyDown(event);
     };
     document.onkeyup = (event) => {
-      this.OnKeyUp(event);
+      Input.OnKeyUp(event);
     };
     document.onmousemove = (event) => {
-      this.OnMouseMove(event);
+      Input.OnMouseMove(event);
     };
     document.onmousedown = (event) => {
-      this.OnMouseDown(event);
+      Input.OnMouseDown(event);
     };
     document.onmouseup = (event) => {
-      this.OnMouseUp(event);
+      Input.OnMouseUp(event);
     };
     document.ontouchmove = (event) => {
-      this.OnTouchMove(event);
+      Input.OnTouchMove(event);
     };
-    this.initialized = true;
   }
   static OnTouchMove(event) {
     event.preventDefault();
@@ -7740,7 +7805,6 @@ class Input extends System {
    * @returns {boolean} - True if the key was pressed down during this frame.
    */
   static GetKeyDown(key) {
-    this.Init();
     if (this.keysDown[key] == Renderer.info.frame - 1) {
       return true;
     }
@@ -7755,7 +7819,6 @@ class Input extends System {
    * @returns {boolean} - True if the key was released during this frame.
    */
   static GetKeyUp(key) {
-    this.Init();
     if (this.keysUp[key] == Renderer.info.frame - 1) {
       return true;
     }
@@ -7769,21 +7832,18 @@ class Input extends System {
    * @returns {boolean} - True if the key is being pressed down.
    */
   static GetKey(key) {
-    this.Init();
     if (this.keysDown[key] !== void 0) {
       return true;
     }
     return false;
   }
   static GetMouseDown(key) {
-    this.Init();
     if (this.mouseDown[key] == Renderer.info.frame - 1) {
       return true;
     }
     return false;
   }
   static GetMouseUp(key) {
-    this.Init();
     if (this.mouseUp[key] == Renderer.info.frame - 1) {
       return true;
     }
@@ -7797,12 +7857,12 @@ class Input extends System {
    * @returns {number} - Mouse difference between the previous frame and the current fram.
    */
   static GetAxis(axisName) {
-    this.Init();
     if (axisName == "Horizontal") {
       return this.horizontalAxis;
     } else if (axisName == "Vertical") {
       return this.verticalAxis;
     }
+    throw Error("Invalid axis");
   }
 }
 
@@ -7850,9 +7910,7 @@ class Serializer {
       out.assetPath = gameObject.assetPath;
       return out;
     }
-    out.components = gameObject.GetComponents().filter((c) => !(c instanceof Transform)).map((component) => {
-      return this.serializeComponent(component);
-    });
+    out.components = gameObject.GetComponents().filter((c) => !(c instanceof Transform)).filter((c) => ((c.flags ?? Flags.None) & Flags.DontSaveInEditor) === 0).map((component) => this.serializeComponent(component));
     out.children = [];
     for (const child of gameObject.transform.children) out.children.push(this.serializeGameObject(child.gameObject));
     return out;
@@ -7862,9 +7920,7 @@ class Serializer {
       type: Scene.type,
       name: scene.name,
       mainCamera: Camera.mainCamera?.id,
-      gameObjects: scene.GetRootGameObjects().map((gameObject) => {
-        return this.serializeGameObject(gameObject);
-      })
+      gameObjects: scene.GetRootGameObjects().filter((gameObject) => (gameObject.flags & Flags.DontSaveInEditor) === 0).map((gameObject) => this.serializeGameObject(gameObject))
     };
   }
 }
@@ -7934,4 +7990,4 @@ class Runtime {
   }
 }
 
-export { Assets, Component, index$1 as Components, Console, Deserializer, EventSystem, EventSystemLocal, index as GPU, GameObject, Geometry, GetSerializedFields, IndexAttribute, Input, InterleavedVertexAttribute, KeyCodes, index$2 as Mathf, MouseCodes, PBRMaterial, Prefab, Renderer, Runtime, Scene, SceneManager, SerializeField, Serializer, System, Texture, index$3 as Utils, VertexAttribute };
+export { Assets, Component, index$1 as Components, Console, Deserializer, EventSystem, EventSystemLocal, index as GPU, GameObject, Geometry, GetSerializedFields, IndexAttribute, Input, InterleavedVertexAttribute, KeyCodes, index$2 as Mathf, MouseCodes, NonSerialized, PBRMaterial, Prefab, Renderer, Runtime, Scene, SceneManager, SerializeField, Serializer, System, Texture, index$3 as Utils, VertexAttribute };

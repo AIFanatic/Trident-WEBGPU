@@ -7,6 +7,7 @@ class TerrainCollider extends Collider {
     super(gameObject);
   }
   SetTerrainData(nrows, ncols, heights, scale) {
+    if (this.collider) PhysicsRapier.PhysicsWorld.removeCollider(this.collider, true);
     this.colliderDesc = PhysicsRapier.Physics.ColliderDesc.heightfield(nrows, ncols, heights, scale);
     this.collider = PhysicsRapier.PhysicsWorld.createCollider(this.colliderDesc);
     this.collider.setTranslation(this.transform.position);
