@@ -47,8 +47,10 @@ export class MeshCollider extends Collider {
             baked[i + 2] = verts[i + 2] * s.z;
         }
 
+        if (this.collider) PhysicsRapier.PhysicsWorld.removeCollider(this.collider, true);
         this.colliderDesc = PhysicsRapier.Physics.ColliderDesc.trimesh(baked, idx32);
         this.collider = PhysicsRapier.PhysicsWorld.createCollider(this.colliderDesc);
+
         this.collider.setTranslation(p);
         this.collider.setRotation(q);
     }

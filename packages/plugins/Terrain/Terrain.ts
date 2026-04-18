@@ -5,41 +5,59 @@ import {
     VertexAttribute,
     Components,
     Mathf,
+    SerializeField,
+    NonSerialized,
+    Utils
 } from "@trident/core";
 import { TerrainMaterial } from "./TerrainMaterial";
 
-class TerrainData {
-    public size: Mathf.Vector3;
-    private heights: Float32Array;
-    private geometry: Geometry;
-    private material: TerrainMaterial;
+export class TerrainData {
+    public static type = "@trident/plugins/Terrain/TerrainData";
+
+    @SerializeField public size: Mathf.Vector3;
+
+    @NonSerialized public geometry: Geometry;
+    @SerializeField public material: TerrainMaterial;
+    
+    private _heights: Float32Array;
+    @SerializeField(Float32Array) public get heights(): Float32Array { return this._heights };
+    public set heights(heights: Float32Array) {
+        this._heights = heights;
+        this.RebuildGeometry();
+    };
 
     public resolution = 64;
 
-    constructor(gameObject: GameObject) {
+    constructor() {
         this.size = new Mathf.Vector3(1000, 600, 1000);
-        this.material = new TerrainMaterial(gameObject);
-        
+        this.material = new TerrainMaterial();
+
         const verticesPerSide = this.resolution + 1;
         this.heights = new Float32Array(verticesPerSide * verticesPerSide);
-        this.geometry = this.GenerateGeometryFromHeights(verticesPerSide, this.heights);
+        this.geometry = TerrainData.GenerateGeometryFromHeights(verticesPerSide, this.heights, this.size);
     }
 
-    private GenerateGeometryFromHeights(verticesPerSide: number, heights: Float32Array): Geometry {
+    public RebuildGeometry(): void {
+        const verticesPerSide = this.resolution + 1;
+        this.geometry = TerrainData.GenerateGeometryFromHeights(verticesPerSide, this.heights, this.size);
+        this.geometry.name = this.assetPath;
+    }
+
+    public static GenerateGeometryFromHeights(verticesPerSide: number, heights: Float32Array, size: Mathf.Vector3): Geometry {
         if (heights.length !== verticesPerSide * verticesPerSide) throw Error(`Heights length (${heights.length} don't match terrain size of ${verticesPerSide}x${verticesPerSide}(${verticesPerSide * verticesPerSide})`);
 
         const vertices: number[] = [];
         const uvs: number[] = [];
-        const half = this.size.clone().mul(0.5);
+        const half = size.clone().mul(0.5);
 
         const divisions = verticesPerSide - 1;
-        const ratio = this.size.clone().div(divisions);
+        const ratio = size.clone().div(divisions);
         let i = 0;
         for (let ix = 0; ix < verticesPerSide; ix++) {
             for (let iz = 0; iz < verticesPerSide; iz++) {
                 const x = ix * ratio.x;
                 const z = iz * ratio.z;
-                const height = heights[i] * this.size.y;
+                const height = heights[i] * size.y;
                 vertices.push(x - half.x, height, z - half.z);
                 uvs.push(ix / divisions, iz / divisions);
                 i++;
@@ -116,8 +134,30 @@ class TerrainData {
         }
 
         this.heights = smoothHeights ? this.smoothHeightsLaplacian(heights, verticesPerSide, 4, 0.6) : heights;
-        this.geometry = this.GenerateGeometryFromHeights(verticesPerSide, this.heights);
+        this.geometry = TerrainData.GenerateGeometryFromHeights(verticesPerSide, this.heights, this.size);
         return heights;
+    }
+
+    public ApplyHeightsToGeometry(): void {
+        const geometry = this.GetGeometry();
+        const heights = this.GetHeights();
+
+        const positions = geometry.attributes.get("position");
+        if (!positions) return;
+
+        const vertices = positions.array as Float32Array;
+        const sizeH = Math.sqrt(heights.length);
+
+        for (let x = 0; x < sizeH; x++) {
+            for (let z = 0; z < sizeH; z++) {
+                const i = x * sizeH + z;
+                vertices[i * 3 + 1] = heights[i] * this.size.y;
+            }
+        }
+
+        positions.buffer.SetArray(vertices);
+        geometry.ComputeNormals();
+        geometry.ComputeTangents();
     }
 
     public GetHeights(): Float32Array { return this.heights }
@@ -128,23 +168,21 @@ class TerrainData {
 export class Terrain extends Components.Mesh {
     public static type = "@trident/plugins/Terrain/Terrain";
 
-    public get geometry(): Geometry { return this.terrainData.GetGeometry() }
-    public get material(): TerrainMaterial { return this.terrainData.GetMaterial() }
-
-    public terrainData: TerrainData;
+    @SerializeField(TerrainData) public terrainData: TerrainData;
+    
+    @NonSerialized public get geometry(): Geometry { return this.terrainData.geometry }
+    @NonSerialized public get material(): TerrainMaterial { return this.terrainData.material }
 
     constructor(gameObject: GameObject) {
         super(gameObject);
-
-        this.terrainData = new TerrainData(this.gameObject);
-        // this.terrainData.size = this.transform.scale;
+        this.terrainData = new TerrainData();
     }
 
     public SampleHeight(worldPosition: Mathf.Vector3): number {
         const heights = this.terrainData.GetHeights();
         const size = this.terrainData.size;
 
-        if (!heights || !this.geometry) return 0;
+        if (!heights) return 0;
 
         const sizeH = Math.sqrt(heights.length); // heightmap dimension N x N
 
@@ -232,3 +270,6 @@ export class Terrain extends Components.Mesh {
         return normal.normalize();
     }
 }
+
+
+Utils.TypeRegistry.set(TerrainData.type, TerrainData);

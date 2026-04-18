@@ -27,6 +27,7 @@ import "./Impostors";
 
 import "./Particles";
 
+import "./Deserialize";
 import "./Serialize";
 
 import "./Instances";

@@ -23,7 +23,10 @@
             ],
             "@trident/plugins/*": [
                 "packages/plugins/*"
-            ]
+            ],
+            "@trident/editor": [
+                "packages/editor/api.ts"
+            ],
         }
     }
 }

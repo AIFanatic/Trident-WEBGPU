@@ -49,10 +49,10 @@ async function Application(canvas: HTMLCanvasElement) {
     }
 
 
-    const wireframe = new WireframePass();
-    wireframe.color = [1, 1, 1];       // white lines
-    wireframe.enabled = true;           // toggle on/off
-    Runtime.Renderer.RenderPipeline.AddPass(wireframe, GPU.RenderPassOrder.AfterLighting);
+    // const wireframe = new WireframePass();
+    // wireframe.color = [1, 1, 1];       // white lines
+    // wireframe.enabled = true;           // toggle on/off
+    // Runtime.Renderer.RenderPipeline.AddPass(wireframe, GPU.RenderPassOrder.AfterLighting);
     
     Debugger.Enable();
 

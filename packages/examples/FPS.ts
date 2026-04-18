@@ -104,11 +104,11 @@ async function Application(canvas: HTMLCanvasElement) {
         return texture;
     }
 
-    const biomes_splat_map = await GPU.Texture.Load("/extra/test-assets/terrain/heightmaps/biomeids_1024x1024.png");
-    biomes_splat_map.GenerateMips();
-    terrain.material.layerTexture = biomes_splat_map;
+    const biomeMaterialIdMap = await GPU.Texture.Load("/extra/test-assets/terrain/heightmaps/biomeids_1024x1024.png");
+    biomeMaterialIdMap.GenerateMips();
+    terrain.material.materialIdMap = biomeMaterialIdMap;
 
-    terrain.material.splatMapTextures = await LoadTerrainTextures([
+    terrain.material.blendWeightMaps = await LoadTerrainTextures([
         "/extra/test-assets/terrain/heightmaps/splatmap_1024x1024.png", //"/extra/test-assets/terrain/heightmaps/splat0_island_1024x1024.png",
     ]);
 
@@ -116,7 +116,7 @@ async function Application(canvas: HTMLCanvasElement) {
     const albedoTexture = await LoadTexture(`/extra/test-assets/terrain/brown_mud_leaves_01/brown_mud_leaves_01_diff_4k.jpg`, "rgba8unorm-srgb");
     const normalTexture = await LoadTexture(`/extra/test-assets/terrain/brown_mud_leaves_01/brown_mud_leaves_01_nor_gl_4k.jpg`, "rgba8unorm");
     const armMap = await LoadTexture(`/extra/test-assets/terrain/brown_mud_leaves_01/brown_mud_leaves_01_arm_4k.jpg`, "rgba8unorm");
-    terrain.material.layers = [
+    terrain.material.terrainLayers = [
         { name: "TropicalForest", transform: transform, albedoMap: albedoTexture, normalMap: normalTexture, armMap: armMap },
     ]
 

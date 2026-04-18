@@ -3,25 +3,26 @@ import {
     Mathf,
     Geometry,
     VertexAttribute,
-    Component,
     GPU,
     GameObject
 } from "@trident/core";
 
-export class LineRenderer extends Component {
-    private geometry: Geometry;
-    private material: GPU.Material;
-    private mesh: Components.Mesh;
-    
+export class LineRenderer extends Components.Mesh {
+    public static type = "@trident/plugins/LineRenderer";
+
     constructor(gameObject: GameObject) {
         super(gameObject);
+
         this.geometry = new Geometry();
         this.geometry.attributes.set("position", new VertexAttribute(new Float32Array(3)));
         this.geometry.attributes.set("color", new VertexAttribute(new Float32Array(8)));
+
+        this.enableShadows = false;
     }
 
     public async Start() {
-        this.material = new GPU.Material({isDeferred: false});
+        this.material = new GPU.Material({ isDeferred: false });
+
         this.material.shader = await GPU.Shader.Create({
             code: `
             struct VertexInput {
@@ -60,26 +61,11 @@ export class LineRenderer extends Component {
                 return vec4f(input.vColor, 1.0);
             }
             `,
-            colorOutputs: [{format: "rgba16float"}],
-            depthOutput: "depth24plus",
-            attributes: {
-                position: {location: 0, size: 3, type: "vec3"},
-                color: {location: 1, size: 4, type: "vec4"},
-            },
-            uniforms: {
-                projectionMatrix: {group: 0, binding: 0, type: "storage"},
-                viewMatrix: {group: 0, binding: 1, type: "storage"},
-                modelMatrix: {group: 0, binding: 2, type: "storage"},
-            },
+            topology: GPU.Topology.Lines,
             cullMode: "none",
-            topology: GPU.Topology.Lines
-        })
-
-        this.mesh = this.gameObject.AddComponent(Components.Mesh);
-        this.mesh.name = "LineRenderer";
-        this.mesh.enableShadows = false;
-        this.mesh.geometry = this.geometry;
-        this.mesh.material = this.material;
+            colorOutputs: [{ format: "rgba16float" }],
+            depthOutput: "depth24plus",
+        });
     }
 
     public SetPositions(positions: Mathf.Vector3[] | Float32Array) {

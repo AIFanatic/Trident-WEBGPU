@@ -26,7 +26,7 @@ function addJsExtensionToImports() {
 
             let updated = code
                 .replace(/from\s+['"](@trident\/[^'"]+)['"]/g, (_, path) => {
-                    return path == "@trident/core" || path == "@trident/plugins" || path.endsWith("js") ? _ : `from '${path}.js'`;
+                    return path == "@trident/core" || path == "@trident/plugins" || path == "@trident/editor" || path.endsWith("js") ? _ : `from '${path}.js'`;
                 })
                 // static imports
                 .replace(/(import\s+[^'"]+\s+from\s+['"])(\.[.\/][^'"]+?)(['"])/g, replacer)
@@ -254,7 +254,8 @@ function editorHtml() {
                 {
                     "imports": {
                         "@trident/core": "../trident-core.js",
-                        "@trident/plugins/": "../plugins/"
+                        "@trident/plugins/": "../plugins/",
+                        "@trident/editor": "./trident-editor-api.js"
                     }
                 }
             </script>
@@ -306,6 +307,7 @@ const editor = {
         file: './dist/editor/trident-editor.js',
         format: "esm"
     },
+    external: ["@trident/editor"],
     plugins: [
         // typescript(),
         resolve({ browser: true, preferBuiltins: false }),
@@ -322,23 +324,19 @@ const editor = {
     ]
 }
 
-// const editor = {
-//     input: 'packages/editor-test/index.ts',
-//     output: {
-//         file: './dist/editor/trident-editor.js',
-//         format: "esm"
-//     },
-//     plugins: [
-//         // typescript(),
-//         esbuild({
-//             target: "es2022",
-//             jsxFactory: 'createElement',
-//             jsxFragment: 'Fragment',
-//         }),
-//         addJsExtensionToImports(),
-//         wrapJsInHtml(),
-//         copyAssets()
-//     ]
-// }
+const editorApi = {
+    input: "packages/editor/api.ts",
+    output: {
+        file: "./dist/editor/trident-editor-api.js",
+        format: "esm",
+    },
+    external: ["@trident/core"],
+    plugins: [
+        esbuild({
+            target: target,
+        }),
+        addJsExtensionToImports(),
+    ],
+};
 
-export default [core, plugins, examples, editor];
+export default [core, plugins, examples, editorApi, editor];
