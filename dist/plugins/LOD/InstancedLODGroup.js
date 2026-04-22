@@ -1,0 +1,235 @@
+import { Components, GPU, Runtime } from '@trident/core';
+
+class InstancedLODGroup extends Components.Renderable {
+  initialized = false;
+  drawCompute;
+  drawIndirectBuffer;
+  lodRendererData = [];
+  lodMatricesScratch;
+  lodMatrixBuffers = [];
+  static DefaultCapacity = 1e5;
+  static MATRICES_PER_LOD = InstancedLODGroup.DefaultCapacity;
+  static MATRIX_STRIDE_BYTES = InstancedLODGroup.MATRICES_PER_LOD * 16 * 4;
+  lods = [];
+  matrices = new GPU.DynamicBufferMemoryAllocator(16, InstancedLODGroup.DefaultCapacity * 16);
+  _instanceCount = 0;
+  get instanceCount() {
+    return this._instanceCount;
+  }
+  get matricesBuffer() {
+    return this.matrices.getBuffer();
+  }
+  ResetInstances() {
+    this._instanceCount = 0;
+  }
+  SetMatrixAt(index, matrix) {
+    this.matrices.set(index, matrix.elements);
+    this._instanceCount = Math.max(this._instanceCount, index + 1);
+  }
+  SetMatricesBulk(matrices) {
+    this.matrices.set(0, matrices);
+    this._instanceCount = matrices.length / 16;
+  }
+  // Expose a representative geometry so RenderablePass picks it up.
+  get geometry() {
+    const lod0 = this.lods[0];
+    const renderer0 = lod0?.renderers?.[0];
+    return renderer0?.geometry;
+  }
+  async Start() {
+    this.drawCompute = await GPU.ShaderCompute.Create({
+      name: this.name + "-Compute",
+      code: `
+            #include "@trident/core/resources/webgpu/shaders/deferred/Common.wgsl";
+            
+            @group(0) @binding(0) var<storage, read> frameBuffer: FrameBuffer;
+
+            struct DrawBuffer {
+                indexCount: u32,
+                instanceCount: atomic<u32>,
+                firstIndex: u32,
+                baseVertex: u32,
+                firstInstance: u32,
+            };
+
+            @group(0) @binding(1) var<storage, read_write> drawBuffer: array<DrawBuffer>;
+            @group(0) @binding(2) var<storage, read> modelMatrix: array<mat4x4<f32>>;
+            @group(0) @binding(3) var<storage, read> boundingSphere: vec4<f32>;
+
+            @group(0) @binding(4) var<storage, read> meshCount: f32;
+            @group(0) @binding(5) var<storage, read> lodCount: f32;
+
+            struct LODInfo {
+                distance: f32,
+            };
+            @group(0) @binding(6) var<storage, read> lods: array<LODInfo>;
+
+            @group(0) @binding(7) var<storage, read_write> lodMatrices: array<mat4x4<f32>>;
+
+            @group(0) @binding(8) var<storage, read> viewProjection: mat4x4<f32>;
+
+            const lodMatrixCapacity: u32 = ${InstancedLODGroup.MATRICES_PER_LOD}u;
+
+            const blockSize: u32 = 4;
+
+            fn computeRadiusScale(modelMatrix: mat4x4<f32>) -> f32 {
+                let sx = length(modelMatrix[0].xyz);
+                let sy = length(modelMatrix[1].xyz);
+                let sz = length(modelMatrix[2].xyz);
+                return max(sx, max(sy, sz));
+            }
+
+            fn worldCenter(modelMatrix: mat4x4<f32>, localCenter: vec3f) -> vec3f {
+                return (modelMatrix * vec4f(localCenter, 1.0)).xyz;
+            }
+                
+            fn outsideFrustum(modelMatrix: mat4x4<f32>, boundingSphere: vec4<f32>) -> bool {
+                let radiusScale = computeRadiusScale(modelMatrix);
+                let centerWorld = worldCenter(modelMatrix, boundingSphere.xyz);
+                let worldRadius = boundingSphere.w * radiusScale;
+            
+                for (var i = 0u; i < 6u; i++) {
+                    let plane = frameBuffer.frustum[i];
+                    let distance = dot(plane.xyz, centerWorld) + plane.w;
+                    if (distance < -worldRadius) {
+                        return true;
+                    }
+                }
+                    
+                return false;
+            }
+
+            @compute @workgroup_size(blockSize, blockSize, blockSize)
+            fn main(@builtin(global_invocation_id) grid: vec3<u32>) {
+                let dim: u32 = u32(ceil(pow(meshCount, 1.0 / 3.0)));
+
+                let objectIndex = grid.x + grid.y * dim + grid.z * dim * dim;
+
+                if (objectIndex >= u32(meshCount)) {
+                    return;
+                }
+
+                let modelMatrixInstance = modelMatrix[objectIndex];
+                let modelPosition = modelMatrixInstance[3].xyz;
+
+                if (outsideFrustum(modelMatrixInstance, boundingSphere)) {
+                    return;
+                }
+
+                let lc = u32(lodCount);
+                if (lc == 0u) { return; }
+                
+                let d = distance(frameBuffer.viewPosition.xyz, modelPosition);
+                let cullDistance = lods[lc - 1u].distance;
+                if (d > cullDistance) { return; }
+
+                var lod: u32 = lc - 1u;
+
+                // pick the first threshold that contains d
+                for (var i: u32 = 0u; i < lc; i++) {
+                    if (d <= lods[i].distance) {
+                        lod = i;
+                        break;
+                    }
+                }
+
+                let writeIndex = atomicAdd(&drawBuffer[lod].instanceCount, 1u);
+                if (writeIndex < lodMatrixCapacity) {
+                    let baseIndex = lod * lodMatrixCapacity + writeIndex;
+                    lodMatrices[baseIndex] = modelMatrixInstance;
+                }
+            }
+        `
+    });
+    this.drawIndirectBuffer = new GPU.Buffer(this.lods.length * 5 * 4, GPU.BufferType.STORAGE_WRITE);
+    this.lodMatricesScratch = new GPU.Buffer(this.lods.length * InstancedLODGroup.MATRIX_STRIDE_BYTES, GPU.BufferType.STORAGE_WRITE);
+    this.lodMatrixBuffers = this.lods.map(() => new GPU.Buffer(InstancedLODGroup.MATRIX_STRIDE_BYTES, GPU.BufferType.STORAGE));
+    this.lodRendererData.length = this.lods.length;
+    for (let i = 0; i < this.lods.length; i++) {
+      const lod = this.lods[i];
+      if (!lod.renderers || lod.renderers.length === 0) throw Error("LOD requires at least one renderer");
+      this.drawIndirectBuffer.SetArray(new Uint32Array([0, 0, 0, 0, 0]), i * 5 * 4);
+      this.lodRendererData[i] = [];
+      for (const renderer of lod.renderers) {
+        const geometry = renderer.geometry;
+        if (!geometry) throw Error("No geometry");
+        const indexBuffer = geometry.index;
+        if (!indexBuffer) throw Error("No index buffer");
+        if (!renderer.material) throw Error("No material or shader");
+        const drawBuffer = new GPU.Buffer(5 * 4, GPU.BufferType.INDIRECT);
+        drawBuffer.SetArray(new Uint32Array([indexBuffer.count, 0, 0, 0, 0]));
+        this.lodRendererData[i].push({ renderer, drawBuffer });
+      }
+    }
+    this.initialized = true;
+  }
+  OnPreFrame() {
+    if (!this.initialized) return;
+    if (this.lods.length === 0) return;
+    const lod0 = this.lods[0];
+    this.drawCompute.SetArray("boundingSphere", new Float32Array([
+      ...lod0.renderers[0].geometry.boundingVolume.center.elements,
+      lod0.renderers[0].geometry.boundingVolume.radius
+    ]));
+    for (let i = 0; i < this.lods.length; i++) {
+      this.drawIndirectBuffer.SetArray(new Uint32Array([0, 0, 0, 0, 0]), i * 5 * 4);
+    }
+    const lodInfo = [];
+    for (const lod of this.lods) lodInfo.push(lod.screenSize);
+    this.drawCompute.SetArray("lods", new Float32Array(lodInfo));
+    const resources = Runtime.Renderer.RenderPipeline.renderGraph.resourcePool;
+    const FrameBuffer = resources.getResource(GPU.PassParams.FrameBuffer);
+    GPU.Renderer.BeginRenderFrame();
+    this.drawCompute.SetBuffer("drawBuffer", this.drawIndirectBuffer);
+    this.drawCompute.SetValue("meshCount", this.instanceCount);
+    this.drawCompute.SetBuffer("frameBuffer", FrameBuffer);
+    this.drawCompute.SetBuffer("modelMatrix", this.matricesBuffer);
+    this.drawCompute.SetValue("lodCount", this.lods.length);
+    this.drawCompute.SetBuffer("lodMatrices", this.lodMatricesScratch);
+    GPU.ComputeContext.BeginComputePass("InstancedLODGroup", true);
+    const dim = Math.max(1, Math.ceil(Math.cbrt(this.instanceCount)));
+    const dispatch = Math.ceil(dim / 4);
+    GPU.ComputeContext.Dispatch(this.drawCompute, dispatch, dispatch, dispatch);
+    GPU.ComputeContext.EndComputePass();
+    GPU.Renderer.EndRenderFrame();
+  }
+  OnPreRender() {
+    if (!this.initialized) return;
+    const resources = Runtime.Renderer.RenderPipeline.renderGraph.resourcePool;
+    const FrameBuffer = resources.getResource(GPU.PassParams.FrameBuffer);
+    for (let i = 0; i < this.lods.length; i++) {
+      const lodMatricesOffset = i * InstancedLODGroup.MATRIX_STRIDE_BYTES;
+      GPU.RendererContext.CopyBufferToBuffer(this.lodMatricesScratch, this.lodMatrixBuffers[i], lodMatricesOffset, 0, InstancedLODGroup.MATRIX_STRIDE_BYTES);
+      const lodDrawOffset = i * 5 * 4;
+      for (const data of this.lodRendererData[i]) {
+        GPU.RendererContext.CopyBufferToBuffer(this.drawIndirectBuffer, data.drawBuffer, lodDrawOffset + 4, 4, 4);
+        const { geometry, material } = data.renderer;
+        material.shader.SetBuffer("modelMatrix", this.lodMatrixBuffers[i]);
+        material.shader.SetBuffer("frameBuffer", FrameBuffer);
+      }
+    }
+  }
+  OnRenderObject(shaderOverride) {
+    if (!this.initialized) return;
+    for (const lodData of this.lodRendererData) {
+      for (const data of lodData) {
+        const { geometry, material } = data.renderer;
+        const shader = shaderOverride ? shaderOverride : material.shader;
+        GPU.RendererContext.DrawIndirect(geometry, shader, data.drawBuffer);
+      }
+    }
+  }
+  Destroy() {
+    this.drawIndirectBuffer?.Destroy();
+    this.lodMatricesScratch?.Destroy();
+    for (const buffer of this.lodMatrixBuffers) buffer.Destroy();
+    for (const lodData of this.lodRendererData) {
+      for (const data of lodData) {
+        data.drawBuffer.Destroy();
+      }
+    }
+    super.Destroy();
+  }
+}
+
+export { InstancedLODGroup };

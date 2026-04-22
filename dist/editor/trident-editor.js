@@ -1,4 +1,4 @@
-import { Assets, Component as Component$1, Deserializer, Geometry, PBRMaterial, GPU, InterleavedVertexAttribute, IndexAttribute, VertexAttribute, Components, Serializer, Runtime, Scene, GameObject, Mathf, Prefab, Utils, EventSystem, EventSystemLocal, Input, Console, GetSerializedFields, Texture } from '@trident/core';
+import { Assets, Component as Component$1, Deserializer, Geometry, PBRMaterial, GPU, InterleavedVertexAttribute, IndexAttribute, VertexAttribute, Components, Serializer, Runtime, Scene, GameObject, Mathf, Prefab, Utils, EventSystem, EventSystemLocal, Input, Console, Texture, GetSerializedFields } from '@trident/core';
 import { RigidBody } from '@trident/plugins/PhysicsRapier/RigidBody.js';
 import { BoxCollider } from '@trident/plugins/PhysicsRapier/colliders/BoxCollider.js';
 import { CapsuleCollider } from '@trident/plugins/PhysicsRapier/colliders/CapsuleCollider.js';
@@ -8,6 +8,7 @@ import { SphereCollider } from '@trident/plugins/PhysicsRapier/colliders/SphereC
 import { TerrainCollider } from '@trident/plugins/PhysicsRapier/colliders/TerrainCollider.js';
 import { Terrain } from '@trident/plugins/Terrain/Terrain.js';
 import { LineRenderer } from '@trident/plugins/LineRenderer.js';
+import { LODGroup } from '@trident/plugins/LOD/LODGroup.js';
 import { OrbitControls } from '@trident/plugins/OrbitControls.js';
 import { Environment } from '@trident/plugins/Environment/Environment.js';
 import { Sky } from '@trident/plugins/Environment/Sky.js';
@@ -2829,7 +2830,7 @@ Deserializer.Load = async (assetPath, data, expectedType) => {
     const geometry = new Geometry();
     geometry.id = json.id;
     geometry.name = json.name;
-    geometry.assetPath = json.assetPath;
+    geometry.assetPath = assetPath;
     for (const entry of json.attributes) {
       const [name, attrData] = Array.isArray(entry) ? entry : [entry.name, entry];
       geometry.attributes.set(name, deserializeAttribute(attrData));
@@ -2867,6 +2868,7 @@ Component$1.Registry.set(SphereCollider.type, SphereCollider);
 Component$1.Registry.set(TerrainCollider.type, TerrainCollider);
 Component$1.Registry.set(Terrain.type, Terrain);
 Component$1.Registry.set(LineRenderer.type, LineRenderer);
+Component$1.Registry.set(LODGroup.type, LODGroup);
 const ComponentRegistry = {
   Camera: component(Components.Camera),
   SpotLight: component(Components.SpotLight),
@@ -2883,7 +2885,9 @@ const ComponentRegistry = {
   PlaneCollider: component(PlaneCollider),
   SphereCollider: component(SphereCollider),
   TerrainCollider: component(TerrainCollider),
-  Terrain: component(Terrain)};
+  Terrain: component(Terrain),
+  LODGroup: component(LODGroup)
+};
 
 class TridentAPI {
   get currentScene() {
@@ -4109,6 +4113,8 @@ async function LoadFile(path, file, engineAPI) {
     return LoadScript(path);
   } else if (ext === "prefab") {
     return Deserializer.Load(path, void 0, Prefab);
+  } else if (ext === "png" || ext === "jpg" || ext === "jpeg") {
+    return Deserializer.Load(path, void 0, Texture);
   }
   return Deserializer.Load(path);
 }
@@ -4269,8 +4275,8 @@ async function SaveGameObjectAsAsset(baseDir, gameObject) {
         const terrainPath = terrain.terrainData?.assetPath;
         if (terrainPath && !saved.has(terrainPath)) {
           saved.add(terrainPath);
-          const ctor = component.constructor;
-          SaveToFile(component.assetPath, new Blob([JSON.stringify({ type: ctor.type, ...Serializer.serializeFields(component) })]));
+          const ctor = terrain.terrainData.constructor;
+          SaveToFile(terrainPath, new Blob([JSON.stringify({ type: ctor.type, ...Serializer.serializeFields(terrain.terrainData) })]));
         }
       }
     }
@@ -4955,7 +4961,7 @@ class AddComponent extends Component {
     this.setState({ isMenuOpen: false });
   }
   render() {
-    return /* @__PURE__ */ createElement("div", { class: "Floating-Menu", style: { position: "inherit", padding: "5px", margin: "10px" } }, /* @__PURE__ */ createElement(Tree, null, /* @__PURE__ */ createElement(TreeFolder, { name: "Add Component" }, /* @__PURE__ */ createElement(TreeFolder, { name: "Physics" }, /* @__PURE__ */ createElement(TreeItem, { name: "Rigidbody", onPointerDown: () => this.addComponent(ComponentRegistry.RigidBody) }), /* @__PURE__ */ createElement(TreeItem, { name: "BoxCollider", onPointerDown: () => this.addComponent(ComponentRegistry.BoxCollider) }), /* @__PURE__ */ createElement(TreeItem, { name: "CapsuleCollider", onPointerDown: () => this.addComponent(ComponentRegistry.CapsuleCollider) }), /* @__PURE__ */ createElement(TreeItem, { name: "MeshCollider", onPointerDown: () => this.addComponent(ComponentRegistry.MeshCollider) }), /* @__PURE__ */ createElement(TreeItem, { name: "PlaneCollider", onPointerDown: () => this.addComponent(ComponentRegistry.PlaneCollider) }), /* @__PURE__ */ createElement(TreeItem, { name: "SphereCollider", onPointerDown: () => this.addComponent(ComponentRegistry.SphereCollider) })), /* @__PURE__ */ createElement(TreeItem, { name: "Mesh", onPointerDown: () => this.addComponent(ComponentRegistry.Mesh) }), /* @__PURE__ */ createElement(TreeFolder, { name: "Lights" }, /* @__PURE__ */ createElement(TreeItem, { name: "DirectionalLight", onPointerDown: () => this.addComponent(ComponentRegistry.DirectionalLight) }), /* @__PURE__ */ createElement(TreeItem, { name: "PointLight", onPointerDown: () => this.addComponent(ComponentRegistry.PointLight) }), /* @__PURE__ */ createElement(TreeItem, { name: "SpotLight", onPointerDown: () => this.addComponent(ComponentRegistry.SpotLight) })))));
+    return /* @__PURE__ */ createElement("div", { class: "Floating-Menu", style: { position: "inherit", padding: "5px", margin: "10px" } }, /* @__PURE__ */ createElement(Tree, null, /* @__PURE__ */ createElement(TreeFolder, { name: "Add Component" }, /* @__PURE__ */ createElement(TreeFolder, { name: "Physics" }, /* @__PURE__ */ createElement(TreeItem, { name: "Rigidbody", onPointerDown: () => this.addComponent(ComponentRegistry.RigidBody) }), /* @__PURE__ */ createElement(TreeItem, { name: "BoxCollider", onPointerDown: () => this.addComponent(ComponentRegistry.BoxCollider) }), /* @__PURE__ */ createElement(TreeItem, { name: "CapsuleCollider", onPointerDown: () => this.addComponent(ComponentRegistry.CapsuleCollider) }), /* @__PURE__ */ createElement(TreeItem, { name: "MeshCollider", onPointerDown: () => this.addComponent(ComponentRegistry.MeshCollider) }), /* @__PURE__ */ createElement(TreeItem, { name: "PlaneCollider", onPointerDown: () => this.addComponent(ComponentRegistry.PlaneCollider) }), /* @__PURE__ */ createElement(TreeItem, { name: "SphereCollider", onPointerDown: () => this.addComponent(ComponentRegistry.SphereCollider) })), /* @__PURE__ */ createElement(TreeItem, { name: "Mesh", onPointerDown: () => this.addComponent(ComponentRegistry.Mesh) }), /* @__PURE__ */ createElement(TreeItem, { name: "LODGroup", onPointerDown: () => this.addComponent(ComponentRegistry.LODGroup) }), /* @__PURE__ */ createElement(TreeFolder, { name: "Lights" }, /* @__PURE__ */ createElement(TreeItem, { name: "DirectionalLight", onPointerDown: () => this.addComponent(ComponentRegistry.DirectionalLight) }), /* @__PURE__ */ createElement(TreeItem, { name: "PointLight", onPointerDown: () => this.addComponent(ComponentRegistry.PointLight) }), /* @__PURE__ */ createElement(TreeItem, { name: "SpotLight", onPointerDown: () => this.addComponent(ComponentRegistry.SpotLight) })))));
   }
 }
 

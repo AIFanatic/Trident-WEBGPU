@@ -42,7 +42,7 @@
             import { PostProcessingSMAA } from '@trident/plugins/PostProcessing/effects/SMAA.js';
             import { Sky } from '@trident/plugins/Environment/Sky.js';
             import { Environment } from '@trident/plugins/Environment/Environment.js';
-            import { LODInstanceRenderable } from '@trident/plugins/LODGroup.js';
+            import { InstancedLODGroup } from '@trident/plugins/LOD/InstancedLODGroup.js';
             
             async function Application(canvas) {
               await Runtime.Create(canvas);
@@ -175,7 +175,7 @@
                   }
                   loadedGO.enabled = false;
                   const lodGameObject = new GameObject(scene);
-                  const lodInstanceRenderable = lodGameObject.AddComponent(LODInstanceRenderable);
+                  const lodInstanceRenderable = lodGameObject.AddComponent(InstancedLODGroup);
                   lodInstanceRenderable.enableShadows = options.enableShadows;
                   if (lodGroupEntries.length > 0) lodInstanceRenderable.lods.push({ renderers: lodGroupEntries.slice(0, 1), screenSize: 100 });
                   if (lodGroupEntries.length > 1) lodInstanceRenderable.lods.push({ renderers: lodGroupEntries.slice(1, 2), screenSize: 200 });

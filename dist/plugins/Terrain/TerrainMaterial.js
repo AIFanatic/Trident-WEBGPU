@@ -76,6 +76,20 @@ class TerrainMaterial extends (_a = GPU.Material, _terrainLayers_dec = [Serializ
     __publicField(this, "pendingShaderCreation");
     this.createShader();
   }
+  get terrainLayers() {
+    return this._terrainLayers;
+  }
+  set terrainLayers(layers) {
+    this._terrainLayers = layers;
+    if (!this.shader || layers.length === 0) return;
+    this.ApplyTerrainLayers(layers);
+  }
+  set blendWeightMaps(blendWeightMaps) {
+    this.shader.SetTexture("blendWeightMaps", this.CreateTextureArray(blendWeightMaps));
+  }
+  set materialIdMap(materialIdMap) {
+    this.shader.SetTexture("materialIdMap", materialIdMap);
+  }
   CreateSolidTexture(data, format = "rgba8unorm") {
     const texture = GPU.Texture.Create(1, 1, 1, format);
     texture.SetData(new Uint8Array(data), 4);
@@ -113,26 +127,12 @@ class TerrainMaterial extends (_a = GPU.Material, _terrainLayers_dec = [Serializ
     textureArray.SetActiveMipCount(mipLevels);
     return textureArray;
   }
-  set blendWeightMaps(blendWeightMaps) {
-    this.shader.SetTexture("blendWeightMaps", this.CreateTextureArray(blendWeightMaps));
-  }
-  set materialIdMap(materialIdMap) {
-    this.shader.SetTexture("materialIdMap", materialIdMap);
-  }
   SetTerrainLayersArray(shader, data) {
     if (!this.terrainLayersBuffer || this.terrainLayersBuffer.size < data.byteLength) {
       this.terrainLayersBuffer = new GPU.Buffer(data.byteLength, GPU.BufferType.STORAGE);
       shader.SetBuffer("TerrainLayers", this.terrainLayersBuffer);
     }
     this.terrainLayersBuffer.SetArray(data);
-  }
-  get terrainLayers() {
-    return this._terrainLayers;
-  }
-  set terrainLayers(layers) {
-    this._terrainLayers = layers;
-    if (!this.shader || layers.length === 0) return;
-    this.ApplyTerrainLayers(layers);
   }
   ApplyTerrainLayers(layers) {
     const keys = ["albedoMap", "normalMap", "armMap"];

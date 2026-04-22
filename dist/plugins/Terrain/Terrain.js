@@ -1,5 +1,7 @@
-import { SerializeField, Components, Mathf, Utils, Geometry, VertexAttribute, IndexAttribute, NonSerialized } from '@trident/core';
+import { SerializeField, GameObject, Components, Mathf, Utils, GPU, Geometry, VertexAttribute, IndexAttribute, NonSerialized } from '@trident/core';
 import { TerrainMaterial } from './TerrainMaterial.js';
+import { LODGroup } from '../LOD/LODGroup.js';
+import { InstancedLODGroup } from '../LOD/InstancedLODGroup.js';
 
 var __create = Object.create;
 var __defProp = Object.defineProperty;
@@ -49,21 +51,42 @@ var __privateIn = (member, obj) => Object(obj) !== obj ? __typeError('Cannot use
 var __privateGet = (obj, member, getter) => (__accessCheck(obj, member, "read from private field"), getter ? getter.call(obj) : member.get(obj));
 var __privateSet = (obj, member, value, setter) => (__accessCheck(obj, member, "write to private field"), setter ? setter.call(obj, value) : member.set(obj, value), value);
 var __privateMethod = (obj, member, method) => (__accessCheck(obj, member, "access private method"), method);
-var _heights_dec, _material_dec, _geometry_dec, _size_dec, _init, _material_dec2, _geometry_dec2, _terrainData_dec, _a, _init2;
-_size_dec = [SerializeField], _geometry_dec = [NonSerialized], _material_dec = [SerializeField], _heights_dec = [SerializeField(Float32Array)];
-const _TerrainData = class _TerrainData {
+var _matrices_dec, _prop_dec, _init, _terrainGameObject_dec, _blendWeightMapTexture_dec, _materialIdMapTexture_dec, _blendWeightMapData_dec, _materialIdMapData_dec, _paintMapResolution_dec, _heights_dec, _material_dec, _geometry_dec, _size_dec, _paintPropData_dec, _init2, _material_dec2, _geometry_dec2, _terrainData_dec, _a, _init3;
+_prop_dec = [SerializeField(GameObject)], _matrices_dec = [SerializeField(Float32Array)];
+class PaintPropData {
   constructor() {
-    __runInitializers(_init, 5, this);
-    __publicField(this, "size", __runInitializers(_init, 8, this)), __runInitializers(_init, 11, this);
-    __publicField(this, "geometry", __runInitializers(_init, 12, this)), __runInitializers(_init, 15, this);
-    __publicField(this, "material", __runInitializers(_init, 16, this)), __runInitializers(_init, 19, this);
+    __publicField(this, "prop", __runInitializers(_init, 8, this)), __runInitializers(_init, 11, this);
+    __publicField(this, "matrices", __runInitializers(_init, 12, this)), __runInitializers(_init, 15, this);
+  }
+}
+_init = __decoratorStart(null);
+__decorateElement(_init, 5, "prop", _prop_dec, PaintPropData);
+__decorateElement(_init, 5, "matrices", _matrices_dec, PaintPropData);
+__decoratorMetadata(_init, PaintPropData);
+_paintPropData_dec = [SerializeField(PaintPropData)], _size_dec = [SerializeField], _geometry_dec = [NonSerialized], _material_dec = [SerializeField], _heights_dec = [SerializeField(Float32Array)], _paintMapResolution_dec = [SerializeField], _materialIdMapData_dec = [SerializeField(Uint8Array)], _blendWeightMapData_dec = [SerializeField(Uint8Array)], _materialIdMapTexture_dec = [NonSerialized], _blendWeightMapTexture_dec = [NonSerialized], _terrainGameObject_dec = [SerializeField];
+const _TerrainData = class _TerrainData {
+  constructor(gameObject) {
+    __runInitializers(_init2, 5, this);
+    __publicField(this, "paintPropData", __runInitializers(_init2, 8, this, [])), __runInitializers(_init2, 11, this);
+    __publicField(this, "paintPropInstances", /* @__PURE__ */ new Map());
+    __publicField(this, "size", __runInitializers(_init2, 12, this)), __runInitializers(_init2, 15, this);
+    __publicField(this, "geometry", __runInitializers(_init2, 16, this)), __runInitializers(_init2, 19, this);
+    __publicField(this, "material", __runInitializers(_init2, 20, this)), __runInitializers(_init2, 23, this);
     __publicField(this, "_heights");
+    __publicField(this, "paintMapResolution", __runInitializers(_init2, 24, this, 256)), __runInitializers(_init2, 27, this);
+    __publicField(this, "_materialIdMapData");
+    __publicField(this, "_blendWeightMapData");
+    __publicField(this, "materialIdMapTexture", __runInitializers(_init2, 28, this)), __runInitializers(_init2, 31, this);
+    __publicField(this, "blendWeightMapTexture", __runInitializers(_init2, 32, this)), __runInitializers(_init2, 35, this);
     __publicField(this, "resolution", 64);
+    __publicField(this, "terrainGameObject", __runInitializers(_init2, 36, this)), __runInitializers(_init2, 39, this);
+    this.terrainGameObject = gameObject;
     this.size = new Mathf.Vector3(1e3, 600, 1e3);
     this.material = new TerrainMaterial();
     const verticesPerSide = this.resolution + 1;
     this.heights = new Float32Array(verticesPerSide * verticesPerSide);
     this.geometry = _TerrainData.GenerateGeometryFromHeights(verticesPerSide, this.heights, this.size);
+    this.InitializePaintMapData();
   }
   get heights() {
     return this._heights;
@@ -71,6 +94,63 @@ const _TerrainData = class _TerrainData {
   set heights(heights) {
     this._heights = heights;
     this.RebuildGeometry();
+  }
+  get materialIdMapData() {
+    return this._materialIdMapData;
+  }
+  set materialIdMapData(data) {
+    this._materialIdMapData = data;
+  }
+  get blendWeightMapData() {
+    return this._blendWeightMapData;
+  }
+  set blendWeightMapData(data) {
+    this._blendWeightMapData = data;
+  }
+  InitializePaintMapData() {
+    const pixelCount = this.paintMapResolution * this.paintMapResolution;
+    if (!this._materialIdMapData || this._materialIdMapData.length !== pixelCount * 4) {
+      this._materialIdMapData = new Uint8Array(pixelCount * 4);
+      this._blendWeightMapData = new Uint8Array(pixelCount * 4);
+      for (let i = 0; i < pixelCount; i++) {
+        this._blendWeightMapData[i * 4] = 255;
+      }
+    }
+  }
+  InitializePaintMaps() {
+    this.InitializePaintMapData();
+    this.materialIdMapTexture = GPU.Texture.Create(this.paintMapResolution, this.paintMapResolution, 1, "rgba8unorm");
+    this.blendWeightMapTexture = GPU.TextureArray.Create(this.paintMapResolution, this.paintMapResolution, 1, "rgba8unorm");
+    this.UploadPaintMaps();
+    this.BindPaintMaps();
+  }
+  RebuildProps() {
+    for (const paintProp of this.paintPropData) {
+      const lodGroup = paintProp.prop.GetComponent(LODGroup);
+      if (!lodGroup) continue;
+      if (lodGroup.lods.length === 0) continue;
+      const instancedLODGroup = this.paintPropInstances.get(lodGroup) || this.terrainGameObject.AddComponent(InstancedLODGroup);
+      instancedLODGroup.lods = lodGroup.lods;
+      this.paintPropInstances.set(lodGroup, instancedLODGroup);
+      instancedLODGroup.SetMatricesBulk(paintProp.matrices);
+    }
+  }
+  UploadPaintMaps() {
+    const bytesPerRow = this.paintMapResolution * 4;
+    this.materialIdMapTexture.SetData(this._materialIdMapData, bytesPerRow);
+    this.blendWeightMapTexture.SetData(this._blendWeightMapData, bytesPerRow, this.paintMapResolution);
+  }
+  async BindPaintMaps() {
+    if (this.material.pendingShaderCreation) {
+      await this.material.pendingShaderCreation;
+    }
+    this.material.materialIdMap = this.materialIdMapTexture;
+    this.material.shader.SetTexture("blendWeightMaps", this.blendWeightMapTexture);
+  }
+  async OnDeserialized() {
+    this.RebuildGeometry();
+    this.InitializePaintMaps();
+    this.RebuildProps();
   }
   RebuildGeometry() {
     const verticesPerSide = this.resolution + 1;
@@ -129,7 +209,7 @@ const _TerrainData = class _TerrainData {
     }
     return h;
   }
-  async HeightmapFromPNG(url, smoothHeights = true, heightmapScale = 1) {
+  async HeightmapFromPNG(url, smoothHeights = true) {
     const img = new Image();
     img.src = url;
     await img.decode();
@@ -182,26 +262,36 @@ const _TerrainData = class _TerrainData {
     return this.material;
   }
 };
-_init = __decoratorStart(null);
-__decorateElement(_init, 2, "heights", _heights_dec, _TerrainData);
-__decorateElement(_init, 5, "size", _size_dec, _TerrainData);
-__decorateElement(_init, 5, "geometry", _geometry_dec, _TerrainData);
-__decorateElement(_init, 5, "material", _material_dec, _TerrainData);
-__decoratorMetadata(_init, _TerrainData);
+_init2 = __decoratorStart(null);
+__decorateElement(_init2, 2, "heights", _heights_dec, _TerrainData);
+__decorateElement(_init2, 2, "materialIdMapData", _materialIdMapData_dec, _TerrainData);
+__decorateElement(_init2, 2, "blendWeightMapData", _blendWeightMapData_dec, _TerrainData);
+__decorateElement(_init2, 5, "paintPropData", _paintPropData_dec, _TerrainData);
+__decorateElement(_init2, 5, "size", _size_dec, _TerrainData);
+__decorateElement(_init2, 5, "geometry", _geometry_dec, _TerrainData);
+__decorateElement(_init2, 5, "material", _material_dec, _TerrainData);
+__decorateElement(_init2, 5, "paintMapResolution", _paintMapResolution_dec, _TerrainData);
+__decorateElement(_init2, 5, "materialIdMapTexture", _materialIdMapTexture_dec, _TerrainData);
+__decorateElement(_init2, 5, "blendWeightMapTexture", _blendWeightMapTexture_dec, _TerrainData);
+__decorateElement(_init2, 5, "terrainGameObject", _terrainGameObject_dec, _TerrainData);
+__decoratorMetadata(_init2, _TerrainData);
 __publicField(_TerrainData, "type", "@trident/plugins/Terrain/TerrainData");
 let TerrainData = _TerrainData;
 class Terrain extends (_a = Components.Mesh, _terrainData_dec = [SerializeField(TerrainData)], _geometry_dec2 = [NonSerialized], _material_dec2 = [NonSerialized], _a) {
   constructor(gameObject) {
     super(gameObject);
-    __runInitializers(_init2, 5, this);
-    __publicField(this, "terrainData", __runInitializers(_init2, 8, this)), __runInitializers(_init2, 11, this);
-    this.terrainData = new TerrainData();
+    __runInitializers(_init3, 5, this);
+    __publicField(this, "terrainData", __runInitializers(_init3, 8, this)), __runInitializers(_init3, 11, this);
+    this.terrainData = new TerrainData(gameObject);
   }
   get geometry() {
     return this.terrainData.geometry;
   }
   get material() {
     return this.terrainData.material;
+  }
+  Start() {
+    super.Start();
   }
   SampleHeight(worldPosition) {
     const heights = this.terrainData.GetHeights();
@@ -261,12 +351,12 @@ class Terrain extends (_a = Components.Mesh, _terrainData_dec = [SerializeField(
     return normal.normalize();
   }
 }
-_init2 = __decoratorStart(_a);
-__decorateElement(_init2, 2, "geometry", _geometry_dec2, Terrain);
-__decorateElement(_init2, 2, "material", _material_dec2, Terrain);
-__decorateElement(_init2, 5, "terrainData", _terrainData_dec, Terrain);
-__decoratorMetadata(_init2, Terrain);
+_init3 = __decoratorStart(_a);
+__decorateElement(_init3, 2, "geometry", _geometry_dec2, Terrain);
+__decorateElement(_init3, 2, "material", _material_dec2, Terrain);
+__decorateElement(_init3, 5, "terrainData", _terrainData_dec, Terrain);
+__decoratorMetadata(_init3, Terrain);
 __publicField(Terrain, "type", "@trident/plugins/Terrain/Terrain");
 Utils.TypeRegistry.set(TerrainData.type, TerrainData);
 
-export { Terrain, TerrainData };
+export { PaintPropData, Terrain, TerrainData };

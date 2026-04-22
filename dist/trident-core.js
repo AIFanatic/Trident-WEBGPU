@@ -2946,11 +2946,7 @@ class Texture {
   }
   static async Deserialize(assetPath, data, bytes) {
     const buffer = bytes ?? await Assets.Load(assetPath, "binary");
-    const texture = await Texture.LoadBlob(
-      new Blob([buffer]),
-      data?.format,
-      { name: data?.name, generateMips: data?.generateMips }
-    );
+    const texture = await Texture.LoadBlob(new Blob([buffer]), data?.format, data);
     texture.assetPath = assetPath;
     return texture;
   }
@@ -5156,14 +5152,14 @@ class PBRMaterial extends Material {
       const defines = {
         USE_SKINNING: !!this.params.isSkinned
       };
-      const shaderParams = {
+      const shader = await Shader.Create({
+        name: "PBRMaterial",
         code: await ShaderLoader.Draw,
         defines,
         colorOutputs: Array(3).fill({ format: gbufferFormat }),
         depthOutput: "depth24plus",
         cullMode: this.params.doubleSided === true ? "none" : "back"
-      };
-      const shader = await Shader.Create(shaderParams);
+      });
       shader.SetSampler("TextureSampler", PBRMaterial.sampler);
       this._shader = shader;
       const self = this;
@@ -5495,18 +5491,21 @@ class DeferredShadowMapPass extends RenderPass {
         }
         `;
     this.drawShadowShader = await Shader.Create({
+      name: this.name,
       code,
       colorOutputs: [],
       depthOutput: "depth24plus",
       cullMode: "front"
     });
     this.drawInstancedShadowShader = await Shader.Create({
+      name: this.name + "-Instanced",
       code,
       colorOutputs: [],
       depthOutput: "depth24plus",
       cullMode: "front"
     });
     this.drawSkinnedMeshShadowShader = await Shader.Create({
+      name: this.name + "-Skinned",
       code: `
             struct VertexInput {
                 @builtin(instance_index) instanceIdx : u32, 
@@ -7199,6 +7198,17 @@ var index$1 = /*#__PURE__*/Object.freeze({
 
 class Deserializer {
   static binaryExtensions = /* @__PURE__ */ new Set(["png", "jpg", "jpeg", "bin", "wav", "mp3", "ogg", "glb"]);
+  static typedArrayCtors = /* @__PURE__ */ new Set([
+    Float32Array,
+    Float64Array,
+    Int8Array,
+    Int16Array,
+    Int32Array,
+    Uint8Array,
+    Uint16Array,
+    Uint32Array,
+    Uint8ClampedArray
+  ]);
   static async Load(assetPath, data, expectedType) {
     const cached = Assets.GetInstance(assetPath);
     if (cached) return cached;
@@ -7216,7 +7226,10 @@ class Deserializer {
       const instance = new Ctor();
       instance.assetPath = assetPath;
       await this.deserializeFields(instance, asset);
-      if (instance.OnDeserialized) await instance.OnDeserialized();
+      if (instance.OnDeserialized) {
+        if (this.isDeserializingScene) this.deferredCallbacks.push(() => instance.OnDeserialized());
+        else await instance.OnDeserialized();
+      }
       Assets.SetInstance(assetPath, instance);
       return instance;
     }
@@ -7224,8 +7237,13 @@ class Deserializer {
   }
   static deferredRefs = [];
   static idMap = /* @__PURE__ */ new Map();
+  static deferredCallbacks = [];
+  static isDeserializingScene = false;
   static isAssetRef(data) {
     return !!data && typeof data === "object" && typeof data.assetPath === "string";
+  }
+  static isGameObjectRef(data) {
+    return !!data && typeof data === "object" && data.__ref === "GameObject" && typeof data.id === "string";
   }
   static createExpectedInstance(type) {
     if (type === Number || type === String || type === Boolean || type === Array || type === Object) {
@@ -7237,6 +7255,9 @@ class Deserializer {
     if (data == null || typeof data !== "object") return data;
     if (this.isAssetRef(data)) {
       return this.Load(data.assetPath, data, expectedType);
+    }
+    if (Array.isArray(data) && this.typedArrayCtors.has(expectedType)) {
+      return new expectedType(data);
     }
     if (Array.isArray(data)) {
       return Promise.all(data.map((item) => this.deserializeAny(item, expectedType)));
@@ -7273,6 +7294,10 @@ class Deserializer {
   static async deserializeFields(target, data) {
     for (const { name, type } of GetSerializedFields(target)) {
       if (data[name] === void 0) continue;
+      if (this.isGameObjectRef(data[name])) {
+        this.deferredRefs.push({ target, property: name, id: data[name].id });
+        continue;
+      }
       target[name] = await this.deserializeAny(data[name], type, target[name]);
     }
   }
@@ -7281,11 +7306,15 @@ class Deserializer {
     for (const { name, type } of GetSerializedFields(component)) {
       if (data[name] === void 0) continue;
       const value = data[name];
-      if (value && typeof value === "object" && value.__ref === "GameObject") {
-        this.deferredRefs.push({ component, property: name, id: value.id });
+      if (this.isGameObjectRef(value)) {
+        this.deferredRefs.push({ target: component, property: name, id: value.id });
         continue;
       }
       component[name] = await this.deserializeAny(value, type, component[name]);
+    }
+    if (component.OnDeserialized) {
+      if (this.isDeserializingScene) this.deferredCallbacks.push(() => component.OnDeserialized());
+      else await component.OnDeserialized();
     }
   }
   static async deserializeGameObject(scene, data, parent) {
@@ -7305,30 +7334,26 @@ class Deserializer {
     }
     const instances = [];
     for (const compData of source.components ?? []) {
-      if (compData.assetPath && !Component.Registry.get(compData.type)) {
-        await this.Load(compData.assetPath);
-      }
+      if (compData.assetPath && !Component.Registry.get(compData.type)) await this.Load(compData.assetPath);
       const Ctor = Component.Registry.get(compData.type);
       if (!Ctor) throw Error(`Component ${compData.type} not found`);
       instances.push(go.AddComponent(Ctor));
     }
-    for (let i = 0; i < instances.length; i++) {
-      await this.deserializeComponent(instances[i], source.components[i]);
-    }
-    for (const child of source.children ?? []) {
-      await this.deserializeGameObject(scene, child, go.transform);
-    }
+    for (let i = 0; i < instances.length; i++) await this.deserializeComponent(instances[i], source.components[i]);
+    for (const child of source.children ?? []) await this.deserializeGameObject(scene, child, go.transform);
     return go;
   }
   static async deserializeScene(scene, data) {
     scene.name = data.name;
-    for (const goData of data.gameObjects) {
-      await this.deserializeGameObject(scene, goData);
-    }
+    this.isDeserializingScene = true;
+    for (const goData of data.gameObjects) await this.deserializeGameObject(scene, goData);
     for (const ref of this.deferredRefs) {
-      ref.component[ref.property] = this.idMap.get(ref.id) ?? null;
+      ref.target[ref.property] = this.idMap.get(ref.id) ?? null;
     }
     this.deferredRefs.length = 0;
+    for (const cb of this.deferredCallbacks) await cb();
+    this.deferredCallbacks.length = 0;
+    this.isDeserializingScene = false;
     Camera.mainCamera = null;
     for (const go of scene.GetGameObjects()) {
       const cam = go.GetComponent(Camera);
@@ -7733,7 +7758,6 @@ class Input extends System {
   static horizontalAxis = 0;
   static verticalAxis = 0;
   static previousTouch = new Vector2();
-  static initialized = false;
   static get mousePosition() {
     return Input._mousePosition;
   }
@@ -7792,7 +7816,6 @@ class Input extends System {
     delete this.mouseDown[event.button];
   }
   Update() {
-    if (!Input.initialized) return;
     Input.horizontalAxis = 0;
     Input.verticalAxis = 0;
   }
@@ -7912,7 +7935,10 @@ class Serializer {
     }
     out.components = gameObject.GetComponents().filter((c) => !(c instanceof Transform)).filter((c) => ((c.flags ?? Flags.None) & Flags.DontSaveInEditor) === 0).map((component) => this.serializeComponent(component));
     out.children = [];
-    for (const child of gameObject.transform.children) out.children.push(this.serializeGameObject(child.gameObject));
+    for (const child of gameObject.transform.children) {
+      if ((child.gameObject.flags & Flags.DontSaveInEditor) !== 0) continue;
+      out.children.push(this.serializeGameObject(child.gameObject));
+    }
     return out;
   }
   static serializeScene(scene) {
