@@ -125,8 +125,8 @@ export async function SaveGameObjectAsAsset(baseDir: string, gameObject: IGameOb
                 const terrainPath = terrain.terrainData?.assetPath;
                 if (terrainPath && !saved.has(terrainPath)) {
                     saved.add(terrainPath);
-                    const ctor = component.constructor as any;
-                    SaveToFile(component.assetPath, new Blob([JSON.stringify({ type: ctor.type, ...Serializer.serializeFields(component) })]));
+                    const ctor = terrain.terrainData.constructor as any;
+                    SaveToFile(terrainPath, new Blob([JSON.stringify({ type: ctor.type, ...Serializer.serializeFields(terrain.terrainData) })]));
                 }
             }
         }

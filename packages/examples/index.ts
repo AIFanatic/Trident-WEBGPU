@@ -43,6 +43,7 @@ import "./CSMShadows";
 import "./LightBenchmark";
 
 import "./LODTest";
+import "./InstancedLODTest";
 
 import "./SMAA";
 

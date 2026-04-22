@@ -22,7 +22,7 @@ import { Meshoptimizer } from "@trident/plugins/meshoptimizer/Meshoptimizer";
 import { MeshletDraw } from "@trident/plugins/meshlets_v4/passes/MeshletDraw";
 import { MeshletMesh } from "@trident/plugins/meshlets_v4/MeshletMesh";
 import { ImpostorMesh } from "@trident/plugins/Impostors/ImpostorMesh";
-import { LODInstanceRenderable } from "@trident/plugins/LODGroup";
+import { InstancedLODGroup } from "@trident/plugins/Terrain/InstancedLODGroup";
 import { HDRParser } from "@trident/plugins/HDRParser";
 import { Environment } from "@trident/plugins/Environment/Environment";
 

@@ -35,7 +35,7 @@ Deserializer.Load = async (assetPath: string, data?: any, expectedType?: any): P
         const geometry = new Geometry();
         geometry.id = json.id;
         geometry.name = json.name;
-        geometry.assetPath = json.assetPath;
+        geometry.assetPath = assetPath;
         for (const entry of json.attributes) {
             const [name, attrData] = Array.isArray(entry) ? entry : [entry.name, entry];
             geometry.attributes.set(name, deserializeAttribute(attrData) as VertexAttribute | InterleavedVertexAttribute);
@@ -48,9 +48,7 @@ Deserializer.Load = async (assetPath: string, data?: any, expectedType?: any): P
     if (ext === "material") {
         const json = await Assets.Load(assetPath, "json") as any;
         const materialType = json?.type;
-        const material = materialType === PBRMaterial.type
-            ? new PBRMaterial()
-            : GPU.Material.Create(materialType);
+        const material = materialType === PBRMaterial.type ? new PBRMaterial() : GPU.Material.Create(materialType);
         material.assetPath = assetPath;
 
         await Deserializer.deserializeFields(material.params, json?.params ?? {});

@@ -16,6 +16,19 @@ export class TerrainMaterial extends GPU.Material {
 
     private terrainLayersBuffer: GPU.Buffer;
 
+    private _terrainLayers: TerrainLayer[] = [];
+    @SerializeField(TerrainLayer) public get terrainLayers(): TerrainLayer[] { return this._terrainLayers }
+
+    public set terrainLayers(layers: TerrainLayer[]) {
+        this._terrainLayers = layers;
+        if (!this.shader || layers.length === 0) return;
+
+        this.ApplyTerrainLayers(layers);
+    }
+
+    public set blendWeightMaps(blendWeightMaps: GPU.Texture[]) { this.shader.SetTexture("blendWeightMaps", this.CreateTextureArray(blendWeightMaps)) };
+    public set materialIdMap(materialIdMap: GPU.Texture) { this.shader.SetTexture("materialIdMap", materialIdMap) }
+
     private CreateSolidTexture(data: [number, number, number, number], format: GPU.TextureFormat = "rgba8unorm"): GPU.Texture {
         const texture = GPU.Texture.Create(1, 1, 1, format);
         texture.SetData(new Uint8Array(data), 4);
@@ -63,10 +76,6 @@ export class TerrainMaterial extends GPU.Material {
         return textureArray;
     }
 
-    public set blendWeightMaps(blendWeightMaps: GPU.Texture[]) { this.shader.SetTexture("blendWeightMaps", this.CreateTextureArray(blendWeightMaps)) };
-
-    public set materialIdMap(materialIdMap: GPU.Texture) { this.shader.SetTexture("materialIdMap", materialIdMap) }
-
     private SetTerrainLayersArray(shader: GPU.Shader, data: Float32Array): void {
         if (!this.terrainLayersBuffer || this.terrainLayersBuffer.size < data.byteLength) {
             this.terrainLayersBuffer = new GPU.Buffer(data.byteLength, GPU.BufferType.STORAGE);
@@ -74,16 +83,6 @@ export class TerrainMaterial extends GPU.Material {
         }
 
         this.terrainLayersBuffer.SetArray(data);
-    }
-
-    private _terrainLayers: TerrainLayer[] = [];
-    @SerializeField(TerrainLayer) public get terrainLayers(): TerrainLayer[] { return this._terrainLayers }
-
-    public set terrainLayers(layers: TerrainLayer[]) {
-        this._terrainLayers = layers;
-        if (!this.shader || layers.length === 0) return;
-
-        this.ApplyTerrainLayers(layers);
     }
 
     private ApplyTerrainLayers(layers: TerrainLayer[]) {

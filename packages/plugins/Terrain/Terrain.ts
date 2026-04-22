@@ -7,12 +7,24 @@ import {
     Mathf,
     SerializeField,
     NonSerialized,
-    Utils
+    Utils,
+    GPU
 } from "@trident/core";
 import { TerrainMaterial } from "./TerrainMaterial";
+import { LODGroup } from "../LOD/LODGroup";
+import { InstancedLODGroup } from "../LOD/InstancedLODGroup";
+
+
+export class PaintPropData {
+    @SerializeField(GameObject) public prop: GameObject;
+    @SerializeField(Float32Array) public matrices: Float32Array;
+}
 
 export class TerrainData {
     public static type = "@trident/plugins/Terrain/TerrainData";
+
+    @SerializeField(PaintPropData) public paintPropData: PaintPropData[] = [];
+    private paintPropInstances: Map<LODGroup, InstancedLODGroup> = new Map();
 
     @SerializeField public size: Mathf.Vector3;
 
@@ -26,15 +38,88 @@ export class TerrainData {
         this.RebuildGeometry();
     };
 
+    @SerializeField public paintMapResolution: number = 256;
+
+    private _materialIdMapData: Uint8Array;
+    @SerializeField(Uint8Array) public get materialIdMapData(): Uint8Array { return this._materialIdMapData; }
+    public set materialIdMapData(data: Uint8Array) { this._materialIdMapData = data; }
+
+    private _blendWeightMapData: Uint8Array;
+    @SerializeField(Uint8Array) public get blendWeightMapData(): Uint8Array { return this._blendWeightMapData; }
+    public set blendWeightMapData(data: Uint8Array) { this._blendWeightMapData = data; }
+
+    @NonSerialized public materialIdMapTexture: GPU.Texture;
+    @NonSerialized public blendWeightMapTexture: GPU.Texture;
+
     public resolution = 64;
 
-    constructor() {
+    @SerializeField public terrainGameObject: GameObject;
+
+    constructor(gameObject: GameObject) {
+        this.terrainGameObject = gameObject;
         this.size = new Mathf.Vector3(1000, 600, 1000);
         this.material = new TerrainMaterial();
 
         const verticesPerSide = this.resolution + 1;
         this.heights = new Float32Array(verticesPerSide * verticesPerSide);
         this.geometry = TerrainData.GenerateGeometryFromHeights(verticesPerSide, this.heights, this.size);
+
+        this.InitializePaintMapData();
+    }
+
+    private InitializePaintMapData(): void {
+        const pixelCount = this.paintMapResolution * this.paintMapResolution;
+        if (!this._materialIdMapData || this._materialIdMapData.length !== pixelCount * 4) {
+            this._materialIdMapData = new Uint8Array(pixelCount * 4);
+            this._blendWeightMapData = new Uint8Array(pixelCount * 4);
+            for (let i = 0; i < pixelCount; i++) {
+                this._blendWeightMapData[i * 4] = 255;
+            }
+        }
+    }
+
+    public InitializePaintMaps(): void {
+        this.InitializePaintMapData();
+        this.materialIdMapTexture = GPU.Texture.Create(this.paintMapResolution, this.paintMapResolution, 1, "rgba8unorm");
+        this.blendWeightMapTexture = GPU.TextureArray.Create(this.paintMapResolution, this.paintMapResolution, 1, "rgba8unorm");
+        this.UploadPaintMaps();
+        this.BindPaintMaps();
+    }
+
+    private RebuildProps(): void {
+            for (const paintProp of this.paintPropData) {
+                const lodGroup = paintProp.prop.GetComponent(LODGroup);
+                if (!lodGroup) continue;
+                if (lodGroup.lods.length === 0) continue;
+    
+                // Copy LODGroup
+                const instancedLODGroup = this.paintPropInstances.get(lodGroup) || this.terrainGameObject.AddComponent(InstancedLODGroup);
+                instancedLODGroup.lods = lodGroup.lods;
+                this.paintPropInstances.set(lodGroup, instancedLODGroup);
+    
+                // Set matrices
+                instancedLODGroup.SetMatricesBulk(paintProp.matrices);
+            }
+    }
+
+    public UploadPaintMaps(): void {
+        const bytesPerRow = this.paintMapResolution * 4;
+        this.materialIdMapTexture.SetData(this._materialIdMapData, bytesPerRow);
+        this.blendWeightMapTexture.SetData(this._blendWeightMapData, bytesPerRow, this.paintMapResolution);
+    }
+
+    public async BindPaintMaps(): Promise<void> {
+        if (this.material.pendingShaderCreation) {
+            await this.material.pendingShaderCreation;
+        }
+        this.material.materialIdMap = this.materialIdMapTexture;
+        this.material.shader.SetTexture("blendWeightMaps", this.blendWeightMapTexture);
+    }
+
+    public async OnDeserialized(): Promise<void> {
+        this.RebuildGeometry();
+        this.InitializePaintMaps();
+        this.RebuildProps();
     }
 
     public RebuildGeometry(): void {
@@ -103,7 +188,7 @@ export class TerrainData {
         return h;
     }
 
-    public async HeightmapFromPNG(url: string, smoothHeights: boolean = true, heightmapScale: number = 1): Promise<Float32Array> {
+    public async HeightmapFromPNG(url: string, smoothHeights: boolean = true): Promise<Float32Array> {
         const img = new Image();
         img.src = url;
 
@@ -116,7 +201,7 @@ export class TerrainData {
         const canvas = document.createElement("canvas");
         canvas.width = verticesPerSide;
         canvas.height = verticesPerSide;
-        const ctx = canvas.getContext("2d");
+        const ctx = canvas.getContext("2d") as CanvasRenderingContext2D;
 
         ctx.imageSmoothingEnabled = smoothHeights;
         ctx.save();
@@ -169,13 +254,17 @@ export class Terrain extends Components.Mesh {
     public static type = "@trident/plugins/Terrain/Terrain";
 
     @SerializeField(TerrainData) public terrainData: TerrainData;
-    
+
     @NonSerialized public get geometry(): Geometry { return this.terrainData.geometry }
     @NonSerialized public get material(): TerrainMaterial { return this.terrainData.material }
 
     constructor(gameObject: GameObject) {
         super(gameObject);
-        this.terrainData = new TerrainData();
+        this.terrainData = new TerrainData(gameObject);
+    }
+
+    public Start(): void {
+        super.Start();
     }
 
     public SampleHeight(worldPosition: Mathf.Vector3): number {
@@ -270,6 +359,5 @@ export class Terrain extends Components.Mesh {
         return normal.normalize();
     }
 }
-
 
 Utils.TypeRegistry.set(TerrainData.type, TerrainData);

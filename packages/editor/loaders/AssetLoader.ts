@@ -1,4 +1,4 @@
-import { Deserializer, Prefab } from "@trident/core";
+import { Deserializer, Prefab, Texture } from "@trident/core";
 import { IEngineAPI } from "../engine-api/trident/IEngineAPI";
 import { LoadScript } from "./ScriptLoader";
 
@@ -14,6 +14,9 @@ export async function LoadFile(path: string, file: FileSystemFileHandle, engineA
     }
     else if (ext === "prefab") {
         return Deserializer.Load(path, undefined, Prefab);
+    }
+    else if (ext === "png" || ext === "jpg" || ext === "jpeg") {
+        return Deserializer.Load(path, undefined, Texture);
     }
 
     return Deserializer.Load(path);

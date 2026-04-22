@@ -2,7 +2,7 @@ import { Components, Mathf, GameObject, Geometry, PBRMaterial, Runtime } from "@
 
 import { OrbitControls } from "@trident/plugins/OrbitControls";
 import { Debugger } from "@trident/plugins/Debugger";
-import { LODGroup } from "@trident/plugins/LOD/LODGroup";
+import { InstancedLODGroup } from "@trident/plugins/LOD/InstancedLODGroup";
 
 async function Application(canvas: HTMLCanvasElement) {
     await Runtime.Create(canvas);
@@ -33,11 +33,13 @@ async function Application(canvas: HTMLCanvasElement) {
     floorMesh.material = new PBRMaterial();
         
     const lodGameObject = new GameObject(scene);
-    const lodInstanceRenderable = lodGameObject.AddComponent(LODGroup);
+    const lodInstanceRenderable = lodGameObject.AddComponent(InstancedLODGroup);
 
     lodInstanceRenderable.lods.push({renderers: [{geometry: Geometry.Cube(), material: new PBRMaterial({albedoColor: new Mathf.Color(1, 0, 0, 1)})}], screenSize: 20});
     lodInstanceRenderable.lods.push({renderers: [{geometry: Geometry.Sphere(), material: new PBRMaterial({albedoColor: new Mathf.Color(0, 1, 0, 1)})}], screenSize: 40});
     lodInstanceRenderable.lods.push({renderers: [{geometry: Geometry.Capsule(), material: new PBRMaterial({albedoColor: new Mathf.Color(0, 0, 1, 1)})}], screenSize: 80});
+
+    lodInstanceRenderable.SetMatricesBulk(new Float32Array([...new Mathf.Matrix4().elements]));
 
     Debugger.Enable();
 

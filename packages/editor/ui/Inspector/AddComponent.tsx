@@ -45,6 +45,7 @@ export class AddComponent extends GOActComponent<AddComponentProps> {
                             <TreeItem name="SphereCollider" onPointerDown={() => this.addComponent(ComponentRegistry.SphereCollider)} />
                         </TreeFolder>
                         <TreeItem name="Mesh" onPointerDown={() => this.addComponent(ComponentRegistry.Mesh)} />
+                        <TreeItem name="LODGroup" onPointerDown={() => this.addComponent(ComponentRegistry.LODGroup)} />
                         <TreeFolder name="Lights">
                             <TreeItem name="DirectionalLight" onPointerDown={() => this.addComponent(ComponentRegistry.DirectionalLight)} />
                             <TreeItem name="PointLight" onPointerDown={() => this.addComponent(ComponentRegistry.PointLight)} />

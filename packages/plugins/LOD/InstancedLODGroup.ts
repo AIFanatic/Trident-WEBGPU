@@ -1,28 +1,26 @@
-import { Components, Geometry, GPU, Mathf, Runtime, Scene } from "@trident/core";
+import { Components, Geometry, GPU, Mathf, Runtime } from "@trident/core";
+import { LOD, LODRenderer } from "./LODGroup";
 
-export interface LODRenderer {
-    geometry: Geometry;
-    material: GPU.Material;
-}
+// 1) Compute shader bins instances per LOD and packs matrices per LOD.
+// 2) Copy each LOD’s draw arguments + packed matrices to dedicated buffers.
+// 3) Draw every renderer belonging to each LOD.
 
-export interface LOD {
-    renderers: LODRenderer[];
-    screenSize: number;
-}
+export class InstancedLODGroup extends Components.Renderable {
+    private initialized = false;
 
-type LodRendererData = {
-    renderer: LODRenderer;
-    drawBuffer: GPU.Buffer;
-};
+    private drawCompute: GPU.ShaderCompute;
+    private drawIndirectBuffer: GPU.Buffer;
+    private lodRendererData: { renderer: LODRenderer, drawBuffer: GPU.Buffer }[][] = [];
+    private lodMatricesScratch: GPU.Buffer;
+    private lodMatrixBuffers: GPU.Buffer[] = [];
 
-export class LODGroup extends Components.Renderable {
     public static readonly DefaultCapacity = 100000;
-    public static readonly MATRICES_PER_LOD = LODGroup.DefaultCapacity;
-    public static readonly MATRIX_STRIDE_BYTES = LODGroup.MATRICES_PER_LOD * 16 * 4;
+    public static readonly MATRICES_PER_LOD = InstancedLODGroup.DefaultCapacity;
+    public static readonly MATRIX_STRIDE_BYTES = InstancedLODGroup.MATRICES_PER_LOD * 16 * 4;
 
     public lods: LOD[] = [];
 
-    private matrices = new GPU.DynamicBufferMemoryAllocator(16, LODGroup.DefaultCapacity * 16);
+    private matrices = new GPU.DynamicBufferMemoryAllocator(16, InstancedLODGroup.DefaultCapacity * 16);
     private _instanceCount = 0;
 
     public get instanceCount(): number { return this._instanceCount; }
@@ -40,29 +38,16 @@ export class LODGroup extends Components.Renderable {
         this._instanceCount = matrices.length / 16;
     }
 
-    // Expose a representative geometry so shadow passes can at least draw something.
-    public get geometry(): Geometry | undefined {
+    // Expose a representative geometry so RenderablePass picks it up.
+    public get geometry(): Geometry {
         const lod0 = this.lods[0];
         const renderer0 = lod0?.renderers?.[0];
         return renderer0?.geometry;
     }
-}
-
-// 1) Compute shader bins instances per LOD and packs matrices per LOD.
-// 2) Copy each LOD’s draw arguments + packed matrices to dedicated buffers.
-// 3) Draw every renderer belonging to each LOD.
-
-export class LODInstanceRenderable extends LODGroup {
-    private initialized = false;
-
-    private drawCompute: GPU.ShaderCompute;
-    private drawIndirectBuffer: GPU.Buffer;
-    private lodRendererData: LodRendererData[][] = [];
-    private lodMatricesScratch: GPU.Buffer;
-    private lodMatrixBuffers: GPU.Buffer[] = [];
 
     public async Start() {
         this.drawCompute = await GPU.ShaderCompute.Create({
+            name: this.name + "-Compute",
             code: `
             #include "@trident/core/resources/webgpu/shaders/deferred/Common.wgsl";
             
@@ -92,7 +77,7 @@ export class LODInstanceRenderable extends LODGroup {
 
             @group(0) @binding(8) var<storage, read> viewProjection: mat4x4<f32>;
 
-            const lodMatrixCapacity: u32 = ${LODGroup.MATRICES_PER_LOD}u;
+            const lodMatrixCapacity: u32 = ${InstancedLODGroup.MATRICES_PER_LOD}u;
 
             const blockSize: u32 = 4;
 
@@ -127,14 +112,7 @@ export class LODInstanceRenderable extends LODGroup {
             fn main(@builtin(global_invocation_id) grid: vec3<u32>) {
                 let dim: u32 = u32(ceil(pow(meshCount, 1.0 / 3.0)));
 
-                let objectIndex =
-                    grid.x +
-                    grid.y * dim +
-                    grid.z * dim * dim;
-
-                if (objectIndex >= u32(meshCount)) {
-                    return;
-                }
+                let objectIndex = grid.x + grid.y * dim + grid.z * dim * dim;
 
                 if (objectIndex >= u32(meshCount)) {
                     return;
@@ -174,8 +152,8 @@ export class LODInstanceRenderable extends LODGroup {
         });
 
         this.drawIndirectBuffer = new GPU.Buffer(this.lods.length * 5 * 4, GPU.BufferType.STORAGE_WRITE);
-        this.lodMatricesScratch = new GPU.Buffer(this.lods.length * LODGroup.MATRIX_STRIDE_BYTES, GPU.BufferType.STORAGE_WRITE);
-        this.lodMatrixBuffers = this.lods.map(() => new GPU.Buffer(LODGroup.MATRIX_STRIDE_BYTES, GPU.BufferType.STORAGE));
+        this.lodMatricesScratch = new GPU.Buffer(this.lods.length * InstancedLODGroup.MATRIX_STRIDE_BYTES, GPU.BufferType.STORAGE_WRITE);
+        this.lodMatrixBuffers = this.lods.map(() => new GPU.Buffer(InstancedLODGroup.MATRIX_STRIDE_BYTES, GPU.BufferType.STORAGE));
 
         this.lodRendererData.length = this.lods.length;
 
@@ -194,39 +172,10 @@ export class LODInstanceRenderable extends LODGroup {
                 if (!renderer.material) throw Error("No material or shader");
 
                 const drawBuffer = new GPU.Buffer(5 * 4, GPU.BufferType.INDIRECT);
-                const indexCountBuffer = new GPU.Buffer(4, GPU.BufferType.STORAGE);
-                indexCountBuffer.SetArray(new Uint32Array([indexBuffer.count]));
                 drawBuffer.SetArray(new Uint32Array([indexBuffer.count, 0, 0, 0, 0]));
-
-                drawBuffer.SetArray(new Uint32Array([indexBuffer.count, 0, 0, 0, 0])); // indexCount set once
                 this.lodRendererData[i].push({ renderer, drawBuffer });
             }
         }
-
-        const gbufferFormat = Runtime.Renderer.RenderPipeline.GBufferFormat;
-        this.material = new GPU.Material({
-            isDeferred: true,
-            shader: await GPU.Shader.Create({
-                code: `
-                    struct FrameBuffer {
-                        projectionOutputSize: vec4<f32>,
-                        viewPosition: vec4<f32>,
-                        projectionInverseMatrix: mat4x4<f32>,
-                        viewInverseMatrix: mat4x4<f32>,
-                        viewMatrix: mat4x4<f32>,
-                        projectionMatrix: mat4x4<f32>,
-                    };
-                    @group(0) @binding(0) var<storage, read> frameBuffer: FrameBuffer;
-                `,
-                colorOutputs: [
-                    { format: gbufferFormat },
-                    { format: gbufferFormat },
-                    { format: gbufferFormat },
-                    { format: gbufferFormat }
-                ],
-                depthOutput: "depth24plus",
-            })
-        });
 
         this.initialized = true;
     }
@@ -262,7 +211,7 @@ export class LODInstanceRenderable extends LODGroup {
         this.drawCompute.SetValue("lodCount", this.lods.length);
         this.drawCompute.SetBuffer("lodMatrices", this.lodMatricesScratch);
 
-        GPU.ComputeContext.BeginComputePass("LODGroup", true);
+        GPU.ComputeContext.BeginComputePass("InstancedLODGroup", true);
         const dim = Math.max(1, Math.ceil(Math.cbrt(this.instanceCount)));
         const dispatch = Math.ceil(dim / 4);
         GPU.ComputeContext.Dispatch(this.drawCompute, dispatch, dispatch, dispatch);
@@ -278,8 +227,8 @@ export class LODInstanceRenderable extends LODGroup {
         const FrameBuffer = resources.getResource(GPU.PassParams.FrameBuffer);
 
         for (let i = 0; i < this.lods.length; i++) {
-            const lodMatricesOffset = i * LODGroup.MATRIX_STRIDE_BYTES;
-            GPU.RendererContext.CopyBufferToBuffer(this.lodMatricesScratch, this.lodMatrixBuffers[i], lodMatricesOffset, 0, LODGroup.MATRIX_STRIDE_BYTES);
+            const lodMatricesOffset = i * InstancedLODGroup.MATRIX_STRIDE_BYTES;
+            GPU.RendererContext.CopyBufferToBuffer(this.lodMatricesScratch, this.lodMatrixBuffers[i], lodMatricesOffset, 0, InstancedLODGroup.MATRIX_STRIDE_BYTES);
 
             const lodDrawOffset = i * 5 * 4;
 

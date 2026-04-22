@@ -1,7 +1,7 @@
 
 export * from "./OrbitControls";
 export * from "./GLTF/GLTFLoader";
-export * from "./Terrain/";
+export { Terrain } from "./Terrain/Terrain";
 export * from "./SimplexNoise";
 
 export * from "./DataBackedBuffer";
@@ -65,7 +65,8 @@ export * from "./meshoptimizer/Meshoptimizer";
 
 export * from "./Environment";
 
-export * from "./LODGroup";
+export { LODGroup } from "./LOD/LODGroup";
+export { InstancedLODGroup } from "./LOD/InstancedLODGroup";
 
 
 export * from "./VirtualTexturing/";

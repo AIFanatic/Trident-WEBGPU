@@ -45,7 +45,7 @@ import { PostProcessingSMAA } from "@trident/plugins/PostProcessing/effects/SMAA
 
 import { Sky } from "@trident/plugins/Environment/Sky";
 import { Environment } from "@trident/plugins/Environment/Environment";
-import { LODInstanceRenderable } from "@trident/plugins/LODGroup";
+import { InstancedLODGroup } from "@trident/plugins/LOD/InstancedLODGroup";
 import { OBJLoaderIndexed } from "@trident/plugins/OBJLoader";
 import { MeshletMesh } from "@trident/plugins/meshlets_v4/MeshletMesh";
 import { MeshletDraw } from "@trident/plugins/meshlets_v4/passes/MeshletDraw";
@@ -250,7 +250,7 @@ async function Application(canvas: HTMLCanvasElement) {
             loadedGO.enabled = false;
         
             const lodGameObject = new GameObject(scene);
-            const lodInstanceRenderable = lodGameObject.AddComponent(LODInstanceRenderable);
+            const lodInstanceRenderable = lodGameObject.AddComponent(InstancedLODGroup);
             lodInstanceRenderable.enableShadows = options.enableShadows;
             if (lodGroupEntries.length > 0) lodInstanceRenderable.lods.push({ renderers: lodGroupEntries.slice(0, 1), screenSize: 100 });
             if (lodGroupEntries.length > 1) lodInstanceRenderable.lods.push({ renderers: lodGroupEntries.slice(1, 2), screenSize: 200 });
