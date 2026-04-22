@@ -924,3 +924,23 @@ test("Deserializer.Load with expectedType.Deserialize for JSON assets (prefab)",
         Assets.RemoveInstance("/prefabs/Enemy.prefab");
     }
 });
+
+test("typed array fields round-trip through serialize and deserialize", async () => {
+    class TypedArrayAsset {
+        @SerializeField(Float32Array) public floats: Float32Array = new Float32Array([1.5, 2.5, 3.5]);
+        @SerializeField(Uint8Array) public bytes: Uint8Array = new Uint8Array([10, 20, 30, 40]);
+    }
+
+    const original = new TypedArrayAsset();
+    const serialized = Serializer.serializeFields(original);
+
+    const restored = new TypedArrayAsset();
+    restored.floats = new Float32Array(0);
+    restored.bytes = new Uint8Array(0);
+    await Deserializer.deserializeFields(restored, serialized);
+
+    assert.ok(restored.floats instanceof Float32Array);
+    assert.ok(restored.bytes instanceof Uint8Array);
+    assert.deepEqual(Array.from(restored.floats), [1.5, 2.5, 3.5]);
+    assert.deepEqual(Array.from(restored.bytes), [10, 20, 30, 40]);
+});

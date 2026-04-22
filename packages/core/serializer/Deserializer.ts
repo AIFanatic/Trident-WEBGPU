@@ -7,10 +7,14 @@ import { Texture } from "../renderer/Texture";
 import { Assets } from "../Assets";
 import { TypeRegistry } from "../utils";
 
-type DeferredRef = { component: Component; property: string; id: string };
+type DeferredRef = { target: any; property: string | symbol; id: string };
 
 export class Deserializer {
     private static readonly binaryExtensions = new Set(["png", "jpg", "jpeg", "bin", "wav", "mp3", "ogg", "glb"]);
+    private static readonly typedArrayCtors: Set<Function> = new Set([
+        Float32Array, Float64Array, Int8Array, Int16Array, Int32Array,
+        Uint8Array, Uint16Array, Uint32Array, Uint8ClampedArray
+    ]);
 
     public static async Load(assetPath: string, data?: any, expectedType?: any): Promise<any> {
         const cached = Assets.GetInstance(assetPath);
@@ -35,7 +39,10 @@ export class Deserializer {
             const instance = new Ctor();
             instance.assetPath = assetPath;
             await this.deserializeFields(instance, asset);
-            if (instance.OnDeserialized) await instance.OnDeserialized();
+            if (instance.OnDeserialized) {
+                if (this.isDeserializingScene) this.deferredCallbacks.push(() => instance.OnDeserialized());
+                else await instance.OnDeserialized();
+            }
             Assets.SetInstance(assetPath, instance);
             return instance;
         }
@@ -46,8 +53,15 @@ export class Deserializer {
     private static deferredRefs: DeferredRef[] = [];
     private static idMap = new Map<string, GameObject>();
 
+    private static deferredCallbacks: (() => Promise<void>)[] = [];
+    private static isDeserializingScene = false;
+
     private static isAssetRef(data: any): boolean {
         return !!data && typeof data === "object" && typeof data.assetPath === "string";
+    }
+
+    private static isGameObjectRef(data: any): boolean {
+        return !!data && typeof data === "object" && data.__ref === "GameObject" && typeof data.id === "string";
     }
 
     private static createExpectedInstance(type: Function): any {
@@ -63,6 +77,10 @@ export class Deserializer {
 
         if (this.isAssetRef(data)) {
             return this.Load(data.assetPath, data, expectedType);
+        }
+
+        if (Array.isArray(data) && this.typedArrayCtors.has(expectedType as any)) {
+            return new (expectedType as any)(data);
         }
 
         if (Array.isArray(data)) {
@@ -111,6 +129,11 @@ export class Deserializer {
         for (const { name, type } of GetSerializedFields(target)) {
             if (data[name] === undefined) continue;
 
+            if (this.isGameObjectRef(data[name])) {
+                this.deferredRefs.push({ target, property: name, id: data[name].id });
+                continue;
+            }
+
             target[name] = await this.deserializeAny(data[name], type, target[name]);
         }
     }
@@ -123,12 +146,16 @@ export class Deserializer {
 
             const value = data[name];
 
-            if (value && typeof value === "object" && value.__ref === "GameObject") {
-                this.deferredRefs.push({ component, property: name as string, id: value.id });
+            if (this.isGameObjectRef(value)) {
+                this.deferredRefs.push({ target: component, property: name, id: value.id });
                 continue;
             }
 
             component[name] = await this.deserializeAny(value, type, component[name]);
+        }
+        if ((component as any).OnDeserialized) {
+            if (this.isDeserializingScene) this.deferredCallbacks.push(() => (component as any).OnDeserialized());
+            else await (component as any).OnDeserialized();
         }
     }
 
@@ -157,9 +184,7 @@ export class Deserializer {
         const instances: Component[] = [];
 
         for (const compData of (source.components ?? [])) {
-            if (compData.assetPath && !Component.Registry.get(compData.type)) {
-                await this.Load(compData.assetPath);
-            }
+            if (compData.assetPath && !Component.Registry.get(compData.type)) await this.Load(compData.assetPath);
 
             const Ctor = Component.Registry.get(compData.type);
             if (!Ctor) throw Error(`Component ${compData.type} not found`);
@@ -167,29 +192,28 @@ export class Deserializer {
             instances.push(go.AddComponent(Ctor as any));
         }
 
-        for (let i = 0; i < instances.length; i++) {
-            await this.deserializeComponent(instances[i], source.components[i]);
-        }
-
-        for (const child of (source.children ?? [])) {
-            await this.deserializeGameObject(scene, child, go.transform);
-        }
+        for (let i = 0; i < instances.length; i++) await this.deserializeComponent(instances[i], source.components[i]);
+        for (const child of (source.children ?? [])) await this.deserializeGameObject(scene, child, go.transform);
 
         return go;
     }
 
     public static async deserializeScene(scene: Scene, data: any): Promise<void> {
         scene.name = data.name;
+        this.isDeserializingScene = true;
 
-        for (const goData of data.gameObjects) {
-            await this.deserializeGameObject(scene, goData);
-        }
+        for (const goData of data.gameObjects) await this.deserializeGameObject(scene, goData);
 
         for (const ref of this.deferredRefs) {
-            ref.component[ref.property] = this.idMap.get(ref.id) ?? null;
+            ref.target[ref.property] = this.idMap.get(ref.id) ?? null;
         }
 
         this.deferredRefs.length = 0;
+
+        for (const cb of this.deferredCallbacks) await cb();
+
+        this.deferredCallbacks.length = 0;
+        this.isDeserializingScene = false;
 
         Camera.mainCamera = null;
 

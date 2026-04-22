@@ -362,11 +362,7 @@ export class Texture {
 
     public static async Deserialize(assetPath: string, data?: any, bytes?: ArrayBuffer): Promise<Texture> {
         const buffer = bytes ?? await Assets.Load(assetPath, "binary");
-        const texture = await Texture.LoadBlob(
-            new Blob([buffer]),
-            data?.format,
-            { name: data?.name, generateMips: data?.generateMips }
-        );
+        const texture = await Texture.LoadBlob(new Blob([buffer]), data?.format, data);
         texture.assetPath = assetPath;
         return texture;
     }

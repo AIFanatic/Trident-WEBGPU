@@ -105,6 +105,7 @@ export class DeferredShadowMapPass extends RenderPass {
         }
         `;
         this.drawShadowShader = await Shader.Create({
+            name: this.name,
             code: code,
             colorOutputs: [],
             depthOutput: "depth24plus",
@@ -112,6 +113,7 @@ export class DeferredShadowMapPass extends RenderPass {
         })
 
         this.drawInstancedShadowShader = await Shader.Create({
+            name: this.name + "-Instanced",
             code: code,
             colorOutputs: [],
             depthOutput: "depth24plus",
@@ -119,6 +121,7 @@ export class DeferredShadowMapPass extends RenderPass {
         });
 
         this.drawSkinnedMeshShadowShader = await Shader.Create({
+            name: this.name + "-Skinned",
             code: `
             struct VertexInput {
                 @builtin(instance_index) instanceIdx : u32, 

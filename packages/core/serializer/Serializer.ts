@@ -73,7 +73,10 @@ export class Serializer {
         if (gameObject.assetPath) { out.assetPath = gameObject.assetPath; return out; }
         out.components = gameObject.GetComponents().filter(c => !(c instanceof Transform)).filter(c => ((c.flags ?? Flags.None) & Flags.DontSaveInEditor) === 0).map(component => this.serializeComponent(component));
         out.children = [];
-        for (const child of gameObject.transform.children) out.children.push(this.serializeGameObject(child.gameObject));
+        for (const child of gameObject.transform.children) {
+            if ((child.gameObject.flags & Flags.DontSaveInEditor) !== 0) continue;
+            out.children.push(this.serializeGameObject(child.gameObject));
+        }
         return out;
     }
 

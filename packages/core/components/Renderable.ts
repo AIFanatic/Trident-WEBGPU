@@ -6,8 +6,6 @@ import { Material, PBRMaterial } from "../renderer/Material";
 import { SerializeField } from "../utils/SerializeField";
 import { Component } from "./Component";
 
-import { Texture } from "../renderer/Texture";
-
 export class RenderableEvents {
     public static MaterialUpdated = (gameObject: GameObject, material: Material) => { };
     public static GeometryUpdated = (gameObject: GameObject, geometry: Geometry) => { };

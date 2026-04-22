@@ -1,4 +1,3 @@
-import { Assets } from "./Assets";
 import { TypeRegistry } from "./utils";
 import { SerializeField } from "./utils/SerializeField";
 

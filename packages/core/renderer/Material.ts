@@ -144,15 +144,14 @@ export class PBRMaterial extends Material {
                 USE_SKINNING: !!this.params.isSkinned
             };
 
-            const shaderParams: ShaderParams = {
+            const shader = await Shader.Create({
+                name: "PBRMaterial",
                 code: await ShaderLoader.Draw,
                 defines,
                 colorOutputs: Array(3).fill({ format: gbufferFormat }),
                 depthOutput: "depth24plus",
                 cullMode: this.params.doubleSided === true ? "none" : "back",
-            };
-
-            const shader = await Shader.Create(shaderParams);
+            });
 
             shader.SetSampler("TextureSampler", PBRMaterial.sampler);
 

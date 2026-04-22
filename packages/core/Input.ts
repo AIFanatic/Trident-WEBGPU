@@ -139,8 +139,6 @@ export class Input extends System {
 
     private static previousTouch: Vector2 = new Vector2();
 
-    private static initialized = false;
-
     public static get mousePosition(): Vector2 {return Input._mousePosition; }
 
     public async  Start() {
@@ -196,7 +194,6 @@ export class Input extends System {
 
 
     public Update() {
-        if (!Input.initialized) return;
         Input.horizontalAxis = 0;
         Input.verticalAxis = 0;
     }
