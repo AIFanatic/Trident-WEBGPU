@@ -4,6 +4,7 @@ import { Transform } from "./components/Transform";
 import { UUID } from "./utils";
 import { EventSystem } from "./Events";
 import { Flags } from "./utils/Flags";
+import { Runtime } from "./Runtime";
 
 
 function getCtorChain(ctor: Function): Function[] {
@@ -37,8 +38,8 @@ export class GameObject {
 
     public dontDestroyOnLoad = false;
 
-    constructor(scene: Scene) {
-        this.scene = scene;
+    constructor() {
+        this.scene = Runtime.SceneManager.GetActiveScene();
         this.transform = new Transform(this);
         this.scene.AddGameObject(this);
 
