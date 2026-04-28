@@ -1,36 +1,51 @@
-import {
-    GameObject,
-    Geometry,
-    IndexAttribute,
-    VertexAttribute,
-    Components,
-    Mathf,
-    SerializeField,
-    NonSerialized,
-    Utils,
-    GPU
-} from "@trident/core";
+import { GameObject, Geometry, IndexAttribute, VertexAttribute, Components, Mathf, SerializeField, NonSerialized, Utils, GPU } from "@trident/core";
 import { TerrainMaterial } from "./TerrainMaterial";
 import { LODGroup } from "../LOD/LODGroup";
 import { InstancedLODGroup } from "../LOD/InstancedLODGroup";
 
-
 export class PaintPropData {
     @SerializeField(GameObject) public prop: GameObject;
-    @SerializeField(Float32Array) public matrices: Float32Array;
+    @SerializeField(Array) public matrices: Array<number> = [];
+
+    private instancedLODGroup: InstancedLODGroup;
+
+    // TODO: Check if LODGroup was changed
+    public RebuildProps(terrainGameObject: GameObject): void {
+        const lodGroup = this.prop.GetComponent(LODGroup);
+        if (!lodGroup) return;
+        if (lodGroup.lods.length === 0) return;
+
+        // Copy LODGroup
+        if (!this.instancedLODGroup) {
+            this.instancedLODGroup = terrainGameObject.AddComponent(InstancedLODGroup);
+            this.instancedLODGroup.flags = Utils.Flags.DontSaveInEditor | Utils.Flags.HideInInspector;
+            this.instancedLODGroup.lods = lodGroup.lods;
+        }
+
+        // Set matrices
+        this.RebuildPropMatrices();
+    }
+
+    private RebuildPropMatrices() {
+        if (!this.instancedLODGroup) throw Error("Could not find instancedLODGroup");
+        this.instancedLODGroup.SetMatricesBulk(new Float32Array(this.matrices));
+    }
+
+    public AddPropMatrix(matrix: Mathf.Matrix4) {
+        this.matrices.push(...matrix.elements);
+        this.instancedLODGroup.SetMatrixAt(this.instancedLODGroup.instanceCount, matrix);
+    }
 }
 
 export class TerrainData {
     public static type = "@trident/plugins/Terrain/TerrainData";
 
     @SerializeField(PaintPropData) public paintPropData: PaintPropData[] = [];
-    private paintPropInstances: Map<LODGroup, InstancedLODGroup> = new Map();
-
     @SerializeField public size: Mathf.Vector3;
 
     @NonSerialized public geometry: Geometry;
     @SerializeField public material: TerrainMaterial;
-    
+
     private _heights: Float32Array;
     @SerializeField(Float32Array) public get heights(): Float32Array { return this._heights };
     public set heights(heights: Float32Array) {
@@ -86,22 +101,6 @@ export class TerrainData {
         this.BindPaintMaps();
     }
 
-    private RebuildProps(): void {
-            for (const paintProp of this.paintPropData) {
-                const lodGroup = paintProp.prop.GetComponent(LODGroup);
-                if (!lodGroup) continue;
-                if (lodGroup.lods.length === 0) continue;
-    
-                // Copy LODGroup
-                const instancedLODGroup = this.paintPropInstances.get(lodGroup) || this.terrainGameObject.AddComponent(InstancedLODGroup);
-                instancedLODGroup.lods = lodGroup.lods;
-                this.paintPropInstances.set(lodGroup, instancedLODGroup);
-    
-                // Set matrices
-                instancedLODGroup.SetMatricesBulk(paintProp.matrices);
-            }
-    }
-
     public UploadPaintMaps(): void {
         const bytesPerRow = this.paintMapResolution * 4;
         this.materialIdMapTexture.SetData(this._materialIdMapData, bytesPerRow);
@@ -116,10 +115,27 @@ export class TerrainData {
         this.material.shader.SetTexture("blendWeightMaps", this.blendWeightMapTexture);
     }
 
+    public AddProp(gameObject: GameObject): number {
+        const existingIndex = this.paintPropData.findIndex(value => value.prop === gameObject);
+        if (existingIndex !== -1) return existingIndex;
+
+        const newProp = new PaintPropData();
+        newProp.prop = gameObject;
+        newProp.RebuildProps(this.terrainGameObject);
+        this.paintPropData.push(newProp);
+
+        return this.paintPropData.length - 1;
+    }
+
+    public AddPropMatrix(propIndex: number, matrix: Mathf.Matrix4) {
+        if (propIndex >= this.paintPropData.length) throw Error("Prop doesnt exist");
+        this.paintPropData[propIndex].AddPropMatrix(matrix);
+    }
+
     public async OnDeserialized(): Promise<void> {
         this.RebuildGeometry();
         this.InitializePaintMaps();
-        this.RebuildProps();
+        for (const prop of this.paintPropData) prop.RebuildProps(this.terrainGameObject);
     }
 
     public RebuildGeometry(): void {
@@ -267,96 +283,57 @@ export class Terrain extends Components.Mesh {
         super.Start();
     }
 
+    public WorldToGrid(worldPoint: Mathf.Vector3, gridDim: number): { fx: number; fz: number } {
+        const size = this.terrainData.size;
+        const localX = (worldPoint.x - this.transform.position.x + size.x * 0.5) / size.x;
+        const localZ = (worldPoint.z - this.transform.position.z + size.z * 0.5) / size.z;
+        const max = gridDim - 1;
+        return {
+            fx: Math.max(0, Math.min(1, localX)) * max,
+            fz: Math.max(0, Math.min(1, localZ)) * max,
+        };
+    }
+
     public SampleHeight(worldPosition: Mathf.Vector3): number {
         const heights = this.terrainData.GetHeights();
-        const size = this.terrainData.size;
-
         if (!heights) return 0;
 
-        const sizeH = Math.sqrt(heights.length); // heightmap dimension N x N
+        const sizeH = Math.sqrt(heights.length);
+        const { fx, fz } = this.WorldToGrid(worldPosition, sizeH);
 
-        // Convert world position to local [0,1] coordinate on heightmap
-        const localX = (worldPosition.x - this.transform.position.x + size.x * 0.5) / size.x;
-        const localZ = (worldPosition.z - this.transform.position.z + size.z * 0.5) / size.z;
-
-        // Clamp to valid region
-        const fx = Math.max(0, Math.min(1, localX)) * (sizeH - 1);
-        const fz = Math.max(0, Math.min(1, localZ)) * (sizeH - 1);
-
-        const x0 = Math.floor(fx);
-        const z0 = Math.floor(fz);
+        const x0 = Math.floor(fx), z0 = Math.floor(fz);
         const x1 = Math.min(x0 + 1, sizeH - 1);
         const z1 = Math.min(z0 + 1, sizeH - 1);
-
-        const tx = fx - x0;
-        const tz = fz - z0;
-
+        const tx = fx - x0, tz = fz - z0;
         const idx = (x: number, z: number) => x * sizeH + z;
 
-        // Sample four surrounding height values (normalized 0–1)
-        const h00 = heights[idx(x0, z0)];
-        const h10 = heights[idx(x1, z0)];
-        const h01 = heights[idx(x0, z1)];
-        const h11 = heights[idx(x1, z1)];
+        const h0 = heights[idx(x0, z0)] * (1 - tx) + heights[idx(x1, z0)] * tx;
+        const h1 = heights[idx(x0, z1)] * (1 - tx) + heights[idx(x1, z1)] * tx;
+        const height = (h0 * (1 - tz) + h1 * tz) * this.terrainData.size.y;
 
-        // Bilinear interpolation
-        const h0 = h00 * (1 - tx) + h10 * tx;
-        const h1 = h01 * (1 - tx) + h11 * tx;
-        const height = h0 * (1 - tz) + h1 * tz;
-
-        worldPosition.y = height * size.y;
-
-        return height * size.y;
+        worldPosition.y = height;
+        return height;
     }
 
     public SampleNormal(worldPosition: Mathf.Vector3): Mathf.Vector3 {
         const heights = this.terrainData.GetHeights();
-        const size = this.terrainData.size;
-
         if (!heights) return new Mathf.Vector3(0, 1, 0);
 
+        const size = this.terrainData.size;
         const sizeH = Math.sqrt(heights.length);
+        const { fx, fz } = this.WorldToGrid(worldPosition, sizeH);
 
-        // Convert world position → heightmap space (once)
-        const localX = (worldPosition.x - this.transform.position.x + size.x * 0.5) / size.x;
-        const localZ = (worldPosition.z - this.transform.position.z + size.z * 0.5) / size.z;
-
-        const fx = Math.max(0, Math.min(1, localX)) * (sizeH - 1);
-        const fz = Math.max(0, Math.min(1, localZ)) * (sizeH - 1);
-
-        const x = Math.floor(fx);
-        const z = Math.floor(fz);
-
+        const x = Math.floor(fx), z = Math.floor(fz);
+        const x0 = Math.max(0, x - 1), x1 = Math.min(sizeH - 1, x + 1);
+        const z0 = Math.max(0, z - 1), z1 = Math.min(sizeH - 1, z + 1);
         const idx = (x: number, z: number) => x * sizeH + z;
 
-        // Clamp neighbors
-        const x0 = Math.max(0, x - 1);
-        const x1 = Math.min(sizeH - 1, x + 1);
-        const z0 = Math.max(0, z - 1);
-        const z1 = Math.min(sizeH - 1, z + 1);
-
-        // Sample heights directly (normalized 0–1)
-        const hL = heights[idx(x0, z)];
-        const hR = heights[idx(x1, z)];
-        const hD = heights[idx(x, z0)];
-        const hU = heights[idx(x, z1)];
-
-        // World-space scale per heightmap cell
+        const dx = (heights[idx(x1, z)] - heights[idx(x0, z)]) * size.y;
+        const dz = (heights[idx(x, z1)] - heights[idx(x, z0)]) * size.y;
         const scaleX = size.x / (sizeH - 1);
         const scaleZ = size.z / (sizeH - 1);
 
-        // Height differences in world units
-        const dx = (hR - hL) * size.y;
-        const dz = (hU - hD) * size.y;
-
-        // Gradient → normal
-        const normal = new Mathf.Vector3(
-            -dx / scaleX,
-            2.0,
-            -dz / scaleZ
-        );
-
-        return normal.normalize();
+        return new Mathf.Vector3(-dx / scaleX, 2.0, -dz / scaleZ).normalize();
     }
 }
 
