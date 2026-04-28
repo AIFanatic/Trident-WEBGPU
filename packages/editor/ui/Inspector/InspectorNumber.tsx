@@ -2,10 +2,13 @@ import { createElement, Component } from "../../gooact";
 
 import './InspectorComponent.css';
 
-interface InspectorNumberProps {
+export interface InspectorNumberProps {
     title: string;
     value: number;
     titleClass?: string;
+    min?: number;
+    max?: number;
+    step?: number;
     onChanged?: (value: number) => void;
 };
 
@@ -16,31 +19,49 @@ interface InspectorNumberState {
 export class InspectorNumber extends Component<InspectorNumberProps, InspectorNumberState> {
     constructor(props: InspectorNumberProps) {
         super(props);
-        this.setState({value: this.props.value});
+        this.setState({ value: this.props.value });
+    }
+
+    private clampAndSnap(value: number): number {
+        if (this.props.step !== undefined && this.props.step > 0) {
+            value = Math.round(value / this.props.step) * this.props.step;
+        }
+
+        if (this.props.min !== undefined) value = Math.max(this.props.min, value);
+        if (this.props.max !== undefined) value = Math.min(this.props.max, value);
+
+        return value;
     }
 
     private onChanged(event: Event) {
         if (this.props.onChanged) {
             const input = event.currentTarget as HTMLInputElement;
             if (input.value == "") return;
-            
-            const value = parseFloat(input.value);
-            
+
+            let value = parseFloat(input.value);
+            value = this.clampAndSnap(value);
+
             this.props.onChanged(value);
-            
-            this.setState({value: value});
+            this.setState({ value: value });
         }
     }
 
     private onClicked(event: MouseEvent) {
+        let dragValue = this.state.value;
+
         const MouseMoveEvent = (event: MouseEvent) => {
             const delta = event.movementX;
-            let value = this.state.value += delta / 10;
-            this.setState({value: value});
-            this.props.onChanged(value);
+            const speed = this.props.step !== undefined ? this.props.step / 10 : 0.1;
+
+            dragValue += delta * speed;
+
+            const value = this.clampAndSnap(dragValue);
+            this.setState({ value });
+            this.props.onChanged?.(value);
+
             (event.currentTarget as HTMLElement).requestPointerLock();
         }
-        
+
         const MouseUpEvent = (event: MouseEvent) => {
             document.body.removeEventListener("mousemove", MouseMoveEvent);
             document.body.removeEventListener("mouseup", MouseUpEvent);
@@ -57,6 +78,9 @@ export class InspectorNumber extends Component<InspectorNumberProps, InspectorNu
             <input
                 class="input vec-input"
                 type="number"
+                min={this.props.min}
+                max={this.props.max}
+                step={this.props.step}
                 onChange={(event) => { this.onChanged(event) }}
                 value={this.state.value.toPrecision(4)}
             />

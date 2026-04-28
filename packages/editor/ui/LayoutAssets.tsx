@@ -212,7 +212,7 @@ export class LayoutAssets extends Component<BaseProps, LayoutAssetsState> {
                 const arrayBuffer = await file.arrayBuffer();
                 const rootName = file.name.slice(0, file.name.lastIndexOf("."));
                 const rootGO = await GLTFLoader.LoadFromArrayBuffer(arrayBuffer, this.props.engineAPI.currentScene, rootName);
-                SaveGameObjectAsAsset(this.getCurrentPath(), rootGO);
+                await SaveGameObjectAsAsset(this.getCurrentPath(), rootGO);
             }
         }
 

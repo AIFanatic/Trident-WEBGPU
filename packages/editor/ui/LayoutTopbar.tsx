@@ -1,4 +1,4 @@
-import { ProjectEvents } from "../Events";
+import { ProjectEvents, SceneEvents } from "../Events";
 import { createElement, Component } from "../gooact";
 import { FileBrowser, MODE } from "../helpers/FileBrowser";
 import { BaseProps } from "./Layout";
@@ -13,7 +13,7 @@ interface LayoutTopbarState {
 };
 
 export class LayoutTopbar extends Component<BaseProps, LayoutTopbarState> {
-    constructor(props) {
+    constructor(props: BaseProps) {
         super(props);
         this.setState({fileMenuOpen: false});
     }
@@ -30,6 +30,7 @@ export class LayoutTopbar extends Component<BaseProps, LayoutTopbarState> {
         const serializedScene = this.props.engineAPI.serializer.serializeScene(this.props.engineAPI.currentScene);
         const handle = await FileBrowser.fopen(`${this.props.engineAPI.currentScene.name}.scene`, MODE.W)
         FileBrowser.fwrite(handle, JSON.stringify(serializedScene));
+        TridentAPI.EventSystem.emit(SceneEvents.Saved, this.props.engineAPI.currentScene);
         this.setState({fileMenuOpen: !this.state.fileMenuOpen});
     }
 
@@ -37,12 +38,13 @@ export class LayoutTopbar extends Component<BaseProps, LayoutTopbarState> {
         const serializedScene = this.props.engineAPI.serializer.serializeScene(this.props.engineAPI.currentScene);
         console.log(JSON.stringify(serializedScene))
         this.setState({fileMenuOpen: !this.state.fileMenuOpen});
+        TridentAPI.EventSystem.emit(SceneEvents.Saved, this.props.engineAPI.currentScene);
     }
 
     render() {
         return (
             <div style={{padding: "10px", marginLeft: "5px"}}>
-                <a onClick={event => { this.setState({...this.state, fileMenuOpen: !this.state.fileMenuOpen})}} style={{cursor: "pointer"}}>File</a>
+                <a onClick={() => { this.setState({...this.state, fileMenuOpen: !this.state.fileMenuOpen})}} style={{cursor: "pointer"}}>File</a>
                 <FloatingMenu visible={this.state.fileMenuOpen} onClose={() => this.setState({ ...this.state, fileMenuOpen: false })}>
                     <Tree>
                         <TreeItem name="Open Project..." onPointerDown={() => { this.openProject() }} />

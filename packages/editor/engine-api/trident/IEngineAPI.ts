@@ -1,4 +1,4 @@
-import { GPU } from "@trident/core";
+import { GPU, Utils } from "@trident/core";
 
 import { IGameObject } from "./components/IGameObject";
 import { IGeometry } from "./components/IGeometry";
@@ -77,4 +77,6 @@ export interface IEngineAPI {
         deserializeFields(target: any, data: any): Promise<void>;
         Load(assetPath: string, data?: any): Promise<any>;
     };
+
+    flags: typeof Utils.Flags;
 }

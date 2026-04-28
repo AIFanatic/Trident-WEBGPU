@@ -3,10 +3,12 @@ import { createElement, Component } from "../../gooact";
 import './InspectorComponent.css';
 import { InspectorNumber } from "./InspectorNumber";
 
-interface InspectorInputProps {
+export interface InspectorInputProps {
     title: string;
-    value: string | number;
-    type?: "number" | "text";
+    value: number;
+    min?: number;
+    max?: number;
+    step?: number;
     onChanged?: (value: string) => void;
 };
 
@@ -17,7 +19,7 @@ export class InspectorInput extends Component<InspectorInputProps> {
 
     private onChanged(value: string | number) {
         if (this.props.onChanged) {
-            if (value == "") return;
+            if (value === "") return;
             this.props.onChanged(value)
         }
     }
@@ -27,7 +29,7 @@ export class InspectorInput extends Component<InspectorInputProps> {
             <span className="title">{this.props.title}</span>
 
             <div class="edit">
-                <InspectorNumber title="N" titleClass="gray-bg" value={this.props.value} onChanged={value => { this.onChanged(value) }} />
+                <InspectorNumber step={this.props.step} min={this.props.min} max={this.props.max} title="N" titleClass="gray-bg" value={this.props.value} onChanged={value => { this.onChanged(value) }} />
             </div>
         </div>
     }

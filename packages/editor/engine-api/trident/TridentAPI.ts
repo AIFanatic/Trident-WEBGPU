@@ -167,4 +167,6 @@ export class TridentAPI implements IEngineAPI {
 
     public static EventSystem = EventSystem;
     public static EventSystemLocal = EventSystemLocal;
+
+    public flags = Utils.Flags;
 }

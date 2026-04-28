@@ -1,4 +1,4 @@
-import { createElement, Component } from "../../gooact";
+import { createElement, Component, VNode } from "../../gooact";
 
 import { InspectorInput } from './InspectorInput';
 import { InspectorCheckbox } from './InspectorCheckbox';
@@ -13,11 +13,10 @@ import { IGameObject } from '../../engine-api/trident/components/IGameObject';
 import { IComponent } from '../../engine-api/trident/components/IComponent';
 import { ITransform } from '../../engine-api/trident/components/ITransform';
 import { IEngineAPI } from '../../engine-api/trident/IEngineAPI';
-import { ComponentEvents, GameObjectEvents, LayoutHierarchyEvents } from "../../Events";
+import { GameObjectEvents } from "../../Events";
 import { StringUtils } from "../../helpers/StringUtils";
 import { ExtendedDataTransfer } from "../../helpers/ExtendedDataTransfer";
 import { InspectorDropdown, InspectorDropdownOptions } from "./InspectorDropdown";
-import { InspectorClass } from "./InspectorClass";
 import { InspectorArray } from "./InspectorArray";
 import { TridentAPI } from "../../engine-api/trident/TridentAPI";
 
@@ -38,14 +37,9 @@ export class LayoutInspectorGameObject extends Component<LayoutInspectorProps> {
 
     private onComponentPropertyChanged(component: IComponent | ITransform, property: string, value: any) {
         const type = typeof component[property];
-        const classname = component.constructor.name;
-        // const customType = SerializableTypesInstance.get(classname, property);
         const customType = component[property];
-
-        if (customType) {
-            component[property] = value;
-        }
-        else if (this.props.engineAPI.isVector3(component[property]) && this.props.engineAPI.isVector3(value)) {
+        
+        if (this.props.engineAPI.isVector3(component[property]) && this.props.engineAPI.isVector3(value)) {
             component[property].copy(value);
         }
         else if (this.props.engineAPI.isColor(component[property]) && this.props.engineAPI.isColor(value)) {
@@ -56,6 +50,9 @@ export class LayoutInspectorGameObject extends Component<LayoutInspectorProps> {
         }
         else if (type == "number") {
             component[property] = parseFloat(value);
+        }
+        else if (customType) {
+            component[property] = value;
         }
 
         this.setState({}); // force updated
@@ -84,6 +81,7 @@ export class LayoutInspectorGameObject extends Component<LayoutInspectorProps> {
         else if (type === Boolean) return <InspectorCheckbox onChanged={(value) => { this.onComponentPropertyChanged(component, name, value) }} title={title} selected={component[name]} />
         else if (Array.isArray(component[name])) {
             return <InspectorArray
+                engineAPI={this.props.engineAPI}
                 title={title}
                 array={component[name]}
                 elementType={type}
@@ -143,21 +141,16 @@ export class LayoutInspectorGameObject extends Component<LayoutInspectorProps> {
     }
 
     private renderInspectorForGameObject(gameObject: IGameObject) {
-        let inspectorHTML: Node[] = [];
+        let inspectorHTML: VNode[] = [];
         const components = gameObject.GetComponents();
         for (let component of components) {
-            const componentCast = component as IComponent;
-            const componentPropertiesHTML = this.renderInspectorForComponent(componentCast);
+            if (component.flags & this.props.engineAPI.flags.HideInInspector) continue;
 
-            const componentHTML = <Collapsible
-                header={componentCast.constructor.name}
-                onRightMenuClicked={() => this.onRemoveComponent(component)}
-                rightMenuText="x"
-            >
+            const componentPropertiesHTML = typeof component["OnInspectorGUI"] === "function" ? [component["OnInspectorGUI"]()] : this.renderInspectorForComponent(component);
+
+            inspectorHTML.push(<Collapsible header={component.constructor.name} onRightMenuClicked={() => this.onRemoveComponent(component)} rightMenuText="x">
                 {...componentPropertiesHTML}
-            </Collapsible>
-
-            inspectorHTML.push(componentHTML);
+            </Collapsible>);
         }
 
         return inspectorHTML;

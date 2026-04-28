@@ -1,7 +1,7 @@
 import { IGameObject } from "../engine-api/trident/components/IGameObject";
 import { IMaterial } from "../engine-api/trident/IMaterial";
 import { TridentAPI } from "../engine-api/trident/TridentAPI";
-import { ComponentEvents, GameObjectEvents, LayoutAssetEvents } from "../Events";
+import { ComponentEvents, GameObjectEvents, LayoutAssetEvents, LayoutInspectorEvents } from "../Events";
 import { createElement, Component } from "../gooact";
 import { InspectorMaterial } from "./Inspector/InspectorMaterial";
 import { LayoutInspectorGameObject } from "./Inspector/LayoutInspectorGameObject";
@@ -32,6 +32,10 @@ export class LayoutInspector extends Component<BaseProps, LayoutInspectorState> 
         TridentAPI.EventSystem.on(GameObjectEvents.Changed, (gameObject, component) => {
             this.setState({ selected: gameObject });
         })
+
+        TridentAPI.EventSystem.on(LayoutInspectorEvents.Repaint, () => {
+            this.setState({ selected: this.state.selected });
+        });
 
         this.state = { selected: undefined };
     }

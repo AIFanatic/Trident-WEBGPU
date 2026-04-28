@@ -1,8 +1,8 @@
 /* Gooact by SweetPalma, 2018. All rights reserved. */
 
-type VNodeChild = VNode | string | number | boolean | null;
+export type VNodeChild = VNode | string | number | boolean | null;
 
-type PropsWithChildren<P = any> = P & {
+export type PropsWithChildren<P = any> = P & {
     children?: VNodeChild[];
     key?: string;
     ref?: (el: HTMLElement) => void;
@@ -19,7 +19,7 @@ interface ComponentConstructor<P = any> {
     new(props: PropsWithChildren<P>): Component<P, any>;
 }
 
-interface VNode<P = any> {
+export interface VNode<P = any> {
     type: string | FunctionComponent<P> | ComponentConstructor<P>;
     props: PropsWithChildren<P>;
     children: VNodeChild[];

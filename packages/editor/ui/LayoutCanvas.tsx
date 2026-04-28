@@ -98,7 +98,7 @@ export class LayoutCanvas extends Component<BaseProps> {
         await sky.init();
         const skyTexture = sky.skyTextureCubemap;
 
-        // const hdr = await HDRParser.Load("/dist/examples/assets/textures/HDR/autumn_field_puresky_1k.hdr");
+        const hdr = await HDRParser.Load("/dist/examples/assets/textures/HDR/autumn_field_puresky_1k.hdr");
         // const hdr = await HDRParser.Load("/dist/examples/assets/textures/HDR/spruit_sunrise_1k.hdr");
         // const skyTexture = await HDRParser.ToCubemap(hdr);
 
