@@ -28,7 +28,7 @@
             <script type="module">
                 const canvas = document.createElement("canvas");
                 document.body.appendChild(canvas);
-                            import { Runtime, GameObject, Components, Mathf, GPU, PBRMaterial, Console, Renderer } from '@trident/core';
+                            import { Runtime, GameObject, Components, Mathf, GPU, PBRMaterial, Console, Renderer, Component, Geometry, Input, MouseCodes } from '@trident/core';
             import { PhysicsRapier } from '@trident/plugins/PhysicsRapier/PhysicsRapier.js';
             import { TerrainCollider } from '@trident/plugins/PhysicsRapier/colliders/TerrainCollider.js';
             import { CapsuleCollider } from '@trident/plugins/PhysicsRapier/colliders/CapsuleCollider.js';
@@ -43,6 +43,7 @@
             import { Sky } from '@trident/plugins/Environment/Sky.js';
             import { Environment } from '@trident/plugins/Environment/Environment.js';
             import { InstancedLODGroup } from '@trident/plugins/LOD/InstancedLODGroup.js';
+            import { SphereCollider } from '@trident/plugins/PhysicsRapier/colliders/SphereCollider.js';
             
             async function Application(canvas) {
               await Runtime.Create(canvas);
@@ -400,6 +401,33 @@
                   terrain.SampleNormal(playerGameObject.transform.position);
                 }, 2e3);
               }
+              class Shooter extends Component {
+                projectileGeometry;
+                projectileMaterial;
+                Start() {
+                  this.projectileGeometry = Geometry.Sphere();
+                  this.projectileMaterial = new PBRMaterial();
+                }
+                Update() {
+                  if (Input.GetMouseDown(MouseCodes.MOUSE_LEFT)) {
+                    console.log("CALLED");
+                    const go = new GameObject();
+                    const forward = new Mathf.Vector3(0, 0, -1).transformDirection(camera.transform.localToWorldMatrix);
+                    go.transform.position.copy(this.transform.position).add(forward.clone().mul(1));
+                    const mesh = go.AddComponent(Components.Mesh);
+                    mesh.geometry = this.projectileGeometry;
+                    mesh.material = this.projectileMaterial;
+                    go.AddComponent(SphereCollider);
+                    const rigidbody = go.AddComponent(RigidBody);
+                    rigidbody.isKinematic = false;
+                    rigidbody.AddForce(forward.clone().mul(1e3));
+                    setTimeout(() => {
+                      go.Destroy();
+                    }, 1e3);
+                  }
+                }
+              }
+              playerGameObject.AddComponent(Shooter);
               Runtime.Play();
             }
             Application(document.querySelector("canvas"));

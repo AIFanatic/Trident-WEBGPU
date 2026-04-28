@@ -165,42 +165,6 @@ input[type=number] {
     z-index: 1;
     font-size: 10px;
 }
-.treeview {
-    overflow: auto;
-    height: 100%;
-}
-
-.treeview .item {
-    counter-increment: section;
-    counter-reset: section;
-    overflow-anchor: none;
-}
-
-.treeview .item .drag-hover {
-    background-color: red;
-}
-
-.treeview .item .item-title {
-    cursor: pointer;
-}
-
-.treeview .item .active {
-    background-color: #3498db;
-}
-
-.treeview .item .item-title:before {
-    content: counters(section, '--');
-    opacity: 0;
-}
-
-.treeview .item .item-title:hover {
-    /* background-color: #383838; */
-    opacity: 0.5;
-}
-
-.treeview .item .item-content {
-    overflow: hidden;
-}
 .InspectorComponent {
     display: flex;
     align-items: center;
@@ -317,6 +281,42 @@ input[type=number] {
     width: 100%;
     margin-right: 5px;
     align-items: center;
+}
+.treeview {
+    overflow: auto;
+    height: 100%;
+}
+
+.treeview .item {
+    counter-increment: section;
+    counter-reset: section;
+    overflow-anchor: none;
+}
+
+.treeview .item .drag-hover {
+    background-color: red;
+}
+
+.treeview .item .item-title {
+    cursor: pointer;
+}
+
+.treeview .item .active {
+    background-color: #3498db;
+}
+
+.treeview .item .item-title:before {
+    content: counters(section, '--');
+    opacity: 0;
+}
+
+.treeview .item .item-title:hover {
+    /* background-color: #383838; */
+    opacity: 0.5;
+}
+
+.treeview .item .item-content {
+    overflow: hidden;
 }
 .collapsible-content-edonec {
     overflow: auto;

@@ -57,7 +57,7 @@
               const skyTexture = await HDRParser.ToCubemap(hdr);
               const environment = new Environment(scene, skyTexture);
               await environment.init();
-              const rootGO = await GLTFLoader.Load("./assets/models/Shadow.glb", scene);
+              const rootGO = await GLTFLoader.Load("./assets/models/DamagedHelmet/DamagedHelmet.gltf", scene);
               const meshComponents = rootGO.GetComponentsInChildren(Components.Mesh);
               for (const mesh of meshComponents) {
                 const animator = mesh.gameObject.GetComponent(Components.Animator);
@@ -78,16 +78,6 @@
                 const animator = gameObject.GetComponent(Components.Animator);
                 console.log(animator);
               }
-              console.warn(`
-                    glb imports to:
-                        mesh
-                        material
-                        shader (always pbr)
-                        animation
-                        bones/skin
-            
-                    even on editor create those files separately (can deal with animation and bones later)
-                `);
               {
                 window.addEventListener("dragover", (e) => {
                   e.preventDefault();

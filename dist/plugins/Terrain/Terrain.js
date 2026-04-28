@@ -52,11 +52,32 @@ var __privateGet = (obj, member, getter) => (__accessCheck(obj, member, "read fr
 var __privateSet = (obj, member, value, setter) => (__accessCheck(obj, member, "write to private field"), setter ? setter.call(obj, value) : member.set(obj, value), value);
 var __privateMethod = (obj, member, method) => (__accessCheck(obj, member, "access private method"), method);
 var _matrices_dec, _prop_dec, _init, _terrainGameObject_dec, _blendWeightMapTexture_dec, _materialIdMapTexture_dec, _blendWeightMapData_dec, _materialIdMapData_dec, _paintMapResolution_dec, _heights_dec, _material_dec, _geometry_dec, _size_dec, _paintPropData_dec, _init2, _material_dec2, _geometry_dec2, _terrainData_dec, _a, _init3;
-_prop_dec = [SerializeField(GameObject)], _matrices_dec = [SerializeField(Float32Array)];
+_prop_dec = [SerializeField(GameObject)], _matrices_dec = [SerializeField(Array)];
 class PaintPropData {
   constructor() {
     __publicField(this, "prop", __runInitializers(_init, 8, this)), __runInitializers(_init, 11, this);
-    __publicField(this, "matrices", __runInitializers(_init, 12, this)), __runInitializers(_init, 15, this);
+    __publicField(this, "matrices", __runInitializers(_init, 12, this, [])), __runInitializers(_init, 15, this);
+    __publicField(this, "instancedLODGroup");
+  }
+  // TODO: Check if LODGroup was changed
+  RebuildProps(terrainGameObject) {
+    const lodGroup = this.prop.GetComponent(LODGroup);
+    if (!lodGroup) return;
+    if (lodGroup.lods.length === 0) return;
+    if (!this.instancedLODGroup) {
+      this.instancedLODGroup = terrainGameObject.AddComponent(InstancedLODGroup);
+      this.instancedLODGroup.flags = Utils.Flags.DontSaveInEditor | Utils.Flags.HideInInspector;
+      this.instancedLODGroup.lods = lodGroup.lods;
+    }
+    this.RebuildPropMatrices();
+  }
+  RebuildPropMatrices() {
+    if (!this.instancedLODGroup) throw Error("Could not find instancedLODGroup");
+    this.instancedLODGroup.SetMatricesBulk(new Float32Array(this.matrices));
+  }
+  AddPropMatrix(matrix) {
+    this.matrices.push(...matrix.elements);
+    this.instancedLODGroup.SetMatrixAt(this.instancedLODGroup.instanceCount, matrix);
   }
 }
 _init = __decoratorStart(null);
@@ -68,7 +89,6 @@ const _TerrainData = class _TerrainData {
   constructor(gameObject) {
     __runInitializers(_init2, 5, this);
     __publicField(this, "paintPropData", __runInitializers(_init2, 8, this, [])), __runInitializers(_init2, 11, this);
-    __publicField(this, "paintPropInstances", /* @__PURE__ */ new Map());
     __publicField(this, "size", __runInitializers(_init2, 12, this)), __runInitializers(_init2, 15, this);
     __publicField(this, "geometry", __runInitializers(_init2, 16, this)), __runInitializers(_init2, 19, this);
     __publicField(this, "material", __runInitializers(_init2, 20, this)), __runInitializers(_init2, 23, this);
@@ -124,17 +144,6 @@ const _TerrainData = class _TerrainData {
     this.UploadPaintMaps();
     this.BindPaintMaps();
   }
-  RebuildProps() {
-    for (const paintProp of this.paintPropData) {
-      const lodGroup = paintProp.prop.GetComponent(LODGroup);
-      if (!lodGroup) continue;
-      if (lodGroup.lods.length === 0) continue;
-      const instancedLODGroup = this.paintPropInstances.get(lodGroup) || this.terrainGameObject.AddComponent(InstancedLODGroup);
-      instancedLODGroup.lods = lodGroup.lods;
-      this.paintPropInstances.set(lodGroup, instancedLODGroup);
-      instancedLODGroup.SetMatricesBulk(paintProp.matrices);
-    }
-  }
   UploadPaintMaps() {
     const bytesPerRow = this.paintMapResolution * 4;
     this.materialIdMapTexture.SetData(this._materialIdMapData, bytesPerRow);
@@ -147,10 +156,23 @@ const _TerrainData = class _TerrainData {
     this.material.materialIdMap = this.materialIdMapTexture;
     this.material.shader.SetTexture("blendWeightMaps", this.blendWeightMapTexture);
   }
+  AddProp(gameObject) {
+    const existingIndex = this.paintPropData.findIndex((value) => value.prop === gameObject);
+    if (existingIndex !== -1) return existingIndex;
+    const newProp = new PaintPropData();
+    newProp.prop = gameObject;
+    newProp.RebuildProps(this.terrainGameObject);
+    this.paintPropData.push(newProp);
+    return this.paintPropData.length - 1;
+  }
+  AddPropMatrix(propIndex, matrix) {
+    if (propIndex >= this.paintPropData.length) throw Error("Prop doesnt exist");
+    this.paintPropData[propIndex].AddPropMatrix(matrix);
+  }
   async OnDeserialized() {
     this.RebuildGeometry();
     this.InitializePaintMaps();
-    this.RebuildProps();
+    for (const prop of this.paintPropData) prop.RebuildProps(this.terrainGameObject);
   }
   RebuildGeometry() {
     const verticesPerSide = this.resolution + 1;
@@ -293,62 +315,47 @@ class Terrain extends (_a = Components.Mesh, _terrainData_dec = [SerializeField(
   Start() {
     super.Start();
   }
+  WorldToGrid(worldPoint, gridDim) {
+    const size = this.terrainData.size;
+    const localX = (worldPoint.x - this.transform.position.x + size.x * 0.5) / size.x;
+    const localZ = (worldPoint.z - this.transform.position.z + size.z * 0.5) / size.z;
+    const max = gridDim - 1;
+    return {
+      fx: Math.max(0, Math.min(1, localX)) * max,
+      fz: Math.max(0, Math.min(1, localZ)) * max
+    };
+  }
   SampleHeight(worldPosition) {
     const heights = this.terrainData.GetHeights();
-    const size = this.terrainData.size;
     if (!heights) return 0;
     const sizeH = Math.sqrt(heights.length);
-    const localX = (worldPosition.x - this.transform.position.x + size.x * 0.5) / size.x;
-    const localZ = (worldPosition.z - this.transform.position.z + size.z * 0.5) / size.z;
-    const fx = Math.max(0, Math.min(1, localX)) * (sizeH - 1);
-    const fz = Math.max(0, Math.min(1, localZ)) * (sizeH - 1);
-    const x0 = Math.floor(fx);
-    const z0 = Math.floor(fz);
+    const { fx, fz } = this.WorldToGrid(worldPosition, sizeH);
+    const x0 = Math.floor(fx), z0 = Math.floor(fz);
     const x1 = Math.min(x0 + 1, sizeH - 1);
     const z1 = Math.min(z0 + 1, sizeH - 1);
-    const tx = fx - x0;
-    const tz = fz - z0;
+    const tx = fx - x0, tz = fz - z0;
     const idx = (x, z) => x * sizeH + z;
-    const h00 = heights[idx(x0, z0)];
-    const h10 = heights[idx(x1, z0)];
-    const h01 = heights[idx(x0, z1)];
-    const h11 = heights[idx(x1, z1)];
-    const h0 = h00 * (1 - tx) + h10 * tx;
-    const h1 = h01 * (1 - tx) + h11 * tx;
-    const height = h0 * (1 - tz) + h1 * tz;
-    worldPosition.y = height * size.y;
-    return height * size.y;
+    const h0 = heights[idx(x0, z0)] * (1 - tx) + heights[idx(x1, z0)] * tx;
+    const h1 = heights[idx(x0, z1)] * (1 - tx) + heights[idx(x1, z1)] * tx;
+    const height = (h0 * (1 - tz) + h1 * tz) * this.terrainData.size.y;
+    worldPosition.y = height;
+    return height;
   }
   SampleNormal(worldPosition) {
     const heights = this.terrainData.GetHeights();
-    const size = this.terrainData.size;
     if (!heights) return new Mathf.Vector3(0, 1, 0);
+    const size = this.terrainData.size;
     const sizeH = Math.sqrt(heights.length);
-    const localX = (worldPosition.x - this.transform.position.x + size.x * 0.5) / size.x;
-    const localZ = (worldPosition.z - this.transform.position.z + size.z * 0.5) / size.z;
-    const fx = Math.max(0, Math.min(1, localX)) * (sizeH - 1);
-    const fz = Math.max(0, Math.min(1, localZ)) * (sizeH - 1);
-    const x = Math.floor(fx);
-    const z = Math.floor(fz);
+    const { fx, fz } = this.WorldToGrid(worldPosition, sizeH);
+    const x = Math.floor(fx), z = Math.floor(fz);
+    const x0 = Math.max(0, x - 1), x1 = Math.min(sizeH - 1, x + 1);
+    const z0 = Math.max(0, z - 1), z1 = Math.min(sizeH - 1, z + 1);
     const idx = (x2, z2) => x2 * sizeH + z2;
-    const x0 = Math.max(0, x - 1);
-    const x1 = Math.min(sizeH - 1, x + 1);
-    const z0 = Math.max(0, z - 1);
-    const z1 = Math.min(sizeH - 1, z + 1);
-    const hL = heights[idx(x0, z)];
-    const hR = heights[idx(x1, z)];
-    const hD = heights[idx(x, z0)];
-    const hU = heights[idx(x, z1)];
+    const dx = (heights[idx(x1, z)] - heights[idx(x0, z)]) * size.y;
+    const dz = (heights[idx(x, z1)] - heights[idx(x, z0)]) * size.y;
     const scaleX = size.x / (sizeH - 1);
     const scaleZ = size.z / (sizeH - 1);
-    const dx = (hR - hL) * size.y;
-    const dz = (hU - hD) * size.y;
-    const normal = new Mathf.Vector3(
-      -dx / scaleX,
-      2,
-      -dz / scaleZ
-    );
-    return normal.normalize();
+    return new Mathf.Vector3(-dx / scaleX, 2, -dz / scaleZ).normalize();
   }
 }
 _init3 = __decoratorStart(_a);

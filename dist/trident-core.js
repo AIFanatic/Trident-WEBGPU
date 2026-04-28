@@ -1493,186 +1493,14 @@ __decorateElement$8(_init$8, 2, "scale", _scale_dec, Transform);
 __decoratorMetadata$8(_init$8, Transform);
 __publicField$8(Transform, "type", "@trident/core/components/Transform");
 
-function getCtorChain$1(ctor) {
-  const chain = [];
-  for (let c = ctor; c && c !== Component; c = Object.getPrototypeOf(c)) {
-    chain.push(c);
-  }
-  return chain;
-}
-class GameObject {
-  flags = Flags.None;
-  id = UUID();
-  name = "GameObject";
-  scene;
-  transform;
-  componentsByCtor = /* @__PURE__ */ new Map();
-  allComponents = [];
-  _enabled = true;
-  get enabled() {
-    return this._enabled;
-  }
-  set enabled(enabled) {
-    this._enabled = enabled;
-    for (const child of this.transform.children) child.gameObject.enabled = enabled;
-  }
-  assetPath;
-  dontDestroyOnLoad = false;
-  constructor(scene) {
-    this.scene = scene;
-    this.transform = new Transform(this);
-    this.scene.AddGameObject(this);
-    EventSystem.on(ComponentEvents.RemovedComponent, (component, scene2) => {
-      if (scene2 !== this.scene) return;
-      this.RemoveComponent(component);
-    });
-  }
-  AddComponent(Ctor, ...args) {
-    const componentInstance = new Ctor(this, ...args);
-    if (!(componentInstance instanceof Component)) throw new Error(`Invalid component ${Ctor.name}`);
-    if (componentInstance instanceof Transform && this.GetComponent(Transform)) throw new Error("A GameObject can only have one Transform");
-    this.allComponents.push(componentInstance);
-    for (const ctor of getCtorChain$1(componentInstance.constructor)) {
-      let arr = this.componentsByCtor.get(ctor);
-      if (!arr) this.componentsByCtor.set(ctor, arr = []);
-      if (!arr.includes(componentInstance)) arr.push(componentInstance);
-    }
-    if (this.scene.hasStarted && componentInstance.Start && !componentInstance.hasStarted) {
-      componentInstance.Start();
-      componentInstance.hasStarted = true;
-    }
-    return componentInstance;
-  }
-  RemoveComponent(component) {
-    const idx = this.allComponents.indexOf(component);
-    if (idx === -1) return;
-    this.allComponents.splice(idx, 1);
-    for (const ctor of getCtorChain$1(component.constructor)) {
-      const arr = this.componentsByCtor.get(ctor);
-      if (!arr) continue;
-      const i = arr.indexOf(component);
-      if (i !== -1) arr.splice(i, 1);
-      if (arr.length === 0) this.componentsByCtor.delete(ctor);
-    }
-    component.Destroy();
-  }
-  GetComponent(Ctor) {
-    const arr = this.componentsByCtor.get(Ctor);
-    return arr && arr.length ? arr[0] : null;
-  }
-  GetComponents(Ctor) {
-    if (!Ctor) return this.allComponents;
-    return this.componentsByCtor.get(Ctor) ?? [];
-  }
-  GetComponentsExact(Ctor) {
-    const arr = this.componentsByCtor.get(Ctor);
-    return arr ? arr.filter((c) => c.constructor === Ctor) : [];
-  }
-  GetComponentsInChildren(Ctor) {
-    const out = [];
-    const walk = (go) => {
-      if (!Ctor) out.push(...go.allComponents);
-      else {
-        const list = go.componentsByCtor.get(Ctor);
-        if (list) out.push(...list);
-      }
-      for (const child of go.transform.children) walk(child.gameObject);
-    };
-    walk(this);
-    return out;
-  }
-  Start() {
-    for (const component of this.allComponents) {
-      if (!component.hasStarted) {
-        component.Start();
-        component.hasStarted = true;
-      }
-    }
-  }
-  Destroy() {
-    for (const child of [...this.transform.children]) {
-      child.gameObject.Destroy();
-    }
-    for (const component of [...this.allComponents]) {
-      component.Destroy();
-    }
-    this.allComponents.length = 0;
-    this.componentsByCtor.clear();
-    this.scene.RemoveGameObject(this);
-  }
-}
-
-class Plane {
-  normal;
-  constant;
-  constructor(normal = new Vector3(1, 0, 0), constant = 0) {
-    this.normal = normal;
-    this.constant = constant;
-  }
-  setComponents(x, y, z, w) {
-    this.normal.set(x, y, z);
-    this.constant = w;
-    return this;
-  }
-  normalize() {
-    const inverseNormalLength = 1 / this.normal.length();
-    this.normal.mul(inverseNormalLength);
-    this.constant *= inverseNormalLength;
-    return this;
-  }
-  distanceToPoint(point) {
-    return this.normal.dot(point) + this.constant;
-  }
-}
-
-class Frustum {
-  planes;
-  constructor(p0 = new Plane(), p1 = new Plane(), p2 = new Plane(), p3 = new Plane(), p4 = new Plane(), p5 = new Plane()) {
-    this.planes = [p0, p1, p2, p3, p4, p5];
-  }
-  setFromProjectionMatrix(m) {
-    const planes = this.planes;
-    const me = m.elements;
-    const me0 = me[0], me1 = me[1], me2 = me[2], me3 = me[3];
-    const me4 = me[4], me5 = me[5], me6 = me[6], me7 = me[7];
-    const me8 = me[8], me9 = me[9], me10 = me[10], me11 = me[11];
-    const me12 = me[12], me13 = me[13], me14 = me[14], me15 = me[15];
-    planes[0].setComponents(me3 - me0, me7 - me4, me11 - me8, me15 - me12).normalize();
-    planes[1].setComponents(me3 + me0, me7 + me4, me11 + me8, me15 + me12).normalize();
-    planes[2].setComponents(me3 + me1, me7 + me5, me11 + me9, me15 + me13).normalize();
-    planes[3].setComponents(me3 - me1, me7 - me5, me11 - me9, me15 - me13).normalize();
-    planes[4].setComponents(me3 - me2, me7 - me6, me11 - me10, me15 - me14).normalize();
-    planes[5].setComponents(me2, me6, me10, me14).normalize();
-    return this;
-  }
-  intersectsBoundingVolume(boundingVolume) {
-    const planes = this.planes;
-    const center = boundingVolume.center;
-    const negRadius = -boundingVolume.radius * boundingVolume.scale;
-    for (let i = 0; i < 6; i++) {
-      const distance = planes[i].distanceToPoint(center);
-      if (distance < negRadius) return false;
-    }
-    return true;
-  }
-}
-
-class Vector4 {
+class Vector2 {
   _x;
   _y;
-  _z;
-  _w;
   get x() {
     return this._x;
   }
   get y() {
     return this._y;
-  }
-  get z() {
-    return this._z;
-  }
-  get w() {
-    return this._w;
   }
   set x(v) {
     this._x = v;
@@ -1680,293 +1508,61 @@ class Vector4 {
   set y(v) {
     this._y = v;
   }
-  set z(v) {
-    this._z = v;
-  }
-  set w(v) {
-    this._w = v;
-  }
-  _elements = new Float32Array(4);
+  _elements = new Float32Array(2);
   get elements() {
     this._elements[0] = this._x;
     this._elements[1] = this._y;
-    this._elements[2] = this._z;
-    this._elements[3] = this._w;
     return this._elements;
   }
-  constructor(x = 0, y = 0, z = 0, w = 0) {
+  constructor(x = 0, y = 0) {
     this._x = x;
     this._y = y;
-    this._z = z;
-    this._w = w;
   }
-  set(x, y, z, w) {
+  set(x, y) {
     this.x = x;
     this.y = y;
-    this.z = z;
-    this.w = w;
-    return this;
-  }
-  setX(x) {
-    this.x = x;
-    return this;
-  }
-  setY(y) {
-    this.y = y;
-    return this;
-  }
-  setZ(z) {
-    this.z = z;
-    return this;
-  }
-  setW(w) {
-    this.w = w;
-    return this;
-  }
-  clone() {
-    return new Vector4(this.x, this.y, this.z, this.w);
-  }
-  copy(v) {
-    return this.set(v.x, v.y, v.z, v.w);
   }
   mul(v) {
-    if (v instanceof Vector4) this.x *= v.x, this.y *= v.y, this.z *= v.z, this.w *= v.w;
-    else this.x *= v, this.y *= v, this.z *= v, this.w *= v;
+    if (v instanceof Vector2) this.x *= v.x, this.y *= v.y;
+    else this.x *= v, this.y *= v;
     return this;
   }
   div(v) {
-    if (v instanceof Vector4) this.x /= v.x, this.y /= v.y, this.z /= v.z, this.w /= v.w;
-    else this.x /= v, this.y /= v, this.z /= v, this.w /= v;
+    if (v instanceof Vector2) this.x /= v.x, this.y /= v.y;
+    else this.x /= v, this.y /= v;
     return this;
   }
   add(v) {
-    if (v instanceof Vector4) this.x += v.x, this.y += v.y, this.z += v.z, this.w += v.w;
-    else this.x += v, this.y += v, this.z += v, this.w += v;
+    if (v instanceof Vector2) this.x += v.x, this.y += v.y;
+    else this.x += v, this.y += v;
     return this;
   }
   sub(v) {
-    if (v instanceof Vector4) this.x -= v.x, this.y -= v.y, this.z -= v.z, this.w -= v.w;
-    else this.x -= v, this.y -= v, this.z -= v, this.w -= v;
+    if (v instanceof Vector2) this.x -= v.x, this.y -= v.y;
+    else this.x -= v, this.y -= v;
     return this;
   }
   dot(v) {
-    return this.x * v.x + this.y * v.y + this.z * v.z + this.w * v.w;
-  }
-  applyMatrix4(m) {
-    const x = this.x, y = this.y, z = this.z, w = this.w;
-    const e = m.elements;
-    this.x = e[0] * x + e[4] * y + e[8] * z + e[12] * w;
-    this.y = e[1] * x + e[5] * y + e[9] * z + e[13] * w;
-    this.z = e[2] * x + e[6] * y + e[10] * z + e[14] * w;
-    this.w = e[3] * x + e[7] * y + e[11] * z + e[15] * w;
-    return this;
-  }
-  normalize() {
-    let x = this.x;
-    let y = this.y;
-    let z = this.z;
-    let w = this.w;
-    let len = x * x + y * y + z * z + w * w;
-    if (len > 0) len = 1 / Math.sqrt(len);
-    this.x = x * len;
-    this.y = y * len;
-    this.z = z * len;
-    this.w = w * len;
-    return this;
+    return this.x * v.x + this.y * v.y;
   }
   length() {
-    return Math.sqrt(this.x * this.x + this.y * this.y + this.z * this.z + this.w * this.w);
+    return Math.sqrt(this.x * this.x + this.y * this.y);
   }
-  toString() {
-    return `(${this.x.toPrecision(2)}, ${this.y.toPrecision(2)}, ${this.z.toPrecision(2)}, ${this.w.toPrecision(2)})`;
-  }
-}
-
-class Color {
-  constructor(r = 0, g = 0, b = 0, a = 1) {
-    this.r = r;
-    this.g = g;
-    this.b = b;
-    this.a = a;
-  }
-  _elements = new Float32Array([0, 0, 0, 0]);
-  get elements() {
-    this._elements.set([this.r, this.g, this.b, this.a]);
-    return this._elements;
-  }
-  set(r, g, b, a) {
-    this.r = r;
-    this.g = g;
-    this.b = b;
-    this.a = a;
-  }
-  static fromVector(v) {
-    return new Color(v.x, v.y, v.z, v instanceof Vector4 ? v.w : 0);
-  }
-  static fromHex(hex) {
-    return new Color((hex >> 16 & 255) / 255, (hex >> 8 & 255) / 255, (hex & 255) / 255);
-  }
-  mul(v) {
-    if (v instanceof Color) this.r *= v.r, this.g *= v.g, this.b *= v.b;
-    else this.r *= v, this.g *= v, this.b *= v;
-    return this;
-  }
-  toHex() {
-    const r = Math.floor(this.r * 255).toString(16).padStart(2, "0");
-    const g = Math.floor(this.g * 255).toString(16).padStart(2, "0");
-    const b = Math.floor(this.b * 255).toString(16).padStart(2, "0");
-    const a = Math.floor(this.a * 255).toString(16).padStart(2, "0");
-    return "#" + r + g + b + a;
-  }
-  setFromHex(hex) {
-    if (hex.length !== 6 && hex.length !== 8 && !hex.startsWith("#")) {
-      throw new Error("Invalid hex color format. Expected #RRGGBB or #RRGGBBAA");
-    }
-    hex = hex.slice(1);
-    const r = parseInt(hex.slice(0, 2), 16) / 255;
-    const g = parseInt(hex.slice(2, 4), 16) / 255;
-    const b = parseInt(hex.slice(4, 6), 16) / 255;
-    const a = hex.length === 8 ? parseInt(hex.slice(6, 8), 16) / 255 : 1;
-    this.set(r, g, b, a);
-    return this;
+  lengthSq() {
+    return this.x * this.x + this.y * this.y;
   }
   clone() {
-    return new Color(this.r, this.g, this.b, this.a);
+    return new Vector2(this.x, this.y);
   }
-  copy(color) {
-    this.set(color.r, color.g, color.b, color.a);
+  copy(v) {
+    this.x = v.x;
+    this.y = v.y;
     return this;
   }
+  toString() {
+    return `(${this.x.toPrecision(2)}, ${this.y.toPrecision(2)})`;
+  }
 }
-
-var __create$7 = Object.create;
-var __defProp$7 = Object.defineProperty;
-var __getOwnPropDesc$1 = Object.getOwnPropertyDescriptor;
-var __knownSymbol$7 = (name, symbol) => (symbol = Symbol[name]) ? symbol : Symbol.for("Symbol." + name);
-var __typeError$7 = (msg) => {
-  throw TypeError(msg);
-};
-var __defNormalProp$7 = (obj, key, value) => key in obj ? __defProp$7(obj, key, { enumerable: true, configurable: true, writable: true, value }) : obj[key] = value;
-var __name$1 = (target, value) => __defProp$7(target, "name", { value, configurable: true });
-var __decoratorStart$7 = (base) => [, , , __create$7(base?.[__knownSymbol$7("metadata")] ?? null)];
-var __decoratorStrings$7 = ["class", "method", "getter", "setter", "accessor", "field", "value", "get", "set"];
-var __expectFn$7 = (fn) => fn !== void 0 && typeof fn !== "function" ? __typeError$7("Function expected") : fn;
-var __decoratorContext$7 = (kind, name, done, metadata, fns) => ({ kind: __decoratorStrings$7[kind], name, metadata, addInitializer: (fn) => done._ ? __typeError$7("Already initialized") : fns.push(__expectFn$7(fn || null)) });
-var __decoratorMetadata$7 = (array, target) => __defNormalProp$7(target, __knownSymbol$7("metadata"), array[3]);
-var __runInitializers$7 = (array, flags, self, value) => {
-  for (var i = 0, fns = array[flags >> 1], n = fns && fns.length; i < n; i++) flags & 1 ? fns[i].call(self) : value = fns[i].call(self, value);
-  return value;
-};
-var __decorateElement$7 = (array, flags, name, decorators, target, extra) => {
-  var fn, it, done, ctx, access, k = flags & 7, s = !!(flags & 8), p = !!(flags & 16);
-  var j = k > 3 ? array.length + 1 : k ? s ? 1 : 2 : 0, key = __decoratorStrings$7[k + 5];
-  var initializers = k > 3 && (array[j - 1] = []), extraInitializers = array[j] || (array[j] = []);
-  var desc = k && (!p && !s && (target = target.prototype), k < 5 && (k > 3 || !p) && __getOwnPropDesc$1(k < 4 ? target : { get [name]() {
-    return __privateGet$1(this, extra);
-  }, set [name](x) {
-    return __privateSet$1(this, extra, x);
-  } }, name));
-  k ? p && k < 4 && __name$1(extra, (k > 2 ? "set " : k > 1 ? "get " : "") + name) : __name$1(target, name);
-  for (var i = decorators.length - 1; i >= 0; i--) {
-    ctx = __decoratorContext$7(k, name, done = {}, array[3], extraInitializers);
-    if (k) {
-      ctx.static = s, ctx.private = p, access = ctx.access = { has: p ? (x) => __privateIn$1(target, x) : (x) => name in x };
-      if (k ^ 3) access.get = p ? (x) => (k ^ 1 ? __privateGet$1 : __privateMethod$1)(x, target, k ^ 4 ? extra : desc.get) : (x) => x[name];
-      if (k > 2) access.set = p ? (x, y) => __privateSet$1(x, target, y, k ^ 4 ? extra : desc.set) : (x, y) => x[name] = y;
-    }
-    it = (0, decorators[i])(k ? k < 4 ? p ? extra : desc[key] : k > 4 ? void 0 : { get: desc.get, set: desc.set } : target, ctx), done._ = 1;
-    if (k ^ 4 || it === void 0) __expectFn$7(it) && (k > 4 ? initializers.unshift(it) : k ? p ? extra = it : desc[key] = it : target = it);
-    else if (typeof it !== "object" || it === null) __typeError$7("Object expected");
-    else __expectFn$7(fn = it.get) && (desc.get = fn), __expectFn$7(fn = it.set) && (desc.set = fn), __expectFn$7(fn = it.init) && initializers.unshift(fn);
-  }
-  return k || __decoratorMetadata$7(array, target), desc && __defProp$7(target, name, desc), p ? k ^ 4 ? extra : desc : target;
-};
-var __publicField$7 = (obj, key, value) => __defNormalProp$7(obj, typeof key !== "symbol" ? key + "" : key, value);
-var __accessCheck$1 = (obj, member, msg) => member.has(obj) || __typeError$7("Cannot " + msg);
-var __privateIn$1 = (member, obj) => Object(obj) !== obj ? __typeError$7('Cannot use the "in" operator on this value') : member.has(obj);
-var __privateGet$1 = (obj, member, getter) => (__accessCheck$1(obj, member, "read from private field"), getter ? getter.call(obj) : member.get(obj));
-var __privateSet$1 = (obj, member, value, setter) => (__accessCheck$1(obj, member, "write to private field"), setter ? setter.call(obj, value) : member.set(obj, value), value);
-var __privateMethod$1 = (obj, member, method) => (__accessCheck$1(obj, member, "access private method"), method);
-var _aspect_dec, _fov_dec, _far_dec, _near_dec, _backgroundColor_dec, _a$6, _init$7;
-class CameraEvents {
-  static Updated = (camera) => {
-  };
-}
-const _Camera = class _Camera extends (_a$6 = Component, _backgroundColor_dec = [SerializeField], _near_dec = [SerializeField], _far_dec = [SerializeField], _fov_dec = [SerializeField], _aspect_dec = [SerializeField], _a$6) {
-  constructor(gameObject) {
-    super(gameObject);
-    __runInitializers$7(_init$7, 5, this);
-    __publicField$7(this, "backgroundColor", __runInitializers$7(_init$7, 8, this, new Color(0, 0, 0, 1))), __runInitializers$7(_init$7, 11, this);
-    __publicField$7(this, "projectionMatrix", new Matrix4());
-    __publicField$7(this, "projectionScreenMatrix", new Matrix4());
-    __publicField$7(this, "projectionViewMatrix", new Matrix4());
-    __publicField$7(this, "viewMatrix", new Matrix4());
-    __publicField$7(this, "frustum", new Frustum());
-    __publicField$7(this, "_near", 0.05);
-    __publicField$7(this, "_far", 1e3);
-    __publicField$7(this, "_fov", 60);
-    __publicField$7(this, "_aspect", window.innerWidth / window.innerHeight);
-    if (!_Camera.mainCamera) _Camera.mainCamera = this;
-  }
-  get near() {
-    return this._near;
-  }
-  set near(near) {
-    this.SetPerspective(this.fov, this.aspect, near, this.far);
-  }
-  get far() {
-    return this._far;
-  }
-  set far(far) {
-    this.SetPerspective(this.fov, this.aspect, this.near, far);
-  }
-  get fov() {
-    return this._fov;
-  }
-  set fov(fov) {
-    this.SetPerspective(fov, this.aspect, this.near, this.far);
-  }
-  get aspect() {
-    return this._aspect;
-  }
-  set aspect(aspect) {
-    this.SetPerspective(this.fov, aspect, this.near, this.far);
-  }
-  SetPerspective(fov, aspect, near, far) {
-    this._fov = fov;
-    this._aspect = aspect;
-    this._near = near;
-    this._far = far;
-    this.projectionMatrix.perspectiveZO(fov * (Math.PI / 180), aspect, near, far);
-  }
-  SetOrthographic(left, right, top, bottom, near, far) {
-    this.near = near;
-    this.far = far;
-    this.projectionMatrix.orthoZO(left, right, top, bottom, near, far);
-  }
-  Start() {
-    EventSystemLocal.on(TransformEvents.Updated, this.transform, () => {
-      EventSystem.emit(CameraEvents.Updated, this);
-    });
-  }
-  Update() {
-    this.viewMatrix.copy(this.transform.worldToLocalMatrix);
-    this.projectionScreenMatrix.multiplyMatrices(this.projectionMatrix, this.transform.worldToLocalMatrix);
-    this.frustum.setFromProjectionMatrix(this.projectionScreenMatrix);
-    this.projectionViewMatrix.multiplyMatrices(this.projectionMatrix, this.viewMatrix);
-  }
-};
-_init$7 = __decoratorStart$7(_a$6);
-__decorateElement$7(_init$7, 2, "near", _near_dec, _Camera);
-__decorateElement$7(_init$7, 2, "far", _far_dec, _Camera);
-__decorateElement$7(_init$7, 2, "fov", _fov_dec, _Camera);
-__decorateElement$7(_init$7, 2, "aspect", _aspect_dec, _Camera);
-__decorateElement$7(_init$7, 5, "backgroundColor", _backgroundColor_dec, _Camera);
-__decoratorMetadata$7(_init$7, _Camera);
-__publicField$7(_Camera, "type", "@trident/core/components/Camera");
-__publicField$7(_Camera, "mainCamera");
-let Camera = _Camera;
-Component.Registry.set(Camera.type, Camera);
 
 class BoundingVolume {
   min;
@@ -2081,11 +1677,11 @@ class Assets {
   }
 }
 
-var WGSL_Shader_Draw_URL = "#include \"@trident/core/resources/webgpu/shaders/deferred/Common.wgsl\";\n\nstruct VertexInput {\n    @builtin(instance_index) instance : u32, \n    @builtin(vertex_index) vertex : u32,\n    @location(0) position : vec3<f32>,\n    @location(1) normal : vec3<f32>,\n    @location(2) uv : vec2<f32>,\n\n    @location(3) tangent : vec4<f32>,\n    #if USE_SKINNING\n        @location(4) joints: vec4<u32>,\n        @location(5) weights: vec4<f32>,\n    #endif\n};\n\nstruct Material {\n    AlbedoColor: vec4<f32>,\n    EmissiveColor: vec4<f32>,\n    Roughness: f32,\n    Metalness: f32,\n    Unlit: f32,\n    AlphaCutoff: f32,\n    RepeatOffset: vec4<f32>, // xy = repeat, zw = offset\n};\n\nstruct VertexOutput {\n    @builtin(position) position : vec4<f32>,\n    @location(0) vPosition : vec3<f32>,\n    @location(1) vNormal : vec3<f32>,\n    @location(2) vUv : vec2<f32>,\n    @location(3) @interpolate(flat) instance : u32,\n    @location(4) tangent : vec3<f32>,\n    @location(5) bitangent : vec3<f32>,\n    @location(6) normal : vec3<f32>,\n};\n\n@group(0) @binding(0) var<storage, read> frameBuffer: FrameBuffer;\n@group(0) @binding(1) var<storage, read> modelMatrix: array<mat4x4<f32>>;\n@group(0) @binding(2) var<storage, read> material: Material;\n@group(0) @binding(3) var TextureSampler: sampler;\n\n// These get optimized out based on \"USE*\" defines\n@group(0) @binding(4) var AlbedoMap: texture_2d<f32>;\n@group(0) @binding(5) var NormalMap: texture_2d<f32>;\n@group(0) @binding(6) var HeightMap: texture_2d<f32>;\n@group(0) @binding(7) var ARMMap: texture_2d<f32>;\n@group(0) @binding(8) var EmissiveMap: texture_2d<f32>;\n\n\n#if USE_SKINNING\n    @group(1) @binding(0) var<storage, read> boneMatrices: array<mat4x4<f32>>;\n#endif\n\n@vertex\nfn vertexMain(input: VertexInput) -> VertexOutput {\n    var output : VertexOutput;\n\n      var finalPosition = vec4(input.position, 1.0);\n      var finalNormal = vec4(input.normal, 0.0);\n\n    #if USE_SKINNING\n        var skinnedPosition = vec4(0.0);\n        var skinnedNormal = vec4(0.0);\n\n        let skinMatrix: mat4x4<f32> = \n            boneMatrices[input.joints[0]] * input.weights[0] +\n            boneMatrices[input.joints[1]] * input.weights[1] +\n            boneMatrices[input.joints[2]] * input.weights[2] +\n            boneMatrices[input.joints[3]] * input.weights[3];\n        \n        finalPosition = skinMatrix * vec4(input.position, 1.0);\n        finalNormal   = normalize(skinMatrix * vec4(input.normal, 0.0));\n    #endif\n\n    let cameraPos = frameBuffer.viewInverseMatrix[3].xyz;\n\n    let modelMatrixInstance = modelMatrix[input.instance];\n    let modelViewMatrix = frameBuffer.viewMatrix * modelMatrixInstance;\n\n    let worldNormal = normalize(modelMatrixInstance * vec4(finalNormal.xyz, 0.0)).xyz;\n    let worldTangent = normalize(modelMatrixInstance * vec4(input.tangent.xyz, 0.0)).xyz;\n    let worldBitangent = cross(worldNormal, worldTangent) * input.tangent.w;\n\n    output.instance = input.instance;\n    output.position = frameBuffer.projectionMatrix * modelViewMatrix * vec4(finalPosition.xyz, 1.0);\n    output.vPosition = finalPosition.xyz;\n    output.vUv = input.uv;\n    \n    output.vNormal = worldNormal;\n    output.normal = finalNormal.xyz;\n    output.tangent = worldTangent;\n    output.bitangent = worldBitangent;\n\n    return output;\n}\n\nstruct FragmentOutput {\n    @location(0) albedo : vec4f,\n    @location(1) normal : vec4f,\n    @location(2) RMO : vec4f,\n};\n\nfn inversesqrt(v: f32) -> f32 {\n    return 1.0 / sqrt(v);\n}\n\n@fragment\nfn fragmentMain(@builtin(front_facing) isFrontFace: bool, input: VertexOutput) -> FragmentOutput {\n    var output: FragmentOutput;\n\n\n    let mat = material;\n\n    var uv = input.vUv * mat.RepeatOffset.xy + mat.RepeatOffset.zw;\n\n    var albedo = mat.AlbedoColor;\n    var roughness = mat.Roughness;\n    var metalness = mat.Metalness;\n    var occlusion = 1.0;\n\n    // var albedo = mat.AlbedoColor;\n    albedo *= textureSample(AlbedoMap, TextureSampler, uv);\n\n    if (albedo.a < mat.AlphaCutoff) {\n        discard;\n    }\n\n    var normal: vec3f = normalize(input.vNormal);\n    var tbn: mat3x3<f32>;\n    tbn[0] = input.tangent;      // column-major: T, B, N\n    tbn[1] = input.bitangent;\n    tbn[2] = input.vNormal;\n    if (!isFrontFace) {\n        // tbn[0] = -tbn[0];\n        tbn[1] = -tbn[1];\n        tbn[2] = -tbn[2];\n    }\n    let normalSample = textureSample(NormalMap, TextureSampler, uv).xyz * 2.0 - 1.0;\n    normal = normalize(tbn * normalSample);\n\n    let metalnessRoughness = textureSample(ARMMap, TextureSampler, uv);\n\n    // occlusion *= metalnessRoughness.r;\n    roughness *= metalnessRoughness.g;\n    metalness *= metalnessRoughness.b;\n\n    // // Unity style - Mask map MT(R) AO(G) SM(A)\n    // metalness *= metalnessRoughness.r;\n    // occlusion *= metalnessRoughness.g; \n    // roughness *= metalnessRoughness.a;\n\n\n    var emissive = mat.EmissiveColor;\n    emissive *= textureSample(EmissiveMap, TextureSampler, uv);\n\n    output.albedo = vec4(albedo.rgb, roughness);\n    output.normal = vec4(OctEncode(normal.xyz), occlusion, metalness);\n    output.RMO = vec4(emissive.rgb, mat.Unlit);\n\n\n    // // Flat shading\n    // let xTangent: vec3f = dpdx( input.vPosition );\n    // let yTangent: vec3f = dpdy( input.vPosition );\n    // let faceNormal: vec3f = normalize( cross( xTangent, yTangent ) );\n\n    // output.normal = vec4(OctEncode(faceNormal.xyz), occlusion, metalness);\n\n    return output;\n}";
+var WGSL_Shader_Draw_URL = "#include \"@trident/core/resources/webgpu/shaders/deferred/Common.wgsl\";\n\nstruct VertexInput {\n    @builtin(instance_index) instance : u32, \n    @builtin(vertex_index) vertex : u32,\n    @location(0) position : vec3<f32>,\n    @location(1) normal : vec3<f32>,\n    @location(2) uv : vec2<f32>,\n\n    @location(3) tangent : vec4<f32>,\n    #if USE_SKINNING\n        @location(4) joints: vec4<u32>,\n        @location(5) weights: vec4<f32>,\n    #endif\n};\n\nstruct Material {\n    AlbedoColor: vec4<f32>,\n    EmissiveColor: vec4<f32>,\n    Roughness: f32,\n    Metalness: f32,\n    Unlit: f32,\n    AlphaCutoff: f32,\n    RepeatOffset: vec4<f32>, // xy = repeat, zw = offset\n};\n\nstruct VertexOutput {\n    @builtin(position) position : vec4<f32>,\n    @location(0) vPosition : vec3<f32>,\n    @location(1) vNormal : vec3<f32>,\n    @location(2) vUv : vec2<f32>,\n    @location(3) @interpolate(flat) instance : u32,\n    @location(4) tangent : vec3<f32>,\n    @location(5) bitangent : vec3<f32>,\n    @location(6) normal : vec3<f32>,\n};\n\n@group(0) @binding(0) var<storage, read> frameBuffer: FrameBuffer;\n@group(0) @binding(1) var<storage, read> modelMatrix: array<mat4x4<f32>>;\n@group(0) @binding(2) var<storage, read> material: Material;\n@group(0) @binding(3) var TextureSampler: sampler;\n\n// These get optimized out based on \"USE*\" defines\n@group(0) @binding(4) var AlbedoMap: texture_2d<f32>;\n@group(0) @binding(5) var NormalMap: texture_2d<f32>;\n@group(0) @binding(6) var HeightMap: texture_2d<f32>;\n@group(0) @binding(7) var ARMMap: texture_2d<f32>;\n@group(0) @binding(8) var EmissiveMap: texture_2d<f32>;\n\n\n#if USE_SKINNING\n    @group(1) @binding(0) var<storage, read> boneMatrices: array<mat4x4<f32>>;\n#endif\n\n@vertex\nfn vertexMain(input: VertexInput) -> VertexOutput {\n    var output : VertexOutput;\n\n      var finalPosition = vec4(input.position, 1.0);\n      var finalNormal = vec4(input.normal, 0.0);\n\n    #if USE_SKINNING\n        var skinnedPosition = vec4(0.0);\n        var skinnedNormal = vec4(0.0);\n\n        let skinMatrix: mat4x4<f32> = \n            boneMatrices[input.joints[0]] * input.weights[0] +\n            boneMatrices[input.joints[1]] * input.weights[1] +\n            boneMatrices[input.joints[2]] * input.weights[2] +\n            boneMatrices[input.joints[3]] * input.weights[3];\n        \n        finalPosition = skinMatrix * vec4(input.position, 1.0);\n        finalNormal   = normalize(skinMatrix * vec4(input.normal, 0.0));\n    #endif\n\n    let cameraPos = frameBuffer.viewInverseMatrix[3].xyz;\n\n    let modelMatrixInstance = modelMatrix[input.instance];\n    let modelViewMatrix = frameBuffer.viewMatrix * modelMatrixInstance;\n\n    let worldNormal = normalize(modelMatrixInstance * vec4(finalNormal.xyz, 0.0)).xyz;\n    let worldTangent = normalize(modelMatrixInstance * vec4(input.tangent.xyz, 0.0)).xyz;\n    let worldBitangent = cross(worldNormal, worldTangent) * input.tangent.w;\n\n    output.instance = input.instance;\n    output.position = frameBuffer.projectionMatrix * modelViewMatrix * vec4(finalPosition.xyz, 1.0);\n    output.vPosition = finalPosition.xyz;\n    output.vUv = input.uv;\n    \n    output.vNormal = worldNormal;\n    output.normal = finalNormal.xyz;\n    output.tangent = worldTangent;\n    output.bitangent = worldBitangent;\n\n    return output;\n}\n\nstruct FragmentOutput {\n    @location(0) albedo : vec4f,\n    @location(1) normal : vec4f,\n    @location(2) RMO : vec4f,\n};\n\nfn inversesqrt(v: f32) -> f32 {\n    return 1.0 / sqrt(v);\n}\n\nfn CalcMipLevel(texture_coord: vec2f) -> f32 {\n    let dx = dpdx(texture_coord);\n    let dy = dpdy(texture_coord);\n    let delta_max_sqr = max(dot(dx, dx), dot(dy, dy));\n    \n    return max(0.0, 0.5 * log2(delta_max_sqr));\n}\n\n  fn hash12(p: vec2<f32>) -> f32 {\n      let p3 = fract(vec3<f32>(p.xyx) * 0.1031);\n      let q = p3 + dot(p3, p3.yzx + 33.33);\n      return fract((q.x + q.y) * q.z);\n  }\n\n@fragment\nfn fragmentMain(@builtin(front_facing) isFrontFace: bool, input: VertexOutput) -> FragmentOutput {\n    var output: FragmentOutput;\n\n\n    let mat = material;\n\n    var uv = input.vUv * mat.RepeatOffset.xy + mat.RepeatOffset.zw;\n\n    var albedo = mat.AlbedoColor;\n    var roughness = mat.Roughness;\n    var metalness = mat.Metalness;\n    var occlusion = 1.0;\n\n    // var albedo = mat.AlbedoColor;\n    albedo *= textureSample(AlbedoMap, TextureSampler, uv);\n\n\n    // https://bgolus.medium.com/anti-aliased-alpha-test-the-esoteric-alpha-to-coverage-8b177335ae4f\n    if (mat.AlphaCutoff > 0.0) {\n        let _Cutoff = 0.4;\n        let _MipScale = 0.25;\n        let _AlbedoMapSize = vec2<f32>(textureDimensions(AlbedoMap));\n\n        var alpha = albedo.a;\n\n        alpha *= 1.0 + max(0.0, CalcMipLevel(uv * _AlbedoMapSize)) * _MipScale;\n        alpha = (alpha - mat.AlphaCutoff) / max(fwidth(alpha), 0.0001) + 0.5;\n\n        if (alpha < 0.5) {\n            discard;\n        }\n    }\n\n    // if (albedo.a < mat.AlphaCutoff) {\n    //     discard;\n    // }\n\n    var normal: vec3f = normalize(input.vNormal);\n    var tbn: mat3x3<f32>;\n    tbn[0] = input.tangent;      // column-major: T, B, N\n    tbn[1] = input.bitangent;\n    tbn[2] = input.vNormal;\n    if (!isFrontFace) {\n        // tbn[0] = -tbn[0];\n        tbn[1] = -tbn[1];\n        tbn[2] = -tbn[2];\n    }\n    let normalSample = textureSample(NormalMap, TextureSampler, uv).xyz * 2.0 - 1.0;\n    normal = normalize(tbn * normalSample);\n\n    let metalnessRoughness = textureSample(ARMMap, TextureSampler, uv);\n\n    // occlusion *= metalnessRoughness.r;\n    roughness *= metalnessRoughness.g;\n    metalness *= metalnessRoughness.b;\n\n    // // Unity style - Mask map MT(R) AO(G) SM(A)\n    // metalness *= metalnessRoughness.r;\n    // occlusion *= metalnessRoughness.g; \n    // roughness *= metalnessRoughness.a;\n\n\n    var emissive = mat.EmissiveColor;\n    emissive *= textureSample(EmissiveMap, TextureSampler, uv);\n\n    output.albedo = vec4(albedo.rgb, roughness);\n    output.normal = vec4(OctEncode(normal.xyz), occlusion, metalness);\n    output.RMO = vec4(emissive.rgb, mat.Unlit);\n\n\n    // // Flat shading\n    // let xTangent: vec3f = dpdx( input.vPosition );\n    // let yTangent: vec3f = dpdy( input.vPosition );\n    // let faceNormal: vec3f = normalize( cross( xTangent, yTangent ) );\n\n    // output.normal = vec4(OctEncode(faceNormal.xyz), occlusion, metalness);\n\n    return output;\n}";
 
 var WGSL_Shader_DeferredLighting_URL = "#include \"@trident/core/resources/webgpu/shaders/deferred/Common.wgsl\";\n#include \"@trident/core/resources/webgpu/shaders/deferred/SurfaceStruct.wgsl\";\n#include \"@trident/core/resources/webgpu/shaders/deferred/LightStruct.wgsl\";\n#include \"@trident/core/resources/webgpu/shaders/deferred/ShadowMap.wgsl\";\n#include \"@trident/core/resources/webgpu/shaders/deferred/ShadowMapCSM.wgsl\";\n\nstruct Settings {\n    debugDepthPass: f32,\n    debugDepthMipLevel: f32,\n    debugDepthExposure: f32,\n    viewType: f32,\n    useHeightMap: f32,\n    heightScale: f32,\n\n    debugShadowCascades: f32,\n    pcfResolution: f32,\n    blendThreshold: f32,\n    viewBlendThreshold: f32,\n\n    cameraPosition: vec4<f32>,\n};\n\nstruct VertexInput {\n    @builtin(instance_index) instance : u32, \n    @location(0) position : vec3<f32>,\n    @location(1) normal : vec3<f32>,\n    @location(2) uv : vec2<f32>,\n};\n\nstruct VertexOutput {\n    @builtin(position) position: vec4<f32>,\n    @location(0) vUv: vec2<f32>,\n    @location(1) @interpolate(flat) lightIndex: u32,\n};\n\n@group(0) @binding(0) var textureSampler: sampler;\n\n@group(0) @binding(1) var albedoTexture: texture_2d<f32>;\n@group(0) @binding(2) var normalTexture: texture_2d<f32>;\n@group(0) @binding(3) var ermoTexture: texture_2d<f32>;\n@group(0) @binding(4) var depthTexture: texture_depth_2d;\n@group(0) @binding(5) var shadowPassDepth: texture_depth_2d_array;\n\n@group(0) @binding(6) var<storage, read> lights: array<Light>;\n@group(0) @binding(7) var<storage, read> lightCount: u32;\n\nstruct View {\n    projectionOutputSize: vec4<f32>,\n    viewPosition: vec4<f32>,\n    projectionInverseMatrix: mat4x4<f32>,\n    viewInverseMatrix: mat4x4<f32>,\n    viewMatrix: mat4x4<f32>,\n    projectionMatrix: mat4x4<f32>,\n};\n@group(0) @binding(8) var<storage, read> view: View;\n\n\nconst numCascades = 4;\n\n@group(0) @binding(9) var shadowSamplerComp: sampler_comparison;\n\n@group(0) @binding(10) var<storage, read> settings: Settings;\n\n@vertex\nfn vertexMain(input: VertexInput) -> VertexOutput {\n    var output: VertexOutput;\n    let light = lights[input.instance];\n    let lightType = u32(light.color.a);\n\n    output.position = view.projectionMatrix * view.viewMatrix * light.lightModelMatrix * vec4(input.position, 1.0);\n    if (lightType == DIRECTIONAL_LIGHT) {\n        // Flip X so the quad becomes back-facing (survives front-face cull).\n        // Place it at the far plane so it passes depthCompare \"greater-equal\".\n        output.position = vec4(-input.position.x, input.position.y, 1.0, 1.0);\n    }\n\n    output.vUv = input.uv;\n    output.lightIndex = input.instance;\n    return output;\n}\n\nconst PI = 3.141592653589793;\n\nconst SPOT_LIGHT: u32 = 0;\nconst DIRECTIONAL_LIGHT: u32 = 1;\nconst POINT_LIGHT: u32 = 2;\nconst AREA_LIGHT: u32 = 3;\n\nfn reconstructWorldPosFromZ(\n    coords: vec2<f32>,\n    size: vec2<f32>,\n    depth: f32,\n    projInverse: mat4x4<f32>,\n    viewInverse: mat4x4<f32>\n    ) -> vec4<f32> {\n    let uv = coords.xy / size;\n    let x = uv.x * 2.0 - 1.0;\n    let y = (1.0 - uv.y) * 2.0 - 1.0;\n    let projectedPos = vec4(x, y, depth, 1.0);\n    var worldPosition = projInverse * projectedPos;\n    worldPosition = vec4(worldPosition.xyz / worldPosition.w, 1.0);\n    worldPosition = viewInverse * worldPosition;\n    return worldPosition;\n}\n\nfn DistributionGGX(n: vec3f, h: vec3f, roughness: f32) -> f32 {\n  let a = roughness * roughness;\n  let a2 = a * a;\n  let nDotH = max(dot(n, h), 0.0);\n  let nDotH2 = nDotH * nDotH;\n  var denom = (nDotH2 * (a2 - 1.0) + 1.0);\n  denom = PI * denom * denom;\n  return a2 / denom;\n}\n\nfn GeometrySchlickGGX(nDotV: f32, roughness: f32) -> f32 {\n  let r = (roughness + 1.0);\n  let k = (r * r) / 8.0;\n  return nDotV / (nDotV * (1.0 - k) + k);\n}\n\nfn GeometrySmith(n: vec3f, v: vec3f, l: vec3f, roughness: f32) -> f32 {\n  let nDotV = max(dot(n, v), 0.0);\n  let nDotL = max(dot(n, l), 0.0);\n  let ggx2 = GeometrySchlickGGX(nDotV, roughness);\n  let ggx1 = GeometrySchlickGGX(nDotL, roughness);\n  return ggx1 * ggx2;\n}\n\nfn FresnelSchlick(cosTheta: f32, f0: vec3f) -> vec3f {\n  return f0 + (1.0 - f0) * pow(clamp(1.0 - cosTheta, 0.0, 1.0), 5.0);\n}\n\nfn CalculateBRDF(surface: Surface, pointToLight: vec3<f32>) -> vec3<f32> {\n    // cook-torrance brdf\n    let L = normalize(pointToLight);\n    let H = normalize(surface.V + L);\n    let distance = length(pointToLight);\n\n    let NDF = DistributionGGX(surface.N, H, surface.roughness);\n    let G = GeometrySmith(surface.N, surface.V, L, surface.roughness);\n    let F = FresnelSchlick(max(dot(H, surface.V), 0.0), surface.F0);\n\n    let kD = (vec3(1.0, 1.0, 1.0) - F) * (1.0 - surface.metallic);\n\n    let NdotL = max(dot(surface.N, L), 0.0);\n\n    let numerator = NDF * G * F;\n    let denominator = max(4.0 * max(dot(surface.N, surface.V), 0.0) * NdotL, 0.001);\n    let specular = numerator / vec3(denominator, denominator, denominator);\n\n    return (kD * surface.albedo.rgb / vec3(PI, PI, PI) + specular) * NdotL;\n}\n\nfn DirectionalLightRadiance(light: DirectionalLight, surface : Surface) -> vec3<f32> {\n    return CalculateBRDF(surface, light.direction) * light.color * light.intensity;\n}\n\nfn rangeAttenuation(range : f32, distance : f32) -> f32 {\n    if (range <= 0.0) {\n        // Negative range means no cutoff\n        return 1.0 / pow(distance, 2.0);\n    }\n    return clamp(1.0 - pow(distance / range, 4.0), 0.0, 1.0) / pow(distance, 2.0);\n}\n\nfn SpotLightRadiance(light : SpotLight, surface : Surface) -> vec3<f32> {\n    // pointToLight is SURFACE -> LIGHT (as you already set)\n    let dist = length(light.pointToLight);\n\n    // For cone test we need LIGHT -> SURFACE\n    let L_ls = normalize(-light.pointToLight);   // light -> surface\n    let cd   = dot(light.direction, L_ls);       // cos(theta), 1 at center\n\n    // Smooth falloff from edge to center: 0 at cos(angle), 1 at 1.0\n    let spot = smoothstep(cos(light.angle), 1.0, cd);\n\n    // Range attenuation as you have it\n    let attenuation = rangeAttenuation(light.range, dist) * spot;\n\n    // BRDF usually expects wi = SURFACE -> LIGHT\n    let wi = -L_ls; // (surface -> light)\n    let radiance = CalculateBRDF(surface, wi) * light.color * light.intensity * attenuation;\n    return radiance;\n}\n\nfn PointLightRadiance(light: PointLight, surface: Surface) -> vec3<f32> {\n    let dist = length(light.pointToLight);\n    let wi   = normalize(light.pointToLight);        // surface -> light\n    let att  = rangeAttenuation(light.range, dist);  // your smooth cutoff / r^2\n    return CalculateBRDF(surface, wi) * light.color * light.intensity * att;\n}\n\n@fragment\nfn fragmentMain(input: VertexOutput) -> @location(0) vec4<f32> {\n    // Load depth once\n    let pix = vec2<i32>(input.position.xy);\n    let depth = textureLoad(depthTexture, pix, 0);\n\n    if (depth > 0.99999) {\n        discard;\n    }\n\n    let fragCoord = input.position.xy;\n    let screenSize = view.projectionOutputSize.xy;\n\n    let uv = fragCoord / screenSize;\n\n    let worldPosition = reconstructWorldPosFromZ(\n        input.position.xy,\n        view.projectionOutputSize.xy,\n        depth,\n        view.projectionInverseMatrix,\n        view.viewInverseMatrix\n    );\n\n    let albedo = textureLoad(albedoTexture, pix, 0);\n    var normal = textureLoad(normalTexture, pix, 0);\n    let ermo   = textureLoad(ermoTexture,   pix, 0);\n\n\n    let unlit = ermo.a;\n\n    if (unlit > 0.5) {\n        var color = albedo.rgb;\n        return vec4f(color, 1.0);\n    }\n\n    var surface: Surface;\n    surface.depth          = depth;\n    surface.albedo         = albedo.rgb;\n    surface.roughness      = clamp(albedo.a, 0.0, 0.99);\n    surface.occlusion      = normal.z;\n    surface.metallic       = normal.a;\n    surface.emissive       = ermo.rgb;\n    surface.worldPosition  = worldPosition.xyz;\n    \n    surface.N = OctDecode(normal.rg);\n    surface.F0             = mix(vec3(0.04), surface.albedo.rgb, vec3(surface.metallic));\n    surface.V              = normalize(view.viewPosition.xyz - surface.worldPosition);\n\n    var lo = vec3f(0.0);\n    var selectedCascade = 0;\n\n    var light = lights[input.lightIndex];\n    let lightType = u32(light.color.a);\n\n    if (lightType == DIRECTIONAL_LIGHT) {\n        var directionalLight: DirectionalLight;\n        directionalLight.direction = normalize((light.viewMatrixInverse * vec4(0.0, 0.0, 1.0, 0.0)).xyz);\n        // directionalLight.direction = light.direction.xyz;\n        directionalLight.color = light.color.rgb;\n        directionalLight.intensity = light.params1.x;\n\n        let castShadows = light.params1.z > 0.5;\n        var shadow = 1.0;\n        if (castShadows) {\n            let shadowCSM = CalculateShadowCSM(shadowPassDepth, shadowSamplerComp, surface, light, input.lightIndex);\n            shadow = shadowCSM.visibility;\n            selectedCascade = shadowCSM.selectedCascade;\n        }\n\n        // lo += shadow * DirectionalLightRadiance(directionalLight, surface) * radiance;\n        lo += shadow * DirectionalLightRadiance(directionalLight, surface);\n    }\n\n    else if (lightType == SPOT_LIGHT) {\n        var spotLight: SpotLight;\n        \n        // light.position.x *= -1.0;\n        // light.position.z *= -1.0;\n        spotLight.pointToLight = light.position.xyz - surface.worldPosition;\n        spotLight.color = light.color.rgb;\n        spotLight.intensity = light.params1.r;\n        spotLight.range = light.params1.g;\n        spotLight.direction = normalize((light.viewMatrixInverse * vec4(0.0, 0.0, -1.0, 0.0)).xyz);\n        // spotLight.direction = normalize(light.params2.xyz);\n        // spotLight.direction = light.direction.xyz;\n        spotLight.angle = light.params2.w;\n\n        let castShadows = light.params1.z > 0.5;\n        var shadow = 1.0;\n        if (castShadows) {\n            let shadowCSM = CalculateShadowCSMSpot(shadowPassDepth, shadowSamplerComp, surface, light, input.lightIndex);\n            shadow = shadowCSM.visibility;\n            selectedCascade = shadowCSM.selectedCascade;\n            // shadow = SampleSpotShadowMap(surface, light); // <— single 2D map on this layer\n\n        }\n\n        lo += shadow * SpotLightRadiance(spotLight, surface);\n    }\n\n    else if (lightType == POINT_LIGHT) {\n        var p: PointLight;\n        p.pointToLight = light.position.xyz - surface.worldPosition;\n        p.color        = light.color.rgb;\n        p.intensity    = light.params1.x;\n        p.range        = light.params1.y;\n\n        var shadow = 1.0;\n        let castShadows = light.params1.z > 0.5;\n        // if (castShadows) {\n        //     shadow = SamplePointShadow(surface, light, i);\n        // }\n\n        lo += shadow * PointLightRadiance(p, surface);\n    }\n\n    return vec4f(lo, 0.0);\n}";
 
-var WGSL_Shader_IBLLighting_URL = "#include \"@trident/core/resources/webgpu/shaders/deferred/Common.wgsl\";\n#include \"@trident/core/resources/webgpu/shaders/deferred/SurfaceStruct.wgsl\";\n\nstruct VertexOutput {\n    @builtin(position) position: vec4<f32>,\n    @location(0) vUv: vec2<f32>,\n};\n\n@group(0) @binding(0) var textureSampler: sampler;\n\n@group(0) @binding(1) var albedoTexture: texture_2d<f32>;\n@group(0) @binding(2) var normalTexture: texture_2d<f32>;\n@group(0) @binding(3) var ermoTexture: texture_2d<f32>;\n@group(0) @binding(4) var depthTexture: texture_depth_2d;\n\n@group(0) @binding(7) var skyboxIrradianceTexture: texture_cube<f32>;\n@group(0) @binding(8) var skyboxPrefilterTexture: texture_cube<f32>;\n@group(0) @binding(9) var skyboxBRDFLUT: texture_2d<f32>;\n\n@group(0) @binding(10) var brdfSampler: sampler;\n@group(0) @binding(11) var skybox: texture_cube<f32>;\n\nstruct View {\n    projectionOutputSize: vec4<f32>,\n    viewPosition: vec4<f32>,\n    projectionInverseMatrix: mat4x4<f32>,\n    viewInverseMatrix: mat4x4<f32>,\n    viewMatrix: mat4x4<f32>,\n    projectionMatrix: mat4x4<f32>,\n};\n@group(0) @binding(13) var<storage, read> view: View;\n\n\n// Full-screen triangle (covers screen with 3 verts)\nconst p = array<vec2f, 3>(\n    vec2f(-1.0, -1.0),\n    vec2f( 3.0, -1.0),\n    vec2f(-1.0,  3.0)\n);\n\n@vertex\nfn vertexMain(@builtin(vertex_index) vertexIndex : u32) -> VertexOutput {\n    var output: VertexOutput;\n    output.position = vec4(p[vertexIndex], 0.0, 1.0);\n    let uv = 0.5 * (p[vertexIndex] + vec2f(1.0, 1.0));\n    output.vUv = vec2f(uv.x, 1.0 - uv.y);\n    return output;\n}\n\nfn reconstructWorldPosFromZ(\n    coords: vec2<f32>,\n    size: vec2<f32>,\n    depth: f32,\n    projInverse: mat4x4<f32>,\n    viewInverse: mat4x4<f32>\n    ) -> vec4<f32> {\n    let uv = coords.xy / size;\n    let x = uv.x * 2.0 - 1.0;\n    let y = (1.0 - uv.y) * 2.0 - 1.0;\n    let projectedPos = vec4(x, y, depth, 1.0);\n    var worldPosition = projInverse * projectedPos;\n    worldPosition = vec4(worldPosition.xyz / worldPosition.w, 1.0);\n    worldPosition = viewInverse * worldPosition;\n    return worldPosition;\n}\n\nfn FresnelSchlick(cosTheta: f32, f0: vec3f) -> vec3f {\n  return f0 + (1.0 - f0) * pow(clamp(1.0 - cosTheta, 0.0, 1.0), 5.0);\n}\n\nfn FresnelSchlickRoughness(cosTheta: f32, f0: vec3f, roughness: f32) -> vec3f {\n  return f0 + (max(vec3(1.0 - roughness), f0) - f0) * pow(clamp(1.0 - cosTheta, 0.0, 1.0), 5.0);\n}\n\nfn clampedDot(x: vec3f, y: vec3f) -> f32\n{\n    return clamp(dot(x, y), 0.0, 1.0);\n}\n\nfn getIBLGGXFresnel(n: vec3f, v: vec3f, roughness: f32, F0: vec3f, specularWeight: f32) -> vec3f\n{\n    // see https://bruop.github.io/ibl/#single_scattering_results at Single Scattering Results\n    // Roughness dependent fresnel, from Fdez-Aguera\n    let NdotV = clampedDot(n, v);\n    let brdfSamplePoint = clamp(vec2(NdotV, roughness), vec2(0.0, 0.0), vec2(1.0, 1.0));\n    // let f_ab = texture(u_GGXLUT, brdfSamplePoint).rg;\n    let f_ab = textureSample(skyboxBRDFLUT, textureSampler, brdfSamplePoint).rg;\n    let Fr = max(vec3(1.0 - roughness), F0) - F0;\n    let k_S = F0 + Fr * pow(1.0 - NdotV, 5.0);\n    let FssEss = specularWeight * (k_S * f_ab.x + f_ab.y);\n\n    // Multiple scattering, from Fdez-Aguera\n    let Ems = (1.0 - (f_ab.x + f_ab.y));\n    let F_avg = specularWeight * (F0 + (1.0 - F0) / 21.0);\n    let FmsEms = Ems * FssEss * F_avg / (1.0 - F_avg * Ems);\n\n    return FssEss + FmsEms;\n}\n\nconst PI = 3.141592653589793;\n\n@fragment\nfn fragmentMain(input: VertexOutput) -> @location(0) vec4<f32> {\n    let uv = input.vUv;\n\n    let pix = vec2<i32>(input.position.xy);\n    let albedo = textureLoad(albedoTexture, pix, 0);\n    let normal = textureLoad(normalTexture, pix, 0);\n    let ermo   = textureLoad(ermoTexture,   pix, 0);\n    let depth  = textureLoad(depthTexture,  pix, 0);    \n\n    let worldPosition = reconstructWorldPosFromZ(\n        input.position.xy,\n        view.projectionOutputSize.xy,\n        depth,\n        view.projectionInverseMatrix,\n        view.viewInverseMatrix\n    );\n\n    var surface: Surface;\n    surface.depth          = depth;\n    surface.albedo         = albedo.rgb;\n    surface.roughness      = clamp(albedo.a, 0.01, 0.99);\n    surface.occlusion      = normal.z;\n    surface.metallic       = normal.a;\n    surface.emissive       = ermo.rgb;\n    surface.worldPosition  = worldPosition.xyz;\n    \n    surface.N              = OctDecode(normal.rg);\n    surface.F0             = mix(vec3(0.04), surface.albedo.rgb, vec3(surface.metallic));\n    surface.V              = normalize(view.viewPosition.xyz - surface.worldPosition);\n\n\n    let n = surface.N;\n    let v = surface.V;\n    let r = reflect(-v, n);\n\n    // let irradiance = textureSample(skyboxIrradianceTexture, textureSampler, n).rgb;\n    // let diffuse = irradiance * surface.albedo.xyz;\n\n    // let f = FresnelSchlickRoughness(max(dot(n, v), 0.00001), surface.F0, surface.roughness);\n    // let kS = f;\n    // var kD = vec3f(1.0) - kS;\n    // kD *= 1.0 - surface.metallic;\n\n    // let MAX_REFLECTION_LOD = f32(textureNumLevels(skyboxPrefilterTexture) - 1u);\n    // let prefilteredColor = textureSampleLevel(skyboxPrefilterTexture, textureSampler, r, surface.roughness * MAX_REFLECTION_LOD).rgb;\n    // let brdf = textureSample(skyboxBRDFLUT, brdfSampler, vec2f(max(dot(n, v), 0.0), surface.roughness)).rg;\n    // let specular = prefilteredColor * (f * brdf.x + brdf.y);\n\n    // let ambient = kD * diffuse * (1.0 - surface.occlusion) + specular;\n\n    // let color = ambient + surface.emissive;\n\n\n    // return vec4f(color, 1.0);\n    \n    // let f_diffuse = diffuse;\n    // let f_metal_fresnel_ibl = getIBLGGXFresnel(n, v, surface.roughness, surface.albedo.rgb, 1.0);\n    // let f_metal_brdf_ibl = vec3f(0.0);\n\n    // let f_specular_dielectric = vec3f(0.0);\n    // let specularWeight = 1.0;\n    // let f_dielectric_fresnel_ibl = getIBLGGXFresnel(n, v, surface.roughness, surface.F0, specularWeight);\n    // let f_dielectric_brdf_ibl = mix(f_diffuse, f_specular_dielectric,  f_dielectric_fresnel_ibl);\n\n    // let color = mix(f_dielectric_brdf_ibl, f_metal_brdf_ibl, surface.metallic) + surface.emissive;\n\n    // return vec4f(color, 1.0);\n\n\n\n\n\n\n  let NdotV = max(dot(n, v), 0.0);\n\n  let MAX_REFLECTION_LOD = f32(textureNumLevels(skyboxPrefilterTexture) - 1u);\n  let prefiltered = textureSampleLevel(\n      skyboxPrefilterTexture,\n      textureSampler,\n      r,\n      surface.roughness * MAX_REFLECTION_LOD\n  ).rgb;\n\n  let brdf = textureSample(\n      skyboxBRDFLUT,\n      brdfSampler,\n      vec2f(NdotV, surface.roughness)\n  ).rg;\n\n  // diffuse from irradiance\n  let irradiance = textureSample(skyboxIrradianceTexture, textureSampler, n).rgb;\n  let diffuse = irradiance * surface.albedo;\n\n  // fresnel term (glTF-style)\n  let f_metal_fresnel_ibl = getIBLGGXFresnel(n, v, surface.roughness, surface.albedo, 1.0);\n  let f_metal_brdf_ibl = prefiltered * f_metal_fresnel_ibl;\n\n  // dielectrics: F0 is ~0.04\n  let specularWeight = 1.0;\n  let f_dielectric_fresnel_ibl = getIBLGGXFresnel(n, v, surface.roughness, surface.F0, specularWeight);\n  let f_dielectric_brdf_ibl = mix(diffuse, prefiltered * f_dielectric_fresnel_ibl, f_dielectric_fresnel_ibl);\n\n  var color = mix(f_dielectric_brdf_ibl, f_metal_brdf_ibl, surface.metallic) + surface.emissive;\n\n  let occlusionStrength = 1.0; // match glTF default\n  color = color * (1.0 + occlusionStrength * (surface.occlusion - 1.0));\n\n\n  let ao = mix(1.0, surface.occlusion, occlusionStrength);\n  let indirectDiffuse  = irradiance * surface.albedo * ao;\n  color = mix(f_dielectric_brdf_ibl, f_metal_brdf_ibl, surface.metallic) * ao + surface.emissive;\n\n  \n\n  return vec4f(color, 1.0);\n}\n";
+var WGSL_Shader_IBLLighting_URL = "#include \"@trident/core/resources/webgpu/shaders/deferred/Common.wgsl\";\n#include \"@trident/core/resources/webgpu/shaders/deferred/SurfaceStruct.wgsl\";\n\nstruct VertexOutput {\n    @builtin(position) position: vec4<f32>,\n    @location(0) vUv: vec2<f32>,\n};\n\n@group(0) @binding(0) var textureSampler: sampler;\n\n@group(0) @binding(1) var albedoTexture: texture_2d<f32>;\n@group(0) @binding(2) var normalTexture: texture_2d<f32>;\n@group(0) @binding(3) var ermoTexture: texture_2d<f32>;\n@group(0) @binding(4) var depthTexture: texture_depth_2d;\n\n@group(0) @binding(7) var skyboxIrradianceTexture: texture_cube<f32>;\n@group(0) @binding(8) var skyboxPrefilterTexture: texture_cube<f32>;\n@group(0) @binding(9) var skyboxBRDFLUT: texture_2d<f32>;\n\n@group(0) @binding(10) var brdfSampler: sampler;\n@group(0) @binding(11) var skybox: texture_cube<f32>;\n\nstruct View {\n    projectionOutputSize: vec4<f32>,\n    viewPosition: vec4<f32>,\n    projectionInverseMatrix: mat4x4<f32>,\n    viewInverseMatrix: mat4x4<f32>,\n    viewMatrix: mat4x4<f32>,\n    projectionMatrix: mat4x4<f32>,\n};\n@group(0) @binding(13) var<storage, read> view: View;\n\n\n// Full-screen triangle (covers screen with 3 verts)\nconst p = array<vec2f, 3>(\n    vec2f(-1.0, -1.0),\n    vec2f( 3.0, -1.0),\n    vec2f(-1.0,  3.0)\n);\n\n@vertex\nfn vertexMain(@builtin(vertex_index) vertexIndex : u32) -> VertexOutput {\n    var output: VertexOutput;\n    output.position = vec4(p[vertexIndex], 0.0, 1.0);\n    let uv = 0.5 * (p[vertexIndex] + vec2f(1.0, 1.0));\n    output.vUv = vec2f(uv.x, 1.0 - uv.y);\n    return output;\n}\n\nfn reconstructWorldPosFromZ(\n    coords: vec2<f32>,\n    size: vec2<f32>,\n    depth: f32,\n    projInverse: mat4x4<f32>,\n    viewInverse: mat4x4<f32>\n    ) -> vec4<f32> {\n    let uv = coords.xy / size;\n    let x = uv.x * 2.0 - 1.0;\n    let y = (1.0 - uv.y) * 2.0 - 1.0;\n    let projectedPos = vec4(x, y, depth, 1.0);\n    var worldPosition = projInverse * projectedPos;\n    worldPosition = vec4(worldPosition.xyz / worldPosition.w, 1.0);\n    worldPosition = viewInverse * worldPosition;\n    return worldPosition;\n}\n\nfn FresnelSchlick(cosTheta: f32, f0: vec3f) -> vec3f {\n  return f0 + (1.0 - f0) * pow(clamp(1.0 - cosTheta, 0.0, 1.0), 5.0);\n}\n\nfn FresnelSchlickRoughness(cosTheta: f32, f0: vec3f, roughness: f32) -> vec3f {\n  return f0 + (max(vec3(1.0 - roughness), f0) - f0) * pow(clamp(1.0 - cosTheta, 0.0, 1.0), 5.0);\n}\n\nfn clampedDot(x: vec3f, y: vec3f) -> f32\n{\n    return clamp(dot(x, y), 0.0, 1.0);\n}\n\nfn getIBLGGXFresnel(n: vec3f, v: vec3f, roughness: f32, F0: vec3f, specularWeight: f32) -> vec3f\n{\n    // see https://bruop.github.io/ibl/#single_scattering_results at Single Scattering Results\n    // Roughness dependent fresnel, from Fdez-Aguera\n    let NdotV = clampedDot(n, v);\n    let brdfSamplePoint = clamp(vec2(NdotV, roughness), vec2(0.0, 0.0), vec2(1.0, 1.0));\n    // let f_ab = texture(u_GGXLUT, brdfSamplePoint).rg;\n    let f_ab = textureSample(skyboxBRDFLUT, textureSampler, brdfSamplePoint).rg;\n    let Fr = max(vec3(1.0 - roughness), F0) - F0;\n    let k_S = F0 + Fr * pow(1.0 - NdotV, 5.0);\n    let FssEss = specularWeight * (k_S * f_ab.x + f_ab.y);\n\n    // Multiple scattering, from Fdez-Aguera\n    let Ems = (1.0 - (f_ab.x + f_ab.y));\n    let F_avg = specularWeight * (F0 + (1.0 - F0) / 21.0);\n    let FmsEms = Ems * FssEss * F_avg / (1.0 - F_avg * Ems);\n\n    return FssEss + FmsEms;\n}\n\nconst PI = 3.141592653589793;\n\n@fragment\nfn fragmentMain(input: VertexOutput) -> @location(0) vec4<f32> {\n    let uv = input.vUv;\n\n    let pix = vec2<i32>(input.position.xy);\n    let albedo = textureLoad(albedoTexture, pix, 0);\n    let normal = textureLoad(normalTexture, pix, 0);\n    let ermo   = textureLoad(ermoTexture,   pix, 0);\n    let depth  = textureLoad(depthTexture,  pix, 0);    \n\n    let worldPosition = reconstructWorldPosFromZ(\n        input.position.xy,\n        view.projectionOutputSize.xy,\n        depth,\n        view.projectionInverseMatrix,\n        view.viewInverseMatrix\n    );\n\n    var surface: Surface;\n    surface.depth          = depth;\n    surface.albedo         = albedo.rgb;\n    surface.roughness      = clamp(albedo.a, 0.01, 0.99);\n    surface.occlusion      = normal.z;\n    surface.metallic       = normal.a;\n    surface.emissive       = ermo.rgb;\n    surface.worldPosition  = worldPosition.xyz;\n    \n    surface.N              = OctDecode(normal.rg);\n    surface.F0             = mix(vec3(0.04), surface.albedo.rgb, vec3(surface.metallic));\n    surface.V              = normalize(view.viewPosition.xyz - surface.worldPosition);\n\n\n    let n = surface.N;\n    let v = surface.V;\n    let r = reflect(-v, n);\n\n    let NdotV = max(dot(n, v), 0.0);\n\n    let MAX_REFLECTION_LOD = f32(textureNumLevels(skyboxPrefilterTexture) - 1u);\n    let prefiltered = textureSampleLevel(\n        skyboxPrefilterTexture,\n        textureSampler,\n        r,\n        surface.roughness * MAX_REFLECTION_LOD\n    ).rgb;\n\n    let brdf = textureSample(\n        skyboxBRDFLUT,\n        brdfSampler,\n        vec2f(NdotV, surface.roughness)\n    ).rg;\n\n    // diffuse from irradiance\n    let irradiance = textureSample(skyboxIrradianceTexture, textureSampler, n).rgb;\n    let diffuse = irradiance * surface.albedo;\n\n    // fresnel term (glTF-style)\n    let f_metal_fresnel_ibl = getIBLGGXFresnel(n, v, surface.roughness, surface.albedo, 1.0);\n    let f_metal_brdf_ibl = prefiltered * f_metal_fresnel_ibl;\n\n    // dielectrics: F0 is ~0.04\n    let specularWeight = 1.0;\n    let f_dielectric_fresnel_ibl = getIBLGGXFresnel(n, v, surface.roughness, surface.F0, specularWeight);\n        let f_dielectric_brdf_ibl = diffuse * (1.0 - f_dielectric_fresnel_ibl) + prefiltered * f_dielectric_fresnel_ibl;\n\n    var color = mix(f_dielectric_brdf_ibl, f_metal_brdf_ibl, surface.metallic) + surface.emissive;\n\n    let occlusionStrength = 1.0; // match glTF default\n    color = color * (1.0 + occlusionStrength * (surface.occlusion - 1.0));\n\n\n    let ao = mix(1.0, surface.occlusion, occlusionStrength);\n    let indirectDiffuse  = irradiance * surface.albedo * ao;\n    color = mix(f_dielectric_brdf_ibl, f_metal_brdf_ibl, surface.metallic) * ao + surface.emissive;\n\n    \n\n    return vec4f(color, 1.0);\n}\n";
 
 var WGSL_Shader_Deferred_SurfaceStruct = "struct Surface {\n    albedo: vec3<f32>,\n    emissive: vec3<f32>,\n    metallic: f32,\n    roughness: f32,\n    occlusion: f32,\n    worldPosition: vec3<f32>,\n    N: vec3<f32>,\n    F0: vec3<f32>,\n    V: vec3<f32>,\n    depth: f32\n};";
 
@@ -2200,77 +1796,6 @@ class ShaderLoader {
   }
   static get IBLLighting() {
     return ShaderPreprocessor.ProcessIncludesV2(WGSL_Shader_IBLLighting_URL);
-  }
-}
-
-class Vector2 {
-  _x;
-  _y;
-  get x() {
-    return this._x;
-  }
-  get y() {
-    return this._y;
-  }
-  set x(v) {
-    this._x = v;
-  }
-  set y(v) {
-    this._y = v;
-  }
-  _elements = new Float32Array(2);
-  get elements() {
-    this._elements[0] = this._x;
-    this._elements[1] = this._y;
-    return this._elements;
-  }
-  constructor(x = 0, y = 0) {
-    this._x = x;
-    this._y = y;
-  }
-  set(x, y) {
-    this.x = x;
-    this.y = y;
-  }
-  mul(v) {
-    if (v instanceof Vector2) this.x *= v.x, this.y *= v.y;
-    else this.x *= v, this.y *= v;
-    return this;
-  }
-  div(v) {
-    if (v instanceof Vector2) this.x /= v.x, this.y /= v.y;
-    else this.x /= v, this.y /= v;
-    return this;
-  }
-  add(v) {
-    if (v instanceof Vector2) this.x += v.x, this.y += v.y;
-    else this.x += v, this.y += v;
-    return this;
-  }
-  sub(v) {
-    if (v instanceof Vector2) this.x -= v.x, this.y -= v.y;
-    else this.x -= v, this.y -= v;
-    return this;
-  }
-  dot(v) {
-    return this.x * v.x + this.y * v.y;
-  }
-  length() {
-    return Math.sqrt(this.x * this.x + this.y * this.y);
-  }
-  lengthSq() {
-    return this.x * this.x + this.y * this.y;
-  }
-  clone() {
-    return new Vector2(this.x, this.y);
-  }
-  copy(v) {
-    this.x = v.x;
-    this.y = v.y;
-    return this;
-  }
-  toString() {
-    return `(${this.x.toPrecision(2)}, ${this.y.toPrecision(2)})`;
   }
 }
 
@@ -3826,6 +3351,131 @@ class DynamicBuffer extends BaseBuffer {
   }
 }
 
+class Vector4 {
+  _x;
+  _y;
+  _z;
+  _w;
+  get x() {
+    return this._x;
+  }
+  get y() {
+    return this._y;
+  }
+  get z() {
+    return this._z;
+  }
+  get w() {
+    return this._w;
+  }
+  set x(v) {
+    this._x = v;
+  }
+  set y(v) {
+    this._y = v;
+  }
+  set z(v) {
+    this._z = v;
+  }
+  set w(v) {
+    this._w = v;
+  }
+  _elements = new Float32Array(4);
+  get elements() {
+    this._elements[0] = this._x;
+    this._elements[1] = this._y;
+    this._elements[2] = this._z;
+    this._elements[3] = this._w;
+    return this._elements;
+  }
+  constructor(x = 0, y = 0, z = 0, w = 0) {
+    this._x = x;
+    this._y = y;
+    this._z = z;
+    this._w = w;
+  }
+  set(x, y, z, w) {
+    this.x = x;
+    this.y = y;
+    this.z = z;
+    this.w = w;
+    return this;
+  }
+  setX(x) {
+    this.x = x;
+    return this;
+  }
+  setY(y) {
+    this.y = y;
+    return this;
+  }
+  setZ(z) {
+    this.z = z;
+    return this;
+  }
+  setW(w) {
+    this.w = w;
+    return this;
+  }
+  clone() {
+    return new Vector4(this.x, this.y, this.z, this.w);
+  }
+  copy(v) {
+    return this.set(v.x, v.y, v.z, v.w);
+  }
+  mul(v) {
+    if (v instanceof Vector4) this.x *= v.x, this.y *= v.y, this.z *= v.z, this.w *= v.w;
+    else this.x *= v, this.y *= v, this.z *= v, this.w *= v;
+    return this;
+  }
+  div(v) {
+    if (v instanceof Vector4) this.x /= v.x, this.y /= v.y, this.z /= v.z, this.w /= v.w;
+    else this.x /= v, this.y /= v, this.z /= v, this.w /= v;
+    return this;
+  }
+  add(v) {
+    if (v instanceof Vector4) this.x += v.x, this.y += v.y, this.z += v.z, this.w += v.w;
+    else this.x += v, this.y += v, this.z += v, this.w += v;
+    return this;
+  }
+  sub(v) {
+    if (v instanceof Vector4) this.x -= v.x, this.y -= v.y, this.z -= v.z, this.w -= v.w;
+    else this.x -= v, this.y -= v, this.z -= v, this.w -= v;
+    return this;
+  }
+  dot(v) {
+    return this.x * v.x + this.y * v.y + this.z * v.z + this.w * v.w;
+  }
+  applyMatrix4(m) {
+    const x = this.x, y = this.y, z = this.z, w = this.w;
+    const e = m.elements;
+    this.x = e[0] * x + e[4] * y + e[8] * z + e[12] * w;
+    this.y = e[1] * x + e[5] * y + e[9] * z + e[13] * w;
+    this.z = e[2] * x + e[6] * y + e[10] * z + e[14] * w;
+    this.w = e[3] * x + e[7] * y + e[11] * z + e[15] * w;
+    return this;
+  }
+  normalize() {
+    let x = this.x;
+    let y = this.y;
+    let z = this.z;
+    let w = this.w;
+    let len = x * x + y * y + z * z + w * w;
+    if (len > 0) len = 1 / Math.sqrt(len);
+    this.x = x * len;
+    this.y = y * len;
+    this.z = z * len;
+    this.w = w * len;
+    return this;
+  }
+  length() {
+    return Math.sqrt(this.x * this.x + this.y * this.y + this.z * this.z + this.w * this.w);
+  }
+  toString() {
+    return `(${this.x.toPrecision(2)}, ${this.y.toPrecision(2)}, ${this.z.toPrecision(2)}, ${this.w.toPrecision(2)})`;
+  }
+}
+
 class Sphere {
   center;
   radius;
@@ -3870,6 +3520,118 @@ class Sphere {
   }
   clone() {
     return new Sphere(this.center.clone(), this.radius);
+  }
+}
+
+class Plane {
+  normal;
+  constant;
+  constructor(normal = new Vector3(1, 0, 0), constant = 0) {
+    this.normal = normal;
+    this.constant = constant;
+  }
+  setComponents(x, y, z, w) {
+    this.normal.set(x, y, z);
+    this.constant = w;
+    return this;
+  }
+  normalize() {
+    const inverseNormalLength = 1 / this.normal.length();
+    this.normal.mul(inverseNormalLength);
+    this.constant *= inverseNormalLength;
+    return this;
+  }
+  distanceToPoint(point) {
+    return this.normal.dot(point) + this.constant;
+  }
+}
+
+class Frustum {
+  planes;
+  constructor(p0 = new Plane(), p1 = new Plane(), p2 = new Plane(), p3 = new Plane(), p4 = new Plane(), p5 = new Plane()) {
+    this.planes = [p0, p1, p2, p3, p4, p5];
+  }
+  setFromProjectionMatrix(m) {
+    const planes = this.planes;
+    const me = m.elements;
+    const me0 = me[0], me1 = me[1], me2 = me[2], me3 = me[3];
+    const me4 = me[4], me5 = me[5], me6 = me[6], me7 = me[7];
+    const me8 = me[8], me9 = me[9], me10 = me[10], me11 = me[11];
+    const me12 = me[12], me13 = me[13], me14 = me[14], me15 = me[15];
+    planes[0].setComponents(me3 - me0, me7 - me4, me11 - me8, me15 - me12).normalize();
+    planes[1].setComponents(me3 + me0, me7 + me4, me11 + me8, me15 + me12).normalize();
+    planes[2].setComponents(me3 + me1, me7 + me5, me11 + me9, me15 + me13).normalize();
+    planes[3].setComponents(me3 - me1, me7 - me5, me11 - me9, me15 - me13).normalize();
+    planes[4].setComponents(me3 - me2, me7 - me6, me11 - me10, me15 - me14).normalize();
+    planes[5].setComponents(me2, me6, me10, me14).normalize();
+    return this;
+  }
+  intersectsBoundingVolume(boundingVolume) {
+    const planes = this.planes;
+    const center = boundingVolume.center;
+    const negRadius = -boundingVolume.radius * boundingVolume.scale;
+    for (let i = 0; i < 6; i++) {
+      const distance = planes[i].distanceToPoint(center);
+      if (distance < negRadius) return false;
+    }
+    return true;
+  }
+}
+
+class Color {
+  constructor(r = 0, g = 0, b = 0, a = 1) {
+    this.r = r;
+    this.g = g;
+    this.b = b;
+    this.a = a;
+  }
+  _elements = new Float32Array([0, 0, 0, 0]);
+  get elements() {
+    this._elements.set([this.r, this.g, this.b, this.a]);
+    return this._elements;
+  }
+  set(r, g, b, a) {
+    this.r = r;
+    this.g = g;
+    this.b = b;
+    this.a = a;
+  }
+  static fromVector(v) {
+    return new Color(v.x, v.y, v.z, v instanceof Vector4 ? v.w : 0);
+  }
+  static fromHex(hex) {
+    return new Color((hex >> 16 & 255) / 255, (hex >> 8 & 255) / 255, (hex & 255) / 255);
+  }
+  mul(v) {
+    if (v instanceof Color) this.r *= v.r, this.g *= v.g, this.b *= v.b;
+    else this.r *= v, this.g *= v, this.b *= v;
+    return this;
+  }
+  toHex() {
+    const r = Math.floor(this.r * 255).toString(16).padStart(2, "0");
+    const g = Math.floor(this.g * 255).toString(16).padStart(2, "0");
+    const b = Math.floor(this.b * 255).toString(16).padStart(2, "0");
+    const a = Math.floor(this.a * 255).toString(16).padStart(2, "0");
+    return "#" + r + g + b + a;
+  }
+  setFromHex(hex) {
+    if (hex.length !== 6 && hex.length !== 8 && !hex.startsWith("#")) {
+      throw new Error("Invalid hex color format. Expected #RRGGBB or #RRGGBBAA");
+    }
+    hex = hex.slice(1);
+    const r = parseInt(hex.slice(0, 2), 16) / 255;
+    const g = parseInt(hex.slice(2, 4), 16) / 255;
+    const b = parseInt(hex.slice(4, 6), 16) / 255;
+    const a = hex.length === 8 ? parseInt(hex.slice(6, 8), 16) / 255 : 1;
+    this.set(r, g, b, a);
+    return this;
+  }
+  clone() {
+    return new Color(this.r, this.g, this.b, this.a);
+  }
+  copy(color) {
+    this.set(color.r, color.g, color.b, color.a);
+    return this;
   }
 }
 
@@ -3931,53 +3693,53 @@ var index$2 = /*#__PURE__*/Object.freeze({
     Vector4: Vector4
 });
 
-var __create$6 = Object.create;
-var __defProp$6 = Object.defineProperty;
-var __knownSymbol$6 = (name, symbol) => (symbol = Symbol[name]) ? symbol : Symbol.for("Symbol." + name);
-var __typeError$6 = (msg) => {
+var __create$7 = Object.create;
+var __defProp$7 = Object.defineProperty;
+var __knownSymbol$7 = (name, symbol) => (symbol = Symbol[name]) ? symbol : Symbol.for("Symbol." + name);
+var __typeError$7 = (msg) => {
   throw TypeError(msg);
 };
-var __defNormalProp$6 = (obj, key, value) => key in obj ? __defProp$6(obj, key, { enumerable: true, configurable: true, writable: true, value }) : obj[key] = value;
-var __decoratorStart$6 = (base) => [, , , __create$6(base?.[__knownSymbol$6("metadata")] ?? null)];
-var __decoratorStrings$6 = ["class", "method", "getter", "setter", "accessor", "field", "value", "get", "set"];
-var __expectFn$6 = (fn) => fn !== void 0 && typeof fn !== "function" ? __typeError$6("Function expected") : fn;
-var __decoratorContext$6 = (kind, name, done, metadata, fns) => ({ kind: __decoratorStrings$6[kind], name, metadata, addInitializer: (fn) => done._ ? __typeError$6("Already initialized") : fns.push(__expectFn$6(fn || null)) });
-var __decoratorMetadata$6 = (array, target) => __defNormalProp$6(target, __knownSymbol$6("metadata"), array[3]);
-var __runInitializers$6 = (array, flags, self, value) => {
+var __defNormalProp$7 = (obj, key, value) => key in obj ? __defProp$7(obj, key, { enumerable: true, configurable: true, writable: true, value }) : obj[key] = value;
+var __decoratorStart$7 = (base) => [, , , __create$7(base?.[__knownSymbol$7("metadata")] ?? null)];
+var __decoratorStrings$7 = ["class", "method", "getter", "setter", "accessor", "field", "value", "get", "set"];
+var __expectFn$7 = (fn) => fn !== void 0 && typeof fn !== "function" ? __typeError$7("Function expected") : fn;
+var __decoratorContext$7 = (kind, name, done, metadata, fns) => ({ kind: __decoratorStrings$7[kind], name, metadata, addInitializer: (fn) => done._ ? __typeError$7("Already initialized") : fns.push(__expectFn$7(fn || null)) });
+var __decoratorMetadata$7 = (array, target) => __defNormalProp$7(target, __knownSymbol$7("metadata"), array[3]);
+var __runInitializers$7 = (array, flags, self, value) => {
   for (var i = 0, fns = array[flags >> 1], n = fns && fns.length; i < n; i++) flags & 1 ? fns[i].call(self) : value = fns[i].call(self, value);
   return value;
 };
-var __decorateElement$6 = (array, flags, name, decorators, target, extra) => {
+var __decorateElement$7 = (array, flags, name, decorators, target, extra) => {
   var it, done, ctx, access, k = flags & 7, s = false, p = false;
   var j = array.length + 1 ;
   var initializers = (array[j - 1] = []), extraInitializers = array[j] || (array[j] = []);
   ((target = target.prototype), k < 5);
   for (var i = decorators.length - 1; i >= 0; i--) {
-    ctx = __decoratorContext$6(k, name, done = {}, array[3], extraInitializers);
+    ctx = __decoratorContext$7(k, name, done = {}, array[3], extraInitializers);
     {
       ctx.static = s, ctx.private = p, access = ctx.access = { has: (x) => name in x };
       access.get = (x) => x[name];
       access.set = (x, y) => x[name] = y;
     }
     it = (0, decorators[i])(void 0  , ctx), done._ = 1;
-    __expectFn$6(it) && (initializers.unshift(it) );
+    __expectFn$7(it) && (initializers.unshift(it) );
   }
   return target;
 };
-var __publicField$6 = (obj, key, value) => __defNormalProp$6(obj, typeof key !== "symbol" ? key + "" : key, value);
-var _currentSize_dec, _currentOffset_dec, _arrayType_dec, _array_dec, _type_dec, _init$6, _stride_dec, _a$5, _init2$3, _attributes_dec, _index_dec$1, _name_dec, _id_dec, _assetPath_dec$3, _init3$2;
+var __publicField$7 = (obj, key, value) => __defNormalProp$7(obj, typeof key !== "symbol" ? key + "" : key, value);
+var _currentSize_dec, _currentOffset_dec, _arrayType_dec, _array_dec, _type_dec, _init$7, _stride_dec, _a$6, _init2$3, _attributes_dec, _index_dec$1, _name_dec, _id_dec, _assetPath_dec$3, _init3$2;
 _type_dec = [SerializeField], _array_dec = [SerializeField], _arrayType_dec = [SerializeField], _currentOffset_dec = [SerializeField], _currentSize_dec = [SerializeField];
 class GeometryAttribute {
   constructor(array, type) {
-    __publicField$6(this, "type", __runInitializers$6(_init$6, 8, this, "@trident/core/Geometry/GeometryAttribute")), __runInitializers$6(_init$6, 11, this);
-    __publicField$6(this, "array", __runInitializers$6(_init$6, 12, this)), __runInitializers$6(_init$6, 15, this);
-    __publicField$6(this, "arrayType", __runInitializers$6(_init$6, 16, this)), __runInitializers$6(_init$6, 19, this);
-    __publicField$6(this, "buffer");
-    __publicField$6(this, "bufferType");
-    __publicField$6(this, "currentOffset", __runInitializers$6(_init$6, 20, this)), __runInitializers$6(_init$6, 23, this);
-    __publicField$6(this, "currentSize", __runInitializers$6(_init$6, 24, this)), __runInitializers$6(_init$6, 27, this);
-    __publicField$6(this, "count");
-    __publicField$6(this, "_crc");
+    __publicField$7(this, "type", __runInitializers$7(_init$7, 8, this, "@trident/core/Geometry/GeometryAttribute")), __runInitializers$7(_init$7, 11, this);
+    __publicField$7(this, "array", __runInitializers$7(_init$7, 12, this)), __runInitializers$7(_init$7, 15, this);
+    __publicField$7(this, "arrayType", __runInitializers$7(_init$7, 16, this)), __runInitializers$7(_init$7, 19, this);
+    __publicField$7(this, "buffer");
+    __publicField$7(this, "bufferType");
+    __publicField$7(this, "currentOffset", __runInitializers$7(_init$7, 20, this)), __runInitializers$7(_init$7, 23, this);
+    __publicField$7(this, "currentSize", __runInitializers$7(_init$7, 24, this)), __runInitializers$7(_init$7, 27, this);
+    __publicField$7(this, "count");
+    __publicField$7(this, "_crc");
     if (array.length === 0) throw Error("GeometryAttribute data is empty");
     let bufferArray = array;
     let bufferSize = array.byteLength;
@@ -4016,25 +3778,25 @@ class GeometryAttribute {
     this.buffer.Destroy();
   }
 }
-_init$6 = __decoratorStart$6(null);
-__decorateElement$6(_init$6, 5, "type", _type_dec, GeometryAttribute);
-__decorateElement$6(_init$6, 5, "array", _array_dec, GeometryAttribute);
-__decorateElement$6(_init$6, 5, "arrayType", _arrayType_dec, GeometryAttribute);
-__decorateElement$6(_init$6, 5, "currentOffset", _currentOffset_dec, GeometryAttribute);
-__decorateElement$6(_init$6, 5, "currentSize", _currentSize_dec, GeometryAttribute);
-__decoratorMetadata$6(_init$6, GeometryAttribute);
+_init$7 = __decoratorStart$7(null);
+__decorateElement$7(_init$7, 5, "type", _type_dec, GeometryAttribute);
+__decorateElement$7(_init$7, 5, "array", _array_dec, GeometryAttribute);
+__decorateElement$7(_init$7, 5, "arrayType", _arrayType_dec, GeometryAttribute);
+__decorateElement$7(_init$7, 5, "currentOffset", _currentOffset_dec, GeometryAttribute);
+__decorateElement$7(_init$7, 5, "currentSize", _currentSize_dec, GeometryAttribute);
+__decoratorMetadata$7(_init$7, GeometryAttribute);
 class VertexAttribute extends GeometryAttribute {
   type = "@trident/core/Geometry/VertexAttribute";
   constructor(array) {
     super(array, BufferType.VERTEX);
   }
 }
-const _InterleavedVertexAttribute = class _InterleavedVertexAttribute extends (_a$5 = GeometryAttribute, _stride_dec = [SerializeField], _a$5) {
+const _InterleavedVertexAttribute = class _InterleavedVertexAttribute extends (_a$6 = GeometryAttribute, _stride_dec = [SerializeField], _a$6) {
   constructor(array, stride) {
     super(array, BufferType.VERTEX);
     this.array = array;
-    __publicField$6(this, "type", "@trident/core/Geometry/InterleavedVertexAttribute");
-    __publicField$6(this, "stride", __runInitializers$6(_init2$3, 8, this)), __runInitializers$6(_init2$3, 11, this);
+    __publicField$7(this, "type", "@trident/core/Geometry/InterleavedVertexAttribute");
+    __publicField$7(this, "stride", __runInitializers$7(_init2$3, 8, this)), __runInitializers$7(_init2$3, 11, this);
     this.stride = stride;
   }
   static fromArrays(attributes, inputStrides, outputStrides) {
@@ -4068,9 +3830,9 @@ const _InterleavedVertexAttribute = class _InterleavedVertexAttribute extends (_
     return new _InterleavedVertexAttribute(interleavedArray, interleavedStride);
   }
 };
-_init2$3 = __decoratorStart$6(_a$5);
-__decorateElement$6(_init2$3, 5, "stride", _stride_dec, _InterleavedVertexAttribute);
-__decoratorMetadata$6(_init2$3, _InterleavedVertexAttribute);
+_init2$3 = __decoratorStart$7(_a$6);
+__decorateElement$7(_init2$3, 5, "stride", _stride_dec, _InterleavedVertexAttribute);
+__decoratorMetadata$7(_init2$3, _InterleavedVertexAttribute);
 let InterleavedVertexAttribute = _InterleavedVertexAttribute;
 class IndexAttribute extends GeometryAttribute {
   type = "@trident/core/Geometry/IndexAttribute";
@@ -4083,12 +3845,12 @@ class IndexAttribute extends GeometryAttribute {
 _assetPath_dec$3 = [SerializeField], _id_dec = [SerializeField], _name_dec = [SerializeField], _index_dec$1 = [SerializeField], _attributes_dec = [SerializeField];
 const _Geometry = class _Geometry {
   constructor() {
-    __publicField$6(this, "assetPath", __runInitializers$6(_init3$2, 8, this)), __runInitializers$6(_init3$2, 11, this);
-    __publicField$6(this, "id", __runInitializers$6(_init3$2, 12, this, UUID())), __runInitializers$6(_init3$2, 15, this);
-    __publicField$6(this, "name", __runInitializers$6(_init3$2, 16, this, "")), __runInitializers$6(_init3$2, 19, this);
-    __publicField$6(this, "index", __runInitializers$6(_init3$2, 20, this)), __runInitializers$6(_init3$2, 23, this);
-    __publicField$6(this, "attributes", __runInitializers$6(_init3$2, 24, this, /* @__PURE__ */ new Map())), __runInitializers$6(_init3$2, 27, this);
-    __publicField$6(this, "_boundingVolume");
+    __publicField$7(this, "assetPath", __runInitializers$7(_init3$2, 8, this)), __runInitializers$7(_init3$2, 11, this);
+    __publicField$7(this, "id", __runInitializers$7(_init3$2, 12, this, UUID())), __runInitializers$7(_init3$2, 15, this);
+    __publicField$7(this, "name", __runInitializers$7(_init3$2, 16, this, "")), __runInitializers$7(_init3$2, 19, this);
+    __publicField$7(this, "index", __runInitializers$7(_init3$2, 20, this)), __runInitializers$7(_init3$2, 23, this);
+    __publicField$7(this, "attributes", __runInitializers$7(_init3$2, 24, this, /* @__PURE__ */ new Map())), __runInitializers$7(_init3$2, 27, this);
+    __publicField$7(this, "_boundingVolume");
   }
   get boundingVolume() {
     const positions = this.attributes.get("position");
@@ -4311,13 +4073,13 @@ const _Geometry = class _Geometry {
     return instance;
   }
 };
-_init3$2 = __decoratorStart$6(null);
-__decorateElement$6(_init3$2, 5, "assetPath", _assetPath_dec$3, _Geometry);
-__decorateElement$6(_init3$2, 5, "id", _id_dec, _Geometry);
-__decorateElement$6(_init3$2, 5, "name", _name_dec, _Geometry);
-__decorateElement$6(_init3$2, 5, "index", _index_dec$1, _Geometry);
-__decorateElement$6(_init3$2, 5, "attributes", _attributes_dec, _Geometry);
-__decoratorMetadata$6(_init3$2, _Geometry);
+_init3$2 = __decoratorStart$7(null);
+__decorateElement$7(_init3$2, 5, "assetPath", _assetPath_dec$3, _Geometry);
+__decorateElement$7(_init3$2, 5, "id", _id_dec, _Geometry);
+__decorateElement$7(_init3$2, 5, "name", _name_dec, _Geometry);
+__decorateElement$7(_init3$2, 5, "index", _index_dec$1, _Geometry);
+__decorateElement$7(_init3$2, 5, "attributes", _attributes_dec, _Geometry);
+__decoratorMetadata$7(_init3$2, _Geometry);
 let Geometry = _Geometry;
 function RegisterBuiltinGeometries() {
   {
@@ -4497,6 +4259,256 @@ class RenderGraph {
     for (const pass of this.passes) if (pass.initialized) pass.execute(this.resourcePool);
   }
 }
+
+var __create$6 = Object.create;
+var __defProp$6 = Object.defineProperty;
+var __getOwnPropDesc$1 = Object.getOwnPropertyDescriptor;
+var __knownSymbol$6 = (name, symbol) => (symbol = Symbol[name]) ? symbol : Symbol.for("Symbol." + name);
+var __typeError$6 = (msg) => {
+  throw TypeError(msg);
+};
+var __defNormalProp$6 = (obj, key, value) => key in obj ? __defProp$6(obj, key, { enumerable: true, configurable: true, writable: true, value }) : obj[key] = value;
+var __name$1 = (target, value) => __defProp$6(target, "name", { value, configurable: true });
+var __decoratorStart$6 = (base) => [, , , __create$6(base?.[__knownSymbol$6("metadata")] ?? null)];
+var __decoratorStrings$6 = ["class", "method", "getter", "setter", "accessor", "field", "value", "get", "set"];
+var __expectFn$6 = (fn) => fn !== void 0 && typeof fn !== "function" ? __typeError$6("Function expected") : fn;
+var __decoratorContext$6 = (kind, name, done, metadata, fns) => ({ kind: __decoratorStrings$6[kind], name, metadata, addInitializer: (fn) => done._ ? __typeError$6("Already initialized") : fns.push(__expectFn$6(fn || null)) });
+var __decoratorMetadata$6 = (array, target) => __defNormalProp$6(target, __knownSymbol$6("metadata"), array[3]);
+var __runInitializers$6 = (array, flags, self, value) => {
+  for (var i = 0, fns = array[flags >> 1], n = fns && fns.length; i < n; i++) flags & 1 ? fns[i].call(self) : value = fns[i].call(self, value);
+  return value;
+};
+var __decorateElement$6 = (array, flags, name, decorators, target, extra) => {
+  var fn, it, done, ctx, access, k = flags & 7, s = !!(flags & 8), p = !!(flags & 16);
+  var j = k > 3 ? array.length + 1 : k ? s ? 1 : 2 : 0, key = __decoratorStrings$6[k + 5];
+  var initializers = k > 3 && (array[j - 1] = []), extraInitializers = array[j] || (array[j] = []);
+  var desc = k && (!p && !s && (target = target.prototype), k < 5 && (k > 3 || !p) && __getOwnPropDesc$1(k < 4 ? target : { get [name]() {
+    return __privateGet$1(this, extra);
+  }, set [name](x) {
+    return __privateSet$1(this, extra, x);
+  } }, name));
+  k ? p && k < 4 && __name$1(extra, (k > 2 ? "set " : k > 1 ? "get " : "") + name) : __name$1(target, name);
+  for (var i = decorators.length - 1; i >= 0; i--) {
+    ctx = __decoratorContext$6(k, name, done = {}, array[3], extraInitializers);
+    if (k) {
+      ctx.static = s, ctx.private = p, access = ctx.access = { has: p ? (x) => __privateIn$1(target, x) : (x) => name in x };
+      if (k ^ 3) access.get = p ? (x) => (k ^ 1 ? __privateGet$1 : __privateMethod$1)(x, target, k ^ 4 ? extra : desc.get) : (x) => x[name];
+      if (k > 2) access.set = p ? (x, y) => __privateSet$1(x, target, y, k ^ 4 ? extra : desc.set) : (x, y) => x[name] = y;
+    }
+    it = (0, decorators[i])(k ? k < 4 ? p ? extra : desc[key] : k > 4 ? void 0 : { get: desc.get, set: desc.set } : target, ctx), done._ = 1;
+    if (k ^ 4 || it === void 0) __expectFn$6(it) && (k > 4 ? initializers.unshift(it) : k ? p ? extra = it : desc[key] = it : target = it);
+    else if (typeof it !== "object" || it === null) __typeError$6("Object expected");
+    else __expectFn$6(fn = it.get) && (desc.get = fn), __expectFn$6(fn = it.set) && (desc.set = fn), __expectFn$6(fn = it.init) && initializers.unshift(fn);
+  }
+  return k || __decoratorMetadata$6(array, target), desc && __defProp$6(target, name, desc), p ? k ^ 4 ? extra : desc : target;
+};
+var __publicField$6 = (obj, key, value) => __defNormalProp$6(obj, typeof key !== "symbol" ? key + "" : key, value);
+var __accessCheck$1 = (obj, member, msg) => member.has(obj) || __typeError$6("Cannot " + msg);
+var __privateIn$1 = (member, obj) => Object(obj) !== obj ? __typeError$6('Cannot use the "in" operator on this value') : member.has(obj);
+var __privateGet$1 = (obj, member, getter) => (__accessCheck$1(obj, member, "read from private field"), getter ? getter.call(obj) : member.get(obj));
+var __privateSet$1 = (obj, member, value, setter) => (__accessCheck$1(obj, member, "write to private field"), setter ? setter.call(obj, value) : member.set(obj, value), value);
+var __privateMethod$1 = (obj, member, method) => (__accessCheck$1(obj, member, "access private method"), method);
+var _aspect_dec, _fov_dec, _far_dec, _near_dec, _backgroundColor_dec, _a$5, _init$6;
+class CameraEvents {
+  static Updated = (camera) => {
+  };
+}
+const _Camera = class _Camera extends (_a$5 = Component, _backgroundColor_dec = [SerializeField], _near_dec = [SerializeField], _far_dec = [SerializeField], _fov_dec = [SerializeField], _aspect_dec = [SerializeField], _a$5) {
+  constructor(gameObject) {
+    super(gameObject);
+    __runInitializers$6(_init$6, 5, this);
+    __publicField$6(this, "backgroundColor", __runInitializers$6(_init$6, 8, this, new Color(0, 0, 0, 1))), __runInitializers$6(_init$6, 11, this);
+    __publicField$6(this, "projectionMatrix", new Matrix4());
+    __publicField$6(this, "projectionScreenMatrix", new Matrix4());
+    __publicField$6(this, "projectionViewMatrix", new Matrix4());
+    __publicField$6(this, "viewMatrix", new Matrix4());
+    __publicField$6(this, "frustum", new Frustum());
+    __publicField$6(this, "_near", 0.05);
+    __publicField$6(this, "_far", 1e3);
+    __publicField$6(this, "_fov", 60);
+    __publicField$6(this, "_aspect", window.innerWidth / window.innerHeight);
+    if (!_Camera.mainCamera) _Camera.mainCamera = this;
+  }
+  get near() {
+    return this._near;
+  }
+  set near(near) {
+    this.SetPerspective(this.fov, this.aspect, near, this.far);
+  }
+  get far() {
+    return this._far;
+  }
+  set far(far) {
+    this.SetPerspective(this.fov, this.aspect, this.near, far);
+  }
+  get fov() {
+    return this._fov;
+  }
+  set fov(fov) {
+    this.SetPerspective(fov, this.aspect, this.near, this.far);
+  }
+  get aspect() {
+    return this._aspect;
+  }
+  set aspect(aspect) {
+    this.SetPerspective(this.fov, aspect, this.near, this.far);
+  }
+  SetPerspective(fov, aspect, near, far) {
+    this._fov = fov;
+    this._aspect = aspect;
+    this._near = near;
+    this._far = far;
+    this.projectionMatrix.perspectiveZO(fov * (Math.PI / 180), aspect, near, far);
+  }
+  SetOrthographic(left, right, top, bottom, near, far) {
+    this.near = near;
+    this.far = far;
+    this.projectionMatrix.orthoZO(left, right, top, bottom, near, far);
+  }
+  Start() {
+    EventSystemLocal.on(TransformEvents.Updated, this.transform, () => {
+      EventSystem.emit(CameraEvents.Updated, this);
+    });
+  }
+  Update() {
+    this.viewMatrix.copy(this.transform.worldToLocalMatrix);
+    this.projectionScreenMatrix.multiplyMatrices(this.projectionMatrix, this.transform.worldToLocalMatrix);
+    this.frustum.setFromProjectionMatrix(this.projectionScreenMatrix);
+    this.projectionViewMatrix.multiplyMatrices(this.projectionMatrix, this.viewMatrix);
+  }
+};
+_init$6 = __decoratorStart$6(_a$5);
+__decorateElement$6(_init$6, 2, "near", _near_dec, _Camera);
+__decorateElement$6(_init$6, 2, "far", _far_dec, _Camera);
+__decorateElement$6(_init$6, 2, "fov", _fov_dec, _Camera);
+__decorateElement$6(_init$6, 2, "aspect", _aspect_dec, _Camera);
+__decorateElement$6(_init$6, 5, "backgroundColor", _backgroundColor_dec, _Camera);
+__decoratorMetadata$6(_init$6, _Camera);
+__publicField$6(_Camera, "type", "@trident/core/components/Camera");
+__publicField$6(_Camera, "mainCamera");
+let Camera = _Camera;
+Component.Registry.set(Camera.type, Camera);
+
+var __create$5 = Object.create;
+var __defProp$5 = Object.defineProperty;
+var __knownSymbol$5 = (name, symbol) => (symbol = Symbol[name]) ? symbol : Symbol.for("Symbol." + name);
+var __typeError$5 = (msg) => {
+  throw TypeError(msg);
+};
+var __defNormalProp$5 = (obj, key, value) => key in obj ? __defProp$5(obj, key, { enumerable: true, configurable: true, writable: true, value }) : obj[key] = value;
+var __decoratorStart$5 = (base) => [, , , __create$5(base?.[__knownSymbol$5("metadata")] ?? null)];
+var __decoratorStrings$5 = ["class", "method", "getter", "setter", "accessor", "field", "value", "get", "set"];
+var __expectFn$5 = (fn) => fn !== void 0 && typeof fn !== "function" ? __typeError$5("Function expected") : fn;
+var __decoratorContext$5 = (kind, name, done, metadata, fns) => ({ kind: __decoratorStrings$5[kind], name, metadata, addInitializer: (fn) => done._ ? __typeError$5("Already initialized") : fns.push(__expectFn$5(fn || null)) });
+var __decoratorMetadata$5 = (array, target) => __defNormalProp$5(target, __knownSymbol$5("metadata"), array[3]);
+var __runInitializers$5 = (array, flags, self, value) => {
+  for (var i = 0, fns = array[flags >> 1], n = fns && fns.length; i < n; i++) flags & 1 ? fns[i].call(self) : value = fns[i].call(self, value);
+  return value;
+};
+var __decorateElement$5 = (array, flags, name, decorators, target, extra) => {
+  var it, done, ctx, access, k = flags & 7, s = false, p = false;
+  var j = array.length + 1 ;
+  var initializers = (array[j - 1] = []), extraInitializers = array[j] || (array[j] = []);
+  ((target = target.prototype), k < 5);
+  for (var i = decorators.length - 1; i >= 0; i--) {
+    ctx = __decoratorContext$5(k, name, done = {}, array[3], extraInitializers);
+    {
+      ctx.static = s, ctx.private = p, access = ctx.access = { has: (x) => name in x };
+      access.get = (x) => x[name];
+      access.set = (x, y) => x[name] = y;
+    }
+    it = (0, decorators[i])(void 0  , ctx), done._ = 1;
+    __expectFn$5(it) && (initializers.unshift(it) );
+  }
+  return target;
+};
+var __publicField$5 = (obj, key, value) => __defNormalProp$5(obj, typeof key !== "symbol" ? key + "" : key, value);
+var _castShadows_dec, _intensity_dec, _color_dec, _a$4, _init$5, _range_dec, _angle_dec, _b$1, _init2$2, _range_dec2, _c, _init3$1, _direction_dec, _d, _init4;
+class LightEvents {
+  static Updated = (light) => {
+  };
+  static Destroyed = (light) => {
+  };
+}
+class Light extends (_a$4 = Component, _color_dec = [SerializeField], _intensity_dec = [SerializeField], _castShadows_dec = [SerializeField], _a$4) {
+  constructor() {
+    super(...arguments);
+    __publicField$5(this, "camera", new Camera(this.gameObject));
+    __publicField$5(this, "color", __runInitializers$5(_init$5, 8, this, new Color(1, 1, 1))), __runInitializers$5(_init$5, 11, this);
+    __publicField$5(this, "intensity", __runInitializers$5(_init$5, 12, this, 1)), __runInitializers$5(_init$5, 15, this);
+    __publicField$5(this, "castShadows", __runInitializers$5(_init$5, 16, this, true)), __runInitializers$5(_init$5, 19, this);
+  }
+  Start() {
+    EventSystemLocal.on(TransformEvents.Updated, this.transform, () => {
+      EventSystem.emit(LightEvents.Updated, this);
+    });
+  }
+  Destroy() {
+    EventSystem.emit(LightEvents.Destroyed, this);
+  }
+}
+_init$5 = __decoratorStart$5(_a$4);
+__decorateElement$5(_init$5, 5, "color", _color_dec, Light);
+__decorateElement$5(_init$5, 5, "intensity", _intensity_dec, Light);
+__decorateElement$5(_init$5, 5, "castShadows", _castShadows_dec, Light);
+__decoratorMetadata$5(_init$5, Light);
+__publicField$5(Light, "type", "@trident/core/components/Light/Light");
+class SpotLight extends (_b$1 = Light, _angle_dec = [SerializeField], _range_dec = [SerializeField], _b$1) {
+  constructor() {
+    super(...arguments);
+    __publicField$5(this, "direction", new Vector3(0, -1, 0));
+    __publicField$5(this, "angle", __runInitializers$5(_init2$2, 8, this, 1)), __runInitializers$5(_init2$2, 11, this);
+    __publicField$5(this, "range", __runInitializers$5(_init2$2, 12, this, 10)), __runInitializers$5(_init2$2, 15, this);
+  }
+  Start() {
+    super.Start();
+    this.camera.SetPerspective(this.angle / Math.PI * 180 * 2, Renderer.width / Renderer.height, 0.01, 1e3);
+  }
+}
+_init2$2 = __decoratorStart$5(_b$1);
+__decorateElement$5(_init2$2, 5, "angle", _angle_dec, SpotLight);
+__decorateElement$5(_init2$2, 5, "range", _range_dec, SpotLight);
+__decoratorMetadata$5(_init2$2, SpotLight);
+__publicField$5(SpotLight, "type", "@trident/core/components/Light/SpotLight");
+class PointLight extends (_c = Light, _range_dec2 = [SerializeField(Number)], _c) {
+  constructor() {
+    super(...arguments);
+    __publicField$5(this, "range", __runInitializers$5(_init3$1, 8, this, 10)), __runInitializers$5(_init3$1, 11, this);
+  }
+  Start() {
+    super.Start();
+    this.camera.SetPerspective(60, Renderer.width / Renderer.height, 0.01, 1e3);
+  }
+}
+_init3$1 = __decoratorStart$5(_c);
+__decorateElement$5(_init3$1, 5, "range", _range_dec2, PointLight);
+__decoratorMetadata$5(_init3$1, PointLight);
+__publicField$5(PointLight, "type", "@trident/core/components/Light/PointLight");
+class AreaLight extends Light {
+  static type = "@trident/core/components/Light/AreaLight";
+  Start() {
+    super.Start();
+    this.camera.SetPerspective(60, Renderer.width / Renderer.height, 0.01, 1e3);
+  }
+}
+class DirectionalLight extends (_d = Light, _direction_dec = [SerializeField], _d) {
+  constructor() {
+    super(...arguments);
+    __publicField$5(this, "direction", __runInitializers$5(_init4, 8, this, new Vector3(0, 1, 0))), __runInitializers$5(_init4, 11, this);
+  }
+  Start() {
+    super.Start();
+    const size = 1;
+    this.camera.SetOrthographic(-size, size, -size, size, 0.1, 100);
+  }
+}
+_init4 = __decoratorStart$5(_d);
+__decorateElement$5(_init4, 5, "direction", _direction_dec, DirectionalLight);
+__decoratorMetadata$5(_init4, DirectionalLight);
+__publicField$5(DirectionalLight, "type", "@trident/core/components/Light/DirectionalLight");
+Component.Registry.set(SpotLight.type, SpotLight);
+Component.Registry.set(PointLight.type, PointLight);
+Component.Registry.set(DirectionalLight.type, DirectionalLight);
 
 class MemoryAllocator {
   memorySize;
@@ -4978,62 +4990,62 @@ class TextureViewer extends RenderPass {
   }
 }
 
-var __create$5 = Object.create;
-var __defProp$5 = Object.defineProperty;
-var __knownSymbol$5 = (name, symbol) => (symbol = Symbol[name]) ? symbol : Symbol.for("Symbol." + name);
-var __typeError$5 = (msg) => {
+var __create$4 = Object.create;
+var __defProp$4 = Object.defineProperty;
+var __knownSymbol$4 = (name, symbol) => (symbol = Symbol[name]) ? symbol : Symbol.for("Symbol." + name);
+var __typeError$4 = (msg) => {
   throw TypeError(msg);
 };
-var __defNormalProp$5 = (obj, key, value) => key in obj ? __defProp$5(obj, key, { enumerable: true, configurable: true, writable: true, value }) : obj[key] = value;
-var __decoratorStart$5 = (base) => [, , , __create$5(base?.[__knownSymbol$5("metadata")] ?? null)];
-var __decoratorStrings$5 = ["class", "method", "getter", "setter", "accessor", "field", "value", "get", "set"];
-var __expectFn$5 = (fn) => fn !== void 0 && typeof fn !== "function" ? __typeError$5("Function expected") : fn;
-var __decoratorContext$5 = (kind, name, done, metadata, fns) => ({ kind: __decoratorStrings$5[kind], name, metadata, addInitializer: (fn) => done._ ? __typeError$5("Already initialized") : fns.push(__expectFn$5(fn || null)) });
-var __decoratorMetadata$5 = (array, target) => __defNormalProp$5(target, __knownSymbol$5("metadata"), array[3]);
-var __runInitializers$5 = (array, flags, self, value) => {
+var __defNormalProp$4 = (obj, key, value) => key in obj ? __defProp$4(obj, key, { enumerable: true, configurable: true, writable: true, value }) : obj[key] = value;
+var __decoratorStart$4 = (base) => [, , , __create$4(base?.[__knownSymbol$4("metadata")] ?? null)];
+var __decoratorStrings$4 = ["class", "method", "getter", "setter", "accessor", "field", "value", "get", "set"];
+var __expectFn$4 = (fn) => fn !== void 0 && typeof fn !== "function" ? __typeError$4("Function expected") : fn;
+var __decoratorContext$4 = (kind, name, done, metadata, fns) => ({ kind: __decoratorStrings$4[kind], name, metadata, addInitializer: (fn) => done._ ? __typeError$4("Already initialized") : fns.push(__expectFn$4(fn || null)) });
+var __decoratorMetadata$4 = (array, target) => __defNormalProp$4(target, __knownSymbol$4("metadata"), array[3]);
+var __runInitializers$4 = (array, flags, self, value) => {
   for (var i = 0, fns = array[flags >> 1], n = fns && fns.length; i < n; i++) flags & 1 ? fns[i].call(self) : value = fns[i].call(self, value);
   return value;
 };
-var __decorateElement$5 = (array, flags, name, decorators, target, extra) => {
+var __decorateElement$4 = (array, flags, name, decorators, target, extra) => {
   var it, done, ctx, access, k = flags & 7, s = false, p = false;
   var j = array.length + 1 ;
   var initializers = (array[j - 1] = []), extraInitializers = array[j] || (array[j] = []);
   ((target = target.prototype), k < 5);
   for (var i = decorators.length - 1; i >= 0; i--) {
-    ctx = __decoratorContext$5(k, name, done = {}, array[3], extraInitializers);
+    ctx = __decoratorContext$4(k, name, done = {}, array[3], extraInitializers);
     {
       ctx.static = s, ctx.private = p, access = ctx.access = { has: (x) => name in x };
       access.get = (x) => x[name];
       access.set = (x, y) => x[name] = y;
     }
     it = (0, decorators[i])(void 0  , ctx), done._ = 1;
-    __expectFn$5(it) && (initializers.unshift(it) );
+    __expectFn$4(it) && (initializers.unshift(it) );
   }
   return target;
 };
-var __publicField$5 = (obj, key, value) => __defNormalProp$5(obj, typeof key !== "symbol" ? key + "" : key, value);
-var _isDeferred_dec, _init$5, _params_dec, _assetPath_dec$2, _init2$2, _isDeferred_dec2, _isSkinned_dec, _unlit_dec, _alphaCutoff_dec, _doubleSided_dec, _offset_dec, _repeat_dec, _emissiveMap_dec, _armMap_dec, _heightMap_dec, _normalMap_dec, _albedoMap_dec, _metalness_dec, _roughness_dec, _emissiveColor_dec, _albedoColor_dec, _a$4, _init3$1;
+var __publicField$4 = (obj, key, value) => __defNormalProp$4(obj, typeof key !== "symbol" ? key + "" : key, value);
+var _isDeferred_dec, _init$4, _params_dec, _assetPath_dec$2, _init2$1, _isDeferred_dec2, _isSkinned_dec, _unlit_dec, _alphaCutoff_dec, _doubleSided_dec, _offset_dec, _repeat_dec, _emissiveMap_dec, _armMap_dec, _heightMap_dec, _normalMap_dec, _albedoMap_dec, _metalness_dec, _roughness_dec, _emissiveColor_dec, _albedoColor_dec, _a$3, _init3;
 const MaterialPool = new Pool();
 _isDeferred_dec = [SerializeField];
 class MaterialParams {
   constructor() {
-    __publicField$5(this, "isDeferred", __runInitializers$5(_init$5, 8, this, false)), __runInitializers$5(_init$5, 11, this);
-    __publicField$5(this, "shader");
-    __publicField$5(this, "materialID");
+    __publicField$4(this, "isDeferred", __runInitializers$4(_init$4, 8, this, false)), __runInitializers$4(_init$4, 11, this);
+    __publicField$4(this, "shader");
+    __publicField$4(this, "materialID");
   }
 }
-_init$5 = __decoratorStart$5(null);
-__decorateElement$5(_init$5, 5, "isDeferred", _isDeferred_dec, MaterialParams);
-__decoratorMetadata$5(_init$5, MaterialParams);
+_init$4 = __decoratorStart$4(null);
+__decorateElement$4(_init$4, 5, "isDeferred", _isDeferred_dec, MaterialParams);
+__decoratorMetadata$4(_init$4, MaterialParams);
 _assetPath_dec$2 = [SerializeField], _params_dec = [SerializeField];
 const _Material = class _Material {
   constructor(params) {
-    __publicField$5(this, "name", "Material");
-    __publicField$5(this, "id", UUID());
-    __publicField$5(this, "assetPath", __runInitializers$5(_init2$2, 8, this)), __runInitializers$5(_init2$2, 11, this);
-    __publicField$5(this, "_shader");
-    __publicField$5(this, "params", __runInitializers$5(_init2$2, 12, this)), __runInitializers$5(_init2$2, 15, this);
-    __publicField$5(this, "materialId");
+    __publicField$4(this, "name", "Material");
+    __publicField$4(this, "id", UUID());
+    __publicField$4(this, "assetPath", __runInitializers$4(_init2$1, 8, this)), __runInitializers$4(_init2$1, 11, this);
+    __publicField$4(this, "_shader");
+    __publicField$4(this, "params", __runInitializers$4(_init2$1, 12, this)), __runInitializers$4(_init2$1, 15, this);
+    __publicField$4(this, "materialId");
     this.materialId = MaterialPool.add(this);
     const defaultParams = {
       isDeferred: false,
@@ -5059,38 +5071,38 @@ const _Material = class _Material {
     return new _Material(params);
   }
 };
-_init2$2 = __decoratorStart$5(null);
-__decorateElement$5(_init2$2, 5, "assetPath", _assetPath_dec$2, _Material);
-__decorateElement$5(_init2$2, 5, "params", _params_dec, _Material);
-__decoratorMetadata$5(_init2$2, _Material);
-__publicField$5(_Material, "type", "@trident/core/renderer/Material");
+_init2$1 = __decoratorStart$4(null);
+__decorateElement$4(_init2$1, 5, "assetPath", _assetPath_dec$2, _Material);
+__decorateElement$4(_init2$1, 5, "params", _params_dec, _Material);
+__decoratorMetadata$4(_init2$1, _Material);
+__publicField$4(_Material, "type", "@trident/core/renderer/Material");
 let Material = _Material;
-const _PBRMaterialParams = class _PBRMaterialParams extends (_a$4 = MaterialParams, _albedoColor_dec = [SerializeField], _emissiveColor_dec = [SerializeField], _roughness_dec = [SerializeField], _metalness_dec = [SerializeField], _albedoMap_dec = [SerializeField(Texture)], _normalMap_dec = [SerializeField(Texture)], _heightMap_dec = [SerializeField(Texture)], _armMap_dec = [SerializeField(Texture)], _emissiveMap_dec = [SerializeField(Texture)], _repeat_dec = [SerializeField], _offset_dec = [SerializeField], _doubleSided_dec = [SerializeField], _alphaCutoff_dec = [SerializeField], _unlit_dec = [SerializeField], _isSkinned_dec = [SerializeField], _isDeferred_dec2 = [SerializeField], _a$4) {
+const _PBRMaterialParams = class _PBRMaterialParams extends (_a$3 = MaterialParams, _albedoColor_dec = [SerializeField], _emissiveColor_dec = [SerializeField], _roughness_dec = [SerializeField], _metalness_dec = [SerializeField], _albedoMap_dec = [SerializeField(Texture)], _normalMap_dec = [SerializeField(Texture)], _heightMap_dec = [SerializeField(Texture)], _armMap_dec = [SerializeField(Texture)], _emissiveMap_dec = [SerializeField(Texture)], _repeat_dec = [SerializeField], _offset_dec = [SerializeField], _doubleSided_dec = [SerializeField], _alphaCutoff_dec = [SerializeField], _unlit_dec = [SerializeField], _isSkinned_dec = [SerializeField], _isDeferred_dec2 = [SerializeField], _a$3) {
   // 1x1 (255, roughness_default, 0) or just white
   constructor() {
     super();
-    __publicField$5(this, "albedoColor", __runInitializers$5(_init3$1, 8, this, new Color(1, 1, 1, 1))), __runInitializers$5(_init3$1, 11, this);
-    __publicField$5(this, "emissiveColor", __runInitializers$5(_init3$1, 12, this, new Color(0, 0, 0, 0))), __runInitializers$5(_init3$1, 15, this);
-    __publicField$5(this, "roughness", __runInitializers$5(_init3$1, 16, this, 1)), __runInitializers$5(_init3$1, 19, this);
-    __publicField$5(this, "metalness", __runInitializers$5(_init3$1, 20, this, 0)), __runInitializers$5(_init3$1, 23, this);
-    __publicField$5(this, "albedoMap", __runInitializers$5(_init3$1, 24, this)), __runInitializers$5(_init3$1, 27, this);
-    __publicField$5(this, "normalMap", __runInitializers$5(_init3$1, 28, this)), __runInitializers$5(_init3$1, 31, this);
-    __publicField$5(this, "heightMap", __runInitializers$5(_init3$1, 32, this)), __runInitializers$5(_init3$1, 35, this);
-    __publicField$5(this, "armMap", __runInitializers$5(_init3$1, 36, this)), __runInitializers$5(_init3$1, 39, this);
-    __publicField$5(this, "emissiveMap", __runInitializers$5(_init3$1, 40, this)), __runInitializers$5(_init3$1, 43, this);
-    __publicField$5(this, "repeat", __runInitializers$5(_init3$1, 44, this, new Vector2(1, 1))), __runInitializers$5(_init3$1, 47, this);
-    __publicField$5(this, "offset", __runInitializers$5(_init3$1, 48, this, new Vector2(0, 0))), __runInitializers$5(_init3$1, 51, this);
-    __publicField$5(this, "doubleSided", __runInitializers$5(_init3$1, 52, this, false)), __runInitializers$5(_init3$1, 55, this);
-    __publicField$5(this, "alphaCutoff", __runInitializers$5(_init3$1, 56, this, 0.5)), __runInitializers$5(_init3$1, 59, this);
-    __publicField$5(this, "unlit", __runInitializers$5(_init3$1, 60, this, false)), __runInitializers$5(_init3$1, 63, this);
-    __publicField$5(this, "isSkinned", __runInitializers$5(_init3$1, 64, this, false)), __runInitializers$5(_init3$1, 67, this);
-    __publicField$5(this, "isDeferred", __runInitializers$5(_init3$1, 68, this, true)), __runInitializers$5(_init3$1, 71, this);
+    __publicField$4(this, "albedoColor", __runInitializers$4(_init3, 8, this, new Color(1, 1, 1, 1))), __runInitializers$4(_init3, 11, this);
+    __publicField$4(this, "emissiveColor", __runInitializers$4(_init3, 12, this, new Color(0, 0, 0, 0))), __runInitializers$4(_init3, 15, this);
+    __publicField$4(this, "roughness", __runInitializers$4(_init3, 16, this, 1)), __runInitializers$4(_init3, 19, this);
+    __publicField$4(this, "metalness", __runInitializers$4(_init3, 20, this, 0)), __runInitializers$4(_init3, 23, this);
+    __publicField$4(this, "albedoMap", __runInitializers$4(_init3, 24, this)), __runInitializers$4(_init3, 27, this);
+    __publicField$4(this, "normalMap", __runInitializers$4(_init3, 28, this)), __runInitializers$4(_init3, 31, this);
+    __publicField$4(this, "heightMap", __runInitializers$4(_init3, 32, this)), __runInitializers$4(_init3, 35, this);
+    __publicField$4(this, "armMap", __runInitializers$4(_init3, 36, this)), __runInitializers$4(_init3, 39, this);
+    __publicField$4(this, "emissiveMap", __runInitializers$4(_init3, 40, this)), __runInitializers$4(_init3, 43, this);
+    __publicField$4(this, "repeat", __runInitializers$4(_init3, 44, this, new Vector2(1, 1))), __runInitializers$4(_init3, 47, this);
+    __publicField$4(this, "offset", __runInitializers$4(_init3, 48, this, new Vector2(0, 0))), __runInitializers$4(_init3, 51, this);
+    __publicField$4(this, "doubleSided", __runInitializers$4(_init3, 52, this, false)), __runInitializers$4(_init3, 55, this);
+    __publicField$4(this, "alphaCutoff", __runInitializers$4(_init3, 56, this, 0.5)), __runInitializers$4(_init3, 59, this);
+    __publicField$4(this, "unlit", __runInitializers$4(_init3, 60, this, false)), __runInitializers$4(_init3, 63, this);
+    __publicField$4(this, "isSkinned", __runInitializers$4(_init3, 64, this, false)), __runInitializers$4(_init3, 67, this);
+    __publicField$4(this, "isDeferred", __runInitializers$4(_init3, 68, this, true)), __runInitializers$4(_init3, 71, this);
     if (!_PBRMaterialParams.dummyAlbedo) _PBRMaterialParams.InitDummies();
     this.albedoMap = _PBRMaterialParams.dummyAlbedo;
     this.normalMap = _PBRMaterialParams.dummyNormal;
     this.heightMap = _PBRMaterialParams.dummyBlack;
     this.armMap = _PBRMaterialParams.dummyARM;
-    this.emissiveMap = _PBRMaterialParams.dummyBlack;
+    this.emissiveMap = _PBRMaterialParams.dummyWhite;
   }
   static InitDummies() {
     _PBRMaterialParams.dummyAlbedo = Texture.Create(1, 1, 1, "bgra8unorm");
@@ -5099,35 +5111,39 @@ const _PBRMaterialParams = class _PBRMaterialParams extends (_a$4 = MaterialPara
     _PBRMaterialParams.dummyNormal.SetData(new Uint8Array([255, 128, 128, 255]), 4);
     _PBRMaterialParams.dummyBlack = Texture.Create(1, 1, 1, "bgra8unorm");
     _PBRMaterialParams.dummyBlack.SetData(new Uint8Array([0, 0, 0, 255]), 4);
+    _PBRMaterialParams.dummyWhite = Texture.Create(1, 1, 1, "bgra8unorm");
+    _PBRMaterialParams.dummyWhite.SetData(new Uint8Array([255, 255, 255, 255]), 4);
     _PBRMaterialParams.dummyARM = Texture.Create(1, 1, 1, "bgra8unorm");
     _PBRMaterialParams.dummyARM.SetData(new Uint8Array([255, 255, 255, 255]), 4);
   }
 };
-_init3$1 = __decoratorStart$5(_a$4);
-__decorateElement$5(_init3$1, 5, "albedoColor", _albedoColor_dec, _PBRMaterialParams);
-__decorateElement$5(_init3$1, 5, "emissiveColor", _emissiveColor_dec, _PBRMaterialParams);
-__decorateElement$5(_init3$1, 5, "roughness", _roughness_dec, _PBRMaterialParams);
-__decorateElement$5(_init3$1, 5, "metalness", _metalness_dec, _PBRMaterialParams);
-__decorateElement$5(_init3$1, 5, "albedoMap", _albedoMap_dec, _PBRMaterialParams);
-__decorateElement$5(_init3$1, 5, "normalMap", _normalMap_dec, _PBRMaterialParams);
-__decorateElement$5(_init3$1, 5, "heightMap", _heightMap_dec, _PBRMaterialParams);
-__decorateElement$5(_init3$1, 5, "armMap", _armMap_dec, _PBRMaterialParams);
-__decorateElement$5(_init3$1, 5, "emissiveMap", _emissiveMap_dec, _PBRMaterialParams);
-__decorateElement$5(_init3$1, 5, "repeat", _repeat_dec, _PBRMaterialParams);
-__decorateElement$5(_init3$1, 5, "offset", _offset_dec, _PBRMaterialParams);
-__decorateElement$5(_init3$1, 5, "doubleSided", _doubleSided_dec, _PBRMaterialParams);
-__decorateElement$5(_init3$1, 5, "alphaCutoff", _alphaCutoff_dec, _PBRMaterialParams);
-__decorateElement$5(_init3$1, 5, "unlit", _unlit_dec, _PBRMaterialParams);
-__decorateElement$5(_init3$1, 5, "isSkinned", _isSkinned_dec, _PBRMaterialParams);
-__decorateElement$5(_init3$1, 5, "isDeferred", _isDeferred_dec2, _PBRMaterialParams);
-__decoratorMetadata$5(_init3$1, _PBRMaterialParams);
-__publicField$5(_PBRMaterialParams, "dummyAlbedo");
+_init3 = __decoratorStart$4(_a$3);
+__decorateElement$4(_init3, 5, "albedoColor", _albedoColor_dec, _PBRMaterialParams);
+__decorateElement$4(_init3, 5, "emissiveColor", _emissiveColor_dec, _PBRMaterialParams);
+__decorateElement$4(_init3, 5, "roughness", _roughness_dec, _PBRMaterialParams);
+__decorateElement$4(_init3, 5, "metalness", _metalness_dec, _PBRMaterialParams);
+__decorateElement$4(_init3, 5, "albedoMap", _albedoMap_dec, _PBRMaterialParams);
+__decorateElement$4(_init3, 5, "normalMap", _normalMap_dec, _PBRMaterialParams);
+__decorateElement$4(_init3, 5, "heightMap", _heightMap_dec, _PBRMaterialParams);
+__decorateElement$4(_init3, 5, "armMap", _armMap_dec, _PBRMaterialParams);
+__decorateElement$4(_init3, 5, "emissiveMap", _emissiveMap_dec, _PBRMaterialParams);
+__decorateElement$4(_init3, 5, "repeat", _repeat_dec, _PBRMaterialParams);
+__decorateElement$4(_init3, 5, "offset", _offset_dec, _PBRMaterialParams);
+__decorateElement$4(_init3, 5, "doubleSided", _doubleSided_dec, _PBRMaterialParams);
+__decorateElement$4(_init3, 5, "alphaCutoff", _alphaCutoff_dec, _PBRMaterialParams);
+__decorateElement$4(_init3, 5, "unlit", _unlit_dec, _PBRMaterialParams);
+__decorateElement$4(_init3, 5, "isSkinned", _isSkinned_dec, _PBRMaterialParams);
+__decorateElement$4(_init3, 5, "isDeferred", _isDeferred_dec2, _PBRMaterialParams);
+__decoratorMetadata$4(_init3, _PBRMaterialParams);
+__publicField$4(_PBRMaterialParams, "dummyAlbedo");
 // 1x1 white
-__publicField$5(_PBRMaterialParams, "dummyNormal");
+__publicField$4(_PBRMaterialParams, "dummyNormal");
 // 1x1 flat (128, 128, 255)
-__publicField$5(_PBRMaterialParams, "dummyBlack");
+__publicField$4(_PBRMaterialParams, "dummyBlack");
 // 1x1 black (for height, emissive)
-__publicField$5(_PBRMaterialParams, "dummyARM");
+__publicField$4(_PBRMaterialParams, "dummyWhite");
+// 1x1 black (for height, emissive)
+__publicField$4(_PBRMaterialParams, "dummyARM");
 let PBRMaterialParams = _PBRMaterialParams;
 class PBRMaterial extends Material {
   static type = "@trident/core/renderer/Material/PBRMaterial";
@@ -5210,27 +5226,27 @@ class PBRMaterial extends Material {
   }
 }
 
-var __create$4 = Object.create;
-var __defProp$4 = Object.defineProperty;
+var __create$3 = Object.create;
+var __defProp$3 = Object.defineProperty;
 var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
-var __knownSymbol$4 = (name, symbol) => (symbol = Symbol[name]) ? symbol : Symbol.for("Symbol." + name);
-var __typeError$4 = (msg) => {
+var __knownSymbol$3 = (name, symbol) => (symbol = Symbol[name]) ? symbol : Symbol.for("Symbol." + name);
+var __typeError$3 = (msg) => {
   throw TypeError(msg);
 };
-var __defNormalProp$4 = (obj, key, value) => key in obj ? __defProp$4(obj, key, { enumerable: true, configurable: true, writable: true, value }) : obj[key] = value;
-var __name = (target, value) => __defProp$4(target, "name", { value, configurable: true });
-var __decoratorStart$4 = (base) => [, , , __create$4(base?.[__knownSymbol$4("metadata")] ?? null)];
-var __decoratorStrings$4 = ["class", "method", "getter", "setter", "accessor", "field", "value", "get", "set"];
-var __expectFn$4 = (fn) => fn !== void 0 && typeof fn !== "function" ? __typeError$4("Function expected") : fn;
-var __decoratorContext$4 = (kind, name, done, metadata, fns) => ({ kind: __decoratorStrings$4[kind], name, metadata, addInitializer: (fn) => done._ ? __typeError$4("Already initialized") : fns.push(__expectFn$4(fn || null)) });
-var __decoratorMetadata$4 = (array, target) => __defNormalProp$4(target, __knownSymbol$4("metadata"), array[3]);
-var __runInitializers$4 = (array, flags, self, value) => {
+var __defNormalProp$3 = (obj, key, value) => key in obj ? __defProp$3(obj, key, { enumerable: true, configurable: true, writable: true, value }) : obj[key] = value;
+var __name = (target, value) => __defProp$3(target, "name", { value, configurable: true });
+var __decoratorStart$3 = (base) => [, , , __create$3(base?.[__knownSymbol$3("metadata")] ?? null)];
+var __decoratorStrings$3 = ["class", "method", "getter", "setter", "accessor", "field", "value", "get", "set"];
+var __expectFn$3 = (fn) => fn !== void 0 && typeof fn !== "function" ? __typeError$3("Function expected") : fn;
+var __decoratorContext$3 = (kind, name, done, metadata, fns) => ({ kind: __decoratorStrings$3[kind], name, metadata, addInitializer: (fn) => done._ ? __typeError$3("Already initialized") : fns.push(__expectFn$3(fn || null)) });
+var __decoratorMetadata$3 = (array, target) => __defNormalProp$3(target, __knownSymbol$3("metadata"), array[3]);
+var __runInitializers$3 = (array, flags, self, value) => {
   for (var i = 0, fns = array[flags >> 1], n = fns && fns.length; i < n; i++) flags & 1 ? fns[i].call(self) : value = fns[i].call(self, value);
   return value;
 };
-var __decorateElement$4 = (array, flags, name, decorators, target, extra) => {
+var __decorateElement$3 = (array, flags, name, decorators, target, extra) => {
   var fn, it, done, ctx, access, k = flags & 7, s = !!(flags & 8), p = !!(flags & 16);
-  var j = k > 3 ? array.length + 1 : k ? s ? 1 : 2 : 0, key = __decoratorStrings$4[k + 5];
+  var j = k > 3 ? array.length + 1 : k ? s ? 1 : 2 : 0, key = __decoratorStrings$3[k + 5];
   var initializers = k > 3 && (array[j - 1] = []), extraInitializers = array[j] || (array[j] = []);
   var desc = k && (!p && !s && (target = target.prototype), k < 5 && (k > 3 || !p) && __getOwnPropDesc(k < 4 ? target : { get [name]() {
     return __privateGet(this, extra);
@@ -5239,39 +5255,39 @@ var __decorateElement$4 = (array, flags, name, decorators, target, extra) => {
   } }, name));
   k ? p && k < 4 && __name(extra, (k > 2 ? "set " : k > 1 ? "get " : "") + name) : __name(target, name);
   for (var i = decorators.length - 1; i >= 0; i--) {
-    ctx = __decoratorContext$4(k, name, done = {}, array[3], extraInitializers);
+    ctx = __decoratorContext$3(k, name, done = {}, array[3], extraInitializers);
     if (k) {
       ctx.static = s, ctx.private = p, access = ctx.access = { has: p ? (x) => __privateIn(target, x) : (x) => name in x };
       if (k ^ 3) access.get = p ? (x) => (k ^ 1 ? __privateGet : __privateMethod)(x, target, k ^ 4 ? extra : desc.get) : (x) => x[name];
       if (k > 2) access.set = p ? (x, y) => __privateSet(x, target, y, k ^ 4 ? extra : desc.set) : (x, y) => x[name] = y;
     }
     it = (0, decorators[i])(k ? k < 4 ? p ? extra : desc[key] : k > 4 ? void 0 : { get: desc.get, set: desc.set } : target, ctx), done._ = 1;
-    if (k ^ 4 || it === void 0) __expectFn$4(it) && (k > 4 ? initializers.unshift(it) : k ? p ? extra = it : desc[key] = it : target = it);
-    else if (typeof it !== "object" || it === null) __typeError$4("Object expected");
-    else __expectFn$4(fn = it.get) && (desc.get = fn), __expectFn$4(fn = it.set) && (desc.set = fn), __expectFn$4(fn = it.init) && initializers.unshift(fn);
+    if (k ^ 4 || it === void 0) __expectFn$3(it) && (k > 4 ? initializers.unshift(it) : k ? p ? extra = it : desc[key] = it : target = it);
+    else if (typeof it !== "object" || it === null) __typeError$3("Object expected");
+    else __expectFn$3(fn = it.get) && (desc.get = fn), __expectFn$3(fn = it.set) && (desc.set = fn), __expectFn$3(fn = it.init) && initializers.unshift(fn);
   }
-  return k || __decoratorMetadata$4(array, target), desc && __defProp$4(target, name, desc), p ? k ^ 4 ? extra : desc : target;
+  return k || __decoratorMetadata$3(array, target), desc && __defProp$3(target, name, desc), p ? k ^ 4 ? extra : desc : target;
 };
-var __publicField$4 = (obj, key, value) => __defNormalProp$4(obj, typeof key !== "symbol" ? key + "" : key, value);
-var __accessCheck = (obj, member, msg) => member.has(obj) || __typeError$4("Cannot " + msg);
-var __privateIn = (member, obj) => Object(obj) !== obj ? __typeError$4('Cannot use the "in" operator on this value') : member.has(obj);
+var __publicField$3 = (obj, key, value) => __defNormalProp$3(obj, typeof key !== "symbol" ? key + "" : key, value);
+var __accessCheck = (obj, member, msg) => member.has(obj) || __typeError$3("Cannot " + msg);
+var __privateIn = (member, obj) => Object(obj) !== obj ? __typeError$3('Cannot use the "in" operator on this value') : member.has(obj);
 var __privateGet = (obj, member, getter) => (__accessCheck(obj, member, "read from private field"), getter ? getter.call(obj) : member.get(obj));
 var __privateSet = (obj, member, value, setter) => (__accessCheck(obj, member, "write to private field"), setter ? setter.call(obj, value) : member.set(obj, value), value);
 var __privateMethod = (obj, member, method) => (__accessCheck(obj, member, "access private method"), method);
-var _material_dec, _geometry_dec, _enableShadows_dec, _a$3, _init$4;
+var _material_dec, _geometry_dec, _enableShadows_dec, _a$2, _init$3;
 class RenderableEvents {
   static MaterialUpdated = (gameObject, material) => {
   };
   static GeometryUpdated = (gameObject, geometry) => {
   };
 }
-const _Renderable = class _Renderable extends (_a$3 = Component, _enableShadows_dec = [SerializeField], _geometry_dec = [SerializeField(Geometry)], _material_dec = [SerializeField(Material)], _a$3) {
+const _Renderable = class _Renderable extends (_a$2 = Component, _enableShadows_dec = [SerializeField], _geometry_dec = [SerializeField(Geometry)], _material_dec = [SerializeField(Material)], _a$2) {
   constructor(gameObject) {
     super(gameObject);
-    __runInitializers$4(_init$4, 5, this);
-    __publicField$4(this, "enableShadows", __runInitializers$4(_init$4, 8, this, true)), __runInitializers$4(_init$4, 11, this);
-    __publicField$4(this, "_geometry", new Geometry());
-    __publicField$4(this, "_material", new PBRMaterial());
+    __runInitializers$3(_init$3, 5, this);
+    __publicField$3(this, "enableShadows", __runInitializers$3(_init$3, 8, this, true)), __runInitializers$3(_init$3, 11, this);
+    __publicField$3(this, "_geometry", new Geometry());
+    __publicField$3(this, "_material", new PBRMaterial());
     _Renderable.Renderables.set(this.id, this);
   }
   get geometry() {
@@ -5307,64 +5323,64 @@ const _Renderable = class _Renderable extends (_a$3 = Component, _enableShadows_
     _Renderable.Renderables.delete(this.id);
   }
 };
-_init$4 = __decoratorStart$4(_a$3);
-__decorateElement$4(_init$4, 2, "geometry", _geometry_dec, _Renderable);
-__decorateElement$4(_init$4, 2, "material", _material_dec, _Renderable);
-__decorateElement$4(_init$4, 5, "enableShadows", _enableShadows_dec, _Renderable);
-__decoratorMetadata$4(_init$4, _Renderable);
-__publicField$4(_Renderable, "Renderables", /* @__PURE__ */ new Map());
-__publicField$4(_Renderable, "type", "@trident/core/components/Renderable");
+_init$3 = __decoratorStart$3(_a$2);
+__decorateElement$3(_init$3, 2, "geometry", _geometry_dec, _Renderable);
+__decorateElement$3(_init$3, 2, "material", _material_dec, _Renderable);
+__decorateElement$3(_init$3, 5, "enableShadows", _enableShadows_dec, _Renderable);
+__decoratorMetadata$3(_init$3, _Renderable);
+__publicField$3(_Renderable, "Renderables", /* @__PURE__ */ new Map());
+__publicField$3(_Renderable, "type", "@trident/core/components/Renderable");
 let Renderable = _Renderable;
 
-var __create$3 = Object.create;
-var __defProp$3 = Object.defineProperty;
-var __knownSymbol$3 = (name, symbol) => (symbol = Symbol[name]) ? symbol : Symbol.for("Symbol." + name);
-var __typeError$3 = (msg) => {
+var __create$2 = Object.create;
+var __defProp$2 = Object.defineProperty;
+var __knownSymbol$2 = (name, symbol) => (symbol = Symbol[name]) ? symbol : Symbol.for("Symbol." + name);
+var __typeError$2 = (msg) => {
   throw TypeError(msg);
 };
-var __defNormalProp$3 = (obj, key, value) => key in obj ? __defProp$3(obj, key, { enumerable: true, configurable: true, writable: true, value }) : obj[key] = value;
-var __decoratorStart$3 = (base) => [, , , __create$3(base?.[__knownSymbol$3("metadata")] ?? null)];
-var __decoratorStrings$3 = ["class", "method", "getter", "setter", "accessor", "field", "value", "get", "set"];
-var __expectFn$3 = (fn) => fn !== void 0 && typeof fn !== "function" ? __typeError$3("Function expected") : fn;
-var __decoratorContext$3 = (kind, name, done, metadata, fns) => ({ kind: __decoratorStrings$3[kind], name, metadata, addInitializer: (fn) => done._ ? __typeError$3("Already initialized") : fns.push(__expectFn$3(fn || null)) });
-var __decoratorMetadata$3 = (array, target) => __defNormalProp$3(target, __knownSymbol$3("metadata"), array[3]);
-var __runInitializers$3 = (array, flags, self, value) => {
+var __defNormalProp$2 = (obj, key, value) => key in obj ? __defProp$2(obj, key, { enumerable: true, configurable: true, writable: true, value }) : obj[key] = value;
+var __decoratorStart$2 = (base) => [, , , __create$2(base?.[__knownSymbol$2("metadata")] ?? null)];
+var __decoratorStrings$2 = ["class", "method", "getter", "setter", "accessor", "field", "value", "get", "set"];
+var __expectFn$2 = (fn) => fn !== void 0 && typeof fn !== "function" ? __typeError$2("Function expected") : fn;
+var __decoratorContext$2 = (kind, name, done, metadata, fns) => ({ kind: __decoratorStrings$2[kind], name, metadata, addInitializer: (fn) => done._ ? __typeError$2("Already initialized") : fns.push(__expectFn$2(fn || null)) });
+var __decoratorMetadata$2 = (array, target) => __defNormalProp$2(target, __knownSymbol$2("metadata"), array[3]);
+var __runInitializers$2 = (array, flags, self, value) => {
   for (var i = 0, fns = array[flags >> 1], n = fns && fns.length; i < n; i++) flags & 1 ? fns[i].call(self) : value = fns[i].call(self, value);
   return value;
 };
-var __decorateElement$3 = (array, flags, name, decorators, target, extra) => {
+var __decorateElement$2 = (array, flags, name, decorators, target, extra) => {
   var it, done, ctx, access, k = flags & 7, s = false, p = false;
   var j = array.length + 1 ;
   var initializers = (array[j - 1] = []), extraInitializers = array[j] || (array[j] = []);
   ((target = target.prototype), k < 5);
   for (var i = decorators.length - 1; i >= 0; i--) {
-    ctx = __decoratorContext$3(k, name, done = {}, array[3], extraInitializers);
+    ctx = __decoratorContext$2(k, name, done = {}, array[3], extraInitializers);
     {
       ctx.static = s, ctx.private = p, access = ctx.access = { has: (x) => name in x };
       access.get = (x) => x[name];
       access.set = (x, y) => x[name] = y;
     }
     it = (0, decorators[i])(void 0  , ctx), done._ = 1;
-    __expectFn$3(it) && (initializers.unshift(it) );
+    __expectFn$2(it) && (initializers.unshift(it) );
   }
   return target;
 };
-var __publicField$3 = (obj, key, value) => __defNormalProp$3(obj, typeof key !== "symbol" ? key + "" : key, value);
-var _inverseBindMatrix_dec, _skinId_dec, _index_dec, _a$2, _init$3;
-class Bone extends (_a$2 = Component, _index_dec = [SerializeField], _skinId_dec = [SerializeField], _inverseBindMatrix_dec = [SerializeField], _a$2) {
+var __publicField$2 = (obj, key, value) => __defNormalProp$2(obj, typeof key !== "symbol" ? key + "" : key, value);
+var _inverseBindMatrix_dec, _skinId_dec, _index_dec, _a$1, _init$2;
+class Bone extends (_a$1 = Component, _index_dec = [SerializeField], _skinId_dec = [SerializeField], _inverseBindMatrix_dec = [SerializeField], _a$1) {
   constructor() {
     super(...arguments);
-    __publicField$3(this, "index", __runInitializers$3(_init$3, 8, this, 0)), __runInitializers$3(_init$3, 11, this);
-    __publicField$3(this, "skinId", __runInitializers$3(_init$3, 12, this, -1)), __runInitializers$3(_init$3, 15, this);
-    __publicField$3(this, "inverseBindMatrix", __runInitializers$3(_init$3, 16, this, new Float32Array(16))), __runInitializers$3(_init$3, 19, this);
+    __publicField$2(this, "index", __runInitializers$2(_init$2, 8, this, 0)), __runInitializers$2(_init$2, 11, this);
+    __publicField$2(this, "skinId", __runInitializers$2(_init$2, 12, this, -1)), __runInitializers$2(_init$2, 15, this);
+    __publicField$2(this, "inverseBindMatrix", __runInitializers$2(_init$2, 16, this, new Float32Array(16))), __runInitializers$2(_init$2, 19, this);
   }
 }
-_init$3 = __decoratorStart$3(_a$2);
-__decorateElement$3(_init$3, 5, "index", _index_dec, Bone);
-__decorateElement$3(_init$3, 5, "skinId", _skinId_dec, Bone);
-__decorateElement$3(_init$3, 5, "inverseBindMatrix", _inverseBindMatrix_dec, Bone);
-__decoratorMetadata$3(_init$3, Bone);
-__publicField$3(Bone, "type", "@trident/core/components/Bone");
+_init$2 = __decoratorStart$2(_a$1);
+__decorateElement$2(_init$2, 5, "index", _index_dec, Bone);
+__decorateElement$2(_init$2, 5, "skinId", _skinId_dec, Bone);
+__decorateElement$2(_init$2, 5, "inverseBindMatrix", _inverseBindMatrix_dec, Bone);
+__decoratorMetadata$2(_init$2, Bone);
+__publicField$2(Bone, "type", "@trident/core/components/Bone");
 Component.Registry.set(Bone.type, Bone);
 class SkinnedMesh extends Renderable {
   static type = "@trident/core/components/SkinnedMesh";
@@ -6810,126 +6826,514 @@ class Renderer extends System {
   }
 }
 
-var __create$2 = Object.create;
-var __defProp$2 = Object.defineProperty;
-var __knownSymbol$2 = (name, symbol) => (symbol = Symbol[name]) ? symbol : Symbol.for("Symbol." + name);
-var __typeError$2 = (msg) => {
-  throw TypeError(msg);
-};
-var __defNormalProp$2 = (obj, key, value) => key in obj ? __defProp$2(obj, key, { enumerable: true, configurable: true, writable: true, value }) : obj[key] = value;
-var __decoratorStart$2 = (base) => [, , , __create$2(base?.[__knownSymbol$2("metadata")] ?? null)];
-var __decoratorStrings$2 = ["class", "method", "getter", "setter", "accessor", "field", "value", "get", "set"];
-var __expectFn$2 = (fn) => fn !== void 0 && typeof fn !== "function" ? __typeError$2("Function expected") : fn;
-var __decoratorContext$2 = (kind, name, done, metadata, fns) => ({ kind: __decoratorStrings$2[kind], name, metadata, addInitializer: (fn) => done._ ? __typeError$2("Already initialized") : fns.push(__expectFn$2(fn || null)) });
-var __decoratorMetadata$2 = (array, target) => __defNormalProp$2(target, __knownSymbol$2("metadata"), array[3]);
-var __runInitializers$2 = (array, flags, self, value) => {
-  for (var i = 0, fns = array[flags >> 1], n = fns && fns.length; i < n; i++) flags & 1 ? fns[i].call(self) : value = fns[i].call(self, value);
-  return value;
-};
-var __decorateElement$2 = (array, flags, name, decorators, target, extra) => {
-  var it, done, ctx, access, k = flags & 7, s = false, p = false;
-  var j = array.length + 1 ;
-  var initializers = (array[j - 1] = []), extraInitializers = array[j] || (array[j] = []);
-  ((target = target.prototype), k < 5);
-  for (var i = decorators.length - 1; i >= 0; i--) {
-    ctx = __decoratorContext$2(k, name, done = {}, array[3], extraInitializers);
-    {
-      ctx.static = s, ctx.private = p, access = ctx.access = { has: (x) => name in x };
-      access.get = (x) => x[name];
-      access.set = (x, y) => x[name] = y;
+var KeyCodes = /* @__PURE__ */ ((KeyCodes2) => {
+  KeyCodes2[KeyCodes2["CANCEL"] = 3] = "CANCEL";
+  KeyCodes2[KeyCodes2["HELP"] = 6] = "HELP";
+  KeyCodes2[KeyCodes2["BACK_SPACE"] = 8] = "BACK_SPACE";
+  KeyCodes2[KeyCodes2["TAB"] = 9] = "TAB";
+  KeyCodes2[KeyCodes2["CLEAR"] = 12] = "CLEAR";
+  KeyCodes2[KeyCodes2["RETURN"] = 13] = "RETURN";
+  KeyCodes2[KeyCodes2["ENTER"] = 14] = "ENTER";
+  KeyCodes2[KeyCodes2["SHIFT"] = 16] = "SHIFT";
+  KeyCodes2[KeyCodes2["CONTROL"] = 17] = "CONTROL";
+  KeyCodes2[KeyCodes2["ALT"] = 18] = "ALT";
+  KeyCodes2[KeyCodes2["PAUSE"] = 19] = "PAUSE";
+  KeyCodes2[KeyCodes2["CAPS_LOCK"] = 20] = "CAPS_LOCK";
+  KeyCodes2[KeyCodes2["ESCAPE"] = 27] = "ESCAPE";
+  KeyCodes2[KeyCodes2["SPACE"] = 32] = "SPACE";
+  KeyCodes2[KeyCodes2["PAGE_UP"] = 33] = "PAGE_UP";
+  KeyCodes2[KeyCodes2["PAGE_DOWN"] = 34] = "PAGE_DOWN";
+  KeyCodes2[KeyCodes2["END"] = 35] = "END";
+  KeyCodes2[KeyCodes2["HOME"] = 36] = "HOME";
+  KeyCodes2[KeyCodes2["LEFT"] = 37] = "LEFT";
+  KeyCodes2[KeyCodes2["UP"] = 38] = "UP";
+  KeyCodes2[KeyCodes2["RIGHT"] = 39] = "RIGHT";
+  KeyCodes2[KeyCodes2["DOWN"] = 40] = "DOWN";
+  KeyCodes2[KeyCodes2["PRINTSCREEN"] = 44] = "PRINTSCREEN";
+  KeyCodes2[KeyCodes2["INSERT"] = 45] = "INSERT";
+  KeyCodes2[KeyCodes2["DELETE"] = 46] = "DELETE";
+  KeyCodes2[KeyCodes2["NUM_0"] = 48] = "NUM_0";
+  KeyCodes2[KeyCodes2["NUM_1"] = 49] = "NUM_1";
+  KeyCodes2[KeyCodes2["NUM_2"] = 50] = "NUM_2";
+  KeyCodes2[KeyCodes2["NUM_3"] = 51] = "NUM_3";
+  KeyCodes2[KeyCodes2["NUM_4"] = 52] = "NUM_4";
+  KeyCodes2[KeyCodes2["NUM_5"] = 53] = "NUM_5";
+  KeyCodes2[KeyCodes2["NUM_6"] = 54] = "NUM_6";
+  KeyCodes2[KeyCodes2["NUM_7"] = 55] = "NUM_7";
+  KeyCodes2[KeyCodes2["NUM_8"] = 56] = "NUM_8";
+  KeyCodes2[KeyCodes2["NUM_9"] = 57] = "NUM_9";
+  KeyCodes2[KeyCodes2["SEMICOLON"] = 59] = "SEMICOLON";
+  KeyCodes2[KeyCodes2["EQUALS"] = 61] = "EQUALS";
+  KeyCodes2[KeyCodes2["A"] = 65] = "A";
+  KeyCodes2[KeyCodes2["B"] = 66] = "B";
+  KeyCodes2[KeyCodes2["C"] = 67] = "C";
+  KeyCodes2[KeyCodes2["D"] = 68] = "D";
+  KeyCodes2[KeyCodes2["E"] = 69] = "E";
+  KeyCodes2[KeyCodes2["F"] = 70] = "F";
+  KeyCodes2[KeyCodes2["G"] = 71] = "G";
+  KeyCodes2[KeyCodes2["H"] = 72] = "H";
+  KeyCodes2[KeyCodes2["I"] = 73] = "I";
+  KeyCodes2[KeyCodes2["J"] = 74] = "J";
+  KeyCodes2[KeyCodes2["K"] = 75] = "K";
+  KeyCodes2[KeyCodes2["L"] = 76] = "L";
+  KeyCodes2[KeyCodes2["M"] = 77] = "M";
+  KeyCodes2[KeyCodes2["N"] = 78] = "N";
+  KeyCodes2[KeyCodes2["O"] = 79] = "O";
+  KeyCodes2[KeyCodes2["P"] = 80] = "P";
+  KeyCodes2[KeyCodes2["Q"] = 81] = "Q";
+  KeyCodes2[KeyCodes2["R"] = 82] = "R";
+  KeyCodes2[KeyCodes2["S"] = 83] = "S";
+  KeyCodes2[KeyCodes2["T"] = 84] = "T";
+  KeyCodes2[KeyCodes2["U"] = 85] = "U";
+  KeyCodes2[KeyCodes2["V"] = 86] = "V";
+  KeyCodes2[KeyCodes2["W"] = 87] = "W";
+  KeyCodes2[KeyCodes2["X"] = 88] = "X";
+  KeyCodes2[KeyCodes2["Y"] = 89] = "Y";
+  KeyCodes2[KeyCodes2["Z"] = 90] = "Z";
+  KeyCodes2[KeyCodes2["CONTEXT_MENU"] = 93] = "CONTEXT_MENU";
+  KeyCodes2[KeyCodes2["NUMPAD0"] = 96] = "NUMPAD0";
+  KeyCodes2[KeyCodes2["NUMPAD1"] = 97] = "NUMPAD1";
+  KeyCodes2[KeyCodes2["NUMPAD2"] = 98] = "NUMPAD2";
+  KeyCodes2[KeyCodes2["NUMPAD3"] = 99] = "NUMPAD3";
+  KeyCodes2[KeyCodes2["NUMPAD4"] = 100] = "NUMPAD4";
+  KeyCodes2[KeyCodes2["NUMPAD5"] = 101] = "NUMPAD5";
+  KeyCodes2[KeyCodes2["NUMPAD6"] = 102] = "NUMPAD6";
+  KeyCodes2[KeyCodes2["NUMPAD7"] = 103] = "NUMPAD7";
+  KeyCodes2[KeyCodes2["NUMPAD8"] = 104] = "NUMPAD8";
+  KeyCodes2[KeyCodes2["NUMPAD9"] = 105] = "NUMPAD9";
+  KeyCodes2[KeyCodes2["MULTIPLY"] = 106] = "MULTIPLY";
+  KeyCodes2[KeyCodes2["ADD"] = 107] = "ADD";
+  KeyCodes2[KeyCodes2["SEPARATOR"] = 108] = "SEPARATOR";
+  KeyCodes2[KeyCodes2["SUBTRACT"] = 109] = "SUBTRACT";
+  KeyCodes2[KeyCodes2["DECIMAL"] = 110] = "DECIMAL";
+  KeyCodes2[KeyCodes2["DIVIDE"] = 111] = "DIVIDE";
+  KeyCodes2[KeyCodes2["F1"] = 112] = "F1";
+  KeyCodes2[KeyCodes2["F2"] = 113] = "F2";
+  KeyCodes2[KeyCodes2["F3"] = 114] = "F3";
+  KeyCodes2[KeyCodes2["F4"] = 115] = "F4";
+  KeyCodes2[KeyCodes2["F5"] = 116] = "F5";
+  KeyCodes2[KeyCodes2["F6"] = 117] = "F6";
+  KeyCodes2[KeyCodes2["F7"] = 118] = "F7";
+  KeyCodes2[KeyCodes2["F8"] = 119] = "F8";
+  KeyCodes2[KeyCodes2["F9"] = 120] = "F9";
+  KeyCodes2[KeyCodes2["F10"] = 121] = "F10";
+  KeyCodes2[KeyCodes2["F11"] = 122] = "F11";
+  KeyCodes2[KeyCodes2["F12"] = 123] = "F12";
+  KeyCodes2[KeyCodes2["F13"] = 124] = "F13";
+  KeyCodes2[KeyCodes2["F14"] = 125] = "F14";
+  KeyCodes2[KeyCodes2["F15"] = 126] = "F15";
+  KeyCodes2[KeyCodes2["F16"] = 127] = "F16";
+  KeyCodes2[KeyCodes2["F17"] = 128] = "F17";
+  KeyCodes2[KeyCodes2["F18"] = 129] = "F18";
+  KeyCodes2[KeyCodes2["F19"] = 130] = "F19";
+  KeyCodes2[KeyCodes2["F20"] = 131] = "F20";
+  KeyCodes2[KeyCodes2["F21"] = 132] = "F21";
+  KeyCodes2[KeyCodes2["F22"] = 133] = "F22";
+  KeyCodes2[KeyCodes2["F23"] = 134] = "F23";
+  KeyCodes2[KeyCodes2["F24"] = 135] = "F24";
+  KeyCodes2[KeyCodes2["NUM_LOCK"] = 144] = "NUM_LOCK";
+  KeyCodes2[KeyCodes2["SCROLL_LOCK"] = 145] = "SCROLL_LOCK";
+  KeyCodes2[KeyCodes2["COMMA"] = 188] = "COMMA";
+  KeyCodes2[KeyCodes2["PERIOD"] = 190] = "PERIOD";
+  KeyCodes2[KeyCodes2["SLASH"] = 191] = "SLASH";
+  KeyCodes2[KeyCodes2["BACK_QUOTE"] = 192] = "BACK_QUOTE";
+  KeyCodes2[KeyCodes2["OPEN_BRACKET"] = 219] = "OPEN_BRACKET";
+  KeyCodes2[KeyCodes2["BACK_SLASH"] = 220] = "BACK_SLASH";
+  KeyCodes2[KeyCodes2["CLOSE_BRACKET"] = 221] = "CLOSE_BRACKET";
+  KeyCodes2[KeyCodes2["QUOTE"] = 222] = "QUOTE";
+  KeyCodes2[KeyCodes2["META"] = 224] = "META";
+  return KeyCodes2;
+})(KeyCodes || {});
+var MouseCodes = /* @__PURE__ */ ((MouseCodes2) => {
+  MouseCodes2[MouseCodes2["MOUSE_LEFT"] = 0] = "MOUSE_LEFT";
+  MouseCodes2[MouseCodes2["MOUSE_RIGHT"] = 1] = "MOUSE_RIGHT";
+  MouseCodes2[MouseCodes2["MOUSE_MIDDLE"] = 2] = "MOUSE_MIDDLE";
+  return MouseCodes2;
+})(MouseCodes || {});
+class Input extends System {
+  static keysDown = {};
+  static keysUp = {};
+  static mouseDown = {};
+  static mouseUp = {};
+  static _mousePosition = new Vector2();
+  static horizontalAxis = 0;
+  static verticalAxis = 0;
+  static previousTouch = new Vector2();
+  static get mousePosition() {
+    return Input._mousePosition;
+  }
+  async Start() {
+    document.onkeydown = (event) => {
+      Input.OnKeyDown(event);
+    };
+    document.onkeyup = (event) => {
+      Input.OnKeyUp(event);
+    };
+    document.onmousemove = (event) => {
+      Input.OnMouseMove(event);
+    };
+    document.onmousedown = (event) => {
+      Input.OnMouseDown(event);
+    };
+    document.onmouseup = (event) => {
+      Input.OnMouseUp(event);
+    };
+    document.ontouchmove = (event) => {
+      Input.OnTouchMove(event);
+    };
+  }
+  static OnTouchMove(event) {
+    event.preventDefault();
+    this._mousePosition.x = event.touches[0].clientX;
+    this._mousePosition.y = event.touches[0].clientY;
+    this.horizontalAxis += Math.round(this._mousePosition.x - this.previousTouch.x);
+    this.verticalAxis += Math.round(this._mousePosition.y - this.previousTouch.y);
+    this.previousTouch.set(this._mousePosition.x, this._mousePosition.y);
+  }
+  static OnMouseMove(event) {
+    this._mousePosition.x = event.clientX;
+    this._mousePosition.y = event.clientY;
+    this.horizontalAxis += event.movementX;
+    this.verticalAxis += event.movementY;
+  }
+  static OnKeyDown(event) {
+    if (this.keysDown[event.keyCode] === void 0) {
+      this.keysDown[event.keyCode] = Renderer.info.frame;
+      delete this.keysUp[event.keyCode];
     }
-    it = (0, decorators[i])(void 0  , ctx), done._ = 1;
-    __expectFn$2(it) && (initializers.unshift(it) );
   }
-  return target;
-};
-var __publicField$2 = (obj, key, value) => __defNormalProp$2(obj, typeof key !== "symbol" ? key + "" : key, value);
-var _castShadows_dec, _intensity_dec, _color_dec, _a$1, _init$2, _range_dec, _angle_dec, _b$1, _init2$1, _range_dec2, _c, _init3, _direction_dec, _d, _init4;
-class LightEvents {
-  static Updated = (light) => {
-  };
-  static Destroyed = (light) => {
-  };
+  static OnKeyUp(event) {
+    this.keysUp[event.keyCode] = Renderer.info.frame;
+    delete this.keysDown[event.keyCode];
+  }
+  static OnMouseDown(event) {
+    if (this.mouseDown[event.button] === void 0) {
+      this.mouseDown[event.button] = Renderer.info.frame;
+      delete this.keysUp[event.button];
+    }
+  }
+  static OnMouseUp(event) {
+    this.mouseUp[event.button] = Renderer.info.frame;
+    delete this.mouseDown[event.button];
+  }
+  Update() {
+    Input.horizontalAxis = 0;
+    Input.verticalAxis = 0;
+  }
+  /**
+   * Checks if the specified key was pressed down during the current frame.
+   * This method only returns true once per key down event, the key needs to be released 
+   * and pressed again in order for the condition to be true once more.
+   * 
+   * @param {KeyCodes} key - Key to check for press event.
+   * @returns {boolean} - True if the key was pressed down during this frame.
+   */
+  static GetKeyDown(key) {
+    if (this.keysDown[key] == Renderer.info.frame - 1) {
+      return true;
+    }
+    return false;
+  }
+  /**
+   * Checks if the specified key was released during the current frame.
+   * This method only returns true once per release event, the key needs to be pressed down 
+   * and released again in order for the condition to be true once more.
+   * 
+   * @param {KeyCodes} key - Key to check for release event.
+   * @returns {boolean} - True if the key was released during this frame.
+   */
+  static GetKeyUp(key) {
+    if (this.keysUp[key] == Renderer.info.frame - 1) {
+      return true;
+    }
+    return false;
+  }
+  /**
+   * Checks if the specified key is pressed down.
+   * This method returns true while the key is pressed down.
+   * 
+   * @param {KeyCodes} key - Key to check for press down event.
+   * @returns {boolean} - True if the key is being pressed down.
+   */
+  static GetKey(key) {
+    if (this.keysDown[key] !== void 0) {
+      return true;
+    }
+    return false;
+  }
+  static GetMouseDown(key) {
+    if (this.mouseDown[key] == Renderer.info.frame - 1) {
+      return true;
+    }
+    return false;
+  }
+  static GetMouseUp(key) {
+    if (this.mouseUp[key] == Renderer.info.frame - 1) {
+      return true;
+    }
+    return false;
+  }
+  /**
+   * Gets the mouse position difference between the previous frame and the current frame.
+   * This method works with both the mouse and touch events.
+   * 
+   * @param {"Horizontal"|"Vertical"} axisName - Axis to query.
+   * @returns {number} - Mouse difference between the previous frame and the current fram.
+   */
+  static GetAxis(axisName) {
+    if (axisName == "Horizontal") {
+      return this.horizontalAxis;
+    } else if (axisName == "Vertical") {
+      return this.verticalAxis;
+    }
+    throw Error("Invalid axis");
+  }
 }
-class Light extends (_a$1 = Component, _color_dec = [SerializeField], _intensity_dec = [SerializeField], _castShadows_dec = [SerializeField], _a$1) {
-  constructor() {
-    super(...arguments);
-    __publicField$2(this, "camera", new Camera(this.gameObject));
-    __publicField$2(this, "color", __runInitializers$2(_init$2, 8, this, new Color(1, 1, 1))), __runInitializers$2(_init$2, 11, this);
-    __publicField$2(this, "intensity", __runInitializers$2(_init$2, 12, this, 1)), __runInitializers$2(_init$2, 15, this);
-    __publicField$2(this, "castShadows", __runInitializers$2(_init$2, 16, this, true)), __runInitializers$2(_init$2, 19, this);
+
+class ComputeContext {
+  static activeComputePass = null;
+  static BeginComputePass(name, timestamp = false) {
+    const activeCommandEncoder = Renderer.GetActiveCommandEncoder();
+    if (!activeCommandEncoder) throw Error("No active command encoder!!");
+    if (this.activeComputePass) throw Error("There is already an active compute pass");
+    const computePassDescriptor = {};
+    if (timestamp === true) computePassDescriptor.timestampWrites = WEBGPUTimestampQuery.BeginRenderTimestamp(name);
+    this.activeComputePass = activeCommandEncoder.beginComputePass(computePassDescriptor);
+    this.activeComputePass.label = "ComputePass: " + name;
   }
-  Start() {
-    EventSystemLocal.on(TransformEvents.Updated, this.transform, () => {
-      EventSystem.emit(LightEvents.Updated, this);
+  static EndComputePass() {
+    if (!this.activeComputePass) throw Error("No active compute pass");
+    this.activeComputePass.end();
+    this.activeComputePass = null;
+    WEBGPUTimestampQuery.EndRenderTimestamp();
+  }
+  static Dispatch(computeShader, workgroupCountX, workgroupCountY = 1, workgroupCountZ = 1) {
+    if (!this.activeComputePass) throw Error("No active render pass");
+    if (!computeShader.OnPreRender()) return;
+    computeShader.Compile();
+    if (!computeShader.pipeline) throw Error("Shader doesnt have a pipeline");
+    this.activeComputePass.setPipeline(computeShader.pipeline);
+    for (let i = 0; i < computeShader.bindGroups.length; i++) {
+      let dynamicOffsetsV2 = [];
+      for (const buffer of computeShader.bindGroupsInfo[i].buffers) {
+        if (buffer instanceof DynamicBuffer) {
+          dynamicOffsetsV2.push(buffer.dynamicOffset);
+        }
+      }
+      this.activeComputePass.setBindGroup(i, computeShader.bindGroups[i], dynamicOffsetsV2);
+    }
+    this.activeComputePass.dispatchWorkgroups(workgroupCountX, workgroupCountY, workgroupCountZ);
+  }
+}
+
+var index$1 = /*#__PURE__*/Object.freeze({
+    __proto__: null,
+    Buffer: Buffer,
+    BufferMemoryAllocator: BufferMemoryAllocator,
+    BufferType: BufferType,
+    ComputeContext: ComputeContext,
+    CubeTexture: CubeTexture,
+    DepthTexture: DepthTexture,
+    DynamicBuffer: DynamicBuffer,
+    DynamicBufferMemoryAllocator: DynamicBufferMemoryAllocator,
+    DynamicBufferMemoryAllocatorDynamic: DynamicBufferMemoryAllocatorDynamic,
+    Material: Material,
+    MemoryAllocator: MemoryAllocator,
+    PassParams: PassParams,
+    RenderPass: RenderPass,
+    RenderPassOrder: RenderPassOrder,
+    RenderTexture: RenderTexture,
+    RenderTexture3D: RenderTexture3D,
+    RenderTextureCube: RenderTextureCube,
+    RenderTextureStorage2D: RenderTextureStorage2D,
+    RenderTextureStorage3D: RenderTextureStorage3D,
+    Renderer: Renderer,
+    RendererContext: RendererContext,
+    RenderingPipeline: RenderingPipeline,
+    ResourcePool: ResourcePool,
+    Shader: Shader,
+    ShaderCompute: ShaderCompute,
+    ShaderLoader: ShaderLoader,
+    ShaderPreprocessor: ShaderPreprocessor,
+    Texture: Texture,
+    TextureArray: TextureArray,
+    TextureSampler: TextureSampler,
+    Topology: Topology
+});
+
+class SceneManager extends System {
+  activeScene;
+  CreateScene(name) {
+    return new Scene(name);
+  }
+  async LoadSceneAsync(sceneSerialized) {
+    const scene = this.CreateScene(sceneSerialized.name);
+    Deserializer.deserializeScene(scene, sceneSerialized);
+    return scene;
+  }
+  SetActiveScene(scene) {
+    this.activeScene = scene;
+  }
+  GetActiveScene() {
+    return this.activeScene;
+  }
+  Update() {
+    if (!this.activeScene) throw Error("No active scene");
+    this.activeScene.Update();
+  }
+}
+
+class Runtime {
+  // hardcoded core — always present, fixed order
+  static Input;
+  static SceneManager;
+  static Renderer;
+  // plugin slot
+  static systems = /* @__PURE__ */ new Map();
+  static isPlaying = false;
+  static async Create(canvas, aspectRatio = 1) {
+    this.Input = new Input();
+    this.SceneManager = new SceneManager();
+    this.Renderer = new Renderer(canvas, aspectRatio);
+    await this.SceneManager.Start();
+    await this.Renderer.Start();
+    await this.Input.Start();
+    return this;
+  }
+  static async AddSystem(ctor, ...args) {
+    const system = new ctor(...args);
+    await system.Start();
+    this.systems.set(ctor, system);
+    return system;
+  }
+  static GetSystem(ctor) {
+    return this.systems.get(ctor);
+  }
+  static Play() {
+    this.isPlaying = true;
+    this.Run();
+  }
+  static Stop() {
+    this.isPlaying = false;
+  }
+  static Run() {
+    if (!this.isPlaying) return;
+    this.SceneManager.Update();
+    for (const s of this.systems.values()) s.Update();
+    this.Renderer.Update();
+    this.Input.Update();
+    requestAnimationFrame(() => this.Run());
+  }
+}
+
+function getCtorChain$1(ctor) {
+  const chain = [];
+  for (let c = ctor; c && c !== Component; c = Object.getPrototypeOf(c)) {
+    chain.push(c);
+  }
+  return chain;
+}
+class GameObject {
+  flags = Flags.None;
+  id = UUID();
+  name = "GameObject";
+  scene;
+  transform;
+  componentsByCtor = /* @__PURE__ */ new Map();
+  allComponents = [];
+  _enabled = true;
+  get enabled() {
+    return this._enabled;
+  }
+  set enabled(enabled) {
+    this._enabled = enabled;
+    for (const child of this.transform.children) child.gameObject.enabled = enabled;
+  }
+  assetPath;
+  dontDestroyOnLoad = false;
+  constructor() {
+    this.scene = Runtime.SceneManager.GetActiveScene();
+    this.transform = new Transform(this);
+    this.scene.AddGameObject(this);
+    EventSystem.on(ComponentEvents.RemovedComponent, (component, scene) => {
+      if (scene !== this.scene) return;
+      this.RemoveComponent(component);
     });
   }
+  AddComponent(Ctor, ...args) {
+    const componentInstance = new Ctor(this, ...args);
+    if (!(componentInstance instanceof Component)) throw new Error(`Invalid component ${Ctor.name}`);
+    if (componentInstance instanceof Transform && this.GetComponent(Transform)) throw new Error("A GameObject can only have one Transform");
+    this.allComponents.push(componentInstance);
+    for (const ctor of getCtorChain$1(componentInstance.constructor)) {
+      let arr = this.componentsByCtor.get(ctor);
+      if (!arr) this.componentsByCtor.set(ctor, arr = []);
+      if (!arr.includes(componentInstance)) arr.push(componentInstance);
+    }
+    if (this.scene.hasStarted && componentInstance.Start && !componentInstance.hasStarted) {
+      componentInstance.Start();
+      componentInstance.hasStarted = true;
+    }
+    return componentInstance;
+  }
+  RemoveComponent(component) {
+    const idx = this.allComponents.indexOf(component);
+    if (idx === -1) return;
+    this.allComponents.splice(idx, 1);
+    for (const ctor of getCtorChain$1(component.constructor)) {
+      const arr = this.componentsByCtor.get(ctor);
+      if (!arr) continue;
+      const i = arr.indexOf(component);
+      if (i !== -1) arr.splice(i, 1);
+      if (arr.length === 0) this.componentsByCtor.delete(ctor);
+    }
+    component.Destroy();
+  }
+  GetComponent(Ctor) {
+    const arr = this.componentsByCtor.get(Ctor);
+    return arr && arr.length ? arr[0] : null;
+  }
+  GetComponents(Ctor) {
+    if (!Ctor) return this.allComponents;
+    return this.componentsByCtor.get(Ctor) ?? [];
+  }
+  GetComponentsExact(Ctor) {
+    const arr = this.componentsByCtor.get(Ctor);
+    return arr ? arr.filter((c) => c.constructor === Ctor) : [];
+  }
+  GetComponentsInChildren(Ctor) {
+    const out = [];
+    const walk = (go) => {
+      if (!Ctor) out.push(...go.allComponents);
+      else {
+        const list = go.componentsByCtor.get(Ctor);
+        if (list) out.push(...list);
+      }
+      for (const child of go.transform.children) walk(child.gameObject);
+    };
+    walk(this);
+    return out;
+  }
+  Start() {
+    for (const component of this.allComponents) {
+      if (!component.hasStarted) {
+        component.Start();
+        component.hasStarted = true;
+      }
+    }
+  }
   Destroy() {
-    EventSystem.emit(LightEvents.Destroyed, this);
+    for (const child of [...this.transform.children]) {
+      child.gameObject.Destroy();
+    }
+    for (const component of [...this.allComponents]) {
+      component.Destroy();
+    }
+    this.allComponents.length = 0;
+    this.componentsByCtor.clear();
+    this.scene.RemoveGameObject(this);
   }
 }
-_init$2 = __decoratorStart$2(_a$1);
-__decorateElement$2(_init$2, 5, "color", _color_dec, Light);
-__decorateElement$2(_init$2, 5, "intensity", _intensity_dec, Light);
-__decorateElement$2(_init$2, 5, "castShadows", _castShadows_dec, Light);
-__decoratorMetadata$2(_init$2, Light);
-__publicField$2(Light, "type", "@trident/core/components/Light/Light");
-class SpotLight extends (_b$1 = Light, _angle_dec = [SerializeField], _range_dec = [SerializeField], _b$1) {
-  constructor() {
-    super(...arguments);
-    __publicField$2(this, "direction", new Vector3(0, -1, 0));
-    __publicField$2(this, "angle", __runInitializers$2(_init2$1, 8, this, 1)), __runInitializers$2(_init2$1, 11, this);
-    __publicField$2(this, "range", __runInitializers$2(_init2$1, 12, this, 10)), __runInitializers$2(_init2$1, 15, this);
-  }
-  Start() {
-    super.Start();
-    this.camera.SetPerspective(this.angle / Math.PI * 180 * 2, Renderer.width / Renderer.height, 0.01, 1e3);
-  }
-}
-_init2$1 = __decoratorStart$2(_b$1);
-__decorateElement$2(_init2$1, 5, "angle", _angle_dec, SpotLight);
-__decorateElement$2(_init2$1, 5, "range", _range_dec, SpotLight);
-__decoratorMetadata$2(_init2$1, SpotLight);
-__publicField$2(SpotLight, "type", "@trident/core/components/Light/SpotLight");
-class PointLight extends (_c = Light, _range_dec2 = [SerializeField(Number)], _c) {
-  constructor() {
-    super(...arguments);
-    __publicField$2(this, "range", __runInitializers$2(_init3, 8, this, 10)), __runInitializers$2(_init3, 11, this);
-  }
-  Start() {
-    super.Start();
-    this.camera.SetPerspective(60, Renderer.width / Renderer.height, 0.01, 1e3);
-  }
-}
-_init3 = __decoratorStart$2(_c);
-__decorateElement$2(_init3, 5, "range", _range_dec2, PointLight);
-__decoratorMetadata$2(_init3, PointLight);
-__publicField$2(PointLight, "type", "@trident/core/components/Light/PointLight");
-class AreaLight extends Light {
-  static type = "@trident/core/components/Light/AreaLight";
-  Start() {
-    super.Start();
-    this.camera.SetPerspective(60, Renderer.width / Renderer.height, 0.01, 1e3);
-  }
-}
-class DirectionalLight extends (_d = Light, _direction_dec = [SerializeField], _d) {
-  constructor() {
-    super(...arguments);
-    __publicField$2(this, "direction", __runInitializers$2(_init4, 8, this, new Vector3(0, 1, 0))), __runInitializers$2(_init4, 11, this);
-  }
-  Start() {
-    super.Start();
-    const size = 1;
-    this.camera.SetOrthographic(-size, size, -size, size, 0.1, 100);
-  }
-}
-_init4 = __decoratorStart$2(_d);
-__decorateElement$2(_init4, 5, "direction", _direction_dec, DirectionalLight);
-__decoratorMetadata$2(_init4, DirectionalLight);
-__publicField$2(DirectionalLight, "type", "@trident/core/components/Light/DirectionalLight");
-Component.Registry.set(SpotLight.type, SpotLight);
-Component.Registry.set(PointLight.type, PointLight);
-Component.Registry.set(DirectionalLight.type, DirectionalLight);
 
 var __create$1 = Object.create;
 var __defProp$1 = Object.defineProperty;
@@ -7175,7 +7579,7 @@ __decoratorMetadata$1(_init2, Animator);
 __publicField$1(Animator, "type", "@trident/core/components/Animator");
 Component.Registry.set(Animator.type, Animator);
 
-var index$1 = /*#__PURE__*/Object.freeze({
+var index = /*#__PURE__*/Object.freeze({
     __proto__: null,
     AnimationTrack: AnimationTrack,
     Animator: Animator,
@@ -7260,7 +7664,17 @@ class Deserializer {
       return new expectedType(data);
     }
     if (Array.isArray(data)) {
-      return Promise.all(data.map((item) => this.deserializeAny(item, expectedType)));
+      const result = new Array(data.length);
+      for (let i = 0; i < data.length; i++) {
+        const item = data[i];
+        if (this.isGameObjectRef(item)) {
+          this.deferredRefs.push({ target: result, property: i, id: item.id });
+          result[i] = null;
+        } else {
+          result[i] = await this.deserializeAny(item, expectedType);
+        }
+      }
+      return result;
     }
     if (existing instanceof Vector3) {
       existing.set(data.x, data.y, data.z);
@@ -7554,341 +7968,6 @@ __publicField(_Prefab, "type", "@trident/core/Prefab");
 let Prefab = _Prefab;
 TypeRegistry.set(Prefab.type, Prefab);
 
-class ComputeContext {
-  static activeComputePass = null;
-  static BeginComputePass(name, timestamp = false) {
-    const activeCommandEncoder = Renderer.GetActiveCommandEncoder();
-    if (!activeCommandEncoder) throw Error("No active command encoder!!");
-    if (this.activeComputePass) throw Error("There is already an active compute pass");
-    const computePassDescriptor = {};
-    if (timestamp === true) computePassDescriptor.timestampWrites = WEBGPUTimestampQuery.BeginRenderTimestamp(name);
-    this.activeComputePass = activeCommandEncoder.beginComputePass(computePassDescriptor);
-    this.activeComputePass.label = "ComputePass: " + name;
-  }
-  static EndComputePass() {
-    if (!this.activeComputePass) throw Error("No active compute pass");
-    this.activeComputePass.end();
-    this.activeComputePass = null;
-    WEBGPUTimestampQuery.EndRenderTimestamp();
-  }
-  static Dispatch(computeShader, workgroupCountX, workgroupCountY = 1, workgroupCountZ = 1) {
-    if (!this.activeComputePass) throw Error("No active render pass");
-    if (!computeShader.OnPreRender()) return;
-    computeShader.Compile();
-    if (!computeShader.pipeline) throw Error("Shader doesnt have a pipeline");
-    this.activeComputePass.setPipeline(computeShader.pipeline);
-    for (let i = 0; i < computeShader.bindGroups.length; i++) {
-      let dynamicOffsetsV2 = [];
-      for (const buffer of computeShader.bindGroupsInfo[i].buffers) {
-        if (buffer instanceof DynamicBuffer) {
-          dynamicOffsetsV2.push(buffer.dynamicOffset);
-        }
-      }
-      this.activeComputePass.setBindGroup(i, computeShader.bindGroups[i], dynamicOffsetsV2);
-    }
-    this.activeComputePass.dispatchWorkgroups(workgroupCountX, workgroupCountY, workgroupCountZ);
-  }
-}
-
-var index = /*#__PURE__*/Object.freeze({
-    __proto__: null,
-    Buffer: Buffer,
-    BufferMemoryAllocator: BufferMemoryAllocator,
-    BufferType: BufferType,
-    ComputeContext: ComputeContext,
-    CubeTexture: CubeTexture,
-    DepthTexture: DepthTexture,
-    DynamicBuffer: DynamicBuffer,
-    DynamicBufferMemoryAllocator: DynamicBufferMemoryAllocator,
-    DynamicBufferMemoryAllocatorDynamic: DynamicBufferMemoryAllocatorDynamic,
-    Material: Material,
-    MemoryAllocator: MemoryAllocator,
-    PassParams: PassParams,
-    RenderPass: RenderPass,
-    RenderPassOrder: RenderPassOrder,
-    RenderTexture: RenderTexture,
-    RenderTexture3D: RenderTexture3D,
-    RenderTextureCube: RenderTextureCube,
-    RenderTextureStorage2D: RenderTextureStorage2D,
-    RenderTextureStorage3D: RenderTextureStorage3D,
-    Renderer: Renderer,
-    RendererContext: RendererContext,
-    RenderingPipeline: RenderingPipeline,
-    ResourcePool: ResourcePool,
-    Shader: Shader,
-    ShaderCompute: ShaderCompute,
-    ShaderLoader: ShaderLoader,
-    ShaderPreprocessor: ShaderPreprocessor,
-    Texture: Texture,
-    TextureArray: TextureArray,
-    TextureSampler: TextureSampler,
-    Topology: Topology
-});
-
-var KeyCodes = /* @__PURE__ */ ((KeyCodes2) => {
-  KeyCodes2[KeyCodes2["CANCEL"] = 3] = "CANCEL";
-  KeyCodes2[KeyCodes2["HELP"] = 6] = "HELP";
-  KeyCodes2[KeyCodes2["BACK_SPACE"] = 8] = "BACK_SPACE";
-  KeyCodes2[KeyCodes2["TAB"] = 9] = "TAB";
-  KeyCodes2[KeyCodes2["CLEAR"] = 12] = "CLEAR";
-  KeyCodes2[KeyCodes2["RETURN"] = 13] = "RETURN";
-  KeyCodes2[KeyCodes2["ENTER"] = 14] = "ENTER";
-  KeyCodes2[KeyCodes2["SHIFT"] = 16] = "SHIFT";
-  KeyCodes2[KeyCodes2["CONTROL"] = 17] = "CONTROL";
-  KeyCodes2[KeyCodes2["ALT"] = 18] = "ALT";
-  KeyCodes2[KeyCodes2["PAUSE"] = 19] = "PAUSE";
-  KeyCodes2[KeyCodes2["CAPS_LOCK"] = 20] = "CAPS_LOCK";
-  KeyCodes2[KeyCodes2["ESCAPE"] = 27] = "ESCAPE";
-  KeyCodes2[KeyCodes2["SPACE"] = 32] = "SPACE";
-  KeyCodes2[KeyCodes2["PAGE_UP"] = 33] = "PAGE_UP";
-  KeyCodes2[KeyCodes2["PAGE_DOWN"] = 34] = "PAGE_DOWN";
-  KeyCodes2[KeyCodes2["END"] = 35] = "END";
-  KeyCodes2[KeyCodes2["HOME"] = 36] = "HOME";
-  KeyCodes2[KeyCodes2["LEFT"] = 37] = "LEFT";
-  KeyCodes2[KeyCodes2["UP"] = 38] = "UP";
-  KeyCodes2[KeyCodes2["RIGHT"] = 39] = "RIGHT";
-  KeyCodes2[KeyCodes2["DOWN"] = 40] = "DOWN";
-  KeyCodes2[KeyCodes2["PRINTSCREEN"] = 44] = "PRINTSCREEN";
-  KeyCodes2[KeyCodes2["INSERT"] = 45] = "INSERT";
-  KeyCodes2[KeyCodes2["DELETE"] = 46] = "DELETE";
-  KeyCodes2[KeyCodes2["NUM_0"] = 48] = "NUM_0";
-  KeyCodes2[KeyCodes2["NUM_1"] = 49] = "NUM_1";
-  KeyCodes2[KeyCodes2["NUM_2"] = 50] = "NUM_2";
-  KeyCodes2[KeyCodes2["NUM_3"] = 51] = "NUM_3";
-  KeyCodes2[KeyCodes2["NUM_4"] = 52] = "NUM_4";
-  KeyCodes2[KeyCodes2["NUM_5"] = 53] = "NUM_5";
-  KeyCodes2[KeyCodes2["NUM_6"] = 54] = "NUM_6";
-  KeyCodes2[KeyCodes2["NUM_7"] = 55] = "NUM_7";
-  KeyCodes2[KeyCodes2["NUM_8"] = 56] = "NUM_8";
-  KeyCodes2[KeyCodes2["NUM_9"] = 57] = "NUM_9";
-  KeyCodes2[KeyCodes2["SEMICOLON"] = 59] = "SEMICOLON";
-  KeyCodes2[KeyCodes2["EQUALS"] = 61] = "EQUALS";
-  KeyCodes2[KeyCodes2["A"] = 65] = "A";
-  KeyCodes2[KeyCodes2["B"] = 66] = "B";
-  KeyCodes2[KeyCodes2["C"] = 67] = "C";
-  KeyCodes2[KeyCodes2["D"] = 68] = "D";
-  KeyCodes2[KeyCodes2["E"] = 69] = "E";
-  KeyCodes2[KeyCodes2["F"] = 70] = "F";
-  KeyCodes2[KeyCodes2["G"] = 71] = "G";
-  KeyCodes2[KeyCodes2["H"] = 72] = "H";
-  KeyCodes2[KeyCodes2["I"] = 73] = "I";
-  KeyCodes2[KeyCodes2["J"] = 74] = "J";
-  KeyCodes2[KeyCodes2["K"] = 75] = "K";
-  KeyCodes2[KeyCodes2["L"] = 76] = "L";
-  KeyCodes2[KeyCodes2["M"] = 77] = "M";
-  KeyCodes2[KeyCodes2["N"] = 78] = "N";
-  KeyCodes2[KeyCodes2["O"] = 79] = "O";
-  KeyCodes2[KeyCodes2["P"] = 80] = "P";
-  KeyCodes2[KeyCodes2["Q"] = 81] = "Q";
-  KeyCodes2[KeyCodes2["R"] = 82] = "R";
-  KeyCodes2[KeyCodes2["S"] = 83] = "S";
-  KeyCodes2[KeyCodes2["T"] = 84] = "T";
-  KeyCodes2[KeyCodes2["U"] = 85] = "U";
-  KeyCodes2[KeyCodes2["V"] = 86] = "V";
-  KeyCodes2[KeyCodes2["W"] = 87] = "W";
-  KeyCodes2[KeyCodes2["X"] = 88] = "X";
-  KeyCodes2[KeyCodes2["Y"] = 89] = "Y";
-  KeyCodes2[KeyCodes2["Z"] = 90] = "Z";
-  KeyCodes2[KeyCodes2["CONTEXT_MENU"] = 93] = "CONTEXT_MENU";
-  KeyCodes2[KeyCodes2["NUMPAD0"] = 96] = "NUMPAD0";
-  KeyCodes2[KeyCodes2["NUMPAD1"] = 97] = "NUMPAD1";
-  KeyCodes2[KeyCodes2["NUMPAD2"] = 98] = "NUMPAD2";
-  KeyCodes2[KeyCodes2["NUMPAD3"] = 99] = "NUMPAD3";
-  KeyCodes2[KeyCodes2["NUMPAD4"] = 100] = "NUMPAD4";
-  KeyCodes2[KeyCodes2["NUMPAD5"] = 101] = "NUMPAD5";
-  KeyCodes2[KeyCodes2["NUMPAD6"] = 102] = "NUMPAD6";
-  KeyCodes2[KeyCodes2["NUMPAD7"] = 103] = "NUMPAD7";
-  KeyCodes2[KeyCodes2["NUMPAD8"] = 104] = "NUMPAD8";
-  KeyCodes2[KeyCodes2["NUMPAD9"] = 105] = "NUMPAD9";
-  KeyCodes2[KeyCodes2["MULTIPLY"] = 106] = "MULTIPLY";
-  KeyCodes2[KeyCodes2["ADD"] = 107] = "ADD";
-  KeyCodes2[KeyCodes2["SEPARATOR"] = 108] = "SEPARATOR";
-  KeyCodes2[KeyCodes2["SUBTRACT"] = 109] = "SUBTRACT";
-  KeyCodes2[KeyCodes2["DECIMAL"] = 110] = "DECIMAL";
-  KeyCodes2[KeyCodes2["DIVIDE"] = 111] = "DIVIDE";
-  KeyCodes2[KeyCodes2["F1"] = 112] = "F1";
-  KeyCodes2[KeyCodes2["F2"] = 113] = "F2";
-  KeyCodes2[KeyCodes2["F3"] = 114] = "F3";
-  KeyCodes2[KeyCodes2["F4"] = 115] = "F4";
-  KeyCodes2[KeyCodes2["F5"] = 116] = "F5";
-  KeyCodes2[KeyCodes2["F6"] = 117] = "F6";
-  KeyCodes2[KeyCodes2["F7"] = 118] = "F7";
-  KeyCodes2[KeyCodes2["F8"] = 119] = "F8";
-  KeyCodes2[KeyCodes2["F9"] = 120] = "F9";
-  KeyCodes2[KeyCodes2["F10"] = 121] = "F10";
-  KeyCodes2[KeyCodes2["F11"] = 122] = "F11";
-  KeyCodes2[KeyCodes2["F12"] = 123] = "F12";
-  KeyCodes2[KeyCodes2["F13"] = 124] = "F13";
-  KeyCodes2[KeyCodes2["F14"] = 125] = "F14";
-  KeyCodes2[KeyCodes2["F15"] = 126] = "F15";
-  KeyCodes2[KeyCodes2["F16"] = 127] = "F16";
-  KeyCodes2[KeyCodes2["F17"] = 128] = "F17";
-  KeyCodes2[KeyCodes2["F18"] = 129] = "F18";
-  KeyCodes2[KeyCodes2["F19"] = 130] = "F19";
-  KeyCodes2[KeyCodes2["F20"] = 131] = "F20";
-  KeyCodes2[KeyCodes2["F21"] = 132] = "F21";
-  KeyCodes2[KeyCodes2["F22"] = 133] = "F22";
-  KeyCodes2[KeyCodes2["F23"] = 134] = "F23";
-  KeyCodes2[KeyCodes2["F24"] = 135] = "F24";
-  KeyCodes2[KeyCodes2["NUM_LOCK"] = 144] = "NUM_LOCK";
-  KeyCodes2[KeyCodes2["SCROLL_LOCK"] = 145] = "SCROLL_LOCK";
-  KeyCodes2[KeyCodes2["COMMA"] = 188] = "COMMA";
-  KeyCodes2[KeyCodes2["PERIOD"] = 190] = "PERIOD";
-  KeyCodes2[KeyCodes2["SLASH"] = 191] = "SLASH";
-  KeyCodes2[KeyCodes2["BACK_QUOTE"] = 192] = "BACK_QUOTE";
-  KeyCodes2[KeyCodes2["OPEN_BRACKET"] = 219] = "OPEN_BRACKET";
-  KeyCodes2[KeyCodes2["BACK_SLASH"] = 220] = "BACK_SLASH";
-  KeyCodes2[KeyCodes2["CLOSE_BRACKET"] = 221] = "CLOSE_BRACKET";
-  KeyCodes2[KeyCodes2["QUOTE"] = 222] = "QUOTE";
-  KeyCodes2[KeyCodes2["META"] = 224] = "META";
-  return KeyCodes2;
-})(KeyCodes || {});
-var MouseCodes = /* @__PURE__ */ ((MouseCodes2) => {
-  MouseCodes2[MouseCodes2["MOUSE_LEFT"] = 0] = "MOUSE_LEFT";
-  MouseCodes2[MouseCodes2["MOUSE_RIGHT"] = 1] = "MOUSE_RIGHT";
-  MouseCodes2[MouseCodes2["MOUSE_MIDDLE"] = 2] = "MOUSE_MIDDLE";
-  return MouseCodes2;
-})(MouseCodes || {});
-class Input extends System {
-  static keysDown = {};
-  static keysUp = {};
-  static mouseDown = {};
-  static mouseUp = {};
-  static _mousePosition = new Vector2();
-  static horizontalAxis = 0;
-  static verticalAxis = 0;
-  static previousTouch = new Vector2();
-  static get mousePosition() {
-    return Input._mousePosition;
-  }
-  async Start() {
-    document.onkeydown = (event) => {
-      Input.OnKeyDown(event);
-    };
-    document.onkeyup = (event) => {
-      Input.OnKeyUp(event);
-    };
-    document.onmousemove = (event) => {
-      Input.OnMouseMove(event);
-    };
-    document.onmousedown = (event) => {
-      Input.OnMouseDown(event);
-    };
-    document.onmouseup = (event) => {
-      Input.OnMouseUp(event);
-    };
-    document.ontouchmove = (event) => {
-      Input.OnTouchMove(event);
-    };
-  }
-  static OnTouchMove(event) {
-    event.preventDefault();
-    this._mousePosition.x = event.touches[0].clientX;
-    this._mousePosition.y = event.touches[0].clientY;
-    this.horizontalAxis += Math.round(this._mousePosition.x - this.previousTouch.x);
-    this.verticalAxis += Math.round(this._mousePosition.y - this.previousTouch.y);
-    this.previousTouch.set(this._mousePosition.x, this._mousePosition.y);
-  }
-  static OnMouseMove(event) {
-    this._mousePosition.x = event.clientX;
-    this._mousePosition.y = event.clientY;
-    this.horizontalAxis += event.movementX;
-    this.verticalAxis += event.movementY;
-  }
-  static OnKeyDown(event) {
-    if (this.keysDown[event.keyCode] === void 0) {
-      this.keysDown[event.keyCode] = Renderer.info.frame;
-      delete this.keysUp[event.keyCode];
-    }
-  }
-  static OnKeyUp(event) {
-    this.keysUp[event.keyCode] = Renderer.info.frame;
-    delete this.keysDown[event.keyCode];
-  }
-  static OnMouseDown(event) {
-    if (this.mouseDown[event.button] === void 0) {
-      this.mouseDown[event.button] = Renderer.info.frame;
-      delete this.keysUp[event.button];
-    }
-  }
-  static OnMouseUp(event) {
-    this.mouseUp[event.button] = Renderer.info.frame;
-    delete this.mouseDown[event.button];
-  }
-  Update() {
-    Input.horizontalAxis = 0;
-    Input.verticalAxis = 0;
-  }
-  /**
-   * Checks if the specified key was pressed down during the current frame.
-   * This method only returns true once per key down event, the key needs to be released 
-   * and pressed again in order for the condition to be true once more.
-   * 
-   * @param {KeyCodes} key - Key to check for press event.
-   * @returns {boolean} - True if the key was pressed down during this frame.
-   */
-  static GetKeyDown(key) {
-    if (this.keysDown[key] == Renderer.info.frame - 1) {
-      return true;
-    }
-    return false;
-  }
-  /**
-   * Checks if the specified key was released during the current frame.
-   * This method only returns true once per release event, the key needs to be pressed down 
-   * and released again in order for the condition to be true once more.
-   * 
-   * @param {KeyCodes} key - Key to check for release event.
-   * @returns {boolean} - True if the key was released during this frame.
-   */
-  static GetKeyUp(key) {
-    if (this.keysUp[key] == Renderer.info.frame - 1) {
-      return true;
-    }
-    return false;
-  }
-  /**
-   * Checks if the specified key is pressed down.
-   * This method returns true while the key is pressed down.
-   * 
-   * @param {KeyCodes} key - Key to check for press down event.
-   * @returns {boolean} - True if the key is being pressed down.
-   */
-  static GetKey(key) {
-    if (this.keysDown[key] !== void 0) {
-      return true;
-    }
-    return false;
-  }
-  static GetMouseDown(key) {
-    if (this.mouseDown[key] == Renderer.info.frame - 1) {
-      return true;
-    }
-    return false;
-  }
-  static GetMouseUp(key) {
-    if (this.mouseUp[key] == Renderer.info.frame - 1) {
-      return true;
-    }
-    return false;
-  }
-  /**
-   * Gets the mouse position difference between the previous frame and the current frame.
-   * This method works with both the mouse and touch events.
-   * 
-   * @param {"Horizontal"|"Vertical"} axisName - Axis to query.
-   * @returns {number} - Mouse difference between the previous frame and the current fram.
-   */
-  static GetAxis(axisName) {
-    if (axisName == "Horizontal") {
-      return this.horizontalAxis;
-    } else if (axisName == "Vertical") {
-      return this.verticalAxis;
-    }
-    throw Error("Invalid axis");
-  }
-}
-
 class Serializer {
   static isTextureLike(value) {
     return value instanceof Texture || value?.constructor?.type === Texture.type;
@@ -7951,69 +8030,4 @@ class Serializer {
   }
 }
 
-class SceneManager extends System {
-  activeScene;
-  CreateScene(name) {
-    return new Scene(name);
-  }
-  async LoadSceneAsync(sceneSerialized) {
-    const scene = this.CreateScene(sceneSerialized.name);
-    Deserializer.deserializeScene(scene, sceneSerialized);
-    return scene;
-  }
-  SetActiveScene(scene) {
-    this.activeScene = scene;
-  }
-  GetActiveScene() {
-    return this.activeScene;
-  }
-  Update() {
-    if (!this.activeScene) throw Error("No active scene");
-    this.activeScene.Update();
-  }
-}
-
-class Runtime {
-  // hardcoded core — always present, fixed order
-  static Input;
-  static SceneManager;
-  static Renderer;
-  // plugin slot
-  static systems = /* @__PURE__ */ new Map();
-  static isPlaying = false;
-  static async Create(canvas, aspectRatio = 1) {
-    this.Input = new Input();
-    this.SceneManager = new SceneManager();
-    this.Renderer = new Renderer(canvas, aspectRatio);
-    await this.SceneManager.Start();
-    await this.Renderer.Start();
-    await this.Input.Start();
-    return this;
-  }
-  static async AddSystem(ctor, ...args) {
-    const system = new ctor(...args);
-    await system.Start();
-    this.systems.set(ctor, system);
-    return system;
-  }
-  static GetSystem(ctor) {
-    return this.systems.get(ctor);
-  }
-  static Play() {
-    this.isPlaying = true;
-    this.Run();
-  }
-  static Stop() {
-    this.isPlaying = false;
-  }
-  static Run() {
-    if (!this.isPlaying) return;
-    this.SceneManager.Update();
-    for (const s of this.systems.values()) s.Update();
-    this.Renderer.Update();
-    this.Input.Update();
-    requestAnimationFrame(() => this.Run());
-  }
-}
-
-export { Assets, Component, index$1 as Components, Console, Deserializer, EventSystem, EventSystemLocal, index as GPU, GameObject, Geometry, GetSerializedFields, IndexAttribute, Input, InterleavedVertexAttribute, KeyCodes, index$2 as Mathf, MouseCodes, NonSerialized, PBRMaterial, Prefab, Renderer, Runtime, Scene, SceneManager, SerializeField, Serializer, System, Texture, index$3 as Utils, VertexAttribute };
+export { Assets, Component, index as Components, Console, Deserializer, EventSystem, EventSystemLocal, index$1 as GPU, GameObject, Geometry, GetSerializedFields, IndexAttribute, Input, InterleavedVertexAttribute, KeyCodes, index$2 as Mathf, MouseCodes, NonSerialized, PBRMaterial, Prefab, Renderer, Runtime, Scene, SceneManager, SerializeField, Serializer, System, Texture, index$3 as Utils, VertexAttribute };

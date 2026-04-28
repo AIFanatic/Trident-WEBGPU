@@ -48,57 +48,61 @@ class Irradiance {
                     }
                 }
         
- fn radicalInverseVdC(bits: u32) -> f32 {
-      var b = bits;
-      b = (b << 16u) | (b >> 16u);
-      b = ((b & 0x55555555u) << 1u) | ((b & 0xAAAAAAAAu) >> 1u);
-      b = ((b & 0x33333333u) << 2u) | ((b & 0xCCCCCCCCu) >> 2u);
-      b = ((b & 0x0F0F0F0Fu) << 4u) | ((b & 0xF0F0F0F0u) >> 4u);
-      b = ((b & 0x00FF00FFu) << 8u) | ((b & 0xFF00FF00u) >> 8u);
-      return f32(b) * 2.3283064365386963e-10; // 1/2^32
-  }
+                fn radicalInverseVdC(bits: u32) -> f32 {
+                    var b = bits;
+                    b = (b << 16u) | (b >> 16u);
+                    b = ((b & 0x55555555u) << 1u) | ((b & 0xAAAAAAAAu) >> 1u);
+                    b = ((b & 0x33333333u) << 2u) | ((b & 0xCCCCCCCCu) >> 2u);
+                    b = ((b & 0x0F0F0F0Fu) << 4u) | ((b & 0xF0F0F0F0u) >> 4u);
+                    b = ((b & 0x00FF00FFu) << 8u) | ((b & 0xFF00FF00u) >> 8u);
+                    return f32(b) * 2.3283064365386963e-10; // 1/2^32
+                }
 
-  fn hammersley(i: u32, n: u32) -> vec2f {
-      return vec2f(f32(i)/f32(n), radicalInverseVdC(i));
-  }
+                fn hammersley(i: u32, n: u32) -> vec2f {
+                    return vec2f(f32(i)/f32(n), radicalInverseVdC(i));
+                }
 
-  fn cosineSampleHemisphere(xi: vec2f) -> vec3f {
-      let r = sqrt(xi.x);
-      let phi = 2.0 * PI * xi.y;
-      let x = r * cos(phi);
-      let y = r * sin(phi);
-      let z = sqrt(1.0 - xi.x); // cosTheta
-      return vec3f(x, y, z);
-  }
+                fn cosineSampleHemisphere(xi: vec2f) -> vec3f {
+                    let r = sqrt(xi.x);
+                    let phi = 2.0 * PI * xi.y;
+                    let x = r * cos(phi);
+                    let y = r * sin(phi);
+                    let z = sqrt(1.0 - xi.x); // cosTheta
+                    return vec3f(x, y, z);
+                }
                 const PI = 3.14159265359;
-        
+
                 @fragment
                 fn fragmentMain(@location(0) uv: vec2f) -> @location(0) vec4f {
                     // Per-pixel normal for this output cubemap face
                     let normal = dirFromFaceUV(u32(face.x), uv.x, uv.y);
-            
+                            
 
-  var up = select(vec3f(0.0, 0.0, 1.0), vec3f(0.0, 1.0, 0.0), abs(normal.y) < 0.999);
-  let tangent = normalize(cross(up, normal));
-  let bitangent = cross(normal, tangent);
+                    var up = select(vec3f(0.0, 0.0, 1.0), vec3f(0.0, 1.0, 0.0), abs(normal.y) < 0.999);
+                    let tangent = normalize(cross(up, normal));
+                    let bitangent = cross(normal, tangent);
 
                     let SAMPLE_COUNT = 2048u;
-  var irradiance = vec3f(0.0);
+                    var irradiance = vec3f(0.0);
 
-  for (var i = 0u; i < SAMPLE_COUNT; i++) {
-      let xi = hammersley(i, SAMPLE_COUNT);
-      let sampleVec = cosineSampleHemisphere(xi);
-      let worldSample =
-          sampleVec.x * tangent +
-          sampleVec.y * bitangent +
-          sampleVec.z * normal;
+                    let dim = textureDimensions(environmentMap);
+                    let resolution = f32(dim.x);
 
-    //   irradiance += textureSample(environmentMap, environmentMapSampler, worldSample).rgb;
-        irradiance += textureSampleLevel(environmentMap, environmentMapSampler, worldSample, 6.0).rgb;
-  }
+                    for (var i = 0u; i < SAMPLE_COUNT; i++) {
+                        let xi = hammersley(i, SAMPLE_COUNT);
+                        let sampleVec = cosineSampleHemisphere(xi);
 
-  irradiance = irradiance / f32(SAMPLE_COUNT);
-  return vec4f(irradiance, 1.0);
+                        let worldSample = sampleVec.x * tangent + sampleVec.y * bitangent + sampleVec.z * normal;
+
+                        let pdf = max(sampleVec.z / PI, 0.0001);
+
+                        let lod = max(0.0, 0.5 * log2(6.0 * resolution * resolution / (f32(SAMPLE_COUNT) * pdf)));
+                        irradiance += textureSampleLevel(environmentMap, environmentMapSampler, normalize(worldSample), lod).rgb;
+                    }
+
+                    irradiance = irradiance / f32(SAMPLE_COUNT);
+
+                    return vec4f(irradiance, 1.0);
                 }
             `,
       colorOutputs: [{ format: this.irradianceTexture.format }],
