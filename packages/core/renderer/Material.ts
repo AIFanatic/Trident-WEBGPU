@@ -79,6 +79,7 @@ class PBRMaterialParams extends MaterialParams {
     private static dummyAlbedo: Texture;    // 1x1 white
     private static dummyNormal: Texture;    // 1x1 flat (128, 128, 255)
     private static dummyBlack: Texture;     // 1x1 black (for height, emissive)
+    private static dummyWhite: Texture;     // 1x1 black (for height, emissive)
     private static dummyARM: Texture;       // 1x1 (255, roughness_default, 0) or just white
 
     constructor() {
@@ -90,7 +91,7 @@ class PBRMaterialParams extends MaterialParams {
         this.normalMap = PBRMaterialParams.dummyNormal;
         this.heightMap = PBRMaterialParams.dummyBlack;
         this.armMap = PBRMaterialParams.dummyARM;
-        this.emissiveMap = PBRMaterialParams.dummyBlack;
+        this.emissiveMap = PBRMaterialParams.dummyWhite;
     }
     
     public static InitDummies() {
@@ -102,6 +103,9 @@ class PBRMaterialParams extends MaterialParams {
 
         PBRMaterialParams.dummyBlack = Texture.Create(1, 1, 1, "bgra8unorm");
         PBRMaterialParams.dummyBlack.SetData(new Uint8Array([0, 0, 0, 255]), 4);
+
+        PBRMaterialParams.dummyWhite = Texture.Create(1, 1, 1, "bgra8unorm");
+        PBRMaterialParams.dummyWhite.SetData(new Uint8Array([255, 255, 255, 255]), 4);
 
         PBRMaterialParams.dummyARM = Texture.Create(1, 1, 1, "bgra8unorm");
         PBRMaterialParams.dummyARM.SetData(new Uint8Array([255, 255, 255, 255]), 4);
