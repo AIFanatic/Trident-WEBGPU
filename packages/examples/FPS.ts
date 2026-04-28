@@ -54,6 +54,7 @@ import { ImpostorMesh } from "@trident/plugins/Impostors/ImpostorMesh";
 import { SSS_V2 } from "@trident/plugins/SSS_V2";
 import { SSSRenderPass } from "@trident/plugins/SSS";
 import { FullscreenQuad } from "@trident/plugins/FullscreenQuad";
+import { SphereCollider } from "@trident/plugins/PhysicsRapier/colliders/SphereCollider";
 
 async function Application(canvas: HTMLCanvasElement) {
     await Runtime.Create(canvas);
@@ -651,6 +652,37 @@ async function Application(canvas: HTMLCanvasElement) {
     // // const sssPass = new SSS(light);
     // // Runtime.Renderer.RenderPipeline.AddPass(sssPass, GPU.RenderPassOrder.AfterLighting);
 
+    class Shooter extends Component {
+        private projectileGeometry: Geometry;
+        private projectileMaterial: PBRMaterial;
+
+        public Start(): void {
+            this.projectileGeometry = Geometry.Sphere();
+            this.projectileMaterial = new PBRMaterial();
+        }
+
+        public Update(): void {
+            if (Input.GetMouseDown(MouseCodes.MOUSE_LEFT)) {
+                console.log("CALLED")
+                const go = new GameObject();
+                const forward = new Mathf.Vector3(0, 0, -1).transformDirection(camera.transform.localToWorldMatrix);
+                go.transform.position.copy(this.transform.position).add(forward.clone().mul(1));
+                const mesh = go.AddComponent(Components.Mesh);
+                mesh.geometry = this.projectileGeometry;
+                mesh.material = this.projectileMaterial;
+                const collider = go.AddComponent(SphereCollider);
+                const rigidbody = go.AddComponent(RigidBody);
+                rigidbody.isKinematic = false;
+                rigidbody.AddForce(forward.clone().mul(1000));
+
+                setTimeout(() => {
+                    go.Destroy();
+                }, 1000);
+            }
+        }
+    }
+
+    playerGameObject.AddComponent(Shooter)
     Runtime.Play();
 };
 

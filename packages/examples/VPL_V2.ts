@@ -119,7 +119,7 @@ async function Application(canvas: HTMLCanvasElement) {
         cube2.transform.eulerAngles.y = 65;
         const cubeMesh2 = cube2.AddComponent(Components.Mesh);
         cubeMesh2.geometry = Geometry.Cube();
-        cubeMesh2.material = new PBRMaterial({ emissiveColor: new Mathf.Color(1, 0, 0, 1), albedoColor: new Mathf.Color(1, 1, 1, 1), roughness: 0.7, metalness: 0.1 });
+        cubeMesh2.material = new PBRMaterial({ albedoColor: new Mathf.Color(1, 1, 1, 1), roughness: 0.7, metalness: 0.1 });
         cube2.AddComponent(BoxCollider);
     }
 

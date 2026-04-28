@@ -57,9 +57,9 @@ async function Application(canvas: HTMLCanvasElement) {
     const environment = new Environment(scene, skyTexture);
     await environment.init();
 
-    // const rootGO = await GLTFLoader.Load("./assets/models/DamagedHelmet/DamagedHelmet.gltf", scene);
+    const rootGO = await GLTFLoader.Load("./assets/models/DamagedHelmet/DamagedHelmet.gltf", scene);
     // const rootGO = await GLTFLoader.Load("/extra/test-assets/bouquet.glb", scene);
-    const rootGO = await GLTFLoader.Load("./assets/models/Shadow.glb", scene);
+    // const rootGO = await GLTFLoader.Load("./assets/models/Shadow.glb", scene);
     // const rootGO = await GLTFLoader.Load("/extra/test-assets/nature/overgrowth/patch_grass_medium.glb", scene);
     // const rootGO = await GLTFLoader.Load("/extra/test-assets/tree-01/american_beech_a/american_beech_a.glb", scene);
     // const rootGO = await GLTFLoader.Load("/extra/test-assets/ak47u.worldmodel.glb", scene);
@@ -107,58 +107,6 @@ async function Application(canvas: HTMLCanvasElement) {
         // animator.CrossFadeTo(0, 1000);
 
     }
-
-    // {
-    //     const gameObject = await GLTFLoader.Load(url, scene);
-    //     gameObject.transform.position.x = -2;
-    //     gameObject.transform.scale.set(0.01, 0.01, 0.01);
-    // }
-
-    // const go = new GameObject(scene);
-    // const mesh = go.AddComponent(Components.Mesh);
-    // mesh.geometry = Geometry.Sphere();
-    // mesh.material = new PBRMaterial({roughness: 0.0, metallic: 1.0});
-
-    // {
-    //     function traverse(objects: GameObject[], fn: (object: GameObject) => void) {
-    //         for (const object of objects) {
-    //             fn(object);
-    //             for (const child of object.transform.children) {
-    //                 traverse([child.gameObject], fn);
-    //             }
-    //         }
-    //     }
-        
-    // Scene serialization moved to editor
-
-    console.warn(`
-        glb imports to:
-            mesh
-            material
-            shader (always pbr)
-            animation
-            bones/skin
-
-        even on editor create those files separately (can deal with animation and bones later)
-    `)
-        
-    //     traverse(serialized.gameObjects, gameObject => {
-    //         for (const componet of gameObject.components) {
-    //             if (componet.type === Components.Mesh.type) {
-    //                 console.log("MESH", componet)
-    //                 componet.geometry.assetPath = "/extra/test-assets/DamagedHelmet.mesh";
-    //                 componet.material.assetPath = "/extra/test-assets/DamagedHelmet.mat";
-    //             }
-    //         }
-    //     })
-
-
-    //     scene.Clear();
-    //     scene.Deserialize(serialized);
-    //     Components.Camera.mainCamera = scene.GetGameObjects()[0].GetComponents(Components.Camera)[0];
-    //     const controls = new OrbitControls(canvas, Components.Camera.mainCamera);
-    // }
-
 
     // Drag and drop models
     {
