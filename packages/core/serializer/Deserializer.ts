@@ -84,7 +84,20 @@ export class Deserializer {
         }
 
         if (Array.isArray(data)) {
-            return Promise.all(data.map(item => this.deserializeAny(item, expectedType)));
+            const result = new Array(data.length);
+
+            for (let i = 0; i < data.length; i++) {
+                const item = data[i];
+
+                if (this.isGameObjectRef(item)) {
+                    this.deferredRefs.push({ target: result, property: i, id: item.id });
+                    result[i] = null;
+                } else {
+                    result[i] = await this.deserializeAny(item, expectedType);
+                }
+            }
+
+            return result;
         }
 
         if (existing instanceof Vector3) {
