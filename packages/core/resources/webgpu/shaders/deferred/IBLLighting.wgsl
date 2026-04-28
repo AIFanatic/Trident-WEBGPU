@@ -135,84 +135,46 @@ fn fragmentMain(input: VertexOutput) -> @location(0) vec4<f32> {
     let v = surface.V;
     let r = reflect(-v, n);
 
-    // let irradiance = textureSample(skyboxIrradianceTexture, textureSampler, n).rgb;
-    // let diffuse = irradiance * surface.albedo.xyz;
+    let NdotV = max(dot(n, v), 0.0);
 
-    // let f = FresnelSchlickRoughness(max(dot(n, v), 0.00001), surface.F0, surface.roughness);
-    // let kS = f;
-    // var kD = vec3f(1.0) - kS;
-    // kD *= 1.0 - surface.metallic;
+    let MAX_REFLECTION_LOD = f32(textureNumLevels(skyboxPrefilterTexture) - 1u);
+    let prefiltered = textureSampleLevel(
+        skyboxPrefilterTexture,
+        textureSampler,
+        r,
+        surface.roughness * MAX_REFLECTION_LOD
+    ).rgb;
 
-    // let MAX_REFLECTION_LOD = f32(textureNumLevels(skyboxPrefilterTexture) - 1u);
-    // let prefilteredColor = textureSampleLevel(skyboxPrefilterTexture, textureSampler, r, surface.roughness * MAX_REFLECTION_LOD).rgb;
-    // let brdf = textureSample(skyboxBRDFLUT, brdfSampler, vec2f(max(dot(n, v), 0.0), surface.roughness)).rg;
-    // let specular = prefilteredColor * (f * brdf.x + brdf.y);
+    let brdf = textureSample(
+        skyboxBRDFLUT,
+        brdfSampler,
+        vec2f(NdotV, surface.roughness)
+    ).rg;
 
-    // let ambient = kD * diffuse * (1.0 - surface.occlusion) + specular;
+    // diffuse from irradiance
+    let irradiance = textureSample(skyboxIrradianceTexture, textureSampler, n).rgb;
+    let diffuse = irradiance * surface.albedo;
 
-    // let color = ambient + surface.emissive;
+    // fresnel term (glTF-style)
+    let f_metal_fresnel_ibl = getIBLGGXFresnel(n, v, surface.roughness, surface.albedo, 1.0);
+    let f_metal_brdf_ibl = prefiltered * f_metal_fresnel_ibl;
+
+    // dielectrics: F0 is ~0.04
+    let specularWeight = 1.0;
+    let f_dielectric_fresnel_ibl = getIBLGGXFresnel(n, v, surface.roughness, surface.F0, specularWeight);
+        let f_dielectric_brdf_ibl = diffuse * (1.0 - f_dielectric_fresnel_ibl) + prefiltered * f_dielectric_fresnel_ibl;
+
+    var color = mix(f_dielectric_brdf_ibl, f_metal_brdf_ibl, surface.metallic) + surface.emissive;
+
+    let occlusionStrength = 1.0; // match glTF default
+    color = color * (1.0 + occlusionStrength * (surface.occlusion - 1.0));
 
 
-    // return vec4f(color, 1.0);
+    let ao = mix(1.0, surface.occlusion, occlusionStrength);
+    let indirectDiffuse  = irradiance * surface.albedo * ao;
+    color = mix(f_dielectric_brdf_ibl, f_metal_brdf_ibl, surface.metallic) * ao + surface.emissive;
+
     
-    // let f_diffuse = diffuse;
-    // let f_metal_fresnel_ibl = getIBLGGXFresnel(n, v, surface.roughness, surface.albedo.rgb, 1.0);
-    // let f_metal_brdf_ibl = vec3f(0.0);
 
-    // let f_specular_dielectric = vec3f(0.0);
-    // let specularWeight = 1.0;
-    // let f_dielectric_fresnel_ibl = getIBLGGXFresnel(n, v, surface.roughness, surface.F0, specularWeight);
-    // let f_dielectric_brdf_ibl = mix(f_diffuse, f_specular_dielectric,  f_dielectric_fresnel_ibl);
-
-    // let color = mix(f_dielectric_brdf_ibl, f_metal_brdf_ibl, surface.metallic) + surface.emissive;
-
-    // return vec4f(color, 1.0);
-
-
-
-
-
-
-  let NdotV = max(dot(n, v), 0.0);
-
-  let MAX_REFLECTION_LOD = f32(textureNumLevels(skyboxPrefilterTexture) - 1u);
-  let prefiltered = textureSampleLevel(
-      skyboxPrefilterTexture,
-      textureSampler,
-      r,
-      surface.roughness * MAX_REFLECTION_LOD
-  ).rgb;
-
-  let brdf = textureSample(
-      skyboxBRDFLUT,
-      brdfSampler,
-      vec2f(NdotV, surface.roughness)
-  ).rg;
-
-  // diffuse from irradiance
-  let irradiance = textureSample(skyboxIrradianceTexture, textureSampler, n).rgb;
-  let diffuse = irradiance * surface.albedo;
-
-  // fresnel term (glTF-style)
-  let f_metal_fresnel_ibl = getIBLGGXFresnel(n, v, surface.roughness, surface.albedo, 1.0);
-  let f_metal_brdf_ibl = prefiltered * f_metal_fresnel_ibl;
-
-  // dielectrics: F0 is ~0.04
-  let specularWeight = 1.0;
-  let f_dielectric_fresnel_ibl = getIBLGGXFresnel(n, v, surface.roughness, surface.F0, specularWeight);
-  let f_dielectric_brdf_ibl = mix(diffuse, prefiltered * f_dielectric_fresnel_ibl, f_dielectric_fresnel_ibl);
-
-  var color = mix(f_dielectric_brdf_ibl, f_metal_brdf_ibl, surface.metallic) + surface.emissive;
-
-  let occlusionStrength = 1.0; // match glTF default
-  color = color * (1.0 + occlusionStrength * (surface.occlusion - 1.0));
-
-
-  let ao = mix(1.0, surface.occlusion, occlusionStrength);
-  let indirectDiffuse  = irradiance * surface.albedo * ao;
-  color = mix(f_dielectric_brdf_ibl, f_metal_brdf_ibl, surface.metallic) * ao + surface.emissive;
-
-  
-
-  return vec4f(color, 1.0);
+    return vec4f(color, 1.0);
 }

@@ -1,4 +1,4 @@
-import { EventSystem, EventSystemLocal } from "../Events";
+import { EventSystemLocal } from "../Events";
 import { GameObject } from "../GameObject";
 import { Geometry } from "../Geometry";
 import { Shader } from "../renderer/Shader";
@@ -49,5 +49,4 @@ export class Renderable extends Component {
         if (this._material) { this._material.Destroy(); this._material = null; }
         Renderable.Renderables.delete(this.id);
     }
-
 }

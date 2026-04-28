@@ -10,6 +10,7 @@ export { EventSystem, EventSystemLocal } from "./Events";
 export { PBRMaterial } from "./renderer/Material";
 
 export { Texture } from "./renderer/Texture";
+export type { TextureFormat, ImageLoadOptions } from "./renderer/Texture";
 
 export { Geometry, IndexAttribute, VertexAttribute, InterleavedVertexAttribute } from "./Geometry";
 

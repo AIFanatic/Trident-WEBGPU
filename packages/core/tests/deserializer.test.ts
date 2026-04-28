@@ -11,7 +11,9 @@ import {
     GPU,
     Utils,
     Assets,
-    Prefab
+    Prefab,
+    Runtime,
+    SceneManager
 } from "../../../dist/trident-core.js";
 
 class TestLayer {
@@ -74,8 +76,10 @@ test("component deserialization loads serialized fields", async () => {
     try {
         Component.Registry.set(TestComponent.type, TestComponent as any);
 
-        const scene = new Scene();
-        const go = new GameObject(scene);
+        Runtime.SceneManager = new SceneManager();
+        const scene = Runtime.SceneManager.CreateScene();
+        Runtime.SceneManager.SetActiveScene(scene);
+        const go = new GameObject();
         const component = new TestComponent(go);
 
         await Deserializer.deserializeComponent(component, {
@@ -101,8 +105,10 @@ test("component deserialization loads serialized fields", async () => {
 });
 
 test("game object serialization preserves transform and components", () => {
-    const scene = new Scene();
-    const go = new GameObject(scene);
+    Runtime.SceneManager = new SceneManager();
+    const scene = Runtime.SceneManager.CreateScene();
+    Runtime.SceneManager.SetActiveScene(scene);
+    const go = new GameObject();
     go.id = "go-1";
     go.name = "Player";
     go.transform.localPosition.set(1, 2, 3);
@@ -119,10 +125,10 @@ test("game object serialization preserves transform and components", () => {
 });
 
 test("scene serialization preserves root game objects", () => {
-    const scene = new Scene();
-    scene.name = "TestScene";
-
-    const go = new GameObject(scene);
+    Runtime.SceneManager = new SceneManager();
+    const scene = Runtime.SceneManager.CreateScene("TestScene");
+    Runtime.SceneManager.SetActiveScene(scene);
+    const go = new GameObject();
     go.id = "go-1";
     go.name = "Root";
 
@@ -136,6 +142,8 @@ test("scene serialization preserves root game objects", () => {
 });
 
 test("scene deserialization creates game object with component typed array asset refs", async () => {
+    Runtime.SceneManager = new SceneManager();
+
     const originalLoad = Deserializer.Load;
     const loadedTexture = {
         assetPath: "/foo.png",
@@ -156,7 +164,8 @@ test("scene deserialization creates game object with component typed array asset
     try {
         Component.Registry.set(TestComponent.type, TestComponent as any);
 
-        const scene = new Scene();
+        const scene = Runtime.SceneManager.CreateScene();
+        Runtime.SceneManager.SetActiveScene(scene);
 
         await Deserializer.deserializeScene(scene, {
             type: Scene.type,
@@ -216,14 +225,17 @@ test("scene deserialization creates game object with component typed array asset
 });
 
 test("prefab-like game object serialization preserves children and components", () => {
-    const scene = new Scene();
+    Runtime.SceneManager = new SceneManager();
+    const scene = Runtime.SceneManager.CreateScene();
+    Runtime.SceneManager.SetActiveScene(scene);
 
-    const root = new GameObject(scene);
+    const root = new GameObject();
+
     root.id = "root-go";
     root.name = "PrefabRoot";
     root.transform.localPosition.set(1, 2, 3);
 
-    const child = new GameObject(scene);
+    const child = new GameObject();
     child.id = "child-go";
     child.name = "Child";
     child.transform.parent = root.transform;
@@ -341,6 +353,8 @@ test("asset loading returns cached instance for same asset path", async () => {
 });
 
 test("shared asset refs across components resolve to same instance", async () => {
+    Runtime.SceneManager = new SceneManager();
+
     const originalLoad = Deserializer.Load;
     let loadCount = 0;
 
@@ -374,7 +388,8 @@ test("shared asset refs across components resolve to same instance", async () =>
     try {
     Component.Registry.set(TestComponent.type, TestComponent as any);
 
-    const scene = new Scene();
+    const scene = Runtime.SceneManager.CreateScene();
+    Runtime.SceneManager.SetActiveScene(scene);
 
     await Deserializer.deserializeScene(scene, {
         type: Scene.type,
@@ -464,6 +479,8 @@ class TestAssetRefComponent extends Component {
 }
 
 test("component asset reference field loads external typed asset", async () => {
+    Runtime.SceneManager = new SceneManager();
+
     const originalLoad = Deserializer.Load;
     const loadedAsset = new TestAsset();
     loadedAsset.name = "LoadedExternalAsset";
@@ -476,7 +493,8 @@ test("component asset reference field loads external typed asset", async () => {
     try {
         Component.Registry.set(TestAssetRefComponent.type, TestAssetRefComponent as any);
 
-        const scene = new Scene();
+        const scene = Runtime.SceneManager.CreateScene();
+        Runtime.SceneManager.SetActiveScene(scene);
 
         await Deserializer.deserializeScene(scene, {
             type: Scene.type,
@@ -643,8 +661,11 @@ test("OnDeserialized is called after field deserialization", async () => {
 });
 
 test("serialize then deserialize produces same state", async () => {
-    const scene = new Scene();
-    const go = new GameObject(scene);
+    Runtime.SceneManager = new SceneManager();
+    const scene = Runtime.SceneManager.CreateScene();
+    Runtime.SceneManager.SetActiveScene(scene);
+
+    const go = new GameObject();
     go.id = "rt-1";
     go.name = "RoundTrip";
     go.transform.localPosition.set(10, 20, 30);
@@ -652,7 +673,8 @@ test("serialize then deserialize produces same state", async () => {
 
     const serialized = Serializer.serializeScene(scene);
 
-    const scene2 = new Scene();
+    const scene2 = Runtime.SceneManager.CreateScene();
+    Runtime.SceneManager.SetActiveScene(scene2);
     await Deserializer.deserializeScene(scene2, serialized);
 
     const go2 = scene2.GetGameObjects()[0];
@@ -664,6 +686,8 @@ test("serialize then deserialize produces same state", async () => {
 });
 
 test("prefab: gameObject with assetPath loads prefab and creates components from it", async () => {
+    Runtime.SceneManager = new SceneManager();
+
     const originalLoad = Deserializer.Load;
 
     Deserializer.Load = async (assetPath: string) => {
@@ -686,7 +710,9 @@ test("prefab: gameObject with assetPath loads prefab and creates components from
 
     try {
         Component.Registry.set(TestComponent.type, TestComponent as any);
-        const scene = new Scene();
+        
+        const scene = Runtime.SceneManager.CreateScene();
+        Runtime.SceneManager.SetActiveScene(scene);
 
         await Deserializer.deserializeScene(scene, {
             type: Scene.type,
@@ -720,6 +746,8 @@ test("prefab: gameObject with assetPath loads prefab and creates components from
 });
 
 test("prefab: data.name overrides prefab name", async () => {
+    Runtime.SceneManager = new SceneManager();
+
     const originalLoad = Deserializer.Load;
 
     Deserializer.Load = async () => ({
@@ -736,7 +764,8 @@ test("prefab: data.name overrides prefab name", async () => {
     });
 
     try {
-        const scene = new Scene();
+        const scene = Runtime.SceneManager.CreateScene();
+        Runtime.SceneManager.SetActiveScene(scene);
 
         await Deserializer.deserializeScene(scene, {
             type: Scene.type,
@@ -764,6 +793,8 @@ test("prefab: data.name overrides prefab name", async () => {
 });
 
 test("prefab: transform override applies on top of prefab transform", async () => {
+    Runtime.SceneManager = new SceneManager();
+
     const originalLoad = Deserializer.Load;
 
     Deserializer.Load = async () => ({
@@ -780,7 +811,8 @@ test("prefab: transform override applies on top of prefab transform", async () =
     });
 
     try {
-        const scene = new Scene();
+        const scene = Runtime.SceneManager.CreateScene();
+        Runtime.SceneManager.SetActiveScene(scene);
 
         await Deserializer.deserializeScene(scene, {
             type: Scene.type,
@@ -808,6 +840,8 @@ test("prefab: transform override applies on top of prefab transform", async () =
 });
 
 test("prefab: children from prefab source are created", async () => {
+    Runtime.SceneManager = new SceneManager();
+    
     const originalLoad = Deserializer.Load;
 
     Deserializer.Load = async () => ({
@@ -838,7 +872,8 @@ test("prefab: children from prefab source are created", async () => {
     });
 
     try {
-        const scene = new Scene();
+        const scene = Runtime.SceneManager.CreateScene();
+        Runtime.SceneManager.SetActiveScene(scene);
 
         await Deserializer.deserializeScene(scene, {
             type: Scene.type,
