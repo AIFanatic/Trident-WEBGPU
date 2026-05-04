@@ -72,21 +72,21 @@ export enum Topology {
 }
 
 export type DepthCompareFunctions =
-| "never"
-| "less"
-| "equal"
-| "less-equal"
-| "greater"
-| "not-equal"
-| "greater-equal"
-| "always";
+    | "never"
+    | "less"
+    | "equal"
+    | "less-equal"
+    | "greater"
+    | "not-equal"
+    | "greater-equal"
+    | "always";
 
 export interface ShaderParams {
     code: string;
     name?: string;
-    defines?: {[key: string]: boolean};
-    attributes?: {[key: string]: ShaderAttribute};
-    uniforms?: {[key: string]: ShaderUniform};
+    defines?: { [key: string]: boolean };
+    attributes?: { [key: string]: ShaderAttribute };
+    uniforms?: { [key: string]: ShaderUniform };
     vertexEntrypoint?: string;
     fragmentEntrypoint?: string;
     colorOutputs: ShaderColorOutput[];
@@ -104,15 +104,15 @@ export interface ShaderParams {
 export interface ShaderComputeParams {
     code: string;
     name?: string;
-    defines?: {[key: string]: boolean};
-    uniforms?: {[key: string]: ShaderUniform};
+    defines?: { [key: string]: boolean };
+    uniforms?: { [key: string]: ShaderUniform };
     computeEntrypoint?: string;
 };
 
 const BindGroupLayoutCache: Map<string, GPUBindGroupLayout> = new Map();
 const BindGroupCache: Map<string, GPUBindGroup> = new Map();
 
-export const UniformTypeToWGSL: {[key: string]: any} = {
+export const UniformTypeToWGSL: { [key: string]: any } = {
     "uniform": "uniform",
     "storage": "read-only-storage",
     "storage-write": "storage",
@@ -135,14 +135,14 @@ interface BindGroup {
 class BaseShader {
     public readonly id: string = UUID();
     public needsUpdate = false;
-    
+
     protected readonly module: GPUShaderModule;
-    
+
     public readonly params: ShaderParams | ShaderComputeParams;
     protected uniformMap: Map<string, WEBGPUShaderUniform> = new Map();
 
     protected valueArray = new Float32Array(1);
-    
+
     protected _pipeline: GPUComputePipeline | GPURenderPipeline | null = null;
     protected _bindGroups: GPUBindGroup[] = [];
     protected _bindGroupsInfo: BindGroup[] = [];
@@ -156,12 +156,12 @@ class BaseShader {
     constructor(params: ShaderParams | ShaderComputeParams) {
         const code = params.defines ? ShaderPreprocessor.ProcessDefines(params.code, params.defines) : params.code;
         this.params = params;
-        this.module = Renderer.device.createShaderModule({code: code, label: params.name});
+        this.module = Renderer.device.createShaderModule({ code: code, label: params.name });
         if (this.params.uniforms) {
             this.uniformMap = new Map(Object.entries(this.params.uniforms));
         }
     }
-    
+
     // TODO: This needs cleaning
     protected BuildBindGroupLayouts(): GPUBindGroupLayout[] {
         const bindGroupsLayoutEntries: GPUBindGroupLayoutEntry[][] = [];
@@ -206,7 +206,7 @@ class BaseShader {
                     })
                 }
                 else {
-                    layoutEntries.push({ binding: uniform.binding, visibility: GPUShaderStage.COMPUTE | GPUShaderStage.VERTEX | GPUShaderStage.FRAGMENT, texture: {sampleType: sampleType, viewDimension: uniform.buffer.dimension}})
+                    layoutEntries.push({ binding: uniform.binding, visibility: GPUShaderStage.COMPUTE | GPUShaderStage.VERTEX | GPUShaderStage.FRAGMENT, texture: { sampleType: sampleType, viewDimension: uniform.buffer.dimension } })
                 }
             }
             else if (uniform.buffer instanceof TextureSampler) {
@@ -215,11 +215,11 @@ class BaseShader {
                 if (uniform.type === "sampler") type = "filtering";
                 else if (uniform.type === "sampler-compare") type = "comparison";
                 else if (uniform.type === "sampler-non-filterable") type = "non-filtering";
-                layoutEntries.push({ binding: uniform.binding, visibility: GPUShaderStage.COMPUTE | GPUShaderStage.VERTEX | GPUShaderStage.FRAGMENT, sampler: {type: type}})
+                layoutEntries.push({ binding: uniform.binding, visibility: GPUShaderStage.COMPUTE | GPUShaderStage.VERTEX | GPUShaderStage.FRAGMENT, sampler: { type: type } })
             }
 
         }
-        
+
         let bindGroupLayouts: GPUBindGroupLayout[] = [];
         for (const bindGroupsLayoutEntry of bindGroupsLayoutEntries) {
             const crc = JSON.stringify(bindGroupsLayoutEntry);
@@ -227,7 +227,7 @@ class BaseShader {
 
             let bindGroupLayout = BindGroupLayoutCache.get(crc);
             if (bindGroupLayout === undefined) {
-                bindGroupLayout = Renderer.device.createBindGroupLayout({label: this.params.name, entries: bindGroupsLayoutEntry});
+                bindGroupLayout = Renderer.device.createBindGroupLayout({ label: this.params.name, entries: bindGroupsLayoutEntry });
                 BindGroupLayoutCache.set(crc, bindGroupLayout);
                 Renderer.info.bindGroupLayoutsStat += 1;
             }
@@ -245,7 +245,9 @@ class BaseShader {
         for (const [name, uniform] of this.uniformMap) {
             if (!crcs[uniform.group]) crcs[uniform.group] = "";
 
-            if (uniform.buffer) {
+            if (uniform.buffer instanceof Texture) {
+                crcs[uniform.group] += `${uniform.buffer.id}:${uniform.textureMip}:${uniform.activeMipCount},`;
+            } else if (uniform.buffer) {
                 crcs[uniform.group] += `${uniform.buffer.id},`;
             }
         }
@@ -260,8 +262,8 @@ class BaseShader {
         for (const [name, uniform] of this.uniformMap) {
             // // This should be here but it clashes with the preprocessor
             // if (!uniform.buffer) console.warn(`Shader has binding (${name}) but no buffer was set`);
-            
-            if (!bindGroupsInfo[uniform.group]) bindGroupsInfo[uniform.group] = {entries: [], buffers: []};
+
+            if (!bindGroupsInfo[uniform.group]) bindGroupsInfo[uniform.group] = { entries: [], buffers: [] };
 
             const group = bindGroupsInfo[uniform.group];
             if (uniform.buffer instanceof Buffer) {
@@ -291,11 +293,11 @@ class BaseShader {
                     baseMipLevel: uniform.textureMip,
                     mipLevelCount: uniform.activeMipCount
                 };
-                group.entries.push({binding: uniform.binding, resource: uniform.buffer.GetBuffer().createView(view)});
+                group.entries.push({ binding: uniform.binding, resource: uniform.buffer.GetBuffer().createView(view) });
                 group.buffers.push(uniform.buffer);
             }
             else if (uniform.buffer instanceof TextureSampler) {
-                group.entries.push({binding: uniform.binding, resource: uniform.buffer.GetBuffer()});
+                group.entries.push({ binding: uniform.binding, resource: uniform.buffer.GetBuffer() });
                 group.buffers.push(uniform.buffer);
             }
         }
@@ -316,7 +318,7 @@ class BaseShader {
                 BindGroupCache.set(crc, bindGroup);
             }
             bindGroups.push(bindGroup);
-            
+
         }
 
         return bindGroups;
@@ -348,26 +350,33 @@ class BaseShader {
             this.needsUpdate = true;
         }
         if (data instanceof Texture) {
+            const textureMip = data.GetActiveMip();
+            const activeMipCount = data.GetActiveMipCount();
+
+            if (binding.textureMip !== textureMip || binding.activeMipCount !== activeMipCount) {
+                this.needsUpdate = true;
+            }
+
             binding.textureDimension = data.GetActiveLayer();
-            binding.textureMip = data.GetActiveMip();
-            binding.activeMipCount = data.GetActiveMipCount();
+            binding.textureMip = textureMip;
+            binding.activeMipCount = activeMipCount;
         }
     }
 
     public SetArray(name: string, array: ArrayBufferView, bufferOffset: number = 0, dataOffset?: number, size?: number) { this.SetUniformDataFromArray(name, array, bufferOffset, dataOffset, size) }
-    public SetValue(name: string, value: number) {this.valueArray[0] = value; this.SetUniformDataFromArray(name, this.valueArray)}
+    public SetValue(name: string, value: number) { this.valueArray[0] = value; this.SetUniformDataFromArray(name, this.valueArray) }
     public SetMatrix4(name: string, matrix: Matrix4) { this.SetUniformDataFromArray(name, matrix.elements) }
     public SetVector2(name: string, vector: Vector2) { this.SetUniformDataFromArray(name, vector.elements) }
     public SetVector3(name: string, vector: Vector3) { this.SetUniformDataFromArray(name, vector.elements) }
     public SetVector4(name: string, vector: Vector4) { this.SetUniformDataFromArray(name, vector.elements) }
-    
+
     public SetTexture(name: string, texture: Texture) { this.SetUniformDataFromBuffer(name, texture) }
     public SetSampler(name: string, sampler: TextureSampler) { this.SetUniformDataFromBuffer(name, sampler) }
     public SetBuffer(name: string, buffer: Buffer | DynamicBuffer) { this.SetUniformDataFromBuffer(name, buffer) }
 
     public HasBuffer(name: string): boolean { return this.uniformMap.get(name)?.buffer ? true : false }
 
-    public Compile() {}
+    public Compile() { }
     public OnPreRender(geometry: Geometry): boolean { return true; }
 
     public Destroy() {
@@ -513,7 +522,7 @@ export class Shader extends BaseShader {
 
 export class ShaderCompute extends BaseShader {
     private readonly computeEntrypoint: string | undefined;
-    
+
     public readonly params: ShaderComputeParams;
     protected _pipeline: GPUComputePipeline | null = null;
     public get pipeline() { return this._pipeline };
@@ -559,23 +568,23 @@ export class ShaderCompute extends BaseShader {
 
         // let pipelineLayout = pipelineLayoutCache.get(this.bindGroupLayouts);
         // if (pipelineLayout === undefined) {
-            let pipelineLayout = Renderer.device.createPipelineLayout({
-                bindGroupLayouts: this.bindGroupLayouts
-            });
+        let pipelineLayout = Renderer.device.createPipelineLayout({
+            bindGroupLayouts: this.bindGroupLayouts
+        });
         //     pipelineLayoutCache.set(this.bindGroupLayouts, pipelineLayout);
         // }
 
         // Pipeline descriptor
         const pipelineDescriptor: GPUComputePipelineDescriptor = {
             layout: pipelineLayout,
-            compute: {module: this.module, entryPoint: this.computeEntrypoint}
+            compute: { module: this.module, entryPoint: this.computeEntrypoint }
         }
 
         // Pipeline
         this._pipeline = Renderer.device.createComputePipeline(pipelineDescriptor);
 
         Renderer.info.compiledShadersStat += 1;
-        
+
         this.needsUpdate = false;
     }
 

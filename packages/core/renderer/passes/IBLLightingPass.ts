@@ -37,8 +37,8 @@ export class IBLLightingPass extends RenderPass {
         const brdfSampler = new TextureSampler({
             minFilter: "linear",
             magFilter: "linear",
-            addressModeU: "repeat",
-            addressModeV: "repeat"
+            addressModeU: "clamp-to-edge",
+            addressModeV: "clamp-to-edge"
         });
         this.shader.SetSampler("brdfSampler", brdfSampler);
 

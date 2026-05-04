@@ -196,7 +196,8 @@ export class HDRParser {
 
 	public static async ToCubemap(hdr: GPU.Texture): Promise<GPU.RenderTextureCube> {
 		const faceSize = Math.min((hdr.width / 2) | 0, hdr.height | 0);
-		const renderTarget = GPU.RenderTextureCube.Create(faceSize, faceSize, 6, "rgba16float");
+		const mipLevels = 1 + Math.floor(Math.log2(faceSize));
+		const renderTarget = GPU.RenderTextureCube.Create(faceSize, faceSize, 6, "rgba16float", mipLevels);
 		renderTarget.name = "Skybox";
 
 		const hdrSampler = new GPU.TextureSampler({
@@ -222,27 +223,27 @@ export class HDRParser {
                 return o;
             }
       
-  fn dirFromFaceUV(face: u32, x: f32, y: f32) -> vec3f {
-      let u = x;
-      let v = y;
-      switch face {
-          case 0u { return normalize(vec3( 1.0,  v, -u)); } // +X
-          case 1u { return normalize(vec3(-1.0,  v,  u)); } // -X
-          case 2u { return normalize(vec3( u,  1.0, -v)); } // +Y
-          case 3u { return normalize(vec3( u, -1.0,  v)); } // -Y
-          case 4u { return normalize(vec3( u,  v,  1.0)); } // +Z
-          default { return normalize(vec3(-u,  v, -1.0)); } // -Z
-      }
-  }
+			fn dirFromFaceUV(face: u32, x: f32, y: f32) -> vec3f {
+				let u = x;
+				let v = y;
+				switch face {
+					case 0u { return normalize(vec3( 1.0,  v, -u)); } // +X
+					case 1u { return normalize(vec3(-1.0,  v,  u)); } // -X
+					case 2u { return normalize(vec3( u,  1.0, -v)); } // +Y
+					case 3u { return normalize(vec3( u, -1.0,  v)); } // -Y
+					case 4u { return normalize(vec3( u,  v,  1.0)); } // +Z
+					default { return normalize(vec3(-u,  v, -1.0)); } // -Z
+				}
+			}
       
             const invAtan = vec2f(0.15915494309189535, 0.3183098861837907);
       
-        fn sampleSphericalMap(v: vec3f) -> vec2f {
-            var st = vec2f(atan2(v.z, v.x), asin(v.y));
-            st *= invAtan;
-            st = vec2f(st.x + 0.5, 1.0 - (st.y + 0.5)); // flip Y here
-            return st;
-        }
+			fn sampleSphericalMap(v: vec3f) -> vec2f {
+				var st = vec2f(atan2(v.z, v.x), asin(v.y));
+				st *= invAtan;
+				st = vec2f(st.x + 0.5, 1.0 - (st.y + 0.5)); // flip Y here
+				return st;
+			}
       
             @fragment
             fn fragmentMain(@location(0) uv: vec2f) -> @location(0) vec4f {
@@ -267,6 +268,9 @@ export class HDRParser {
 		shader.SetSampler("hdrSampler", hdrSampler);
 		shader.SetBuffer("face", params);
 
+		renderTarget.SetActiveMip(0);
+		renderTarget.SetActiveMipCount(1);
+		
 		for (let face = 0; face < 6; face++) {
 			params.SetArray(new Float32Array([face, 0, 0, 0]));
 
@@ -279,6 +283,10 @@ export class HDRParser {
 		}
 
 		renderTarget.GenerateMips();
+
+		renderTarget.SetActiveMip(0);
+		renderTarget.SetActiveMipCount(renderTarget.mipLevels);
+		
 		return renderTarget;
 	}
 }

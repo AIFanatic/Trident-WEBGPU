@@ -1,9 +1,9 @@
 import { GPU, Geometry } from "@trident/core";
 
-export class Irradiance {
-    public irradianceTexture: GPU.RenderTextureCube;
+export class PrefilterDiffuse {
+    public prefilterDiffuse: GPU.RenderTextureCube;
     
-    private name = "Irradiance";
+    private name = "PrefilterDiffuse";
     private initialized = false;
     
     private geometry: Geometry;
@@ -11,10 +11,10 @@ export class Irradiance {
     
     private res: number;
 
-    constructor(res: number = 128, outputFormat: GPU.TextureFormat = "rgba16float") {
+    constructor(res: number = 64, outputFormat: GPU.TextureFormat = "rgba16float") {
         this.res = res;
-        this.irradianceTexture = GPU.RenderTextureCube.Create(this.res, this.res, 6, outputFormat);
-        this.irradianceTexture.name = "Irradiance";
+        this.prefilterDiffuse = GPU.RenderTextureCube.Create(this.res, this.res, 6, outputFormat);
+        this.prefilterDiffuse.name = "PrefilterDiffuse";
     }
 
     public async init() {
@@ -52,65 +52,82 @@ export class Irradiance {
                     default { return normalize(vec3(-u,  v, -1.0)); } // -Z
                     }
                 }
-        
-                fn radicalInverseVdC(bits: u32) -> f32 {
-                    var b = bits;
-                    b = (b << 16u) | (b >> 16u);
-                    b = ((b & 0x55555555u) << 1u) | ((b & 0xAAAAAAAAu) >> 1u);
-                    b = ((b & 0x33333333u) << 2u) | ((b & 0xCCCCCCCCu) >> 2u);
-                    b = ((b & 0x0F0F0F0Fu) << 4u) | ((b & 0xF0F0F0F0u) >> 4u);
-                    b = ((b & 0x00FF00FFu) << 8u) | ((b & 0xFF00FF00u) >> 8u);
-                    return f32(b) * 2.3283064365386963e-10; // 1/2^32
-                }
 
-                fn hammersley(i: u32, n: u32) -> vec2f {
-                    return vec2f(f32(i)/f32(n), radicalInverseVdC(i));
-                }
-
-                fn cosineSampleHemisphere(xi: vec2f) -> vec3f {
-                    let r = sqrt(xi.x);
-                    let phi = 2.0 * PI * xi.y;
-                    let x = r * cos(phi);
-                    let y = r * sin(phi);
-                    let z = sqrt(1.0 - xi.x); // cosTheta
-                    return vec3f(x, y, z);
-                }
                 const PI = 3.14159265359;
+
+                // @fragment
+                // fn fragmentMain(@location(0) uv: vec2f) -> @location(0) vec4f {
+                //     // Per-pixel normal for this output cubemap face
+                //     let normal = dirFromFaceUV(u32(face.x), uv.x, uv.y);
+
+
+
+                //     let N = normalize(normal);
+                    
+
+                //     let TWO_PI = PI * 2.0;
+                //     let HALF_PI = PI * 0.5;
+                    
+                //     let deltaPhi = TWO_PI / 360.0;
+                //     let deltaTheta = HALF_PI / 90.0;
+
+                //     var color = vec3f(0.0);
+                //     var totalWeight = 0.0;
+
+                //     for (var phi = 0.0; phi < TWO_PI; phi += deltaPhi) {
+                //         for (var theta = 0.0; theta < PI; theta += deltaTheta) {
+                //             let L = vec3f(sin(theta) * cos(phi), cos(theta), sin(theta) * sin(phi)); // No up/right because it causes artifacts, just compute here
+
+                //             let NoL = max(dot(N, L), 0.0);
+                //             let weight = NoL * sin(theta);
+
+                //             color += textureSampleLevel(environmentMap, environmentMapSampler, L, 5.0).rgb * weight;
+                //             totalWeight += weight;
+                //         }
+                //     }
+
+                //     return vec4f(color / totalWeight, 1.0);
+                // }
 
                 @fragment
                 fn fragmentMain(@location(0) uv: vec2f) -> @location(0) vec4f {
                     // Per-pixel normal for this output cubemap face
                     let normal = dirFromFaceUV(u32(face.x), uv.x, uv.y);
-                            
 
-                    var up = select(vec3f(0.0, 0.0, 1.0), vec3f(0.0, 1.0, 0.0), abs(normal.y) < 0.999);
-                    let tangent = normalize(cross(up, normal));
-                    let bitangent = cross(normal, tangent);
 
-                    let SAMPLE_COUNT = 2048u;
-                    var irradiance = vec3f(0.0);
 
-                    let dim = textureDimensions(environmentMap);
-                    let resolution = f32(dim.x);
+                    let N = normalize(normal);
 
-                    for (var i = 0u; i < SAMPLE_COUNT; i++) {
-                        let xi = hammersley(i, SAMPLE_COUNT);
-                        let sampleVec = cosineSampleHemisphere(xi);
+                    var up = vec3(1.0, 0.0, 0.0);
 
-                        let worldSample = sampleVec.x * tangent + sampleVec.y * bitangent + sampleVec.z * normal;
+                    if (abs(N.z) < 0.999) {
+                        up = vec3(0.0, 0.0, 1.0);
+                    }
+                    let right = normalize(cross(up, N));
+                    up = cross(N, right);
 
-                        let pdf = max(sampleVec.z / PI, 0.0001);
+                    let TWO_PI = PI * 2.0;
+                    let HALF_PI = PI * 0.5;
 
-                        let lod = max(0.0, 0.5 * log2(6.0 * resolution * resolution / (f32(SAMPLE_COUNT) * pdf)));
-                        irradiance += textureSampleLevel(environmentMap, environmentMapSampler, normalize(worldSample), lod).rgb;
+                    let deltaPhi = TWO_PI / 128.0;
+                    let deltaTheta = HALF_PI / 64.0;
+
+                    var color = vec3f(0.0);
+                    var sampleCount = 0u;
+
+                    for (var phi = 0.0; phi < TWO_PI; phi += deltaPhi) {
+                        for (var theta = 0.0; theta < HALF_PI; theta += deltaTheta) {
+                            let tempVec = cos(phi) * right + sin(phi) * up;
+                            let sampleVector = cos(theta) * N + sin(theta) * tempVec;
+                            color += textureSampleLevel(environmentMap, environmentMapSampler, sampleVector, 5.0).rgb * cos(theta) * sin(theta);
+                            sampleCount++;
+                        }
                     }
 
-                    irradiance = irradiance / f32(SAMPLE_COUNT);
-
-                    return vec4f(irradiance, 1.0);
+                    return vec4(PI * color / f32(sampleCount), 1.0);
                 }
             `,
-            colorOutputs: [{ format: this.irradianceTexture.format }],
+            colorOutputs: [{ format: this.prefilterDiffuse.format }],
             attributes: { position: { location: 0, size: 3, type: "vec3" } },
             uniforms: {
                 environmentMap: { group: 0, binding: 1, type: "texture" },
@@ -144,8 +161,8 @@ export class Irradiance {
             this.irradianceShader.SetArray("face", new Float32Array([face, 0, 0, 0]));
 
             GPU.Renderer.BeginRenderFrame();
-            this.irradianceTexture.SetActiveLayer(face);
-            GPU.RendererContext.BeginRenderPass(`${this.name}_${face}`, [{ target: this.irradianceTexture, clear: true }]);
+            this.prefilterDiffuse.SetActiveLayer(face);
+            GPU.RendererContext.BeginRenderPass(`${this.name}_${face}`, [{ target: this.prefilterDiffuse, clear: true }]);
             GPU.RendererContext.DrawGeometry(this.geometry, this.irradianceShader);
             GPU.RendererContext.EndRenderPass();
             GPU.Renderer.EndRenderFrame();

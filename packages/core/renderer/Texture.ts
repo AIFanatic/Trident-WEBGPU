@@ -175,13 +175,16 @@ export class Texture {
     }
 
     public GenerateMips() {
-        if (this.dimension === "cube") {
-            this.buffer = WEBGPUCubeMipsGenerator.generateMips(this);
-        } else {
-            this.buffer = WEBGPUMipsGenerator.generateMips(this);
-        }
-        // Needed for mipmapping "mipLevelCount: uniform.activeMipCount"
         const mipLevels = WEBGPUMipsGenerator.numMipLevels(this.width, this.height, this.depth);
+        const destination = this.mipLevels === mipLevels ? this : undefined;
+
+        if (this.dimension === "cube") {
+            this.buffer = WEBGPUCubeMipsGenerator.generateMips(this, destination);
+        } else {
+            this.buffer = WEBGPUMipsGenerator.generateMips(this, destination);
+        }
+
+        this.SetActiveMip(0);
         this.SetActiveMipCount(mipLevels);
         this.mipLevels = mipLevels;
         this.viewCache.clear();

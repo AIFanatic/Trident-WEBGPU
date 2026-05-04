@@ -16,7 +16,7 @@ export class Sky {
 
     public skyTexture: GPU.RenderTexture;
     public skyTextureCubemap: GPU.RenderTexture;
-    
+
     private transmittanceLUT: GPU.RenderTexture;
 
     private name = "Sky";
@@ -29,21 +29,22 @@ export class Sky {
     private cubemapShader: GPU.Shader;
 
     constructor(cubemapRes = 512) {
-        this.skyTextureCubemap = GPU.RenderTextureCube.Create(cubemapRes, cubemapRes, 6, "rgba16float");
+        const mipLevels = 1 + Math.floor(Math.log2(cubemapRes));
+        this.skyTextureCubemap = GPU.RenderTextureCube.Create(cubemapRes, cubemapRes, 6, "rgba16float", mipLevels);
     }
 
     public async init() {
         this.transmittanceLUTShader = await GPU.Shader.Create({
             code: await GPU.ShaderPreprocessor.ProcessIncludesV2(TransmittanceLUTWGSL),
-            colorOutputs: [ { format: "rgba16float" } ],
+            colorOutputs: [{ format: "rgba16float" }],
             uniforms: {
-                params: {group: 0, binding: 0, type: "storage"}
+                params: { group: 0, binding: 0, type: "storage" }
             },
         });
 
         this.skyTextureShader = await GPU.Shader.Create({
             code: await GPU.ShaderPreprocessor.ProcessIncludesV2(SkyAtmosphereWGSL),
-            colorOutputs: [ { format: "rgba16float" } ],
+            colorOutputs: [{ format: "rgba16float" }],
         });
 
         this.cubemapShader = await GPU.Shader.Create({
@@ -64,7 +65,7 @@ export class Sky {
 
         this.skyTextureShader.SetSampler("textureSampler", new GPU.TextureSampler());
 
-        const hdrSampler = new GPU.TextureSampler({minFilter: "linear", magFilter: "linear", mipmapFilter: "linear", addressModeU: "repeat", addressModeV: "clamp-to-edge"});
+        const hdrSampler = new GPU.TextureSampler({ minFilter: "linear", magFilter: "linear", mipmapFilter: "linear", addressModeU: "repeat", addressModeV: "clamp-to-edge" });
         this.cubemapShader.SetSampler("hdrSampler", hdrSampler);
 
         this.initialized = true;
@@ -94,6 +95,9 @@ export class Sky {
         // Cubemap
         this.cubemapShader.SetTexture("hdrTexture", this.skyTexture);
 
+        this.skyTextureCubemap.SetActiveMip(0);
+        this.skyTextureCubemap.SetActiveMipCount(1);
+
         for (let face = 0; face < 6; face++) {
             this.cubemapShader.SetArray("face", new Float32Array([face, 0, 0, 0]));
 
@@ -106,5 +110,8 @@ export class Sky {
         }
 
         this.skyTextureCubemap.GenerateMips();
+
+        this.skyTextureCubemap.SetActiveMip(0);
+        this.skyTextureCubemap.SetActiveMipCount(this.skyTextureCubemap.mipLevels);
     }
 }

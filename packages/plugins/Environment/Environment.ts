@@ -1,13 +1,13 @@
 import { Scene, GPU, Renderer } from "@trident/core";
-import { Irradiance } from "./Irradiance";
-import { Prefilter } from "./Prefilter";
+import { PrefilterDiffuse } from "./PrefilterDiffuse";
+import { PrefilterSpecular } from "./PrefilterSpecular";
 import { BRDF } from "./BRDF";
 
 export class Environment {
     private scene: Scene;
 
-    private irradiance: Irradiance;
-    private prefilter: Prefilter;
+    private prefilterDiffuse: PrefilterDiffuse;
+    private prefilterSpecular: PrefilterSpecular;
     private brdf: BRDF;
 
     private skyTexture: GPU.RenderTextureCube;
@@ -18,24 +18,24 @@ export class Environment {
     }
 
     public async init() {
-        this.irradiance = new Irradiance();
-        this.prefilter = new Prefilter();
+        this.prefilterDiffuse = new PrefilterDiffuse();
+        this.prefilterSpecular = new PrefilterSpecular();
         this.brdf = new BRDF();
         
-        await this.irradiance.init();
-        await this.prefilter.init();
+        await this.prefilterDiffuse.init();
+        await this.prefilterSpecular.init();
         await this.brdf.init();
 
         this.Update();
     }
 
     public Update() {
-        this.irradiance.Update(this.skyTexture);
-        this.prefilter.Update(this.skyTexture);
+        this.prefilterDiffuse.Update(this.skyTexture);
+        this.prefilterSpecular.Update(this.skyTexture);
 
         Renderer.RenderPipeline.skybox = this.skyTexture;
-        Renderer.RenderPipeline.skyboxIrradiance = this.irradiance.irradianceTexture;
-        Renderer.RenderPipeline.skyboxPrefilter = this.prefilter.prefilterTexture;
+        Renderer.RenderPipeline.skyboxPrefilterDiffuse = this.prefilterDiffuse.prefilterDiffuse;
+        Renderer.RenderPipeline.skyboxPrefilterSpecular = this.prefilterSpecular.prefilterSpecular;
         Renderer.RenderPipeline.skyboxBRDFLUT = this.brdf.brdfTexture;
     }
 }

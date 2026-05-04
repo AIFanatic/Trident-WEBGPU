@@ -72,11 +72,11 @@ export class RenderingPipeline {
     public get skybox(): CubeTexture { return this.prepareGBuffersPass.skybox};
     public set skybox(skybox: CubeTexture) { this.prepareGBuffersPass.skybox = skybox};
 
-    public get skyboxIrradiance(): CubeTexture { return this.prepareGBuffersPass.skyboxIrradiance};
-    public set skyboxIrradiance(skyboxIrradiance: CubeTexture) { this.prepareGBuffersPass.skyboxIrradiance = skyboxIrradiance};
+    public get skyboxPrefilterDiffuse(): CubeTexture { return this.prepareGBuffersPass.skyboxPrefilterDiffuse};
+    public set skyboxPrefilterDiffuse(skyboxPrefilterDiffuse: CubeTexture) { this.prepareGBuffersPass.skyboxPrefilterDiffuse = skyboxPrefilterDiffuse};
 
-    public get skyboxPrefilter(): CubeTexture { return this.prepareGBuffersPass.skyboxPrefilter};
-    public set skyboxPrefilter(skyboxPrefilter: CubeTexture) { this.prepareGBuffersPass.skyboxPrefilter = skyboxPrefilter};
+    public get skyboxPrefilterSpecular(): CubeTexture { return this.prepareGBuffersPass.skyboxPrefilterSpecular};
+    public set skyboxPrefilterSpecular(skyboxPrefilterSpecular: CubeTexture) { this.prepareGBuffersPass.skyboxPrefilterSpecular = skyboxPrefilterSpecular};
 
     public get skyboxBRDFLUT(): RenderTexture { return this.prepareGBuffersPass.skyboxBRDFLUT};
     public set skyboxBRDFLUT(skyboxBRDFLUT: RenderTexture) { this.prepareGBuffersPass.skyboxBRDFLUT = skyboxBRDFLUT};

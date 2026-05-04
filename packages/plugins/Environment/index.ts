@@ -1,5 +1,5 @@
 export { Sky } from "./Sky";
-export { Irradiance } from "./Irradiance";
-export { Prefilter } from "./Prefilter";
+export { PrefilterDiffuse as Irradiance } from "./PrefilterDiffuse";
+export { PrefilterSpecular } from "./PrefilterSpecular";
 export { BRDF } from "./BRDF";
 export { Environment } from "./Environment";

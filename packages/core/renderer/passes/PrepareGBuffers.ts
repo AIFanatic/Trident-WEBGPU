@@ -19,8 +19,8 @@ export class PrepareGBuffers extends RenderPass {
     public depthTexture: DepthTexture;
 
     public skybox: CubeTexture;
-    public skyboxIrradiance: CubeTexture;
-    public skyboxPrefilter: CubeTexture;
+    public skyboxPrefilterDiffuse: CubeTexture;
+    public skyboxPrefilterSpecular: CubeTexture;
     public skyboxBRDFLUT: Texture;
 
     public GBufferFormat: TextureFormat = "rgba16float";
@@ -82,8 +82,8 @@ export class PrepareGBuffers extends RenderPass {
         resources.setResource(PassParams.GBufferERMO, this.gBufferERMORT);
 
         resources.setResource(PassParams.Skybox, this.skybox);
-        resources.setResource(PassParams.SkyboxIrradiance, this.skyboxIrradiance);
-        resources.setResource(PassParams.SkyboxPrefilter, this.skyboxPrefilter);
+        resources.setResource(PassParams.SkyboxIrradiance, this.skyboxPrefilterDiffuse);
+        resources.setResource(PassParams.SkyboxPrefilter, this.skyboxPrefilterSpecular);
         resources.setResource(PassParams.SkyboxBRDFLUT, this.skyboxBRDFLUT);
 
         const settings = new Float32Array([
