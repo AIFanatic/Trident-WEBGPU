@@ -31,7 +31,7 @@ async function Application(canvas: HTMLCanvasElement) {
     const scene = Runtime.SceneManager.CreateScene("DefaultScene");
     Runtime.SceneManager.SetActiveScene(scene);
 
-    const mainCameraGameObject = new GameObject(scene);
+    const mainCameraGameObject = new GameObject();
     mainCameraGameObject.name = "MainCamera";
     const camera = mainCameraGameObject.AddComponent(Components.Camera);
     camera.SetPerspective(60, canvas.width / canvas.height, 0.5, 1000);
@@ -42,12 +42,12 @@ async function Application(canvas: HTMLCanvasElement) {
 
     const controls = new OrbitControls(canvas, camera);
 
-    const lightGameObject = new GameObject(scene);
+    const lightGameObject = new GameObject();
     lightGameObject.transform.position.set(-10, 10, 10);
     lightGameObject.transform.LookAt(new Mathf.Vector3(0, 0, 0));
     const light = lightGameObject.AddComponent(Components.DirectionalLight);
 
-    // const floor = new GameObject(scene);
+    // const floor = new GameObject();
     // floor.transform.position.y = -0.5;
     // floor.transform.scale.set(100, 100, 100);
     // floor.transform.eulerAngles.x = -90;
@@ -114,7 +114,7 @@ async function Application(canvas: HTMLCanvasElement) {
     //         const modelMatrix = new Mathf.Matrix4().compose(positon, rotation, scale);
     //         await Billboarder.Create(geometry, modelMatrix, billboardTexture, sampleTexture);
 
-    //         // const billboard = new GameObject(scene);
+    //         // const billboard = new GameObject();
     //         // billboard.transform.rotation.setFromEuler(new Mathf.Vector3(-angle[0], -angle[1], -angle[2]), true);
     //         // billboard.transform.position.set(4, 1, 0);
     //         // billboard.transform.scale.set(radius, radius, radius);
@@ -123,7 +123,7 @@ async function Application(canvas: HTMLCanvasElement) {
     //         // billboardMesh.material = new PBRMaterial({ albedoMap: billboardTexture, doubleSided: true, roughness: 1.0, metalness: 0, alphaCutoff: 0.1 });
 
 
-    //         const gameObject = new GameObject(scene);
+    //         const gameObject = new GameObject();
     //         const instancedMesh = gameObject.AddComponent(Components.InstancedMesh);
     //         instancedMesh.geometry = Geometry.Plane();
     //         instancedMesh.material = new PBRMaterial({ albedoMap: billboardTexture, doubleSided: true, roughness: 1.0, metalness: 0, alphaCutoff: 0.1 });
@@ -136,11 +136,11 @@ async function Application(canvas: HTMLCanvasElement) {
     // {
     //     const radius = 1;
     //     console.log(radius)
-    //     const impostorGameObject = new GameObject(scene);
+    //     const impostorGameObject = new GameObject();
     //     const impostor = impostorGameObject.AddComponent(ImpostorMesh);
     //     await impostor.Create(geometry, material);
         
-    //     const gameObject = new GameObject(scene);
+    //     const gameObject = new GameObject();
     //     const instancedMesh = gameObject.AddComponent(Components.InstancedMesh);
     //     instancedMesh.enableShadows = false;
     //     instancedMesh.geometry = impostor.geometry;
@@ -161,7 +161,7 @@ async function Application(canvas: HTMLCanvasElement) {
     //     const result = Meshoptimizer.meshopt_simplify(indices, vertices, vertices.length / 3,  8, 128, 1000, 0);
     //     console.log(indices.length / 3, result.destination.length / 3)
 
-    //     const gameObject = new GameObject(scene);
+    //     const gameObject = new GameObject();
     //     const instancedMesh = gameObject.AddComponent(Components.InstancedMesh);
     //     instancedMesh.geometry = geometry.Clone();
     //     instancedMesh.geometry.index = new IndexAttribute(result.destination);
@@ -181,7 +181,7 @@ async function Application(canvas: HTMLCanvasElement) {
         for (let x = 0; x < c; x++) {
             for (let y = 0; y < c; y++) {
                 for (let z = 0; z < c; z++) {
-                    const go2 = new GameObject(scene);
+                    const go2 = new GameObject();
                     const meshletB = go2.AddComponent(MeshletMesh);
                     meshletB.transform.position.set(x * off - half, y * off - half, z * off - half);
                     meshletB.geometry = geometry;
@@ -193,7 +193,7 @@ async function Application(canvas: HTMLCanvasElement) {
 
     // // LODS
     // {
-    //     const lodGameObject = new GameObject(scene);
+    //     const lodGameObject = new GameObject();
     //     const lodInstanceRenderable = lodGameObject.AddComponent(LODInstanceRenderable);
 
     //     const indices = new Uint32Array(geometry.index.array);

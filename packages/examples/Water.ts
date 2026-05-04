@@ -19,7 +19,7 @@ async function Application(canvas: HTMLCanvasElement) {
     const scene = Runtime.SceneManager.CreateScene("DefaultScene");
     Runtime.SceneManager.SetActiveScene(scene);
 
-    const mainCameraGameObject = new GameObject(scene);
+    const mainCameraGameObject = new GameObject();
     mainCameraGameObject.transform.position.set(0, 0, 20);
     mainCameraGameObject.name = "MainCamera";
     const camera = mainCameraGameObject.AddComponent(Components.Camera);
@@ -29,7 +29,7 @@ async function Application(canvas: HTMLCanvasElement) {
     const controls = new OrbitControls(canvas, camera);
 
     {
-        const lightGameObject = new GameObject(scene);
+        const lightGameObject = new GameObject();
         lightGameObject.transform.position.set(-4, 4, -4);
         lightGameObject.transform.LookAtV1(new Mathf.Vector3(0, 0, 0));
         const light = lightGameObject.AddComponent(Components.DirectionalLight);
@@ -39,7 +39,7 @@ async function Application(canvas: HTMLCanvasElement) {
     }
 
     {
-        const planeGO = new GameObject(scene);
+        const planeGO = new GameObject();
         planeGO.transform.position.set(0, 6, -5);
         planeGO.transform.scale.set(3, 3, 3);
         const sphereMesh = planeGO.AddComponent(Components.Mesh);
@@ -48,7 +48,7 @@ async function Application(canvas: HTMLCanvasElement) {
     }
 
     {
-        const planeGO = new GameObject(scene);
+        const planeGO = new GameObject();
         planeGO.transform.scale.set(5, 5, 5);
         planeGO.transform.position.set(5, 5, -5);
         const sphereMesh = planeGO.AddComponent(Components.Mesh);
@@ -59,7 +59,7 @@ async function Application(canvas: HTMLCanvasElement) {
 
     // Water
     {
-        const waterGameObject = new GameObject(scene);
+        const waterGameObject = new GameObject();
         waterGameObject.transform.eulerAngles.x = -90;
         waterGameObject.transform.position.y = 5;
         waterGameObject.transform.scale.set(128, 128, 1);
@@ -110,7 +110,7 @@ async function Application(canvas: HTMLCanvasElement) {
     for (let x = 0; x < i; x++) {
         for (let y = 0; y < i; y++) {
 
-            const lightGameObject = new GameObject(scene);
+            const lightGameObject = new GameObject();
             lightGameObject.transform.position.set((x * offset) - i * 0.5 * 2, 7, (y * offset) - i * 0.5 * 2);
             const look = lightGameObject.transform.position.clone();
             look.y -= 1;
@@ -122,7 +122,7 @@ async function Application(canvas: HTMLCanvasElement) {
             // light.angle = 90;
             light.castShadows = false;
 
-            const sphereGameObject = new GameObject(scene);
+            const sphereGameObject = new GameObject();
             sphereGameObject.transform.position.copy(lightGameObject.transform.position);
             const sphereMesh = sphereGameObject.AddComponent(Components.Mesh);
             sphereMesh.geometry = Geometry.Sphere();
@@ -131,7 +131,7 @@ async function Application(canvas: HTMLCanvasElement) {
     }
 
     {
-        const planeGO = new GameObject(scene);
+        const planeGO = new GameObject();
         planeGO.transform.eulerAngles.x = -90;
         planeGO.transform.position.set(0, 3, 0);
         planeGO.transform.scale.set(100, 100, 1);

@@ -19,7 +19,7 @@ async function Application(canvas: HTMLCanvasElement) {
     const scene = Runtime.SceneManager.CreateScene("DefaultScene");
     Runtime.SceneManager.SetActiveScene(scene);
 
-    const mainCameraGameObject = new GameObject(scene);
+    const mainCameraGameObject = new GameObject();
     mainCameraGameObject.transform.position.set(0, 0, 10);
     mainCameraGameObject.name = "MainCamera";
     const camera = mainCameraGameObject.AddComponent(Components.Camera);
@@ -34,7 +34,7 @@ async function Application(canvas: HTMLCanvasElement) {
     const controls = new OrbitControls(canvas, camera);
 
     {
-        const lightGameObject = new GameObject(scene);
+        const lightGameObject = new GameObject();
         lightGameObject.transform.position.set(-2, 4, 0.01);
         lightGameObject.transform.LookAtV1(new Mathf.Vector3(0, 0, 0));
         const light = lightGameObject.AddComponent(Components.SpotLight);
@@ -45,7 +45,7 @@ async function Application(canvas: HTMLCanvasElement) {
     }
 
     {
-        const lightGameObject = new GameObject(scene);
+        const lightGameObject = new GameObject();
         lightGameObject.transform.position.set(2, 4, 0.01);
         lightGameObject.transform.LookAtV1(new Mathf.Vector3(0, 0, 0));
         const light = lightGameObject.AddComponent(Components.DirectionalLight);
@@ -56,7 +56,7 @@ async function Application(canvas: HTMLCanvasElement) {
     }
 
     {
-        const planeGO = new GameObject(scene);
+        const planeGO = new GameObject();
         planeGO.transform.eulerAngles.x = -90;
         planeGO.transform.position.set(0, -2, 0);
         planeGO.transform.scale.set(10, 10, 1);
@@ -68,7 +68,7 @@ async function Application(canvas: HTMLCanvasElement) {
 
 
     {
-        const sphereGameObject = new GameObject(scene);
+        const sphereGameObject = new GameObject();
         sphereGameObject.transform.position.set(1, -1.5, 0);
         const sphereMesh = sphereGameObject.AddComponent(Components.Mesh);
         sphereMesh.geometry = Geometry.Sphere();
@@ -77,7 +77,7 @@ async function Application(canvas: HTMLCanvasElement) {
     }
 
     {
-        const sphereGameObject = new GameObject(scene);
+        const sphereGameObject = new GameObject();
         sphereGameObject.transform.position.set(-3, -1.5, 0);
         const sphereMesh = sphereGameObject.AddComponent(Components.Mesh);
         sphereMesh.geometry = Geometry.Sphere();
@@ -86,7 +86,7 @@ async function Application(canvas: HTMLCanvasElement) {
     }
 
     {
-        const sphereGameObject = new GameObject(scene);
+        const sphereGameObject = new GameObject();
         sphereGameObject.transform.position.set(-1, -1.5, 0);
         const sphereMesh = sphereGameObject.AddComponent(Components.Mesh);
         sphereMesh.geometry = Geometry.Sphere();

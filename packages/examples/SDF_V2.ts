@@ -35,7 +35,7 @@ async function Application() {
     const renderer = Renderer.Create(canvas, "webgpu");
 
     const scene = new Scene(renderer);
-    const mainCameraGameObject = new GameObject(scene);
+    const mainCameraGameObject = new GameObject();
     // mainCameraGameObject.transform.position.set(0,0,15);
     mainCameraGameObject.transform.position.z = 5;
     mainCameraGameObject.name = "MainCamera";
@@ -392,7 +392,7 @@ async function Application() {
         shader.SetValue("depth", 0);
         const geometry = Geometry.Plane();
 
-        const gameObject = new GameObject(scene);
+        const gameObject = new GameObject();
         gameObject.transform.position.copy(position);
 
         return {gameObject: gameObject, geometry: Geometry.Plane(), shader: shader};

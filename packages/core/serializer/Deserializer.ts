@@ -172,14 +172,14 @@ export class Deserializer {
         }
     }
 
-    public static async deserializeGameObject(scene: Scene, data: any, parent?: Transform): Promise<GameObject> {
+    public static async deserializeGameObject(data: any, parent?: Transform): Promise<GameObject> {
         let source = data;
 
         if (data.assetPath) {
             source = await this.Load(data.assetPath);
         }
 
-        const go = new GameObject(scene);
+        const go = new GameObject();
 
         if (data.id) go.id = data.id;
         go.name = data.name ?? source.name;
@@ -206,7 +206,7 @@ export class Deserializer {
         }
 
         for (let i = 0; i < instances.length; i++) await this.deserializeComponent(instances[i], source.components[i]);
-        for (const child of (source.children ?? [])) await this.deserializeGameObject(scene, child, go.transform);
+        for (const child of (source.children ?? [])) await this.deserializeGameObject(child, go.transform);
 
         return go;
     }
@@ -215,7 +215,7 @@ export class Deserializer {
         scene.name = data.name;
         this.isDeserializingScene = true;
 
-        for (const goData of data.gameObjects) await this.deserializeGameObject(scene, goData);
+        for (const goData of data.gameObjects) await this.deserializeGameObject(goData);
 
         for (const ref of this.deferredRefs) {
             ref.target[ref.property] = this.idMap.get(ref.id) ?? null;

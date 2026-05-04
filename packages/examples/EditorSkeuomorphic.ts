@@ -19,7 +19,7 @@ async function Application(canvas: HTMLCanvasElement) {
     const scene = Runtime.SceneManager.CreateScene("DefaultScene");
     Runtime.SceneManager.SetActiveScene(scene);
 
-    const mainCameraGameObject = new GameObject(scene);
+    const mainCameraGameObject = new GameObject();
     mainCameraGameObject.transform.position.set(1.3214703183015142, 1.204350593000603, 0.8880642037210573);
     mainCameraGameObject.transform.rotation.set(-0.22277136531362418, 0.4210578424541847, 0.10748743891250674, 0.8726566693609583);
     mainCameraGameObject.name = "MainCamera";
@@ -31,7 +31,7 @@ async function Application(canvas: HTMLCanvasElement) {
 
     const controls = new OrbitControls(canvas, camera);
 
-    const lightGameObject = new GameObject(scene);
+    const lightGameObject = new GameObject();
     lightGameObject.transform.position.set(0, 2, 0);
     lightGameObject.transform.LookAt(new Mathf.Vector3(0, 0, 0));
     const light = lightGameObject.AddComponent(Components.SpotLight);
@@ -70,11 +70,11 @@ async function Application(canvas: HTMLCanvasElement) {
 
     console.log(modelsGameObject.transform.position)
 
-    const physicsGameObject = new GameObject(scene);
+    const physicsGameObject = new GameObject();
     const physics = physicsGameObject.AddComponent(PhysicsRapier);
     await physics.Load();
 
-    const physicsDebuggerGO = new GameObject(scene);
+    const physicsDebuggerGO = new GameObject();
     physicsDebuggerGO.AddComponent(PhysicsDebugger);
 
     const p = new Mathf.Vector3();

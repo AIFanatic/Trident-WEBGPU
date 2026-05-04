@@ -22,7 +22,7 @@ async function Application(canvas: HTMLCanvasElement) {
     const scene = Runtime.SceneManager.CreateScene("DefaultScene");
     Runtime.SceneManager.SetActiveScene(scene);
 
-    const mainCameraGameObject = new GameObject(scene);
+    const mainCameraGameObject = new GameObject();
     mainCameraGameObject.name = "MainCamera";
     const camera = mainCameraGameObject.AddComponent(Components.Camera);
     camera.SetPerspective(72, canvas.width / canvas.height, 0.5, 100);
@@ -33,7 +33,7 @@ async function Application(canvas: HTMLCanvasElement) {
 
     const controls = new OrbitControls(canvas, camera);
 
-    const lightGameObject = new GameObject(scene);
+    const lightGameObject = new GameObject();
     // lightGameObject.transform.position.set(-10, 10, 10);
     lightGameObject.transform.LookAtV1(new Mathf.Vector3(0, 0, 0));
     const light = lightGameObject.AddComponent(Components.PointLight);
@@ -68,7 +68,7 @@ async function Application(canvas: HTMLCanvasElement) {
     const leftMaterial = new PBRMaterial({ albedoColor: new Mathf.Color(1, 0, 0, 1), roughness: roughness, metalness: metalness });
     const rightMaterial = new PBRMaterial({ albedoColor: new Mathf.Color(0, 1, 0, 1), roughness: roughness, metalness: metalness });
 
-    const floor = new GameObject(scene);
+    const floor = new GameObject();
     floor.transform.scale.set(5, 5, 5);
     floor.transform.position.y = -5;
     floor.transform.eulerAngles.x = -90;
@@ -76,7 +76,7 @@ async function Application(canvas: HTMLCanvasElement) {
     meshbottom.geometry = Geometry.Plane();
     meshbottom.material = floorMaterial;
 
-    const left = new GameObject(scene);
+    const left = new GameObject();
     left.transform.scale.set(0.05, 10, 10);
     left.transform.position.x = -5;
     // left.transform.eulerAngles.y = 90;
@@ -85,7 +85,7 @@ async function Application(canvas: HTMLCanvasElement) {
     meshleft.material = leftMaterial;
 
 
-    const right = new GameObject(scene);
+    const right = new GameObject();
     right.transform.scale.set(0.05, 10, 10);
     right.transform.position.x = 5;
     right.transform.eulerAngles.y = -180;
@@ -93,14 +93,14 @@ async function Application(canvas: HTMLCanvasElement) {
     meshright.geometry = Geometry.Cube();
     meshright.material = rightMaterial;
 
-    const back = new GameObject(scene);
+    const back = new GameObject();
     back.transform.scale.set(10, 10, 0.05);
     back.transform.position.z = -5;
     const meshback = back.AddComponent(Components.Mesh);
     meshback.geometry = Geometry.Cube();
     meshback.material = backMaterial;
 
-    const top = new GameObject(scene);
+    const top = new GameObject();
     top.transform.scale.set(5, 5, 5);
     top.transform.position.y = 5;
     top.transform.eulerAngles.x = 90;
@@ -109,7 +109,7 @@ async function Application(canvas: HTMLCanvasElement) {
     meshtop.material = topMaterial;
 
 
-    const cube = new GameObject(scene);
+    const cube = new GameObject();
     cube.transform.scale.set(2, 4, 2);
     cube.transform.position.set(-2, -3, -2);
     cube.transform.eulerAngles.y = 20;
@@ -117,7 +117,7 @@ async function Application(canvas: HTMLCanvasElement) {
     cubeMesh.geometry = Geometry.Cube();
     cubeMesh.material = new PBRMaterial({ albedoColor: new Mathf.Color(1, 1, 1, 1), roughness: roughness, metalness: metalness });
 
-    const cube2 = new GameObject(scene);
+    const cube2 = new GameObject();
     cube2.transform.scale.set(2, 2, 2);
     cube2.transform.position.set(2, -4, 2);
     cube2.transform.eulerAngles.y = 65;

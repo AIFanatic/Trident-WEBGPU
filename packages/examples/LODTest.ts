@@ -9,7 +9,7 @@ async function Application(canvas: HTMLCanvasElement) {
     const scene = Runtime.SceneManager.CreateScene("DefaultScene");
     Runtime.SceneManager.SetActiveScene(scene);
 
-    const mainCameraGameObject = new GameObject(scene);
+    const mainCameraGameObject = new GameObject();
     mainCameraGameObject.name = "MainCamera";
     const camera = mainCameraGameObject.AddComponent(Components.Camera);
     camera.SetPerspective(72, canvas.width / canvas.height, 0.05, 500);
@@ -19,12 +19,12 @@ async function Application(canvas: HTMLCanvasElement) {
 
     const controls = new OrbitControls(canvas, camera);
 
-    const lightGameObject = new GameObject(scene);
+    const lightGameObject = new GameObject();
     lightGameObject.transform.position.set(-10, 10, 10);
     lightGameObject.transform.LookAtV1(new Mathf.Vector3(0, 0, 0));
     const light = lightGameObject.AddComponent(Components.DirectionalLight);
 
-    const floorGameObject = new GameObject(scene);
+    const floorGameObject = new GameObject();
     floorGameObject.transform.eulerAngles.x = -90;
     floorGameObject.transform.position.y = -2;
     floorGameObject.transform.scale.set(10, 10, 10);
@@ -32,7 +32,7 @@ async function Application(canvas: HTMLCanvasElement) {
     floorMesh.geometry = Geometry.Plane();
     floorMesh.material = new PBRMaterial();
         
-    const lodGameObject = new GameObject(scene);
+    const lodGameObject = new GameObject();
     const lodInstanceRenderable = lodGameObject.AddComponent(LODGroup);
 
     lodInstanceRenderable.lods.push({renderers: [{geometry: Geometry.Cube(), material: new PBRMaterial({albedoColor: new Mathf.Color(1, 0, 0, 1)})}], screenSize: 20});

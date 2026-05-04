@@ -20,7 +20,7 @@ async function Application(canvas: HTMLCanvasElement) {
     const scene = Runtime.SceneManager.CreateScene("DefaultScene");
     Runtime.SceneManager.SetActiveScene(scene);
 
-    const mainCameraGameObject = new GameObject(scene);
+    const mainCameraGameObject = new GameObject();
     mainCameraGameObject.transform.position.set(0, 6, 16);
     mainCameraGameObject.transform.LookAtV1(new Mathf.Vector3(0, 2, 0));
     mainCameraGameObject.name = "MainCamera";
@@ -29,7 +29,7 @@ async function Application(canvas: HTMLCanvasElement) {
 
     new OrbitControls(canvas, camera);
 
-    const lightGameObject = new GameObject(scene);
+    const lightGameObject = new GameObject();
     lightGameObject.transform.position.set(-4, 4, 4);
     lightGameObject.transform.LookAtV1(new Mathf.Vector3(0, 0, 0));
     const light = lightGameObject.AddComponent(Components.DirectionalLight);
@@ -37,7 +37,7 @@ async function Application(canvas: HTMLCanvasElement) {
     light.intensity = 1
 
     {
-        const floor = new GameObject(scene);
+        const floor = new GameObject();
         floor.transform.scale.set(5, 5, 5);
         floor.transform.position.y = -5;
         floor.transform.eulerAngles.x = -90;
@@ -45,14 +45,14 @@ async function Application(canvas: HTMLCanvasElement) {
         meshbottom.geometry = Geometry.Plane();
         meshbottom.material = new PBRMaterial({ albedoColor: new Mathf.Color(0.73, 0.73, 0.73, 1.0), emissiveColor: new Mathf.Color(0,0,0,0), roughness: 0.0, metalness: 0.0 });
 
-        const left = new GameObject(scene);
+        const left = new GameObject();
         left.transform.scale.set(0.05, 10, 10);
         left.transform.position.x = -5;
         const meshleft = left.AddComponent(Components.Mesh);
         meshleft.geometry = Geometry.Cube();
         meshleft.material = new PBRMaterial({ albedoColor: new Mathf.Color(0.65, 0.05, 0.05, 1.0), emissiveColor: new Mathf.Color(0,0,0,0), roughness: 0.0, metalness: 0.0 });
 
-        const right = new GameObject(scene);
+        const right = new GameObject();
         right.transform.scale.set(0.05, 10, 10);
         right.transform.position.x = 5;
         right.transform.eulerAngles.y = -180;
@@ -60,14 +60,14 @@ async function Application(canvas: HTMLCanvasElement) {
         meshright.geometry = Geometry.Cube();
         meshright.material = new PBRMaterial({ albedoColor: new Mathf.Color(0.12, 0.45, 0.15, 1.0), emissiveColor: new Mathf.Color(0,0,0,0), roughness: 0.0, metalness: 0.0 });
 
-        const back = new GameObject(scene);
+        const back = new GameObject();
         back.transform.scale.set(10, 10, 0.05);
         back.transform.position.z = -5;
         const meshback = back.AddComponent(Components.Mesh);
         meshback.geometry = Geometry.Cube();
         meshback.material = new PBRMaterial({ albedoColor: new Mathf.Color(0.73, 0.73, 0.73, 1.0), emissiveColor: new Mathf.Color(0,0,0,0), roughness: 0.0, metalness: 0.0 });
 
-        const top = new GameObject(scene);
+        const top = new GameObject();
         top.transform.scale.set(5, 5, 5);
         top.transform.position.y = 5;
         top.transform.eulerAngles.x = 90;
@@ -75,7 +75,7 @@ async function Application(canvas: HTMLCanvasElement) {
         meshtop.geometry = Geometry.Plane();
         meshtop.material = new PBRMaterial({ albedoColor: new Mathf.Color(0.73, 0.73, 0.73, 1.0), emissiveColor: new Mathf.Color(0,0,0,0), roughness: 0.0, metalness: 0.0 });
 
-        const cube = new GameObject(scene);
+        const cube = new GameObject();
         cube.transform.scale.set(2, 4, 2);
         cube.transform.position.set(-2, -3, -2);
         cube.transform.eulerAngles.y = 20;
@@ -83,7 +83,7 @@ async function Application(canvas: HTMLCanvasElement) {
         cubeMesh.geometry = Geometry.Cube();
         cubeMesh.material = new PBRMaterial({ albedoColor: new Mathf.Color(0.73, 0.73, 0.73, 1.0), emissiveColor: new Mathf.Color(0,0,0,0), roughness: 0.0, metalness: 1.0 });
 
-        const cube2 = new GameObject(scene);
+        const cube2 = new GameObject();
         cube2.transform.scale.set(2, 2, 2);
         cube2.transform.position.set(2, -4, 2);
         cube2.transform.eulerAngles.y = 65;
@@ -91,7 +91,7 @@ async function Application(canvas: HTMLCanvasElement) {
         cubeMesh2.geometry = Geometry.Cube();
         cubeMesh2.material = new PBRMaterial({ albedoColor: new Mathf.Color(0.73, 0.73, 0.73, 1.0), emissiveColor: new Mathf.Color(0,0,0,0), roughness: 0.0, metalness: 0.0 });
 
-        const light = new GameObject(scene);
+        const light = new GameObject();
         light.transform.scale.set(2, 0.1, 2);
         light.transform.position.set(0, 4.8, 0);
         const lightMesh = light.AddComponent(Components.Mesh);

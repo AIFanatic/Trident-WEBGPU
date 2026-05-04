@@ -19,7 +19,7 @@ async function Application(canvas: HTMLCanvasElement) {
     const scene = Runtime.SceneManager.CreateScene("DefaultScene");
     Runtime.SceneManager.SetActiveScene(scene);
 
-    const mainCameraGameObject = new GameObject(scene);
+    const mainCameraGameObject = new GameObject();
     mainCameraGameObject.transform.position.set(0, 0, 20);
     mainCameraGameObject.name = "MainCamera";
     const camera = mainCameraGameObject.AddComponent(Components.Camera);
@@ -28,7 +28,7 @@ async function Application(canvas: HTMLCanvasElement) {
 
     const controls = new OrbitControls(canvas, camera);
 
-    const lightGameObject = new GameObject(scene);
+    const lightGameObject = new GameObject();
     lightGameObject.transform.position.set(2, 5, 10);
     lightGameObject.transform.LookAtV1(new Mathf.Vector3(0, 0, 0));
     // const light = lightGameObject.AddComponent(DirectionalLight);
@@ -39,7 +39,7 @@ async function Application(canvas: HTMLCanvasElement) {
     light.color.set(1, 1, 1, 1);
     light.castShadows = true;
 
-    const top = new GameObject(scene);
+    const top = new GameObject();
     top.transform.scale.set(100, 100, 1);
     top.transform.position.y = -5.1;
     top.transform.eulerAngles.x = -90;
@@ -62,7 +62,7 @@ async function Application(canvas: HTMLCanvasElement) {
     const planeGeometry = Geometry.Plane();
     const cubeGeometry = Geometry.Cube();
 
-    const floor = new GameObject(scene);
+    const floor = new GameObject();
     floor.transform.scale.set(5, 5, 5);
     floor.transform.position.y = -5;
     floor.transform.eulerAngles.x = -90;
@@ -70,7 +70,7 @@ async function Application(canvas: HTMLCanvasElement) {
     meshbottom.geometry = planeGeometry;
     meshbottom.material = floorMaterial;
 
-    const left = new GameObject(scene);
+    const left = new GameObject();
     left.transform.scale.set(0.05, 10, 10);
     left.transform.position.x = -5;
     // left.transform.eulerAngles.y = 90;
@@ -79,7 +79,7 @@ async function Application(canvas: HTMLCanvasElement) {
     meshleft.material = leftMaterial;
 
 
-    const right = new GameObject(scene);
+    const right = new GameObject();
     right.transform.scale.set(0.05, 10, 10);
     right.transform.position.x = 5;
     // right.transform.eulerAngles.y = -90;
@@ -87,14 +87,14 @@ async function Application(canvas: HTMLCanvasElement) {
     meshright.geometry = cubeGeometry;
     meshright.material = rightMaterial;
 
-    const back = new GameObject(scene);
+    const back = new GameObject();
     back.transform.scale.set(10, 10, 0.05);
     back.transform.position.z = -5;
     const meshback = back.AddComponent(Components.Mesh);
     meshback.geometry = cubeGeometry;
     meshback.material = backMaterial;
 
-    const cube = new GameObject(scene);
+    const cube = new GameObject();
     cube.transform.scale.set(2, 4, 2);
     cube.transform.position.set(-2, -3, -2);
     cube.transform.eulerAngles.y = 20;
@@ -102,7 +102,7 @@ async function Application(canvas: HTMLCanvasElement) {
     cubeMesh.geometry = cubeGeometry;
     cubeMesh.material = new PBRMaterial({ albedoColor: new Mathf.Color(1, 1, 1, 1), roughness: roughness, metalness: metalness });
 
-    const cube2 = new GameObject(scene);
+    const cube2 = new GameObject();
     cube2.transform.scale.set(2, 2, 2);
     cube2.transform.position.set(2, -4, 2);
     cube2.transform.eulerAngles.y = 65;
@@ -115,25 +115,27 @@ async function Application(canvas: HTMLCanvasElement) {
 
 
 
-    const bunny = (await OBJLoaderIndexed.load("./assets/models/bunny.obj"));
-    const gameObject = new GameObject(scene);
-    const mesh = gameObject.AddComponent(Components.Mesh)
-    mesh.geometry = bunny.geometry;
+    // const bunny = (await OBJLoaderIndexed.load("./assets/models/bunny.obj"));
+    // const gameObject = new GameObject();
+    // const mesh = gameObject.AddComponent(Components.Mesh)
+    // mesh.geometry = bunny.geometry;
 
-    const m = new PBRMaterial({
-        roughness: 0.1, metalness: 1
-    });
+    // const m = new PBRMaterial({
+    //     roughness: 0.1, metalness: 1
+    // });
 
-    mesh.material = m;
+    // mesh.material = m;
 
     {
         const ssgi = new SSGIRenderPass();
         Runtime.Renderer.RenderPipeline.AddPass(ssgi, GPU.RenderPassOrder.AfterLighting);
 
-        const viewerGO = new GameObject(scene);
-        const viewerMesh = viewerGO.AddComponent(Components.Mesh);
-        viewerMesh.geometry = Geometry.Plane();
-        viewerMesh.material = new PBRMaterial({ albedoMap: ssgi.output, unlit: true });
+        setTimeout(() => {
+            const viewerGO = new GameObject();
+            const viewerMesh = viewerGO.AddComponent(Components.Mesh);
+            viewerMesh.geometry = Geometry.Plane();
+            viewerMesh.material = new PBRMaterial({ albedoMap: ssgi.output, unlit: true });
+        }, 1000);
     }
 
     Debugger.Enable();

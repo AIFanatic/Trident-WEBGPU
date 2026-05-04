@@ -20,7 +20,7 @@ async function Application(canvas: HTMLCanvasElement) {
     const scene = Runtime.SceneManager.CreateScene("DefaultScene");
     Runtime.SceneManager.SetActiveScene(scene);
 
-    const mainCameraGameObject = new GameObject(scene);
+    const mainCameraGameObject = new GameObject();
     mainCameraGameObject.name = "MainCamera";
     const camera = mainCameraGameObject.AddComponent(Components.Camera);
     camera.SetPerspective(72, canvas.width / canvas.height, 0.5, 10000);
@@ -31,7 +31,7 @@ async function Application(canvas: HTMLCanvasElement) {
 
     const controls = new OrbitControls(canvas, camera);
 
-    const lightGameObject = new GameObject(scene);
+    const lightGameObject = new GameObject();
     lightGameObject.transform.position.set(-10, 10, 10);
     lightGameObject.transform.LookAtV1(new Mathf.Vector3(0, 0, 0));
     const light = lightGameObject.AddComponent(Components.DirectionalLight);
@@ -59,7 +59,7 @@ async function Application(canvas: HTMLCanvasElement) {
             const mat = (mesh.material as PBRMaterial).params;
             // mesh.enableShadows = false;
             if (mat.emissiveMap.width > 1 || mat.emissiveColor.r > 0) {
-                // const pointLightGO = new GameObject(scene);
+                // const pointLightGO = new GameObject();
                 const pointLight = gameObject.AddComponent(Components.PointLight);
                 // const pointlightHelper = gameObject.AddComponent(PointLightHelper);
                 // pointlightHelper.light = pointLight;

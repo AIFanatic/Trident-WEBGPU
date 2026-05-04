@@ -33,7 +33,7 @@ export class ImpostorMesh extends Components.Mesh {
         // radius *= 1.1;
         const scene = new Scene(GPU.Renderer.activeRenderer);
 
-        const gameObject = new GameObject(scene);
+        const gameObject = new GameObject();
         const camera = gameObject.AddComponent(Components.Camera);
         camera.SetOrthographic(-fitRadius, fitRadius, fitRadius, -fitRadius, 0.001, camDistance + fitRadius * 2.0);
 

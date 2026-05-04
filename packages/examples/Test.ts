@@ -11,7 +11,7 @@ async function Application(canvas: HTMLCanvasElement) {
     const scene = Runtime.SceneManager.CreateScene("DefaultScene");
     Runtime.SceneManager.SetActiveScene(scene);
 
-    const mainCameraGameObject = new GameObject(scene);
+    const mainCameraGameObject = new GameObject();
     mainCameraGameObject.transform.position.set(0, 0, -15);
     // mainCameraGameObject.transform.position.set(5295, 2770, -70);
     mainCameraGameObject.name = "MainCamera";
@@ -23,7 +23,7 @@ async function Application(canvas: HTMLCanvasElement) {
 
     const controls = new OrbitControls(canvas, camera);
 
-    const lightGameObject = new GameObject(scene);
+    const lightGameObject = new GameObject();
     lightGameObject.transform.position.set(-4, 4, 4);
     lightGameObject.transform.LookAtV1(new Mathf.Vector3(0, 0, 0));
     const light = lightGameObject.AddComponent(Components.DirectionalLight);
@@ -205,7 +205,7 @@ async function Application(canvas: HTMLCanvasElement) {
                         }
 
                         const record = {
-                            rootGameObject: new GameObject(scene),
+                            rootGameObject: new GameObject(),
                             instancedMeshes: [],
                             loadPromise: null,
                         };
@@ -338,7 +338,7 @@ async function Application(canvas: HTMLCanvasElement) {
             //         const { location, rotation_euler_deg, scale } = actor.transform;
 
             //         // 0.533, 0.847, 1.0
-            //         const lightGameObject = new GameObject(scene);
+            //         const lightGameObject = new GameObject();
             //         lightGameObject.transform.position.set(-location.y / 100, location.z / 100, location.x / 100);
             //         const light = lightGameObject.AddComponent(Components.PointLight);
             //         light.color.set(1, 0.445, 0.139, 1.0);

@@ -97,7 +97,7 @@ export class Scene {
 
     public async Instantiate(prefab: Prefab, parent?: Transform): Promise<GameObject> {
         const data = prefab.data ?? prefab;
-        const go = await Deserializer.deserializeGameObject(this, data, parent);
+        const go = await Deserializer.deserializeGameObject(data, parent);
         if (this.hasStarted) go.Start();
         return go;
     }

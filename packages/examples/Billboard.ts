@@ -19,7 +19,7 @@ async function Application(canvas: HTMLCanvasElement) {
     const scene = Runtime.SceneManager.CreateScene("DefaultScene");
     Runtime.SceneManager.SetActiveScene(scene);
 
-    const mainCameraGameObject = new GameObject(scene);
+    const mainCameraGameObject = new GameObject();
     mainCameraGameObject.name = "MainCamera";
     const camera = mainCameraGameObject.AddComponent(Components.Camera);
     camera.SetPerspective(60, canvas.width / canvas.height, 0.5, 100);
@@ -30,12 +30,12 @@ async function Application(canvas: HTMLCanvasElement) {
 
     const controls = new OrbitControls(canvas, camera);
 
-    const lightGameObject = new GameObject(scene);
+    const lightGameObject = new GameObject();
     lightGameObject.transform.position.set(-10, 10, 10);
     lightGameObject.transform.LookAt(new Mathf.Vector3(0, 0, 0));
     const light = lightGameObject.AddComponent(Components.DirectionalLight);
 
-    const floor = new GameObject(scene);
+    const floor = new GameObject();
     floor.transform.position.y = -0.5;
     floor.transform.scale.set(100, 100, 100);
     floor.transform.eulerAngles.x = -90;
@@ -61,7 +61,7 @@ async function Application(canvas: HTMLCanvasElement) {
     const billboardTexture = await Billboarder.Create(geometry, albedoTexture);
     billboardTexture.name = "Billboard"
 
-    const billboard = new GameObject(scene);
+    const billboard = new GameObject();
     billboard.transform.position.set(1, 1, 0);
     // billboard.transform.eulerAngles.x = -90;
     const billboardMesh = billboard.AddComponent(Components.Mesh);

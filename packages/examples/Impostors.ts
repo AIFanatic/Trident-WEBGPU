@@ -27,7 +27,7 @@ async function Application(canvas: HTMLCanvasElement) {
     const scene = Runtime.SceneManager.CreateScene("DefaultScene");
     Runtime.SceneManager.SetActiveScene(scene);
 
-    const mainCameraGameObject = new GameObject(scene);
+    const mainCameraGameObject = new GameObject();
     mainCameraGameObject.transform.position.set(0,0,-5);
     mainCameraGameObject.name = "MainCamera";
     const camera = mainCameraGameObject.AddComponent(Components.Camera);
@@ -36,7 +36,7 @@ async function Application(canvas: HTMLCanvasElement) {
     const controls = new OrbitControls(canvas, camera);
 
     {
-        const lightGameObject = new GameObject(scene);
+        const lightGameObject = new GameObject();
         lightGameObject.transform.position.set(-4, 4, -4);
         lightGameObject.transform.LookAtV1(new Mathf.Vector3(0, 0, 0))
         const light = lightGameObject.AddComponent(Components.DirectionalLight);
@@ -52,7 +52,7 @@ async function Application(canvas: HTMLCanvasElement) {
     }
 
     // {
-    //     const lightGameObject = new GameObject(scene);
+    //     const lightGameObject = new GameObject();
     //     lightGameObject.transform.position.set(-4, 4, -4);
     //     lightGameObject.transform.LookAt(new Mathf.Vector3(0, 0, 0))
     //     const light = lightGameObject.AddComponent(Components.DirectionalLight);
@@ -71,14 +71,14 @@ async function Application(canvas: HTMLCanvasElement) {
         material = mesh.material;
         break;
     }
-    const go = new GameObject(scene);
+    const go = new GameObject();
 
     const bunnyImpostor = go.AddComponent(ImpostorMesh);
     await bunnyImpostor.Create(geometry, material);
     // const m = new GPU.Material({isDeferred: true});
     // m.shader = bunnyImpostor.impostorShader;
 
-    // const impostor = new GameObject(scene);
+    // const impostor = new GameObject();
     // // impostor.transform.position.x = -2
     // // impostor.transform.scale.set(10, 10, 10)
     // const im = impostor.AddComponent(Components.Mesh);
@@ -99,7 +99,7 @@ async function Application(canvas: HTMLCanvasElement) {
     // // bunnyImpostor.impostorShader.SetTexture("normalTexture", textureDilated);
 
     // // {
-    // //     const dilatorGameObject = new GameObject(scene);
+    // //     const dilatorGameObject = new GameObject();
     // //     dilatorGameObject.transform.position.x = 2;
     // //     const dilatorMesh = dilatorGameObject.AddComponent(Mesh);
     // //     await dilatorMesh.geometry = Geometry.Plane();
@@ -109,7 +109,7 @@ async function Application(canvas: HTMLCanvasElement) {
     // // }
 
     // {
-    //     const planeGO = new GameObject(scene);
+    //     const planeGO = new GameObject();
     //     planeGO.transform.eulerAngles.x = -90;
     //     planeGO.transform.position.set(0, -2, 0);
     //     planeGO.transform.scale.set(100, 100, 1);
@@ -126,7 +126,7 @@ async function Application(canvas: HTMLCanvasElement) {
 
     // // traverse(model, object3D => {
     // //     if (!object3D.geometry || !object3D.material) return;
-    // //         const gameObject = new GameObject(scene);
+    // //         const gameObject = new GameObject();
     // //         const mesh = gameObject.AddComponent(Components.Mesh);
     // //         mesh.enableShadows = false;
     // //         object3D.localMatrix.decompose(gameObject.transform.position, gameObject.transform.rotation, gameObject.transform.scale);
@@ -134,7 +134,7 @@ async function Application(canvas: HTMLCanvasElement) {
     // //         mesh.material = object3D.material;
     // // })
 
-    // const instancedMeshGameObject = new GameObject(scene);
+    // const instancedMeshGameObject = new GameObject();
     // const instancedMesh = instancedMeshGameObject.AddComponent(Components.InstancedMesh);
     // instancedMesh.enableShadows = false;
     // instancedMesh.geometry = bunnyImpostor.impostorGeometry;

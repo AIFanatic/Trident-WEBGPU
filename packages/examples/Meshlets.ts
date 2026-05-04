@@ -23,7 +23,7 @@ async function Application(canvas: HTMLCanvasElement) {
     const scene = Runtime.SceneManager.CreateScene("DefaultScene");
     Runtime.SceneManager.SetActiveScene(scene);
 
-    const mainCameraGameObject = new GameObject(scene);
+    const mainCameraGameObject = new GameObject();
     mainCameraGameObject.transform.position.set(0, 0, -15);
     mainCameraGameObject.name = "MainCamera";
     const camera = mainCameraGameObject.AddComponent(Components.Camera);
@@ -38,7 +38,7 @@ async function Application(canvas: HTMLCanvasElement) {
     // TODO: Should be added automatically from plugin
     Runtime.Renderer.RenderPipeline.AddPass(new MeshletDraw(), GPU.RenderPassOrder.BeforeGBuffer);
 
-    const lightGameObject = new GameObject(scene);
+    const lightGameObject = new GameObject();
     lightGameObject.transform.position.set(-4, 4, 4);
     lightGameObject.transform.LookAtV1(new Mathf.Vector3(0, 0, 0));
     const light = lightGameObject.AddComponent(Components.DirectionalLight);
@@ -51,7 +51,7 @@ async function Application(canvas: HTMLCanvasElement) {
     //     mesh.geometry.ComputeTangents();
     //     const mat = new PBRMaterial({ albedoMap: await GPU.Texture.Load("/dist/examples/assets/textures/brick.png") })
     //     // const mesh = await OBJLoaderIndexed.load("/extra/test-assets/tree-01/tree-01.obj");
-    //     const meshletGameObject = new GameObject(scene);
+    //     const meshletGameObject = new GameObject();
     //     meshletGameObject.transform.position.x = -2;
     //     const meshletMesh = meshletGameObject.AddComponent(MeshletMesh);
     //     meshletMesh.enableShadows = false;
@@ -62,7 +62,7 @@ async function Application(canvas: HTMLCanvasElement) {
     //     // const c = 10;
     //     // const off = 100;
     //     // for (let i = 0; i < c; i++) {
-    //     //     const go2 = new GameObject(scene);
+    //     //     const go2 = new GameObject();
     //     //     const meshletB = go2.AddComponent(MeshletMesh);
     //     //     meshletB.geometry = mesh.geometry;
     //     //     meshletB.transform.position.set(Mathf.RandomRange(-off, off), 0, Mathf.RandomRange(-off, off));
@@ -101,7 +101,7 @@ async function Application(canvas: HTMLCanvasElement) {
             }
         }
         // for (let i = 0; i < c; i++) {
-        //     const go2 = new GameObject(scene);
+        //     const go2 = new GameObject();
         //     const meshletB = go2.AddComponent(MeshletMesh);
         //     meshletB.geometry = mesh.geometry;
         //     meshletB.transform.position.set(Mathf.RandomRange(-off, off), 0, Mathf.RandomRange(-off, off));
@@ -131,13 +131,13 @@ async function Application(canvas: HTMLCanvasElement) {
 
     //     console.log(mesh)
 
-    //     const hdr = await HDRParser.Load("/dist/examples/assets/textures/HDR/autumn_field_puresky_1k.hdr");
-    //     const skyTexture = await HDRParser.ToCubemap(hdr);
+        const hdr = await HDRParser.Load("/dist/examples/assets/textures/HDR/autumn_field_puresky_1k.hdr");
+        const skyTexture = await HDRParser.ToCubemap(hdr);
     
-    //     const environment = new Environment(scene, skyTexture);
-    //     await environment.init();
+        const environment = new Environment(scene, skyTexture);
+        await environment.init();
         
-    //     const meshletGameObject = new GameObject(scene);
+    //     const meshletGameObject = new GameObject();
     //     const meshletMesh = meshletGameObject.AddComponent(MeshletMesh);
     //     meshletMesh.enableShadows = false;
     //     meshletMesh.geometry = mesh.geometry;

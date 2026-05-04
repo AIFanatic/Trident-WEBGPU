@@ -20,7 +20,7 @@
 //     const renderer = Renderer.Create(canvas, "webgpu");
 //     const scene = new Scene(renderer);
 
-//     const mainCameraGameObject = new GameObject(scene);
+//     const mainCameraGameObject = new GameObject();
 //     mainCameraGameObject.transform.position.set(0, 0, 20);
 //     mainCameraGameObject.transform.LookAtV1(new Mathf.Vector3(0, 0, 0));
 //     mainCameraGameObject.name = "MainCamera";
@@ -29,16 +29,16 @@
 
 //     const controls = new OrbitControls(canvas, camera);
 
-//     const lightGameObject = new GameObject(scene);
+//     const lightGameObject = new GameObject();
 //     lightGameObject.transform.position.set(-4, 4, -4);
 //     lightGameObject.transform.LookAtV1(new Mathf.Vector3(0, 0, 0));
 //     const light = lightGameObject.AddComponent(Components.DirectionalLight);
     
-//     const physicsWorld = new GameObject(scene);
+//     const physicsWorld = new GameObject();
 //     const physicsComponent = physicsWorld.AddComponent(PhysicsRapier);
 //     await physicsComponent.Load();
 
-//     const sphereGO = new GameObject(scene);
+//     const sphereGO = new GameObject();
 //     sphereGO.transform.position.y = 5;
 //     const sphereMesh = sphereGO.AddComponent(Components.Mesh);
 //     sphereMesh.geometry = Geometry.Sphere();
@@ -47,7 +47,7 @@
 //     const sphereRigidbody = sphereGO.AddComponent(RigidBody);
 //     sphereRigidbody.Create("dynamic");
 
-//     const floor = new GameObject(scene);
+//     const floor = new GameObject();
 //     floor.transform.eulerAngles.x = -90;
 //     floor.transform.scale.set(10, 10, 0.01);
 //     const floorMesh = floor.AddComponent(Components.Mesh);
@@ -58,7 +58,7 @@
 //     floorRigidbody.Create("fixed");
 
 
-//     const physicsDebuggerGO = new GameObject(scene);
+//     const physicsDebuggerGO = new GameObject();
 //     physicsDebuggerGO.AddComponent(PhysicsDebugger);
 
 //     Runtime.Play();
@@ -91,7 +91,7 @@ async function Application(canvas: HTMLCanvasElement) {
     const scene = Runtime.SceneManager.CreateScene("DefaultScene");
     Runtime.SceneManager.SetActiveScene(scene);
 
-    const mainCameraGameObject = new GameObject(scene);
+    const mainCameraGameObject = new GameObject();
     mainCameraGameObject.transform.position.set(0, 0, 20);
     mainCameraGameObject.transform.LookAtV1(new Mathf.Vector3(0, 0, 0));
     mainCameraGameObject.name = "MainCamera";
@@ -100,7 +100,7 @@ async function Application(canvas: HTMLCanvasElement) {
 
     const controls = new OrbitControls(canvas, camera);
 
-    const lightGameObject = new GameObject(scene);
+    const lightGameObject = new GameObject();
     lightGameObject.transform.position.set(-4, 4, -4);
     lightGameObject.transform.LookAtV1(new Mathf.Vector3(0, 0, 0));
     lightGameObject.AddComponent(Components.DirectionalLight);
@@ -108,7 +108,7 @@ async function Application(canvas: HTMLCanvasElement) {
 
     await Runtime.AddSystem(PhysicsRapier);
 
-    const sphereGO = new GameObject(scene);
+    const sphereGO = new GameObject();
     sphereGO.transform.position.y = 5;
     const sphereMesh = sphereGO.AddComponent(Components.Mesh);
     sphereMesh.geometry = Geometry.Sphere();
@@ -117,7 +117,7 @@ async function Application(canvas: HTMLCanvasElement) {
     const sphereRigidbody = sphereGO.AddComponent(RigidBody);
     sphereRigidbody.Create("dynamic");
 
-    const floor = new GameObject(scene);
+    const floor = new GameObject();
     floor.transform.eulerAngles.x = -90;
     floor.transform.scale.set(10, 10, 0.01);
     const floorMesh = floor.AddComponent(Components.Mesh);
@@ -128,7 +128,7 @@ async function Application(canvas: HTMLCanvasElement) {
     floorRigidbody.Create("fixed");
 
 
-    const physicsDebuggerGO = new GameObject(scene);
+    const physicsDebuggerGO = new GameObject();
     physicsDebuggerGO.AddComponent(PhysicsDebugger);
 
     Runtime.Play();

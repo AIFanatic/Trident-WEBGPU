@@ -55,7 +55,6 @@ import "./ShadowTest";
 import "./VirtualTexturing";
 
 import "./VPL";
-import "./VPL_V2";
 import "./PathTracer";
 
 

@@ -91,7 +91,7 @@ export class Renderer extends System {
         Renderer.context = context;
 
         Renderer.device.onuncapturederror = (event) => {
-            console.error("WebGPU uncaptured error:", event.error);
+            throw Error(`WebGPU uncaptured error: ${event.error}`);
         };
 
         EventSystem.emit(RendererEvents.Created, this);

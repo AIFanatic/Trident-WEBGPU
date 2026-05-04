@@ -175,9 +175,8 @@ fn edgeFactor(bary: vec3f) -> f32 {
     output.normal = vec4(OctEncode(normal.xyz), occlusion, metalness);
     output.RMO = vec4(emissive.rgb, mat.Unlit);
 
-
-    // Wireframe
-    output.albedo *= 1.0 - edgeFactor(input.barycenticCoord) * mat.Wireframe;
+    // // Wireframe
+    // output.albedo *= 1.0 - edgeFactor(input.barycenticCoord) * mat.Wireframe;
 
     // // Flat shading
     // let xTangent: vec3f = dpdx( input.vPosition );

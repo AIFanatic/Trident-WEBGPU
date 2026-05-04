@@ -80,7 +80,7 @@ export class LayoutHierarchy extends Component<BaseProps, LayoutHierarchyState> 
         const extendedEvent = ExtendedDataTransfer.data;
         const instance = extendedEvent;
         if (instance && this.props.engineAPI.isPrefab(instance)) {
-            const gameObject = await this.props.engineAPI.deserializer.deserializeGameObject(this.props.engineAPI.currentScene, instance);
+            const gameObject = await this.props.engineAPI.deserializer.deserializeGameObject(instance);
             this.selectGameObject(gameObject);
             ExtendedDataTransfer.data = undefined;
         }

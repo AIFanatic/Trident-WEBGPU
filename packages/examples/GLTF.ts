@@ -15,7 +15,7 @@ async function Application(canvas: HTMLCanvasElement) {
     const scene = Runtime.SceneManager.CreateScene("DefaultScene");
     Runtime.SceneManager.SetActiveScene(scene);
 
-    const mainCameraGameObject = new GameObject(scene);
+    const mainCameraGameObject = new GameObject();
     mainCameraGameObject.transform.position.set(0, 0, -15);
     mainCameraGameObject.name = "MainCamera";
     const camera = mainCameraGameObject.AddComponent(Components.Camera);
@@ -27,7 +27,7 @@ async function Application(canvas: HTMLCanvasElement) {
 
     const controls = new OrbitControls(canvas, camera);
 
-    const lightGameObject = new GameObject(scene);
+    const lightGameObject = new GameObject();
     lightGameObject.transform.position.set(2, 0, 0);
     lightGameObject.transform.LookAtV1(new Mathf.Vector3(0, 0, 0));
     const light = lightGameObject.AddComponent(Components.DirectionalLight);
@@ -38,7 +38,7 @@ async function Application(canvas: HTMLCanvasElement) {
     // lightHelper.light = light;
 
 
-    // const cube = new GameObject(scene);
+    // const cube = new GameObject();
     // cube.transform.position.y = 0.5;
     // const cubeMesh = cube.AddComponent(Components.Mesh);
     // cubeMesh.geometry = Geometry.Cube();

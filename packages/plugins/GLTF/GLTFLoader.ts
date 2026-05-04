@@ -200,7 +200,7 @@ export class GLTFLoader {
 
     private static async Build(rootName: string, gltf: GLTF, scene: Scene): Promise<GameObject> {
         if (!gltf.nodes) {
-            const empty = new GameObject(scene);
+            const empty = new GameObject();
             empty.name = rootName;
             return empty;
         }
@@ -211,7 +211,7 @@ export class GLTFLoader {
         // Create GameObjects for each node
         const nodes: GameObject[] = [];
         for (let i = 0; i < gltf.nodes.length; i++) {
-            const go = new GameObject(scene);
+            const go = new GameObject();
             go.name = gltf.nodes[i].name || `Node_${i}`;
             nodes.push(go);
         }
@@ -326,7 +326,7 @@ export class GLTFLoader {
             for (const primitive of primitives) {
                 const parsed = await this.parsePrimitive(primitive, gltf.textures);
 
-                const primGO = new GameObject(scene);
+                const primGO = new GameObject();
                 primGO.name = nodeGO.name;
                 primGO.transform.parent = nodeGO.transform;
                 // Reset locals to zero offset — set parent preserves world position,
@@ -355,7 +355,7 @@ export class GLTFLoader {
             for (const childId of n.childrenID) childIDs.add(childId);
         }
 
-        const root = new GameObject(scene);
+        const root = new GameObject();
         root.name = rootName;
         for (let i = 0; i < gltf.nodes.length; i++) {
             if (!childIDs.has(i)) {

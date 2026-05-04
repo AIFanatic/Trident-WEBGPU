@@ -8,7 +8,7 @@ async function Application(canvas: HTMLCanvasElement) {
     const scene = Runtime.SceneManager.CreateScene("DefaultScene");
     Runtime.SceneManager.SetActiveScene(scene);
 
-    const mainCameraGameObject = new GameObject(scene);
+    const mainCameraGameObject = new GameObject();
     mainCameraGameObject.transform.position.set(0,0,-15);
     mainCameraGameObject.name = "MainCamera";
     const camera = mainCameraGameObject.AddComponent(Components.Camera);
@@ -20,12 +20,12 @@ async function Application(canvas: HTMLCanvasElement) {
 
     // const controls = new OrbitControls(canvas, camera);
 
-    const lightGameObject = new GameObject(scene);
+    const lightGameObject = new GameObject();
     lightGameObject.transform.position.set(-4, 4, 4);
     lightGameObject.transform.LookAtV1(new Mathf.Vector3(0, 0, 0));
     const light = lightGameObject.AddComponent(Components.DirectionalLight);
 
-    const floorGameObject = new GameObject(scene);
+    const floorGameObject = new GameObject();
     floorGameObject.transform.eulerAngles.x = -90;
     floorGameObject.transform.position.y = -2;
     floorGameObject.transform.scale.set(100, 100, 100);
@@ -34,7 +34,7 @@ async function Application(canvas: HTMLCanvasElement) {
     floorMesh.material = new PBRMaterial();
 
     {
-        const floorGameObject = new GameObject(scene);
+        const floorGameObject = new GameObject();
         floorGameObject.transform.eulerAngles.x = -90;
         floorGameObject.transform.position.y = -1;
         const floorMesh = floorGameObject.AddComponent(Components.Mesh);

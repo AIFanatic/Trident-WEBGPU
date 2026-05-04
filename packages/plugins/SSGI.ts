@@ -213,20 +213,8 @@ export class SSGIRenderPass extends GPU.RenderPass {
             colorOutputs: [
                 { format: "rgba16float" },
             ],
-            attributes: {
-                position: { location: 0, size: 3, type: "vec3" },
-                normal: { location: 1, size: 3, type: "vec3" },
-                uv: { location: 2, size: 2, type: "vec2" }
-            },
             uniforms: {
-                inputDepth: {group: 0, binding: 0, type: "depthTexture"},
-                inputNormal: {group: 0, binding: 1, type: "texture"},
-                inputLight: {group: 0, binding: 2, type: "texture"},
-
-                textureSampler: {group: 0, binding: 3, type: "sampler"},
                 depthSampler: {group: 0, binding: 4, type: "sampler-compare"},
-
-                settings: {group: 0, binding: 5, type: "storage"},
             },
         })
 
@@ -244,12 +232,15 @@ export class SSGIRenderPass extends GPU.RenderPass {
         this.initialized = true;
     }
 
-    public async preFrame(resources: GPU.ResourcePool) {
+    public preFrame(resources: GPU.ResourcePool) {
+        if (!this.initialized) return;
+
         const inputDepth = resources.getResource(GPU.PassParams.GBufferDepth);
         const inputNormal = resources.getResource(GPU.PassParams.GBufferNormal);
         const inputLight = resources.getResource(GPU.PassParams.LightingPassOutput);
 
         if (!inputDepth) return;
+        if (!inputLight) return;
 
         this.shader.SetTexture("inputDepth", inputDepth);
         this.shader.SetTexture("inputNormal", inputNormal);
@@ -267,7 +258,7 @@ export class SSGIRenderPass extends GPU.RenderPass {
         ]));
     }
 
-    public async execute(resources: GPU.ResourcePool) {
+    public execute(resources: GPU.ResourcePool) {
         if (!this.initialized) return;
 
         GPU.RendererContext.BeginRenderPass(this.name, [ { target: this.output, clear: true } ], undefined, true);

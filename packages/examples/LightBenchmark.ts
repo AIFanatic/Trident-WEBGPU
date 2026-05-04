@@ -17,7 +17,7 @@ async function Application(canvas: HTMLCanvasElement) {
     const scene = Runtime.SceneManager.CreateScene("DefaultScene");
     Runtime.SceneManager.SetActiveScene(scene);
 
-    const mainCameraGameObject = new GameObject(scene);
+    const mainCameraGameObject = new GameObject();
     mainCameraGameObject.name = "MainCamera";
     const camera = mainCameraGameObject.AddComponent(Components.Camera);
     camera.SetPerspective(72, canvas.width / canvas.height, 0.5, 1000);
@@ -28,7 +28,7 @@ async function Application(canvas: HTMLCanvasElement) {
 
     const controls = new OrbitControls(canvas, camera);
 
-    const floorGameObject = new GameObject(scene);
+    const floorGameObject = new GameObject();
     floorGameObject.transform.eulerAngles.x = -90;
     floorGameObject.transform.position.y = -2;
     floorGameObject.transform.scale.set(1000, 1000, 1000);
@@ -36,7 +36,7 @@ async function Application(canvas: HTMLCanvasElement) {
     floorMesh.geometry = Geometry.Plane();
     floorMesh.material = new PBRMaterial();
 
-    const sphereInstanceGO = new GameObject(scene);
+    const sphereInstanceGO = new GameObject();
     const sphereInstanceMesh = sphereInstanceGO.AddComponent(Components.InstancedMesh);
     sphereInstanceMesh.material = new PBRMaterial({unlit: true});
     sphereInstanceMesh.geometry = Geometry.Sphere();
@@ -53,7 +53,7 @@ async function Application(canvas: HTMLCanvasElement) {
     const half = i * offset * 0.5;
     for (let x = 0; x < i; x++) {
         for (let y = 0; y < i; y++) {
-            const lightGameObject = new GameObject(scene);
+            const lightGameObject = new GameObject();
             lightGameObject.transform.position.set(x * offset - half, 0, y * offset - half);
             const look = lightGameObject.transform.position.clone();
             look.y -= 1;
@@ -71,7 +71,7 @@ async function Application(canvas: HTMLCanvasElement) {
             sphereInstanceMesh.SetMatrixAt(count, m);
             count++;
 
-            // const sphereGameObject = new GameObject(scene);
+            // const sphereGameObject = new GameObject();
             // sphereGameObject.transform.position.copy(lightGameObject.transform.position);
             // const sphereMesh = sphereGameObject.AddComponent(Components.Mesh);
             // sphereMesh.geometry = Geometry.Sphere();
