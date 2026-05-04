@@ -57,10 +57,10 @@
               light.color.set(1, 1, 1, 1);
               light.castShadows = true;
               {
-                const mesh = await OBJLoaderIndexed.load("/dist/examples/assets/models/bunny.obj");
+                const mesh = await OBJLoaderIndexed.load("./assets/models/bunny.obj");
                 mesh.geometry.ComputeNormals();
                 mesh.geometry.ComputeTangents();
-                const mat = new PBRMaterial({ albedoMap: await GPU.Texture.Load("/dist/examples/assets/textures/brick.png") });
+                const mat = new PBRMaterial({ albedoMap: await GPU.Texture.Load("./assets/textures/T_OmniDebugTexture_COL.jpg") });
                 const meshletGameObject = new GameObject();
                 meshletGameObject.transform.position.x = 2;
                 const meshletMesh = meshletGameObject.AddComponent(MeshletMesh);

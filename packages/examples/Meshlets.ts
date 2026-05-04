@@ -46,38 +46,12 @@ async function Application(canvas: HTMLCanvasElement) {
     light.color.set(1, 1, 1, 1);
     light.castShadows = true;
 
-    // {
-    //     const mesh = await OBJLoaderIndexed.load("/dist/examples/assets/models/bunny.obj");
-    //     mesh.geometry.ComputeTangents();
-    //     const mat = new PBRMaterial({ albedoMap: await GPU.Texture.Load("/dist/examples/assets/textures/brick.png") })
-    //     // const mesh = await OBJLoaderIndexed.load("/extra/test-assets/tree-01/tree-01.obj");
-    //     const meshletGameObject = new GameObject();
-    //     meshletGameObject.transform.position.x = -2;
-    //     const meshletMesh = meshletGameObject.AddComponent(MeshletMesh);
-    //     meshletMesh.enableShadows = false;
-    //     meshletMesh.geometry = mesh.geometry;
-    //     meshletMesh.material = mat;
-
-
-    //     // const c = 10;
-    //     // const off = 100;
-    //     // for (let i = 0; i < c; i++) {
-    //     //     const go2 = new GameObject();
-    //     //     const meshletB = go2.AddComponent(MeshletMesh);
-    //     //     meshletB.geometry = mesh.geometry;
-    //     //     meshletB.transform.position.set(Mathf.RandomRange(-off, off), 0, Mathf.RandomRange(-off, off));
-    //     //     meshletB.material = mat;
-    //     // }
-    // }
-
-
-
     {
-        const mesh = await OBJLoaderIndexed.load("/dist/examples/assets/models/bunny.obj");
+        const mesh = await OBJLoaderIndexed.load("./assets/models/bunny.obj");
         // const mesh = await OBJLoaderIndexed.load("/extra/test-assets/lucy.obj");
         mesh.geometry.ComputeNormals();
         mesh.geometry.ComputeTangents();
-        const mat = new PBRMaterial({albedoMap: await GPU.Texture.Load("/dist/examples/assets/textures/brick.png")})
+        const mat = new PBRMaterial({albedoMap: await GPU.Texture.Load("./assets/textures/T_OmniDebugTexture_COL.jpg")})
         // const mesh = await OBJLoaderIndexed.load("/extra/test-assets/tree-01/tree-01.obj");
         const meshletGameObject = new GameObject();
         meshletGameObject.transform.position.x = 2;

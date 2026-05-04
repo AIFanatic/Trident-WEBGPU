@@ -63,8 +63,6 @@ async function Application(canvas: HTMLCanvasElement) {
     }
 
     await Load(0, "/extra/test-assets/8k/UV-CheckerMap_Maurus_01_8K.png");
-    // await Load(1, "/extra/test-assets/brick.png");
-    // await Load(2, "/extra/test-assets/stone.png");
 
     console.log(tilesMap)
 
