@@ -158,7 +158,7 @@ class GLTFLoader {
   // ---------- Build live GameObjects from parsed GLTF ----------
   static async Build(rootName, gltf, scene) {
     if (!gltf.nodes) {
-      const empty = new GameObject(scene);
+      const empty = new GameObject();
       empty.name = rootName;
       return empty;
     }
@@ -166,7 +166,7 @@ class GLTFLoader {
     gltf.nodes.forEach((n, i) => nodeIndex.set(n, i));
     const nodes = [];
     for (let i = 0; i < gltf.nodes.length; i++) {
-      const go = new GameObject(scene);
+      const go = new GameObject();
       go.name = gltf.nodes[i].name || `Node_${i}`;
       nodes.push(go);
     }
@@ -253,7 +253,7 @@ class GLTFLoader {
       const primitives = node.mesh.primitives ?? [];
       for (const primitive of primitives) {
         const parsed = await this.parsePrimitive(primitive, gltf.textures);
-        const primGO = new GameObject(scene);
+        const primGO = new GameObject();
         primGO.name = nodeGO.name;
         primGO.transform.parent = nodeGO.transform;
         primGO.transform.localPosition.set(0, 0, 0);
@@ -276,7 +276,7 @@ class GLTFLoader {
     for (const n of gltf.nodes) {
       for (const childId of n.childrenID) childIDs.add(childId);
     }
-    const root = new GameObject(scene);
+    const root = new GameObject();
     root.name = rootName;
     for (let i = 0; i < gltf.nodes.length; i++) {
       if (!childIDs.has(i)) {

@@ -67,7 +67,7 @@ class IndirectGBufferPass extends GPU.RenderPass {
     for (const [material] of frameMeshlets) {
       const albedoMap = material.params.albedoMap ? material.params.albedoMap : this.dummyTexture;
       const normalMap = material.params.normalMap ? material.params.normalMap : this.dummyTexture;
-      const metalnessMap = material.params.metalnessMap ? material.params.metalnessMap : this.dummyTexture;
+      const metalnessMap = material.params.armMap ? material.params.armMap : this.dummyTexture;
       this.shader.SetTexture("AlbedoMap", albedoMap);
       this.shader.SetTexture("NormalMap", normalMap);
       this.shader.SetTexture("MetalnessMap", metalnessMap);

@@ -36,18 +36,18 @@
               await Runtime.Create(canvas);
               const scene = Runtime.SceneManager.CreateScene("DefaultScene");
               Runtime.SceneManager.SetActiveScene(scene);
-              const mainCameraGameObject = new GameObject(scene);
+              const mainCameraGameObject = new GameObject();
               mainCameraGameObject.transform.position.set(0, 0, -15);
               mainCameraGameObject.name = "MainCamera";
               const camera = mainCameraGameObject.AddComponent(Components.Camera);
               camera.SetPerspective(72, canvas.width / canvas.height, 0.01, 1e4);
               mainCameraGameObject.transform.position.set(0, 0, 10);
               mainCameraGameObject.transform.LookAtV1(new Mathf.Vector3(0, 0, 0));
-              const lightGameObject = new GameObject(scene);
+              const lightGameObject = new GameObject();
               lightGameObject.transform.position.set(-4, 4, 4);
               lightGameObject.transform.LookAtV1(new Mathf.Vector3(0, 0, 0));
               lightGameObject.AddComponent(Components.DirectionalLight);
-              const floorGameObject = new GameObject(scene);
+              const floorGameObject = new GameObject();
               floorGameObject.transform.eulerAngles.x = -90;
               floorGameObject.transform.position.y = -2;
               floorGameObject.transform.scale.set(100, 100, 100);
@@ -55,7 +55,7 @@
               floorMesh.geometry = Geometry.Plane();
               floorMesh.material = new PBRMaterial();
               {
-                const floorGameObject2 = new GameObject(scene);
+                const floorGameObject2 = new GameObject();
                 floorGameObject2.transform.eulerAngles.x = -90;
                 floorGameObject2.transform.position.y = -1;
                 const floorMesh2 = floorGameObject2.AddComponent(Components.Mesh);

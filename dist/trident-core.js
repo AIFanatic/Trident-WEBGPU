@@ -6726,7 +6726,7 @@ class Renderer extends System {
     context.configure({ device: Renderer.device, format: Renderer.SwapChainFormat, alphaMode: "opaque" });
     Renderer.context = context;
     Renderer.device.onuncapturederror = (event) => {
-      console.error("WebGPU uncaptured error:", event.error);
+      throw Error(`WebGPU uncaptured error: ${event.error}`);
     };
     EventSystem.emit(RendererEvents.Created, this);
     RegisterBuiltinGeometries();
@@ -7668,12 +7668,12 @@ class Deserializer {
       else await component.OnDeserialized();
     }
   }
-  static async deserializeGameObject(scene, data, parent) {
+  static async deserializeGameObject(data, parent) {
     let source = data;
     if (data.assetPath) {
       source = await this.Load(data.assetPath);
     }
-    const go = new GameObject(scene);
+    const go = new GameObject();
     if (data.id) go.id = data.id;
     go.name = data.name ?? source.name;
     if (data.id) this.idMap.set(data.id, go);
@@ -7691,13 +7691,13 @@ class Deserializer {
       instances.push(go.AddComponent(Ctor));
     }
     for (let i = 0; i < instances.length; i++) await this.deserializeComponent(instances[i], source.components[i]);
-    for (const child of source.children ?? []) await this.deserializeGameObject(scene, child, go.transform);
+    for (const child of source.children ?? []) await this.deserializeGameObject(child, go.transform);
     return go;
   }
   static async deserializeScene(scene, data) {
     scene.name = data.name;
     this.isDeserializingScene = true;
-    for (const goData of data.gameObjects) await this.deserializeGameObject(scene, goData);
+    for (const goData of data.gameObjects) await this.deserializeGameObject(goData);
     for (const ref of this.deferredRefs) {
       ref.target[ref.property] = this.idMap.get(ref.id) ?? null;
     }
@@ -7809,7 +7809,7 @@ class Scene {
   }
   async Instantiate(prefab, parent) {
     const data = prefab.data ?? prefab;
-    const go = await Deserializer.deserializeGameObject(this, data, parent);
+    const go = await Deserializer.deserializeGameObject(data, parent);
     if (this.hasStarted) go.Start();
     return go;
   }

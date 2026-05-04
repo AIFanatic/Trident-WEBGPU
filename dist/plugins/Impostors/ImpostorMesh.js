@@ -13,8 +13,8 @@ class ImpostorMesh extends Components.Mesh {
     const fitPadding = 1.08;
     const fitRadius = originalRadius * fitPadding;
     const camDistance = fitRadius * 2;
-    const scene = new Scene(GPU.Renderer.activeRenderer);
-    const gameObject = new GameObject(scene);
+    new Scene(GPU.Renderer.activeRenderer);
+    const gameObject = new GameObject();
     const camera = gameObject.AddComponent(Components.Camera);
     camera.SetOrthographic(-fitRadius, fitRadius, fitRadius, -fitRadius, 1e-3, camDistance + fitRadius * 2);
     const impostorObjects = [];

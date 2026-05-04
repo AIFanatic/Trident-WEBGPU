@@ -36,21 +36,21 @@
               await Runtime.Create(canvas);
               const scene = Runtime.SceneManager.CreateScene("DefaultScene");
               Runtime.SceneManager.SetActiveScene(scene);
-              const mainCameraGameObject = new GameObject(scene);
+              const mainCameraGameObject = new GameObject();
               mainCameraGameObject.name = "MainCamera";
               const camera = mainCameraGameObject.AddComponent(Components.Camera);
               camera.SetPerspective(72, canvas.width / canvas.height, 0.5, 1e3);
               mainCameraGameObject.transform.position.set(0, 0, 10);
               mainCameraGameObject.transform.LookAtV1(new Mathf.Vector3(0, 0, 0));
               new OrbitControls(canvas, camera);
-              const floorGameObject = new GameObject(scene);
+              const floorGameObject = new GameObject();
               floorGameObject.transform.eulerAngles.x = -90;
               floorGameObject.transform.position.y = -2;
               floorGameObject.transform.scale.set(1e3, 1e3, 1e3);
               const floorMesh = floorGameObject.AddComponent(Components.Mesh);
               floorMesh.geometry = Geometry.Plane();
               floorMesh.material = new PBRMaterial();
-              const sphereInstanceGO = new GameObject(scene);
+              const sphereInstanceGO = new GameObject();
               const sphereInstanceMesh = sphereInstanceGO.AddComponent(Components.InstancedMesh);
               sphereInstanceMesh.material = new PBRMaterial({ unlit: true });
               sphereInstanceMesh.geometry = Geometry.Sphere();
@@ -65,7 +65,7 @@
               const half = i * offset * 0.5;
               for (let x = 0; x < i; x++) {
                 for (let y = 0; y < i; y++) {
-                  const lightGameObject = new GameObject(scene);
+                  const lightGameObject = new GameObject();
                   lightGameObject.transform.position.set(x * offset - half, 0, y * offset - half);
                   const look = lightGameObject.transform.position.clone();
                   look.y -= 1;
