@@ -55,14 +55,14 @@ async function Application(canvas: HTMLCanvasElement) {
     // meshbottom.geometry = Geometry.Plane();
     // meshbottom.material = new PBRMaterial();
 
-    const hdr = await HDRParser.Load("/dist/examples/assets/textures/HDR/autumn_field_puresky_1k.hdr");
+    const hdr = await HDRParser.Load("./assets/textures/HDR/autumn_field_puresky_1k.hdr");
     const skyTexture = await HDRParser.ToCubemap(hdr);
 
     const environment = new Environment(scene, skyTexture);
     await environment.init();
 
     const model = await GLTFLoader.Load("./assets/models/bunny.glb", scene);
-    const material = new PBRMaterial({ albedoMap: await GPU.Texture.Load("/dist/examples/assets/textures/T_OmniDebugTexture_COL.jpg"), roughness: 1.0, metalness: 0.0, alphaCutoff: 0.1 });
+    const material = new PBRMaterial({ albedoMap: await GPU.Texture.Load("./assets/textures/T_OmniDebugTexture_COL.jpg"), roughness: 1.0, metalness: 0.0, alphaCutoff: 0.1 });
     console.log("model", model)
 
     let geometry: Geometry;
@@ -99,7 +99,7 @@ async function Application(canvas: HTMLCanvasElement) {
 
     // // Billboards
     // {
-    //     const sampleTexture = await GPU.Texture.Load("/dist/examples/assets/textures/T_OmniDebugTexture_COL.jpg");
+    //     const sampleTexture = await GPU.Texture.Load("./assets/textures/T_OmniDebugTexture_COL.jpg");
     //     // const sampleTexture = await GPU.Texture.Load("/packages/examples/assets/models/tree/branch.png", "rgba8unorm-srgb");
 
     //     const angles = [[0, 0, 0], [0, 45, 0], [0, 90, 0], [0, -45, 0], [90, 0, 0]];

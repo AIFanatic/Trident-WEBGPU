@@ -44,7 +44,7 @@ async function Application(canvas: HTMLCanvasElement) {
         light.range = 1;
         light.color.set(1, 1, 1, 1);
 
-        const hdr = await HDRParser.Load("/dist/examples/assets/textures/HDR/spruit_sunrise_1k.hdr");
+        const hdr = await HDRParser.Load("./assets/textures/HDR/spruit_sunrise_1k.hdr");
         const skyTexture = await HDRParser.ToCubemap(hdr);
 
         const environment = new Environment(scene, skyTexture);

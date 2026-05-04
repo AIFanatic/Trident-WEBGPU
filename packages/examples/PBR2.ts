@@ -44,7 +44,7 @@ async function Application(canvas: HTMLCanvasElement) {
     light.castShadows = false;
 
     // const hdr = await HDRParser.Load("/extra/test-assets/editor/brown_photostudio_01_1k.hdr");
-    const hdr = await HDRParser.Load("/dist/examples/assets/textures/HDR/spruit_sunrise_1k.hdr");
+    const hdr = await HDRParser.Load("./assets/textures/HDR/spruit_sunrise_1k.hdr");
     // const hdr = await HDRParser.Load("/extra/test-assets/pisa.hdr");
     const skyTexture = await HDRParser.ToCubemap(hdr);
 
@@ -118,7 +118,7 @@ async function Application(canvas: HTMLCanvasElement) {
         gameObject.transform.position.set(0, -0.5, 0);
         const mesh = gameObject.AddComponent(Components.Mesh);
         mesh.geometry = Geometry.Plane();
-        const albedo = await GPU.Texture.Load("/dist/examples/assets/textures/uv_grid.png", "bgra8unorm-srgb");
+        const albedo = await GPU.Texture.Load("./assets/textures/uv_grid.png", "bgra8unorm-srgb");
         mesh.material = new PBRMaterial({ albedoMap: albedo, repeat: new Mathf.Vector2(5, 5) });
     }
 

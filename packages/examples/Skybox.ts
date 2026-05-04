@@ -100,7 +100,7 @@ async function Application(canvas: HTMLCanvasElement) {
     }
 
     {
-        const hdr = await HDRParser.Load("/dist/examples/assets/textures/HDR/royal_esplanade_1k.hdr");
+        const hdr = await HDRParser.Load("./assets/textures/HDR/royal_esplanade_1k.hdr");
         const hdrCubemap = await HDRParser.ToCubemap(hdr);
 
         const skyAtmosphere = new Sky();

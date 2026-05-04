@@ -52,12 +52,12 @@
               lightGameObject.transform.position.set(-10, 10, 10);
               lightGameObject.transform.LookAt(new Mathf.Vector3(0, 0, 0));
               lightGameObject.AddComponent(Components.DirectionalLight);
-              const hdr = await HDRParser.Load("/dist/examples/assets/textures/HDR/autumn_field_puresky_1k.hdr");
+              const hdr = await HDRParser.Load("./assets/textures/HDR/autumn_field_puresky_1k.hdr");
               const skyTexture = await HDRParser.ToCubemap(hdr);
               const environment = new Environment(scene, skyTexture);
               await environment.init();
               const model = await GLTFLoader.Load("./assets/models/bunny.glb", scene);
-              const material = new PBRMaterial({ albedoMap: await GPU.Texture.Load("/dist/examples/assets/textures/T_OmniDebugTexture_COL.jpg"), roughness: 1, metalness: 0, alphaCutoff: 0.1 });
+              const material = new PBRMaterial({ albedoMap: await GPU.Texture.Load("./assets/textures/T_OmniDebugTexture_COL.jpg"), roughness: 1, metalness: 0, alphaCutoff: 0.1 });
               console.log("model", model);
               let geometry;
               const modelMeshes = model.GetComponentsInChildren(Components.Mesh);

@@ -31,7 +31,7 @@ async function Application(canvas: HTMLCanvasElement) {
     light.intensity = 1
 
 
-    const hdr = await HDRParser.Load("/dist/examples/assets/textures/HDR/dikhololo_night_1k.hdr");
+    const hdr = await HDRParser.Load("./assets/textures/HDR/dikhololo_night_1k.hdr");
     const skyTexture = await HDRParser.ToCubemap(hdr);
 
     const environment = new Environment(scene, skyTexture);

@@ -3949,7 +3949,7 @@ class LayoutCanvas extends Component {
     sky.SUN_ELEVATION_DEGREES = 60;
     await sky.init();
     const skyTexture = sky.skyTextureCubemap;
-    await HDRParser.Load("/dist/examples/assets/textures/HDR/autumn_field_puresky_1k.hdr");
+    await HDRParser.Load("./assets/textures/HDR/autumn_field_puresky_1k.hdr");
     const environment = new Environment(EngineAPI.currentScene, skyTexture);
     await environment.init();
     const raycaster = new Raycaster();
