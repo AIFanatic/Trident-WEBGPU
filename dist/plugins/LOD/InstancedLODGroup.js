@@ -204,17 +204,20 @@ class InstancedLODGroup extends Components.Renderable {
       for (const data of this.lodRendererData[i]) {
         GPU.RendererContext.CopyBufferToBuffer(this.drawIndirectBuffer, data.drawBuffer, lodDrawOffset + 4, 4, 4);
         const { geometry, material } = data.renderer;
-        material.shader.SetBuffer("modelMatrix", this.lodMatrixBuffers[i]);
         material.shader.SetBuffer("frameBuffer", FrameBuffer);
       }
     }
   }
   OnRenderObject(shaderOverride) {
     if (!this.initialized) return;
-    for (const lodData of this.lodRendererData) {
+    for (let lodIndex = 0; lodIndex < this.lodRendererData.length; lodIndex++) {
+      const lodData = this.lodRendererData[lodIndex];
+      const modelMatrix = this.lodMatrixBuffers[lodIndex];
       for (const data of lodData) {
         const { geometry, material } = data.renderer;
         const shader = shaderOverride ? shaderOverride : material.shader;
+        if (!shader) continue;
+        shader.SetBuffer("modelMatrix", modelMatrix);
         GPU.RendererContext.DrawIndirect(geometry, shader, data.drawBuffer);
       }
     }

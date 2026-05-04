@@ -35,7 +35,7 @@
             import { Environment } from '@trident/plugins/Environment/Environment.js';
             
             async function Application(canvas) {
-              await Runtime.Create(canvas, window.devicePixelRatio);
+              await Runtime.Create(canvas, 1);
               const scene = Runtime.SceneManager.CreateScene("DefaultScene");
               Runtime.SceneManager.SetActiveScene(scene);
               const mainCameraGameObject = new GameObject();
@@ -49,7 +49,7 @@
               lightGameObject.transform.position.set(0, 0, 0);
               lightGameObject.transform.LookAtV1(new Mathf.Vector3(0, 0, 0));
               const light = lightGameObject.AddComponent(Components.DirectionalLight);
-              light.intensity = 0.01;
+              light.intensity = 0;
               light.castShadows = false;
               const hdr = await HDRParser.Load("/dist/examples/assets/textures/HDR/spruit_sunrise_1k.hdr");
               const skyTexture = await HDRParser.ToCubemap(hdr);
@@ -167,14 +167,14 @@
                 const gameObject = new GameObject();
                 gameObject.transform.position.set(-0.75, 0, 0);
                 const mesh = gameObject.AddComponent(Components.Mesh);
-                mesh.geometry = Geometry.Sphere();
+                mesh.geometry = HighQualitySphere();
                 mesh.material = new PBRMaterial({ metalness: 0, roughness: 1 });
               }
               {
                 const gameObject = new GameObject();
                 gameObject.transform.position.set(0.75, 0, 0);
                 const mesh = gameObject.AddComponent(Components.Mesh);
-                mesh.geometry = Geometry.Sphere();
+                mesh.geometry = HighQualitySphere();
                 mesh.material = new PBRMaterial({ metalness: 1, roughness: 0 });
               }
               {

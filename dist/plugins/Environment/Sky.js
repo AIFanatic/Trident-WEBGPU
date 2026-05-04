@@ -21,7 +21,8 @@ class Sky {
   skyTextureShader;
   cubemapShader;
   constructor(cubemapRes = 512) {
-    this.skyTextureCubemap = GPU.RenderTextureCube.Create(cubemapRes, cubemapRes, 6, "rgba16float");
+    const mipLevels = 1 + Math.floor(Math.log2(cubemapRes));
+    this.skyTextureCubemap = GPU.RenderTextureCube.Create(cubemapRes, cubemapRes, 6, "rgba16float", mipLevels);
   }
   async init() {
     this.transmittanceLUTShader = await GPU.Shader.Create({
@@ -69,6 +70,8 @@ class Sky {
     GPU.RendererContext.EndRenderPass();
     GPU.Renderer.EndRenderFrame();
     this.cubemapShader.SetTexture("hdrTexture", this.skyTexture);
+    this.skyTextureCubemap.SetActiveMip(0);
+    this.skyTextureCubemap.SetActiveMipCount(1);
     for (let face = 0; face < 6; face++) {
       this.cubemapShader.SetArray("face", new Float32Array([face, 0, 0, 0]));
       GPU.Renderer.BeginRenderFrame();
@@ -79,6 +82,8 @@ class Sky {
       GPU.Renderer.EndRenderFrame();
     }
     this.skyTextureCubemap.GenerateMips();
+    this.skyTextureCubemap.SetActiveMip(0);
+    this.skyTextureCubemap.SetActiveMipCount(this.skyTextureCubemap.mipLevels);
   }
 }
 

@@ -3863,8 +3863,8 @@ class LayoutHierarchy extends Component {
   renderGameObjects(gameObjects) {
     return gameObjects.map((go) => {
       const isSelected = this.state.selectedGameObject === go;
-      const children = go.transform.children;
-      if (children.size > 0) {
+      const children = Array.from(go.transform.children).map((c) => c.gameObject).filter((go2) => (go2.flags & this.props.engineAPI.flags.HideInHierarchy) === 0);
+      if (children.length > 0) {
         return /* @__PURE__ */ createElement(
           TreeFolder,
           {
@@ -3875,7 +3875,7 @@ class LayoutHierarchy extends Component {
             onDroppedItem: (from, to) => this.onDroppedItem(from, to),
             onDragStarted: (event) => this.onDragStarted(event)
           },
-          this.renderGameObjects(Array.from(children).map((c) => c.gameObject))
+          this.renderGameObjects(children)
         );
       }
       return /* @__PURE__ */ createElement(
@@ -3893,7 +3893,7 @@ class LayoutHierarchy extends Component {
   }
   render() {
     if (!this.props.engineAPI.currentScene) return /* @__PURE__ */ createElement("div", null);
-    const rootGameObjects = this.props.engineAPI.currentScene.GetGameObjects().filter((go) => !go.transform.parent);
+    const rootGameObjects = this.props.engineAPI.currentScene.GetGameObjects().filter((go) => !go.transform.parent && (go.flags & this.props.engineAPI.flags.HideInHierarchy) === 0);
     return /* @__PURE__ */ createElement("div", { class: "Layout" }, /* @__PURE__ */ createElement("div", { class: "header" }, /* @__PURE__ */ createElement("div", { class: "title" }, this.props.engineAPI.currentScene.name || "Untitled scene"), /* @__PURE__ */ createElement("div", { class: "right-action" }, /* @__PURE__ */ createElement("button", { onClick: (event) => {
       this.setState({ ...this.state, headerMenuOpen: !this.state.headerMenuOpen });
     } }, "\u22EE"), /* @__PURE__ */ createElement(FloatingMenu, { visible: this.state.headerMenuOpen, onClose: () => this.setState({ ...this.state, headerMenuOpen: false }) }, /* @__PURE__ */ createElement(Tree, null, /* @__PURE__ */ createElement(TreeItem, { name: "Create Empty", onPointerDown: () => this.createEmptyGameObject() }), /* @__PURE__ */ createElement(TreeItem, { name: "Delete", onPointerDown: () => this.deleteGameObject() }), /* @__PURE__ */ createElement(TreeFolder, { name: "3D Object" }, /* @__PURE__ */ createElement(TreeItem, { name: "Cube", onPointerDown: () => this.createPrimitive("Cube") }), /* @__PURE__ */ createElement(TreeItem, { name: "Capsule", onPointerDown: () => this.createPrimitive("Capsule") }), /* @__PURE__ */ createElement(TreeItem, { name: "Plane", onPointerDown: () => this.createPrimitive("Plane") }), /* @__PURE__ */ createElement(TreeItem, { name: "Sphere", onPointerDown: () => this.createPrimitive("Sphere") }), /* @__PURE__ */ createElement(TreeItem, { name: "Terrain", onPointerDown: () => this.createTerrain() })), /* @__PURE__ */ createElement(TreeFolder, { name: "Lights" }, /* @__PURE__ */ createElement(TreeItem, { name: "Directional Light", onPointerDown: () => this.createLight("Directional") }), /* @__PURE__ */ createElement(TreeItem, { name: "Point Light", onPointerDown: () => this.createLight("Point") }), /* @__PURE__ */ createElement(TreeItem, { name: "Spot Light", onPointerDown: () => this.createLight("Spot") })))))), /* @__PURE__ */ createElement(

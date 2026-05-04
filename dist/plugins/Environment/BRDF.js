@@ -102,11 +102,11 @@ class BRDF {
                 for(var i: u32 = 0u; i < SAMPLE_COUNT; i = i + 1u) {
                     let Xi: vec2f = hammersley(i, SAMPLE_COUNT);
                     let H: vec3f = importanceSampleGGX(Xi, N, roughness);
-                    let L: vec3f = normalize(2.0 * dot(V, H) * H - V);
+                    let L: vec3f = 2.0 * dot(V, H) * H - V;
                 
-                    let NdotL: f32 = max(L.z, 0.0);
-                    let NdotH: f32 = max(H.z, 0.0);
-                    let VdotH: f32 = max(dot(V, H), 0.0);
+                    let NdotL: f32 = saturate(L.z);
+                    let NdotH: f32 = saturate(H.z);
+                    let VdotH: f32 = saturate(dot(V, H));
                 
                     if(NdotL > 0.0) {
                         let G: f32 = geometrySmith(N, V, L, roughness);
@@ -117,9 +117,7 @@ class BRDF {
                         B += Fc * G_Vis;
                     }
                 }
-                A /= f32(SAMPLE_COUNT);
-                B /= f32(SAMPLE_COUNT);
-                return vec2f(A, B);
+                return vec2f(A, B) / f32(SAMPLE_COUNT);
             }
       
             @fragment

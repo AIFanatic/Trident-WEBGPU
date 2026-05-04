@@ -28,7 +28,7 @@
             <script type="module">
                 const canvas = document.createElement("canvas");
                 document.body.appendChild(canvas);
-                            import { Runtime, GameObject, Components, Mathf, GPU } from '@trident/core';
+                            import { Runtime, GameObject, Components, Mathf, GPU, PBRMaterial } from '@trident/core';
             import { OrbitControls } from '@trident/plugins/OrbitControls.js';
             import { OBJLoaderIndexed } from '@trident/plugins/OBJLoader.js';
             import { MeshletMesh } from '@trident/plugins/meshlets/MeshletMesh.js';
@@ -42,8 +42,8 @@
               mainCameraGameObject.transform.position.set(0, 0, -15);
               mainCameraGameObject.name = "MainCamera";
               const camera = mainCameraGameObject.AddComponent(Components.Camera);
-              camera.SetPerspective(72, canvas.width / canvas.height, 0.5, 5e4);
-              mainCameraGameObject.transform.position.set(0, 0, 20);
+              camera.SetPerspective(60, canvas.width / canvas.height, 0.05, 1e3);
+              mainCameraGameObject.transform.position.set(0, 0, 5);
               mainCameraGameObject.transform.LookAtV1(new Mathf.Vector3(0, 0, 0));
               new OrbitControls(canvas, camera);
               Runtime.Renderer.RenderPipeline.AddPass(new MeshletDraw(), GPU.RenderPassOrder.BeforeGBuffer);
@@ -55,12 +55,29 @@
               light.color.set(1, 1, 1, 1);
               light.castShadows = true;
               {
-                const mesh = await OBJLoaderIndexed.load("./assets/models/bunny.obj");
-                const meshletGameObject = new GameObject(scene);
+                const mesh = await OBJLoaderIndexed.load("/dist/examples/assets/models/bunny.obj");
+                mesh.geometry.ComputeNormals();
+                mesh.geometry.ComputeTangents();
+                const mat = new PBRMaterial({ albedoMap: await GPU.Texture.Load("/dist/examples/assets/textures/brick.png") });
+                const meshletGameObject = new GameObject();
+                meshletGameObject.transform.position.x = 2;
                 const meshletMesh = meshletGameObject.AddComponent(MeshletMesh);
                 meshletMesh.enableShadows = false;
                 meshletMesh.geometry = mesh.geometry;
-                meshletMesh.material = mesh.material;
+                meshletMesh.material = mat;
+                const c = 20;
+                const off = 10;
+                for (let x = 0; x < c; x++) {
+                  for (let y = 0; y < c; y++) {
+                    for (let z = 0; z < c; z++) {
+                      const go2 = new GameObject();
+                      const meshletB = go2.AddComponent(MeshletMesh);
+                      meshletB.geometry = mesh.geometry;
+                      meshletB.transform.position.set(x * off, y * off, z * off);
+                      meshletB.material = mat;
+                    }
+                  }
+                }
               }
               Runtime.Play();
             }

@@ -1,4 +1,4 @@
-import { SerializeField, GameObject, Components, Mathf, Utils, GPU, Geometry, VertexAttribute, IndexAttribute, NonSerialized } from '@trident/core';
+import { SerializeField, Prefab, Components, Mathf, Utils, GPU, Geometry, VertexAttribute, IndexAttribute, NonSerialized } from '@trident/core';
 import { TerrainMaterial } from './TerrainMaterial.js';
 import { LODGroup } from '../LOD/LODGroup.js';
 import { InstancedLODGroup } from '../LOD/InstancedLODGroup.js';
@@ -52,16 +52,22 @@ var __privateGet = (obj, member, getter) => (__accessCheck(obj, member, "read fr
 var __privateSet = (obj, member, value, setter) => (__accessCheck(obj, member, "write to private field"), setter ? setter.call(obj, value) : member.set(obj, value), value);
 var __privateMethod = (obj, member, method) => (__accessCheck(obj, member, "access private method"), method);
 var _matrices_dec, _prop_dec, _init, _terrainGameObject_dec, _blendWeightMapTexture_dec, _materialIdMapTexture_dec, _blendWeightMapData_dec, _materialIdMapData_dec, _paintMapResolution_dec, _heights_dec, _material_dec, _geometry_dec, _size_dec, _paintPropData_dec, _init2, _material_dec2, _geometry_dec2, _terrainData_dec, _a, _init3;
-_prop_dec = [SerializeField(GameObject)], _matrices_dec = [SerializeField(Array)];
+_prop_dec = [SerializeField(Prefab)], _matrices_dec = [SerializeField(Array)];
 class PaintPropData {
   constructor() {
     __publicField(this, "prop", __runInitializers(_init, 8, this)), __runInitializers(_init, 11, this);
     __publicField(this, "matrices", __runInitializers(_init, 12, this, [])), __runInitializers(_init, 15, this);
+    __publicField(this, "instancedPrefab");
     __publicField(this, "instancedLODGroup");
   }
   // TODO: Check if LODGroup was changed
-  RebuildProps(terrainGameObject) {
-    const lodGroup = this.prop.GetComponent(LODGroup);
+  async RebuildProps(terrainGameObject) {
+    if (!this.instancedPrefab) {
+      this.instancedPrefab = await terrainGameObject.scene.Instantiate(this.prop);
+      this.instancedPrefab.enabled = false;
+      this.instancedPrefab.flags = Utils.Flags.DontSaveInEditor | Utils.Flags.HideInHierarchy;
+    }
+    const lodGroup = this.instancedPrefab.GetComponent(LODGroup);
     if (!lodGroup) return;
     if (lodGroup.lods.length === 0) return;
     if (!this.instancedLODGroup) {
@@ -69,10 +75,6 @@ class PaintPropData {
       this.instancedLODGroup.flags = Utils.Flags.DontSaveInEditor | Utils.Flags.HideInInspector;
       this.instancedLODGroup.lods = lodGroup.lods;
     }
-    this.RebuildPropMatrices();
-  }
-  RebuildPropMatrices() {
-    if (!this.instancedLODGroup) throw Error("Could not find instancedLODGroup");
     this.instancedLODGroup.SetMatricesBulk(new Float32Array(this.matrices));
   }
   AddPropMatrix(matrix) {
@@ -156,12 +158,12 @@ const _TerrainData = class _TerrainData {
     this.material.materialIdMap = this.materialIdMapTexture;
     this.material.shader.SetTexture("blendWeightMaps", this.blendWeightMapTexture);
   }
-  AddProp(gameObject) {
-    const existingIndex = this.paintPropData.findIndex((value) => value.prop === gameObject);
+  async AddProp(prefab) {
+    const existingIndex = this.paintPropData.findIndex((value) => value.prop.assetPath === prefab.assetPath);
     if (existingIndex !== -1) return existingIndex;
     const newProp = new PaintPropData();
-    newProp.prop = gameObject;
-    newProp.RebuildProps(this.terrainGameObject);
+    newProp.prop = prefab;
+    await newProp.RebuildProps(this.terrainGameObject);
     this.paintPropData.push(newProp);
     return this.paintPropData.length - 1;
   }
@@ -172,7 +174,7 @@ const _TerrainData = class _TerrainData {
   async OnDeserialized() {
     this.RebuildGeometry();
     this.InitializePaintMaps();
-    for (const prop of this.paintPropData) prop.RebuildProps(this.terrainGameObject);
+    for (const prop of this.paintPropData) await prop.RebuildProps(this.terrainGameObject);
   }
   RebuildGeometry() {
     const verticesPerSide = this.resolution + 1;
