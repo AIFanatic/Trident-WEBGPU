@@ -7,12 +7,12 @@ import { PlaneCollider } from '@trident/plugins/PhysicsRapier/colliders/PlaneCol
 import { SphereCollider } from '@trident/plugins/PhysicsRapier/colliders/SphereCollider.js';
 import { TerrainCollider } from '@trident/plugins/PhysicsRapier/colliders/TerrainCollider.js';
 import { Terrain } from '@trident/plugins/Terrain/Terrain.js';
+import { TerrainEditor } from '@trident/plugins/Terrain/TerrainEditor.js';
 import { LineRenderer } from '@trident/plugins/LineRenderer.js';
 import { LODGroup } from '@trident/plugins/LOD/LODGroup.js';
 import { OrbitControls } from '@trident/plugins/OrbitControls.js';
 import { Environment } from '@trident/plugins/Environment/Environment.js';
 import { Sky } from '@trident/plugins/Environment/Sky.js';
-import { HDRParser } from '@trident/plugins/HDRParser.js';
 import { GLTFLoader } from '@trident/plugins/GLTF/GLTFLoader.js';
 import { PhysicsRapier } from '@trident/plugins/PhysicsRapier/PhysicsRapier.js';
 import { registerEditorBridge } from '@trident/editor';
@@ -2868,6 +2868,7 @@ Component$1.Registry.set(PlaneCollider.type, PlaneCollider);
 Component$1.Registry.set(SphereCollider.type, SphereCollider);
 Component$1.Registry.set(TerrainCollider.type, TerrainCollider);
 Component$1.Registry.set(Terrain.type, Terrain);
+Component$1.Registry.set(TerrainEditor.type, TerrainEditor);
 Component$1.Registry.set(LineRenderer.type, LineRenderer);
 Component$1.Registry.set(LODGroup.type, LODGroup);
 const ComponentRegistry = {
@@ -2887,6 +2888,7 @@ const ComponentRegistry = {
   SphereCollider: component(SphereCollider),
   TerrainCollider: component(TerrainCollider),
   Terrain: component(Terrain),
+  TerrainEditor: component(TerrainEditor),
   LODGroup: component(LODGroup)
 };
 
@@ -3846,6 +3848,7 @@ class LayoutHierarchy extends Component {
     gameObject.name = "Terrain";
     const terrain = this.props.engineAPI.addComponent(gameObject, ComponentRegistry.Terrain);
     this.props.engineAPI.addComponent(gameObject, ComponentRegistry.TerrainCollider);
+    this.props.engineAPI.addComponent(gameObject, ComponentRegistry.TerrainEditor);
     const terrainPath = `${gameObject.name}_${gameObject.id}.terrain`;
     terrain.terrainData.assetPath = terrainPath;
     SaveAsset(terrain.terrainData);
@@ -3949,7 +3952,6 @@ class LayoutCanvas extends Component {
     sky.SUN_ELEVATION_DEGREES = 60;
     await sky.init();
     const skyTexture = sky.skyTextureCubemap;
-    await HDRParser.Load("./assets/textures/HDR/autumn_field_puresky_1k.hdr");
     const environment = new Environment(EngineAPI.currentScene, skyTexture);
     await environment.init();
     const raycaster = new Raycaster();

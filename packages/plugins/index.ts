@@ -1,7 +1,10 @@
 
 export * from "./OrbitControls";
 export * from "./GLTF/GLTFLoader";
+
 export { Terrain } from "./Terrain/Terrain";
+export { TerrainEditor } from "./Terrain/TerrainEditor";
+
 export * from "./SimplexNoise";
 
 export * from "./DataBackedBuffer";

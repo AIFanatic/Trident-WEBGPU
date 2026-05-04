@@ -1,6 +1,7 @@
 export { OrbitControls } from './OrbitControls.js';
 export { GLTFLoader } from './GLTF/GLTFLoader.js';
 export { Terrain } from './Terrain/Terrain.js';
+export { TerrainEditor } from './Terrain/TerrainEditor.js';
 export { SimplexNoise } from './SimplexNoise.js';
 export { DataBackedBuffer } from './DataBackedBuffer.js';
 export { UIButtonStat, UIColorStat, UIDropdownStat, UIFolder, UIGradientStat, UIGraph, UISliderStat, UITextStat, UITextureViewer, UIVecStat } from './ui/UIStats.js';

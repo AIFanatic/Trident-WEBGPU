@@ -125,6 +125,7 @@ export class LayoutHierarchy extends Component<BaseProps, LayoutHierarchyState> 
         gameObject.name = "Terrain";
         const terrain = this.props.engineAPI.addComponent(gameObject, ComponentRegistry.Terrain) as any;
         const terrainCollider = this.props.engineAPI.addComponent(gameObject, ComponentRegistry.TerrainCollider) as any;
+        const terrainEditor = this.props.engineAPI.addComponent(gameObject, ComponentRegistry.TerrainEditor) as any;
 
         const terrainPath = `${gameObject.name}_${gameObject.id}.terrain`;
         terrain.terrainData.assetPath = terrainPath;

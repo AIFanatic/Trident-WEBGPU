@@ -14,6 +14,8 @@ import { SphereCollider } from "@trident/plugins/PhysicsRapier/colliders/SphereC
 import { TerrainCollider } from "@trident/plugins/PhysicsRapier/colliders/TerrainCollider";
 
 import { Terrain } from "@trident/plugins/Terrain/Terrain";
+import { TerrainEditor } from "@trident/plugins/Terrain/TerrainEditor";
+
 import { LineRenderer } from "@trident/plugins/LineRenderer";
 
 import { LODGroup } from "@trident/plugins/LOD/LODGroup";
@@ -29,6 +31,7 @@ Component.Registry.set(SphereCollider.type, SphereCollider);
 Component.Registry.set(TerrainCollider.type, TerrainCollider);
 
 Component.Registry.set(Terrain.type, Terrain);
+Component.Registry.set(TerrainEditor.type, TerrainEditor);
 
 Component.Registry.set(LineRenderer.type, LineRenderer);
 
@@ -55,6 +58,7 @@ export const ComponentRegistry = {
     TerrainCollider: component<IComponent>(TerrainCollider),
 
     Terrain: component<IMesh>(Terrain),
+    TerrainEditor: component<IComponent>(TerrainEditor),
 
     LineRenderer: component<IComponent>(LineRenderer),
 

@@ -18,6 +18,7 @@ import { Debugger } from "@trident/plugins/Debugger";
 import { UITextureViewer } from "@trident/plugins/ui/UIStats";
 import { HDRParser } from "@trident/plugins/HDRParser";
 import { Environment } from "@trident/plugins/Environment/Environment";
+import { Sky } from "@trident/plugins/Environment/Sky";
 
 
 // GLTFLoader.Load("./assets/DamagedHelmet/DamagedHelmet.gltf");
@@ -41,11 +42,13 @@ async function Application(canvas: HTMLCanvasElement) {
         lightGameObject.transform.LookAtV1(new Mathf.Vector3(0, 0, 0))
         const light = lightGameObject.AddComponent(Components.DirectionalLight);
         light.intensity = 1;
-        light.range = 1;
         light.color.set(1, 1, 1, 1);
 
-        const hdr = await HDRParser.Load("./assets/textures/HDR/spruit_sunrise_1k.hdr");
-        const skyTexture = await HDRParser.ToCubemap(hdr);
+        const skyAtmosphere = new Sky();
+        await skyAtmosphere.init();
+
+        // const skyTexture = hdrCubemap;
+        const skyTexture = skyAtmosphere.skyTextureCubemap;
 
         const environment = new Environment(scene, skyTexture);
         await environment.init();
@@ -62,7 +65,8 @@ async function Application(canvas: HTMLCanvasElement) {
     // }
 
     // const model = await GLTFLoader.Load("./assets/models/Tree.glb", scene);
-    const loadedGO = await GLTFLoader.Load("/extra/test-assets/nature/treessource/american_beech/american_beech_a.glb", scene);
+    // const loadedGO = await GLTFLoader.Load("/extra/test-assets/nature/treessource/american_beech/american_beech_a.glb", scene);
+    const loadedGO = await GLTFLoader.Load("./assets/models/bunny.glb", scene);
     let geometry: Geometry;
     let material: GPU.Material = new PBRMaterial();
     const loadedMeshes = loadedGO.GetComponentsInChildren(Components.Mesh);

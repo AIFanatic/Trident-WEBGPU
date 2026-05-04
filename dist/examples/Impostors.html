@@ -34,8 +34,8 @@
             import { ImpostorMesh } from '@trident/plugins/Impostors/ImpostorMesh.js';
             import { Debugger } from '@trident/plugins/Debugger.js';
             import { UITextureViewer } from '@trident/plugins/ui/UIStats.js';
-            import { HDRParser } from '@trident/plugins/HDRParser.js';
             import { Environment } from '@trident/plugins/Environment/Environment.js';
+            import { Sky } from '@trident/plugins/Environment/Sky.js';
             
             async function Application(canvas) {
               await Runtime.Create(canvas);
@@ -53,14 +53,14 @@
                 lightGameObject.transform.LookAtV1(new Mathf.Vector3(0, 0, 0));
                 const light = lightGameObject.AddComponent(Components.DirectionalLight);
                 light.intensity = 1;
-                light.range = 1;
                 light.color.set(1, 1, 1, 1);
-                const hdr = await HDRParser.Load("./assets/textures/HDR/spruit_sunrise_1k.hdr");
-                const skyTexture = await HDRParser.ToCubemap(hdr);
+                const skyAtmosphere = new Sky();
+                await skyAtmosphere.init();
+                const skyTexture = skyAtmosphere.skyTextureCubemap;
                 const environment = new Environment(scene, skyTexture);
                 await environment.init();
               }
-              const loadedGO = await GLTFLoader.Load("/extra/test-assets/nature/treessource/american_beech/american_beech_a.glb", scene);
+              const loadedGO = await GLTFLoader.Load("./assets/models/bunny.glb", scene);
               let geometry;
               let material = new PBRMaterial();
               const loadedMeshes = loadedGO.GetComponentsInChildren(Components.Mesh);
