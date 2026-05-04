@@ -13,8 +13,8 @@ import { OrbitControls } from "@trident/plugins/OrbitControls";
 import { OBJLoaderIndexed } from "@trident/plugins/OBJLoader";
 import { GLTFLoader } from "@trident/plugins/GLTF/GLTFLoader";
 
-import { MeshletMesh as MeshletMesh } from "@trident/plugins/meshlets_v4/MeshletMesh";
-import { MeshletDraw } from "@trident/plugins/meshlets_v4/passes/MeshletDraw";
+import { MeshletMesh as MeshletMesh } from "@trident/plugins/meshlets/MeshletMesh";
+import { MeshletDraw } from "@trident/plugins/meshlets/passes/MeshletDraw";
 import { HDRParser } from "@trident/plugins/HDRParser";
 import { Environment } from "@trident/plugins/Environment/Environment";
 
@@ -79,7 +79,7 @@ async function Application(canvas: HTMLCanvasElement) {
         mesh.geometry.ComputeTangents();
         const mat = new PBRMaterial({albedoMap: await GPU.Texture.Load("/dist/examples/assets/textures/brick.png")})
         // const mesh = await OBJLoaderIndexed.load("/extra/test-assets/tree-01/tree-01.obj");
-        const meshletGameObject = new GameObject(scene);
+        const meshletGameObject = new GameObject();
         meshletGameObject.transform.position.x = 2;
         const meshletMesh = meshletGameObject.AddComponent(MeshletMesh);
         meshletMesh.enableShadows = false;
@@ -92,7 +92,7 @@ async function Application(canvas: HTMLCanvasElement) {
         for (let x = 0; x < c; x++) {
             for (let y = 0; y < c; y++) {
                 for (let z = 0; z < c; z++) {
-                    const go2 = new GameObject(scene);
+                    const go2 = new GameObject();
                     const meshletB = go2.AddComponent(MeshletMesh);
                     meshletB.geometry = mesh.geometry;
                     meshletB.transform.position.set(x * off,y * off,z * off);

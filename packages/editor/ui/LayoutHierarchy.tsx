@@ -14,7 +14,7 @@ import { Serializer } from "@trident/core";
 import { SaveAsset } from "../commands/SaveAsset";
 
 export class LayoutHierarchyEvents {
-    public static Selected = (gameObject: IGameObject) => {};
+    public static Selected = (gameObject: IGameObject) => { };
 }
 
 interface LayoutHierarchyState {
@@ -33,7 +33,7 @@ export class LayoutHierarchy extends Component<BaseProps, LayoutHierarchyState> 
         });
 
         TridentAPI.EventSystem.on(GameObjectEvents.Deleted, gameObject => {
-            if (gameObject === this.state.selectedGameObject) this.setState({...this.state, selectedGameObject: null });
+            if (gameObject === this.state.selectedGameObject) this.setState({ ...this.state, selectedGameObject: null });
         });
 
         TridentAPI.EventSystem.on(GameObjectEvents.Selected, gameObject => {
@@ -61,7 +61,7 @@ export class LayoutHierarchy extends Component<BaseProps, LayoutHierarchyState> 
         return undefined;
     }
 
-    private onDroppedItem(fromId: string, toId: string) {        
+    private onDroppedItem(fromId: string, toId: string) {
         const fromGameObject = this.getGameObjectById(fromId);
         const toGameObject = this.getGameObjectById(toId);
         if (fromGameObject === toGameObject) return;
@@ -146,9 +146,10 @@ export class LayoutHierarchy extends Component<BaseProps, LayoutHierarchyState> 
     private renderGameObjects(gameObjects: IGameObject[]) {
         return gameObjects.map(go => {
             const isSelected = this.state.selectedGameObject === go;
-            const children = go.transform.children;
 
-            if (children.size > 0) {                          // .size not .length
+            const children = Array.from(go.transform.children).map(c => c.gameObject).filter(go => (go.flags & this.props.engineAPI.flags.HideInHierarchy) === 0);
+
+            if (children.length > 0) {
                 return <TreeFolder
                     name={go.name}
                     id={go.transform.id}
@@ -157,8 +158,8 @@ export class LayoutHierarchy extends Component<BaseProps, LayoutHierarchyState> 
                     onDroppedItem={(from, to) => this.onDroppedItem(from, to)}
                     onDragStarted={(event) => this.onDragStarted(event)}
                 >
-                    {this.renderGameObjects(Array.from(children).map(c => c.gameObject))}
-                </TreeFolder>                                  // Array.from() to iterate Set
+                    {this.renderGameObjects(children)}
+                </TreeFolder>
             }
             return <TreeItem
                 name={go.name}
@@ -174,7 +175,7 @@ export class LayoutHierarchy extends Component<BaseProps, LayoutHierarchyState> 
     render() {
         if (!this.props.engineAPI.currentScene) return <div></div>;
 
-        const rootGameObjects = this.props.engineAPI.currentScene.GetGameObjects().filter(go => !go.transform.parent);
+        const rootGameObjects = this.props.engineAPI.currentScene.GetGameObjects().filter(go => !go.transform.parent && (go.flags & this.props.engineAPI.flags.HideInHierarchy) === 0);
 
         return (
 
@@ -182,7 +183,7 @@ export class LayoutHierarchy extends Component<BaseProps, LayoutHierarchyState> 
                 <div class="header">
                     <div class="title">{this.props.engineAPI.currentScene.name || "Untitled scene"}</div>
                     <div class="right-action">
-                        <button onClick={event => { this.setState({...this.state, headerMenuOpen: !this.state.headerMenuOpen})}}>⋮</button>
+                        <button onClick={event => { this.setState({ ...this.state, headerMenuOpen: !this.state.headerMenuOpen }) }}>⋮</button>
                         <FloatingMenu visible={this.state.headerMenuOpen} onClose={() => this.setState({ ...this.state, headerMenuOpen: false })}>
                             <Tree>
                                 <TreeItem name="Create Empty" onPointerDown={() => this.createEmptyGameObject()} />

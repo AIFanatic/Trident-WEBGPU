@@ -21,7 +21,7 @@ import { Environment } from "@trident/plugins/Environment/Environment";
 import { WireframePass } from "@trident/plugins/WireframePass";
 
 async function Application(canvas: HTMLCanvasElement) {
-    await Runtime.Create(canvas, window.devicePixelRatio);
+    await Runtime.Create(canvas, 1);
     const scene = Runtime.SceneManager.CreateScene("DefaultScene");
     Runtime.SceneManager.SetActiveScene(scene);
 
@@ -40,22 +40,19 @@ async function Application(canvas: HTMLCanvasElement) {
     lightGameObject.transform.position.set(0, 0, 0);
     lightGameObject.transform.LookAtV1(new Mathf.Vector3(0, 0, 0));
     const light = lightGameObject.AddComponent(Components.DirectionalLight);
-    light.intensity = 0.01;
+    light.intensity = 0.0;
     light.castShadows = false;
 
     // const hdr = await HDRParser.Load("/extra/test-assets/editor/brown_photostudio_01_1k.hdr");
     const hdr = await HDRParser.Load("/dist/examples/assets/textures/HDR/spruit_sunrise_1k.hdr");
+    // const hdr = await HDRParser.Load("/extra/test-assets/pisa.hdr");
     const skyTexture = await HDRParser.ToCubemap(hdr);
 
     const environment = new Environment(scene, skyTexture);
     await environment.init();
 
 
-    function HighQualitySphere(
-        radius = 0.5,
-        widthSegments = 16,
-        heightSegments = 16,
-    ): Geometry {
+    function HighQualitySphere( radius = 0.5, widthSegments = 16, heightSegments = 16 ): Geometry {
         const vertices: number[] = [];
         const normals: number[] = [];
         const uvs: number[] = [];
@@ -184,7 +181,7 @@ async function Application(canvas: HTMLCanvasElement) {
         const gameObject = new GameObject();
         gameObject.transform.position.set(-0.75, 0, 0);
         const mesh = gameObject.AddComponent(Components.Mesh);
-        mesh.geometry = Geometry.Sphere();
+        mesh.geometry = HighQualitySphere();
         mesh.material = new PBRMaterial({ metalness: 0, roughness: 1 }); // Rough
     }
 
@@ -192,7 +189,7 @@ async function Application(canvas: HTMLCanvasElement) {
         const gameObject = new GameObject();
         gameObject.transform.position.set(0.75, 0, 0);
         const mesh = gameObject.AddComponent(Components.Mesh);
-        mesh.geometry = Geometry.Sphere();
+        mesh.geometry = HighQualitySphere();
         mesh.material = new PBRMaterial({ metalness: 1, roughness: 0 }); // Metal
     }
 
@@ -200,7 +197,7 @@ async function Application(canvas: HTMLCanvasElement) {
         const gameObject = new GameObject();
         gameObject.transform.position.set(2.25, 0, 0);
         const mesh = gameObject.AddComponent(Components.Mesh);
-          mesh.geometry = HighQualitySphere();
+        mesh.geometry = HighQualitySphere();
         mesh.material = new PBRMaterial({ albedoColor: new Mathf.Color(75 / 255, 185 / 255, 200 / 255), metalness: 0.0, roughness: 0.2 }); // Metal Color
     }
 

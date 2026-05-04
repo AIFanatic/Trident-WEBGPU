@@ -55,7 +55,7 @@ Component.Registry.set(Water.type, Water);
 export * from "./SSGI";
 export * from "./Blit";
 
-export * from "./meshlets_v4";
+export * from "./meshlets";
 
 export * from "./SSS";
 

@@ -1,7 +1,6 @@
 import {
     Geometry,
     Components,
-    Scene,
     Mathf,
     GPU,
     GameObject,
@@ -13,21 +12,14 @@ import { OrbitControls } from "@trident/plugins/OrbitControls";
 import { HDRParser } from "@trident/plugins/HDRParser";
 import { UIButtonStat, UIColorStat, UIFolder, UISliderStat, UITextureViewer, UIVecStat } from "@trident/plugins/ui/UIStats";
 import { Debugger } from "@trident/plugins/Debugger";
-import { LineRenderer } from "@trident/plugins/LineRenderer";
 
 import { SpotLightHelper } from "@trident/plugins/SpotLightHelper";
 import { DirectionalLightHelper } from "@trident/plugins/DirectionalLightHelper";
 import { PointLightHelper } from "@trident/plugins/PointLightHelper";
 
 import { PostProcessingPass } from "@trident/plugins/PostProcessing/PostProcessingPass";
-import { PostProcessingFXAA } from "@trident/plugins/PostProcessing/effects/FXAA";
 import { Sky } from "@trident/plugins/Environment/Sky";
-import { Irradiance } from "@trident/plugins/Environment/Irradiance";
-import { Prefilter } from "@trident/plugins/Environment/Prefilter";
-import { BRDF } from "@trident/plugins/Environment/BRDF";
 import { Environment } from "@trident/plugins/Environment/Environment";
-
-import { PostProcessingFog } from "@trident/plugins/PostProcessing/effects/Fog";
 
 import { PostProcessingSMAA } from "@trident/plugins/PostProcessing/effects/SMAA";
 
@@ -36,7 +28,7 @@ async function Application(canvas: HTMLCanvasElement) {
     const scene = Runtime.SceneManager.CreateScene("DefaultScene");
     Runtime.SceneManager.SetActiveScene(scene);
 
-    const mainCameraGameObject = new GameObject(scene);
+    const mainCameraGameObject = new GameObject();
     mainCameraGameObject.transform.position.set(0, 0, 10);
     mainCameraGameObject.name = "MainCamera";
     const camera = mainCameraGameObject.AddComponent(Components.Camera);
@@ -47,10 +39,9 @@ async function Application(canvas: HTMLCanvasElement) {
     });
     observer.observe(canvas);
 
-
     const controls = new OrbitControls(canvas, camera);
 
-    const lightGameObject = new GameObject(scene);
+    const lightGameObject = new GameObject();
     lightGameObject.transform.position.set(-1, 4, 0.01);
     lightGameObject.transform.LookAtV1(new Mathf.Vector3(0, 0, 0));
     const light = lightGameObject.AddComponent(Components.DirectionalLight);
@@ -60,7 +51,7 @@ async function Application(canvas: HTMLCanvasElement) {
     lightHelper.light = light;
 
     {
-        const planeGO = new GameObject(scene);
+        const planeGO = new GameObject();
         planeGO.transform.eulerAngles.x = -90;
         planeGO.transform.position.set(0, -2, 0);
         planeGO.transform.scale.set(10, 10, 1);
@@ -71,7 +62,7 @@ async function Application(canvas: HTMLCanvasElement) {
     }
 
     {
-        const sphereGameObject = new GameObject(scene);
+        const sphereGameObject = new GameObject();
         sphereGameObject.transform.position.set(-10, -1.5, 0);
         sphereGameObject.transform.scale.set(10, 10, 10);
         sphereGameObject.transform.eulerAngles.y = 90;
@@ -82,7 +73,7 @@ async function Application(canvas: HTMLCanvasElement) {
     }
 
     {
-        const sphereGameObject = new GameObject(scene);
+        const sphereGameObject = new GameObject();
         sphereGameObject.transform.position.set(1, -1.5, 0);
         const sphereMesh = sphereGameObject.AddComponent(Components.Mesh);
         sphereMesh.geometry = Geometry.Sphere();
@@ -91,7 +82,7 @@ async function Application(canvas: HTMLCanvasElement) {
     }
 
     {
-        const sphereGameObject = new GameObject(scene);
+        const sphereGameObject = new GameObject();
         sphereGameObject.transform.position.set(-3, -1.5, 0);
         const sphereMesh = sphereGameObject.AddComponent(Components.Mesh);
         sphereMesh.geometry = Geometry.Sphere();
@@ -100,7 +91,7 @@ async function Application(canvas: HTMLCanvasElement) {
     }
 
     {
-        const sphereGameObject = new GameObject(scene);
+        const sphereGameObject = new GameObject();
         sphereGameObject.transform.position.set(-1, -1.5, 0);
         const sphereMesh = sphereGameObject.AddComponent(Components.Mesh);
         sphereMesh.geometry = Geometry.Sphere();
@@ -135,7 +126,10 @@ async function Application(canvas: HTMLCanvasElement) {
 
             lightGameObject.transform.position = sunPos;
             lightGameObject.transform.LookAtV1(new Mathf.Vector3(0, 0, 0));
-        }, 100);
+
+            skyAtmosphere.Update();
+            environment.Update();
+        }, 1000);
 
         {
             const skySettings = new UIFolder(Debugger.ui, "Sky");

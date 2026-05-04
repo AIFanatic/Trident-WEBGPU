@@ -1,17 +1,23 @@
-import { GameObject, Geometry, IndexAttribute, VertexAttribute, Components, Mathf, SerializeField, NonSerialized, Utils, GPU } from "@trident/core";
+import { GameObject, Geometry, IndexAttribute, VertexAttribute, Components, Mathf, SerializeField, NonSerialized, Utils, GPU, Prefab, Runtime } from "@trident/core";
 import { TerrainMaterial } from "./TerrainMaterial";
 import { LODGroup } from "../LOD/LODGroup";
 import { InstancedLODGroup } from "../LOD/InstancedLODGroup";
 
 export class PaintPropData {
-    @SerializeField(GameObject) public prop: GameObject;
+    @SerializeField(Prefab) public prop: Prefab;
     @SerializeField(Array) public matrices: Array<number> = [];
 
+    private instancedPrefab: GameObject;
     private instancedLODGroup: InstancedLODGroup;
 
     // TODO: Check if LODGroup was changed
-    public RebuildProps(terrainGameObject: GameObject): void {
-        const lodGroup = this.prop.GetComponent(LODGroup);
+    public async RebuildProps(terrainGameObject: GameObject) {
+        if (!this.instancedPrefab) {
+            this.instancedPrefab = await terrainGameObject.scene.Instantiate(this.prop);
+            this.instancedPrefab.enabled = false;
+            this.instancedPrefab.flags = Utils.Flags.DontSaveInEditor | Utils.Flags.HideInHierarchy;
+        }
+        const lodGroup = this.instancedPrefab.GetComponent(LODGroup);
         if (!lodGroup) return;
         if (lodGroup.lods.length === 0) return;
 
@@ -23,11 +29,6 @@ export class PaintPropData {
         }
 
         // Set matrices
-        this.RebuildPropMatrices();
-    }
-
-    private RebuildPropMatrices() {
-        if (!this.instancedLODGroup) throw Error("Could not find instancedLODGroup");
         this.instancedLODGroup.SetMatricesBulk(new Float32Array(this.matrices));
     }
 
@@ -115,13 +116,13 @@ export class TerrainData {
         this.material.shader.SetTexture("blendWeightMaps", this.blendWeightMapTexture);
     }
 
-    public AddProp(gameObject: GameObject): number {
-        const existingIndex = this.paintPropData.findIndex(value => value.prop === gameObject);
+    public async AddProp(prefab: Prefab): Promise<number> {
+        const existingIndex = this.paintPropData.findIndex(value => value.prop.assetPath === prefab.assetPath);
         if (existingIndex !== -1) return existingIndex;
 
         const newProp = new PaintPropData();
-        newProp.prop = gameObject;
-        newProp.RebuildProps(this.terrainGameObject);
+        newProp.prop = prefab;
+        await newProp.RebuildProps(this.terrainGameObject);
         this.paintPropData.push(newProp);
 
         return this.paintPropData.length - 1;
@@ -135,7 +136,7 @@ export class TerrainData {
     public async OnDeserialized(): Promise<void> {
         this.RebuildGeometry();
         this.InitializePaintMaps();
-        for (const prop of this.paintPropData) prop.RebuildProps(this.terrainGameObject);
+        for (const prop of this.paintPropData) await prop.RebuildProps(this.terrainGameObject);
     }
 
     public RebuildGeometry(): void {
