@@ -9,7 +9,7 @@ A game engine for the web.
 The goal of Trident is to provide a fully featured game engine for the web without the learning curve.
 Therefore it implements an entity-component-system that closely resembles Unity.
 
-[Documentation (TODO)](./docs/) — [Examples](./packages/examples/) — [Editor](https://aifanatic.github.io/Trident-WEBGPU/dist/editor.html)
+[Documentation (TODO)](./docs/) — [Examples](./packages/examples/) — [Editor](https://aifanatic.github.io/Trident-WEBGPU/dist/editor/)
 
 ## Features
 * Automatic dynamic LOD
