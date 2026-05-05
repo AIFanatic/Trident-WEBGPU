@@ -4,8 +4,6 @@ import { PrefilterSpecular } from "./PrefilterSpecular";
 import { BRDF } from "./BRDF";
 
 export class Environment {
-    private scene: Scene;
-
     private prefilterDiffuse: PrefilterDiffuse;
     private prefilterSpecular: PrefilterSpecular;
     private brdf: BRDF;
@@ -13,7 +11,6 @@ export class Environment {
     private skyTexture: GPU.RenderTextureCube;
 
     constructor(scene: Scene, skyTexture: GPU.RenderTextureCube) {
-        this.scene = scene;
         this.skyTexture = skyTexture;
     }
 
