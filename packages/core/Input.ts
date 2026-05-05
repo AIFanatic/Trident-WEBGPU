@@ -121,9 +121,9 @@ export enum KeyCodes {
 }
 
 export enum MouseCodes {
-    MOUSE_LEFT,
-    MOUSE_RIGHT,
-    MOUSE_MIDDLE,
+    MOUSE_LEFT = 0,
+    MOUSE_MIDDLE = 1,
+    MOUSE_RIGHT = 2,
 }
 
 export class Input extends System {
@@ -136,20 +136,27 @@ export class Input extends System {
     private static _mousePosition: Vector2 = new Vector2();
     private static horizontalAxis: number = 0;
     private static verticalAxis: number = 0;
+    private static mouseWheelAxis: number = 0;
 
     private static previousTouch: Vector2 = new Vector2();
 
-    public static get mousePosition(): Vector2 {return Input._mousePosition; }
+    public static get mousePosition(): Vector2 { return Input._mousePosition; }
 
-    public async  Start() {
+    public async Start() {
         document.onkeydown = (event) => { Input.OnKeyDown(event) };
         document.onkeyup = (event) => { Input.OnKeyUp(event) };
         document.onmousemove = (event) => { Input.OnMouseMove(event) };
         document.onmousedown = (event) => { Input.OnMouseDown(event) };
         document.onmouseup = (event) => { Input.OnMouseUp(event) };
         document.ontouchmove = (event) => { Input.OnTouchMove(event); };
-        // document.ontouchstart = (event) => { this.OnTouchStart(event); };
-        // document.ontouchend = (event) => { this.OnTouchEnd(event); };
+        document.onwheel = (event) => { Input.OnMouseWheel(event) };
+        if (Renderer.canvas) {
+            Renderer.canvas.oncontextmenu = (event) => { Input.OnContextMenu(event) };
+        }
+    }
+
+    private static OnContextMenu(event: MouseEvent) {
+        event.preventDefault();
     }
 
     private static OnTouchMove(event: TouchEvent) {
@@ -183,7 +190,7 @@ export class Input extends System {
     private static OnMouseDown(event: MouseEvent) {
         if (this.mouseDown[event.button] === undefined) {
             this.mouseDown[event.button] = Renderer.info.frame;
-            delete this.keysUp[event.button];
+            delete this.mouseUp[event.button];
         }
     }
 
@@ -192,10 +199,14 @@ export class Input extends System {
         delete this.mouseDown[event.button];
     }
 
+    private static OnMouseWheel(event: WheelEvent) {
+        this.mouseWheelAxis += -event.deltaY / 120;
+    }
 
     public Update() {
         Input.horizontalAxis = 0;
         Input.verticalAxis = 0;
+        Input.mouseWheelAxis = 0;
     }
 
     /**
@@ -241,19 +252,16 @@ export class Input extends System {
         }
         return false;
     }
-
-    public static GetMouseDown(key: MouseCodes): boolean {
-        if (this.mouseDown[key] == Renderer.info.frame - 1) {
-            return true;
-        }
-        return false;
+    public static GetMouseButton(key: MouseCodes): boolean {
+        return this.mouseDown[key] !== undefined;
     }
 
-    public static GetMouseUp(key: MouseCodes): boolean {
-        if (this.mouseUp[key] == Renderer.info.frame - 1) {
-            return true;
-        }
-        return false;
+    public static GetMouseButtonDown(key: MouseCodes): boolean {
+        return this.mouseDown[key] == Renderer.info.frame - 1;
+    }
+
+    public static GetMouseButtonUp(key: MouseCodes): boolean {
+        return this.mouseUp[key] == Renderer.info.frame - 1;
     }
 
     /**
@@ -263,12 +271,15 @@ export class Input extends System {
      * @param {"Horizontal"|"Vertical"} axisName - Axis to query.
      * @returns {number} - Mouse difference between the previous frame and the current fram.
      */
-    public static GetAxis(axisName: "Horizontal" | "Vertical"): number {
-        if (axisName == "Horizontal") {
+    public static GetAxis(axisName: "Horizontal" | "Vertical" | "Mouse X" | "Mouse Y" | "Mouse ScrollWheel"): number {
+        if (axisName == "Horizontal" || axisName == "Mouse X") {
             return this.horizontalAxis;
         }
-        else if (axisName == "Vertical") {
+        else if (axisName == "Vertical" || axisName == "Mouse Y") {
             return this.verticalAxis;
+        }
+        else if (axisName == "Mouse ScrollWheel") {
+            return this.mouseWheelAxis;
         }
 
         throw Error("Invalid axis");

@@ -33,22 +33,22 @@ export class Camera extends Component {
 
     
     private _near: number = 0.05;
-    @SerializeField
+    @SerializeField(Number)
     public get near(): number { return this._near; }
     public set near(near: number) { this.SetPerspective(this.fov, this.aspect, near, this.far); }
 
     private _far: number = 1000;
-    @SerializeField
+    @SerializeField(Number)
     public get far(): number { return this._far; }
     public set far(far: number) { this.SetPerspective(this.fov, this.aspect, this.near, far); }
 
     private _fov: number = 60;
-    @SerializeField
+    @SerializeField(Number)
     public get fov(): number { return this._fov; }
     public set fov(fov: number) { this.SetPerspective(fov, this.aspect, this.near, this.far); }
 
     private _aspect: number = window.innerWidth / window.innerHeight;
-    @SerializeField
+    @SerializeField(Number)
     public get aspect(): number { return this._aspect; }
     public set aspect(aspect: number) { this.SetPerspective(this.fov, aspect, this.near, this.far); }
     
