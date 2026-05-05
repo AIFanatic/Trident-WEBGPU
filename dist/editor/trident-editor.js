@@ -1,4 +1,5 @@
-import { Assets, Component as Component$1, Deserializer, Geometry, PBRMaterial, GPU, InterleavedVertexAttribute, IndexAttribute, VertexAttribute, Components, Serializer, Runtime, Scene, GameObject, Mathf, Prefab, Utils, EventSystem, EventSystemLocal, Input, Console, Texture, GetSerializedFields } from '@trident/core';
+import { Assets, Component as Component$1, Deserializer, Geometry, PBRMaterial, GPU, InterleavedVertexAttribute, IndexAttribute, VertexAttribute, Components, Serializer, Runtime, Scene, GameObject, Mathf, Prefab, Utils, EventSystem, EventSystemLocal, Texture, GetSerializedFields, Console } from '@trident/core';
+import { OrbitControls } from '@trident/plugins/OrbitControls.js';
 import { RigidBody } from '@trident/plugins/PhysicsRapier/RigidBody.js';
 import { BoxCollider } from '@trident/plugins/PhysicsRapier/colliders/BoxCollider.js';
 import { CapsuleCollider } from '@trident/plugins/PhysicsRapier/colliders/CapsuleCollider.js';
@@ -10,12 +11,11 @@ import { Terrain } from '@trident/plugins/Terrain/Terrain.js';
 import { TerrainEditor } from '@trident/plugins/Terrain/TerrainEditor.js';
 import { LineRenderer } from '@trident/plugins/LineRenderer.js';
 import { LODGroup } from '@trident/plugins/LOD/LODGroup.js';
-import { OrbitControls } from '@trident/plugins/OrbitControls.js';
-import { Environment } from '@trident/plugins/Environment/Environment.js';
-import { Sky } from '@trident/plugins/Environment/Sky.js';
 import { GLTFLoader } from '@trident/plugins/GLTF/GLTFLoader.js';
-import { PhysicsRapier } from '@trident/plugins/PhysicsRapier/PhysicsRapier.js';
 import { registerEditorBridge } from '@trident/editor';
+import { Sky } from '@trident/plugins/Environment/Sky.js';
+import { Environment } from '@trident/plugins/Environment/Environment.js';
+import { PhysicsRapier } from '@trident/plugins/PhysicsRapier/PhysicsRapier.js';
 
 var browser = {exports: {}};
 
@@ -2860,6 +2860,7 @@ Deserializer.Load = async (assetPath, data, expectedType) => {
 };
 
 const component = (ctor) => ctor;
+Component$1.Registry.set(OrbitControls.type, OrbitControls);
 Component$1.Registry.set(RigidBody.type, RigidBody);
 Component$1.Registry.set(BoxCollider.type, BoxCollider);
 Component$1.Registry.set(CapsuleCollider.type, CapsuleCollider);
@@ -3303,102 +3304,257 @@ class LayoutInspectorEvents {
   static Repaint = () => {
   };
 }
+class RuntimeEvents {
+  static CreatedCanvas = (canvas) => {
+  };
+}
 
-const DYNAMIC_SLOT_BYTES = 256;
-const DYNAMIC_SLOT_FLOATS = DYNAMIC_SLOT_BYTES / 4;
-class Raycaster {
-  shader;
-  renderTarget;
-  idMap;
-  initialized = false;
+class LayoutCanvas extends Component {
+  async canvasRef(canvas) {
+    TridentAPI.EventSystem.emit(RuntimeEvents.CreatedCanvas, canvas);
+  }
+  render() {
+    return /* @__PURE__ */ createElement("canvas", { ref: (canvas) => this.canvasRef(canvas) });
+  }
+}
+
+var MODE = /* @__PURE__ */ ((MODE2) => {
+  MODE2[MODE2["R"] = 0] = "R";
+  MODE2[MODE2["W"] = 1] = "W";
+  MODE2[MODE2["A"] = 2] = "A";
+  return MODE2;
+})(MODE || {});
+class _FileBrowser {
+  rootFolderHandle;
   constructor() {
-    this.init();
+    if (!window.showDirectoryPicker) {
+      alert("FileSystem API not supported.");
+      throw Error("FileSystem API not supported.");
+    }
   }
-  async init() {
-    this.shader = await GPU.Shader.Create({
-      code: `
-                struct VertexInput {
-                    @location(0) position : vec3<f32>,
-                };
-
-                struct VertexOutput {
-                    @builtin(position) position : vec4<f32>,
-                };
-
-                @group(0) @binding(0) var<storage, read> projectionMatrix: mat4x4<f32>;
-                @group(0) @binding(1) var<storage, read> viewMatrix: mat4x4<f32>;
-                @group(0) @binding(2) var<storage, read> modelMatrix: array<mat4x4<f32>>;
-                @group(0) @binding(3) var<storage, read> id: f32;
-
-                @vertex
-                fn vertexMain(input: VertexInput) -> VertexOutput {
-                    var output : VertexOutput;
-                    output.position = projectionMatrix * viewMatrix * modelMatrix[0] * vec4(input.position, 1.0);
-                    return output;
-                }
-
-                                  
-                fn rand(x: f32) -> f32 {
-                    return fract(sin(x) * 43758.5453123);
-                }
-
-                @fragment
-                fn fragmentMain(input: VertexOutput) -> @location(0) u32 {
-                    // store object id in red channel
-                    return u32(id);
-                }
-              `,
-      colorOutputs: [{ format: "r32uint" }]
+  setRootFolderHandle(handle) {
+    this.rootFolderHandle = handle;
+  }
+  getRootFolderHandle() {
+    return this.rootFolderHandle;
+  }
+  init() {
+    return new Promise((resolve, reject) => {
+      window.showDirectoryPicker().then((folderHandle) => {
+        this.rootFolderHandle = folderHandle;
+        resolve();
+      }).catch((error) => {
+        reject(error);
+      });
     });
-    this.renderTarget = GPU.RenderTexture.Create(GPU.Renderer.width, GPU.Renderer.height, 1, "r32uint");
-    this.idMap = new GPU.DynamicBuffer(1e4 * DYNAMIC_SLOT_BYTES * 4, GPU.BufferType.STORAGE, DYNAMIC_SLOT_BYTES);
-    this.shader.SetBuffer("id", this.idMap);
-    this.initialized = true;
   }
-  mouseToPixel() {
-    const mousePosition = Input.mousePosition;
-    const rect = GPU.Renderer.canvas.getBoundingClientRect();
-    const u = (mousePosition.x - rect.left) / rect.width;
-    const v = (mousePosition.y - rect.top) / rect.height;
-    const texWidth = this.renderTarget.width;
-    const texHeight = this.renderTarget.height;
-    const x = Math.floor(u * texWidth);
-    const y = Math.floor(v * texHeight);
-    return {
-      x: Math.max(0, Math.min(texWidth - 1, x)),
-      y: Math.max(0, Math.min(texHeight - 1, y))
-    };
+  async opendir(path) {
+    if (!this.rootFolderHandle) {
+      throw Error("Trying to open a directory without initializing the File System.");
+    }
+    if (path == "") return this.rootFolderHandle;
+    const pathArray = path.split("/");
+    let currentDirectoryHandle = this.rootFolderHandle;
+    for (const entry of pathArray) {
+      if (entry == "") continue;
+      currentDirectoryHandle = await currentDirectoryHandle.getDirectoryHandle(entry);
+    }
+    if (currentDirectoryHandle.kind == "directory" && currentDirectoryHandle.name == pathArray[pathArray.length - 1]) {
+      return currentDirectoryHandle;
+    }
+    throw Error(`Directory not found at "${path}"`);
   }
-  async execute() {
-    if (!this.initialized) return;
-    const resources = Runtime.Renderer.RenderPipeline.renderGraph.resourcePool;
-    const gBufferDepth = resources.getResource(GPU.PassParams.GBufferDepth);
-    if (!gBufferDepth) return;
-    const camera = Components.Camera.mainCamera;
-    this.shader.SetMatrix4("projectionMatrix", camera.projectionMatrix);
-    this.shader.SetMatrix4("viewMatrix", camera.viewMatrix);
-    const all = Runtime.SceneManager.GetActiveScene().GetComponents(Components.Renderable);
-    const pickables = all.filter((r) => !!r.geometry);
-    const ids = new Float32Array(pickables.length * DYNAMIC_SLOT_FLOATS);
-    for (let slot = 0; slot < pickables.length; slot++) {
-      pickables[slot].OnPreRender(this.shader);
-      ids[slot * DYNAMIC_SLOT_FLOATS] = slot + 1;
+  async readdir(folderHandle) {
+    let files = [];
+    const values = folderHandle.values();
+    for await (const entry of values) {
+      files.push(entry);
     }
-    this.idMap.SetArray(ids);
-    GPU.Renderer.BeginRenderFrame();
-    GPU.RendererContext.BeginRenderPass("Raycaster", [{ target: this.renderTarget, clear: true }], gBufferDepth, true);
-    for (let slot = 0; slot < pickables.length; slot++) {
-      this.idMap.dynamicOffset = slot * DYNAMIC_SLOT_BYTES;
-      pickables[slot].OnRenderObject(this.shader);
+    return files;
+  }
+  mkdir(path) {
+    const pathArray = path.split("/");
+    const directoryName = pathArray[pathArray.length - 1];
+    const pathWithoutDirectory = pathArray.splice(0, pathArray.length - 1).join("/");
+    return this.opendir(pathWithoutDirectory).then((folderHandle) => {
+      return folderHandle.getDirectoryHandle(directoryName, {
+        create: true
+      });
+    });
+  }
+  rmdir(path) {
+    const parentPath = path.slice(0, path.lastIndexOf("/"));
+    const dirName = path.slice(path.lastIndexOf("/") + 1);
+    this.opendir(parentPath).then(async (folderHandle) => {
+      folderHandle.removeEntry(dirName, { recursive: true });
+    });
+  }
+  fopen(path, mode) {
+    if (mode == 2 /* A */) {
+      console.warn("MODE.A not implemented.");
     }
-    GPU.RendererContext.EndRenderPass();
-    GPU.Renderer.EndRenderFrame();
-    const mousePixel = this.mouseToPixel();
-    const id = (await this.renderTarget.GetPixels(mousePixel.x, mousePixel.y, 1, 1, 0))[0];
-    if (id > 0) {
-      return pickables[id - 1].gameObject;
+    const pathArray = path.split("/");
+    const filename = pathArray[pathArray.length - 1];
+    const pathWithoutDirectory = pathArray.splice(0, pathArray.length - 1).join("/");
+    return this.opendir(pathWithoutDirectory).then((folderHandle) => {
+      return folderHandle.getFileHandle(filename, {
+        create: mode == 2 /* A */ || mode == 1 /* W */ ? true : false
+      });
+    });
+  }
+  // TODO: Make more efficient by chunking
+  fread(file, start, end) {
+    return file.getFile().then((value) => {
+      return value.slice(start, end);
+    });
+  }
+  // TODO: Do append
+  fwrite(file, buf) {
+    return file.createWritable().then((writableStream) => {
+      writableStream.write(buf);
+      return writableStream.close();
+    });
+  }
+  remove(path) {
+    const pathArray = path.split("/");
+    const filename = pathArray[pathArray.length - 1];
+    const pathWithoutDirectory = pathArray.splice(0, pathArray.length - 1).join("/");
+    this.opendir(pathWithoutDirectory).then(async (folderHandle) => {
+      const files = await this.readdir(folderHandle);
+      for (let file of files) {
+        if (file.kind == "file" && file.name == filename) {
+          folderHandle.removeEntry(filename);
+          break;
+        }
+      }
+    });
+  }
+  is_directory(path) {
+    return this.opendir(path).then((folderHandle) => {
+      return true;
+    }).catch((error) => {
+      return false;
+    });
+  }
+  exists(path) {
+    return this.is_directory(path).then((isDirectory) => {
+      if (isDirectory) {
+        return true;
+      }
+      return this.fopen(path, 0 /* R */).then((file) => {
+        return true;
+      }).catch((error) => {
+        return false;
+      });
+    });
+  }
+}
+const FileBrowser = new _FileBrowser();
+
+class FileWatcher {
+  watches;
+  constructor() {
+    this.watches = /* @__PURE__ */ new Map();
+    setInterval(() => this.update(), 500);
+  }
+  watch(directoryPath) {
+    FileBrowser.opendir(directoryPath).then((directoryHandle) => {
+      this.watches.set(directoryPath, {
+        path: directoryPath,
+        handle: directoryHandle,
+        files: /* @__PURE__ */ new Map()
+      });
+    }).catch((error) => {
+      console.warn("error", error);
+    });
+  }
+  unwatch(directoryPath) {
+    if (this.watches.has(directoryPath)) {
+      this.watches.delete(directoryPath);
     }
-    return null;
+  }
+  getWatchMap() {
+    return this.watches;
+  }
+  async update() {
+    for (const [directoryPath, directoryWatch] of this.watches) {
+      if (directoryPath[0] == ".") continue;
+      const directoryPathExists = await FileBrowser.exists(directoryPath);
+      if (!directoryPathExists) {
+        this.watches.delete(directoryPath);
+        TridentAPI.EventSystem.emit(DirectoryEvents.Deleted, directoryPath, directoryWatch.handle);
+        continue;
+      }
+      for (let watchFilesPair of directoryWatch.files) {
+        const watchFilePath = watchFilesPair[0];
+        const watchFile = watchFilesPair[1];
+        const fileExists = await FileBrowser.exists(watchFilePath);
+        if (!fileExists) {
+          directoryWatch.files.delete(watchFile.path);
+          if (watchFile.handle instanceof FileSystemFileHandle) {
+            TridentAPI.EventSystem.emit(FileEvents.Deleted, watchFile.path, watchFile.handle);
+          }
+        }
+      }
+      const files = await FileBrowser.readdir(directoryWatch.handle);
+      for (let file of files) {
+        if (file.name[0] == ".") continue;
+        if (file.kind == "file") {
+          const fileHandle = await file.getFile();
+          const filePath = directoryPath + "/" + file.name;
+          if (!directoryWatch.files.has(filePath)) {
+            directoryWatch.files.set(filePath, {
+              path: filePath,
+              handle: file,
+              lastModified: fileHandle.lastModified
+            });
+            TridentAPI.EventSystem.emit(FileEvents.Created, filePath, file);
+          } else {
+            const storedFile = directoryWatch.files.get(filePath);
+            if (storedFile.lastModified != fileHandle.lastModified) {
+              storedFile.lastModified = fileHandle.lastModified;
+              TridentAPI.EventSystem.emit(FileEvents.Changed, filePath, file);
+            }
+          }
+        } else if (file.kind == "directory") {
+          const directoryDirectoryPath = directoryPath + "/" + file.name;
+          if (!directoryWatch.files.has(directoryDirectoryPath)) {
+            directoryWatch.files.set(directoryDirectoryPath, {
+              path: directoryDirectoryPath,
+              handle: file,
+              lastModified: 0
+            });
+            TridentAPI.EventSystem.emit(DirectoryEvents.Created, directoryDirectoryPath, file);
+          }
+        }
+      }
+    }
+  }
+}
+
+class StringUtils {
+  static CamelCaseToArray(str) {
+    return str.split(/(?=[A-Z])/);
+  }
+  static CapitalizeStrArray(strArr) {
+    let output = [];
+    for (let word of strArr) {
+      output.push(word[0].toUpperCase() + word.slice(1));
+    }
+    return output;
+  }
+  static GetEnumKeyByEnumValue(myEnum, enumValue) {
+    let keys = Object.keys(myEnum).filter((x) => myEnum[x] == enumValue);
+    return keys.length > 0 ? keys[0] : null;
+  }
+  static GetNameForPath(path) {
+    const extensionIndex = path.lastIndexOf(".");
+    return path.slice(path.lastIndexOf("/") + 1, extensionIndex !== -1 ? extensionIndex : path.length);
+  }
+  static Dirname(path) {
+    const pathArr = path.split("/");
+    const parentPath = pathArr.slice(0, pathArr.length - 1);
+    return parentPath.join("/");
   }
 }
 
@@ -3606,515 +3762,6 @@ class FloatingMenu extends Component {
   }
 }
 
-var MODE = /* @__PURE__ */ ((MODE2) => {
-  MODE2[MODE2["R"] = 0] = "R";
-  MODE2[MODE2["W"] = 1] = "W";
-  MODE2[MODE2["A"] = 2] = "A";
-  return MODE2;
-})(MODE || {});
-class _FileBrowser {
-  rootFolderHandle;
-  constructor() {
-    if (!window.showDirectoryPicker) {
-      alert("FileSystem API not supported.");
-      throw Error("FileSystem API not supported.");
-    }
-  }
-  setRootFolderHandle(handle) {
-    this.rootFolderHandle = handle;
-  }
-  getRootFolderHandle() {
-    return this.rootFolderHandle;
-  }
-  init() {
-    return new Promise((resolve, reject) => {
-      window.showDirectoryPicker().then((folderHandle) => {
-        this.rootFolderHandle = folderHandle;
-        resolve();
-      }).catch((error) => {
-        reject(error);
-      });
-    });
-  }
-  async opendir(path) {
-    if (!this.rootFolderHandle) {
-      alert("Trying to open a directory without initializing the File System.");
-      return;
-    }
-    if (path == "") return this.rootFolderHandle;
-    const pathArray = path.split("/");
-    let currentDirectoryHandle = this.rootFolderHandle;
-    for (const entry of pathArray) {
-      if (entry == "") continue;
-      currentDirectoryHandle = await currentDirectoryHandle.getDirectoryHandle(entry);
-    }
-    if (currentDirectoryHandle.kind == "directory" && currentDirectoryHandle.name == pathArray[pathArray.length - 1]) {
-      return currentDirectoryHandle;
-    }
-    throw Error(`Directory not found at "${path}"`);
-  }
-  async readdir(folderHandle) {
-    let files = [];
-    const values = folderHandle.values();
-    for await (const entry of values) {
-      files.push(entry);
-    }
-    return files;
-  }
-  mkdir(path) {
-    const pathArray = path.split("/");
-    const directoryName = pathArray[pathArray.length - 1];
-    const pathWithoutDirectory = pathArray.splice(0, pathArray.length - 1).join("/");
-    return this.opendir(pathWithoutDirectory).then((folderHandle) => {
-      return folderHandle.getDirectoryHandle(directoryName, {
-        create: true
-      });
-    });
-  }
-  rmdir(path) {
-    const parentPath = path.slice(0, path.lastIndexOf("/"));
-    const dirName = path.slice(path.lastIndexOf("/") + 1);
-    this.opendir(parentPath).then(async (folderHandle) => {
-      folderHandle.removeEntry(dirName, { recursive: true });
-    });
-  }
-  fopen(path, mode) {
-    if (mode == 2 /* A */) {
-      console.warn("MODE.A not implemented.");
-    }
-    const pathArray = path.split("/");
-    const filename = pathArray[pathArray.length - 1];
-    const pathWithoutDirectory = pathArray.splice(0, pathArray.length - 1).join("/");
-    return this.opendir(pathWithoutDirectory).then((folderHandle) => {
-      return folderHandle.getFileHandle(filename, {
-        create: mode == 2 /* A */ || mode == 1 /* W */ ? true : false
-      });
-    });
-  }
-  // TODO: Make more efficient by chunking
-  fread(file, start, end) {
-    return file.getFile().then((value) => {
-      return value.slice(start, end);
-    });
-  }
-  // TODO: Do append
-  fwrite(file, buf) {
-    return file.createWritable().then((writableStream) => {
-      writableStream.write(buf);
-      return writableStream.close();
-    });
-  }
-  remove(path) {
-    const pathArray = path.split("/");
-    const filename = pathArray[pathArray.length - 1];
-    const pathWithoutDirectory = pathArray.splice(0, pathArray.length - 1).join("/");
-    this.opendir(pathWithoutDirectory).then(async (folderHandle) => {
-      const files = await this.readdir(folderHandle);
-      for (let file of files) {
-        if (file.kind == "file" && file.name == filename) {
-          folderHandle.removeEntry(filename);
-          break;
-        }
-      }
-    });
-  }
-  is_directory(path) {
-    return this.opendir(path).then((folderHandle) => {
-      return true;
-    }).catch((error) => {
-      return false;
-    });
-  }
-  exists(path) {
-    return this.is_directory(path).then((isDirectory) => {
-      if (isDirectory) {
-        return true;
-      }
-      return this.fopen(path, 0 /* R */).then((file) => {
-        return true;
-      }).catch((error) => {
-        return false;
-      });
-    });
-  }
-}
-const FileBrowser = new _FileBrowser();
-
-async function SaveToFile(path, blob) {
-  try {
-    const file = await FileBrowser.fopen(path, MODE.W);
-    await FileBrowser.fwrite(file, blob);
-  } catch (error) {
-    console.error(`Failed to save at ${path}`);
-    console.error(error);
-  }
-}
-
-async function SaveAsset(asset) {
-  console.log("SaveAsset callled!");
-  if (!asset.assetPath) {
-    throw Error("SaveAsset: Asset doesn't have an assetPath.");
-  }
-  const ctor = asset.constructor;
-  await SaveToFile(asset.assetPath, new Blob([JSON.stringify({ type: ctor.type, ...Serializer.serializeFields(asset) })]));
-}
-
-class LayoutHierarchyEvents {
-  static Selected = (gameObject) => {
-  };
-}
-class LayoutHierarchy extends Component {
-  constructor(props) {
-    super(props);
-    this.setState({ selectedGameObject: null, headerMenuOpen: false });
-    TridentAPI.EventSystem.on(GameObjectEvents.Created, (gameObject) => {
-      this.selectGameObject(gameObject);
-    });
-    TridentAPI.EventSystem.on(GameObjectEvents.Deleted, (gameObject) => {
-      if (gameObject === this.state.selectedGameObject) this.setState({ ...this.state, selectedGameObject: null });
-    });
-    TridentAPI.EventSystem.on(GameObjectEvents.Selected, (gameObject) => {
-      this.selectGameObject(gameObject);
-    });
-    TridentAPI.EventSystem.on(GameObjectEvents.Changed, (gameObject) => {
-      this.selectGameObject(gameObject);
-    });
-    TridentAPI.EventSystem.on(SceneEvents.Loaded, (scene) => {
-      this.setState({ ...this.state, selectedGameObject: null });
-    });
-  }
-  selectGameObject(gameObject) {
-    TridentAPI.EventSystem.emit(LayoutHierarchyEvents.Selected, gameObject);
-    this.setState({ ...this.state, selectedGameObject: gameObject });
-  }
-  getGameObjectById(id) {
-    for (const gameObject of this.props.engineAPI.currentScene.gameObjects) {
-      if (gameObject.transform.id === id) return gameObject;
-    }
-    return void 0;
-  }
-  onDroppedItem(fromId, toId) {
-    const fromGameObject = this.getGameObjectById(fromId);
-    const toGameObject = this.getGameObjectById(toId);
-    if (fromGameObject === toGameObject) return;
-    if (fromGameObject && toGameObject) {
-      fromGameObject.transform.parent = toGameObject.transform;
-      this.selectGameObject(toGameObject);
-    }
-  }
-  onDragStarted(go) {
-    ExtendedDataTransfer.data = go;
-  }
-  async onDrop(event) {
-    const extendedEvent = ExtendedDataTransfer.data;
-    const instance = extendedEvent;
-    if (instance && this.props.engineAPI.isPrefab(instance)) {
-      const gameObject = await this.props.engineAPI.deserializer.deserializeGameObject(instance);
-      this.selectGameObject(gameObject);
-      ExtendedDataTransfer.data = void 0;
-    } else {
-      const fromUuid = event.dataTransfer.getData("from-uuid");
-      const gameObject = this.getGameObjectById(fromUuid);
-      if (gameObject) {
-        gameObject.transform.parent = null;
-        this.selectGameObject(gameObject);
-      }
-    }
-  }
-  createEmptyGameObject() {
-    const gameObject = this.props.engineAPI.createGameObject(this.props.engineAPI.currentScene);
-    TridentAPI.EventSystem.emit(GameObjectEvents.Created, gameObject);
-    this.setState({ ...this.state, headerMenuOpen: !this.state.headerMenuOpen });
-  }
-  deleteGameObject() {
-    if (this.state.selectedGameObject === null) return;
-    this.state.selectedGameObject.Destroy();
-    TridentAPI.EventSystem.emit(GameObjectEvents.Deleted, this.state.selectedGameObject);
-    this.setState({ headerMenuOpen: !this.state.headerMenuOpen, selectedGameObject: null });
-  }
-  createPrimitive(primitiveType) {
-    const gameObject = this.props.engineAPI.createGameObject(this.props.engineAPI.currentScene);
-    const mesh = this.props.engineAPI.addComponent(gameObject, ComponentRegistry.Mesh);
-    if (primitiveType === "Cube") mesh.geometry = this.props.engineAPI.createCubeGeometry(), gameObject.name = "Cube";
-    else if (primitiveType === "Capsule") mesh.geometry = this.props.engineAPI.createCapsuleGeometry(), gameObject.name = "Capsule";
-    else if (primitiveType === "Plane") mesh.geometry = this.props.engineAPI.createPlaneGeometry(), gameObject.name = "Plane";
-    else if (primitiveType === "Sphere") mesh.geometry = this.props.engineAPI.createSphereGeometry(), gameObject.name = "Sphere";
-    mesh.material = this.props.engineAPI.createPBRMaterial();
-    TridentAPI.EventSystem.emit(GameObjectEvents.Created, gameObject);
-    this.setState({ ...this.state, headerMenuOpen: !this.state.headerMenuOpen });
-  }
-  async createTerrain() {
-    const gameObject = this.props.engineAPI.createGameObject(this.props.engineAPI.currentScene);
-    gameObject.name = "Terrain";
-    const terrain = this.props.engineAPI.addComponent(gameObject, ComponentRegistry.Terrain);
-    this.props.engineAPI.addComponent(gameObject, ComponentRegistry.TerrainCollider);
-    this.props.engineAPI.addComponent(gameObject, ComponentRegistry.TerrainEditor);
-    const terrainPath = `${gameObject.name}_${gameObject.id}.terrain`;
-    terrain.terrainData.assetPath = terrainPath;
-    SaveAsset(terrain.terrainData);
-    TridentAPI.EventSystem.emit(GameObjectEvents.Created, gameObject);
-    this.setState({ ...this.state, headerMenuOpen: !this.state.headerMenuOpen });
-  }
-  createLight(lightType) {
-    const gameObject = this.props.engineAPI.createGameObject(this.props.engineAPI.currentScene);
-    if (lightType === "Directional") this.props.engineAPI.addComponent(gameObject, ComponentRegistry.DirectionalLight), gameObject.name = "DirectionalLight";
-    else if (lightType === "Point") this.props.engineAPI.addComponent(gameObject, ComponentRegistry.PointLight), gameObject.name = "PointLight";
-    else if (lightType === "Spot") this.props.engineAPI.addComponent(gameObject, ComponentRegistry.SpotLight), gameObject.name = "SpotLight";
-    TridentAPI.EventSystem.emit(GameObjectEvents.Created, gameObject);
-    this.setState({ ...this.state, headerMenuOpen: !this.state.headerMenuOpen });
-  }
-  renderGameObjects(gameObjects) {
-    return gameObjects.map((go) => {
-      const isSelected = this.state.selectedGameObject === go;
-      const children = Array.from(go.transform.children).map((c) => c.gameObject).filter((go2) => (go2.flags & this.props.engineAPI.flags.HideInHierarchy) === 0);
-      if (children.length > 0) {
-        return /* @__PURE__ */ createElement(
-          TreeFolder,
-          {
-            name: go.name,
-            id: go.transform.id,
-            isSelected,
-            onPointerDown: () => this.selectGameObject(go),
-            onDroppedItem: (from, to) => this.onDroppedItem(from, to),
-            onDragStarted: (event) => this.onDragStarted(event)
-          },
-          this.renderGameObjects(children)
-        );
-      }
-      return /* @__PURE__ */ createElement(
-        TreeItem,
-        {
-          name: go.name,
-          id: go.transform.id,
-          isSelected,
-          onClicked: () => this.selectGameObject(go),
-          onDroppedItem: (from, to) => this.onDroppedItem(from, to),
-          onDragStarted: (event) => this.onDragStarted(go)
-        }
-      );
-    });
-  }
-  render() {
-    if (!this.props.engineAPI.currentScene) return /* @__PURE__ */ createElement("div", null);
-    const rootGameObjects = this.props.engineAPI.currentScene.GetGameObjects().filter((go) => !go.transform.parent && (go.flags & this.props.engineAPI.flags.HideInHierarchy) === 0);
-    return /* @__PURE__ */ createElement("div", { class: "Layout" }, /* @__PURE__ */ createElement("div", { class: "header" }, /* @__PURE__ */ createElement("div", { class: "title" }, this.props.engineAPI.currentScene.name || "Untitled scene"), /* @__PURE__ */ createElement("div", { class: "right-action" }, /* @__PURE__ */ createElement("button", { onClick: (event) => {
-      this.setState({ ...this.state, headerMenuOpen: !this.state.headerMenuOpen });
-    } }, "\u22EE"), /* @__PURE__ */ createElement(FloatingMenu, { visible: this.state.headerMenuOpen, onClose: () => this.setState({ ...this.state, headerMenuOpen: false }) }, /* @__PURE__ */ createElement(Tree, null, /* @__PURE__ */ createElement(TreeItem, { name: "Create Empty", onPointerDown: () => this.createEmptyGameObject() }), /* @__PURE__ */ createElement(TreeItem, { name: "Delete", onPointerDown: () => this.deleteGameObject() }), /* @__PURE__ */ createElement(TreeFolder, { name: "3D Object" }, /* @__PURE__ */ createElement(TreeItem, { name: "Cube", onPointerDown: () => this.createPrimitive("Cube") }), /* @__PURE__ */ createElement(TreeItem, { name: "Capsule", onPointerDown: () => this.createPrimitive("Capsule") }), /* @__PURE__ */ createElement(TreeItem, { name: "Plane", onPointerDown: () => this.createPrimitive("Plane") }), /* @__PURE__ */ createElement(TreeItem, { name: "Sphere", onPointerDown: () => this.createPrimitive("Sphere") }), /* @__PURE__ */ createElement(TreeItem, { name: "Terrain", onPointerDown: () => this.createTerrain() })), /* @__PURE__ */ createElement(TreeFolder, { name: "Lights" }, /* @__PURE__ */ createElement(TreeItem, { name: "Directional Light", onPointerDown: () => this.createLight("Directional") }), /* @__PURE__ */ createElement(TreeItem, { name: "Point Light", onPointerDown: () => this.createLight("Point") }), /* @__PURE__ */ createElement(TreeItem, { name: "Spot Light", onPointerDown: () => this.createLight("Spot") })))))), /* @__PURE__ */ createElement(
-      "div",
-      {
-        style: "width: 100%; height: 100%; overflow: auto;padding-top:5px",
-        onDrop: (event) => this.onDrop(event),
-        onDragOver: (e) => e.preventDefault()
-      },
-      /* @__PURE__ */ createElement(Tree, null, this.renderGameObjects(rootGameObjects))
-    ));
-  }
-}
-
-class LayoutCanvas extends Component {
-  async canvasRef(canvas) {
-    const cameraSettings = {
-      near: 0.05,
-      far: 1e4
-    };
-    Console.getVar("r_shadows_csm_splittypepracticallambda").value = 0.99;
-    const EngineAPI = this.props.engineAPI;
-    const Runtime = await EngineAPI.createRuntime(canvas);
-    const currentScene = Runtime.SceneManager.CreateScene("DefaultScene");
-    Runtime.SceneManager.SetActiveScene(currentScene);
-    const mainCameraGameObject = EngineAPI.createGameObject(currentScene);
-    mainCameraGameObject.name = "MainCamera";
-    const camera = EngineAPI.addComponent(mainCameraGameObject, ComponentRegistry.Camera);
-    camera.SetPerspective(72, canvas.width / canvas.height, cameraSettings.near, cameraSettings.far);
-    mainCameraGameObject.transform.position.set(0, 0, 10);
-    mainCameraGameObject.transform.LookAtV1(EngineAPI.createVector3(0, 0, 0));
-    const controls = new OrbitControls(canvas, camera);
-    const lightGameObject = EngineAPI.createGameObject(EngineAPI.currentScene);
-    lightGameObject.name = "Light";
-    lightGameObject.transform.position.set(-10, 10, 10);
-    lightGameObject.transform.LookAtV1(EngineAPI.createVector3(0, 0, 0));
-    const light = EngineAPI.addComponent(lightGameObject, ComponentRegistry.DirectionalLight);
-    light.castShadows = true;
-    const floorGameObject = EngineAPI.createGameObject(EngineAPI.currentScene);
-    floorGameObject.name = "Floor";
-    floorGameObject.transform.eulerAngles.x = -90;
-    floorGameObject.transform.position.y = -2;
-    floorGameObject.transform.scale.set(100, 100, 100);
-    const floorMesh = EngineAPI.addComponent(floorGameObject, ComponentRegistry.Mesh);
-    floorMesh.geometry = EngineAPI.createPlaneGeometry();
-    floorMesh.material = EngineAPI.createPBRMaterial();
-    const cubeGameObject = EngineAPI.createGameObject(EngineAPI.currentScene);
-    cubeGameObject.name = "Cube";
-    const cubeMesh = EngineAPI.addComponent(cubeGameObject, ComponentRegistry.Mesh);
-    cubeMesh.geometry = EngineAPI.createCubeGeometry();
-    cubeMesh.material = EngineAPI.createPBRMaterial();
-    const sky = new Sky();
-    sky.SUN_ELEVATION_DEGREES = 60;
-    await sky.init();
-    const skyTexture = sky.skyTextureCubemap;
-    const environment = new Environment(EngineAPI.currentScene, skyTexture);
-    await environment.init();
-    const raycaster = new Raycaster();
-    let mouseDownPosition = { x: 0, y: 0 };
-    let mouseUpPosition = { x: 0, y: 0 };
-    let pickedGameObject = void 0;
-    canvas.addEventListener("mousedown", (event) => {
-      mouseDownPosition = { x: event.clientX, y: event.clientY };
-    });
-    canvas.addEventListener("mouseup", async (event) => {
-      mouseUpPosition = { x: event.clientX, y: event.clientY };
-      const mouseDrif = { x: mouseDownPosition.x - mouseUpPosition.x, y: mouseDownPosition.y - mouseUpPosition.y };
-      if (mouseDrif.x == 0 && mouseDrif.y == 0) {
-        pickedGameObject = await raycaster.execute();
-        if (pickedGameObject) {
-          TridentAPI.EventSystem.emit(GameObjectEvents.Selected, pickedGameObject);
-        }
-      }
-    });
-    canvas.addEventListener("keydown", (event) => {
-      if (event.key === "f") {
-        if (pickedGameObject) {
-          controls.center.copy(pickedGameObject.transform.position);
-          Components.Camera.mainCamera;
-          controls.orbit(0, 0);
-        }
-      }
-    });
-    TridentAPI.EventSystem.on(LayoutHierarchyEvents.Selected, (_pickedGameObject) => {
-      pickedGameObject = _pickedGameObject;
-    });
-    TridentAPI.EventSystem.on(SceneEvents.Loaded, (scene) => {
-      const mainCamera = Components.Camera.mainCamera;
-      new OrbitControls(canvas, mainCamera);
-    });
-    {
-      canvas.addEventListener("dragover", (e) => {
-        e.preventDefault();
-      });
-      canvas.addEventListener("drop", async (e) => {
-        e.preventDefault();
-        const file = e.dataTransfer?.files?.[0];
-        if (!file) return;
-        const arrayBuffer = await file.arrayBuffer();
-        await GLTFLoader.LoadFromArrayBuffer(arrayBuffer, currentScene, file.name);
-      });
-    }
-    Runtime.AddSystem(PhysicsRapier);
-    Runtime.Play();
-    TridentAPI.EventSystem.emit(SceneEvents.Loaded, currentScene);
-  }
-  render() {
-    return /* @__PURE__ */ createElement("canvas", { ref: (canvas) => this.canvasRef(canvas) });
-  }
-}
-
-class FileWatcher {
-  watches;
-  constructor() {
-    this.watches = /* @__PURE__ */ new Map();
-    setInterval(() => this.update(), 500);
-  }
-  watch(directoryPath) {
-    FileBrowser.opendir(directoryPath).then((directoryHandle) => {
-      this.watches.set(directoryPath, {
-        path: directoryPath,
-        handle: directoryHandle,
-        files: /* @__PURE__ */ new Map()
-      });
-    }).catch((error) => {
-      console.warn("error", error);
-    });
-  }
-  unwatch(directoryPath) {
-    if (this.watches.has(directoryPath)) {
-      this.watches.delete(directoryPath);
-    }
-  }
-  getWatchMap() {
-    return this.watches;
-  }
-  async update() {
-    for (const [directoryPath, directoryWatch] of this.watches) {
-      if (directoryPath[0] == ".") continue;
-      const directoryPathExists = await FileBrowser.exists(directoryPath);
-      if (!directoryPathExists) {
-        this.watches.delete(directoryPath);
-        TridentAPI.EventSystem.emit(DirectoryEvents.Deleted, directoryPath, directoryWatch.handle);
-        continue;
-      }
-      for (let watchFilesPair of directoryWatch.files) {
-        const watchFilePath = watchFilesPair[0];
-        const watchFile = watchFilesPair[1];
-        const fileExists = await FileBrowser.exists(watchFilePath);
-        if (!fileExists) {
-          directoryWatch.files.delete(watchFile.path);
-          if (watchFile.handle instanceof FileSystemFileHandle) {
-            TridentAPI.EventSystem.emit(FileEvents.Deleted, watchFile.path, watchFile.handle);
-          }
-        }
-      }
-      const files = await FileBrowser.readdir(directoryWatch.handle);
-      for (let file of files) {
-        if (file.name[0] == ".") continue;
-        if (file.kind == "file") {
-          const fileHandle = await file.getFile();
-          const filePath = directoryPath + "/" + file.name;
-          if (!directoryWatch.files.has(filePath)) {
-            directoryWatch.files.set(filePath, {
-              path: filePath,
-              handle: file,
-              lastModified: fileHandle.lastModified
-            });
-            TridentAPI.EventSystem.emit(FileEvents.Created, filePath, file);
-          } else {
-            const storedFile = directoryWatch.files.get(filePath);
-            if (storedFile.lastModified != fileHandle.lastModified) {
-              storedFile.lastModified = fileHandle.lastModified;
-              TridentAPI.EventSystem.emit(FileEvents.Changed, filePath, file);
-            }
-          }
-        } else if (file.kind == "directory") {
-          const directoryDirectoryPath = directoryPath + "/" + file.name;
-          if (!directoryWatch.files.has(directoryDirectoryPath)) {
-            directoryWatch.files.set(directoryDirectoryPath, {
-              path: directoryDirectoryPath,
-              handle: file,
-              lastModified: 0
-            });
-            TridentAPI.EventSystem.emit(DirectoryEvents.Created, directoryDirectoryPath, file);
-          }
-        }
-      }
-    }
-  }
-}
-
-class StringUtils {
-  static CamelCaseToArray(str) {
-    return str.split(/(?=[A-Z])/);
-  }
-  static CapitalizeStrArray(strArr) {
-    let output = [];
-    for (let word of strArr) {
-      output.push(word[0].toUpperCase() + word.slice(1));
-    }
-    return output;
-  }
-  static GetEnumKeyByEnumValue(myEnum, enumValue) {
-    let keys = Object.keys(myEnum).filter((x) => myEnum[x] == enumValue);
-    return keys.length > 0 ? keys[0] : null;
-  }
-  static GetNameForPath(path) {
-    const extensionIndex = path.lastIndexOf(".");
-    return path.slice(path.lastIndexOf("/") + 1, extensionIndex !== -1 ? extensionIndex : path.length);
-  }
-  static Dirname(path) {
-    const pathArr = path.split("/");
-    const parentPath = pathArr.slice(0, pathArr.length - 1);
-    return parentPath.join("/");
-  }
-}
-
 async function LoadFile(path, file, engineAPI) {
   const ext = path.slice(path.lastIndexOf(".") + 1).toLowerCase();
   if (ext === "scene") {
@@ -4128,6 +3775,16 @@ async function LoadFile(path, file, engineAPI) {
     return Deserializer.Load(path, void 0, Texture);
   }
   return Deserializer.Load(path);
+}
+
+async function SaveToFile(path, blob) {
+  try {
+    const file = await FileBrowser.fopen(path, MODE.W);
+    await FileBrowser.fwrite(file, blob);
+  } catch (error) {
+    console.error(`Failed to save at ${path}`);
+    console.error(error);
+  }
 }
 
 async function CreateFolder(currentPath) {
@@ -4296,6 +3953,15 @@ async function SaveGameObjectAsAsset(baseDir, gameObject) {
     }
   };
   walkAndSave(gameObject);
+}
+
+async function SaveAsset(asset) {
+  console.log("SaveAsset callled!");
+  if (!asset.assetPath) {
+    throw Error("SaveAsset: Asset doesn't have an assetPath.");
+  }
+  const ctor = asset.constructor;
+  await SaveToFile(asset.assetPath, new Blob([JSON.stringify({ type: ctor.type, ...Serializer.serializeFields(asset) })]));
 }
 
 var ITreeMapType = /* @__PURE__ */ ((ITreeMapType2) => {
@@ -4556,6 +4222,158 @@ class LayoutAssets extends Component {
       } }))))),
       /* @__PURE__ */ createElement(Tree, null, this.renderTreeItems(rootItems, treeMapArr))
     );
+  }
+}
+
+class LayoutHierarchyEvents {
+  static Selected = (gameObject) => {
+  };
+}
+class LayoutHierarchy extends Component {
+  constructor(props) {
+    super(props);
+    this.setState({ selectedGameObject: null, headerMenuOpen: false });
+    TridentAPI.EventSystem.on(GameObjectEvents.Created, (gameObject) => {
+      this.selectGameObject(gameObject);
+    });
+    TridentAPI.EventSystem.on(GameObjectEvents.Deleted, (gameObject) => {
+      if (gameObject === this.state.selectedGameObject) this.setState({ ...this.state, selectedGameObject: null });
+    });
+    TridentAPI.EventSystem.on(GameObjectEvents.Selected, (gameObject) => {
+      this.selectGameObject(gameObject);
+    });
+    TridentAPI.EventSystem.on(GameObjectEvents.Changed, (gameObject) => {
+      this.selectGameObject(gameObject);
+    });
+    TridentAPI.EventSystem.on(SceneEvents.Loaded, (scene) => {
+      this.setState({ ...this.state, selectedGameObject: null });
+    });
+  }
+  selectGameObject(gameObject) {
+    TridentAPI.EventSystem.emit(LayoutHierarchyEvents.Selected, gameObject);
+    this.setState({ ...this.state, selectedGameObject: gameObject });
+  }
+  getGameObjectById(id) {
+    for (const gameObject of this.props.engineAPI.currentScene.gameObjects) {
+      if (gameObject.transform.id === id) return gameObject;
+    }
+    return void 0;
+  }
+  onDroppedItem(fromId, toId) {
+    const fromGameObject = this.getGameObjectById(fromId);
+    const toGameObject = this.getGameObjectById(toId);
+    if (fromGameObject === toGameObject) return;
+    if (fromGameObject && toGameObject) {
+      fromGameObject.transform.parent = toGameObject.transform;
+      this.selectGameObject(toGameObject);
+    }
+  }
+  onDragStarted(go) {
+    ExtendedDataTransfer.data = go;
+  }
+  async onDrop(event) {
+    const extendedEvent = ExtendedDataTransfer.data;
+    const instance = extendedEvent;
+    if (instance && this.props.engineAPI.isPrefab(instance)) {
+      const gameObject = await this.props.engineAPI.deserializer.deserializeGameObject(instance);
+      this.selectGameObject(gameObject);
+      ExtendedDataTransfer.data = void 0;
+    } else {
+      const fromUuid = event.dataTransfer.getData("from-uuid");
+      const gameObject = this.getGameObjectById(fromUuid);
+      if (gameObject) {
+        gameObject.transform.parent = null;
+        this.selectGameObject(gameObject);
+      }
+    }
+  }
+  createEmptyGameObject() {
+    const gameObject = this.props.engineAPI.createGameObject(this.props.engineAPI.currentScene);
+    TridentAPI.EventSystem.emit(GameObjectEvents.Created, gameObject);
+    this.setState({ ...this.state, headerMenuOpen: !this.state.headerMenuOpen });
+  }
+  deleteGameObject() {
+    if (this.state.selectedGameObject === null) return;
+    this.state.selectedGameObject.Destroy();
+    TridentAPI.EventSystem.emit(GameObjectEvents.Deleted, this.state.selectedGameObject);
+    this.setState({ headerMenuOpen: !this.state.headerMenuOpen, selectedGameObject: null });
+  }
+  createPrimitive(primitiveType) {
+    const gameObject = this.props.engineAPI.createGameObject(this.props.engineAPI.currentScene);
+    const mesh = this.props.engineAPI.addComponent(gameObject, ComponentRegistry.Mesh);
+    if (primitiveType === "Cube") mesh.geometry = this.props.engineAPI.createCubeGeometry(), gameObject.name = "Cube";
+    else if (primitiveType === "Capsule") mesh.geometry = this.props.engineAPI.createCapsuleGeometry(), gameObject.name = "Capsule";
+    else if (primitiveType === "Plane") mesh.geometry = this.props.engineAPI.createPlaneGeometry(), gameObject.name = "Plane";
+    else if (primitiveType === "Sphere") mesh.geometry = this.props.engineAPI.createSphereGeometry(), gameObject.name = "Sphere";
+    mesh.material = this.props.engineAPI.createPBRMaterial();
+    TridentAPI.EventSystem.emit(GameObjectEvents.Created, gameObject);
+    this.setState({ ...this.state, headerMenuOpen: !this.state.headerMenuOpen });
+  }
+  async createTerrain() {
+    const gameObject = this.props.engineAPI.createGameObject(this.props.engineAPI.currentScene);
+    gameObject.name = "Terrain";
+    const terrain = this.props.engineAPI.addComponent(gameObject, ComponentRegistry.Terrain);
+    this.props.engineAPI.addComponent(gameObject, ComponentRegistry.TerrainCollider);
+    this.props.engineAPI.addComponent(gameObject, ComponentRegistry.TerrainEditor);
+    const terrainPath = `${gameObject.name}_${gameObject.id}.terrain`;
+    terrain.terrainData.assetPath = terrainPath;
+    SaveAsset(terrain.terrainData);
+    TridentAPI.EventSystem.emit(GameObjectEvents.Created, gameObject);
+    this.setState({ ...this.state, headerMenuOpen: !this.state.headerMenuOpen });
+  }
+  createLight(lightType) {
+    const gameObject = this.props.engineAPI.createGameObject(this.props.engineAPI.currentScene);
+    if (lightType === "Directional") this.props.engineAPI.addComponent(gameObject, ComponentRegistry.DirectionalLight), gameObject.name = "DirectionalLight";
+    else if (lightType === "Point") this.props.engineAPI.addComponent(gameObject, ComponentRegistry.PointLight), gameObject.name = "PointLight";
+    else if (lightType === "Spot") this.props.engineAPI.addComponent(gameObject, ComponentRegistry.SpotLight), gameObject.name = "SpotLight";
+    TridentAPI.EventSystem.emit(GameObjectEvents.Created, gameObject);
+    this.setState({ ...this.state, headerMenuOpen: !this.state.headerMenuOpen });
+  }
+  renderGameObjects(gameObjects) {
+    return gameObjects.map((go) => {
+      const isSelected = this.state.selectedGameObject === go;
+      const children = Array.from(go.transform.children).map((c) => c.gameObject).filter((go2) => (go2.flags & this.props.engineAPI.flags.HideInHierarchy) === 0);
+      if (children.length > 0) {
+        return /* @__PURE__ */ createElement(
+          TreeFolder,
+          {
+            name: go.name,
+            id: go.transform.id,
+            isSelected,
+            onPointerDown: () => this.selectGameObject(go),
+            onDroppedItem: (from, to) => this.onDroppedItem(from, to),
+            onDragStarted: (event) => this.onDragStarted(event)
+          },
+          this.renderGameObjects(children)
+        );
+      }
+      return /* @__PURE__ */ createElement(
+        TreeItem,
+        {
+          name: go.name,
+          id: go.transform.id,
+          isSelected,
+          onClicked: () => this.selectGameObject(go),
+          onDroppedItem: (from, to) => this.onDroppedItem(from, to),
+          onDragStarted: (event) => this.onDragStarted(go)
+        }
+      );
+    });
+  }
+  render() {
+    if (!this.props.engineAPI.currentScene) return /* @__PURE__ */ createElement("div", null);
+    const rootGameObjects = this.props.engineAPI.currentScene.GetGameObjects().filter((go) => !go.transform.parent && (go.flags & this.props.engineAPI.flags.HideInHierarchy) === 0);
+    return /* @__PURE__ */ createElement("div", { class: "Layout" }, /* @__PURE__ */ createElement("div", { class: "header" }, /* @__PURE__ */ createElement("div", { class: "title" }, this.props.engineAPI.currentScene.name || "Untitled scene"), /* @__PURE__ */ createElement("div", { class: "right-action" }, /* @__PURE__ */ createElement("button", { onClick: (event) => {
+      this.setState({ ...this.state, headerMenuOpen: !this.state.headerMenuOpen });
+    } }, "\u22EE"), /* @__PURE__ */ createElement(FloatingMenu, { visible: this.state.headerMenuOpen, onClose: () => this.setState({ ...this.state, headerMenuOpen: false }) }, /* @__PURE__ */ createElement(Tree, null, /* @__PURE__ */ createElement(TreeItem, { name: "Create Empty", onPointerDown: () => this.createEmptyGameObject() }), /* @__PURE__ */ createElement(TreeItem, { name: "Delete", onPointerDown: () => this.deleteGameObject() }), /* @__PURE__ */ createElement(TreeFolder, { name: "3D Object" }, /* @__PURE__ */ createElement(TreeItem, { name: "Cube", onPointerDown: () => this.createPrimitive("Cube") }), /* @__PURE__ */ createElement(TreeItem, { name: "Capsule", onPointerDown: () => this.createPrimitive("Capsule") }), /* @__PURE__ */ createElement(TreeItem, { name: "Plane", onPointerDown: () => this.createPrimitive("Plane") }), /* @__PURE__ */ createElement(TreeItem, { name: "Sphere", onPointerDown: () => this.createPrimitive("Sphere") }), /* @__PURE__ */ createElement(TreeItem, { name: "Terrain", onPointerDown: () => this.createTerrain() })), /* @__PURE__ */ createElement(TreeFolder, { name: "Lights" }, /* @__PURE__ */ createElement(TreeItem, { name: "Directional Light", onPointerDown: () => this.createLight("Directional") }), /* @__PURE__ */ createElement(TreeItem, { name: "Point Light", onPointerDown: () => this.createLight("Point") }), /* @__PURE__ */ createElement(TreeItem, { name: "Spot Light", onPointerDown: () => this.createLight("Spot") })))))), /* @__PURE__ */ createElement(
+      "div",
+      {
+        style: "width: 100%; height: 100%; overflow: auto;padding-top:5px",
+        onDrop: (event) => this.onDrop(event),
+        onDragOver: (e) => e.preventDefault()
+      },
+      /* @__PURE__ */ createElement(Tree, null, this.renderGameObjects(rootGameObjects))
+    ));
   }
 }
 
@@ -5371,7 +5189,6 @@ class LayoutTopbar extends Component {
     this.setState({ fileMenuOpen: false });
   }
   openProject() {
-    console.log("CCC");
     FileBrowser.init().then(() => {
       TridentAPI.EventSystem.emit(ProjectEvents.Opened);
     });
@@ -5409,30 +5226,57 @@ class Layout extends Component {
   }
 }
 
-registerEditorBridge({
-  saveAsset: SaveAsset,
-  repaintInspector: () => {
-    TridentAPI.EventSystem.emit(LayoutInspectorEvents.Repaint);
-  },
-  LayoutInspectorInput: (props) => {
-    return /* @__PURE__ */ createElement(InspectorInput, { ...props });
-  },
-  ExtendedDataTransfer: () => {
-    return ExtendedDataTransfer;
-  },
-  events: {
-    onSceneSaved: (handler) => {
-      TridentAPI.EventSystem.on(SceneEvents.Saved, handler);
-    },
-    offSceneSaved: (handler) => {
-      TridentAPI.EventSystem.off(SceneEvents.Saved, handler);
-    }
-  }
-});
-const engineAPI = new TridentAPI();
+const EngineAPI = new TridentAPI();
 class App extends Component {
+  constructor() {
+    super();
+    const engineAPI = new TridentAPI();
+    registerEditorBridge({
+      saveAsset: SaveAsset,
+      repaintInspector: () => {
+        TridentAPI.EventSystem.emit(LayoutInspectorEvents.Repaint);
+      },
+      LayoutInspectorInput: (props) => {
+        return /* @__PURE__ */ createElement(InspectorInput, { ...props });
+      },
+      ExtendedDataTransfer: () => {
+        return ExtendedDataTransfer;
+      },
+      events: {
+        onSceneSaved: (handler) => {
+          TridentAPI.EventSystem.on(SceneEvents.Saved, handler);
+        },
+        offSceneSaved: (handler) => {
+          TridentAPI.EventSystem.off(SceneEvents.Saved, handler);
+        }
+      }
+    });
+    TridentAPI.EventSystem.on(RuntimeEvents.CreatedCanvas, async (canvas) => {
+      Console.getVar("r_shadows_csm_splittypepracticallambda").value = 0.99;
+      const Runtime = await engineAPI.createRuntime(canvas);
+      const currentScene = Runtime.SceneManager.CreateScene("DefaultScene");
+      Runtime.SceneManager.SetActiveScene(currentScene);
+      const file = await fetch("./resources/DefaultScene.scene");
+      const text = await file.text();
+      const sceneJSON = JSON.parse(text);
+      EngineAPI.currentScene.Clear();
+      await EngineAPI.deserializer.deserializeScene(EngineAPI.currentScene, sceneJSON);
+      const sky = new Sky();
+      sky.SUN_ELEVATION_DEGREES = 60;
+      await sky.init();
+      const skyTexture = sky.skyTextureCubemap;
+      const environment = new Environment(EngineAPI.currentScene, skyTexture);
+      await environment.init();
+      Runtime.AddSystem(PhysicsRapier);
+      Runtime.Play();
+      setTimeout(() => {
+        console.log(Runtime);
+      }, 1e3);
+      TridentAPI.EventSystem.emit(SceneEvents.Loaded, currentScene);
+    });
+  }
   render() {
-    return /* @__PURE__ */ createElement(Layout, { engineAPI });
+    return /* @__PURE__ */ createElement(Layout, { engineAPI: EngineAPI });
   }
 }
 render(/* @__PURE__ */ createElement(App, null), document.body);

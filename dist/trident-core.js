@@ -4250,7 +4250,7 @@ class CameraEvents {
   static Updated = (camera) => {
   };
 }
-const _Camera = class _Camera extends (_a$5 = Component, _backgroundColor_dec = [SerializeField], _near_dec = [SerializeField], _far_dec = [SerializeField], _fov_dec = [SerializeField], _aspect_dec = [SerializeField], _a$5) {
+const _Camera = class _Camera extends (_a$5 = Component, _backgroundColor_dec = [SerializeField], _near_dec = [SerializeField(Number)], _far_dec = [SerializeField(Number)], _fov_dec = [SerializeField(Number)], _aspect_dec = [SerializeField(Number)], _a$5) {
   constructor(gameObject) {
     super(gameObject);
     __runInitializers$6(_init$6, 5, this);
@@ -6883,8 +6883,8 @@ var KeyCodes = /* @__PURE__ */ ((KeyCodes2) => {
 })(KeyCodes || {});
 var MouseCodes = /* @__PURE__ */ ((MouseCodes2) => {
   MouseCodes2[MouseCodes2["MOUSE_LEFT"] = 0] = "MOUSE_LEFT";
-  MouseCodes2[MouseCodes2["MOUSE_RIGHT"] = 1] = "MOUSE_RIGHT";
-  MouseCodes2[MouseCodes2["MOUSE_MIDDLE"] = 2] = "MOUSE_MIDDLE";
+  MouseCodes2[MouseCodes2["MOUSE_MIDDLE"] = 1] = "MOUSE_MIDDLE";
+  MouseCodes2[MouseCodes2["MOUSE_RIGHT"] = 2] = "MOUSE_RIGHT";
   return MouseCodes2;
 })(MouseCodes || {});
 class Input extends System {
@@ -6895,6 +6895,7 @@ class Input extends System {
   static _mousePosition = new Vector2();
   static horizontalAxis = 0;
   static verticalAxis = 0;
+  static mouseWheelAxis = 0;
   static previousTouch = new Vector2();
   static get mousePosition() {
     return Input._mousePosition;
@@ -6918,6 +6919,17 @@ class Input extends System {
     document.ontouchmove = (event) => {
       Input.OnTouchMove(event);
     };
+    document.onwheel = (event) => {
+      Input.OnMouseWheel(event);
+    };
+    if (Renderer.canvas) {
+      Renderer.canvas.oncontextmenu = (event) => {
+        Input.OnContextMenu(event);
+      };
+    }
+  }
+  static OnContextMenu(event) {
+    event.preventDefault();
   }
   static OnTouchMove(event) {
     event.preventDefault();
@@ -6946,16 +6958,20 @@ class Input extends System {
   static OnMouseDown(event) {
     if (this.mouseDown[event.button] === void 0) {
       this.mouseDown[event.button] = Renderer.info.frame;
-      delete this.keysUp[event.button];
+      delete this.mouseUp[event.button];
     }
   }
   static OnMouseUp(event) {
     this.mouseUp[event.button] = Renderer.info.frame;
     delete this.mouseDown[event.button];
   }
+  static OnMouseWheel(event) {
+    this.mouseWheelAxis += -event.deltaY / 120;
+  }
   Update() {
     Input.horizontalAxis = 0;
     Input.verticalAxis = 0;
+    Input.mouseWheelAxis = 0;
   }
   /**
    * Checks if the specified key was pressed down during the current frame.
@@ -6998,17 +7014,14 @@ class Input extends System {
     }
     return false;
   }
-  static GetMouseDown(key) {
-    if (this.mouseDown[key] == Renderer.info.frame - 1) {
-      return true;
-    }
-    return false;
+  static GetMouseButton(key) {
+    return this.mouseDown[key] !== void 0;
   }
-  static GetMouseUp(key) {
-    if (this.mouseUp[key] == Renderer.info.frame - 1) {
-      return true;
-    }
-    return false;
+  static GetMouseButtonDown(key) {
+    return this.mouseDown[key] == Renderer.info.frame - 1;
+  }
+  static GetMouseButtonUp(key) {
+    return this.mouseUp[key] == Renderer.info.frame - 1;
   }
   /**
    * Gets the mouse position difference between the previous frame and the current frame.
@@ -7018,10 +7031,12 @@ class Input extends System {
    * @returns {number} - Mouse difference between the previous frame and the current fram.
    */
   static GetAxis(axisName) {
-    if (axisName == "Horizontal") {
+    if (axisName == "Horizontal" || axisName == "Mouse X") {
       return this.horizontalAxis;
-    } else if (axisName == "Vertical") {
+    } else if (axisName == "Vertical" || axisName == "Mouse Y") {
       return this.verticalAxis;
+    } else if (axisName == "Mouse ScrollWheel") {
+      return this.mouseWheelAxis;
     }
     throw Error("Invalid axis");
   }

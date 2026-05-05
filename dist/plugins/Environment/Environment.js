@@ -4,13 +4,11 @@ import { PrefilterSpecular } from './PrefilterSpecular.js';
 import { BRDF } from './BRDF.js';
 
 class Environment {
-  scene;
   prefilterDiffuse;
   prefilterSpecular;
   brdf;
   skyTexture;
   constructor(scene, skyTexture) {
-    this.scene = scene;
     this.skyTexture = skyTexture;
   }
   async init() {

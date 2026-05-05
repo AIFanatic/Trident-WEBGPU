@@ -1,12 +1,12 @@
-import { Mathf } from '@trident/core';
+import { Mathf, Component, Components, GPU, Input, MouseCodes } from '@trident/core';
 
 const _v = new Mathf.Vector3();
-class OrbitControls {
-  domElement;
-  /** The center point to orbit around. Default is `0, 0, 0` */
+class OrbitControls extends Component {
+  static type = "@trident/plugins/OrbitControls";
   center = new Mathf.Vector3();
   orbitSpeed = 0.01;
   panSpeed = 1;
+  zoomSpeed = 0.1;
   enableZoom = true;
   enablePan = true;
   minRadius = 0;
@@ -15,110 +15,79 @@ class OrbitControls {
   maxTheta = Infinity;
   minPhi = -Math.PI;
   maxPhi = Math.PI;
-  _camera;
-  _element;
-  _pointers = /* @__PURE__ */ new Map();
-  constructor(domElement, camera) {
-    this.domElement = domElement;
-    this.domElement.style.touchAction = "none";
-    this._camera = camera;
-    this._camera.transform.LookAt(this.center);
-    domElement.addEventListener("contextmenu", (event) => {
-      this._onContextMenu(event);
-    });
-    domElement.addEventListener("wheel", (event) => {
-      this._onScroll(event);
-    }, { passive: true });
-    domElement.addEventListener("pointermove", (event) => {
-      this._onPointerMove(event);
-    });
-    domElement.addEventListener("pointerup", (event) => {
-      this._onPointerUp(event);
-    });
-    domElement.tabIndex = 0;
-    this._element = domElement;
-    this._element.style.cursor = "grab";
+  camera;
+  theta = 0;
+  phi = 0;
+  constructor(gameObject) {
+    super(gameObject);
   }
-  /**
-   * Adjusts camera orbital zoom.
-   */
-  zoom(scale) {
-    const radius = this._camera.transform.position.sub(this.center).length();
-    this._camera.transform.position.mul(
-      scale * (Math.min(this.maxRadius, Math.max(this.minRadius, radius * scale)) / (radius * scale))
-    );
-    this._camera.transform.position.add(this.center);
-  }
-  /**
-   * Adjusts camera orbital position.
-   */
-  x = 0;
-  y = 0;
-  orbit(deltaX, deltaY) {
-    const distance = this._camera.transform.position.distanceTo(this.center);
-    this.x -= deltaX * this.orbitSpeed;
-    this.y -= deltaY * this.orbitSpeed;
-    this.y = Math.min(this.maxPhi, Math.max(this.minPhi, this.y));
-    this.x = Math.min(this.maxTheta, Math.max(this.minTheta, this.x));
-    const rotation = new Mathf.Quaternion().setFromEuler(new Mathf.Vector3(this.y, this.x, 0));
-    const position = new Mathf.Vector3(0, 0, distance).applyQuaternion(rotation).add(this.center);
-    this._camera.transform.rotation.copy(rotation);
-    this._camera.transform.position.copy(position);
-  }
-  /**
-   * Adjusts orthogonal camera pan.
-   */
-  pan(deltaX, deltaY) {
-    this._camera.transform.position.sub(this.center);
-    this.center.add(
-      _v.set(-deltaX, deltaY, 0).applyQuaternion(this._camera.transform.rotation).mul(this.panSpeed * this._camera.transform.position.length() / this._element.clientHeight)
-    );
-    this._camera.transform.position.add(this.center);
-  }
-  _onContextMenu(event) {
-    event.preventDefault();
-  }
-  _onScroll(event) {
-    this.zoom(1 + event.deltaY / 720);
-  }
-  _onPointerMove(event) {
-    const prevPointer = this._pointers.get(event.pointerId);
-    if (prevPointer) {
-      const deltaX = (event.pageX - prevPointer.pageX) / this._pointers.size;
-      const deltaY = (event.pageY - prevPointer.pageY) / this._pointers.size;
-      const type = event.pointerType === "touch" ? this._pointers.size : event.buttons;
-      if (type === 1 /* LEFT */) {
-        this._element.style.cursor = "grabbing";
-        this.orbit(deltaX, deltaY);
-      } else if (type === 2 /* RIGHT */) {
-        this._element.style.cursor = "grabbing";
-        if (this.enablePan) this.pan(deltaX, deltaY);
-      }
-      if (event.pointerType === "touch" && this._pointers.size === 2) {
-        const otherPointer = Array.from(this._pointers.values()).find((p) => p.pointerId !== event.pointerId);
-        if (otherPointer) {
-          const currentDistance = Math.hypot(
-            event.pageX - otherPointer.pageX,
-            event.pageY - otherPointer.pageY
-          );
-          const previousDistance = Math.hypot(
-            prevPointer.pageX - otherPointer.pageX,
-            prevPointer.pageY - otherPointer.pageY
-          );
-          const zoomFactor = previousDistance / currentDistance;
-          this.zoom(zoomFactor);
-        }
-      }
-    } else if (event.pointerType == "touch") {
-      this._element.setPointerCapture(event.pointerId);
+  Start() {
+    this.camera = this.gameObject.GetComponent(Components.Camera) ?? Components.Camera.mainCamera;
+    if (!this.camera) {
+      throw new Error("OrbitControls requires a Camera component or Components.Camera.mainCamera.");
     }
-    this._pointers.set(event.pointerId, event);
+    this.camera.transform.LookAt(this.center);
+    if (GPU.Renderer.canvas) {
+      GPU.Renderer.canvas.tabIndex = 0;
+      GPU.Renderer.canvas.style.cursor = "grab";
+      GPU.Renderer.canvas.style.touchAction = "none";
+    }
   }
-  _onPointerUp(event) {
-    this._element.style.cursor = "grab";
-    this._element.style.touchAction = this.enableZoom || this.enablePan ? "none" : "pinch-zoom";
-    if (event.pointerType == "touch") this._element.releasePointerCapture(event.pointerId);
-    this._pointers.delete(event.pointerId);
+  Update() {
+    if (!this.camera) return;
+    const deltaX = Input.GetAxis("Mouse X");
+    const deltaY = Input.GetAxis("Mouse Y");
+    if (Input.GetMouseButton(MouseCodes.MOUSE_RIGHT)) {
+      this.setCursor("grabbing");
+      this.orbit(deltaX, deltaY);
+    } else if (this.enablePan && Input.GetMouseButton(MouseCodes.MOUSE_MIDDLE)) {
+      this.setCursor("grabbing");
+      this.pan(deltaX, deltaY);
+    } else {
+      this.setCursor("grab");
+    }
+    const scroll = Input.GetAxis("Mouse ScrollWheel");
+    if (this.enableZoom && scroll !== 0) {
+      this.zoom(1 - scroll * this.zoomSpeed);
+    }
+  }
+  zoom(scale) {
+    const offset = this.camera.transform.position.clone().sub(this.center);
+    const radius = offset.length();
+    if (radius <= 0) return;
+    const nextRadius = Math.min(this.maxRadius, Math.max(this.minRadius, radius * scale));
+    offset.normalize().mul(nextRadius);
+    this.camera.transform.position.copy(this.center).add(offset);
+    this.camera.transform.LookAt(this.center);
+  }
+  orbit(deltaX, deltaY) {
+    if (deltaX === 0 && deltaY === 0) return;
+    const distance = this.camera.transform.position.distanceTo(this.center);
+    this.theta -= deltaX * this.orbitSpeed;
+    this.phi -= deltaY * this.orbitSpeed;
+    this.theta = Math.min(this.maxTheta, Math.max(this.minTheta, this.theta));
+    this.phi = Math.min(this.maxPhi, Math.max(this.minPhi, this.phi));
+    const rotation = new Mathf.Quaternion().setFromEuler(new Mathf.Vector3(this.phi, this.theta, 0));
+    const position = new Mathf.Vector3(0, 0, distance).applyQuaternion(rotation).add(this.center);
+    this.camera.transform.rotation.copy(rotation);
+    this.camera.transform.position.copy(position);
+  }
+  pan(deltaX, deltaY) {
+    if (deltaX === 0 && deltaY === 0) return;
+    const radius = this.camera.transform.position.clone().sub(this.center).length();
+    const height = Math.max(1, GPU.Renderer.height || GPU.Renderer.canvas?.clientHeight || 1);
+    const panScale = this.panSpeed * radius / height;
+    const offset = _v.set(-deltaX, deltaY, 0).applyQuaternion(this.camera.transform.rotation).mul(panScale);
+    this.center.add(offset);
+    this.camera.transform.position.add(offset);
+  }
+  setCursor(cursor) {
+    if (!GPU.Renderer.canvas) return;
+    GPU.Renderer.canvas.style.cursor = cursor;
+  }
+  Destroy() {
+    this.setCursor("default");
+    super.Destroy();
   }
 }
 
