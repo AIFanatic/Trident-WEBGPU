@@ -1,15 +1,4 @@
-import {
-    Components,
-    Scene,
-    GPU,
-    Mathf,
-    GameObject,
-    Geometry,
-    PBRMaterial,
-    Runtime,
-    VertexAttribute,
-    IndexAttribute,
-} from "@trident/core";
+import { Components, Mathf, GameObject, Geometry, PBRMaterial, Runtime, VertexAttribute, IndexAttribute } from "@trident/core";
 
 import { OrbitControls } from "@trident/plugins/OrbitControls";
 import { Debugger } from "@trident/plugins/Debugger";
@@ -135,7 +124,6 @@ async function Application(canvas: HTMLCanvasElement) {
     Debugger.Enable();
 
     // const hdr = await HDRParser.Load("./assets/textures/HDR/goegap_1k.hdr");
-    // const hdr = await HDRParser.Load("/extra/test-assets/pisa.hdr");
     const hdr = await HDRParser.Load("./assets/textures/HDR/pisa.hdr");
     const skyTexture = await HDRParser.ToCubemap(hdr);
 
