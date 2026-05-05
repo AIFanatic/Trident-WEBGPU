@@ -115,10 +115,9 @@ export class LayoutAssets extends Component<BaseProps, LayoutAssetsState> {
         this.setState({ ...this.state, currentTreeMap: this.state.currentTreeMap, selected: this.state.selected });
     }
 
-    private async onToggled(item) {
-    }
+    private async onToggled(item: ProjectTreeMap) {}
 
-    private async onItemClicked(item: ITreeMap<FileData>) {
+    private async onItemClicked(item: ProjectTreeMap) {
         if (!item.data.instance) {
             await this.loadTreeItem(item.data);
         }
@@ -127,7 +126,7 @@ export class LayoutAssets extends Component<BaseProps, LayoutAssetsState> {
         this.setState({ ...this.state, currentTreeMap: this.state.currentTreeMap, selected: item.data });
     }
 
-    private async onItemDoubleClicked(item: ITreeMap<FileData>) {
+    private async onItemDoubleClicked(item: ProjectTreeMap) {
         if (!item.data.instance) {
             await this.loadTreeItem(item.data);
         }

@@ -19,7 +19,6 @@ export class LayoutTopbar extends Component<BaseProps, LayoutTopbarState> {
     }
 
     private openProject() {
-        console.log("CCC")
         FileBrowser.init().then(() => {
             TridentAPI.EventSystem.emit(ProjectEvents.Opened);
         })

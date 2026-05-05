@@ -19,5 +19,5 @@ export interface FileData {
 }
 
 export interface ProjectTreeMap extends ITreeMap<FileData> {
-    data?: FileData
+    data: FileData
 }

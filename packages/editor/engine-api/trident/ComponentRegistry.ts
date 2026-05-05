@@ -5,6 +5,8 @@ import { ICamera } from "./components/ICamera";
 import { IDirectionalLight, IPointLight, ISpotLight } from "./components/ILight";
 import { IMesh } from "./components/IMesh";
 
+import { OrbitControls } from "@trident/plugins/OrbitControls";
+
 import { RigidBody } from "@trident/plugins/PhysicsRapier/RigidBody";
 import { BoxCollider } from "@trident/plugins/PhysicsRapier/colliders/BoxCollider";
 import { CapsuleCollider } from "@trident/plugins/PhysicsRapier/colliders/CapsuleCollider";
@@ -21,6 +23,8 @@ import { LineRenderer } from "@trident/plugins/LineRenderer";
 import { LODGroup } from "@trident/plugins/LOD/LODGroup";
 
 const component = <T extends IComponent>(ctor: unknown): IComponentConstructor<T> => ctor as IComponentConstructor<T>;
+
+Component.Registry.set(OrbitControls.type, OrbitControls);
 
 Component.Registry.set(RigidBody.type, RigidBody);
 Component.Registry.set(BoxCollider.type, BoxCollider);
@@ -48,6 +52,8 @@ export const ComponentRegistry = {
     SkinnedMesh: component<IComponent>(Components.SkinnedMesh),
     Animator: component<IComponent>(Components.Animator),
     AnimationTrack: component<IComponent>(Components.AnimationTrack),
+
+    OrbitControls: component<IComponent>(OrbitControls),
 
     RigidBody: component<IComponent>(RigidBody),
     BoxCollider: component<IComponent>(BoxCollider),

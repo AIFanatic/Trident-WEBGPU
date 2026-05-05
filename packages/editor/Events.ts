@@ -42,3 +42,7 @@ export class LayoutAssetEvents {
 export class LayoutInspectorEvents {
     public static Repaint = () => { };
 }
+
+export class RuntimeEvents {
+    public static CreatedCanvas = (canvas: HTMLCanvasElement) => { };
+}

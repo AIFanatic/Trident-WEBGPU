@@ -32,8 +32,7 @@ class _FileBrowser {
 
     public async opendir(path: string): Promise<FileSystemDirectoryHandle> {
         if (!this.rootFolderHandle) {
-            alert("Trying to open a directory without initializing the File System.");
-            return;
+            throw Error("Trying to open a directory without initializing the File System.");
         };
 
         if (path == "") return this.rootFolderHandle;
