@@ -13,10 +13,9 @@ struct VertexOutput {
     @location(2) vPosition : vec3<f32>,
     @location(3) vNormal   : vec3<f32>,
     @location(4) vUv       : vec2<f32>,
-    @location(5) barycenticCoord : vec3<f32>,
-    @location(6) tangent : vec3<f32>,
-    @location(7) bitangent : vec3<f32>,
-    @location(8) @interpolate(flat) instance : u32,
+    @location(5) tangent : vec3<f32>,
+    @location(6) bitangent : vec3<f32>,
+    @location(7) @interpolate(flat) instance : u32,
 };
 
 @group(0) @binding(0) var<storage, read> frameBuffer : FrameBuffer;
@@ -34,7 +33,7 @@ struct VertexOutput {
 @group(2) @binding(1) var AlbedoMap: texture_2d<f32>;
 @group(2) @binding(2) var NormalMap: texture_2d<f32>;
 @group(2) @binding(3) var HeightMap: texture_2d<f32>;
-@group(2) @binding(4) var MetalnessMap: texture_2d<f32>;
+@group(2) @binding(4) var ARMMap: texture_2d<f32>;
 @group(2) @binding(5) var EmissiveMap: texture_2d<f32>;
 @group(2) @binding(6) var AOMap: texture_2d<f32>;
 
@@ -86,10 +85,6 @@ struct VertexOutput {
     
     output.instance = input.instanceIndex;
 
-    // emit a barycentric coordinate
-    output.barycenticCoord = vec3f(0);
-    output.barycenticCoord[input.vertexIndex % 3] = 1.0;
-
     return output;
 }
 
@@ -99,14 +94,15 @@ struct FragmentOutput {
     @location(2) RMO    : vec4f,
 };
 
-fn edgeFactor(bary: vec3f) -> f32 {
-    let lineThickness = 1.0;
-    let d = fwidth(bary);
-    let a3 = smoothstep(vec3f(0.0), d * lineThickness, bary);
-    return min(min(a3.x, a3.y), a3.z);
+fn CalcMipLevel(texture_coord: vec2f) -> f32 {
+    let dx = dpdx(texture_coord);
+    let dy = dpdy(texture_coord);
+    let delta_max_sqr = max(dot(dx, dx), dot(dy, dy));
+    
+    return max(0.0, 0.5 * log2(delta_max_sqr));
 }
 
-@fragment fn fragmentMain(input: VertexOutput) -> FragmentOutput {
+@fragment fn fragmentMain(@builtin(front_facing) isFrontFace: bool, input: VertexOutput) -> FragmentOutput {
     var output: FragmentOutput;
     output.albedo = vec4(1.0);
 
@@ -136,54 +132,58 @@ fn edgeFactor(bary: vec3f) -> f32 {
     var metalness = mat.Metalness;
     var occlusion = 1.0;
 
-    // #if USE_ALBEDO_MAP
-        albedo *= textureSample(AlbedoMap, TextureSampler, uv);
-    // #endif
+    // var albedo = mat.AlbedoColor;
+    albedo *= textureSample(AlbedoMap, TextureSampler, uv);
 
-    if (albedo.a < mat.AlphaCutoff) {
+
+    // https://bgolus.medium.com/anti-aliased-alpha-test-the-esoteric-alpha-to-coverage-8b177335ae4f
+    let cutoff = mat.AlphaCutoff;
+    let mipScale = 0.25;
+    let albedoMapSize = vec2<f32>(textureDimensions(AlbedoMap));
+
+    var alphaAA = albedo.a;
+    alphaAA *= 1.0 + max(0.0, CalcMipLevel(uv * albedoMapSize)) * mipScale;
+    alphaAA = (alphaAA - cutoff) / max(fwidth(alphaAA), 0.0001) + 0.5;
+
+    if (cutoff > 0.0 && alphaAA < cutoff) {
         discard;
     }
 
+    // if (albedo.a < mat.AlphaCutoff) {
+    //     discard;
+    // }
+
     var normal: vec3f = normalize(input.vNormal);
-    // // #if USE_NORMAL_MAP
-    //     var tbn: mat3x3<f32>;
-    //     tbn[0] = input.tangent;      // column-major: T, B, N
-    //     tbn[1] = input.bitangent;
-    //     tbn[2] = input.vNormal;
+    var tbn: mat3x3<f32>;
+    tbn[0] = input.tangent;      // column-major: T, B, N
+    tbn[1] = input.bitangent;
+    tbn[2] = input.vNormal;
+    if (!isFrontFace) {
+        // tbn[0] = -tbn[0];
+        tbn[1] = -tbn[1];
+        tbn[2] = -tbn[2];
+    }
+    let normalSample = textureSample(NormalMap, TextureSampler, uv).xyz * 2.0 - 1.0;
+    normal = normalize(tbn * normalSample);
 
-    //     let normalSample = textureSample(NormalMap, TextureSampler, uv).xyz * 2.0 - 1.0;
-    //     normal = normalize(tbn * normalSample);
-    // // #endif
+    let metalnessRoughness = textureSample(ARMMap, TextureSampler, uv);
 
-    // // #if USE_METALNESS_MAP
-    //     let metalnessRoughness = textureSample(MetalnessMap, TextureSampler, uv);
-    //     metalness *= metalnessRoughness.b;
-    //     roughness *= metalnessRoughness.g;
-    // // #endif
+    occlusion *= metalnessRoughness.r;
+    roughness *= metalnessRoughness.g;
+    metalness *= metalnessRoughness.b;
+
+    // // Unity style - Mask map MT(R) AO(G) SM(A)
+    // metalness *= metalnessRoughness.r;
+    // occlusion *= metalnessRoughness.g; 
+    // roughness *= metalnessRoughness.a;
+
 
     var emissive = mat.EmissiveColor;
-    // #if USE_EMISSIVE_MAP
-    //     emissive *= textureSample(EmissiveMap, TextureSampler, uv);
-    // #endif
-
-    // #if USE_AO_MAP
-    //     occlusion = textureSample(AOMap, TextureSampler, uv).r;
-    // #endif
+    emissive *= textureSample(EmissiveMap, TextureSampler, uv);
 
     output.albedo = vec4(albedo.rgb, roughness);
-
     output.normal = vec4(OctEncode(normal.xyz), occlusion, metalness);
     output.RMO = vec4(emissive.rgb, mat.Unlit);
-
-    // // Wireframe
-    // output.albedo *= 1.0 - edgeFactor(input.barycenticCoord) * mat.Wireframe;
-
-    // // Flat shading
-    // let xTangent: vec3f = dpdx( input.vPosition );
-    // let yTangent: vec3f = dpdy( input.vPosition );
-    // let faceNormal: vec3f = normalize( cross( xTangent, yTangent ) );
-
-    // output.normal = vec4(OctEncode(faceNormal.xyz), occlusion, metalness);
 
     return output;
 }

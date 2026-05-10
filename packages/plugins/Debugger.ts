@@ -1,4 +1,4 @@
-import { Renderer, GPU, Components, EventSystem, Scene, Geometry } from "@trident/core";
+import { Renderer, GPU, Components, EventSystem, Scene, Geometry, Runtime } from "@trident/core";
 import { UIDropdownStat, UIFolder, UITextStat } from "@trident/plugins/ui/UIStats";
 
 enum ViewTypes {
@@ -94,6 +94,9 @@ class DebuggerRenderPass extends GPU.RenderPass {
                 @fragment
                 fn fragmentMain(input: VertexOutput) -> @location(0) vec4f {
                     var color = textureSample(inputTexture, inputSampler, input.uv);
+                    if (color.r == 0.0 && color.g == 0.0 && color.b == 0.0 && color.a == 0.0) {
+                        return vec4f(1.0, 0.0, 1.0, 1.0);
+                    }
                     let depth = textureLoad(inputDepth, vec2<i32>(floor(input.position.xy)), 0);
                     if (u32(viewType) == 0) {} // Lighting
                     else if (u32(viewType) == 1) {} // Albedo
@@ -144,7 +147,6 @@ class DebuggerRenderPass extends GPU.RenderPass {
     }
 
     public async execute(resources: GPU.ResourcePool, ...args: any) {
-        // console.log(this.currentViewType)
         if (this.currentViewType === ViewTypes.Lighting) return;
 
         const GBufferAlbedo = resources.getResource(GPU.PassParams.GBufferAlbedo);
@@ -171,7 +173,7 @@ class DebuggerRenderPass extends GPU.RenderPass {
             GPU.RendererContext.CopyTextureToTextureV3({texture: lightingOutput}, {texture: this.lightingOutputClone});
             this.outputViewerShader.SetTexture("inputTexture", this.lightingOutputClone);
         }
-        const csmSplits = Components.Camera.mainCamera.gameObject.Runtime.Renderer.RenderPipeline.DeferredShadowMapPass.csmSplits;
+        const csmSplits = Runtime.Renderer.RenderPipeline.DeferredShadowMapPass.csmSplits;
         this.outputViewerShader.SetArray("csmSplits", new Float32Array(csmSplits));
         this.outputViewerShader.SetTexture("inputDepth", GBufferDepth);
 
@@ -265,9 +267,8 @@ class _Debugger {
         this.visibleObjectsStat = new UITextStat(this.rendererFolder, "Visible objects: ");
 
         const debuggerRenderPass = new DebuggerRenderPass();
-        EventSystem.on(Scene.Events.OnStarted, scene => {
-            const mainCamera = Components.Camera.mainCamera;
-            mainCamera.gameObject.Runtime.Renderer.RenderPipeline.AddPass(debuggerRenderPass, GPU.RenderPassOrder.AfterLighting);
+        EventSystem.on(GPU.RendererEvents.Created, renderer => {
+            Runtime.Renderer.RenderPipeline.AddPass(debuggerRenderPass, GPU.RenderPassOrder.AfterLighting);
         });
         this.viewTypeStat = new UIDropdownStat(this.rendererFolder, "Debug view:", Object.values(ViewTypes).filter(value => typeof value === "string") as string[], (index, value) => {debuggerRenderPass.currentViewType = index}, 0);
 

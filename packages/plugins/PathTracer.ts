@@ -500,7 +500,7 @@ export class PathTracer extends GPU.RenderPass {
 
         if (!this.initialized) return;
 
-        if (this.step <= 100) {
+        if (this.step <= 128) {
             GPU.ComputeContext.BeginComputePass(this.name, false);
             GPU.ComputeContext.Dispatch(this.shader, Math.ceil(this.outputTexture.width / 8), Math.ceil(this.outputTexture.height / 8), 1);
             GPU.ComputeContext.EndComputePass();

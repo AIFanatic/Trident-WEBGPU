@@ -125,6 +125,10 @@ export class GLTFLoader {
         let materialParams: any = {};
 
         const mat = primitive.material;
+        if (mat?.occlusionTexture) {
+            // TODO: If a separate occlusionTexture exists need to merge it into our ARM map R channel
+            // console.log("mat?.occlusionTexture", await this.getTexture(textures, mat.occlusionTexture, "bgra8unorm-srgb"))
+        }
         if (mat?.pbrMetallicRoughness) {
             const pbr = mat.pbrMetallicRoughness;
             if (pbr.baseColorFactor) materialParams.albedoColor = new Mathf.Color(...pbr.baseColorFactor);

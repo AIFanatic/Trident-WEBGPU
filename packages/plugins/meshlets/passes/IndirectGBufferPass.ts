@@ -21,8 +21,10 @@ export class IndirectGBufferPass extends GPU.RenderPass {
                 { format: gbufferFormat },
                 { format: gbufferFormat },
             ],
-            depthOutput: "depth24plus"
+            depthOutput: "depth24plus",
+            cullMode: "none"
         });
+        console.warn("Fix cull mode, should be dynamic based on material")
 
         this.geometry = new Geometry();
         this.geometry.attributes.set("position", new VertexAttribute(new Float32Array(1)));
@@ -87,11 +89,13 @@ export class IndirectGBufferPass extends GPU.RenderPass {
         for (const [material] of frameMeshlets) {
             const albedoMap = material.params.albedoMap ? material.params.albedoMap : this.dummyTexture;
             const normalMap = material.params.normalMap ? material.params.normalMap : this.dummyTexture;
-            const metalnessMap = material.params.armMap ? material.params.armMap : this.dummyTexture;
+            const armMap = material.params.armMap ? material.params.armMap : this.dummyTexture;
+            const emissiveMap = material.params.emissiveMap ? material.params.emissiveMap : this.dummyTexture;
             // console.log(albedoMap.width)
             this.shader.SetTexture("AlbedoMap", albedoMap);
             this.shader.SetTexture("NormalMap", normalMap);
-            this.shader.SetTexture("MetalnessMap", metalnessMap);
+            this.shader.SetTexture("ARMMap", armMap);
+            this.shader.SetTexture("EmissiveMap", emissiveMap);
             GPU.RendererContext.DrawIndirect(this.geometry, this.shader, inputIndirectDrawBuffer, materialIndex * 16);
             materialIndex++;
         }

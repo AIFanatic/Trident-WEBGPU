@@ -84,3 +84,7 @@ export * from "./FullscreenQuad";
 export * from "./SSS_V2";
 
 export * from "./WireframePass";
+
+export { GLSL2WGSL } from "./GLSLParser/GLSLParser";
+
+export * from "./SHGenerator";
