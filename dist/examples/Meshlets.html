@@ -47,7 +47,7 @@
               camera.SetPerspective(60, canvas.width / canvas.height, 0.05, 1e3);
               mainCameraGameObject.transform.position.set(0, 0, 5);
               mainCameraGameObject.transform.LookAtV1(new Mathf.Vector3(0, 0, 0));
-              new OrbitControls(canvas, camera);
+              mainCameraGameObject.AddComponent(OrbitControls);
               Runtime.Renderer.RenderPipeline.AddPass(new MeshletDraw(), GPU.RenderPassOrder.BeforeGBuffer);
               const lightGameObject = new GameObject();
               lightGameObject.transform.position.set(-4, 4, 4);
@@ -67,7 +67,7 @@
                 meshletMesh.enableShadows = false;
                 meshletMesh.geometry = mesh.geometry;
                 meshletMesh.material = mat;
-                const c = 20;
+                const c = 10;
                 const off = 10;
                 for (let x = 0; x < c; x++) {
                   for (let y = 0; y < c; y++) {

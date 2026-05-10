@@ -54,6 +54,8 @@ export { PrefilterDiffuse as Irradiance } from './Environment/PrefilterDiffuse.j
 export { PrefilterSpecular } from './Environment/PrefilterSpecular.js';
 export { BRDF } from './Environment/BRDF.js';
 export { Environment } from './Environment/Environment.js';
+export { IBLLightingPass } from './Environment/IBLLightingPass.js';
+export { SkyboxPass } from './Environment/SkyboxPass.js';
 export { LODGroup } from './LOD/LODGroup.js';
 export { InstancedLODGroup } from './LOD/InstancedLODGroup.js';
 export { VirtualTexturingPass } from './VirtualTexturing/VirtualTexturingPass.js';
@@ -63,6 +65,8 @@ export { PathTracer } from './PathTracer.js';
 export { FullscreenQuad } from './FullscreenQuad.js';
 export { SSS_V2 } from './SSS_V2.js';
 export { WireframePass } from './WireframePass.js';
+export { GLSL2WGSL } from './GLSLParser/GLSLParser.js';
+export { SHGenerator } from './SHGenerator.js';
 
 Component.Registry.set(Water.type, Water);
 

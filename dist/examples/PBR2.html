@@ -33,6 +33,8 @@
             import { Debugger } from '@trident/plugins/Debugger.js';
             import { HDRParser } from '@trident/plugins/HDRParser.js';
             import { Environment } from '@trident/plugins/Environment/Environment.js';
+            import { IBLLightingPass } from '@trident/plugins/Environment/IBLLightingPass.js';
+            import { SkyboxPass } from '@trident/plugins/Environment/SkyboxPass.js';
             
             async function Application(canvas) {
               await Runtime.Create(canvas, 1);
@@ -44,7 +46,7 @@
               camera.SetPerspective(72, canvas.width / canvas.height, 0.5, 500);
               mainCameraGameObject.transform.position.set(0, 0, 5);
               mainCameraGameObject.transform.LookAtV1(new Mathf.Vector3(0, 0, 0));
-              new OrbitControls(canvas, camera);
+              mainCameraGameObject.AddComponent(OrbitControls);
               const lightGameObject = new GameObject();
               lightGameObject.transform.position.set(0, 0, 0);
               lightGameObject.transform.LookAtV1(new Mathf.Vector3(0, 0, 0));
@@ -184,6 +186,10 @@
                 mesh.geometry = HighQualitySphere();
                 mesh.material = new PBRMaterial({ albedoColor: new Mathf.Color(75 / 255, 185 / 255, 200 / 255), metalness: 0, roughness: 0.2 });
               }
+              const iblLightingPass = new IBLLightingPass();
+              Runtime.Renderer.RenderPipeline.AddPass(iblLightingPass, GPU.RenderPassOrder.AfterLighting);
+              const skyboxPass = new SkyboxPass();
+              Runtime.Renderer.RenderPipeline.AddPass(skyboxPass, GPU.RenderPassOrder.AfterLighting);
               Debugger.Enable();
               Runtime.Play();
             }

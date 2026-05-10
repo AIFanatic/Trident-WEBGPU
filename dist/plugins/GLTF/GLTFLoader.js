@@ -95,6 +95,7 @@ class GLTFLoader {
     }
     let materialParams = {};
     const mat = primitive.material;
+    if (mat?.occlusionTexture) ;
     if (mat?.pbrMetallicRoughness) {
       const pbr = mat.pbrMetallicRoughness;
       if (pbr.baseColorFactor) materialParams.albedoColor = new Mathf.Color(...pbr.baseColorFactor);

@@ -52,7 +52,7 @@
                 camera.SetPerspective(60, canvas.width / canvas.height, 0.05, 512);
               });
               observer.observe(canvas);
-              new OrbitControls(canvas, camera);
+              mainCameraGameObject.AddComponent(OrbitControls);
               const lightGameObject = new GameObject();
               lightGameObject.transform.position.set(-1, 4, 0.01);
               lightGameObject.transform.LookAtV1(new Mathf.Vector3(0, 0, 0));

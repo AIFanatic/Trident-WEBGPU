@@ -36,7 +36,7 @@
             import { RigidBody, RigidbodyConstraints } from '@trident/plugins/PhysicsRapier/RigidBody.js';
             import { Debugger } from '@trident/plugins/Debugger.js';
             import { GLTFLoader } from '@trident/plugins/GLTF/GLTFLoader.js';
-            import { UIColorStat, UIButtonStat, UISliderStat } from '@trident/plugins/ui/UIStats.js';
+            import { UIColorStat, UIFolder, UISliderStat, UIButtonStat } from '@trident/plugins/ui/UIStats.js';
             import { Terrain } from '@trident/plugins/Terrain/Terrain.js';
             import { PostProcessingPass } from '@trident/plugins/PostProcessing/PostProcessingPass.js';
             import { PostProcessingSMAA } from '@trident/plugins/PostProcessing/effects/SMAA.js';
@@ -44,6 +44,8 @@
             import { Environment } from '@trident/plugins/Environment/Environment.js';
             import { InstancedLODGroup } from '@trident/plugins/LOD/InstancedLODGroup.js';
             import { SphereCollider } from '@trident/plugins/PhysicsRapier/colliders/SphereCollider.js';
+            import { IBLLightingPass } from '@trident/plugins/Environment/IBLLightingPass.js';
+            import { SkyboxPass } from '@trident/plugins/Environment/SkyboxPass.js';
             
             async function Application(canvas) {
               await Runtime.Create(canvas);
@@ -60,8 +62,8 @@
               lightGameObject.transform.LookAtV1(new Mathf.Vector3(0, 0, 0));
               const light = lightGameObject.AddComponent(Components.DirectionalLight);
               light.color.set(1, 0.96, 0.88, 1);
-              light.intensity = 1;
-              light.castShadows = false;
+              light.intensity = 10;
+              light.castShadows = true;
               new UIColorStat(Debugger.ui, "Light Color:", light.color.toHex(), (value) => {
                 light.color.setFromHex(value);
               });
@@ -115,10 +117,23 @@
                 const sunPos = new Mathf.Vector3(x, y, z);
                 lightGameObject.transform.position = sunPos;
                 lightGameObject.transform.LookAtV1(new Mathf.Vector3(0, 0, 0));
-                light.intensity = sky.SUN_ELEVATION_DEGREES / 20;
-              }, 100);
+                light.intensity = sky.SUN_ELEVATION_DEGREES / 10;
+              }, 1e3);
+              {
+                const skySettings = new UIFolder(Debugger.ui, "Sky");
+                new UISliderStat(skySettings, "SUN_ELEVATION_DEGREES:", 0, 180, 0.01, sky.SUN_ELEVATION_DEGREES, (value) => sky.SUN_ELEVATION_DEGREES = value);
+                new UISliderStat(skySettings, "SUN_AZIMUTH_DEGREES:", 0, 180, 0.01, sky.SUN_AZIMUTH_DEGREES, (value) => sky.SUN_AZIMUTH_DEGREES = value);
+                new UISliderStat(skySettings, "EYE_ALTITUDE:", 0, 1e3, 0.01, sky.EYE_ALTITUDE, (value) => sky.EYE_ALTITUDE = value);
+                new UIButtonStat(skySettings, "Rebuild:", async (value) => {
+                  sky.Update();
+                  environment.Update();
+                });
+                skySettings.Open();
+              }
               const environment = new Environment(scene, skyTexture);
               await environment.init();
+              Runtime.Renderer.RenderPipeline.AddPass(IBLLightingPass, GPU.RenderPassOrder.AfterLighting);
+              Runtime.Renderer.RenderPipeline.AddPass(SkyboxPass, GPU.RenderPassOrder.AfterLighting);
               function traverse(gameObjects, fn) {
                 for (const gameObject of gameObjects) {
                   fn(gameObject);
@@ -178,10 +193,7 @@
                   const lodGameObject = new GameObject();
                   const lodInstanceRenderable = lodGameObject.AddComponent(InstancedLODGroup);
                   lodInstanceRenderable.enableShadows = options.enableShadows;
-                  if (lodGroupEntries.length > 0) lodInstanceRenderable.lods.push({ renderers: lodGroupEntries.slice(0, 1), screenSize: 100 });
-                  if (lodGroupEntries.length > 1) lodInstanceRenderable.lods.push({ renderers: lodGroupEntries.slice(1, 2), screenSize: 200 });
-                  if (lodGroupEntries.length > 2) lodInstanceRenderable.lods.push({ renderers: lodGroupEntries.slice(2, 3), screenSize: 500 });
-                  if (lodGroupEntries.length > 3) lodInstanceRenderable.lods.push({ renderers: lodGroupEntries.slice(3, 4), screenSize: 4e3 });
+                  if (lodGroupEntries.length > 0) lodInstanceRenderable.lods.push({ renderers: lodGroupEntries.slice(0, 2), screenSize: 1e4 });
                   console.log(lodInstanceRenderable.lods);
                   const p2 = new Mathf.Vector3();
                   const r = new Mathf.Vector3();
@@ -321,11 +333,10 @@
                   if (name.includes("swamp")) continue;
                   if (name.includes("tundra")) continue;
                   if (name.includes("snow")) continue;
-                  if (!name.includes("Pine_a.glb")) continue;
                   console.log("Loading", name);
                   addLOD("/extra/test-assets/nature/treessource/" + name, { count: 1e3, enableShadows: false });
                 }
-                const grassGO = await GLTFLoader.Load("/extra/test-assets/patch_grass_medium.glb", scene);
+                const grassGO = await GLTFLoader.Load("/extra/test-assets/trees/grass-01.glb", scene);
                 let _prefabMeshes = [];
                 const grassMeshes = grassGO.GetComponentsInChildren(Components.Mesh);
                 for (const mesh of grassMeshes) {
@@ -409,7 +420,7 @@
                   this.projectileMaterial = new PBRMaterial();
                 }
                 Update() {
-                  if (Input.GetMouseDown(MouseCodes.MOUSE_LEFT)) {
+                  if (Input.GetMouseButtonDown(MouseCodes.MOUSE_LEFT)) {
                     console.log("CALLED");
                     const go = new GameObject();
                     const forward = new Mathf.Vector3(0, 0, -1).transformDirection(camera.transform.localToWorldMatrix);

@@ -46,7 +46,7 @@
               camera.SetPerspective(60, canvas.width / canvas.height, 0.05, 1e3);
               mainCameraGameObject.transform.position.set(0, 0, 2);
               mainCameraGameObject.transform.LookAtV1(new Mathf.Vector3(0, 0, 0));
-              new OrbitControls(canvas, camera);
+              mainCameraGameObject.AddComponent(OrbitControls);
               const lightGameObject = new GameObject();
               lightGameObject.transform.position.set(2, 0, 0);
               lightGameObject.transform.LookAtV1(new Mathf.Vector3(0, 0, 0));
@@ -67,18 +67,6 @@
                 }
               }
               {
-                const gameObject = await GLTFLoader.Load("./assets/models/Shadow.glb", scene);
-                gameObject.transform.position.x = 2;
-                const animator = gameObject.GetComponent(Components.Animator);
-                animator.SetClipByIndex(45);
-              }
-              {
-                const gameObject = await GLTFLoader.Load("/extra/test-assets/bouquet.glb", scene);
-                gameObject.transform.position.x = -2;
-                const animator = gameObject.GetComponent(Components.Animator);
-                console.log(animator);
-              }
-              {
                 window.addEventListener("dragover", (e) => {
                   e.preventDefault();
                 });
@@ -88,7 +76,7 @@
                   if (!file) return;
                   const url = URL.createObjectURL(file);
                   const obj = await GLTFLoader.Load(url, scene, "glb");
-                  console.log(obj);
+                  console.log(obj.GetComponentsInChildren(Components.Mesh));
                 });
               }
               Debugger.Enable();
