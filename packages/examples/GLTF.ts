@@ -9,6 +9,7 @@ import { DirectionalLightHelper } from "@trident/plugins/DirectionalLightHelper"
 import { Sky } from "@trident/plugins/Environment/Sky";
 
 import { WireframePass } from "@trident/plugins/WireframePass";
+import { GLSL2WGSL } from "@trident/plugins/GLSLParser/GLSLParser";
 
 async function Application(canvas: HTMLCanvasElement) {
     await Runtime.Create(canvas);
@@ -24,8 +25,7 @@ async function Application(canvas: HTMLCanvasElement) {
 
     mainCameraGameObject.transform.position.set(0, 0, 2);
     mainCameraGameObject.transform.LookAtV1(new Mathf.Vector3(0, 0, 0));
-
-    const controls = new OrbitControls(canvas, camera);
+    mainCameraGameObject.AddComponent(OrbitControls);
 
     const lightGameObject = new GameObject();
     lightGameObject.transform.position.set(2, 0, 0);
@@ -76,37 +76,37 @@ async function Application(canvas: HTMLCanvasElement) {
         }
     }
 
-    {
-        const gameObject = await GLTFLoader.Load("./assets/models/Shadow.glb", scene);
-        gameObject.transform.position.x = 2;
-        // gameObject.transform.scale.set(0.01, 0.01, 0.01);
+//     {
+//         const gameObject = await GLTFLoader.Load("./assets/models/Shadow.glb", scene);
+//         gameObject.transform.position.x = 2;
+//         // gameObject.transform.scale.set(0.01, 0.01, 0.01);
 
-        const animator = gameObject.GetComponent(Components.Animator);
+//         const animator = gameObject.GetComponent(Components.Animator);
+// //         console.log(animator)
+// //         animator.SetClipByIndex(0)
+// //           const animator = gameObject.GetComponent(Components.Animator);
+// //   console.log("Available clips:", animator.clips);
+// //         // animator.CrossFadeTo(0, 1000);
+
+// //         // animator.SetLayerClip(1, 2, 0.8);
+
+//   // Base: jog forward
+//   animator.SetClipByIndex(45); // Jog_Fwd_Loop
+
+
+//     }
+
+//     {
+//         const gameObject = await GLTFLoader.Load("/extra/test-assets/bouquet.glb", scene);
+//         gameObject.transform.position.x = -2;
+//         // gameObject.transform.scale.set(0.01, 0.01, 0.01);
+
+//         const animator = gameObject.GetComponent(Components.Animator);
 //         console.log(animator)
-//         animator.SetClipByIndex(0)
-//           const animator = gameObject.GetComponent(Components.Animator);
-//   console.log("Available clips:", animator.clips);
+//         // animator.SetClipByIndex(1)
 //         // animator.CrossFadeTo(0, 1000);
 
-//         // animator.SetLayerClip(1, 2, 0.8);
-
-  // Base: jog forward
-  animator.SetClipByIndex(45); // Jog_Fwd_Loop
-
-
-    }
-
-    {
-        const gameObject = await GLTFLoader.Load("/extra/test-assets/bouquet.glb", scene);
-        gameObject.transform.position.x = -2;
-        // gameObject.transform.scale.set(0.01, 0.01, 0.01);
-
-        const animator = gameObject.GetComponent(Components.Animator);
-        console.log(animator)
-        // animator.SetClipByIndex(1)
-        // animator.CrossFadeTo(0, 1000);
-
-    }
+//     }
 
     // Drag and drop models
     {
@@ -123,9 +123,10 @@ async function Application(canvas: HTMLCanvasElement) {
             const url = URL.createObjectURL(file);
             const obj = await GLTFLoader.Load(url, scene, "glb");
 
-            console.log(obj)
+            console.log(obj.GetComponentsInChildren(Components.Mesh))
         });
     }
+
     Debugger.Enable();
     
     Runtime.Play();

@@ -32,8 +32,7 @@ async function Application(canvas: HTMLCanvasElement) {
 
     mainCameraGameObject.transform.position.set(0, 0, 5);
     mainCameraGameObject.transform.LookAtV1(new Mathf.Vector3(0, 0, 0));
-
-    const controls = new OrbitControls(canvas, camera);
+    mainCameraGameObject.AddComponent(OrbitControls);
 
     // TODO: Should be added automatically from plugin
     Runtime.Renderer.RenderPipeline.AddPass(new MeshletDraw(), GPU.RenderPassOrder.BeforeGBuffer);
@@ -61,7 +60,7 @@ async function Application(canvas: HTMLCanvasElement) {
         meshletMesh.material = mat;
 
 
-        const c = 20;
+        const c = 10;
         const off = 10;
         for (let x = 0; x < c; x++) {
             for (let y = 0; y < c; y++) {
@@ -105,12 +104,43 @@ async function Application(canvas: HTMLCanvasElement) {
 
     //     console.log(mesh)
 
-        const hdr = await HDRParser.Load("./assets/textures/HDR/autumn_field_puresky_1k.hdr");
-        const skyTexture = await HDRParser.ToCubemap(hdr);
-    
-        const environment = new Environment(scene, skyTexture);
-        await environment.init();
-        
+    const hdr = await HDRParser.Load("./assets/textures/HDR/autumn_field_puresky_1k.hdr");
+    const skyTexture = await HDRParser.ToCubemap(hdr);
+
+    const environment = new Environment(scene, skyTexture);
+    await environment.init();
+
+
+    // // const rootGO = await GLTFLoader.Load("./assets/models/DamagedHelmet/DamagedHelmet.gltf", scene);
+    // const rootGO = await GLTFLoader.Load("/extra/test-assets/trees/tree_small_02_1k_leaves.glb", scene);
+    // rootGO.transform.position.x = 2;
+
+    // const meshComponents = rootGO.GetComponentsInChildren(Components.Mesh);
+    // for (const mesh of meshComponents) {
+    //     const meshletGameObject = new GameObject();
+    //     meshletGameObject.transform.position.x = -2;
+    //     const meshletMesh = meshletGameObject.AddComponent(MeshletMesh);
+    //     meshletMesh.enableShadows = false;
+    //     meshletMesh.geometry = mesh.geometry;
+    //     meshletMesh.material = mesh.material;
+
+    //     const c = 10;
+    //     const off = 10;
+    //     for (let x = 0; x < c; x++) {
+    //         for (let y = 0; y < c; y++) {
+    //             for (let z = 0; z < c; z++) {
+    //                 const go2 = new GameObject();
+    //                 const meshletB = go2.AddComponent(MeshletMesh);
+    //                 meshletB.geometry = mesh.geometry;
+    //                 meshletB.transform.position.set(x * off,y * off,z * off);
+    //                 meshletB.geometry = mesh.geometry;
+    //                 meshletB.material = mesh.material;
+    //             }
+    //         }
+    //     }
+
+    //     break;
+    // }
     //     const meshletGameObject = new GameObject();
     //     const meshletMesh = meshletGameObject.AddComponent(MeshletMesh);
     //     meshletMesh.enableShadows = false;

@@ -68,4 +68,7 @@ import "./DrawBenchmark";
 
 
 import "./SSS_V2";
+import "./SSHGI";
 import "./NMS";
+
+import "./SHTest";

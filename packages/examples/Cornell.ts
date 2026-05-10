@@ -1,21 +1,9 @@
-import {
-    Components,
-    Scene,
-    GPU,
-    Mathf,
-    GameObject,
-    Geometry,
-    PBRMaterial,
-    Runtime,
-} from "@trident/core";
+import { Components, Mathf, GameObject, Runtime } from "@trident/core";
 
 import { OrbitControls } from "@trident/plugins/OrbitControls";
 import { Debugger } from "@trident/plugins/Debugger";
 
-import { PostProcessingFXAA } from "@trident/plugins/PostProcessing/effects/FXAA";
-import { PostProcessingSMAA } from "@trident/plugins/PostProcessing/effects/SMAA";
-import { PostProcessingPass } from "@trident/plugins/PostProcessing/PostProcessingPass";
-import { UIFolder, UISliderStat, UIVecStat } from "@trident/plugins/ui/UIStats";
+import { GLTFLoader } from "@trident/plugins/GLTF/GLTFLoader";
 
 async function Application(canvas: HTMLCanvasElement) {
     await Runtime.Create(canvas);
@@ -27,114 +15,21 @@ async function Application(canvas: HTMLCanvasElement) {
     const camera = mainCameraGameObject.AddComponent(Components.Camera);
     camera.SetPerspective(72, canvas.width / canvas.height, 0.5, 100);
 
-
     mainCameraGameObject.transform.position.set(0, 0, 10);
     mainCameraGameObject.transform.LookAtV1(new Mathf.Vector3(0, 0, 0));
-
-    const controls = new OrbitControls(canvas, camera);
+    mainCameraGameObject.AddComponent(OrbitControls);
 
     const lightGameObject = new GameObject();
-    // lightGameObject.transform.position.set(-10, 10, 10);
     lightGameObject.transform.LookAtV1(new Mathf.Vector3(0, 0, 0));
     const light = lightGameObject.AddComponent(Components.PointLight);
-    light.color.set(1, 1, 1, 1)
     light.intensity = 10;
     light.range = 20;
-    light.castShadows = true;
 
-
-    const lightSettings = new UIFolder(Debugger.ui, "Light");
-    new UIVecStat(lightSettings, "Position:",
-        {min: -10, max: 10, step: 0.1, value: light.transform.position.x},
-        {min: -10, max: 10, step: 0.1, value: light.transform.position.y},
-        {min: -10, max: 10, step: 0.1, value: light.transform.position.z},
-        undefined,
-        value => {
-            light.transform.position.set(value.x, value.y, value.z)
-        }
-    );
-
-    new UISliderStat(lightSettings, "Intensity:", 0, 100, 0.1, light.intensity, value => light.intensity = value);
-    new UISliderStat(lightSettings, "Range:", 0, 100, 0.1, light.range, value => light.range = value);
-
-    const roughness = 0.7;
-    const metalness = 0.1;
-
-    const topMaterial = new PBRMaterial({ albedoColor: new Mathf.Color(1, 1, 1, 1), roughness: roughness, metalness: metalness });
-    const floorMaterial = new PBRMaterial({ albedoColor: new Mathf.Color(1, 1, 1, 1), roughness: roughness, metalness: metalness });
+    await GLTFLoader.Load("./assets/models/cornell.glb", scene);
     
-    const backMaterial = new PBRMaterial({ albedoColor: new Mathf.Color(1, 1, 1, 1), roughness: roughness, metalness: metalness });
-
-    const leftMaterial = new PBRMaterial({ albedoColor: new Mathf.Color(1, 0, 0, 1), roughness: roughness, metalness: metalness });
-    const rightMaterial = new PBRMaterial({ albedoColor: new Mathf.Color(0, 1, 0, 1), roughness: roughness, metalness: metalness });
-
-    const floor = new GameObject();
-    floor.transform.scale.set(5, 5, 5);
-    floor.transform.position.y = -5;
-    floor.transform.eulerAngles.x = -90;
-    const meshbottom = floor.AddComponent(Components.Mesh);
-    meshbottom.geometry = Geometry.Plane();
-    meshbottom.material = floorMaterial;
-
-    const left = new GameObject();
-    left.transform.scale.set(0.05, 10, 10);
-    left.transform.position.x = -5;
-    // left.transform.eulerAngles.y = 90;
-    const meshleft = left.AddComponent(Components.Mesh);
-    meshleft.geometry = Geometry.Cube();
-    meshleft.material = leftMaterial;
-
-
-    const right = new GameObject();
-    right.transform.scale.set(0.05, 10, 10);
-    right.transform.position.x = 5;
-    right.transform.eulerAngles.y = -180;
-    const meshright = right.AddComponent(Components.Mesh);
-    meshright.geometry = Geometry.Cube();
-    meshright.material = rightMaterial;
-
-    const back = new GameObject();
-    back.transform.scale.set(10, 10, 0.05);
-    back.transform.position.z = -5;
-    const meshback = back.AddComponent(Components.Mesh);
-    meshback.geometry = Geometry.Cube();
-    meshback.material = backMaterial;
-
-    const top = new GameObject();
-    top.transform.scale.set(5, 5, 5);
-    top.transform.position.y = 5;
-    top.transform.eulerAngles.x = 90;
-    const meshtop = top.AddComponent(Components.Mesh);
-    meshtop.geometry = Geometry.Plane();
-    meshtop.material = topMaterial;
-
-
-    const cube = new GameObject();
-    cube.transform.scale.set(2, 4, 2);
-    cube.transform.position.set(-2, -3, -2);
-    cube.transform.eulerAngles.y = 20;
-    const cubeMesh = cube.AddComponent(Components.Mesh);
-    cubeMesh.geometry = Geometry.Cube();
-    cubeMesh.material = new PBRMaterial({ albedoColor: new Mathf.Color(1, 1, 1, 1), roughness: roughness, metalness: metalness });
-
-    const cube2 = new GameObject();
-    cube2.transform.scale.set(2, 2, 2);
-    cube2.transform.position.set(2, -4, 2);
-    cube2.transform.eulerAngles.y = 65;
-    const cubeMesh2 = cube2.AddComponent(Components.Mesh);
-    cubeMesh2.geometry = Geometry.Cube();
-    cubeMesh2.material = new PBRMaterial({ emissiveColor: new Mathf.Color(1, 0, 0, 1), albedoColor: new Mathf.Color(1, 1, 1, 1), roughness: roughness, metalness: metalness });
-
-
-
-    const postProcessing = new PostProcessingPass();
-    postProcessing.effects.push(new PostProcessingFXAA());
-    // postProcessing.effects.push(new PostProcessingSMAA());
-    Runtime.Renderer.RenderPipeline.AddPass(postProcessing, GPU.RenderPassOrder.AfterLighting);
     Debugger.Enable();
-
 
     Runtime.Play();
 };
 
-Application(document.querySelector("canvas"));
+Application(document.querySelector("canvas") as HTMLCanvasElement);

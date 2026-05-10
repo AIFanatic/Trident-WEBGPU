@@ -55,6 +55,8 @@ import { SSS_V2 } from "@trident/plugins/SSS_V2";
 import { SSSRenderPass } from "@trident/plugins/SSS";
 import { FullscreenQuad } from "@trident/plugins/FullscreenQuad";
 import { SphereCollider } from "@trident/plugins/PhysicsRapier/colliders/SphereCollider";
+import { IBLLightingPass } from "@trident/plugins/Environment/IBLLightingPass";
+import { SkyboxPass } from "@trident/plugins/Environment/SkyboxPass";
 
 async function Application(canvas: HTMLCanvasElement) {
     await Runtime.Create(canvas);
@@ -73,8 +75,8 @@ async function Application(canvas: HTMLCanvasElement) {
     lightGameObject.transform.LookAtV1(new Mathf.Vector3(0, 0, 0));
     const light = lightGameObject.AddComponent(Components.DirectionalLight);
     light.color.set(1.0, 0.96, 0.88, 1);
-    light.intensity = 1;
-    light.castShadows = false;
+    light.intensity = 10;
+    light.castShadows = true;
 
     new UIColorStat(Debugger.ui, "Light Color:", light.color.toHex(), value => {
         light.color.setFromHex(value);
@@ -151,9 +153,30 @@ async function Application(canvas: HTMLCanvasElement) {
         lightGameObject.transform.position = sunPos;
         lightGameObject.transform.LookAtV1(new Mathf.Vector3(0, 0, 0));
 
-        light.intensity = sky.SUN_ELEVATION_DEGREES / 20;
+        light.intensity = sky.SUN_ELEVATION_DEGREES / 10;
         // light.intensity = 0.0001;
-    }, 100);
+    }, 1000);
+
+    {
+        const skySettings = new UIFolder(Debugger.ui, "Sky");
+
+        new UISliderStat(skySettings, "SUN_ELEVATION_DEGREES:", 0, 180, 0.01, sky.SUN_ELEVATION_DEGREES, value => sky.SUN_ELEVATION_DEGREES = value);
+        new UISliderStat(skySettings, "SUN_AZIMUTH_DEGREES:", 0, 180, 0.01, sky.SUN_AZIMUTH_DEGREES, value => sky.SUN_AZIMUTH_DEGREES = value);
+        new UISliderStat(skySettings, "EYE_ALTITUDE:", 0, 1000, 0.01, sky.EYE_ALTITUDE, value => sky.EYE_ALTITUDE = value);
+
+        // const o0 = new UITextureViewer(skySettings, "Sky output0:", skyAtmosphere.transmittanceLUT);
+        // const o1 = new UITextureViewer(skySettings, "Sky output1:", skyTexture);
+
+        new UIButtonStat(skySettings, "Rebuild:", async value => {
+            sky.Update();
+            environment.Update();
+
+            // o0.Update();
+            // o1.Update();
+        });
+
+        skySettings.Open();
+    }
 
     // const hdr = await HDRParser.Load("./assets/textures/HDR/spruit_sunrise_1k.hdr");
     // const skyTexture = await HDRParser.ToCubemap(hdr);
@@ -161,6 +184,9 @@ async function Application(canvas: HTMLCanvasElement) {
 
     const environment = new Environment(scene, skyTexture);
     await environment.init();
+
+    Runtime.Renderer.RenderPipeline.AddPass(IBLLightingPass, GPU.RenderPassOrder.AfterLighting);
+    Runtime.Renderer.RenderPipeline.AddPass(SkyboxPass, GPU.RenderPassOrder.AfterLighting);
 
     function traverse(gameObjects: GameObject[], fn: (gameObject: GameObject) => void) {
         for (const gameObject of gameObjects) {
@@ -237,7 +263,7 @@ async function Application(canvas: HTMLCanvasElement) {
             count: number;
             enableShadows: boolean;
         }
-        async function addLOD(url, options: AddLODOptions = {count: 1, enableShadows: false}) {
+        async function addLOD(url: string, options: AddLODOptions = {count: 1, enableShadows: false}) {
 
             const loadedGO = await GLTFLoader.Load(url, scene);
 
@@ -253,10 +279,10 @@ async function Application(canvas: HTMLCanvasElement) {
             const lodGameObject = new GameObject();
             const lodInstanceRenderable = lodGameObject.AddComponent(InstancedLODGroup);
             lodInstanceRenderable.enableShadows = options.enableShadows;
-            if (lodGroupEntries.length > 0) lodInstanceRenderable.lods.push({ renderers: lodGroupEntries.slice(0, 1), screenSize: 100 });
-            if (lodGroupEntries.length > 1) lodInstanceRenderable.lods.push({ renderers: lodGroupEntries.slice(1, 2), screenSize: 200 });
-            if (lodGroupEntries.length > 2) lodInstanceRenderable.lods.push({ renderers: lodGroupEntries.slice(2, 3), screenSize: 500 });
-            if (lodGroupEntries.length > 3) lodInstanceRenderable.lods.push({ renderers: lodGroupEntries.slice(3, 4), screenSize: 4000 });
+            if (lodGroupEntries.length > 0) lodInstanceRenderable.lods.push({ renderers: lodGroupEntries.slice(0, 2), screenSize: 10000 });
+            // if (lodGroupEntries.length > 1) lodInstanceRenderable.lods.push({ renderers: lodGroupEntries.slice(1, 2), screenSize: 200 });
+            // if (lodGroupEntries.length > 2) lodInstanceRenderable.lods.push({ renderers: lodGroupEntries.slice(2, 3), screenSize: 500 });
+            // if (lodGroupEntries.length > 3) lodInstanceRenderable.lods.push({ renderers: lodGroupEntries.slice(3, 4), screenSize: 4000 });
             // else if (lodGroupEntries.length >= 1) lodInstanceRenderable.lods.push({ renderers: lodGroupEntries.slice(0, 1), screenSize: 300 });
     
             console.log(lodInstanceRenderable.lods)
@@ -417,15 +443,17 @@ async function Application(canvas: HTMLCanvasElement) {
             if (name.includes("tundra")) continue;
             if (name.includes("snow")) continue;
             
-            if (!name.includes("Pine_a.glb")) continue;
+            // if (!name.includes("american_beech_a.glb")) continue;
 
             console.log("Loading", name)
 
             addLOD("/extra/test-assets/nature/treessource/" + name, {count: 1000, enableShadows: false})
         }
 
+        // addLOD("/extra/test-assets/trees/tree_small_02_1k.glb", {count: 10, enableShadows: true})
+
         // const grassGO = await GLTFLoader.Load("/extra/test-assets/nature/treessource/american_beech/american_beech_a.glb", scene);
-        const grassGO = await GLTFLoader.Load("/extra/test-assets/patch_grass_medium.glb", scene);
+        const grassGO = await GLTFLoader.Load("/extra/test-assets/trees/grass-01.glb", scene);
 
         let _prefabMeshes: { geometry: Geometry, material: GPU.Material }[] = [];
         const grassMeshes = grassGO.GetComponentsInChildren(Components.Mesh);
@@ -662,7 +690,7 @@ async function Application(canvas: HTMLCanvasElement) {
         }
 
         public Update(): void {
-            if (Input.GetMouseDown(MouseCodes.MOUSE_LEFT)) {
+            if (Input.GetMouseButtonDown(MouseCodes.MOUSE_LEFT)) {
                 console.log("CALLED")
                 const go = new GameObject();
                 const forward = new Mathf.Vector3(0, 0, -1).transformDirection(camera.transform.localToWorldMatrix);

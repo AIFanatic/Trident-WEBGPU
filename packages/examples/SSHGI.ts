@@ -1,0 +1,350 @@
+// https://www.shadertoy.com/view/dsGBzW
+import { Components, GameObject, Geometry, GPU, Mathf, Runtime } from "@trident/core";
+
+import { OrbitControls } from "@trident/plugins/OrbitControls";
+import { Debugger } from "@trident/plugins/Debugger";
+import { UIFolder, UISliderStat, UIVecStat } from "@trident/plugins/ui/UIStats";
+import { GLTFLoader } from "@trident/plugins/GLTF/GLTFLoader";
+
+class SSHGIRenderPass extends GPU.RenderPass {
+    public name = "SSHGI";
+
+    private geometry: Geometry;
+    private shader: GPU.Shader;
+    private output: GPU.RenderTexture;
+    private frame = 0;
+
+    constructor(private sourceLight: Components.Light) {
+        super();
+    }
+
+    public async init() {
+        this.shader = await GPU.Shader.Create({
+            code: `
+            #include "@trident/core/resources/webgpu/shaders/deferred/Common.wgsl";
+
+            struct VertexInput {
+                @location(0) position : vec3<f32>,
+                @location(1) normal : vec3<f32>,
+                @location(2) uv : vec2<f32>,
+            };
+
+            struct VertexOutput {
+                @builtin(position) position : vec4<f32>,
+                @location(0) uv : vec2<f32>,
+            };
+
+            struct Params {
+                resolution : vec4<f32>,
+                effect : vec4<f32>, // x intensity, y stepCoeff, z thickness, w normalBias
+                frame : vec4<f32>,
+                lightVector : vec4<f32>, // xyz view-space dir/position, w 0 directional / 1 positional
+                lightColor : vec4<f32>, // rgb color, a intensity
+                lightParams : vec4<f32>, // x range, y directWeight, z albedoFallback, w emissiveBoost
+            };
+
+            @group(0) @binding(0) var textureSampler : sampler;
+            @group(0) @binding(1) var lightingTex : texture_2d<f32>;
+            @group(0) @binding(2) var albedoTex : texture_2d<f32>;
+            @group(0) @binding(3) var normalTex : texture_2d<f32>;
+            @group(0) @binding(4) var ermoTex : texture_2d<f32>;
+            @group(0) @binding(5) var depthTex : texture_depth_2d;
+            @group(0) @binding(6) var<storage, read> frameBuffer : FrameBuffer;
+            @group(0) @binding(7) var<uniform> params : Params;
+
+            const PI = 3.141592653589793;
+            const HALF_PI = 0.5 * PI;
+            const SECTOR_COUNT = 32.0;
+            const HORIZON_DIRECTIONS = 4;
+            const HORIZON_STEPS = 33;
+
+            @vertex
+            fn vertexMain(input: VertexInput) -> VertexOutput {
+                var output : VertexOutput;
+                output.position = vec4(input.position, 1.0);
+                output.uv = input.uv;
+                return output;
+            }
+
+            fn rand21(uv: vec2<f32>) -> f32 {
+                return fract(sin(uv.x * uv.y) * 403.125 + cos(dot(uv, vec2(13.18273, 51.2134))) * 173.137);
+            }
+
+            fn countBits(valueIn: u32) -> u32 {
+                var value = valueIn;
+                value = (value & 0x55555555u) + ((value >> 1u) & 0x55555555u);
+                value = (value & 0x33333333u) + ((value >> 2u) & 0x33333333u);
+                value = (value & 0x0F0F0F0Fu) + ((value >> 4u) & 0x0F0F0F0Fu);
+                value = (value & 0x00FF00FFu) + ((value >> 8u) & 0x00FF00FFu);
+                value = (value & 0x0000FFFFu) + ((value >> 16u) & 0x0000FFFFu);
+                return value;
+            }
+
+            fn pixelFromUV(uv: vec2<f32>) -> vec2<i32> {
+                let dims = vec2<i32>(textureDimensions(depthTex));
+                return clamp(vec2<i32>(uv * vec2<f32>(dims)), vec2<i32>(0), dims - vec2<i32>(1));
+            }
+
+            fn loadDepth(uv: vec2<f32>) -> f32 {
+                return textureLoad(depthTex, pixelFromUV(uv), 0);
+            }
+
+            fn reconstructViewPosition(uv: vec2<f32>, depth: f32) -> vec3<f32> {
+                var projectedPos = vec4<f32>(uv.x * 2.0 - 1.0, (1.0 - uv.y) * 2.0 - 1.0, depth, 1.0);
+                var viewPosition = frameBuffer.projectionInverseMatrix * projectedPos;
+                viewPosition = vec4(viewPosition.xyz / viewPosition.w, 1.0);
+                return viewPosition.xyz;
+            }
+
+            fn sectorMask(angleLow: f32, angleHigh: f32) -> u32 {
+                let a0f = clamp(floor(angleLow / HALF_PI * SECTOR_COUNT), 0.0, SECTOR_COUNT);
+                let a1f = clamp(ceil(angleHigh / HALF_PI * SECTOR_COUNT), 0.0, SECTOR_COUNT);
+                let a0 = u32(a0f);
+                let a1 = u32(a1f);
+
+                if (a1 <= a0 || a0 >= 32u) {
+                    return 0u;
+                }
+
+                let width = min(a1 - a0, 32u - a0);
+                var bits = 0xFFFFFFFFu;
+                if (width < 32u) {
+                    bits = (1u << width) - 1u;
+                }
+                return bits << a0;
+            }
+
+            fn readNormalVS(uv: vec2<f32>) -> vec3<f32> {
+                let normalWS = OctDecode(textureSampleLevel(normalTex, textureSampler, uv, 0.0).rg);
+                return normalize((frameBuffer.viewMatrix * vec4(normalWS, 0.0)).xyz);
+            }
+
+            fn engineLightSource(positionVS: vec3<f32>, normalVS: vec3<f32>, albedo: vec3<f32>) -> vec3<f32> {
+                var lightDirVS = normalize(params.lightVector.xyz);
+                var attenuation = 1.0;
+
+                if (params.lightVector.w > 0.5) {
+                    let toLight = params.lightVector.xyz - positionVS;
+                    let dist = max(length(toLight), 0.001);
+                    lightDirVS = toLight / dist;
+                    let range = max(params.lightParams.x, 0.001);
+                    attenuation = clamp(1.0 - pow(dist / range, 4.0), 0.0, 1.0) / max(dist * dist, 0.01);
+                }
+
+                return albedo * params.lightColor.rgb * params.lightColor.a * attenuation * max(dot(normalVS, lightDirVS), 0.0);
+            }
+
+            fn horizonGI(uv: vec2<f32>, positionVS: vec3<f32>, normalVS: vec3<f32>) -> vec3<f32> {
+                let fragCoord = uv * params.resolution.xy;
+                let modFC = fragCoord - floor(fragCoord / 4.0) * 4.0;
+                let frame = params.frame.x;
+
+                var radiance = vec3<f32>(0.0);
+                var phi = (floor(modFC.x) + floor(modFC.y) * 4.0 + frame * 5.0 +
+                    rand21(vec2(1.234) + vec2(frame * 3.26346))) * 2.0 * PI / 64.0;
+
+                for (var dirIndex = 0; dirIndex < HORIZON_DIRECTIONS; dirIndex = dirIndex + 1) {
+                    phi = phi + HALF_PI;
+
+                    let screenDir = vec2<f32>(cos(phi), sin(phi));
+                    var stepDist = 1.0;
+                    let stepCoeff = params.effect.y + params.effect.y * rand21(uv * (1.4 + frame * 0.013));
+                    var bitMask = 0u;
+
+                    for (var s = 1; s <= HORIZON_STEPS; s = s + 1) {
+                        let samplePixel = fragCoord + screenDir * stepDist;
+
+                        if (any(samplePixel < vec2<f32>(1.0)) || any(samplePixel > params.resolution.xy - vec2<f32>(1.0))) {
+                            break;
+                        }
+
+                        let sampleUV = samplePixel / params.resolution.xy;
+                        let sampleDepth = loadDepth(sampleUV);
+
+                        let currentStep = max(1.0, stepDist * stepCoeff);
+                        stepDist = stepDist + currentStep;
+
+                        if (sampleDepth >= 0.999999) {
+                            continue;
+                        }
+
+                        let samplePositionVS = reconstructViewPosition(sampleUV, sampleDepth);
+                        let toSample = samplePositionVS - positionVS;
+                        let dist = max(length(toSample), 0.0001);
+                        let toSampleDir = toSample / dist;
+
+                        let norDot = dot(normalVS, toSample) - params.effect.w;
+                        let tangentDist = max(length(toSample - norDot * normalVS), 0.0001);
+                        let thickness = params.effect.z * max(1.0, stepDist * 0.07);
+
+                        let angleHigh = max(0.0, atan2(norDot, tangentDist));
+                        let angleLow = max(0.0, atan2(norDot - thickness, tangentDist));
+                        let sampleMask = sectorMask(angleLow, angleHigh);
+                        let newMask = sampleMask & (~bitMask);
+
+                        if (newMask != 0u) {
+                            let sampleNormalVS = readNormalVS(sampleUV);
+                            let sampleAlbedo = textureSampleLevel(albedoTex, textureSampler, sampleUV, 0.0).rgb;
+                            let sampleERMO = textureSampleLevel(ermoTex, textureSampler, sampleUV, 0.0);
+                            let sampleDirect = textureSampleLevel(lightingTex, textureSampler, sampleUV, 0.0).rgb;
+                            let sampleEngineLight = engineLightSource(samplePositionVS, sampleNormalVS, sampleAlbedo);
+                            let sampleDiffuseSource = max(sampleDirect * 0.25 + sampleEngineLight * params.lightParams.y, sampleAlbedo * params.lightParams.z);
+                            let sampleEmissiveSource = sampleERMO.rgb * params.lightParams.w;
+
+                            let sectorSpan = max(1.0, (angleHigh - angleLow) / HALF_PI * SECTOR_COUNT);
+                            let sectorWeight = f32(countBits(newMask)) / sectorSpan;
+                            let a0 = angleLow / HALF_PI;
+                            let a1 = angleHigh / HALF_PI;
+                            let angleWeight = max(0.0, pow(cos(a0 * HALF_PI), 2.0) - pow(cos(a1 * HALF_PI), 2.0));
+                            let sourceFacing = dot(sampleNormalVS, -toSampleDir);
+                            let diffuseNormalWeight = sqrt(max(0.0, sourceFacing));
+                            let emissiveNormalWeight = sqrt(clamp(sourceFacing * 0.5 + 0.5, 0.0, 1.0));
+                            let sampleSource = sampleDiffuseSource * diffuseNormalWeight + sampleEmissiveSource * emissiveNormalWeight;
+
+                            radiance = radiance + sampleSource * sectorWeight * angleWeight;
+                        }
+
+                        bitMask = bitMask | sampleMask;
+                    }
+                }
+
+                return radiance / f32(HORIZON_DIRECTIONS);
+            }
+
+            @fragment
+            fn fragmentMain(input: VertexOutput) -> @location(0) vec4<f32> {
+                let uv = input.uv;
+                let base = textureSampleLevel(lightingTex, textureSampler, uv, 0.0);
+                let depth = loadDepth(uv);
+
+                if (depth >= 0.999999) {
+                    return base;
+                }
+
+                let ermo = textureSampleLevel(ermoTex, textureSampler, uv, 0.0);
+                if (ermo.a > 0.5) {
+                    return base;
+                }
+
+                let albedo = textureSampleLevel(albedoTex, textureSampler, uv, 0.0).rgb;
+                let positionVS = reconstructViewPosition(uv, depth);
+                let normalVS = readNormalVS(uv);
+                let indirect = horizonGI(uv, positionVS, normalVS) * albedo * params.effect.x;
+
+                return vec4(max(vec3(0.0), base.rgb + indirect), base.a);
+            }
+            `,
+            colorOutputs: [{ format: "rgba16float" }]
+        });
+
+        this.geometry = Geometry.Plane();
+        this.shader.SetSampler("textureSampler", new GPU.TextureSampler());
+        this.output = GPU.RenderTexture.Create(GPU.Renderer.width, GPU.Renderer.height, 1, "rgba16float");
+        this.initialized = true;
+    }
+
+    public preFrame(resources: GPU.ResourcePool): void {
+        if (!this.initialized) return;
+        
+        const lightingTex = resources.getResource(GPU.PassParams.LightingPassOutput);
+        const albedoTex = resources.getResource(GPU.PassParams.GBufferAlbedo);
+        const normalTex = resources.getResource(GPU.PassParams.GBufferNormal);
+        const ermoTex = resources.getResource(GPU.PassParams.GBufferERMO);
+        const depthTex = resources.getResource(GPU.PassParams.GBufferDepth);
+        const frameBuffer = resources.getResource(GPU.PassParams.FrameBuffer);
+        const camera = Components.Camera.mainCamera;
+
+        if (!lightingTex || !albedoTex || !normalTex || !ermoTex || !depthTex || !frameBuffer || !camera) return;
+
+        this.shader.SetTexture("lightingTex", lightingTex);
+        this.shader.SetTexture("albedoTex", albedoTex);
+        this.shader.SetTexture("normalTex", normalTex);
+        this.shader.SetTexture("ermoTex", ermoTex);
+        this.shader.SetTexture("depthTex", depthTex);
+        this.shader.SetBuffer("frameBuffer", frameBuffer);
+
+        let lightType = 0;
+        let lightRange = 1;
+        let lightVector = new Mathf.Vector3(0, 0, 1).applyQuaternion(this.sourceLight.transform.rotation).transformDirection(camera.viewMatrix);
+
+        if (!(this.sourceLight instanceof Components.DirectionalLight)) {
+            lightType = 1;
+            lightVector = this.sourceLight.transform.position.clone().applyMatrix4(camera.viewMatrix);
+
+            if (this.sourceLight instanceof Components.PointLight || this.sourceLight instanceof Components.SpotLight) {
+                lightRange = this.sourceLight.range;
+            }
+        }
+
+        this.shader.SetArray("params", new Float32Array([
+            this.output.width, this.output.height, 0, 0,
+            3.5, 0.15, 0.18, 0.001,
+            this.frame++, 0, 0, 0,
+            lightVector.x, lightVector.y, lightVector.z, lightType,
+            this.sourceLight.color.r, this.sourceLight.color.g, this.sourceLight.color.b, this.sourceLight.intensity,
+            lightRange, 1.0, 0.08, 6.0,
+        ]));
+    }
+
+    public execute(resources: GPU.ResourcePool) {
+        if (!this.initialized) return;
+       const lightingTex = resources.getResource(GPU.PassParams.LightingPassOutput);
+        const albedoTex = resources.getResource(GPU.PassParams.GBufferAlbedo);
+        const normalTex = resources.getResource(GPU.PassParams.GBufferNormal);
+        const ermoTex = resources.getResource(GPU.PassParams.GBufferERMO);
+        const depthTex = resources.getResource(GPU.PassParams.GBufferDepth);
+        const frameBuffer = resources.getResource(GPU.PassParams.FrameBuffer);
+        const camera = Components.Camera.mainCamera;
+
+        if (!lightingTex || !albedoTex || !normalTex || !ermoTex || !depthTex || !frameBuffer || !camera) return;
+
+        GPU.RendererContext.BeginRenderPass(this.name, [{ target: this.output, clear: true }], undefined, true);
+        GPU.RendererContext.DrawGeometry(this.geometry, this.shader);
+        GPU.RendererContext.EndRenderPass();
+
+        GPU.RendererContext.CopyTextureToTextureV3({ texture: this.output }, { texture: lightingTex });
+    }
+}
+
+async function Application(canvas: HTMLCanvasElement) {
+    await Runtime.Create(canvas);
+    const scene = Runtime.SceneManager.CreateScene("DefaultScene");
+    Runtime.SceneManager.SetActiveScene(scene);
+
+    const cameraGameObject = new GameObject();
+    cameraGameObject.name = "MainCamera";
+    cameraGameObject.transform.position.set(0, 0, 12);
+    cameraGameObject.transform.LookAtV1(new Mathf.Vector3(0, 0, 0));
+    const camera = cameraGameObject.AddComponent(Components.Camera);
+    camera.SetPerspective(72, canvas.width / canvas.height, 0.05, 128);
+    cameraGameObject.AddComponent(OrbitControls);
+
+    const lightGameObject = new GameObject();
+    lightGameObject.transform.position.set(0, 3.75, 1.5);
+    const light = lightGameObject.AddComponent(Components.PointLight);
+    light.intensity = 14;
+    light.range = 18;
+    light.color.set(1, 0.95, 0.88, 1);
+    light.castShadows = false;
+
+    const lightFolder = new UIFolder(Debugger.ui, "SSHGI Source Light");
+    lightFolder.Open();
+    new UIVecStat(lightFolder, "Position:",
+        { value: light.transform.position.x, min: -5, max: 5, step: 0.1 },
+        { value: light.transform.position.y, min: -5, max: 5, step: 0.1 },
+        { value: light.transform.position.z, min: -5, max: 5, step: 0.1 },
+        undefined,
+        value => light.transform.position.set(value.x, value.y, value.z)
+    );
+    new UISliderStat(lightFolder, "Intensity:", 0, 50, 0.1, light.intensity, value => light.intensity = value);
+    new UISliderStat(lightFolder, "Range:", 0.1, 40, 0.1, light.range, value => light.range = value);
+
+    await GLTFLoader.Load("./assets/models/cornell.glb", scene);
+
+    Runtime.Renderer.RenderPipeline.AddPass(new SSHGIRenderPass(light), GPU.RenderPassOrder.AfterLighting);
+
+    Debugger.Enable();
+    Runtime.Play();
+}
+
+Application(document.querySelector("canvas"));

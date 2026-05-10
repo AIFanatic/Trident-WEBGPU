@@ -39,7 +39,7 @@ async function Application(canvas: HTMLCanvasElement) {
     });
     observer.observe(canvas);
 
-    const controls = new OrbitControls(canvas, camera);
+    mainCameraGameObject.AddComponent(OrbitControls);
 
     const lightGameObject = new GameObject();
     lightGameObject.transform.position.set(-1, 4, 0.01);

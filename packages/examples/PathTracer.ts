@@ -26,8 +26,7 @@ async function Application(canvas: HTMLCanvasElement) {
     mainCameraGameObject.name = "MainCamera";
     const camera = mainCameraGameObject.AddComponent(Components.Camera);
     camera.SetPerspective(60, canvas.width / canvas.height, 0.1, 200);
-
-    new OrbitControls(canvas, camera);
+    mainCameraGameObject.AddComponent(OrbitControls);
 
     const lightGameObject = new GameObject();
     lightGameObject.transform.position.set(-4, 4, 4);

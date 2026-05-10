@@ -1,4 +1,4 @@
-import { Components, Mathf, GameObject, Geometry, PBRMaterial, Runtime, VertexAttribute, IndexAttribute } from "@trident/core";
+import { GPU, Components, Mathf, GameObject, Geometry, PBRMaterial, Runtime, VertexAttribute, IndexAttribute } from "@trident/core";
 
 import { OrbitControls } from "@trident/plugins/OrbitControls";
 import { Debugger } from "@trident/plugins/Debugger";
@@ -6,6 +6,8 @@ import { Debugger } from "@trident/plugins/Debugger";
 import { HDRParser } from "@trident/plugins/HDRParser";
 
 import { Environment } from "@trident/plugins/Environment/Environment";
+import { IBLLightingPass } from "@trident/plugins/Environment/IBLLightingPass";
+import { SkyboxPass } from "@trident/plugins/Environment/SkyboxPass";
 
 async function Application(canvas: HTMLCanvasElement) {
     
@@ -79,8 +81,7 @@ async function Application(canvas: HTMLCanvasElement) {
 
     mainCameraGameObject.transform.position.set(0, 0, 7);
     mainCameraGameObject.transform.LookAtV1(new Mathf.Vector3(0, 0, 0));
-
-    const controls = new OrbitControls(canvas, camera);
+    mainCameraGameObject.AddComponent(OrbitControls);
 
     const lightGameObject = new GameObject();
     lightGameObject.transform.position.set(0, 0, 0);
@@ -129,6 +130,12 @@ async function Application(canvas: HTMLCanvasElement) {
 
     const environment = new Environment(scene, skyTexture);
     await environment.init();
+
+    const iblLightingPass = new IBLLightingPass();
+    Runtime.Renderer.RenderPipeline.AddPass(iblLightingPass, GPU.RenderPassOrder.AfterLighting);
+
+    const skyboxPass = new SkyboxPass();
+    Runtime.Renderer.RenderPipeline.AddPass(skyboxPass, GPU.RenderPassOrder.AfterLighting);
 
     Runtime.Play();
 };
