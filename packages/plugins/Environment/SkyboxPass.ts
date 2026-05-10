@@ -1,22 +1,14 @@
-import { Shader } from "../Shader";
-import { Geometry } from "../../Geometry";
-import { CubeTexture, RenderTexture } from "../Texture";
-import { TextureSampler } from "../TextureSampler";
-import { Camera } from "../../components/Camera";
-import { PassParams } from "../RenderingPipeline";
-import { RenderPass, ResourcePool } from "../RenderGraph";
-import { RendererContext } from "../RendererContext";
+import { Geometry, GPU } from "@trident/core";
 
-
-export class SkyboxPass extends RenderPass {
+export class SkyboxPass extends GPU.RenderPass {
     public name: string = "SkyboxPass";
-    private shader: Shader;
+    private shader: GPU.Shader;
     private quadGeometry: Geometry;
 
     public initialized = false;
 
     public async init() {
-        this.shader = await Shader.Create({
+        this.shader = await GPU.Shader.Create({
             code: `
                 struct VertexOutput {
                     @builtin(position) position: vec4<f32>,
@@ -89,20 +81,20 @@ export class SkyboxPass extends RenderPass {
             colorOutputs: [{format: "rgba16float"}],
         });
 
-        this.shader.SetSampler("textureSampler", new TextureSampler());
+        this.shader.SetSampler("textureSampler", new GPU.TextureSampler());
 
         this.quadGeometry = new Geometry();
 
         this.initialized = true;
     }
 
-    public preFrame(resources: ResourcePool) {
+    public preFrame(resources: GPU.ResourcePool) {
         if (!this.initialized) return;
         this.drawCommands.length = 0;
 
-        const inputGBufferDepth = resources.getResource(PassParams.GBufferDepth);
-        const inputSkybox = resources.getResource(PassParams.Skybox) as CubeTexture;
-        const inputFrameBuffer = resources.getResource(PassParams.FrameBuffer);
+        const inputGBufferDepth = resources.getResource(GPU.PassParams.GBufferDepth);
+        const inputSkybox = resources.getResource(GPU.PassParams.Skybox) as GPU.CubeTexture;
+        const inputFrameBuffer = resources.getResource(GPU.PassParams.FrameBuffer);
         if (!inputGBufferDepth) return;
         if (!inputSkybox) return;
 
@@ -113,21 +105,21 @@ export class SkyboxPass extends RenderPass {
         this.drawCommands.push({geometry: this.quadGeometry, shader: this.shader, instanceCount: 1, firstInstance: 0});
     }
 
-    public execute(resources: ResourcePool) {
+    public execute(resources: GPU.ResourcePool) {
         if (!this.initialized) return;
         if (this.drawCommands.length === 0) return;
 
-        const LightingPassOutput = resources.getResource(PassParams.LightingPassOutput);
+        const LightingPassOutput = resources.getResource(GPU.PassParams.LightingPassOutput);
         if (!LightingPassOutput) return;
         
-        RendererContext.BeginRenderPass(this.name, [{ target: LightingPassOutput, clear: false }], undefined, true);
+        GPU.RendererContext.BeginRenderPass(this.name, [{ target: LightingPassOutput, clear: false }], undefined, true);
 
         for (const draw of this.drawCommands) {
-            RendererContext.Draw(draw.geometry, draw.shader, 3, draw.instanceCount, draw.firstInstance);
+            GPU.RendererContext.Draw(draw.geometry, draw.shader, 3, draw.instanceCount, draw.firstInstance);
         }
 
-        RendererContext.EndRenderPass();
+        GPU.RendererContext.EndRenderPass();
 
-        resources.setResource(PassParams.LightingPassOutput, LightingPassOutput);
+        resources.setResource(GPU.PassParams.LightingPassOutput, LightingPassOutput);
     }
 }

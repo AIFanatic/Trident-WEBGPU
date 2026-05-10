@@ -135,6 +135,7 @@ fn compute_inscattering(ray_origin: vec3f, ray_dir: vec3f, t_d: f32) -> ComputeI
     }
 
     out.L_inscattering = L_inscattering;
+    out.transmittance = transmittance;
     return out;
 }
 
@@ -198,17 +199,9 @@ fn fragmentMain(input: VertexOutput) -> @location(0) vec4<f32> {
         }
     }
 
-    // let sun_dir = get_sun_direction();
-    // let sunLum = sunWithBloom(ray_dir, sun_dir);
-
     let inscattering = compute_inscattering(ray_origin, ray_dir, t_d);
     let L = inscattering.L_inscattering;
 
-// #if ENABLE_SPECTRAL == 1
-    // TODO: Adding tonemapping here as the sky seems way to overexposed, probably a bug somewhere else on the pipeline but original shader also under exposes
     let col = linear_srgb_from_spectral_samples(L) * exp2(-4.0);
     return vec4(col, 1.0);
-// #else
-//     return vec4(L.rgb, 1.0);
-// #endif
 }

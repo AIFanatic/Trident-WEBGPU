@@ -1,10 +1,8 @@
 import { Assets } from "../Assets";
 import { StringFindAllBetween } from "../utils";
-import { Renderer } from "./Renderer";
 
 import WGSL_Shader_Draw_URL from "../resources/webgpu/shaders/deferred/DrawGBuffer.wgsl" with { type: "text" };
 import WGSL_Shader_DeferredLighting_URL from "../resources/webgpu/shaders/deferred/DeferredLightingPBR.wgsl" with { type: "text" };
-import WGSL_Shader_IBLLighting_URL from "../resources/webgpu/shaders/deferred/IBLLighting.wgsl" with { type: "text" };
 
 import WGSL_Shader_Deferred_SurfaceStruct from "../resources/webgpu/shaders/deferred/SurfaceStruct.wgsl" with { type: "text" };
 import WGSL_Shader_Deferred_LightStruct from "../resources/webgpu/shaders/deferred/LightStruct.wgsl" with { type: "text" };
@@ -109,5 +107,4 @@ export class ShaderLoader {
 
     public static get Draw(): Promise<string> { return ShaderPreprocessor.ProcessIncludesV2(WGSL_Shader_Draw_URL); }
     public static get DeferredLighting(): Promise<string> { return ShaderPreprocessor.ProcessIncludesV2(WGSL_Shader_DeferredLighting_URL); }
-    public static get IBLLighting(): Promise<string> { return ShaderPreprocessor.ProcessIncludesV2(WGSL_Shader_IBLLighting_URL); }
 }

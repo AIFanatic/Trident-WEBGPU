@@ -143,15 +143,19 @@ export class Input extends System {
     public static get mousePosition(): Vector2 { return Input._mousePosition; }
 
     public async Start() {
-        document.onkeydown = (event) => { Input.OnKeyDown(event) };
-        document.onkeyup = (event) => { Input.OnKeyUp(event) };
-        document.onmousemove = (event) => { Input.OnMouseMove(event) };
-        document.onmousedown = (event) => { Input.OnMouseDown(event) };
-        document.onmouseup = (event) => { Input.OnMouseUp(event) };
-        document.ontouchmove = (event) => { Input.OnTouchMove(event); };
-        document.onwheel = (event) => { Input.OnMouseWheel(event) };
+        function AddPointerAwareEvent(target: HTMLElement, type: keyof DocumentEventMap, callback: (event: any) => void) {
+            document.addEventListener(type, (event) => (document.pointerLockElement !== null || event.target === target) && callback(event));
+        }
+
         if (Renderer.canvas) {
-            Renderer.canvas.oncontextmenu = (event) => { Input.OnContextMenu(event) };
+            AddPointerAwareEvent(Renderer.canvas, "keydown", (event) => Input.OnKeyDown(event));
+            AddPointerAwareEvent(Renderer.canvas, "keyup", (event) => Input.OnKeyUp(event));
+            AddPointerAwareEvent(Renderer.canvas, "contextmenu", (event) => Input.OnContextMenu(event) );
+            AddPointerAwareEvent(Renderer.canvas, "mousemove", (event) => Input.OnMouseMove(event) );
+            AddPointerAwareEvent(Renderer.canvas, "mousedown", (event) => Input.OnMouseDown(event) );
+            AddPointerAwareEvent(Renderer.canvas, "mouseup", (event) => Input.OnMouseUp(event) );
+            AddPointerAwareEvent(Renderer.canvas, "touchmove", (event) => Input.OnTouchMove(event));
+            AddPointerAwareEvent(Renderer.canvas, "wheel", (event) => Input.OnMouseWheel(event) );
         }
     }
 

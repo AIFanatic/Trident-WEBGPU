@@ -253,7 +253,7 @@ export class DeferredShadowMapPass extends RenderPass {
             for (let i = 0; i < 8; i++) radius = Math.max(radius, frustumCorners[i].clone().sub(frustumCenter).length());
             radius = Math.round(radius * 100) / 100; // 0.1 world unit precision
 
-            const lightDirection = light.transform.position.clone().mul(-1).normalize();
+            const lightDirection = new Vector3(0, 0, -1).applyQuaternion(light.transform.rotation).normalize();
 
             const up = Math.abs(lightDirection.dot(new Vector3(0, 1, 0))) > 0.99 ? new Vector3(0, 0, 1) : new Vector3(0, 1, 0);
 

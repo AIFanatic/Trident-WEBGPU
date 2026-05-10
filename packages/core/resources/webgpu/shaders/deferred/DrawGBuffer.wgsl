@@ -113,12 +113,6 @@ fn CalcMipLevel(texture_coord: vec2f) -> f32 {
     return max(0.0, 0.5 * log2(delta_max_sqr));
 }
 
-  fn hash12(p: vec2<f32>) -> f32 {
-      let p3 = fract(vec3<f32>(p.xyx) * 0.1031);
-      let q = p3 + dot(p3, p3.yzx + 33.33);
-      return fract((q.x + q.y) * q.z);
-  }
-
 @fragment
 fn fragmentMain(@builtin(front_facing) isFrontFace: bool, input: VertexOutput) -> FragmentOutput {
     var output: FragmentOutput;
@@ -138,19 +132,16 @@ fn fragmentMain(@builtin(front_facing) isFrontFace: bool, input: VertexOutput) -
 
 
     // https://bgolus.medium.com/anti-aliased-alpha-test-the-esoteric-alpha-to-coverage-8b177335ae4f
-    if (mat.AlphaCutoff > 0.0) {
-        let _Cutoff = 0.4;
-        let _MipScale = 0.25;
-        let _AlbedoMapSize = vec2<f32>(textureDimensions(AlbedoMap));
+    let cutoff = mat.AlphaCutoff;
+    let mipScale = 0.25;
+    let albedoMapSize = vec2<f32>(textureDimensions(AlbedoMap));
 
-        var alpha = albedo.a;
+    var alphaAA = albedo.a;
+    alphaAA *= 1.0 + max(0.0, CalcMipLevel(uv * albedoMapSize)) * mipScale;
+    alphaAA = (alphaAA - cutoff) / max(fwidth(alphaAA), 0.0001) + 0.5;
 
-        alpha *= 1.0 + max(0.0, CalcMipLevel(uv * _AlbedoMapSize)) * _MipScale;
-        alpha = (alpha - mat.AlphaCutoff) / max(fwidth(alpha), 0.0001) + 0.5;
-
-        if (alpha < 0.5) {
-            discard;
-        }
+    if (cutoff > 0.0 && alphaAA < cutoff) {
+        discard;
     }
 
     // if (albedo.a < mat.AlphaCutoff) {
@@ -172,7 +163,7 @@ fn fragmentMain(@builtin(front_facing) isFrontFace: bool, input: VertexOutput) -
 
     let metalnessRoughness = textureSample(ARMMap, TextureSampler, uv);
 
-    // occlusion *= metalnessRoughness.r;
+    occlusion *= metalnessRoughness.r;
     roughness *= metalnessRoughness.g;
     metalness *= metalnessRoughness.b;
 

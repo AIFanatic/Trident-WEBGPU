@@ -94,10 +94,11 @@ export class Renderer extends System {
             throw Error(`WebGPU uncaptured error: ${event.error}`);
         };
 
-        EventSystem.emit(RendererEvents.Created, this);
         RegisterBuiltinGeometries();
-        Renderer.RenderPipeline = new RenderingPipeline(this);
+        Renderer.RenderPipeline = new RenderingPipeline();
         this.RenderPipeline = Renderer.RenderPipeline;
+        
+        EventSystem.emit(RendererEvents.Created, this);
     }
 
     public static GetActiveCommandEncoder(): GPUCommandEncoder | null { return Renderer.activeCommandEncoder }

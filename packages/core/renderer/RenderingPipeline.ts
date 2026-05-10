@@ -7,8 +7,6 @@ import { PrepareGBuffers } from "./passes/PrepareGBuffers";
 import { DeferredShadowMapPass } from "./passes/DeferredShadowMapPass";
 import { CubeTexture, RenderTexture, TextureFormat } from "./Texture";
 import { ForwardPass } from "./passes/ForwardPass";
-import { IBLLightingPass } from "./passes/IBLLightingPass";
-import { SkyboxPass } from "./passes/SkyboxPass";
 import { RenderablePass } from "./passes/RenderablePass";
 import { PostExposureTonemap } from "./passes/PostExposureTonemap";
 import { BasePass } from "./passes/BasePass";
@@ -53,7 +51,6 @@ export enum RenderPassOrder {
 };
 
 export class RenderingPipeline {
-    private renderer: Renderer;
     private renderGraph: RenderGraph;
 
     private frame: number = 0;
@@ -87,9 +84,7 @@ export class RenderingPipeline {
 
     public readonly DeferredShadowMapPass = new DeferredShadowMapPass();
 
-    constructor(renderer: Renderer) {
-        this.renderer = renderer;
-
+    constructor() {
         this.prepareGBuffersPass = new PrepareGBuffers();
         
         this.renderGraph = new RenderGraph();
@@ -107,8 +102,6 @@ export class RenderingPipeline {
         this.afterLightingPasses = [
             new BasePass(),
             new DeferredLightingPass(),
-            new IBLLightingPass(),
-            new SkyboxPass(),
             new ForwardPass(),
         ];
         
@@ -137,13 +130,14 @@ export class RenderingPipeline {
         this.renderGraph.init();
     }
 
-    public AddPass(pass: RenderPass, order: RenderPassOrder) {
-        if (order === RenderPassOrder.BeforeGBuffer) this.beforeGBufferPasses.push(pass);
-        else if (order === RenderPassOrder.AfterGBuffer) this.afterGBufferPasses.push(pass);
-        else if (order === RenderPassOrder.BeforeLighting) this.beforeLightingPasses.push(pass);
-        else if (order === RenderPassOrder.AfterLighting) this.afterLightingPasses.push(pass);
-        else if (order === RenderPassOrder.BeforeScreenOutput) this.beforeScreenOutputPasses.push(pass);
-        else if (order === RenderPassOrder.AfterScreenOutput) this.afterScreenOutputPasses.push(pass);
+    public AddPass(pass: RenderPass | (new (...args: any[]) => RenderPass), order: RenderPassOrder) {
+        const passInstance = typeof pass === "function" ? new pass() : pass;
+        if (order === RenderPassOrder.BeforeGBuffer) this.beforeGBufferPasses.push(passInstance);
+        else if (order === RenderPassOrder.AfterGBuffer) this.afterGBufferPasses.push(passInstance);
+        else if (order === RenderPassOrder.BeforeLighting) this.beforeLightingPasses.push(passInstance);
+        else if (order === RenderPassOrder.AfterLighting) this.afterLightingPasses.push(passInstance);
+        else if (order === RenderPassOrder.BeforeScreenOutput) this.beforeScreenOutputPasses.push(passInstance);
+        else if (order === RenderPassOrder.AfterScreenOutput) this.afterScreenOutputPasses.push(passInstance);
 
         this.UpdateRenderGraphPasses();
     }

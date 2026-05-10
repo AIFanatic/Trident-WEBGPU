@@ -50,7 +50,7 @@ class BaseBuffer {
         Renderer.device.queue.writeBuffer(this.buffer, bufferOffset, array, dataOffset, size);
     }
 
-    public async GetData(sourceOffset: number = 0, destinationOffset: number = 0, size?: number): Promise<BufferSource> {
+    public async GetData(sourceOffset: number = 0, destinationOffset: number = 0, size?: number): Promise<ArrayBuffer> {
         const readBuffer = Renderer.device.createBuffer({
             size: size ? size : this.buffer.size,
             usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ,

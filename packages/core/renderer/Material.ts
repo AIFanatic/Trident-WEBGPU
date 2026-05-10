@@ -58,7 +58,7 @@ export class Material {
 class PBRMaterialParams extends MaterialParams {
     @SerializeField public albedoColor = new Color(1, 1, 1, 1);
     @SerializeField public emissiveColor = new Color(0, 0, 0, 0);
-    @SerializeField public roughness = 1.0;
+    @SerializeField public roughness = 0.5;
     @SerializeField public metalness = 0.0;
 
     @SerializeField(Texture) public albedoMap: Texture;

@@ -5,9 +5,6 @@ import { Shader } from "../Shader";
 import { Geometry } from "../../Geometry";
 import { TextureSampler } from "../TextureSampler";
 import { PassParams } from "../RenderingPipeline";
-import { Console, ConsoleVarConfigs } from "../../Console";
-
-const TextureViewerSettings = Console.define({r_exposure: { default: 0.0, help: "Final image exposure"}} satisfies ConsoleVarConfigs);
 
 export class TextureViewer extends RenderPass {
     public name: string = "TextureViewer";
@@ -23,8 +20,6 @@ export class TextureViewer extends RenderPass {
 
         @group(0) @binding(0) var textureSampler: sampler;
         @group(0) @binding(1) var texture: texture_2d<f32>;
-
-        @group(0) @binding(2) var<storage, read> exposure: f32;
 
         // Full-screen triangle (covers screen with 3 verts)
         const p = array<vec2f, 3>(
@@ -77,7 +72,6 @@ export class TextureViewer extends RenderPass {
         if (!LightingPassOutputTexture) return;
 
         this.shader.SetTexture("texture", LightingPassOutputTexture);
-        this.shader.SetValue("exposure", TextureViewerSettings.r_exposure.value);
 
         RendererContext.BeginRenderPass("TextureViewer", [{clear: false}], undefined, true);
         RendererContext.Draw(this.quadGeometry, this.shader, 3);

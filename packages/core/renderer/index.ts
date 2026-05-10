@@ -1,4 +1,4 @@
-export { Renderer } from "./Renderer";
+export { Renderer, RendererEvents } from "./Renderer";
 export { Shader, ShaderCompute, Topology } from "./Shader";
 export { DynamicBuffer, Buffer, BufferType } from "./Buffer";
 export { RenderPass, ResourcePool } from "./RenderGraph";
