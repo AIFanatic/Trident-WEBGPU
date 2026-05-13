@@ -30,9 +30,8 @@ export interface SerializedAnimationChannel {
 export class AnimationTrack extends Component {
     public static type = "@trident/core/components/AnimationTrack";
 
-    public trackName: string = "";
+    @SerializeField public trackName: string = "";
 
-    @SerializeField
     public clips: SerializedAnimationTrackClip[] = [];
 
     // O(1) lookup cache (built once)
@@ -74,7 +73,7 @@ export class AnimationTrack extends Component {
         const b0 = i0 * 3, b1 = i1 * 3;
 
         out.set(
-            vals[b0]     + (vals[b1]     - vals[b0])     * u,
+            vals[b0] + (vals[b1] - vals[b0]) * u,
             vals[b0 + 1] + (vals[b1 + 1] - vals[b0 + 1]) * u,
             vals[b0 + 2] + (vals[b1 + 2] - vals[b0 + 2]) * u,
         );
@@ -156,8 +155,8 @@ export class AnimationTrack extends Component {
 
 Component.Registry.set(AnimationTrack.type, AnimationTrack);
 
-export class Animator extends Component {
-    public static type = "@trident/core/components/Animator";
+export class AnimationData {
+    public static type = "@trident/core/AnimationData";
 
     @SerializeField
     public assetPath?: string;
@@ -167,6 +166,20 @@ export class Animator extends Component {
 
     @SerializeField
     public tracksData: { [nodeName: string]: SerializedAnimationTrackClip[] } = {};
+}
+
+export class Animator extends Component {
+    public static type = "@trident/core/components/Animator";
+
+    @SerializeField(AnimationData)
+    public animation: AnimationData = new AnimationData();
+
+    public get assetPath(): string | undefined { return this.animation.assetPath; }
+    public set assetPath(value: string | undefined) { this.animation.assetPath = value; }
+    public get clips(): SerializedAnimationClip[] { return this.animation.clips; }
+    public set clips(value: SerializedAnimationClip[]) { this.animation.clips = value; }
+    public get tracksData(): { [nodeName: string]: SerializedAnimationTrackClip[] } { return this.animation.tracksData; }
+    public set tracksData(value: { [nodeName: string]: SerializedAnimationTrackClip[] }) { this.animation.tracksData = value; }
 
     public clipIndex = 0;
     private playing = false;
@@ -183,19 +196,23 @@ export class Animator extends Component {
 
     public Start(): void {
         this.previousTime = performance.now();
+        this.rebuildTracks();
+    }
+
+    private rebuildTracks(): void {
+        const expectedTrackCount = Object.keys(this.animation.tracksData ?? {}).length;
+        if (expectedTrackCount > 0 && this.tracks.length >= expectedTrackCount) return;
+
         this.tracks = [];
         this.collectTracks(this.gameObject.transform);
 
-        // Distribute track data from the animation asset
-        if (this.tracksData) {
-            for (const track of this.tracks) {
-                if (track.trackName && this.tracksData[track.trackName]) {
-                    track.clips = this.tracksData[track.trackName];
-                }
+        for (const track of this.tracks) {
+            const trackName = track.trackName || track.gameObject.name;
+            if (trackName && this.animation.tracksData?.[trackName]) {
+                track.trackName = trackName;
+                track.clips = this.animation.tracksData[trackName];
             }
         }
-
-        this.playing = true;
     }
 
     private collectTracks(root: Transform) {
@@ -205,6 +222,7 @@ export class Animator extends Component {
     }
 
     public SetClipByIndex(i: number) {
+        if (this.tracks.length === 0) return;
         this.clipIndex = Math.max(0, i);
         this.currentTime = 0;
         this.nextClipIndex = null;
@@ -214,6 +232,7 @@ export class Animator extends Component {
     }
 
     public CrossFadeTo(i: number, duration: number = 0.25) {
+        if (this.tracks.length === 0) return;
         this.nextClipIndex = Math.max(0, i);
         this.nextTime = 0;
         this.fadeDuration = Math.max(0.0001, duration);
@@ -222,7 +241,9 @@ export class Animator extends Component {
     }
 
     public Update() {
+        this.rebuildTracks();
         if (!this.playing) return;
+
         const now = performance.now();
         const dt = (now - this.previousTime) / 1000;
         this.previousTime = now;
@@ -257,9 +278,11 @@ export class Animator extends Component {
             this.tracks = [];
             this.collectTracks(this.gameObject.transform);
         }
-        if (!this.clips.length) return -1;
-        return this.clips.findIndex(c => c.name === name);
+        if (!this.animation.clips.length) return -1;
+        return this.animation.clips.findIndex(c => c.name === name);
     }
 }
 
+Component.Registry.set(AnimationTrack.type, AnimationTrack);
+Component.Registry.set(AnimationData.type, AnimationData);
 Component.Registry.set(Animator.type, Animator);
