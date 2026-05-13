@@ -175,6 +175,7 @@ export class Texture {
     }
 
     public GenerateMips() {
+        const name = this.name;
         const mipLevels = WEBGPUMipsGenerator.numMipLevels(this.width, this.height, this.depth);
         const destination = this.mipLevels === mipLevels ? this : undefined;
 
@@ -183,7 +184,8 @@ export class Texture {
         } else {
             this.buffer = WEBGPUMipsGenerator.generateMips(this, destination);
         }
-
+        
+        this.name = name; // TODO: Restore name, this is dumb, dont replace buffers
         this.SetActiveMip(0);
         this.SetActiveMipCount(mipLevels);
         this.mipLevels = mipLevels;

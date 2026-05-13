@@ -12,7 +12,7 @@ export class SceneManager  extends System {
 
     public async LoadSceneAsync(sceneSerialized: ISerializedScene): Promise<Scene> {
         const scene = this.CreateScene(sceneSerialized.name);
-        Deserializer.deserializeScene(scene, sceneSerialized);
+        await Deserializer.deserializeScene(scene, sceneSerialized);
         return scene;
     }
     

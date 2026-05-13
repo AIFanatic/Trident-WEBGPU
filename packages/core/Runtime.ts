@@ -12,7 +12,7 @@ export class Runtime {
     // plugin slot
     public static systems = new Map<Function, System>();
 
-    private static isPlaying = false;
+    public static isPlaying = false;
 
     public static async Create(canvas: HTMLCanvasElement, aspectRatio = 1): Promise<Runtime> {
         this.Input = new Input();
