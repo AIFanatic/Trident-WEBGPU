@@ -4,6 +4,7 @@ class SkyboxPass extends GPU.RenderPass {
   name = "SkyboxPass";
   shader;
   quadGeometry;
+  skyboxTexture;
   initialized = false;
   async init() {
     this.shader = await GPU.Shader.Create({
@@ -80,16 +81,18 @@ class SkyboxPass extends GPU.RenderPass {
     this.quadGeometry = new Geometry();
     this.initialized = true;
   }
+  SetSkybox(texture) {
+    this.skyboxTexture = texture;
+  }
   preFrame(resources) {
     if (!this.initialized) return;
+    if (!this.skyboxTexture) return;
     this.drawCommands.length = 0;
     const inputGBufferDepth = resources.getResource(GPU.PassParams.GBufferDepth);
-    const inputSkybox = resources.getResource(GPU.PassParams.Skybox);
     const inputFrameBuffer = resources.getResource(GPU.PassParams.FrameBuffer);
     if (!inputGBufferDepth) return;
-    if (!inputSkybox) return;
     this.shader.SetTexture("depthTexture", inputGBufferDepth);
-    this.shader.SetTexture("skyboxTexture", inputSkybox);
+    this.shader.SetTexture("skyboxTexture", this.skyboxTexture);
     this.shader.SetBuffer("view", inputFrameBuffer);
     this.drawCommands.push({ geometry: this.quadGeometry, shader: this.shader, instanceCount: 1, firstInstance: 0 });
   }

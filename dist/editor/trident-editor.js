@@ -12,8 +12,10 @@ import { TerrainEditor } from '@trident/plugins/Terrain/TerrainEditor.js';
 import { LineRenderer } from '@trident/plugins/LineRenderer.js';
 import { LODGroup } from '@trident/plugins/LOD/LODGroup.js';
 import { GLTFLoader } from '@trident/plugins/GLTF/GLTFLoader.js';
-import { registerEditorBridge } from '@trident/editor';
+import { IBLLightingPass } from '@trident/plugins/Environment/IBLLightingPass.js';
+import { SkyboxPass } from '@trident/plugins/Environment/SkyboxPass.js';
 import { Sky } from '@trident/plugins/Environment/Sky.js';
+import { registerEditorBridge } from '@trident/editor';
 import { Environment } from '@trident/plugins/Environment/Environment.js';
 import { PhysicsRapier } from '@trident/plugins/PhysicsRapier/PhysicsRapier.js';
 
@@ -2859,7 +2861,16 @@ Deserializer.Load = async (assetPath, data, expectedType) => {
   return coreLoad(assetPath, data, expectedType);
 };
 
+class EditorSceneManager extends Component$1 {
+  static type = "@trident/plugins/EditorSceneManager";
+  constructor(gameObject) {
+    super(gameObject);
+    console.log("HERE");
+  }
+}
+
 const component = (ctor) => ctor;
+Component$1.Registry.set(EditorSceneManager.type, EditorSceneManager);
 Component$1.Registry.set(OrbitControls.type, OrbitControls);
 Component$1.Registry.set(RigidBody.type, RigidBody);
 Component$1.Registry.set(BoxCollider.type, BoxCollider);
@@ -3043,7 +3054,8 @@ const render = (vdom, parent = null) => {
   else if (typeof vdom == "boolean" || vdom === null) return mount(document.createTextNode(""));
   else if (typeof vdom == "object" && typeof vdom.type == "function") return Component.render(vdom, parent);
   else if (typeof vdom == "object" && typeof vdom.type == "string") {
-    const dom = mount(document.createElement(vdom.type));
+    const type = vdom.type;
+    const dom = mount(type === "svg" || parent instanceof SVGElement ? document.createElementNS("http://www.w3.org/2000/svg", type) : document.createElement(type));
     for (const child of [].concat(...vdom.children)) {
       render(child, dom);
     }
@@ -3059,8 +3071,8 @@ const patch = (dom, vdom, parent = dom.parentNode) => {
   else if ((typeof vdom != "object" || vdom === null) && dom instanceof Text) return dom.textContent != String(vdom) ? replace(render(vdom, parent)) : dom;
   else if (typeof vdom != "object" || vdom === null) return dom instanceof Text ? dom.textContent != String(vdom) ? replace(render(vdom, parent)) : dom : replace(render(vdom, parent));
   else if (typeof vdom == "object" && dom instanceof Text) return replace(render(vdom, parent));
-  else if (typeof vdom == "object" && dom.nodeName != vdom.type.toString().toUpperCase()) return replace(render(vdom, parent));
-  else if (typeof vdom == "object" && dom.nodeName == vdom.type.toString().toUpperCase()) {
+  else if (typeof vdom == "object" && (dom.localName || dom.nodeName).toLowerCase() != vdom.type.toString().toLowerCase()) return replace(render(vdom, parent));
+  else if (typeof vdom == "object" && (dom.localName || dom.nodeName).toLowerCase() == vdom.type.toString().toLowerCase()) {
     const pool = {};
     const active = document.activeElement;
     [].concat(...dom.childNodes).map((child, index) => {
@@ -3617,6 +3629,9 @@ class TreeFolder extends Component {
         onDragLeave: (event) => this.onDragLeave(event),
         onDrop: (event) => this.onDrop(event),
         onDragOver: (event) => this.onDragOver(event),
+        onClick: (event) => {
+          if (this.props.onClicked) this.props.onClicked();
+        },
         onPointerDown: (event) => {
           if (this.props.onPointerDown) this.props.onPointerDown();
         },
@@ -3641,14 +3656,13 @@ class TreeFolder extends Component {
 }
 
 class TreeItem extends Component {
-  itemRef;
   onDragStart(event) {
     if (this.props.id) event.dataTransfer.setData("from-uuid", this.props.id);
     if (this.props.onDragStarted) this.props.onDragStarted(event);
   }
   onDrop(event) {
     if (this.props.onDropped) this.props.onDropped(event);
-    if (this.itemRef) this.itemRef.style.backgroundColor = "";
+    event.currentTarget.style.backgroundColor = "";
     const fromUuid = event.dataTransfer.getData("from-uuid");
     if (fromUuid && this.props.onDroppedItem && this.props.id) {
       this.props.onDroppedItem(fromUuid, this.props.id);
@@ -3660,10 +3674,10 @@ class TreeItem extends Component {
     event.preventDefault();
   }
   onDragEnter(event) {
-    if (this.itemRef) this.itemRef.style.backgroundColor = "#3498db80";
+    event.currentTarget.style.backgroundColor = "#3498db80";
   }
   onDragLeave(event) {
-    if (this.itemRef) this.itemRef.style.backgroundColor = "";
+    event.currentTarget.style.backgroundColor = "";
   }
   lastClickTs = 0;
   dblMs = 220;
@@ -3681,7 +3695,7 @@ class TreeItem extends Component {
   render() {
     let classes = "item-title";
     if (this.props.isSelected) classes += " active";
-    return /* @__PURE__ */ createElement("div", { className: "item", ref: (ref) => this.itemRef = ref }, /* @__PURE__ */ createElement(
+    return /* @__PURE__ */ createElement("div", { className: "item" }, /* @__PURE__ */ createElement(
       "div",
       {
         style: { display: "flex", alignItems: "center" },
@@ -3699,7 +3713,7 @@ class TreeItem extends Component {
         onClick: (event) => this.onClick(event)
       },
       /* @__PURE__ */ createElement("span", { style: { paddingLeft: "15px" } }),
-      /* @__PURE__ */ createElement("span", null, this.props.name)
+      this.props.render ? this.props.render : /* @__PURE__ */ createElement("span", null, this.props.name)
     ));
   }
 }
@@ -3875,8 +3889,8 @@ async function SaveGameObjectAsAsset(baseDir, gameObject) {
       }
       if (component.constructor?.type === ComponentRegistry.Animator.type) {
         const animator = component;
-        if (!animator.assetPath) {
-          animator.assetPath = `${fullAssetDir}/${rootName}.animation`;
+        if (!animator.animation.assetPath) {
+          animator.animation.assetPath = `${fullAssetDir}/${rootName}.animation`;
         }
       }
       if (component.constructor?.type === ComponentRegistry.Terrain.type) {
@@ -3933,10 +3947,15 @@ async function SaveGameObjectAsAsset(baseDir, gameObject) {
           }
         }
       }
-      if (component.assetPath && !saved.has(component.assetPath) && component.constructor.type !== ComponentRegistry.Mesh.type && component.constructor.type !== ComponentRegistry.SkinnedMesh.type) {
-        saved.add(component.assetPath);
-        const ctor = component.constructor;
-        SaveToFile(component.assetPath, new Blob([JSON.stringify({ type: ctor.type, ...Serializer.serializeFields(component) })]));
+      for (const { name } of GetSerializedFields(component)) {
+        const value = component[name];
+        if (value?.assetPath && !saved.has(value.assetPath)) {
+          saved.add(value.assetPath);
+          const ctor = value.constructor;
+          SaveToFile(value.assetPath, new Blob([
+            JSON.stringify({ type: ctor.type, ...Serializer.serializeFields(value) })
+          ]));
+        }
       }
       if (component.constructor.type === ComponentRegistry.Terrain.type) {
         const terrain = component;
@@ -4014,7 +4033,7 @@ class LayoutAssets extends Component {
   fileWatcher;
   constructor(props) {
     super(props);
-    this.setState({ currentTreeMap: /* @__PURE__ */ new Map(), selected: void 0, headerMenuOpen: false });
+    this.setState({ currentTreeMap: /* @__PURE__ */ new Map(), selected: void 0, headerMenuOpen: false, isRenamingSelected: false });
     this.fileWatcher = new FileWatcher();
     TridentAPI.EventSystem.on(ProjectEvents.Opened, () => {
       this.fileWatcher.watch("");
@@ -4085,12 +4104,22 @@ class LayoutAssets extends Component {
       this.props.engineAPI.currentScene.Clear();
       await this.props.engineAPI.deserializer.deserializeScene(this.props.engineAPI.currentScene, item.data.instance);
       TridentAPI.EventSystem.emit(SceneEvents.Loaded, item.data.instance);
+      const skyAtmosphere = new Sky();
+      await skyAtmosphere.init();
+      const iblLightingPass = Runtime.Renderer.RenderPipeline.AddPass(IBLLightingPass, GPU.RenderPassOrder.AfterLighting);
+      const skyboxPass = Runtime.Renderer.RenderPipeline.AddPass(SkyboxPass, GPU.RenderPassOrder.AfterLighting);
+      iblLightingPass.SetEnvironment(skyAtmosphere.skyTextureCubemap);
+      skyboxPass.SetSkybox(skyAtmosphere.skyTextureCubemap);
     }
   }
   async onRefresh() {
     if (!this.state.selected) return;
     if (!this.state.selected.path.endsWith(".ts")) return;
     await ReloadScript(this.props.engineAPI, this.state.selected.path);
+  }
+  async onRename() {
+    if (!this.state.selected) return;
+    this.setState({ ...this.state, isRenamingSelected: true, headerMenuOpen: false });
   }
   async loadTreeItem(data) {
     if (data.file.kind === "file") {
@@ -4180,7 +4209,23 @@ class LayoutAssets extends Component {
           onPointerUp: () => this.onItemClicked(item),
           onDoubleClicked: () => this.onItemDoubleClicked(item),
           onDropped: (event) => this.onDrop(event),
-          onDragStarted: (event) => this.onDragStarted(event, item)
+          onDragStarted: (event) => this.onDragStarted(event, item),
+          render: this.state.isRenamingSelected && this.state.selected === item.data ? /* @__PURE__ */ createElement(
+            "input",
+            {
+              style: {
+                font: "inherit",
+                color: "inherit",
+                background: "inherit",
+                border: "inherit",
+                width: "100%",
+                outline: "none",
+                padding: "inherit",
+                textDecoration: "underline"
+              },
+              value: item.name
+            }
+          ) : void 0
         }
       );
     });
@@ -4219,6 +4264,8 @@ class LayoutAssets extends Component {
         this.deleteAsset();
       } }), /* @__PURE__ */ createElement(TreeItem, { name: "Refresh", onPointerDown: () => {
         this.onRefresh();
+      } }), /* @__PURE__ */ createElement(TreeItem, { name: "Rename", onPointerDown: () => {
+        this.onRename();
       } }))))),
       /* @__PURE__ */ createElement(Tree, null, this.renderTreeItems(rootItems, treeMapArr))
     );
@@ -4276,6 +4323,7 @@ class LayoutHierarchy extends Component {
     const instance = extendedEvent;
     if (instance && this.props.engineAPI.isPrefab(instance)) {
       const gameObject = await this.props.engineAPI.deserializer.deserializeGameObject(instance);
+      console.log(gameObject);
       this.selectGameObject(gameObject);
       ExtendedDataTransfer.data = void 0;
     } else {
@@ -4329,6 +4377,16 @@ class LayoutHierarchy extends Component {
     TridentAPI.EventSystem.emit(GameObjectEvents.Created, gameObject);
     this.setState({ ...this.state, headerMenuOpen: !this.state.headerMenuOpen });
   }
+  unpackSelectedPrefab() {
+    const unpackPrefab = (gameObject) => {
+      gameObject.assetPath = void 0;
+      for (const child of gameObject.transform.children) unpackPrefab(child.gameObject);
+    };
+    if (!this.state.selectedGameObject) return;
+    unpackPrefab(this.state.selectedGameObject);
+    TridentAPI.EventSystem.emit(GameObjectEvents.Changed, this.state.selectedGameObject);
+    this.setState({ ...this.state, headerMenuOpen: false });
+  }
   renderGameObjects(gameObjects) {
     return gameObjects.map((go) => {
       const isSelected = this.state.selectedGameObject === go;
@@ -4340,9 +4398,9 @@ class LayoutHierarchy extends Component {
             name: go.name,
             id: go.transform.id,
             isSelected,
-            onPointerDown: () => this.selectGameObject(go),
+            onClicked: () => this.selectGameObject(go),
             onDroppedItem: (from, to) => this.onDroppedItem(from, to),
-            onDragStarted: (event) => this.onDragStarted(event)
+            onDragStarted: (event) => this.onDragStarted(go)
           },
           this.renderGameObjects(children)
         );
@@ -4365,7 +4423,7 @@ class LayoutHierarchy extends Component {
     const rootGameObjects = this.props.engineAPI.currentScene.GetGameObjects().filter((go) => !go.transform.parent && (go.flags & this.props.engineAPI.flags.HideInHierarchy) === 0);
     return /* @__PURE__ */ createElement("div", { class: "Layout" }, /* @__PURE__ */ createElement("div", { class: "header" }, /* @__PURE__ */ createElement("div", { class: "title" }, this.props.engineAPI.currentScene.name || "Untitled scene"), /* @__PURE__ */ createElement("div", { class: "right-action" }, /* @__PURE__ */ createElement("button", { onClick: (event) => {
       this.setState({ ...this.state, headerMenuOpen: !this.state.headerMenuOpen });
-    } }, "\u22EE"), /* @__PURE__ */ createElement(FloatingMenu, { visible: this.state.headerMenuOpen, onClose: () => this.setState({ ...this.state, headerMenuOpen: false }) }, /* @__PURE__ */ createElement(Tree, null, /* @__PURE__ */ createElement(TreeItem, { name: "Create Empty", onPointerDown: () => this.createEmptyGameObject() }), /* @__PURE__ */ createElement(TreeItem, { name: "Delete", onPointerDown: () => this.deleteGameObject() }), /* @__PURE__ */ createElement(TreeFolder, { name: "3D Object" }, /* @__PURE__ */ createElement(TreeItem, { name: "Cube", onPointerDown: () => this.createPrimitive("Cube") }), /* @__PURE__ */ createElement(TreeItem, { name: "Capsule", onPointerDown: () => this.createPrimitive("Capsule") }), /* @__PURE__ */ createElement(TreeItem, { name: "Plane", onPointerDown: () => this.createPrimitive("Plane") }), /* @__PURE__ */ createElement(TreeItem, { name: "Sphere", onPointerDown: () => this.createPrimitive("Sphere") }), /* @__PURE__ */ createElement(TreeItem, { name: "Terrain", onPointerDown: () => this.createTerrain() })), /* @__PURE__ */ createElement(TreeFolder, { name: "Lights" }, /* @__PURE__ */ createElement(TreeItem, { name: "Directional Light", onPointerDown: () => this.createLight("Directional") }), /* @__PURE__ */ createElement(TreeItem, { name: "Point Light", onPointerDown: () => this.createLight("Point") }), /* @__PURE__ */ createElement(TreeItem, { name: "Spot Light", onPointerDown: () => this.createLight("Spot") })))))), /* @__PURE__ */ createElement(
+    } }, "\u22EE"), /* @__PURE__ */ createElement(FloatingMenu, { visible: this.state.headerMenuOpen, onClose: () => this.setState({ ...this.state, headerMenuOpen: false }) }, /* @__PURE__ */ createElement(Tree, null, /* @__PURE__ */ createElement(TreeItem, { name: "Create Empty", onPointerDown: () => this.createEmptyGameObject() }), /* @__PURE__ */ createElement(TreeItem, { name: "Delete", onPointerDown: () => this.deleteGameObject() }), /* @__PURE__ */ createElement(TreeItem, { name: "Unpack Prefab", onPointerDown: () => this.unpackSelectedPrefab() }), /* @__PURE__ */ createElement(TreeFolder, { name: "3D Object" }, /* @__PURE__ */ createElement(TreeItem, { name: "Cube", onPointerDown: () => this.createPrimitive("Cube") }), /* @__PURE__ */ createElement(TreeItem, { name: "Capsule", onPointerDown: () => this.createPrimitive("Capsule") }), /* @__PURE__ */ createElement(TreeItem, { name: "Plane", onPointerDown: () => this.createPrimitive("Plane") }), /* @__PURE__ */ createElement(TreeItem, { name: "Sphere", onPointerDown: () => this.createPrimitive("Sphere") }), /* @__PURE__ */ createElement(TreeItem, { name: "Terrain", onPointerDown: () => this.createTerrain() })), /* @__PURE__ */ createElement(TreeFolder, { name: "Lights" }, /* @__PURE__ */ createElement(TreeItem, { name: "Directional Light", onPointerDown: () => this.createLight("Directional") }), /* @__PURE__ */ createElement(TreeItem, { name: "Point Light", onPointerDown: () => this.createLight("Point") }), /* @__PURE__ */ createElement(TreeItem, { name: "Spot Light", onPointerDown: () => this.createLight("Spot") })))))), /* @__PURE__ */ createElement(
       "div",
       {
         style: "width: 100%; height: 100%; overflow: auto;padding-top:5px",
@@ -5029,22 +5087,27 @@ class LayoutInspectorGameObject extends Component {
       );
     } else if (typeof type === "function") {
       const currentValue = component[name];
-      let valueForType = currentValue ? currentValue.constructor.name : "None";
-      if (currentValue?.assetPath) valueForType = StringUtils.GetNameForPath(currentValue.assetPath);
-      else if (currentValue?.name) valueForType = currentValue.name;
-      return /* @__PURE__ */ createElement(
-        InspectorType,
-        {
-          onChanged: (value) => {
-            this.onComponentPropertyChanged(component, name, value);
-          },
-          title,
-          component,
-          property: name,
-          value: valueForType,
-          expectedType: type
-        }
-      );
+      const engineType2 = this.props.engineAPI.getFieldType(type);
+      const isRef = engineType2 !== "unknown" || currentValue?.assetPath;
+      if (isRef) {
+        let value = currentValue ? currentValue.constructor.name : "None";
+        if (currentValue?.assetPath) value = StringUtils.GetNameForPath(currentValue.assetPath);
+        else if (currentValue?.name) value = currentValue.name;
+        return /* @__PURE__ */ createElement(
+          InspectorType,
+          {
+            onChanged: (value2) => this.onComponentPropertyChanged(component, name, value2),
+            title,
+            component,
+            property: name,
+            value,
+            expectedType: type
+          }
+        );
+      }
+      if (currentValue && this.props.engineAPI.GetSerializedFields(currentValue).length > 0) {
+        return /* @__PURE__ */ createElement(InspectorClass, { title }, ...this.renderInspectorForComponent(currentValue));
+      }
     } else if (typeof type === "object") {
       let selectOptions = [];
       for (let property2 in type) {
@@ -5183,6 +5246,18 @@ class LayoutInspector extends Component {
   }
 }
 
+class PlayIcon extends Component {
+  render() {
+    return /* @__PURE__ */ createElement("svg", { viewBox: "0 0 494.148 494.148", fill: "currentColor", style: { width: "1em", height: "1em" } }, /* @__PURE__ */ createElement("g", null, /* @__PURE__ */ createElement("g", null, /* @__PURE__ */ createElement("path", { d: "M405.284,201.188L130.804,13.28C118.128,4.596,105.356,0,94.74,0C74.216,0,61.52,16.472,61.52,44.044v406.124\n  			c0,27.54,12.68,43.98,33.156,43.98c10.632,0,23.2-4.6,35.904-13.308l274.608-187.904c17.66-12.104,27.44-28.392,27.44-45.884\n  			C432.632,229.572,422.964,213.288,405.284,201.188z" }))));
+  }
+}
+
+class StopIcon extends Component {
+  render() {
+    return /* @__PURE__ */ createElement("svg", { viewBox: "0 0 494.148 494.148", fill: "currentColor", style: { width: "1em", height: "1em" } }, /* @__PURE__ */ createElement("g", null, /* @__PURE__ */ createElement("g", null, /* @__PURE__ */ createElement("path", { d: "M438.254,0H58.974C27.502,0,0.006,25.992,0.006,57.472v379.256c0,31.48,27.496,56.832,58.968,56.832h379.28\n			c31.468,0,55.3-25.352,55.3-56.832V57.472C493.554,25.992,469.722,0,438.254,0z" }))));
+  }
+}
+
 class LayoutTopbar extends Component {
   constructor(props) {
     super(props);
@@ -5207,8 +5282,15 @@ class LayoutTopbar extends Component {
     this.setState({ fileMenuOpen: !this.state.fileMenuOpen });
     TridentAPI.EventSystem.emit(SceneEvents.Saved, this.props.engineAPI.currentScene);
   }
+  PlayStop() {
+    const runtime = this.props.engineAPI.getRuntime();
+    if (!runtime) throw Error("No runtime");
+    if (runtime.isPlaying) this.props.engineAPI.getRuntime().Stop();
+    else this.props.engineAPI.getRuntime().Play();
+    this.setState({ ...this.state });
+  }
   render() {
-    return /* @__PURE__ */ createElement("div", { style: { padding: "10px", marginLeft: "5px" } }, /* @__PURE__ */ createElement("a", { onClick: () => {
+    return /* @__PURE__ */ createElement("div", { style: { marginLeft: "5px", display: "flex", width: "100%", justifyContent: "space-between", alignItems: "center", padding: "10px" } }, /* @__PURE__ */ createElement("div", null, /* @__PURE__ */ createElement("a", { onClick: () => {
       this.setState({ ...this.state, fileMenuOpen: !this.state.fileMenuOpen });
     }, style: { cursor: "pointer" } }, "File"), /* @__PURE__ */ createElement(FloatingMenu, { visible: this.state.fileMenuOpen, onClose: () => this.setState({ ...this.state, fileMenuOpen: false }) }, /* @__PURE__ */ createElement(Tree, null, /* @__PURE__ */ createElement(TreeItem, { name: "Open Project...", onPointerDown: () => {
       this.openProject();
@@ -5216,7 +5298,9 @@ class LayoutTopbar extends Component {
       this.saveProject();
     } }), /* @__PURE__ */ createElement(TreeItem, { name: "Test", onPointerDown: () => {
       this.test();
-    } }))));
+    } })))), /* @__PURE__ */ createElement("div", null, /* @__PURE__ */ createElement("button", { class: "button", style: { width: "25px", height: "25px" }, onClick: () => {
+      this.PlayStop();
+    } }, this.props.engineAPI.getRuntime().isPlaying ? /* @__PURE__ */ createElement(StopIcon, null) : /* @__PURE__ */ createElement(PlayIcon, null))));
   }
 }
 
@@ -5267,11 +5351,11 @@ class App extends Component {
       const skyTexture = sky.skyTextureCubemap;
       const environment = new Environment(EngineAPI.currentScene, skyTexture);
       await environment.init();
+      const editorSceneManager = EngineAPI.createGameObject(currentScene);
+      editorSceneManager.name = "EditorSceneManager";
+      editorSceneManager.AddComponent(EditorSceneManager);
       Runtime.AddSystem(PhysicsRapier);
       Runtime.Play();
-      setTimeout(() => {
-        console.log(Runtime);
-      }, 1e3);
       TridentAPI.EventSystem.emit(SceneEvents.Loaded, currentScene);
     });
   }

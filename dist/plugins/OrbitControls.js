@@ -18,9 +18,6 @@ class OrbitControls extends Component {
   camera;
   theta = 0;
   phi = 0;
-  constructor(gameObject) {
-    super(gameObject);
-  }
   Start() {
     this.camera = this.gameObject.GetComponent(Components.Camera) ?? Components.Camera.mainCamera;
     if (!this.camera) {

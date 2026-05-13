@@ -1,4 +1,4 @@
-import { SerializeField, GPU } from '@trident/core';
+import { SerializeField, GPU, Mathf } from '@trident/core';
 
 var __create = Object.create;
 var __defProp = Object.defineProperty;
@@ -48,24 +48,30 @@ var __privateIn = (member, obj) => Object(obj) !== obj ? __typeError('Cannot use
 var __privateGet = (obj, member, getter) => (__accessCheck(obj, member, "read from private field"), getter ? getter.call(obj) : member.get(obj));
 var __privateSet = (obj, member, value, setter) => (__accessCheck(obj, member, "write to private field"), setter ? setter.call(obj, value) : member.set(obj, value), value);
 var __privateMethod = (obj, member, method) => (__accessCheck(obj, member, "access private method"), method);
-var _armMap_dec, _normalMap_dec, _albedoMap_dec, _transform_dec, _name_dec, _init, _terrainLayers_dec, _a, _init2;
+var _metalness_dec, _roughness_dec, _armMap_dec, _normalMap_dec, _albedoColor_dec, _albedoMap_dec, _transform_dec, _name_dec, _init, _terrainLayers_dec, _a, _init2;
 const uv_grid_url = "./resources/uv_grid.png";
-_name_dec = [SerializeField], _transform_dec = [SerializeField], _albedoMap_dec = [SerializeField(GPU.Texture)], _normalMap_dec = [SerializeField(GPU.Texture)], _armMap_dec = [SerializeField(GPU.Texture)];
+_name_dec = [SerializeField], _transform_dec = [SerializeField], _albedoMap_dec = [SerializeField(GPU.Texture)], _albedoColor_dec = [SerializeField(Mathf.Color)], _normalMap_dec = [SerializeField(GPU.Texture)], _armMap_dec = [SerializeField(GPU.Texture)], _roughness_dec = [SerializeField], _metalness_dec = [SerializeField];
 class TerrainLayer {
   constructor() {
     __publicField(this, "name", __runInitializers(_init, 8, this)), __runInitializers(_init, 11, this);
     __publicField(this, "transform", __runInitializers(_init, 12, this)), __runInitializers(_init, 15, this);
     __publicField(this, "albedoMap", __runInitializers(_init, 16, this)), __runInitializers(_init, 19, this);
-    __publicField(this, "normalMap", __runInitializers(_init, 20, this)), __runInitializers(_init, 23, this);
-    __publicField(this, "armMap", __runInitializers(_init, 24, this)), __runInitializers(_init, 27, this);
+    __publicField(this, "albedoColor", __runInitializers(_init, 20, this)), __runInitializers(_init, 23, this);
+    __publicField(this, "normalMap", __runInitializers(_init, 24, this)), __runInitializers(_init, 27, this);
+    __publicField(this, "armMap", __runInitializers(_init, 28, this)), __runInitializers(_init, 31, this);
+    __publicField(this, "roughness", __runInitializers(_init, 32, this)), __runInitializers(_init, 35, this);
+    __publicField(this, "metalness", __runInitializers(_init, 36, this)), __runInitializers(_init, 39, this);
   }
 }
 _init = __decoratorStart(null);
 __decorateElement(_init, 5, "name", _name_dec, TerrainLayer);
 __decorateElement(_init, 5, "transform", _transform_dec, TerrainLayer);
 __decorateElement(_init, 5, "albedoMap", _albedoMap_dec, TerrainLayer);
+__decorateElement(_init, 5, "albedoColor", _albedoColor_dec, TerrainLayer);
 __decorateElement(_init, 5, "normalMap", _normalMap_dec, TerrainLayer);
 __decorateElement(_init, 5, "armMap", _armMap_dec, TerrainLayer);
+__decorateElement(_init, 5, "roughness", _roughness_dec, TerrainLayer);
+__decorateElement(_init, 5, "metalness", _metalness_dec, TerrainLayer);
 __decoratorMetadata(_init, TerrainLayer);
 class TerrainMaterial extends (_a = GPU.Material, _terrainLayers_dec = [SerializeField(TerrainLayer)], _a) {
   constructor() {
@@ -146,11 +152,25 @@ class TerrainMaterial extends (_a = GPU.Material, _terrainLayers_dec = [Serializ
     let armTextures = [];
     for (const layer of layers) {
       let textureIndices = [0, 0, 0, 0];
-      let transform = layer.transform || [1, 1, 0, 0];
+      const transform = layer.transform ?? [1, 1, 0, 0];
+      const albedoColor = layer.albedoColor ?? { r: 1, g: 1, b: 1, a: 1 };
+      const roughness = layer.roughness ?? 1;
+      const metalness = layer.metalness ?? 0;
       if (layer.albedoMap) textureIndices[0] = albedoTextures.push(layer.albedoMap) - 1;
       if (layer.normalMap) textureIndices[1] = normalTextures.push(layer.normalMap) - 1;
       if (layer.armMap) textureIndices[2] = armTextures.push(layer.armMap) - 1;
-      layersArray.push(...textureIndices, ...transform);
+      layersArray.push(
+        ...textureIndices,
+        ...transform,
+        albedoColor.r,
+        albedoColor.g,
+        albedoColor.b,
+        albedoColor.a,
+        roughness,
+        metalness,
+        0,
+        0
+      );
     }
     this.SetTerrainLayersArray(this.shader, new Float32Array(layersArray));
     if (albedoTextures.length > 0) this.shader.SetTexture("albedoTextures", this.CreateTextureArray(albedoTextures));
@@ -198,6 +218,8 @@ class TerrainMaterial extends (_a = GPU.Material, _terrainLayers_dec = [Serializ
                 struct TerrainLayer {
                     textureIndices: vec4<f32>, // x=albedo, y=normal, z=arm
                     transform: vec4<f32>, // xy=scale, zw=offset
+                    albedoColor: vec4<f32>,
+                    materialParams: vec4<f32>, // x=roughness, y=metalness
                 };
                 @group(1) @binding(6) var<storage, read> TerrainLayers: array<TerrainLayer>;
 
@@ -243,6 +265,7 @@ class TerrainMaterial extends (_a = GPU.Material, _terrainLayers_dec = [Serializ
                     let layer = TerrainLayers[layer_index];
                     let uv_layer = uv * 1 / layer.transform.xy + layer.transform.zw;
                     let layerAlbedo = textureSample(albedoTextures, textureSampler, uv_layer, u32(layer.textureIndices.x));
+                    let albedo = layerAlbedo.rgb * layer.albedoColor.rgb;
                     // let layerNormal = textureSample(normalTextures, textureSampler, uv_layer, layer_index);
                     let layerNormalSample = textureSample(normalTextures, textureSampler, uv_layer, u32(layer.textureIndices.y));
                     let layerNormal = layerNormalSample.xyz * 2.0 - 1.0;
@@ -255,10 +278,10 @@ class TerrainMaterial extends (_a = GPU.Material, _terrainLayers_dec = [Serializ
 
                     // Unity style r=1.0 - smoothness,g=ao,b=detail,a=roughness
                     let ao = layerArm.r;
-                    let roughness = layerArm.g;
-                    let metalness = layerArm.b;
+                    let roughness = layerArm.g * layer.materialParams.x;
+                    let metalness = layerArm.b * layer.materialParams.y;
 
-                    return TerrainSample(layerAlbedo.rgb, layerNormal, vec3(ao, roughness, metalness));
+                    return TerrainSample(albedo.rgb, layerNormal, vec3(ao, roughness, metalness));
                 }
                     
                 @fragment
@@ -322,7 +345,28 @@ class TerrainMaterial extends (_a = GPU.Material, _terrainLayers_dec = [Serializ
       shader.SetTexture("armTextures", defaultArmTextureArray);
       shader.SetTexture("blendWeightMaps", whiteTextureArray);
       shader.SetTexture("materialIdMap", blackTexture);
-      this.SetTerrainLayersArray(shader, new Float32Array([0, 0, 0, 0, 10, 10, 0, 0]));
+      this.SetTerrainLayersArray(shader, new Float32Array([
+        0,
+        0,
+        0,
+        0,
+        // textureIndices
+        10,
+        10,
+        0,
+        0,
+        // transform
+        1,
+        1,
+        1,
+        1,
+        // albedoColor
+        1,
+        0,
+        0,
+        0
+        // roughness, metalness, unused, unused
+      ]));
       this.shader = shader;
       if (this._terrainLayers.length > 0) this.ApplyTerrainLayers(this._terrainLayers);
       return shader;

@@ -36,11 +36,12 @@ var __decorateElement = (array, flags, name, decorators, target, extra) => {
   return desc && __defProp(target, name, desc), target;
 };
 var __publicField = (obj, key, value) => __defNormalProp(obj, typeof key !== "symbol" ? key + "" : key, value);
-var _isKinematic_dec, _a, _init;
+var _isKinematic_dec, _constraints_dec, _a, _init;
 function isFrozen(c, flag) {
   return (c & flag) !== 0;
 }
 const RigidbodyConstraints = {
+  None: 0,
   FreezePositionX: 1 << 0,
   FreezePositionY: 1 << 1,
   FreezePositionZ: 1 << 2,
@@ -48,14 +49,17 @@ const RigidbodyConstraints = {
   FreezeRotationY: 1 << 4,
   FreezeRotationZ: 1 << 5,
   FreezePosition: 1 << 0 | 1 << 1 | 1 << 2,
-  FreezeRotation: 1 << 3 | 1 << 4 | 1 << 5};
-class RigidBody extends (_a = Component, _isKinematic_dec = [SerializeField(Boolean)], _a) {
+  FreezeRotation: 1 << 3 | 1 << 4 | 1 << 5,
+  FreezeAll: 1 << 0 | 1 << 1 | 1 << 2 | (1 << 3 | 1 << 4 | 1 << 5)
+};
+class RigidBody extends (_a = Component, _constraints_dec = [SerializeField(RigidbodyConstraints)], _isKinematic_dec = [SerializeField(Boolean)], _a) {
   constructor(gameObject) {
     super(gameObject);
     __runInitializers(_init, 5, this);
     __publicField(this, "rigidBody");
     __publicField(this, "rigidBodyDesc");
     __publicField(this, "_velocity", new Mathf.Vector3());
+    __publicField(this, "_constraints", RigidbodyConstraints.None);
     __publicField(this, "_isKinematic", true);
   }
   get velocity() {
@@ -66,19 +70,24 @@ class RigidBody extends (_a = Component, _isKinematic_dec = [SerializeField(Bool
   get mass() {
     return this.rigidBody.mass();
   }
+  get constraints() {
+    return this._constraints;
+  }
   set constraints(constraint) {
-    const freezeRot = isFrozen(constraint, RigidbodyConstraints.FreezeRotation);
-    const freezePos = isFrozen(constraint, RigidbodyConstraints.FreezePosition);
+    this._constraints = constraint;
+    if (!this.rigidBody) return;
+    const freezePosition = isFrozen(constraint, RigidbodyConstraints.FreezePosition);
+    const freezeRotation = isFrozen(constraint, RigidbodyConstraints.FreezeRotation);
     this.rigidBody.setEnabledRotations(
-      !(isFrozen(constraint, RigidbodyConstraints.FreezeRotationX) || freezeRot),
-      !(isFrozen(constraint, RigidbodyConstraints.FreezeRotationY) || freezeRot),
-      !(isFrozen(constraint, RigidbodyConstraints.FreezeRotationZ) || freezeRot),
+      !(freezeRotation || isFrozen(constraint, RigidbodyConstraints.FreezeRotationX)),
+      !(freezeRotation || isFrozen(constraint, RigidbodyConstraints.FreezeRotationY)),
+      !(freezeRotation || isFrozen(constraint, RigidbodyConstraints.FreezeRotationZ)),
       true
     );
     this.rigidBody.setEnabledTranslations(
-      !(isFrozen(constraint, RigidbodyConstraints.FreezePositionX) || freezePos),
-      !(isFrozen(constraint, RigidbodyConstraints.FreezePositionY) || freezePos),
-      !(isFrozen(constraint, RigidbodyConstraints.FreezePositionZ) || freezePos),
+      !(freezePosition || isFrozen(constraint, RigidbodyConstraints.FreezePositionX)),
+      !(freezePosition || isFrozen(constraint, RigidbodyConstraints.FreezePositionY)),
+      !(freezePosition || isFrozen(constraint, RigidbodyConstraints.FreezePositionZ)),
       true
     );
   }
@@ -119,19 +128,26 @@ class RigidBody extends (_a = Component, _isKinematic_dec = [SerializeField(Bool
     this.rigidBody = PhysicsRapier.PhysicsWorld.createRigidBody(this.rigidBodyDesc);
     this.rigidBody.setTranslation(this.transform.position, true);
     this.rigidBody.setRotation(this.transform.rotation, true);
+    this.constraints = this._constraints;
     PhysicsRapier.PhysicsWorld.removeCollider(collider.collider, false);
     collider.collider = PhysicsRapier.PhysicsWorld.createCollider(collider.colliderDesc, this.rigidBody);
     collider.colliderDesc = collider.colliderDesc;
   }
   Update() {
     if (!this.rigidBody) return;
-    const t = this.rigidBody.translation();
-    const r = this.rigidBody.rotation();
-    this.transform.position.set(t.x, t.y, t.z);
-    this.transform.rotation.set(r.x, r.y, r.z, r.w);
+    if (this.isKinematic) {
+      this.rigidBody.setTranslation(this.transform.position, true);
+      this.rigidBody.setRotation(this.transform.rotation, true);
+    } else {
+      const t = this.rigidBody.translation();
+      const r = this.rigidBody.rotation();
+      this.transform.position.set(t.x, t.y, t.z);
+      this.transform.rotation.set(r.x, r.y, r.z, r.w);
+    }
   }
 }
 _init = __decoratorStart(_a);
+__decorateElement(_init, 2, "constraints", _constraints_dec, RigidBody);
 __decorateElement(_init, 2, "isKinematic", _isKinematic_dec, RigidBody);
 __decoratorMetadata(_init, RigidBody);
 __publicField(RigidBody, "type", "@trident/plugins/PhysicsRapier/RigidBody");

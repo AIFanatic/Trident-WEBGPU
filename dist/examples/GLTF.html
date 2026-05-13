@@ -28,12 +28,13 @@
             <script type="module">
                 const canvas = document.createElement("canvas");
                 document.body.appendChild(canvas);
-                            import { Runtime, GameObject, Components, Mathf } from '@trident/core';
+                            import { Runtime, GameObject, Components, Mathf, GPU } from '@trident/core';
             import { OrbitControls } from '@trident/plugins/OrbitControls.js';
             import { GLTFLoader } from '@trident/plugins/GLTF/GLTFLoader.js';
             import { Debugger } from '@trident/plugins/Debugger.js';
             import { HDRParser } from '@trident/plugins/HDRParser.js';
-            import { Environment } from '@trident/plugins/Environment/Environment.js';
+            import { IBLLightingPass } from '@trident/plugins/Environment/IBLLightingPass.js';
+            import { SkyboxPass } from '@trident/plugins/Environment/SkyboxPass.js';
             
             async function Application(canvas) {
               await Runtime.Create(canvas);
@@ -53,11 +54,7 @@
               const light = lightGameObject.AddComponent(Components.DirectionalLight);
               light.castShadows = false;
               light.intensity = 2;
-              const hdr = await HDRParser.Load("./assets/textures/HDR/spruit_sunrise_1k.hdr");
-              const skyTexture = await HDRParser.ToCubemap(hdr);
-              const environment = new Environment(scene, skyTexture);
-              await environment.init();
-              const rootGO = await GLTFLoader.Load("./assets/models/DamagedHelmet/DamagedHelmet.gltf", scene);
+              const rootGO = await GLTFLoader.Load("./assets/models/Shadow.glb", scene);
               const meshComponents = rootGO.GetComponentsInChildren(Components.Mesh);
               for (const mesh of meshComponents) {
                 const animator = mesh.gameObject.GetComponent(Components.Animator);
@@ -66,6 +63,19 @@
                   break;
                 }
               }
+              {
+                const gameObject = await GLTFLoader.Load("./assets/models/Shadow.glb", scene);
+                gameObject.transform.position.x = 2;
+                const animator = gameObject.GetComponent(Components.Animator);
+                console.log(animator);
+                animator.SetClipByIndex(45);
+              }
+              const hdr = await HDRParser.Load("./assets/textures/HDR/spruit_sunrise_1k.hdr");
+              const skyTexture = await HDRParser.ToCubemap(hdr);
+              const iblLightingPass = Runtime.Renderer.RenderPipeline.AddPass(IBLLightingPass, GPU.RenderPassOrder.AfterLighting);
+              const skyboxPass = Runtime.Renderer.RenderPipeline.AddPass(SkyboxPass, GPU.RenderPassOrder.AfterLighting);
+              iblLightingPass.SetEnvironment(skyTexture);
+              skyboxPass.SetSkybox(skyTexture);
               {
                 window.addEventListener("dragover", (e) => {
                   e.preventDefault();

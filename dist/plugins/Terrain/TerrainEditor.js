@@ -227,7 +227,7 @@ class TerrainEditor extends (_a = Components.Component, _paintObjects_dec = [Ser
     this.ForEachBrushCell(worldPoint, radius, sizeH, (x, z, dist) => {
       const amount = normalizedStrength * this.SmoothFalloff(dist);
       const i = x * sizeH + z;
-      heights[i] = Math.max(0, Math.min(1, editHeight(heights[i], amount)));
+      heights[i] = editHeight(heights[i], amount);
     });
   }
   PaintMaterial(worldPoint, radius, materialId, strength) {
@@ -365,8 +365,11 @@ class TerrainEditor extends (_a = Components.Component, _paintObjects_dec = [Ser
     const layer = new TerrainLayer();
     layer.name = material.name;
     layer.albedoMap = material.params.albedoMap;
+    layer.albedoColor = material.params.albedoColor;
     layer.normalMap = material.params.normalMap;
     layer.armMap = material.params.armMap;
+    layer.roughness = material.params.roughness;
+    layer.metalness = material.params.metalness;
     layer.transform = new Float32Array([...material.params.repeat.elements, ...material.params.offset.elements]);
     return layer;
   }
@@ -510,7 +513,7 @@ class TerrainEditor extends (_a = Components.Component, _paintObjects_dec = [Ser
           EditorAPI.LayoutInspectorInput({ title: "Brush Strength", value: this.paintTextureStrength, min: 0, max: 1, step: 0.01, onChanged: (value) => this.paintTextureStrength = parseFloat(value) })
         )
       );
-    } else if (this.editType === 4 /* PAINT_PREFAB */) {
+    } else if (this.editType === 4 /* PAINT_PREFAB */ || this.editType === 5 /* ERASE_PREFAB */) {
       activeSection = h(
         "section",
         null,
@@ -536,7 +539,7 @@ class TerrainEditor extends (_a = Components.Component, _paintObjects_dec = [Ser
           h(
             "div",
             Object.assign({}, this.DropEvents(Prefab, (prefab) => {
-              if (!this.paintObjects.includes(prefab)) {
+              if (!this.paintObjects.some((p) => p === prefab || !!p.assetPath && p.assetPath === prefab.assetPath)) {
                 this.paintObjects.push(prefab);
                 this.terrain.terrainData.AddProp(prefab);
               }

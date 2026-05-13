@@ -53,7 +53,6 @@ export { Sky } from './Environment/Sky.js';
 export { PrefilterDiffuse as Irradiance } from './Environment/PrefilterDiffuse.js';
 export { PrefilterSpecular } from './Environment/PrefilterSpecular.js';
 export { BRDF } from './Environment/BRDF.js';
-export { Environment } from './Environment/Environment.js';
 export { IBLLightingPass } from './Environment/IBLLightingPass.js';
 export { SkyboxPass } from './Environment/SkyboxPass.js';
 export { LODGroup } from './LOD/LODGroup.js';

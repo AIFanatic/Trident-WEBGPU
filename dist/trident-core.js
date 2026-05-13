@@ -2241,6 +2241,7 @@ class Texture {
     return view;
   }
   GenerateMips() {
+    const name = this.name;
     const mipLevels = WEBGPUMipsGenerator.numMipLevels(this.width, this.height, this.depth);
     const destination = this.mipLevels === mipLevels ? this : void 0;
     if (this.dimension === "cube") {
@@ -2248,6 +2249,7 @@ class Texture {
     } else {
       this.buffer = WEBGPUMipsGenerator.generateMips(this, destination);
     }
+    this.name = name;
     this.SetActiveMip(0);
     this.SetActiveMipCount(mipLevels);
     this.mipLevels = mipLevels;
@@ -2838,8 +2840,13 @@ class Shader extends BaseShader {
   }
   // TODO: This needs cleaning
   Compile() {
-    if (!(this.needsUpdate || !this.pipeline || !this.bindGroups)) {
-      return;
+    if (!(this.needsUpdate || !this.pipeline || !this.bindGroups)) return;
+    const missing = [];
+    for (const [name, uniform] of this.uniformMap) {
+      if (!uniform.buffer) missing.push(name);
+    }
+    if (missing.length) {
+      console.error(`[${this.params.name ?? "Shader"}] Compile missing bindings:`, missing, new Error().stack);
     }
     let hasCompiled = false;
     this.bindGroupLayouts = this.BuildBindGroupLayouts();
@@ -3659,7 +3666,7 @@ var __decorateElement$7 = (array, flags, name, decorators, target, extra) => {
   return target;
 };
 var __publicField$7 = (obj, key, value) => __defNormalProp$7(obj, typeof key !== "symbol" ? key + "" : key, value);
-var _currentSize_dec, _currentOffset_dec, _arrayType_dec, _array_dec, _type_dec, _init$7, _stride_dec, _a$6, _init2$3, _attributes_dec, _index_dec$1, _name_dec, _id_dec, _assetPath_dec$3, _init3$2;
+var _currentSize_dec, _currentOffset_dec, _arrayType_dec, _array_dec, _type_dec, _init$7, _stride_dec, _a$6, _init2$3, _attributes_dec, _index_dec$1, _name_dec, _id_dec, _assetPath_dec$3, _init3$3;
 _type_dec = [SerializeField], _array_dec = [SerializeField], _arrayType_dec = [SerializeField], _currentOffset_dec = [SerializeField], _currentSize_dec = [SerializeField];
 class GeometryAttribute {
   constructor(array, type) {
@@ -3777,11 +3784,11 @@ class IndexAttribute extends GeometryAttribute {
 _assetPath_dec$3 = [SerializeField], _id_dec = [SerializeField], _name_dec = [SerializeField], _index_dec$1 = [SerializeField], _attributes_dec = [SerializeField];
 const _Geometry = class _Geometry {
   constructor() {
-    __publicField$7(this, "assetPath", __runInitializers$7(_init3$2, 8, this)), __runInitializers$7(_init3$2, 11, this);
-    __publicField$7(this, "id", __runInitializers$7(_init3$2, 12, this, UUID())), __runInitializers$7(_init3$2, 15, this);
-    __publicField$7(this, "name", __runInitializers$7(_init3$2, 16, this, "")), __runInitializers$7(_init3$2, 19, this);
-    __publicField$7(this, "index", __runInitializers$7(_init3$2, 20, this)), __runInitializers$7(_init3$2, 23, this);
-    __publicField$7(this, "attributes", __runInitializers$7(_init3$2, 24, this, /* @__PURE__ */ new Map())), __runInitializers$7(_init3$2, 27, this);
+    __publicField$7(this, "assetPath", __runInitializers$7(_init3$3, 8, this)), __runInitializers$7(_init3$3, 11, this);
+    __publicField$7(this, "id", __runInitializers$7(_init3$3, 12, this, UUID())), __runInitializers$7(_init3$3, 15, this);
+    __publicField$7(this, "name", __runInitializers$7(_init3$3, 16, this, "")), __runInitializers$7(_init3$3, 19, this);
+    __publicField$7(this, "index", __runInitializers$7(_init3$3, 20, this)), __runInitializers$7(_init3$3, 23, this);
+    __publicField$7(this, "attributes", __runInitializers$7(_init3$3, 24, this, /* @__PURE__ */ new Map())), __runInitializers$7(_init3$3, 27, this);
     __publicField$7(this, "_boundingVolume");
   }
   get boundingVolume() {
@@ -4005,13 +4012,13 @@ const _Geometry = class _Geometry {
     return instance;
   }
 };
-_init3$2 = __decoratorStart$7(null);
-__decorateElement$7(_init3$2, 5, "assetPath", _assetPath_dec$3, _Geometry);
-__decorateElement$7(_init3$2, 5, "id", _id_dec, _Geometry);
-__decorateElement$7(_init3$2, 5, "name", _name_dec, _Geometry);
-__decorateElement$7(_init3$2, 5, "index", _index_dec$1, _Geometry);
-__decorateElement$7(_init3$2, 5, "attributes", _attributes_dec, _Geometry);
-__decoratorMetadata$7(_init3$2, _Geometry);
+_init3$3 = __decoratorStart$7(null);
+__decorateElement$7(_init3$3, 5, "assetPath", _assetPath_dec$3, _Geometry);
+__decorateElement$7(_init3$3, 5, "id", _id_dec, _Geometry);
+__decorateElement$7(_init3$3, 5, "name", _name_dec, _Geometry);
+__decorateElement$7(_init3$3, 5, "index", _index_dec$1, _Geometry);
+__decorateElement$7(_init3$3, 5, "attributes", _attributes_dec, _Geometry);
+__decoratorMetadata$7(_init3$3, _Geometry);
 let Geometry = _Geometry;
 function RegisterBuiltinGeometries() {
   {
@@ -4355,7 +4362,7 @@ var __decorateElement$5 = (array, flags, name, decorators, target, extra) => {
   return target;
 };
 var __publicField$5 = (obj, key, value) => __defNormalProp$5(obj, typeof key !== "symbol" ? key + "" : key, value);
-var _castShadows_dec, _intensity_dec, _color_dec, _a$4, _init$5, _range_dec, _angle_dec, _b$1, _init2$2, _range_dec2, _c, _init3$1, _direction_dec, _d, _init4;
+var _castShadows_dec, _intensity_dec, _color_dec, _a$4, _init$5, _range_dec, _angle_dec, _b$1, _init2$2, _range_dec2, _c, _init3$2, _direction_dec, _d, _init4;
 class LightEvents {
   static Updated = (light) => {
   };
@@ -4405,16 +4412,16 @@ __publicField$5(SpotLight, "type", "@trident/core/components/Light/SpotLight");
 class PointLight extends (_c = Light, _range_dec2 = [SerializeField(Number)], _c) {
   constructor() {
     super(...arguments);
-    __publicField$5(this, "range", __runInitializers$5(_init3$1, 8, this, 10)), __runInitializers$5(_init3$1, 11, this);
+    __publicField$5(this, "range", __runInitializers$5(_init3$2, 8, this, 10)), __runInitializers$5(_init3$2, 11, this);
   }
   Start() {
     super.Start();
     this.camera.SetPerspective(60, Renderer.width / Renderer.height, 0.01, 1e3);
   }
 }
-_init3$1 = __decoratorStart$5(_c);
-__decorateElement$5(_init3$1, 5, "range", _range_dec2, PointLight);
-__decoratorMetadata$5(_init3$1, PointLight);
+_init3$2 = __decoratorStart$5(_c);
+__decorateElement$5(_init3$2, 5, "range", _range_dec2, PointLight);
+__decoratorMetadata$5(_init3$2, PointLight);
 __publicField$5(PointLight, "type", "@trident/core/components/Light/PointLight");
 class AreaLight extends Light {
   static type = "@trident/core/components/Light/AreaLight";
@@ -4902,7 +4909,7 @@ var __decorateElement$4 = (array, flags, name, decorators, target, extra) => {
   return target;
 };
 var __publicField$4 = (obj, key, value) => __defNormalProp$4(obj, typeof key !== "symbol" ? key + "" : key, value);
-var _isDeferred_dec, _init$4, _params_dec, _assetPath_dec$2, _init2$1, _isDeferred_dec2, _isSkinned_dec, _unlit_dec, _alphaCutoff_dec, _doubleSided_dec, _offset_dec, _repeat_dec, _emissiveMap_dec, _armMap_dec, _heightMap_dec, _normalMap_dec, _albedoMap_dec, _metalness_dec, _roughness_dec, _emissiveColor_dec, _albedoColor_dec, _a$3, _init3;
+var _isDeferred_dec, _init$4, _params_dec, _assetPath_dec$2, _init2$1, _isDeferred_dec2, _isSkinned_dec, _unlit_dec, _alphaCutoff_dec, _doubleSided_dec, _offset_dec, _repeat_dec, _emissiveMap_dec, _armMap_dec, _heightMap_dec, _normalMap_dec, _albedoMap_dec, _metalness_dec, _roughness_dec, _emissiveColor_dec, _albedoColor_dec, _a$3, _init3$1;
 const MaterialPool = new Pool();
 _isDeferred_dec = [SerializeField];
 class MaterialParams {
@@ -4959,22 +4966,22 @@ const _PBRMaterialParams = class _PBRMaterialParams extends (_a$3 = MaterialPara
   // 1x1 (255, roughness_default, 0) or just white
   constructor() {
     super();
-    __publicField$4(this, "albedoColor", __runInitializers$4(_init3, 8, this, new Color(1, 1, 1, 1))), __runInitializers$4(_init3, 11, this);
-    __publicField$4(this, "emissiveColor", __runInitializers$4(_init3, 12, this, new Color(0, 0, 0, 0))), __runInitializers$4(_init3, 15, this);
-    __publicField$4(this, "roughness", __runInitializers$4(_init3, 16, this, 0.5)), __runInitializers$4(_init3, 19, this);
-    __publicField$4(this, "metalness", __runInitializers$4(_init3, 20, this, 0)), __runInitializers$4(_init3, 23, this);
-    __publicField$4(this, "albedoMap", __runInitializers$4(_init3, 24, this)), __runInitializers$4(_init3, 27, this);
-    __publicField$4(this, "normalMap", __runInitializers$4(_init3, 28, this)), __runInitializers$4(_init3, 31, this);
-    __publicField$4(this, "heightMap", __runInitializers$4(_init3, 32, this)), __runInitializers$4(_init3, 35, this);
-    __publicField$4(this, "armMap", __runInitializers$4(_init3, 36, this)), __runInitializers$4(_init3, 39, this);
-    __publicField$4(this, "emissiveMap", __runInitializers$4(_init3, 40, this)), __runInitializers$4(_init3, 43, this);
-    __publicField$4(this, "repeat", __runInitializers$4(_init3, 44, this, new Vector2(1, 1))), __runInitializers$4(_init3, 47, this);
-    __publicField$4(this, "offset", __runInitializers$4(_init3, 48, this, new Vector2(0, 0))), __runInitializers$4(_init3, 51, this);
-    __publicField$4(this, "doubleSided", __runInitializers$4(_init3, 52, this, false)), __runInitializers$4(_init3, 55, this);
-    __publicField$4(this, "alphaCutoff", __runInitializers$4(_init3, 56, this, 0.5)), __runInitializers$4(_init3, 59, this);
-    __publicField$4(this, "unlit", __runInitializers$4(_init3, 60, this, false)), __runInitializers$4(_init3, 63, this);
-    __publicField$4(this, "isSkinned", __runInitializers$4(_init3, 64, this, false)), __runInitializers$4(_init3, 67, this);
-    __publicField$4(this, "isDeferred", __runInitializers$4(_init3, 68, this, true)), __runInitializers$4(_init3, 71, this);
+    __publicField$4(this, "albedoColor", __runInitializers$4(_init3$1, 8, this, new Color(1, 1, 1, 1))), __runInitializers$4(_init3$1, 11, this);
+    __publicField$4(this, "emissiveColor", __runInitializers$4(_init3$1, 12, this, new Color(0, 0, 0, 0))), __runInitializers$4(_init3$1, 15, this);
+    __publicField$4(this, "roughness", __runInitializers$4(_init3$1, 16, this, 0.5)), __runInitializers$4(_init3$1, 19, this);
+    __publicField$4(this, "metalness", __runInitializers$4(_init3$1, 20, this, 0)), __runInitializers$4(_init3$1, 23, this);
+    __publicField$4(this, "albedoMap", __runInitializers$4(_init3$1, 24, this)), __runInitializers$4(_init3$1, 27, this);
+    __publicField$4(this, "normalMap", __runInitializers$4(_init3$1, 28, this)), __runInitializers$4(_init3$1, 31, this);
+    __publicField$4(this, "heightMap", __runInitializers$4(_init3$1, 32, this)), __runInitializers$4(_init3$1, 35, this);
+    __publicField$4(this, "armMap", __runInitializers$4(_init3$1, 36, this)), __runInitializers$4(_init3$1, 39, this);
+    __publicField$4(this, "emissiveMap", __runInitializers$4(_init3$1, 40, this)), __runInitializers$4(_init3$1, 43, this);
+    __publicField$4(this, "repeat", __runInitializers$4(_init3$1, 44, this, new Vector2(1, 1))), __runInitializers$4(_init3$1, 47, this);
+    __publicField$4(this, "offset", __runInitializers$4(_init3$1, 48, this, new Vector2(0, 0))), __runInitializers$4(_init3$1, 51, this);
+    __publicField$4(this, "doubleSided", __runInitializers$4(_init3$1, 52, this, false)), __runInitializers$4(_init3$1, 55, this);
+    __publicField$4(this, "alphaCutoff", __runInitializers$4(_init3$1, 56, this, 0.5)), __runInitializers$4(_init3$1, 59, this);
+    __publicField$4(this, "unlit", __runInitializers$4(_init3$1, 60, this, false)), __runInitializers$4(_init3$1, 63, this);
+    __publicField$4(this, "isSkinned", __runInitializers$4(_init3$1, 64, this, false)), __runInitializers$4(_init3$1, 67, this);
+    __publicField$4(this, "isDeferred", __runInitializers$4(_init3$1, 68, this, true)), __runInitializers$4(_init3$1, 71, this);
     if (!_PBRMaterialParams.dummyAlbedo) _PBRMaterialParams.InitDummies();
     this.albedoMap = _PBRMaterialParams.dummyAlbedo;
     this.normalMap = _PBRMaterialParams.dummyNormal;
@@ -4995,24 +5002,24 @@ const _PBRMaterialParams = class _PBRMaterialParams extends (_a$3 = MaterialPara
     _PBRMaterialParams.dummyARM.SetData(new Uint8Array([255, 255, 255, 255]), 4);
   }
 };
-_init3 = __decoratorStart$4(_a$3);
-__decorateElement$4(_init3, 5, "albedoColor", _albedoColor_dec, _PBRMaterialParams);
-__decorateElement$4(_init3, 5, "emissiveColor", _emissiveColor_dec, _PBRMaterialParams);
-__decorateElement$4(_init3, 5, "roughness", _roughness_dec, _PBRMaterialParams);
-__decorateElement$4(_init3, 5, "metalness", _metalness_dec, _PBRMaterialParams);
-__decorateElement$4(_init3, 5, "albedoMap", _albedoMap_dec, _PBRMaterialParams);
-__decorateElement$4(_init3, 5, "normalMap", _normalMap_dec, _PBRMaterialParams);
-__decorateElement$4(_init3, 5, "heightMap", _heightMap_dec, _PBRMaterialParams);
-__decorateElement$4(_init3, 5, "armMap", _armMap_dec, _PBRMaterialParams);
-__decorateElement$4(_init3, 5, "emissiveMap", _emissiveMap_dec, _PBRMaterialParams);
-__decorateElement$4(_init3, 5, "repeat", _repeat_dec, _PBRMaterialParams);
-__decorateElement$4(_init3, 5, "offset", _offset_dec, _PBRMaterialParams);
-__decorateElement$4(_init3, 5, "doubleSided", _doubleSided_dec, _PBRMaterialParams);
-__decorateElement$4(_init3, 5, "alphaCutoff", _alphaCutoff_dec, _PBRMaterialParams);
-__decorateElement$4(_init3, 5, "unlit", _unlit_dec, _PBRMaterialParams);
-__decorateElement$4(_init3, 5, "isSkinned", _isSkinned_dec, _PBRMaterialParams);
-__decorateElement$4(_init3, 5, "isDeferred", _isDeferred_dec2, _PBRMaterialParams);
-__decoratorMetadata$4(_init3, _PBRMaterialParams);
+_init3$1 = __decoratorStart$4(_a$3);
+__decorateElement$4(_init3$1, 5, "albedoColor", _albedoColor_dec, _PBRMaterialParams);
+__decorateElement$4(_init3$1, 5, "emissiveColor", _emissiveColor_dec, _PBRMaterialParams);
+__decorateElement$4(_init3$1, 5, "roughness", _roughness_dec, _PBRMaterialParams);
+__decorateElement$4(_init3$1, 5, "metalness", _metalness_dec, _PBRMaterialParams);
+__decorateElement$4(_init3$1, 5, "albedoMap", _albedoMap_dec, _PBRMaterialParams);
+__decorateElement$4(_init3$1, 5, "normalMap", _normalMap_dec, _PBRMaterialParams);
+__decorateElement$4(_init3$1, 5, "heightMap", _heightMap_dec, _PBRMaterialParams);
+__decorateElement$4(_init3$1, 5, "armMap", _armMap_dec, _PBRMaterialParams);
+__decorateElement$4(_init3$1, 5, "emissiveMap", _emissiveMap_dec, _PBRMaterialParams);
+__decorateElement$4(_init3$1, 5, "repeat", _repeat_dec, _PBRMaterialParams);
+__decorateElement$4(_init3$1, 5, "offset", _offset_dec, _PBRMaterialParams);
+__decorateElement$4(_init3$1, 5, "doubleSided", _doubleSided_dec, _PBRMaterialParams);
+__decorateElement$4(_init3$1, 5, "alphaCutoff", _alphaCutoff_dec, _PBRMaterialParams);
+__decorateElement$4(_init3$1, 5, "unlit", _unlit_dec, _PBRMaterialParams);
+__decorateElement$4(_init3$1, 5, "isSkinned", _isSkinned_dec, _PBRMaterialParams);
+__decorateElement$4(_init3$1, 5, "isDeferred", _isDeferred_dec2, _PBRMaterialParams);
+__decoratorMetadata$4(_init3$1, _PBRMaterialParams);
 __publicField$4(_PBRMaterialParams, "dummyAlbedo");
 // 1x1 white
 __publicField$4(_PBRMaterialParams, "dummyNormal");
@@ -5210,6 +5217,39 @@ __publicField$3(_Renderable, "Renderables", /* @__PURE__ */ new Map());
 __publicField$3(_Renderable, "type", "@trident/core/components/Renderable");
 let Renderable = _Renderable;
 
+class Mesh extends Renderable {
+  static type = "@trident/core/components/Mesh";
+  // Doing this instead of just passing this.transform.localToWorldMatrix allows the same material/shader to be reused per geometries
+  static modelMatrices;
+  modelMatrixOffset = -1;
+  constructor(gameObject) {
+    super(gameObject);
+    if (!Mesh.modelMatrices) Mesh.modelMatrices = new DynamicBufferMemoryAllocatorDynamic(256 * 10, BufferType.STORAGE, 256 * 10);
+    EventSystemLocal.on(TransformEvents.Updated, this.transform, () => {
+      this.modelMatrixOffset = Mesh.modelMatrices.set(this.id, this.transform.localToWorldMatrix.elements);
+    });
+  }
+  Start() {
+    this.modelMatrixOffset = Mesh.modelMatrices.set(this.id, this.transform.localToWorldMatrix.elements);
+  }
+  OnPreRender(shaderOverride) {
+    const shader = shaderOverride ? shaderOverride : this.material?.shader;
+    if (!this.geometry || !this.material || !shader) return;
+    shader.SetBuffer("modelMatrix", Mesh.modelMatrices.getBuffer());
+  }
+  OnRenderObject(shaderOverride) {
+    const shader = shaderOverride ? shaderOverride : this.material?.shader;
+    if (!this.geometry || !this.geometry.attributes.has("position") || !this.material || !shader) return;
+    Mesh.modelMatrices.getBuffer().dynamicOffset = this.modelMatrixOffset * Mesh.modelMatrices.getStride();
+    RendererContext.DrawGeometry(this.geometry, shader);
+  }
+  Destroy() {
+    super.Destroy();
+    if (Mesh.modelMatrices.has(this.id)) Mesh.modelMatrices.delete(this.id);
+  }
+}
+Component.Registry.set(Mesh.type, Mesh);
+
 var __create$2 = Object.create;
 var __defProp$2 = Object.defineProperty;
 var __knownSymbol$2 = (name, symbol) => (symbol = Symbol[name]) ? symbol : Symbol.for("Symbol." + name);
@@ -5266,6 +5306,14 @@ class SkinnedMesh extends Renderable {
   boneMatricesBuffer;
   bones = [];
   jointData = new Float32Array(0);
+  modelMatrixOffset = -1;
+  constructor(gameObject) {
+    super(gameObject);
+    if (!Mesh.modelMatrices) Mesh.modelMatrices = new DynamicBufferMemoryAllocatorDynamic(256 * 10, BufferType.STORAGE, 256 * 10);
+    EventSystemLocal.on(TransformEvents.Updated, this.transform, () => {
+      this.modelMatrixOffset = Mesh.modelMatrices.set(this.id, this.transform.localToWorldMatrix.elements);
+    });
+  }
   GetBoneMatricesBuffer() {
     return this.boneMatricesBuffer;
   }
@@ -5292,6 +5340,7 @@ class SkinnedMesh extends Renderable {
     this.jointData = new Float32Array(this.bones.length * 16);
   }
   Start() {
+    this.modelMatrixOffset = Mesh.modelMatrices.set(this.id, this.transform.localToWorldMatrix.elements);
     this.tryInitBones();
   }
   tryInitBones() {
@@ -5312,16 +5361,24 @@ class SkinnedMesh extends Renderable {
     }
     this.boneMatricesBuffer.SetArray(this.jointData);
   }
-  OnPreRender() {
-    if (!this.geometry || !this.material || !this.material?.shader) return;
-    if (!this.boneMatricesBuffer && !this.tryInitBones()) return;
-    this.material.shader.SetMatrix4("modelMatrix", this.transform.localToWorldMatrix);
-    this.material.shader.SetBuffer("boneMatrices", this.boneMatricesBuffer);
+  OnPreRender(shaderOverride) {
+    const shader = shaderOverride ? shaderOverride : this.material?.shader;
+    if (!this.geometry || !this.material || !shader) return;
+    shader.SetBuffer("modelMatrix", Mesh.modelMatrices.getBuffer());
+    if (this.boneMatricesBuffer || this.tryInitBones()) {
+      shader.SetBuffer("boneMatrices", this.boneMatricesBuffer);
+    }
   }
   OnRenderObject(shaderOverride) {
     const shader = shaderOverride ? shaderOverride : this.material?.shader;
     if (!this.geometry || !this.material || !shader) return;
+    if (!this.boneMatricesBuffer) return;
+    Mesh.modelMatrices.getBuffer().dynamicOffset = this.modelMatrixOffset * Mesh.modelMatrices.getStride();
     RendererContext.DrawGeometry(this.geometry, shader);
+  }
+  Destroy() {
+    super.Destroy();
+    if (Mesh.modelMatrices?.has(this.id)) Mesh.modelMatrices.delete(this.id);
   }
 }
 Component.Registry.set(SkinnedMesh.type, SkinnedMesh);
@@ -5737,10 +5794,6 @@ class PrepareGBuffers extends RenderPass {
   gBufferNormalRT;
   gBufferERMORT;
   depthTexture;
-  skybox;
-  skyboxPrefilterDiffuse;
-  skyboxPrefilterSpecular;
-  skyboxBRDFLUT;
   GBufferFormat = "rgba16float";
   FrameBuffer;
   FrameBufferValues = new ArrayBuffer(464);
@@ -5788,10 +5841,6 @@ class PrepareGBuffers extends RenderPass {
     resources.setResource(PassParams.GBufferAlbedo, this.gBufferAlbedoRT);
     resources.setResource(PassParams.GBufferNormal, this.gBufferNormalRT);
     resources.setResource(PassParams.GBufferERMO, this.gBufferERMORT);
-    resources.setResource(PassParams.Skybox, this.skybox);
-    resources.setResource(PassParams.SkyboxIrradiance, this.skyboxPrefilterDiffuse);
-    resources.setResource(PassParams.SkyboxPrefilter, this.skyboxPrefilterSpecular);
-    resources.setResource(PassParams.SkyboxBRDFLUT, this.skyboxBRDFLUT);
     const settings = new Float32Array([
       0,
       // +Debugger.isDebugDepthPassEnabled,
@@ -6246,39 +6295,6 @@ class InstancedMesh extends Renderable {
   }
 }
 
-class Mesh extends Renderable {
-  static type = "@trident/core/components/Mesh";
-  // Doing this instead of just passing this.transform.localToWorldMatrix allows the same material/shader to be reused per geometries
-  static modelMatrices;
-  modelMatrixOffset = -1;
-  constructor(gameObject) {
-    super(gameObject);
-    if (!Mesh.modelMatrices) Mesh.modelMatrices = new DynamicBufferMemoryAllocatorDynamic(256 * 10, BufferType.STORAGE, 256 * 10);
-    EventSystemLocal.on(TransformEvents.Updated, this.transform, () => {
-      this.modelMatrixOffset = Mesh.modelMatrices.set(this.id, this.transform.localToWorldMatrix.elements);
-    });
-  }
-  Start() {
-    this.modelMatrixOffset = Mesh.modelMatrices.set(this.id, this.transform.localToWorldMatrix.elements);
-  }
-  OnPreRender(shaderOverride) {
-    const shader = shaderOverride ? shaderOverride : this.material?.shader;
-    if (!this.geometry || !this.material || !shader) return;
-    shader.SetBuffer("modelMatrix", Mesh.modelMatrices.getBuffer());
-  }
-  OnRenderObject(shaderOverride) {
-    const shader = shaderOverride ? shaderOverride : this.material?.shader;
-    if (!this.geometry || !this.geometry.attributes.has("position") || !this.material || !shader) return;
-    Mesh.modelMatrices.getBuffer().dynamicOffset = this.modelMatrixOffset * Mesh.modelMatrices.getStride();
-    RendererContext.DrawGeometry(this.geometry, shader);
-  }
-  Destroy() {
-    super.Destroy();
-    if (Mesh.modelMatrices.has(this.id)) Mesh.modelMatrices.delete(this.id);
-  }
-}
-Component.Registry.set(Mesh.type, Mesh);
-
 const isInstancedRenderable = (renderable) => {
   return renderable.matricesBuffer !== void 0 && renderable.instanceCount !== void 0;
 };
@@ -6338,10 +6354,6 @@ const PassParams = {
   GBufferNormal: "GBufferNormal",
   GBufferERMO: "GBufferERMO",
   GBufferDepth: "GBufferDepth",
-  Skybox: "Skybox",
-  SkyboxIrradiance: "SkyboxIrradiance",
-  SkyboxPrefilter: "SkyboxPrefilter",
-  SkyboxBRDFLUT: "SkyboxBRDFLUT",
   ShadowPassDepth: "ShadowPassDepth",
   ShadowPassCascadeData: "ShadowPassCascadeData",
   LightsBuffer: "LightsBuffer",
@@ -6369,30 +6381,6 @@ class RenderingPipeline {
   beforeScreenOutputPasses = [];
   afterScreenOutputPasses = [];
   prepareGBuffersPass;
-  get skybox() {
-    return this.prepareGBuffersPass.skybox;
-  }
-  set skybox(skybox) {
-    this.prepareGBuffersPass.skybox = skybox;
-  }
-  get skyboxPrefilterDiffuse() {
-    return this.prepareGBuffersPass.skyboxPrefilterDiffuse;
-  }
-  set skyboxPrefilterDiffuse(skyboxPrefilterDiffuse) {
-    this.prepareGBuffersPass.skyboxPrefilterDiffuse = skyboxPrefilterDiffuse;
-  }
-  get skyboxPrefilterSpecular() {
-    return this.prepareGBuffersPass.skyboxPrefilterSpecular;
-  }
-  set skyboxPrefilterSpecular(skyboxPrefilterSpecular) {
-    this.prepareGBuffersPass.skyboxPrefilterSpecular = skyboxPrefilterSpecular;
-  }
-  get skyboxBRDFLUT() {
-    return this.prepareGBuffersPass.skyboxBRDFLUT;
-  }
-  set skyboxBRDFLUT(skyboxBRDFLUT) {
-    this.prepareGBuffersPass.skyboxBRDFLUT = skyboxBRDFLUT;
-  }
   get GBufferFormat() {
     return this.prepareGBuffersPass.GBufferFormat;
   }
@@ -6445,6 +6433,7 @@ class RenderingPipeline {
     else if (order === 4 /* BeforeScreenOutput */) this.beforeScreenOutputPasses.push(passInstance);
     else if (order === 5 /* AfterScreenOutput */) this.afterScreenOutputPasses.push(passInstance);
     this.UpdateRenderGraphPasses();
+    return passInstance;
   }
   Render() {
     Renderer.info.ResetFrame();
@@ -6921,7 +6910,7 @@ class SceneManager extends System {
   }
   async LoadSceneAsync(sceneSerialized) {
     const scene = this.CreateScene(sceneSerialized.name);
-    Deserializer.deserializeScene(scene, sceneSerialized);
+    await Deserializer.deserializeScene(scene, sceneSerialized);
     return scene;
   }
   SetActiveScene(scene) {
@@ -7122,12 +7111,12 @@ var __decorateElement$1 = (array, flags, name, decorators, target, extra) => {
   return target;
 };
 var __publicField$1 = (obj, key, value) => __defNormalProp$1(obj, typeof key !== "symbol" ? key + "" : key, value);
-var _clips_dec, _a, _init$1, _tracksData_dec, _clips_dec2, _assetPath_dec$1, _b, _init2;
-class AnimationTrack extends (_a = Component, _clips_dec = [SerializeField], _a) {
+var _trackName_dec, _a, _init$1, _tracksData_dec, _clips_dec, _assetPath_dec$1, _init2, _animation_dec, _b, _init3;
+class AnimationTrack extends (_a = Component, _trackName_dec = [SerializeField], _a) {
   constructor() {
     super(...arguments);
-    __publicField$1(this, "trackName", "");
-    __publicField$1(this, "clips", __runInitializers$1(_init$1, 8, this, [])), __runInitializers$1(_init$1, 11, this);
+    __publicField$1(this, "trackName", __runInitializers$1(_init$1, 8, this, "")), __runInitializers$1(_init$1, 11, this);
+    __publicField$1(this, "clips", []);
     // O(1) lookup cache (built once)
     __publicField$1(this, "_clipsByIndex", null);
     // Reusable scratch objects — no per-frame allocations
@@ -7233,16 +7222,28 @@ class AnimationTrack extends (_a = Component, _clips_dec = [SerializeField], _a)
   }
 }
 _init$1 = __decoratorStart$1(_a);
-__decorateElement$1(_init$1, 5, "clips", _clips_dec, AnimationTrack);
+__decorateElement$1(_init$1, 5, "trackName", _trackName_dec, AnimationTrack);
 __decoratorMetadata$1(_init$1, AnimationTrack);
 __publicField$1(AnimationTrack, "type", "@trident/core/components/AnimationTrack");
 Component.Registry.set(AnimationTrack.type, AnimationTrack);
-class Animator extends (_b = Component, _assetPath_dec$1 = [SerializeField], _clips_dec2 = [SerializeField], _tracksData_dec = [SerializeField], _b) {
+_assetPath_dec$1 = [SerializeField], _clips_dec = [SerializeField], _tracksData_dec = [SerializeField];
+class AnimationData {
   constructor() {
-    super(...arguments);
     __publicField$1(this, "assetPath", __runInitializers$1(_init2, 8, this)), __runInitializers$1(_init2, 11, this);
     __publicField$1(this, "clips", __runInitializers$1(_init2, 12, this, [])), __runInitializers$1(_init2, 15, this);
     __publicField$1(this, "tracksData", __runInitializers$1(_init2, 16, this, {})), __runInitializers$1(_init2, 19, this);
+  }
+}
+_init2 = __decoratorStart$1(null);
+__decorateElement$1(_init2, 5, "assetPath", _assetPath_dec$1, AnimationData);
+__decorateElement$1(_init2, 5, "clips", _clips_dec, AnimationData);
+__decorateElement$1(_init2, 5, "tracksData", _tracksData_dec, AnimationData);
+__decoratorMetadata$1(_init2, AnimationData);
+__publicField$1(AnimationData, "type", "@trident/core/AnimationData");
+class Animator extends (_b = Component, _animation_dec = [SerializeField(AnimationData)], _b) {
+  constructor() {
+    super(...arguments);
+    __publicField$1(this, "animation", __runInitializers$1(_init3, 8, this, new AnimationData())), __runInitializers$1(_init3, 11, this);
     __publicField$1(this, "clipIndex", 0);
     __publicField$1(this, "playing", false);
     __publicField$1(this, "previousTime", 0);
@@ -7254,18 +7255,40 @@ class Animator extends (_b = Component, _assetPath_dec$1 = [SerializeField], _cl
     __publicField$1(this, "fadeTime", 0);
     __publicField$1(this, "nextClipIndex", null);
   }
+  get assetPath() {
+    return this.animation.assetPath;
+  }
+  set assetPath(value) {
+    this.animation.assetPath = value;
+  }
+  get clips() {
+    return this.animation.clips;
+  }
+  set clips(value) {
+    this.animation.clips = value;
+  }
+  get tracksData() {
+    return this.animation.tracksData;
+  }
+  set tracksData(value) {
+    this.animation.tracksData = value;
+  }
   Start() {
     this.previousTime = performance.now();
+    this.rebuildTracks();
+  }
+  rebuildTracks() {
+    const expectedTrackCount = Object.keys(this.animation.tracksData ?? {}).length;
+    if (expectedTrackCount > 0 && this.tracks.length >= expectedTrackCount) return;
     this.tracks = [];
     this.collectTracks(this.gameObject.transform);
-    if (this.tracksData) {
-      for (const track of this.tracks) {
-        if (track.trackName && this.tracksData[track.trackName]) {
-          track.clips = this.tracksData[track.trackName];
-        }
+    for (const track of this.tracks) {
+      const trackName = track.trackName || track.gameObject.name;
+      if (trackName && this.animation.tracksData?.[trackName]) {
+        track.trackName = trackName;
+        track.clips = this.animation.tracksData[trackName];
       }
     }
-    this.playing = true;
   }
   collectTracks(root) {
     const track = root.gameObject.GetComponent(AnimationTrack);
@@ -7273,6 +7296,7 @@ class Animator extends (_b = Component, _assetPath_dec$1 = [SerializeField], _cl
     for (const child of root.children) this.collectTracks(child);
   }
   SetClipByIndex(i) {
+    if (this.tracks.length === 0) return;
     this.clipIndex = Math.max(0, i);
     this.currentTime = 0;
     this.nextClipIndex = null;
@@ -7281,6 +7305,7 @@ class Animator extends (_b = Component, _assetPath_dec$1 = [SerializeField], _cl
     this.playing = true;
   }
   CrossFadeTo(i, duration = 0.25) {
+    if (this.tracks.length === 0) return;
     this.nextClipIndex = Math.max(0, i);
     this.nextTime = 0;
     this.fadeDuration = Math.max(1e-4, duration);
@@ -7288,6 +7313,7 @@ class Animator extends (_b = Component, _assetPath_dec$1 = [SerializeField], _cl
     this.playing = true;
   }
   Update() {
+    this.rebuildTracks();
     if (!this.playing) return;
     const now = performance.now();
     const dt = (now - this.previousTime) / 1e3;
@@ -7320,16 +7346,16 @@ class Animator extends (_b = Component, _assetPath_dec$1 = [SerializeField], _cl
       this.tracks = [];
       this.collectTracks(this.gameObject.transform);
     }
-    if (!this.clips.length) return -1;
-    return this.clips.findIndex((c) => c.name === name);
+    if (!this.animation.clips.length) return -1;
+    return this.animation.clips.findIndex((c) => c.name === name);
   }
 }
-_init2 = __decoratorStart$1(_b);
-__decorateElement$1(_init2, 5, "assetPath", _assetPath_dec$1, Animator);
-__decorateElement$1(_init2, 5, "clips", _clips_dec2, Animator);
-__decorateElement$1(_init2, 5, "tracksData", _tracksData_dec, Animator);
-__decoratorMetadata$1(_init2, Animator);
+_init3 = __decoratorStart$1(_b);
+__decorateElement$1(_init3, 5, "animation", _animation_dec, Animator);
+__decoratorMetadata$1(_init3, Animator);
 __publicField$1(Animator, "type", "@trident/core/components/Animator");
+Component.Registry.set(AnimationTrack.type, AnimationTrack);
+Component.Registry.set(AnimationData.type, AnimationData);
 Component.Registry.set(Animator.type, Animator);
 
 var index = /*#__PURE__*/Object.freeze({

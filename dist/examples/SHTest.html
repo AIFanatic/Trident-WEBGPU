@@ -36,6 +36,7 @@
             import { UITextureViewer } from '@trident/plugins/ui/UIStats.js';
             import { Environment } from '@trident/plugins/Environment/Environment.js';
             import { IBLLightingPass } from '@trident/plugins/Environment/IBLLightingPass.js';
+            import { SkyboxPass } from '@trident/plugins/Environment/SkyboxPass.js';
             
             async function Application(canvas) {
               await Runtime.Create(canvas);
@@ -128,7 +129,7 @@
                                 return vec4f(shColor, 1.0);
                             }
                         `,
-                    colorOutputs: [{ format: "rgba16float", blendMode: "alpha" }],
+                    colorOutputs: [{ format: "rgba16float", blendMode: "opaque" }],
                     depthOutput: "depth24plus"
                   })
                 });
@@ -148,6 +149,7 @@
                 new UITextureViewer(Debugger.ui, "ENV", skyTexture);
               }
               Runtime.Renderer.RenderPipeline.AddPass(IBLLightingPass, GPU.RenderPassOrder.AfterLighting);
+              Runtime.Renderer.RenderPipeline.AddPass(SkyboxPass, GPU.RenderPassOrder.AfterLighting);
               Debugger.Enable();
               Runtime.Play();
             }

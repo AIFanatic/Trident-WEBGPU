@@ -78,8 +78,19 @@ class PaintPropData {
     this.instancedLODGroup.SetMatricesBulk(new Float32Array(this.matrices));
   }
   AddPropMatrix(matrix) {
-    this.matrices.push(...matrix.elements);
-    this.instancedLODGroup.SetMatrixAt(this.instancedLODGroup.instanceCount, matrix);
+    const m = matrix.clone().mul(this.instancedPrefab.transform.localToWorldMatrix);
+    this.matrices.push(...m.elements);
+    this.instancedLODGroup.SetMatrixAt(this.instancedLODGroup.instanceCount, m);
+  }
+  Destroy() {
+    if (this.instancedLODGroup) {
+      this.instancedLODGroup.gameObject.RemoveComponent(this.instancedLODGroup);
+      this.instancedLODGroup = void 0;
+    }
+    if (this.instancedPrefab) {
+      this.instancedPrefab.Destroy();
+      this.instancedPrefab = void 0;
+    }
   }
 }
 _init = __decoratorStart(null);
@@ -285,6 +296,9 @@ const _TerrainData = class _TerrainData {
   GetMaterial() {
     return this.material;
   }
+  Destroy() {
+    for (const prop of this.paintPropData) prop.Destroy();
+  }
 };
 _init2 = __decoratorStart(null);
 __decorateElement(_init2, 2, "heights", _heights_dec, _TerrainData);
@@ -316,6 +330,10 @@ class Terrain extends (_a = Components.Mesh, _terrainData_dec = [SerializeField(
   }
   Start() {
     super.Start();
+    this.terrainData.terrainGameObject = this.gameObject;
+    for (const prop of this.terrainData.paintPropData) {
+      prop.RebuildProps(this.gameObject);
+    }
   }
   WorldToGrid(worldPoint, gridDim) {
     const size = this.terrainData.size;
@@ -358,6 +376,10 @@ class Terrain extends (_a = Components.Mesh, _terrainData_dec = [SerializeField(
     const scaleX = size.x / (sizeH - 1);
     const scaleZ = size.z / (sizeH - 1);
     return new Mathf.Vector3(-dx / scaleX, 2, -dz / scaleZ).normalize();
+  }
+  Destroy() {
+    this.terrainData.Destroy();
+    super.Destroy();
   }
 }
 _init3 = __decoratorStart(_a);

@@ -3,7 +3,12 @@ import { GLTFParser } from './GLTFParser.js';
 
 class GLTFLoader {
   static TextureCache = /* @__PURE__ */ new Map();
-  static ParseCounter = 0;
+  static sanitizeName(name) {
+    return name.replace(/[\\/:*?"<>|]/g, "_").replace(/\s+/g, "_").replace(/_+/g, "_").replace(/^_|_$/g, "");
+  }
+  static fallbackName(value, fallback) {
+    return this.sanitizeName(value && value.length > 0 ? value : fallback);
+  }
   static finalizeGeometry(geom) {
     const posAttr = geom.attributes.get("position");
     if (!posAttr) throw Error("Geometry missing position attribute.");
@@ -29,14 +34,16 @@ class GLTFLoader {
     }
   }
   // ---------- Textures ----------
-  static async getTexture(textures, textureInfo, textureFormat) {
+  static async getTexture(textures, textureInfo, textureFormat, fallbackName) {
     if (!textures || !textureInfo) return void 0;
     const tex = textures[textureInfo.index];
     if (!tex?.source) throw Error("Invalid texture");
-    let cached = this.TextureCache.get(tex.source.checksum);
+    const textureName = fallbackName;
+    const cacheKey = `${tex.source.checksum}:${textureFormat}`;
+    let cached = this.TextureCache.get(cacheKey);
     if (!cached) {
-      cached = Texture.LoadBlob(new Blob([tex.source.bytes], { type: tex.source.mimeType }), textureFormat, { name: tex.source.name, storeSource: true });
-      this.TextureCache.set(tex.source.checksum, cached);
+      cached = Texture.LoadBlob(new Blob([tex.source.bytes], { type: tex.source.mimeType }), textureFormat, { name: textureName, storeSource: true });
+      this.TextureCache.set(cacheKey, cached);
     }
     return cached;
   }
@@ -76,7 +83,7 @@ class GLTFLoader {
     }
     return array;
   }
-  static async parsePrimitive(primitive, textures) {
+  static async parsePrimitive(primitive, textures, names) {
     const geometry = new Geometry();
     if (primitive.attributes.POSITION) geometry.attributes.set("position", new VertexAttribute(this.parseAccessor(primitive.attributes.POSITION)));
     if (primitive.attributes.NORMAL) geometry.attributes.set("normal", new VertexAttribute(this.parseAccessor(primitive.attributes.NORMAL)));
@@ -93,19 +100,21 @@ class GLTFLoader {
       if (indices instanceof Uint8Array) indices = new Uint16Array(indices);
       geometry.index = new IndexAttribute(indices);
     }
-    let materialParams = {};
     const mat = primitive.material;
+    const geomBaseName = this.fallbackName(names.meshName || names.nodeName, `${names.rootName}_Mesh`);
+    const materialBaseName = this.fallbackName(mat?.name, `${geomBaseName}_Prim${names.primitiveIndex}_Mat`);
+    let materialParams = {};
     if (mat?.occlusionTexture) ;
     if (mat?.pbrMetallicRoughness) {
       const pbr = mat.pbrMetallicRoughness;
       if (pbr.baseColorFactor) materialParams.albedoColor = new Mathf.Color(...pbr.baseColorFactor);
-      if (pbr.baseColorTexture) materialParams.albedoMap = await this.getTexture(textures, pbr.baseColorTexture, "bgra8unorm-srgb");
-      if (pbr.metallicRoughnessTexture) materialParams.armMap = await this.getTexture(textures, pbr.metallicRoughnessTexture, "bgra8unorm");
+      if (pbr.baseColorTexture) materialParams.albedoMap = await this.getTexture(textures, pbr.baseColorTexture, "bgra8unorm-srgb", `${materialBaseName}_BaseColor`);
+      if (pbr.metallicRoughnessTexture) materialParams.armMap = await this.getTexture(textures, pbr.metallicRoughnessTexture, "bgra8unorm", `${materialBaseName}_MetallicRoughness`);
       if (pbr.roughnessFactor !== void 0) materialParams.roughness = pbr.roughnessFactor;
       if (pbr.metallicFactor !== void 0) materialParams.metalness = pbr.metallicFactor;
     }
-    if (mat?.normalTexture) materialParams.normalMap = await this.getTexture(textures, mat.normalTexture, "bgra8unorm");
-    if (mat?.emissiveTexture) materialParams.emissiveMap = await this.getTexture(textures, mat.emissiveTexture, "bgra8unorm-srgb");
+    if (mat?.normalTexture) materialParams.normalMap = await this.getTexture(textures, mat.normalTexture, "bgra8unorm", `${materialBaseName}_Normal`);
+    if (mat?.emissiveTexture) materialParams.emissiveMap = await this.getTexture(textures, mat.emissiveTexture, "bgra8unorm-srgb", `${materialBaseName}_Emissive`);
     if (mat?.emissiveFactor) {
       materialParams.emissiveColor = new Mathf.Color(...mat.emissiveFactor);
       const ext = mat.extensions?.["KHR_materials_emissive_strength"];
@@ -122,9 +131,10 @@ class GLTFLoader {
       }
     }
     geometry.ComputeBoundingVolume();
+    geometry.name = names.primitiveIndex === 0 ? `${geomBaseName}_Geo` : `${geomBaseName}_Prim${names.primitiveIndex}_Geo`;
     const material = new PBRMaterial(materialParams);
     material.assetPath = void 0;
-    if (primitive.material && primitive.material.name) material.name = primitive.material.name;
+    material.name = materialBaseName;
     return { geometry, material };
   }
   // ---------- Public API ----------
@@ -252,10 +262,11 @@ class GLTFLoader {
       if (!node.mesh) continue;
       const nodeGO = nodes[i];
       const primitives = node.mesh.primitives ?? [];
-      for (const primitive of primitives) {
-        const parsed = await this.parsePrimitive(primitive, gltf.textures);
+      for (let primitiveIndex = 0; primitiveIndex < primitives.length; primitiveIndex++) {
+        const primitive = primitives[primitiveIndex];
+        const parsed = await this.parsePrimitive(primitive, gltf.textures, { rootName, nodeName: nodeGO.name, meshName: node.mesh.name || nodeGO.name, primitiveIndex });
         const primGO = new GameObject();
-        primGO.name = nodeGO.name;
+        primGO.name = primitives.length === 1 ? nodeGO.name : `${nodeGO.name}_Prim${primitiveIndex}`;
         primGO.transform.parent = nodeGO.transform;
         primGO.transform.localPosition.set(0, 0, 0);
         primGO.transform.localRotation.set(0, 0, 0, 1);
