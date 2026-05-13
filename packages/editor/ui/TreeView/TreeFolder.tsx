@@ -10,6 +10,7 @@ interface TreeFolderProps {
     onPointerDown?: () => void;
     onPointerUp?: () => void;
     onDoubleClicked?: () => void;
+    onClicked?: () => void;
     onDropped?: (event: DragEvent) => void;
     onDroppedItem?: (fromId: string, toId: string) => void;
     onDragStarted?: (event: DragEvent) => void;
@@ -71,6 +72,7 @@ export class TreeFolder extends Component<TreeFolderProps, TreeFolderState> {
                     onDragLeave={(event) => this.onDragLeave(event)}
                     onDrop={(event) => this.onDrop(event)}
                     onDragOver={(event) => this.onDragOver(event)}
+                    onClick={(event) => { if (this.props.onClicked) this.props.onClicked(); }}
                     onPointerDown={(event) => { if (this.props.onPointerDown) this.props.onPointerDown(); }}
                     onPointerUp={(event) => { if (this.props.onPointerUp) this.props.onPointerUp(); }}
                     onDblClick={() => { if (this.props.onDoubleClicked) this.props.onDoubleClicked(); }}

@@ -81,6 +81,7 @@ export class LayoutHierarchy extends Component<BaseProps, LayoutHierarchyState> 
         const instance = extendedEvent;
         if (instance && this.props.engineAPI.isPrefab(instance)) {
             const gameObject = await this.props.engineAPI.deserializer.deserializeGameObject(instance);
+            console.log(gameObject)
             this.selectGameObject(gameObject);
             ExtendedDataTransfer.data = undefined;
         }
@@ -144,6 +145,19 @@ export class LayoutHierarchy extends Component<BaseProps, LayoutHierarchyState> 
         this.setState({ ...this.state, headerMenuOpen: !this.state.headerMenuOpen });
     }
 
+    private unpackSelectedPrefab() {
+        const unpackPrefab = (gameObject: IGameObject) => {
+            gameObject.assetPath = undefined;
+            for (const child of gameObject.transform.children) unpackPrefab(child.gameObject);
+        }
+
+        if (!this.state.selectedGameObject) return;
+
+        unpackPrefab(this.state.selectedGameObject);
+        TridentAPI.EventSystem.emit(GameObjectEvents.Changed, this.state.selectedGameObject);
+        this.setState({ ...this.state, headerMenuOpen: false });
+    }
+
     private renderGameObjects(gameObjects: IGameObject[]) {
         return gameObjects.map(go => {
             const isSelected = this.state.selectedGameObject === go;
@@ -155,9 +169,9 @@ export class LayoutHierarchy extends Component<BaseProps, LayoutHierarchyState> 
                     name={go.name}
                     id={go.transform.id}
                     isSelected={isSelected}
-                    onPointerDown={() => this.selectGameObject(go)}
+                    onClicked={() => this.selectGameObject(go)}
                     onDroppedItem={(from, to) => this.onDroppedItem(from, to)}
-                    onDragStarted={(event) => this.onDragStarted(event)}
+                    onDragStarted={(event) => this.onDragStarted(go)}
                 >
                     {this.renderGameObjects(children)}
                 </TreeFolder>
@@ -189,6 +203,7 @@ export class LayoutHierarchy extends Component<BaseProps, LayoutHierarchyState> 
                             <Tree>
                                 <TreeItem name="Create Empty" onPointerDown={() => this.createEmptyGameObject()} />
                                 <TreeItem name="Delete" onPointerDown={() => this.deleteGameObject()} />
+                                <TreeItem name="Unpack Prefab" onPointerDown={() => this.unpackSelectedPrefab()} />
                                 <TreeFolder name="3D Object">
                                     <TreeItem name="Cube" onPointerDown={() => this.createPrimitive("Cube")} />
                                     <TreeItem name="Capsule" onPointerDown={() => this.createPrimitive("Capsule")} />

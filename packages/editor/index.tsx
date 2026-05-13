@@ -12,6 +12,7 @@ import { Sky } from "@trident/plugins/Environment/Sky";
 import { Environment } from "@trident/plugins/Environment/Environment";
 import { PhysicsRapier } from "@trident/plugins/PhysicsRapier/PhysicsRapier";
 import { OrbitControls } from "@trident/plugins/OrbitControls";
+import { EditorSceneManager } from "./helpers/EditorSceneManager";
 
 export type EditorEventHandler<T extends (...args: any[]) => void> = (...args: Parameters<T>) => void;
 
@@ -57,13 +58,13 @@ class App extends Component {
             const environment = new Environment(EngineAPI.currentScene, skyTexture);
             await environment.init();
 
+            const editorSceneManager = EngineAPI.createGameObject(currentScene);
+            editorSceneManager.name = "EditorSceneManager";
+            editorSceneManager.AddComponent(EditorSceneManager);
+
             Runtime.AddSystem(PhysicsRapier);
 
             Runtime.Play();
-
-            setTimeout(() => {
-                console.log(Runtime)
-            }, 1000);
 
             TridentAPI.EventSystem.emit(SceneEvents.Loaded, currentScene);
         })

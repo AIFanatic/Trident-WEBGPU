@@ -12,11 +12,10 @@ interface TreeItemProps {
     onDropped?: (event: DragEvent) => void;
     onDroppedItem?: (fromId: string, toId: string) => void;
     onDragStarted?: (event: DragEvent) => void;
+    render?: JSX.Element;
 }
 
 export class TreeItem extends Component<TreeItemProps> {
-    private itemRef: HTMLDivElement;
-
     private onDragStart(event: DragEvent) {
         if (this.props.id) event.dataTransfer.setData("from-uuid", this.props.id);
         if (this.props.onDragStarted) this.props.onDragStarted(event);
@@ -25,7 +24,7 @@ export class TreeItem extends Component<TreeItemProps> {
     private onDrop(event: DragEvent) {
         if (this.props.onDropped) this.props.onDropped(event);
         
-        if (this.itemRef) this.itemRef.style.backgroundColor = "";
+        (event.currentTarget as HTMLElement).style.backgroundColor = "";
         const fromUuid = event.dataTransfer.getData("from-uuid");
         if (fromUuid && this.props.onDroppedItem && this.props.id) {
             this.props.onDroppedItem(fromUuid, this.props.id);
@@ -35,8 +34,8 @@ export class TreeItem extends Component<TreeItemProps> {
     }
 
     private onDragOver(event: DragEvent) { event.preventDefault(); }
-    private onDragEnter(event: DragEvent) { if (this.itemRef) this.itemRef.style.backgroundColor = "#3498db80"; }
-    private onDragLeave(event: DragEvent) { if (this.itemRef) this.itemRef.style.backgroundColor = ""; }
+    private onDragEnter(event: DragEvent) { (event.currentTarget as HTMLElement).style.backgroundColor = "#3498db80"; }
+    private onDragLeave(event: DragEvent) { (event.currentTarget as HTMLElement).style.backgroundColor = ""; }
 
     private lastClickTs = 0;
     private readonly dblMs = 220;
@@ -59,7 +58,7 @@ export class TreeItem extends Component<TreeItemProps> {
         if (this.props.isSelected) classes += " active";
 
         return (
-            <div className="item" ref={(ref) => this.itemRef = ref}>
+            <div className="item">
                 <div
                     style={{ display: "flex", alignItems: "center" }}
                     className={classes}
@@ -74,7 +73,7 @@ export class TreeItem extends Component<TreeItemProps> {
                     onClick={(event) => this.onClick(event)}
                 >
                     <span style={{ paddingLeft: "15px" }}></span>
-                    <span>{this.props.name}</span>
+                    { this.props.render ? this.props.render : <span>{this.props.name}</span> }
                 </div>
             </div>
         );

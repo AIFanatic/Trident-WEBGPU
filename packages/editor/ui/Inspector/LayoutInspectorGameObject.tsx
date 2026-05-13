@@ -19,6 +19,7 @@ import { ExtendedDataTransfer } from "../../helpers/ExtendedDataTransfer";
 import { InspectorDropdown, InspectorDropdownOptions } from "./InspectorDropdown";
 import { InspectorArray } from "./InspectorArray";
 import { TridentAPI } from "../../engine-api/trident/TridentAPI";
+import { InspectorClass } from "./InspectorClass";
 
 interface LayoutInspectorProps {
     engineAPI: IEngineAPI;
@@ -97,18 +98,29 @@ export class LayoutInspectorGameObject extends Component<LayoutInspectorProps> {
         }
         else if (typeof type === "function") {
             const currentValue = component[name];
-            let valueForType = currentValue ? currentValue.constructor.name : "None";
-            if (currentValue?.assetPath) valueForType = StringUtils.GetNameForPath(currentValue.assetPath);
-            else if (currentValue?.name) valueForType = currentValue.name;
+            const engineType = this.props.engineAPI.getFieldType(type);
+            const isRef = engineType !== "unknown" || currentValue?.assetPath;
 
-            return <InspectorType
-                onChanged={(value) => { this.onComponentPropertyChanged(component, name, value) }}
-                title={title}
-                component={component}
-                property={name}
-                value={valueForType}
-                expectedType={type}
-            />
+            if (isRef) {
+                let value = currentValue ? currentValue.constructor.name : "None";
+                if (currentValue?.assetPath) value = StringUtils.GetNameForPath(currentValue.assetPath);
+                else if (currentValue?.name) value = currentValue.name;
+
+                return <InspectorType
+                    onChanged={(value) => this.onComponentPropertyChanged(component, name, value)}
+                    title={title}
+                    component={component}
+                    property={name}
+                    value={value}
+                    expectedType={type}
+                />
+            }
+
+            if (currentValue && this.props.engineAPI.GetSerializedFields(currentValue).length > 0) {
+                return <InspectorClass title={title}>
+                    {...this.renderInspectorForComponent(currentValue as any)}
+                </InspectorClass>
+            }
         }
         else if (typeof type === "object") {
             let selectOptions: InspectorDropdownOptions[] = []

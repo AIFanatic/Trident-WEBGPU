@@ -5,14 +5,19 @@ import { FileWatcher } from "../helpers/FileWatcher";
 import { StringUtils } from "../helpers/StringUtils";
 import { ExtendedDataTransfer } from "../helpers/ExtendedDataTransfer";
 import { GLTFLoader } from "@trident/plugins/GLTF/GLTFLoader";
-import { Assets, Scene } from "@trident/core";
 import { FileBrowser, MODE } from "../helpers/FileBrowser";
-import { IMaterial } from "../engine-api/trident/IMaterial";
 import { TreeFolder } from "./TreeView/TreeFolder";
 import { TreeItem } from "./TreeView/TreeItem";
 import { Tree } from "./TreeView/Tree";
 import { FloatingMenu } from "./FloatingMenu";
 import { IGameObject } from "../engine-api/trident/components/IGameObject";
+
+
+import { Assets, Runtime, Scene, GPU } from "@trident/core";
+import { HDRParser } from "@trident/plugins/HDRParser";
+
+import { IBLLightingPass } from "@trident/plugins/Environment/IBLLightingPass";
+import { SkyboxPass } from "@trident/plugins/Environment/SkyboxPass";
 
 import { LoadFile } from "../loaders/AssetLoader";
 import {
@@ -31,6 +36,7 @@ export { ITreeMapType, ITreeMap, FileData, ProjectTreeMap } from "../types/Asset
 import { ITreeMapType, ITreeMap, FileData, ProjectTreeMap } from "../types/AssetTypes";
 import { ReloadScript } from "../commands/ReloadScript";
 import { TridentAPI } from "../engine-api/trident/TridentAPI";
+import { Sky } from "@trident/plugins/Environment/Sky";
 
 export async function dir(h?: FileSystemDirectoryHandle): Promise<FileSystemDirectoryHandle> {
     const r = indexedDB.open("d", 1);
@@ -52,7 +58,8 @@ Assets.ResourceFetchFn = async (input: RequestInfo | URL, init?: RequestInit): P
 
 interface LayoutAssetsState {
     currentTreeMap: Map<string, ProjectTreeMap>;
-    selected: FileData;
+    selected: FileData | undefined;
+    isRenamingSelected: boolean;
     headerMenuOpen: boolean;
 }
 
@@ -60,7 +67,7 @@ export class LayoutAssets extends Component<BaseProps, LayoutAssetsState> {
     private fileWatcher: FileWatcher;
     constructor(props: BaseProps) {
         super(props);
-        this.setState({ currentTreeMap: new Map(), selected: undefined, headerMenuOpen: false });
+        this.setState({ currentTreeMap: new Map(), selected: undefined, headerMenuOpen: false, isRenamingSelected: false });
 
         this.fileWatcher = new FileWatcher();
 
@@ -115,7 +122,7 @@ export class LayoutAssets extends Component<BaseProps, LayoutAssetsState> {
         this.setState({ ...this.state, currentTreeMap: this.state.currentTreeMap, selected: this.state.selected });
     }
 
-    private async onToggled(item: ProjectTreeMap) {}
+    private async onToggled(item: ProjectTreeMap) { }
 
     private async onItemClicked(item: ProjectTreeMap) {
         if (!item.data.instance) {
@@ -135,6 +142,14 @@ export class LayoutAssets extends Component<BaseProps, LayoutAssetsState> {
             this.props.engineAPI.currentScene.Clear();
             await this.props.engineAPI.deserializer.deserializeScene(this.props.engineAPI.currentScene, item.data.instance);
             TridentAPI.EventSystem.emit(SceneEvents.Loaded, item.data.instance);
+
+            const skyAtmosphere = new Sky();
+            await skyAtmosphere.init();
+            const iblLightingPass = Runtime.Renderer.RenderPipeline.AddPass(IBLLightingPass, GPU.RenderPassOrder.AfterLighting);
+            const skyboxPass = Runtime.Renderer.RenderPipeline.AddPass(SkyboxPass, GPU.RenderPassOrder.AfterLighting);
+
+            iblLightingPass.SetEnvironment(skyAtmosphere.skyTextureCubemap);
+            skyboxPass.SetSkybox(skyAtmosphere.skyTextureCubemap);
         }
     }
 
@@ -143,6 +158,12 @@ export class LayoutAssets extends Component<BaseProps, LayoutAssetsState> {
         if (!this.state.selected.path.endsWith(".ts")) return;
 
         await ReloadScript(this.props.engineAPI, this.state.selected.path);
+    }
+
+    private async onRename() {
+        if (!this.state.selected) return;
+
+        this.setState({ ...this.state, isRenamingSelected: true, headerMenuOpen: false });
     }
 
     private async loadTreeItem(data: FileData): Promise<any> {
@@ -238,6 +259,7 @@ export class LayoutAssets extends Component<BaseProps, LayoutAssetsState> {
                     {this.renderTreeItems(children, allItems)}
                 </TreeFolder>
             }
+
             return <TreeItem
                 name={item.name}
                 id={item.id}
@@ -246,6 +268,23 @@ export class LayoutAssets extends Component<BaseProps, LayoutAssetsState> {
                 onDoubleClicked={() => this.onItemDoubleClicked(item)}
                 onDropped={(event) => this.onDrop(event)}
                 onDragStarted={(event) => this.onDragStarted(event, item)}
+                render={
+                    this.state.isRenamingSelected && this.state.selected === item.data
+                        ? <input
+                            style={{
+                                font: "inherit",
+                                color: "inherit",
+                                background: "inherit",
+                                border: "inherit",
+                                width: "100%",
+                                outline: "none",
+                                padding: "inherit",
+                                textDecoration: "underline"
+                            }}
+                            value={item.name}
+                        />
+                        : undefined
+                }
             />
         });
     }
@@ -283,6 +322,7 @@ export class LayoutAssets extends Component<BaseProps, LayoutAssetsState> {
                                 <TreeItem name="Scene" onPointerDown={() => { this.createScene() }} />
                                 <TreeItem name="Delete" onPointerDown={() => { this.deleteAsset() }} />
                                 <TreeItem name="Refresh" onPointerDown={() => { this.onRefresh() }} />
+                                <TreeItem name="Rename" onPointerDown={() => { this.onRename() }} />
                             </Tree>
                         </FloatingMenu>
                     </div>
