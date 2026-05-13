@@ -3,6 +3,7 @@ import { IComponent, IComponentConstructor, IComponentInstance } from "./ICompon
 import { ITransform } from "./ITransform";
 
 export interface IGameObject {
+    assetPath?: string;
     flags: Utils.Flags;
     id: string;
     transform: ITransform;

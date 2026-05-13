@@ -99,7 +99,7 @@ export class TridentAPI implements IEngineAPI {
         return GPU.Texture.LoadBlob(blob);
     }
 
-    private compareType(value: any, type: Function) {
+    private compareType(value: any, type: Function): boolean {
         if (typeof value === "function") return value === type;
         if (value instanceof type) return true;
         return value?.constructor?.type === (type as any).type;

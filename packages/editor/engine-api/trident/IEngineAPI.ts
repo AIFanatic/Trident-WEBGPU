@@ -22,6 +22,7 @@ export interface IEngineAPI {
     currentScene: IScene;
 
     createRuntime(canvas: HTMLCanvasElement): Promise<IRuntime>;
+    getRuntime(): IRuntime;
 
     addSystem<T extends ISystem, A extends any[]>(ctor: new (...args: A) => T, ...args: A): Promise<T>;
 
