@@ -16,7 +16,7 @@ export async function SaveGameObjectAsAsset(baseDir: string, gameObject: IGameOb
         for (const component of go.GetComponents()) {
             const renderable = component as any;
             if ((component as any).constructor?.type === ComponentRegistry.Mesh.type ||
-                (component as any).constructor?.type === ComponentRegistry.SkinnedMesh.type ) {
+                (component as any).constructor?.type === ComponentRegistry.SkinnedMesh.type) {
                 const geometry = renderable.geometry;
                 if (geometry && !geometry.assetPath) {
                     geometry.assetPath = `${fullAssetDir}/${geometry.name || `geometry_${geometryCounter++}`}.geometry`;
@@ -47,8 +47,8 @@ export async function SaveGameObjectAsAsset(baseDir: string, gameObject: IGameOb
 
             if ((component as any).constructor?.type === ComponentRegistry.Animator.type) {
                 const animator = component as any;
-                if (!animator.assetPath) {
-                    animator.assetPath = `${fullAssetDir}/${rootName}.animation`;
+                if (!animator.animation.assetPath) {
+                    animator.animation.assetPath = `${fullAssetDir}/${rootName}.animation`;
                 }
             }
 
@@ -114,10 +114,16 @@ export async function SaveGameObjectAsAsset(baseDir: string, gameObject: IGameOb
                 }
             }
 
-            if (component.assetPath && !saved.has(component.assetPath) && component.constructor.type !== ComponentRegistry.Mesh.type && component.constructor.type !== ComponentRegistry.SkinnedMesh.type) {
-                saved.add(component.assetPath);
-                const ctor = component.constructor as any;
-                SaveToFile(component.assetPath, new Blob([JSON.stringify({ type: ctor.type, ...Serializer.serializeFields(component) })]));
+            for (const { name } of GetSerializedFields(component)) {
+                const value = component[name];
+
+                if (value?.assetPath && !saved.has(value.assetPath)) {
+                    saved.add(value.assetPath);
+                    const ctor = value.constructor as any;
+                    SaveToFile(value.assetPath, new Blob([
+                        JSON.stringify({ type: ctor.type, ...Serializer.serializeFields(value) })
+                    ]));
+                }
             }
 
             if (component.constructor.type === ComponentRegistry.Terrain.type) {
