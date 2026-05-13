@@ -37,21 +37,27 @@ export class RigidBody extends Component {
 
     public get mass(): number { return this.rigidBody.mass() };
 
+    private _constraints: RigidbodyConstraints = RigidbodyConstraints.None;
+    @SerializeField(RigidbodyConstraints)
+    public get constraints(): RigidbodyConstraints { return this._constraints; }
     public set constraints(constraint: RigidbodyConstraints) {
-        const freezeRot = isFrozen(constraint, RigidbodyConstraints.FreezeRotation);
-        const freezePos = isFrozen(constraint, RigidbodyConstraints.FreezePosition);
+        this._constraints = constraint;
+        if (!this.rigidBody) return;
+
+        const freezePosition = isFrozen(constraint, RigidbodyConstraints.FreezePosition);
+        const freezeRotation = isFrozen(constraint, RigidbodyConstraints.FreezeRotation);
 
         this.rigidBody.setEnabledRotations(
-            !(isFrozen(constraint, RigidbodyConstraints.FreezeRotationX) || freezeRot),
-            !(isFrozen(constraint, RigidbodyConstraints.FreezeRotationY) || freezeRot),
-            !(isFrozen(constraint, RigidbodyConstraints.FreezeRotationZ) || freezeRot),
+            !(freezeRotation || isFrozen(constraint, RigidbodyConstraints.FreezeRotationX)),
+            !(freezeRotation || isFrozen(constraint, RigidbodyConstraints.FreezeRotationY)),
+            !(freezeRotation || isFrozen(constraint, RigidbodyConstraints.FreezeRotationZ)),
             true
         );
 
         this.rigidBody.setEnabledTranslations(
-            !(isFrozen(constraint, RigidbodyConstraints.FreezePositionX) || freezePos),
-            !(isFrozen(constraint, RigidbodyConstraints.FreezePositionY) || freezePos),
-            !(isFrozen(constraint, RigidbodyConstraints.FreezePositionZ) || freezePos),
+            !(freezePosition || isFrozen(constraint, RigidbodyConstraints.FreezePositionX)),
+            !(freezePosition || isFrozen(constraint, RigidbodyConstraints.FreezePositionY)),
+            !(freezePosition || isFrozen(constraint, RigidbodyConstraints.FreezePositionZ)),
             true
         );
     }
@@ -107,6 +113,7 @@ export class RigidBody extends Component {
         this.rigidBody = PhysicsRapier.PhysicsWorld.createRigidBody(this.rigidBodyDesc);
         this.rigidBody.setTranslation(this.transform.position, true);
         this.rigidBody.setRotation(this.transform.rotation, true);
+        this.constraints = this._constraints;
 
         PhysicsRapier.PhysicsWorld.removeCollider(collider.collider, false);
         collider.collider = PhysicsRapier.PhysicsWorld.createCollider(collider.colliderDesc, this.rigidBody);
@@ -116,11 +123,17 @@ export class RigidBody extends Component {
     public Update(): void {
         if (!this.rigidBody) return;
 
-        const t = this.rigidBody.translation();
-        const r = this.rigidBody.rotation();
-
-        this.transform.position.set(t.x, t.y, t.z);
-        this.transform.rotation.set(r.x, r.y, r.z, r.w);
+        if (this.isKinematic) {
+            this.rigidBody.setTranslation(this.transform.position, true);
+            this.rigidBody.setRotation(this.transform.rotation, true);
+        }
+        else {
+            const t = this.rigidBody.translation();
+            const r = this.rigidBody.rotation();
+    
+            this.transform.position.set(t.x, t.y, t.z);
+            this.transform.rotation.set(r.x, r.y, r.z, r.w);
+        }
     }
 
 }

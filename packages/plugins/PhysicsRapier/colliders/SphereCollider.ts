@@ -11,5 +11,4 @@ export class SphereCollider extends Collider {
         this.collider = PhysicsRapier.PhysicsWorld.createCollider(this.colliderDesc);
         this.collider.setTranslation(new PhysicsRapier.Physics.Vector3(this.transform.position.x, this.transform.position.y, this.transform.position.z));
     }
-
 }
