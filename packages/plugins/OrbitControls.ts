@@ -1,12 +1,4 @@
-import {
-    Component,
-    Components,
-    GameObject,
-    GPU,
-    Input,
-    Mathf,
-    MouseCodes,
-} from "@trident/core";
+import { Component, Components, GPU, Input, Mathf, MouseCodes } from "@trident/core";
 
 const _v = new Mathf.Vector3();
 
@@ -34,10 +26,6 @@ export class OrbitControls extends Component {
     private camera: Components.Camera;
     private theta = 0;
     private phi = 0;
-
-    constructor(gameObject: GameObject) {
-        super(gameObject);
-    }
 
     public Start(): void {
         this.camera = this.gameObject.GetComponent(Components.Camera) ?? Components.Camera.mainCamera;

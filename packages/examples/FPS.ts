@@ -249,6 +249,7 @@ async function Application(canvas: HTMLCanvasElement) {
         jump: animator.GetClipIndexByName("Rig|Rig|Jump_Start"),
         fall: animator.GetClipIndexByName("Rig|Rig|Jump_Land")
     };
+    console.log(thirdPersonController._animationIDS)
     thirdPersonController.animationSpeedRatio = 0.8;
     thirdPersonController.boostMultiplier = 20;
 

@@ -117,7 +117,7 @@ async function Application(canvas: HTMLCanvasElement) {
                     return vec4f(shColor, 1.0);
                 }
             `,
-                colorOutputs: [{ format: "rgba16float", blendMode: "alpha" }],
+                colorOutputs: [{ format: "rgba16float", blendMode: "opaque" }],
                 depthOutput: "depth24plus",
             }),
         });
@@ -143,6 +143,7 @@ async function Application(canvas: HTMLCanvasElement) {
     }
 
     Runtime.Renderer.RenderPipeline.AddPass(IBLLightingPass, GPU.RenderPassOrder.AfterLighting);
+    Runtime.Renderer.RenderPipeline.AddPass(SkyboxPass, GPU.RenderPassOrder.AfterLighting);
     Debugger.Enable();
 
     Runtime.Play();

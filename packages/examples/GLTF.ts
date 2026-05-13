@@ -4,12 +4,9 @@ import { OrbitControls } from "@trident/plugins/OrbitControls";
 import { GLTFLoader } from "@trident/plugins/GLTF/GLTFLoader";
 import { Debugger } from "@trident/plugins/Debugger";
 import { HDRParser } from "@trident/plugins/HDRParser";
-import { Environment } from "@trident/plugins/Environment/Environment";
-import { DirectionalLightHelper } from "@trident/plugins/DirectionalLightHelper";
-import { Sky } from "@trident/plugins/Environment/Sky";
-
 import { WireframePass } from "@trident/plugins/WireframePass";
-import { GLSL2WGSL } from "@trident/plugins/GLSLParser/GLSLParser";
+import { IBLLightingPass } from "@trident/plugins/Environment/IBLLightingPass";
+import { SkyboxPass } from "@trident/plugins/Environment/SkyboxPass";
 
 async function Application(canvas: HTMLCanvasElement) {
     await Runtime.Create(canvas);
@@ -45,23 +42,11 @@ async function Application(canvas: HTMLCanvasElement) {
     // cubeMesh.material = new PBRMaterial();
 
 
-    // const hdr = await HDRParser.Load("./assets/textures/HDR/autumn_field_puresky_1k.hdr");
-    const hdr = await HDRParser.Load("./assets/textures/HDR/spruit_sunrise_1k.hdr");
-    const skyTexture = await HDRParser.ToCubemap(hdr);
-
-    // const sky = new Sky();
-    // sky.SUN_ELEVATION_DEGREES = 60;
-    // await sky.init();
-    // const skyTexture = sky.skyTextureCubemap;
-
-    const environment = new Environment(scene, skyTexture);
-    await environment.init();
-
-    const rootGO = await GLTFLoader.Load("./assets/models/DamagedHelmet/DamagedHelmet.gltf", scene);
+    // const rootGO = await GLTFLoader.Load("./assets/models/DamagedHelmet/DamagedHelmet.gltf", scene);
     // const rootGO = await GLTFLoader.Load("/extra/test-assets/bouquet.glb", scene);
-    // const rootGO = await GLTFLoader.Load("./assets/models/Shadow.glb", scene);
+    const rootGO = await GLTFLoader.Load("./assets/models/Shadow.glb", scene);
     // const rootGO = await GLTFLoader.Load("/extra/test-assets/nature/overgrowth/patch_grass_medium.glb", scene);
-    // const rootGO = await GLTFLoader.Load("/extra/test-assets/tree-01/american_beech_a/american_beech_a.glb", scene);
+    // const rootGO = await GLTFLoader.Load("/extra/test-assets/Mountain Environment/Pine_trees/Prefabs/Prefab_Forest_pine_01_LOD0.glb", scene);
     // const rootGO = await GLTFLoader.Load("/extra/test-assets/ak47u.worldmodel.glb", scene);
     // const rootGO = await GLTFLoader.Load("/extra/test-assets/semi_auto_rifle.worldmodel.glb", scene);
     // const rootGO = await GLTFLoader.Load("/extra/test-assets/sphere/sphere.gltf", scene);
@@ -76,25 +61,25 @@ async function Application(canvas: HTMLCanvasElement) {
         }
     }
 
-//     {
-//         const gameObject = await GLTFLoader.Load("./assets/models/Shadow.glb", scene);
-//         gameObject.transform.position.x = 2;
-//         // gameObject.transform.scale.set(0.01, 0.01, 0.01);
+    {
+        const gameObject = await GLTFLoader.Load("./assets/models/Shadow.glb", scene);
+        gameObject.transform.position.x = 2;
+        // gameObject.transform.scale.set(0.01, 0.01, 0.01);
 
-//         const animator = gameObject.GetComponent(Components.Animator);
-// //         console.log(animator)
-// //         animator.SetClipByIndex(0)
-// //           const animator = gameObject.GetComponent(Components.Animator);
-// //   console.log("Available clips:", animator.clips);
-// //         // animator.CrossFadeTo(0, 1000);
+        const animator = gameObject.GetComponent(Components.Animator);
+        console.log(animator)
+//         animator.SetClipByIndex(0)
+//           const animator = gameObject.GetComponent(Components.Animator);
+//   console.log("Available clips:", animator.clips);
+//         // animator.CrossFadeTo(0, 1000);
 
-// //         // animator.SetLayerClip(1, 2, 0.8);
+//         // animator.SetLayerClip(1, 2, 0.8);
 
-//   // Base: jog forward
-//   animator.SetClipByIndex(45); // Jog_Fwd_Loop
+  // Base: jog forward
+  animator.SetClipByIndex(45); // Jog_Fwd_Loop
 
 
-//     }
+    }
 
 //     {
 //         const gameObject = await GLTFLoader.Load("/extra/test-assets/bouquet.glb", scene);
@@ -107,6 +92,19 @@ async function Application(canvas: HTMLCanvasElement) {
 //         // animator.CrossFadeTo(0, 1000);
 
 //     }
+
+    // const hdr = await HDRParser.Load("./assets/textures/HDR/autumn_field_puresky_1k.hdr");
+    const hdr = await HDRParser.Load("./assets/textures/HDR/spruit_sunrise_1k.hdr");
+    const skyTexture = await HDRParser.ToCubemap(hdr);
+
+    // const sky = new Sky();
+    // sky.SUN_ELEVATION_DEGREES = 60;
+    // await sky.init();
+    // const skyTexture = sky.skyTextureCubemap;
+    const iblLightingPass = Runtime.Renderer.RenderPipeline.AddPass(IBLLightingPass, GPU.RenderPassOrder.AfterLighting);
+    const skyboxPass = Runtime.Renderer.RenderPipeline.AddPass(SkyboxPass, GPU.RenderPassOrder.AfterLighting);
+    iblLightingPass.SetEnvironment(skyTexture);
+    skyboxPass.SetSkybox(skyTexture);
 
     // Drag and drop models
     {

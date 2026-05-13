@@ -5,7 +5,6 @@ import { Debugger } from "@trident/plugins/Debugger";
 
 import { HDRParser } from "@trident/plugins/HDRParser";
 
-import { Environment } from "@trident/plugins/Environment/Environment";
 import { IBLLightingPass } from "@trident/plugins/Environment/IBLLightingPass";
 import { SkyboxPass } from "@trident/plugins/Environment/SkyboxPass";
 
@@ -128,14 +127,12 @@ async function Application(canvas: HTMLCanvasElement) {
     const hdr = await HDRParser.Load("./assets/textures/HDR/pisa.hdr");
     const skyTexture = await HDRParser.ToCubemap(hdr);
 
-    const environment = new Environment(scene, skyTexture);
-    await environment.init();
+    const iblLightingPass = Runtime.Renderer.RenderPipeline.AddPass(IBLLightingPass, GPU.RenderPassOrder.AfterLighting);
+    const skyboxPass = Runtime.Renderer.RenderPipeline.AddPass(SkyboxPass, GPU.RenderPassOrder.AfterLighting);
+    
+    iblLightingPass.SetEnvironment(skyTexture);
+    skyboxPass.SetSkybox(skyTexture);
 
-    const iblLightingPass = new IBLLightingPass();
-    Runtime.Renderer.RenderPipeline.AddPass(iblLightingPass, GPU.RenderPassOrder.AfterLighting);
-
-    const skyboxPass = new SkyboxPass();
-    Runtime.Renderer.RenderPipeline.AddPass(skyboxPass, GPU.RenderPassOrder.AfterLighting);
 
     Runtime.Play();
 };
