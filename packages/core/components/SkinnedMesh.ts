@@ -1,11 +1,15 @@
 import { Matrix4 } from "../math/Matrix4";
 import { Buffer, BufferType } from "../renderer/Buffer";
-import { Transform } from "./Transform";
+import { Transform, TransformEvents } from "./Transform";
 import { Renderable } from "./Renderable";
 import { RendererContext } from "../renderer/RendererContext";
 import { Shader } from "../renderer/Shader";
 import { Component, SerializedComponent } from "./Component";
 import { SerializeField } from "../utils";
+import { GameObject } from "../GameObject";
+import { Mesh } from "./Mesh";
+import { DynamicBufferMemoryAllocatorDynamic } from "../renderer/MemoryAllocator";
+import { EventSystemLocal } from "../Events";
 
 export class Bone extends Component {
     public static type = "@trident/core/components/Bone";
@@ -22,6 +26,17 @@ export class SkinnedMesh extends Renderable {
     private boneMatricesBuffer: Buffer;
     private bones: { transform: Transform; inverseBindMatrix: Float32Array; index: number }[] = [];
     private jointData: Float32Array = new Float32Array(0);
+    private modelMatrixOffset: number = -1;
+
+    constructor(gameObject: GameObject) {
+        super(gameObject);
+
+        if (!Mesh.modelMatrices) Mesh.modelMatrices = new DynamicBufferMemoryAllocatorDynamic(256 * 10, BufferType.STORAGE, 256 * 10);
+
+        EventSystemLocal.on(TransformEvents.Updated, this.transform, () => {
+            this.modelMatrixOffset = Mesh.modelMatrices.set(this.id, this.transform.localToWorldMatrix.elements);
+        });
+    }
 
     public GetBoneMatricesBuffer(): Buffer {
         return this.boneMatricesBuffer;
@@ -56,6 +71,7 @@ export class SkinnedMesh extends Renderable {
     }
 
     public Start(): void {
+        this.modelMatrixOffset = Mesh.modelMatrices.set(this.id, this.transform.localToWorldMatrix.elements);
         this.tryInitBones();
     }
 
@@ -86,17 +102,26 @@ export class SkinnedMesh extends Renderable {
         this.boneMatricesBuffer.SetArray(this.jointData);
     }
 
-    public OnPreRender() {
-        if (!this.geometry || !this.material || !this.material?.shader) return;
-        if (!this.boneMatricesBuffer && !this.tryInitBones()) return;
-        this.material.shader.SetMatrix4("modelMatrix", this.transform.localToWorldMatrix);
-        this.material.shader.SetBuffer("boneMatrices", this.boneMatricesBuffer);
+    public OnPreRender(shaderOverride?: Shader) {
+        const shader = shaderOverride ? shaderOverride : this.material?.shader;
+        if (!this.geometry || !this.material || !shader) return;
+        shader.SetBuffer("modelMatrix", Mesh.modelMatrices.getBuffer());
+        if (this.boneMatricesBuffer || this.tryInitBones()) {
+            shader.SetBuffer("boneMatrices", this.boneMatricesBuffer);
+        }
     }
 
     public OnRenderObject(shaderOverride: Shader): void {
         const shader = shaderOverride ? shaderOverride : this.material?.shader;
         if (!this.geometry || !this.material || !shader) return;
+        if (!this.boneMatricesBuffer) return;
+        Mesh.modelMatrices.getBuffer().dynamicOffset = this.modelMatrixOffset * Mesh.modelMatrices.getStride();
         RendererContext.DrawGeometry(this.geometry, shader);
+    }
+
+    public Destroy(): void {
+        super.Destroy();
+        if (Mesh.modelMatrices?.has(this.id)) Mesh.modelMatrices.delete(this.id);
     }
 }
 
