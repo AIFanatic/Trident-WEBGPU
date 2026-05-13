@@ -65,7 +65,8 @@ export const render = (vdom: VNodeChild, parent: HTMLElement | null = null): Goo
     else if (typeof vdom == 'boolean' || vdom === null) return mount(document.createTextNode('') as GooactNode);
     else if (typeof vdom == 'object' && typeof (vdom as VNode).type == 'function') return Component.render(vdom as VNode, parent) as GooactNode;
     else if (typeof vdom == 'object' && typeof (vdom as VNode).type == 'string') {
-        const dom = mount(document.createElement((vdom as VNode).type) as GooactNode) as GooactHTMLElement;
+        const type = (vdom as VNode).type as string;
+        const dom = mount((type === "svg" || parent instanceof SVGElement) ? document.createElementNS("http://www.w3.org/2000/svg", type) : document.createElement(type) as GooactNode) as GooactHTMLElement;
         for (const child of ([] as any[]).concat(...((vdom as VNode).children as any))) {
             render(child as VNodeChild, dom);
         }
@@ -83,8 +84,8 @@ const patch = (dom: GooactNode, vdom: VNodeChild, parent: (Node & ParentNode) | 
     else if ((typeof vdom != 'object' || vdom === null) && dom instanceof Text) return (dom.textContent != String(vdom)) ? replace(render(vdom, parent as any)) : dom;
     else if ((typeof vdom != 'object' || vdom === null)) return dom instanceof Text ? ((dom.textContent != String(vdom)) ? replace(render(vdom, parent as any)) : dom) : replace(render(vdom, parent as any));
     else if (typeof vdom == 'object' && dom instanceof Text) return replace(render(vdom, parent as any));
-    else if (typeof vdom == 'object' && (dom as HTMLElement).nodeName != (vdom as VNode).type.toString().toUpperCase()) return replace(render(vdom, parent as any));
-    else if (typeof vdom == 'object' && (dom as HTMLElement).nodeName == (vdom as VNode).type.toString().toUpperCase()) {
+    else if (typeof vdom == 'object' && ((dom as Element).localName || (dom as HTMLElement).nodeName).toLowerCase() != (vdom as VNode).type.toString().toLowerCase()) return replace(render(vdom, parent as any));
+    else if (typeof vdom == 'object' && ((dom as Element).localName || (dom as HTMLElement).nodeName).toLowerCase() == (vdom as VNode).type.toString().toLowerCase()) {
         const pool: Record<string, GooactNode> = {};
         const active = document.activeElement as HTMLElement;
         ([] as any[]).concat(...((dom as HTMLElement).childNodes as any)).map((child: GooactNode, index: number) => {
