@@ -33,8 +33,21 @@ export class PaintPropData {
     }
 
     public AddPropMatrix(matrix: Mathf.Matrix4) {
-        this.matrices.push(...matrix.elements);
-        this.instancedLODGroup.SetMatrixAt(this.instancedLODGroup.instanceCount, matrix);
+        const m = matrix.clone().mul(this.instancedPrefab.transform.localToWorldMatrix)
+        this.matrices.push(...m.elements);
+        this.instancedLODGroup.SetMatrixAt(this.instancedLODGroup.instanceCount, m);
+    }
+
+    public Destroy() {
+        if (this.instancedLODGroup) {
+            this.instancedLODGroup.gameObject.RemoveComponent(this.instancedLODGroup);
+            this.instancedLODGroup = undefined as any;
+        }
+
+        if (this.instancedPrefab) {
+            this.instancedPrefab.Destroy();
+            this.instancedPrefab = undefined as any;
+        }
     }
 }
 
@@ -265,6 +278,13 @@ export class TerrainData {
     public GetHeights(): Float32Array { return this.heights }
     public GetGeometry(): Geometry { return this.geometry }
     public GetMaterial(): TerrainMaterial { return this.material }
+
+    public Destroy() {
+        for (const prop of this.paintPropData) prop.Destroy();
+
+        // this.materialIdMapTexture?.Destroy();
+        // this.blendWeightMapTexture?.Destroy();
+    }
 }
 
 export class Terrain extends Components.Mesh {
@@ -282,6 +302,10 @@ export class Terrain extends Components.Mesh {
 
     public Start(): void {
         super.Start();
+        this.terrainData.terrainGameObject = this.gameObject;
+        for (const prop of this.terrainData.paintPropData) {
+            prop.RebuildProps(this.gameObject);
+        }
     }
 
     public WorldToGrid(worldPoint: Mathf.Vector3, gridDim: number): { fx: number; fz: number } {
@@ -335,6 +359,11 @@ export class Terrain extends Components.Mesh {
         const scaleZ = size.z / (sizeH - 1);
 
         return new Mathf.Vector3(-dx / scaleX, 2.0, -dz / scaleZ).normalize();
+    }
+
+    public Destroy(): void {
+        this.terrainData.Destroy();
+        super.Destroy();
     }
 }
 

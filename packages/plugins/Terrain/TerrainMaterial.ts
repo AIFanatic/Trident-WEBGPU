@@ -1,4 +1,4 @@
-import { GPU, SerializeField } from "@trident/core";
+import { GPU, Mathf, SerializeField } from "@trident/core";
 
 const uv_grid_url = "./resources/uv_grid.png";
 
@@ -7,8 +7,11 @@ export class TerrainLayer {
     @SerializeField public transform?: [number, number, number, number] | Float32Array;
 
     @SerializeField(GPU.Texture) public albedoMap?: GPU.Texture;
+    @SerializeField(Mathf.Color) public albedoColor?: Mathf.Color;
     @SerializeField(GPU.Texture) public normalMap?: GPU.Texture;
     @SerializeField(GPU.Texture) public armMap?: GPU.Texture;
+    @SerializeField public roughness?: number;
+    @SerializeField public metalness?: number;
 }
 
 export class TerrainMaterial extends GPU.Material {
@@ -100,11 +103,19 @@ export class TerrainMaterial extends GPU.Material {
 
         for (const layer of layers) {
             let textureIndices = [0, 0, 0, 0];
-            let transform = layer.transform || [1, 1, 0, 0];
+            const transform = layer.transform ?? [1, 1, 0, 0];
+            const albedoColor = layer.albedoColor ?? { r: 1, g: 1, b: 1, a: 1 };
+            const roughness = layer.roughness ?? 1;
+            const metalness = layer.metalness ?? 0;
             if (layer.albedoMap) textureIndices[0] = albedoTextures.push(layer.albedoMap) - 1;
             if (layer.normalMap) textureIndices[1] = normalTextures.push(layer.normalMap) - 1;
             if (layer.armMap) textureIndices[2] = armTextures.push(layer.armMap) - 1;
-            layersArray.push(...textureIndices, ...transform);
+            layersArray.push(
+                ...textureIndices,
+                ...transform,
+                albedoColor.r, albedoColor.g, albedoColor.b, albedoColor.a,
+                roughness, metalness, 0, 0,
+            );
         }
 
         this.SetTerrainLayersArray(this.shader, new Float32Array(layersArray));
@@ -164,6 +175,8 @@ export class TerrainMaterial extends GPU.Material {
                 struct TerrainLayer {
                     textureIndices: vec4<f32>, // x=albedo, y=normal, z=arm
                     transform: vec4<f32>, // xy=scale, zw=offset
+                    albedoColor: vec4<f32>,
+                    materialParams: vec4<f32>, // x=roughness, y=metalness
                 };
                 @group(1) @binding(6) var<storage, read> TerrainLayers: array<TerrainLayer>;
 
@@ -209,6 +222,7 @@ export class TerrainMaterial extends GPU.Material {
                     let layer = TerrainLayers[layer_index];
                     let uv_layer = uv * 1 / layer.transform.xy + layer.transform.zw;
                     let layerAlbedo = textureSample(albedoTextures, textureSampler, uv_layer, u32(layer.textureIndices.x));
+                    let albedo = layerAlbedo.rgb * layer.albedoColor.rgb;
                     // let layerNormal = textureSample(normalTextures, textureSampler, uv_layer, layer_index);
                     let layerNormalSample = textureSample(normalTextures, textureSampler, uv_layer, u32(layer.textureIndices.y));
                     let layerNormal = layerNormalSample.xyz * 2.0 - 1.0;
@@ -221,10 +235,10 @@ export class TerrainMaterial extends GPU.Material {
 
                     // Unity style r=1.0 - smoothness,g=ao,b=detail,a=roughness
                     let ao = layerArm.r;
-                    let roughness = layerArm.g;
-                    let metalness = layerArm.b;
+                    let roughness = layerArm.g * layer.materialParams.x;
+                    let metalness = layerArm.b * layer.materialParams.y;
 
-                    return TerrainSample(layerAlbedo.rgb, layerNormal, vec3(ao, roughness, metalness));
+                    return TerrainSample(albedo.rgb, layerNormal, vec3(ao, roughness, metalness));
                 }
                     
                 @fragment
@@ -298,7 +312,12 @@ export class TerrainMaterial extends GPU.Material {
             shader.SetTexture("blendWeightMaps", whiteTextureArray);
             shader.SetTexture("materialIdMap", blackTexture);
 
-            this.SetTerrainLayersArray(shader, new Float32Array([0, 0, 0, 0, 10, 10, 0, 0]));
+            this.SetTerrainLayersArray(shader, new Float32Array([
+                0, 0, 0, 0,     // textureIndices
+                10, 10, 0, 0,   // transform
+                1, 1, 1, 1,     // albedoColor
+                1, 0, 0, 0,     // roughness, metalness, unused, unused
+            ]));
 
             this.shader = shader;
             if (this._terrainLayers.length > 0) this.ApplyTerrainLayers(this._terrainLayers);
