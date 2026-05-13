@@ -432,8 +432,14 @@ export class Shader extends BaseShader {
 
     // TODO: This needs cleaning
     public Compile() {
-        if (!(this.needsUpdate || !this.pipeline || !this.bindGroups)) {
-            return;
+        if (!(this.needsUpdate || !this.pipeline || !this.bindGroups)) return;
+
+        const missing: string[] = [];
+        for (const [name, uniform] of this.uniformMap) {
+            if (!uniform.buffer) missing.push(name);
+        }
+        if (missing.length) {
+            console.error(`[${this.params.name ?? "Shader"}] Compile missing bindings:`, missing, new Error().stack);
         }
 
         let hasCompiled = false;
