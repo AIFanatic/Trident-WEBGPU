@@ -5,7 +5,7 @@ import { WEBGPUTimestampQuery } from "./webgpu/utils/WEBGPUTimestampQuery";
 import { TextureViewer } from "./passes/TextureViewer";
 import { PrepareGBuffers } from "./passes/PrepareGBuffers";
 import { DeferredShadowMapPass } from "./passes/DeferredShadowMapPass";
-import { CubeTexture, RenderTexture, TextureFormat } from "./Texture";
+import { TextureFormat } from "./Texture";
 import { ForwardPass } from "./passes/ForwardPass";
 import { RenderablePass } from "./passes/RenderablePass";
 import { PostExposureTonemap } from "./passes/PostExposureTonemap";
@@ -24,11 +24,6 @@ export const PassParams = {
     GBufferNormal: "GBufferNormal",
     GBufferERMO: "GBufferERMO",
     GBufferDepth: "GBufferDepth",
-
-    Skybox: "Skybox",
-    SkyboxIrradiance: "SkyboxIrradiance",
-    SkyboxPrefilter: "SkyboxPrefilter",
-    SkyboxBRDFLUT: "SkyboxBRDFLUT",
 
     ShadowPassDepth: "ShadowPassDepth",
 
@@ -66,17 +61,6 @@ export class RenderingPipeline {
     private afterScreenOutputPasses: RenderPass[] = [];
 
     private prepareGBuffersPass: PrepareGBuffers;
-    public get skybox(): CubeTexture { return this.prepareGBuffersPass.skybox};
-    public set skybox(skybox: CubeTexture) { this.prepareGBuffersPass.skybox = skybox};
-
-    public get skyboxPrefilterDiffuse(): CubeTexture { return this.prepareGBuffersPass.skyboxPrefilterDiffuse};
-    public set skyboxPrefilterDiffuse(skyboxPrefilterDiffuse: CubeTexture) { this.prepareGBuffersPass.skyboxPrefilterDiffuse = skyboxPrefilterDiffuse};
-
-    public get skyboxPrefilterSpecular(): CubeTexture { return this.prepareGBuffersPass.skyboxPrefilterSpecular};
-    public set skyboxPrefilterSpecular(skyboxPrefilterSpecular: CubeTexture) { this.prepareGBuffersPass.skyboxPrefilterSpecular = skyboxPrefilterSpecular};
-
-    public get skyboxBRDFLUT(): RenderTexture { return this.prepareGBuffersPass.skyboxBRDFLUT};
-    public set skyboxBRDFLUT(skyboxBRDFLUT: RenderTexture) { this.prepareGBuffersPass.skyboxBRDFLUT = skyboxBRDFLUT};
 
     public get GBufferFormat(): TextureFormat { return this.prepareGBuffersPass.GBufferFormat};
     
@@ -130,7 +114,7 @@ export class RenderingPipeline {
         this.renderGraph.init();
     }
 
-    public AddPass(pass: RenderPass | (new (...args: any[]) => RenderPass), order: RenderPassOrder) {
+    public AddPass<T extends RenderPass>( pass: T | (new (...args: any[]) => T), order: RenderPassOrder) {
         const passInstance = typeof pass === "function" ? new pass() : pass;
         if (order === RenderPassOrder.BeforeGBuffer) this.beforeGBufferPasses.push(passInstance);
         else if (order === RenderPassOrder.AfterGBuffer) this.afterGBufferPasses.push(passInstance);
@@ -140,6 +124,8 @@ export class RenderingPipeline {
         else if (order === RenderPassOrder.AfterScreenOutput) this.afterScreenOutputPasses.push(passInstance);
 
         this.UpdateRenderGraphPasses();
+
+        return passInstance;
     }
 
     public Render() {
