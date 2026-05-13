@@ -18,7 +18,6 @@ struct VertexOutput {
 @group(0) @binding(9) var skyboxBRDFLUT: texture_2d<f32>;
 
 @group(0) @binding(10) var brdfSampler: sampler;
-@group(0) @binding(11) var skybox: texture_cube<f32>;
 
 struct View {
     projectionOutputSize: vec4<f32>,

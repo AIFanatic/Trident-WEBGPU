@@ -55,40 +55,6 @@ export class PrefilterDiffuse {
 
                 const PI = 3.14159265359;
 
-                // @fragment
-                // fn fragmentMain(@location(0) uv: vec2f) -> @location(0) vec4f {
-                //     // Per-pixel normal for this output cubemap face
-                //     let normal = dirFromFaceUV(u32(face.x), uv.x, uv.y);
-
-
-
-                //     let N = normalize(normal);
-                    
-
-                //     let TWO_PI = PI * 2.0;
-                //     let HALF_PI = PI * 0.5;
-                    
-                //     let deltaPhi = TWO_PI / 360.0;
-                //     let deltaTheta = HALF_PI / 90.0;
-
-                //     var color = vec3f(0.0);
-                //     var totalWeight = 0.0;
-
-                //     for (var phi = 0.0; phi < TWO_PI; phi += deltaPhi) {
-                //         for (var theta = 0.0; theta < PI; theta += deltaTheta) {
-                //             let L = vec3f(sin(theta) * cos(phi), cos(theta), sin(theta) * sin(phi)); // No up/right because it causes artifacts, just compute here
-
-                //             let NoL = max(dot(N, L), 0.0);
-                //             let weight = NoL * sin(theta);
-
-                //             color += textureSampleLevel(environmentMap, environmentMapSampler, L, 5.0).rgb * weight;
-                //             totalWeight += weight;
-                //         }
-                //     }
-
-                //     return vec4f(color / totalWeight, 1.0);
-                // }
-
                 @fragment
                 fn fragmentMain(@location(0) uv: vec2f) -> @location(0) vec4f {
                     // Per-pixel normal for this output cubemap face
