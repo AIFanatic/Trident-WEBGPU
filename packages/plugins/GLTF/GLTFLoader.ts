@@ -13,8 +13,15 @@ import {
 import { GLTFParser, MeshPrimitive, Texture, Node, AccessorComponentType, GLTF, TextureInfo, Accessor } from './GLTFParser'
 
 export class GLTFLoader {
-    private static TextureCache: Map<number, Promise<TridentTexture>> = new Map();
-    private static ParseCounter = 0;
+    private static TextureCache: Map<string, Promise<TridentTexture>> = new Map();
+
+    private static sanitizeName(name: string) {
+        return name.replace(/[\\/:*?"<>|]/g, "_").replace(/\s+/g, "_").replace(/_+/g, "_").replace(/^_|_$/g, "");
+    }
+
+    private static fallbackName(value: string | null | undefined, fallback: string) {
+        return this.sanitizeName(value && value.length > 0 ? value : fallback);
+    }
 
     private static finalizeGeometry(geom: Geometry) {
         const posAttr = geom.attributes.get("position");
@@ -44,16 +51,21 @@ export class GLTFLoader {
 
     // ---------- Textures ----------
 
-    private static async getTexture(textures: Texture[] | undefined, textureInfo: TextureInfo | null, textureFormat: "bgra8unorm" | "bgra8unorm-srgb"): Promise<TridentTexture | undefined> {
+    private static async getTexture(textures: Texture[] | undefined, textureInfo: TextureInfo | null, textureFormat: "bgra8unorm" | "bgra8unorm-srgb", fallbackName: string): Promise<TridentTexture | undefined> {
         if (!textures || !textureInfo) return undefined;
+
         const tex = textures[textureInfo.index];
         if (!tex?.source) throw Error("Invalid texture");
 
-        let cached = this.TextureCache.get(tex.source.checksum);
+        const textureName = fallbackName; // this.fallbackName(tex.name || tex.source.name, fallbackName);
+        const cacheKey = `${tex.source.checksum}:${textureFormat}`;
+
+        let cached = this.TextureCache.get(cacheKey);
         if (!cached) {
-            cached = TridentTexture.LoadBlob(new Blob([tex.source.bytes], { type: tex.source.mimeType }), textureFormat, { name: tex.source.name, storeSource: true });
-            this.TextureCache.set(tex.source.checksum, cached);
+            cached = TridentTexture.LoadBlob(new Blob([tex.source.bytes], { type: tex.source.mimeType }), textureFormat, { name: textureName, storeSource: true });
+            this.TextureCache.set(cacheKey, cached);
         }
+
         return cached;
     }
 
@@ -103,7 +115,7 @@ export class GLTFLoader {
         return array;
     }
 
-    private static async parsePrimitive(primitive: MeshPrimitive, textures?: Texture[]): Promise<{ geometry: Geometry, material: PBRMaterial }> {
+    private static async parsePrimitive(primitive: MeshPrimitive, textures: Texture[] | undefined, names: { rootName: string; nodeName: string; meshName: string; primitiveIndex: number }): Promise<{ geometry: Geometry, material: PBRMaterial }> {
         const geometry = new Geometry();
 
         if (primitive.attributes.POSITION) geometry.attributes.set("position", new VertexAttribute(this.parseAccessor(primitive.attributes.POSITION) as Float32Array));
@@ -122,9 +134,12 @@ export class GLTFLoader {
             geometry.index = new IndexAttribute(indices);
         }
 
-        let materialParams: any = {};
 
         const mat = primitive.material;
+        const geomBaseName = this.fallbackName(names.meshName || names.nodeName, `${names.rootName}_Mesh`);
+        const materialBaseName = this.fallbackName(mat?.name, `${geomBaseName}_Prim${names.primitiveIndex}_Mat`);
+
+        let materialParams: any = {};
         if (mat?.occlusionTexture) {
             // TODO: If a separate occlusionTexture exists need to merge it into our ARM map R channel
             // console.log("mat?.occlusionTexture", await this.getTexture(textures, mat.occlusionTexture, "bgra8unorm-srgb"))
@@ -132,13 +147,13 @@ export class GLTFLoader {
         if (mat?.pbrMetallicRoughness) {
             const pbr = mat.pbrMetallicRoughness;
             if (pbr.baseColorFactor) materialParams.albedoColor = new Mathf.Color(...pbr.baseColorFactor);
-            if (pbr.baseColorTexture) materialParams.albedoMap = await this.getTexture(textures, pbr.baseColorTexture, "bgra8unorm-srgb");
-            if (pbr.metallicRoughnessTexture) materialParams.armMap = await this.getTexture(textures, pbr.metallicRoughnessTexture, "bgra8unorm");
+            if (pbr.baseColorTexture) materialParams.albedoMap = await this.getTexture(textures, pbr.baseColorTexture, "bgra8unorm-srgb", `${materialBaseName}_BaseColor`);
+            if (pbr.metallicRoughnessTexture) materialParams.armMap = await this.getTexture(textures, pbr.metallicRoughnessTexture, "bgra8unorm", `${materialBaseName}_MetallicRoughness`);
             if (pbr.roughnessFactor !== undefined) materialParams.roughness = pbr.roughnessFactor;
             if (pbr.metallicFactor !== undefined) materialParams.metalness = pbr.metallicFactor;
         }
-        if (mat?.normalTexture) materialParams.normalMap = await this.getTexture(textures, mat.normalTexture, "bgra8unorm");
-        if (mat?.emissiveTexture) materialParams.emissiveMap = await this.getTexture(textures, mat.emissiveTexture, "bgra8unorm-srgb");
+        if (mat?.normalTexture) materialParams.normalMap = await this.getTexture(textures, mat.normalTexture, "bgra8unorm", `${materialBaseName}_Normal`);
+        if (mat?.emissiveTexture) materialParams.emissiveMap = await this.getTexture(textures, mat.emissiveTexture, "bgra8unorm-srgb", `${materialBaseName}_Emissive`);
         if (mat?.emissiveFactor) {
             materialParams.emissiveColor = new Mathf.Color(...mat.emissiveFactor);
             const ext = mat.extensions?.["KHR_materials_emissive_strength"];
@@ -158,10 +173,11 @@ export class GLTFLoader {
         }
 
         geometry.ComputeBoundingVolume();
+        geometry.name = names.primitiveIndex === 0 ? `${geomBaseName}_Geo` : `${geomBaseName}_Prim${names.primitiveIndex}_Geo`;
 
         const material = new PBRMaterial(materialParams);
         material.assetPath = undefined;
-        if (primitive.material && primitive.material.name) material.name = primitive.material.name;
+        material.name = materialBaseName;
 
         return { geometry, material };
     }
@@ -327,14 +343,15 @@ export class GLTFLoader {
             const nodeGO = nodes[i];
             const primitives = node.mesh.primitives ?? [];
 
-            for (const primitive of primitives) {
-                const parsed = await this.parsePrimitive(primitive, gltf.textures);
+            for (let primitiveIndex = 0; primitiveIndex < primitives.length; primitiveIndex++) {
+                const primitive = primitives[primitiveIndex];
+
+                const parsed = await this.parsePrimitive(primitive, gltf.textures, { rootName, nodeName: nodeGO.name, meshName: node.mesh.name || nodeGO.name, primitiveIndex });
 
                 const primGO = new GameObject();
-                primGO.name = nodeGO.name;
+                primGO.name = primitives.length === 1 ? nodeGO.name : `${nodeGO.name}_Prim${primitiveIndex}`;
+
                 primGO.transform.parent = nodeGO.transform;
-                // Reset locals to zero offset — set parent preserves world position,
-                // but we want the primitive at the node's position (identity local transform)
                 primGO.transform.localPosition.set(0, 0, 0);
                 primGO.transform.localRotation.set(0, 0, 0, 1);
 
