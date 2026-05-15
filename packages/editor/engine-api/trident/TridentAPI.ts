@@ -1,4 +1,4 @@
-import { GameObject, Scene, Mathf, Geometry, PBRMaterial, Utils, Component, GPU, Serializer, Deserializer, Prefab, Runtime, EventSystem, EventSystemLocal } from "@trident/core";
+import { GameObject, Scene, Mathf, Geometry, PBRMaterial, Utils, Component, GPU, Serializer, Deserializer, Prefab, EventSystem, EventSystemLocal } from "@trident/core";
 
 import { IEngineAPI } from "./IEngineAPI";
 import { IComponentConstructor, IComponentInstance } from "./components/IComponent";
@@ -15,6 +15,7 @@ import { IRuntime } from "./IRuntime";
 
 import "../../serialization/EditorLoad";
 import "./ComponentRegistry";
+import { EditorRuntime } from "./EditorRuntime";
 
 export class TridentAPI implements IEngineAPI {
 
@@ -23,15 +24,15 @@ export class TridentAPI implements IEngineAPI {
     public deserializer = Deserializer;
 
     public getRuntime(): IRuntime {
-        return Runtime;
+        return EditorRuntime;
     }
 
     public async createRuntime(canvas: HTMLCanvasElement): Promise<IRuntime> {
-        return await Runtime.Create(canvas);
+        return await EditorRuntime.Create(canvas);
     }
 
     public addSystem<T extends ISystem, A extends any[]>(ctor: new (...args: A) => T, ...args: A): Promise<T> {
-        return Runtime.AddSystem(ctor, ...args);
+        return EditorRuntime.AddSystem(ctor, ...args);
     }
 
     public createScene(): IScene {

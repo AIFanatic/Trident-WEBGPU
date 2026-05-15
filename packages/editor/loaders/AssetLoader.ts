@@ -6,6 +6,7 @@ export async function LoadFile(path: string, file: FileSystemFileHandle, engineA
     const ext = path.slice(path.lastIndexOf(".") + 1).toLowerCase();
 
     if (ext === "scene") {
+        // TODO: item.data.instance is a json object, it should be a Scene
         const text = await (await file.getFile()).text();
         return JSON.parse(text);
     }

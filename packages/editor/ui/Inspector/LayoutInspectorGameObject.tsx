@@ -184,7 +184,7 @@ export class LayoutInspectorGameObject extends Component<LayoutInspectorProps> {
     private onDrop(event: DragEvent) {
         const draggedItem = ExtendedDataTransfer.data;
         const component = draggedItem[Object.keys(draggedItem)[0]];
-        // console.log("onDrop", draggedItem, this.props.engineAPI.isComponent(component));
+        console.log("onDrop", draggedItem, this.props.engineAPI.getFieldType(component));
         this.props.engineAPI.addComponent(this.props.gameObject, component);
         this.setState({}); // force updated
     }

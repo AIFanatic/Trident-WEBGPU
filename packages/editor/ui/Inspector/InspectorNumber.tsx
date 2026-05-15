@@ -12,14 +12,9 @@ export interface InspectorNumberProps {
     onChanged?: (value: number) => void;
 };
 
-interface InspectorNumberState {
-    value: number;
-}
-
-export class InspectorNumber extends Component<InspectorNumberProps, InspectorNumberState> {
+export class InspectorNumber extends Component<InspectorNumberProps> {
     constructor(props: InspectorNumberProps) {
         super(props);
-        this.setState({ value: this.props.value });
     }
 
     private clampAndSnap(value: number): number {
@@ -42,12 +37,11 @@ export class InspectorNumber extends Component<InspectorNumberProps, InspectorNu
             value = this.clampAndSnap(value);
 
             this.props.onChanged(value);
-            this.setState({ value: value });
         }
     }
 
     private onClicked(event: MouseEvent) {
-        let dragValue = this.state.value;
+        let dragValue = this.props.value;
 
         const MouseMoveEvent = (event: MouseEvent) => {
             const delta = event.movementX;
@@ -56,7 +50,6 @@ export class InspectorNumber extends Component<InspectorNumberProps, InspectorNu
             dragValue += delta * speed;
 
             const value = this.clampAndSnap(dragValue);
-            this.setState({ value });
             this.props.onChanged?.(value);
 
             (event.currentTarget as HTMLElement).requestPointerLock();
@@ -82,7 +75,7 @@ export class InspectorNumber extends Component<InspectorNumberProps, InspectorNu
                 max={this.props.max}
                 step={this.props.step}
                 onChange={(event) => { this.onChanged(event) }}
-                value={this.state.value.toPrecision(4)}
+                value={this.props.value.toPrecision(4)}
             />
         </div>
     }

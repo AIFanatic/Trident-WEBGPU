@@ -18,7 +18,7 @@ export class LayoutHierarchyEvents {
 }
 
 interface LayoutHierarchyState {
-    selectedGameObject: IGameObject;
+    selectedGameObject: IGameObject | null;
     headerMenuOpen: boolean;
 };
 
@@ -80,7 +80,7 @@ export class LayoutHierarchy extends Component<BaseProps, LayoutHierarchyState> 
         const extendedEvent = ExtendedDataTransfer.data;
         const instance = extendedEvent;
         if (instance && this.props.engineAPI.isPrefab(instance)) {
-            const gameObject = await this.props.engineAPI.deserializer.deserializeGameObject(instance);
+            const gameObject = await this.props.engineAPI.deserializer.deserializeGameObject(this.props.engineAPI.currentScene, instance);
             console.log(gameObject)
             this.selectGameObject(gameObject);
             ExtendedDataTransfer.data = undefined;

@@ -1,3 +1,4 @@
+import { IGameObject } from "./engine-api/trident/components/IGameObject";
 import { createElement, PropsWithChildren, VNode as GoactVNode, VNodeChild } from "./gooact";
 import { InspectorInputProps } from "./ui/Inspector/InspectorInput";
 
@@ -10,6 +11,9 @@ export interface IEditorBridge {
         onSceneSaved(handler: () => void): void;
         offSceneSaved(handler: () => void): void;
     };
+    Selection: {
+        activeGameObject: IGameObject | null;
+    }
 }
 
 let bridge: IEditorBridge | null = null;
@@ -35,5 +39,8 @@ export class EditorAPI {
     public static Events = {
         onSceneSaved(handler: () => void): void { return requireBridge().events.onSceneSaved(handler)},
         offSceneSaved(handler: () => void): void { return requireBridge().events.offSceneSaved(handler)},
+    };
+    public static Selection = {
+        get activeGameObject(): IGameObject | null { return requireBridge().Selection.activeGameObject},
     };
 }

@@ -5,8 +5,6 @@ import { ICamera } from "./components/ICamera";
 import { IDirectionalLight, IPointLight, ISpotLight } from "./components/ILight";
 import { IMesh } from "./components/IMesh";
 
-import { EditorSceneManager } from "../../helpers/EditorSceneManager";
-
 import { OrbitControls } from "@trident/plugins/OrbitControls";
 
 import { RigidBody } from "@trident/plugins/PhysicsRapier/RigidBody";
@@ -24,11 +22,12 @@ import { LineRenderer } from "@trident/plugins/LineRenderer";
 
 import { LODGroup } from "@trident/plugins/LOD/LODGroup";
 
+import { EditorScene } from "./EditorScene";
+
 const component = <T extends IComponent>(ctor: unknown): IComponentConstructor<T> => ctor as IComponentConstructor<T>;
 
-Component.Registry.set(EditorSceneManager.type, EditorSceneManager);
-
 Component.Registry.set(OrbitControls.type, OrbitControls);
+Component.Registry.set(EditorScene.type, EditorScene);
 
 Component.Registry.set(RigidBody.type, RigidBody);
 Component.Registry.set(BoxCollider.type, BoxCollider);
@@ -46,8 +45,6 @@ Component.Registry.set(LineRenderer.type, LineRenderer);
 Component.Registry.set(LODGroup.type, LODGroup);
 
 export const ComponentRegistry = {
-    EditorSceneManager: component<IComponent>(EditorSceneManager),
-
     Camera: component<ICamera>(Components.Camera),
 
     SpotLight: component<ISpotLight>(Components.SpotLight),
@@ -59,6 +56,7 @@ export const ComponentRegistry = {
     Animator: component<IComponent>(Components.Animator),
     AnimationTrack: component<IComponent>(Components.AnimationTrack),
 
+    EditorScene: component<IComponent>(EditorScene),
     OrbitControls: component<IComponent>(OrbitControls),
 
     RigidBody: component<IComponent>(RigidBody),

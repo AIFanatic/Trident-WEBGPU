@@ -74,7 +74,7 @@ export interface IEngineAPI {
 
     deserializer: {
         deserializeScene(scene: any, data: any): Promise<void>;
-        deserializeGameObject(data: any, parent?: any): Promise<any>;
+        deserializeGameObject(scene: IScene, data: any, parent?: any): Promise<any>;
         deserializeFields(target: any, data: any): Promise<void>;
         Load(assetPath: string, data?: any): Promise<any>;
     };

@@ -13,11 +13,7 @@ import { FloatingMenu } from "./FloatingMenu";
 import { IGameObject } from "../engine-api/trident/components/IGameObject";
 
 
-import { Assets, Runtime, Scene, GPU } from "@trident/core";
-import { HDRParser } from "@trident/plugins/HDRParser";
-
-import { IBLLightingPass } from "@trident/plugins/Environment/IBLLightingPass";
-import { SkyboxPass } from "@trident/plugins/Environment/SkyboxPass";
+import { Assets, Scene } from "@trident/core";
 
 import { LoadFile } from "../loaders/AssetLoader";
 import {
@@ -141,15 +137,8 @@ export class LayoutAssets extends Component<BaseProps, LayoutAssetsState> {
         if (item.data.instance.type === Scene.type) {
             this.props.engineAPI.currentScene.Clear();
             await this.props.engineAPI.deserializer.deserializeScene(this.props.engineAPI.currentScene, item.data.instance);
+            // TODO: item.data.instance is a json object, it should be a Scene
             TridentAPI.EventSystem.emit(SceneEvents.Loaded, item.data.instance);
-
-            const skyAtmosphere = new Sky();
-            await skyAtmosphere.init();
-            const iblLightingPass = Runtime.Renderer.RenderPipeline.AddPass(IBLLightingPass, GPU.RenderPassOrder.AfterLighting);
-            const skyboxPass = Runtime.Renderer.RenderPipeline.AddPass(SkyboxPass, GPU.RenderPassOrder.AfterLighting);
-
-            iblLightingPass.SetEnvironment(skyAtmosphere.skyTextureCubemap);
-            skyboxPass.SetSkybox(skyAtmosphere.skyTextureCubemap);
         }
     }
 

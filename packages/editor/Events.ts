@@ -45,4 +45,6 @@ export class LayoutInspectorEvents {
 
 export class RuntimeEvents {
     public static CreatedCanvas = (canvas: HTMLCanvasElement) => { };
+    public static Play = () => { };
+    public static Stop = () => { };
 }

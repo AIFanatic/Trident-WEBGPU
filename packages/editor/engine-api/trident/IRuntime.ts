@@ -4,7 +4,7 @@ import { ISystem } from "./ISystem";
 export interface IRuntime {
     SceneManager: ISceneManager;
     Play(): void;
-    Stop(): void;
+    Stop(): Promise<void>;
     AddSystem<T extends ISystem, A extends any[]>(ctor: new (...args: A) => T, ...args: A): Promise<T>;
     isPlaying: boolean;
 }
