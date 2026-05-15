@@ -1,4 +1,4 @@
-import { GPU, Components, Mathf, GameObject, Geometry, PBRMaterial, Runtime, VertexAttribute, IndexAttribute } from "@trident/core";
+import { GPU, Components, Mathf, GameObject, Geometry, PBRMaterial, Runtime, VertexAttribute, IndexAttribute, PlayerRuntime } from "@trident/core";
 
 import { OrbitControls } from "@trident/plugins/OrbitControls";
 import { Debugger } from "@trident/plugins/Debugger";
@@ -68,9 +68,9 @@ async function Application(canvas: HTMLCanvasElement) {
         return geometry;
     }
     
-    await Runtime.Create(canvas, window.devicePixelRatio);
-    const scene = Runtime.SceneManager.CreateScene("DefaultScene");
-    Runtime.SceneManager.SetActiveScene(scene);
+    await PlayerRuntime.Create(canvas, window.devicePixelRatio);
+    const scene = PlayerRuntime.SceneManager.CreateScene("DefaultScene");
+    PlayerRuntime.SceneManager.SetActiveScene(scene);
 
     const mainCameraGameObject = new GameObject();
     mainCameraGameObject.name = "MainCamera";
@@ -132,9 +132,6 @@ async function Application(canvas: HTMLCanvasElement) {
     
     iblLightingPass.SetEnvironment(skyTexture);
     skyboxPass.SetSkybox(skyTexture);
-
-
-    Runtime.Play();
 };
 
 Application(document.querySelector("canvas") as HTMLCanvasElement);

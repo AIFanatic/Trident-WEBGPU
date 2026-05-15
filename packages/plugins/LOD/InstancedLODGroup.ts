@@ -46,6 +46,7 @@ export class InstancedLODGroup extends Components.Renderable {
     }
 
     public async Start() {
+        super.Start()
         this.drawCompute = await GPU.ShaderCompute.Create({
             name: this.name + "-Compute",
             code: `

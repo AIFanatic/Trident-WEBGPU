@@ -16,6 +16,7 @@ import {
     Runtime,
     Renderer,
     SceneManager,
+    PlayerRuntime,
 } from "@trident/core";
 
 import { PhysicsRapier } from "@trident/plugins/PhysicsRapier/PhysicsRapier";
@@ -59,9 +60,9 @@ import { IBLLightingPass } from "@trident/plugins/Environment/IBLLightingPass";
 import { SkyboxPass } from "@trident/plugins/Environment/SkyboxPass";
 
 async function Application(canvas: HTMLCanvasElement) {
-    await Runtime.Create(canvas);
-    const scene = Runtime.SceneManager.CreateScene("DefaultScene");
-    Runtime.SceneManager.SetActiveScene(scene);
+    await PlayerRuntime.Create(canvas);
+    const scene = PlayerRuntime.SceneManager.CreateScene("DefaultScene");
+    PlayerRuntime.SceneManager.SetActiveScene(scene);
 
     const mainCameraGameObject = new GameObject();
     mainCameraGameObject.transform.position.set(0, 0, 5);
@@ -692,7 +693,6 @@ async function Application(canvas: HTMLCanvasElement) {
 
         public Update(): void {
             if (Input.GetMouseButtonDown(MouseCodes.MOUSE_LEFT)) {
-                console.log("CALLED")
                 const go = new GameObject();
                 const forward = new Mathf.Vector3(0, 0, -1).transformDirection(camera.transform.localToWorldMatrix);
                 go.transform.position.copy(this.transform.position).add(forward.clone().mul(1));
@@ -712,7 +712,6 @@ async function Application(canvas: HTMLCanvasElement) {
     }
 
     playerGameObject.AddComponent(Shooter)
-    Runtime.Play();
 };
 
 Application(document.querySelector("canvas") as HTMLCanvasElement);

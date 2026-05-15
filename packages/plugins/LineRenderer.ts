@@ -21,6 +21,7 @@ export class LineRenderer extends Components.Mesh {
     }
 
     public async Start() {
+        super.Start();
         this.material = new GPU.Material({ isDeferred: false });
 
         this.material.shader = await GPU.Shader.Create({

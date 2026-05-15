@@ -1,4 +1,4 @@
-import { Components, Scene, GPU, Mathf, GameObject, Geometry, IndexAttribute, PBRMaterial, VertexAttribute, Runtime } from "@trident/core";
+import { Components, Scene, GPU, Mathf, GameObject, Geometry, IndexAttribute, PBRMaterial, VertexAttribute, Runtime, PlayerRuntime } from "@trident/core";
 
 import { OrbitControls } from "@trident/plugins/OrbitControls";
 import { GLTFLoader } from "@trident/plugins/GLTF/GLTFLoader";
@@ -9,9 +9,9 @@ import { IBLLightingPass } from "@trident/plugins/Environment/IBLLightingPass";
 import { SkyboxPass } from "@trident/plugins/Environment/SkyboxPass";
 
 async function Application(canvas: HTMLCanvasElement) {
-    await Runtime.Create(canvas);
-    const scene = Runtime.SceneManager.CreateScene("DefaultScene");
-    Runtime.SceneManager.SetActiveScene(scene);
+    await PlayerRuntime.Create(canvas);
+    const scene = PlayerRuntime.SceneManager.CreateScene("DefaultScene");
+    PlayerRuntime.SceneManager.SetActiveScene(scene);
 
     const mainCameraGameObject = new GameObject();
     mainCameraGameObject.transform.position.set(0, 0, -15);
@@ -78,6 +78,8 @@ async function Application(canvas: HTMLCanvasElement) {
   // Base: jog forward
   animator.SetClipByIndex(45); // Jog_Fwd_Loop
 
+  console.log(animator)
+
 
     }
 
@@ -127,7 +129,7 @@ async function Application(canvas: HTMLCanvasElement) {
 
     Debugger.Enable();
     
-    Runtime.Play();
+    // Runtime.Play();
 };
 
 Application(document.querySelector("canvas"));

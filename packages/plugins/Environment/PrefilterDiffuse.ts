@@ -24,8 +24,6 @@ export class PrefilterDiffuse {
                 @group(0) @binding(2) var environmentMapSampler: sampler;
         
                 @group(0) @binding(3) var<storage, read> face: vec4<f32>;
-
-                @group(0) @binding(4) var<storage, read> modelViewProjectionMatrix: mat4x4f;
         
                 struct VSOut {
                     @builtin(position) pos: vec4f,
@@ -60,8 +58,6 @@ export class PrefilterDiffuse {
                     // Per-pixel normal for this output cubemap face
                     let normal = dirFromFaceUV(u32(face.x), uv.x, uv.y);
 
-
-
                     let N = normalize(normal);
 
                     var up = vec3(1.0, 0.0, 0.0);
@@ -95,12 +91,6 @@ export class PrefilterDiffuse {
             `,
             colorOutputs: [{ format: this.prefilterDiffuse.format }],
             attributes: { position: { location: 0, size: 3, type: "vec3" } },
-            uniforms: {
-                environmentMap: { group: 0, binding: 1, type: "texture" },
-                environmentMapSampler: { group: 0, binding: 2, type: "sampler" },
-                face: { group: 0, binding: 3, type: "storage" },
-                modelViewProjectionMatrix: { group: 0, binding: 4, type: "storage" },
-            }
         });
 
         this.geometry = Geometry.Plane();

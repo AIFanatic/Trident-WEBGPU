@@ -9,6 +9,7 @@ import {
     Runtime,
     VertexAttribute,
     IndexAttribute,
+    PlayerRuntime,
 } from "@trident/core";
 
 import { OrbitControls } from "@trident/plugins/OrbitControls";
@@ -16,16 +17,15 @@ import { Debugger } from "@trident/plugins/Debugger";
 
 import { HDRParser } from "@trident/plugins/HDRParser";
 
-import { Environment } from "@trident/plugins/Environment/Environment";
 import { IBLLightingPass } from "@trident/plugins/Environment/IBLLightingPass";
 import { SkyboxPass } from "@trident/plugins/Environment/SkyboxPass";
 
 import { WireframePass } from "@trident/plugins/WireframePass";
 
 async function Application(canvas: HTMLCanvasElement) {
-    await Runtime.Create(canvas, 1);
-    const scene = Runtime.SceneManager.CreateScene("DefaultScene");
-    Runtime.SceneManager.SetActiveScene(scene);
+    await PlayerRuntime.Create(canvas);
+    const scene = PlayerRuntime.SceneManager.CreateScene("DefaultScene");
+    PlayerRuntime.SceneManager.SetActiveScene(scene);
 
     const mainCameraGameObject = new GameObject();
     mainCameraGameObject.name = "MainCamera";
@@ -49,8 +49,11 @@ async function Application(canvas: HTMLCanvasElement) {
     // const hdr = await HDRParser.Load("/extra/test-assets/pisa.hdr");
     const skyTexture = await HDRParser.ToCubemap(hdr);
 
-    const environment = new Environment(scene, skyTexture);
-    await environment.init();
+    const iblLightingPass = Runtime.Renderer.RenderPipeline.AddPass(IBLLightingPass, GPU.RenderPassOrder.AfterLighting);
+    const skyboxPass = Runtime.Renderer.RenderPipeline.AddPass(SkyboxPass, GPU.RenderPassOrder.AfterLighting);
+    
+    iblLightingPass.SetEnvironment(skyTexture);
+    skyboxPass.SetSkybox(skyTexture);
 
 
     function HighQualitySphere( radius = 0.5, widthSegments = 16, heightSegments = 16 ): Geometry {
@@ -205,14 +208,7 @@ async function Application(canvas: HTMLCanvasElement) {
     // const wireframe = new WireframePass();
     // Runtime.Renderer.RenderPipeline.AddPass(wireframe, GPU.RenderPassOrder.AfterLighting);
 
-    const iblLightingPass = new IBLLightingPass();
-    Runtime.Renderer.RenderPipeline.AddPass(iblLightingPass, GPU.RenderPassOrder.AfterLighting);
-
-    const skyboxPass = new SkyboxPass();
-    Runtime.Renderer.RenderPipeline.AddPass(skyboxPass, GPU.RenderPassOrder.AfterLighting);
-
     Debugger.Enable();
-    Runtime.Play();
 };
 
 Application(document.querySelector("canvas"));
