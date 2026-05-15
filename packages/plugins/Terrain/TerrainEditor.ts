@@ -19,6 +19,7 @@ type DropCallback<T> = (value: T) => void;
 type VNodeFactory = (type: string, props: object | null, ...children: any[]) => any;
 
 export class TerrainEditor extends Components.Component {
+    public runInEditMode: boolean = true;
     public static type = "@trident/plugins/Terrain/TerrainEditor";
     private terrain: Terrain;
     private terrainCollider: TerrainCollider;
@@ -70,6 +71,13 @@ export class TerrainEditor extends Components.Component {
     }
 
     public Update(): void {
+        if (EditorAPI.Selection.activeGameObject !== this.gameObject) {
+            this.lineRenderer.enabled = false;
+            return;
+        };
+
+        this.lineRenderer.enabled = true;
+
         this.UpdateTerrainLayers();
 
         const hit = this.RaycastTerrain();
