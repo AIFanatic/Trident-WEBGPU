@@ -1,4 +1,4 @@
-export { Scene } from "./Scene";
+export { Scene, SceneExecutionMode } from "./Scene";
 export { Prefab } from "./Prefab";
 
 export { GameObject } from "./GameObject";
@@ -35,8 +35,10 @@ export { Console } from "./Console";
 export { Serializer } from "./serializer/Serializer";
 export { Deserializer } from "./serializer/Deserializer";
 
+export type { ISerializedScene } from "./serializer/Serializer";
 
 
-export { Runtime } from "./Runtime";
+
+export { Runtime, PlayerRuntime } from "./Runtime";
 export { System } from "./System";
 export { SceneManager } from "./SceneManager";

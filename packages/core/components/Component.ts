@@ -9,12 +9,12 @@ import { Transform } from "./Transform";
 export type SerializedComponent = { type: string } & Record<string, unknown>;
 
 export class ComponentEvents {
-    public static CallUpdate = (component: Component, shouldUpdate: boolean) => {};
     public static AddedComponent = (component: Component, scene: Scene) => {};
     public static RemovedComponent = (component: Component, scene: Scene) => {};
 }
 
 export class Component {
+    public runInEditMode: boolean = false;
     public flags: Flags = Flags.None;
     public static type: string;
     public id = UUID();
@@ -33,8 +33,6 @@ export class Component {
         this.transform = gameObject.transform;
         this.name = this.constructor.name;
 
-        if (this.constructor.prototype.Update !== Component.prototype.Update) EventSystem.emit(ComponentEvents.CallUpdate, this, true);
-
         EventSystem.emit(ComponentEvents.AddedComponent, this, this.gameObject.scene);
 
         const ctor = this.constructor as typeof Component;
@@ -44,7 +42,6 @@ export class Component {
     public Start() {}
     public Update() {}
     public Destroy() {
-      EventSystem.emit(ComponentEvents.CallUpdate, this, false);
-      EventSystem.emit(ComponentEvents.RemovedComponent, this, this.gameObject.scene);
+        EventSystem.emit(ComponentEvents.RemovedComponent, this, this.gameObject.scene);
     }
 }

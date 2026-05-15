@@ -142,6 +142,9 @@ export class Input extends System {
 
     public static get mousePosition(): Vector2 { return Input._mousePosition; }
 
+    private static _isPointerLocked: boolean = false;
+    public static get isPointerLocked(): boolean { return Input._isPointerLocked; }
+
     public async Start() {
         function AddPointerAwareEvent(target: HTMLElement, type: keyof DocumentEventMap, callback: (event: any) => void) {
             document.addEventListener(type, (event) => (document.pointerLockElement !== null || event.target === target) && callback(event));
@@ -150,13 +153,15 @@ export class Input extends System {
         if (Renderer.canvas) {
             AddPointerAwareEvent(Renderer.canvas, "keydown", (event) => Input.OnKeyDown(event));
             AddPointerAwareEvent(Renderer.canvas, "keyup", (event) => Input.OnKeyUp(event));
-            AddPointerAwareEvent(Renderer.canvas, "contextmenu", (event) => Input.OnContextMenu(event) );
-            AddPointerAwareEvent(Renderer.canvas, "mousemove", (event) => Input.OnMouseMove(event) );
-            AddPointerAwareEvent(Renderer.canvas, "mousedown", (event) => Input.OnMouseDown(event) );
-            AddPointerAwareEvent(Renderer.canvas, "mouseup", (event) => Input.OnMouseUp(event) );
+            AddPointerAwareEvent(Renderer.canvas, "contextmenu", (event) => Input.OnContextMenu(event));
+            AddPointerAwareEvent(Renderer.canvas, "mousemove", (event) => Input.OnMouseMove(event));
+            AddPointerAwareEvent(Renderer.canvas, "mousedown", (event) => Input.OnMouseDown(event));
+            AddPointerAwareEvent(Renderer.canvas, "mouseup", (event) => Input.OnMouseUp(event));
             AddPointerAwareEvent(Renderer.canvas, "touchmove", (event) => Input.OnTouchMove(event));
-            AddPointerAwareEvent(Renderer.canvas, "wheel", (event) => Input.OnMouseWheel(event) );
+            AddPointerAwareEvent(Renderer.canvas, "wheel", (event) => Input.OnMouseWheel(event));
         }
+
+        document.addEventListener("pointerlockchange", () => Input._isPointerLocked = document.pointerLockElement !== null);
     }
 
     private static OnContextMenu(event: MouseEvent) {
@@ -287,5 +292,13 @@ export class Input extends System {
         }
 
         throw Error("Invalid axis");
+    }
+
+    public static LockPointer(): void {
+        if (!Input._isPointerLocked) document.body.requestPointerLock();
+    }
+
+    public static UnlockPointer(): void {
+        if (Input._isPointerLocked) document.exitPointerLock();
     }
 }

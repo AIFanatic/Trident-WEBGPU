@@ -11,6 +11,7 @@ export class RenderableEvents {
     public static GeometryUpdated = (gameObject: GameObject, geometry: Geometry) => { };
 }
 export class Renderable extends Component {
+    public runInEditMode: boolean = true;
     public static Renderables: Map<string, Renderable> = new Map();
 
     public static type = "@trident/core/components/Renderable";
@@ -34,8 +35,7 @@ export class Renderable extends Component {
         EventSystemLocal.emit(RenderableEvents.MaterialUpdated, this.transform, this.gameObject, material);
     };
 
-    constructor(gameObject: GameObject) {
-        super(gameObject);
+    public Start(): void {
         Renderable.Renderables.set(this.id, this);
     }
 

@@ -25,7 +25,7 @@ export class SceneManager  extends System {
     }
 
     public Update() {
-        if (!this.activeScene) throw Error("No active scene");
+        if (!this.activeScene) return;
         this.activeScene.Update();
     }
 }

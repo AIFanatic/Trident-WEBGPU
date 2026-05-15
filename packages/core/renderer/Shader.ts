@@ -109,6 +109,10 @@ export interface ShaderComputeParams {
     computeEntrypoint?: string;
 };
 
+// TODO: Cached GPUBindGroups hold strong refs to the resources they were built with.
+// If a referenced buffer/texture is destroyed, the bind group becomes a tombstone — the next bind/submit fails with
+// "Buffer used in submit while destroyed".
+// Need to implement bind group invalidation
 const BindGroupLayoutCache: Map<string, GPUBindGroupLayout> = new Map();
 const BindGroupCache: Map<string, GPUBindGroup> = new Map();
 

@@ -3,13 +3,14 @@ import { Matrix4 } from "../math/Matrix4";
 import { ObservableQuaternion, Quaternion } from "../math/Quaternion";
 import { ObservableVector3, Vector3 } from "../math/Vector3";
 import { SerializeField } from "../utils";
-import { Component, ComponentEvents } from "./Component";
+import { Component } from "./Component";
 
 export class TransformEvents {
     public static Updated = () => { };
 }
 
 export class Transform extends Component {
+    public runInEditMode: boolean = true;
     public static type = "@trident/core/components/Transform";
 
     private tempRotation = new Quaternion();
@@ -115,7 +116,6 @@ export class Transform extends Component {
         // local is now the authoritative source
         this._lastChanged = "local";
         this.UpdateMatrices();
-        EventSystem.emit(ComponentEvents.CallUpdate, this, true);
     }
 
     private onWorldEulerChanged() {
@@ -150,7 +150,6 @@ export class Transform extends Component {
 
         // update matrices, but DON'T overwrite world from local afterward
         this.UpdateMatrices();
-        EventSystem.emit(ComponentEvents.CallUpdate, this, true);
     }
 
     private onWorldRotationChanged() {
@@ -176,7 +175,6 @@ export class Transform extends Component {
         }
 
         this.UpdateMatrices();
-        EventSystem.emit(ComponentEvents.CallUpdate, this, true);
     }
 
     private syncWorldFromLocal() {
@@ -225,13 +223,6 @@ export class Transform extends Component {
 
         EventSystem.emit(TransformEvents.Updated);
         EventSystemLocal.emit(TransformEvents.Updated, this);
-    }
-
-    public Update() {
-        // treat as local authoritative by default for tick updates
-        this._lastChanged = "local";
-        this.UpdateMatrices();
-        EventSystem.emit(ComponentEvents.CallUpdate, this, false);
     }
 
     public LookAt(target: Vector3): void {

@@ -13,6 +13,7 @@ export class LightEvents {
 }
 
 export class Light extends Component {
+    public runInEditMode: boolean = true;
     public static type = "@trident/core/components/Light/Light";
 
     public camera: Camera = new Camera(this.gameObject);
@@ -35,6 +36,7 @@ export class Light extends Component {
 }
 
 export class SpotLight extends Light {
+    public runInEditMode: boolean = true;
     public static type = "@trident/core/components/Light/SpotLight";
     public direction = new Vector3(0,-1,0);
 
@@ -51,6 +53,7 @@ export class SpotLight extends Light {
 }
 
 export class PointLight extends Light {
+    public runInEditMode: boolean = true;
     public static type = "@trident/core/components/Light/PointLight";
     @SerializeField(Number)
     public range: number = 10;
@@ -63,6 +66,7 @@ export class PointLight extends Light {
 
 // TODO: Harder, maybe can be faked with a perspective camera and some scale hacks
 export class AreaLight extends Light {
+    public runInEditMode: boolean = true;
     public static type = "@trident/core/components/Light/AreaLight";
     public Start(): void {
         super.Start();
@@ -72,6 +76,7 @@ export class AreaLight extends Light {
 }
 
 export class DirectionalLight extends Light {
+    public runInEditMode: boolean = true;
     public static type = "@trident/core/components/Light/DirectionalLight";
 
     @SerializeField

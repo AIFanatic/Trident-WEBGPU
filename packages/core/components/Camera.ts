@@ -7,13 +7,11 @@ import { TransformEvents } from "./Transform";
 import { SerializeField } from "../utils/SerializeField";
 import { GameObject } from "../GameObject";
 
-export class CameraEvents {
-    public static Updated = (camera: Camera) => {};
-}
-
 export class Camera extends Component {
     public static type = "@trident/core/components/Camera";
-
+    
+    public runInEditMode: boolean = true;
+    
     @SerializeField
     public backgroundColor: Color = new Color(0.0, 0.0, 0.0, 1);
 
@@ -29,6 +27,10 @@ export class Camera extends Component {
     constructor(gameObject: GameObject) {
         super(gameObject);
         if (!Camera.mainCamera) Camera.mainCamera = this;
+
+        EventSystemLocal.on(TransformEvents.Updated, this.transform, () => {
+            this.Update();
+        })
     }
 
     
@@ -64,12 +66,6 @@ export class Camera extends Component {
         this.near = near;
         this.far = far;
         this.projectionMatrix.orthoZO(left, right, top, bottom, near, far);
-    }
-    
-    public Start() {
-        EventSystemLocal.on(TransformEvents.Updated, this.transform, () => {
-            EventSystem.emit(CameraEvents.Updated, this);
-        })
     }
 
     public Update() {

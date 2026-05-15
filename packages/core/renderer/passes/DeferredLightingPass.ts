@@ -104,7 +104,6 @@ export class DeferredLightingPass extends RenderPass {
 
     private updateLightsBuffer(lights: Light[], resources: ResourcePool) {
         if (!this.needsUpdate) return;
-        const scene = Camera.mainCamera.gameObject.scene;
 
         for (let i = 0; i < lights.length; i++) {
             const light = lights[i];
@@ -185,7 +184,8 @@ export class DeferredLightingPass extends RenderPass {
         if (!this.initialized) return;
         this.drawCommands.length = 0;
         const camera = Camera.mainCamera;
-        
+        if (!camera) return;
+
         const scene = camera.gameObject.scene;
         const _lights = scene.GetComponents(Light);
         let lights: Light[] = [];

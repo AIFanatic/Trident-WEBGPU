@@ -144,12 +144,7 @@ export class PostExposureTonemap extends RenderPass {
 
         this.shader = await Shader.Create({
             code: code,
-            colorOutputs: [{format: "rgba16float"}],
-            uniforms: {
-                textureSampler: {group: 0, binding: 0, type: "sampler"},
-                texture: {group: 0, binding: 1, type: "texture"},
-                exposure: {group: 0, binding: 2, type: "storage"},
-            }
+            colorOutputs: [{format: "rgba16float"}]
         });
         this.quadGeometry = new Geometry();
 

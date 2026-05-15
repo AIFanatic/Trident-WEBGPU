@@ -23,9 +23,7 @@ export class Mesh extends Renderable {
         EventSystemLocal.on(TransformEvents.Updated, this.transform, () => {
             this.modelMatrixOffset = Mesh.modelMatrices.set(this.id, this.transform.localToWorldMatrix.elements);
         })
-    }
-
-    public Start(): void {
+        
         this.modelMatrixOffset = Mesh.modelMatrices.set(this.id, this.transform.localToWorldMatrix.elements);
     }
 

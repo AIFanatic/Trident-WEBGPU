@@ -36,10 +36,8 @@ export class GameObject {
 
     public assetPath?: string;
 
-    public dontDestroyOnLoad = false;
-
-    constructor() {
-        this.scene = Runtime.SceneManager.GetActiveScene();
+    constructor(scene?: Scene) {
+        this.scene = scene ?? Runtime.SceneManager.GetActiveScene();
         this.transform = new Transform(this);
         this.scene.AddGameObject(this);
 
@@ -55,18 +53,11 @@ export class GameObject {
         if (componentInstance instanceof Transform && this.GetComponent(Transform)) throw new Error("A GameObject can only have one Transform");
 
         this.allComponents.push(componentInstance);
-
         for (const ctor of getCtorChain(componentInstance.constructor)) {
             let arr = this.componentsByCtor.get(ctor);
             if (!arr) this.componentsByCtor.set(ctor, arr = []);
-            if (!arr.includes(componentInstance)) arr.push(componentInstance); // no dupes
+            if (!arr.includes(componentInstance)) arr.push(componentInstance);
         }
-
-        if (this.scene.hasStarted && componentInstance.Start && !componentInstance.hasStarted) {
-            componentInstance.Start();
-            componentInstance.hasStarted = true;
-        }
-
         return componentInstance;
     }
 
@@ -119,16 +110,6 @@ export class GameObject {
 
         walk(this);
         return out;
-    }
-
-
-    public Start() {
-        for (const component of this.allComponents) {
-            if (!component.hasStarted) {
-                component.Start();
-                component.hasStarted = true;
-            }
-        }
     }
 
     public Destroy() {

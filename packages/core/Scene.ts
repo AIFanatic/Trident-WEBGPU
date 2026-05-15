@@ -6,6 +6,8 @@ import { Deserializer } from "./serializer/Deserializer";
 import { Transform } from "./components/Transform";
 import { UUID } from "./utils";
 
+export enum SceneExecutionMode { Play, Edit }
+
 function getCtorChain(ctor: Function): Function[] {
     const chain: Function[] = [];
     for (let c: any = ctor; c && c !== Component; c = Object.getPrototypeOf(c)) {
@@ -26,21 +28,15 @@ export class Scene {
     public get hasStarted(): boolean { return this._hasStarted };
 
     private gameObjects: GameObject[] = [];
-    private toStart: Set<Component> = new Set();
-    private toUpdate: Map<Component, boolean> = new Map();
     private componentsByType: Map<Function, Component[]> = new Map();
+
+    public mode: SceneExecutionMode = SceneExecutionMode.Play;   // default = Play
 
     constructor(name: string = "DefaultScene") {
         this.name = name;
 
-        EventSystem.on(ComponentEvents.CallUpdate, (component, flag) => {
-            if (flag) this.toUpdate.set(component, true);
-            else this.toUpdate.delete(component);
-        });
-
         EventSystem.on(ComponentEvents.AddedComponent, (component: Component, scene: Scene) => {
             if (scene !== this) return;
-            this.toStart.add(component);
             for (const ctor of getCtorChain((component as any).constructor)) {
                 let arr = this.componentsByType.get(ctor);
                 if (!arr) this.componentsByType.set(ctor, arr = []);
@@ -50,7 +46,6 @@ export class Scene {
 
         EventSystem.on(ComponentEvents.RemovedComponent, (component: Component, scene: Scene) => {
             if (scene !== this) return;
-            this.toStart.delete(component);
             for (const ctor of getCtorChain((component as any).constructor)) {
                 const arr = this.componentsByType.get(ctor);
                 if (arr) {
@@ -82,47 +77,27 @@ export class Scene {
     }
 
     public Update() {
-        for (const component of this.toStart) {
-            if (component.gameObject.enabled === false) continue;
-            component.Start();
-            component.hasStarted = true;
-        }
-        this.toStart.clear();
-
-        for (const [component, _] of this.toUpdate) {
-            if (component.gameObject.enabled === false) continue;
-            component.Update();
+        const edit = this.mode === SceneExecutionMode.Edit;
+        for (const go of this.gameObjects) {
+            if (!go.enabled) continue;
+            for (const c of go.GetComponents()) {
+                if (!c.enabled) continue;
+                if (edit && !(c as Component).runInEditMode) continue;
+                if (!c.hasStarted) { c.hasStarted = true; c.Start(); }
+                c.Update();
+            }
         }
     }
 
-    public async Instantiate(prefab: Prefab, parent?: Transform): Promise<GameObject> {
-        const data = prefab.data ?? prefab;
-        const go = await Deserializer.deserializeGameObject(data, parent);
-        if (this.hasStarted) go.Start();
-        return go;
-    }
+      public async Instantiate(prefab: Prefab, parent?: Transform): Promise<GameObject> {
+          const data = prefab.data ?? prefab;
+          return await Deserializer.deserializeGameObject(this, data, parent);
+      }
 
     public Clear(): void {
-        const persistent = new Set<GameObject>();
-
         const roots = this.GetRootGameObjects();
-        for (const gameObject of roots) {
-            if (gameObject.dontDestroyOnLoad === true) {
-                persistent.add(gameObject);
-                continue;
-            }
-            gameObject.Destroy();
-        }
-
-        // Rebuild lists keeping only persistent objects
-        for (const [component] of this.toUpdate) {
-            if (!persistent.has(component.gameObject)) this.toUpdate.delete(component);
-        }
-        for (const [ctor, arr] of this.componentsByType) {
-            const kept = arr.filter(c => persistent.has(c.gameObject));
-            if (kept.length > 0) this.componentsByType.set(ctor, kept);
-            else this.componentsByType.delete(ctor);
-        }
-        this.gameObjects = this.gameObjects.filter(go => persistent.has(go));
+        for (const gameObject of roots) gameObject.Destroy()
+        this.componentsByType.clear();
+        this.gameObjects = [];
     }
 }

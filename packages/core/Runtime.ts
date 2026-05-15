@@ -4,24 +4,24 @@ import { SceneManager } from "./SceneManager";
 import { System } from "./System";
 
 export class Runtime {
-    // hardcoded core — always present, fixed order
-    public static Input: Input;
-    public static SceneManager: SceneManager;
-    public static Renderer: Renderer;
+    protected static _Input: Input;
+    protected static _SceneManager: SceneManager;
+    protected static _Renderer: Renderer;
+    protected static _systems = new Map<Function, System>();
 
-    // plugin slot
-    public static systems = new Map<Function, System>();
+    public static get Input() { return Runtime._Input; }
+    public static get SceneManager() { return Runtime._SceneManager; }
+    public static get Renderer() { return Runtime._Renderer; }
+    public static get systems() { return Runtime._systems; }
 
-    public static isPlaying = false;
+    protected static async Create(canvas: HTMLCanvasElement, aspectRatio = 1): Promise<Runtime> {
+        Runtime._Input = new Input();
+        Runtime._SceneManager = new SceneManager();
+        Runtime._Renderer = new Renderer(canvas, aspectRatio);
 
-    public static async Create(canvas: HTMLCanvasElement, aspectRatio = 1): Promise<Runtime> {
-        this.Input = new Input();
-        this.SceneManager = new SceneManager();
-        this.Renderer = new Renderer(canvas, aspectRatio);
-
-        await this.SceneManager.Start();
-        await this.Renderer.Start();
-        await this.Input.Start();
+        await Runtime._SceneManager.Start();
+        await Runtime._Renderer.Start();
+        await Runtime._Input.Start();
 
         return this;
     }
@@ -37,21 +37,28 @@ export class Runtime {
         return this.systems.get(ctor) as T;
     }
 
-    public static Play(): void {
-        this.isPlaying = true;
-        this.Run();
-    }
-
-    public static Stop(): void { this.isPlaying = false; }
-
-    private static Run() {
-        if (!this.isPlaying) return;
-
+    public static Tick(): void {
         this.SceneManager.Update();
         for (const s of this.systems.values()) s.Update();
-        this.Renderer.Update();
         this.Input.Update();
+    }
 
-        requestAnimationFrame(() => this.Run());
+    public static Render(): void {
+        this.Renderer.Update();
+    }
+}
+
+export class PlayerRuntime extends Runtime {
+    public static async Create(canvas: HTMLCanvasElement, aspectRatio = 1): Promise<Runtime> {
+        await Runtime.Create(canvas, aspectRatio);
+
+        const loop = () => {
+            this.Tick();
+            this.Render();
+            requestAnimationFrame(loop);
+        };
+        loop();
+
+        return this;
     }
 }

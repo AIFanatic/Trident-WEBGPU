@@ -36,6 +36,9 @@ export class SkinnedMesh extends Renderable {
         EventSystemLocal.on(TransformEvents.Updated, this.transform, () => {
             this.modelMatrixOffset = Mesh.modelMatrices.set(this.id, this.transform.localToWorldMatrix.elements);
         });
+
+        this.modelMatrixOffset = Mesh.modelMatrices.set(this.id, this.transform.localToWorldMatrix.elements);
+        this.tryInitBones();
     }
 
     public GetBoneMatricesBuffer(): Buffer {
@@ -70,11 +73,6 @@ export class SkinnedMesh extends Renderable {
         this.jointData = new Float32Array(this.bones.length * 16);
     }
 
-    public Start(): void {
-        this.modelMatrixOffset = Mesh.modelMatrices.set(this.id, this.transform.localToWorldMatrix.elements);
-        this.tryInitBones();
-    }
-
     private tryInitBones(): boolean {
         if (this.boneMatricesBuffer) return true;
 
@@ -86,7 +84,7 @@ export class SkinnedMesh extends Renderable {
         return true;
     }
 
-    public Update(): void {
+    public OnPreFrame(shaderOverride?: Shader): void {
         if (!this.boneMatricesBuffer && !this.tryInitBones()) return;
         if (!this.bones.length) return;
 
