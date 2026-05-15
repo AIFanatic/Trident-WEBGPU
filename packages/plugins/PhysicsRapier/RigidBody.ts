@@ -79,6 +79,8 @@ export class RigidBody extends Component {
         if (!this.rigidBody) {
             this.Create("kinematicPosition");
         }
+        this.rigidBody.setTranslation(this.transform.position, true);
+        this.rigidBody.setRotation(this.transform.rotation, true);
     }
 
     public AddForce(force: Mathf.Vector3) {
