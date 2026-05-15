@@ -53,6 +53,7 @@ var EditType = /* @__PURE__ */ ((EditType2) => {
 class TerrainEditor extends (_a = Components.Component, _paintObjects_dec = [SerializeField(Prefab)], _paintObjectID_dec = [SerializeField], _paintLayers_dec = [SerializeField(TerrainLayer)], _paintMaterialId_dec = [SerializeField], _paintRadius_dec = [SerializeField], _paintStrength_dec = [SerializeField], _paintTextureStrength_dec = [SerializeField], _paintObjectMinScale_dec = [SerializeField], _paintObjectMaxScale_dec = [SerializeField], _paintObjectDensity_dec = [SerializeField], _editType_dec = [SerializeField(EditType)], _a) {
   constructor() {
     super(...arguments);
+    __publicField(this, "runInEditMode", true);
     __publicField(this, "terrain");
     __publicField(this, "terrainCollider");
     __publicField(this, "lineRenderer");
@@ -90,6 +91,11 @@ class TerrainEditor extends (_a = Components.Component, _paintObjects_dec = [Ser
     });
   }
   Update() {
+    if (EditorAPI.Selection.activeGameObject !== this.gameObject) {
+      this.lineRenderer.enabled = false;
+      return;
+    }
+    this.lineRenderer.enabled = true;
     this.UpdateTerrainLayers();
     const hit = this.RaycastTerrain();
     if (!hit) return;

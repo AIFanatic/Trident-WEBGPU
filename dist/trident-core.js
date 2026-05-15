@@ -202,14 +202,13 @@ var index$3 = /*#__PURE__*/Object.freeze({
 });
 
 class ComponentEvents {
-  static CallUpdate = (component, shouldUpdate) => {
-  };
   static AddedComponent = (component, scene) => {
   };
   static RemovedComponent = (component, scene) => {
   };
 }
 class Component {
+  runInEditMode = false;
   flags = Flags.None;
   static type;
   id = UUID();
@@ -224,7 +223,6 @@ class Component {
     this.gameObject = gameObject;
     this.transform = gameObject.transform;
     this.name = this.constructor.name;
-    if (this.constructor.prototype.Update !== Component.prototype.Update) EventSystem.emit(ComponentEvents.CallUpdate, this, true);
     EventSystem.emit(ComponentEvents.AddedComponent, this, this.gameObject.scene);
     const ctor = this.constructor;
     Component.Registry.set(ctor.type || ctor.name, ctor);
@@ -234,7 +232,6 @@ class Component {
   Update() {
   }
   Destroy() {
-    EventSystem.emit(ComponentEvents.CallUpdate, this, false);
     EventSystem.emit(ComponentEvents.RemovedComponent, this, this.gameObject.scene);
   }
 }
@@ -1266,6 +1263,7 @@ class Transform extends (_a$7 = Component, _localPosition_dec = [SerializeField]
   constructor() {
     super(...arguments);
     __runInitializers$8(_init$8, 5, this);
+    __publicField$8(this, "runInEditMode", true);
     __publicField$8(this, "tempRotation", new Quaternion());
     __publicField$8(this, "tempPosition", new Vector3());
     __publicField$8(this, "tempQuaternion", new Quaternion());
@@ -1387,7 +1385,6 @@ class Transform extends (_a$7 = Component, _localPosition_dec = [SerializeField]
   onLocalChanged() {
     this._lastChanged = "local";
     this.UpdateMatrices();
-    EventSystem.emit(ComponentEvents.CallUpdate, this, true);
   }
   onWorldEulerChanged() {
     if (this._suppressWorldCallbacks) return;
@@ -1412,7 +1409,6 @@ class Transform extends (_a$7 = Component, _localPosition_dec = [SerializeField]
       this._suppressLocalCallbacks = false;
     }
     this.UpdateMatrices();
-    EventSystem.emit(ComponentEvents.CallUpdate, this, true);
   }
   onWorldRotationChanged() {
     if (this._suppressWorldCallbacks) return;
@@ -1432,7 +1428,6 @@ class Transform extends (_a$7 = Component, _localPosition_dec = [SerializeField]
       this._suppressLocalCallbacks = false;
     }
     this.UpdateMatrices();
-    EventSystem.emit(ComponentEvents.CallUpdate, this, true);
   }
   syncWorldFromLocal() {
     this._suppressWorldCallbacks = true;
@@ -1464,11 +1459,6 @@ class Transform extends (_a$7 = Component, _localPosition_dec = [SerializeField]
     }
     EventSystem.emit(TransformEvents.Updated);
     EventSystemLocal.emit(TransformEvents.Updated, this);
-  }
-  Update() {
-    this._lastChanged = "local";
-    this.UpdateMatrices();
-    EventSystem.emit(ComponentEvents.CallUpdate, this, false);
   }
   LookAt(target) {
     this.rotation.lookAt(this.position, target, this.up);
@@ -4248,14 +4238,11 @@ var __privateGet$1 = (obj, member, getter) => (__accessCheck$1(obj, member, "rea
 var __privateSet$1 = (obj, member, value, setter) => (__accessCheck$1(obj, member, "write to private field"), setter ? setter.call(obj, value) : member.set(obj, value), value);
 var __privateMethod$1 = (obj, member, method) => (__accessCheck$1(obj, member, "access private method"), method);
 var _aspect_dec, _fov_dec, _far_dec, _near_dec, _backgroundColor_dec, _a$5, _init$6;
-class CameraEvents {
-  static Updated = (camera) => {
-  };
-}
 const _Camera = class _Camera extends (_a$5 = Component, _backgroundColor_dec = [SerializeField], _near_dec = [SerializeField(Number)], _far_dec = [SerializeField(Number)], _fov_dec = [SerializeField(Number)], _aspect_dec = [SerializeField(Number)], _a$5) {
   constructor(gameObject) {
     super(gameObject);
     __runInitializers$6(_init$6, 5, this);
+    __publicField$6(this, "runInEditMode", true);
     __publicField$6(this, "backgroundColor", __runInitializers$6(_init$6, 8, this, new Color(0, 0, 0, 1))), __runInitializers$6(_init$6, 11, this);
     __publicField$6(this, "projectionMatrix", new Matrix4());
     __publicField$6(this, "projectionScreenMatrix", new Matrix4());
@@ -4267,6 +4254,9 @@ const _Camera = class _Camera extends (_a$5 = Component, _backgroundColor_dec = 
     __publicField$6(this, "_fov", 60);
     __publicField$6(this, "_aspect", window.innerWidth / window.innerHeight);
     if (!_Camera.mainCamera) _Camera.mainCamera = this;
+    EventSystemLocal.on(TransformEvents.Updated, this.transform, () => {
+      this.Update();
+    });
   }
   get near() {
     return this._near;
@@ -4303,11 +4293,6 @@ const _Camera = class _Camera extends (_a$5 = Component, _backgroundColor_dec = 
     this.near = near;
     this.far = far;
     this.projectionMatrix.orthoZO(left, right, top, bottom, near, far);
-  }
-  Start() {
-    EventSystemLocal.on(TransformEvents.Updated, this.transform, () => {
-      EventSystem.emit(CameraEvents.Updated, this);
-    });
   }
   Update() {
     this.viewMatrix.copy(this.transform.worldToLocalMatrix);
@@ -4372,6 +4357,7 @@ class LightEvents {
 class Light extends (_a$4 = Component, _color_dec = [SerializeField], _intensity_dec = [SerializeField], _castShadows_dec = [SerializeField], _a$4) {
   constructor() {
     super(...arguments);
+    __publicField$5(this, "runInEditMode", true);
     __publicField$5(this, "camera", new Camera(this.gameObject));
     __publicField$5(this, "color", __runInitializers$5(_init$5, 8, this, new Color(1, 1, 1))), __runInitializers$5(_init$5, 11, this);
     __publicField$5(this, "intensity", __runInitializers$5(_init$5, 12, this, 1)), __runInitializers$5(_init$5, 15, this);
@@ -4395,6 +4381,7 @@ __publicField$5(Light, "type", "@trident/core/components/Light/Light");
 class SpotLight extends (_b$1 = Light, _angle_dec = [SerializeField], _range_dec = [SerializeField], _b$1) {
   constructor() {
     super(...arguments);
+    __publicField$5(this, "runInEditMode", true);
     __publicField$5(this, "direction", new Vector3(0, -1, 0));
     __publicField$5(this, "angle", __runInitializers$5(_init2$2, 8, this, 1)), __runInitializers$5(_init2$2, 11, this);
     __publicField$5(this, "range", __runInitializers$5(_init2$2, 12, this, 10)), __runInitializers$5(_init2$2, 15, this);
@@ -4412,6 +4399,7 @@ __publicField$5(SpotLight, "type", "@trident/core/components/Light/SpotLight");
 class PointLight extends (_c = Light, _range_dec2 = [SerializeField(Number)], _c) {
   constructor() {
     super(...arguments);
+    __publicField$5(this, "runInEditMode", true);
     __publicField$5(this, "range", __runInitializers$5(_init3$2, 8, this, 10)), __runInitializers$5(_init3$2, 11, this);
   }
   Start() {
@@ -4424,6 +4412,7 @@ __decorateElement$5(_init3$2, 5, "range", _range_dec2, PointLight);
 __decoratorMetadata$5(_init3$2, PointLight);
 __publicField$5(PointLight, "type", "@trident/core/components/Light/PointLight");
 class AreaLight extends Light {
+  runInEditMode = true;
   static type = "@trident/core/components/Light/AreaLight";
   Start() {
     super.Start();
@@ -4433,6 +4422,7 @@ class AreaLight extends Light {
 class DirectionalLight extends (_d = Light, _direction_dec = [SerializeField], _d) {
   constructor() {
     super(...arguments);
+    __publicField$5(this, "runInEditMode", true);
     __publicField$5(this, "direction", __runInitializers$5(_init4, 8, this, new Vector3(0, 1, 0))), __runInitializers$5(_init4, 11, this);
   }
   Start() {
@@ -4690,7 +4680,6 @@ class DeferredLightingPass extends RenderPass {
   }
   updateLightsBuffer(lights, resources) {
     if (!this.needsUpdate) return;
-    Camera.mainCamera.gameObject.scene;
     for (let i = 0; i < lights.length; i++) {
       const light = lights[i];
       const params1 = new Float32Array([light.intensity, light.range, +light.castShadows, -1]);
@@ -4756,6 +4745,7 @@ class DeferredLightingPass extends RenderPass {
     if (!this.initialized) return;
     this.drawCommands.length = 0;
     const camera = Camera.mainCamera;
+    if (!camera) return;
     const scene = camera.gameObject.scene;
     const _lights = scene.GetComponents(Light);
     let lights = [];
@@ -5167,13 +5157,13 @@ class RenderableEvents {
   };
 }
 const _Renderable = class _Renderable extends (_a$2 = Component, _enableShadows_dec = [SerializeField], _geometry_dec = [SerializeField(Geometry)], _material_dec = [SerializeField(Material)], _a$2) {
-  constructor(gameObject) {
-    super(gameObject);
+  constructor() {
+    super(...arguments);
     __runInitializers$3(_init$3, 5, this);
+    __publicField$3(this, "runInEditMode", true);
     __publicField$3(this, "enableShadows", __runInitializers$3(_init$3, 8, this, true)), __runInitializers$3(_init$3, 11, this);
     __publicField$3(this, "_geometry", new Geometry());
     __publicField$3(this, "_material", new PBRMaterial());
-    _Renderable.Renderables.set(this.id, this);
   }
   get geometry() {
     return this._geometry;
@@ -5188,6 +5178,9 @@ const _Renderable = class _Renderable extends (_a$2 = Component, _enableShadows_
   set material(material) {
     this._material = material;
     EventSystemLocal.emit(RenderableEvents.MaterialUpdated, this.transform, this.gameObject, material);
+  }
+  Start() {
+    _Renderable.Renderables.set(this.id, this);
   }
   OnPreFrame(shaderOverride) {
   }
@@ -5228,8 +5221,6 @@ class Mesh extends Renderable {
     EventSystemLocal.on(TransformEvents.Updated, this.transform, () => {
       this.modelMatrixOffset = Mesh.modelMatrices.set(this.id, this.transform.localToWorldMatrix.elements);
     });
-  }
-  Start() {
     this.modelMatrixOffset = Mesh.modelMatrices.set(this.id, this.transform.localToWorldMatrix.elements);
   }
   OnPreRender(shaderOverride) {
@@ -5313,6 +5304,8 @@ class SkinnedMesh extends Renderable {
     EventSystemLocal.on(TransformEvents.Updated, this.transform, () => {
       this.modelMatrixOffset = Mesh.modelMatrices.set(this.id, this.transform.localToWorldMatrix.elements);
     });
+    this.modelMatrixOffset = Mesh.modelMatrices.set(this.id, this.transform.localToWorldMatrix.elements);
+    this.tryInitBones();
   }
   GetBoneMatricesBuffer() {
     return this.boneMatricesBuffer;
@@ -5339,10 +5332,6 @@ class SkinnedMesh extends Renderable {
     }));
     this.jointData = new Float32Array(this.bones.length * 16);
   }
-  Start() {
-    this.modelMatrixOffset = Mesh.modelMatrices.set(this.id, this.transform.localToWorldMatrix.elements);
-    this.tryInitBones();
-  }
   tryInitBones() {
     if (this.boneMatricesBuffer) return true;
     this.buildBones();
@@ -5351,7 +5340,7 @@ class SkinnedMesh extends Renderable {
     this.boneMatricesBuffer.SetArray(this.jointData);
     return true;
   }
-  Update() {
+  OnPreFrame(shaderOverride) {
     if (!this.boneMatricesBuffer && !this.tryInitBones()) return;
     if (!this.bones.length) return;
     const skinRootWorldMatrix = this.gameObject.transform.worldToLocalMatrix;
@@ -6153,12 +6142,7 @@ class PostExposureTonemap extends RenderPass {
         `;
     this.shader = await Shader.Create({
       code,
-      colorOutputs: [{ format: "rgba16float" }],
-      uniforms: {
-        textureSampler: { group: 0, binding: 0, type: "sampler" },
-        texture: { group: 0, binding: 1, type: "texture" },
-        exposure: { group: 0, binding: 2, type: "storage" }
-      }
+      colorOutputs: [{ format: "rgba16float" }]
     });
     this.quadGeometry = new Geometry();
     const sampler = new TextureSampler();
@@ -6702,6 +6686,10 @@ class Input extends System {
   static get mousePosition() {
     return Input._mousePosition;
   }
+  static _isPointerLocked = false;
+  static get isPointerLocked() {
+    return Input._isPointerLocked;
+  }
   async Start() {
     function AddPointerAwareEvent(target, type, callback) {
       document.addEventListener(type, (event) => (document.pointerLockElement !== null || event.target === target) && callback(event));
@@ -6716,6 +6704,7 @@ class Input extends System {
       AddPointerAwareEvent(Renderer.canvas, "touchmove", (event) => Input.OnTouchMove(event));
       AddPointerAwareEvent(Renderer.canvas, "wheel", (event) => Input.OnMouseWheel(event));
     }
+    document.addEventListener("pointerlockchange", () => Input._isPointerLocked = document.pointerLockElement !== null);
   }
   static OnContextMenu(event) {
     event.preventDefault();
@@ -6829,6 +6818,12 @@ class Input extends System {
     }
     throw Error("Invalid axis");
   }
+  static LockPointer() {
+    if (!Input._isPointerLocked) document.body.requestPointerLock();
+  }
+  static UnlockPointer() {
+    if (Input._isPointerLocked) document.exitPointerLock();
+  }
 }
 
 class ComputeContext {
@@ -6920,26 +6915,35 @@ class SceneManager extends System {
     return this.activeScene;
   }
   Update() {
-    if (!this.activeScene) throw Error("No active scene");
+    if (!this.activeScene) return;
     this.activeScene.Update();
   }
 }
 
 class Runtime {
-  // hardcoded core — always present, fixed order
-  static Input;
-  static SceneManager;
-  static Renderer;
-  // plugin slot
-  static systems = /* @__PURE__ */ new Map();
-  static isPlaying = false;
+  static _Input;
+  static _SceneManager;
+  static _Renderer;
+  static _systems = /* @__PURE__ */ new Map();
+  static get Input() {
+    return Runtime._Input;
+  }
+  static get SceneManager() {
+    return Runtime._SceneManager;
+  }
+  static get Renderer() {
+    return Runtime._Renderer;
+  }
+  static get systems() {
+    return Runtime._systems;
+  }
   static async Create(canvas, aspectRatio = 1) {
-    this.Input = new Input();
-    this.SceneManager = new SceneManager();
-    this.Renderer = new Renderer(canvas, aspectRatio);
-    await this.SceneManager.Start();
-    await this.Renderer.Start();
-    await this.Input.Start();
+    Runtime._Input = new Input();
+    Runtime._SceneManager = new SceneManager();
+    Runtime._Renderer = new Renderer(canvas, aspectRatio);
+    await Runtime._SceneManager.Start();
+    await Runtime._Renderer.Start();
+    await Runtime._Input.Start();
     return this;
   }
   static async AddSystem(ctor, ...args) {
@@ -6951,20 +6955,25 @@ class Runtime {
   static GetSystem(ctor) {
     return this.systems.get(ctor);
   }
-  static Play() {
-    this.isPlaying = true;
-    this.Run();
-  }
-  static Stop() {
-    this.isPlaying = false;
-  }
-  static Run() {
-    if (!this.isPlaying) return;
+  static Tick() {
     this.SceneManager.Update();
     for (const s of this.systems.values()) s.Update();
-    this.Renderer.Update();
     this.Input.Update();
-    requestAnimationFrame(() => this.Run());
+  }
+  static Render() {
+    this.Renderer.Update();
+  }
+}
+class PlayerRuntime extends Runtime {
+  static async Create(canvas, aspectRatio = 1) {
+    await Runtime.Create(canvas, aspectRatio);
+    const loop = () => {
+      this.Tick();
+      this.Render();
+      requestAnimationFrame(loop);
+    };
+    loop();
+    return this;
   }
 }
 
@@ -6992,13 +7001,12 @@ class GameObject {
     for (const child of this.transform.children) child.gameObject.enabled = enabled;
   }
   assetPath;
-  dontDestroyOnLoad = false;
-  constructor() {
-    this.scene = Runtime.SceneManager.GetActiveScene();
+  constructor(scene) {
+    this.scene = scene ?? Runtime.SceneManager.GetActiveScene();
     this.transform = new Transform(this);
     this.scene.AddGameObject(this);
-    EventSystem.on(ComponentEvents.RemovedComponent, (component, scene) => {
-      if (scene !== this.scene) return;
+    EventSystem.on(ComponentEvents.RemovedComponent, (component, scene2) => {
+      if (scene2 !== this.scene) return;
       this.RemoveComponent(component);
     });
   }
@@ -7011,10 +7019,6 @@ class GameObject {
       let arr = this.componentsByCtor.get(ctor);
       if (!arr) this.componentsByCtor.set(ctor, arr = []);
       if (!arr.includes(componentInstance)) arr.push(componentInstance);
-    }
-    if (this.scene.hasStarted && componentInstance.Start && !componentInstance.hasStarted) {
-      componentInstance.Start();
-      componentInstance.hasStarted = true;
     }
     return componentInstance;
   }
@@ -7055,14 +7059,6 @@ class GameObject {
     };
     walk(this);
     return out;
-  }
-  Start() {
-    for (const component of this.allComponents) {
-      if (!component.hasStarted) {
-        component.Start();
-        component.hasStarted = true;
-      }
-    }
   }
   Destroy() {
     for (const child of [...this.transform.children]) {
@@ -7510,12 +7506,12 @@ class Deserializer {
       else await component.OnDeserialized();
     }
   }
-  static async deserializeGameObject(data, parent) {
+  static async deserializeGameObject(scene, data, parent) {
     let source = data;
     if (data.assetPath) {
       source = await this.Load(data.assetPath);
     }
-    const go = new GameObject();
+    const go = new GameObject(scene);
     if (data.id) go.id = data.id;
     go.name = data.name ?? source.name;
     if (data.id) this.idMap.set(data.id, go);
@@ -7533,13 +7529,13 @@ class Deserializer {
       instances.push(go.AddComponent(Ctor));
     }
     for (let i = 0; i < instances.length; i++) await this.deserializeComponent(instances[i], source.components[i]);
-    for (const child of source.children ?? []) await this.deserializeGameObject(child, go.transform);
+    for (const child of source.children ?? []) await this.deserializeGameObject(scene, child, go.transform);
     return go;
   }
   static async deserializeScene(scene, data) {
     scene.name = data.name;
     this.isDeserializingScene = true;
-    for (const goData of data.gameObjects) await this.deserializeGameObject(goData);
+    for (const goData of data.gameObjects) await this.deserializeGameObject(scene, goData);
     for (const ref of this.deferredRefs) {
       ref.target[ref.property] = this.idMap.get(ref.id) ?? null;
     }
@@ -7562,6 +7558,11 @@ class Deserializer {
   }
 }
 
+var SceneExecutionMode = /* @__PURE__ */ ((SceneExecutionMode2) => {
+  SceneExecutionMode2[SceneExecutionMode2["Play"] = 0] = "Play";
+  SceneExecutionMode2[SceneExecutionMode2["Edit"] = 1] = "Edit";
+  return SceneExecutionMode2;
+})(SceneExecutionMode || {});
 function getCtorChain(ctor) {
   const chain = [];
   for (let c = ctor; c && c !== Component; c = Object.getPrototypeOf(c)) {
@@ -7582,18 +7583,13 @@ class Scene {
     return this._hasStarted;
   }
   gameObjects = [];
-  toStart = /* @__PURE__ */ new Set();
-  toUpdate = /* @__PURE__ */ new Map();
   componentsByType = /* @__PURE__ */ new Map();
+  mode = 0 /* Play */;
+  // default = Play
   constructor(name = "DefaultScene") {
     this.name = name;
-    EventSystem.on(ComponentEvents.CallUpdate, (component, flag) => {
-      if (flag) this.toUpdate.set(component, true);
-      else this.toUpdate.delete(component);
-    });
     EventSystem.on(ComponentEvents.AddedComponent, (component, scene) => {
       if (scene !== this) return;
-      this.toStart.add(component);
       for (const ctor of getCtorChain(component.constructor)) {
         let arr = this.componentsByType.get(ctor);
         if (!arr) this.componentsByType.set(ctor, arr = []);
@@ -7602,7 +7598,6 @@ class Scene {
     });
     EventSystem.on(ComponentEvents.RemovedComponent, (component, scene) => {
       if (scene !== this) return;
-      this.toStart.delete(component);
       for (const ctor of getCtorChain(component.constructor)) {
         const arr = this.componentsByType.get(ctor);
         if (arr) {
@@ -7638,42 +7633,29 @@ class Scene {
     }
   }
   Update() {
-    for (const component of this.toStart) {
-      if (component.gameObject.enabled === false) continue;
-      component.Start();
-      component.hasStarted = true;
-    }
-    this.toStart.clear();
-    for (const [component, _] of this.toUpdate) {
-      if (component.gameObject.enabled === false) continue;
-      component.Update();
+    const edit = this.mode === 1 /* Edit */;
+    for (const go of this.gameObjects) {
+      if (!go.enabled) continue;
+      for (const c of go.GetComponents()) {
+        if (!c.enabled) continue;
+        if (edit && !c.runInEditMode) continue;
+        if (!c.hasStarted) {
+          c.hasStarted = true;
+          c.Start();
+        }
+        c.Update();
+      }
     }
   }
   async Instantiate(prefab, parent) {
     const data = prefab.data ?? prefab;
-    const go = await Deserializer.deserializeGameObject(data, parent);
-    if (this.hasStarted) go.Start();
-    return go;
+    return await Deserializer.deserializeGameObject(this, data, parent);
   }
   Clear() {
-    const persistent = /* @__PURE__ */ new Set();
     const roots = this.GetRootGameObjects();
-    for (const gameObject of roots) {
-      if (gameObject.dontDestroyOnLoad === true) {
-        persistent.add(gameObject);
-        continue;
-      }
-      gameObject.Destroy();
-    }
-    for (const [component] of this.toUpdate) {
-      if (!persistent.has(component.gameObject)) this.toUpdate.delete(component);
-    }
-    for (const [ctor, arr] of this.componentsByType) {
-      const kept = arr.filter((c) => persistent.has(c.gameObject));
-      if (kept.length > 0) this.componentsByType.set(ctor, kept);
-      else this.componentsByType.delete(ctor);
-    }
-    this.gameObjects = this.gameObjects.filter((go) => persistent.has(go));
+    for (const gameObject of roots) gameObject.Destroy();
+    this.componentsByType.clear();
+    this.gameObjects = [];
   }
 }
 
@@ -7809,4 +7791,4 @@ class Serializer {
   }
 }
 
-export { Assets, Component, index as Components, Console, Deserializer, EventSystem, EventSystemLocal, index$1 as GPU, GameObject, Geometry, GetSerializedFields, IndexAttribute, Input, InterleavedVertexAttribute, KeyCodes, index$2 as Mathf, MouseCodes, NonSerialized, PBRMaterial, Prefab, Renderer, Runtime, Scene, SceneManager, SerializeField, Serializer, System, Texture, index$3 as Utils, VertexAttribute };
+export { Assets, Component, index as Components, Console, Deserializer, EventSystem, EventSystemLocal, index$1 as GPU, GameObject, Geometry, GetSerializedFields, IndexAttribute, Input, InterleavedVertexAttribute, KeyCodes, index$2 as Mathf, MouseCodes, NonSerialized, PBRMaterial, PlayerRuntime, Prefab, Renderer, Runtime, Scene, SceneExecutionMode, SceneManager, SerializeField, Serializer, System, Texture, index$3 as Utils, VertexAttribute };

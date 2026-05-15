@@ -1,4 +1,4 @@
-import { Assets, Component as Component$1, Deserializer, Geometry, PBRMaterial, GPU, InterleavedVertexAttribute, IndexAttribute, VertexAttribute, Components, Serializer, Runtime, Scene, GameObject, Mathf, Prefab, Utils, EventSystem, EventSystemLocal, Texture, GetSerializedFields, Console } from '@trident/core';
+import { Assets, Component as Component$1, Deserializer, Geometry, PBRMaterial, GPU, InterleavedVertexAttribute, IndexAttribute, VertexAttribute, Runtime, GameObject, Serializer, SceneExecutionMode, Components, Scene, Mathf, Prefab, Utils, EventSystem, EventSystemLocal, Texture, GetSerializedFields, Console } from '@trident/core';
 import { OrbitControls } from '@trident/plugins/OrbitControls.js';
 import { RigidBody } from '@trident/plugins/PhysicsRapier/RigidBody.js';
 import { BoxCollider } from '@trident/plugins/PhysicsRapier/colliders/BoxCollider.js';
@@ -12,12 +12,11 @@ import { TerrainEditor } from '@trident/plugins/Terrain/TerrainEditor.js';
 import { LineRenderer } from '@trident/plugins/LineRenderer.js';
 import { LODGroup } from '@trident/plugins/LOD/LODGroup.js';
 import { GLTFLoader } from '@trident/plugins/GLTF/GLTFLoader.js';
+import { registerEditorBridge } from '@trident/editor';
+import { Sky } from '@trident/plugins/Environment/Sky.js';
+import { PhysicsRapier } from '@trident/plugins/PhysicsRapier/PhysicsRapier.js';
 import { IBLLightingPass } from '@trident/plugins/Environment/IBLLightingPass.js';
 import { SkyboxPass } from '@trident/plugins/Environment/SkyboxPass.js';
-import { Sky } from '@trident/plugins/Environment/Sky.js';
-import { registerEditorBridge } from '@trident/editor';
-import { Environment } from '@trident/plugins/Environment/Environment.js';
-import { PhysicsRapier } from '@trident/plugins/PhysicsRapier/PhysicsRapier.js';
 
 var browser = {exports: {}};
 
@@ -2861,17 +2860,62 @@ Deserializer.Load = async (assetPath, data, expectedType) => {
   return coreLoad(assetPath, data, expectedType);
 };
 
-class EditorSceneManager extends Component$1 {
-  static type = "@trident/plugins/EditorSceneManager";
-  constructor(gameObject) {
-    super(gameObject);
-    console.log("HERE");
+class EditorRuntime extends Runtime {
+  static isPlaying = false;
+  static snapshot = null;
+  static async Create(canvas, aspectRatio = 1) {
+    await Runtime.Create(canvas, aspectRatio);
+    const loop = () => {
+      this.Tick();
+      this.Render();
+      requestAnimationFrame(loop);
+    };
+    loop();
+    return this;
+  }
+  static AttachEditorScene(scene) {
+    const existing = scene.GetComponents(EditorScene)[0];
+    if (existing) return existing;
+    const go = new GameObject(scene);
+    go.name = "EditorScene";
+    return go.AddComponent(EditorScene);
+  }
+  static Play() {
+    const scene = this.SceneManager.GetActiveScene();
+    this.snapshot = Serializer.serializeScene(scene);
+    scene.mode = SceneExecutionMode.Play;
+    this.isPlaying = true;
+  }
+  static async Stop() {
+    this.isPlaying = false;
+    if (!this.snapshot) return;
+    this.SceneManager.GetActiveScene().Clear();
+    const newScene = this.SceneManager.CreateScene(this.snapshot.name);
+    newScene.mode = SceneExecutionMode.Edit;
+    this.SceneManager.SetActiveScene(newScene);
+    await Deserializer.deserializeScene(newScene, this.snapshot);
+    this.snapshot = null;
+  }
+}
+
+class EditorScene extends Component$1 {
+  static type = "@trident/editor/EditorScene";
+  runInEditMode = true;
+  orbitControls;
+  Start() {
+    this.orbitControls = this.gameObject.GetComponent(OrbitControls) ?? this.gameObject.AddComponent(OrbitControls);
+    this.orbitControls.runInEditMode = true;
+  }
+  Update() {
+    if (this.orbitControls) {
+      this.orbitControls.enabled = !EditorRuntime.isPlaying;
+    }
   }
 }
 
 const component = (ctor) => ctor;
-Component$1.Registry.set(EditorSceneManager.type, EditorSceneManager);
 Component$1.Registry.set(OrbitControls.type, OrbitControls);
+Component$1.Registry.set(EditorScene.type, EditorScene);
 Component$1.Registry.set(RigidBody.type, RigidBody);
 Component$1.Registry.set(BoxCollider.type, BoxCollider);
 Component$1.Registry.set(CapsuleCollider.type, CapsuleCollider);
@@ -2911,13 +2955,13 @@ class TridentAPI {
   serializer = Serializer;
   deserializer = Deserializer;
   getRuntime() {
-    return Runtime;
+    return EditorRuntime;
   }
   async createRuntime(canvas) {
-    return await Runtime.Create(canvas);
+    return await EditorRuntime.Create(canvas);
   }
   addSystem(ctor, ...args) {
-    return Runtime.AddSystem(ctor, ...args);
+    return EditorRuntime.AddSystem(ctor, ...args);
   }
   createScene() {
     this.currentScene = new Scene();
@@ -3318,6 +3362,10 @@ class LayoutInspectorEvents {
 }
 class RuntimeEvents {
   static CreatedCanvas = (canvas) => {
+  };
+  static Play = () => {
+  };
+  static Stop = () => {
   };
 }
 
@@ -4104,12 +4152,6 @@ class LayoutAssets extends Component {
       this.props.engineAPI.currentScene.Clear();
       await this.props.engineAPI.deserializer.deserializeScene(this.props.engineAPI.currentScene, item.data.instance);
       TridentAPI.EventSystem.emit(SceneEvents.Loaded, item.data.instance);
-      const skyAtmosphere = new Sky();
-      await skyAtmosphere.init();
-      const iblLightingPass = Runtime.Renderer.RenderPipeline.AddPass(IBLLightingPass, GPU.RenderPassOrder.AfterLighting);
-      const skyboxPass = Runtime.Renderer.RenderPipeline.AddPass(SkyboxPass, GPU.RenderPassOrder.AfterLighting);
-      iblLightingPass.SetEnvironment(skyAtmosphere.skyTextureCubemap);
-      skyboxPass.SetSkybox(skyAtmosphere.skyTextureCubemap);
     }
   }
   async onRefresh() {
@@ -4322,7 +4364,7 @@ class LayoutHierarchy extends Component {
     const extendedEvent = ExtendedDataTransfer.data;
     const instance = extendedEvent;
     if (instance && this.props.engineAPI.isPrefab(instance)) {
-      const gameObject = await this.props.engineAPI.deserializer.deserializeGameObject(instance);
+      const gameObject = await this.props.engineAPI.deserializer.deserializeGameObject(this.props.engineAPI.currentScene, instance);
       console.log(gameObject);
       this.selectGameObject(gameObject);
       ExtendedDataTransfer.data = void 0;
@@ -4466,7 +4508,6 @@ class Collapsible extends Component {
 class InspectorNumber extends Component {
   constructor(props) {
     super(props);
-    this.setState({ value: this.props.value });
   }
   clampAndSnap(value) {
     if (this.props.step !== void 0 && this.props.step > 0) {
@@ -4483,17 +4524,15 @@ class InspectorNumber extends Component {
       let value = parseFloat(input.value);
       value = this.clampAndSnap(value);
       this.props.onChanged(value);
-      this.setState({ value });
     }
   }
   onClicked(event) {
-    let dragValue = this.state.value;
+    let dragValue = this.props.value;
     const MouseMoveEvent = (event2) => {
       const delta = event2.movementX;
       const speed = this.props.step !== void 0 ? this.props.step / 10 : 0.1;
       dragValue += delta * speed;
       const value = this.clampAndSnap(dragValue);
-      this.setState({ value });
       this.props.onChanged?.(value);
       event2.currentTarget.requestPointerLock();
     };
@@ -4519,7 +4558,7 @@ class InspectorNumber extends Component {
         onChange: (event) => {
           this.onChanged(event);
         },
-        value: this.state.value.toPrecision(4)
+        value: this.props.value.toPrecision(4)
       }
     ));
   }
@@ -4528,32 +4567,23 @@ class InspectorNumber extends Component {
 class InspectorVector3 extends Component {
   constructor(props) {
     super(props);
-    this.setState({ vector3: this.props.vector3 });
   }
   onChanged(property, _value) {
     if (this.props.onChanged) {
       if (_value === "") return;
       const value = parseFloat(_value);
-      if (property == 0 /* X */) this.state.vector3.x = value;
-      else if (property == 1 /* Y */) this.state.vector3.y = value;
-      else if (property == 2 /* Z */) this.state.vector3.z = value;
-      this.props.onChanged(this.state.vector3);
-    }
-  }
-  Vector3Equals(v1, v2, epsilon = Number.EPSILON) {
-    return Math.abs(v1.x - v2.x) < epsilon && Math.abs(v1.y - v2.y) < epsilon && Math.abs(v1.z - v2.z) < epsilon;
-  }
-  componentDidUpdate() {
-    if (!this.Vector3Equals(this.props.vector3, this.state.vector3)) {
-      this.setState({ vector3: this.props.vector3 });
+      if (property == 0 /* X */) this.props.vector3.x = value;
+      else if (property == 1 /* Y */) this.props.vector3.y = value;
+      else if (property == 2 /* Z */) this.props.vector3.z = value;
+      this.props.onChanged(this.props.vector3);
     }
   }
   render() {
-    return /* @__PURE__ */ createElement("div", { class: "InspectorComponent" }, /* @__PURE__ */ createElement("span", { class: "title" }, this.props.title), /* @__PURE__ */ createElement("div", { class: "edit" }, /* @__PURE__ */ createElement(InspectorNumber, { title: "X", titleClass: "red-bg", value: this.state.vector3.x, onChanged: (value) => {
+    return /* @__PURE__ */ createElement("div", { class: "InspectorComponent" }, /* @__PURE__ */ createElement("span", { class: "title" }, this.props.title), /* @__PURE__ */ createElement("div", { class: "edit" }, /* @__PURE__ */ createElement(InspectorNumber, { title: "X", titleClass: "red-bg", value: this.props.vector3.x, onChanged: (value) => {
       this.onChanged(0 /* X */, value);
-    } }), /* @__PURE__ */ createElement(InspectorNumber, { title: "Y", titleClass: "green-bg", value: this.state.vector3.y, onChanged: (value) => {
+    } }), /* @__PURE__ */ createElement(InspectorNumber, { title: "Y", titleClass: "green-bg", value: this.props.vector3.y, onChanged: (value) => {
       this.onChanged(1 /* Y */, value);
-    } }), /* @__PURE__ */ createElement(InspectorNumber, { title: "Z", titleClass: "blue-bg", value: this.state.vector3.z, onChanged: (value) => {
+    } }), /* @__PURE__ */ createElement(InspectorNumber, { title: "Z", titleClass: "blue-bg", value: this.props.vector3.z, onChanged: (value) => {
       this.onChanged(2 /* Z */, value);
     } })));
   }
@@ -5157,6 +5187,7 @@ class LayoutInspectorGameObject extends Component {
   onDrop(event) {
     const draggedItem = ExtendedDataTransfer.data;
     const component = draggedItem[Object.keys(draggedItem)[0]];
+    console.log("onDrop", draggedItem, this.props.engineAPI.getFieldType(component));
     this.props.engineAPI.addComponent(this.props.gameObject, component);
     this.setState({});
   }
@@ -5219,29 +5250,64 @@ class LayoutInspectorGameObject extends Component {
 class LayoutInspector extends Component {
   constructor(props) {
     super(props);
+    this.state = { selected: void 0 };
     TridentAPI.EventSystem.on(LayoutAssetEvents.Selected, (instance) => {
       if (this.props.engineAPI.isMaterial(instance)) {
-        this.setState({ selected: instance });
+        this.setState({ selected: { type: "Material", instance } });
       }
     });
     TridentAPI.EventSystem.on(LayoutHierarchyEvents.Selected, (gameObject) => {
-      this.setState({ selected: gameObject });
+      this.setState({ selected: { type: "GameObject", id: gameObject.id } });
     });
     TridentAPI.EventSystem.on(ComponentEvents.Created, (gameObject, component) => {
-      this.setState({ selected: gameObject });
+      this.setState({ selected: { type: "GameObject", id: gameObject.id } });
     });
     TridentAPI.EventSystem.on(GameObjectEvents.Changed, (gameObject, component) => {
-      this.setState({ selected: gameObject });
+      this.setState({ selected: { type: "GameObject", id: gameObject.id } });
+    });
+    TridentAPI.EventSystem.on(GameObjectEvents.Deleted, (gameObject, component) => {
+      if (this.state.selected?.type === "GameObject" && this.state.selected.id === gameObject.id) {
+        this.setState({ selected: void 0 });
+      }
+    });
+    TridentAPI.EventSystem.on(RuntimeEvents.Play, () => {
+      this.setState({ ...this.state });
+    });
+    TridentAPI.EventSystem.on(RuntimeEvents.Stop, () => {
+      this.setState({ ...this.state });
     });
     TridentAPI.EventSystem.on(LayoutInspectorEvents.Repaint, () => {
-      this.setState({ selected: this.state.selected });
+      this.setState({ ...this.state });
     });
-    this.state = { selected: void 0 };
+  }
+  findGameObjectById(id) {
+    const scene = this.props.engineAPI.currentScene;
+    if (!scene) return void 0;
+    return scene.GetGameObjects().find((go) => go.id === id);
   }
   render() {
     let content = null;
-    if (this.props.engineAPI.isGameObject(this.state.selected)) content = /* @__PURE__ */ createElement(LayoutInspectorGameObject, { engineAPI: this.props.engineAPI, gameObject: this.state.selected });
-    else if (this.props.engineAPI.isMaterial(this.state.selected)) content = /* @__PURE__ */ createElement(InspectorMaterial, { engineAPI: this.props.engineAPI, material: this.state.selected });
+    if (this.state.selected?.type === "GameObject") {
+      const gameObject = this.findGameObjectById(this.state.selected.id);
+      if (gameObject) {
+        content = /* @__PURE__ */ createElement(
+          LayoutInspectorGameObject,
+          {
+            key: gameObject.id,
+            engineAPI: this.props.engineAPI,
+            gameObject
+          }
+        );
+      }
+    } else if (this.state.selected?.type === "Material") {
+      content = /* @__PURE__ */ createElement(
+        InspectorMaterial,
+        {
+          engineAPI: this.props.engineAPI,
+          material: this.state.selected.instance
+        }
+      );
+    }
     return /* @__PURE__ */ createElement("div", { style: { height: "100%", overflow: "auto", width: "100%" } }, content);
   }
 }
@@ -5282,11 +5348,16 @@ class LayoutTopbar extends Component {
     this.setState({ fileMenuOpen: !this.state.fileMenuOpen });
     TridentAPI.EventSystem.emit(SceneEvents.Saved, this.props.engineAPI.currentScene);
   }
-  PlayStop() {
+  async PlayStop() {
     const runtime = this.props.engineAPI.getRuntime();
-    if (!runtime) throw Error("No runtime");
-    if (runtime.isPlaying) this.props.engineAPI.getRuntime().Stop();
-    else this.props.engineAPI.getRuntime().Play();
+    const wasPlaying = runtime.isPlaying;
+    if (wasPlaying) {
+      await runtime.Stop();
+      TridentAPI.EventSystem.emit(RuntimeEvents.Stop);
+    } else {
+      runtime.Play();
+      TridentAPI.EventSystem.emit(RuntimeEvents.Play);
+    }
     this.setState({ ...this.state });
   }
   render() {
@@ -5315,6 +5386,10 @@ class App extends Component {
   constructor() {
     super();
     const engineAPI = new TridentAPI();
+    let activeGameObject = null;
+    TridentAPI.EventSystem.on(LayoutHierarchyEvents.Selected, (go) => {
+      activeGameObject = go;
+    });
     registerEditorBridge({
       saveAsset: SaveAsset,
       repaintInspector: () => {
@@ -5333,29 +5408,34 @@ class App extends Component {
         offSceneSaved: (handler) => {
           TridentAPI.EventSystem.off(SceneEvents.Saved, handler);
         }
+      },
+      Selection: {
+        get activeGameObject() {
+          return activeGameObject;
+        }
       }
+    });
+    TridentAPI.EventSystem.on(SceneEvents.Loaded, (scene) => {
+      EditorRuntime.AttachEditorScene(engineAPI.currentScene);
     });
     TridentAPI.EventSystem.on(RuntimeEvents.CreatedCanvas, async (canvas) => {
       Console.getVar("r_shadows_csm_splittypepracticallambda").value = 0.99;
       const Runtime = await engineAPI.createRuntime(canvas);
       const currentScene = Runtime.SceneManager.CreateScene("DefaultScene");
+      currentScene.mode = SceneExecutionMode.Edit;
       Runtime.SceneManager.SetActiveScene(currentScene);
       const file = await fetch("./resources/DefaultScene.scene");
       const text = await file.text();
       const sceneJSON = JSON.parse(text);
-      EngineAPI.currentScene.Clear();
       await EngineAPI.deserializer.deserializeScene(EngineAPI.currentScene, sceneJSON);
-      const sky = new Sky();
-      sky.SUN_ELEVATION_DEGREES = 60;
-      await sky.init();
-      const skyTexture = sky.skyTextureCubemap;
-      const environment = new Environment(EngineAPI.currentScene, skyTexture);
-      await environment.init();
-      const editorSceneManager = EngineAPI.createGameObject(currentScene);
-      editorSceneManager.name = "EditorSceneManager";
-      editorSceneManager.AddComponent(EditorSceneManager);
+      TridentAPI.EventSystem.emit(SceneEvents.Loaded, EngineAPI.currentScene);
+      const skyAtmosphere = new Sky();
+      await skyAtmosphere.init();
+      const iblLightingPass = Runtime.Renderer.RenderPipeline.AddPass(IBLLightingPass, GPU.RenderPassOrder.AfterLighting);
+      const skyboxPass = Runtime.Renderer.RenderPipeline.AddPass(SkyboxPass, GPU.RenderPassOrder.AfterLighting);
+      iblLightingPass.SetEnvironment(skyAtmosphere.skyTextureCubemap);
+      skyboxPass.SetSkybox(skyAtmosphere.skyTextureCubemap);
       Runtime.AddSystem(PhysicsRapier);
-      Runtime.Play();
       TridentAPI.EventSystem.emit(SceneEvents.Loaded, currentScene);
     });
   }

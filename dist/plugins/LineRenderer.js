@@ -10,6 +10,7 @@ class LineRenderer extends Components.Mesh {
     this.enableShadows = false;
   }
   async Start() {
+    super.Start();
     this.material = new GPU.Material({ isDeferred: false });
     this.material.shader = await GPU.Shader.Create({
       code: `

@@ -37,6 +37,11 @@ class EditorAPI {
       return requireBridge().events.offSceneSaved(handler);
     }
   };
+  static Selection = {
+    get activeGameObject() {
+      return requireBridge().Selection.activeGameObject;
+    }
+  };
 }
 
 export { EditorAPI, registerEditorBridge };

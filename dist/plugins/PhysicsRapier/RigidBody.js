@@ -103,6 +103,8 @@ class RigidBody extends (_a = Component, _constraints_dec = [SerializeField(Rigi
     if (!this.rigidBody) {
       this.Create("kinematicPosition");
     }
+    this.rigidBody.setTranslation(this.transform.position, true);
+    this.rigidBody.setRotation(this.transform.rotation, true);
   }
   AddForce(force) {
     this.rigidBody.addForce(force, true);

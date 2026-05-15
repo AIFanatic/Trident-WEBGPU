@@ -37,6 +37,7 @@ class InstancedLODGroup extends Components.Renderable {
     return renderer0?.geometry;
   }
   async Start() {
+    super.Start();
     this.drawCompute = await GPU.ShaderCompute.Create({
       name: this.name + "-Compute",
       code: `

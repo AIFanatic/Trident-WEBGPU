@@ -28,18 +28,17 @@
             <script type="module">
                 const canvas = document.createElement("canvas");
                 document.body.appendChild(canvas);
-                            import { Runtime, GameObject, Components, Mathf, Geometry, GPU, PBRMaterial, VertexAttribute, IndexAttribute } from '@trident/core';
+                            import { PlayerRuntime, GameObject, Components, Mathf, Runtime, GPU, Geometry, PBRMaterial, VertexAttribute, IndexAttribute } from '@trident/core';
             import { OrbitControls } from '@trident/plugins/OrbitControls.js';
             import { Debugger } from '@trident/plugins/Debugger.js';
             import { HDRParser } from '@trident/plugins/HDRParser.js';
-            import { Environment } from '@trident/plugins/Environment/Environment.js';
             import { IBLLightingPass } from '@trident/plugins/Environment/IBLLightingPass.js';
             import { SkyboxPass } from '@trident/plugins/Environment/SkyboxPass.js';
             
             async function Application(canvas) {
-              await Runtime.Create(canvas, 1);
-              const scene = Runtime.SceneManager.CreateScene("DefaultScene");
-              Runtime.SceneManager.SetActiveScene(scene);
+              await PlayerRuntime.Create(canvas);
+              const scene = PlayerRuntime.SceneManager.CreateScene("DefaultScene");
+              PlayerRuntime.SceneManager.SetActiveScene(scene);
               const mainCameraGameObject = new GameObject();
               mainCameraGameObject.name = "MainCamera";
               const camera = mainCameraGameObject.AddComponent(Components.Camera);
@@ -55,8 +54,10 @@
               light.castShadows = false;
               const hdr = await HDRParser.Load("./assets/textures/HDR/spruit_sunrise_1k.hdr");
               const skyTexture = await HDRParser.ToCubemap(hdr);
-              const environment = new Environment(scene, skyTexture);
-              await environment.init();
+              const iblLightingPass = Runtime.Renderer.RenderPipeline.AddPass(IBLLightingPass, GPU.RenderPassOrder.AfterLighting);
+              const skyboxPass = Runtime.Renderer.RenderPipeline.AddPass(SkyboxPass, GPU.RenderPassOrder.AfterLighting);
+              iblLightingPass.SetEnvironment(skyTexture);
+              skyboxPass.SetSkybox(skyTexture);
               function HighQualitySphere(radius = 0.5, widthSegments = 16, heightSegments = 16) {
                 const vertices = [];
                 const normals = [];
@@ -186,12 +187,7 @@
                 mesh.geometry = HighQualitySphere();
                 mesh.material = new PBRMaterial({ albedoColor: new Mathf.Color(75 / 255, 185 / 255, 200 / 255), metalness: 0, roughness: 0.2 });
               }
-              const iblLightingPass = new IBLLightingPass();
-              Runtime.Renderer.RenderPipeline.AddPass(iblLightingPass, GPU.RenderPassOrder.AfterLighting);
-              const skyboxPass = new SkyboxPass();
-              Runtime.Renderer.RenderPipeline.AddPass(skyboxPass, GPU.RenderPassOrder.AfterLighting);
               Debugger.Enable();
-              Runtime.Play();
             }
             Application(document.querySelector("canvas"));
             
