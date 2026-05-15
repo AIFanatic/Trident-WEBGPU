@@ -282,6 +282,9 @@ export class TerrainData {
     public Destroy() {
         for (const prop of this.paintPropData) prop.Destroy();
 
+        // if (this.geometry) this.geometry.Destroy();
+        // if (this.material) this.material.Destroy();
+
         // this.materialIdMapTexture?.Destroy();
         // this.blendWeightMapTexture?.Destroy();
     }
