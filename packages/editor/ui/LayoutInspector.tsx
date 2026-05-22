@@ -1,8 +1,10 @@
 import { IGameObject } from "../engine-api/trident/components/IGameObject";
+import { ITexture } from "../engine-api/trident/components/ITexture";
 import { IMaterial } from "../engine-api/trident/IMaterial";
 import { TridentAPI } from "../engine-api/trident/TridentAPI";
 import { ComponentEvents, GameObjectEvents, LayoutAssetEvents, LayoutInspectorEvents, RuntimeEvents } from "../Events";
 import { createElement, Component } from "../gooact";
+import { InspectorImage } from "./Inspector/InspectorImage";
 import { InspectorMaterial } from "./Inspector/InspectorMaterial";
 import { LayoutInspectorGameObject } from "./Inspector/LayoutInspectorGameObject";
 import { BaseProps } from "./Layout";
@@ -11,6 +13,7 @@ import { LayoutHierarchyEvents } from "./LayoutHierarchy";
 type Selected =
     | { type: "GameObject"; id: string }
     | { type: "Material"; instance: IMaterial }
+    | { type: "Texture"; instance: ITexture }
     | undefined;
 
 interface LayoutInspectorState {
@@ -24,9 +27,8 @@ export class LayoutInspector extends Component<BaseProps, LayoutInspectorState> 
         this.state = { selected: undefined };
 
         TridentAPI.EventSystem.on(LayoutAssetEvents.Selected, (instance) => {
-            if (this.props.engineAPI.isMaterial(instance)) {
-                this.setState({ selected: { type: "Material", instance } });
-            }
+            if (this.props.engineAPI.isMaterial(instance)) this.setState({ selected: { type: "Material", instance } });
+            else if (this.props.engineAPI.isTexture(instance)) this.setState({ selected: { type: "Texture", instance } });
         });
 
         TridentAPI.EventSystem.on(LayoutHierarchyEvents.Selected, gameObject => {
@@ -68,6 +70,7 @@ export class LayoutInspector extends Component<BaseProps, LayoutInspectorState> 
     }
 
     render() {
+        console.log(this.state.selected)
         let content = null;
 
         if (this.state.selected?.type === "GameObject") {
@@ -87,6 +90,14 @@ export class LayoutInspector extends Component<BaseProps, LayoutInspectorState> 
                 <InspectorMaterial
                     engineAPI={this.props.engineAPI}
                     material={this.state.selected.instance}
+                />
+            );
+        }
+        else if (this.state.selected?.type === "Texture") {
+            content = (
+                <InspectorImage
+                    engineAPI={this.props.engineAPI}
+                    texture={this.state.selected.instance}
                 />
             );
         }

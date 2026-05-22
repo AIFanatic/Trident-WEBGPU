@@ -1,10 +1,10 @@
 import { IGameObject } from "../engine-api/trident/components/IGameObject";
 import { ComponentRegistry } from "../engine-api/trident/ComponentRegistry";
 import { FileBrowser } from "../helpers/FileBrowser";
-import { Texture, GetSerializedFields, Serializer } from "@trident/core";
+import { Texture, GetSerializedFields, Serializer, AssetMeta } from "@trident/core";
 import { SaveToFile } from "./SaveToFile";
 
-export async function SaveGameObjectAsAsset(baseDir: string, gameObject: IGameObject): Promise<void> {
+export async function ExtractGLB(baseDir: string, gameObject: IGameObject): Promise<void> {
     const rootName = gameObject.name;
 
     const fullAssetDir = `${baseDir}/${rootName}`;
@@ -108,6 +108,11 @@ export async function SaveGameObjectAsAsset(baseDir: string, gameObject: IGameOb
                             if (tex && tex.blob && tex.assetPath && !saved.has(tex.assetPath)) {
                                 saved.add(tex.assetPath);
                                 SaveToFile(tex.assetPath, tex.blob);
+                                SaveToFile(AssetMeta.MetaPathFor(tex.assetPath), AssetMeta.SerializeBlob({
+                                    format: tex.format,
+                                    generateMips: tex.mipLevels > 1,
+                                    name: tex.name,
+                                }));
                             }
                         }
                     }

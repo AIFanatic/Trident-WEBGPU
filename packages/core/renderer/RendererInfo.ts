@@ -14,6 +14,7 @@ export class RendererInfo {
     public frameIndexBufferStat: number = 0;
     public compiledShadersStat: number = 0;
     public drawCallsStat: number = 0;
+    public textureViews: number = 0;
 
     public gpuBufferSizeTotal: number = 0;
     public gpuBufferCount: number = 0;
@@ -39,6 +40,7 @@ export class RendererInfo {
         this.frameVertexBuffersStat = 0;
         this.frameIndexBufferStat = 0;
         this.drawCallsStat = 0;
+        // this.textureViews = 0;
         this.visibleObjects = 0;
         this.visibleTriangles = 0;
 

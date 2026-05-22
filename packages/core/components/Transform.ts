@@ -93,7 +93,6 @@ export class Transform extends Component {
         this._suppressLocalCallbacks = true;
         this._localRotation.setFromEuler(this._localEulerAngles, true);
         this._suppressLocalCallbacks = false;
-
         this.onLocalChanged();
     }
 

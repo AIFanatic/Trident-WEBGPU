@@ -5,5 +5,5 @@ export { CreateScript } from "./CreateScript";
 export { CreateScene } from "./CreateScene";
 export { DeleteAsset } from "./DeleteAsset";
 export { SavePrefab } from "./SavePrefab";
-export { SaveGameObjectAsAsset } from "./SaveGameObjectAsAsset";
+export { ExtractGLB } from "./ExtractGLB";
 export { SaveAsset } from "./SaveAsset";

@@ -299,6 +299,7 @@ class BaseShader {
                 };
                 group.entries.push({ binding: uniform.binding, resource: uniform.buffer.GetBuffer().createView(view) });
                 group.buffers.push(uniform.buffer);
+                Renderer.info.textureViews++;
             }
             else if (uniform.buffer instanceof TextureSampler) {
                 group.entries.push({ binding: uniform.binding, resource: uniform.buffer.GetBuffer() });

@@ -74,3 +74,24 @@ export class Assets {
         return promise;
     }
 }
+
+export class AssetMeta {
+    public static MetaPathFor(assetPath: string): string {
+        return `${assetPath}.meta`;
+    }
+
+    public static async Load<T extends object = any>(assetPath: string): Promise<T | null> {
+        const metaPath = this.MetaPathFor(assetPath);
+        try {
+            const res = await Assets.ResourceFetchFn(metaPath);
+            if (!res.ok) return null;
+            return await res.json() as T;
+        } catch {
+            return null;
+        }
+    }
+
+    public static SerializeBlob(meta: object): Blob {
+        return new Blob([JSON.stringify(meta, null, 2)], { type: "application/json" });
+    }
+}

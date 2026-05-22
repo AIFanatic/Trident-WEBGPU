@@ -32,4 +32,8 @@ export class Pool<T> {
             this.free.push(id);
         }
     }
+
+    forEach(fn: (item: T) => void): void {
+        for (const it of this.items) if (it !== undefined) fn(it);
+    }
 }

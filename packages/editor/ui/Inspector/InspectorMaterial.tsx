@@ -1,5 +1,5 @@
-import { GPU } from "@trident/core";
 import { createElement, Component } from "../../gooact";
+import { GPU } from "@trident/core";
 import { IMaterial } from "../../engine-api/trident/IMaterial";
 
 import './InspectorComponent.css';

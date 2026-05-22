@@ -1,9 +1,8 @@
 import { Vector2 } from "../math";
 import { Color } from "../math/Color";
 import { Assets } from "../Assets";
-import { SerializeField, UUID } from "../utils/";
-import { Pool } from "../utils/Pool";
-import { Shader, ShaderParams } from "./Shader";
+import { Pool, SerializeField, UUID } from "../utils/";
+import { Shader } from "./Shader";
 import { ShaderLoader } from "./ShaderUtils";
 import { Texture } from "./Texture";
 import { TextureSampler } from "./TextureSampler";
@@ -18,7 +17,14 @@ export class MaterialParams {
 }
 
 export class Material {
-    public name = "Material";
+    public get name(): string {
+        if (this.assetPath && !this.assetPath.startsWith("@builtin")) {
+            const slash = this.assetPath.lastIndexOf("/");
+            const dot = this.assetPath.lastIndexOf(".");
+            return this.assetPath.slice(slash + 1, dot > slash ? dot : undefined);
+        }
+        return "Material";
+    }
 
     public id = UUID();
     public static type = "@trident/core/renderer/Material";
@@ -93,7 +99,7 @@ class PBRMaterialParams extends MaterialParams {
         this.armMap = PBRMaterialParams.dummyARM;
         this.emissiveMap = PBRMaterialParams.dummyWhite;
     }
-    
+
     public static InitDummies() {
         PBRMaterialParams.dummyAlbedo = Texture.Create(1, 1, 1, "bgra8unorm");
         PBRMaterialParams.dummyAlbedo.SetData(new Uint8Array([255, 255, 255, 255]), 4);
@@ -115,12 +121,10 @@ class PBRMaterialParams extends MaterialParams {
 
 export class PBRMaterial extends Material {
     public static type = "@trident/core/renderer/Material/PBRMaterial";
-    public name = "PBRMaterial";
-
     private static sampler: TextureSampler;
 
     public params: PBRMaterialParams = new PBRMaterialParams();
-    
+
     constructor(params?: Partial<PBRMaterialParams>) {
         super({ isDeferred: params?.isDeferred ?? true });
         this.assetPath = "@builtin/material/pbr";
@@ -174,7 +178,7 @@ export class PBRMaterial extends Material {
                         self.createShader();
                     }
                     else {
-                        self.assignParameters();
+                        self.ReloadMaterial();
                     }
                     return true;
                 },
@@ -182,14 +186,15 @@ export class PBRMaterial extends Material {
             }
             this.params = new Proxy(this.params, handler);
 
-            this.assignParameters();
+            this.ReloadMaterial();
+
             return shader;
         })();
 
         return this.pendingShaderCreation;
     }
 
-    private assignParameters() {
+    public ReloadMaterial() {
         this.shader.SetArray("material", new Float32Array([
             this.params.albedoColor.r, this.params.albedoColor.g, this.params.albedoColor.b, this.params.albedoColor.a,
             this.params.emissiveColor.r, this.params.emissiveColor.g, this.params.emissiveColor.b, this.params.emissiveColor.a,

@@ -14,8 +14,7 @@ export type InstancedRenderable = Renderable & {
 
 export interface FrameRenderData {
     deferredRenderables: Renderable[];
-    forwardMeshes: Mesh[];
-    forwardInstancedMeshes: InstancedMesh[];
+    forwardRenderables: Renderable[];
     shadowCasters: Renderable[];
     shadowInstancedMeshes: InstancedRenderable[];
     lights: Light[];
@@ -40,8 +39,7 @@ export class SceneExtractPass extends RenderPass {
         const lights = scene.GetComponents(Light).filter(light => light.enabled && light.gameObject.enabled);
 
         const deferredRenderables: Renderable[] = [];
-        const forwardMeshes: Mesh[] = [];
-        const forwardInstancedMeshes: InstancedMesh[] = [];
+        const forwardRenderables: Renderable[] = [];
         const shadowCasters: Renderable[] = [];
         const shadowInstancedMeshes: InstancedRenderable[] = [];
 
@@ -51,13 +49,7 @@ export class SceneExtractPass extends RenderPass {
             if (!renderable.material || !renderable.material.shader) continue;
 
             if (renderable.material.params.isDeferred === true) deferredRenderables.push(renderable);
-            else {
-                if (renderable instanceof InstancedMesh) {
-                    if (renderable.instanceCount > 0) forwardInstancedMeshes.push(renderable);
-                } else if (renderable instanceof Mesh) {
-                    forwardMeshes.push(renderable);
-                }
-            }
+            else forwardRenderables.push(renderable);
 
             if (renderable.enableShadows) {
                 if (isInstancedRenderable(renderable)) {
@@ -70,8 +62,7 @@ export class SceneExtractPass extends RenderPass {
 
         const frameData: FrameRenderData = {
             deferredRenderables,
-            forwardMeshes,
-            forwardInstancedMeshes,
+            forwardRenderables,
             shadowCasters,
             shadowInstancedMeshes,
             lights,

@@ -1,4 +1,4 @@
-import { Assets } from "../Assets";
+import { Assets, AssetMeta } from "../Assets";
 import { EventSystem } from "../Events";
 import { Vector2 } from "../math/Vector2";
 import { UUID } from "../utils";
@@ -11,6 +11,7 @@ import { WEBGPUMipsGenerator } from "./webgpu/utils/WEBGPUMipsGenerator";
 
 export interface ImageLoadOptions {
     name?: string;
+    format?: TextureFormat;
     flipY?: boolean;
     generateMips?: boolean;
     resizeWidth?: number;
@@ -20,6 +21,7 @@ export interface ImageLoadOptions {
 
 const DefaultOptions: ImageLoadOptions = {
     name: "Image",
+    format: "rgba8unorm",
     flipY: false,
     generateMips: true,
     resizeWidth: undefined,
@@ -89,8 +91,8 @@ export class Texture {
     public readonly dimension: TextureDimension;
     public mipLevels: number;
 
-    public get name(): string { return this.buffer.label };
-    public set name(name: string) { this.buffer.label = name };
+    public get name(): string { return this.buffer?.label ?? ""; }
+    public set name(name: string) { if (this.buffer) this.buffer.label = name; }
 
     private buffer: GPUTexture;
 
@@ -165,6 +167,7 @@ export class Texture {
                 mipLevelCount: this.activeMipCount,
             });
             this.viewCache.set(key, view);
+            Renderer.info.textureViews++;
         }
 
         if (Renderer.info.frame !== this.lastBandwidthFrame) {
@@ -178,18 +181,22 @@ export class Texture {
         const name = this.name;
         const mipLevels = WEBGPUMipsGenerator.numMipLevels(this.width, this.height, this.depth);
         const destination = this.mipLevels === mipLevels ? this : undefined;
+        const oldBuffer = this.buffer;
 
         if (this.dimension === "cube") {
             this.buffer = WEBGPUCubeMipsGenerator.generateMips(this, destination);
         } else {
             this.buffer = WEBGPUMipsGenerator.generateMips(this, destination);
         }
-        
+
         this.name = name; // TODO: Restore name, this is dumb, dont replace buffers
         this.SetActiveMip(0);
         this.SetActiveMipCount(mipLevels);
         this.mipLevels = mipLevels;
-        this.viewCache.clear();
+        Renderer.info.textureViews -= this.viewCache.size;
+        if (this.buffer !== oldBuffer) {
+            this.viewCache.clear();
+        }
         this.byteSize = totalBytesForTexture(this.format, this.width, this.height, this.depth, this.mipLevels);
     }
 
@@ -220,12 +227,12 @@ export class Texture {
     }
 
     public Destroy() {
+        if (!this.buffer) return;
+        const buf = this.buffer;
+        this.buffer = null as any;
         Renderer.info.gpuTextureSizeTotal -= this.byteSize;
         Renderer.info.gpuTextureCount--;
-
-        EventSystem.once(RendererEvents.FrameEnded, () => {
-            this.buffer.destroy();
-        })
+        EventSystem.once(RendererEvents.FrameEnded, () => buf.destroy());
     }
 
     public SetData(data: BufferSource, bytesPerRow: number, rowsPerImage?: number) {
@@ -321,15 +328,16 @@ export class Texture {
 
     // Format and types are very limited for now
     // https://github.com/gpuweb/gpuweb/issues/2322
-    public static async FromBlob(blob: Blob, format: TextureFormat, options: ImageLoadOptions): Promise<Texture> {
-        const imageBitmap = await createImageBitmap(blob, { resizeWidth: options.resizeWidth, resizeHeight: options.resizeHeight });
+    public static async LoadBlob(blob: Blob, options?: ImageLoadOptions): Promise<Texture> {
+        const _options = Object.assign({}, DefaultOptions, options);
+        const imageBitmap = await createImageBitmap(blob, { resizeWidth: _options.resizeWidth, resizeHeight: _options.resizeHeight });
 
-        const texture = new Texture(imageBitmap.width, imageBitmap.height, 1, format, TextureType.RENDER_TARGET, "2d", 1);
-        texture.name = options.name || "Texture";
+        const texture = new Texture(imageBitmap.width, imageBitmap.height, 1, _options.format || Renderer.SwapChainFormat, TextureType.RENDER_TARGET, "2d", 1);
+        texture.name = _options.name || "Texture";
 
         try {
             Renderer.device.queue.copyExternalImageToTexture(
-                { source: imageBitmap, flipY: options.flipY },
+                { source: imageBitmap, flipY: _options.flipY },
                 { texture: texture.GetBuffer() },
                 [imageBitmap.width, imageBitmap.height]
             );
@@ -337,8 +345,8 @@ export class Texture {
             console.warn(error)
         }
 
-        if (options.storeSource) texture.blob = blob;
-        if (options.generateMips) texture.GenerateMips();
+        if (_options.storeSource) texture.blob = blob;
+        if (_options.generateMips) texture.GenerateMips();
 
         return texture;
     }
@@ -347,14 +355,9 @@ export class Texture {
         return new Texture(width, height, depth, format, TextureType.IMAGE, "2d", mipLevels);
     }
 
-    public static async Load(url: string | URL, format: TextureFormat = Renderer.SwapChainFormat, options?: ImageLoadOptions): Promise<Texture> {
+    public static async Load(url: string | URL, options?: ImageLoadOptions): Promise<Texture> {
         const response = await fetch(url);
-        return Texture.LoadBlob(await response.blob(), format, options);
-    }
-
-    public static async LoadBlob(blob: Blob, format: TextureFormat = Renderer.SwapChainFormat, options?: ImageLoadOptions): Promise<Texture> {
-        const _options = Object.assign({}, DefaultOptions, options);
-        return Texture.FromBlob(blob, format, _options);
+        return Texture.LoadBlob(await response.blob(), options);
     }
 
     public static async Blit(source: Texture, destination: Texture, width: number, height: number, uv_scale = new Vector2(1, 1)) {
@@ -365,9 +368,10 @@ export class Texture {
         return WEBGPUBlit.BlitDepth(source, destination, width, height, uv_scale);
     }
 
-    public static async Deserialize(assetPath: string, data?: any, bytes?: ArrayBuffer): Promise<Texture> {
+    public static async Deserialize(assetPath: string, data?: ImageLoadOptions, bytes?: ArrayBuffer): Promise<Texture> {
+        const options = Object.assign({}, data, await AssetMeta.Load<ImageLoadOptions>(assetPath));
         const buffer = bytes ?? await Assets.Load(assetPath, "binary");
-        const texture = await Texture.LoadBlob(new Blob([buffer]), data?.format, data);
+        const texture = await Texture.LoadBlob(new Blob([buffer]), options);
         texture.assetPath = assetPath;
         return texture;
     }

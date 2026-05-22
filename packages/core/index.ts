@@ -23,7 +23,7 @@ export * as GPU from "./renderer";
 export * as Utils from "./utils";
 export { SerializeField, NonSerialized, GetSerializedFields } from "./utils";
 
-export { Assets } from "./Assets";
+export { Assets, AssetMeta } from "./Assets";
 
 export { Input, KeyCodes, MouseCodes } from "./Input";
 

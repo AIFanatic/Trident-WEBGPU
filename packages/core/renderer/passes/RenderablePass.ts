@@ -17,19 +17,13 @@ export class RenderablePass extends RenderPass {
         if (!frameData) return;
         for (const renderable of frameData.deferredRenderables) {
             renderable.OnPreFrame();
-
-            if (!renderable.material || !renderable.material.shader) continue;
             renderable.material.shader.SetBuffer("frameBuffer", FrameBuffer);
-
             this.renderables.push(renderable);
         }
     }
 
     public preRender(resources: ResourcePool) {
-        for (const renderable of this.renderables) {
-            if (!renderable.gameObject.enabled) continue;
-            renderable.OnPreRender();
-        }
+        for (const renderable of this.renderables) renderable.OnPreRender();
     }
 
     public execute(resources: ResourcePool) {
@@ -53,10 +47,7 @@ export class RenderablePass extends RenderPass {
             { target: inputGBufferDepth, clear: false }
             , true);
 
-        for (const renderable of this.renderables) {
-            if (!renderable.gameObject.enabled) continue;
-            renderable.OnRenderObject();
-        }
+        for (const renderable of this.renderables) renderable.OnRenderObject();
 
         resources.setResource(PassParams.GBufferDepth, inputGBufferDepth);
         resources.setResource(PassParams.GBufferAlbedo, inputGBufferAlbedo);

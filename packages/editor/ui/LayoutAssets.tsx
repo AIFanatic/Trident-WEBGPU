@@ -13,7 +13,7 @@ import { FloatingMenu } from "./FloatingMenu";
 import { IGameObject } from "../engine-api/trident/components/IGameObject";
 
 
-import { Assets, Scene } from "@trident/core";
+import { AssetMeta, Assets, Scene } from "@trident/core";
 
 import { LoadFile } from "../loaders/AssetLoader";
 import {
@@ -23,8 +23,9 @@ import {
     CreateScene,
     DeleteAsset,
     SavePrefab,
-    SaveGameObjectAsAsset,
+    ExtractGLB,
     SaveAsset,
+    SaveToFile,
 } from "../commands";
 
 // Re-export types for backward compatibility
@@ -32,7 +33,6 @@ export { ITreeMapType, ITreeMap, FileData, ProjectTreeMap } from "../types/Asset
 import { ITreeMapType, ITreeMap, FileData, ProjectTreeMap } from "../types/AssetTypes";
 import { ReloadScript } from "../commands/ReloadScript";
 import { TridentAPI } from "../engine-api/trident/TridentAPI";
-import { Sky } from "@trident/plugins/Environment/Sky";
 
 export async function dir(h?: FileSystemDirectoryHandle): Promise<FileSystemDirectoryHandle> {
     const r = indexedDB.open("d", 1);
@@ -42,9 +42,11 @@ export async function dir(h?: FileSystemDirectoryHandle): Promise<FileSystemDire
     if (h) return t.put(h, "h"), h;
     return new Promise(res => (t.get("h").onsuccess = e => res((e.target as any).result || null)));
 }
-
+const browserFetch = fetch.bind(globalThis);
 Assets.ResourceFetchFn = async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
-    if (input instanceof Request || input instanceof URL) throw Error("Not implemented");
+    if (input instanceof Request || input instanceof URL) {
+        return browserFetch(input, init);
+    }
     const handle = await FileBrowser.fopen(input, MODE.R);
     if (!handle) throw Error(`Could not get file at ${input}`);
 
@@ -221,7 +223,19 @@ export class LayoutAssets extends Component<BaseProps, LayoutAssetsState> {
                 const arrayBuffer = await file.arrayBuffer();
                 const rootName = file.name.slice(0, file.name.lastIndexOf("."));
                 const rootGO = await GLTFLoader.LoadFromArrayBuffer(arrayBuffer, this.props.engineAPI.currentScene, rootName);
-                await SaveGameObjectAsAsset(this.getCurrentPath(), rootGO);
+                await ExtractGLB(this.getCurrentPath(), rootGO);
+            }
+            const imageExts = new Set(["png", "jpg", "jpeg", "webp"]);
+            if (imageExts.has(extension.toLowerCase())) {
+                const path = `${this.getCurrentPath()}/${file.name}`;
+                const baseName = file.name.slice(0, file.name.lastIndexOf("."));
+                SaveToFile(path, file);
+                SaveToFile(AssetMeta.MetaPathFor(path), AssetMeta.SerializeBlob({
+                    format: "rgba8unorm-srgb",
+                    generateMips: true,
+                    name: baseName,
+                }));
+                continue;
             }
         }
 

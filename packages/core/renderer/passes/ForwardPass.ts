@@ -1,87 +1,39 @@
 import { RenderPass, ResourcePool } from "../RenderGraph";
 import { RendererContext } from "../RendererContext";
 import { PassParams } from "../RenderingPipeline";
-import { Camera } from "../../components/Camera";
-import { Buffer, BufferType } from "../Buffer";
-import { DynamicBufferMemoryAllocator } from "../MemoryAllocator";
 import { FrameRenderData } from "./SceneExtractPass";
+import { Renderable } from "@trident/core/components/Renderable";
 
 export class ForwardPass extends RenderPass {
     public name: string = "ForwardPass";
 
-    private projectionMatrix: Buffer;
-    private viewMatrix: Buffer;
+    private renderables: Renderable[] = [];
 
-    private modelMatrices: DynamicBufferMemoryAllocator;
+    public async preFrame(resources: ResourcePool) {
+        this.renderables.length = 0;
 
-    public async init(resources: ResourcePool) {
-        this.projectionMatrix = new Buffer(16 * 4, BufferType.STORAGE);
-        this.viewMatrix = new Buffer(16 * 4, BufferType.STORAGE);
-        this.modelMatrices = new DynamicBufferMemoryAllocator(16 * 4 * 10);
-        this.initialized = true;
-    }
-
-    public preFrame(resources: ResourcePool) {
-        this.drawCommands.length = 0;
-
-        const mainCamera = Camera.mainCamera;
+        const FrameBuffer = resources.getResource(PassParams.FrameBuffer);
         const frameData = resources.getResource(PassParams.FrameRenderData) as FrameRenderData;
         if (!frameData) return;
-        const meshes = frameData.forwardMeshes;
-        const instancedMeshes = frameData.forwardInstancedMeshes;
-        if (meshes.length === 0 && instancedMeshes.length === 0) return;
-
-        this.projectionMatrix.SetArray(mainCamera.projectionMatrix.elements);
-        this.viewMatrix.SetArray(mainCamera.viewMatrix.elements);
-
-        for (const mesh of meshes) {
-            const geometry = mesh.geometry;
-            const material = mesh.material;
-
-            if (!geometry || !material) continue;
-            if (!geometry.attributes.has("position")) continue;
-
-            if (material.params.isDeferred === true) continue;
-            if (!material.shader) continue;
-
-            const offset = this.modelMatrices.set(mesh.id, mesh.transform.localToWorldMatrix.elements);
-            const matrixIndex = offset / 16;
-            material.shader.SetBuffer("projectionMatrix", this.projectionMatrix);
-            material.shader.SetBuffer("viewMatrix", this.viewMatrix);
-            material.shader.SetBuffer("modelMatrix", this.modelMatrices.getBuffer());
-
-            this.drawCommands.push({ geometry: geometry, shader: material.shader, instanceCount: 1, firstInstance: matrixIndex })
+        for (const renderable of frameData.forwardRenderables) {
+            renderable.OnPreFrame();
+            renderable.material.shader.SetBuffer("frameBuffer", FrameBuffer);
+            this.renderables.push(renderable);
         }
+    }
 
-        for (const instancedMesh of instancedMeshes) {
-            if (instancedMesh.instanceCount === 0) continue;
-
-            const geometry = instancedMesh.geometry;
-            const material = instancedMesh.material;
-
-            if (!geometry || !material) continue;
-            if (!geometry.attributes.has("position")) continue;
-
-            if (material.params.isDeferred === true) continue;
-            if (!material.shader) continue;
-
-            material.shader.SetBuffer("projectionMatrix", this.projectionMatrix);
-            material.shader.SetBuffer("viewMatrix", this.viewMatrix);
-            material.shader.SetBuffer("modelMatrix", instancedMesh.matricesBuffer);
-            this.drawCommands.push({ geometry: geometry, shader: material.shader, instanceCount: instancedMesh.instanceCount, firstInstance: 0 })
-        }
+    public preRender(resources: ResourcePool) {
+        for (const renderable of this.renderables) renderable.OnPreRender();
     }
 
     public execute(resources: ResourcePool) {
-        if (this.drawCommands.length === 0) return;
+        if (this.renderables.length === 0) return;
 
         const LightingPassOutput = resources.getResource(PassParams.LightingPassOutput);
         const DepthPassOutput = resources.getResource(PassParams.GBufferDepth);
 
         RendererContext.BeginRenderPass(this.name, [{ target: LightingPassOutput, clear: false }], { target: DepthPassOutput, clear: false }, true);
-        for (const draw of this.drawCommands) {
-            RendererContext.DrawGeometry(draw.geometry, draw.shader, draw.instanceCount, draw.firstInstance);
-        }
+        for (const renderable of this.renderables) renderable.OnRenderObject();
         RendererContext.EndRenderPass();
     }
 }

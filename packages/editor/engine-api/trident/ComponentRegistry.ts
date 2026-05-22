@@ -21,6 +21,7 @@ import { TerrainEditor } from "@trident/plugins/Terrain/TerrainEditor";
 import { LineRenderer } from "@trident/plugins/LineRenderer";
 
 import { LODGroup } from "@trident/plugins/LOD/LODGroup";
+import { WaterV1 as Water } from "@trident/plugins/Water/WaterV1";
 
 import { EditorScene } from "./EditorScene";
 
@@ -43,6 +44,7 @@ Component.Registry.set(TerrainEditor.type, TerrainEditor);
 Component.Registry.set(LineRenderer.type, LineRenderer);
 
 Component.Registry.set(LODGroup.type, LODGroup);
+Component.Registry.set(Water.type, Water);
 
 export const ComponentRegistry = {
     Camera: component<ICamera>(Components.Camera),
@@ -73,4 +75,5 @@ export const ComponentRegistry = {
     LineRenderer: component<IComponent>(LineRenderer),
 
     LODGroup: component<IComponent>(LODGroup),
+    Water: component<IComponent>(Water),
 };

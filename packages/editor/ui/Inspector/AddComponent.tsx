@@ -8,7 +8,7 @@ import { Tree } from "../TreeView/Tree";
 import { TreeFolder } from "../TreeView/TreeFolder";
 import { TreeItem } from "../TreeView/TreeItem";
 import { IEngineAPI } from "../../engine-api/trident/IEngineAPI";
-import { IComponent } from "../../engine-api/trident/components/IComponent";
+import { IComponent, IComponentConstructor } from "../../engine-api/trident/components/IComponent";
 import { TridentAPI } from "../../engine-api/trident/TridentAPI";
 
 interface AddComponentProps {
@@ -21,7 +21,7 @@ export class AddComponent extends GOActComponent<AddComponentProps> {
         super(props);
     }
 
-    private addComponent(component: IComponent) {
+    private addComponent(component: IComponentConstructor<IComponent>) {
         const componentInstance = this.props.engineAPI.addComponent(this.props.gameObject, component);
         TridentAPI.EventSystem.emit(ComponentEvents.Created, this.props.gameObject, componentInstance);
 
@@ -51,6 +51,7 @@ export class AddComponent extends GOActComponent<AddComponentProps> {
                             <TreeItem name="PointLight" onPointerDown={() => this.addComponent(ComponentRegistry.PointLight)} />
                             <TreeItem name="SpotLight" onPointerDown={() => this.addComponent(ComponentRegistry.SpotLight)} />
                         </TreeFolder>
+                        <TreeItem name="Water" onPointerDown={() => this.addComponent(ComponentRegistry.Water)} />
                     </TreeFolder>
                 </Tree>
             </div>

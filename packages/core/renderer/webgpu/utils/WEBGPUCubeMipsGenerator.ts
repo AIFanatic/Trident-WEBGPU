@@ -5,6 +5,7 @@ import { Shader } from "../../Shader";
 import { RenderTextureCube, Texture, TextureFormat } from "../../Texture";
 import { TextureSampler } from "../../TextureSampler";
 
+// TODO: Make it match WEBGPUMipsGenerator, no "target.SetActiveMip(srcMip)", this triggers shader recompilation
 export class WEBGPUCubeMipsGenerator {
     private static shader: Shader;
     private static geometry: Geometry;
