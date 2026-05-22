@@ -22,15 +22,8 @@ export class DirectionalLightHelper extends Component {
     }
 
     public Start(): void {
-        if (!this.light) throw Error("DirectionalLightHelper.light not defined");
-    }
-
-    public Update(): void {
-        this.transform.position.copy(this.light.transform.position);
-        this.transform.rotation.copy(this.light.transform.rotation);
-
-        this.transform.LookAtV1(new Mathf.Vector3(0,0,0));
-  
-        // this.transform.scale.z = this.light.range;
+        const light = this.gameObject.GetComponent(Components.DirectionalLight);
+        if (!light) throw Error("DirectionalLightHelper.light not defined");
+        this.light = light;
     }
 }

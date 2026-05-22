@@ -26,6 +26,8 @@ export class LineRenderer extends Components.Mesh {
 
         this.material.shader = await GPU.Shader.Create({
             code: `
+            #include "@trident/core/resources/webgpu/shaders/deferred/Common.wgsl";
+
             struct VertexInput {
                 @builtin(instance_index) instanceIdx : u32, 
                 @location(0) position : vec3<f32>,
@@ -38,18 +40,17 @@ export class LineRenderer extends Components.Mesh {
                 @location(1) vColor : vec3<f32>,
             };
             
-            @group(0) @binding(0) var<storage, read> projectionMatrix: mat4x4<f32>;
-            @group(0) @binding(1) var<storage, read> viewMatrix: mat4x4<f32>;
-            @group(0) @binding(2) var<storage, read> modelMatrix: array<mat4x4<f32>>;
+            @group(0) @binding(0) var<storage, read> frameBuffer: FrameBuffer;
+            @group(0) @binding(1) var<storage, read> modelMatrix: array<mat4x4<f32>>;
             
             @vertex
             fn vertexMain(input: VertexInput) -> VertexOutput {
                 var output : VertexOutput;
             
                 var modelMatrixInstance = modelMatrix[input.instanceIdx];
-                var modelViewMatrix = viewMatrix * modelMatrixInstance;
+                var modelViewMatrix = frameBuffer.viewMatrix * modelMatrixInstance;
             
-                output.position = projectionMatrix * modelViewMatrix * vec4(input.position, 1.0);
+                output.position = frameBuffer.projectionMatrix * modelViewMatrix * vec4(input.position, 1.0);
                 
                 output.vPosition = input.position;
                 output.vColor = input.color.rgb;

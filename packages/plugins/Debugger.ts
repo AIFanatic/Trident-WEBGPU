@@ -218,6 +218,7 @@ class _Debugger {
     private frameIndexBufferStat: UITextStat;
     private compiledShadersStat: UITextStat;
     private drawCallsStat: UITextStat;
+    private textureViews: UITextStat;
     private viewTypeStat: UIDropdownStat;
     // private heightScale: UISliderStat;
     // private useHeightMapStat: UIButtonStat;
@@ -263,6 +264,7 @@ class _Debugger {
         this.frameVertexBuffersStat = new UITextStat(this.rendererFolder, "Frame vertex buffers: ");
         this.frameIndexBufferStat = new UITextStat(this.rendererFolder, "Frame index buffers: ");
         this.drawCallsStat = new UITextStat(this.rendererFolder, "Draw calls: ");
+        this.textureViews = new UITextStat(this.rendererFolder, "Texture views: ");
         this.compiledShadersStat = new UITextStat(this.rendererFolder, "Compiled shaders: ");
         this.visibleObjectsStat = new UITextStat(this.rendererFolder, "Visible objects: ");
 
@@ -326,6 +328,7 @@ class _Debugger {
         this.frameVertexBuffersStat.SetValue(Renderer.info.frameVertexBuffersStat);
         this.frameIndexBufferStat.SetValue(Renderer.info.frameIndexBufferStat);
         this.drawCallsStat.SetValue(Renderer.info.drawCallsStat);
+        this.textureViews.SetValue(Renderer.info.textureViews);
         this.compiledShadersStat.SetValue(Renderer.info.compiledShadersStat);
         this.visibleObjectsStat.SetValue(Renderer.info.visibleObjects);
 

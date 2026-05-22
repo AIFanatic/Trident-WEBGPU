@@ -1,4 +1,4 @@
-import { GameObject, Geometry, IndexAttribute, VertexAttribute, Components, Mathf, SerializeField, NonSerialized, Utils, GPU, Prefab, Runtime } from "@trident/core";
+import { GameObject, Geometry, IndexAttribute, VertexAttribute, Components, Mathf, SerializeField, NonSerialized, Utils, GPU, Prefab, Runtime, Assets } from "@trident/core";
 import { TerrainMaterial } from "./TerrainMaterial";
 import { LODGroup } from "../LOD/LODGroup";
 import { InstancedLODGroup } from "../LOD/InstancedLODGroup";
@@ -218,11 +218,13 @@ export class TerrainData {
         return h;
     }
 
-    public async HeightmapFromPNG(url: string, smoothHeights: boolean = true): Promise<Float32Array> {
-        const img = new Image();
-        img.src = url;
+    public async HeightmapFromTexture(texture: GPU.Texture, smoothHeights: boolean = true, heightMultiplier = 1): Promise<Float32Array> {
+        let blob: Blob;
+        if (texture.blob) blob = texture.blob;
+        else if (texture.assetPath) blob = await (await Assets.ResourceFetchFn(texture.assetPath)).blob();
+        else throw Error("Texture has no blob or assetPath — cannot read source pixels.");
 
-        await img.decode();
+        const img = await createImageBitmap(blob);
 
         if (img.width !== img.height) throw Error(`Only square images are supported, image has width=${img.width} and height=${img.height}`);
 
@@ -235,22 +237,31 @@ export class TerrainData {
 
         ctx.imageSmoothingEnabled = smoothHeights;
         ctx.save();
-        ctx.translate(verticesPerSide / 2, verticesPerSide / 2); // move origin to center
-        ctx.rotate((-90 * Math.PI) / 180); // apply rotation
+        ctx.translate(verticesPerSide / 2, verticesPerSide / 2);
+        ctx.rotate((-90 * Math.PI) / 180);
         ctx.scale(-1, 1);
-        ctx.drawImage(img, -verticesPerSide / 2, -verticesPerSide / 2, verticesPerSide, verticesPerSide); // draw centered
+        ctx.drawImage(img, -verticesPerSide / 2, -verticesPerSide / 2, verticesPerSide, verticesPerSide);
         ctx.restore();
 
         const imageData = ctx.getImageData(0, 0, verticesPerSide, verticesPerSide);
 
+
+
         let heights = new Float32Array(imageData.data.length / 4);
         for (let i = 0, j = 0; i < imageData.data.length; i += 4, j++) {
-            heights[j] = imageData.data[i] / 255;
+            heights[j] = imageData.data[i] / 255 * heightMultiplier;
         }
 
-        this.heights = smoothHeights ? this.smoothHeightsLaplacian(heights, verticesPerSide, 4, 0.6) : heights;
-        this.geometry = TerrainData.GenerateGeometryFromHeights(verticesPerSide, this.heights, this.size);
-        return heights;
+        const finalHeights = smoothHeights ? this.smoothHeightsLaplacian(heights, verticesPerSide, 4, 0.6) : heights;
+
+        if (this._heights && this._heights.length === finalHeights.length) {
+            this._heights.set(finalHeights);
+            this.ApplyHeightsToGeometry();
+        } else {
+            this.heights = finalHeights;
+        }
+
+        return finalHeights;
     }
 
     public ApplyHeightsToGeometry(): void {

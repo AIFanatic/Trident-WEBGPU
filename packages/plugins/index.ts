@@ -5,13 +5,9 @@ export * from "./GLTF/GLTFLoader";
 export { Terrain } from "./Terrain/Terrain";
 export { TerrainEditor } from "./Terrain/TerrainEditor";
 
-export * from "./SimplexNoise";
-
 export * from "./DataBackedBuffer";
 
 export * from "./ui/UIStats";
-
-export * from "./Water/WaterPlugin";
 
 export { LineRenderer } from "./LineRenderer";
 
@@ -49,11 +45,10 @@ export * from "./Impostors/";
 export * from "./ParticleSystem/ParticleSystem";
 
 
-import { Component } from "@trident/core";
-import { Water } from "./Water/WaterPlugin";
-
-
-Component.Registry.set(Water.type, Water);
+export { WaterV1 } from "./Water/WaterV1";
+export { WaterNoise } from "./Water/WaterNoise";
+export { WaterDynamic } from "./Water/WaterDynamic";
+export { WaterFFT } from "./Water/WaterFFT";
 
 export * from "./SSGI";
 export * from "./Blit";

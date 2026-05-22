@@ -1,4 +1,4 @@
-import { Components, Input, KeyCodes, Mathf, PBRMaterial, Prefab, Renderer, SerializeField, Utils } from "@trident/core";
+import { Components, Input, KeyCodes, Mathf, PBRMaterial, Prefab, Renderer, SerializeField, Utils, GPU } from "@trident/core";
 import { EditorAPI } from "@trident/editor";
 import { LineRenderer } from "@trident/plugins/LineRenderer";
 import { PhysicsRapier } from "@trident/plugins/PhysicsRapier/PhysicsRapier.js";
@@ -45,12 +45,15 @@ export class TerrainEditor extends Components.Component {
     @SerializeField public paintObjectMaxScale = 1;
     @SerializeField public paintObjectDensity = 0.5;
 
+    @SerializeField(GPU.Texture) public heightmap: GPU.Texture;
+    @SerializeField public heightmapMultiplier: number = 1;
+    @SerializeField public heightmapSmooth: boolean = true;
+
     @SerializeField(EditType) public editType: EditType = EditType.RAISE;
 
     public Start(): void {
         const terrain = this.gameObject.GetComponent(Terrain);
         const terrainCollider = this.gameObject.GetComponent(TerrainCollider);
-
         if (!terrain) throw Error("No terrain found");
         if (!terrainCollider) throw Error("No terrain collider found");
 
@@ -62,12 +65,15 @@ export class TerrainEditor extends Components.Component {
 
         this.ApplyTerrainLayers();
         this.terrain.terrainData.InitializePaintMaps();
+
+        // Ensure deserialized heights are reflected in the geometry buffer + collider
+        this.terrain.terrainData.ApplyHeightsToGeometry();
         this.UpdateTerrainCollider();
 
         EditorAPI.Events.onSceneSaved(() => {
             EditorAPI.SaveAsset(this.terrain.terrainData);
             console.log("Saved TerrainData");
-        })
+        });
     }
 
     public Update(): void {
@@ -149,6 +155,13 @@ export class TerrainEditor extends Components.Component {
         if (validLayers.length > 0) {
             this.terrain.terrainData.material.terrainLayers = validLayers;
         }
+    }
+
+    private async ApplyHeightmap(): Promise<void> {
+        if (!this.heightmap) return;
+        await this.terrain.terrainData.HeightmapFromTexture(this.heightmap, this.heightmapSmooth, this.heightmapMultiplier);
+        this.terrain.terrainData.ApplyHeightsToGeometry();
+        this.UpdateTerrainCollider();
     }
 
     private UpdateTerrainLayers(): void {
@@ -538,6 +551,23 @@ export class TerrainEditor extends Components.Component {
                     ),
                     EditorAPI.LayoutInspectorInput({ title: "Brush Size", value: this.paintRadius, min: 1, max: 64, step: 1, onChanged: value => this.paintRadius = parseFloat(value) }),
                     EditorAPI.LayoutInspectorInput({ title: "Brush Strength", value: this.paintStrength, min: 0, max: 1, step: 0.01, onChanged: value => this.paintStrength = parseFloat(value) }),
+
+                    // Heightmap
+                    h("div", Object.assign({}, this.DropEvents(GPU.Texture, (texture: GPU.Texture) => {
+                        this.heightmap = texture;
+                    }), { style: dropAreaStyle }),
+                        this.heightmap ? (this.heightmap.name || "Heightmap") : "Drop heightmap",
+                    ),
+                    h("div", { style: { padding: "5px", display: "flex", alignItems: "center", gap: "5px" } },
+                        h("input", {
+                            type: "checkbox",
+                            checked: this.heightmapSmooth,
+                            onChange: (event: Event) => { this.heightmapSmooth = (event.currentTarget as HTMLInputElement).checked; },
+                        }),
+                        "Smooth",
+                    ),
+                    EditorAPI.LayoutInspectorInput({ title: "Height Multiplier", value: this.heightmapMultiplier, min: 0, max: 10, step: 0.01, onChanged: value => this.heightmapMultiplier = parseFloat(value) }),
+                    h("button", { style: Object.assign({}, btnStyle, { width: "100%" }), onClick: () => this.ApplyHeightmap() }, "Apply Heightmap"),
                 ),
             );
         }
