@@ -28,20 +28,19 @@
             <script type="module">
                 const canvas = document.createElement("canvas");
                 document.body.appendChild(canvas);
-                            import { Runtime, GameObject, Components, Mathf, GPU, Geometry } from '@trident/core';
+                            import { PlayerRuntime, GameObject, Components, Mathf, Runtime, GPU, Geometry } from '@trident/core';
             import { OrbitControls } from '@trident/plugins/OrbitControls.js';
             import { Debugger } from '@trident/plugins/Debugger.js';
             import { SHGenerator } from '@trident/plugins/SHGenerator.js';
             import { HDRParser } from '@trident/plugins/HDRParser.js';
             import { UITextureViewer } from '@trident/plugins/ui/UIStats.js';
-            import { Environment } from '@trident/plugins/Environment/Environment.js';
             import { IBLLightingPass } from '@trident/plugins/Environment/IBLLightingPass.js';
             import { SkyboxPass } from '@trident/plugins/Environment/SkyboxPass.js';
             
             async function Application(canvas) {
-              await Runtime.Create(canvas);
-              const scene = Runtime.SceneManager.CreateScene("DefaultScene");
-              Runtime.SceneManager.SetActiveScene(scene);
+              await PlayerRuntime.Create(canvas, window.devicePixelRatio);
+              const scene = PlayerRuntime.SceneManager.CreateScene("DefaultScene");
+              PlayerRuntime.SceneManager.SetActiveScene(scene);
               const mainCameraGameObject = new GameObject();
               mainCameraGameObject.name = "MainCamera";
               const camera = mainCameraGameObject.AddComponent(Components.Camera);
@@ -51,13 +50,11 @@
               mainCameraGameObject.AddComponent(OrbitControls);
               const lightGameObject = new GameObject();
               lightGameObject.transform.LookAtV1(new Mathf.Vector3(0, 0, 0));
-              const light = lightGameObject.AddComponent(Components.PointLight);
-              light.intensity = 10;
-              light.range = 20;
+              lightGameObject.AddComponent(Components.DirectionalLight);
               const hdr = await HDRParser.Load("./assets/textures/HDR/spruit_sunrise_1k.hdr");
               const skyTexture = await HDRParser.ToCubemap(hdr);
-              const environment = new Environment(scene, skyTexture);
-              await environment.init();
+              const skyboxPass = Runtime.Renderer.RenderPipeline.AddPass(SkyboxPass, GPU.RenderPassOrder.AfterLighting);
+              skyboxPass.SetSkybox(skyTexture);
               const shgenerator = new SHGenerator();
               await shgenerator.Initialize(skyTexture.width);
               const coefficients = await shgenerator.FromCubemap(skyTexture);
@@ -151,7 +148,6 @@
               Runtime.Renderer.RenderPipeline.AddPass(IBLLightingPass, GPU.RenderPassOrder.AfterLighting);
               Runtime.Renderer.RenderPipeline.AddPass(SkyboxPass, GPU.RenderPassOrder.AfterLighting);
               Debugger.Enable();
-              Runtime.Play();
             }
             Application(document.querySelector("canvas"));
             

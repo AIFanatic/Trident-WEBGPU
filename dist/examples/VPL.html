@@ -28,7 +28,7 @@
             <script type="module">
                 const canvas = document.createElement("canvas");
                 document.body.appendChild(canvas);
-                            import { Runtime, GameObject, Mathf, Components, Geometry, PBRMaterial } from '@trident/core';
+                            import { PlayerRuntime, GameObject, Mathf, Components, Runtime, Geometry, PBRMaterial } from '@trident/core';
             import { OrbitControls } from '@trident/plugins/OrbitControls.js';
             import { PhysicsRapier } from '@trident/plugins/PhysicsRapier/PhysicsRapier.js';
             import { PhysicsDebugger } from '@trident/plugins/PhysicsRapier/PhysicsDebugger.js';
@@ -39,9 +39,9 @@
             import { Debugger } from '@trident/plugins/Debugger.js';
             
             async function Application(canvas) {
-              await Runtime.Create(canvas);
-              const scene = Runtime.SceneManager.CreateScene("DefaultScene");
-              Runtime.SceneManager.SetActiveScene(scene);
+              await PlayerRuntime.Create(canvas, window.devicePixelRatio);
+              const scene = PlayerRuntime.SceneManager.CreateScene("DefaultScene");
+              PlayerRuntime.SceneManager.SetActiveScene(scene);
               const mainCameraGameObject = new GameObject();
               mainCameraGameObject.transform.position.set(0, 6, 16);
               mainCameraGameObject.transform.LookAtV1(new Mathf.Vector3(0, 2, 0));
@@ -140,7 +140,6 @@
               const vplGen = new VPLGenerator();
               vplGen.GenerateFromLight(sourceLight, sampleColor);
               Debugger.Enable();
-              Runtime.Play();
             }
             Application(document.querySelector("canvas"));
             

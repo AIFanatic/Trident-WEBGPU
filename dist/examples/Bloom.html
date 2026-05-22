@@ -28,16 +28,16 @@
             <script type="module">
                 const canvas = document.createElement("canvas");
                 document.body.appendChild(canvas);
-                            import { Runtime, GameObject, Components, Mathf, Geometry, PBRMaterial, GPU } from '@trident/core';
+                            import { PlayerRuntime, GameObject, Components, Mathf, Geometry, PBRMaterial, Runtime, GPU } from '@trident/core';
             import { OrbitControls } from '@trident/plugins/OrbitControls.js';
             import { Bloom } from '@trident/plugins/Bloom.js';
             import { UIFolder, UIVecStat, UISliderStat } from '@trident/plugins/ui/UIStats.js';
             import { Debugger } from '@trident/plugins/Debugger.js';
             
             async function Application(canvas) {
-              await Runtime.Create(canvas);
-              const scene = Runtime.SceneManager.CreateScene("DefaultScene");
-              Runtime.SceneManager.SetActiveScene(scene);
+              await PlayerRuntime.Create(canvas);
+              const scene = PlayerRuntime.SceneManager.CreateScene("DefaultScene");
+              PlayerRuntime.SceneManager.SetActiveScene(scene);
               const mainCameraGameObject = new GameObject();
               mainCameraGameObject.transform.position.set(0, 0, 20);
               mainCameraGameObject.name = "MainCamera";
@@ -150,7 +150,6 @@
                 viewerMesh.geometry = Geometry.Plane();
                 viewerMesh.material = new PBRMaterial({ albedoMap: bloom.output, unlit: true });
               }
-              Runtime.Play();
             }
             Application(document.querySelector("canvas"));
             

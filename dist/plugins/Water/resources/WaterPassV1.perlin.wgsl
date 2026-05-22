@@ -111,62 +111,69 @@ fn wave(parameter: vec4f, position: vec2f, time: f32) -> WaveParams {
     return WaveParams(disp, tang, bin);
 }
 
+// Perlin-noise height in WORLD-XZ. Tweak the 1/1024 divisor for wavelength.
+  fn waveHeight(world_xz: vec2f, t: f32) -> f32 {
+      let base = world_xz * (1.0 / 1024.0);
+      let n =
+          textureSampleLevel(perlin, texture_sampler, base *  3.0 + vec2f( t * 0.03,  t * 0.01), 0.0).r * 0.6 +
+          textureSampleLevel(perlin, texture_sampler, base *  9.0 + vec2f(-t * 0.08,  t * 0.04), 0.0).r * 0.3 +
+          textureSampleLevel(perlin, texture_sampler, base * 21.0 + vec2f( t * 0.12, -t * 0.06), 0.0).r * 0.1;
+      return (n - 0.5) * 10.75;
+  }
 
-@vertex
-fn vertexMain(input: VertexInput) -> VertexOutput {
-    var output: VertexOutput;
+  @vertex
+  fn vertexMain(input: VertexInput) -> VertexOutput {
+      var output: VertexOutput;
 
-    let M = modelMatrix[input.instanceIdx];
-    let V = frameBuffer.viewMatrix;
-    let P = frameBuffer.projectionMatrix;
+      let M = modelMatrix[input.instanceIdx];
+      let V = frameBuffer.viewMatrix;
+      let P = frameBuffer.projectionMatrix;
 
-    let time = TIME * waveSettings.wave_speed.x;
+      let time = TIME * waveSettings.wave_speed.x;
 
-    // 1) Base position in WORLD space (transform scale included)
-    let localPos = vec4f(input.position, 1.0);
-    let worldPos0 = (M * localPos).xyz;
+      // 1) Base position in WORLD space (transform scale included).
+      let localPos  = vec4f(input.position, 1.0);
+      let worldPos0 = (M * localPos).xyz;
 
-    // 2) Waves in WORLD units (so wavelengths are stable)
-    let waveA = wave(waveSettings.wave_a, worldPos0.xz, time);
-    let waveB = wave(waveSettings.wave_b, worldPos0.xz, time);
-    let waveC = wave(waveSettings.wave_c, worldPos0.xz, time);
+      // 2) Sample height at vertex + two neighbors for finite-difference normal.
+      let eps  = 1.0;  // world units; lower = sharper, higher = smoother.
+      let h    = waveHeight(worldPos0.xz,                    time);
+      let h_dx = waveHeight(worldPos0.xz + vec2f(eps, 0.0),  time);
+      let h_dz = waveHeight(worldPos0.xz + vec2f(0.0, eps),  time);
 
-    let dispW = (waveA.displacement + waveB.displacement + waveC.displacement).xyz;
-    let tangentW = normalize(waveA.tangent + waveB.tangent + waveC.tangent);
-    let binormW  = normalize(waveA.binormal + waveB.binormal + waveC.binormal);
-    let normalW  = normalize(cross(binormW, tangentW));
+      // 3) Displace along world +Y.
+      let worldPos = worldPos0 + vec3f(0.0, h, 0.0);
 
-    // 3) Apply displacement in WORLD space
-    let worldPos = worldPos0 + dispW;
+      // 4) Orthonormal basis from gradient.
+      let tangentW = normalize(vec3f(eps, h_dx - h, 0.0));
+      let binormW  = normalize(vec3f(0.0, h_dz - h, eps));
+      let normalW  = normalize(cross(binormW, tangentW));  // ≈ +Y
 
-    // 4) Continue pipeline from WORLD
-    let viewPos = (V * vec4f(worldPos, 1.0)).xyz;
-    output.position = P * vec4f(viewPos, 1.0);
+      // 5) View → clip.
+      let viewPos     = (V * vec4f(worldPos, 1.0)).xyz;
+      output.position = P * vec4f(viewPos, 1.0);
 
-    output.VERTEX = viewPos;
-    output.worldPos = worldPos;
+      output.VERTEX   = viewPos;
+      output.worldPos = worldPos;
 
-    // Basis for your normalmap conversion (keep consistent space!)
-    output.vertex_tangent  = tangentW;
-    output.vertex_binormal = binormW;
-    output.vertex_normal   = normalW;
+      output.vertex_tangent  = tangentW;
+      output.vertex_binormal = binormW;
+      output.vertex_normal   = normalW;
 
-    // Use world XZ for sampler UV so scaling the mesh doesn't stretch normals
-    output.UV = worldPos.xz * waveSettings.sampler_scale.xy;
-    output.vUv = output.UV;
+      // World-XZ for sampler UV so mesh scaling doesn't stretch normal maps.
+      output.UV  = worldPos.xz * waveSettings.sampler_scale.xy;
+      output.vUv = output.UV;
 
-    let ndc = output.position.xyz / output.position.w;
-    output.SCREEN_UV = ndc.xy * 0.5 + 0.5;
-    output.SCREEN_UV.y = 1.0 - output.SCREEN_UV.y;
+      // Screen UV for refraction / depth lookup (Y flipped for top-left texel origin).
+      let ndc = output.position.xyz / output.position.w;
+      output.SCREEN_UV   = ndc.xy * 0.5 + 0.5;
+      output.SCREEN_UV.y = 1.0 - output.SCREEN_UV.y;
 
-    output.vertex_height = output.position.z;
+      output.vertex_height = output.position.z;
+      output.vNormal       = input.normal;
 
-    //             var modelMatrixInstance = modelMatrix[input.instanceIdx];
-    //             var modelViewMatrix = frameBuffer.viewMatrix * modelMatrixInstance;
-    // output.position = frameBuffer.projectionMatrix * modelViewMatrix * vec4(input.position, 1.0);
-
-    return output;
-}
+      return output;
+  }
 
 struct FragmentOutput {
     @location(0) albedo : vec4f,
@@ -253,8 +260,15 @@ fn fragmentMain(input: VertexOutput) -> FragmentOutput {
     // color = mix(color, vec3(1.0), foam_mix * smoothstep(0.0, 1.0, waveSettings.foam_level.x - dist));
 	
     var output: FragmentOutput;
-    output.albedo = vec4f(color, 0.05);
-    output.normal = vec4(OctEncode(ref_normalmap), 1.0, 0.1);
+    output.albedo = vec4f(color, 0.2);
+    output.normal = vec4(OctEncode(ref_normalmap), 1.0, 0.0);
     output.RMO = vec4(vec3(0.0), 0.0);
+
+
+    // var output: FragmentOutput;
+    // output.albedo = vec4f(vec3(1.0), 0.2);
+    // output.normal = vec4(OctEncode(input.vertex_normal), 1.0, 0.1);
+    // output.RMO = vec4(vec3(0.0), 0.0);
+
     return output;
 }

@@ -1,4 +1,4 @@
-import { Components, SerializeField, Prefab, Utils, Input, KeyCodes, Renderer, Mathf, PBRMaterial } from '@trident/core';
+import { Components, SerializeField, Prefab, GPU, Utils, Input, KeyCodes, Renderer, Mathf, PBRMaterial } from '@trident/core';
 import { EditorAPI } from '@trident/editor';
 import { LineRenderer } from '@trident/plugins/LineRenderer.js';
 import { PhysicsRapier } from '@trident/plugins/PhysicsRapier/PhysicsRapier.js';
@@ -40,7 +40,7 @@ var __decorateElement = (array, flags, name, decorators, target, extra) => {
   return target;
 };
 var __publicField = (obj, key, value) => __defNormalProp(obj, typeof key !== "symbol" ? key + "" : key, value);
-var _editType_dec, _paintObjectDensity_dec, _paintObjectMaxScale_dec, _paintObjectMinScale_dec, _paintTextureStrength_dec, _paintStrength_dec, _paintRadius_dec, _paintMaterialId_dec, _paintLayers_dec, _paintObjectID_dec, _paintObjects_dec, _a, _init;
+var _editType_dec, _heightmapSmooth_dec, _heightmapMultiplier_dec, _heightmap_dec, _paintObjectDensity_dec, _paintObjectMaxScale_dec, _paintObjectMinScale_dec, _paintTextureStrength_dec, _paintStrength_dec, _paintRadius_dec, _paintMaterialId_dec, _paintLayers_dec, _paintObjectID_dec, _paintObjects_dec, _a, _init;
 var EditType = /* @__PURE__ */ ((EditType2) => {
   EditType2[EditType2["RAISE"] = 0] = "RAISE";
   EditType2[EditType2["LOWER"] = 1] = "LOWER";
@@ -50,7 +50,7 @@ var EditType = /* @__PURE__ */ ((EditType2) => {
   EditType2[EditType2["ERASE_PREFAB"] = 5] = "ERASE_PREFAB";
   return EditType2;
 })(EditType || {});
-class TerrainEditor extends (_a = Components.Component, _paintObjects_dec = [SerializeField(Prefab)], _paintObjectID_dec = [SerializeField], _paintLayers_dec = [SerializeField(TerrainLayer)], _paintMaterialId_dec = [SerializeField], _paintRadius_dec = [SerializeField], _paintStrength_dec = [SerializeField], _paintTextureStrength_dec = [SerializeField], _paintObjectMinScale_dec = [SerializeField], _paintObjectMaxScale_dec = [SerializeField], _paintObjectDensity_dec = [SerializeField], _editType_dec = [SerializeField(EditType)], _a) {
+class TerrainEditor extends (_a = Components.Component, _paintObjects_dec = [SerializeField(Prefab)], _paintObjectID_dec = [SerializeField], _paintLayers_dec = [SerializeField(TerrainLayer)], _paintMaterialId_dec = [SerializeField], _paintRadius_dec = [SerializeField], _paintStrength_dec = [SerializeField], _paintTextureStrength_dec = [SerializeField], _paintObjectMinScale_dec = [SerializeField], _paintObjectMaxScale_dec = [SerializeField], _paintObjectDensity_dec = [SerializeField], _heightmap_dec = [SerializeField(GPU.Texture)], _heightmapMultiplier_dec = [SerializeField], _heightmapSmooth_dec = [SerializeField], _editType_dec = [SerializeField(EditType)], _a) {
   constructor() {
     super(...arguments);
     __publicField(this, "runInEditMode", true);
@@ -71,7 +71,10 @@ class TerrainEditor extends (_a = Components.Component, _paintObjects_dec = [Ser
     __publicField(this, "paintObjectMinScale", __runInitializers(_init, 36, this, 1)), __runInitializers(_init, 39, this);
     __publicField(this, "paintObjectMaxScale", __runInitializers(_init, 40, this, 1)), __runInitializers(_init, 43, this);
     __publicField(this, "paintObjectDensity", __runInitializers(_init, 44, this, 0.5)), __runInitializers(_init, 47, this);
-    __publicField(this, "editType", __runInitializers(_init, 48, this, 0 /* RAISE */)), __runInitializers(_init, 51, this);
+    __publicField(this, "heightmap", __runInitializers(_init, 48, this)), __runInitializers(_init, 51, this);
+    __publicField(this, "heightmapMultiplier", __runInitializers(_init, 52, this, 1)), __runInitializers(_init, 55, this);
+    __publicField(this, "heightmapSmooth", __runInitializers(_init, 56, this, true)), __runInitializers(_init, 59, this);
+    __publicField(this, "editType", __runInitializers(_init, 60, this, 0 /* RAISE */)), __runInitializers(_init, 63, this);
   }
   Start() {
     const terrain = this.gameObject.GetComponent(Terrain);
@@ -84,6 +87,7 @@ class TerrainEditor extends (_a = Components.Component, _paintObjects_dec = [Ser
     this.lineRenderer.flags |= Utils.Flags.DontSaveInEditor | Utils.Flags.HideInInspector;
     this.ApplyTerrainLayers();
     this.terrain.terrainData.InitializePaintMaps();
+    this.terrain.terrainData.ApplyHeightsToGeometry();
     this.UpdateTerrainCollider();
     EditorAPI.Events.onSceneSaved(() => {
       EditorAPI.SaveAsset(this.terrain.terrainData);
@@ -151,6 +155,12 @@ class TerrainEditor extends (_a = Components.Component, _paintObjects_dec = [Ser
     if (validLayers.length > 0) {
       this.terrain.terrainData.material.terrainLayers = validLayers;
     }
+  }
+  async ApplyHeightmap() {
+    if (!this.heightmap) return;
+    await this.terrain.terrainData.HeightmapFromTexture(this.heightmap, this.heightmapSmooth, this.heightmapMultiplier);
+    this.terrain.terrainData.ApplyHeightsToGeometry();
+    this.UpdateTerrainCollider();
   }
   UpdateTerrainLayers() {
     const signature = this.paintLayers.map((layer) => {
@@ -489,7 +499,29 @@ class TerrainEditor extends (_a = Components.Component, _paintObjects_dec = [Ser
             )
           ),
           EditorAPI.LayoutInspectorInput({ title: "Brush Size", value: this.paintRadius, min: 1, max: 64, step: 1, onChanged: (value) => this.paintRadius = parseFloat(value) }),
-          EditorAPI.LayoutInspectorInput({ title: "Brush Strength", value: this.paintStrength, min: 0, max: 1, step: 0.01, onChanged: (value) => this.paintStrength = parseFloat(value) })
+          EditorAPI.LayoutInspectorInput({ title: "Brush Strength", value: this.paintStrength, min: 0, max: 1, step: 0.01, onChanged: (value) => this.paintStrength = parseFloat(value) }),
+          // Heightmap
+          h(
+            "div",
+            Object.assign({}, this.DropEvents(GPU.Texture, (texture) => {
+              this.heightmap = texture;
+            }), { style: dropAreaStyle }),
+            this.heightmap ? this.heightmap.name || "Heightmap" : "Drop heightmap"
+          ),
+          h(
+            "div",
+            { style: { padding: "5px", display: "flex", alignItems: "center", gap: "5px" } },
+            h("input", {
+              type: "checkbox",
+              checked: this.heightmapSmooth,
+              onChange: (event) => {
+                this.heightmapSmooth = event.currentTarget.checked;
+              }
+            }),
+            "Smooth"
+          ),
+          EditorAPI.LayoutInspectorInput({ title: "Height Multiplier", value: this.heightmapMultiplier, min: 0, max: 10, step: 0.01, onChanged: (value) => this.heightmapMultiplier = parseFloat(value) }),
+          h("button", { style: Object.assign({}, btnStyle, { width: "100%" }), onClick: () => this.ApplyHeightmap() }, "Apply Heightmap")
         )
       );
     } else if (this.editType === 3 /* PAINT_TEXTURE */) {
@@ -593,6 +625,9 @@ __decorateElement(_init, 5, "paintTextureStrength", _paintTextureStrength_dec, T
 __decorateElement(_init, 5, "paintObjectMinScale", _paintObjectMinScale_dec, TerrainEditor);
 __decorateElement(_init, 5, "paintObjectMaxScale", _paintObjectMaxScale_dec, TerrainEditor);
 __decorateElement(_init, 5, "paintObjectDensity", _paintObjectDensity_dec, TerrainEditor);
+__decorateElement(_init, 5, "heightmap", _heightmap_dec, TerrainEditor);
+__decorateElement(_init, 5, "heightmapMultiplier", _heightmapMultiplier_dec, TerrainEditor);
+__decorateElement(_init, 5, "heightmapSmooth", _heightmapSmooth_dec, TerrainEditor);
 __decorateElement(_init, 5, "editType", _editType_dec, TerrainEditor);
 __decoratorMetadata(_init, TerrainEditor);
 __publicField(TerrainEditor, "type", "@trident/plugins/Terrain/TerrainEditor");

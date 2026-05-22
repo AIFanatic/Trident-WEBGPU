@@ -176,6 +176,9 @@ class Pool {
       this.free.push(id);
     }
   }
+  forEach(fn) {
+    for (const it of this.items) if (it !== void 0) fn(it);
+  }
 }
 
 var Flags = /* @__PURE__ */ ((Flags2) => {
@@ -1666,6 +1669,24 @@ class Assets {
     return promise;
   }
 }
+class AssetMeta {
+  static MetaPathFor(assetPath) {
+    return `${assetPath}.meta`;
+  }
+  static async Load(assetPath) {
+    const metaPath = this.MetaPathFor(assetPath);
+    try {
+      const res = await Assets.ResourceFetchFn(metaPath);
+      if (!res.ok) return null;
+      return await res.json();
+    } catch {
+      return null;
+    }
+  }
+  static SerializeBlob(meta) {
+    return new Blob([JSON.stringify(meta, null, 2)], { type: "application/json" });
+  }
+}
 
 var WGSL_Shader_Draw_URL = "#include \"@trident/core/resources/webgpu/shaders/deferred/Common.wgsl\";\n\nstruct VertexInput {\n    @builtin(instance_index) instance : u32, \n    @builtin(vertex_index) vertex : u32,\n    @location(0) position : vec3<f32>,\n    @location(1) normal : vec3<f32>,\n    @location(2) uv : vec2<f32>,\n\n    @location(3) tangent : vec4<f32>,\n    #if USE_SKINNING\n        @location(4) joints: vec4<u32>,\n        @location(5) weights: vec4<f32>,\n    #endif\n};\n\nstruct Material {\n    AlbedoColor: vec4<f32>,\n    EmissiveColor: vec4<f32>,\n    Roughness: f32,\n    Metalness: f32,\n    Unlit: f32,\n    AlphaCutoff: f32,\n    RepeatOffset: vec4<f32>, // xy = repeat, zw = offset\n};\n\nstruct VertexOutput {\n    @builtin(position) position : vec4<f32>,\n    @location(0) vPosition : vec3<f32>,\n    @location(1) vNormal : vec3<f32>,\n    @location(2) vUv : vec2<f32>,\n    @location(3) @interpolate(flat) instance : u32,\n    @location(4) tangent : vec3<f32>,\n    @location(5) bitangent : vec3<f32>,\n    @location(6) normal : vec3<f32>,\n};\n\n@group(0) @binding(0) var<storage, read> frameBuffer: FrameBuffer;\n@group(0) @binding(1) var<storage, read> modelMatrix: array<mat4x4<f32>>;\n@group(0) @binding(2) var<storage, read> material: Material;\n@group(0) @binding(3) var TextureSampler: sampler;\n\n// These get optimized out based on \"USE*\" defines\n@group(0) @binding(4) var AlbedoMap: texture_2d<f32>;\n@group(0) @binding(5) var NormalMap: texture_2d<f32>;\n@group(0) @binding(6) var HeightMap: texture_2d<f32>;\n@group(0) @binding(7) var ARMMap: texture_2d<f32>;\n@group(0) @binding(8) var EmissiveMap: texture_2d<f32>;\n\n\n#if USE_SKINNING\n    @group(1) @binding(0) var<storage, read> boneMatrices: array<mat4x4<f32>>;\n#endif\n\n@vertex\nfn vertexMain(input: VertexInput) -> VertexOutput {\n    var output : VertexOutput;\n\n      var finalPosition = vec4(input.position, 1.0);\n      var finalNormal = vec4(input.normal, 0.0);\n\n    #if USE_SKINNING\n        var skinnedPosition = vec4(0.0);\n        var skinnedNormal = vec4(0.0);\n\n        let skinMatrix: mat4x4<f32> = \n            boneMatrices[input.joints[0]] * input.weights[0] +\n            boneMatrices[input.joints[1]] * input.weights[1] +\n            boneMatrices[input.joints[2]] * input.weights[2] +\n            boneMatrices[input.joints[3]] * input.weights[3];\n        \n        finalPosition = skinMatrix * vec4(input.position, 1.0);\n        finalNormal   = normalize(skinMatrix * vec4(input.normal, 0.0));\n    #endif\n\n    let cameraPos = frameBuffer.viewInverseMatrix[3].xyz;\n\n    let modelMatrixInstance = modelMatrix[input.instance];\n    let modelViewMatrix = frameBuffer.viewMatrix * modelMatrixInstance;\n\n    let worldNormal = normalize(modelMatrixInstance * vec4(finalNormal.xyz, 0.0)).xyz;\n    let worldTangent = normalize(modelMatrixInstance * vec4(input.tangent.xyz, 0.0)).xyz;\n    let worldBitangent = cross(worldNormal, worldTangent) * input.tangent.w;\n\n    output.instance = input.instance;\n    output.position = frameBuffer.projectionMatrix * modelViewMatrix * vec4(finalPosition.xyz, 1.0);\n    output.vPosition = finalPosition.xyz;\n    output.vUv = input.uv;\n    \n    output.vNormal = worldNormal;\n    output.normal = finalNormal.xyz;\n    output.tangent = worldTangent;\n    output.bitangent = worldBitangent;\n\n    return output;\n}\n\nstruct FragmentOutput {\n    @location(0) albedo : vec4f,\n    @location(1) normal : vec4f,\n    @location(2) RMO : vec4f,\n};\n\nfn inversesqrt(v: f32) -> f32 {\n    return 1.0 / sqrt(v);\n}\n\nfn CalcMipLevel(texture_coord: vec2f) -> f32 {\n    let dx = dpdx(texture_coord);\n    let dy = dpdy(texture_coord);\n    let delta_max_sqr = max(dot(dx, dx), dot(dy, dy));\n    \n    return max(0.0, 0.5 * log2(delta_max_sqr));\n}\n\n@fragment\nfn fragmentMain(@builtin(front_facing) isFrontFace: bool, input: VertexOutput) -> FragmentOutput {\n    var output: FragmentOutput;\n\n\n    let mat = material;\n\n    var uv = input.vUv * mat.RepeatOffset.xy + mat.RepeatOffset.zw;\n\n    var albedo = mat.AlbedoColor;\n    var roughness = mat.Roughness;\n    var metalness = mat.Metalness;\n    var occlusion = 1.0;\n\n    // var albedo = mat.AlbedoColor;\n    albedo *= textureSample(AlbedoMap, TextureSampler, uv);\n\n\n    // https://bgolus.medium.com/anti-aliased-alpha-test-the-esoteric-alpha-to-coverage-8b177335ae4f\n    let cutoff = mat.AlphaCutoff;\n    let mipScale = 0.25;\n    let albedoMapSize = vec2<f32>(textureDimensions(AlbedoMap));\n\n    var alphaAA = albedo.a;\n    alphaAA *= 1.0 + max(0.0, CalcMipLevel(uv * albedoMapSize)) * mipScale;\n    alphaAA = (alphaAA - cutoff) / max(fwidth(alphaAA), 0.0001) + 0.5;\n\n    if (cutoff > 0.0 && alphaAA < cutoff) {\n        discard;\n    }\n\n    // if (albedo.a < mat.AlphaCutoff) {\n    //     discard;\n    // }\n\n    var normal: vec3f = normalize(input.vNormal);\n    var tbn: mat3x3<f32>;\n    tbn[0] = input.tangent;      // column-major: T, B, N\n    tbn[1] = input.bitangent;\n    tbn[2] = input.vNormal;\n    if (!isFrontFace) {\n        // tbn[0] = -tbn[0];\n        tbn[1] = -tbn[1];\n        tbn[2] = -tbn[2];\n    }\n    let normalSample = textureSample(NormalMap, TextureSampler, uv).xyz * 2.0 - 1.0;\n    normal = normalize(tbn * normalSample);\n\n    let metalnessRoughness = textureSample(ARMMap, TextureSampler, uv);\n\n    occlusion *= metalnessRoughness.r;\n    roughness *= metalnessRoughness.g;\n    metalness *= metalnessRoughness.b;\n\n    // // Unity style - Mask map MT(R) AO(G) SM(A)\n    // metalness *= metalnessRoughness.r;\n    // occlusion *= metalnessRoughness.g; \n    // roughness *= metalnessRoughness.a;\n\n\n    var emissive = mat.EmissiveColor;\n    emissive *= textureSample(EmissiveMap, TextureSampler, uv);\n\n    output.albedo = vec4(albedo.rgb, roughness);\n    output.normal = vec4(OctEncode(normal.xyz), occlusion, metalness);\n    output.RMO = vec4(emissive.rgb, mat.Unlit);\n\n\n    // // Flat shading\n    // let xTangent: vec3f = dpdx( input.vPosition );\n    // let yTangent: vec3f = dpdy( input.vPosition );\n    // let faceNormal: vec3f = normalize( cross( xTangent, yTangent ) );\n\n    // output.normal = vec4(OctEncode(faceNormal.xyz), occlusion, metalness);\n\n    return output;\n}";
 
@@ -2030,82 +2051,116 @@ class WEBGPUCubeMipsGenerator {
 class WEBGPUMipsGenerator {
   static shader;
   static geometry;
-  static sampler;
   static format;
+  static mipSource;
   static numMipLevels(...sizes) {
     return 1 + Math.log2(Math.max(...sizes)) | 0;
+  }
+  static GetMipSource(width, height, format) {
+    if (!this.mipSource || this.mipSource.width < width || this.mipSource.height < height || this.mipSource.format !== format) {
+      this.mipSource = RenderTexture.Create(width, height, 1, format, 1);
+      this.mipSource.name = "MipSource";
+    }
+    return this.mipSource;
+  }
+  static GetShader(format) {
+    if (!this.geometry) this.geometry = Geometry.Plane();
+    if (!this.shader || this.format !== format) {
+      this.format = format;
+      this.shader = new Shader({
+        code: `
+                      @group(0) @binding(0) var sourceTexture: texture_2d<f32>;
+
+                      struct VSOut {
+                          @builtin(position) position: vec4f,
+                      };
+
+                      @vertex
+                      fn vertexMain(@location(0) position: vec3f) -> VSOut {
+                          var out: VSOut;
+                          out.position = vec4f(position.xy, 0.0, 1.0);
+                          return out;
+                      }
+
+                      @fragment
+                      fn fragmentMain(input: VSOut) -> @location(0) vec4f {
+                          let srcSize = textureDimensions(sourceTexture);
+                          let dst = vec2u(input.position.xy);
+                          let src = dst * 2u;
+
+                          let maxCoord = srcSize - vec2u(1u);
+
+                          let p00 = min(src + vec2u(0u, 0u), maxCoord);
+                          let p10 = min(src + vec2u(1u, 0u), maxCoord);
+                          let p01 = min(src + vec2u(0u, 1u), maxCoord);
+                          let p11 = min(src + vec2u(1u, 1u), maxCoord);
+
+                          let c00 = textureLoad(sourceTexture, vec2i(p00), 0);
+                          let c10 = textureLoad(sourceTexture, vec2i(p10), 0);
+                          let c01 = textureLoad(sourceTexture, vec2i(p01), 0);
+                          let c11 = textureLoad(sourceTexture, vec2i(p11), 0);
+
+                          return (c00 + c10 + c01 + c11) * 0.25;
+                      }
+                  `,
+        colorOutputs: [{ format }],
+        attributes: {
+          position: { location: 0, size: 3, type: "vec3" }
+        },
+        uniforms: {
+          sourceTexture: { group: 0, binding: 0, type: "texture" }
+        }
+      });
+    }
+    return this.shader;
   }
   static generateMips(source, destination) {
     if (!Renderer.device) throw Error("WEBGPU not initialized");
     if (source.dimension !== "2d") throw Error("2D mip generator requires 2D texture");
-    if (!this.shader || this.format !== source.format) {
-      this.format = source.format;
-      this.geometry = Geometry.Plane();
-      this.sampler = new TextureSampler();
-      this.shader = new Shader({
-        code: `
-                    @group(0) @binding(0) var sourceTexture: texture_2d<f32>;
-                    @group(0) @binding(1) var sourceSampler: sampler;
-
-                    struct VSOut {
-                        @builtin(position) position: vec4f,
-                        @location(0) uv: vec2f,
-                    };
-
-                    @vertex
-                    fn vertexMain(@location(0) position: vec3f) -> VSOut {
-                        var out: VSOut;
-                        out.position = vec4f(position.xy, 0.0, 1.0);
-
-                        let uv = position.xy * 0.5 + vec2f(0.5);
-                        out.uv = vec2f(uv.x, 1.0 - uv.y);
-
-                        return out;
-                    }
-
-                    @fragment
-                    fn fragmentMain(input: VSOut) -> @location(0) vec4f {
-                        return textureSampleLevel(sourceTexture, sourceSampler, input.uv, 0.0);
-                    }
-                  `,
-        colorOutputs: [{ format: source.format }],
-        attributes: { position: { location: 0, size: 3, type: "vec3" } },
-        uniforms: {
-          sourceTexture: { group: 0, binding: 0, type: "texture" },
-          sourceSampler: { group: 0, binding: 1, type: "sampler" }
-        }
-      });
-      this.shader.SetSampler("sourceSampler", this.sampler);
-    }
     const mipLevels = this.numMipLevels(source.width, source.height);
     const target = destination ?? RenderTexture.Create(source.width, source.height, source.depth, source.format, mipLevels);
+    const shader = this.GetShader(source.format);
+    const mipSource = this.GetMipSource(source.width, source.height, source.format);
+    shader.SetTexture("sourceTexture", mipSource);
     if (!destination) {
       Renderer.BeginRenderFrame();
-      RendererContext.CopyTextureToTexture(source, target, 0, 0, [source.width, source.height, source.depth]);
+      RendererContext.CopyTextureToTextureV3(
+        { texture: source, mipLevel: 0, origin: [0, 0, 0] },
+        { texture: target, mipLevel: 0, origin: [0, 0, 0] },
+        [source.width, source.height, 1]
+      );
       Renderer.EndRenderFrame();
     }
     for (let mip = 1; mip < mipLevels; mip++) {
       const srcMip = mip - 1;
-      const width = Math.max(1, source.width >> mip);
-      const height = Math.max(1, source.height >> mip);
-      target.SetActiveMip(srcMip);
-      target.SetActiveMipCount(1);
-      this.shader.SetTexture("sourceTexture", target);
+      const srcWidth = Math.max(1, target.width >> srcMip);
+      const srcHeight = Math.max(1, target.height >> srcMip);
+      const dstWidth = Math.max(1, target.width >> mip);
+      const dstHeight = Math.max(1, target.height >> mip);
+      const isInFrame = Renderer.HasActiveFrame();
+      if (!isInFrame) Renderer.BeginRenderFrame();
+      RendererContext.CopyTextureToTextureV3(
+        { texture: target, mipLevel: srcMip, origin: [0, 0, 0] },
+        { texture: mipSource, mipLevel: 0, origin: [0, 0, 0] },
+        [srcWidth, srcHeight, 1]
+      );
       target.SetActiveMip(mip);
       target.SetActiveMipCount(1);
-      Renderer.BeginRenderFrame();
       RendererContext.BeginRenderPass(`Mip_${mip}`, [{ target, clear: true }]);
-      RendererContext.SetViewport(0, 0, width, height);
-      RendererContext.DrawGeometry(this.geometry, this.shader);
+      RendererContext.SetViewport(0, 0, dstWidth, dstHeight);
+      RendererContext.DrawGeometry(this.geometry, shader);
       RendererContext.EndRenderPass();
-      Renderer.EndRenderFrame();
+      if (!isInFrame) Renderer.EndRenderFrame();
     }
+    target.SetActiveMip(0);
+    target.SetActiveMipCount(mipLevels);
     return target.GetBuffer();
   }
 }
 
 const DefaultOptions = {
   name: "Image",
+  format: "rgba8unorm",
   flipY: false,
   generateMips: true,
   resizeWidth: void 0,
@@ -2162,10 +2217,10 @@ class Texture {
   dimension;
   mipLevels;
   get name() {
-    return this.buffer.label;
+    return this.buffer?.label ?? "";
   }
   set name(name) {
-    this.buffer.label = name;
+    if (this.buffer) this.buffer.label = name;
   }
   buffer;
   viewCache = /* @__PURE__ */ new Map();
@@ -2223,6 +2278,7 @@ class Texture {
         mipLevelCount: this.activeMipCount
       });
       this.viewCache.set(key, view);
+      Renderer.info.textureViews++;
     }
     if (Renderer.info.frame !== this.lastBandwidthFrame) {
       Renderer.info.gpuBandwidthInBytes += this.byteSize;
@@ -2234,6 +2290,7 @@ class Texture {
     const name = this.name;
     const mipLevels = WEBGPUMipsGenerator.numMipLevels(this.width, this.height, this.depth);
     const destination = this.mipLevels === mipLevels ? this : void 0;
+    const oldBuffer = this.buffer;
     if (this.dimension === "cube") {
       this.buffer = WEBGPUCubeMipsGenerator.generateMips(this, destination);
     } else {
@@ -2243,7 +2300,10 @@ class Texture {
     this.SetActiveMip(0);
     this.SetActiveMipCount(mipLevels);
     this.mipLevels = mipLevels;
-    this.viewCache.clear();
+    Renderer.info.textureViews -= this.viewCache.size;
+    if (this.buffer !== oldBuffer) {
+      this.viewCache.clear();
+    }
     this.byteSize = totalBytesForTexture(this.format, this.width, this.height, this.depth, this.mipLevels);
   }
   SetActiveLayer(layer) {
@@ -2267,11 +2327,12 @@ class Texture {
     return this.activeMipCount;
   }
   Destroy() {
+    if (!this.buffer) return;
+    const buf = this.buffer;
+    this.buffer = null;
     Renderer.info.gpuTextureSizeTotal -= this.byteSize;
     Renderer.info.gpuTextureCount--;
-    EventSystem.once(RendererEvents.FrameEnded, () => {
-      this.buffer.destroy();
-    });
+    EventSystem.once(RendererEvents.FrameEnded, () => buf.destroy());
   }
   SetData(data, bytesPerRow, rowsPerImage) {
     try {
@@ -2352,33 +2413,30 @@ class Texture {
   }
   // Format and types are very limited for now
   // https://github.com/gpuweb/gpuweb/issues/2322
-  static async FromBlob(blob, format, options) {
-    const imageBitmap = await createImageBitmap(blob, { resizeWidth: options.resizeWidth, resizeHeight: options.resizeHeight });
-    const texture = new Texture(imageBitmap.width, imageBitmap.height, 1, format, 2 /* RENDER_TARGET */, "2d", 1);
-    texture.name = options.name || "Texture";
+  static async LoadBlob(blob, options) {
+    const _options = Object.assign({}, DefaultOptions, options);
+    const imageBitmap = await createImageBitmap(blob, { resizeWidth: _options.resizeWidth, resizeHeight: _options.resizeHeight });
+    const texture = new Texture(imageBitmap.width, imageBitmap.height, 1, _options.format || Renderer.SwapChainFormat, 2 /* RENDER_TARGET */, "2d", 1);
+    texture.name = _options.name || "Texture";
     try {
       Renderer.device.queue.copyExternalImageToTexture(
-        { source: imageBitmap, flipY: options.flipY },
+        { source: imageBitmap, flipY: _options.flipY },
         { texture: texture.GetBuffer() },
         [imageBitmap.width, imageBitmap.height]
       );
     } catch (error) {
       console.warn(error);
     }
-    if (options.storeSource) texture.blob = blob;
-    if (options.generateMips) texture.GenerateMips();
+    if (_options.storeSource) texture.blob = blob;
+    if (_options.generateMips) texture.GenerateMips();
     return texture;
   }
   static Create(width, height, depth = 1, format = Renderer.SwapChainFormat, mipLevels = 1) {
     return new Texture(width, height, depth, format, 0 /* IMAGE */, "2d", mipLevels);
   }
-  static async Load(url, format = Renderer.SwapChainFormat, options) {
+  static async Load(url, options) {
     const response = await fetch(url);
-    return Texture.LoadBlob(await response.blob(), format, options);
-  }
-  static async LoadBlob(blob, format = Renderer.SwapChainFormat, options) {
-    const _options = Object.assign({}, DefaultOptions, options);
-    return Texture.FromBlob(blob, format, _options);
+    return Texture.LoadBlob(await response.blob(), options);
   }
   static async Blit(source, destination, width, height, uv_scale = new Vector2(1, 1)) {
     return WEBGPUBlit.Blit(source, destination, width, height, uv_scale);
@@ -2387,8 +2445,9 @@ class Texture {
     return WEBGPUBlit.BlitDepth(source, destination, width, height, uv_scale);
   }
   static async Deserialize(assetPath, data, bytes) {
+    const options = Object.assign({}, data, await AssetMeta.Load(assetPath));
     const buffer = bytes ?? await Assets.Load(assetPath, "binary");
-    const texture = await Texture.LoadBlob(new Blob([buffer]), data?.format, data);
+    const texture = await Texture.LoadBlob(new Blob([buffer]), options);
     texture.assetPath = assetPath;
     return texture;
   }
@@ -2694,6 +2753,7 @@ class BaseShader {
         };
         group.entries.push({ binding: uniform.binding, resource: uniform.buffer.GetBuffer().createView(view) });
         group.buffers.push(uniform.buffer);
+        Renderer.info.textureViews++;
       } else if (uniform.buffer instanceof TextureSampler) {
         group.entries.push({ binding: uniform.binding, resource: uniform.buffer.GetBuffer() });
         group.buffers.push(uniform.buffer);
@@ -4116,6 +4176,7 @@ class RendererInfo {
   frameIndexBufferStat = 0;
   compiledShadersStat = 0;
   drawCallsStat = 0;
+  textureViews = 0;
   gpuBufferSizeTotal = 0;
   gpuBufferCount = 0;
   gpuTextureSizeTotal = 0;
@@ -4381,7 +4442,6 @@ __publicField$5(Light, "type", "@trident/core/components/Light/Light");
 class SpotLight extends (_b$1 = Light, _angle_dec = [SerializeField], _range_dec = [SerializeField], _b$1) {
   constructor() {
     super(...arguments);
-    __publicField$5(this, "runInEditMode", true);
     __publicField$5(this, "direction", new Vector3(0, -1, 0));
     __publicField$5(this, "angle", __runInitializers$5(_init2$2, 8, this, 1)), __runInitializers$5(_init2$2, 11, this);
     __publicField$5(this, "range", __runInitializers$5(_init2$2, 12, this, 10)), __runInitializers$5(_init2$2, 15, this);
@@ -4399,7 +4459,6 @@ __publicField$5(SpotLight, "type", "@trident/core/components/Light/SpotLight");
 class PointLight extends (_c = Light, _range_dec2 = [SerializeField(Number)], _c) {
   constructor() {
     super(...arguments);
-    __publicField$5(this, "runInEditMode", true);
     __publicField$5(this, "range", __runInitializers$5(_init3$2, 8, this, 10)), __runInitializers$5(_init3$2, 11, this);
   }
   Start() {
@@ -4412,7 +4471,6 @@ __decorateElement$5(_init3$2, 5, "range", _range_dec2, PointLight);
 __decoratorMetadata$5(_init3$2, PointLight);
 __publicField$5(PointLight, "type", "@trident/core/components/Light/PointLight");
 class AreaLight extends Light {
-  runInEditMode = true;
   static type = "@trident/core/components/Light/AreaLight";
   Start() {
     super.Start();
@@ -4422,7 +4480,6 @@ class AreaLight extends Light {
 class DirectionalLight extends (_d = Light, _direction_dec = [SerializeField], _d) {
   constructor() {
     super(...arguments);
-    __publicField$5(this, "runInEditMode", true);
     __publicField$5(this, "direction", __runInitializers$5(_init4, 8, this, new Vector3(0, 1, 0))), __runInitializers$5(_init4, 11, this);
   }
   Start() {
@@ -4790,7 +4847,7 @@ class DeferredLightingPass extends RenderPass {
       this.gBufferDepthClone = DepthTexture.Create(GBufferDepth.width, GBufferDepth.height, GBufferDepth.depth, GBufferDepth.format);
     }
     RendererContext.CopyTextureToTextureV3({ texture: GBufferDepth }, { texture: this.gBufferDepthClone });
-    RendererContext.BeginRenderPass("DeferredLightingPass", [{ target: this.outputLightingPass, clear: false }], { target: this.gBufferDepthClone, clear: false }, true);
+    RendererContext.BeginRenderPass("DeferredLightingPass", [{ target: this.outputLightingPass, clear: true }], { target: this.gBufferDepthClone, clear: false }, true);
     for (const draw of this.drawCommands) {
       RendererContext.DrawGeometry(draw.geometry, draw.shader, draw.instanceCount, draw.firstInstance);
     }
@@ -4915,7 +4972,6 @@ __decoratorMetadata$4(_init$4, MaterialParams);
 _assetPath_dec$2 = [SerializeField], _params_dec = [SerializeField];
 const _Material = class _Material {
   constructor(params) {
-    __publicField$4(this, "name", "Material");
     __publicField$4(this, "id", UUID());
     __publicField$4(this, "assetPath", __runInitializers$4(_init2$1, 8, this)), __runInitializers$4(_init2$1, 11, this);
     __publicField$4(this, "_shader");
@@ -4929,6 +4985,14 @@ const _Material = class _Material {
     };
     this.params = Object.assign({}, defaultParams, params);
     this._shader = this.params.shader;
+  }
+  get name() {
+    if (this.assetPath && !this.assetPath.startsWith("@builtin")) {
+      const slash = this.assetPath.lastIndexOf("/");
+      const dot = this.assetPath.lastIndexOf(".");
+      return this.assetPath.slice(slash + 1, dot > slash ? dot : void 0);
+    }
+    return "Material";
   }
   get shader() {
     return this._shader;
@@ -5022,7 +5086,6 @@ __publicField$4(_PBRMaterialParams, "dummyARM");
 let PBRMaterialParams = _PBRMaterialParams;
 class PBRMaterial extends Material {
   static type = "@trident/core/renderer/Material/PBRMaterial";
-  name = "PBRMaterial";
   static sampler;
   params = new PBRMaterialParams();
   constructor(params) {
@@ -5063,18 +5126,18 @@ class PBRMaterial extends Material {
             self.pendingShaderCreation = void 0;
             self.createShader();
           } else {
-            self.assignParameters();
+            self.ReloadMaterial();
           }
           return true;
         }
       };
       this.params = new Proxy(this.params, handler);
-      this.assignParameters();
+      this.ReloadMaterial();
       return shader;
     })();
     return this.pendingShaderCreation;
   }
-  assignParameters() {
+  ReloadMaterial() {
     this.shader.SetArray("material", new Float32Array([
       this.params.albedoColor.r,
       this.params.albedoColor.g,
@@ -5890,70 +5953,32 @@ class PrepareGBuffers extends RenderPass {
     ];
     RendererContext.BeginRenderPass(`PrepareGBuffers`, colorTargets, { target: this.depthTexture, clear: true }, true);
     RendererContext.EndRenderPass();
-    const LightingPassOutput = resources.getResource(PassParams.LightingPassOutput);
-    if (!LightingPassOutput) return;
-    RendererContext.BeginRenderPass(this.name, [{ target: LightingPassOutput, clear: true }], void 0, true);
-    RendererContext.EndRenderPass();
   }
 }
 
 class ForwardPass extends RenderPass {
   name = "ForwardPass";
-  projectionMatrix;
-  viewMatrix;
-  modelMatrices;
-  async init(resources) {
-    this.projectionMatrix = new Buffer(16 * 4, BufferType.STORAGE);
-    this.viewMatrix = new Buffer(16 * 4, BufferType.STORAGE);
-    this.modelMatrices = new DynamicBufferMemoryAllocator(16 * 4 * 10);
-    this.initialized = true;
-  }
-  preFrame(resources) {
-    this.drawCommands.length = 0;
-    const mainCamera = Camera.mainCamera;
+  renderables = [];
+  async preFrame(resources) {
+    this.renderables.length = 0;
+    const FrameBuffer = resources.getResource(PassParams.FrameBuffer);
     const frameData = resources.getResource(PassParams.FrameRenderData);
     if (!frameData) return;
-    const meshes = frameData.forwardMeshes;
-    const instancedMeshes = frameData.forwardInstancedMeshes;
-    if (meshes.length === 0 && instancedMeshes.length === 0) return;
-    this.projectionMatrix.SetArray(mainCamera.projectionMatrix.elements);
-    this.viewMatrix.SetArray(mainCamera.viewMatrix.elements);
-    for (const mesh of meshes) {
-      const geometry = mesh.geometry;
-      const material = mesh.material;
-      if (!geometry || !material) continue;
-      if (!geometry.attributes.has("position")) continue;
-      if (material.params.isDeferred === true) continue;
-      if (!material.shader) continue;
-      const offset = this.modelMatrices.set(mesh.id, mesh.transform.localToWorldMatrix.elements);
-      const matrixIndex = offset / 16;
-      material.shader.SetBuffer("projectionMatrix", this.projectionMatrix);
-      material.shader.SetBuffer("viewMatrix", this.viewMatrix);
-      material.shader.SetBuffer("modelMatrix", this.modelMatrices.getBuffer());
-      this.drawCommands.push({ geometry, shader: material.shader, instanceCount: 1, firstInstance: matrixIndex });
-    }
-    for (const instancedMesh of instancedMeshes) {
-      if (instancedMesh.instanceCount === 0) continue;
-      const geometry = instancedMesh.geometry;
-      const material = instancedMesh.material;
-      if (!geometry || !material) continue;
-      if (!geometry.attributes.has("position")) continue;
-      if (material.params.isDeferred === true) continue;
-      if (!material.shader) continue;
-      material.shader.SetBuffer("projectionMatrix", this.projectionMatrix);
-      material.shader.SetBuffer("viewMatrix", this.viewMatrix);
-      material.shader.SetBuffer("modelMatrix", instancedMesh.matricesBuffer);
-      this.drawCommands.push({ geometry, shader: material.shader, instanceCount: instancedMesh.instanceCount, firstInstance: 0 });
+    for (const renderable of frameData.forwardRenderables) {
+      renderable.OnPreFrame();
+      renderable.material.shader.SetBuffer("frameBuffer", FrameBuffer);
+      this.renderables.push(renderable);
     }
   }
+  preRender(resources) {
+    for (const renderable of this.renderables) renderable.OnPreRender();
+  }
   execute(resources) {
-    if (this.drawCommands.length === 0) return;
+    if (this.renderables.length === 0) return;
     const LightingPassOutput = resources.getResource(PassParams.LightingPassOutput);
     const DepthPassOutput = resources.getResource(PassParams.GBufferDepth);
     RendererContext.BeginRenderPass(this.name, [{ target: LightingPassOutput, clear: false }], { target: DepthPassOutput, clear: false }, true);
-    for (const draw of this.drawCommands) {
-      RendererContext.DrawGeometry(draw.geometry, draw.shader, draw.instanceCount, draw.firstInstance);
-    }
+    for (const renderable of this.renderables) renderable.OnRenderObject();
     RendererContext.EndRenderPass();
   }
 }
@@ -5968,16 +5993,12 @@ class RenderablePass extends RenderPass {
     if (!frameData) return;
     for (const renderable of frameData.deferredRenderables) {
       renderable.OnPreFrame();
-      if (!renderable.material || !renderable.material.shader) continue;
       renderable.material.shader.SetBuffer("frameBuffer", FrameBuffer);
       this.renderables.push(renderable);
     }
   }
   preRender(resources) {
-    for (const renderable of this.renderables) {
-      if (!renderable.gameObject.enabled) continue;
-      renderable.OnPreRender();
-    }
+    for (const renderable of this.renderables) renderable.OnPreRender();
   }
   execute(resources) {
     if (this.renderables.length === 0) return;
@@ -5998,10 +6019,7 @@ class RenderablePass extends RenderPass {
       { target: inputGBufferDepth, clear: false },
       true
     );
-    for (const renderable of this.renderables) {
-      if (!renderable.gameObject.enabled) continue;
-      renderable.OnRenderObject();
-    }
+    for (const renderable of this.renderables) renderable.OnRenderObject();
     resources.setResource(PassParams.GBufferDepth, inputGBufferDepth);
     resources.setResource(PassParams.GBufferAlbedo, inputGBufferAlbedo);
     resources.setResource(PassParams.GBufferNormal, inputGBufferNormal);
@@ -6242,43 +6260,6 @@ class BasePass extends RenderPass {
   }
 }
 
-class InstancedMesh extends Renderable {
-  static DefaultCapacity = 1e3;
-  matrices = new DynamicBufferMemoryAllocator(16, InstancedMesh.DefaultCapacity * 16);
-  _instanceCount = 0;
-  get instanceCount() {
-    return this._instanceCount;
-  }
-  get matricesBuffer() {
-    return this.matrices.getBuffer();
-  }
-  ResetInstances() {
-    this._instanceCount = 0;
-  }
-  SetMatrixAt(index, matrix) {
-    this.matrices.set(index, matrix.elements);
-    this._instanceCount = Math.max(this._instanceCount, index + 1);
-  }
-  SetMatricesBulk(matrices) {
-    this.matrices.set(0, matrices);
-    this._instanceCount = matrices.length / 16;
-  }
-  OnPreRender() {
-    if (!this.geometry || !this.material || !this.material?.shader || this._instanceCount === 0) return;
-    this.material.shader.SetBuffer("modelMatrix", this.matricesBuffer);
-  }
-  OnRenderObject(shaderOverride) {
-    const shader = shaderOverride ? shaderOverride : this.material?.shader;
-    if (!this.geometry || !this.material || !shader || this._instanceCount === 0) return;
-    shader.SetBuffer("modelMatrix", this.matricesBuffer);
-    RendererContext.DrawGeometry(this.geometry, shader, this._instanceCount);
-  }
-  Destroy() {
-    super.Destroy();
-    this.matricesBuffer.Destroy();
-  }
-}
-
 const isInstancedRenderable = (renderable) => {
   return renderable.matricesBuffer !== void 0 && renderable.instanceCount !== void 0;
 };
@@ -6293,8 +6274,7 @@ class SceneExtractPass extends RenderPass {
     const scene = camera.gameObject.scene;
     const lights = scene.GetComponents(Light).filter((light) => light.enabled && light.gameObject.enabled);
     const deferredRenderables = [];
-    const forwardMeshes = [];
-    const forwardInstancedMeshes = [];
+    const forwardRenderables = [];
     const shadowCasters = [];
     const shadowInstancedMeshes = [];
     for (const [, renderable] of Renderable.Renderables) {
@@ -6302,13 +6282,7 @@ class SceneExtractPass extends RenderPass {
       if (!renderable.geometry || !renderable.geometry.attributes?.has("position")) continue;
       if (!renderable.material || !renderable.material.shader) continue;
       if (renderable.material.params.isDeferred === true) deferredRenderables.push(renderable);
-      else {
-        if (renderable instanceof InstancedMesh) {
-          if (renderable.instanceCount > 0) forwardInstancedMeshes.push(renderable);
-        } else if (renderable instanceof Mesh) {
-          forwardMeshes.push(renderable);
-        }
-      }
+      else forwardRenderables.push(renderable);
       if (renderable.enableShadows) {
         if (isInstancedRenderable(renderable)) {
           if (renderable.instanceCount > 0) shadowInstancedMeshes.push(renderable);
@@ -6319,8 +6293,7 @@ class SceneExtractPass extends RenderPass {
     }
     const frameData = {
       deferredRenderables,
-      forwardMeshes,
-      forwardInstancedMeshes,
+      forwardRenderables,
       shadowCasters,
       shadowInstancedMeshes,
       lights
@@ -6385,10 +6358,10 @@ class RenderingPipeline {
     this.beforeLightingPasses = [];
     this.afterLightingPasses = [
       new BasePass(),
-      new DeferredLightingPass(),
-      new ForwardPass()
+      new DeferredLightingPass()
     ];
     this.beforeScreenOutputPasses = [
+      new ForwardPass(),
       new PostExposureTonemap()
     ];
     this.afterScreenOutputPasses = [
@@ -6874,6 +6847,7 @@ var index$1 = /*#__PURE__*/Object.freeze({
     DynamicBufferMemoryAllocator: DynamicBufferMemoryAllocator,
     DynamicBufferMemoryAllocatorDynamic: DynamicBufferMemoryAllocatorDynamic,
     Material: Material,
+    MaterialPool: MaterialPool,
     MemoryAllocator: MemoryAllocator,
     PassParams: PassParams,
     RenderPass: RenderPass,
@@ -7070,6 +7044,43 @@ class GameObject {
     this.allComponents.length = 0;
     this.componentsByCtor.clear();
     this.scene.RemoveGameObject(this);
+  }
+}
+
+class InstancedMesh extends Renderable {
+  static DefaultCapacity = 1e3;
+  matrices = new DynamicBufferMemoryAllocator(16, InstancedMesh.DefaultCapacity * 16);
+  _instanceCount = 0;
+  get instanceCount() {
+    return this._instanceCount;
+  }
+  get matricesBuffer() {
+    return this.matrices.getBuffer();
+  }
+  ResetInstances() {
+    this._instanceCount = 0;
+  }
+  SetMatrixAt(index, matrix) {
+    this.matrices.set(index, matrix.elements);
+    this._instanceCount = Math.max(this._instanceCount, index + 1);
+  }
+  SetMatricesBulk(matrices) {
+    this.matrices.set(0, matrices);
+    this._instanceCount = matrices.length / 16;
+  }
+  OnPreRender() {
+    if (!this.geometry || !this.material || !this.material?.shader || this._instanceCount === 0) return;
+    this.material.shader.SetBuffer("modelMatrix", this.matricesBuffer);
+  }
+  OnRenderObject(shaderOverride) {
+    const shader = shaderOverride ? shaderOverride : this.material?.shader;
+    if (!this.geometry || !this.material || !shader || this._instanceCount === 0) return;
+    shader.SetBuffer("modelMatrix", this.matricesBuffer);
+    RendererContext.DrawGeometry(this.geometry, shader, this._instanceCount);
+  }
+  Destroy() {
+    super.Destroy();
+    this.matricesBuffer.Destroy();
   }
 }
 
@@ -7791,4 +7802,4 @@ class Serializer {
   }
 }
 
-export { Assets, Component, index as Components, Console, Deserializer, EventSystem, EventSystemLocal, index$1 as GPU, GameObject, Geometry, GetSerializedFields, IndexAttribute, Input, InterleavedVertexAttribute, KeyCodes, index$2 as Mathf, MouseCodes, NonSerialized, PBRMaterial, PlayerRuntime, Prefab, Renderer, Runtime, Scene, SceneExecutionMode, SceneManager, SerializeField, Serializer, System, Texture, index$3 as Utils, VertexAttribute };
+export { AssetMeta, Assets, Component, index as Components, Console, Deserializer, EventSystem, EventSystemLocal, index$1 as GPU, GameObject, Geometry, GetSerializedFields, IndexAttribute, Input, InterleavedVertexAttribute, KeyCodes, index$2 as Mathf, MouseCodes, NonSerialized, PBRMaterial, PlayerRuntime, Prefab, Renderer, Runtime, Scene, SceneExecutionMode, SceneManager, SerializeField, Serializer, System, Texture, index$3 as Utils, VertexAttribute };

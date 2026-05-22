@@ -28,7 +28,7 @@
             <script type="module">
                 const canvas = document.createElement("canvas");
                 document.body.appendChild(canvas);
-                            import { GPU, Geometry, Components, Mathf, Runtime, GameObject } from '@trident/core';
+                            import { GPU, Geometry, Components, Mathf, PlayerRuntime, GameObject, Runtime } from '@trident/core';
             import { OrbitControls } from '@trident/plugins/OrbitControls.js';
             import { Debugger } from '@trident/plugins/Debugger.js';
             import { UIFolder, UIVecStat, UISliderStat } from '@trident/plugins/ui/UIStats.js';
@@ -337,9 +337,9 @@
               }
             }
             async function Application(canvas) {
-              await Runtime.Create(canvas);
-              const scene = Runtime.SceneManager.CreateScene("DefaultScene");
-              Runtime.SceneManager.SetActiveScene(scene);
+              await PlayerRuntime.Create(canvas, window.devicePixelRatio);
+              const scene = PlayerRuntime.SceneManager.CreateScene("DefaultScene");
+              PlayerRuntime.SceneManager.SetActiveScene(scene);
               const cameraGameObject = new GameObject();
               cameraGameObject.name = "MainCamera";
               cameraGameObject.transform.position.set(0, 0, 12);
@@ -370,7 +370,6 @@
               await GLTFLoader.Load("./assets/models/cornell.glb", scene);
               Runtime.Renderer.RenderPipeline.AddPass(new SSHGIRenderPass(light), GPU.RenderPassOrder.AfterLighting);
               Debugger.Enable();
-              Runtime.Play();
             }
             Application(document.querySelector("canvas"));
             

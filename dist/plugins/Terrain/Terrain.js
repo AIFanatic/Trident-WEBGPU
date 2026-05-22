@@ -1,4 +1,4 @@
-import { SerializeField, Prefab, Components, Mathf, Utils, GPU, Geometry, VertexAttribute, IndexAttribute, NonSerialized } from '@trident/core';
+import { SerializeField, Prefab, Components, Mathf, Utils, GPU, Geometry, VertexAttribute, IndexAttribute, Assets, NonSerialized } from '@trident/core';
 import { TerrainMaterial } from './TerrainMaterial.js';
 import { LODGroup } from '../LOD/LODGroup.js';
 import { InstancedLODGroup } from '../LOD/InstancedLODGroup.js';
@@ -244,10 +244,12 @@ const _TerrainData = class _TerrainData {
     }
     return h;
   }
-  async HeightmapFromPNG(url, smoothHeights = true) {
-    const img = new Image();
-    img.src = url;
-    await img.decode();
+  async HeightmapFromTexture(texture, smoothHeights = true, heightMultiplier = 1) {
+    let blob;
+    if (texture.blob) blob = texture.blob;
+    else if (texture.assetPath) blob = await (await Assets.ResourceFetchFn(texture.assetPath)).blob();
+    else throw Error("Texture has no blob or assetPath \u2014 cannot read source pixels.");
+    const img = await createImageBitmap(blob);
     if (img.width !== img.height) throw Error(`Only square images are supported, image has width=${img.width} and height=${img.height}`);
     const verticesPerSide = this.resolution + 1;
     const canvas = document.createElement("canvas");
@@ -264,11 +266,16 @@ const _TerrainData = class _TerrainData {
     const imageData = ctx.getImageData(0, 0, verticesPerSide, verticesPerSide);
     let heights = new Float32Array(imageData.data.length / 4);
     for (let i = 0, j = 0; i < imageData.data.length; i += 4, j++) {
-      heights[j] = imageData.data[i] / 255;
+      heights[j] = imageData.data[i] / 255 * heightMultiplier;
     }
-    this.heights = smoothHeights ? this.smoothHeightsLaplacian(heights, verticesPerSide, 4, 0.6) : heights;
-    this.geometry = _TerrainData.GenerateGeometryFromHeights(verticesPerSide, this.heights, this.size);
-    return heights;
+    const finalHeights = smoothHeights ? this.smoothHeightsLaplacian(heights, verticesPerSide, 4, 0.6) : heights;
+    if (this._heights && this._heights.length === finalHeights.length) {
+      this._heights.set(finalHeights);
+      this.ApplyHeightsToGeometry();
+    } else {
+      this.heights = finalHeights;
+    }
+    return finalHeights;
   }
   ApplyHeightsToGeometry() {
     const geometry = this.GetGeometry();

@@ -28,7 +28,7 @@
             <script type="module">
                 const canvas = document.createElement("canvas");
                 document.body.appendChild(canvas);
-                            import { Runtime, GameObject, Components, Mathf, GPU, PBRMaterial } from '@trident/core';
+                            import { PlayerRuntime, GameObject, Components, Mathf, Runtime, GPU, PBRMaterial } from '@trident/core';
             import { OrbitControls } from '@trident/plugins/OrbitControls.js';
             import { OBJLoaderIndexed } from '@trident/plugins/OBJLoader.js';
             import { MeshletMesh } from '@trident/plugins/meshlets/MeshletMesh.js';
@@ -37,9 +37,9 @@
             import { Environment } from '@trident/plugins/Environment/Environment.js';
             
             async function Application(canvas) {
-              await Runtime.Create(canvas);
-              const scene = Runtime.SceneManager.CreateScene("DefaultScene");
-              Runtime.SceneManager.SetActiveScene(scene);
+              await PlayerRuntime.Create(canvas, window.devicePixelRatio);
+              const scene = PlayerRuntime.SceneManager.CreateScene("DefaultScene");
+              PlayerRuntime.SceneManager.SetActiveScene(scene);
               const mainCameraGameObject = new GameObject();
               mainCameraGameObject.transform.position.set(0, 0, -15);
               mainCameraGameObject.name = "MainCamera";
@@ -85,7 +85,6 @@
               const skyTexture = await HDRParser.ToCubemap(hdr);
               const environment = new Environment(scene, skyTexture);
               await environment.init();
-              Runtime.Play();
             }
             Application(document.querySelector("canvas"));
             

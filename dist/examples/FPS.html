@@ -71,7 +71,7 @@
               const terrainGameObject = new GameObject();
               const terrain = terrainGameObject.AddComponent(Terrain);
               terrain.terrainData.size.set(4e3, 1e3, 4e3);
-              await terrain.terrainData.HeightmapFromPNG("/extra/test-assets/terrain/heightmaps/elevation_1024x1024.png", true, 0.25);
+              await terrain.terrainData.HeightmapFromTexture(await GPU.Texture.Load("/extra/test-assets/terrain/heightmaps/elevation_1024x1024.png", { format: "rgba8unorm", storeSource: true }), true, 0.25);
               async function LoadTerrainTextures(urls) {
                 let textures = [];
                 for (const url of urls) {
@@ -82,7 +82,7 @@
                 return textures;
               }
               async function LoadTexture(url, format = "rgba8unorm-srgb") {
-                const texture = await GPU.Texture.Load(url, format, { generateMips: true });
+                const texture = await GPU.Texture.Load(url, { format, generateMips: true });
                 return texture;
               }
               const biomeMaterialIdMap = await GPU.Texture.Load("/extra/test-assets/terrain/heightmaps/biomeids_1024x1024.png");
@@ -334,6 +334,7 @@
                   if (name.includes("swamp")) continue;
                   if (name.includes("tundra")) continue;
                   if (name.includes("snow")) continue;
+                  if (!name.includes("american_beech_a.glb")) continue;
                   console.log("Loading", name);
                   addLOD("/extra/test-assets/nature/treessource/" + name, { count: 1e3, enableShadows: false });
                 }

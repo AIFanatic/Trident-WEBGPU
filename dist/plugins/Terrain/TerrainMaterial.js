@@ -266,7 +266,6 @@ class TerrainMaterial extends (_a = GPU.Material, _terrainLayers_dec = [Serializ
                     let uv_layer = uv * 1 / layer.transform.xy + layer.transform.zw;
                     let layerAlbedo = textureSample(albedoTextures, textureSampler, uv_layer, u32(layer.textureIndices.x));
                     let albedo = layerAlbedo.rgb * layer.albedoColor.rgb;
-                    // let layerNormal = textureSample(normalTextures, textureSampler, uv_layer, layer_index);
                     let layerNormalSample = textureSample(normalTextures, textureSampler, uv_layer, u32(layer.textureIndices.y));
                     let layerNormal = layerNormalSample.xyz * 2.0 - 1.0;
                     let layerArm = textureSample(armTextures, textureSampler, uv_layer, u32(layer.textureIndices.z));
@@ -334,11 +333,7 @@ class TerrainMaterial extends (_a = GPU.Material, _terrainLayers_dec = [Serializ
       const whiteTextureArray = this.CreateSolidTextureArray([255, 255, 255, 255]);
       const flatNormalTextureArray = this.CreateSolidTextureArray([128, 128, 255, 255]);
       const defaultArmTextureArray = this.CreateSolidTextureArray([255, 255, 0, 255]);
-      const uvGridTexture = await GPU.Texture.Load(
-        new URL(uv_grid_url, import.meta.url),
-        "rgba8unorm-srgb",
-        { generateMips: true }
-      );
+      const uvGridTexture = await GPU.Texture.Load(new URL(uv_grid_url, import.meta.url), { format: "rgba8unorm-srgb", generateMips: true });
       shader.SetSampler("textureSampler", new GPU.TextureSampler());
       shader.SetTexture("albedoTextures", this.CreateTextureArray([uvGridTexture]));
       shader.SetTexture("normalTextures", flatNormalTextureArray);

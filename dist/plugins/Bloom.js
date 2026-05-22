@@ -22,9 +22,6 @@ class Bloom extends GPU.RenderPass {
             @group(0) @binding(0) var tex: texture_2d<f32>;
             @group(0) @binding(2) var texSampler: sampler;
 
-            @group(0) @binding(3) var<storage, read> threshold: f32;
-            @group(0) @binding(4) var<storage, read> knee: f32;
-
             struct VertexInput {
                 @location(0) position : vec3<f32>,
                 @location(1) normal : vec3<f32>,
@@ -150,25 +147,7 @@ class Bloom extends GPU.RenderPass {
             `,
       colorOutputs: [
         { format: "rgba16float" }
-      ],
-      attributes: {
-        position: { location: 0, size: 3, type: "vec3" },
-        normal: { location: 1, size: 3, type: "vec3" },
-        uv: { location: 2, size: 2, type: "vec2" }
-      },
-      uniforms: {
-        tex: { group: 0, binding: 0, type: "texture" },
-        texSampler: { group: 0, binding: 2, type: "sampler" },
-        threshold: { group: 0, binding: 3, type: "storage" },
-        knee: { group: 0, binding: 4, type: "storage" },
-        _MainTex: { group: 1, binding: 0, type: "texture" },
-        _MainTexSampler: { group: 1, binding: 1, type: "sampler" },
-        _MainTex_TexelSize: { group: 1, binding: 2, type: "storage" },
-        _BlendTarget: { group: 1, binding: 3, type: "texture" },
-        _BlendTargetSampler: { group: 1, binding: 4, type: "sampler" },
-        params: { group: 1, binding: 5, type: "storage" },
-        _pass: { group: 1, binding: 6, type: "storage" }
-      }
+      ]
     });
     this.shader.SetSampler("texSampler", new GPU.TextureSampler());
     this.shader.SetSampler("_MainTexSampler", new GPU.TextureSampler());

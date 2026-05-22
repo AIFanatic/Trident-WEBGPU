@@ -1,4 +1,5 @@
 #include "@trident/core/resources/webgpu/shaders/deferred/Common.wgsl";
+#include "@trident/plugins/Water/resources/WaterRenderV2.wgsl"
 
 struct VertexInput {
     @builtin(instance_index) instanceIdx : u32, 
@@ -32,29 +33,6 @@ struct VertexOutput {
 
 @group(0) @binding(4) var<storage, read> TIME: f32;
 
-struct WaveSettings {
-    wave_speed: vec4<f32>,
-    wave_a: vec4<f32>,
-    wave_b: vec4<f32>,
-    wave_c: vec4<f32>,
-
-    sampler_scale: vec4<f32>,
-    sampler_direction: vec4<f32>,
-
-    uv_sampler_scale: vec4<f32>,
-    uv_sampler_strength: vec4<f32>,
-
-    foam_level: vec4<f32>,
-    
-    refraction: vec4<f32>,
-
-    color_deep: vec4<f32>,
-    color_shallow: vec4<f32>,
-
-    beers_law: vec4<f32>,
-    depth_offset: vec4<f32>,
-};
-
 
 
 @group(1) @binding(0) var uv_sampler: texture_2d<f32>; // UV motion sampler for shifting the normalmap
@@ -66,9 +44,8 @@ struct WaveSettings {
 @group(1) @binding(6) var DEPTH_TEXTURE: texture_depth_2d;
 @group(1) @binding(7) var texture_sampler: sampler;
 @group(1) @binding(8) var depth_texture_sampler: sampler_comparison;
-@group(1) @binding(9) var<storage, read> waveSettings: WaveSettings;
 
-@group(1) @binding(10) var perlin: texture_2d<f32>;
+@group(1) @binding(9) var perlin: texture_2d<f32>;
 
 // Wave function:
 struct WaveParams {
@@ -110,6 +87,7 @@ fn wave(parameter: vec4f, position: vec2f, time: f32) -> WaveParams {
 
     return WaveParams(disp, tang, bin);
 }
+
 
 
 @vertex
@@ -185,76 +163,12 @@ fn fragmentMain(input: VertexOutput) -> FragmentOutput {
     let vertex_tangent = input.vertex_tangent;
     let vertex_binormal = input.vertex_binormal;
     let vertex_normal = input.vertex_normal;
-    let vertex_height = input.vertex_height;
 
-	// Calculation of the UV with the UV motion sampler
-	let	uv_offset: vec2f 					 = waveSettings.sampler_direction.xy * TIME;
-	let 	uv_sampler_uv: vec2f 				 = UV * waveSettings.uv_sampler_scale.xy + uv_offset;
-	let	uv_sampler_uv_offset: vec2f 		 = waveSettings.uv_sampler_strength.xy * textureSample(uv_sampler, texture_sampler, uv_sampler_uv).rg * 2.0 - 1.0;
-	let 	uv: vec2f 							 = UV + uv_sampler_uv_offset;
-	
-	// Normalmap:
-	var normalmap					 = textureSample(normalmap_a_sampler, texture_sampler, uv - uv_offset*2.0).rgb * 0.75;		// 75 % sampler A
-			normalmap 					+= textureSample(normalmap_b_sampler, texture_sampler, uv + uv_offset).rgb * 0.25;			// 25 % sampler B
-	
-	// Refraction UV:
-	var	ref_normalmap				 = normalmap * 2.0 - 1.0;
-			ref_normalmap				 = normalize(vertex_tangent*ref_normalmap.x + vertex_binormal*ref_normalmap.y + vertex_normal*ref_normalmap.z);
+    let water = WaterRender(TIME, UV, SCREEN_UV, VERTEX, vertex_tangent, vertex_binormal, vertex_normal, input.worldPos);
 
-	let 	ref_uv						 = SCREEN_UV + (ref_normalmap.xy * waveSettings.refraction.x) / -VERTEX.z;
-    let ref_uv_clamped = clamp(ref_uv, vec2f(0.001), vec2f(0.999));
-
-	
-	// Ground depth:
-    let dims = textureDimensions(DEPTH_TEXTURE, 0); // vec2u
-	let 	depth_raw					 = textureLoad(DEPTH_TEXTURE, vec2<i32>(vec2<f32>(dims) * SCREEN_UV), 0);
-
-    let ndc_xy = vec2(SCREEN_UV.x, 1.0 - SCREEN_UV.y) * 2.0 - 1.0;
-	let 	depth_view					 = frameBuffer.projectionInverseMatrix * vec4(ndc_xy, depth_raw, 1.0);
-	let 	dist						 = distance(VERTEX, depth_view.xyz / depth_view.w);
-	
-	var 	depth_blend 				 = exp((dist + waveSettings.depth_offset.x) * -waveSettings.beers_law.x);
-			depth_blend 				 = clamp(1.0 - depth_blend, 0.0, 1.0);
-	let	depth_blend_pow				 = clamp(pow(depth_blend, 2.5), 0.0, 1.0);
-
-	// Ground color:
-    let screen_color = textureSampleLevel(SCREEN_TEXTURE, texture_sampler, ref_uv_clamped, depth_blend_pow * 2.5).rgb;
-	
-	let 	dye_color 					 = mix(waveSettings.color_deep.rgb, waveSettings.color_shallow.rgb, depth_blend_pow);
-	var	color 						 = mix(screen_color*dye_color, dye_color*0.25, depth_blend_pow*0.5);
-	
-
-
-    // let caustic_uv_screen = ref_uv_clamped;
-
-    // let caustic_depth_raw = textureLoad( DEPTH_TEXTURE, vec2<i32>(clamp(vec2<f32>(dims) * caustic_uv_screen, vec2f(0.0), vec2f(dims) - vec2f(1.0))), 0);
-
-    // let inv_mvp = frameBuffer.viewInverseMatrix * frameBuffer.projectionInverseMatrix;
-
-    // let caustic_screenPos = vec4f( caustic_uv_screen.x * 2.0 - 1.0, (1.0 - caustic_uv_screen.y) * 2.0 - 1.0, caustic_depth_raw, 1.0);
-
-    // var caustic_worldPos = inv_mvp * caustic_screenPos;
-    // caustic_worldPos = vec4f(caustic_worldPos.xyz / caustic_worldPos.w, caustic_worldPos.w);
-
-    // let caustic_Uv = caustic_worldPos.xz / vec2f(1024.0) + 0.5;
-    // let caustic_color = textureSampleLevel(caustic_sampler, texture_sampler, caustic_Uv * 300.0, 0.0);
-
-    // let caustic_depth = distance(caustic_worldPos.xyz, input.worldPos);
-    // let caustic_fade = 1.0 - smoothstep(0.5, 8.0, caustic_depth);
-
-    // color *= 1.0 + pow(caustic_color.r, 1.5) * caustic_fade * (1.0 - depth_blend) * 6.0;
-
-
-
-	// let foam_depth = (1.0 - min(1.0, dist / 3.0));
-    // let foam_noise = clamp(pow(textureSample(foam_sampler, texture_sampler, (uv*4.0) - uv_offset).r, 10.0)*40.0, 0.0, 0.2);
-    // let foam_mix = clamp(pow(foam_depth + foam_noise, 8.0) * foam_noise * 0.4, 0.0, 1.0);
-
-    // color = mix(color, vec3(1.0), foam_mix * smoothstep(0.0, 1.0, waveSettings.foam_level.x - dist));
-	
     var output: FragmentOutput;
-    output.albedo = vec4f(color, 0.05);
-    output.normal = vec4(OctEncode(ref_normalmap), 1.0, 0.1);
+    output.albedo = vec4f(water.color, 0.2);
+    output.normal = vec4(OctEncode(water.normal), 1.0, 0.1);
     output.RMO = vec4(vec3(0.0), 0.0);
     return output;
 }

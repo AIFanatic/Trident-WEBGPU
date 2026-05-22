@@ -28,39 +28,56 @@
             <script type="module">
                 const canvas = document.createElement("canvas");
                 document.body.appendChild(canvas);
-                            import { Runtime, GameObject, Components, Mathf, Geometry, PBRMaterial } from '@trident/core';
+                            import { PlayerRuntime, GameObject, Components, Mathf, Runtime, GPU, Geometry, PBRMaterial } from '@trident/core';
             import { OrbitControls } from '@trident/plugins/OrbitControls.js';
             import { Terrain } from '@trident/plugins/Terrain/Terrain.js';
             import { Debugger } from '@trident/plugins/Debugger.js';
+            import { Sky } from '@trident/plugins/Environment/Sky.js';
+            import { IBLLightingPass } from '@trident/plugins/Environment/IBLLightingPass.js';
+            import { SkyboxPass } from '@trident/plugins/Environment/SkyboxPass.js';
+            import { WaterNoise } from '@trident/plugins/Water/WaterNoise.js';
+            import { UIFolder, UISliderStat } from '@trident/plugins/ui/UIStats.js';
             
             async function Application(canvas) {
-              await Runtime.Create(canvas);
-              const scene = Runtime.SceneManager.CreateScene("DefaultScene");
-              Runtime.SceneManager.SetActiveScene(scene);
+              await PlayerRuntime.Create(canvas);
+              const scene = PlayerRuntime.SceneManager.CreateScene("DefaultScene");
+              PlayerRuntime.SceneManager.SetActiveScene(scene);
               const mainCameraGameObject = new GameObject();
               mainCameraGameObject.transform.position.set(0, 0, -15);
               mainCameraGameObject.name = "MainCamera";
               const camera = mainCameraGameObject.AddComponent(Components.Camera);
-              camera.SetPerspective(72, canvas.width / canvas.height, 0.5, 1e6);
+              camera.SetPerspective(72, canvas.width / canvas.height, 0.5, 1e3);
               mainCameraGameObject.transform.position.set(0, 0, 20);
               mainCameraGameObject.transform.LookAtV1(new Mathf.Vector3(0, 0, 0));
-              new OrbitControls(canvas, camera);
+              mainCameraGameObject.AddComponent(OrbitControls);
               const lightGameObject = new GameObject();
               lightGameObject.transform.position.set(-4, 4, -4);
               lightGameObject.transform.LookAtV1(new Mathf.Vector3(0, 0, 0));
               lightGameObject.AddComponent(Components.DirectionalLight);
+              const skyAtmosphere = new Sky();
+              await skyAtmosphere.init();
+              const skycubemap = skyAtmosphere.skyTextureCubemap;
+              const iblLightingPass = Runtime.Renderer.RenderPipeline.AddPass(IBLLightingPass, GPU.RenderPassOrder.AfterLighting);
+              const skyboxPass = Runtime.Renderer.RenderPipeline.AddPass(SkyboxPass, GPU.RenderPassOrder.AfterLighting);
+              iblLightingPass.SetEnvironment(skycubemap);
+              skyboxPass.SetSkybox(skycubemap);
               const terrainGameObject = new GameObject();
-              terrainGameObject.AddComponent(Terrain);
-              {
-                const sphereGameObject = new GameObject();
-                sphereGameObject.transform.scale.set(1e3, 1, 1);
-                const sphereMesh = sphereGameObject.AddComponent(Components.Mesh);
-                sphereMesh.geometry = Geometry.Cube();
-                const mat = new PBRMaterial({ albedoColor: new Mathf.Color(1, 1, 1), metalness: 0, roughness: 1 });
-                sphereMesh.material = mat;
-              }
+              const terrain = terrainGameObject.AddComponent(Terrain);
+              terrain.terrainData.HeightmapFromTexture(await GPU.Texture.Load("/extra/test-assets/terrain/bora-bora.png", { format: "rgba8unorm", storeSource: true }), true, 0.2);
+              const waterGameObject = new GameObject();
+              waterGameObject.transform.eulerAngles.x = -90;
+              waterGameObject.transform.position.y = 20;
+              waterGameObject.transform.scale.set(1024, 1024, 1);
+              const water = waterGameObject.AddComponent(WaterNoise);
+              const waterSettingsFolder = new UIFolder(Debugger.ui, "Water");
+              new UISliderStat(waterSettingsFolder, "Beers law:", -2, 20, 0.01, water.settings.get("beers_law")[0], (value) => water.settings.set("beers_law", [value, 0, 0, 0]));
+              new UISliderStat(waterSettingsFolder, "Depth offset:", -10, 0, 0.01, water.settings.get("depth_offset")[0], (value) => water.settings.set("depth_offset", [value, 0, 0, 0]));
+              const sphereGameObject = new GameObject();
+              sphereGameObject.transform.position.set(0, 30, 0);
+              const sphereMesh = sphereGameObject.AddComponent(Components.Mesh);
+              sphereMesh.geometry = Geometry.Cube();
+              sphereMesh.material = new PBRMaterial();
               Debugger.Enable();
-              Runtime.Play();
             }
             Application(document.querySelector("canvas"));
             

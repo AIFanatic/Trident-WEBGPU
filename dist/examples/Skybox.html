@@ -28,7 +28,7 @@
             <script type="module">
                 const canvas = document.createElement("canvas");
                 document.body.appendChild(canvas);
-                            import { Runtime, GameObject, Components, Mathf, Geometry, PBRMaterial, GPU } from '@trident/core';
+                            import { PlayerRuntime, GameObject, Components, Mathf, Geometry, PBRMaterial, Runtime, GPU } from '@trident/core';
             import { OrbitControls } from '@trident/plugins/OrbitControls.js';
             import { HDRParser } from '@trident/plugins/HDRParser.js';
             import { UIFolder, UISliderStat, UIButtonStat, UITextureViewer } from '@trident/plugins/ui/UIStats.js';
@@ -36,13 +36,14 @@
             import { DirectionalLightHelper } from '@trident/plugins/DirectionalLightHelper.js';
             import { PostProcessingPass } from '@trident/plugins/PostProcessing/PostProcessingPass.js';
             import { Sky } from '@trident/plugins/Environment/Sky.js';
-            import { Environment } from '@trident/plugins/Environment/Environment.js';
             import { PostProcessingSMAA } from '@trident/plugins/PostProcessing/effects/SMAA.js';
+            import { IBLLightingPass } from '@trident/plugins/Environment/IBLLightingPass.js';
+            import { SkyboxPass } from '@trident/plugins/Environment/SkyboxPass.js';
             
             async function Application(canvas) {
-              await Runtime.Create(canvas);
-              const scene = Runtime.SceneManager.CreateScene("DefaultScene");
-              Runtime.SceneManager.SetActiveScene(scene);
+              await PlayerRuntime.Create(canvas);
+              const scene = PlayerRuntime.SceneManager.CreateScene("DefaultScene");
+              PlayerRuntime.SceneManager.SetActiveScene(scene);
               const mainCameraGameObject = new GameObject();
               mainCameraGameObject.transform.position.set(0, 0, 10);
               mainCameraGameObject.name = "MainCamera";
@@ -109,9 +110,10 @@
                 await HDRParser.ToCubemap(hdr);
                 const skyAtmosphere = new Sky();
                 await skyAtmosphere.init();
-                const skyTexture = skyAtmosphere.skyTextureCubemap;
-                const environment = new Environment(scene, skyTexture);
-                await environment.init();
+                const iblLightingPass = Runtime.Renderer.RenderPipeline.AddPass(IBLLightingPass, GPU.RenderPassOrder.AfterLighting);
+                const skyboxPass = Runtime.Renderer.RenderPipeline.AddPass(SkyboxPass, GPU.RenderPassOrder.AfterLighting);
+                iblLightingPass.SetEnvironment(skyAtmosphere.skyTextureCubemap);
+                skyboxPass.SetSkybox(skyAtmosphere.skyTextureCubemap);
                 setInterval(() => {
                   const radius = 1;
                   const elevationRad = Mathf.Deg2Rad * skyAtmosphere.SUN_ELEVATION_DEGREES;
@@ -123,17 +125,14 @@
                   lightGameObject.transform.position = sunPos;
                   lightGameObject.transform.LookAtV1(new Mathf.Vector3(0, 0, 0));
                   skyAtmosphere.Update();
-                  environment.Update();
+                  iblLightingPass.SetEnvironment(skyAtmosphere.skyTextureCubemap);
+                  skyboxPass.SetSkybox(skyAtmosphere.skyTextureCubemap);
                 }, 1e3);
                 {
                   const skySettings = new UIFolder(Debugger.ui, "Sky");
                   new UISliderStat(skySettings, "SUN_ELEVATION_DEGREES:", 0, 180, 0.01, skyAtmosphere.SUN_ELEVATION_DEGREES, (value) => skyAtmosphere.SUN_ELEVATION_DEGREES = value);
                   new UISliderStat(skySettings, "SUN_AZIMUTH_DEGREES:", 0, 180, 0.01, skyAtmosphere.SUN_AZIMUTH_DEGREES, (value) => skyAtmosphere.SUN_AZIMUTH_DEGREES = value);
                   new UISliderStat(skySettings, "EYE_ALTITUDE:", 0, 1e3, 0.01, skyAtmosphere.EYE_ALTITUDE, (value) => skyAtmosphere.EYE_ALTITUDE = value);
-                  new UIButtonStat(skySettings, "Rebuild:", async (value) => {
-                    skyAtmosphere.Update();
-                    environment.Update();
-                  });
                   skySettings.Open();
                 }
               }
@@ -152,7 +151,6 @@
                   u1.Update();
                 }, 1e3);
               }, 1e3);
-              Runtime.Play();
             }
             Application(document.querySelector("canvas"));
             

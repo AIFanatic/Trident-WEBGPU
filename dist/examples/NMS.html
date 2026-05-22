@@ -76,8 +76,8 @@
               const meshback = back.AddComponent(Components.Mesh);
               meshback.geometry = Geometry.Plane();
               meshback.material = new PBRMaterial({
-                albedoMap: await GPU.Texture.Load("/extra/test-assets/terrain/brown_mud_leaves_01/brown_mud_leaves_01_diff_1k.jpg", "rgba8unorm-srgb"),
-                normalMap: await GPU.Texture.Load("/extra/test-assets/terrain/brown_mud_leaves_01/brown_mud_leaves_01_nor_gl_1k.jpg", "rgba8unorm")
+                albedoMap: await GPU.Texture.Load("/extra/test-assets/terrain/brown_mud_leaves_01/brown_mud_leaves_01_diff_1k.jpg", { format: "rgba8unorm-srgb" }),
+                normalMap: await GPU.Texture.Load("/extra/test-assets/terrain/brown_mud_leaves_01/brown_mud_leaves_01_nor_gl_1k.jpg", { format: "rgba8unorm" })
               });
               let SampleCount = 32;
               let HeightScale = 0.8;

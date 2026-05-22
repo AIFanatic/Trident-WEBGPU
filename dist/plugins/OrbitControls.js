@@ -1,28 +1,64 @@
-import { Mathf, Component, Components, GPU, Input, MouseCodes } from '@trident/core';
+import { Mathf, SerializeField, GameObject, Components, GPU, Input, MouseCodes, Component } from '@trident/core';
 
+var __create = Object.create;
+var __defProp = Object.defineProperty;
+var __knownSymbol = (name, symbol) => (symbol = Symbol[name]) ? symbol : Symbol.for("Symbol." + name);
+var __typeError = (msg) => {
+  throw TypeError(msg);
+};
+var __defNormalProp = (obj, key, value) => key in obj ? __defProp(obj, key, { enumerable: true, configurable: true, writable: true, value }) : obj[key] = value;
+var __decoratorStart = (base) => [, , , __create(base?.[__knownSymbol("metadata")] ?? null)];
+var __decoratorStrings = ["class", "method", "getter", "setter", "accessor", "field", "value", "get", "set"];
+var __expectFn = (fn) => fn !== void 0 && typeof fn !== "function" ? __typeError("Function expected") : fn;
+var __decoratorContext = (kind, name, done, metadata, fns) => ({ kind: __decoratorStrings[kind], name, metadata, addInitializer: (fn) => done._ ? __typeError("Already initialized") : fns.push(__expectFn(fn || null)) });
+var __decoratorMetadata = (array, target) => __defNormalProp(target, __knownSymbol("metadata"), array[3]);
+var __runInitializers = (array, flags, self, value) => {
+  for (var i = 0, fns = array[flags >> 1], n = fns && fns.length; i < n; i++) flags & 1 ? fns[i].call(self) : value = fns[i].call(self, value);
+  return value;
+};
+var __decorateElement = (array, flags, name, decorators, target, extra) => {
+  var it, done, ctx, access, k = flags & 7, s = false, p = false;
+  var j = array.length + 1 ;
+  var initializers = (array[j - 1] = []), extraInitializers = array[j] || (array[j] = []);
+  ((target = target.prototype), k < 5);
+  for (var i = decorators.length - 1; i >= 0; i--) {
+    ctx = __decoratorContext(k, name, done = {}, array[3], extraInitializers);
+    {
+      ctx.static = s, ctx.private = p, access = ctx.access = { has: (x) => name in x };
+      access.get = (x) => x[name];
+      access.set = (x, y) => x[name] = y;
+    }
+    it = (0, decorators[i])(void 0  , ctx), done._ = 1;
+    __expectFn(it) && (initializers.unshift(it) );
+  }
+  return target;
+};
+var __publicField = (obj, key, value) => __defNormalProp(obj, typeof key !== "symbol" ? key + "" : key, value);
+var _camera_dec, _a, _init;
 const _v = new Mathf.Vector3();
-class OrbitControls extends Component {
-  static type = "@trident/plugins/OrbitControls";
-  center = new Mathf.Vector3();
-  orbitSpeed = 0.01;
-  panSpeed = 1;
-  zoomSpeed = 0.1;
-  enableZoom = true;
-  enablePan = true;
-  minRadius = 0;
-  maxRadius = Infinity;
-  minTheta = -Infinity;
-  maxTheta = Infinity;
-  minPhi = -Math.PI;
-  maxPhi = Math.PI;
-  camera;
-  theta = 0;
-  phi = 0;
+class OrbitControls extends (_a = Component, _camera_dec = [SerializeField(GameObject)], _a) {
+  constructor() {
+    super(...arguments);
+    __publicField(this, "camera", __runInitializers(_init, 8, this)), __runInitializers(_init, 11, this);
+    __publicField(this, "center", new Mathf.Vector3());
+    __publicField(this, "orbitSpeed", 0.01);
+    __publicField(this, "panSpeed", 1);
+    __publicField(this, "zoomSpeed", 0.1);
+    __publicField(this, "enableZoom", true);
+    __publicField(this, "enablePan", true);
+    __publicField(this, "minRadius", 0);
+    __publicField(this, "maxRadius", Infinity);
+    __publicField(this, "minTheta", -Infinity);
+    __publicField(this, "maxTheta", Infinity);
+    __publicField(this, "minPhi", -Math.PI);
+    __publicField(this, "maxPhi", Math.PI);
+    __publicField(this, "theta", 0);
+    __publicField(this, "phi", 0);
+  }
   Start() {
     this.camera = this.gameObject.GetComponent(Components.Camera) ?? Components.Camera.mainCamera;
-    if (!this.camera) {
-      throw new Error("OrbitControls requires a Camera component or Components.Camera.mainCamera.");
-    }
+    if (!this.camera) this.camera = this.gameObject.GetComponent(Components.Camera) ?? Components.Camera.mainCamera;
+    if (!this.camera) throw new Error("OrbitControls needs a Camera.");
     this.camera.transform.LookAt(this.center);
     if (GPU.Renderer.canvas) {
       GPU.Renderer.canvas.tabIndex = 0;
@@ -87,5 +123,9 @@ class OrbitControls extends Component {
     super.Destroy();
   }
 }
+_init = __decoratorStart(_a);
+__decorateElement(_init, 5, "camera", _camera_dec, OrbitControls);
+__decoratorMetadata(_init, OrbitControls);
+__publicField(OrbitControls, "type", "@trident/plugins/OrbitControls");
 
 export { OrbitControls };

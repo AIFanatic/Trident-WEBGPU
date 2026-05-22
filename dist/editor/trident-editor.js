@@ -1,4 +1,4 @@
-import { Assets, Component as Component$1, Deserializer, Geometry, PBRMaterial, GPU, InterleavedVertexAttribute, IndexAttribute, VertexAttribute, Runtime, GameObject, Serializer, SceneExecutionMode, Components, Scene, Mathf, Prefab, Utils, EventSystem, EventSystemLocal, Texture, GetSerializedFields, Console } from '@trident/core';
+import { Assets, Component as Component$1, Deserializer, Geometry, PBRMaterial, GPU, InterleavedVertexAttribute, IndexAttribute, VertexAttribute, Runtime, GameObject, Serializer, SceneExecutionMode, Components, Scene, Mathf, Prefab, Utils, EventSystem, EventSystemLocal, Texture, GetSerializedFields, AssetMeta, Console } from '@trident/core';
 import { OrbitControls } from '@trident/plugins/OrbitControls.js';
 import { RigidBody } from '@trident/plugins/PhysicsRapier/RigidBody.js';
 import { BoxCollider } from '@trident/plugins/PhysicsRapier/colliders/BoxCollider.js';
@@ -11,6 +11,7 @@ import { Terrain } from '@trident/plugins/Terrain/Terrain.js';
 import { TerrainEditor } from '@trident/plugins/Terrain/TerrainEditor.js';
 import { LineRenderer } from '@trident/plugins/LineRenderer.js';
 import { LODGroup } from '@trident/plugins/LOD/LODGroup.js';
+import { WaterV1 } from '@trident/plugins/Water/WaterV1.js';
 import { GLTFLoader } from '@trident/plugins/GLTF/GLTFLoader.js';
 import { registerEditorBridge } from '@trident/editor';
 import { Sky } from '@trident/plugins/Environment/Sky.js';
@@ -2927,6 +2928,7 @@ Component$1.Registry.set(Terrain.type, Terrain);
 Component$1.Registry.set(TerrainEditor.type, TerrainEditor);
 Component$1.Registry.set(LineRenderer.type, LineRenderer);
 Component$1.Registry.set(LODGroup.type, LODGroup);
+Component$1.Registry.set(WaterV1.type, WaterV1);
 const ComponentRegistry = {
   Camera: component(Components.Camera),
   SpotLight: component(Components.SpotLight),
@@ -2945,7 +2947,8 @@ const ComponentRegistry = {
   TerrainCollider: component(TerrainCollider),
   Terrain: component(Terrain),
   TerrainEditor: component(TerrainEditor),
-  LODGroup: component(LODGroup)
+  LODGroup: component(LODGroup),
+  Water: component(WaterV1)
 };
 
 class TridentAPI {
@@ -3900,7 +3903,7 @@ async function SavePrefab(baseDir, gameObject) {
   await SaveToFile(`${baseDir}/${prefabName}`, new Blob([JSON.stringify(prefab)]));
 }
 
-async function SaveGameObjectAsAsset(baseDir, gameObject) {
+async function ExtractGLB(baseDir, gameObject) {
   const rootName = gameObject.name;
   const fullAssetDir = `${baseDir}/${rootName}`;
   let geometryCounter = 0;
@@ -3990,6 +3993,11 @@ async function SaveGameObjectAsAsset(baseDir, gameObject) {
               if (tex && tex.blob && tex.assetPath && !saved.has(tex.assetPath)) {
                 saved.add(tex.assetPath);
                 SaveToFile(tex.assetPath, tex.blob);
+                SaveToFile(AssetMeta.MetaPathFor(tex.assetPath), AssetMeta.SerializeBlob({
+                  format: tex.format,
+                  generateMips: tex.mipLevels > 1,
+                  name: tex.name
+                }));
               }
             }
           }
@@ -4070,8 +4078,11 @@ async function dir(h) {
   if (h) return t.put(h, "h"), h;
   return new Promise((res) => t.get("h").onsuccess = (e) => res(e.target.result || null));
 }
+const browserFetch = fetch.bind(globalThis);
 Assets.ResourceFetchFn = async (input, init) => {
-  if (input instanceof Request || input instanceof URL) throw Error("Not implemented");
+  if (input instanceof Request || input instanceof URL) {
+    return browserFetch(input, init);
+  }
   const handle = await FileBrowser.fopen(input, MODE.R);
   if (!handle) throw Error(`Could not get file at ${input}`);
   const file = await handle.getFile();
@@ -4216,7 +4227,19 @@ class LayoutAssets extends Component {
         const arrayBuffer = await file.arrayBuffer();
         const rootName = file.name.slice(0, file.name.lastIndexOf("."));
         const rootGO = await GLTFLoader.LoadFromArrayBuffer(arrayBuffer, this.props.engineAPI.currentScene, rootName);
-        await SaveGameObjectAsAsset(this.getCurrentPath(), rootGO);
+        await ExtractGLB(this.getCurrentPath(), rootGO);
+      }
+      const imageExts = /* @__PURE__ */ new Set(["png", "jpg", "jpeg", "webp"]);
+      if (imageExts.has(extension.toLowerCase())) {
+        const path = `${this.getCurrentPath()}/${file.name}`;
+        const baseName = file.name.slice(0, file.name.lastIndexOf("."));
+        SaveToFile(path, file);
+        SaveToFile(AssetMeta.MetaPathFor(path), AssetMeta.SerializeBlob({
+          format: "rgba8unorm-srgb",
+          generateMips: true,
+          name: baseName
+        }));
+        continue;
       }
     }
     const extendedEventData = ExtendedDataTransfer.data;
@@ -4477,6 +4500,26 @@ class LayoutHierarchy extends Component {
   }
 }
 
+async function ReloadTexture(assetPath) {
+  Assets.RemoveInstance(assetPath);
+  const fresh = await GPU.Texture.Deserialize(assetPath);
+  const stale = /* @__PURE__ */ new Set();
+  GPU.MaterialPool.forEach((mat) => {
+    if (!mat) return;
+    const p = mat.params;
+    if (!p) return;
+    for (const key in p) {
+      const v = p[key];
+      if (v && v.assetPath === assetPath && v !== fresh) {
+        stale.add(v);
+        p[key] = fresh;
+      }
+    }
+  });
+  for (const t of stale) t.Destroy();
+  return fresh;
+}
+
 class Collapsible extends Component {
   constructor(props) {
     super(props);
@@ -4505,9 +4548,160 @@ class Collapsible extends Component {
   }
 }
 
+class InspectorDropdown extends Component {
+  constructor(props) {
+    super(props);
+  }
+  onChanged(event) {
+    if (this.props.onSelected) {
+      const input = event.currentTarget;
+      let value = input.value;
+      if (typeof this.props.selected === "number") {
+        value = Number(value);
+      }
+      this.props.onSelected(value);
+    }
+  }
+  render() {
+    return /* @__PURE__ */ createElement("div", { className: "InspectorComponent" }, /* @__PURE__ */ createElement("span", { className: "title" }, this.props.title), /* @__PURE__ */ createElement(
+      "select",
+      {
+        style: { marginRight: "5px" },
+        class: "input",
+        onChange: (event) => {
+          this.onChanged(event);
+        },
+        value: this.props.selected
+      },
+      this.props.options.map((value) => {
+        const key = this.props.title + "-" + value.text;
+        return /* @__PURE__ */ createElement("option", { key, value: value.value }, value.text);
+      })
+    ));
+  }
+}
+
+class InspectorCheckbox extends Component {
+  constructor(props) {
+    super(props);
+  }
+  onChanged(event) {
+    if (this.props.onChanged) {
+      const input = event.currentTarget;
+      this.props.onChanged(input.checked);
+    }
+  }
+  render() {
+    return /* @__PURE__ */ createElement("div", { className: "InspectorComponent" }, /* @__PURE__ */ createElement("span", { className: "title" }, this.props.title), /* @__PURE__ */ createElement(
+      "div",
+      {
+        style: {
+          width: "100%"
+        }
+      },
+      /* @__PURE__ */ createElement(
+        "input",
+        {
+          style: { marginLeft: "0px" },
+          type: "checkbox",
+          checked: this.props.selected,
+          onChange: (event) => {
+            this.onChanged(event);
+          }
+        }
+      )
+    ));
+  }
+}
+
+const TEXTURE_FORMAT_OPTIONS = [
+  { text: "rgba8unorm", value: "rgba8unorm" },
+  { text: "rgba8unorm-srgb", value: "rgba8unorm-srgb" },
+  { text: "bgra8unorm", value: "bgra8unorm" },
+  { text: "bgra8unorm-srgb", value: "bgra8unorm-srgb" },
+  { text: "rgba16float", value: "rgba16float" }
+];
+class InspectorImage extends Component {
+  currentTex;
+  constructor(props) {
+    super(props);
+    this.currentTex = props.texture;
+    this.state = {
+      format: props.texture.format,
+      generateMips: props.texture.mipLevels > 1,
+      loaded: false
+    };
+    this.LoadFromMeta();
+  }
+  async LoadFromMeta() {
+    const tex = this.currentTex;
+    if (!tex.assetPath) {
+      this.setState({ ...this.state, loaded: true });
+      return;
+    }
+    const meta = await AssetMeta.Load(tex.assetPath);
+    this.setState({
+      ...this.state,
+      format: meta?.format ?? tex.format,
+      generateMips: meta?.generateMips ?? tex.mipLevels > 1,
+      loaded: true
+    });
+  }
+  async SaveClicked() {
+    const tex = this.currentTex;
+    if (!tex.assetPath) return;
+    const existing = await AssetMeta.Load(tex.assetPath) ?? {};
+    const next = { ...existing, format: this.state.format, generateMips: this.state.generateMips };
+    await SaveToFile(AssetMeta.MetaPathFor(tex.assetPath), AssetMeta.SerializeBlob(next));
+    this.currentTex = await ReloadTexture(tex.assetPath);
+    if (this.props.onSaved) this.props.onSaved(this.currentTex);
+  }
+  render() {
+    const tex = this.currentTex;
+    let title = tex.name;
+    if (tex.assetPath) title = StringUtils.GetNameForPath(tex.assetPath);
+    return /* @__PURE__ */ createElement("div", { style: { height: "100%", overflow: "auto", width: "100%" } }, /* @__PURE__ */ createElement(Collapsible, { header: `Image: ${title}` }, /* @__PURE__ */ createElement(
+      InspectorDropdown,
+      {
+        title: "Format",
+        options: TEXTURE_FORMAT_OPTIONS,
+        selected: this.state.format,
+        onSelected: (value) => {
+          this.setState({ ...this.state, format: value });
+        }
+      }
+    ), /* @__PURE__ */ createElement(
+      InspectorCheckbox,
+      {
+        title: "Generate Mips",
+        selected: this.state.generateMips,
+        onChanged: (value) => {
+          this.setState({ ...this.state, generateMips: value });
+        }
+      }
+    )), /* @__PURE__ */ createElement(
+      "button",
+      {
+        class: "Floating-Menu",
+        style: { position: "initial", margin: "10px", width: "calc(100% - 20px)", color: "white", cursor: "pointer" },
+        onClick: (event) => {
+          this.SaveClicked();
+        }
+      },
+      "SAVE"
+    ));
+  }
+}
+
 class InspectorNumber extends Component {
   constructor(props) {
     super(props);
+    this.state = { value: props.value };
+  }
+  componentWillReceiveProps(nextProps) {
+    if (nextProps.value !== this.state.value) {
+      this.setState({ value: nextProps.value });
+    }
   }
   clampAndSnap(value) {
     if (this.props.step !== void 0 && this.props.step > 0) {
@@ -4518,25 +4712,25 @@ class InspectorNumber extends Component {
     return value;
   }
   onChanged(event) {
-    if (this.props.onChanged) {
-      const input = event.currentTarget;
-      if (input.value == "") return;
-      let value = parseFloat(input.value);
-      value = this.clampAndSnap(value);
-      this.props.onChanged(value);
-    }
+    const input = event.currentTarget;
+    if (input.value == "") return;
+    let value = parseFloat(input.value);
+    value = this.clampAndSnap(value);
+    this.setState({ value });
+    if (this.props.onChanged) this.props.onChanged(value);
   }
   onClicked(event) {
-    let dragValue = this.props.value;
+    let dragValue = this.state.value;
     const MouseMoveEvent = (event2) => {
       const delta = event2.movementX;
       const speed = this.props.step !== void 0 ? this.props.step / 10 : 0.1;
       dragValue += delta * speed;
       const value = this.clampAndSnap(dragValue);
+      this.setState({ value });
       this.props.onChanged?.(value);
       event2.currentTarget.requestPointerLock();
     };
-    const MouseUpEvent = (event2) => {
+    const MouseUpEvent = () => {
       document.body.removeEventListener("mousemove", MouseMoveEvent);
       document.body.removeEventListener("mouseup", MouseUpEvent);
       document.exitPointerLock();
@@ -4558,7 +4752,7 @@ class InspectorNumber extends Component {
         onChange: (event) => {
           this.onChanged(event);
         },
-        value: this.props.value.toPrecision(4)
+        value: this.state.value.toPrecision(4)
       }
     ));
   }
@@ -4620,60 +4814,22 @@ class InspectorColor extends Component {
 class InspectorVector2 extends Component {
   constructor(props) {
     super(props);
-    this.state = { vector2: this.props.vector2.clone() };
   }
-  onChanged(property, event) {
+  onChanged(property, _value) {
     if (this.props.onChanged) {
-      const input = event.currentTarget;
-      if (input.value == "") return;
-      const value = parseFloat(input.value);
-      if (property == 0 /* X */) this.state.vector2.x = value;
-      else if (property == 1 /* Y */) this.state.vector2.y = value;
-      this.props.onChanged(this.state.vector2);
-    }
-  }
-  vector2Equals(v1, v2, epsilon = Number.EPSILON) {
-    return Math.abs(v1.x - v2.x) < epsilon && Math.abs(v1.y - v2.y) < epsilon;
-  }
-  componentDidUpdate() {
-    if (!this.vector2Equals(this.props.vector2, this.state.vector2)) {
-      this.setState({ vector2: this.props.vector2.clone() });
+      if (_value === "") return;
+      const value = parseFloat(_value);
+      if (property == 0 /* X */) this.props.vector2.x = value;
+      else if (property == 1 /* Y */) this.props.vector2.y = value;
+      this.props.onChanged(this.props.vector2);
     }
   }
   render() {
-    return /* @__PURE__ */ createElement("div", { className: "InspectorComponent" }, /* @__PURE__ */ createElement("span", { className: "title" }, this.props.title), /* @__PURE__ */ createElement("div", { style: {
-      width: "35%",
-      display: "flex",
-      alignItems: "center"
-    } }, /* @__PURE__ */ createElement("span", { style: {
-      fontSize: "12px"
-    } }, "X"), /* @__PURE__ */ createElement(
-      "input",
-      {
-        className: "input",
-        type: "number",
-        onChange: (event) => {
-          this.onChanged(0 /* X */, event);
-        },
-        value: this.state.vector2.x
-      }
-    )), /* @__PURE__ */ createElement("div", { style: {
-      width: "35%",
-      display: "flex",
-      alignItems: "center"
-    } }, /* @__PURE__ */ createElement("span", { style: {
-      fontSize: "12px"
-    } }, "Y"), /* @__PURE__ */ createElement(
-      "input",
-      {
-        className: "input",
-        type: "number",
-        onChange: (event) => {
-          this.onChanged(1 /* Y */, event);
-        },
-        value: this.state.vector2.y
-      }
-    )));
+    return /* @__PURE__ */ createElement("div", { class: "InspectorComponent" }, /* @__PURE__ */ createElement("span", { class: "title" }, this.props.title), /* @__PURE__ */ createElement("div", { class: "edit" }, /* @__PURE__ */ createElement(InspectorNumber, { title: "X", titleClass: "red-bg", value: this.props.vector2.x, onChanged: (value) => {
+      this.onChanged(0 /* X */, value);
+    } }), /* @__PURE__ */ createElement(InspectorNumber, { title: "Y", titleClass: "green-bg", value: this.props.vector2.y, onChanged: (value) => {
+      this.onChanged(1 /* Y */, value);
+    } })));
   }
 }
 
@@ -4691,39 +4847,6 @@ class InspectorInput extends Component {
     return /* @__PURE__ */ createElement("div", { className: "InspectorComponent" }, /* @__PURE__ */ createElement("span", { className: "title" }, this.props.title), /* @__PURE__ */ createElement("div", { class: "edit" }, /* @__PURE__ */ createElement(InspectorNumber, { step: this.props.step, min: this.props.min, max: this.props.max, title: "N", titleClass: "gray-bg", value: this.props.value, onChanged: (value) => {
       this.onChanged(value);
     } })));
-  }
-}
-
-class InspectorCheckbox extends Component {
-  constructor(props) {
-    super(props);
-  }
-  onChanged(event) {
-    if (this.props.onChanged) {
-      const input = event.currentTarget;
-      this.props.onChanged(input.checked);
-    }
-  }
-  render() {
-    return /* @__PURE__ */ createElement("div", { className: "InspectorComponent" }, /* @__PURE__ */ createElement("span", { className: "title" }, this.props.title), /* @__PURE__ */ createElement(
-      "div",
-      {
-        style: {
-          width: "100%"
-        }
-      },
-      /* @__PURE__ */ createElement(
-        "input",
-        {
-          style: { marginLeft: "0px" },
-          type: "checkbox",
-          checked: this.props.selected,
-          onChange: (event) => {
-            this.onChanged(event);
-          }
-        }
-      )
-    ));
   }
 }
 
@@ -4893,7 +5016,7 @@ class AddComponent extends Component {
     this.setState({ isMenuOpen: false });
   }
   render() {
-    return /* @__PURE__ */ createElement("div", { class: "Floating-Menu", style: { position: "inherit", padding: "5px", margin: "10px" } }, /* @__PURE__ */ createElement(Tree, null, /* @__PURE__ */ createElement(TreeFolder, { name: "Add Component" }, /* @__PURE__ */ createElement(TreeFolder, { name: "Physics" }, /* @__PURE__ */ createElement(TreeItem, { name: "Rigidbody", onPointerDown: () => this.addComponent(ComponentRegistry.RigidBody) }), /* @__PURE__ */ createElement(TreeItem, { name: "BoxCollider", onPointerDown: () => this.addComponent(ComponentRegistry.BoxCollider) }), /* @__PURE__ */ createElement(TreeItem, { name: "CapsuleCollider", onPointerDown: () => this.addComponent(ComponentRegistry.CapsuleCollider) }), /* @__PURE__ */ createElement(TreeItem, { name: "MeshCollider", onPointerDown: () => this.addComponent(ComponentRegistry.MeshCollider) }), /* @__PURE__ */ createElement(TreeItem, { name: "PlaneCollider", onPointerDown: () => this.addComponent(ComponentRegistry.PlaneCollider) }), /* @__PURE__ */ createElement(TreeItem, { name: "SphereCollider", onPointerDown: () => this.addComponent(ComponentRegistry.SphereCollider) })), /* @__PURE__ */ createElement(TreeItem, { name: "Mesh", onPointerDown: () => this.addComponent(ComponentRegistry.Mesh) }), /* @__PURE__ */ createElement(TreeItem, { name: "LODGroup", onPointerDown: () => this.addComponent(ComponentRegistry.LODGroup) }), /* @__PURE__ */ createElement(TreeFolder, { name: "Lights" }, /* @__PURE__ */ createElement(TreeItem, { name: "DirectionalLight", onPointerDown: () => this.addComponent(ComponentRegistry.DirectionalLight) }), /* @__PURE__ */ createElement(TreeItem, { name: "PointLight", onPointerDown: () => this.addComponent(ComponentRegistry.PointLight) }), /* @__PURE__ */ createElement(TreeItem, { name: "SpotLight", onPointerDown: () => this.addComponent(ComponentRegistry.SpotLight) })))));
+    return /* @__PURE__ */ createElement("div", { class: "Floating-Menu", style: { position: "inherit", padding: "5px", margin: "10px" } }, /* @__PURE__ */ createElement(Tree, null, /* @__PURE__ */ createElement(TreeFolder, { name: "Add Component" }, /* @__PURE__ */ createElement(TreeFolder, { name: "Physics" }, /* @__PURE__ */ createElement(TreeItem, { name: "Rigidbody", onPointerDown: () => this.addComponent(ComponentRegistry.RigidBody) }), /* @__PURE__ */ createElement(TreeItem, { name: "BoxCollider", onPointerDown: () => this.addComponent(ComponentRegistry.BoxCollider) }), /* @__PURE__ */ createElement(TreeItem, { name: "CapsuleCollider", onPointerDown: () => this.addComponent(ComponentRegistry.CapsuleCollider) }), /* @__PURE__ */ createElement(TreeItem, { name: "MeshCollider", onPointerDown: () => this.addComponent(ComponentRegistry.MeshCollider) }), /* @__PURE__ */ createElement(TreeItem, { name: "PlaneCollider", onPointerDown: () => this.addComponent(ComponentRegistry.PlaneCollider) }), /* @__PURE__ */ createElement(TreeItem, { name: "SphereCollider", onPointerDown: () => this.addComponent(ComponentRegistry.SphereCollider) })), /* @__PURE__ */ createElement(TreeItem, { name: "Mesh", onPointerDown: () => this.addComponent(ComponentRegistry.Mesh) }), /* @__PURE__ */ createElement(TreeItem, { name: "LODGroup", onPointerDown: () => this.addComponent(ComponentRegistry.LODGroup) }), /* @__PURE__ */ createElement(TreeFolder, { name: "Lights" }, /* @__PURE__ */ createElement(TreeItem, { name: "DirectionalLight", onPointerDown: () => this.addComponent(ComponentRegistry.DirectionalLight) }), /* @__PURE__ */ createElement(TreeItem, { name: "PointLight", onPointerDown: () => this.addComponent(ComponentRegistry.PointLight) }), /* @__PURE__ */ createElement(TreeItem, { name: "SpotLight", onPointerDown: () => this.addComponent(ComponentRegistry.SpotLight) })), /* @__PURE__ */ createElement(TreeItem, { name: "Water", onPointerDown: () => this.addComponent(ComponentRegistry.Water) }))));
   }
 }
 
@@ -4956,39 +5079,6 @@ class InspectorType extends Component {
         onDragOver: (event) => this.onDragOver(event)
       }
     )));
-  }
-}
-
-class InspectorDropdown extends Component {
-  constructor(props) {
-    super(props);
-  }
-  onChanged(event) {
-    if (this.props.onSelected) {
-      const input = event.currentTarget;
-      let value = input.value;
-      if (typeof this.props.selected === "number") {
-        value = Number(value);
-      }
-      this.props.onSelected(value);
-    }
-  }
-  render() {
-    return /* @__PURE__ */ createElement("div", { className: "InspectorComponent" }, /* @__PURE__ */ createElement("span", { className: "title" }, this.props.title), /* @__PURE__ */ createElement(
-      "select",
-      {
-        style: { marginRight: "5px" },
-        class: "input",
-        onChange: (event) => {
-          this.onChanged(event);
-        },
-        value: this.props.selected
-      },
-      this.props.options.map((value) => {
-        const key = this.props.title + "-" + value.text;
-        return /* @__PURE__ */ createElement("option", { key, value: value.value }, value.text);
-      })
-    ));
   }
 }
 
@@ -5252,9 +5342,8 @@ class LayoutInspector extends Component {
     super(props);
     this.state = { selected: void 0 };
     TridentAPI.EventSystem.on(LayoutAssetEvents.Selected, (instance) => {
-      if (this.props.engineAPI.isMaterial(instance)) {
-        this.setState({ selected: { type: "Material", instance } });
-      }
+      if (this.props.engineAPI.isMaterial(instance)) this.setState({ selected: { type: "Material", instance } });
+      else if (this.props.engineAPI.isTexture(instance)) this.setState({ selected: { type: "Texture", instance } });
     });
     TridentAPI.EventSystem.on(LayoutHierarchyEvents.Selected, (gameObject) => {
       this.setState({ selected: { type: "GameObject", id: gameObject.id } });
@@ -5286,6 +5375,7 @@ class LayoutInspector extends Component {
     return scene.GetGameObjects().find((go) => go.id === id);
   }
   render() {
+    console.log(this.state.selected);
     let content = null;
     if (this.state.selected?.type === "GameObject") {
       const gameObject = this.findGameObjectById(this.state.selected.id);
@@ -5305,6 +5395,14 @@ class LayoutInspector extends Component {
         {
           engineAPI: this.props.engineAPI,
           material: this.state.selected.instance
+        }
+      );
+    } else if (this.state.selected?.type === "Texture") {
+      content = /* @__PURE__ */ createElement(
+        InspectorImage,
+        {
+          engineAPI: this.props.engineAPI,
+          texture: this.state.selected.instance
         }
       );
     }
