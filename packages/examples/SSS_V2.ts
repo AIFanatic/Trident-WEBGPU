@@ -13,7 +13,6 @@ import { OrbitControls } from "@trident/plugins/OrbitControls";
 
 import { Debugger } from "@trident/plugins/Debugger";
 import { SSS_V2 } from "@trident/plugins/SSS_V2";
-import { FullscreenQuad } from "@trident/plugins/FullscreenQuad";
 
 
 async function Application(canvas: HTMLCanvasElement) {

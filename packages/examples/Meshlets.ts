@@ -7,6 +7,7 @@ import {
     PBRMaterial,
     GPU,
     Runtime,
+    PlayerRuntime,
 } from "@trident/core";
 
 import { OrbitControls } from "@trident/plugins/OrbitControls";
@@ -19,9 +20,9 @@ import { HDRParser } from "@trident/plugins/HDRParser";
 import { Environment } from "@trident/plugins/Environment/Environment";
 
 async function Application(canvas: HTMLCanvasElement) {
-    await Runtime.Create(canvas);
-    const scene = Runtime.SceneManager.CreateScene("DefaultScene");
-    Runtime.SceneManager.SetActiveScene(scene);
+    await PlayerRuntime.Create(canvas, window.devicePixelRatio);
+    const scene = PlayerRuntime.SceneManager.CreateScene("DefaultScene");
+    PlayerRuntime.SceneManager.SetActiveScene(scene);
 
     const mainCameraGameObject = new GameObject();
     mainCameraGameObject.transform.position.set(0, 0, -15);
@@ -147,8 +148,6 @@ async function Application(canvas: HTMLCanvasElement) {
     //     meshletMesh.geometry = mesh.geometry;
     //     meshletMesh.material = new PBRMaterial({albedoColor: new Mathf.Color(1,1,1,1), roughness: 0.99, metalness: 0.01, wireframe: false});
     // }
-
-    Runtime.Play();
 };
 
 Application(document.querySelector("canvas"));

@@ -1,22 +1,19 @@
-import { Components, Mathf, GameObject, Runtime, GPU, Geometry } from "@trident/core";
+import { Components, Mathf, GameObject, Runtime, GPU, Geometry, PlayerRuntime } from "@trident/core";
 
 import { OrbitControls } from "@trident/plugins/OrbitControls";
 import { Debugger } from "@trident/plugins/Debugger";
 
-import { GLTFLoader } from "@trident/plugins/GLTF/GLTFLoader";
 import { SHGenerator } from "@trident/plugins/SHGenerator";
-import { GLSL2WGSL } from "@trident/plugins/GLSLParser/GLSLParser";
 import { HDRParser } from "@trident/plugins/HDRParser";
 import { UITextureViewer } from "@trident/plugins/ui/UIStats";
-import { Environment } from "@trident/plugins/Environment/Environment";
 
 import { IBLLightingPass } from "@trident/plugins/Environment/IBLLightingPass";
 import { SkyboxPass } from "@trident/plugins/Environment/SkyboxPass";
 
 async function Application(canvas: HTMLCanvasElement) {
-    await Runtime.Create(canvas);
-    const scene = Runtime.SceneManager.CreateScene("DefaultScene");
-    Runtime.SceneManager.SetActiveScene(scene);
+   await PlayerRuntime.Create(canvas, window.devicePixelRatio);
+    const scene = PlayerRuntime.SceneManager.CreateScene("DefaultScene");
+    PlayerRuntime.SceneManager.SetActiveScene(scene);
 
     const mainCameraGameObject = new GameObject();
     mainCameraGameObject.name = "MainCamera";
@@ -29,16 +26,15 @@ async function Application(canvas: HTMLCanvasElement) {
 
     const lightGameObject = new GameObject();
     lightGameObject.transform.LookAtV1(new Mathf.Vector3(0, 0, 0));
-    const light = lightGameObject.AddComponent(Components.PointLight);
-    light.intensity = 10;
-    light.range = 20;
+    const light = lightGameObject.AddComponent(Components.DirectionalLight);
 
     // await GLTFLoader.Load("./assets/models/cornell.glb", scene);
 
     const hdr = await HDRParser.Load("./assets/textures/HDR/spruit_sunrise_1k.hdr");
     const skyTexture = await HDRParser.ToCubemap(hdr);
-    const environment = new Environment(scene, skyTexture);
-    await environment.init();
+
+    const skyboxPass = Runtime.Renderer.RenderPipeline.AddPass(SkyboxPass, GPU.RenderPassOrder.AfterLighting);
+    skyboxPass.SetSkybox(skyTexture);
 
     const shgenerator = new SHGenerator();
     await shgenerator.Initialize(skyTexture.width);
@@ -49,9 +45,7 @@ async function Application(canvas: HTMLCanvasElement) {
 
     console.warn("Continue moving IBL, Sky and PostExposureTonemap to a plugin, remove from core, then implement LightProbes")
 
-
     {
-
         const material = new GPU.Material({
             isDeferred: false,
             shader: await GPU.Shader.Create({
@@ -145,8 +139,6 @@ async function Application(canvas: HTMLCanvasElement) {
     Runtime.Renderer.RenderPipeline.AddPass(IBLLightingPass, GPU.RenderPassOrder.AfterLighting);
     Runtime.Renderer.RenderPipeline.AddPass(SkyboxPass, GPU.RenderPassOrder.AfterLighting);
     Debugger.Enable();
-
-    Runtime.Play();
 };
 
 Application(document.querySelector("canvas") as HTMLCanvasElement);

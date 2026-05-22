@@ -36,7 +36,7 @@ async function Application(canvas: HTMLCanvasElement) {
     const controls = new OrbitControls(canvas, camera);
 
     const t2 = await GPU.RenderTexture.Load("./assets/textures/32x32.png");
-    const t3 = await GPU.RenderTexture.Load("./assets/textures/64x64.png", "bgra8unorm", true);
+    const t3 = await GPU.RenderTexture.Load("./assets/textures/64x64.png", {format: "bgra8unorm", generateMips: true});
 
     const atlas = new Atlas(256);
     const reg1 = atlas.AddTexture(t3);

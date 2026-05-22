@@ -1,4 +1,4 @@
-import { Geometry, Components, Mathf, GameObject, PBRMaterial, Runtime } from "@trident/core";
+import { Geometry, Components, Mathf, GameObject, PBRMaterial, Runtime, PlayerRuntime } from "@trident/core";
 
 import { OrbitControls } from "@trident/plugins/OrbitControls";
 
@@ -13,9 +13,9 @@ import { Debugger } from "@trident/plugins/Debugger";
 import { PointLightHelper } from "@trident/plugins/PointLightHelper";
 
 async function Application(canvas: HTMLCanvasElement) {
-    await Runtime.Create(canvas);
-    const scene = Runtime.SceneManager.CreateScene("DefaultScene");
-    Runtime.SceneManager.SetActiveScene(scene);
+    await PlayerRuntime.Create(canvas, window.devicePixelRatio);
+    const scene = PlayerRuntime.SceneManager.CreateScene("DefaultScene");
+    PlayerRuntime.SceneManager.SetActiveScene(scene);
 
     const mainCameraGameObject = new GameObject();
     mainCameraGameObject.transform.position.set(0, 6, 16);
@@ -142,7 +142,6 @@ async function Application(canvas: HTMLCanvasElement) {
 
     Debugger.Enable();
 
-    Runtime.Play();
 };
 
 Application(document.querySelector("canvas"));

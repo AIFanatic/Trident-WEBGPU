@@ -108,6 +108,17 @@ async function Application(canvas: HTMLCanvasElement) {
     iblLightingPass.SetEnvironment(skyTexture);
     skyboxPass.SetSkybox(skyTexture);
 
+
+    const gameObject = new GameObject();
+    const mesh = gameObject.AddComponent(Components.Mesh);
+    mesh.geometry = Geometry.Sphere();
+    mesh.material = new PBRMaterial({
+        albedoMap: await GPU.Texture.Load("/extra/SampleProject/Nature/Terrain/leafy_grass/leafy_grass_diff_2k.jpg", {format: "rgba8unorm-srgb"}),
+        normalMap: await GPU.Texture.Load("/extra/SampleProject/Nature/Terrain/leafy_grass/leafy_grass_nor_gl_2k.jpg"),
+        armMap: await GPU.Texture.Load("/extra/SampleProject/Nature/Terrain/leafy_grass/leafy_grass_arm_2k.jpg"),
+    });
+    
+
     // Drag and drop models
     {
         window.addEventListener("dragover", (e) => {

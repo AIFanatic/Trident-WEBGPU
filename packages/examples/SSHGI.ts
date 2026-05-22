@@ -1,5 +1,5 @@
 // https://www.shadertoy.com/view/dsGBzW
-import { Components, GameObject, Geometry, GPU, Mathf, Runtime } from "@trident/core";
+import { Components, GameObject, Geometry, GPU, Mathf, PlayerRuntime, Runtime } from "@trident/core";
 
 import { OrbitControls } from "@trident/plugins/OrbitControls";
 import { Debugger } from "@trident/plugins/Debugger";
@@ -307,9 +307,9 @@ class SSHGIRenderPass extends GPU.RenderPass {
 }
 
 async function Application(canvas: HTMLCanvasElement) {
-    await Runtime.Create(canvas);
-    const scene = Runtime.SceneManager.CreateScene("DefaultScene");
-    Runtime.SceneManager.SetActiveScene(scene);
+    await PlayerRuntime.Create(canvas, window.devicePixelRatio);
+    const scene = PlayerRuntime.SceneManager.CreateScene("DefaultScene");
+    PlayerRuntime.SceneManager.SetActiveScene(scene);
 
     const cameraGameObject = new GameObject();
     cameraGameObject.name = "MainCamera";
@@ -344,7 +344,6 @@ async function Application(canvas: HTMLCanvasElement) {
     Runtime.Renderer.RenderPipeline.AddPass(new SSHGIRenderPass(light), GPU.RenderPassOrder.AfterLighting);
 
     Debugger.Enable();
-    Runtime.Play();
 }
 
 Application(document.querySelector("canvas"));

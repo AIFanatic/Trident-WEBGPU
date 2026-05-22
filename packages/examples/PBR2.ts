@@ -122,7 +122,7 @@ async function Application(canvas: HTMLCanvasElement) {
         gameObject.transform.position.set(0, -0.5, 0);
         const mesh = gameObject.AddComponent(Components.Mesh);
         mesh.geometry = Geometry.Plane();
-        const albedo = await GPU.Texture.Load("./assets/textures/uv_grid.png", "bgra8unorm-srgb");
+        const albedo = await GPU.Texture.Load("./assets/textures/uv_grid.png", {format: "bgra8unorm-srgb"});
         mesh.material = new PBRMaterial({ albedoMap: albedo, repeat: new Mathf.Vector2(5, 5) });
     }
 

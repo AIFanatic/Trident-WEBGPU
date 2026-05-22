@@ -72,3 +72,5 @@ import "./SSHGI";
 import "./NMS";
 
 import "./SHTest";
+
+import "./GLSL2WGSL";

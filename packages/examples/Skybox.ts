@@ -6,6 +6,7 @@ import {
     GameObject,
     PBRMaterial,
     Runtime,
+    PlayerRuntime,
 } from "@trident/core";
 
 import { OrbitControls } from "@trident/plugins/OrbitControls";
@@ -22,11 +23,13 @@ import { Sky } from "@trident/plugins/Environment/Sky";
 import { Environment } from "@trident/plugins/Environment/Environment";
 
 import { PostProcessingSMAA } from "@trident/plugins/PostProcessing/effects/SMAA";
+import { IBLLightingPass } from "@trident/plugins/Environment/IBLLightingPass";
+import { SkyboxPass } from "@trident/plugins/Environment/SkyboxPass";
 
 async function Application(canvas: HTMLCanvasElement) {
-    await Runtime.Create(canvas);
-    const scene = Runtime.SceneManager.CreateScene("DefaultScene");
-    Runtime.SceneManager.SetActiveScene(scene);
+   await PlayerRuntime.Create(canvas);
+    const scene = PlayerRuntime.SceneManager.CreateScene("DefaultScene");
+    PlayerRuntime.SceneManager.SetActiveScene(scene);
 
     const mainCameraGameObject = new GameObject();
     mainCameraGameObject.transform.position.set(0, 0, 10);
@@ -106,11 +109,11 @@ async function Application(canvas: HTMLCanvasElement) {
         const skyAtmosphere = new Sky();
         await skyAtmosphere.init();
 
-        // const skyTexture = hdrCubemap;
-        const skyTexture = skyAtmosphere.skyTextureCubemap;
-
-        const environment = new Environment(scene, skyTexture);
-        await environment.init();
+        const iblLightingPass = Runtime.Renderer.RenderPipeline.AddPass(IBLLightingPass, GPU.RenderPassOrder.AfterLighting);
+        const skyboxPass = Runtime.Renderer.RenderPipeline.AddPass(SkyboxPass, GPU.RenderPassOrder.AfterLighting);
+        
+        iblLightingPass.SetEnvironment(skyAtmosphere.skyTextureCubemap);
+        skyboxPass.SetSkybox(skyAtmosphere.skyTextureCubemap);
 
         setInterval(() => {
             const radius = 1; // distance of the directional light from origin
@@ -128,7 +131,8 @@ async function Application(canvas: HTMLCanvasElement) {
             lightGameObject.transform.LookAtV1(new Mathf.Vector3(0, 0, 0));
 
             skyAtmosphere.Update();
-            environment.Update();
+            iblLightingPass.SetEnvironment(skyAtmosphere.skyTextureCubemap);
+            skyboxPass.SetSkybox(skyAtmosphere.skyTextureCubemap);
         }, 1000);
 
         {
@@ -140,14 +144,6 @@ async function Application(canvas: HTMLCanvasElement) {
 
             // const o0 = new UITextureViewer(skySettings, "Sky output0:", skyAtmosphere.transmittanceLUT);
             // const o1 = new UITextureViewer(skySettings, "Sky output1:", skyTexture);
-
-            new UIButtonStat(skySettings, "Rebuild:", async value => {
-                skyAtmosphere.Update();
-                environment.Update();
-
-                // o0.Update();
-                // o1.Update();
-            });
 
             skySettings.Open();
         }
@@ -170,8 +166,6 @@ async function Application(canvas: HTMLCanvasElement) {
             u1.Update();
         }, 1000);
     }, 1000);
-
-    Runtime.Play();
 };
 
 Application(document.querySelector("canvas"));

@@ -127,8 +127,8 @@ async function Application(canvas: HTMLCanvasElement) {
     meshback.geometry = Geometry.Plane();
     // meshback.material = new PBRMaterial({ albedoMap: await GPU.Texture.Load("/extra/test-assets/pebbles.png"), normalMap: await GPU.Texture.Load("/extra/test-assets/pebbles-normal-3.png", "rgba8unorm") });
     meshback.material = new PBRMaterial({
-        albedoMap: await GPU.Texture.Load("/extra/test-assets/terrain/brown_mud_leaves_01/brown_mud_leaves_01_diff_1k.jpg", "rgba8unorm-srgb"),
-        normalMap: await GPU.Texture.Load("/extra/test-assets/terrain/brown_mud_leaves_01/brown_mud_leaves_01_nor_gl_1k.jpg", "rgba8unorm")
+        albedoMap: await GPU.Texture.Load("/extra/test-assets/terrain/brown_mud_leaves_01/brown_mud_leaves_01_diff_1k.jpg", {format: "rgba8unorm-srgb"}),
+        normalMap: await GPU.Texture.Load("/extra/test-assets/terrain/brown_mud_leaves_01/brown_mud_leaves_01_nor_gl_1k.jpg", {format: "rgba8unorm"})
     });
 
 

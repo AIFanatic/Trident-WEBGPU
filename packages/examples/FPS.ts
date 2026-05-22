@@ -54,7 +54,6 @@ import { Bloom } from "@trident/plugins/Bloom";
 import { ImpostorMesh } from "@trident/plugins/Impostors/ImpostorMesh";
 import { SSS_V2 } from "@trident/plugins/SSS_V2";
 import { SSSRenderPass } from "@trident/plugins/SSS";
-import { FullscreenQuad } from "@trident/plugins/FullscreenQuad";
 import { SphereCollider } from "@trident/plugins/PhysicsRapier/colliders/SphereCollider";
 import { IBLLightingPass } from "@trident/plugins/Environment/IBLLightingPass";
 import { SkyboxPass } from "@trident/plugins/Environment/SkyboxPass";
@@ -91,7 +90,7 @@ async function Application(canvas: HTMLCanvasElement) {
     const terrainGameObject = new GameObject();
     const terrain = terrainGameObject.AddComponent(Terrain);
     terrain.terrainData.size.set(4000, 1000, 4000);
-    await terrain.terrainData.HeightmapFromPNG("/extra/test-assets/terrain/heightmaps/elevation_1024x1024.png", true, 0.25);
+    await terrain.terrainData.HeightmapFromTexture( await GPU.Texture.Load("/extra/test-assets/terrain/heightmaps/elevation_1024x1024.png", {format: "rgba8unorm", storeSource: true}), true, 0.25);
 
     async function LoadTerrainTextures(urls: string[]): Promise<GPU.Texture[]> {
         let textures: GPU.Texture[] = [];
@@ -104,7 +103,7 @@ async function Application(canvas: HTMLCanvasElement) {
     }
 
     async function LoadTexture(url: string, format: GPU.TextureFormat = "rgba8unorm-srgb"): Promise<GPU.Texture> {
-        const texture = await GPU.Texture.Load(url, format, {generateMips: true});
+        const texture = await GPU.Texture.Load(url, {format, generateMips: true});
         return texture;
     }
 
@@ -445,7 +444,7 @@ async function Application(canvas: HTMLCanvasElement) {
             if (name.includes("tundra")) continue;
             if (name.includes("snow")) continue;
             
-            // if (!name.includes("american_beech_a.glb")) continue;
+            if (!name.includes("american_beech_a.glb")) continue;
 
             console.log("Loading", name)
 
