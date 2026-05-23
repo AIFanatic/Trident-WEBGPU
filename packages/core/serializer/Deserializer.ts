@@ -65,7 +65,11 @@ export class Deserializer {
     }
 
     private static createExpectedInstance(type: Function): any {
-        if (type === Number || type === String || type === Boolean || type === Array || type === Object) {
+        if (
+            type === Number || type === String || type === Boolean || type === Array || type === Object ||
+            type === GameObject ||
+            type === Component || (type.prototype instanceof Component)
+        ) {
             return undefined;
         }
 
