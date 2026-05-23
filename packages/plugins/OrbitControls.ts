@@ -1,4 +1,4 @@
-import { Component, Components, GameObject, GPU, Input, Mathf, MouseCodes, SerializeField } from "@trident/core";
+import { Component, Components, GameObject, GPU, Input, KeyCodes, Mathf, MouseCodes, SerializeField } from "@trident/core";
 
 const _v = new Mathf.Vector3();
 
@@ -29,9 +29,6 @@ export class OrbitControls extends Component {
     private phi = 0;
 
     public Start(): void {
-        this.camera = this.gameObject.GetComponent(Components.Camera) ?? Components.Camera.mainCamera;
-
-        if (!this.camera) this.camera = this.gameObject.GetComponent(Components.Camera) ?? Components.Camera.mainCamera;
         if (!this.camera) throw new Error("OrbitControls needs a Camera.");
 
         this.camera.transform.LookAt(this.center);
@@ -61,10 +58,20 @@ export class OrbitControls extends Component {
             this.setCursor("grab");
         }
 
+        this.handleMovement();
+
         const scroll = Input.GetAxis("Mouse ScrollWheel");
         if (this.enableZoom && scroll !== 0) {
             this.zoom(1 - scroll * this.zoomSpeed);
         }
+    }
+
+    private handleMovement() {
+        const boostSpeed = Input.GetKey(KeyCodes.SHIFT) ? 10 : 1;
+        if (Input.GetKey(KeyCodes.A)) {this.pan(1 * boostSpeed, 0)}
+        if (Input.GetKey(KeyCodes.D)) {this.pan(-1 * boostSpeed, 0)}
+        if (Input.GetKey(KeyCodes.W)) {this.zoom(1 - 0.05 * boostSpeed * this.zoomSpeed)}
+        if (Input.GetKey(KeyCodes.S)) {this.zoom(1 + 0.05 * boostSpeed * this.zoomSpeed)}
     }
 
     private zoom(scale: number): void {
