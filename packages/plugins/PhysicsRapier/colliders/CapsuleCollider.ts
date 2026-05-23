@@ -12,4 +12,8 @@ export class CapsuleCollider extends Collider {
         this.collider.setTranslation(new PhysicsRapier.Physics.Vector3(this.transform.position.x, this.transform.position.y, this.transform.position.z));
         this.collider.setRotation(this.transform.rotation);
     }
+
+    public Destroy(): void {
+        if (this.collider && PhysicsRapier.PhysicsWorld) PhysicsRapier.PhysicsWorld.removeCollider(this.collider, true);
+    }
 }

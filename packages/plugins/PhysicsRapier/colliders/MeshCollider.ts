@@ -4,6 +4,7 @@ import { Collider } from "./Collider";
 
 export class MeshCollider extends Collider {
     public static type = "@trident/plugins/PhysicsRapier/Colliders/MeshCollider";
+    public runInEditMode = true;
 
     constructor(gameObject: GameObject) {
         super(gameObject);
@@ -53,5 +54,9 @@ export class MeshCollider extends Collider {
 
         this.collider.setTranslation(p);
         this.collider.setRotation(q);
+    }
+
+    public Destroy(): void {
+        if (this.collider && PhysicsRapier.PhysicsWorld) PhysicsRapier.PhysicsWorld.removeCollider(this.collider, true);
     }
 }
