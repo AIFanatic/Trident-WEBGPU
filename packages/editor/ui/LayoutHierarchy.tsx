@@ -127,7 +127,8 @@ export class LayoutHierarchy extends Component<BaseProps, LayoutHierarchyState> 
         const terrain = this.props.engineAPI.addComponent(gameObject, ComponentRegistry.Terrain) as any;
         const terrainCollider = this.props.engineAPI.addComponent(gameObject, ComponentRegistry.TerrainCollider) as any;
         const terrainEditor = this.props.engineAPI.addComponent(gameObject, ComponentRegistry.TerrainEditor) as any;
-
+        terrainCollider.terrainData = terrain.terrainData;
+        
         const terrainPath = `${gameObject.name}_${gameObject.id}.terrain`;
         terrain.terrainData.assetPath = terrainPath;
         SaveAsset(terrain.terrainData);
@@ -221,7 +222,7 @@ export class LayoutHierarchy extends Component<BaseProps, LayoutHierarchyState> 
                     </div>
                 </div>
                 <div
-                    style="width: 100%; height: 100%; overflow: auto;padding-top:5px"
+                    style="width: 100%; height: 100%; overflow: scroll;padding-top:5px"
                     onDrop={(event) => this.onDrop(event)}
                     onDragOver={(e) => e.preventDefault()}
                 >

@@ -38,8 +38,8 @@ export class LayoutTopbar extends Component<BaseProps, LayoutTopbarState> {
     private async test() {
         const serializedScene = this.props.engineAPI.serializer.serializeScene(this.props.engineAPI.currentScene);
         console.log(JSON.stringify(serializedScene))
-        this.setState({ fileMenuOpen: !this.state.fileMenuOpen });
-        TridentAPI.EventSystem.emit(SceneEvents.Saved, this.props.engineAPI.currentScene);
+        // this.setState({ fileMenuOpen: !this.state.fileMenuOpen });
+        // TridentAPI.EventSystem.emit(SceneEvents.Saved, this.props.engineAPI.currentScene);
     }
 
     private async PlayStop() {

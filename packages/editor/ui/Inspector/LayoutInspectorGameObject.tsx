@@ -27,8 +27,10 @@ interface LayoutInspectorProps {
 };
 
 export class LayoutInspectorGameObject extends Component<LayoutInspectorProps> {
-    constructor(props) {
+    constructor(props: LayoutInspectorProps) {
         super(props);
+
+        console.log(this.props.gameObject)
     }
 
     private onRemoveComponent(component: IComponent) {

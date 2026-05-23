@@ -40,6 +40,9 @@ class App extends Component {
             events: {
                 onSceneSaved: (handler: () => void) => { TridentAPI.EventSystem.on(SceneEvents.Saved, handler) },
                 offSceneSaved: (handler: () => void) => { TridentAPI.EventSystem.off(SceneEvents.Saved, handler) },
+
+                onHierarchySelected(handler: (gameObject: IGameObject) => void) { TridentAPI.EventSystem.on(LayoutHierarchyEvents.Selected, handler); },
+                offHierarchySelected(handler: (gameObject: IGameObject) => void) { TridentAPI.EventSystem.off(LayoutHierarchyEvents.Selected, handler); }
             },
             Selection: {
                 get activeGameObject() { return activeGameObject; }
@@ -62,12 +65,7 @@ class App extends Component {
             const text = await file.text();
             const sceneJSON = JSON.parse(text);
 
-            // EngineAPI.currentScene.Clear();
-            await EngineAPI.deserializer.deserializeScene(EngineAPI.currentScene, sceneJSON);
-            TridentAPI.EventSystem.emit(SceneEvents.Loaded, EngineAPI.currentScene);
-
-
-
+            
             const skyAtmosphere = new Sky();
             await skyAtmosphere.init();
             const iblLightingPass = Runtime.Renderer.RenderPipeline.AddPass(IBLLightingPass, GPU.RenderPassOrder.AfterLighting);
@@ -76,7 +74,10 @@ class App extends Component {
             iblLightingPass.SetEnvironment(skyAtmosphere.skyTextureCubemap);
             skyboxPass.SetSkybox(skyAtmosphere.skyTextureCubemap);
 
-            Runtime.AddSystem(PhysicsRapier);
+            await Runtime.AddSystem(PhysicsRapier);
+
+            await EngineAPI.deserializer.deserializeScene(EngineAPI.currentScene, sceneJSON);
+            TridentAPI.EventSystem.emit(SceneEvents.Loaded, EngineAPI.currentScene);
 
             TridentAPI.EventSystem.emit(SceneEvents.Loaded, currentScene);
         })

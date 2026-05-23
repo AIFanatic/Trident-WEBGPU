@@ -10,6 +10,9 @@ export interface IEditorBridge {
     events: {
         onSceneSaved(handler: () => void): void;
         offSceneSaved(handler: () => void): void;
+        
+        onHierarchySelected(handler: (gameObject: IGameObject) => void): void;
+        offHierarchySelected(handler: (gameObject: IGameObject) => void): void;
     };
     Selection: {
         activeGameObject: IGameObject | null;
@@ -39,6 +42,9 @@ export class EditorAPI {
     public static Events = {
         onSceneSaved(handler: () => void): void { return requireBridge().events.onSceneSaved(handler)},
         offSceneSaved(handler: () => void): void { return requireBridge().events.offSceneSaved(handler)},
+        
+        onHierarchySelected(handler: (gameObject: IGameObject) => void): void { return requireBridge().events.onHierarchySelected(handler)},
+        offHierarchySelected(handler: (gameObject: IGameObject) => void): void { return requireBridge().events.offHierarchySelected(handler)}
     };
     public static Selection = {
         get activeGameObject(): IGameObject | null { return requireBridge().Selection.activeGameObject},
