@@ -159,6 +159,17 @@ export class Input extends System {
             AddPointerAwareEvent(Renderer.canvas, "mouseup", (event) => Input.OnMouseUp(event));
             AddPointerAwareEvent(Renderer.canvas, "touchmove", (event) => Input.OnTouchMove(event));
             AddPointerAwareEvent(Renderer.canvas, "wheel", (event) => Input.OnMouseWheel(event));
+
+            Renderer.canvas.addEventListener("pointerenter", () => Renderer.canvas.focus());
+            Renderer.canvas.addEventListener("pointerleave", () => Renderer.canvas.blur());
+
+            Renderer.canvas.addEventListener("blur", () => {
+                Input.keysDown = {};
+                Input.mouseDown = {};
+                Input.horizontalAxis = 0;
+                Input.verticalAxis = 0;
+                Input.mouseWheelAxis = 0;
+            });
         }
 
         document.addEventListener("pointerlockchange", () => Input._isPointerLocked = document.pointerLockElement !== null);
