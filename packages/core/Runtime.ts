@@ -1,5 +1,6 @@
 import { Input } from "./Input";
 import { Renderer } from "./renderer";
+import { SceneExecutionMode } from "./Scene";
 import { SceneManager } from "./SceneManager";
 import { System } from "./System";
 
@@ -39,7 +40,11 @@ export class Runtime {
 
     public static Tick(): void {
         this.SceneManager.Update();
-        for (const s of this.systems.values()) s.Update();
+        for (const s of this.systems.values()) {
+            // TODO: Should not have any edit mode here, this is runtime, no editor related stuff
+            if (this.SceneManager.GetActiveScene()?.mode === SceneExecutionMode.Edit && !s.runInEditMode) continue;
+            s.Update();
+        }
         this.Input.Update();
     }
 
