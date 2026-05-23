@@ -62,7 +62,7 @@ export class GLTFLoader {
 
         let cached = this.TextureCache.get(cacheKey);
         if (!cached) {
-            cached = TridentTexture.LoadBlob(new Blob([tex.source.bytes], { type: tex.source.mimeType }), textureFormat, { name: textureName, storeSource: true });
+            cached = TridentTexture.LoadBlob(new Blob([tex.source.bytes], { type: tex.source.mimeType }), { format: textureFormat, name: textureName, storeSource: true });
             this.TextureCache.set(cacheKey, cached);
         }
 
@@ -177,7 +177,7 @@ export class GLTFLoader {
 
         const material = new PBRMaterial(materialParams);
         material.assetPath = undefined;
-        material.name = materialBaseName;
+        // material.name = materialBaseName;
 
         return { geometry, material };
     }
