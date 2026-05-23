@@ -4154,6 +4154,7 @@ function RegisterBuiltinGeometries() {
 }
 
 class System {
+  runInEditMode = false;
   async Start() {
   }
   Update() {
@@ -6676,6 +6677,15 @@ class Input extends System {
       AddPointerAwareEvent(Renderer.canvas, "mouseup", (event) => Input.OnMouseUp(event));
       AddPointerAwareEvent(Renderer.canvas, "touchmove", (event) => Input.OnTouchMove(event));
       AddPointerAwareEvent(Renderer.canvas, "wheel", (event) => Input.OnMouseWheel(event));
+      Renderer.canvas.addEventListener("pointerenter", () => Renderer.canvas.focus());
+      Renderer.canvas.addEventListener("pointerleave", () => Renderer.canvas.blur());
+      Renderer.canvas.addEventListener("blur", () => {
+        Input.keysDown = {};
+        Input.mouseDown = {};
+        Input.horizontalAxis = 0;
+        Input.verticalAxis = 0;
+        Input.mouseWheelAxis = 0;
+      });
     }
     document.addEventListener("pointerlockchange", () => Input._isPointerLocked = document.pointerLockElement !== null);
   }
@@ -6931,7 +6941,10 @@ class Runtime {
   }
   static Tick() {
     this.SceneManager.Update();
-    for (const s of this.systems.values()) s.Update();
+    for (const s of this.systems.values()) {
+      if (this.SceneManager.GetActiveScene()?.mode === SceneExecutionMode.Edit && !s.runInEditMode) continue;
+      s.Update();
+    }
     this.Input.Update();
   }
   static Render() {
@@ -7436,7 +7449,7 @@ class Deserializer {
     return !!data && typeof data === "object" && data.__ref === "GameObject" && typeof data.id === "string";
   }
   static createExpectedInstance(type) {
-    if (type === Number || type === String || type === Boolean || type === Array || type === Object) {
+    if (type === Number || type === String || type === Boolean || type === Array || type === Object || type === GameObject || type === Component || type.prototype instanceof Component) {
       return void 0;
     }
     return new type();

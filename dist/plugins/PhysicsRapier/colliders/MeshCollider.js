@@ -4,6 +4,7 @@ import { Collider } from './Collider.js';
 
 class MeshCollider extends Collider {
   static type = "@trident/plugins/PhysicsRapier/Colliders/MeshCollider";
+  runInEditMode = true;
   constructor(gameObject) {
     super(gameObject);
     EventSystemLocal.on(Components.RenderableEvents.GeometryUpdated, this.transform, (gameObject2, geometry) => {
@@ -43,6 +44,9 @@ class MeshCollider extends Collider {
     this.collider = PhysicsRapier.PhysicsWorld.createCollider(this.colliderDesc);
     this.collider.setTranslation(p);
     this.collider.setRotation(q);
+  }
+  Destroy() {
+    if (this.collider && PhysicsRapier.PhysicsWorld) PhysicsRapier.PhysicsWorld.removeCollider(this.collider, true);
   }
 }
 

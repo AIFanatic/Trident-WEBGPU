@@ -2,7 +2,6 @@ import { Components, SerializeField, Prefab, GPU, Utils, Input, KeyCodes, Render
 import { EditorAPI } from '@trident/editor';
 import { LineRenderer } from '@trident/plugins/LineRenderer.js';
 import { PhysicsRapier } from '@trident/plugins/PhysicsRapier/PhysicsRapier.js';
-import { TerrainCollider } from '@trident/plugins/PhysicsRapier/colliders/TerrainCollider.js';
 import { Terrain } from '@trident/plugins/Terrain/Terrain.js';
 import { TerrainLayer } from '@trident/plugins/Terrain/TerrainMaterial.js';
 
@@ -55,7 +54,6 @@ class TerrainEditor extends (_a = Components.Component, _paintObjects_dec = [Ser
     super(...arguments);
     __publicField(this, "runInEditMode", true);
     __publicField(this, "terrain");
-    __publicField(this, "terrainCollider");
     __publicField(this, "lineRenderer");
     __publicField(this, "terrainLayersSignature", "");
     __publicField(this, "activeColor", "#3498db50");
@@ -78,17 +76,11 @@ class TerrainEditor extends (_a = Components.Component, _paintObjects_dec = [Ser
   }
   Start() {
     const terrain = this.gameObject.GetComponent(Terrain);
-    const terrainCollider = this.gameObject.GetComponent(TerrainCollider);
     if (!terrain) throw Error("No terrain found");
-    if (!terrainCollider) throw Error("No terrain collider found");
     this.terrain = terrain;
-    this.terrainCollider = terrainCollider;
     this.lineRenderer = this.gameObject.GetComponent(LineRenderer) || this.gameObject.AddComponent(LineRenderer);
     this.lineRenderer.flags |= Utils.Flags.DontSaveInEditor | Utils.Flags.HideInInspector;
     this.ApplyTerrainLayers();
-    this.terrain.terrainData.InitializePaintMaps();
-    this.terrain.terrainData.ApplyHeightsToGeometry();
-    this.UpdateTerrainCollider();
     EditorAPI.Events.onSceneSaved(() => {
       EditorAPI.SaveAsset(this.terrain.terrainData);
       console.log("Saved TerrainData");
@@ -109,7 +101,6 @@ class TerrainEditor extends (_a = Components.Component, _paintObjects_dec = [Ser
     if (heightChanged) {
       this.terrain.terrainData.ApplyHeightsToGeometry();
       this.RefreshPropHeights(hit.point, this.paintRadius);
-      this.UpdateTerrainCollider();
     }
   }
   ApplyActiveTool(point) {
@@ -159,8 +150,6 @@ class TerrainEditor extends (_a = Components.Component, _paintObjects_dec = [Ser
   async ApplyHeightmap() {
     if (!this.heightmap) return;
     await this.terrain.terrainData.HeightmapFromTexture(this.heightmap, this.heightmapSmooth, this.heightmapMultiplier);
-    this.terrain.terrainData.ApplyHeightsToGeometry();
-    this.UpdateTerrainCollider();
   }
   UpdateTerrainLayers() {
     const signature = this.paintLayers.map((layer) => {
@@ -174,16 +163,6 @@ class TerrainEditor extends (_a = Components.Component, _paintObjects_dec = [Ser
     if (signature === this.terrainLayersSignature) return;
     this.terrainLayersSignature = signature;
     this.ApplyTerrainLayers();
-  }
-  UpdateTerrainCollider() {
-    const heights = this.terrain.terrainData.GetHeights();
-    const heightsSize = Math.sqrt(heights.length);
-    this.terrainCollider.SetTerrainData(
-      heightsSize - 1,
-      heightsSize - 1,
-      heights,
-      this.terrain.terrainData.size
-    );
   }
   UpdateDebugSphere(radius, position) {
     const positions = [];
@@ -236,7 +215,7 @@ class TerrainEditor extends (_a = Components.Component, _paintObjects_dec = [Ser
     }
   }
   ApplyHeightBrush(worldPoint, radius, strength, editHeight) {
-    const heights = this.terrain.terrainData.GetHeights();
+    const heights = this.terrain.terrainData.heights;
     const size = this.terrain.terrainData.size;
     const sizeH = Math.sqrt(heights.length);
     const normalizedStrength = strength / size.y;
@@ -337,7 +316,7 @@ class TerrainEditor extends (_a = Components.Component, _paintObjects_dec = [Ser
   async PaintProp(worldPoint) {
     const prop = this.paintObjects[this.paintObjectID];
     if (!prop) return;
-    const propIndex = await this.terrain.terrainData.AddProp(prop);
+    const propIndex = await this.terrain.terrainData.AddProp(prop, this.terrain.gameObject);
     const samples = Math.max(1, Math.ceil(this.paintRadius));
     const minScale = this.paintObjectMinScale;
     const maxScale = this.paintObjectMaxScale;
@@ -579,7 +558,7 @@ class TerrainEditor extends (_a = Components.Component, _paintObjects_dec = [Ser
             Object.assign({}, this.DropEvents(Prefab, (prefab) => {
               if (!this.paintObjects.some((p) => p === prefab || !!p.assetPath && p.assetPath === prefab.assetPath)) {
                 this.paintObjects.push(prefab);
-                this.terrain.terrainData.AddProp(prefab);
+                this.terrain.terrainData.AddProp(prefab, this.terrain.gameObject);
               }
             }), { style: dropAreaStyle }),
             this.RenderList(

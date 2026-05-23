@@ -35,6 +35,12 @@ class EditorAPI {
     },
     offSceneSaved(handler) {
       return requireBridge().events.offSceneSaved(handler);
+    },
+    onHierarchySelected(handler) {
+      return requireBridge().events.onHierarchySelected(handler);
+    },
+    offHierarchySelected(handler) {
+      return requireBridge().events.offHierarchySelected(handler);
     }
   };
   static Selection = {

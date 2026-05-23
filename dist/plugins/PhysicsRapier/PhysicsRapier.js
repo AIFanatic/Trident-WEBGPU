@@ -1,8 +1,9 @@
-import { System, Mathf } from '@trident/core';
+import { System, Mathf, Runtime, SceneExecutionMode } from '@trident/core';
 import Tg from './rapier/rapier.es.js';
 
 class PhysicsRapier extends System {
   static type = "@trident/plugins/PhysicsRapier";
+  runInEditMode = true;
   static hasLoaded = false;
   static Physics;
   static PhysicsWorld;
@@ -40,7 +41,12 @@ class PhysicsRapier extends System {
   }
   Update() {
     if (!PhysicsRapier.hasLoaded) return;
-    PhysicsRapier.PhysicsWorld.step();
+    const scene = Runtime.SceneManager.GetActiveScene();
+    if (scene?.mode === SceneExecutionMode.Edit) {
+      PhysicsRapier.PhysicsWorld.updateSceneQueries();
+    } else {
+      PhysicsRapier.PhysicsWorld.step();
+    }
   }
 }
 

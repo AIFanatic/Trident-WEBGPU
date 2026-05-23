@@ -42,7 +42,7 @@ class GLTFLoader {
     const cacheKey = `${tex.source.checksum}:${textureFormat}`;
     let cached = this.TextureCache.get(cacheKey);
     if (!cached) {
-      cached = Texture.LoadBlob(new Blob([tex.source.bytes], { type: tex.source.mimeType }), textureFormat, { name: textureName, storeSource: true });
+      cached = Texture.LoadBlob(new Blob([tex.source.bytes], { type: tex.source.mimeType }), { format: textureFormat, name: textureName, storeSource: true });
       this.TextureCache.set(cacheKey, cached);
     }
     return cached;
@@ -134,7 +134,6 @@ class GLTFLoader {
     geometry.name = names.primitiveIndex === 0 ? `${geomBaseName}_Geo` : `${geomBaseName}_Prim${names.primitiveIndex}_Geo`;
     const material = new PBRMaterial(materialParams);
     material.assetPath = void 0;
-    material.name = materialBaseName;
     return { geometry, material };
   }
   // ---------- Public API ----------

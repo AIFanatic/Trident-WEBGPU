@@ -1,4 +1,4 @@
-import { Assets, Component as Component$1, Deserializer, Geometry, PBRMaterial, GPU, InterleavedVertexAttribute, IndexAttribute, VertexAttribute, Runtime, GameObject, Serializer, SceneExecutionMode, Components, Scene, Mathf, Prefab, Utils, EventSystem, EventSystemLocal, Texture, GetSerializedFields, AssetMeta, Console } from '@trident/core';
+import { Assets, Component as Component$1, Deserializer, Geometry, PBRMaterial, GPU, InterleavedVertexAttribute, IndexAttribute, VertexAttribute, Runtime, GameObject, Serializer, SceneExecutionMode, Components, Input, KeyCodes, Scene, Mathf, Prefab, Utils, EventSystem, EventSystemLocal, Texture, GetSerializedFields, AssetMeta, Console } from '@trident/core';
 import { OrbitControls } from '@trident/plugins/OrbitControls.js';
 import { RigidBody } from '@trident/plugins/PhysicsRapier/RigidBody.js';
 import { BoxCollider } from '@trident/plugins/PhysicsRapier/colliders/BoxCollider.js';
@@ -12,8 +12,8 @@ import { TerrainEditor } from '@trident/plugins/Terrain/TerrainEditor.js';
 import { LineRenderer } from '@trident/plugins/LineRenderer.js';
 import { LODGroup } from '@trident/plugins/LOD/LODGroup.js';
 import { WaterV1 } from '@trident/plugins/Water/WaterV1.js';
+import { EditorAPI, registerEditorBridge } from '@trident/editor';
 import { GLTFLoader } from '@trident/plugins/GLTF/GLTFLoader.js';
-import { registerEditorBridge } from '@trident/editor';
 import { Sky } from '@trident/plugins/Environment/Sky.js';
 import { PhysicsRapier } from '@trident/plugins/PhysicsRapier/PhysicsRapier.js';
 import { IBLLightingPass } from '@trident/plugins/Environment/IBLLightingPass.js';
@@ -2903,13 +2903,22 @@ class EditorScene extends Component$1 {
   static type = "@trident/editor/EditorScene";
   runInEditMode = true;
   orbitControls;
+  selectedHierarchyGameObject;
   Start() {
     this.orbitControls = this.gameObject.GetComponent(OrbitControls) ?? this.gameObject.AddComponent(OrbitControls);
+    this.orbitControls.camera = Components.Camera.mainCamera;
     this.orbitControls.runInEditMode = true;
+    EditorAPI.Events.onHierarchySelected((gameObject) => {
+      this.selectedHierarchyGameObject = gameObject;
+    });
   }
   Update() {
     if (this.orbitControls) {
       this.orbitControls.enabled = !EditorRuntime.isPlaying;
+      if (Input.GetKeyDown(KeyCodes.F) && this.selectedHierarchyGameObject) {
+        this.orbitControls.center.copy(this.selectedHierarchyGameObject.transform.position);
+        this.orbitControls.zoom(1);
+      }
     }
   }
 }
@@ -4426,8 +4435,9 @@ class LayoutHierarchy extends Component {
     const gameObject = this.props.engineAPI.createGameObject(this.props.engineAPI.currentScene);
     gameObject.name = "Terrain";
     const terrain = this.props.engineAPI.addComponent(gameObject, ComponentRegistry.Terrain);
-    this.props.engineAPI.addComponent(gameObject, ComponentRegistry.TerrainCollider);
+    const terrainCollider = this.props.engineAPI.addComponent(gameObject, ComponentRegistry.TerrainCollider);
     this.props.engineAPI.addComponent(gameObject, ComponentRegistry.TerrainEditor);
+    terrainCollider.terrainData = terrain.terrainData;
     const terrainPath = `${gameObject.name}_${gameObject.id}.terrain`;
     terrain.terrainData.assetPath = terrainPath;
     SaveAsset(terrain.terrainData);
@@ -4491,7 +4501,7 @@ class LayoutHierarchy extends Component {
     } }, "\u22EE"), /* @__PURE__ */ createElement(FloatingMenu, { visible: this.state.headerMenuOpen, onClose: () => this.setState({ ...this.state, headerMenuOpen: false }) }, /* @__PURE__ */ createElement(Tree, null, /* @__PURE__ */ createElement(TreeItem, { name: "Create Empty", onPointerDown: () => this.createEmptyGameObject() }), /* @__PURE__ */ createElement(TreeItem, { name: "Delete", onPointerDown: () => this.deleteGameObject() }), /* @__PURE__ */ createElement(TreeItem, { name: "Unpack Prefab", onPointerDown: () => this.unpackSelectedPrefab() }), /* @__PURE__ */ createElement(TreeFolder, { name: "3D Object" }, /* @__PURE__ */ createElement(TreeItem, { name: "Cube", onPointerDown: () => this.createPrimitive("Cube") }), /* @__PURE__ */ createElement(TreeItem, { name: "Capsule", onPointerDown: () => this.createPrimitive("Capsule") }), /* @__PURE__ */ createElement(TreeItem, { name: "Plane", onPointerDown: () => this.createPrimitive("Plane") }), /* @__PURE__ */ createElement(TreeItem, { name: "Sphere", onPointerDown: () => this.createPrimitive("Sphere") }), /* @__PURE__ */ createElement(TreeItem, { name: "Terrain", onPointerDown: () => this.createTerrain() })), /* @__PURE__ */ createElement(TreeFolder, { name: "Lights" }, /* @__PURE__ */ createElement(TreeItem, { name: "Directional Light", onPointerDown: () => this.createLight("Directional") }), /* @__PURE__ */ createElement(TreeItem, { name: "Point Light", onPointerDown: () => this.createLight("Point") }), /* @__PURE__ */ createElement(TreeItem, { name: "Spot Light", onPointerDown: () => this.createLight("Spot") })))))), /* @__PURE__ */ createElement(
       "div",
       {
-        style: "width: 100%; height: 100%; overflow: auto;padding-top:5px",
+        style: "width: 100%; height: 100%; overflow: scroll;padding-top:5px",
         onDrop: (event) => this.onDrop(event),
         onDragOver: (e) => e.preventDefault()
       },
@@ -5144,6 +5154,7 @@ class InspectorArray extends Component {
 class LayoutInspectorGameObject extends Component {
   constructor(props) {
     super(props);
+    console.log(this.props.gameObject);
   }
   onRemoveComponent(component) {
     component.Destroy();
@@ -5443,8 +5454,6 @@ class LayoutTopbar extends Component {
   async test() {
     const serializedScene = this.props.engineAPI.serializer.serializeScene(this.props.engineAPI.currentScene);
     console.log(JSON.stringify(serializedScene));
-    this.setState({ fileMenuOpen: !this.state.fileMenuOpen });
-    TridentAPI.EventSystem.emit(SceneEvents.Saved, this.props.engineAPI.currentScene);
   }
   async PlayStop() {
     const runtime = this.props.engineAPI.getRuntime();
@@ -5505,6 +5514,12 @@ class App extends Component {
         },
         offSceneSaved: (handler) => {
           TridentAPI.EventSystem.off(SceneEvents.Saved, handler);
+        },
+        onHierarchySelected(handler) {
+          TridentAPI.EventSystem.on(LayoutHierarchyEvents.Selected, handler);
+        },
+        offHierarchySelected(handler) {
+          TridentAPI.EventSystem.off(LayoutHierarchyEvents.Selected, handler);
         }
       },
       Selection: {
@@ -5525,15 +5540,15 @@ class App extends Component {
       const file = await fetch("./resources/DefaultScene.scene");
       const text = await file.text();
       const sceneJSON = JSON.parse(text);
-      await EngineAPI.deserializer.deserializeScene(EngineAPI.currentScene, sceneJSON);
-      TridentAPI.EventSystem.emit(SceneEvents.Loaded, EngineAPI.currentScene);
       const skyAtmosphere = new Sky();
       await skyAtmosphere.init();
       const iblLightingPass = Runtime.Renderer.RenderPipeline.AddPass(IBLLightingPass, GPU.RenderPassOrder.AfterLighting);
       const skyboxPass = Runtime.Renderer.RenderPipeline.AddPass(SkyboxPass, GPU.RenderPassOrder.AfterLighting);
       iblLightingPass.SetEnvironment(skyAtmosphere.skyTextureCubemap);
       skyboxPass.SetSkybox(skyAtmosphere.skyTextureCubemap);
-      Runtime.AddSystem(PhysicsRapier);
+      await Runtime.AddSystem(PhysicsRapier);
+      await EngineAPI.deserializer.deserializeScene(EngineAPI.currentScene, sceneJSON);
+      TridentAPI.EventSystem.emit(SceneEvents.Loaded, EngineAPI.currentScene);
       TridentAPI.EventSystem.emit(SceneEvents.Loaded, currentScene);
     });
   }
