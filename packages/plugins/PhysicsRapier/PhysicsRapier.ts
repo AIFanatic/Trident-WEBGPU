@@ -1,4 +1,4 @@
-import { System, Mathf } from "@trident/core"
+import { System, Mathf, Runtime, SceneExecutionMode } from "@trident/core"
 
 import RAPIER_Module from "./rapier/rapier.es.js"
 import RAPIER from "./rapier/rapier";
@@ -10,6 +10,7 @@ export interface RaycastHit {
 
 export class PhysicsRapier extends System {
     public static type = "@trident/plugins/PhysicsRapier";
+    public runInEditMode = true;
     public static hasLoaded = false;
 
     public static Physics: typeof RAPIER;
@@ -37,7 +38,7 @@ export class PhysicsRapier extends System {
             found = true;
             return false; // Return `false` instead if we want to stop searching for other colliders that contain this point.
         }, undefined, undefined, undefined, filterExcludeRigidBody);
-        
+
         return found;
     }
 
@@ -45,18 +46,23 @@ export class PhysicsRapier extends System {
         let ray = new this.Physics.Ray(origin, direction);
         const rayHit = this.PhysicsWorld.castRayAndGetNormal(ray, maxDistance, true, undefined, undefined, undefined, filterExcludeRigidBody);
         if (!rayHit) return null;
-        
+
         const hitPoint = ray.pointAt(rayHit.timeOfImpact);
-        
+
+
         return {
             point: new Mathf.Vector3(hitPoint.x, hitPoint.y, hitPoint.z),
             normal: new Mathf.Vector3(rayHit.normal.x, rayHit.normal.y, rayHit.normal.z)
         }
     }
-    
 
     public Update(): void {
         if (!PhysicsRapier.hasLoaded) return;
-        PhysicsRapier.PhysicsWorld.step();
+        const scene = Runtime.SceneManager.GetActiveScene();
+        if (scene?.mode === SceneExecutionMode.Edit) {
+            PhysicsRapier.PhysicsWorld.updateSceneQueries(); // Needed for editor queries
+        } else {
+            PhysicsRapier.PhysicsWorld.step();
+        }
     }
 }
