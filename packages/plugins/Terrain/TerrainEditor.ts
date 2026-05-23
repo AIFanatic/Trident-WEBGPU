@@ -2,7 +2,6 @@ import { Components, Input, KeyCodes, Mathf, PBRMaterial, Prefab, Renderer, Seri
 import { EditorAPI } from "@trident/editor";
 import { LineRenderer } from "@trident/plugins/LineRenderer";
 import { PhysicsRapier } from "@trident/plugins/PhysicsRapier/PhysicsRapier.js";
-import { TerrainCollider } from "@trident/plugins/PhysicsRapier/colliders/TerrainCollider";
 import { Terrain } from "@trident/plugins/Terrain/Terrain.js";
 import { TerrainLayer } from "@trident/plugins/Terrain/TerrainMaterial.js";
 
@@ -22,7 +21,6 @@ export class TerrainEditor extends Components.Component {
     public runInEditMode: boolean = true;
     public static type = "@trident/plugins/Terrain/TerrainEditor";
     private terrain: Terrain;
-    private terrainCollider: TerrainCollider;
     private lineRenderer: LineRenderer;
 
     private terrainLayersSignature = "";
@@ -53,22 +51,14 @@ export class TerrainEditor extends Components.Component {
 
     public Start(): void {
         const terrain = this.gameObject.GetComponent(Terrain);
-        const terrainCollider = this.gameObject.GetComponent(TerrainCollider);
         if (!terrain) throw Error("No terrain found");
-        if (!terrainCollider) throw Error("No terrain collider found");
 
         this.terrain = terrain;
-        this.terrainCollider = terrainCollider;
 
         this.lineRenderer = this.gameObject.GetComponent(LineRenderer) || this.gameObject.AddComponent(LineRenderer);
         this.lineRenderer.flags |= Utils.Flags.DontSaveInEditor | Utils.Flags.HideInInspector;
 
         this.ApplyTerrainLayers();
-        this.terrain.terrainData.InitializePaintMaps();
-
-        // Ensure deserialized heights are reflected in the geometry buffer + collider
-        this.terrain.terrainData.ApplyHeightsToGeometry();
-        this.UpdateTerrainCollider();
 
         EditorAPI.Events.onSceneSaved(() => {
             EditorAPI.SaveAsset(this.terrain.terrainData);
@@ -97,7 +87,6 @@ export class TerrainEditor extends Components.Component {
         if (heightChanged) {
             this.terrain.terrainData.ApplyHeightsToGeometry();
             this.RefreshPropHeights(hit.point, this.paintRadius);
-            this.UpdateTerrainCollider();
         }
     }
 
@@ -160,8 +149,6 @@ export class TerrainEditor extends Components.Component {
     private async ApplyHeightmap(): Promise<void> {
         if (!this.heightmap) return;
         await this.terrain.terrainData.HeightmapFromTexture(this.heightmap, this.heightmapSmooth, this.heightmapMultiplier);
-        this.terrain.terrainData.ApplyHeightsToGeometry();
-        this.UpdateTerrainCollider();
     }
 
     private UpdateTerrainLayers(): void {
@@ -178,18 +165,6 @@ export class TerrainEditor extends Components.Component {
 
         this.terrainLayersSignature = signature;
         this.ApplyTerrainLayers();
-    }
-
-    private UpdateTerrainCollider(): void {
-        const heights = this.terrain.terrainData.GetHeights();
-        const heightsSize = Math.sqrt(heights.length);
-
-        this.terrainCollider.SetTerrainData(
-            heightsSize - 1,
-            heightsSize - 1,
-            heights,
-            this.terrain.terrainData.size,
-        );
     }
 
     private UpdateDebugSphere(radius: number, position: Mathf.Vector3): void {
@@ -240,7 +215,7 @@ export class TerrainEditor extends Components.Component {
     }
 
     private ApplyHeightBrush(worldPoint: Mathf.Vector3, radius: number, strength: number, editHeight: (height: number, amount: number) => number): void {
-        const heights = this.terrain.terrainData.GetHeights();
+        const heights = this.terrain.terrainData.heights;
         const size = this.terrain.terrainData.size;
         const sizeH = Math.sqrt(heights.length);
         const normalizedStrength = strength / size.y;
@@ -370,7 +345,7 @@ export class TerrainEditor extends Components.Component {
         const prop = this.paintObjects[this.paintObjectID];
         if (!prop) return;
 
-        const propIndex = await this.terrain.terrainData.AddProp(prop);
+        const propIndex = await this.terrain.terrainData.AddProp(prop, this.terrain.gameObject);
 
         // sample a handful of candidates per frame; density gates how many actually land
         const samples = Math.max(1, Math.ceil(this.paintRadius));
@@ -608,7 +583,7 @@ export class TerrainEditor extends Components.Component {
                     h("div", Object.assign({}, this.DropEvents(Prefab, prefab => {
                         if (!this.paintObjects.some(p => p === prefab || (!!p.assetPath && p.assetPath === prefab.assetPath))) {
                             this.paintObjects.push(prefab);
-                            this.terrain.terrainData.AddProp(prefab);
+                            this.terrain.terrainData.AddProp(prefab, this.terrain.gameObject);
                         }
                     }), { style: dropAreaStyle }),
                         this.RenderList(
