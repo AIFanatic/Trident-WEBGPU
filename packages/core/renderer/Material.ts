@@ -125,6 +125,11 @@ export class PBRMaterial extends Material {
 
     public params: PBRMaterialParams = new PBRMaterialParams();
 
+    public get shader(): Shader {
+        if (!this._shader && !this.pendingShaderCreation) this.createShader();
+        return this._shader;
+    }
+
     constructor(params?: Partial<PBRMaterialParams>) {
         super({ isDeferred: params?.isDeferred ?? true });
         this.assetPath = "@builtin/material/pbr";
@@ -135,9 +140,7 @@ export class PBRMaterial extends Material {
 
         Object.assign(this.params, params);
 
-        if (!PBRMaterial.sampler) PBRMaterial.sampler = new TextureSampler();
-
-        this.createShader();
+        if (!PBRMaterial.sampler) PBRMaterial.sampler = new TextureSampler({maxAnisotropy: 4});
     }
 
     private pendingShaderCreation?: Promise<Shader>;
