@@ -48,7 +48,7 @@ export class DeferredLightingPass extends RenderPass {
         this.shader = await Shader.Create({
             name: this.name,
             code: await ShaderLoader.DeferredLighting,
-            colorOutputs: [{format: "rgba16float", blendMode: "add"}],
+            colorOutputs: [{ format: "rgba16float", blendMode: "add" }],
             depthOutput: "depth24plus",
             depthWriteEnabled: false,
             // depthCompare: "less-equal",
@@ -67,7 +67,7 @@ export class DeferredLightingPass extends RenderPass {
         });
         this.shader.SetSampler("textureSampler", this.sampler);
 
-        const shadowSamplerComp = new TextureSampler({minFilter: "linear", magFilter: "linear", compare: "less"});
+        const shadowSamplerComp = new TextureSampler({ minFilter: "linear", magFilter: "linear", compare: "less" });
         this.shader.SetSampler("shadowSamplerComp", shadowSamplerComp);
 
         this.quadGeometry = new Geometry();
@@ -81,10 +81,12 @@ export class DeferredLightingPass extends RenderPass {
         this.outputLightingPass = RenderTexture.Create(Renderer.width, Renderer.height, 1, "rgba16float");
         this.outputLightingPass.name = "DeferredLighting";
 
-        EventSystem.on(RendererEvents.Resized, canvas => {
-            this.outputLightingPass.Destroy();
+        EventSystem.on(RendererEvents.Resized, () => {
+            const old = this.outputLightingPass;
             this.outputLightingPass = RenderTexture.Create(Renderer.width, Renderer.height, 1, "rgba16float");
-        })
+            this.outputLightingPass.name = "DeferredLighting";
+            EventSystem.once(RendererEvents.FrameEnded, () => old.Destroy());
+        });
 
         // If there are no lights in the scene this is used instead
         this.dummyShadowPassDepth = DepthTextureArray.Create(1, 1, 1);
@@ -97,7 +99,7 @@ export class DeferredLightingPass extends RenderPass {
         EventSystem.on(LightEvents.Destroyed, light => {
             this.lightsBuffer.delete(light.id);
             this.needsUpdate = true;
-        })        
+        })
 
         this.initialized = true;
     }
@@ -128,7 +130,7 @@ export class DeferredLightingPass extends RenderPass {
             let projectionMatrices: Float32Array = new Float32Array(16 * 4);
             let cascadeSplits: Float32Array = new Float32Array(4);
 
-            
+
             const lightsShadowData = resources.getResource(PassParams.ShadowPassCascadeData) as Map<string, LightShadowInfo> | undefined;
             const lightShadowData = lightsShadowData ? lightsShadowData.get(light.id) : undefined;
             if (lightShadowData !== undefined) {
@@ -153,7 +155,7 @@ export class DeferredLightingPass extends RenderPass {
                 // Directional / Area: use identity-scaled transform (or identity)
                 this._volumeMatrix.copy(light.transform.localToWorldMatrix);
             }
-            
+
             const lightData = new Float32Array([
                 ...this._volumeMatrix.elements,
                 light.transform.position.x, light.transform.position.y, light.transform.position.z, 1.0,
@@ -213,13 +215,13 @@ export class DeferredLightingPass extends RenderPass {
 
         const settings = resources.getResource(PassParams.DebugSettings);
         this.shader.SetArray("settings", settings);
-        
+
         // RendererContext.DrawGeometry(this.quadGeometry, this.shader);
         for (let i = 0; i < lights.length; i++) {
             const light = lights[i];
-            if (light instanceof DirectionalLight) this.drawCommands.push({geometry: this.plane, shader: this.shader, instanceCount: 1, firstInstance: i});
-            if (light instanceof PointLight) this.drawCommands.push({geometry: this.sphere, shader: this.shader, instanceCount: 1, firstInstance: i});
-            if (light instanceof SpotLight) this.drawCommands.push({geometry: this.cone, shader: this.shader, instanceCount: 1, firstInstance: i});
+            if (light instanceof DirectionalLight) this.drawCommands.push({ geometry: this.plane, shader: this.shader, instanceCount: 1, firstInstance: i });
+            if (light instanceof PointLight) this.drawCommands.push({ geometry: this.sphere, shader: this.shader, instanceCount: 1, firstInstance: i });
+            if (light instanceof SpotLight) this.drawCommands.push({ geometry: this.cone, shader: this.shader, instanceCount: 1, firstInstance: i });
         }
     }
 
@@ -237,9 +239,9 @@ export class DeferredLightingPass extends RenderPass {
             this.gBufferDepthClone.Destroy();
             this.gBufferDepthClone = DepthTexture.Create(GBufferDepth.width, GBufferDepth.height, GBufferDepth.depth, GBufferDepth.format);
         }
-        RendererContext.CopyTextureToTextureV3({texture: GBufferDepth}, {texture: this.gBufferDepthClone});
+        RendererContext.CopyTextureToTextureV3({ texture: GBufferDepth }, { texture: this.gBufferDepthClone });
 
-        RendererContext.BeginRenderPass("DeferredLightingPass", [{ target: this.outputLightingPass, clear: true }], {target: this.gBufferDepthClone, clear: false}, true);
+        RendererContext.BeginRenderPass("DeferredLightingPass", [{ target: this.outputLightingPass, clear: true }], { target: this.gBufferDepthClone, clear: false }, true);
 
         for (const draw of this.drawCommands) {
             RendererContext.DrawGeometry(draw.geometry, draw.shader, draw.instanceCount, draw.firstInstance);
