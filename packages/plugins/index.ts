@@ -48,7 +48,6 @@ export * from "./ParticleSystem/ParticleSystem";
 export { WaterV1 } from "./Water/WaterV1";
 export { WaterNoise } from "./Water/WaterNoise";
 export { WaterDynamic } from "./Water/WaterDynamic";
-export { WaterFFT } from "./Water/WaterFFT";
 
 export * from "./SSGI";
 export * from "./Blit";
@@ -83,3 +82,6 @@ export * from "./WireframePass";
 export { GLSL2WGSL } from "./GLSLParser/GLSLParser";
 
 export * from "./SHGenerator";
+
+export { TerrainProcedural } from "./TerrainProcedural";
+export { TerrainProceduralProp } from "./TerrainProceduralProp";

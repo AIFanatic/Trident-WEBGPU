@@ -2,7 +2,7 @@ import { Geometry, GPU } from "@trident/core";
 import { PrefilterDiffuse } from "./PrefilterDiffuse";
 import { PrefilterSpecular } from "./PrefilterSpecular";
 import { BRDF } from "./BRDF";
-import IBLLightingWGSL from "./resources/IBLLighting.wgsl" with { type: "text" };
+import IBLLightingWGSL from "./resources/IBLLighting.wgsl";
 
 export class IBLLightingPass extends GPU.RenderPass {
     public name: string = "IBLLightingPass";

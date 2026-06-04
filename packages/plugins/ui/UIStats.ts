@@ -59,22 +59,18 @@ export class UIGraph extends Stat {
             return;
         }
     
-        // Draw the new line segment
         this.ctx.beginPath();
         this.ctx.moveTo(this.canvas.width - 1, this.lastValue);
         this.ctx.lineTo(this.canvas.width, value);
         this.ctx.stroke();
 
         
-        // Shift the canvas content to the left
-        this.ctx.save(); // Save the current context state
-        this.ctx.setTransform(1, 0, 0, 1, 0, 0); // Reset the transformation matrix
+        this.ctx.save();
+        this.ctx.setTransform(1, 0, 0, 1, 0, 0);
         this.ctx.globalCompositeOperation = "copy";
         this.ctx.drawImage(this.canvas, -1, 0);
         this.ctx.restore();
 
-
-        // Update the last value
         this.lastValue = value;
     }
 }
@@ -180,24 +176,16 @@ export class UISliderStat extends Stat {
 export class UITextStat extends Stat {
     private textElement: HTMLPreElement;
 
-    private rawValue: number;        // Truth
-    private displayValue: number;    // What we actually show on screen
+    private rawValue: number;
+    private displayValue: number;
 
     private precision: number;
     private unit: string;
     private rolling: boolean;
 
-    // Now formatter returns a string (for display only)
     public formatter?: (value: number) => string;
 
-    constructor(
-        folder: UIFolder,
-        label: string,
-        defaultValue: number = 0,
-        precision = 0,
-        unit = "",
-        rolling = false
-    ) {
+    constructor( folder: UIFolder, label: string, defaultValue: number = 0, precision = 0, unit = "", rolling = false) {
         super(folder.container, label);
 
         this.rawValue = defaultValue;
@@ -213,7 +201,6 @@ export class UITextStat extends Stat {
 
         this.statContainer.append(this.textElement);
 
-        // Still doing interval-based updates, but now they don't mutate the source value
         setInterval(() => {
             this.Update();
         }, 100);
@@ -222,7 +209,6 @@ export class UITextStat extends Stat {
     public SetValue(value: number) {
         this.rawValue = value;
 
-        // If not rolling, just snap display to the raw value immediately
         if (!this.rolling) {
             this.displayValue = value;
         }
@@ -240,16 +226,13 @@ export class UITextStat extends Stat {
         this.unit = unit;
     }
 
-    // If you really want arbitrary text, it's better to have a separate method/class.
-    // But here's a safe version that bypasses numeric logic:
     public SetText(text: string) {
         this.textElement.textContent = text;
     }
 
     public Update() {
-        // Update smoothing first (if enabled)
         if (this.rolling) {
-            const lerpFactor = 0.05; // same as your original
+            const lerpFactor = 0.05;
             this.displayValue = this.displayValue * (1 - lerpFactor) + this.rawValue * lerpFactor;
         }
 

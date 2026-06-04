@@ -7,7 +7,7 @@ export class OrbitControls extends Component {
     
     public static type = "@trident/plugins/OrbitControls";
 
-    public readonly center = new Mathf.Vector3();
+    @SerializeField public readonly center = new Mathf.Vector3();
 
     public orbitSpeed = 0.01;
     public panSpeed = 1;
@@ -29,7 +29,7 @@ export class OrbitControls extends Component {
     private phi = 0;
 
     public Start(): void {
-        if (!this.camera) throw new Error("OrbitControls needs a Camera.");
+        if (!this.camera) this.camera = Components.Camera.mainCamera;
 
         this.camera.transform.LookAt(this.center);
 
