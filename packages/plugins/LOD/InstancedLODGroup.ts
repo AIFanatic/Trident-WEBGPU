@@ -38,6 +38,13 @@ export class InstancedLODGroup extends Components.Renderable {
         this._instanceCount = matrices.length / 16;
     }
 
+    // Its kinda silly to have 3 methods to set matrices
+    public ReserveInstances(count: number): void {
+        if (this.matrices.has(0)) this.matrices.delete(0);
+        this.matrices.set(0, new Float32Array(count * 16));
+        this._instanceCount = count;
+    }
+
     // Expose a representative geometry so RenderablePass picks it up.
     public get geometry(): Geometry {
         const lod0 = this.lods[0];
@@ -129,15 +136,17 @@ export class InstancedLODGroup extends Components.Renderable {
                 let lc = u32(lodCount);
                 if (lc == 0u) { return; }
                 
-                let d = distance(frameBuffer.viewPosition.xyz, modelPosition);
-                let cullDistance = lods[lc - 1u].distance;
-                if (d > cullDistance) { return; }
+                let radiusScale = computeRadiusScale(modelMatrixInstance);
+                let worldRadius = boundingSphere.w * radiusScale;
+                let d = max(0.0001, distance(frameBuffer.viewPosition.xyz, modelPosition));
+
+                let projectionY = frameBuffer.projectionMatrix[1][1];
+                let screenSize = (worldRadius * 2.0 * projectionY) / d;
 
                 var lod: u32 = lc - 1u;
 
-                // pick the first threshold that contains d
                 for (var i: u32 = 0u; i < lc; i++) {
-                    if (d <= lods[i].distance) {
+                    if (screenSize >= lods[i].distance) {
                         lod = i;
                         break;
                     }
@@ -237,7 +246,7 @@ export class InstancedLODGroup extends Components.Renderable {
                 GPU.RendererContext.CopyBufferToBuffer(this.drawIndirectBuffer, data.drawBuffer, lodDrawOffset + 4, 4, 4);
 
                 const { geometry, material } = data.renderer;
-                // material.shader.SetBuffer("modelMatrix", this.lodMatrixBuffers[i]);
+                if (!material?.shader) continue;
                 material.shader.SetBuffer("frameBuffer", FrameBuffer);
             }
         }
