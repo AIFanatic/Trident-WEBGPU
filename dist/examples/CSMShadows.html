@@ -28,21 +28,21 @@
             <script type="module">
                 const canvas = document.createElement("canvas");
                 document.body.appendChild(canvas);
-                            import { Runtime, GameObject, Components, Mathf, Geometry, PBRMaterial, GPU } from '@trident/core';
+                            import { PlayerRuntime, GameObject, Components, Mathf, Geometry, PBRMaterial, GPU } from '@trident/core';
             import { OrbitControls } from '@trident/plugins/OrbitControls.js';
             import { Debugger } from '@trident/plugins/Debugger.js';
             
             async function Application(canvas) {
-              await Runtime.Create(canvas);
-              const scene = Runtime.SceneManager.CreateScene("DefaultScene");
-              Runtime.SceneManager.SetActiveScene(scene);
+              await PlayerRuntime.Create(canvas);
+              const scene = PlayerRuntime.SceneManager.CreateScene("DefaultScene");
+              PlayerRuntime.SceneManager.SetActiveScene(scene);
               const mainCameraGameObject = new GameObject();
               mainCameraGameObject.transform.position.set(0, 0, 3);
               mainCameraGameObject.name = "MainCamera";
               const camera = mainCameraGameObject.AddComponent(Components.Camera);
               camera.SetPerspective(70, window.innerWidth / window.innerHeight, 0.1, 1e3);
               camera.transform.position.set(60, 60, 0);
-              new OrbitControls(canvas, camera);
+              mainCameraGameObject.AddComponent(OrbitControls);
               camera.transform.LookAtV1(new Mathf.Vector3(-100, 10, 0));
               const lightGameObject = new GameObject();
               lightGameObject.transform.position.set(-1, -1, -1).normalize().mul(-200);
@@ -80,7 +80,6 @@
                 cube2.transform.scale.mul(10);
               }
               Debugger.Enable();
-              Runtime.Play();
             }
             Application(document.querySelector("canvas"));
             

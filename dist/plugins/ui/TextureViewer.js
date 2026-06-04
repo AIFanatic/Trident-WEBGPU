@@ -71,7 +71,7 @@ class TextureViewer {
 
             let color = select(vec4f(0.0, 0.0, 0.0, 1.0), textureSample(texture, textureSampler, dir), valid);
         `;
-    const floatSample = isCube ? cubeSample : `let color = textureSample(texture, textureSampler, input.uv) * 1000000.0;`;
+    const floatSample = isCube ? cubeSample : `let color = textureSample(texture, textureSampler, input.uv);`;
     const uintSample = `
             let coords = input.uv * vec2f(textureDimensions(texture));
             let color = vec4f(textureLoad(texture, vec2i(coords), 0));

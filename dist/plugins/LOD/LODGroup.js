@@ -86,15 +86,35 @@ class LODGroup extends (_a = Components.Renderable, _lods_dec = [SerializeField(
     });
   }
   Start() {
+    super.Start();
     this.modelMatrixOffset = Components.Mesh.modelMatrices.set(this.id, this.transform.localToWorldMatrix.elements);
     this.activeLodIndex = this.SelectLOD();
   }
+  GetRelativeScreenSize() {
+    const camera = Components.Camera.mainCamera;
+    if (!camera) return Number.POSITIVE_INFINITY;
+    const lod = this.lods[0];
+    const renderer = lod?.renderers?.[0];
+    const geometry = renderer?.geometry;
+    if (!geometry) return 0;
+    const bounds = geometry.boundingVolume;
+    const worldCenter = bounds.center.clone().applyMatrix4(this.transform.localToWorldMatrix);
+    const distance = Math.max(1e-4, worldCenter.distanceTo(camera.transform.position));
+    const e = this.transform.localToWorldMatrix.elements;
+    const sx = Math.hypot(e[0], e[1], e[2]);
+    const sy = Math.hypot(e[4], e[5], e[6]);
+    const sz = Math.hypot(e[8], e[9], e[10]);
+    const radiusScale = Math.max(sx, sy, sz);
+    const radius = bounds.radius * radiusScale;
+    const projectionY = camera.projectionMatrix.elements[5];
+    return radius * 2 * projectionY / distance;
+  }
   SelectLOD() {
     if (this.lods.length === 0) return -1;
-    const camera = Components.Camera.mainCamera;
-    if (!camera) return 0;
-    const distance = this.transform.position.distanceTo(camera.transform.position);
-    for (let i = 0; i < this.lods.length; i++) if (distance <= this.lods[i].screenSize) return i;
+    const screenSize = this.GetRelativeScreenSize();
+    for (let i = 0; i < this.lods.length; i++) {
+      if (screenSize >= this.lods[i].screenSize) return i;
+    }
     return this.lods.length - 1;
   }
   OnPreRender(shaderOverride) {

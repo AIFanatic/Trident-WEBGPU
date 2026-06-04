@@ -28,22 +28,22 @@
             <script type="module">
                 const canvas = document.createElement("canvas");
                 document.body.appendChild(canvas);
-                            import { Runtime, GameObject, Components, Mathf, Geometry, PBRMaterial } from '@trident/core';
+                            import { PlayerRuntime, GameObject, Components, Mathf, Geometry, PBRMaterial } from '@trident/core';
             import { OrbitControls } from '@trident/plugins/OrbitControls.js';
             import { Debugger } from '@trident/plugins/Debugger.js';
             import { LODGroup } from '@trident/plugins/LOD/LODGroup.js';
             
             async function Application(canvas) {
-              await Runtime.Create(canvas);
-              const scene = Runtime.SceneManager.CreateScene("DefaultScene");
-              Runtime.SceneManager.SetActiveScene(scene);
+              await PlayerRuntime.Create(canvas);
+              const scene = PlayerRuntime.SceneManager.CreateScene("DefaultScene");
+              PlayerRuntime.SceneManager.SetActiveScene(scene);
               const mainCameraGameObject = new GameObject();
               mainCameraGameObject.name = "MainCamera";
               const camera = mainCameraGameObject.AddComponent(Components.Camera);
               camera.SetPerspective(72, canvas.width / canvas.height, 0.05, 500);
               mainCameraGameObject.transform.position.set(0, 0, 10);
               mainCameraGameObject.transform.LookAtV1(new Mathf.Vector3(0, 0, 0));
-              new OrbitControls(canvas, camera);
+              mainCameraGameObject.AddComponent(OrbitControls);
               const lightGameObject = new GameObject();
               lightGameObject.transform.position.set(-10, 10, 10);
               lightGameObject.transform.LookAtV1(new Mathf.Vector3(0, 0, 0));
@@ -57,11 +57,10 @@
               floorMesh.material = new PBRMaterial();
               const lodGameObject = new GameObject();
               const lodInstanceRenderable = lodGameObject.AddComponent(LODGroup);
-              lodInstanceRenderable.lods.push({ renderers: [{ geometry: Geometry.Cube(), material: new PBRMaterial({ albedoColor: new Mathf.Color(1, 0, 0, 1) }) }], screenSize: 20 });
-              lodInstanceRenderable.lods.push({ renderers: [{ geometry: Geometry.Sphere(), material: new PBRMaterial({ albedoColor: new Mathf.Color(0, 1, 0, 1) }) }], screenSize: 40 });
-              lodInstanceRenderable.lods.push({ renderers: [{ geometry: Geometry.Capsule(), material: new PBRMaterial({ albedoColor: new Mathf.Color(0, 0, 1, 1) }) }], screenSize: 80 });
+              lodInstanceRenderable.lods.push({ renderers: [{ geometry: Geometry.Cube(), material: new PBRMaterial({ albedoColor: new Mathf.Color(1, 0, 0, 1) }) }], screenSize: 1 });
+              lodInstanceRenderable.lods.push({ renderers: [{ geometry: Geometry.Sphere(), material: new PBRMaterial({ albedoColor: new Mathf.Color(0, 1, 0, 1) }) }], screenSize: 0.5 });
+              lodInstanceRenderable.lods.push({ renderers: [{ geometry: Geometry.Capsule(), material: new PBRMaterial({ albedoColor: new Mathf.Color(0, 0, 1, 1) }) }], screenSize: 0 });
               Debugger.Enable();
-              Runtime.Play();
             }
             Application(document.querySelector("canvas"));
             

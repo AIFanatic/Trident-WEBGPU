@@ -30,6 +30,12 @@ class InstancedLODGroup extends Components.Renderable {
     this.matrices.set(0, matrices);
     this._instanceCount = matrices.length / 16;
   }
+  // Its kinda silly to have 3 methods to set matrices
+  ReserveInstances(count) {
+    if (this.matrices.has(0)) this.matrices.delete(0);
+    this.matrices.set(0, new Float32Array(count * 16));
+    this._instanceCount = count;
+  }
   // Expose a representative geometry so RenderablePass picks it up.
   get geometry() {
     const lod0 = this.lods[0];
@@ -120,15 +126,17 @@ class InstancedLODGroup extends Components.Renderable {
                 let lc = u32(lodCount);
                 if (lc == 0u) { return; }
                 
-                let d = distance(frameBuffer.viewPosition.xyz, modelPosition);
-                let cullDistance = lods[lc - 1u].distance;
-                if (d > cullDistance) { return; }
+                let radiusScale = computeRadiusScale(modelMatrixInstance);
+                let worldRadius = boundingSphere.w * radiusScale;
+                let d = max(0.0001, distance(frameBuffer.viewPosition.xyz, modelPosition));
+
+                let projectionY = frameBuffer.projectionMatrix[1][1];
+                let screenSize = (worldRadius * 2.0 * projectionY) / d;
 
                 var lod: u32 = lc - 1u;
 
-                // pick the first threshold that contains d
                 for (var i: u32 = 0u; i < lc; i++) {
-                    if (d <= lods[i].distance) {
+                    if (screenSize >= lods[i].distance) {
                         lod = i;
                         break;
                     }
@@ -205,6 +213,7 @@ class InstancedLODGroup extends Components.Renderable {
       for (const data of this.lodRendererData[i]) {
         GPU.RendererContext.CopyBufferToBuffer(this.drawIndirectBuffer, data.drawBuffer, lodDrawOffset + 4, 4, 4);
         const { geometry, material } = data.renderer;
+        if (!material?.shader) continue;
         material.shader.SetBuffer("frameBuffer", FrameBuffer);
       }
     }

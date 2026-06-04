@@ -1,7 +1,7 @@
 import { SerializeField, EventSystemLocal } from '@trident/core';
 import { PhysicsRapier } from '../PhysicsRapier.js';
 import { Collider } from './Collider.js';
-import { TerrainData, TerrainDataEvents } from '@trident/plugins/Terrain/Terrain.js';
+import { TerrainData, TerrainEvents } from '@trident/plugins/Terrain/Terrain.js';
 
 var __create = Object.create;
 var __defProp = Object.defineProperty;
@@ -52,11 +52,11 @@ class TerrainCollider extends (_a = Collider, _terrainData_dec = [SerializeField
   set terrainData(td) {
     if (this._terrainData === td) return;
     if (this._terrainData) {
-      EventSystemLocal.off(TerrainDataEvents.GeometryUpdated, this._terrainData, this.onGeometryUpdated);
+      EventSystemLocal.off(TerrainEvents.GeometryUpdated, this._terrainData, this.onGeometryUpdated);
     }
     this._terrainData = td;
     if (!td) return;
-    EventSystemLocal.on(TerrainDataEvents.GeometryUpdated, td, this.onGeometryUpdated);
+    EventSystemLocal.on(TerrainEvents.GeometryUpdated, td, this.onGeometryUpdated);
     this.Rebuild(td);
   }
   Rebuild(terrainData) {
@@ -67,11 +67,13 @@ class TerrainCollider extends (_a = Collider, _terrainData_dec = [SerializeField
     if (this.collider) PhysicsRapier.PhysicsWorld.removeCollider(this.collider, true);
     this.colliderDesc = PhysicsRapier.Physics.ColliderDesc.heightfield(size - 1, size - 1, heights, terrainData.size);
     this.collider = PhysicsRapier.PhysicsWorld.createCollider(this.colliderDesc);
-    this.collider.setTranslation(this.transform.position);
+    const pos = this.transform.position.clone();
+    pos.y -= terrainData.size.y * 0.5;
+    this.collider.setTranslation(pos);
     this.collider.setRotation(this.transform.rotation);
   }
   Destroy() {
-    if (this._terrainData) EventSystemLocal.off(TerrainDataEvents.GeometryUpdated, this._terrainData, this.onGeometryUpdated);
+    if (this._terrainData) EventSystemLocal.off(TerrainEvents.GeometryUpdated, this._terrainData, this.onGeometryUpdated);
     if (this.collider && PhysicsRapier.PhysicsWorld) PhysicsRapier.PhysicsWorld.removeCollider(this.collider, true);
   }
 }

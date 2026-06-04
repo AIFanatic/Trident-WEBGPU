@@ -1,4 +1,4 @@
-import { Assets, Component as Component$1, Deserializer, Geometry, PBRMaterial, GPU, InterleavedVertexAttribute, IndexAttribute, VertexAttribute, Runtime, GameObject, Serializer, SceneExecutionMode, Components, Input, KeyCodes, Scene, Mathf, Prefab, Utils, EventSystem, EventSystemLocal, Texture, GetSerializedFields, AssetMeta, Console } from '@trident/core';
+import { Component as Component$1, Assets, Deserializer, Geometry, PBRMaterial, GPU, InterleavedVertexAttribute, IndexAttribute, VertexAttribute, Runtime, GameObject, Serializer, SceneExecutionMode, Components, Input, KeyCodes, EventSystem, Scene, Mathf, Prefab, Utils, EventSystemLocal, Texture, GetSerializedFields, AssetMeta, Console } from '@trident/core';
 import { OrbitControls } from '@trident/plugins/OrbitControls.js';
 import { RigidBody } from '@trident/plugins/PhysicsRapier/RigidBody.js';
 import { BoxCollider } from '@trident/plugins/PhysicsRapier/colliders/BoxCollider.js';
@@ -18,6 +18,7 @@ import { Sky } from '@trident/plugins/Environment/Sky.js';
 import { PhysicsRapier } from '@trident/plugins/PhysicsRapier/PhysicsRapier.js';
 import { IBLLightingPass } from '@trident/plugins/Environment/IBLLightingPass.js';
 import { SkyboxPass } from '@trident/plugins/Environment/SkyboxPass.js';
+import { Debugger } from '@trident/plugins/Debugger.js';
 
 var browser = {exports: {}};
 
@@ -2764,39 +2765,64 @@ ${file}:${line}:${column}: ERROR: ${pluginText}${e.text}`;
 var browserExports = requireBrowser();
 
 let esbuildReady = false;
+const scriptUrlCache = /* @__PURE__ */ new Map();
+function normalizeProjectPath(path) {
+  return path.startsWith("/") ? path : `/${path}`;
+}
+function resolveProjectImport(importer, specifier) {
+  const base = importer.substring(0, importer.lastIndexOf("/") + 1);
+  const resolved = new URL(specifier, `file://${base}`).pathname;
+  return resolved.endsWith(".ts") ? resolved : `${resolved}.ts`;
+}
+async function getScriptBlobUrl(assetPath) {
+  assetPath = normalizeProjectPath(assetPath);
+  const cached = scriptUrlCache.get(assetPath);
+  if (cached) return cached;
+  const pending = (async () => {
+    const response = await Assets.ResourceFetchFn(assetPath);
+    const text = await response.text();
+    const transpiled = await browserExports.transform(text, {
+      loader: "ts",
+      format: "esm",
+      target: "es2022",
+      tsconfigRaw: { compilerOptions: { useDefineForClassFields: true } }
+    });
+    let code = transpiled.code.replace(
+      /from\s+['"](@trident\/[^'"]+)['"]/g,
+      (match, path) => {
+        if (path === "@trident/core" || path === "@trident/plugins" || path === "@trident/editor" || path.endsWith(".js")) {
+          return match;
+        }
+        return `from '${path}.js'`;
+      }
+    );
+    const relativeImportRegex = /from\s+['"](\.\.?\/[^'"]+)['"]/g;
+    const relativeImports = [...code.matchAll(relativeImportRegex)];
+    for (const match of relativeImports) {
+      const specifier = match[1];
+      const dependencyPath = resolveProjectImport(assetPath, specifier);
+      const dependencyUrl = await getScriptBlobUrl(dependencyPath);
+      code = code.replace(match[0], `from '${dependencyUrl}'`);
+    }
+    const blob = new Blob([code], { type: "text/javascript" });
+    return URL.createObjectURL(blob);
+  })();
+  scriptUrlCache.set(assetPath, pending);
+  return pending;
+}
 async function LoadScript(assetPath) {
-  const response = await Assets.ResourceFetchFn(assetPath);
-  const text = await response.text();
+  assetPath = normalizeProjectPath(assetPath);
   if (!esbuildReady) {
     await browserExports.initialize({ worker: true, wasmURL: "./resources/esbuild.wasm" });
     esbuildReady = true;
   }
-  const transpiled = await browserExports.transform(text, {
-    loader: "ts",
-    format: "esm",
-    target: "es2022",
-    tsconfigRaw: { compilerOptions: { useDefineForClassFields: true } }
-  });
-  const code = transpiled.code.replace(
-    /from\s+['"](@trident\/[^'"]+)['"]/g,
-    (match, path) => {
-      if (path === "@trident/core" || path === "@trident/plugins" || path === "@trident/editor" || path.endsWith(".js")) return match;
-      return `from '${path}.js'`;
-    }
-  ).replace(
-    /(from\s+['"])(\.\.?\/[^'"]+?)(['"])/g,
-    (match, from, path, quote) => {
-      if (path.endsWith(".js")) return match;
-      return `${from}${path}.js${quote}`;
-    }
-  );
-  const blob = new Blob([code], { type: "text/javascript" });
-  const blobUrl = URL.createObjectURL(blob);
+  const blobUrl = await getScriptBlobUrl(assetPath);
   const module = await import(blobUrl);
   for (const key of Object.keys(module)) {
-    if (typeof module[key] === "function") {
-      module[key].assetPath = assetPath;
-      Component$1.Registry.set(module[key].name, module[key]);
+    const exp = module[key];
+    if (typeof exp === "function") {
+      exp.assetPath = assetPath;
+      Component$1.Registry.set(exp.type ?? exp.name, exp);
     }
   }
   return module;
@@ -2902,26 +2928,230 @@ class EditorRuntime extends Runtime {
 class EditorScene extends Component$1 {
   static type = "@trident/editor/EditorScene";
   runInEditMode = true;
+  editorCamera;
   orbitControls;
   selectedHierarchyGameObject;
   Start() {
+    this.editorCamera = this.gameObject.GetComponent(Components.Camera) ?? this.gameObject.AddComponent(Components.Camera);
+    this.editorCamera.SetPerspective(60, 2, 0.05, 1e3);
+    this.editorCamera.transform.position.z = -10;
     this.orbitControls = this.gameObject.GetComponent(OrbitControls) ?? this.gameObject.AddComponent(OrbitControls);
-    this.orbitControls.camera = Components.Camera.mainCamera;
+    this.orbitControls.camera = this.editorCamera;
     this.orbitControls.runInEditMode = true;
+    Components.Camera.mainCamera = this.editorCamera;
     EditorAPI.Events.onHierarchySelected((gameObject) => {
       this.selectedHierarchyGameObject = gameObject;
     });
   }
   Update() {
-    if (this.orbitControls) {
-      this.orbitControls.enabled = !EditorRuntime.isPlaying;
-      if (Input.GetKeyDown(KeyCodes.F) && this.selectedHierarchyGameObject) {
-        this.orbitControls.center.copy(this.selectedHierarchyGameObject.transform.position);
-        this.orbitControls.zoom(1);
-      }
+    if (EditorRuntime.isPlaying) {
+      const gameCamera = this.gameObject.scene.GetComponents(Components.Camera).find((c) => c !== this.editorCamera);
+      if (gameCamera) Components.Camera.mainCamera = gameCamera;
+      else console.warn("[EditorScene] Play started but scene has no camera.");
+      this.orbitControls.enabled = false;
+      this.enabled = false;
+      return;
+    }
+    if (Input.GetKeyDown(KeyCodes.F) && this.selectedHierarchyGameObject) {
+      this.orbitControls.center.copy(this.selectedHierarchyGameObject.transform.position);
+      this.orbitControls.zoom(1);
     }
   }
 }
+
+class ComponentEvents {
+  static Created = (gameObject, component) => {
+  };
+  static Deleted = (gameObject, component) => {
+  };
+}
+class GameObjectEvents {
+  static Selected = (gameObject) => {
+  };
+  static Created = (gameObject) => {
+  };
+  static Deleted = (gameObject) => {
+  };
+  static Changed = (gameObject) => {
+  };
+}
+class ProjectEvents {
+  static Opened = () => {
+  };
+}
+class FileEvents {
+  static Created = (path, handle) => {
+  };
+  static Changed = (path, handle) => {
+  };
+  static Deleted = (path, handle) => {
+  };
+}
+class DirectoryEvents {
+  static Created = (path, handle) => {
+  };
+  static Deleted = (path, handle) => {
+  };
+}
+class SceneEvents {
+  static Loaded = (scene) => {
+  };
+  static Saved = (scene) => {
+  };
+}
+class LayoutAssetEvents {
+  static Selected = (instance) => {
+  };
+  static RequestSaveAsset = (asset) => {
+  };
+  static ScriptReloaded = () => {
+  };
+}
+class LayoutInspectorEvents {
+  static Repaint = () => {
+  };
+}
+class RuntimeEvents {
+  static CreatedCanvas = (canvas) => {
+  };
+  static Play = () => {
+  };
+  static Stop = () => {
+  };
+}
+
+var MODE = /* @__PURE__ */ ((MODE2) => {
+  MODE2[MODE2["R"] = 0] = "R";
+  MODE2[MODE2["W"] = 1] = "W";
+  MODE2[MODE2["A"] = 2] = "A";
+  return MODE2;
+})(MODE || {});
+class _FileBrowser {
+  rootFolderHandle;
+  constructor() {
+    if (!window.showDirectoryPicker) {
+      alert("FileSystem API not supported.");
+      throw Error("FileSystem API not supported.");
+    }
+  }
+  setRootFolderHandle(handle) {
+    this.rootFolderHandle = handle;
+  }
+  getRootFolderHandle() {
+    return this.rootFolderHandle;
+  }
+  init() {
+    return new Promise((resolve, reject) => {
+      window.showDirectoryPicker().then((folderHandle) => {
+        this.rootFolderHandle = folderHandle;
+        resolve();
+      }).catch((error) => {
+        reject(error);
+      });
+    });
+  }
+  async opendir(path) {
+    if (!this.rootFolderHandle) {
+      throw Error("Trying to open a directory without initializing the File System.");
+    }
+    if (path == "") return this.rootFolderHandle;
+    const pathArray = path.split("/");
+    let currentDirectoryHandle = this.rootFolderHandle;
+    for (const entry of pathArray) {
+      if (entry == "") continue;
+      currentDirectoryHandle = await currentDirectoryHandle.getDirectoryHandle(entry);
+    }
+    if (currentDirectoryHandle.kind == "directory" && currentDirectoryHandle.name == pathArray[pathArray.length - 1]) {
+      return currentDirectoryHandle;
+    }
+    throw Error(`Directory not found at "${path}"`);
+  }
+  async readdir(folderHandle) {
+    let files = [];
+    const values = folderHandle.values();
+    for await (const entry of values) {
+      files.push(entry);
+    }
+    return files;
+  }
+  mkdir(path) {
+    const pathArray = path.split("/");
+    const directoryName = pathArray[pathArray.length - 1];
+    const pathWithoutDirectory = pathArray.splice(0, pathArray.length - 1).join("/");
+    return this.opendir(pathWithoutDirectory).then((folderHandle) => {
+      return folderHandle.getDirectoryHandle(directoryName, {
+        create: true
+      });
+    });
+  }
+  rmdir(path) {
+    const parentPath = path.slice(0, path.lastIndexOf("/"));
+    const dirName = path.slice(path.lastIndexOf("/") + 1);
+    this.opendir(parentPath).then(async (folderHandle) => {
+      folderHandle.removeEntry(dirName, { recursive: true });
+    });
+  }
+  fopen(path, mode) {
+    if (mode == 2 /* A */) {
+      console.warn("MODE.A not implemented.");
+    }
+    const pathArray = path.split("/");
+    const filename = pathArray[pathArray.length - 1];
+    const pathWithoutDirectory = pathArray.splice(0, pathArray.length - 1).join("/");
+    return this.opendir(pathWithoutDirectory).then((folderHandle) => {
+      return folderHandle.getFileHandle(filename, {
+        create: mode == 2 /* A */ || mode == 1 /* W */ ? true : false
+      });
+    });
+  }
+  // TODO: Make more efficient by chunking
+  fread(file, start, end) {
+    return file.getFile().then((value) => {
+      return value.slice(start, end);
+    });
+  }
+  // TODO: Do append
+  fwrite(file, buf) {
+    return file.createWritable().then((writableStream) => {
+      writableStream.write(buf);
+      return writableStream.close();
+    });
+  }
+  remove(path) {
+    const pathArray = path.split("/");
+    const filename = pathArray[pathArray.length - 1];
+    const pathWithoutDirectory = pathArray.splice(0, pathArray.length - 1).join("/");
+    this.opendir(pathWithoutDirectory).then(async (folderHandle) => {
+      const files = await this.readdir(folderHandle);
+      for (let file of files) {
+        if (file.kind == "file" && file.name == filename) {
+          folderHandle.removeEntry(filename);
+          break;
+        }
+      }
+    });
+  }
+  is_directory(path) {
+    return this.opendir(path).then((folderHandle) => {
+      return true;
+    }).catch((error) => {
+      return false;
+    });
+  }
+  exists(path) {
+    return this.is_directory(path).then((isDirectory) => {
+      if (isDirectory) {
+        return true;
+      }
+      return this.fopen(path, 0 /* R */).then((file) => {
+        return true;
+      }).catch((error) => {
+        return false;
+      });
+    });
+  }
+}
+const FileBrowser = new _FileBrowser();
 
 const component = (ctor) => ctor;
 Component$1.Registry.set(OrbitControls.type, OrbitControls);
@@ -2959,6 +3189,30 @@ const ComponentRegistry = {
   LODGroup: component(LODGroup),
   Water: component(WaterV1)
 };
+async function loadScriptsRecursive(dir, path) {
+  for await (const [name, handle] of dir.entries()) {
+    if (name.startsWith(".")) continue;
+    const childPath = `${path}/${name}`;
+    if (handle.kind === "directory") {
+      await loadScriptsRecursive(handle, childPath);
+    } else if (handle.kind === "file" && name.endsWith(".ts")) {
+      try {
+        console.log("Loading", childPath);
+        await LoadScript(childPath);
+      } catch (err) {
+        console.error("LoadScript failed for", childPath, err);
+      }
+    }
+  }
+}
+EventSystem.on(ProjectEvents.Opened, async () => {
+  try {
+    const root = await FileBrowser.opendir("");
+    await loadScriptsRecursive(root, "");
+  } catch (err) {
+    console.error("Failed to scan /", err);
+  }
+});
 
 class TridentAPI {
   get currentScene() {
@@ -3322,65 +3576,6 @@ class LayoutResizer extends Component {
   }
 }
 
-class ComponentEvents {
-  static Created = (gameObject, component) => {
-  };
-  static Deleted = (gameObject, component) => {
-  };
-}
-class GameObjectEvents {
-  static Selected = (gameObject) => {
-  };
-  static Created = (gameObject) => {
-  };
-  static Deleted = (gameObject) => {
-  };
-  static Changed = (gameObject) => {
-  };
-}
-class ProjectEvents {
-  static Opened = () => {
-  };
-}
-class FileEvents {
-  static Created = (path, handle) => {
-  };
-  static Changed = (path, handle) => {
-  };
-  static Deleted = (path, handle) => {
-  };
-}
-class DirectoryEvents {
-  static Created = (path, handle) => {
-  };
-  static Deleted = (path, handle) => {
-  };
-}
-class SceneEvents {
-  static Loaded = (scene) => {
-  };
-  static Saved = (scene) => {
-  };
-}
-class LayoutAssetEvents {
-  static Selected = (instance) => {
-  };
-  static RequestSaveAsset = (asset) => {
-  };
-}
-class LayoutInspectorEvents {
-  static Repaint = () => {
-  };
-}
-class RuntimeEvents {
-  static CreatedCanvas = (canvas) => {
-  };
-  static Play = () => {
-  };
-  static Stop = () => {
-  };
-}
-
 class LayoutCanvas extends Component {
   async canvasRef(canvas) {
     TridentAPI.EventSystem.emit(RuntimeEvents.CreatedCanvas, canvas);
@@ -3389,139 +3584,6 @@ class LayoutCanvas extends Component {
     return /* @__PURE__ */ createElement("canvas", { ref: (canvas) => this.canvasRef(canvas) });
   }
 }
-
-var MODE = /* @__PURE__ */ ((MODE2) => {
-  MODE2[MODE2["R"] = 0] = "R";
-  MODE2[MODE2["W"] = 1] = "W";
-  MODE2[MODE2["A"] = 2] = "A";
-  return MODE2;
-})(MODE || {});
-class _FileBrowser {
-  rootFolderHandle;
-  constructor() {
-    if (!window.showDirectoryPicker) {
-      alert("FileSystem API not supported.");
-      throw Error("FileSystem API not supported.");
-    }
-  }
-  setRootFolderHandle(handle) {
-    this.rootFolderHandle = handle;
-  }
-  getRootFolderHandle() {
-    return this.rootFolderHandle;
-  }
-  init() {
-    return new Promise((resolve, reject) => {
-      window.showDirectoryPicker().then((folderHandle) => {
-        this.rootFolderHandle = folderHandle;
-        resolve();
-      }).catch((error) => {
-        reject(error);
-      });
-    });
-  }
-  async opendir(path) {
-    if (!this.rootFolderHandle) {
-      throw Error("Trying to open a directory without initializing the File System.");
-    }
-    if (path == "") return this.rootFolderHandle;
-    const pathArray = path.split("/");
-    let currentDirectoryHandle = this.rootFolderHandle;
-    for (const entry of pathArray) {
-      if (entry == "") continue;
-      currentDirectoryHandle = await currentDirectoryHandle.getDirectoryHandle(entry);
-    }
-    if (currentDirectoryHandle.kind == "directory" && currentDirectoryHandle.name == pathArray[pathArray.length - 1]) {
-      return currentDirectoryHandle;
-    }
-    throw Error(`Directory not found at "${path}"`);
-  }
-  async readdir(folderHandle) {
-    let files = [];
-    const values = folderHandle.values();
-    for await (const entry of values) {
-      files.push(entry);
-    }
-    return files;
-  }
-  mkdir(path) {
-    const pathArray = path.split("/");
-    const directoryName = pathArray[pathArray.length - 1];
-    const pathWithoutDirectory = pathArray.splice(0, pathArray.length - 1).join("/");
-    return this.opendir(pathWithoutDirectory).then((folderHandle) => {
-      return folderHandle.getDirectoryHandle(directoryName, {
-        create: true
-      });
-    });
-  }
-  rmdir(path) {
-    const parentPath = path.slice(0, path.lastIndexOf("/"));
-    const dirName = path.slice(path.lastIndexOf("/") + 1);
-    this.opendir(parentPath).then(async (folderHandle) => {
-      folderHandle.removeEntry(dirName, { recursive: true });
-    });
-  }
-  fopen(path, mode) {
-    if (mode == 2 /* A */) {
-      console.warn("MODE.A not implemented.");
-    }
-    const pathArray = path.split("/");
-    const filename = pathArray[pathArray.length - 1];
-    const pathWithoutDirectory = pathArray.splice(0, pathArray.length - 1).join("/");
-    return this.opendir(pathWithoutDirectory).then((folderHandle) => {
-      return folderHandle.getFileHandle(filename, {
-        create: mode == 2 /* A */ || mode == 1 /* W */ ? true : false
-      });
-    });
-  }
-  // TODO: Make more efficient by chunking
-  fread(file, start, end) {
-    return file.getFile().then((value) => {
-      return value.slice(start, end);
-    });
-  }
-  // TODO: Do append
-  fwrite(file, buf) {
-    return file.createWritable().then((writableStream) => {
-      writableStream.write(buf);
-      return writableStream.close();
-    });
-  }
-  remove(path) {
-    const pathArray = path.split("/");
-    const filename = pathArray[pathArray.length - 1];
-    const pathWithoutDirectory = pathArray.splice(0, pathArray.length - 1).join("/");
-    this.opendir(pathWithoutDirectory).then(async (folderHandle) => {
-      const files = await this.readdir(folderHandle);
-      for (let file of files) {
-        if (file.kind == "file" && file.name == filename) {
-          folderHandle.removeEntry(filename);
-          break;
-        }
-      }
-    });
-  }
-  is_directory(path) {
-    return this.opendir(path).then((folderHandle) => {
-      return true;
-    }).catch((error) => {
-      return false;
-    });
-  }
-  exists(path) {
-    return this.is_directory(path).then((isDirectory) => {
-      if (isDirectory) {
-        return true;
-      }
-      return this.fopen(path, 0 /* R */).then((file) => {
-        return true;
-      }).catch((error) => {
-        return false;
-      });
-    });
-  }
-}
-const FileBrowser = new _FileBrowser();
 
 class FileWatcher {
   watches;
@@ -3615,10 +3677,6 @@ class StringUtils {
     }
     return output;
   }
-  static GetEnumKeyByEnumValue(myEnum, enumValue) {
-    let keys = Object.keys(myEnum).filter((x) => myEnum[x] == enumValue);
-    return keys.length > 0 ? keys[0] : null;
-  }
   static GetNameForPath(path) {
     const extensionIndex = path.lastIndexOf(".");
     return path.slice(path.lastIndexOf("/") + 1, extensionIndex !== -1 ? extensionIndex : path.length);
@@ -3627,6 +3685,12 @@ class StringUtils {
     const pathArr = path.split("/");
     const parentPath = pathArr.slice(0, pathArr.length - 1);
     return parentPath.join("/");
+  }
+  static NicifyVariableName(name) {
+    if (!name) return "";
+    return name.replace(/^m_/, "").replace(/^_+/, "").replace(/[_-]+/g, " ").replace(/([a-z0-9])([A-Z])/g, "$1 $2").replace(/([A-Z]+)([A-Z][a-z])/g, "$1 $2").replace(/\s+/g, " ").trim().split(" ").map(
+      (word) => word === word.toUpperCase() && word.length <= 3 ? word : word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()
+    ).join(" ");
   }
 }
 
@@ -3928,7 +3992,9 @@ async function ExtractGLB(baseDir, gameObject) {
         }
         const material = renderable.material;
         if (material && !material.assetPath) {
-          material.assetPath = `${fullAssetDir}/${material.name || `material_${materialCounter++}`}.material`;
+          const sourceName = geometry?.name || `material_${materialCounter}`;
+          const safeName = sourceName.replace(/[\\/:*?"<>|#]/g, "_").replace(/\s+/g, "_").replace(/_+/g, "_").replace(/^_|_$/g, "");
+          material.assetPath = `${fullAssetDir}/${safeName}_material_${materialCounter++}.material`;
         }
         const params = material?.params;
         if (params) {
@@ -4048,36 +4114,34 @@ async function SaveAsset(asset) {
   await SaveToFile(asset.assetPath, new Blob([JSON.stringify({ type: ctor.type, ...Serializer.serializeFields(asset) })]));
 }
 
+async function ReloadScript(engineAPI, path) {
+  const loadedFile = await LoadScript(path);
+  const { serializer, deserializer, currentScene } = engineAPI;
+  for (const NewClass of Object.values(loadedFile)) {
+    if (typeof NewClass !== "function") continue;
+    const instances = currentScene.GetGameObjects().flatMap((go) => go.GetComponents()).filter((c) => c.constructor.name === NewClass.name);
+    for (const component of instances) {
+      const data = serializer.serializeComponent(component);
+      const fresh = new NewClass(component.gameObject);
+      const freshKeys = new Set(Object.keys(fresh));
+      for (const k of Object.keys(component)) {
+        if (!freshKeys.has(k)) delete component[k];
+      }
+      for (const k of freshKeys) {
+        if (!(k in component)) component[k] = fresh[k];
+      }
+      Object.setPrototypeOf(component, NewClass.prototype);
+      await deserializer.deserializeComponent(component, data);
+      component.hasStarted = false;
+    }
+  }
+}
+
 var ITreeMapType = /* @__PURE__ */ ((ITreeMapType2) => {
   ITreeMapType2[ITreeMapType2["Folder"] = 0] = "Folder";
   ITreeMapType2[ITreeMapType2["File"] = 1] = "File";
   return ITreeMapType2;
 })(ITreeMapType || {});
-
-async function ReloadScript(engineAPI, path) {
-  const loadedFile = await LoadScript(path);
-  const serializer = engineAPI.serializer;
-  const deserializer = engineAPI.deserializer;
-  for (const key of Object.keys(loadedFile)) {
-    const NewClass = loadedFile[key];
-    if (typeof NewClass !== "function") continue;
-    for (const go of engineAPI.currentScene.GetGameObjects()) {
-      const toReplace = [];
-      const components = go.GetComponents();
-      for (let i = 0; i < components.length; i++) {
-        if (components[i].constructor.name === NewClass.name) {
-          toReplace.push({ component: components[i], index: i });
-        }
-      }
-      for (const { component } of toReplace) {
-        const data = serializer.serializeComponent(component);
-        go.RemoveComponent(component);
-        const newComponent = engineAPI.addComponent(go, NewClass);
-        await deserializer.deserializeComponent(newComponent, data);
-      }
-    }
-  }
-}
 
 async function dir(h) {
   const r = indexedDB.open("d", 1);
@@ -4089,13 +4153,10 @@ async function dir(h) {
 }
 const browserFetch = fetch.bind(globalThis);
 Assets.ResourceFetchFn = async (input, init) => {
-  if (input instanceof Request || input instanceof URL) {
-    return browserFetch(input, init);
-  }
+  if (input instanceof Request || input instanceof URL) return browserFetch(input, init);
   const handle = await FileBrowser.fopen(input, MODE.R);
   if (!handle) throw Error(`Could not get file at ${input}`);
-  const file = await handle.getFile();
-  return new Response(file);
+  return new Response(await handle.getFile());
 };
 class LayoutAssets extends Component {
   fileWatcher;
@@ -4118,6 +4179,13 @@ class LayoutAssets extends Component {
     });
     TridentAPI.EventSystem.on(FileEvents.Deleted, (path, handle) => {
       this.onFileOrDirectoryDeleted(path);
+    });
+    TridentAPI.EventSystem.on(FileEvents.Changed, async (path) => {
+      if (!path.endsWith(".ts")) return;
+      await ReloadScript(this.props.engineAPI, path).then((value) => {
+        console.log(`[auto-reload] ${path}`);
+      }).catch((err) => console.error(`[auto-reload] ${path}`, err));
+      TridentAPI.EventSystem.emit(LayoutAssetEvents.ScriptReloaded);
     });
     TridentAPI.EventSystem.on(LayoutAssetEvents.RequestSaveAsset, (material) => {
       SaveAsset(material);
@@ -4173,11 +4241,6 @@ class LayoutAssets extends Component {
       await this.props.engineAPI.deserializer.deserializeScene(this.props.engineAPI.currentScene, item.data.instance);
       TridentAPI.EventSystem.emit(SceneEvents.Loaded, item.data.instance);
     }
-  }
-  async onRefresh() {
-    if (!this.state.selected) return;
-    if (!this.state.selected.path.endsWith(".ts")) return;
-    await ReloadScript(this.props.engineAPI, this.state.selected.path);
   }
   async onRename() {
     if (!this.state.selected) return;
@@ -4336,8 +4399,6 @@ class LayoutAssets extends Component {
         this.createScene();
       } }), /* @__PURE__ */ createElement(TreeItem, { name: "Delete", onPointerDown: () => {
         this.deleteAsset();
-      } }), /* @__PURE__ */ createElement(TreeItem, { name: "Refresh", onPointerDown: () => {
-        this.onRefresh();
       } }), /* @__PURE__ */ createElement(TreeItem, { name: "Rename", onPointerDown: () => {
         this.onRename();
       } }))))),
@@ -4371,6 +4432,7 @@ class LayoutHierarchy extends Component {
     });
   }
   selectGameObject(gameObject) {
+    console.log(gameObject);
     TridentAPI.EventSystem.emit(LayoutHierarchyEvents.Selected, gameObject);
     this.setState({ ...this.state, selectedGameObject: gameObject });
   }
@@ -5154,7 +5216,6 @@ class InspectorArray extends Component {
 class LayoutInspectorGameObject extends Component {
   constructor(props) {
     super(props);
-    console.log(this.props.gameObject);
   }
   onRemoveComponent(component) {
     component.Destroy();
@@ -5185,7 +5246,7 @@ class LayoutInspectorGameObject extends Component {
     const name = property.name;
     const type = property.type;
     const engineType = this.props.engineAPI.getFieldType(type);
-    const title = StringUtils.CapitalizeStrArray(StringUtils.CamelCaseToArray(name)).join(" ");
+    const title = StringUtils.NicifyVariableName(name);
     if (engineType === "Vector3") return /* @__PURE__ */ createElement(InspectorVector3, { title, onChanged: (value) => {
       this.onComponentPropertyChanged(component, name, value);
     }, vector3: component[name] });
@@ -5379,6 +5440,9 @@ class LayoutInspector extends Component {
     TridentAPI.EventSystem.on(LayoutInspectorEvents.Repaint, () => {
       this.setState({ ...this.state });
     });
+    TridentAPI.EventSystem.on(LayoutAssetEvents.ScriptReloaded, () => {
+      this.setState({ ...this.state });
+    });
   }
   findGameObjectById(id) {
     const scene = this.props.engineAPI.currentScene;
@@ -5386,7 +5450,6 @@ class LayoutInspector extends Component {
     return scene.GetGameObjects().find((go) => go.id === id);
   }
   render() {
-    console.log(this.state.selected);
     let content = null;
     if (this.state.selected?.type === "GameObject") {
       const gameObject = this.findGameObjectById(this.state.selected.id);
@@ -5550,6 +5613,7 @@ class App extends Component {
       await EngineAPI.deserializer.deserializeScene(EngineAPI.currentScene, sceneJSON);
       TridentAPI.EventSystem.emit(SceneEvents.Loaded, EngineAPI.currentScene);
       TridentAPI.EventSystem.emit(SceneEvents.Loaded, currentScene);
+      Debugger.Enable();
     });
   }
   render() {

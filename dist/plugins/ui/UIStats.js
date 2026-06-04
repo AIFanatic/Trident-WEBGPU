@@ -143,13 +143,10 @@ class UISliderStat extends Stat {
 class UITextStat extends Stat {
   textElement;
   rawValue;
-  // Truth
   displayValue;
-  // What we actually show on screen
   precision;
   unit;
   rolling;
-  // Now formatter returns a string (for display only)
   formatter;
   constructor(folder, label, defaultValue = 0, precision = 0, unit = "", rolling = false) {
     super(folder.container, label);
@@ -181,8 +178,6 @@ class UITextStat extends Stat {
   SetUnit(unit) {
     this.unit = unit;
   }
-  // If you really want arbitrary text, it's better to have a separate method/class.
-  // But here's a safe version that bypasses numeric logic:
   SetText(text) {
     this.textElement.textContent = text;
   }

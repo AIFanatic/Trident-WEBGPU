@@ -90,8 +90,8 @@ class TerrainMaterial extends (_a = GPU.Material, _terrainLayers_dec = [Serializ
     if (!this.shader || layers.length === 0) return;
     this.ApplyTerrainLayers(layers);
   }
-  set blendWeightMaps(blendWeightMaps) {
-    this.shader.SetTexture("blendWeightMaps", this.CreateTextureArray(blendWeightMaps));
+  set blendWeightMap(blendWeightMap) {
+    this.shader.SetTexture("blendWeightMap", blendWeightMap);
   }
   set materialIdMap(materialIdMap) {
     this.shader.SetTexture("materialIdMap", materialIdMap);
@@ -211,8 +211,8 @@ class TerrainMaterial extends (_a = GPU.Material, _terrainLayers_dec = [Serializ
                 @group(1) @binding(1) var albedoTextures: texture_2d_array<f32>;
                 @group(1) @binding(2) var normalTextures: texture_2d_array<f32>;
                 @group(1) @binding(3) var armTextures:    texture_2d_array<f32>;
-                @group(1) @binding(4) var blendWeightMaps: texture_2d_array<f32>;
-
+                
+                @group(1) @binding(4) var blendWeightMap: texture_2d<f32>;
                 @group(1) @binding(5) var materialIdMap: texture_2d<f32>;
 
                 struct TerrainLayer {
@@ -298,7 +298,7 @@ class TerrainMaterial extends (_a = GPU.Material, _terrainLayers_dec = [Serializ
                     
                     // Weights of each layer, used for blending
                     // Example rgb(0.33, 0.33, 0.33) // 33% grass, 33% rock, 33% forest (from the example above)
-                    let blendWeightsPerPixel = textureSample(blendWeightMaps, textureSampler, uv, 0);
+                    let blendWeightsPerPixel = textureSample(blendWeightMap, textureSampler, uv);
 
                     let uv_detail = input.worldPosition.xz;
                     let layer0 = sample_layer(uv_detail, materialIdsPerPixel.x);
@@ -330,7 +330,7 @@ class TerrainMaterial extends (_a = GPU.Material, _terrainLayers_dec = [Serializ
         depthOutput: "depth24plus"
       });
       const blackTexture = this.CreateSolidTexture([0, 0, 0, 255]);
-      const whiteTextureArray = this.CreateSolidTextureArray([255, 255, 255, 255]);
+      const whiteTexture = this.CreateSolidTexture([255, 255, 255, 255]);
       const flatNormalTextureArray = this.CreateSolidTextureArray([128, 128, 255, 255]);
       const defaultArmTextureArray = this.CreateSolidTextureArray([255, 255, 0, 255]);
       const uvGridTexture = await GPU.Texture.Load(new URL(uv_grid_url, import.meta.url), { format: "rgba8unorm-srgb", generateMips: true });
@@ -338,7 +338,7 @@ class TerrainMaterial extends (_a = GPU.Material, _terrainLayers_dec = [Serializ
       shader.SetTexture("albedoTextures", this.CreateTextureArray([uvGridTexture]));
       shader.SetTexture("normalTextures", flatNormalTextureArray);
       shader.SetTexture("armTextures", defaultArmTextureArray);
-      shader.SetTexture("blendWeightMaps", whiteTextureArray);
+      shader.SetTexture("blendWeightMap", whiteTexture);
       shader.SetTexture("materialIdMap", blackTexture);
       this.SetTerrainLayersArray(shader, new Float32Array([
         0,

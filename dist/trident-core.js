@@ -2300,8 +2300,8 @@ class Texture {
     this.SetActiveMip(0);
     this.SetActiveMipCount(mipLevels);
     this.mipLevels = mipLevels;
-    Renderer.info.textureViews -= this.viewCache.size;
     if (this.buffer !== oldBuffer) {
+      Renderer.info.textureViews -= this.viewCache.size;
       this.viewCache.clear();
     }
     this.byteSize = totalBytesForTexture(this.format, this.width, this.height, this.depth, this.mipLevels);
@@ -2332,6 +2332,8 @@ class Texture {
     this.buffer = null;
     Renderer.info.gpuTextureSizeTotal -= this.byteSize;
     Renderer.info.gpuTextureCount--;
+    Renderer.info.textureViews -= this.viewCache.size;
+    this.viewCache.clear();
     EventSystem.once(RendererEvents.FrameEnded, () => buf.destroy());
   }
   SetData(data, bytesPerRow, rowsPerImage) {
@@ -2365,6 +2367,11 @@ class Texture {
     }
   }
   async GetPixels(x, y, blockWidth, blockHeight, mipLevel) {
+    x = x ?? 0;
+    y = y ?? 0;
+    blockWidth = blockWidth ?? this.width;
+    blockHeight = blockHeight ?? this.height;
+    mipLevel = mipLevel ?? 0;
     if (Renderer.HasActiveFrame()) {
       throw Error("Texture.GetPixels() cannot run inside an active render frame. Call it after EndRenderFrame().");
     }
@@ -2407,8 +2414,8 @@ class Texture {
     buffer.Destroy();
     if (this.format.endsWith("uint")) return new Uint32Array(packed.buffer);
     if (this.format.endsWith("sint")) return new Uint32Array(packed.buffer);
+    if (this.format.includes("16float")) return new Float16Array(packed.buffer);
     if (this.format.endsWith("float")) return new Float32Array(packed.buffer);
-    if (this.format.includes("16")) return new Uint16Array(packed.buffer);
     return packed;
   }
   // Format and types are very limited for now
@@ -3120,6 +3127,12 @@ class RendererContext {
     this.activeRenderPass = null;
     WEBGPUTimestampQuery.EndRenderTimestamp();
   }
+  static AccumulateStats(shader, geometry, vertexOrIndexCount, instanceCount) {
+    const isTris = !shader.params.topology || shader.params.topology === Topology.Triangles;
+    const totalVerts = vertexOrIndexCount * instanceCount;
+    Renderer.info.vertexCount += totalVerts;
+    if (isTris) Renderer.info.triangleCount += vertexOrIndexCount / 3 * instanceCount;
+  }
   static BindGeometry(shader, geometry) {
     if (!this.activeRenderPass) throw Error("No active render pass");
     shader.Compile();
@@ -3151,6 +3164,7 @@ class RendererContext {
     }
   }
   static DrawGeometry(geometry, shader, instanceCount = 1, firstInstance = 0) {
+    if (!this.activeRenderPass) throw Error("No active render pass");
     if (!shader.OnPreRender(geometry)) return;
     this.BindGeometry(shader, geometry);
     if (!shader.params.topology || shader.params.topology === Topology.Triangles) {
@@ -3158,30 +3172,41 @@ class RendererContext {
         const positions = geometry.attributes.get("position");
         const vertexCount = positions.GetBuffer().size / 4 / 3;
         this.activeRenderPass.draw(vertexCount, instanceCount, 0, firstInstance);
+        this.AccumulateStats(shader, geometry, vertexCount, instanceCount);
       } else {
         const indexCount = geometry.index.count;
         this.activeRenderPass.drawIndexed(indexCount, instanceCount, 0, 0, firstInstance);
+        this.AccumulateStats(shader, geometry, indexCount, instanceCount);
       }
     } else if (shader.params.topology === Topology.Lines) {
       if (geometry.index) {
         this.activeRenderPass.drawIndexed(geometry.index.count, instanceCount, 0, 0, firstInstance);
+        this.AccumulateStats(shader, geometry, geometry.index.count, instanceCount);
       } else {
         const positions = geometry.attributes.get("position");
-        this.activeRenderPass.draw(positions.GetBuffer().size / 3 / 4, instanceCount, 0, firstInstance);
+        const vertexCount = positions.GetBuffer().size / 3 / 4;
+        this.activeRenderPass.draw(vertexCount, instanceCount, 0, firstInstance);
+        this.AccumulateStats(shader, geometry, vertexCount, instanceCount);
       }
     }
   }
-  static DrawIndexed(geometry, shader, indexCount, instanceCount, firstIndex, baseVertex, firstInstance) {
+  static DrawIndexed(geometry, shader, indexCount, instanceCount = 1, firstIndex, baseVertex, firstInstance) {
+    if (!this.activeRenderPass) throw Error("No active render pass");
     this.BindGeometry(shader, geometry);
     this.activeRenderPass.drawIndexed(indexCount, instanceCount, firstIndex, baseVertex, firstInstance);
+    this.AccumulateStats(shader, geometry, indexCount, instanceCount);
   }
-  static Draw(geometry, shader, vertexCount, instanceCount, firstVertex, firstInstance) {
+  static Draw(geometry, shader, vertexCount, instanceCount = 1, firstVertex, firstInstance) {
+    if (!this.activeRenderPass) throw Error("No active render pass");
     this.BindGeometry(shader, geometry);
     this.activeRenderPass.draw(vertexCount, instanceCount, firstVertex, firstInstance);
+    this.AccumulateStats(shader, geometry, vertexCount, instanceCount);
   }
-  static DrawVertex(shader, vertexCount, instanceCount, firstVertex, firstInstance) {
+  static DrawVertex(shader, vertexCount, instanceCount = 1, firstVertex, firstInstance) {
+    if (!this.activeRenderPass) throw Error("No active render pass");
     this.BindGeometry(shader);
     this.activeRenderPass.draw(vertexCount, instanceCount, firstVertex, firstInstance);
+    this.AccumulateStats(shader, void 0, vertexCount, instanceCount);
   }
   static DrawIndirect(geometry, shader, indirectBuffer, indirectOffset = 0) {
     if (!shader.OnPreRender(geometry)) return;
@@ -3891,33 +3916,44 @@ const _Geometry = class _Geometry {
     return this.ApplyOperationToVertices("*", scale);
   }
   ComputeNormals() {
-    let posAttrData = this.attributes.get("position")?.array;
-    let indexAttrData = this.index?.array;
+    const posAttrData = this.attributes.get("position")?.array;
+    const indexAttrData = this.index?.array;
     if (!posAttrData || !indexAttrData) throw Error("Cannot compute normals without vertices and indices");
-    let normalAttrData = new Float32Array(posAttrData.length);
-    let trianglesCount = indexAttrData.length / 3;
-    let point1 = new Vector3(0, 1, 0);
-    let point2 = new Vector3(0, 1, 0);
-    let point3 = new Vector3(0, 1, 0);
-    let crossA = new Vector3(0, 1, 0);
-    let crossB = new Vector3(0, 1, 0);
+    const normalAttrData = new Float32Array(posAttrData.length);
+    const trianglesCount = indexAttrData.length / 3;
+    const point1 = new Vector3();
+    const point2 = new Vector3();
+    const point3 = new Vector3();
+    const edge1 = new Vector3();
+    const edge2 = new Vector3();
+    const normal = new Vector3();
     for (let i = 0; i < trianglesCount; i++) {
-      let index1 = indexAttrData[i * 3];
-      let index2 = indexAttrData[i * 3 + 1];
-      let index3 = indexAttrData[i * 3 + 2];
+      const index1 = indexAttrData[i * 3];
+      const index2 = indexAttrData[i * 3 + 1];
+      const index3 = indexAttrData[i * 3 + 2];
       point1.set(posAttrData[index1 * 3], posAttrData[index1 * 3 + 1], posAttrData[index1 * 3 + 2]);
       point2.set(posAttrData[index2 * 3], posAttrData[index2 * 3 + 1], posAttrData[index2 * 3 + 2]);
       point3.set(posAttrData[index3 * 3], posAttrData[index3 * 3 + 1], posAttrData[index3 * 3 + 2]);
-      crossA.copy(point1).sub(point2).normalize();
-      crossB.copy(point1).sub(point3).normalize();
-      let normal = crossA.clone().cross(crossB).normalize();
-      normalAttrData[index1 * 3] = normalAttrData[index2 * 3] = normalAttrData[index3 * 3] = normal.x;
-      normalAttrData[index1 * 3 + 1] = normalAttrData[index2 * 3 + 1] = normalAttrData[index3 * 3 + 1] = normal.y;
-      normalAttrData[index1 * 3 + 2] = normalAttrData[index2 * 3 + 2] = normalAttrData[index3 * 3 + 2] = normal.z;
+      edge1.copy(point2).sub(point1);
+      edge2.copy(point3).sub(point1);
+      normal.copy(edge1).cross(edge2);
+      normalAttrData[index1 * 3] += normal.x;
+      normalAttrData[index1 * 3 + 1] += normal.y;
+      normalAttrData[index1 * 3 + 2] += normal.z;
+      normalAttrData[index2 * 3] += normal.x;
+      normalAttrData[index2 * 3 + 1] += normal.y;
+      normalAttrData[index2 * 3 + 2] += normal.z;
+      normalAttrData[index3 * 3] += normal.x;
+      normalAttrData[index3 * 3 + 1] += normal.y;
+      normalAttrData[index3 * 3 + 2] += normal.z;
     }
-    let normals = this.attributes.get("normal");
-    if (!normals) normals = new VertexAttribute(normalAttrData);
-    this.attributes.set("normal", normals);
+    for (let i = 0; i < normalAttrData.length; i += 3) {
+      normal.set(normalAttrData[i], normalAttrData[i + 1], normalAttrData[i + 2]).normalize();
+      normalAttrData[i] = normal.x;
+      normalAttrData[i + 1] = normal.y;
+      normalAttrData[i + 2] = normal.z;
+    }
+    this.attributes.set("normal", new VertexAttribute(normalAttrData));
   }
   // From THREE.js (adapted/fixed)
   ComputeTangents() {
@@ -4721,9 +4757,11 @@ class DeferredLightingPass extends RenderPass {
     this.shader.SetBuffer("lightCount", this.lightsCountBuffer);
     this.outputLightingPass = RenderTexture.Create(Renderer.width, Renderer.height, 1, "rgba16float");
     this.outputLightingPass.name = "DeferredLighting";
-    EventSystem.on(RendererEvents.Resized, (canvas) => {
-      this.outputLightingPass.Destroy();
+    EventSystem.on(RendererEvents.Resized, () => {
+      const old = this.outputLightingPass;
       this.outputLightingPass = RenderTexture.Create(Renderer.width, Renderer.height, 1, "rgba16float");
+      this.outputLightingPass.name = "DeferredLighting";
+      EventSystem.once(RendererEvents.FrameEnded, () => old.Destroy());
     });
     this.dummyShadowPassDepth = DepthTextureArray.Create(1, 1, 1);
     this.gBufferDepthClone = DepthTexture.Create(Renderer.width, Renderer.height);
@@ -5089,6 +5127,10 @@ class PBRMaterial extends Material {
   static type = "@trident/core/renderer/Material/PBRMaterial";
   static sampler;
   params = new PBRMaterialParams();
+  get shader() {
+    if (!this._shader && !this.pendingShaderCreation) this.createShader();
+    return this._shader;
+  }
   constructor(params) {
     super({ isDeferred: params?.isDeferred ?? true });
     this.assetPath = "@builtin/material/pbr";
@@ -5096,8 +5138,7 @@ class PBRMaterial extends Material {
       Assets.SetInstance("@builtin/material/pbr", this);
     }
     Object.assign(this.params, params);
-    if (!PBRMaterial.sampler) PBRMaterial.sampler = new TextureSampler();
-    this.createShader();
+    if (!PBRMaterial.sampler) PBRMaterial.sampler = new TextureSampler({ maxAnisotropy: 4 });
   }
   pendingShaderCreation;
   async createShader() {
@@ -5419,7 +5460,9 @@ class SkinnedMesh extends Renderable {
     if (!this.geometry || !this.material || !shader) return;
     shader.SetBuffer("modelMatrix", Mesh.modelMatrices.getBuffer());
     if (this.boneMatricesBuffer || this.tryInitBones()) {
-      shader.SetBuffer("boneMatrices", this.boneMatricesBuffer);
+      if (shader.uniformMap?.has("boneMatrices")) {
+        shader.SetBuffer("boneMatrices", this.boneMatricesBuffer);
+      }
     }
   }
   OnRenderObject(shaderOverride) {
@@ -7136,109 +7179,126 @@ class AnimationTrack extends (_a = Component, _trackName_dec = [SerializeField],
   constructor() {
     super(...arguments);
     __publicField$1(this, "trackName", __runInitializers$1(_init$1, 8, this, "")), __runInitializers$1(_init$1, 11, this);
-    __publicField$1(this, "clips", []);
-    // O(1) lookup cache (built once)
+    __publicField$1(this, "_clips", []);
     __publicField$1(this, "_clipsByIndex", null);
-    // Reusable scratch objects — no per-frame allocations
     __publicField$1(this, "_v0", new Vector3());
     __publicField$1(this, "_v1", new Vector3());
     __publicField$1(this, "_q0", new Quaternion());
     __publicField$1(this, "_q1", new Quaternion());
+    __publicField$1(this, "_sampleQ0", new Quaternion());
+    __publicField$1(this, "_sampleQ1", new Quaternion());
+    __publicField$1(this, "_bindPos", new Vector3());
+    __publicField$1(this, "_bindRot", new Quaternion());
+    __publicField$1(this, "_bindScl", new Vector3(1, 1, 1));
+    __publicField$1(this, "_bindCaptured", false);
   }
-  ensureClipCache() {
-    if (this._clipsByIndex) return;
-    let max = -1;
-    for (const c of this.clips) if (c.clipIndex > max) max = c.clipIndex;
-    const arr = new Array(max + 1).fill(null);
-    for (const c of this.clips) arr[c.clipIndex] = c;
-    this._clipsByIndex = arr;
+  get clips() {
+    return this._clips;
   }
-  getClip(clipIndex) {
-    this.ensureClipCache();
+  set clips(value) {
+    this._clips = value ?? [];
+    this._clipsByIndex = null;
+  }
+  captureBindPose() {
+    if (this._bindCaptured) return;
+    const tr = this.gameObject.transform;
+    this._bindPos.copy(tr.localPosition);
+    this._bindRot.copy(tr.localRotation);
+    this._bindScl.copy(tr.scale);
+    this._bindCaptured = true;
+  }
+  clip(clipIndex) {
+    if (!this._clipsByIndex) {
+      let max = -1;
+      for (const c of this.clips) if (c.clipIndex > max) max = c.clipIndex;
+      this._clipsByIndex = new Array(max + 1).fill(null);
+      for (const c of this.clips) this._clipsByIndex[c.clipIndex] = c;
+    }
     return this._clipsByIndex[clipIndex] ?? null;
+  }
+  channel(clip, path) {
+    return clip?.channels.find((ch) => ch.path === path) ?? null;
   }
   sampleVec3(sampler, t, out) {
     const times = sampler.times;
     const vals = sampler.values;
     const lastT = times[sampler.keyCount - 1] ?? 0;
-    const time = sampler.keyCount > 1 ? t % lastT : 0;
+    const time = sampler.keyCount > 1 && lastT > 0 ? t % lastT : 0;
     let i1 = 0;
-    while (i1 < sampler.keyCount && times[i1] < time) ++i1;
+    while (i1 < sampler.keyCount && times[i1] < time) i1++;
     if (i1 === 0) i1 = 1;
     if (i1 >= sampler.keyCount) i1 = sampler.keyCount - 1;
     const i0 = i1 - 1;
-    const t0 = times[i0], t1 = times[i1];
+    const t0 = times[i0];
+    const t1 = times[i1];
     const u = t1 > t0 ? (time - t0) / (t1 - t0) : 0;
-    const b0 = i0 * 3, b1 = i1 * 3;
-    out.set(
+    const b0 = i0 * 3;
+    const b1 = i1 * 3;
+    return out.set(
       vals[b0] + (vals[b1] - vals[b0]) * u,
       vals[b0 + 1] + (vals[b1 + 1] - vals[b0 + 1]) * u,
       vals[b0 + 2] + (vals[b1 + 2] - vals[b0 + 2]) * u
     );
-    return out;
   }
   sampleQuat(sampler, t, out) {
     const times = sampler.times;
     const vals = sampler.values;
     const lastT = times[sampler.keyCount - 1] ?? 0;
-    const time = sampler.keyCount > 1 ? t % lastT : 0;
+    const time = sampler.keyCount > 1 && lastT > 0 ? t % lastT : 0;
     let i1 = 0;
-    while (i1 < sampler.keyCount && times[i1] < time) ++i1;
+    while (i1 < sampler.keyCount && times[i1] < time) i1++;
     if (i1 === 0) i1 = 1;
     if (i1 >= sampler.keyCount) i1 = sampler.keyCount - 1;
     const i0 = i1 - 1;
-    const t0 = times[i0], t1 = times[i1];
+    const t0 = times[i0];
+    const t1 = times[i1];
     const u = t1 > t0 ? (time - t0) / (t1 - t0) : 0;
-    const b0 = i0 * 4, b1 = i1 * 4;
-    this._q1.set(vals[b0], vals[b0 + 1], vals[b0 + 2], vals[b0 + 3]);
-    out.set(vals[b1], vals[b1 + 1], vals[b1 + 2], vals[b1 + 3]);
-    this._q1.slerp(out, u);
-    out.copy(this._q1);
-    return out;
+    const b0 = i0 * 4;
+    const b1 = i1 * 4;
+    this._sampleQ0.set(vals[b0], vals[b0 + 1], vals[b0 + 2], vals[b0 + 3]).normalize();
+    this._sampleQ1.set(vals[b1], vals[b1 + 1], vals[b1 + 2], vals[b1 + 3]).normalize();
+    return out.copy(this._sampleQ0).slerp(this._sampleQ1, u).normalize();
   }
   apply(clipIndex, time) {
-    const clip = this.getClip(clipIndex);
-    if (!clip) return;
+    this.captureBindPose();
+    const clip = this.clip(clipIndex);
     const tr = this.gameObject.transform;
-    for (const ch of clip.channels) {
-      if (ch.path === "translation") {
-        this.sampleVec3(ch.sampler, time, tr.localPosition);
-      } else if (ch.path === "scale") {
-        this.sampleVec3(ch.sampler, time, tr.scale);
-      } else if (ch.path === "rotation") {
-        this.sampleQuat(ch.sampler, time, tr.localRotation).normalize();
-      }
-    }
+    const pos = this.channel(clip, "translation");
+    if (pos) this.sampleVec3(pos.sampler, time, tr.localPosition);
+    else tr.localPosition.copy(this._bindPos);
+    const rot = this.channel(clip, "rotation");
+    if (rot) this.sampleQuat(rot.sampler, time, tr.localRotation);
+    else tr.localRotation.copy(this._bindRot);
+    const scl = this.channel(clip, "scale");
+    if (scl) this.sampleVec3(scl.sampler, time, tr.scale);
+    else tr.scale.copy(this._bindScl);
   }
-  applyBlended(clipA, tA, clipB, tB, alpha) {
-    const a = this.getClip(clipA);
-    const b = this.getClip(clipB);
-    if (!a && !b) return;
-    if (a && !b) return this.apply(clipA, tA);
-    if (!a && b) return this.apply(clipB, tB);
+  applyBlended(clipA, timeA, clipB, timeB, alpha) {
+    this.captureBindPose();
+    const a = this.clip(clipA);
+    const b = this.clip(clipB);
     const tr = this.gameObject.transform;
-    for (const chA of a.channels) {
-      const chB = b.channels.find((ch) => ch.path === chA.path);
-      if (!chB) {
-        if (chA.path === "translation") this.sampleVec3(chA.sampler, tA, tr.localPosition);
-        else if (chA.path === "scale") this.sampleVec3(chA.sampler, tA, tr.scale);
-        else if (chA.path === "rotation") this.sampleQuat(chA.sampler, tA, tr.localRotation).normalize();
-        continue;
-      }
-      if (chA.path === "translation") {
-        this.sampleVec3(chA.sampler, tA, this._v0);
-        this.sampleVec3(chB.sampler, tB, this._v1);
-        tr.localPosition.copy(this._v0.lerp(this._v1, alpha));
-      } else if (chA.path === "scale") {
-        this.sampleVec3(chA.sampler, tA, this._v0);
-        this.sampleVec3(chB.sampler, tB, this._v1);
-        tr.scale.copy(this._v0.lerp(this._v1, alpha));
-      } else if (chA.path === "rotation") {
-        this.sampleQuat(chA.sampler, tA, this._q0);
-        this.sampleQuat(chB.sampler, tB, this._q1);
-        tr.localRotation.copy(this._q0.slerp(this._q1, alpha)).normalize();
-      }
-    }
+    const posA = this.channel(a, "translation");
+    const posB = this.channel(b, "translation");
+    if (posA) this.sampleVec3(posA.sampler, timeA, this._v0);
+    else this._v0.copy(this._bindPos);
+    if (posB) this.sampleVec3(posB.sampler, timeB, this._v1);
+    else this._v1.copy(this._bindPos);
+    tr.localPosition.copy(this._v0.lerp(this._v1, alpha));
+    const rotA = this.channel(a, "rotation");
+    const rotB = this.channel(b, "rotation");
+    if (rotA) this.sampleQuat(rotA.sampler, timeA, this._q0);
+    else this._q0.copy(this._bindRot);
+    if (rotB) this.sampleQuat(rotB.sampler, timeB, this._q1);
+    else this._q1.copy(this._bindRot);
+    tr.localRotation.copy(this._q0.slerp(this._q1, alpha)).normalize();
+    const sclA = this.channel(a, "scale");
+    const sclB = this.channel(b, "scale");
+    if (sclA) this.sampleVec3(sclA.sampler, timeA, this._v0);
+    else this._v0.copy(this._bindScl);
+    if (sclB) this.sampleVec3(sclB.sampler, timeB, this._v1);
+    else this._v1.copy(this._bindScl);
+    tr.scale.copy(this._v0.lerp(this._v1, alpha));
   }
 }
 _init$1 = __decoratorStart$1(_a);
@@ -7268,12 +7328,14 @@ class Animator extends (_b = Component, _animation_dec = [SerializeField(Animati
     __publicField$1(this, "playing", false);
     __publicField$1(this, "previousTime", 0);
     __publicField$1(this, "tracks", []);
-    // blend state
+    __publicField$1(this, "bound", false);
     __publicField$1(this, "currentTime", 0);
     __publicField$1(this, "nextTime", 0);
     __publicField$1(this, "fadeDuration", 0);
     __publicField$1(this, "fadeTime", 0);
     __publicField$1(this, "nextClipIndex", null);
+    __publicField$1(this, "speed", 1);
+    __publicField$1(this, "nextSpeed", 1);
   }
   get assetPath() {
     return this.animation.assetPath;
@@ -7295,77 +7357,81 @@ class Animator extends (_b = Component, _animation_dec = [SerializeField(Animati
   }
   Start() {
     this.previousTime = performance.now();
-    this.rebuildTracks();
+    this.Bind();
   }
-  rebuildTracks() {
-    const expectedTrackCount = Object.keys(this.animation.tracksData ?? {}).length;
-    if (expectedTrackCount > 0 && this.tracks.length >= expectedTrackCount) return;
-    this.tracks = [];
-    this.collectTracks(this.gameObject.transform);
+  Bind() {
+    if (this.bound) return;
+    this.tracks = this.gameObject.GetComponentsInChildren(AnimationTrack);
     for (const track of this.tracks) {
       const trackName = track.trackName || track.gameObject.name;
-      if (trackName && this.animation.tracksData?.[trackName]) {
-        track.trackName = trackName;
-        track.clips = this.animation.tracksData[trackName];
-      }
+      track.trackName = trackName;
+      const clips = this.animation.tracksData?.[trackName];
+      if (clips) track.clips = clips;
+      track.captureBindPose();
     }
+    this.bound = true;
   }
-  collectTracks(root) {
-    const track = root.gameObject.GetComponent(AnimationTrack);
-    if (track) this.tracks.push(track);
-    for (const child of root.children) this.collectTracks(child);
+  Rebind() {
+    this.bound = false;
+    this.Bind();
   }
-  SetClipByIndex(i) {
+  SetClipByIndex(i, speed = 1) {
+    this.Bind();
     if (this.tracks.length === 0) return;
     this.clipIndex = Math.max(0, i);
     this.currentTime = 0;
     this.nextClipIndex = null;
     this.fadeDuration = 0;
     this.fadeTime = 0;
+    this.previousTime = performance.now();
+    this.speed = speed;
     this.playing = true;
+    for (const track of this.tracks) {
+      track.apply(this.clipIndex, this.currentTime);
+    }
   }
-  CrossFadeTo(i, duration = 0.25) {
+  CrossFadeTo(i, duration = 0.25, speed = 1) {
+    this.Bind();
     if (this.tracks.length === 0) return;
     this.nextClipIndex = Math.max(0, i);
     this.nextTime = 0;
     this.fadeDuration = Math.max(1e-4, duration);
     this.fadeTime = 0;
+    this.previousTime = performance.now();
+    this.nextSpeed = speed;
     this.playing = true;
   }
   Update() {
-    this.rebuildTracks();
     if (!this.playing) return;
     const now = performance.now();
     const dt = (now - this.previousTime) / 1e3;
     this.previousTime = now;
-    this.currentTime += dt;
+    this.currentTime += dt * this.speed;
     if (this.nextClipIndex !== null) {
-      this.nextTime += dt;
+      this.nextTime += dt * this.nextSpeed;
       this.fadeTime += dt;
     }
     if (this.nextClipIndex === null) {
       for (const track of this.tracks) {
         track.apply(this.clipIndex, this.currentTime);
       }
-    } else {
-      const alpha = Math.min(1, this.fadeTime / this.fadeDuration);
-      for (const track of this.tracks) {
-        track.applyBlended(this.clipIndex, this.currentTime, this.nextClipIndex, this.nextTime, alpha);
-      }
-      if (alpha >= 1) {
-        this.clipIndex = this.nextClipIndex;
-        this.currentTime = this.nextTime;
-        this.nextClipIndex = null;
-        this.fadeDuration = 0;
-        this.fadeTime = 0;
-      }
+      return;
+    }
+    const alpha = Math.min(1, this.fadeTime / this.fadeDuration);
+    for (const track of this.tracks) {
+      track.applyBlended(this.clipIndex, this.currentTime, this.nextClipIndex, this.nextTime, alpha);
+    }
+    if (alpha >= 1) {
+      this.clipIndex = this.nextClipIndex;
+      this.currentTime = this.nextTime;
+      this.speed = this.nextSpeed;
+      this.nextClipIndex = null;
+      this.fadeDuration = 0;
+      this.fadeTime = 0;
     }
   }
   GetClipIndexByName(name) {
-    if (!this.tracks.length) {
-      this.tracks = [];
-      this.collectTracks(this.gameObject.transform);
-    }
+    this.Bind();
     if (!this.animation.clips.length) return -1;
     return this.animation.clips.findIndex((c) => c.name === name);
   }
@@ -7374,7 +7440,6 @@ _init3 = __decoratorStart$1(_b);
 __decorateElement$1(_init3, 5, "animation", _animation_dec, Animator);
 __decoratorMetadata$1(_init3, Animator);
 __publicField$1(Animator, "type", "@trident/core/components/Animator");
-Component.Registry.set(AnimationTrack.type, AnimationTrack);
 Component.Registry.set(AnimationData.type, AnimationData);
 Component.Registry.set(Animator.type, Animator);
 
@@ -7412,36 +7477,42 @@ class Deserializer {
     Uint32Array,
     Uint8ClampedArray
   ]);
+  static instanceLoadCache = /* @__PURE__ */ new Map();
   static async Load(assetPath, data, expectedType) {
     const cached = Assets.GetInstance(assetPath);
     if (cached) return cached;
-    const ext = assetPath.slice(assetPath.lastIndexOf(".") + 1).toLowerCase();
-    const loadType = this.binaryExtensions.has(ext) ? "binary" : "json";
-    const asset = await Assets.Load(assetPath, loadType);
-    if (expectedType?.Deserialize) {
-      const instance = await expectedType.Deserialize(assetPath, data, asset);
-      Assets.SetInstance(assetPath, instance);
-      return instance;
-    }
-    if (asset?.type) {
-      const Ctor = TypeRegistry.get(asset.type);
-      if (!Ctor) throw Error(`Unknown type: ${asset.type}`);
-      const instance = new Ctor();
-      instance.assetPath = assetPath;
-      await this.deserializeFields(instance, asset);
-      if (instance.OnDeserialized) {
-        if (this.isDeserializingScene) this.deferredCallbacks.push(() => instance.OnDeserialized());
-        else await instance.OnDeserialized();
+    const key = `${assetPath}:${expectedType?.type ?? expectedType?.name ?? ""}`;
+    const pending = this.instanceLoadCache.get(key);
+    if (pending) return pending;
+    const promise = (async () => {
+      const ext = assetPath.slice(assetPath.lastIndexOf(".") + 1).toLowerCase();
+      const loadType = this.binaryExtensions.has(ext) ? "binary" : "json";
+      const asset = await Assets.Load(assetPath, loadType);
+      if (expectedType?.Deserialize) {
+        const instance = await expectedType.Deserialize(assetPath, data, asset);
+        Assets.SetInstance(assetPath, instance);
+        return instance;
       }
-      Assets.SetInstance(assetPath, instance);
-      return instance;
+      if (asset?.type) {
+        const Ctor = TypeRegistry.get(asset.type);
+        if (!Ctor) throw Error(`Unknown type: ${asset.type}`);
+        const instance = new Ctor();
+        instance.assetPath = assetPath;
+        await this.deserializeFields(instance, asset);
+        Assets.SetInstance(assetPath, instance);
+        return instance;
+      }
+      return asset;
+    })();
+    this.instanceLoadCache.set(key, promise);
+    try {
+      return await promise;
+    } finally {
+      this.instanceLoadCache.delete(key);
     }
-    return asset;
   }
   static deferredRefs = [];
   static idMap = /* @__PURE__ */ new Map();
-  static deferredCallbacks = [];
-  static isDeserializingScene = false;
   static isAssetRef(data) {
     return !!data && typeof data === "object" && typeof data.assetPath === "string";
   }
@@ -7464,15 +7535,14 @@ class Deserializer {
     }
     if (Array.isArray(data)) {
       const result = new Array(data.length);
-      for (let i = 0; i < data.length; i++) {
-        const item = data[i];
+      await Promise.all(data.map(async (item, i) => {
         if (this.isGameObjectRef(item)) {
           this.deferredRefs.push({ target: result, property: i, id: item.id });
           result[i] = null;
         } else {
           result[i] = await this.deserializeAny(item, expectedType);
         }
-      }
+      }));
       return result;
     }
     if (existing instanceof Vector3) {
@@ -7505,30 +7575,28 @@ class Deserializer {
     return data;
   }
   static async deserializeFields(target, data) {
-    for (const { name, type } of GetSerializedFields(target)) {
-      if (data[name] === void 0) continue;
-      if (this.isGameObjectRef(data[name])) {
-        this.deferredRefs.push({ target, property: name, id: data[name].id });
-        continue;
+    const fields = GetSerializedFields(target).filter(({ name }) => data[name] !== void 0);
+    const resolved = await Promise.all(fields.map(async ({ name, type }) => {
+      const value = data[name];
+      if (this.isGameObjectRef(value)) {
+        return { name, refId: value.id };
       }
-      target[name] = await this.deserializeAny(data[name], type, target[name]);
+      return {
+        name,
+        value: await this.deserializeAny(value, type, target[name])
+      };
+    }));
+    for (const item of resolved) {
+      if ("refId" in item) {
+        this.deferredRefs.push({ target, property: item.name, id: item.refId });
+      } else {
+        target[item.name] = item.value;
+      }
     }
   }
   static async deserializeComponent(component, data) {
     if (data.id) component.id = data.id;
-    for (const { name, type } of GetSerializedFields(component)) {
-      if (data[name] === void 0) continue;
-      const value = data[name];
-      if (this.isGameObjectRef(value)) {
-        this.deferredRefs.push({ target: component, property: name, id: value.id });
-        continue;
-      }
-      component[name] = await this.deserializeAny(value, type, component[name]);
-    }
-    if (component.OnDeserialized) {
-      if (this.isDeserializingScene) this.deferredCallbacks.push(() => component.OnDeserialized());
-      else await component.OnDeserialized();
-    }
+    await this.deserializeFields(component, data);
   }
   static async deserializeGameObject(scene, data, parent) {
     let source = data;
@@ -7558,15 +7626,11 @@ class Deserializer {
   }
   static async deserializeScene(scene, data) {
     scene.name = data.name;
-    this.isDeserializingScene = true;
     for (const goData of data.gameObjects) await this.deserializeGameObject(scene, goData);
     for (const ref of this.deferredRefs) {
       ref.target[ref.property] = this.idMap.get(ref.id) ?? null;
     }
     this.deferredRefs.length = 0;
-    for (const cb of this.deferredCallbacks) await cb();
-    this.deferredCallbacks.length = 0;
-    this.isDeserializingScene = false;
     Camera.mainCamera = null;
     for (const go of scene.GetGameObjects()) {
       const cam = go.GetComponent(Camera);
@@ -7596,16 +7660,8 @@ function getCtorChain(ctor) {
 }
 class Scene {
   static type = "@trident/core/Scene";
-  static Events = {
-    OnStarted: (scene) => {
-    }
-  };
   id = UUID();
   name;
-  _hasStarted = false;
-  get hasStarted() {
-    return this._hasStarted;
-  }
   gameObjects = [];
   componentsByType = /* @__PURE__ */ new Map();
   mode = 0 /* Play */;
@@ -7665,9 +7721,19 @@ class Scene {
         if (edit && !c.runInEditMode) continue;
         if (!c.hasStarted) {
           c.hasStarted = true;
-          c.Start();
+          try {
+            c.Start();
+          } catch (err) {
+            console.error(`[${c.constructor.name}.Start]`, err);
+            c.enabled = false;
+          }
         }
-        c.Update();
+        try {
+          c.Update();
+        } catch (err) {
+          console.error(`[${c.constructor.name}.Update]`, err);
+          c.enabled = false;
+        }
       }
     }
   }

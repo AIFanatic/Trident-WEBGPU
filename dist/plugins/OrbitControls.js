@@ -1,4 +1,4 @@
-import { Mathf, SerializeField, GameObject, GPU, Input, MouseCodes, KeyCodes, Component } from '@trident/core';
+import { Mathf, SerializeField, GameObject, Components, GPU, Input, MouseCodes, KeyCodes, Component } from '@trident/core';
 
 var __create = Object.create;
 var __defProp = Object.defineProperty;
@@ -34,13 +34,13 @@ var __decorateElement = (array, flags, name, decorators, target, extra) => {
   return target;
 };
 var __publicField = (obj, key, value) => __defNormalProp(obj, typeof key !== "symbol" ? key + "" : key, value);
-var _camera_dec, _a, _init;
+var _center_dec, _camera_dec, _a, _init;
 const _v = new Mathf.Vector3();
-class OrbitControls extends (_a = Component, _camera_dec = [SerializeField(GameObject)], _a) {
+class OrbitControls extends (_a = Component, _camera_dec = [SerializeField(GameObject)], _center_dec = [SerializeField], _a) {
   constructor() {
     super(...arguments);
     __publicField(this, "camera", __runInitializers(_init, 8, this)), __runInitializers(_init, 11, this);
-    __publicField(this, "center", new Mathf.Vector3());
+    __publicField(this, "center", __runInitializers(_init, 12, this, new Mathf.Vector3())), __runInitializers(_init, 15, this);
     __publicField(this, "orbitSpeed", 0.01);
     __publicField(this, "panSpeed", 1);
     __publicField(this, "zoomSpeed", 0.1);
@@ -56,7 +56,7 @@ class OrbitControls extends (_a = Component, _camera_dec = [SerializeField(GameO
     __publicField(this, "phi", 0);
   }
   Start() {
-    if (!this.camera) throw new Error("OrbitControls needs a Camera.");
+    if (!this.camera) this.camera = Components.Camera.mainCamera;
     this.camera.transform.LookAt(this.center);
     if (GPU.Renderer.canvas) {
       GPU.Renderer.canvas.tabIndex = 0;
@@ -139,6 +139,7 @@ class OrbitControls extends (_a = Component, _camera_dec = [SerializeField(GameO
 }
 _init = __decoratorStart(_a);
 __decorateElement(_init, 5, "camera", _camera_dec, OrbitControls);
+__decorateElement(_init, 5, "center", _center_dec, OrbitControls);
 __decoratorMetadata(_init, OrbitControls);
 __publicField(OrbitControls, "type", "@trident/plugins/OrbitControls");
 

@@ -1,4 +1,4 @@
-import { IndexAttribute, VertexAttribute, Texture, Geometry, Mathf, PBRMaterial, GameObject, Components } from '@trident/core';
+import { IndexAttribute, VertexAttribute, Texture, Mathf, Geometry, PBRMaterial, GameObject, Components } from '@trident/core';
 import { GLTFParser } from './GLTFParser.js';
 
 class GLTFLoader {
@@ -83,6 +83,33 @@ class GLTFLoader {
     }
     return array;
   }
+  // TODO: Better is to add rotation to the shader too, might need packing, also need to support different samplers..
+  static processTextureTransformExtension(materialParams, textures, textureInfos) {
+    const textureInfo = textureInfos.find((info) => {
+      return !!info?.extensions?.["KHR_texture_transform"];
+    });
+    if (!textureInfo) return;
+    const transform = textureInfo.extensions["KHR_texture_transform"];
+    const rotation = transform.rotation ?? 0;
+    const offset = transform.offset ?? [0, 0];
+    const scale = transform.scale ?? [1, 1];
+    const tex = textures?.[textureInfo.index];
+    const wrapS = tex?.sampler?.wrapS ?? 10497;
+    const wrapT = tex?.sampler?.wrapT ?? 10497;
+    const mirrorU = wrapS === 33648;
+    const mirrorV = wrapT === 33648;
+    if (Math.abs(rotation - Math.PI) < 1e-4) {
+      materialParams.repeat = new Mathf.Vector2(mirrorU ? scale[0] : -scale[0], mirrorV ? scale[1] : -scale[1]);
+      materialParams.offset = new Mathf.Vector2(mirrorU ? offset[0] : 1 + offset[0], mirrorV ? offset[1] : 1 + offset[1]);
+      return;
+    }
+    if (Math.abs(rotation) < 1e-4) {
+      materialParams.repeat = new Mathf.Vector2(scale[0], scale[1]);
+      materialParams.offset = new Mathf.Vector2(offset[0], offset[1]);
+      return;
+    }
+    console.warn("KHR_texture_transform rotation needs real shader support", transform);
+  }
   static async parsePrimitive(primitive, textures, names) {
     const geometry = new Geometry();
     if (primitive.attributes.POSITION) geometry.attributes.set("position", new VertexAttribute(this.parseAccessor(primitive.attributes.POSITION)));
@@ -108,13 +135,13 @@ class GLTFLoader {
     if (mat?.pbrMetallicRoughness) {
       const pbr = mat.pbrMetallicRoughness;
       if (pbr.baseColorFactor) materialParams.albedoColor = new Mathf.Color(...pbr.baseColorFactor);
-      if (pbr.baseColorTexture) materialParams.albedoMap = await this.getTexture(textures, pbr.baseColorTexture, "bgra8unorm-srgb", `${materialBaseName}_BaseColor`);
-      if (pbr.metallicRoughnessTexture) materialParams.armMap = await this.getTexture(textures, pbr.metallicRoughnessTexture, "bgra8unorm", `${materialBaseName}_MetallicRoughness`);
+      if (pbr.baseColorTexture) materialParams.albedoMap = await this.getTexture(textures, pbr.baseColorTexture, "rgba8unorm-srgb", `${materialBaseName}_BaseColor`);
+      if (pbr.metallicRoughnessTexture) materialParams.armMap = await this.getTexture(textures, pbr.metallicRoughnessTexture, "rgba8unorm", `${materialBaseName}_MetallicRoughness`);
       if (pbr.roughnessFactor !== void 0) materialParams.roughness = pbr.roughnessFactor;
       if (pbr.metallicFactor !== void 0) materialParams.metalness = pbr.metallicFactor;
     }
-    if (mat?.normalTexture) materialParams.normalMap = await this.getTexture(textures, mat.normalTexture, "bgra8unorm", `${materialBaseName}_Normal`);
-    if (mat?.emissiveTexture) materialParams.emissiveMap = await this.getTexture(textures, mat.emissiveTexture, "bgra8unorm-srgb", `${materialBaseName}_Emissive`);
+    if (mat?.normalTexture) materialParams.normalMap = await this.getTexture(textures, mat.normalTexture, "rgba8unorm", `${materialBaseName}_Normal`);
+    if (mat?.emissiveTexture) materialParams.emissiveMap = await this.getTexture(textures, mat.emissiveTexture, "rgba8unorm-srgb", `${materialBaseName}_Emissive`);
     if (mat?.emissiveFactor) {
       materialParams.emissiveColor = new Mathf.Color(...mat.emissiveFactor);
       const ext = mat.extensions?.["KHR_materials_emissive_strength"];
@@ -124,6 +151,13 @@ class GLTFLoader {
     materialParams.doubleSided = !!mat?.doubleSided;
     materialParams.alphaCutoff = mat?.alphaCutoff;
     if (primitive.attributes.JOINTS_0 && primitive.attributes.WEIGHTS_0) materialParams.isSkinned = true;
+    this.processTextureTransformExtension(materialParams, textures, [
+      mat?.pbrMetallicRoughness?.baseColorTexture,
+      mat?.pbrMetallicRoughness?.metallicRoughnessTexture,
+      mat?.normalTexture,
+      mat?.emissiveTexture,
+      mat?.occlusionTexture
+    ]);
     this.finalizeGeometry(geometry);
     if (!geometry.attributes.has("tangent")) {
       if (geometry.attributes.has("position") && geometry.attributes.has("normal") && geometry.attributes.has("uv") && materialParams.normalMap) {

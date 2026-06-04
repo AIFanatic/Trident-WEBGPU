@@ -1,4 +1,4 @@
-import { SerializeField, Prefab, Components, Mathf, Utils, GPU, EventSystemLocal, Geometry, VertexAttribute, IndexAttribute, Assets, NonSerialized } from '@trident/core';
+import { SerializeField, Prefab, Components, EventSystemLocal, Mathf, Utils, GPU, Geometry, VertexAttribute, IndexAttribute, NonSerialized } from '@trident/core';
 import { TerrainMaterial } from './TerrainMaterial.js';
 import { LODGroup } from '../LOD/LODGroup.js';
 import { InstancedLODGroup } from '../LOD/InstancedLODGroup.js';
@@ -52,7 +52,9 @@ var __privateGet = (obj, member, getter) => (__accessCheck(obj, member, "read fr
 var __privateSet = (obj, member, value, setter) => (__accessCheck(obj, member, "write to private field"), setter ? setter.call(obj, value) : member.set(obj, value), value);
 var __privateMethod = (obj, member, method) => (__accessCheck(obj, member, "access private method"), method);
 var _matrices_dec, _prop_dec, _init, _blendWeightMapTexture_dec, _materialIdMapTexture_dec, _blendWeightMapData_dec, _materialIdMapData_dec, _paintMapResolution_dec, _heights_dec, _material_dec, _geometry_dec, _size_dec, _paintPropData_dec, _init2, _material_dec2, _geometry_dec2, _terrainData_dec, _a, _init3;
-class TerrainDataEvents {
+class TerrainEvents {
+  static Changed = (terrain, terrainData) => {
+  };
   static GeometryUpdated = (terrainData) => {
   };
 }
@@ -72,8 +74,8 @@ class PaintPropData {
       this.instancedPrefab.flags = Utils.Flags.DontSaveInEditor | Utils.Flags.HideInHierarchy;
     }
     const lodGroup = this.instancedPrefab.GetComponent(LODGroup);
-    if (!lodGroup) return;
-    if (lodGroup.lods.length === 0) return;
+    if (!lodGroup) throw Error("No LODGroup found");
+    if (lodGroup.lods.length === 0) throw Error("No LODGroup found");
     if (!this.instancedLODGroup) {
       this.instancedLODGroup = terrainGameObject.AddComponent(InstancedLODGroup);
       this.instancedLODGroup.flags = Utils.Flags.DontSaveInEditor | Utils.Flags.HideInInspector;
@@ -151,10 +153,14 @@ const _TerrainData = class _TerrainData {
       }
     }
   }
+  Resize(x, y, z) {
+    this.size.set(x, y, z);
+    this.RebuildGeometry();
+  }
   InitializePaintMaps() {
     this.InitializePaintMapData();
     this.materialIdMapTexture = GPU.Texture.Create(this.paintMapResolution, this.paintMapResolution, 1, "rgba8unorm");
-    this.blendWeightMapTexture = GPU.TextureArray.Create(this.paintMapResolution, this.paintMapResolution, 1, "rgba8unorm");
+    this.blendWeightMapTexture = GPU.Texture.Create(this.paintMapResolution, this.paintMapResolution, 1, "rgba8unorm");
     this.UploadPaintMaps();
     this.BindPaintMaps();
   }
@@ -168,7 +174,7 @@ const _TerrainData = class _TerrainData {
       await this.material.pendingShaderCreation;
     }
     this.material.materialIdMap = this.materialIdMapTexture;
-    this.material.shader.SetTexture("blendWeightMaps", this.blendWeightMapTexture);
+    this.material.shader.SetTexture("blendWeightMap", this.blendWeightMapTexture);
   }
   async AddProp(prefab, terrainGameObject) {
     const existingIndex = this.paintPropData.findIndex((value) => value.prop.assetPath === prefab.assetPath);
@@ -183,15 +189,11 @@ const _TerrainData = class _TerrainData {
     if (propIndex >= this.paintPropData.length) throw Error("Prop doesnt exist");
     this.paintPropData[propIndex].AddPropMatrix(matrix);
   }
-  async OnDeserialized() {
-    this.RebuildGeometry();
-    this.InitializePaintMaps();
-  }
   RebuildGeometry() {
     const verticesPerSide = this.resolution + 1;
     this.geometry = _TerrainData.GenerateGeometryFromHeights(verticesPerSide, this.heights, this.size);
     this.geometry.name = this.assetPath;
-    EventSystemLocal.emit(TerrainDataEvents.GeometryUpdated, this, this);
+    EventSystemLocal.emit(TerrainEvents.GeometryUpdated, this, this);
   }
   static GenerateGeometryFromHeights(verticesPerSide, heights, size) {
     if (heights.length !== verticesPerSide * verticesPerSide) throw Error(`Heights length (${heights.length} don't match terrain size of ${verticesPerSide}x${verticesPerSide}(${verticesPerSide * verticesPerSide})`);
@@ -205,7 +207,7 @@ const _TerrainData = class _TerrainData {
       for (let iz = 0; iz < verticesPerSide; iz++) {
         const x = ix * ratio.x;
         const z = iz * ratio.z;
-        const height = heights[i] * size.y;
+        const height = heights[i] * size.y - half.y;
         vertices.push(x - half.x, height, z - half.z);
         uvs.push(ix / divisions, iz / divisions);
         i++;
@@ -246,28 +248,40 @@ const _TerrainData = class _TerrainData {
     return h;
   }
   async HeightmapFromTexture(texture, smoothHeights = true, heightMultiplier = 1) {
-    let blob;
-    if (texture.blob) blob = texture.blob;
-    else if (texture.assetPath) blob = await (await Assets.ResourceFetchFn(texture.assetPath)).blob();
-    else throw Error("Texture has no blob or assetPath \u2014 cannot read source pixels.");
-    const img = await createImageBitmap(blob);
-    if (img.width !== img.height) throw Error(`Only square images are supported, image has width=${img.width} and height=${img.height}`);
+    if (texture.width !== texture.height) {
+      throw Error(`Only square textures are supported, got ${texture.width}x${texture.height}`);
+    }
+    const srcSize = texture.width;
+    const pixels = await texture.GetPixels(0, 0, srcSize, srcSize, 0);
+    const totalPixels = srcSize * srcSize;
+    const channels = pixels.length / totalPixels;
+    if (!Number.isInteger(channels)) {
+      throw Error(`HeightmapFromTexture: unexpected pixel layout for format ${texture.format}`);
+    }
+    const red = new Float32Array(totalPixels);
+    if (pixels instanceof Uint8Array) for (let i = 0; i < totalPixels; i++) red[i] = pixels[i * channels] / 255;
+    else if (pixels instanceof Float32Array || pixels instanceof Float16Array) for (let i = 0; i < totalPixels; i++) red[i] = pixels[i * channels];
+    else throw Error(`HeightmapFromTexture: unsupported pixel array type for format ${texture.format}`);
     const verticesPerSide = this.resolution + 1;
-    const canvas = document.createElement("canvas");
-    canvas.width = verticesPerSide;
-    canvas.height = verticesPerSide;
-    const ctx = canvas.getContext("2d");
-    ctx.imageSmoothingEnabled = smoothHeights;
-    ctx.save();
-    ctx.translate(verticesPerSide / 2, verticesPerSide / 2);
-    ctx.rotate(-90 * Math.PI / 180);
-    ctx.scale(-1, 1);
-    ctx.drawImage(img, -verticesPerSide / 2, -verticesPerSide / 2, verticesPerSide, verticesPerSide);
-    ctx.restore();
-    const imageData = ctx.getImageData(0, 0, verticesPerSide, verticesPerSide);
-    let heights = new Float32Array(imageData.data.length / 4);
-    for (let i = 0, j = 0; i < imageData.data.length; i += 4, j++) {
-      heights[j] = imageData.data[i] / 255 * heightMultiplier;
+    const heights = new Float32Array(verticesPerSide * verticesPerSide);
+    const last = srcSize - 1;
+    const denom = Math.max(1, verticesPerSide - 1);
+    const sample = smoothHeights ? (sx, sy) => {
+      const x0 = Math.floor(sx), y0 = Math.floor(sy);
+      const x1 = Math.min(x0 + 1, last), y1 = Math.min(y0 + 1, last);
+      const tx = sx - x0, ty = sy - y0;
+      const a = red[y0 * srcSize + x0];
+      const b = red[y0 * srcSize + x1];
+      const c = red[y1 * srcSize + x0];
+      const d = red[y1 * srcSize + x1];
+      return (a * (1 - tx) + b * tx) * (1 - ty) + (c * (1 - tx) + d * tx) * ty;
+    } : (sx, sy) => red[Math.round(sy) * srcSize + Math.round(sx)];
+    for (let ix = 0; ix < verticesPerSide; ix++) {
+      for (let iz = 0; iz < verticesPerSide; iz++) {
+        const col = ix / denom * last;
+        const row = iz / denom * last;
+        heights[ix * verticesPerSide + iz] = sample(col, row) * heightMultiplier;
+      }
     }
     const finalHeights = smoothHeights ? this.smoothHeightsLaplacian(heights, verticesPerSide, 4, 0.6) : heights;
     if (this._heights && this._heights.length === finalHeights.length) {
@@ -288,13 +302,13 @@ const _TerrainData = class _TerrainData {
     for (let x = 0; x < sizeH; x++) {
       for (let z = 0; z < sizeH; z++) {
         const i = x * sizeH + z;
-        vertices[i * 3 + 1] = heights[i] * this.size.y;
+        vertices[i * 3 + 1] = heights[i] * this.size.y - this.size.y * 0.5;
       }
     }
     positions.buffer.SetArray(vertices);
     geometry.ComputeNormals();
     geometry.ComputeTangents();
-    EventSystemLocal.emit(TerrainDataEvents.GeometryUpdated, this, this);
+    EventSystemLocal.emit(TerrainEvents.GeometryUpdated, this, this);
   }
   Destroy() {
     for (const prop of this.paintPropData) prop.Destroy();
@@ -330,6 +344,8 @@ class Terrain extends (_a = Components.Mesh, _terrainData_dec = [SerializeField(
     if (!td) return;
     td.InitializePaintMaps();
     for (const prop of td.paintPropData) prop.RebuildProps(this.gameObject);
+    if (td.heights?.length) td.RebuildGeometry();
+    EventSystemLocal.emit(TerrainEvents.Changed, this, this, td);
   }
   get geometry() {
     return this._terrainData.geometry;
@@ -359,7 +375,7 @@ class Terrain extends (_a = Components.Mesh, _terrainData_dec = [SerializeField(
     const idx = (x, z) => x * sizeH + z;
     const h0 = heights[idx(x0, z0)] * (1 - tx) + heights[idx(x1, z0)] * tx;
     const h1 = heights[idx(x0, z1)] * (1 - tx) + heights[idx(x1, z1)] * tx;
-    const height = (h0 * (1 - tz) + h1 * tz) * this._terrainData.size.y;
+    const height = (h0 * (1 - tz) + h1 * tz) * this._terrainData.size.y - this._terrainData.size.y * 0.5 + this.transform.position.y;
     worldPosition.y = height;
     return height;
   }
@@ -392,4 +408,4 @@ __decoratorMetadata(_init3, Terrain);
 __publicField(Terrain, "type", "@trident/plugins/Terrain/Terrain");
 Utils.TypeRegistry.set(TerrainData.type, TerrainData);
 
-export { PaintPropData, Terrain, TerrainData, TerrainDataEvents };
+export { PaintPropData, Terrain, TerrainData, TerrainEvents };

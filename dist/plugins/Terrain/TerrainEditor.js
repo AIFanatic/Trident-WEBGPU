@@ -73,6 +73,10 @@ class TerrainEditor extends (_a = Components.Component, _paintObjects_dec = [Ser
     __publicField(this, "heightmapMultiplier", __runInitializers(_init, 52, this, 1)), __runInitializers(_init, 55, this);
     __publicField(this, "heightmapSmooth", __runInitializers(_init, 56, this, true)), __runInitializers(_init, 59, this);
     __publicField(this, "editType", __runInitializers(_init, 60, this, 0 /* RAISE */)), __runInitializers(_init, 63, this);
+    __publicField(this, "onSceneSaved", () => {
+      EditorAPI.SaveAsset(this.terrain.terrainData);
+      console.log("Saved TerrainData");
+    });
   }
   Start() {
     const terrain = this.gameObject.GetComponent(Terrain);
@@ -81,10 +85,10 @@ class TerrainEditor extends (_a = Components.Component, _paintObjects_dec = [Ser
     this.lineRenderer = this.gameObject.GetComponent(LineRenderer) || this.gameObject.AddComponent(LineRenderer);
     this.lineRenderer.flags |= Utils.Flags.DontSaveInEditor | Utils.Flags.HideInInspector;
     this.ApplyTerrainLayers();
-    EditorAPI.Events.onSceneSaved(() => {
-      EditorAPI.SaveAsset(this.terrain.terrainData);
-      console.log("Saved TerrainData");
-    });
+    EditorAPI.Events.onSceneSaved(this.onSceneSaved);
+  }
+  Destroy() {
+    EditorAPI.Events.offSceneSaved(this.onSceneSaved);
   }
   Update() {
     if (EditorAPI.Selection.activeGameObject !== this.gameObject) {
@@ -453,6 +457,8 @@ class TerrainEditor extends (_a = Components.Component, _paintObjects_dec = [Ser
     const btnStyle = { backgroundColor: this.nonActiveColor, color: "inherit", fontSize: "inherit", borderRadius: "5px", border: "1px solid black", outline: "none", padding: "5px", cursor: "pointer" };
     const dropAreaStyle = { padding: "5px", margin: "5px 5px 5px 10px", border: "1px dashed #ffffff1f", borderRadius: "5px", background: this.dropAreaColor };
     let activeSection = h("div", {}, []);
+    if (!this.terrain) return h("div", null);
+    const td = this.terrain.terrainData;
     if (this.editType === 0 /* RAISE */ || this.editType === 1 /* LOWER */ || this.editType === 2 /* SET_HEIGHT */) {
       activeSection = h(
         "section",
@@ -500,7 +506,15 @@ class TerrainEditor extends (_a = Components.Component, _paintObjects_dec = [Ser
             "Smooth"
           ),
           EditorAPI.LayoutInspectorInput({ title: "Height Multiplier", value: this.heightmapMultiplier, min: 0, max: 10, step: 0.01, onChanged: (value) => this.heightmapMultiplier = parseFloat(value) }),
-          h("button", { style: Object.assign({}, btnStyle, { width: "100%" }), onClick: () => this.ApplyHeightmap() }, "Apply Heightmap")
+          h("button", { style: Object.assign({}, btnStyle, { width: "100%" }), onClick: () => this.ApplyHeightmap() }, "Apply Heightmap"),
+          h(
+            "div",
+            { className: "row", style: { display: "block" } },
+            EditorAPI.LayoutInspectorInput({ title: "Size X", value: td.size.x, min: 1, max: 1e4, step: 1, onChanged: (value) => td.Resize(parseFloat(value), td.size.y, td.size.z) }),
+            EditorAPI.LayoutInspectorInput({ title: "Size Y", value: td.size.y, min: 1, max: 1e4, step: 1, onChanged: (value) => td.Resize(td.size.x, parseFloat(value), td.size.z) }),
+            EditorAPI.LayoutInspectorInput({ title: "Size Z", value: td.size.z, min: 1, max: 1e4, step: 1, onChanged: (value) => td.Resize(td.size.x, td.size.y, parseFloat(value)) }),
+            EditorAPI.LayoutInspectorInput({ title: "Resolution", value: td.resolution, min: 16, max: 512, step: 16, onChanged: (value) => td.SetResolution(parseInt(value)) })
+          )
         )
       );
     } else if (this.editType === 3 /* PAINT_TEXTURE */) {
