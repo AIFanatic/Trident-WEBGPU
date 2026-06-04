@@ -1,13 +1,13 @@
-import { Components, Mathf, GameObject, Geometry, PBRMaterial, Runtime } from "@trident/core";
+import { Components, Mathf, GameObject, Geometry, PBRMaterial, Runtime, PlayerRuntime } from "@trident/core";
 
 import { OrbitControls } from "@trident/plugins/OrbitControls";
 import { Debugger } from "@trident/plugins/Debugger";
 import { InstancedLODGroup } from "@trident/plugins/LOD/InstancedLODGroup";
 
 async function Application(canvas: HTMLCanvasElement) {
-    await Runtime.Create(canvas);
-    const scene = Runtime.SceneManager.CreateScene("DefaultScene");
-    Runtime.SceneManager.SetActiveScene(scene);
+    await PlayerRuntime.Create(canvas);
+    const scene = PlayerRuntime.SceneManager.CreateScene("DefaultScene");
+    PlayerRuntime.SceneManager.SetActiveScene(scene);
 
     const mainCameraGameObject = new GameObject();
     mainCameraGameObject.name = "MainCamera";
@@ -16,8 +16,7 @@ async function Application(canvas: HTMLCanvasElement) {
 
     mainCameraGameObject.transform.position.set(0, 0, 10);
     mainCameraGameObject.transform.LookAtV1(new Mathf.Vector3(0, 0, 0));
-
-    const controls = new OrbitControls(canvas, camera);
+    mainCameraGameObject.AddComponent(OrbitControls);
 
     const lightGameObject = new GameObject();
     lightGameObject.transform.position.set(-10, 10, 10);
@@ -35,16 +34,13 @@ async function Application(canvas: HTMLCanvasElement) {
     const lodGameObject = new GameObject();
     const lodInstanceRenderable = lodGameObject.AddComponent(InstancedLODGroup);
 
-    lodInstanceRenderable.lods.push({renderers: [{geometry: Geometry.Cube(), material: new PBRMaterial({albedoColor: new Mathf.Color(1, 0, 0, 1)})}], screenSize: 20});
-    lodInstanceRenderable.lods.push({renderers: [{geometry: Geometry.Sphere(), material: new PBRMaterial({albedoColor: new Mathf.Color(0, 1, 0, 1)})}], screenSize: 40});
-    lodInstanceRenderable.lods.push({renderers: [{geometry: Geometry.Capsule(), material: new PBRMaterial({albedoColor: new Mathf.Color(0, 0, 1, 1)})}], screenSize: 80});
+    lodInstanceRenderable.lods.push({renderers: [{geometry: Geometry.Cube(), material: new PBRMaterial({albedoColor: new Mathf.Color(1, 0, 0, 1)})}], screenSize: 1});
+    lodInstanceRenderable.lods.push({renderers: [{geometry: Geometry.Sphere(), material: new PBRMaterial({albedoColor: new Mathf.Color(0, 1, 0, 1)})}], screenSize: 0.5});
+    lodInstanceRenderable.lods.push({renderers: [{geometry: Geometry.Capsule(), material: new PBRMaterial({albedoColor: new Mathf.Color(0, 0, 1, 1)})}], screenSize: 0});
 
     lodInstanceRenderable.SetMatricesBulk(new Float32Array([...new Mathf.Matrix4().elements]));
 
     Debugger.Enable();
-
-
-    Runtime.Play();
 };
 
 Application(document.querySelector("canvas"));

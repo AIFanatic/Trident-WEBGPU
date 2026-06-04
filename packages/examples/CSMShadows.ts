@@ -5,7 +5,8 @@ import {
     Mathf,
     PBRMaterial,
     GPU,
-    Runtime
+    Runtime,
+    PlayerRuntime
 } from "@trident/core";
 
 import { OrbitControls } from "@trident/plugins/OrbitControls";
@@ -17,9 +18,9 @@ import { GLTFLoader } from "@trident/plugins/GLTF/GLTFLoader";
 
 
 async function Application(canvas: HTMLCanvasElement) {
-    await Runtime.Create(canvas);
-    const scene = Runtime.SceneManager.CreateScene("DefaultScene");
-    Runtime.SceneManager.SetActiveScene(scene);
+    await PlayerRuntime.Create(canvas);
+    const scene = PlayerRuntime.SceneManager.CreateScene("DefaultScene");
+    PlayerRuntime.SceneManager.SetActiveScene(scene);
 
     const mainCameraGameObject = new GameObject();
     mainCameraGameObject.transform.position.set(0, 0, 3);
@@ -29,7 +30,7 @@ async function Application(canvas: HTMLCanvasElement) {
     camera.transform.position.set( 60, 60, 0 );
     
     
-    const controls = new OrbitControls(canvas, camera);
+    mainCameraGameObject.AddComponent(OrbitControls);
     camera.transform.LookAtV1(new Mathf.Vector3(-100, 10, 0))
 
     const lightGameObject = new GameObject();
@@ -227,7 +228,6 @@ async function Application(canvas: HTMLCanvasElement) {
     
     Debugger.Enable();
 
-    Runtime.Play();
 };
 
 Application(document.querySelector("canvas"));

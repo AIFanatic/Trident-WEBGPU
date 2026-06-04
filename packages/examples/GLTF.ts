@@ -134,7 +134,7 @@ async function Application(canvas: HTMLCanvasElement) {
             const url = URL.createObjectURL(file);
             const obj = await GLTFLoader.Load(url, scene, "glb");
 
-            console.log(obj.GetComponentsInChildren(Components.Mesh))
+            console.log(obj)
         });
     }
 
