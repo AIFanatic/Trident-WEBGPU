@@ -100,14 +100,16 @@ export class SkinnedMesh extends Renderable {
         this.boneMatricesBuffer.SetArray(this.jointData);
     }
 
-    public OnPreRender(shaderOverride?: Shader) {
-        const shader = shaderOverride ? shaderOverride : this.material?.shader;
-        if (!this.geometry || !this.material || !shader) return;
-        shader.SetBuffer("modelMatrix", Mesh.modelMatrices.getBuffer());
-        if (this.boneMatricesBuffer || this.tryInitBones()) {
-            shader.SetBuffer("boneMatrices", this.boneMatricesBuffer);
-        }
-    }
+  public OnPreRender(shaderOverride?: Shader) {
+      const shader = shaderOverride ? shaderOverride : this.material?.shader;
+      if (!this.geometry || !this.material || !shader) return;
+      shader.SetBuffer("modelMatrix", Mesh.modelMatrices.getBuffer());
+      if (this.boneMatricesBuffer || this.tryInitBones()) {
+          if ((shader as any).uniformMap?.has("boneMatrices")) {
+              shader.SetBuffer("boneMatrices", this.boneMatricesBuffer);
+          }
+      }
+  }
 
     public OnRenderObject(shaderOverride: Shader): void {
         const shader = shaderOverride ? shaderOverride : this.material?.shader;
