@@ -77,6 +77,13 @@ export class RendererContext implements RendererContext {
         WEBGPUTimestampQuery.EndRenderTimestamp();
     }
 
+    private static AccumulateStats(shader: Shader, geometry: Geometry | undefined, vertexOrIndexCount: number, instanceCount: number) {
+        const isTris = !shader.params.topology || shader.params.topology === Topology.Triangles;
+        const totalVerts = vertexOrIndexCount * instanceCount;
+        Renderer.info.vertexCount += totalVerts;
+        if (isTris) Renderer.info.triangleCount += (vertexOrIndexCount / 3) * instanceCount;
+    }
+
     private static BindGeometry(shader: Shader, geometry?: Geometry) {
         if (!this.activeRenderPass) throw Error("No active render pass");
 
@@ -120,6 +127,8 @@ export class RendererContext implements RendererContext {
     }
 
     public static DrawGeometry(geometry: Geometry, shader: Shader, instanceCount = 1, firstInstance = 0) {
+        if (!this.activeRenderPass) throw Error("No active render pass");
+
         if (!shader.OnPreRender(geometry)) return;
 
         this.BindGeometry(shader, geometry);
@@ -129,35 +138,46 @@ export class RendererContext implements RendererContext {
                 const positions = geometry.attributes.get("position") as VertexAttribute;
                 const vertexCount = positions.GetBuffer().size / 4 / 3;
                 this.activeRenderPass.draw(vertexCount, instanceCount, 0, firstInstance);
+                this.AccumulateStats(shader, geometry, vertexCount, instanceCount);
             }
             else {
                 const indexCount = geometry.index.count;
                 this.activeRenderPass.drawIndexed(indexCount, instanceCount, 0, 0, firstInstance);
+                this.AccumulateStats(shader, geometry, indexCount, instanceCount);
             }
         }
         else if (shader.params.topology === Topology.Lines) {
             if (geometry.index) {
                 this.activeRenderPass.drawIndexed(geometry.index.count, instanceCount, 0, 0, firstInstance);
+                this.AccumulateStats(shader, geometry, geometry.index.count, instanceCount);
             } else {
                 const positions = geometry.attributes.get("position") as VertexAttribute;
-                this.activeRenderPass.draw(positions.GetBuffer().size / 3 / 4, instanceCount, 0, firstInstance);
+                const vertexCount = positions.GetBuffer().size / 3 / 4;
+                this.activeRenderPass.draw(vertexCount, instanceCount, 0, firstInstance);
+                this.AccumulateStats(shader, geometry, vertexCount, instanceCount);
             }
         }
     }
 
-    public static DrawIndexed(geometry: Geometry, shader: Shader, indexCount: number, instanceCount?: number, firstIndex?: number, baseVertex?: number, firstInstance?: number) {
+    public static DrawIndexed(geometry: Geometry, shader: Shader, indexCount: number, instanceCount: number = 1, firstIndex?: number, baseVertex?: number, firstInstance?: number) {
+        if (!this.activeRenderPass) throw Error("No active render pass");
         this.BindGeometry(shader, geometry);
         this.activeRenderPass.drawIndexed(indexCount, instanceCount, firstIndex, baseVertex, firstInstance);
+        this.AccumulateStats(shader, geometry, indexCount, instanceCount);
     }
 
-    public static Draw(geometry: Geometry, shader: Shader, vertexCount: number, instanceCount?: number, firstVertex?: number, firstInstance?: number) {
+    public static Draw(geometry: Geometry, shader: Shader, vertexCount: number, instanceCount: number = 1, firstVertex?: number, firstInstance?: number) {
+        if (!this.activeRenderPass) throw Error("No active render pass");
         this.BindGeometry(shader, geometry);
         this.activeRenderPass.draw(vertexCount, instanceCount, firstVertex, firstInstance);
+        this.AccumulateStats(shader, geometry, vertexCount, instanceCount);
     }
 
-    public static DrawVertex(shader: Shader, vertexCount: number, instanceCount?: number, firstVertex?: number, firstInstance?: number) {
+    public static DrawVertex(shader: Shader, vertexCount: number, instanceCount: number = 1, firstVertex?: number, firstInstance?: number) {
+        if (!this.activeRenderPass) throw Error("No active render pass");
         this.BindGeometry(shader);
         this.activeRenderPass.draw(vertexCount, instanceCount, firstVertex, firstInstance);
+        this.AccumulateStats(shader, undefined, vertexCount, instanceCount);
     }
 
     public static DrawIndirect(geometry: Geometry, shader: Shader, indirectBuffer: Buffer, indirectOffset: number = 0) {
