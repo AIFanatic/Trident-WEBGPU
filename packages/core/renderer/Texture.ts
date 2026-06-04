@@ -193,8 +193,8 @@ export class Texture {
         this.SetActiveMip(0);
         this.SetActiveMipCount(mipLevels);
         this.mipLevels = mipLevels;
-        Renderer.info.textureViews -= this.viewCache.size;
         if (this.buffer !== oldBuffer) {
+            Renderer.info.textureViews -= this.viewCache.size;
             this.viewCache.clear();
         }
         this.byteSize = totalBytesForTexture(this.format, this.width, this.height, this.depth, this.mipLevels);
@@ -232,6 +232,8 @@ export class Texture {
         this.buffer = null as any;
         Renderer.info.gpuTextureSizeTotal -= this.byteSize;
         Renderer.info.gpuTextureCount--;
+        Renderer.info.textureViews -= this.viewCache.size;
+        this.viewCache.clear();
         EventSystem.once(RendererEvents.FrameEnded, () => buf.destroy());
     }
 
@@ -267,7 +269,13 @@ export class Texture {
         }
     }
 
-    public async GetPixels(x: number, y: number, blockWidth: number, blockHeight: number, mipLevel: number): Promise<Uint8Array | Uint16Array | Uint32Array | Float32Array> {
+    public async GetPixels(x?: number, y?: number, blockWidth?: number, blockHeight?: number, mipLevel?: number): Promise<Uint8Array | Uint16Array | Uint32Array | Float32Array | Float16Array> {
+        x = x ?? 0;
+        y = y ?? 0;
+        blockWidth = blockWidth ?? this.width;
+        blockHeight = blockHeight ?? this.height;
+        mipLevel = mipLevel ?? 0;
+        
         if (Renderer.HasActiveFrame()) {
             throw Error("Texture.GetPixels() cannot run inside an active render frame. Call it after EndRenderFrame().");
         }
@@ -320,9 +328,10 @@ export class Texture {
         buffer.Destroy();
 
         if (this.format.endsWith("uint")) return new Uint32Array(packed.buffer);
-        if (this.format.endsWith("sint")) return new Uint32Array(packed.buffer); // swap to Int32Array if you need signed
-        if (this.format.endsWith("float")) return new Float32Array(packed.buffer); // note: rgba16float is NOT float32
-        if (this.format.includes("16")) return new Uint16Array(packed.buffer);
+        if (this.format.endsWith("sint")) return new Uint32Array(packed.buffer);
+        if (this.format.includes("16float")) return new Float16Array(packed.buffer);
+        if (this.format.endsWith("float")) return new Float32Array(packed.buffer);
+
         return packed;
     }
 
