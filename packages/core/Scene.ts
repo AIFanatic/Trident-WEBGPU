@@ -19,13 +19,8 @@ function getCtorChain(ctor: Function): Function[] {
 
 export class Scene {
     public static type = "@trident/core/Scene";
-    public static Events = {
-        OnStarted: (scene: Scene) => { }
-    }
     public id = UUID();
     public name: string;
-    private _hasStarted = false;
-    public get hasStarted(): boolean { return this._hasStarted };
 
     private gameObjects: GameObject[] = [];
     private componentsByType: Map<Function, Component[]> = new Map();
@@ -83,16 +78,21 @@ export class Scene {
             for (const c of go.GetComponents()) {
                 if (!c.enabled) continue;
                 if (edit && !(c as Component).runInEditMode) continue;
-                if (!c.hasStarted) { c.hasStarted = true; c.Start(); }
-                c.Update();
+                if (!c.hasStarted) {
+                    c.hasStarted = true;
+                    try { c.Start(); } // Dont crash everything
+                    catch (err) { console.error(`[${c.constructor.name}.Start]`, err); c.enabled = false; }
+                }
+                try { c.Update(); } // Dont crash everything
+                catch (err) { console.error(`[${c.constructor.name}.Update]`, err); c.enabled = false; }
             }
         }
     }
 
-      public async Instantiate(prefab: Prefab, parent?: Transform): Promise<GameObject> {
-          const data = prefab.data ?? prefab;
-          return await Deserializer.deserializeGameObject(this, data, parent);
-      }
+    public async Instantiate(prefab: Prefab, parent?: Transform): Promise<GameObject> {
+        const data = prefab.data ?? prefab;
+        return await Deserializer.deserializeGameObject(this, data, parent);
+    }
 
     public Clear(): void {
         const roots = this.GetRootGameObjects();
