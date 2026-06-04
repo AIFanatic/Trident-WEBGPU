@@ -51,7 +51,7 @@ export class GLTFLoader {
 
     // ---------- Textures ----------
 
-    private static async getTexture(textures: Texture[] | undefined, textureInfo: TextureInfo | null, textureFormat: "bgra8unorm" | "bgra8unorm-srgb", fallbackName: string): Promise<TridentTexture | undefined> {
+    private static async getTexture(textures: Texture[] | undefined, textureInfo: TextureInfo | null, textureFormat: "rgba8unorm" | "rgba8unorm-srgb", fallbackName: string): Promise<TridentTexture | undefined> {
         if (!textures || !textureInfo) return undefined;
 
         const tex = textures[textureInfo.index];
@@ -70,7 +70,6 @@ export class GLTFLoader {
     }
 
     // ---------- Accessor parsing ----------
-
     private static parseAccessor(accessorDef: Accessor): Float32Array | Uint32Array | Uint16Array | Int16Array | Uint8Array | Int8Array {
         const WEBGL_TYPE_SIZES = { 'SCALAR': 1, 'VEC2': 2, 'VEC3': 3, 'VEC4': 4, 'MAT2': 4, 'MAT3': 9, 'MAT4': 16 };
         const WEBGL_COMPONENT_TYPES = { 5120: Int8Array, 5121: Uint8Array, 5122: Int16Array, 5123: Uint16Array, 5125: Uint32Array, 5126: Float32Array };
@@ -115,6 +114,42 @@ export class GLTFLoader {
         return array;
     }
 
+    // TODO: Better is to add rotation to the shader too, might need packing, also need to support different samplers..
+    private static processTextureTransformExtension( materialParams: any, textures: Texture[] | undefined, textureInfos: Array<TextureInfo | null | undefined>) {
+        const textureInfo = textureInfos.find((info): info is TextureInfo => {
+            return !!info?.extensions?.["KHR_texture_transform"];
+        });
+
+        if (!textureInfo) return;
+
+        const transform = textureInfo.extensions["KHR_texture_transform"];
+
+        const rotation = transform.rotation ?? 0;
+        const offset = transform.offset ?? [0, 0];
+        const scale = transform.scale ?? [1, 1];
+
+        const tex = textures?.[textureInfo.index];
+        const wrapS = tex?.sampler?.wrapS ?? 10497;
+        const wrapT = tex?.sampler?.wrapT ?? 10497;
+
+        const mirrorU = wrapS === 33648;
+        const mirrorV = wrapT === 33648;
+
+        if (Math.abs(rotation - Math.PI) < 0.0001) {
+            materialParams.repeat = new Mathf.Vector2( mirrorU ? scale[0] : -scale[0], mirrorV ? scale[1] : -scale[1]);
+            materialParams.offset = new Mathf.Vector2( mirrorU ? offset[0] : 1 + offset[0], mirrorV ? offset[1] : 1 + offset[1]);
+            return;
+        }
+
+        if (Math.abs(rotation) < 0.0001) {
+            materialParams.repeat = new Mathf.Vector2(scale[0], scale[1]);
+            materialParams.offset = new Mathf.Vector2(offset[0], offset[1]);
+            return;
+        }
+
+        console.warn("KHR_texture_transform rotation needs real shader support", transform);
+    }
+
     private static async parsePrimitive(primitive: MeshPrimitive, textures: Texture[] | undefined, names: { rootName: string; nodeName: string; meshName: string; primitiveIndex: number }): Promise<{ geometry: Geometry, material: PBRMaterial }> {
         const geometry = new Geometry();
 
@@ -142,18 +177,18 @@ export class GLTFLoader {
         let materialParams: any = {};
         if (mat?.occlusionTexture) {
             // TODO: If a separate occlusionTexture exists need to merge it into our ARM map R channel
-            // console.log("mat?.occlusionTexture", await this.getTexture(textures, mat.occlusionTexture, "bgra8unorm-srgb"))
+            // console.log("mat?.occlusionTexture", await this.getTexture(textures, mat.occlusionTexture, "rgba8unorm-srgb"))
         }
         if (mat?.pbrMetallicRoughness) {
             const pbr = mat.pbrMetallicRoughness;
             if (pbr.baseColorFactor) materialParams.albedoColor = new Mathf.Color(...pbr.baseColorFactor);
-            if (pbr.baseColorTexture) materialParams.albedoMap = await this.getTexture(textures, pbr.baseColorTexture, "bgra8unorm-srgb", `${materialBaseName}_BaseColor`);
-            if (pbr.metallicRoughnessTexture) materialParams.armMap = await this.getTexture(textures, pbr.metallicRoughnessTexture, "bgra8unorm", `${materialBaseName}_MetallicRoughness`);
+            if (pbr.baseColorTexture) materialParams.albedoMap = await this.getTexture(textures, pbr.baseColorTexture, "rgba8unorm-srgb", `${materialBaseName}_BaseColor`);
+            if (pbr.metallicRoughnessTexture) materialParams.armMap = await this.getTexture(textures, pbr.metallicRoughnessTexture, "rgba8unorm", `${materialBaseName}_MetallicRoughness`);
             if (pbr.roughnessFactor !== undefined) materialParams.roughness = pbr.roughnessFactor;
             if (pbr.metallicFactor !== undefined) materialParams.metalness = pbr.metallicFactor;
         }
-        if (mat?.normalTexture) materialParams.normalMap = await this.getTexture(textures, mat.normalTexture, "bgra8unorm", `${materialBaseName}_Normal`);
-        if (mat?.emissiveTexture) materialParams.emissiveMap = await this.getTexture(textures, mat.emissiveTexture, "bgra8unorm-srgb", `${materialBaseName}_Emissive`);
+        if (mat?.normalTexture) materialParams.normalMap = await this.getTexture(textures, mat.normalTexture, "rgba8unorm", `${materialBaseName}_Normal`);
+        if (mat?.emissiveTexture) materialParams.emissiveMap = await this.getTexture(textures, mat.emissiveTexture, "rgba8unorm-srgb", `${materialBaseName}_Emissive`);
         if (mat?.emissiveFactor) {
             materialParams.emissiveColor = new Mathf.Color(...mat.emissiveFactor);
             const ext = mat.extensions?.["KHR_materials_emissive_strength"];
@@ -164,6 +199,15 @@ export class GLTFLoader {
         materialParams.alphaCutoff = mat?.alphaCutoff;
 
         if (primitive.attributes.JOINTS_0 && primitive.attributes.WEIGHTS_0) materialParams.isSkinned = true;
+
+
+        this.processTextureTransformExtension(materialParams, textures, [
+            mat?.pbrMetallicRoughness?.baseColorTexture,
+            mat?.pbrMetallicRoughness?.metallicRoughnessTexture,
+            mat?.normalTexture,
+            mat?.emissiveTexture,
+            mat?.occlusionTexture,
+        ]);
 
         this.finalizeGeometry(geometry);
         if (!geometry.attributes.has("tangent")) {
