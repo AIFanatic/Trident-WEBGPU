@@ -1,15 +1,15 @@
 import { Assets } from "../Assets";
 import { StringFindAllBetween } from "../utils";
 
-import WGSL_Shader_Draw_URL from "../resources/webgpu/shaders/deferred/DrawGBuffer.wgsl" with { type: "text" };
-import WGSL_Shader_DeferredLighting_URL from "../resources/webgpu/shaders/deferred/DeferredLightingPBR.wgsl" with { type: "text" };
+import WGSL_Shader_Draw_URL from "../resources/webgpu/shaders/deferred/DrawGBuffer.wgsl";
+import WGSL_Shader_DeferredLighting_URL from "../resources/webgpu/shaders/deferred/DeferredLightingPBR.wgsl";
 
-import WGSL_Shader_Deferred_SurfaceStruct from "../resources/webgpu/shaders/deferred/SurfaceStruct.wgsl" with { type: "text" };
-import WGSL_Shader_Deferred_LightStruct from "../resources/webgpu/shaders/deferred/LightStruct.wgsl" with { type: "text" };
-import WGSL_Shader_Deferred_ShadowMap from "../resources/webgpu/shaders/deferred/ShadowMap.wgsl" with { type: "text" };
-import WGSL_Shader_Deferred_ShadowMapCSM from "../resources/webgpu/shaders/deferred/ShadowMapCSM.wgsl" with { type: "text" };
-import WGSL_Shader_Deferred_ShadowUtils from "../resources/webgpu/shaders/deferred/ShadowUtils.wgsl" with { type: "text" };
-import WGSL_Shader_Deferred_Common from "../resources/webgpu/shaders/deferred/Common.wgsl" with { type: "text" };
+import WGSL_Shader_Deferred_SurfaceStruct from "../resources/webgpu/shaders/deferred/SurfaceStruct.wgsl";
+import WGSL_Shader_Deferred_LightStruct from "../resources/webgpu/shaders/deferred/LightStruct.wgsl";
+import WGSL_Shader_Deferred_ShadowMap from "../resources/webgpu/shaders/deferred/ShadowMap.wgsl";
+import WGSL_Shader_Deferred_ShadowMapCSM from "../resources/webgpu/shaders/deferred/ShadowMapCSM.wgsl";
+import WGSL_Shader_Deferred_ShadowUtils from "../resources/webgpu/shaders/deferred/ShadowUtils.wgsl";
+import WGSL_Shader_Deferred_Common from "../resources/webgpu/shaders/deferred/Common.wgsl";
 
 Assets.Register("@trident/core/resources/webgpu/shaders/deferred/SurfaceStruct.wgsl", WGSL_Shader_Deferred_SurfaceStruct);
 Assets.Register("@trident/core/resources/webgpu/shaders/deferred/LightStruct.wgsl", WGSL_Shader_Deferred_LightStruct);
