@@ -7,3 +7,4 @@ export { DeleteAsset } from "./DeleteAsset";
 export { SavePrefab } from "./SavePrefab";
 export { ExtractGLB } from "./ExtractGLB";
 export { SaveAsset } from "./SaveAsset";
+export { ReloadScript } from "./ReloadScript";

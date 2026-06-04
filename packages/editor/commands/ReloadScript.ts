@@ -3,35 +3,28 @@ import { LoadScript } from "../loaders/ScriptLoader";
 
 export async function ReloadScript(engineAPI: IEngineAPI, path: string) {
     const loadedFile = await LoadScript(path);
-    const serializer = engineAPI.serializer;
-    const deserializer = engineAPI.deserializer;
+    const { serializer, deserializer, currentScene } = engineAPI;
 
-    for (const key of Object.keys(loadedFile)) {
-        const NewClass = loadedFile[key];
+    for (const NewClass of Object.values(loadedFile)) {
         if (typeof NewClass !== "function") continue;
 
-        for (const go of engineAPI.currentScene.GetGameObjects()) {
-            const toReplace: { component: any, index: number }[] = [];
-            const components = go.GetComponents();
-            for (let i = 0; i < components.length; i++) {
-                if (components[i].constructor.name === NewClass.name) {
-                    toReplace.push({ component: components[i], index: i });
-                }
+        const instances = currentScene.GetGameObjects().flatMap(go => go.GetComponents()).filter(c => c.constructor.name === NewClass.name);
+
+        for (const component of instances) {
+            const data = serializer.serializeComponent(component);
+            const fresh = new NewClass(component.gameObject);
+            const freshKeys = new Set(Object.keys(fresh));
+
+            for (const k of Object.keys(component)) {
+                if (!freshKeys.has(k)) delete (component as any)[k];
+            }
+            for (const k of freshKeys) {
+                if (!(k in component)) (component as any)[k] = (fresh as any)[k];
             }
 
-            for (const { component } of toReplace) {
-                // 1. Serialize field values
-                const data = serializer.serializeComponent(component);
-
-                // 2. Destroy old instance
-                go.RemoveComponent(component);
-
-                // 3. Create new instance
-                const newComponent = engineAPI.addComponent(go, NewClass);
-
-                // 4. Deserialize field values back
-                await deserializer.deserializeComponent(newComponent, data);
-            }
+            Object.setPrototypeOf(component, NewClass.prototype);
+            await deserializer.deserializeComponent(component, data);
+            component.hasStarted = false;  // rerun Start on next Update (Unity-style)
         }
     }
 }

@@ -37,6 +37,7 @@ export class SceneEvents {
 export class LayoutAssetEvents {
     public static Selected = (instance: any) => { };
     public static RequestSaveAsset = (asset: { assetPath: string }) => { };
+    public static ScriptReloaded = () => { };
 }
 
 export class LayoutInspectorEvents {

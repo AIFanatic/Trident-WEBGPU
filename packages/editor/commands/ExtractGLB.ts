@@ -24,7 +24,14 @@ export async function ExtractGLB(baseDir: string, gameObject: IGameObject): Prom
 
                 const material = renderable.material;
                 if (material && !material.assetPath) {
-                    material.assetPath = `${fullAssetDir}/${material.name || `material_${materialCounter++}`}.material`;
+                    const sourceName = geometry?.name || `material_${materialCounter}`;
+                    const safeName = sourceName
+                        .replace(/[\\/:*?"<>|#]/g, "_")
+                        .replace(/\s+/g, "_")
+                        .replace(/_+/g, "_")
+                        .replace(/^_|_$/g, "");
+
+                    material.assetPath = `${fullAssetDir}/${safeName}_material_${materialCounter++}.material`;
                 }
 
                 const params = material?.params;

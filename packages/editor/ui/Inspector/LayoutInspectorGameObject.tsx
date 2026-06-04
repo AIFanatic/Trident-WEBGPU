@@ -29,8 +29,6 @@ interface LayoutInspectorProps {
 export class LayoutInspectorGameObject extends Component<LayoutInspectorProps> {
     constructor(props: LayoutInspectorProps) {
         super(props);
-
-        console.log(this.props.gameObject)
     }
 
     private onRemoveComponent(component: IComponent) {
@@ -75,7 +73,7 @@ export class LayoutInspectorGameObject extends Component<LayoutInspectorProps> {
         const type = property.type;
         const engineType = this.props.engineAPI.getFieldType(type);
 
-        const title = StringUtils.CapitalizeStrArray(StringUtils.CamelCaseToArray(name)).join(" ");
+        const title = StringUtils.NicifyVariableName(name);
 
         if (engineType === "Vector3") return <InspectorVector3 title={title} onChanged={(value) => { this.onComponentPropertyChanged(component, name, value) }} vector3={component[name]} />
         else if (engineType === "Vector2") return <InspectorVector2 title={title} onChanged={(value) => { this.onComponentPropertyChanged(component, name, value) }} vector2={component[name]} />

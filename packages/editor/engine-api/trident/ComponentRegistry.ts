@@ -1,4 +1,4 @@
-import { Component, Components } from "@trident/core";
+import { Component, Components, EventSystem } from "@trident/core";
 
 import { IComponent, IComponentConstructor } from "./components/IComponent";
 import { ICamera } from "./components/ICamera";
@@ -24,6 +24,10 @@ import { LODGroup } from "@trident/plugins/LOD/LODGroup";
 import { WaterV1 as Water } from "@trident/plugins/Water/WaterV1";
 
 import { EditorScene } from "./EditorScene";
+
+import { ProjectEvents } from "../../Events";
+import { FileBrowser, MODE } from "../../helpers/FileBrowser";
+import { LoadScript } from "../../loaders/ScriptLoader";
 
 const component = <T extends IComponent>(ctor: unknown): IComponentConstructor<T> => ctor as IComponentConstructor<T>;
 
@@ -77,3 +81,30 @@ export const ComponentRegistry = {
     LODGroup: component<IComponent>(LODGroup),
     Water: component<IComponent>(Water),
 };
+
+// Dynamic Plugin loader
+async function loadScriptsRecursive(dir: FileSystemDirectoryHandle, path: string) {
+    for await (const [name, handle] of (dir as any).entries()) {
+        if (name.startsWith(".")) continue;
+        const childPath = `${path}/${name}`;
+        if (handle.kind === "directory") {
+            await loadScriptsRecursive(handle, childPath);
+        } else if (handle.kind === "file" && name.endsWith(".ts")) {
+            try {
+                console.log("Loading", childPath)
+                await LoadScript(childPath);
+            } catch (err) {
+                console.error("LoadScript failed for", childPath, err);
+            }
+        }
+    }
+}
+
+EventSystem.on(ProjectEvents.Opened, async () => {
+    try {
+        const root = await FileBrowser.opendir("");
+        await loadScriptsRecursive(root, "");
+    } catch (err) {
+        console.error("Failed to scan /", err);
+    }
+});

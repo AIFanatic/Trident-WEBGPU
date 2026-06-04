@@ -50,6 +50,7 @@ export class LayoutHierarchy extends Component<BaseProps, LayoutHierarchyState> 
     }
 
     private selectGameObject(gameObject: IGameObject) {
+        console.log(gameObject)
         TridentAPI.EventSystem.emit(LayoutHierarchyEvents.Selected, gameObject);
         this.setState({ ...this.state, selectedGameObject: gameObject });
     }

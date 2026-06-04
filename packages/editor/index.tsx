@@ -16,6 +16,8 @@ import { SkyboxPass } from "@trident/plugins/Environment/SkyboxPass";
 import { IGameObject } from "./engine-api/trident/components/IGameObject";
 import { LayoutHierarchyEvents } from "./ui/LayoutHierarchy";
 
+import { Debugger } from "@trident/plugins/Debugger";
+
 export type EditorEventHandler<T extends (...args: any[]) => void> = (...args: Parameters<T>) => void;
 
 const EngineAPI = new TridentAPI();
@@ -80,6 +82,8 @@ class App extends Component {
             TridentAPI.EventSystem.emit(SceneEvents.Loaded, EngineAPI.currentScene);
 
             TridentAPI.EventSystem.emit(SceneEvents.Loaded, currentScene);
+
+            Debugger.Enable();
         })
     }
 

@@ -26,12 +26,12 @@ import {
     ExtractGLB,
     SaveAsset,
     SaveToFile,
+    ReloadScript
 } from "../commands";
 
 // Re-export types for backward compatibility
 export { ITreeMapType, ITreeMap, FileData, ProjectTreeMap } from "../types/AssetTypes";
 import { ITreeMapType, ITreeMap, FileData, ProjectTreeMap } from "../types/AssetTypes";
-import { ReloadScript } from "../commands/ReloadScript";
 import { TridentAPI } from "../engine-api/trident/TridentAPI";
 
 export async function dir(h?: FileSystemDirectoryHandle): Promise<FileSystemDirectoryHandle> {
@@ -43,16 +43,13 @@ export async function dir(h?: FileSystemDirectoryHandle): Promise<FileSystemDire
     return new Promise(res => (t.get("h").onsuccess = e => res((e.target as any).result || null)));
 }
 const browserFetch = fetch.bind(globalThis);
+
 Assets.ResourceFetchFn = async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
-    if (input instanceof Request || input instanceof URL) {
-        return browserFetch(input, init);
-    }
+    if (input instanceof Request || input instanceof URL) return browserFetch(input, init);
     const handle = await FileBrowser.fopen(input, MODE.R);
     if (!handle) throw Error(`Could not get file at ${input}`);
-
-    const file = await handle.getFile();
-    return new Response(file);
-}
+    return new Response(await handle.getFile());
+};
 
 interface LayoutAssetsState {
     currentTreeMap: Map<string, ProjectTreeMap>;
@@ -77,6 +74,12 @@ export class LayoutAssets extends Component<BaseProps, LayoutAssetsState> {
         TridentAPI.EventSystem.on(DirectoryEvents.Created, (path, handle) => { this.onFileOrDirectoryCreated(path, handle) });
         TridentAPI.EventSystem.on(DirectoryEvents.Deleted, (path, handle) => { this.onFileOrDirectoryDeleted(path) });
         TridentAPI.EventSystem.on(FileEvents.Deleted, (path, handle) => { this.onFileOrDirectoryDeleted(path) });
+
+        TridentAPI.EventSystem.on(FileEvents.Changed, async (path: string) => {
+            if (!path.endsWith(".ts")) return;
+            await ReloadScript(this.props.engineAPI, path).then(value => { console.log(`[auto-reload] ${path}`) }).catch(err => console.error(`[auto-reload] ${path}`, err));
+            TridentAPI.EventSystem.emit(LayoutAssetEvents.ScriptReloaded);
+        });
 
         TridentAPI.EventSystem.on(LayoutAssetEvents.RequestSaveAsset, (material) => {
             SaveAsset(material);
@@ -142,13 +145,6 @@ export class LayoutAssets extends Component<BaseProps, LayoutAssetsState> {
             // TODO: item.data.instance is a json object, it should be a Scene
             TridentAPI.EventSystem.emit(SceneEvents.Loaded, item.data.instance);
         }
-    }
-
-    private async onRefresh() {
-        if (!this.state.selected) return;
-        if (!this.state.selected.path.endsWith(".ts")) return;
-
-        await ReloadScript(this.props.engineAPI, this.state.selected.path);
     }
 
     private async onRename() {
@@ -324,7 +320,6 @@ export class LayoutAssets extends Component<BaseProps, LayoutAssetsState> {
                                 <TreeItem name="Script" onPointerDown={() => { this.createScript() }} />
                                 <TreeItem name="Scene" onPointerDown={() => { this.createScene() }} />
                                 <TreeItem name="Delete" onPointerDown={() => { this.deleteAsset() }} />
-                                <TreeItem name="Refresh" onPointerDown={() => { this.onRefresh() }} />
                                 <TreeItem name="Rename" onPointerDown={() => { this.onRename() }} />
                             </Tree>
                         </FloatingMenu>

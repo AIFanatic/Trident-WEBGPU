@@ -31,35 +31,19 @@ export class LayoutInspector extends Component<BaseProps, LayoutInspectorState> 
             else if (this.props.engineAPI.isTexture(instance)) this.setState({ selected: { type: "Texture", instance } });
         });
 
-        TridentAPI.EventSystem.on(LayoutHierarchyEvents.Selected, gameObject => {
-            this.setState({ selected: { type: "GameObject", id: gameObject.id } });
-        });
-
-        TridentAPI.EventSystem.on(ComponentEvents.Created, (gameObject, component) => {
-            this.setState({ selected: { type: "GameObject", id: gameObject.id } });
-        });
-
-        TridentAPI.EventSystem.on(GameObjectEvents.Changed, (gameObject, component) => {
-            this.setState({ selected: { type: "GameObject", id: gameObject.id } });
-        });
-
+        TridentAPI.EventSystem.on(LayoutHierarchyEvents.Selected, gameObject => { this.setState({ selected: { type: "GameObject", id: gameObject.id } }) });
+        TridentAPI.EventSystem.on(ComponentEvents.Created, (gameObject, component) => { this.setState({ selected: { type: "GameObject", id: gameObject.id } }) });
+        TridentAPI.EventSystem.on(GameObjectEvents.Changed, (gameObject, component) => { this.setState({ selected: { type: "GameObject", id: gameObject.id } }) });
         TridentAPI.EventSystem.on(GameObjectEvents.Deleted, (gameObject, component) => {
             if (this.state.selected?.type === "GameObject" && this.state.selected.id === gameObject.id) {
                 this.setState({ selected: undefined });
             }
         });
 
-        TridentAPI.EventSystem.on(RuntimeEvents.Play, () => {
-            this.setState({ ...this.state });
-        });
-
-        TridentAPI.EventSystem.on(RuntimeEvents.Stop, () => {
-            this.setState({ ...this.state });
-        });
-
-        TridentAPI.EventSystem.on(LayoutInspectorEvents.Repaint, () => {
-            this.setState({ ...this.state });
-        });
+        TridentAPI.EventSystem.on(RuntimeEvents.Play, () => { this.setState({ ...this.state }) });
+        TridentAPI.EventSystem.on(RuntimeEvents.Stop, () => { this.setState({ ...this.state }) });
+        TridentAPI.EventSystem.on(LayoutInspectorEvents.Repaint, () => { this.setState({ ...this.state }) });
+        TridentAPI.EventSystem.on(LayoutAssetEvents.ScriptReloaded, () => { this.setState({ ...this.state }) });
     }
 
     private findGameObjectById(id: string): IGameObject | undefined {
@@ -70,7 +54,6 @@ export class LayoutInspector extends Component<BaseProps, LayoutInspectorState> 
     }
 
     render() {
-        console.log(this.state.selected)
         let content = null;
 
         if (this.state.selected?.type === "GameObject") {
