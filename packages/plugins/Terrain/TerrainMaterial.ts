@@ -29,7 +29,7 @@ export class TerrainMaterial extends GPU.Material {
         this.ApplyTerrainLayers(layers);
     }
 
-    public set blendWeightMaps(blendWeightMaps: GPU.Texture[]) { this.shader.SetTexture("blendWeightMaps", this.CreateTextureArray(blendWeightMaps)) };
+    public set blendWeightMap(blendWeightMap: GPU.Texture) { this.shader.SetTexture("blendWeightMap", blendWeightMap) };
     public set materialIdMap(materialIdMap: GPU.Texture) { this.shader.SetTexture("materialIdMap", materialIdMap) }
 
     private CreateSolidTexture(data: [number, number, number, number], format: GPU.TextureFormat = "rgba8unorm"): GPU.Texture {
@@ -168,8 +168,8 @@ export class TerrainMaterial extends GPU.Material {
                 @group(1) @binding(1) var albedoTextures: texture_2d_array<f32>;
                 @group(1) @binding(2) var normalTextures: texture_2d_array<f32>;
                 @group(1) @binding(3) var armTextures:    texture_2d_array<f32>;
-                @group(1) @binding(4) var blendWeightMaps: texture_2d_array<f32>;
-
+                
+                @group(1) @binding(4) var blendWeightMap: texture_2d<f32>;
                 @group(1) @binding(5) var materialIdMap: texture_2d<f32>;
 
                 struct TerrainLayer {
@@ -255,7 +255,7 @@ export class TerrainMaterial extends GPU.Material {
                     
                     // Weights of each layer, used for blending
                     // Example rgb(0.33, 0.33, 0.33) // 33% grass, 33% rock, 33% forest (from the example above)
-                    let blendWeightsPerPixel = textureSample(blendWeightMaps, textureSampler, uv, 0);
+                    let blendWeightsPerPixel = textureSample(blendWeightMap, textureSampler, uv);
 
                     let uv_detail = input.worldPosition.xz;
                     let layer0 = sample_layer(uv_detail, materialIdsPerPixel.x);
@@ -288,7 +288,7 @@ export class TerrainMaterial extends GPU.Material {
             })
 
             const blackTexture = this.CreateSolidTexture([0, 0, 0, 255]);
-            const whiteTextureArray = this.CreateSolidTextureArray([255, 255, 255, 255]);
+            const whiteTexture = this.CreateSolidTexture([255, 255, 255, 255]);
 
             // rgba flat tangent-space normal: x=0.5, y=0.5, z=1.0
             const flatNormalTextureArray = this.CreateSolidTextureArray([128, 128, 255, 255]);
@@ -301,9 +301,10 @@ export class TerrainMaterial extends GPU.Material {
             shader.SetSampler("textureSampler", new GPU.TextureSampler());
 
             shader.SetTexture("albedoTextures", this.CreateTextureArray([uvGridTexture]));
+            // shader.SetTexture("albedoTextures", whiteTextureArray);
             shader.SetTexture("normalTextures", flatNormalTextureArray);
             shader.SetTexture("armTextures", defaultArmTextureArray);
-            shader.SetTexture("blendWeightMaps", whiteTextureArray);
+            shader.SetTexture("blendWeightMap", whiteTexture);
             shader.SetTexture("materialIdMap", blackTexture);
 
             this.SetTerrainLayersArray(shader, new Float32Array([

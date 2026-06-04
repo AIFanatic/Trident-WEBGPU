@@ -60,11 +60,17 @@ export class TerrainEditor extends Components.Component {
 
         this.ApplyTerrainLayers();
 
-        EditorAPI.Events.onSceneSaved(() => {
-            EditorAPI.SaveAsset(this.terrain.terrainData);
-            console.log("Saved TerrainData");
-        });
+        EditorAPI.Events.onSceneSaved(this.onSceneSaved);
     }
+
+    public Destroy(): void {
+        EditorAPI.Events.offSceneSaved(this.onSceneSaved);
+    }
+
+    private onSceneSaved = () => {
+        EditorAPI.SaveAsset(this.terrain.terrainData);
+        console.log("Saved TerrainData");
+    };
 
     public Update(): void {
         if (EditorAPI.Selection.activeGameObject !== this.gameObject) {
@@ -505,11 +511,17 @@ export class TerrainEditor extends Components.Component {
     }
 
     public OnInspectorGUI() {
+        
         const h: VNodeFactory = (type, props, ...children) => ({ type, props, children });
         const btnStyle = { backgroundColor: this.nonActiveColor, color: "inherit", fontSize: "inherit", borderRadius: "5px", border: "1px solid black", outline: "none", padding: "5px", cursor: "pointer" };
         const dropAreaStyle = { padding: "5px", margin: "5px 5px 5px 10px", border: "1px dashed #ffffff1f", borderRadius: "5px", background: this.dropAreaColor };
-
+        
         let activeSection = h("div", {}, []);
+        
+        // TODO: Debug why the first terrain creation this doesnt trigger, probably some await missing because the component gets selected on creation
+        if (!this.terrain) return h("div", null);
+
+        const td = this.terrain.terrainData;
 
         if (this.editType === EditType.RAISE || this.editType === EditType.LOWER || this.editType === EditType.SET_HEIGHT) {
             activeSection = h("section", null,
@@ -543,6 +555,12 @@ export class TerrainEditor extends Components.Component {
                     ),
                     EditorAPI.LayoutInspectorInput({ title: "Height Multiplier", value: this.heightmapMultiplier, min: 0, max: 10, step: 0.01, onChanged: value => this.heightmapMultiplier = parseFloat(value) }),
                     h("button", { style: Object.assign({}, btnStyle, { width: "100%" }), onClick: () => this.ApplyHeightmap() }, "Apply Heightmap"),
+                    h("div", { className: "row", style: { display: "block" } },
+                        EditorAPI.LayoutInspectorInput({ title: "Size X", value: td.size.x, min: 1, max: 10000, step: 1, onChanged: value => td.Resize(parseFloat(value), td.size.y, td.size.z) }),
+                        EditorAPI.LayoutInspectorInput({ title: "Size Y", value: td.size.y, min: 1, max: 10000, step: 1, onChanged: value => td.Resize(td.size.x, parseFloat(value), td.size.z) }),
+                        EditorAPI.LayoutInspectorInput({ title: "Size Z", value: td.size.z, min: 1, max: 10000, step: 1, onChanged: value => td.Resize(td.size.x, td.size.y, parseFloat(value)) }),
+                        EditorAPI.LayoutInspectorInput({ title: "Resolution", value: td.resolution, min: 16, max: 512, step: 16, onChanged: value => td.SetResolution(parseInt(value)) }),
+                    ),
                 ),
             );
         }
