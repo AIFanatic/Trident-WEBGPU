@@ -36,11 +36,11 @@ interface PreparedShadowViewport {
 }
 
 export const ShadowMapSettings = Console.define({
-    r_shadows_width: { default: 2048, help: "Shadow map width" },
-    r_shadows_height: { default: 2048, help: "Shadow map height" },
+    r_shadows_width: { default: 4096, help: "Shadow map width" },
+    r_shadows_height: { default: 4096, help: "Shadow map height" },
     r_shadows_enabled: { default: true, help: "Enable Shadows" },
     r_shadows_pcfResolution: { default: 3, help: "Shadows Percentage-Closer Filtering, the higher the value the softer the shadows." },
-    r_shadows_maxShadowDistance: { default: 2000, help: "Maximum distance to show shadows" },
+    r_shadows_maxShadowDistance: { default: 1000, help: "Maximum distance to show shadows" },
     r_shadows_csm_roundToPixelSizeValue: { default: true, help: "Round CSM to nearest pixel, helps with shimmering CSM's" },
     r_shadows_csm_blendThresholdValue: { default: 0.3, help: "How much percentage to blend between cascades" },
     r_shadows_csm_numOfCascades: { default: 4, help: "How many cascades, to use" },
@@ -74,6 +74,10 @@ export class DeferredShadowMapPass extends RenderPass {
     public csmSplits: number[] = [0, 0, 0, 0];
 
     public async init(resources: ResourcePool) {
+        const cullMode: "none" | "back" | "front" = "none";
+        const depthBias = 2;
+        const depthBiasSlopeScale = 4;
+
         const code = `
         struct VertexInput {
             @builtin(instance_index) instanceIdx : u32, 
@@ -109,7 +113,9 @@ export class DeferredShadowMapPass extends RenderPass {
             code: code,
             colorOutputs: [],
             depthOutput: "depth24plus",
-            cullMode: "front",
+            cullMode: cullMode,
+            depthBias: depthBias,
+            depthBiasSlopeScale: depthBiasSlopeScale,
         })
 
         this.drawInstancedShadowShader = await Shader.Create({
@@ -117,7 +123,9 @@ export class DeferredShadowMapPass extends RenderPass {
             code: code,
             colorOutputs: [],
             depthOutput: "depth24plus",
-            cullMode: "front",
+            cullMode: cullMode,
+            depthBias: depthBias,
+            depthBiasSlopeScale: depthBiasSlopeScale,
         });
 
         this.drawSkinnedMeshShadowShader = await Shader.Create({
@@ -165,7 +173,9 @@ export class DeferredShadowMapPass extends RenderPass {
             `,
             colorOutputs: [],
             depthOutput: "depth24plus",
-            cullMode: "front",
+            cullMode: cullMode,
+            depthBias: depthBias,
+            depthBiasSlopeScale: depthBiasSlopeScale,
         });
 
         // 100 matrices 6.4Kb
