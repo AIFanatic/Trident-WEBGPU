@@ -9,7 +9,7 @@ Assets.Register("@trident/plugins/Sky/resources/Common.wgsl", CommonWGSL);
 Assets.Register("@trident/plugins/Sky/resources/Vertex.wgsl", VertexWGSL);
 class Sky {
   SUN_ELEVATION_DEGREES = 60;
-  SUN_AZIMUTH_DEGREES = 0;
+  SUN_AZIMUTH_DEGREES = 40;
   EYE_ALTITUDE = 0.5;
   skyTexture;
   skyTextureCubemap;
@@ -84,6 +84,14 @@ class Sky {
     this.skyTextureCubemap.GenerateMips();
     this.skyTextureCubemap.SetActiveMip(0);
     this.skyTextureCubemap.SetActiveMipCount(this.skyTextureCubemap.mipLevels);
+  }
+  Destroy() {
+    this.skyTextureCubemap?.Destroy();
+    this.skyTexture?.Destroy();
+    this.transmittanceLUT?.Destroy();
+    this.skyTextureCubemap = void 0;
+    this.skyTexture = void 0;
+    this.transmittanceLUT = void 0;
   }
 }
 

@@ -108,6 +108,11 @@ class SkyboxPass extends GPU.RenderPass {
     GPU.RendererContext.EndRenderPass();
     resources.setResource(GPU.PassParams.LightingPassOutput, LightingPassOutput);
   }
+  Destroy() {
+    this.skyboxTexture = void 0;
+    this.initialized = false;
+    super.Destroy();
+  }
 }
 
 export { SkyboxPass };

@@ -111,6 +111,10 @@ class PrefilterDiffuse {
       GPU.Renderer.EndRenderFrame();
     }
   }
+  Destroy() {
+    this.prefilterDiffuse?.Destroy();
+    this.prefilterDiffuse = void 0;
+  }
 }
 
 export { PrefilterDiffuse };

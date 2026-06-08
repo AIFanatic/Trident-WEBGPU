@@ -1,4 +1,4 @@
-import { Component as Component$1, Assets, Deserializer, Geometry, PBRMaterial, GPU, InterleavedVertexAttribute, IndexAttribute, VertexAttribute, Runtime, GameObject, Serializer, SceneExecutionMode, Components, Input, KeyCodes, EventSystem, Scene, Mathf, Prefab, Utils, EventSystemLocal, Texture, GetSerializedFields, AssetMeta, Console } from '@trident/core';
+import { Component as Component$1, Assets, Deserializer, Geometry, PBRMaterial, GPU, InterleavedVertexAttribute, IndexAttribute, VertexAttribute, Components, SerializeField, GameObject, Mathf, Runtime, Serializer, SceneExecutionMode, Input, KeyCodes, EventSystem, Scene, Prefab, Utils, EventSystemLocal, Texture, GetSerializedFields, AssetMeta } from '@trident/core';
 import { OrbitControls } from '@trident/plugins/OrbitControls.js';
 import { RigidBody } from '@trident/plugins/PhysicsRapier/RigidBody.js';
 import { BoxCollider } from '@trident/plugins/PhysicsRapier/colliders/BoxCollider.js';
@@ -12,13 +12,12 @@ import { TerrainEditor } from '@trident/plugins/Terrain/TerrainEditor.js';
 import { LineRenderer } from '@trident/plugins/LineRenderer.js';
 import { LODGroup } from '@trident/plugins/LOD/LODGroup.js';
 import { WaterV1 } from '@trident/plugins/Water/WaterV1.js';
+import { IBLLightingPass } from '@trident/plugins/Environment/IBLLightingPass.js';
+import { Sky } from '@trident/plugins/Environment/Sky.js';
+import { SkyboxPass } from '@trident/plugins/Environment/SkyboxPass.js';
 import { EditorAPI, registerEditorBridge } from '@trident/editor';
 import { GLTFLoader } from '@trident/plugins/GLTF/GLTFLoader.js';
-import { Sky } from '@trident/plugins/Environment/Sky.js';
 import { PhysicsRapier } from '@trident/plugins/PhysicsRapier/PhysicsRapier.js';
-import { IBLLightingPass } from '@trident/plugins/Environment/IBLLightingPass.js';
-import { SkyboxPass } from '@trident/plugins/Environment/SkyboxPass.js';
-import { Debugger } from '@trident/plugins/Debugger.js';
 
 var browser = {exports: {}};
 
@@ -2764,262 +2763,6 @@ ${file}:${line}:${column}: ERROR: ${pluginText}${e.text}`;
 
 var browserExports = requireBrowser();
 
-let esbuildReady = false;
-const scriptUrlCache = /* @__PURE__ */ new Map();
-function normalizeProjectPath(path) {
-  return path.startsWith("/") ? path : `/${path}`;
-}
-function resolveProjectImport(importer, specifier) {
-  const base = importer.substring(0, importer.lastIndexOf("/") + 1);
-  const resolved = new URL(specifier, `file://${base}`).pathname;
-  return resolved.endsWith(".ts") ? resolved : `${resolved}.ts`;
-}
-async function getScriptBlobUrl(assetPath) {
-  assetPath = normalizeProjectPath(assetPath);
-  const cached = scriptUrlCache.get(assetPath);
-  if (cached) return cached;
-  const pending = (async () => {
-    const response = await Assets.ResourceFetchFn(assetPath);
-    const text = await response.text();
-    const transpiled = await browserExports.transform(text, {
-      loader: "ts",
-      format: "esm",
-      target: "es2022",
-      tsconfigRaw: { compilerOptions: { useDefineForClassFields: true } }
-    });
-    let code = transpiled.code.replace(
-      /from\s+['"](@trident\/[^'"]+)['"]/g,
-      (match, path) => {
-        if (path === "@trident/core" || path === "@trident/plugins" || path === "@trident/editor" || path.endsWith(".js")) {
-          return match;
-        }
-        return `from '${path}.js'`;
-      }
-    );
-    const relativeImportRegex = /from\s+['"](\.\.?\/[^'"]+)['"]/g;
-    const relativeImports = [...code.matchAll(relativeImportRegex)];
-    for (const match of relativeImports) {
-      const specifier = match[1];
-      const dependencyPath = resolveProjectImport(assetPath, specifier);
-      const dependencyUrl = await getScriptBlobUrl(dependencyPath);
-      code = code.replace(match[0], `from '${dependencyUrl}'`);
-    }
-    const blob = new Blob([code], { type: "text/javascript" });
-    return URL.createObjectURL(blob);
-  })();
-  scriptUrlCache.set(assetPath, pending);
-  return pending;
-}
-async function LoadScript(assetPath) {
-  assetPath = normalizeProjectPath(assetPath);
-  if (!esbuildReady) {
-    await browserExports.initialize({ worker: true, wasmURL: "./resources/esbuild.wasm" });
-    esbuildReady = true;
-  }
-  const blobUrl = await getScriptBlobUrl(assetPath);
-  const module = await import(blobUrl);
-  for (const key of Object.keys(module)) {
-    const exp = module[key];
-    if (typeof exp === "function") {
-      exp.assetPath = assetPath;
-      Component$1.Registry.set(exp.type ?? exp.name, exp);
-    }
-  }
-  return module;
-}
-
-const typedArrayCtors = {
-  float32: Float32Array,
-  uint32: Uint32Array,
-  uint16: Uint16Array,
-  uint8: Uint8Array
-};
-function deserializeAttribute(data) {
-  const array = new typedArrayCtors[data.arrayType](data.array);
-  let attr;
-  const attrType = data.attributeType || data.type;
-  if (attrType === "@trident/core/Geometry/InterleavedVertexAttribute") {
-    attr = new InterleavedVertexAttribute(array, data.stride);
-  } else if (attrType === "@trident/core/Geometry/IndexAttribute") {
-    attr = new IndexAttribute(array);
-  } else {
-    attr = new VertexAttribute(array);
-  }
-  attr.currentOffset = data.currentOffset;
-  attr.currentSize = data.currentSize;
-  return attr;
-}
-const coreLoad = Deserializer.Load.bind(Deserializer);
-Deserializer.Load = async (assetPath, data, expectedType) => {
-  const cached = Assets.GetInstance(assetPath);
-  if (cached) return cached;
-  const ext = assetPath.slice(assetPath.lastIndexOf(".") + 1);
-  if (ext === "geometry") {
-    const json = await Assets.Load(assetPath, "json");
-    const geometry = new Geometry();
-    geometry.id = json.id;
-    geometry.name = json.name;
-    geometry.assetPath = assetPath;
-    for (const entry of json.attributes) {
-      const [name, attrData] = Array.isArray(entry) ? entry : [entry.name, entry];
-      geometry.attributes.set(name, deserializeAttribute(attrData));
-    }
-    if (json.index) geometry.index = deserializeAttribute(json.index);
-    Assets.SetInstance(assetPath, geometry);
-    return geometry;
-  }
-  if (ext === "material") {
-    const json = await Assets.Load(assetPath, "json");
-    const materialType = json?.type;
-    const material = materialType === PBRMaterial.type ? new PBRMaterial() : GPU.Material.Create(materialType);
-    material.assetPath = assetPath;
-    await Deserializer.deserializeFields(material.params, json?.params ?? {});
-    if (material.pendingShaderCreation) {
-      await material.pendingShaderCreation;
-      material.params.isSkinned = material.params.isSkinned;
-    }
-    Assets.SetInstance(assetPath, material);
-    return material;
-  }
-  if (ext === "ts") {
-    return LoadScript(assetPath);
-  }
-  return coreLoad(assetPath, data, expectedType);
-};
-
-class EditorRuntime extends Runtime {
-  static isPlaying = false;
-  static snapshot = null;
-  static async Create(canvas, aspectRatio = 1) {
-    await Runtime.Create(canvas, aspectRatio);
-    const loop = () => {
-      this.Tick();
-      this.Render();
-      requestAnimationFrame(loop);
-    };
-    loop();
-    return this;
-  }
-  static AttachEditorScene(scene) {
-    const existing = scene.GetComponents(EditorScene)[0];
-    if (existing) return existing;
-    const go = new GameObject(scene);
-    go.name = "EditorScene";
-    return go.AddComponent(EditorScene);
-  }
-  static Play() {
-    const scene = this.SceneManager.GetActiveScene();
-    this.snapshot = Serializer.serializeScene(scene);
-    scene.mode = SceneExecutionMode.Play;
-    this.isPlaying = true;
-  }
-  static async Stop() {
-    this.isPlaying = false;
-    if (!this.snapshot) return;
-    this.SceneManager.GetActiveScene().Clear();
-    const newScene = this.SceneManager.CreateScene(this.snapshot.name);
-    newScene.mode = SceneExecutionMode.Edit;
-    this.SceneManager.SetActiveScene(newScene);
-    await Deserializer.deserializeScene(newScene, this.snapshot);
-    this.snapshot = null;
-  }
-}
-
-class EditorScene extends Component$1 {
-  static type = "@trident/editor/EditorScene";
-  runInEditMode = true;
-  editorCamera;
-  orbitControls;
-  selectedHierarchyGameObject;
-  Start() {
-    this.editorCamera = this.gameObject.GetComponent(Components.Camera) ?? this.gameObject.AddComponent(Components.Camera);
-    this.editorCamera.SetPerspective(60, 2, 0.05, 1e3);
-    this.editorCamera.transform.position.z = -10;
-    this.orbitControls = this.gameObject.GetComponent(OrbitControls) ?? this.gameObject.AddComponent(OrbitControls);
-    this.orbitControls.camera = this.editorCamera;
-    this.orbitControls.runInEditMode = true;
-    Components.Camera.mainCamera = this.editorCamera;
-    EditorAPI.Events.onHierarchySelected((gameObject) => {
-      this.selectedHierarchyGameObject = gameObject;
-    });
-  }
-  Update() {
-    if (EditorRuntime.isPlaying) {
-      const gameCamera = this.gameObject.scene.GetComponents(Components.Camera).find((c) => c !== this.editorCamera);
-      if (gameCamera) Components.Camera.mainCamera = gameCamera;
-      else console.warn("[EditorScene] Play started but scene has no camera.");
-      this.orbitControls.enabled = false;
-      this.enabled = false;
-      return;
-    }
-    if (Input.GetKeyDown(KeyCodes.F) && this.selectedHierarchyGameObject) {
-      this.orbitControls.center.copy(this.selectedHierarchyGameObject.transform.position);
-      this.orbitControls.zoom(1);
-    }
-  }
-}
-
-class ComponentEvents {
-  static Created = (gameObject, component) => {
-  };
-  static Deleted = (gameObject, component) => {
-  };
-}
-class GameObjectEvents {
-  static Selected = (gameObject) => {
-  };
-  static Created = (gameObject) => {
-  };
-  static Deleted = (gameObject) => {
-  };
-  static Changed = (gameObject) => {
-  };
-}
-class ProjectEvents {
-  static Opened = () => {
-  };
-}
-class FileEvents {
-  static Created = (path, handle) => {
-  };
-  static Changed = (path, handle) => {
-  };
-  static Deleted = (path, handle) => {
-  };
-}
-class DirectoryEvents {
-  static Created = (path, handle) => {
-  };
-  static Deleted = (path, handle) => {
-  };
-}
-class SceneEvents {
-  static Loaded = (scene) => {
-  };
-  static Saved = (scene) => {
-  };
-}
-class LayoutAssetEvents {
-  static Selected = (instance) => {
-  };
-  static RequestSaveAsset = (asset) => {
-  };
-  static ScriptReloaded = () => {
-  };
-}
-class LayoutInspectorEvents {
-  static Repaint = () => {
-  };
-}
-class RuntimeEvents {
-  static CreatedCanvas = (canvas) => {
-  };
-  static Play = () => {
-  };
-  static Stop = () => {
-  };
-}
-
 var MODE = /* @__PURE__ */ ((MODE2) => {
   MODE2[MODE2["R"] = 0] = "R";
   MODE2[MODE2["W"] = 1] = "W";
@@ -3153,6 +2896,465 @@ class _FileBrowser {
 }
 const FileBrowser = new _FileBrowser();
 
+let esbuildReady = false;
+let currentBundleUrl = null;
+let currentModule = null;
+const fileToExports = /* @__PURE__ */ new Map();
+function GetFileExports(path) {
+  return fileToExports.get(path);
+}
+async function ensureEsbuild() {
+  if (esbuildReady) return;
+  await browserExports.initialize({ worker: true, wasmURL: "./resources/esbuild.wasm" });
+  esbuildReady = true;
+}
+async function walkProject() {
+  const out = [];
+  const walk = async (dir, prefix) => {
+    for await (const [name, handle] of dir.entries()) {
+      if (name.startsWith(".")) continue;
+      const childPath = `${prefix}/${name}`;
+      if (handle.kind === "directory") {
+        await walk(handle, childPath);
+      } else if (handle.kind === "file" && name.endsWith(".ts")) {
+        out.push(childPath);
+      }
+    }
+  };
+  const root = await FileBrowser.opendir("");
+  await walk(root, "");
+  return out;
+}
+const fileBrowserPlugin = {
+  name: "file-browser",
+  setup(build) {
+    build.onResolve({ filter: /^\// }, (args) => ({ path: args.path, namespace: "project" }));
+    build.onResolve({ filter: /^\.\.?\// }, (args) => {
+      const base = args.importer.substring(0, args.importer.lastIndexOf("/") + 1);
+      const resolved = new URL(args.path, `file://${base}`).pathname;
+      return { path: resolved, namespace: "project" };
+    });
+    build.onResolve({ filter: /^@trident\// }, (args) => {
+      const isBareModule = args.path === "@trident/core" || args.path === "@trident/plugins" || args.path === "@trident/editor";
+      const path = isBareModule || args.path.endsWith(".js") ? args.path : `${args.path}.js`;
+      return { path, external: true };
+    });
+    build.onLoad({ filter: /.*/, namespace: "project" }, async (args) => {
+      let path = args.path;
+      if (!/\.[a-zA-Z0-9]+$/.test(path)) path = `${path}.ts`;
+      const response = await Assets.ResourceFetchFn(path);
+      const text = await response.text();
+      const loader = path.endsWith(".ts") ? "ts" : "text";
+      return { contents: text, loader };
+    });
+  }
+};
+async function BuildBundle() {
+  await ensureEsbuild();
+  const tsFiles = await walkProject();
+  if (tsFiles.length === 0) {
+    console.warn("[BuildBundle] No .ts files found in project");
+    currentModule = {};
+    return currentModule;
+  }
+  const virtualEntry = tsFiles.map((p, i) => `export * as M${i} from "${p}";`).join("\n");
+  const result = await browserExports.build({
+    stdin: { contents: virtualEntry, loader: "ts", resolveDir: "/" },
+    bundle: true,
+    format: "esm",
+    target: "es2022",
+    plugins: [fileBrowserPlugin],
+    tsconfigRaw: { compilerOptions: { useDefineForClassFields: true } },
+    write: false,
+    sourcemap: "inline"
+  });
+  if (result.errors.length > 0) {
+    console.error("[BuildBundle] esbuild errors:", result.errors);
+    throw new Error("Bundle build failed");
+  }
+  const code = result.outputFiles[0].text;
+  if (currentBundleUrl) URL.revokeObjectURL(currentBundleUrl);
+  const blob = new Blob([code], { type: "text/javascript" });
+  currentBundleUrl = URL.createObjectURL(blob);
+  const module = await import(
+    /* @vite-ignore */
+    currentBundleUrl
+  );
+  const flattened = {};
+  fileToExports.clear();
+  for (let i = 0; i < tsFiles.length; i++) {
+    const ns = module[`M${i}`];
+    if (!ns) continue;
+    const perFile = {};
+    for (const exportName of Object.keys(ns)) {
+      const exp = ns[exportName];
+      flattened[exportName] = exp;
+      perFile[exportName] = exp;
+      if (typeof exp === "function") {
+        Component$1.Registry.set(exp.type ?? exp.name, exp);
+      }
+    }
+    fileToExports.set(tsFiles[i], perFile);
+  }
+  console.log(`[BuildBundle] Built bundle with ${tsFiles.length} files, ${Object.keys(flattened).length} exports`);
+  currentModule = flattened;
+  return flattened;
+}
+async function LoadScript(_assetPath) {
+  if (!currentModule) await BuildBundle();
+  return currentModule;
+}
+
+const typedArrayCtors = {
+  float32: Float32Array,
+  uint32: Uint32Array,
+  uint16: Uint16Array,
+  uint8: Uint8Array
+};
+function deserializeAttribute(data) {
+  const array = new typedArrayCtors[data.arrayType](data.array);
+  let attr;
+  const attrType = data.attributeType || data.type;
+  if (attrType === "@trident/core/Geometry/InterleavedVertexAttribute") {
+    attr = new InterleavedVertexAttribute(array, data.stride);
+  } else if (attrType === "@trident/core/Geometry/IndexAttribute") {
+    attr = new IndexAttribute(array);
+  } else {
+    attr = new VertexAttribute(array);
+  }
+  attr.currentOffset = data.currentOffset;
+  attr.currentSize = data.currentSize;
+  return attr;
+}
+const coreLoad = Deserializer.Load.bind(Deserializer);
+Deserializer.Load = async (assetPath, data, expectedType) => {
+  const cached = Assets.GetInstance(assetPath);
+  if (cached) return cached;
+  const ext = assetPath.slice(assetPath.lastIndexOf(".") + 1);
+  if (ext === "geometry") {
+    const json = await Assets.Load(assetPath, "json");
+    const geometry = new Geometry();
+    geometry.id = json.id;
+    geometry.name = json.name;
+    geometry.assetPath = assetPath;
+    for (const entry of json.attributes) {
+      const [name, attrData] = Array.isArray(entry) ? entry : [entry.name, entry];
+      geometry.attributes.set(name, deserializeAttribute(attrData));
+    }
+    if (json.index) geometry.index = deserializeAttribute(json.index);
+    Assets.SetInstance(assetPath, geometry);
+    return geometry;
+  }
+  if (ext === "material") {
+    const json = await Assets.Load(assetPath, "json");
+    const materialType = json?.type;
+    const material = materialType === PBRMaterial.type ? new PBRMaterial() : GPU.Material.Create(materialType);
+    material.assetPath = assetPath;
+    await Deserializer.deserializeFields(material.params, json?.params ?? {});
+    if (material.pendingShaderCreation) {
+      await material.pendingShaderCreation;
+      material.params.isSkinned = material.params.isSkinned;
+    }
+    Assets.SetInstance(assetPath, material);
+    return material;
+  }
+  if (ext === "ts") {
+    return LoadScript();
+  }
+  return coreLoad(assetPath, data, expectedType);
+};
+
+var __create = Object.create;
+var __defProp = Object.defineProperty;
+var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
+var __knownSymbol = (name, symbol) => (symbol = Symbol[name]) ? symbol : Symbol.for("Symbol." + name);
+var __typeError = (msg) => {
+  throw TypeError(msg);
+};
+var __defNormalProp = (obj, key, value) => key in obj ? __defProp(obj, key, { enumerable: true, configurable: true, writable: true, value }) : obj[key] = value;
+var __name = (target, value) => __defProp(target, "name", { value, configurable: true });
+var __decoratorStart = (base) => [, , , __create(base?.[__knownSymbol("metadata")] ?? null)];
+var __decoratorStrings = ["class", "method", "getter", "setter", "accessor", "field", "value", "get", "set"];
+var __expectFn = (fn) => fn !== void 0 && typeof fn !== "function" ? __typeError("Function expected") : fn;
+var __decoratorContext = (kind, name, done, metadata, fns) => ({ kind: __decoratorStrings[kind], name, metadata, addInitializer: (fn) => done._ ? __typeError("Already initialized") : fns.push(__expectFn(fn || null)) });
+var __decoratorMetadata = (array, target) => __defNormalProp(target, __knownSymbol("metadata"), array[3]);
+var __runInitializers = (array, flags, self, value) => {
+  for (var i = 0, fns = array[flags >> 1], n = fns && fns.length; i < n; i++) flags & 1 ? fns[i].call(self) : value = fns[i].call(self, value);
+  return value;
+};
+var __decorateElement = (array, flags, name, decorators, target, extra) => {
+  var fn, it, done, ctx, access, k = flags & 7, s = !!(flags & 8), p = !!(flags & 16);
+  var j = k > 3 ? array.length + 1 : k ? s ? 1 : 2 : 0, key = __decoratorStrings[k + 5];
+  var initializers = k > 3 && (array[j - 1] = []), extraInitializers = array[j] || (array[j] = []);
+  var desc = k && (!p && !s && (target = target.prototype), k < 5 && (k > 3 || !p) && __getOwnPropDesc(k < 4 ? target : { get [name]() {
+    return __privateGet(this, extra);
+  }, set [name](x) {
+    return __privateSet(this, extra, x);
+  } }, name));
+  k ? p && k < 4 && __name(extra, (k > 2 ? "set " : k > 1 ? "get " : "") + name) : __name(target, name);
+  for (var i = decorators.length - 1; i >= 0; i--) {
+    ctx = __decoratorContext(k, name, done = {}, array[3], extraInitializers);
+    if (k) {
+      ctx.static = s, ctx.private = p, access = ctx.access = { has: p ? (x) => __privateIn(target, x) : (x) => name in x };
+      if (k ^ 3) access.get = p ? (x) => (k ^ 1 ? __privateGet : __privateMethod)(x, target, k ^ 4 ? extra : desc.get) : (x) => x[name];
+      if (k > 2) access.set = p ? (x, y) => __privateSet(x, target, y, k ^ 4 ? extra : desc.set) : (x, y) => x[name] = y;
+    }
+    it = (0, decorators[i])(k ? k < 4 ? p ? extra : desc[key] : k > 4 ? void 0 : { get: desc.get, set: desc.set } : target, ctx), done._ = 1;
+    if (k ^ 4 || it === void 0) __expectFn(it) && (k > 4 ? initializers.unshift(it) : k ? p ? extra = it : desc[key] = it : target = it);
+    else if (typeof it !== "object" || it === null) __typeError("Object expected");
+    else __expectFn(fn = it.get) && (desc.get = fn), __expectFn(fn = it.set) && (desc.set = fn), __expectFn(fn = it.init) && initializers.unshift(fn);
+  }
+  return k || __decoratorMetadata(array, target), desc && __defProp(target, name, desc), p ? k ^ 4 ? extra : desc : target;
+};
+var __publicField = (obj, key, value) => __defNormalProp(obj, typeof key !== "symbol" ? key + "" : key, value);
+var __accessCheck = (obj, member, msg) => member.has(obj) || __typeError("Cannot " + msg);
+var __privateIn = (member, obj) => Object(obj) !== obj ? __typeError('Cannot use the "in" operator on this value') : member.has(obj);
+var __privateGet = (obj, member, getter) => (__accessCheck(obj, member, "read from private field"), getter ? getter.call(obj) : member.get(obj));
+var __privateSet = (obj, member, value, setter) => (__accessCheck(obj, member, "write to private field"), setter ? setter.call(obj, value) : member.set(obj, value), value);
+var __privateMethod = (obj, member, method) => (__accessCheck(obj, member, "access private method"), method);
+var _sunAzimuth_dec, _sunElevation_dec, _enableSky_dec, _sunlight_dec, _a, _init;
+class EnvironmentManager extends (_a = Components.Component, _sunlight_dec = [SerializeField(GameObject)], _enableSky_dec = [SerializeField(Boolean)], _sunElevation_dec = [SerializeField(Number)], _sunAzimuth_dec = [SerializeField(Number)], _a) {
+  constructor() {
+    super(...arguments);
+    __runInitializers(_init, 5, this);
+    __publicField(this, "runInEditMode", true);
+    __publicField(this, "sunlight", __runInitializers(_init, 8, this)), __runInitializers(_init, 11, this);
+    __publicField(this, "sky");
+    __publicField(this, "iblPass");
+    __publicField(this, "skyboxPass");
+    __publicField(this, "solidColorTexture");
+    __publicField(this, "currentSkyCubemap");
+    __publicField(this, "_enableSky", true);
+    __publicField(this, "_sunElevation", 60);
+    __publicField(this, "_sunAzimuth", 40);
+  }
+  get enableSky() {
+    return this._enableSky;
+  }
+  set enableSky(value) {
+    this._enableSky = value;
+    if (this._enableSky && this.sky) this.currentSkyCubemap = this.sky.skyTextureCubemap;
+    else this.currentSkyCubemap = this.solidColorTexture;
+    this.UpdateEnvironment();
+  }
+  get sunElevation() {
+    return this._sunElevation;
+  }
+  set sunElevation(value) {
+    this._sunElevation = value;
+    this.UpdateEnvironment();
+    this.UpdateSunlight();
+  }
+  get sunAzimuth() {
+    return this._sunAzimuth;
+  }
+  set sunAzimuth(value) {
+    this._sunAzimuth = value;
+    this.UpdateSunlight();
+    this.UpdateEnvironment();
+  }
+  UpdateEnvironment() {
+    if (this.iblPass) this.iblPass.SetEnvironment(this.currentSkyCubemap);
+    if (this.skyboxPass) this.skyboxPass.SetSkybox(this.currentSkyCubemap);
+  }
+  UpdateSunlight() {
+    if (!this.sunlight) return;
+    this.sky.SUN_ELEVATION_DEGREES = this._sunElevation;
+    this.sky.SUN_AZIMUTH_DEGREES = this._sunAzimuth;
+    const radius = 1;
+    const elevationRad = Mathf.Deg2Rad * this.sky.SUN_ELEVATION_DEGREES;
+    const azimuthRad = Mathf.Deg2Rad * this.sky.SUN_AZIMUTH_DEGREES;
+    const x = radius * Mathf.Cos(elevationRad) * Mathf.Cos(azimuthRad);
+    const y = radius * Mathf.Sin(elevationRad);
+    const z = radius * Mathf.Cos(elevationRad) * Mathf.Sin(azimuthRad);
+    const sunPos = new Mathf.Vector3(x, y, z);
+    this.sunlight.transform.position = sunPos;
+    this.sunlight.transform.LookAtV1(new Mathf.Vector3(0, 0, 0));
+    if (this.sky.SUN_ELEVATION_DEGREES < 0) this.sunlight.intensity = 0;
+    else this.sunlight.intensity = this.sky.SUN_ELEVATION_DEGREES / 10;
+    this.sky.Update();
+  }
+  async Start() {
+    this.solidColorTexture = GPU.CubeTexture.Create(1, 1, 6, "rgba8unorm");
+    this.sky = new Sky();
+    await this.sky.init();
+    this._sunElevation = this.sky.SUN_ELEVATION_DEGREES;
+    this._sunAzimuth = this.sky.SUN_AZIMUTH_DEGREES;
+    const pipeline = Runtime.Renderer.RenderPipeline;
+    console.log(GPU);
+    this.iblPass = pipeline.AddPass(IBLLightingPass, GPU.RenderPassOrder.AfterLighting);
+    this.skyboxPass = pipeline.AddPass(SkyboxPass, GPU.RenderPassOrder.AfterLighting);
+    this.currentSkyCubemap = this.sky.skyTextureCubemap;
+    this.UpdateEnvironment();
+    const lights = this.gameObject.scene.GetComponents(Components.DirectionalLight);
+    if (lights.length > 0) {
+      this.sunlight = lights[0];
+      this.UpdateSunlight();
+    }
+  }
+  Destroy() {
+    const pipeline = Runtime.Renderer.RenderPipeline;
+    if (this.iblPass) pipeline.RemovePass(this.iblPass, GPU.RenderPassOrder.AfterLighting);
+    if (this.skyboxPass) pipeline.RemovePass(this.skyboxPass, GPU.RenderPassOrder.AfterLighting);
+    this.sky?.Destroy();
+    this.solidColorTexture?.Destroy();
+    this.iblPass = void 0;
+    this.skyboxPass = void 0;
+    this.sky = void 0;
+    this.solidColorTexture = void 0;
+    this.currentSkyCubemap = void 0;
+    super.Destroy();
+  }
+}
+_init = __decoratorStart(_a);
+__decorateElement(_init, 2, "enableSky", _enableSky_dec, EnvironmentManager);
+__decorateElement(_init, 2, "sunElevation", _sunElevation_dec, EnvironmentManager);
+__decorateElement(_init, 2, "sunAzimuth", _sunAzimuth_dec, EnvironmentManager);
+__decorateElement(_init, 5, "sunlight", _sunlight_dec, EnvironmentManager);
+__decoratorMetadata(_init, EnvironmentManager);
+__publicField(EnvironmentManager, "type", "@trident/plugins/EnvironmentManager");
+
+class EditorRuntime extends Runtime {
+  static isPlaying = false;
+  static snapshot = null;
+  static async Create(canvas, aspectRatio = 1) {
+    await Runtime.Create(canvas, aspectRatio);
+    const loop = () => {
+      this.Tick();
+      this.Render();
+      requestAnimationFrame(loop);
+    };
+    loop();
+    return this;
+  }
+  static AttachEditorScene(scene) {
+    const existing = scene.GetComponents(EditorScene)[0];
+    if (existing) return existing;
+    const go = new GameObject(scene);
+    go.name = "EditorScene";
+    return go.AddComponent(EditorScene);
+  }
+  static AttachEnvironment(scene) {
+    const existing = scene.GetComponents(EnvironmentManager)[0];
+    if (existing) return existing;
+    const go = new GameObject(scene);
+    go.name = "EnvironmentManager";
+    return go.AddComponent(EnvironmentManager);
+  }
+  static Play() {
+    const scene = this.SceneManager.GetActiveScene();
+    this.snapshot = Serializer.serializeScene(scene);
+    scene.mode = SceneExecutionMode.Play;
+    this.isPlaying = true;
+  }
+  static async Stop() {
+    this.isPlaying = false;
+    if (!this.snapshot) return;
+    this.SceneManager.GetActiveScene().Clear();
+    const newScene = this.SceneManager.CreateScene(this.snapshot.name);
+    newScene.mode = SceneExecutionMode.Edit;
+    this.SceneManager.SetActiveScene(newScene);
+    await Deserializer.deserializeScene(newScene, this.snapshot);
+    this.snapshot = null;
+  }
+}
+
+class EditorScene extends Component$1 {
+  static type = "@trident/editor/EditorScene";
+  runInEditMode = true;
+  editorCamera;
+  orbitControls;
+  selectedHierarchyGameObject;
+  Start() {
+    this.editorCamera = this.gameObject.GetComponent(Components.Camera) ?? this.gameObject.AddComponent(Components.Camera);
+    this.editorCamera.SetPerspective(60, 2, 0.05, 1e3);
+    this.editorCamera.transform.position.z = -10;
+    this.orbitControls = this.gameObject.GetComponent(OrbitControls) ?? this.gameObject.AddComponent(OrbitControls);
+    this.orbitControls.camera = this.editorCamera;
+    this.orbitControls.runInEditMode = true;
+    Components.Camera.mainCamera = this.editorCamera;
+    EditorAPI.Events.onHierarchySelected((gameObject) => {
+      this.selectedHierarchyGameObject = gameObject;
+    });
+  }
+  Update() {
+    if (EditorRuntime.isPlaying) {
+      const gameCamera = this.gameObject.scene.GetComponents(Components.Camera).find((c) => c !== this.editorCamera);
+      console.log(gameCamera?.gameObject.name);
+      if (gameCamera) Components.Camera.mainCamera = gameCamera;
+      else console.warn("[EditorScene] Play started but scene has no camera.");
+      this.orbitControls.enabled = false;
+      this.enabled = false;
+      return;
+    }
+    if (Input.GetKeyDown(KeyCodes.F) && this.selectedHierarchyGameObject) {
+      this.orbitControls.center.copy(this.selectedHierarchyGameObject.transform.position);
+      this.orbitControls.zoom(1);
+    }
+  }
+}
+
+class ComponentEvents {
+  static Created = (gameObject, component) => {
+  };
+  static Deleted = (gameObject, component) => {
+  };
+}
+class GameObjectEvents {
+  static Selected = (gameObject) => {
+  };
+  static Created = (gameObject) => {
+  };
+  static Deleted = (gameObject) => {
+  };
+  static Changed = (gameObject) => {
+  };
+}
+class ProjectEvents {
+  static Opened = () => {
+  };
+}
+class FileEvents {
+  static Created = (path, handle) => {
+  };
+  static Changed = (path, handle) => {
+  };
+  static Deleted = (path, handle) => {
+  };
+}
+class DirectoryEvents {
+  static Created = (path, handle) => {
+  };
+  static Deleted = (path, handle) => {
+  };
+}
+class SceneEvents {
+  static Loaded = (scene) => {
+  };
+  static Saved = (scene) => {
+  };
+}
+class LayoutAssetEvents {
+  static Selected = (instance) => {
+  };
+  static RequestSaveAsset = (asset) => {
+  };
+  static ScriptReloaded = () => {
+  };
+}
+class LayoutInspectorEvents {
+  static Repaint = () => {
+  };
+}
+class RuntimeEvents {
+  static CreatedCanvas = (canvas) => {
+  };
+  static Play = () => {
+  };
+  static Stop = () => {
+  };
+}
+
 const component = (ctor) => ctor;
 Component$1.Registry.set(OrbitControls.type, OrbitControls);
 Component$1.Registry.set(EditorScene.type, EditorScene);
@@ -3189,28 +3391,11 @@ const ComponentRegistry = {
   LODGroup: component(LODGroup),
   Water: component(WaterV1)
 };
-async function loadScriptsRecursive(dir, path) {
-  for await (const [name, handle] of dir.entries()) {
-    if (name.startsWith(".")) continue;
-    const childPath = `${path}/${name}`;
-    if (handle.kind === "directory") {
-      await loadScriptsRecursive(handle, childPath);
-    } else if (handle.kind === "file" && name.endsWith(".ts")) {
-      try {
-        console.log("Loading", childPath);
-        await LoadScript(childPath);
-      } catch (err) {
-        console.error("LoadScript failed for", childPath, err);
-      }
-    }
-  }
-}
 EventSystem.on(ProjectEvents.Opened, async () => {
   try {
-    const root = await FileBrowser.opendir("");
-    await loadScriptsRecursive(root, "");
+    await BuildBundle();
   } catch (err) {
-    console.error("Failed to scan /", err);
+    console.error("Failed to build project bundle", err);
   }
 });
 
@@ -3587,81 +3772,78 @@ class LayoutCanvas extends Component {
 
 class FileWatcher {
   watches;
+  updating = false;
   constructor() {
     this.watches = /* @__PURE__ */ new Map();
-    setInterval(() => this.update(), 500);
+    setInterval(() => this.update(), 2e3);
   }
   watch(directoryPath) {
+    if (this.watches.has(directoryPath)) return;
     FileBrowser.opendir(directoryPath).then((directoryHandle) => {
       this.watches.set(directoryPath, {
         path: directoryPath,
         handle: directoryHandle,
         files: /* @__PURE__ */ new Map()
       });
-    }).catch((error) => {
-      console.warn("error", error);
-    });
+    }).catch((err) => console.warn("error", err));
   }
   unwatch(directoryPath) {
-    if (this.watches.has(directoryPath)) {
-      this.watches.delete(directoryPath);
-    }
+    this.watches.delete(directoryPath);
   }
   getWatchMap() {
     return this.watches;
   }
   async update() {
-    for (const [directoryPath, directoryWatch] of this.watches) {
-      if (directoryPath[0] == ".") continue;
-      const directoryPathExists = await FileBrowser.exists(directoryPath);
-      if (!directoryPathExists) {
-        this.watches.delete(directoryPath);
-        TridentAPI.EventSystem.emit(DirectoryEvents.Deleted, directoryPath, directoryWatch.handle);
-        continue;
-      }
-      for (let watchFilesPair of directoryWatch.files) {
-        const watchFilePath = watchFilesPair[0];
-        const watchFile = watchFilesPair[1];
-        const fileExists = await FileBrowser.exists(watchFilePath);
-        if (!fileExists) {
-          directoryWatch.files.delete(watchFile.path);
-          if (watchFile.handle instanceof FileSystemFileHandle) {
-            TridentAPI.EventSystem.emit(FileEvents.Deleted, watchFile.path, watchFile.handle);
-          }
+    if (this.updating) return;
+    this.updating = true;
+    try {
+      for (const [directoryPath, directoryWatch] of this.watches) {
+        if (directoryPath[0] === ".") continue;
+        let entries;
+        try {
+          entries = await FileBrowser.readdir(directoryWatch.handle);
+        } catch {
+          this.watches.delete(directoryPath);
+          TridentAPI.EventSystem.emit(DirectoryEvents.Deleted, directoryPath, directoryWatch.handle);
+          continue;
         }
-      }
-      const files = await FileBrowser.readdir(directoryWatch.handle);
-      for (let file of files) {
-        if (file.name[0] == ".") continue;
-        if (file.kind == "file") {
-          const fileHandle = await file.getFile();
-          const filePath = directoryPath + "/" + file.name;
-          if (!directoryWatch.files.has(filePath)) {
-            directoryWatch.files.set(filePath, {
-              path: filePath,
-              handle: file,
-              lastModified: fileHandle.lastModified
-            });
+        const current = /* @__PURE__ */ new Set();
+        const fileReads = entries.filter((e) => e.name[0] !== "." && e.kind === "file").map(async (file) => ({
+          file,
+          handle: await file.getFile()
+        }));
+        const fileResults = await Promise.all(fileReads);
+        for (const { file, handle } of fileResults) {
+          const filePath = `${directoryPath}/${file.name}`;
+          current.add(filePath);
+          const stored = directoryWatch.files.get(filePath);
+          if (!stored) {
+            directoryWatch.files.set(filePath, { path: filePath, handle: file, lastModified: handle.lastModified });
             TridentAPI.EventSystem.emit(FileEvents.Created, filePath, file);
-          } else {
-            const storedFile = directoryWatch.files.get(filePath);
-            if (storedFile.lastModified != fileHandle.lastModified) {
-              storedFile.lastModified = fileHandle.lastModified;
-              TridentAPI.EventSystem.emit(FileEvents.Changed, filePath, file);
-            }
+          } else if (stored.lastModified !== handle.lastModified) {
+            stored.lastModified = handle.lastModified;
+            TridentAPI.EventSystem.emit(FileEvents.Changed, filePath, file);
           }
-        } else if (file.kind == "directory") {
-          const directoryDirectoryPath = directoryPath + "/" + file.name;
-          if (!directoryWatch.files.has(directoryDirectoryPath)) {
-            directoryWatch.files.set(directoryDirectoryPath, {
-              path: directoryDirectoryPath,
-              handle: file,
-              lastModified: 0
-            });
-            TridentAPI.EventSystem.emit(DirectoryEvents.Created, directoryDirectoryPath, file);
+        }
+        for (const entry of entries) {
+          if (entry.name[0] === "." || entry.kind !== "directory") continue;
+          const subPath = `${directoryPath}/${entry.name}`;
+          current.add(subPath);
+          if (!directoryWatch.files.has(subPath)) {
+            directoryWatch.files.set(subPath, { path: subPath, handle: entry, lastModified: 0 });
+            TridentAPI.EventSystem.emit(DirectoryEvents.Created, subPath, entry);
+          }
+        }
+        for (const [path, watchFile] of directoryWatch.files) {
+          if (current.has(path)) continue;
+          directoryWatch.files.delete(path);
+          if (watchFile.handle instanceof FileSystemFileHandle) {
+            TridentAPI.EventSystem.emit(FileEvents.Deleted, path, watchFile.handle);
           }
         }
       }
+    } finally {
+      this.updating = false;
     }
   }
 }
@@ -3906,7 +4088,8 @@ async function LoadFile(path, file, engineAPI) {
     const text = await (await file.getFile()).text();
     return JSON.parse(text);
   } else if (ext === "ts") {
-    return LoadScript(path);
+    await LoadScript();
+    return GetFileExports(path) ?? {};
   } else if (ext === "prefab") {
     return Deserializer.Load(path, void 0, Prefab);
   } else if (ext === "png" || ext === "jpg" || ext === "jpeg") {
@@ -4114,27 +4297,25 @@ async function SaveAsset(asset) {
   await SaveToFile(asset.assetPath, new Blob([JSON.stringify({ type: ctor.type, ...Serializer.serializeFields(asset) })]));
 }
 
-async function ReloadScript(engineAPI, path) {
-  const loadedFile = await LoadScript(path);
-  const { serializer, deserializer, currentScene } = engineAPI;
-  for (const NewClass of Object.values(loadedFile)) {
-    if (typeof NewClass !== "function") continue;
-    const instances = currentScene.GetGameObjects().flatMap((go) => go.GetComponents()).filter((c) => c.constructor.name === NewClass.name);
-    for (const component of instances) {
-      const data = serializer.serializeComponent(component);
-      const fresh = new NewClass(component.gameObject);
-      const freshKeys = new Set(Object.keys(fresh));
-      for (const k of Object.keys(component)) {
-        if (!freshKeys.has(k)) delete component[k];
-      }
-      for (const k of freshKeys) {
-        if (!(k in component)) component[k] = fresh[k];
-      }
-      Object.setPrototypeOf(component, NewClass.prototype);
-      await deserializer.deserializeComponent(component, data);
-      component.hasStarted = false;
-    }
+let reloadInFlight = null;
+async function ReloadScript(engineAPI, _path) {
+  if (reloadInFlight) {
+    await reloadInFlight;
+    return;
   }
+  reloadInFlight = doReload(engineAPI);
+  try {
+    await reloadInFlight;
+  } finally {
+    reloadInFlight = null;
+  }
+}
+async function doReload(engineAPI) {
+  const scene = engineAPI.currentScene;
+  const snapshot = Serializer.serializeScene(scene);
+  scene.Clear();
+  await BuildBundle();
+  await Deserializer.deserializeScene(scene, snapshot);
 }
 
 var ITreeMapType = /* @__PURE__ */ ((ITreeMapType2) => {
@@ -4160,6 +4341,14 @@ Assets.ResourceFetchFn = async (input, init) => {
 };
 class LayoutAssets extends Component {
   fileWatcher;
+  pendingTimer = null;
+  scheduleSetState() {
+    if (this.pendingTimer != null) window.clearTimeout(this.pendingTimer);
+    this.pendingTimer = window.setTimeout(() => {
+      this.pendingTimer = null;
+      this.setState({ ...this.state, currentTreeMap: this.state.currentTreeMap });
+    }, 50);
+  }
   constructor(props) {
     super(props);
     this.setState({ currentTreeMap: /* @__PURE__ */ new Map(), selected: void 0, headerMenuOpen: false, isRenamingSelected: false });
@@ -4168,12 +4357,8 @@ class LayoutAssets extends Component {
       this.fileWatcher.watch("");
       dir(FileBrowser.getRootFolderHandle());
     });
-    TridentAPI.EventSystem.on(FileEvents.Created, (path, handle) => {
-      this.onFileOrDirectoryCreated(path, handle);
-    });
-    TridentAPI.EventSystem.on(DirectoryEvents.Created, (path, handle) => {
-      this.onFileOrDirectoryCreated(path, handle);
-    });
+    TridentAPI.EventSystem.on(FileEvents.Created, (path, handle) => this.onFileOrDirectoryCreated(path, handle));
+    TridentAPI.EventSystem.on(DirectoryEvents.Created, (path, handle) => this.onFileOrDirectoryCreated(path, handle));
     TridentAPI.EventSystem.on(DirectoryEvents.Deleted, (path, handle) => {
       this.onFileOrDirectoryDeleted(path);
     });
@@ -4182,7 +4367,7 @@ class LayoutAssets extends Component {
     });
     TridentAPI.EventSystem.on(FileEvents.Changed, async (path) => {
       if (!path.endsWith(".ts")) return;
-      await ReloadScript(this.props.engineAPI, path).then((value) => {
+      await ReloadScript(this.props.engineAPI).then((value) => {
         console.log(`[auto-reload] ${path}`);
       }).catch((err) => console.error(`[auto-reload] ${path}`, err));
       TridentAPI.EventSystem.emit(LayoutAssetEvents.ScriptReloaded);
@@ -4207,21 +4392,17 @@ class LayoutAssets extends Component {
       this.fileWatcher.watch(path);
     }
     if (!this.state.currentTreeMap.has(path)) {
-      let type = file instanceof FileSystemFileHandle ? ITreeMapType.File : ITreeMapType.Folder;
+      const type = file instanceof FileSystemFileHandle ? ITreeMapType.File : ITreeMapType.Folder;
       this.state.currentTreeMap.set(path, {
         id: path,
         name: file.name,
         isSelected: false,
         parent: StringUtils.Dirname(path) == path ? null : StringUtils.Dirname(path),
         type,
-        data: {
-          path,
-          file,
-          instance: null
-        }
+        data: { path, file, instance: null }
       });
+      this.scheduleSetState();
     }
-    this.setState({ ...this.state, currentTreeMap: this.state.currentTreeMap, selected: this.state.selected });
   }
   async onToggled(item) {
   }
@@ -5159,7 +5340,7 @@ class InspectorClass extends Component {
     super(props);
   }
   render() {
-    return /* @__PURE__ */ createElement("div", { className: "InspectorComponent", style: { display: "block" } }, /* @__PURE__ */ createElement("span", { className: "title" }, this.props.title), /* @__PURE__ */ createElement("div", { style: { paddingLeft: "10px" } }, this.props.children));
+    return /* @__PURE__ */ createElement(Collapsible, { header: this.props.title }, /* @__PURE__ */ createElement("div", { style: { paddingLeft: "10px" } }, this.props.children));
   }
 }
 
@@ -5205,11 +5386,11 @@ class InspectorArray extends Component {
     const isRef = this.isRefType();
     return /* @__PURE__ */ createElement("div", null, /* @__PURE__ */ createElement(InspectorClass, { title: this.props.title }, ...this.props.array.map((item, index) => {
       return isRef ? this.renderRefItem(item, index) : this.props.renderItem(item, index);
-    }), /* @__PURE__ */ createElement("div", { style: { width: "100%", textAlign: "end" } }, /* @__PURE__ */ createElement("button", { onClick: (event) => {
-      this.onIncrement(event);
-    }, class: "input", style: { width: "22px", cursor: "pointer" } }, "+"), /* @__PURE__ */ createElement("button", { onClick: (event) => {
-      this.onDecrement(event);
-    }, class: "input", style: { width: "22px", cursor: "pointer" } }, "-"))));
+    }), /* @__PURE__ */ createElement("div", { style: { textAlign: "end", marginRight: "5px", marginBottom: "5px" } }, /* @__PURE__ */ createElement("button", { onClick: () => {
+      this.onIncrement();
+    }, class: "button", style: { width: "22px", cursor: "pointer" } }, "+"), /* @__PURE__ */ createElement("button", { onClick: () => {
+      this.onDecrement();
+    }, class: "button", style: { width: "22px", cursor: "pointer" } }, "-"))));
   }
 }
 
@@ -5593,9 +5774,9 @@ class App extends Component {
     });
     TridentAPI.EventSystem.on(SceneEvents.Loaded, (scene) => {
       EditorRuntime.AttachEditorScene(engineAPI.currentScene);
+      EditorRuntime.AttachEnvironment(engineAPI.currentScene);
     });
     TridentAPI.EventSystem.on(RuntimeEvents.CreatedCanvas, async (canvas) => {
-      Console.getVar("r_shadows_csm_splittypepracticallambda").value = 0.99;
       const Runtime = await engineAPI.createRuntime(canvas);
       const currentScene = Runtime.SceneManager.CreateScene("DefaultScene");
       currentScene.mode = SceneExecutionMode.Edit;
@@ -5603,17 +5784,10 @@ class App extends Component {
       const file = await fetch("./resources/DefaultScene.scene");
       const text = await file.text();
       const sceneJSON = JSON.parse(text);
-      const skyAtmosphere = new Sky();
-      await skyAtmosphere.init();
-      const iblLightingPass = Runtime.Renderer.RenderPipeline.AddPass(IBLLightingPass, GPU.RenderPassOrder.AfterLighting);
-      const skyboxPass = Runtime.Renderer.RenderPipeline.AddPass(SkyboxPass, GPU.RenderPassOrder.AfterLighting);
-      iblLightingPass.SetEnvironment(skyAtmosphere.skyTextureCubemap);
-      skyboxPass.SetSkybox(skyAtmosphere.skyTextureCubemap);
       await Runtime.AddSystem(PhysicsRapier);
       await EngineAPI.deserializer.deserializeScene(EngineAPI.currentScene, sceneJSON);
       TridentAPI.EventSystem.emit(SceneEvents.Loaded, EngineAPI.currentScene);
       TridentAPI.EventSystem.emit(SceneEvents.Loaded, currentScene);
-      Debugger.Enable();
     });
   }
   render() {

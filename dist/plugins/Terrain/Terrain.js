@@ -1,4 +1,4 @@
-import { SerializeField, Prefab, Components, EventSystemLocal, Mathf, Utils, GPU, Geometry, VertexAttribute, IndexAttribute, NonSerialized } from '@trident/core';
+import { SerializeField, Prefab, Components, EventSystemLocal, Mathf, Utils, GPU, Geometry, VertexAttribute, IndexAttribute, Assets, NonSerialized } from '@trident/core';
 import { TerrainMaterial } from './TerrainMaterial.js';
 import { LODGroup } from '../LOD/LODGroup.js';
 import { InstancedLODGroup } from '../LOD/InstancedLODGroup.js';
@@ -51,18 +51,19 @@ var __privateIn = (member, obj) => Object(obj) !== obj ? __typeError('Cannot use
 var __privateGet = (obj, member, getter) => (__accessCheck(obj, member, "read from private field"), getter ? getter.call(obj) : member.get(obj));
 var __privateSet = (obj, member, value, setter) => (__accessCheck(obj, member, "write to private field"), setter ? setter.call(obj, value) : member.set(obj, value), value);
 var __privateMethod = (obj, member, method) => (__accessCheck(obj, member, "access private method"), method);
-var _matrices_dec, _prop_dec, _init, _blendWeightMapTexture_dec, _materialIdMapTexture_dec, _blendWeightMapData_dec, _materialIdMapData_dec, _paintMapResolution_dec, _heights_dec, _material_dec, _geometry_dec, _size_dec, _paintPropData_dec, _init2, _material_dec2, _geometry_dec2, _terrainData_dec, _a, _init3;
+var _matrices_dec, _prop_dec, _id_dec, _init, _materialIdMapTexture_dec, _materialIdMapData_dec, _paintMapResolution_dec, _heights_dec, _material_dec, _geometry_dec, _size_dec, _paintPropData_dec, _init2, _material_dec2, _geometry_dec2, _terrainData_dec, _a, _init3;
 class TerrainEvents {
   static Changed = (terrain, terrainData) => {
   };
   static GeometryUpdated = (terrainData) => {
   };
 }
-_prop_dec = [SerializeField(Prefab)], _matrices_dec = [SerializeField(Array)];
+_id_dec = [SerializeField], _prop_dec = [SerializeField(Prefab)], _matrices_dec = [SerializeField(Array)];
 class PaintPropData {
   constructor() {
-    __publicField(this, "prop", __runInitializers(_init, 8, this)), __runInitializers(_init, 11, this);
-    __publicField(this, "matrices", __runInitializers(_init, 12, this, [])), __runInitializers(_init, 15, this);
+    __publicField(this, "id", __runInitializers(_init, 8, this, Utils.UUID())), __runInitializers(_init, 11, this);
+    __publicField(this, "prop", __runInitializers(_init, 12, this)), __runInitializers(_init, 15, this);
+    __publicField(this, "matrices", __runInitializers(_init, 16, this, [])), __runInitializers(_init, 19, this);
     __publicField(this, "instancedPrefab");
     __publicField(this, "instancedLODGroup");
   }
@@ -100,10 +101,11 @@ class PaintPropData {
   }
 }
 _init = __decoratorStart(null);
+__decorateElement(_init, 5, "id", _id_dec, PaintPropData);
 __decorateElement(_init, 5, "prop", _prop_dec, PaintPropData);
 __decorateElement(_init, 5, "matrices", _matrices_dec, PaintPropData);
 __decoratorMetadata(_init, PaintPropData);
-_paintPropData_dec = [SerializeField(PaintPropData)], _size_dec = [SerializeField], _geometry_dec = [NonSerialized], _material_dec = [SerializeField], _heights_dec = [SerializeField(Float32Array)], _paintMapResolution_dec = [SerializeField], _materialIdMapData_dec = [SerializeField(Uint8Array)], _blendWeightMapData_dec = [SerializeField(Uint8Array)], _materialIdMapTexture_dec = [NonSerialized], _blendWeightMapTexture_dec = [NonSerialized];
+_paintPropData_dec = [SerializeField(PaintPropData)], _size_dec = [SerializeField], _geometry_dec = [NonSerialized], _material_dec = [SerializeField], _heights_dec = [SerializeField(Float32Array)], _paintMapResolution_dec = [SerializeField], _materialIdMapData_dec = [SerializeField(Uint8Array)], _materialIdMapTexture_dec = [NonSerialized];
 const _TerrainData = class _TerrainData {
   constructor() {
     __runInitializers(_init2, 5, this);
@@ -114,10 +116,8 @@ const _TerrainData = class _TerrainData {
     __publicField(this, "_heights");
     __publicField(this, "paintMapResolution", __runInitializers(_init2, 24, this, 256)), __runInitializers(_init2, 27, this);
     __publicField(this, "_materialIdMapData");
-    __publicField(this, "_blendWeightMapData");
     __publicField(this, "materialIdMapTexture", __runInitializers(_init2, 28, this)), __runInitializers(_init2, 31, this);
-    __publicField(this, "blendWeightMapTexture", __runInitializers(_init2, 32, this)), __runInitializers(_init2, 35, this);
-    __publicField(this, "resolution", 64);
+    __publicField(this, "resolution", 256);
     this.size = new Mathf.Vector3(1e3, 600, 1e3);
     this.material = new TerrainMaterial();
     const verticesPerSide = this.resolution + 1;
@@ -128,6 +128,15 @@ const _TerrainData = class _TerrainData {
     return this._heights;
   }
   set heights(heights) {
+    const expectedSide = this.resolution + 1;
+    if (heights.length !== expectedSide * expectedSide) {
+      const srcSide = Math.round(Math.sqrt(heights.length));
+      if (srcSide * srcSide !== heights.length) {
+        throw Error(`Heights length ${heights.length} is not a square number`);
+      }
+      console.warn(`[TerrainData] Resampling heights ${srcSide}\xB2 \u2192 ${expectedSide}\xB2 (saved at older resolution)`);
+      heights = _TerrainData.resampleHeights(heights, expectedSide);
+    }
     this._heights = heights;
     this.RebuildGeometry();
   }
@@ -137,20 +146,35 @@ const _TerrainData = class _TerrainData {
   set materialIdMapData(data) {
     this._materialIdMapData = data;
   }
-  get blendWeightMapData() {
-    return this._blendWeightMapData;
-  }
-  set blendWeightMapData(data) {
-    this._blendWeightMapData = data;
+  static resampleHeights(src, dstSide) {
+    const srcSide = Math.round(Math.sqrt(src.length));
+    if (srcSide === dstSide) return src;
+    const dst = new Float32Array(dstSide * dstSide);
+    const srcMax = srcSide - 1;
+    const dstMax = dstSide - 1;
+    for (let ix = 0; ix < dstSide; ix++) {
+      const sx = ix / dstMax * srcMax;
+      const x0 = Math.floor(sx);
+      const x1 = Math.min(x0 + 1, srcMax);
+      const tx = sx - x0;
+      for (let iz = 0; iz < dstSide; iz++) {
+        const sz = iz / dstMax * srcMax;
+        const z0 = Math.floor(sz);
+        const z1 = Math.min(z0 + 1, srcMax);
+        const tz = sz - z0;
+        const a = src[x0 * srcSide + z0];
+        const b = src[x0 * srcSide + z1];
+        const c = src[x1 * srcSide + z0];
+        const d = src[x1 * srcSide + z1];
+        dst[ix * dstSide + iz] = (a * (1 - tz) + b * tz) * (1 - tx) + (c * (1 - tz) + d * tz) * tx;
+      }
+    }
+    return dst;
   }
   InitializePaintMapData() {
     const pixelCount = this.paintMapResolution * this.paintMapResolution;
     if (!this._materialIdMapData || this._materialIdMapData.length !== pixelCount * 4) {
       this._materialIdMapData = new Uint8Array(pixelCount * 4);
-      this._blendWeightMapData = new Uint8Array(pixelCount * 4);
-      for (let i = 0; i < pixelCount; i++) {
-        this._blendWeightMapData[i * 4] = 255;
-      }
     }
   }
   Resize(x, y, z) {
@@ -160,34 +184,44 @@ const _TerrainData = class _TerrainData {
   InitializePaintMaps() {
     this.InitializePaintMapData();
     this.materialIdMapTexture = GPU.Texture.Create(this.paintMapResolution, this.paintMapResolution, 1, "rgba8unorm");
-    this.blendWeightMapTexture = GPU.Texture.Create(this.paintMapResolution, this.paintMapResolution, 1, "rgba8unorm");
     this.UploadPaintMaps();
     this.BindPaintMaps();
   }
   UploadPaintMaps() {
     const bytesPerRow = this.paintMapResolution * 4;
     this.materialIdMapTexture.SetData(this._materialIdMapData, bytesPerRow);
-    this.blendWeightMapTexture.SetData(this._blendWeightMapData, bytesPerRow, this.paintMapResolution);
   }
   async BindPaintMaps() {
     if (this.material.pendingShaderCreation) {
       await this.material.pendingShaderCreation;
     }
     this.material.materialIdMap = this.materialIdMapTexture;
-    this.material.shader.SetTexture("blendWeightMap", this.blendWeightMapTexture);
+  }
+  GetProp(id) {
+    return this.paintPropData.find((p) => p.id === id);
+  }
+  GetPropIndex(id) {
+    return this.paintPropData.findIndex((p) => p.id === id);
   }
   async AddProp(prefab, terrainGameObject) {
-    const existingIndex = this.paintPropData.findIndex((value) => value.prop.assetPath === prefab.assetPath);
-    if (existingIndex !== -1) return existingIndex;
+    const existing = this.paintPropData.find((p) => p.prop.assetPath === prefab.assetPath);
+    if (existing) return existing.id;
     const newProp = new PaintPropData();
     newProp.prop = prefab;
     await newProp.RebuildProps(terrainGameObject);
     this.paintPropData.push(newProp);
-    return this.paintPropData.length - 1;
+    return newProp.id;
   }
-  AddPropMatrix(propIndex, matrix) {
-    if (propIndex >= this.paintPropData.length) throw Error("Prop doesnt exist");
-    this.paintPropData[propIndex].AddPropMatrix(matrix);
+  RemoveProp(id) {
+    const idx = this.paintPropData.findIndex((p) => p.id === id);
+    if (idx === -1) throw Error(`Prop ${id} doesn't exist`);
+    this.paintPropData[idx].Destroy();
+    this.paintPropData.splice(idx, 1);
+  }
+  AddPropMatrix(id, matrix) {
+    const prop = this.GetProp(id);
+    if (!prop) throw Error(`Prop ${id} doesn't exist`);
+    prop.AddPropMatrix(matrix);
   }
   RebuildGeometry() {
     const verticesPerSide = this.resolution + 1;
@@ -311,20 +345,22 @@ const _TerrainData = class _TerrainData {
     EventSystemLocal.emit(TerrainEvents.GeometryUpdated, this, this);
   }
   Destroy() {
+    if (this.assetPath) Assets.RemoveInstance(this.assetPath);
     for (const prop of this.paintPropData) prop.Destroy();
+    this.geometry?.Destroy();
+    this.material?.Destroy();
+    this.materialIdMapTexture?.Destroy();
   }
 };
 _init2 = __decoratorStart(null);
 __decorateElement(_init2, 2, "heights", _heights_dec, _TerrainData);
 __decorateElement(_init2, 2, "materialIdMapData", _materialIdMapData_dec, _TerrainData);
-__decorateElement(_init2, 2, "blendWeightMapData", _blendWeightMapData_dec, _TerrainData);
 __decorateElement(_init2, 5, "paintPropData", _paintPropData_dec, _TerrainData);
 __decorateElement(_init2, 5, "size", _size_dec, _TerrainData);
 __decorateElement(_init2, 5, "geometry", _geometry_dec, _TerrainData);
 __decorateElement(_init2, 5, "material", _material_dec, _TerrainData);
 __decorateElement(_init2, 5, "paintMapResolution", _paintMapResolution_dec, _TerrainData);
 __decorateElement(_init2, 5, "materialIdMapTexture", _materialIdMapTexture_dec, _TerrainData);
-__decorateElement(_init2, 5, "blendWeightMapTexture", _blendWeightMapTexture_dec, _TerrainData);
 __decoratorMetadata(_init2, _TerrainData);
 __publicField(_TerrainData, "type", "@trident/plugins/Terrain/TerrainData");
 let TerrainData = _TerrainData;
@@ -342,8 +378,11 @@ class Terrain extends (_a = Components.Mesh, _terrainData_dec = [SerializeField(
     if (this._terrainData === td) return;
     this._terrainData = td;
     if (!td) return;
+    this.SetTerrainData(td).catch((err) => console.error("[Terrain] SetTerrainData failed", err));
+  }
+  async SetTerrainData(td) {
     td.InitializePaintMaps();
-    for (const prop of td.paintPropData) prop.RebuildProps(this.gameObject);
+    await Promise.all(td.paintPropData.map((prop) => prop.RebuildProps(this.gameObject)));
     if (td.heights?.length) td.RebuildGeometry();
     EventSystemLocal.emit(TerrainEvents.Changed, this, this, td);
   }

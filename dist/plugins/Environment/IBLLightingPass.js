@@ -89,6 +89,17 @@ class IBLLightingPass extends GPU.RenderPass {
     GPU.RendererContext.EndRenderPass();
     resources.setResource(GPU.PassParams.LightingPassOutput, LightingPassOutput);
   }
+  Destroy() {
+    this.prefilterDiffuse?.Destroy();
+    this.prefilterSpecular?.Destroy();
+    this.brdf?.Destroy();
+    this.environmentMap = null;
+    this.prefilterDiffuse = void 0;
+    this.prefilterSpecular = void 0;
+    this.brdf = void 0;
+    this.initialized = false;
+    super.Destroy();
+  }
 }
 
 export { IBLLightingPass };

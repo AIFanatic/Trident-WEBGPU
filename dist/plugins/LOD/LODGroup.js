@@ -107,7 +107,7 @@ class LODGroup extends (_a = Components.Renderable, _lods_dec = [SerializeField(
     const radiusScale = Math.max(sx, sy, sz);
     const radius = bounds.radius * radiusScale;
     const projectionY = camera.projectionMatrix.elements[5];
-    return radius * 2 * projectionY / distance;
+    return radius * projectionY / distance;
   }
   SelectLOD() {
     if (this.lods.length === 0) return -1;
@@ -115,7 +115,7 @@ class LODGroup extends (_a = Components.Renderable, _lods_dec = [SerializeField(
     for (let i = 0; i < this.lods.length; i++) {
       if (screenSize >= this.lods[i].screenSize) return i;
     }
-    return this.lods.length - 1;
+    return -1;
   }
   OnPreRender(shaderOverride) {
     this.activeLodIndex = this.SelectLOD();

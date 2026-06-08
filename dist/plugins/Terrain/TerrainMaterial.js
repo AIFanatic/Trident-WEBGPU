@@ -78,7 +78,11 @@ class TerrainMaterial extends (_a = GPU.Material, _terrainLayers_dec = [Serializ
     super({ isDeferred: true });
     __runInitializers(_init2, 5, this);
     __publicField(this, "terrainLayersBuffer");
+    __publicField(this, "albedoArray");
+    __publicField(this, "normalArray");
+    __publicField(this, "armArray");
     __publicField(this, "_terrainLayers", []);
+    __publicField(this, "_materialIdMap");
     __publicField(this, "pendingShaderCreation");
     this.createShader();
   }
@@ -90,11 +94,12 @@ class TerrainMaterial extends (_a = GPU.Material, _terrainLayers_dec = [Serializ
     if (!this.shader || layers.length === 0) return;
     this.ApplyTerrainLayers(layers);
   }
-  set blendWeightMap(blendWeightMap) {
-    this.shader.SetTexture("blendWeightMap", blendWeightMap);
+  get materialIdMap() {
+    return this._materialIdMap;
   }
   set materialIdMap(materialIdMap) {
-    this.shader.SetTexture("materialIdMap", materialIdMap);
+    this._materialIdMap = materialIdMap;
+    if (this.shader) this.shader.SetTexture("materialIdMap", materialIdMap);
   }
   CreateSolidTexture(data, format = "rgba8unorm") {
     const texture = GPU.Texture.Create(1, 1, 1, format);
@@ -173,9 +178,21 @@ class TerrainMaterial extends (_a = GPU.Material, _terrainLayers_dec = [Serializ
       );
     }
     this.SetTerrainLayersArray(this.shader, new Float32Array(layersArray));
-    if (albedoTextures.length > 0) this.shader.SetTexture("albedoTextures", this.CreateTextureArray(albedoTextures));
-    if (normalTextures.length > 0) this.shader.SetTexture("normalTextures", this.CreateTextureArray(normalTextures));
-    if (armTextures.length > 0) this.shader.SetTexture("armTextures", this.CreateTextureArray(armTextures));
+    if (albedoTextures.length > 0) {
+      this.albedoArray?.Destroy();
+      this.albedoArray = this.CreateTextureArray(albedoTextures);
+      this.shader.SetTexture("albedoTextures", this.albedoArray);
+    }
+    if (normalTextures.length > 0) {
+      this.normalArray?.Destroy();
+      this.normalArray = this.CreateTextureArray(normalTextures);
+      this.shader.SetTexture("normalTextures", this.normalArray);
+    }
+    if (armTextures.length > 0) {
+      this.armArray?.Destroy();
+      this.armArray = this.CreateTextureArray(armTextures);
+      this.shader.SetTexture("armTextures", this.armArray);
+    }
   }
   async createShader() {
     if (this.pendingShaderCreation) return this.pendingShaderCreation;
@@ -212,8 +229,7 @@ class TerrainMaterial extends (_a = GPU.Material, _terrainLayers_dec = [Serializ
                 @group(1) @binding(2) var normalTextures: texture_2d_array<f32>;
                 @group(1) @binding(3) var armTextures:    texture_2d_array<f32>;
                 
-                @group(1) @binding(4) var blendWeightMap: texture_2d<f32>;
-                @group(1) @binding(5) var materialIdMap: texture_2d<f32>;
+                @group(1) @binding(4) var materialIdMap: texture_2d<f32>;
 
                 struct TerrainLayer {
                     textureIndices: vec4<f32>, // x=albedo, y=normal, z=arm
@@ -263,7 +279,7 @@ class TerrainMaterial extends (_a = GPU.Material, _terrainLayers_dec = [Serializ
 
                 fn sample_layer(uv: vec2<f32>, layer_index: u32) -> TerrainSample {
                     let layer = TerrainLayers[layer_index];
-                    let uv_layer = uv * 1 / layer.transform.xy + layer.transform.zw;
+                    let uv_layer = uv * 1 / (layer.transform.xy * 10.0) + layer.transform.zw;
                     let layerAlbedo = textureSample(albedoTextures, textureSampler, uv_layer, u32(layer.textureIndices.x));
                     let albedo = layerAlbedo.rgb * layer.albedoColor.rgb;
                     let layerNormalSample = textureSample(normalTextures, textureSampler, uv_layer, u32(layer.textureIndices.y));
@@ -288,40 +304,47 @@ class TerrainMaterial extends (_a = GPU.Material, _terrainLayers_dec = [Serializ
                     var output: FragmentOutput;
 
                     let dims = vec2f(textureDimensions(materialIdMap));
-
-                    let uv = input.vUv;
-
-                    // Each channel corresponds to a layer entry index, so r=0=grass, r=1=rock etc
-                    // Can have 3 layers per pixel rgb (alpha not used)
-                    // Example rgb(0, 1, 2) // 0 = grass, 1 = rock, 2 = forest
-                    let materialIdsPerPixel = vec4<u32>(textureLoad(materialIdMap, vec2<i32>(input.vUv * (dims - 1.0)), 0) * 255.0);
-                    
-                    // Weights of each layer, used for blending
-                    // Example rgb(0.33, 0.33, 0.33) // 33% grass, 33% rock, 33% forest (from the example above)
-                    let blendWeightsPerPixel = textureSample(blendWeightMap, textureSampler, uv);
-
                     let uv_detail = input.worldPosition.xz;
-                    let layer0 = sample_layer(uv_detail, materialIdsPerPixel.x);
-                    let layer1 = sample_layer(uv_detail, materialIdsPerPixel.y);
-                    let layer2 = sample_layer(uv_detail, materialIdsPerPixel.z);
 
-                    let albedo = (layer0.albedo * blendWeightsPerPixel.x) + (layer1.albedo * blendWeightsPerPixel.y) + (layer2.albedo * blendWeightsPerPixel.z);
-                    let normal = (layer0.normal * blendWeightsPerPixel.x) + (layer1.normal * blendWeightsPerPixel.y) + (layer2.normal * blendWeightsPerPixel.z);
-                    let arm = (layer0.arm * blendWeightsPerPixel.x) + (layer1.arm * blendWeightsPerPixel.y) + (layer2.arm * blendWeightsPerPixel.z);
+                    // Manual bilinear: get the 4 surrounding texels of the materialIdMap.
+                    // We sample the layers at each corner's biome ID, then blend with bilinear weights.
+                    let pixelCoord = input.vUv * (dims - 1.0);
+                    let p00 = vec2<i32>(floor(pixelCoord));
+                    let p10 = vec2<i32>(p00.x + 1, p00.y);
+                    let p01 = vec2<i32>(p00.x,     p00.y + 1);
+                    let p11 = vec2<i32>(p00.x + 1, p00.y + 1);
+
+                    let id00 = u32(textureLoad(materialIdMap, p00, 0).r * 255.0);
+                    let id10 = u32(textureLoad(materialIdMap, p10, 0).r * 255.0);
+                    let id01 = u32(textureLoad(materialIdMap, p01, 0).r * 255.0);
+                    let id11 = u32(textureLoad(materialIdMap, p11, 0).r * 255.0);
+
+                    let f = fract(pixelCoord);
+                    let w00 = (1.0 - f.x) * (1.0 - f.y);
+                    let w10 =        f.x  * (1.0 - f.y);
+                    let w01 = (1.0 - f.x) *        f.y;
+                    let w11 =        f.x  *        f.y;
+
+                    let s00 = sample_layer(uv_detail, id00);
+                    let s10 = sample_layer(uv_detail, id10);
+                    let s01 = sample_layer(uv_detail, id01);
+                    let s11 = sample_layer(uv_detail, id11);
+
+                    let albedo = s00.albedo * w00 + s10.albedo * w10 + s01.albedo * w01 + s11.albedo * w11;
+                    let normal = s00.normal * w00 + s10.normal * w10 + s01.normal * w01 + s11.normal * w11;
+                    let arm    = s00.arm    * w00 + s10.arm    * w10 + s01.arm    * w01 + s11.arm    * w11;
 
                     let nTan = normalize(normal);
 
-                    // TBN from geometry
                     let N = normalize(input.normal);
                     let T = normalize(input.tangent);
                     let B = normalize(input.bitangent);
-
                     let TBN = mat3x3<f32>(T, B, N);
                     let worldNormal = normalize(TBN * nTan);
 
                     output.albedo = vec4f(albedo, arm.y);
                     output.normal = vec4f(OctEncode(worldNormal), arm.x, arm.z);
-                    output.RMO = vec4f(vec3(0.0), 0.0);
+                    output.RMO   = vec4f(vec3(0.0), 0.0);
 
                     return output;
                 }
@@ -330,7 +353,7 @@ class TerrainMaterial extends (_a = GPU.Material, _terrainLayers_dec = [Serializ
         depthOutput: "depth24plus"
       });
       const blackTexture = this.CreateSolidTexture([0, 0, 0, 255]);
-      const whiteTexture = this.CreateSolidTexture([255, 255, 255, 255]);
+      this.CreateSolidTexture([255, 255, 255, 255]);
       const flatNormalTextureArray = this.CreateSolidTextureArray([128, 128, 255, 255]);
       const defaultArmTextureArray = this.CreateSolidTextureArray([255, 255, 0, 255]);
       const uvGridTexture = await GPU.Texture.Load(new URL(uv_grid_url, import.meta.url), { format: "rgba8unorm-srgb", generateMips: true });
@@ -338,7 +361,6 @@ class TerrainMaterial extends (_a = GPU.Material, _terrainLayers_dec = [Serializ
       shader.SetTexture("albedoTextures", this.CreateTextureArray([uvGridTexture]));
       shader.SetTexture("normalTextures", flatNormalTextureArray);
       shader.SetTexture("armTextures", defaultArmTextureArray);
-      shader.SetTexture("blendWeightMap", whiteTexture);
       shader.SetTexture("materialIdMap", blackTexture);
       this.SetTerrainLayersArray(shader, new Float32Array([
         0,
@@ -363,10 +385,22 @@ class TerrainMaterial extends (_a = GPU.Material, _terrainLayers_dec = [Serializ
         // roughness, metalness, unused, unused
       ]));
       this.shader = shader;
-      if (this._terrainLayers.length > 0) this.ApplyTerrainLayers(this._terrainLayers);
+      if (this._materialIdMap) shader.SetTexture("materialIdMap", this._materialIdMap);
+      if (this._terrainLayers?.length) this.ApplyTerrainLayers(this._terrainLayers);
       return shader;
     })();
     return this.pendingShaderCreation;
+  }
+  Destroy() {
+    this.albedoArray?.Destroy();
+    this.normalArray?.Destroy();
+    this.armArray?.Destroy();
+    this.terrainLayersBuffer?.Destroy();
+    this.albedoArray = void 0;
+    this.normalArray = void 0;
+    this.armArray = void 0;
+    this.terrainLayersBuffer = void 0;
+    super.Destroy();
   }
 }
 _init2 = __decoratorStart(_a);

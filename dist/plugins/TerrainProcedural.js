@@ -89,7 +89,6 @@ class TerrainProcedural extends (_a = Components.Component, _params_dec = [Seria
     __publicField(this, "terrain");
     __publicField(this, "terrainTexture");
     __publicField(this, "materialIdMap");
-    __publicField(this, "blendWeightMap");
     __publicField(this, "params", __runInitializers(_init2, 8, this, new TerrainProceduralParams())), __runInitializers(_init2, 11, this);
   }
   async Load() {
@@ -317,7 +316,6 @@ class TerrainProcedural extends (_a = Components.Component, _params_dec = [Seria
 
                 struct FragmentOutput {
                     @location(0) materialIdMap: vec4f,
-                    @location(1) blendWeightMap: vec4f
                 };
 
                 fn moistureMap(uv: vec2<f32>, height: f32, normalY: f32) -> f32 {
@@ -408,38 +406,27 @@ class TerrainProcedural extends (_a = Components.Component, _params_dec = [Seria
                 }
 
                 @fragment
-                fn fragmentMain(input: VertexOutput) -> FragmentOutput {
+                fn fragmentMain(input: VertexOutput) -> @location(0) vec4f {
                     let terrain = textureSample(terrainTexture, terrainSampler, input.uv);
                     var normal = terrain.yzz;
                     normal.y = sqrt(1.0 - dot(normal.xz, normal.xz));
 
                     let height = terrain.x;
                     
-                    var output: FragmentOutput;
                     let moisture = moistureMap(input.uv, height, normal.y);
-                    output.materialIdMap   = vec4f(vec3f(biome(height, moisture).w) / 255.0, 1.0);
-                    // output.materialIdMap   = vec4f(vec3f(biome(height, moisture).rgb), 1.0);
-
-                    // output.blendWeightMap  = vec4f(nW, 1.0);
-                    output.blendWeightMap  = vec4f(0.5);
-                    return output;
+                    return vec4f(vec3f(biome(height, moisture).w) / 255.0, 1.0);
                 }
             `,
-      colorOutputs: [
-        { format: "rgba8unorm" },
-        { format: "rgba8unorm" }
-      ]
+      colorOutputs: [{ format: "rgba8unorm" }]
     });
     this.terrainPaintShader.SetSampler("terrainSampler", new GPU.TextureSampler());
   }
   RecreateTextures(resolution) {
-    if (!this.terrainTexture || !this.materialIdMap || !this.blendWeightMap || this.terrainTexture.width !== resolution || this.materialIdMap.width !== resolution || this.blendWeightMap.width !== resolution) {
+    if (!this.terrainTexture || !this.materialIdMap || this.terrainTexture.width !== resolution || this.materialIdMap.width !== resolution) {
       this.terrainTexture = GPU.RenderTexture.Create(resolution, resolution, 1, "rgba16float");
       this.materialIdMap = GPU.RenderTexture.Create(resolution, resolution, 1, "rgba8unorm");
-      this.blendWeightMap = GPU.RenderTexture.Create(resolution, resolution, 1, "rgba8unorm");
       this.terrainTexture.name = "TerrainTexture";
       this.materialIdMap.name = "MaterialIDMap";
-      this.blendWeightMap.name = "BlendHeightMap";
     }
   }
   async Generate() {
@@ -460,13 +447,12 @@ class TerrainProcedural extends (_a = Components.Component, _params_dec = [Seria
     this.terrainPaintShader.SetTexture("terrainTexture", this.terrainTexture);
     this.terrainPaintShader.SetArray("params", params);
     GPU.Renderer.BeginRenderFrame();
-    GPU.RendererContext.BeginRenderPass("Terrain Generator", [{ target: this.materialIdMap, clear: true }, { target: this.blendWeightMap, clear: true }]);
+    GPU.RendererContext.BeginRenderPass("Terrain Generator", [{ target: this.materialIdMap, clear: true }]);
     GPU.RendererContext.DrawVertex(this.terrainPaintShader, 3);
     GPU.RendererContext.EndRenderPass();
     GPU.Renderer.EndRenderFrame();
     await this.terrain.terrainData.HeightmapFromTexture(this.terrainTexture, false, 1);
     this.terrain.material.materialIdMap = this.materialIdMap;
-    this.terrain.material.blendWeightMap = this.blendWeightMap;
   }
 }
 _init2 = __decoratorStart(_a);

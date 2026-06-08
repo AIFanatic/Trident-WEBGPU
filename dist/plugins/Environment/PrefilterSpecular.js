@@ -196,6 +196,10 @@ class PrefilterSpecular {
     this.prefilterSpecular.SetActiveMip(0);
     this.prefilterSpecular.SetActiveMipCount(this.roughnessLevels);
   }
+  Destroy() {
+    this.prefilterSpecular?.Destroy();
+    this.prefilterSpecular = void 0;
+  }
 }
 
 export { PrefilterSpecular };

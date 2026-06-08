@@ -7,7 +7,7 @@ class InstancedLODGroup extends Components.Renderable {
   lodRendererData = [];
   lodMatricesScratch;
   lodMatrixBuffers = [];
-  static DefaultCapacity = 1e5;
+  static DefaultCapacity = 65536;
   static MATRICES_PER_LOD = InstancedLODGroup.DefaultCapacity;
   static MATRIX_STRIDE_BYTES = InstancedLODGroup.MATRICES_PER_LOD * 16 * 4;
   lods = [];
@@ -131,9 +131,9 @@ class InstancedLODGroup extends Components.Renderable {
                 let d = max(0.0001, distance(frameBuffer.viewPosition.xyz, modelPosition));
 
                 let projectionY = frameBuffer.projectionMatrix[1][1];
-                let screenSize = (worldRadius * 2.0 * projectionY) / d;
+                let screenSize = (worldRadius * projectionY) / d;
 
-                var lod: u32 = lc - 1u;
+                var lod: u32 = lc;
 
                 for (var i: u32 = 0u; i < lc; i++) {
                     if (screenSize >= lods[i].distance) {
@@ -141,6 +141,8 @@ class InstancedLODGroup extends Components.Renderable {
                         break;
                     }
                 }
+
+                if (lod >= lc) { return; }   // culled \u2014 don't enqueue
 
                 let writeIndex = atomicAdd(&drawBuffer[lod].instanceCount, 1u);
                 if (writeIndex < lodMatrixCapacity) {

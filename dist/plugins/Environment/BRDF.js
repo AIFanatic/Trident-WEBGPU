@@ -141,6 +141,10 @@ class BRDF {
     GPU.RendererContext.EndRenderPass();
     GPU.Renderer.EndRenderFrame();
   }
+  Destroy() {
+    this.brdfTexture?.Destroy();
+    this.brdfTexture = void 0;
+  }
 }
 
 export { BRDF };

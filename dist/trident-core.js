@@ -219,6 +219,7 @@ class Component {
   hasStarted = false;
   name;
   assetPath;
+  shouldUpdate;
   gameObject;
   transform;
   static Registry = TypeRegistry;
@@ -226,6 +227,7 @@ class Component {
     this.gameObject = gameObject;
     this.transform = gameObject.transform;
     this.name = this.constructor.name;
+    this.shouldUpdate = this.Update !== Component.prototype.Update;
     EventSystem.emit(ComponentEvents.AddedComponent, this, this.gameObject.scene);
     const ctor = this.constructor;
     Component.Registry.set(ctor.type || ctor.name, ctor);
@@ -2794,6 +2796,7 @@ class BaseShader {
       let type = BufferType.STORAGE;
       if (uniform.type === "uniform") type = BufferType.UNIFORM;
       uniform.buffer = new Buffer(data.byteLength, type);
+      uniform.ownedByShader = true;
       this.needsUpdate = true;
     }
     Renderer.device.queue.writeBuffer(uniform.buffer.GetBuffer(), bufferOffset, data, dataOffset, size);
@@ -2802,7 +2805,9 @@ class BaseShader {
     if (!data) throw Error(`Invalid buffer ${name}`);
     const binding = this.GetValidUniform(name);
     if (!binding.buffer || binding.buffer.GetBuffer() !== data.GetBuffer()) {
+      if (binding.ownedByShader && (binding.buffer instanceof Buffer || binding.buffer instanceof DynamicBuffer)) binding.buffer.Destroy();
       binding.buffer = data;
+      binding.ownedByShader = false;
       this.needsUpdate = true;
     }
     if (data instanceof Texture) {
@@ -2853,6 +2858,12 @@ class BaseShader {
     return true;
   }
   Destroy() {
+    for (const uniform of this.uniformMap.values()) {
+      if (uniform.ownedByShader && (uniform.buffer instanceof Buffer || uniform.buffer instanceof DynamicBuffer)) {
+        uniform.buffer.Destroy();
+      }
+    }
+    this.uniformMap.clear();
     const crcs = this.BuildBindGroupsCRC();
     for (const crc of crcs) {
       if (BindGroupCache.delete(crc) === true) {
@@ -4252,6 +4263,8 @@ class RenderPass {
   }
   execute(resources) {
   }
+  Destroy() {
+  }
 }
 class ResourcePool {
   resources = {};
@@ -5040,7 +5053,9 @@ const _Material = class _Material {
     this._shader = shader;
   }
   Destroy() {
-    if (this.assetPath && Assets.GetInstance(this.assetPath) === this) return;
+    if (this.assetPath && Assets.GetInstance(this.assetPath) === this) {
+      Assets.RemoveInstance(this.assetPath);
+    }
     if (this._shader) this._shader.Destroy();
     MaterialPool.remove(this.materialId);
   }
@@ -5530,11 +5545,11 @@ const Console = new ConsoleManager();
 globalThis["Console"] = Console;
 
 const ShadowMapSettings = Console.define({
-  r_shadows_width: { default: 2048, help: "Shadow map width" },
-  r_shadows_height: { default: 2048, help: "Shadow map height" },
+  r_shadows_width: { default: 4096, help: "Shadow map width" },
+  r_shadows_height: { default: 4096, help: "Shadow map height" },
   r_shadows_enabled: { default: true, help: "Enable Shadows" },
   r_shadows_pcfResolution: { default: 3, help: "Shadows Percentage-Closer Filtering, the higher the value the softer the shadows." },
-  r_shadows_maxShadowDistance: { default: 2e3, help: "Maximum distance to show shadows" },
+  r_shadows_maxShadowDistance: { default: 1e3, help: "Maximum distance to show shadows" },
   r_shadows_csm_roundToPixelSizeValue: { default: true, help: "Round CSM to nearest pixel, helps with shimmering CSM's" },
   r_shadows_csm_blendThresholdValue: { default: 0.3, help: "How much percentage to blend between cascades" },
   r_shadows_csm_numOfCascades: { default: 4, help: "How many cascades, to use" },
@@ -5557,6 +5572,9 @@ class DeferredShadowMapPass extends RenderPass {
   // TODO: Clean this, csmSplits here to be used by debugger plugin
   csmSplits = [0, 0, 0, 0];
   async init(resources) {
+    const cullMode = "none";
+    const depthBias = 2;
+    const depthBiasSlopeScale = 4;
     const code = `
         struct VertexInput {
             @builtin(instance_index) instanceIdx : u32, 
@@ -5592,14 +5610,18 @@ class DeferredShadowMapPass extends RenderPass {
       code,
       colorOutputs: [],
       depthOutput: "depth24plus",
-      cullMode: "front"
+      cullMode,
+      depthBias,
+      depthBiasSlopeScale
     });
     this.drawInstancedShadowShader = await Shader.Create({
       name: this.name + "-Instanced",
       code,
       colorOutputs: [],
       depthOutput: "depth24plus",
-      cullMode: "front"
+      cullMode,
+      depthBias,
+      depthBiasSlopeScale
     });
     this.drawSkinnedMeshShadowShader = await Shader.Create({
       name: this.name + "-Skinned",
@@ -5646,7 +5668,9 @@ class DeferredShadowMapPass extends RenderPass {
             `,
       colorOutputs: [],
       depthOutput: "depth24plus",
-      cullMode: "front"
+      cullMode,
+      depthBias,
+      depthBiasSlopeScale
     });
     this.skinnedBoneMatricesBuffer = new Buffer(16 * 100 * 4, BufferType.STORAGE);
     this.drawSkinnedMeshShadowShader.SetBuffer("boneMatrices", this.skinnedBoneMatricesBuffer);
@@ -6436,6 +6460,23 @@ class RenderingPipeline {
     this.UpdateRenderGraphPasses();
     return passInstance;
   }
+  RemovePass(pass, order) {
+    const buckets = {
+      [0 /* BeforeGBuffer */]: this.beforeGBufferPasses,
+      [1 /* AfterGBuffer */]: this.afterGBufferPasses,
+      [2 /* BeforeLighting */]: this.beforeLightingPasses,
+      [3 /* AfterLighting */]: this.afterLightingPasses,
+      [4 /* BeforeScreenOutput */]: this.beforeScreenOutputPasses,
+      [5 /* AfterScreenOutput */]: this.afterScreenOutputPasses
+    };
+    const bucket = buckets[order];
+    const i = bucket.indexOf(pass);
+    if (i === -1) return false;
+    bucket.splice(i, 1);
+    this.UpdateRenderGraphPasses();
+    pass.Destroy();
+    return true;
+  }
   Render() {
     Renderer.info.ResetFrame();
     const renderPipelineStart = performance.now();
@@ -6531,6 +6572,9 @@ class Renderer extends System {
     Renderer.device.onuncapturederror = (event) => {
       throw Error(`WebGPU uncaptured error: ${event.error}`);
     };
+    window.addEventListener("beforeunload", () => {
+      device.destroy();
+    });
     RegisterBuiltinGeometries();
     Renderer.RenderPipeline = new RenderingPipeline();
     this.RenderPipeline = Renderer.RenderPipeline;
@@ -7035,10 +7079,7 @@ class GameObject {
     this.scene = scene ?? Runtime.SceneManager.GetActiveScene();
     this.transform = new Transform(this);
     this.scene.AddGameObject(this);
-    EventSystem.on(ComponentEvents.RemovedComponent, (component, scene2) => {
-      if (scene2 !== this.scene) return;
-      this.RemoveComponent(component);
-    });
+    EventSystem.on(ComponentEvents.RemovedComponent, this.OnRemovedComponent);
   }
   AddComponent(Ctor, ...args) {
     const componentInstance = new Ctor(this, ...args);
@@ -7090,7 +7131,12 @@ class GameObject {
     walk(this);
     return out;
   }
+  OnRemovedComponent = (component, scene) => {
+    if (scene !== this.scene) return;
+    this.RemoveComponent(component);
+  };
   Destroy() {
+    EventSystem.off(ComponentEvents.RemovedComponent, this.OnRemovedComponent);
     for (const child of [...this.transform.children]) {
       child.gameObject.Destroy();
     }
@@ -7728,6 +7774,7 @@ class Scene {
             c.enabled = false;
           }
         }
+        if (!c.shouldUpdate) continue;
         try {
           c.Update();
         } catch (err) {
