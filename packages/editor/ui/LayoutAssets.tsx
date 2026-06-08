@@ -60,6 +60,16 @@ interface LayoutAssetsState {
 
 export class LayoutAssets extends Component<BaseProps, LayoutAssetsState> {
     private fileWatcher: FileWatcher;
+
+    private pendingTimer: number | null = null;
+    private scheduleSetState() {
+        if (this.pendingTimer != null) window.clearTimeout(this.pendingTimer);
+        this.pendingTimer = window.setTimeout(() => {
+            this.pendingTimer = null;
+            this.setState({ ...this.state, currentTreeMap: this.state.currentTreeMap });
+        }, 50);
+    }
+
     constructor(props: BaseProps) {
         super(props);
         this.setState({ currentTreeMap: new Map(), selected: undefined, headerMenuOpen: false, isRenamingSelected: false });
@@ -70,8 +80,9 @@ export class LayoutAssets extends Component<BaseProps, LayoutAssetsState> {
             this.fileWatcher.watch("");
             dir(FileBrowser.getRootFolderHandle());
         });
-        TridentAPI.EventSystem.on(FileEvents.Created, (path, handle) => { this.onFileOrDirectoryCreated(path, handle) });
-        TridentAPI.EventSystem.on(DirectoryEvents.Created, (path, handle) => { this.onFileOrDirectoryCreated(path, handle) });
+
+        TridentAPI.EventSystem.on(FileEvents.Created, (path, handle) => this.onFileOrDirectoryCreated(path, handle));
+        TridentAPI.EventSystem.on(DirectoryEvents.Created, (path, handle) => this.onFileOrDirectoryCreated(path, handle));
         TridentAPI.EventSystem.on(DirectoryEvents.Deleted, (path, handle) => { this.onFileOrDirectoryDeleted(path) });
         TridentAPI.EventSystem.on(FileEvents.Deleted, (path, handle) => { this.onFileOrDirectoryDeleted(path) });
 
@@ -104,23 +115,17 @@ export class LayoutAssets extends Component<BaseProps, LayoutAssetsState> {
             this.fileWatcher.watch(path);
         }
         if (!this.state.currentTreeMap.has(path)) {
-            let type = file instanceof FileSystemFileHandle ? ITreeMapType.File : ITreeMapType.Folder;
-
+            const type = file instanceof FileSystemFileHandle ? ITreeMapType.File : ITreeMapType.Folder;
             this.state.currentTreeMap.set(path, {
                 id: path,
                 name: file.name,
                 isSelected: false,
                 parent: StringUtils.Dirname(path) == path ? null : StringUtils.Dirname(path),
-                type: type,
-                data: {
-                    path: path,
-                    file: file,
-                    instance: null
-                }
-            })
+                type,
+                data: { path, file, instance: null },
+            });
+            this.scheduleSetState();
         }
-
-        this.setState({ ...this.state, currentTreeMap: this.state.currentTreeMap, selected: this.state.selected });
     }
 
     private async onToggled(item: ProjectTreeMap) { }
