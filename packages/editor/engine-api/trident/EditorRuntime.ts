@@ -1,5 +1,6 @@
 import { Deserializer, GameObject, ISerializedScene, Runtime, Scene, SceneExecutionMode, Serializer } from "@trident/core";
 import { EditorScene } from "./EditorScene";
+import { EnvironmentManager } from "./EnvironmentManager";
 
 export class EditorRuntime extends Runtime {
     public static isPlaying = false;
@@ -23,6 +24,15 @@ export class EditorRuntime extends Runtime {
         const go = new GameObject(scene);
         go.name = "EditorScene";
         return go.AddComponent(EditorScene);
+    }
+
+    public static AttachEnvironment(scene: Scene): EnvironmentManager {
+        const existing = scene.GetComponents(EnvironmentManager)[0];
+        if (existing) return existing;
+
+        const go = new GameObject(scene);
+        go.name = "EnvironmentManager";
+        return go.AddComponent(EnvironmentManager);
     }
 
     public static Play() {

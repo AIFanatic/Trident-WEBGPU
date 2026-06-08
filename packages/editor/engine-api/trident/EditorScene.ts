@@ -31,6 +31,7 @@ export class EditorScene extends Component {
         if (EditorRuntime.isPlaying) {
             const gameCamera = this.gameObject.scene.GetComponents(Components.Camera).find(c => c !== this.editorCamera);
 
+            console.log(gameCamera?.gameObject.name)
             if (gameCamera) Components.Camera.mainCamera = gameCamera;
             else console.warn("[EditorScene] Play started but scene has no camera.");
 
