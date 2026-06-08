@@ -8,15 +8,11 @@ import { InspectorInput, InspectorInputProps } from "./ui/Inspector/InspectorInp
 import { ExtendedDataTransfer } from "./helpers/ExtendedDataTransfer";
 
 import { EditorRuntime } from "./engine-api/trident/EditorRuntime";
-import { Console, GPU, SceneExecutionMode } from "@trident/core";
-import { Sky } from "@trident/plugins/Environment/Sky";
-import { PhysicsRapier } from "@trident/plugins/PhysicsRapier/PhysicsRapier";
-import { IBLLightingPass } from "@trident/plugins/Environment/IBLLightingPass";
-import { SkyboxPass } from "@trident/plugins/Environment/SkyboxPass";
 import { IGameObject } from "./engine-api/trident/components/IGameObject";
 import { LayoutHierarchyEvents } from "./ui/LayoutHierarchy";
-
-import { Debugger } from "@trident/plugins/Debugger";
+import { SceneExecutionMode } from "@trident/core";
+import { PhysicsRapier } from "@trident/plugins/PhysicsRapier/PhysicsRapier";
+// import "./helpers/LeakTracker";
 
 export type EditorEventHandler<T extends (...args: any[]) => void> = (...args: Parameters<T>) => void;
 
@@ -53,10 +49,11 @@ class App extends Component {
 
         TridentAPI.EventSystem.on(SceneEvents.Loaded, scene => {
             EditorRuntime.AttachEditorScene(engineAPI.currentScene);
+            EditorRuntime.AttachEnvironment(engineAPI.currentScene);
         })
 
         TridentAPI.EventSystem.on(RuntimeEvents.CreatedCanvas, async (canvas) => {
-            Console.getVar("r_shadows_csm_splittypepracticallambda").value = 0.99;
+            // Console.getVar("r_shadows_csm_splittypepracticallambda").value = 0.99;
 
             const Runtime = await engineAPI.createRuntime(canvas);
             const currentScene = Runtime.SceneManager.CreateScene("DefaultScene");
@@ -67,23 +64,12 @@ class App extends Component {
             const text = await file.text();
             const sceneJSON = JSON.parse(text);
 
-            
-            const skyAtmosphere = new Sky();
-            await skyAtmosphere.init();
-            const iblLightingPass = Runtime.Renderer.RenderPipeline.AddPass(IBLLightingPass, GPU.RenderPassOrder.AfterLighting);
-            const skyboxPass = Runtime.Renderer.RenderPipeline.AddPass(SkyboxPass, GPU.RenderPassOrder.AfterLighting);
-
-            iblLightingPass.SetEnvironment(skyAtmosphere.skyTextureCubemap);
-            skyboxPass.SetSkybox(skyAtmosphere.skyTextureCubemap);
-
             await Runtime.AddSystem(PhysicsRapier);
 
             await EngineAPI.deserializer.deserializeScene(EngineAPI.currentScene, sceneJSON);
             TridentAPI.EventSystem.emit(SceneEvents.Loaded, EngineAPI.currentScene);
 
             TridentAPI.EventSystem.emit(SceneEvents.Loaded, currentScene);
-
-            Debugger.Enable();
         })
     }
 
