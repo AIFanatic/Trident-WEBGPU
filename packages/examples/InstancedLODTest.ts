@@ -36,7 +36,7 @@ async function Application(canvas: HTMLCanvasElement) {
 
     lodInstanceRenderable.lods.push({renderers: [{geometry: Geometry.Cube(), material: new PBRMaterial({albedoColor: new Mathf.Color(1, 0, 0, 1)})}], screenSize: 1});
     lodInstanceRenderable.lods.push({renderers: [{geometry: Geometry.Sphere(), material: new PBRMaterial({albedoColor: new Mathf.Color(0, 1, 0, 1)})}], screenSize: 0.5});
-    lodInstanceRenderable.lods.push({renderers: [{geometry: Geometry.Capsule(), material: new PBRMaterial({albedoColor: new Mathf.Color(0, 0, 1, 1)})}], screenSize: 0});
+    lodInstanceRenderable.lods.push({renderers: [{geometry: Geometry.Capsule(), material: new PBRMaterial({albedoColor: new Mathf.Color(0, 0, 1, 1)})}], screenSize: 0.1});
 
     lodInstanceRenderable.SetMatricesBulk(new Float32Array([...new Mathf.Matrix4().elements]));
 

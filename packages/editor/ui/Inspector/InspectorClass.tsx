@@ -1,4 +1,5 @@
 import { createElement, Component } from "../../gooact";
+import { Collapsible } from "../Collapsible/Collapsible";
 
 import './InspectorComponent.css';
 
@@ -13,12 +14,10 @@ export class InspectorClass extends Component<InspectorClassProps> {
     }
 
     public render() {
-        return <div className="InspectorComponent" style={{display: "block"}}>
-        <span className="title">{this.props.title}</span>
-
+        return  <Collapsible header={this.props.title}>
             <div style={{paddingLeft: "10px"}}>
                 {this.props.children}
             </div>
-        </div>
+        </Collapsible>
     }
 }

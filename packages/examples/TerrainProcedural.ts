@@ -126,18 +126,18 @@ async function Application(canvas: HTMLCanvasElement) {
 
         const base = "/extra/SampleProject/Nature/Terrain"
         terrain.material.terrainLayers = [
-            // // CLIFF
-            // await PBR({ albedoURL: `${base}/Marble_Cliff_03/marble_cliff_03_diff_2k.jpg`, normalURL: `${base}/Marble_Cliff_03/marble_cliff_03_nor_gl_2k.jpg`, armURL: `${base}/Marble_Cliff_03/marble_cliff_03_arm_2k.jpg` }),
-            // // DIRT
-            // await PBR({ albedoURL: `${base}/Dirt/dirt_diff_2k.jpg`, normalURL: `${base}/Dirt/dirt_nor_gl_2k.jpg`, armURL: `${base}/Dirt/dirt_arm_2k.jpg` }),
-            // // GRASS
-            // await PBR({ albedoURL: `${base}/Leafy_Grass/leafy_grass_diff_2k.jpg`, normalURL: `${base}/Leafy_Grass/leafy_grass_nor_gl_2k.jpg`, armURL: `${base}/Leafy_Grass/leafy_grass_arm_2k.jpg` }),
-            // // SNOW
-            // await PBR({ albedoURL: `${base}/Snow_02/snow_02_diff_2k.jpg`, normalURL: `${base}/Snow_02/snow_02_nor_gl_2k.jpg`, armURL: `${base}/Snow_02/snow_02_arm_2k.jpg` }),
-            // // Sand
-            // await PBR({ albedoURL: `${base}/Sand_03/sand_03_diff_2k.jpg`, normalURL: `${base}/Sand_03/sand_03_nor_gl_2k.jpg`, armURL: `${base}/Sand_03/sand_03_arm_2k.jpg` }),
-            // // Water
-            // await PBR({ albedoURL: `${base}/Coral_Ground_02/coral_ground_02_diff_2k.jpg`, normalURL: `${base}/Coral_Ground_02/coral_ground_02_nor_gl_2k.jpg`, armURL: `${base}/Coral_Ground_02/coral_ground_02_arm_2k.jpg` }),
+            // CLIFF
+            await PBR({ albedoURL: `${base}/Marble_Cliff_03/marble_cliff_03_diff_2k.jpg`, normalURL: `${base}/Marble_Cliff_03/marble_cliff_03_nor_gl_2k.jpg`, armURL: `${base}/Marble_Cliff_03/marble_cliff_03_arm_2k.jpg` }),
+            // DIRT
+            await PBR({ albedoURL: `${base}/Dirt/dirt_diff_2k.jpg`, normalURL: `${base}/Dirt/dirt_nor_gl_2k.jpg`, armURL: `${base}/Dirt/dirt_arm_2k.jpg` }),
+            // GRASS
+            await PBR({ albedoURL: `${base}/Leafy_Grass/leafy_grass_diff_2k.jpg`, normalURL: `${base}/Leafy_Grass/leafy_grass_nor_gl_2k.jpg`, armURL: `${base}/Leafy_Grass/leafy_grass_arm_2k.jpg` }),
+            // SNOW
+            await PBR({ albedoURL: `${base}/Snow_02/snow_02_diff_2k.jpg`, normalURL: `${base}/Snow_02/snow_02_nor_gl_2k.jpg`, armURL: `${base}/Snow_02/snow_02_arm_2k.jpg` }),
+            // Sand
+            await PBR({ albedoURL: `${base}/Sand_03/sand_03_diff_2k.jpg`, normalURL: `${base}/Sand_03/sand_03_nor_gl_2k.jpg`, armURL: `${base}/Sand_03/sand_03_arm_2k.jpg` }),
+            // Water
+            await PBR({ albedoURL: `${base}/Coral_Ground_02/coral_ground_02_diff_2k.jpg`, normalURL: `${base}/Coral_Ground_02/coral_ground_02_nor_gl_2k.jpg`, armURL: `${base}/Coral_Ground_02/coral_ground_02_arm_2k.jpg` }),
 
 
             // {name: "LAYER_OCEAN_COLOR", albedoColor: new Mathf.Color(0.02, 0.10, 0.22)},
@@ -161,15 +161,15 @@ async function Application(canvas: HTMLCanvasElement) {
             // {name: "LAYER_TROPICAL_RAIN_FOREST_COLOR", albedoColor: new Mathf.Color(0.06, 0.32, 0.10)},
 
 
-            { name: "LAYER_OCEAN", albedoColor: new Mathf.Color(0.02, 0.10, 0.22, 0.0) },
-            { name: "LAYER_BEACH", albedoColor: new Mathf.Color(0.63, 0.56, 0.47, 1.0) },
-            { name: "LAYER_DESERT", albedoColor: new Mathf.Color(0.80, 0.75, 0.55, 2.0) },
-            { name: "LAYER_GRASSLAND", albedoColor: new Mathf.Color(0.53, 0.67, 0.33, 3.0) },
-            { name: "LAYER_FOREST", albedoColor: new Mathf.Color(0.40, 0.58, 0.35, 4.0) },
-            { name: "LAYER_RAINFOREST", albedoColor: new Mathf.Color(0.20, 0.47, 0.33, 5.0) },
-            { name: "LAYER_ROCK", albedoColor: new Mathf.Color(0.45, 0.45, 0.45, 6.0) },
-            { name: "LAYER_TUNDRA", albedoColor: new Mathf.Color(0.73, 0.73, 0.67, 7.0) },
-            { name: "LAYER_SNOW", albedoColor: new Mathf.Color(1.00, 1.00, 1.00, 8.0) },
+            // { name: "LAYER_OCEAN", albedoColor: new Mathf.Color(0.02, 0.10, 0.22, 0.0) },
+            // { name: "LAYER_BEACH", albedoColor: new Mathf.Color(0.63, 0.56, 0.47, 1.0) },
+            // { name: "LAYER_DESERT", albedoColor: new Mathf.Color(0.80, 0.75, 0.55, 2.0) },
+            // { name: "LAYER_GRASSLAND", albedoColor: new Mathf.Color(0.53, 0.67, 0.33, 3.0) },
+            // { name: "LAYER_FOREST", albedoColor: new Mathf.Color(0.40, 0.58, 0.35, 4.0) },
+            // { name: "LAYER_RAINFOREST", albedoColor: new Mathf.Color(0.20, 0.47, 0.33, 5.0) },
+            // { name: "LAYER_ROCK", albedoColor: new Mathf.Color(0.45, 0.45, 0.45, 6.0) },
+            // { name: "LAYER_TUNDRA", albedoColor: new Mathf.Color(0.73, 0.73, 0.67, 7.0) },
+            // { name: "LAYER_SNOW", albedoColor: new Mathf.Color(1.00, 1.00, 1.00, 8.0) },
         ]
 
         const terrainGameObject = new GameObject();
@@ -232,7 +232,7 @@ async function Application(canvas: HTMLCanvasElement) {
                     return lodInstanceRenderable;
                 }
 
-                const instancedLOD = await addLOD("/extra/test-assets/NatureManufacture Assets/Forest Environment Dynamic Nature/Beech Trees/prefab_beech_tree_05.glb", { enableShadows: false })
+                const instancedLOD = await addLOD("/extra/test-assets/NatureManufacture Assets/Forest Environment Dynamic Nature/Beech Trees/prefab_beech_tree_05.glb", { enableShadows: true })
                 console.log(instancedLOD)
 
                 const props = terrain.terrainData.paintPropData;

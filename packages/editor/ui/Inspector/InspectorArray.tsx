@@ -1,4 +1,4 @@
-import { createElement, Component } from "../../gooact";
+import { createElement, Component, VNode } from "../../gooact";
   import { InspectorClass } from "./InspectorClass";
   import { InspectorType } from "./InspectorType";
   import { IEngineAPI } from "../../engine-api/trident/IEngineAPI";
@@ -40,7 +40,7 @@ import { createElement, Component } from "../../gooact";
           this.setState({});
       }
 
-      private renderRefItem(item: any, index: number): Node {
+      private renderRefItem(item: any, index: number): VNode {
           let valueForType = "None";
           if (item?.assetPath) valueForType = StringUtils.GetNameForPath(item.assetPath);
           else if (item?.name) valueForType = item.name;
@@ -63,9 +63,9 @@ import { createElement, Component } from "../../gooact";
                   {...this.props.array.map((item, index) => {
                       return isRef ? this.renderRefItem(item, index) : this.props.renderItem(item, index);
                   })}
-                  <div style={{ width: "100%", textAlign: "end" }}>
-                      <button onClick={event => { this.onIncrement(event) }} class="input" style={{ width: "22px", cursor: "pointer" }}>+</button>
-                      <button onClick={event => { this.onDecrement(event) }} class="input" style={{ width: "22px", cursor: "pointer" }}>-</button>
+                  <div style={{ textAlign: "end", marginRight: "5px", marginBottom: "5px" }}>
+                      <button onClick={() => { this.onIncrement() }} class="button" style={{ width: "22px", cursor: "pointer" }}>+</button>
+                      <button onClick={() => { this.onDecrement() }} class="button" style={{ width: "22px", cursor: "pointer" }}>-</button>
                   </div>
               </InspectorClass>
           </div>
