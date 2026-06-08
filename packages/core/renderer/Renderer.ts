@@ -94,6 +94,10 @@ export class Renderer extends System {
             throw Error(`WebGPU uncaptured error: ${event.error}`);
         };
 
+        window.addEventListener("beforeunload", () => {
+            device.destroy();
+        });
+
         RegisterBuiltinGeometries();
         Renderer.RenderPipeline = new RenderingPipeline();
         this.RenderPipeline = Renderer.RenderPipeline;

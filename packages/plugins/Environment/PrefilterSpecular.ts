@@ -2,13 +2,13 @@ import { GPU, Geometry } from "@trident/core";
 
 export class PrefilterSpecular {
     public prefilterSpecular: GPU.RenderTextureCube;
-    
+
     private name = "PrefilterSpecular";
     private initialized = false;
-    
+
     private geometry: Geometry;
     private prefilterShader: GPU.Shader;
-    
+
     private res: number;
     private roughnessLevels: number;
 
@@ -211,5 +211,10 @@ export class PrefilterSpecular {
 
         this.prefilterSpecular.SetActiveMip(0);
         this.prefilterSpecular.SetActiveMipCount(this.roughnessLevels);
+    }
+
+    public Destroy(): void {
+        this.prefilterSpecular?.Destroy();
+        this.prefilterSpecular = undefined as any;
     }
 }

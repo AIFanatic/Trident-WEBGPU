@@ -41,10 +41,7 @@ export class GameObject {
         this.transform = new Transform(this);
         this.scene.AddGameObject(this);
 
-        EventSystem.on(ComponentEvents.RemovedComponent, (component: Component, scene: Scene) => {
-            if (scene !== this.scene) return;
-            this.RemoveComponent(component);
-        });
+        EventSystem.on(ComponentEvents.RemovedComponent, this.OnRemovedComponent);
     }
 
     public AddComponent<T extends Component>(Ctor: new (go: GameObject, ...args: any[]) => T, ...args: any[]): T {
@@ -112,14 +109,22 @@ export class GameObject {
         return out;
     }
 
+    private OnRemovedComponent = (component: Component, scene: Scene) => {
+        if (scene !== this.scene) return;
+        this.RemoveComponent(component);
+    };
+
     public Destroy() {
-        // snapshot arrays with spread
+        EventSystem.off(ComponentEvents.RemovedComponent, this.OnRemovedComponent);
+
         for (const child of [...this.transform.children]) {
             child.gameObject.Destroy();
         }
+
         for (const component of [...this.allComponents]) {
             component.Destroy();
         }
+
         this.allComponents.length = 0;
         this.componentsByCtor.clear();
         this.scene.RemoveGameObject(this);

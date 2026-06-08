@@ -58,7 +58,7 @@ export class LODGroup extends Components.Renderable {
         const radius = bounds.radius * radiusScale;
         const projectionY = camera.projectionMatrix.elements[5];
 
-        return (radius * 2.0 * projectionY) / distance;
+        return (radius * projectionY) / distance;
     }
 
     private SelectLOD(): number {
@@ -70,7 +70,7 @@ export class LODGroup extends Components.Renderable {
             if (screenSize >= this.lods[i].screenSize) return i;
         }
 
-        return this.lods.length - 1;
+        return -1;   // below smallest threshold → cull
     }
 
     public OnPreRender(shaderOverride?: GPU.Shader): void {

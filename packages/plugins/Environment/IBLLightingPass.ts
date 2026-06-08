@@ -74,7 +74,7 @@ export class IBLLightingPass extends GPU.RenderPass {
     public preFrame(resources: GPU.ResourcePool) {
         this.UpdateEnvironmentIfNeeded();
         if (!this.environmentMap) return;
-        
+
         this.drawCommands.length = 0;
 
         const inputGBufferAlbedo = resources.getResource(GPU.PassParams.GBufferAlbedo);
@@ -116,5 +116,18 @@ export class IBLLightingPass extends GPU.RenderPass {
         GPU.RendererContext.EndRenderPass();
 
         resources.setResource(GPU.PassParams.LightingPassOutput, LightingPassOutput);
+    }
+
+    public Destroy(): void {
+        this.prefilterDiffuse?.Destroy();
+        this.prefilterSpecular?.Destroy();
+        this.brdf?.Destroy();
+        this.environmentMap = null;
+        this.prefilterDiffuse = undefined as any;
+        this.prefilterSpecular = undefined as any;
+        this.brdf = undefined as any;
+        this.initialized = false;
+        
+        super.Destroy();
     }
 }

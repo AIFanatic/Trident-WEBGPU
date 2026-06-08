@@ -14,7 +14,7 @@ export class InstancedLODGroup extends Components.Renderable {
     private lodMatricesScratch: GPU.Buffer;
     private lodMatrixBuffers: GPU.Buffer[] = [];
 
-    public static readonly DefaultCapacity = 100000;
+    public static readonly DefaultCapacity = 65536;
     public static readonly MATRICES_PER_LOD = InstancedLODGroup.DefaultCapacity;
     public static readonly MATRIX_STRIDE_BYTES = InstancedLODGroup.MATRICES_PER_LOD * 16 * 4;
 
@@ -54,6 +54,7 @@ export class InstancedLODGroup extends Components.Renderable {
 
     public async Start() {
         super.Start()
+        
         this.drawCompute = await GPU.ShaderCompute.Create({
             name: this.name + "-Compute",
             code: `
@@ -141,9 +142,9 @@ export class InstancedLODGroup extends Components.Renderable {
                 let d = max(0.0001, distance(frameBuffer.viewPosition.xyz, modelPosition));
 
                 let projectionY = frameBuffer.projectionMatrix[1][1];
-                let screenSize = (worldRadius * 2.0 * projectionY) / d;
+                let screenSize = (worldRadius * projectionY) / d;
 
-                var lod: u32 = lc - 1u;
+                var lod: u32 = lc;
 
                 for (var i: u32 = 0u; i < lc; i++) {
                     if (screenSize >= lods[i].distance) {
@@ -151,6 +152,8 @@ export class InstancedLODGroup extends Components.Renderable {
                         break;
                     }
                 }
+
+                if (lod >= lc) { return; }   // culled — don't enqueue
 
                 let writeIndex = atomicAdd(&drawBuffer[lod].instanceCount, 1u);
                 if (writeIndex < lodMatrixCapacity) {

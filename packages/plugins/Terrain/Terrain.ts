@@ -1,14 +1,15 @@
-import { GameObject, Geometry, IndexAttribute, VertexAttribute, Components, Mathf, SerializeField, NonSerialized, Utils, GPU, Prefab, Runtime, Assets, EventSystemLocal } from "@trident/core";
+import { GameObject, Geometry, IndexAttribute, VertexAttribute, Components, Mathf, SerializeField, NonSerialized, Utils, GPU, Prefab, EventSystemLocal, Assets } from "@trident/core";
 import { TerrainMaterial } from "./TerrainMaterial";
 import { LODGroup } from "../LOD/LODGroup";
 import { InstancedLODGroup } from "../LOD/InstancedLODGroup";
 
 export class TerrainEvents {
-    public static Changed = (terrain: Terrain, terrainData: TerrainData) => {};
+    public static Changed = (terrain: Terrain, terrainData: TerrainData) => { };
     public static GeometryUpdated = (terrainData: TerrainData) => { };
 }
 
 export class PaintPropData {
+    @SerializeField public id: string = Utils.UUID();
     @SerializeField(Prefab) public prop: Prefab;
     @SerializeField(Array) public matrices: Array<number> = [];
 
@@ -68,9 +69,18 @@ export class TerrainData {
     private _heights: Float32Array;
     @SerializeField(Float32Array) public get heights(): Float32Array { return this._heights };
     public set heights(heights: Float32Array) {
+        const expectedSide = this.resolution + 1;
+        if (heights.length !== expectedSide * expectedSide) {
+            const srcSide = Math.round(Math.sqrt(heights.length));
+            if (srcSide * srcSide !== heights.length) {
+                throw Error(`Heights length ${heights.length} is not a square number`);
+            }
+            console.warn(`[TerrainData] Resampling heights ${srcSide}² → ${expectedSide}² (saved at older resolution)`);
+            heights = TerrainData.resampleHeights(heights, expectedSide);
+        }
         this._heights = heights;
         this.RebuildGeometry();
-    };
+    }
 
     @SerializeField public paintMapResolution: number = 256;
 
@@ -78,14 +88,9 @@ export class TerrainData {
     @SerializeField(Uint8Array) public get materialIdMapData(): Uint8Array { return this._materialIdMapData; }
     public set materialIdMapData(data: Uint8Array) { this._materialIdMapData = data; }
 
-    private _blendWeightMapData: Uint8Array;
-    @SerializeField(Uint8Array) public get blendWeightMapData(): Uint8Array { return this._blendWeightMapData; }
-    public set blendWeightMapData(data: Uint8Array) { this._blendWeightMapData = data; }
-
     @NonSerialized public materialIdMapTexture: GPU.Texture;
-    @NonSerialized public blendWeightMapTexture: GPU.Texture;
 
-    public resolution = 64;
+    public resolution = 256;
 
     constructor() {
         this.size = new Mathf.Vector3(1000, 600, 1000);
@@ -93,18 +98,43 @@ export class TerrainData {
 
         const verticesPerSide = this.resolution + 1;
         this.heights = new Float32Array(verticesPerSide * verticesPerSide);
-
         this.InitializePaintMapData();
+    }
+
+    private static resampleHeights(src: Float32Array, dstSide: number): Float32Array {
+        const srcSide = Math.round(Math.sqrt(src.length));
+        if (srcSide === dstSide) return src;
+
+        const dst = new Float32Array(dstSide * dstSide);
+        const srcMax = srcSide - 1;
+        const dstMax = dstSide - 1;
+
+        for (let ix = 0; ix < dstSide; ix++) {
+            const sx = (ix / dstMax) * srcMax;
+            const x0 = Math.floor(sx);
+            const x1 = Math.min(x0 + 1, srcMax);
+            const tx = sx - x0;
+            for (let iz = 0; iz < dstSide; iz++) {
+                const sz = (iz / dstMax) * srcMax;
+                const z0 = Math.floor(sz);
+                const z1 = Math.min(z0 + 1, srcMax);
+                const tz = sz - z0;
+                const a = src[x0 * srcSide + z0];
+                const b = src[x0 * srcSide + z1];
+                const c = src[x1 * srcSide + z0];
+                const d = src[x1 * srcSide + z1];
+                dst[ix * dstSide + iz] =
+                    (a * (1 - tz) + b * tz) * (1 - tx) +
+                    (c * (1 - tz) + d * tz) * tx;
+            }
+        }
+        return dst;
     }
 
     private InitializePaintMapData(): void {
         const pixelCount = this.paintMapResolution * this.paintMapResolution;
         if (!this._materialIdMapData || this._materialIdMapData.length !== pixelCount * 4) {
             this._materialIdMapData = new Uint8Array(pixelCount * 4);
-            this._blendWeightMapData = new Uint8Array(pixelCount * 4);
-            for (let i = 0; i < pixelCount; i++) {
-                this._blendWeightMapData[i * 4] = 255;
-            }
         }
     }
 
@@ -116,7 +146,6 @@ export class TerrainData {
     public InitializePaintMaps(): void {
         this.InitializePaintMapData();
         this.materialIdMapTexture = GPU.Texture.Create(this.paintMapResolution, this.paintMapResolution, 1, "rgba8unorm");
-        this.blendWeightMapTexture = GPU.Texture.Create(this.paintMapResolution, this.paintMapResolution, 1, "rgba8unorm");
         this.UploadPaintMaps();
         this.BindPaintMaps();
     }
@@ -124,7 +153,6 @@ export class TerrainData {
     public UploadPaintMaps(): void {
         const bytesPerRow = this.paintMapResolution * 4;
         this.materialIdMapTexture.SetData(this._materialIdMapData, bytesPerRow);
-        this.blendWeightMapTexture.SetData(this._blendWeightMapData, bytesPerRow, this.paintMapResolution);
     }
 
     public async BindPaintMaps(): Promise<void> {
@@ -132,24 +160,39 @@ export class TerrainData {
             await this.material.pendingShaderCreation;
         }
         this.material.materialIdMap = this.materialIdMapTexture;
-        this.material.shader.SetTexture("blendWeightMap", this.blendWeightMapTexture);
     }
 
-    public async AddProp(prefab: Prefab, terrainGameObject: GameObject): Promise<number> {
-        const existingIndex = this.paintPropData.findIndex(value => value.prop.assetPath === prefab.assetPath);
-        if (existingIndex !== -1) return existingIndex;
+    public GetProp(id: string): PaintPropData | undefined {
+        return this.paintPropData.find(p => p.id === id);
+    }
+
+    public GetPropIndex(id: string): number {
+        return this.paintPropData.findIndex(p => p.id === id);
+    }
+
+    public async AddProp(prefab: Prefab, terrainGameObject: GameObject): Promise<string> {
+        const existing = this.paintPropData.find(p => p.prop.assetPath === prefab.assetPath);
+        if (existing) return existing.id;
 
         const newProp = new PaintPropData();
         newProp.prop = prefab;
         await newProp.RebuildProps(terrainGameObject);
         this.paintPropData.push(newProp);
-
-        return this.paintPropData.length - 1;
+        return newProp.id;
     }
 
-    public AddPropMatrix(propIndex: number, matrix: Mathf.Matrix4) {
-        if (propIndex >= this.paintPropData.length) throw Error("Prop doesnt exist");
-        this.paintPropData[propIndex].AddPropMatrix(matrix);
+    public RemoveProp(id: string) {
+        const idx = this.paintPropData.findIndex(p => p.id === id);
+        if (idx === -1) throw Error(`Prop ${id} doesn't exist`);
+        this.paintPropData[idx].Destroy();
+        this.paintPropData.splice(idx, 1);
+        // EventSystemLocal.emit(TerrainEvents.Changed, this, this, this);
+    }
+
+    public AddPropMatrix(id: string, matrix: Mathf.Matrix4) {
+        const prop = this.GetProp(id);
+        if (!prop) throw Error(`Prop ${id} doesn't exist`);
+        prop.AddPropMatrix(matrix);
     }
 
     public RebuildGeometry(): void {
@@ -304,13 +347,12 @@ export class TerrainData {
     }
 
     public Destroy() {
+        if ((this as any).assetPath) Assets.RemoveInstance((this as any).assetPath);
+
         for (const prop of this.paintPropData) prop.Destroy();
-
-        // if (this.geometry) this.geometry.Destroy();
-        // if (this.material) this.material.Destroy();
-
-        // this.materialIdMapTexture?.Destroy();
-        // this.blendWeightMapTexture?.Destroy();
+        this.geometry?.Destroy();
+        this.material?.Destroy();
+        this.materialIdMapTexture?.Destroy();
     }
 }
 
@@ -326,9 +368,13 @@ export class Terrain extends Components.Mesh {
         if (this._terrainData === td) return;
         this._terrainData = td;
         if (!td) return;
+        this.SetTerrainData(td).catch(err => console.error("[Terrain] SetTerrainData failed", err));
+    }
+
+    private async SetTerrainData(td: TerrainData) {
         td.InitializePaintMaps();
-        for (const prop of td.paintPropData) prop.RebuildProps(this.gameObject);
-        if (td.heights?.length) td.RebuildGeometry(); // make RebuildGeometry public
+        await Promise.all(td.paintPropData.map(prop => prop.RebuildProps(this.gameObject)));
+        if (td.heights?.length) td.RebuildGeometry();
         EventSystemLocal.emit(TerrainEvents.Changed, this, this, td);
     }
 

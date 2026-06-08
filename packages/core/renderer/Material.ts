@@ -49,11 +49,12 @@ export class Material {
     }
 
     public Destroy() {
-        if (this.assetPath && Assets.GetInstance(this.assetPath) === this) return;
-
+        if (this.assetPath && Assets.GetInstance(this.assetPath) === this) {
+            Assets.RemoveInstance(this.assetPath);
+        }
         if (this._shader) this._shader.Destroy();
         MaterialPool.remove(this.materialId);
-    };
+    }
 
     public static Create(type: string, params?: any) {
         if (type === PBRMaterial.type) return new PBRMaterial(params);
@@ -140,7 +141,7 @@ export class PBRMaterial extends Material {
 
         Object.assign(this.params, params);
 
-        if (!PBRMaterial.sampler) PBRMaterial.sampler = new TextureSampler({maxAnisotropy: 4});
+        if (!PBRMaterial.sampler) PBRMaterial.sampler = new TextureSampler({ maxAnisotropy: 4 });
     }
 
     private pendingShaderCreation?: Promise<Shader>;

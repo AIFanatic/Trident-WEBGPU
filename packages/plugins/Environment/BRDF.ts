@@ -2,12 +2,12 @@ import { GPU, Geometry, Mathf } from "@trident/core";
 
 export class BRDF {
     public brdfTexture: GPU.RenderTexture;
-    
+
     private name = "BRDFLUT";
-    
+
     private geometry: Geometry;
     private brdfShader: GPU.Shader;
-    
+
     private res: number;
 
     constructor(res: number = 512) {
@@ -16,7 +16,7 @@ export class BRDF {
     }
 
     public async init() {
-        this.brdfShader  = await GPU.Shader.Create({
+        this.brdfShader = await GPU.Shader.Create({
             code: /* wgsl */`
             struct VSIn {
                 @location(0) position: vec3<f32>,
@@ -144,5 +144,10 @@ export class BRDF {
         GPU.RendererContext.DrawGeometry(this.geometry, this.brdfShader);
         GPU.RendererContext.EndRenderPass();
         GPU.Renderer.EndRenderFrame();
+    }
+
+    public Destroy(): void {
+        this.brdfTexture?.Destroy();
+        this.brdfTexture = undefined as any;
     }
 }

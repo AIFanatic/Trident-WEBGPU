@@ -19,6 +19,7 @@ export class RenderPass {
     public preFrame(resources: ResourcePool) { };
     public preRender(resources: ResourcePool) { };
     public execute(resources: ResourcePool) { };
+    public Destroy() {};
 }
 
 export class ResourcePool {

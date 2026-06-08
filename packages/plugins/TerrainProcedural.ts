@@ -77,7 +77,6 @@ export class TerrainProcedural extends Components.Component {
 
     private terrainTexture: GPU.RenderTexture;
     private materialIdMap: GPU.RenderTexture;
-    private blendWeightMap: GPU.RenderTexture;
 
     @SerializeField public params = new TerrainProceduralParams();
 
@@ -309,7 +308,6 @@ export class TerrainProcedural extends Components.Component {
 
                 struct FragmentOutput {
                     @location(0) materialIdMap: vec4f,
-                    @location(1) blendWeightMap: vec4f
                 };
 
                 fn moistureMap(uv: vec2<f32>, height: f32, normalY: f32) -> f32 {
@@ -400,44 +398,30 @@ export class TerrainProcedural extends Components.Component {
                 }
 
                 @fragment
-                fn fragmentMain(input: VertexOutput) -> FragmentOutput {
+                fn fragmentMain(input: VertexOutput) -> @location(0) vec4f {
                     let terrain = textureSample(terrainTexture, terrainSampler, input.uv);
                     var normal = terrain.yzz;
                     normal.y = sqrt(1.0 - dot(normal.xz, normal.xz));
 
                     let height = terrain.x;
                     
-                    var output: FragmentOutput;
                     let moisture = moistureMap(input.uv, height, normal.y);
-                    output.materialIdMap   = vec4f(vec3f(biome(height, moisture).w) / 255.0, 1.0);
-                    // output.materialIdMap   = vec4f(vec3f(biome(height, moisture).rgb), 1.0);
-
-                    // output.blendWeightMap  = vec4f(nW, 1.0);
-                    output.blendWeightMap  = vec4f(0.5);
-                    return output;
+                    return vec4f(vec3f(biome(height, moisture).w) / 255.0, 1.0);
                 }
             `,
-            colorOutputs: [
-                { format: "rgba8unorm" },
-                { format: "rgba8unorm" },
-            ],
+            colorOutputs: [ { format: "rgba8unorm" } ],
         })
 
         this.terrainPaintShader.SetSampler("terrainSampler", new GPU.TextureSampler());
     }
 
     private RecreateTextures(resolution: number) {
-        if (!this.terrainTexture || !this.materialIdMap || !this.blendWeightMap ||
-            this.terrainTexture.width !== resolution || this.materialIdMap.width !== resolution ||
-            this.blendWeightMap.width !== resolution
-        ) {
+        if (!this.terrainTexture || !this.materialIdMap || this.terrainTexture.width !== resolution || this.materialIdMap.width !== resolution) {
             this.terrainTexture = GPU.RenderTexture.Create(resolution, resolution, 1, "rgba16float");
             this.materialIdMap = GPU.RenderTexture.Create(resolution, resolution, 1, "rgba8unorm");
-            this.blendWeightMap = GPU.RenderTexture.Create(resolution, resolution, 1, "rgba8unorm");
 
             this.terrainTexture.name = "TerrainTexture";
             this.materialIdMap.name = "MaterialIDMap";
-            this.blendWeightMap.name = "BlendHeightMap";
         }
     }
 
@@ -468,7 +452,7 @@ export class TerrainProcedural extends Components.Component {
         this.terrainPaintShader.SetArray("params", params);
 
         GPU.Renderer.BeginRenderFrame();
-        GPU.RendererContext.BeginRenderPass("Terrain Generator", [{ target: this.materialIdMap, clear: true }, { target: this.blendWeightMap, clear: true }]);
+        GPU.RendererContext.BeginRenderPass("Terrain Generator", [{ target: this.materialIdMap, clear: true }]);
         GPU.RendererContext.DrawVertex(this.terrainPaintShader, 3);
         GPU.RendererContext.EndRenderPass();
         GPU.Renderer.EndRenderFrame();
@@ -476,6 +460,5 @@ export class TerrainProcedural extends Components.Component {
         await this.terrain.terrainData.HeightmapFromTexture(this.terrainTexture, false, 1);
 
         this.terrain.material.materialIdMap = this.materialIdMap;
-        this.terrain.material.blendWeightMap = this.blendWeightMap;
     }
 }

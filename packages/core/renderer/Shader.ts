@@ -129,6 +129,7 @@ interface WEBGPUShaderUniform extends ShaderUniform {
     textureDimension?: number;
     textureMip?: number;
     activeMipCount?: number;
+    ownedByShader?: boolean;
 }
 
 interface BindGroup {
@@ -341,6 +342,7 @@ class BaseShader {
             let type: BufferType = BufferType.STORAGE;
             if (uniform.type === "uniform") type = BufferType.UNIFORM;
             uniform.buffer = new Buffer(data.byteLength, type);
+            uniform.ownedByShader = true;
             this.needsUpdate = true;
         }
 
@@ -351,7 +353,10 @@ class BaseShader {
 
         const binding = this.GetValidUniform(name);
         if (!binding.buffer || binding.buffer.GetBuffer() !== data.GetBuffer()) {
+            // Destroy if owned by the shader (from SetArray)
+            if (binding.ownedByShader && (binding.buffer instanceof Buffer || binding.buffer instanceof DynamicBuffer)) binding.buffer.Destroy();
             binding.buffer = data;
+            binding.ownedByShader = false;
             this.needsUpdate = true;
         }
         if (data instanceof Texture) {
@@ -385,6 +390,13 @@ class BaseShader {
     public OnPreRender(geometry: Geometry): boolean { return true; }
 
     public Destroy() {
+        for (const uniform of this.uniformMap.values()) {
+            if (uniform.ownedByShader && (uniform.buffer instanceof Buffer || uniform.buffer instanceof DynamicBuffer)) {
+                uniform.buffer.Destroy();
+            }
+        }
+        this.uniformMap.clear();
+
         const crcs = this.BuildBindGroupsCRC();
         for (const crc of crcs) {
             if (BindGroupCache.delete(crc) === true) {

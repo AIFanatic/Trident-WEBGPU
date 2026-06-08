@@ -2,13 +2,13 @@ import { GPU, Geometry } from "@trident/core";
 
 export class PrefilterDiffuse {
     public prefilterDiffuse: GPU.RenderTextureCube;
-    
+
     private name = "PrefilterDiffuse";
     private initialized = false;
-    
+
     private geometry: Geometry;
     private irradianceShader: GPU.Shader;
-    
+
     private res: number;
 
     constructor(res: number = 64, outputFormat: GPU.TextureFormat = "rgba16float") {
@@ -123,5 +123,10 @@ export class PrefilterDiffuse {
             GPU.RendererContext.EndRenderPass();
             GPU.Renderer.EndRenderFrame();
         }
+    }
+
+    public Destroy(): void {
+        this.prefilterDiffuse?.Destroy();
+        this.prefilterDiffuse = undefined as any;
     }
 }

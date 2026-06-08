@@ -29,9 +29,9 @@ export const PassParams = {
 
     ShadowPassCascadeData: "ShadowPassCascadeData",
     LightsBuffer: "LightsBuffer",
-    
+
     LightingPassOutput: "LightingPassOutput",
-    
+
     FrameBuffer: "FrameBuffer",
     FrameRenderData: "FrameRenderData",
 };
@@ -62,21 +62,21 @@ export class RenderingPipeline {
 
     private prepareGBuffersPass: PrepareGBuffers;
 
-    public get GBufferFormat(): TextureFormat { return this.prepareGBuffersPass.GBufferFormat};
-    
+    public get GBufferFormat(): TextureFormat { return this.prepareGBuffersPass.GBufferFormat };
+
     public static GBufferFormat: TextureFormat = "rgba16float"; // use the current value
 
     public readonly DeferredShadowMapPass = new DeferredShadowMapPass();
 
     constructor() {
         this.prepareGBuffersPass = new PrepareGBuffers();
-        
+
         this.renderGraph = new RenderGraph();
         this.beforeGBufferPasses = [
             new SceneExtractPass(),
             this.prepareGBuffersPass,
         ];
-        
+
         this.afterGBufferPasses = [
             new RenderablePass(),
             this.DeferredShadowMapPass,
@@ -87,7 +87,7 @@ export class RenderingPipeline {
             new BasePass(),
             new DeferredLightingPass(),
         ];
-        
+
         this.beforeScreenOutputPasses = [
             new ForwardPass(),
             new PostExposureTonemap(),
@@ -96,7 +96,7 @@ export class RenderingPipeline {
         this.afterScreenOutputPasses = [
             new TextureViewer(),
         ]
-        
+
         this.UpdateRenderGraphPasses();
     }
 
@@ -114,7 +114,7 @@ export class RenderingPipeline {
         this.renderGraph.init();
     }
 
-    public AddPass<T extends RenderPass>( pass: T | (new (...args: any[]) => T), order: RenderPassOrder) {
+    public AddPass<T extends RenderPass>(pass: T | (new (...args: any[]) => T), order: RenderPassOrder) {
         const passInstance = typeof pass === "function" ? new pass() : pass;
         if (order === RenderPassOrder.BeforeGBuffer) this.beforeGBufferPasses.push(passInstance);
         else if (order === RenderPassOrder.AfterGBuffer) this.afterGBufferPasses.push(passInstance);
@@ -128,9 +128,27 @@ export class RenderingPipeline {
         return passInstance;
     }
 
+    public RemovePass(pass: RenderPass, order: RenderPassOrder): boolean {
+        const buckets: Record<RenderPassOrder, RenderPass[]> = {
+            [RenderPassOrder.BeforeGBuffer]: this.beforeGBufferPasses,
+            [RenderPassOrder.AfterGBuffer]: this.afterGBufferPasses,
+            [RenderPassOrder.BeforeLighting]: this.beforeLightingPasses,
+            [RenderPassOrder.AfterLighting]: this.afterLightingPasses,
+            [RenderPassOrder.BeforeScreenOutput]: this.beforeScreenOutputPasses,
+            [RenderPassOrder.AfterScreenOutput]: this.afterScreenOutputPasses,
+        };
+        const bucket = buckets[order];
+        const i = bucket.indexOf(pass);
+        if (i === -1) return false;
+        bucket.splice(i, 1);
+        this.UpdateRenderGraphPasses();
+        pass.Destroy();
+        return true;
+    }
+
     public Render() {
         Renderer.info.ResetFrame();
-        
+
         const renderPipelineStart = performance.now();
 
         this.renderGraph.preFrame();
@@ -149,7 +167,7 @@ export class RenderingPipeline {
         });
 
         EventSystem.emit(RendererEvents.FrameEnded);
-        
+
         const currentTime = performance.now();
         const elapsed = currentTime - this.previousTime;
         this.previousTime = currentTime;

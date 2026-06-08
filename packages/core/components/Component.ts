@@ -22,6 +22,7 @@ export class Component {
     public hasStarted: boolean = false;
     public name: string;
     public assetPath: string;
+    public readonly shouldUpdate: boolean;
 
     public readonly gameObject: GameObject;
     public readonly transform: Transform;
@@ -32,6 +33,7 @@ export class Component {
         this.gameObject = gameObject;
         this.transform = gameObject.transform;
         this.name = this.constructor.name;
+        this.shouldUpdate = (this as any).Update !== Component.prototype.Update;
 
         EventSystem.emit(ComponentEvents.AddedComponent, this, this.gameObject.scene);
 

@@ -11,7 +11,7 @@ Assets.Register("@trident/plugins/Sky/resources/Vertex.wgsl", VertexWGSL);
 
 export class Sky {
     public SUN_ELEVATION_DEGREES = 60;
-    public SUN_AZIMUTH_DEGREES = 0;
+    public SUN_AZIMUTH_DEGREES = 40;
     public EYE_ALTITUDE = 0.5;
 
     public skyTexture: GPU.RenderTexture;
@@ -113,5 +113,14 @@ export class Sky {
 
         this.skyTextureCubemap.SetActiveMip(0);
         this.skyTextureCubemap.SetActiveMipCount(this.skyTextureCubemap.mipLevels);
+    }
+
+    public Destroy(): void {
+        this.skyTextureCubemap?.Destroy();
+        this.skyTexture?.Destroy();
+        this.transmittanceLUT?.Destroy();
+        this.skyTextureCubemap = undefined as any;
+        this.skyTexture = undefined as any;
+        this.transmittanceLUT = undefined as any;
     }
 }
