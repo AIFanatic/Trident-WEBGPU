@@ -1,30 +1,32 @@
 import { IEngineAPI } from "../engine-api/trident/IEngineAPI";
-import { LoadScript } from "../loaders/ScriptLoader";
+import { BuildBundle } from "../loaders/ScriptLoader";
+import { Serializer, Deserializer } from "@trident/core";
 
-export async function ReloadScript(engineAPI: IEngineAPI, path: string) {
-    const loadedFile = await LoadScript(path);
-    const { serializer, deserializer, currentScene } = engineAPI;
+let reloadInFlight: Promise<void> | null = null;
 
-    for (const NewClass of Object.values(loadedFile)) {
-        if (typeof NewClass !== "function") continue;
-
-        const instances = currentScene.GetGameObjects().flatMap(go => go.GetComponents()).filter(c => c.constructor.name === NewClass.name);
-
-        for (const component of instances) {
-            const data = serializer.serializeComponent(component);
-            const fresh = new NewClass(component.gameObject);
-            const freshKeys = new Set(Object.keys(fresh));
-
-            for (const k of Object.keys(component)) {
-                if (!freshKeys.has(k)) delete (component as any)[k];
-            }
-            for (const k of freshKeys) {
-                if (!(k in component)) (component as any)[k] = (fresh as any)[k];
-            }
-
-            Object.setPrototypeOf(component, NewClass.prototype);
-            await deserializer.deserializeComponent(component, data);
-            component.hasStarted = false;  // rerun Start on next Update (Unity-style)
-        }
+export async function ReloadScript(engineAPI: IEngineAPI, _path: string) {
+    // Coalesce rapid-fire saves into a single rebuild
+    if (reloadInFlight) {
+        await reloadInFlight;
+        return;
     }
+    reloadInFlight = doReload(engineAPI);
+    try { await reloadInFlight; } finally { reloadInFlight = null; }
+}
+
+async function doReload(engineAPI: IEngineAPI) {
+    const scene = engineAPI.currentScene;
+
+    // 1. Snapshot the current scene exactly like EditorRuntime.Play does
+    const snapshot = Serializer.serializeScene(scene);
+
+    // 2. Tear down the live scene
+    scene.Clear();
+
+    // 3. Rebundle the entire project — registers new classes in Component.Registry
+    await BuildBundle();
+
+    // 4. Re-deserialize. The deserializer uses Component.Registry, so all instances
+    //    are built from the new classes. @SerializeField values are restored.
+    await Deserializer.deserializeScene(scene, snapshot);
 }
