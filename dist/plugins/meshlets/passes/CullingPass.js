@@ -7,7 +7,6 @@ class CullingPass extends GPU.RenderPass {
   instanceInfoBuffer;
   compute;
   debugBuffer;
-  // Debug
   visibleObjects = 0;
   triangleCount = 0;
   visibleTriangles = 0;
@@ -18,7 +17,7 @@ class CullingPass extends GPU.RenderPass {
       computeEntrypoint: "main"
     });
     this.debugBuffer = new GPU.Buffer(4 * 4, GPU.BufferType.STORAGE);
-    this.instanceInfoBuffer = new GPU.Buffer(1 * 1 * 4, GPU.BufferType.STORAGE_WRITE);
+    this.instanceInfoBuffer = new GPU.Buffer(8, GPU.BufferType.STORAGE_WRITE);
     this.compute.SetBuffer("instanceInfoBuffer", this.instanceInfoBuffer);
   }
   preFrame(resources) {
@@ -31,8 +30,22 @@ class CullingPass extends GPU.RenderPass {
     const lodMeshBuffer = resources.getResource(MeshletPassParams.LodMeshBuffer);
     const objectInfoBuffer = resources.getResource(MeshletPassParams.ObjectInfoBuffer);
     const drawIndirectBuffer = resources.getResource(MeshletPassParams.DrawIndirectBuffer);
-    if (currentMeshletCount > this.instanceInfoBuffer.size / 4) {
-      this.instanceInfoBuffer = new GPU.Buffer(currentMeshletCount * 4, GPU.BufferType.STORAGE_WRITE);
+    const frameMeshlets = resources.getResource(MeshletPassParams.FrameMeshlets);
+    const drawInit = new Uint32Array(frameMeshlets.size * 4);
+    let running = 0;
+    let m = 0;
+    for (const survivors of frameMeshlets.values()) {
+      drawInit[m * 4 + 0] = 128 * 3;
+      drawInit[m * 4 + 1] = 0;
+      drawInit[m * 4 + 2] = 0;
+      drawInit[m * 4 + 3] = running;
+      running += survivors;
+      m++;
+    }
+    drawIndirectBuffer.SetArray(drawInit);
+    const requiredBytes = Math.max(8, running * 2 * 4);
+    if (requiredBytes > this.instanceInfoBuffer.size) {
+      this.instanceInfoBuffer = new GPU.Buffer(requiredBytes, GPU.BufferType.STORAGE_WRITE);
       this.compute.SetBuffer("instanceInfoBuffer", this.instanceInfoBuffer);
     }
     this.compute.SetBuffer("drawBuffer", drawIndirectBuffer);
@@ -43,32 +56,20 @@ class CullingPass extends GPU.RenderPass {
     this.compute.SetBuffer("frameBuffer", frameBuffer);
     this.compute.SetBuffer("meshletParamsBuffer", meshletParams);
     resources.setResource(MeshletPassParams.InstanceInfoBuffer, this.instanceInfoBuffer);
-    const frameMeshlets = resources.getResource(MeshletPassParams.FrameMeshlets);
-    const drawInit = new Uint32Array(frameMeshlets.size * 4);
-    let running = 0;
-    let m = 0;
-    for (const [, meshlets] of frameMeshlets) {
-      let meshletCount = 0;
-      for (const meshletMesh of meshlets) meshletCount += meshletMesh.meshlets.length;
-      drawInit[m * 4 + 0] = 128 * 3;
-      drawInit[m * 4 + 1] = 0;
-      drawInit[m * 4 + 2] = 0;
-      drawInit[m * 4 + 3] = running;
-      running += meshletCount;
-      m++;
-    }
-    drawIndirectBuffer.SetArray(drawInit);
   }
   execute(resources) {
     const currentMeshletCount = resources.getResource(MeshletPassParams.CurrentMeshletCount);
-    resources.getResource(MeshletPassParams.DrawIndirectBuffer);
     if (currentMeshletCount === 0) return;
-    const dispatchSizeX = Math.ceil(Math.cbrt(currentMeshletCount) / 4);
-    const dispatchSizeY = Math.ceil(Math.cbrt(currentMeshletCount) / 4);
-    const dispatchSizeZ = Math.ceil(Math.cbrt(currentMeshletCount) / 4);
+    const maxInstanceCount = Math.max(1, resources.getResource(MeshletPassParams.MaxInstanceCount) ?? 1);
     GPU.ComputeContext.BeginComputePass(`Meshlets - Culling`, true);
-    GPU.ComputeContext.Dispatch(this.compute, dispatchSizeX, dispatchSizeY, dispatchSizeZ);
+    GPU.ComputeContext.Dispatch(
+      this.compute,
+      Math.ceil(currentMeshletCount / 8),
+      Math.ceil(maxInstanceCount / 32),
+      1
+    );
     GPU.ComputeContext.EndComputePass();
+    console.log(currentMeshletCount * maxInstanceCount * 1);
     Renderer.info.visibleObjects += this.visibleObjects;
     Renderer.info.triangleCount += this.triangleCount;
     Renderer.info.visibleTriangles += this.visibleTriangles;

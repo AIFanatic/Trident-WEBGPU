@@ -12,6 +12,7 @@ struct InstanceInfo {
 
 struct MeshletParams {
     meshletCount: u32,
+    groupCount: u32,
     isFrustumCullingEnabled: f32,
     isBackFaceCullingEnabled: f32,
     isOcclusionCullingEnabled: f32,
@@ -21,6 +22,14 @@ struct MeshletParams {
     isDynamicLODEnabled: f32,
     staticLODValue: f32,
     dynamicLODErrorThresholdValue: f32
+};
+
+struct GroupInfo {
+    boundingSphere : vec4<f32>,
+    matrixBase     : u32,
+    instanceCount  : u32,
+    visibleOffset  : u32,
+    _pad           : u32,
 };
 
 struct MeshletInfo {
@@ -54,7 +63,7 @@ struct LodMeshInfo {
     baseVertexFloatOffset : u32,
     baseTriangleOffset    : u32,
     materialIndex         : u32,
-    instanceCount         : u32,
+    groupIndex            : u32,
 };
 
 struct ObjectInfo {

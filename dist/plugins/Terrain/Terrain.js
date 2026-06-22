@@ -181,11 +181,11 @@ const _TerrainData = class _TerrainData {
     this.size.set(x, y, z);
     this.RebuildGeometry();
   }
-  InitializePaintMaps() {
+  async InitializePaintMaps() {
     this.InitializePaintMapData();
     this.materialIdMapTexture = GPU.Texture.Create(this.paintMapResolution, this.paintMapResolution, 1, "rgba8unorm");
     this.UploadPaintMaps();
-    this.BindPaintMaps();
+    await this.BindPaintMaps();
   }
   UploadPaintMaps() {
     const bytesPerRow = this.paintMapResolution * 4;
@@ -381,7 +381,7 @@ class Terrain extends (_a = Components.Mesh, _terrainData_dec = [SerializeField(
     this.SetTerrainData(td).catch((err) => console.error("[Terrain] SetTerrainData failed", err));
   }
   async SetTerrainData(td) {
-    td.InitializePaintMaps();
+    await td.InitializePaintMaps();
     await Promise.all(td.paintPropData.map((prop) => prop.RebuildProps(this.gameObject)));
     if (td.heights?.length) td.RebuildGeometry();
     EventSystemLocal.emit(TerrainEvents.Changed, this, this, td);

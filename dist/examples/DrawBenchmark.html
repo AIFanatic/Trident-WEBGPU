@@ -28,34 +28,37 @@
             <script type="module">
                 const canvas = document.createElement("canvas");
                 document.body.appendChild(canvas);
-                            import { Runtime, GameObject, Components, Mathf, PBRMaterial, GPU } from '@trident/core';
+                            import { PlayerRuntime, GameObject, Components, Mathf, Runtime, GPU, PBRMaterial } from '@trident/core';
             import { OrbitControls } from '@trident/plugins/OrbitControls.js';
             import { Debugger } from '@trident/plugins/Debugger.js';
             import { GLTFLoader } from '@trident/plugins/GLTF/GLTFLoader.js';
             import { MeshletDraw } from '@trident/plugins/meshlets/passes/MeshletDraw.js';
-            import { MeshletMesh } from '@trident/plugins/meshlets/MeshletMesh.js';
             import { HDRParser } from '@trident/plugins/HDRParser.js';
-            import { Environment } from '@trident/plugins/Environment/Environment.js';
+            import { SkyboxPass } from '@trident/plugins/Environment/SkyboxPass.js';
+            import { IBLLightingPass } from '@trident/plugins/Environment/IBLLightingPass.js';
+            import { InstancedMeshletMesh } from '@trident/plugins/meshlets/InstancedMeshletMesh.js';
             
             async function Application(canvas) {
-              await Runtime.Create(canvas);
-              const scene = Runtime.SceneManager.CreateScene("DefaultScene");
-              Runtime.SceneManager.SetActiveScene(scene);
+              await PlayerRuntime.Create(canvas);
+              const scene = PlayerRuntime.SceneManager.CreateScene("DefaultScene");
+              PlayerRuntime.SceneManager.SetActiveScene(scene);
               const mainCameraGameObject = new GameObject();
               mainCameraGameObject.name = "MainCamera";
               const camera = mainCameraGameObject.AddComponent(Components.Camera);
               camera.SetPerspective(60, canvas.width / canvas.height, 0.5, 1e3);
               mainCameraGameObject.transform.position.set(0, 0, 5);
               mainCameraGameObject.transform.LookAt(new Mathf.Vector3(0, 0, 0));
-              new OrbitControls(canvas, camera);
+              mainCameraGameObject.AddComponent(OrbitControls);
               const lightGameObject = new GameObject();
               lightGameObject.transform.position.set(-10, 10, 10);
               lightGameObject.transform.LookAt(new Mathf.Vector3(0, 0, 0));
               lightGameObject.AddComponent(Components.DirectionalLight);
               const hdr = await HDRParser.Load("./assets/textures/HDR/autumn_field_puresky_1k.hdr");
               const skyTexture = await HDRParser.ToCubemap(hdr);
-              const environment = new Environment(scene, skyTexture);
-              await environment.init();
+              const iblLightingPass = Runtime.Renderer.RenderPipeline.AddPass(IBLLightingPass, GPU.RenderPassOrder.AfterLighting);
+              const skyboxPass = Runtime.Renderer.RenderPipeline.AddPass(SkyboxPass, GPU.RenderPassOrder.AfterLighting);
+              iblLightingPass.SetEnvironment(skyTexture);
+              skyboxPass.SetSkybox(skyTexture);
               const model = await GLTFLoader.Load("./assets/models/bunny.glb", scene);
               const material = new PBRMaterial({ albedoMap: await GPU.Texture.Load("./assets/textures/T_OmniDebugTexture_COL.jpg"), roughness: 1, metalness: 0, alphaCutoff: 0.1 });
               console.log("model", model);
@@ -66,27 +69,39 @@
               }
               geometry.ComputeBoundingVolume();
               geometry = geometry.Center();
+              function MakeInstanced(instancedMesh, rotation, scale) {
+                const p = new Mathf.Vector3();
+                const q = new Mathf.Quaternion();
+                const s = new Mathf.Vector3(1, 1, 1);
+                const m = new Mathf.Matrix4();
+                const c = 100;
+                const off = 10;
+                const half = c * off * 0.5;
+                let i = 0;
+                const matrices = new Float32Array(c * c * c * 16);
+                for (let x = 0; x < c; x++) {
+                  for (let y = 0; y < c; y++) {
+                    for (let z = 0; z < c; z++) {
+                      p.set(x * off - half, y * off - half, z * off - half);
+                      m.compose(p, q, s);
+                      matrices.set(m.elements, i * 16);
+                      i++;
+                    }
+                  }
+                }
+                instancedMesh.SetMatricesBulk(matrices);
+              }
               {
                 Runtime.Renderer.RenderPipeline.AddPass(new MeshletDraw(), GPU.RenderPassOrder.BeforeGBuffer);
                 geometry.ComputeNormals();
                 geometry.ComputeTangents();
-                const c = 50;
-                const off = 10;
-                const half = c * off * 0.5;
-                for (let x = 0; x < c; x++) {
-                  for (let y = 0; y < c; y++) {
-                    for (let z = 0; z < c; z++) {
-                      const go2 = new GameObject();
-                      const meshletB = go2.AddComponent(MeshletMesh);
-                      meshletB.transform.position.set(x * off - half, y * off - half, z * off - half);
-                      meshletB.geometry = geometry;
-                      meshletB.material = material;
-                    }
-                  }
-                }
+                const go = new GameObject();
+                const meshletGroup = go.AddComponent(InstancedMeshletMesh);
+                meshletGroup.geometry = geometry;
+                meshletGroup.material = material;
+                MakeInstanced(meshletGroup);
               }
               Debugger.Enable();
-              Runtime.Play();
             }
             Application(document.querySelector("canvas"));
             

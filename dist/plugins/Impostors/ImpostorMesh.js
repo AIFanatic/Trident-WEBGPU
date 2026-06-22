@@ -1,774 +1,230 @@
-import { Components, Scene, GPU, GameObject, PBRMaterial, Mathf, Geometry, Runtime } from '@trident/core';
+import { Components, GameObject, GPU, Mathf, Runtime, Geometry } from '@trident/core';
+import { MeshBaker } from './MeshBaker.js';
 
 class ImpostorMesh extends Components.Mesh {
-  Cutoff = 0.2;
-  albedoTexture;
-  normalTexture;
-  async Create(_geometry, material, atlasResolution = 2048, atlasTiles = 12) {
-    console.log("material.params.albedoMap", material.params.albedoMap);
-    let geometry = _geometry;
-    geometry = geometry.Center();
-    geometry.ComputeBoundingVolume();
-    const originalRadius = geometry.boundingVolume.radius;
-    const fitPadding = 1.08;
-    const fitRadius = originalRadius * fitPadding;
-    const camDistance = fitRadius * 2;
-    new Scene(GPU.Renderer.activeRenderer);
-    const gameObject = new GameObject();
-    const camera = gameObject.AddComponent(Components.Camera);
-    camera.SetOrthographic(-fitRadius, fitRadius, fitRadius, -fitRadius, 1e-3, camDistance + fitRadius * 2);
-    const impostorObjects = [];
-    const shader = await GPU.Shader.Create({
-      code: `
-                struct VertexInput {
-                    @location(0) position : vec3<f32>,
-                    @location(1) normal : vec3<f32>,
-                    @location(2) uv : vec2<f32>,
-                };
-        
-                struct VertexOutput {
-                    @builtin(position) position : vec4<f32>,
-                    @location(0) vUv : vec2<f32>,
-                    @location(1) vNormal : vec3<f32>,
-                    @location(2) depth : f32,
-                };
-        
-                @group(0) @binding(0) var<storage, read> projectionMatrix: mat4x4<f32>;
-                @group(0) @binding(1) var<storage, read> viewMatrix: mat4x4<f32>;
-                @group(0) @binding(2) var<storage, read> renderNormal: f32;
-
-                
-                @group(0) @binding(3) var<storage, read> albedoColor: vec4<f32>;
-                @group(0) @binding(4) var albedoMap: texture_2d<f32>;
-                @group(0) @binding(5) var normalMap: texture_2d<f32>;
-                @group(0) @binding(6) var textureSampler: sampler;
-
-                @group(0) @binding(7) var<storage, read> modelMatrix: mat4x4<f32>;
-                @group(0) @binding(8) var<storage, read> cameraFar: f32;
-        
-                @vertex fn vertexMain(input: VertexInput) -> VertexOutput {
-                    var output: VertexOutput;
-                    output.position = projectionMatrix * viewMatrix * modelMatrix * vec4(input.position, 1.0);
-                    output.vUv = input.uv;
-                    output.vNormal = input.normal;
-                    var _ProjectionParams_w = 1.0 / ${fitRadius * 2};
-                    let depth = -(viewMatrix * modelMatrix * vec4(input.position, 1.0)).z / _ProjectionParams_w;
-
-                    output.depth = depth;
-                   
-                    return output;
-                }
-                
-                @fragment fn fragmentMain(input: VertexOutput) -> @location(0) vec4f {
-                    if (renderNormal > 0.5) {
-                        // return vec4(vec3(input.vNormal * vec3(-1.0, 1.0, 1.0)) * 0.5 + 0.5, input.depth);
-                        
-                        
-                        #if USE_NORMAL_MAP
-                            let n = textureSample(normalMap, textureSampler, input.vUv).rgb;
-                            return vec4(n, input.depth);
-                        #else
-                            let n = input.vNormal;
-                        #endif
-                        return vec4(vec3(n * vec3(1.0, -1.0, 1.0)) * 0.5 + 0.5, input.depth);
-                    }
-    
-                    var color = albedoColor;
-                    #if USE_ALBEDO_MAP
-                        color = textureSample(albedoMap, textureSampler, input.vUv);
-
-                        let _Cutoff = ${this.Cutoff};
-                        let cutoff = saturate( pow(color.a, _Cutoff) );
-                        if (cutoff <= _Cutoff) {
-                            discard;
-                        }
-                    #endif
-    
-                    return color;
-                }
-                `,
-      colorOutputs: [{ format: "rgba16float" }],
-      defines: {
-        USE_ALBEDO_MAP: material?.params.albedoMap ? true : false,
-        USE_NORMAL_MAP: material?.params.normalMap ? true : false
-      }
-    });
-    shader.SetSampler("textureSampler", new GPU.TextureSampler());
-    if (material) {
-      if (material.params.albedoColor) shader.SetArray("albedoColor", material.params.albedoColor.elements);
-      if (material.params.albedoMap) shader.SetTexture("albedoMap", material.params.albedoMap);
-      if (material.params.normalMap) shader.SetTexture("normalMap", material.params.normalMap);
+  atlasAlbedo;
+  atlasNormal;
+  atlasERMO;
+  originalBounds;
+  async Create(meshes, atlasResolution = 2048, atlasTiles = 16) {
+    if (meshes.length === 0) throw Error("ImpostorMesh.Create needs at least one mesh");
+    await MeshBaker.awaitShaders(meshes);
+    this.originalBounds = MeshBaker.computeBounds(meshes);
+    const { radius: R, center } = this.originalBounds;
+    const cameraDist = R;
+    const camera = new GameObject().AddComponent(Components.Camera);
+    camera.SetOrthographic(-R, R, -R, R, cameraDist - R, cameraDist + R);
+    const fmt = GPU.RenderingPipeline.GBufferFormat;
+    const atlasAlbedo = GPU.RenderTexture.Create(atlasResolution, atlasResolution, 1, fmt);
+    const atlasNormal = GPU.RenderTexture.Create(atlasResolution, atlasResolution, 1, fmt);
+    const atlasERMO = GPU.RenderTexture.Create(atlasResolution, atlasResolution, 1, fmt);
+    const atlasDepth = GPU.DepthTexture.Create(atlasResolution, atlasResolution);
+    const modelData = new Float32Array(meshes.length * 16);
+    for (let i = 0; i < meshes.length; i++) {
+      modelData.set(this.getCenteredMatrix(meshes[i], center).elements, i * 16);
     }
-    console.warn("Depth still has some issues");
-    const m = new PBRMaterial();
-    m.shader = shader;
-    impostorObjects.push({ material: m, geometry });
-    console.log(impostorObjects[impostorObjects.length - 1]);
-    const frameSize = atlasResolution / atlasTiles;
-    const albedoTexture = GPU.RenderTexture.Create(atlasResolution, atlasResolution, 1, "rgba16float");
-    const normalTexture = GPU.RenderTexture.Create(atlasResolution, atlasResolution, 1, "rgba16float");
-    const frames = atlasTiles;
-    const imposterPosition = new Mathf.Vector3();
-    const framesMinusOne = frames - 1;
-    for (var x = 0; x < frames; x++) {
-      for (var y = 0; y < frames; y++) {
-        var vec = new Mathf.Vector2(
-          x / framesMinusOne * 2 - 1,
-          y / framesMinusOne * 2 - 1
-        );
-        const normal = this.OctahedralCoordToVector(vec);
-        const direction = normal.clone().normalize();
-        const position = imposterPosition.clone().sub(direction.mul(camDistance));
-        camera.transform.position.copy(position);
-        camera.transform.LookAt(new Mathf.Vector3(0, 0, 0));
+    const tileSize = atlasResolution / atlasTiles;
+    const gridMax = atlasTiles - 1;
+    const dir = new Mathf.Vector3();
+    const targets = { albedo: atlasAlbedo, normal: atlasNormal, ermo: atlasERMO, depth: atlasDepth };
+    for (let x = 0; x < atlasTiles; x++) {
+      for (let y = 0; y < atlasTiles; y++) {
+        this.gridToDir(x, y, gridMax, dir);
+        camera.transform.position.copy(dir).mul(cameraDist);
+        camera.transform.LookAt(new Mathf.Vector3());
         camera.transform.Update();
         camera.Update();
-        for (const object of impostorObjects) {
-          if (!object.material || !object.geometry) continue;
-          object.material.shader.SetValue("renderNormal", 1);
-          this.renderByPosition(normalTexture, x * frameSize, y * frameSize, frameSize, frameSize, camera, object);
-          object.material.shader.SetValue("renderNormal", 0);
-          this.renderByPosition(albedoTexture, x * frameSize, y * frameSize, frameSize, frameSize, camera, object);
-        }
+        MeshBaker.Bake(
+          meshes,
+          modelData,
+          camera,
+          targets,
+          { x: x * tileSize, y: y * tileSize, width: tileSize, height: tileSize },
+          false
+        );
       }
     }
-    await this.createImpostorMesh(atlasTiles, albedoTexture, normalTexture, fitRadius);
-    this.albedoTexture = albedoTexture;
-    this.normalTexture = normalTexture;
+    atlasDepth.Destroy();
+    await this.buildRuntimeMaterial(atlasTiles, atlasAlbedo, atlasNormal, atlasERMO);
+    this.atlasAlbedo = atlasAlbedo;
+    this.atlasNormal = atlasNormal;
+    this.atlasERMO = atlasERMO;
+    this.atlasAlbedo.GenerateMips();
+    this.atlasERMO.GenerateMips();
+    camera.Destroy();
   }
-  OctahedralCoordToVector(f) {
-    function clamp(value, min, max) {
-      return Math.max(min, Math.min(max, value));
-    }
-    var n = new Mathf.Vector3(f.x, 1 - Math.abs(f.x) - Math.abs(f.y), f.y);
-    var t = clamp(-n.y, 0, 1);
-    n.x += n.x >= 0 ? -t : t;
-    n.z += n.z >= 0 ? -t : t;
-    return n;
+  getCenteredMatrix(mesh, center) {
+    const matrix = mesh.transform.localToWorldMatrix.clone();
+    matrix.elements[12] -= center.x;
+    matrix.elements[13] -= center.y;
+    matrix.elements[14] -= center.z;
+    return matrix;
   }
-  renderByPosition(renderTexture, x, y, w, h, camera, object) {
-    if (!object.material || !object.geometry) return;
-    const p = new Mathf.Vector3(0, 0, 0);
-    const q = new Mathf.Quaternion(0, 0, 0);
-    const s = new Mathf.Vector3(1, 1, 1);
-    const modelMatrix = new Mathf.Matrix4();
-    modelMatrix.compose(p, q, s);
-    object.material.shader.SetMatrix4("projectionMatrix", camera.projectionMatrix);
-    object.material.shader.SetMatrix4("viewMatrix", camera.viewMatrix);
-    object.material.shader.SetMatrix4("modelMatrix", modelMatrix);
-    object.material.shader.SetValue("cameraFar", camera.far);
-    GPU.Renderer.BeginRenderFrame();
-    GPU.RendererContext.BeginRenderPass("Impostor creator", [{ target: renderTexture, clear: false }]);
-    GPU.RendererContext.SetViewport(x, y, w, h);
-    GPU.RendererContext.SetScissor(x, y, w, h);
-    GPU.RendererContext.DrawGeometry(object.geometry, object.material.shader);
-    GPU.RendererContext.EndRenderPass();
-    GPU.Renderer.EndRenderFrame();
+  gridToDir(i, j, gridMax, out) {
+    const gx = i / gridMax;
+    const gy = j / gridMax;
+    const px = gx - gy;
+    const pz = gx + gy - 1;
+    const py = 1 - Math.abs(px) - Math.abs(pz);
+    return out.set(px, py, pz).normalize();
   }
-  async createImpostorMesh(atlasTiles, albedoTexture, normalTexture, fitRadius) {
-    const geometry = Geometry.Plane();
-    const gBufferFormat = Runtime.Renderer.RenderPipeline.GBufferFormat;
-    const orthoMethods = `
-        // http://jcgt.org/published/0003/02/01/paper.pdf
-        // A Survey of Efficient Representations for Independent Unit Vectors 
-        fn sign_not_zero(v: vec2f) -> vec2f
-        {
-            return sign(v);
-            // return vec2((v.x >= 0.f) ? 1.f : -1.f, (v.y >= 0.f) ? 1.f : -1.f);
-        }
-
-        fn VecToSphereOct(_vec: vec3f) -> vec2f {
-            var vec = normalize(_vec);
-            var absVec = abs(vec);
-            var sum = absVec.x + absVec.y + absVec.z;
-            vec /= sum;
-        
-            var v = vec.xz;
-        
-            if (vec.y < 0.0) {
-                v = (1.0 - abs(v.yx)) * sign(v.xy);
-            }
-        
-            return v;
-        }
-
-        fn OctaSphereEnc( coord: vec2f ) -> vec3f {
-            var vec = vec3f(coord.x, 1.0 - abs(coord.x) - abs(coord.y), coord.y);
-            if ( vec.y < 0.0 ) {
-                var signVec = vec2f(sign(vec.x), sign(vec.z));
-                vec.x = (1.0 - abs(vec.z)) * signVec.x;
-                vec.z = (1.0 - abs(vec.x)) * signVec.y;
-            }
-            return vec;
-        }
-        `;
-    const impostorShaderCommon = `
-        const _ImposterOffset = vec3f(0, 0, 0);
-        const _ImposterFrames: f32 = ${atlasTiles};
-        const _ImposterSize = vec2f(${fitRadius});
-        const _ImposterFullSphere = true;
-        const _Cutoff: f32 = ${this.Cutoff};
-        const _ImposterBorderClamp = 2.0;
-
-        const textureScale = vec2f(1.0, 1.0);
-
-        fn inverse(m: mat4x4f) -> mat4x4f {
-            // let a00 = m[0][0]; let a01 = m[0][1]; let a02 = m[0][2]; let a03 = m[0][3];
-            // let a10 = m[1][0]; let a11 = m[1][1]; let a12 = m[1][2]; let a13 = m[1][3];
-            // let a20 = m[2][0]; let a21 = m[2][1]; let a22 = m[2][2]; let a23 = m[2][3];
-            // let a30 = m[3][0]; let a31 = m[3][1]; let a32 = m[3][2]; let a33 = m[3][3];
-            
-            let a00 = m[0][0]; let a01 = m[1][0]; let a02 = m[2][0]; let a03 = m[3][0];
-            let a10 = m[0][1]; let a11 = m[1][1]; let a12 = m[2][1]; let a13 = m[3][1];
-            let a20 = m[0][2]; let a21 = m[1][2]; let a22 = m[2][2]; let a23 = m[3][2];
-            let a30 = m[0][3]; let a31 = m[1][3]; let a32 = m[2][3]; let a33 = m[3][3];
-
-            let b00 = a00 * a11 - a01 * a10;
-            let b01 = a00 * a12 - a02 * a10;
-            let b02 = a00 * a13 - a03 * a10;
-            let b03 = a01 * a12 - a02 * a11;
-            let b04 = a01 * a13 - a03 * a11;
-            let b05 = a02 * a13 - a03 * a12;
-            let b06 = a20 * a31 - a21 * a30;
-            let b07 = a20 * a32 - a22 * a30;
-            let b08 = a20 * a33 - a23 * a30;
-            let b09 = a21 * a32 - a22 * a31;
-            let b10 = a21 * a33 - a23 * a31;
-            let b11 = a22 * a33 - a23 * a32;
-            let det = b00 * b11 - b01 * b10 + b02 * b09 + b03 * b08 - b04 * b07 + b05 * b06;
-            return mat4x4f(
-                a11 * b11 - a12 * b10 + a13 * b09,
-                a02 * b10 - a01 * b11 - a03 * b09,
-                a31 * b05 - a32 * b04 + a33 * b03,
-                a22 * b04 - a21 * b05 - a23 * b03,
-                a12 * b08 - a10 * b11 - a13 * b07,
-                a00 * b11 - a02 * b08 + a03 * b07,
-                a32 * b02 - a30 * b05 - a33 * b01,
-                a20 * b05 - a22 * b02 + a23 * b01,
-                a10 * b10 - a11 * b08 + a13 * b06,
-                a01 * b08 - a00 * b10 - a03 * b06,
-                a30 * b04 - a31 * b02 + a33 * b00,
-                a21 * b02 - a20 * b04 - a23 * b00,
-                a11 * b07 - a10 * b09 - a12 * b06,
-                a00 * b09 - a01 * b07 + a02 * b06,
-                a31 * b01 - a30 * b03 - a32 * b00,
-                a20 * b03 - a21 * b01 + a22 * b00) * (1 / det);
-        }
-
-        struct ImposterData
-        {
-            instanceIdx: u32,
-            uv: vec2f,
-            grid: vec2f,
-            frame0: vec4f,
-            frame1: vec4f,
-            frame2: vec4f,
-            vertex: vec4f,
-            debugParam: vec4f,
-        };
-
-        struct Ray
-        {
-            Origin: vec3f,
-            Direction: vec3f,
-        };
-
-
-        fn SpriteProjection( pivotToCameraRayLocal: vec3f, frames: f32, size: vec2f, coord: vec2f ) -> vec3f
-        {
-            var gridVec = pivotToCameraRayLocal;
-            
-            //octahedron vector, pivot to camera
-            var y = normalize(gridVec);
-            
-            var x = normalize( cross( y, vec3f(0.0, 1.0, 0.0) ) );
-            var z = normalize( cross( x, y ) );
-
-            var uv = ((coord*frames)-0.5) * 2.0; //-1 to 1 
-
-            var newX = x * uv.x;
-            var newZ = z * uv.y;
-            
-            var floatSize = size*0.5;
-            
-            newX *= floatSize.x;
-            newZ *= floatSize.y;
-            
-            var res = newX + newZ;  
-            
-            return res;
-        }
-
-        ${orthoMethods}
-
-        fn VectorToGrid( vec: vec3f ) -> vec2f
-        {
-            return VecToSphereOct(vec);
-        }
-
-        fn TriangleInterpolate( _uv: vec2f ) -> vec4f
-        {
-            var uv = fract(_uv);
-        
-            var omuv = vec2f(1.0,1.0) - uv.xy;
-            
-            var res = vec4f(0,0,0,0);
-            //frame 0
-            res.x = min(omuv.x,omuv.y); 
-            //frame 1
-            res.y = abs( dot( uv, vec2(1.0,-1.0) ) );
-            //frame 2
-            res.z = min(uv.x,uv.y); 
-            //mask
-            res.w = saturate(ceil(uv.x-uv.y));
-            
-            return res;
-        }
-
-        fn lerp(a: vec2f, b: vec2f, t: f32) -> vec2f {
-            return a + t * (b - a);
-        }
-
-        fn GridToVector( coord: vec2f ) -> vec3f
-        {
-            return OctaSphereEnc(coord);
-        }
-
-        //frame and framecout, returns 
-        fn FrameXYToRay( frame: vec2f, frameCountMinusOne: vec2f ) -> vec3f
-        {
-            //divide frame x y by framecount minus one to get 0-1
-            var f = frame.xy / frameCountMinusOne;
-            //bias and scale to -1 to 1
-            f = (f-0.5)*2.0; 
-            //convert to vector, either full sphere or hemi sphere
-            var vec = GridToVector( f );
-            vec = normalize(vec);
-            return vec;
-        }
-
-        fn ITBasis( vec: vec3f, basedX: vec3f, basedY: vec3f, basedZ: vec3f ) -> vec3f
-        {
-            return vec3f( dot(basedX,vec), dot(basedY,vec), dot(basedZ,vec) );
-        }
-
-        struct FrameTransformOut {
-            worldX: vec3f,
-            worldZ: vec3f,
-            ret: vec3f
-        };
-
-        fn FrameTransform( _projRay: vec3f, frameRay: vec3f, _worldX: vec3f, _worldZ: vec3f  ) -> FrameTransformOut
-        {
-            var out: FrameTransformOut;
-
-            //TODO something might be wrong here
-            var worldX = normalize( vec3(-frameRay.z, 0, frameRay.x) );
-            var worldZ = normalize( cross(worldX, frameRay ) ); 
-            
-            var projRay = _projRay * -1.0;
-            
-            var local = normalize( ITBasis( projRay, worldX, frameRay, worldZ ) );
-
-            out.worldX = worldX;
-            out.worldZ = worldZ;
-            out.ret = local;
-            return out;
-        }
-
-        fn VirtualPlaneUV( planeNormal: vec3f, planeX: vec3f, planeZ: vec3f, center: vec3f, uvScale: vec2f, rayLocal: Ray ) -> vec2f
-        {
-            var normalDotOrigin = dot(planeNormal,rayLocal.Origin);
-            var normalDotCenter = dot(planeNormal,center);
-            var normalDotRay = dot(planeNormal,rayLocal.Direction);
-            
-            var planeDistance = normalDotOrigin-normalDotCenter;
-            planeDistance *= -1.0;
-            
-            var intersect = planeDistance / normalDotRay;
-            
-            var intersection = ((rayLocal.Direction * intersect) + rayLocal.Origin) - center;
-            
-            var dx = dot(planeX,intersection);
-            var dz = dot(planeZ,intersection);
-            
-            var uv = vec2f(0,0);
-            
-            if ( intersect > 0.0 )
-            {
-                uv = vec2(dx,dz);
-            }
-            else
-            {
-                uv = vec2(0,0);
-            }
-            
-            uv /= uvScale;
-            uv += vec2(0.5,0.5);
-            return uv;
-        }
-
-
-
-
-
-
-        fn ImposterVertex( _imp: ImposterData ) -> ImposterData
-        {
-            var imp = _imp;
-            var _WorldSpaceCameraPos = frameBuffer.viewPosition.xyz;
-            var unity_ObjectToWorld = modelMatrix[imp.instanceIdx];
-            var unity_WorldToObject = inverse(unity_ObjectToWorld);
-
-            //incoming vertex, object space
-            var vertex = imp.vertex;
-            
-
-            var posX: f32 = unity_ObjectToWorld[3][0]; // X component of the translation
-            var posY: f32 = unity_ObjectToWorld[3][1]; // Y component of the translation
-            var posZ: f32 = unity_ObjectToWorld[3][2]; // Z component of the translation
-            var objectPos = vec3f(posX, posY, posZ);
-
-            var objectSpaceCameraPos = (unity_WorldToObject * vec4f(_WorldSpaceCameraPos.xyz - objectPos,1)).xyz;
-            var texcoord = imp.uv;
-            var objectToWorld = unity_ObjectToWorld;
-            var worldToObject = unity_WorldToObject;
-        
-            var imposterPivotOffset = _ImposterOffset.xyz;
-        
-            var framesMinusOne = _ImposterFrames-1;
-            
-            //pivot to camera ray
-            var pivotToCameraRay = normalize(objectSpaceCameraPos.xyz-imposterPivotOffset.xyz);
-        
-            //scale uv to single frame
-            texcoord = vec2f(texcoord.x,texcoord.y)*(1.0/vec2f(_ImposterFrames, _ImposterFrames));  
-            
-            //radius * 2 * unity scaling
-            var size = _ImposterSize.xx * 2.0; // * objectScale.xx; //unity_BillboardSize.xy                 
-            
-            var projected = SpriteProjection( pivotToCameraRay, _ImposterFrames, size, texcoord.xy );
-        
-            //this creates the proper offset for vertices to camera facing billboard
-            var vertexOffset = projected + imposterPivotOffset;
-            //subtract from camera pos 
-            vertexOffset = normalize(objectSpaceCameraPos-vertexOffset);
-            //then add the original projected world
-            vertexOffset += projected;
-            //remove position of vertex
-            vertexOffset -= vertex.xyz;
-            //add pivot
-            vertexOffset += imposterPivotOffset;
-        
-            //camera to projection vector
-            var rayDirectionLocal = (imposterPivotOffset + projected) - objectSpaceCameraPos;
-                         
-            //projected position to camera ray
-            var projInterpolated = normalize( objectSpaceCameraPos - (projected + imposterPivotOffset) ); 
-            
-            var rayLocal: Ray;
-            rayLocal.Origin = objectSpaceCameraPos-imposterPivotOffset; 
-            rayLocal.Direction = rayDirectionLocal; 
-            
-            var grid = VectorToGrid( pivotToCameraRay );
-            var gridRaw = grid;
-            grid = saturate((grid+1.0)*0.5); //bias and scale to 0 to 1 
-            grid *= framesMinusOne;
-            
-            var gridFrac = fract(grid);
-            
-            var gridFloor = floor(grid);
-            
-            var weights = TriangleInterpolate( gridFrac ); 
-            
-            //3 nearest frames
-            var frame0 = gridFloor;
-            var frame1 = gridFloor + lerp(vec2f(0,1),vec2f(1,0),weights.w);
-            var frame2 = gridFloor + vec2f(1,1);
-            
-            //convert frame coordinate to octahedron direction
-            var frame0ray = FrameXYToRay(frame0, vec2f(framesMinusOne));
-            var frame1ray = FrameXYToRay(frame1, vec2f(framesMinusOne));
-            var frame2ray = FrameXYToRay(frame2, vec2f(framesMinusOne));
-            
-
-
-
-
-
-            var planeCenter = vec3f(0,0,0);
-            
-            var plane0x: vec3f;
-            var plane0normal = frame0ray;
-            var plane0z: vec3f;
-            var frame0local = FrameTransform( projInterpolated, frame0ray, plane0x, plane0z );
-            plane0x = frame0local.worldX;
-            plane0z = frame0local.worldZ;
-            frame0local.ret.x = frame0local.ret.x/_ImposterFrames; //for displacement
-            frame0local.ret.z = frame0local.ret.z/_ImposterFrames; //for displacement
-            // frame0local.xz = frame0local.xz/_ImposterFrames.xx; //for displacement
-            
-            //virtual plane UV coordinates
-            var vUv0 = VirtualPlaneUV( plane0normal, plane0x, plane0z, planeCenter, size, rayLocal );
-            vUv0 /= _ImposterFrames;
-            
-            var plane1x: vec3f; 
-            var plane1normal = frame1ray;
-            var plane1z: vec3f;
-            var frame1local = FrameTransform( projInterpolated, frame1ray, plane1x, plane1z);
-            plane1x = frame1local.worldX;
-            plane1z = frame1local.worldZ;
-            frame1local.ret.x = frame1local.ret.x/_ImposterFrames; //for displacement
-            frame1local.ret.z = frame1local.ret.z/_ImposterFrames; //for displacement
-            // frame1local.xz = frame1local.xz/_ImposterFrames.xx; //for displacement
-            
-            //virtual plane UV coordinates
-            var vUv1 = VirtualPlaneUV( plane1normal, plane1x, plane1z, planeCenter, size, rayLocal );
-            vUv1 /= _ImposterFrames;
-            
-            var plane2x: vec3f;
-            var plane2normal = frame2ray;
-            var plane2z: vec3f;
-            var frame2local = FrameTransform( projInterpolated, frame2ray, plane2x, plane2z );
-            plane2x = frame2local.worldX;
-            plane2z = frame2local.worldZ;
-            frame2local.ret.x = frame2local.ret.x/_ImposterFrames; //for displacement
-            frame2local.ret.z = frame2local.ret.z/_ImposterFrames; //for displacement
-            // frame2local.xz = frame2local.xz/_ImposterFrames.xx; //for displacement
-            
-            //virtual plane UV coordinates
-            var vUv2 = VirtualPlaneUV( plane2normal, plane2x, plane2z, planeCenter, size, rayLocal );
-            vUv2 /= _ImposterFrames;
-            
-            //add offset here
-            // imp.vertex.xyz += vertexOffset;
-            imp.vertex += vec4f(vertexOffset, 0.0);
-            //overwrite others
-            imp.uv = texcoord;
-            imp.grid = grid;
-            imp.frame0 = vec4f(vUv0.xy,frame0local.ret.xz);
-            imp.frame1 = vec4f(vUv1.xy,frame1local.ret.xz);
-            imp.frame2 = vec4f(vUv2.xy,frame2local.ret.xz);
-            imp.debugParam = vec4f(imp.frame0.zw, 0, 0);
-
-            return imp;
-        }
-
-        fn ImposterBlendWeights( tex: texture_2d<f32>, uv: vec2f, frame0: vec2f, frame1: vec2f, frame2: vec2f, weights: vec4f, ddxy: vec2f ) -> vec4f
-        {    
-            var ddx_vp0uv = dpdx(frame0);
-            var ddy_vp0uv = dpdy(frame0);
-
-            let ddx_vp1uv = dpdx(frame1);
-            let ddy_vp1uv = dpdy(frame1);
-            
-            let ddx_vp2uv = dpdx(frame2);
-            let ddy_vp2uv = dpdy(frame2);
-
-            let samp0 = textureSampleGrad( tex, textureSampler, frame0 * textureScale, ddx_vp0uv, ddy_vp0uv );
-            let samp1 = textureSampleGrad( tex, textureSampler, frame1 * textureScale, ddx_vp1uv, ddy_vp1uv );
-            let samp2 = textureSampleGrad( tex, textureSampler, frame2 * textureScale, ddx_vp2uv, ddy_vp2uv );
-
-            let result = samp0*weights.x + samp1*weights.y + samp2*weights.z;
-            
-            return samp0;
-        }
-
-
-        struct ImpostorSamplerRet {
-            baseTex: vec4f,
-            worldNormal: vec4f,
-            debugParam: vec4f
-        };
-
-        fn ImposterSample( imp: ImposterData) -> ImpostorSamplerRet //, out half depth )
-        {
-            var _ImposterBaseTex_Size = vec2f(textureDimensions(albedoTexture, 0));
-
-            var _ImposterBaseTex_TexelSize = vec4f(
-                1.0 / _ImposterBaseTex_Size.x,
-                1.0 / _ImposterBaseTex_Size.y,
-                _ImposterBaseTex_Size.x,
-                _ImposterBaseTex_Size.y
-            );
-
-            var out: ImpostorSamplerRet;
-            var fracGrid = fract(imp.grid);
-            
-            var weights = TriangleInterpolate( fracGrid );
-              
-            var gridSnap = floor(imp.grid) / vec2f(_ImposterFrames);
-                
-            var frame0 = gridSnap;
-            var frame1 = gridSnap + (lerp(vec2f(0,1),vec2f(1,0),weights.w)/vec2f(_ImposterFrames));
-            var frame2 = gridSnap + (vec2f(1,1)/vec2f(_ImposterFrames));
-        
-            let vp0uv = frame0 + imp.frame0.xy;
-            let vp1uv = frame1 + imp.frame1.xy; 
-            let vp2uv = frame2 + imp.frame2.xy;
-            
-            var ddxy = vec2f( dpdx(imp.uv.x), dpdy(imp.uv.y) );
-
-            var worldNormal = ImposterBlendWeights( normalTexture, imp.uv, vp0uv, vp1uv, vp2uv, weights, ddxy );
-            var baseTex = ImposterBlendWeights( albedoTexture, imp.uv, vp0uv, vp1uv, vp2uv, weights, ddxy );
-
-            out.baseTex = baseTex;
-            out.worldNormal = worldNormal;
-            out.debugParam = vec4f(vp1uv.xy, 0, 0);
-
-            return out;
-        }
-        `;
+  async buildRuntimeMaterial(atlasTiles, atlasAlbedo, atlasNormal, atlasERMO) {
+    const fmt = Runtime.Renderer.RenderPipeline.GBufferFormat;
     const shader = await GPU.Shader.Create({
       code: `
-            #include "@trident/core/resources/webgpu/shaders/deferred/Common.wgsl";
+                #include "@trident/core/resources/webgpu/shaders/deferred/Common.wgsl";
 
-            ${impostorShaderCommon}
+                const _ImposterFrames : f32 = ${atlasTiles};
 
-            struct VertexInput {
-                @builtin(instance_index) instanceIdx : u32,
-                @location(0) position : vec3<f32>,
-                @location(1) normal : vec3<f32>,
-                @location(2) uv : vec2<f32>,
-            };
-    
-            struct VertexOutput {
-                @builtin(position) position : vec4<f32>,
-                @location(0) vUv : vec2<f32>,
-                @location(1) vNormal : vec3<f32>,
-                @location(2) cameraPos_OS : vec3<f32>,
+                struct VertexInput {
+                    @builtin(instance_index) instanceIdx : u32,
+                    @location(0) position : vec3<f32>,
+                    @location(1) normal   : vec3<f32>,
+                    @location(2) uv       : vec2<f32>,
+                };
+                struct VertexOutput {
+                    @builtin(position) position : vec4<f32>,
+                    @location(0) tile     : vec2<f32>,
+                    @location(1) uv       : vec2<f32>,
+                    @location(2) centerWS : vec3<f32>,
+                    @location(3) @interpolate(flat) instanceIdx : u32,
+                };
 
-                @location(3) texCoord : vec4<f32>,
-                @location(4) plane0 : vec4<f32>,
-                @location(5) plane1 : vec4<f32>,
-                @location(6) plane2 : vec4<f32>,
-                @location(7) debugParam : vec4<f32>,
-                
-                @location(8) @interpolate(flat) instanceIdx : u32,
-            };
-    
-            @group(0) @binding(0) var<storage, read> frameBuffer: FrameBuffer;
+                @group(0) @binding(0) var<storage, read> frameBuffer    : FrameBuffer;
+                @group(0) @binding(1) var<storage, read> modelMatrix    : array<mat4x4<f32>>;
+                @group(0) @binding(2) var                textureSampler : sampler;
+                @group(0) @binding(3) var                atlasAlbedo    : texture_2d<f32>;
+                @group(0) @binding(4) var                atlasNormal    : texture_2d<f32>;
+                @group(0) @binding(5) var                atlasERMO      : texture_2d<f32>;
+                @group(0) @binding(6) var<storage, read> originalBounds : vec4<f32>;
 
-            @group(0) @binding(1) var<storage, read> modelMatrix: array<mat4x4<f32>>;
-            
-            @group(0) @binding(2) var textureSampler: sampler;
-            @group(0) @binding(3) var albedoTexture: texture_2d<f32>;
-            @group(0) @binding(4) var normalTexture: texture_2d<f32>;
-            @group(0) @binding(5) var<storage, read> atlasTiles: f32;
-            @group(0) @binding(6) var textSDFTexture: texture_2d<f32>;
-
-            @group(0) @binding(7) var normalTexture2: texture_2d<f32>;
-
-            @vertex fn vertexMain(input: VertexInput) -> VertexOutput {
-                var output: VertexOutput;
-
-                var imp: ImposterData;
-                imp.vertex = vec4(input.position.xyz, 1.0);
-                imp.uv = input.uv;
-                imp.instanceIdx = input.instanceIdx;
-
-                imp = ImposterVertex(imp);
-                var modelMatrixInstance = modelMatrix[input.instanceIdx];
-                var modelViewMatrix = frameBuffer.viewMatrix * modelMatrixInstance;
-                output.position = frameBuffer.projectionMatrix * modelViewMatrix * imp.vertex;
-                output.vUv = input.uv;
-
-                output.texCoord = vec4f(imp.uv, imp.grid);
-                output.plane0 = imp.frame0;
-                output.plane1 = imp.frame1;
-                output.plane2 = imp.frame2;
-                output.debugParam = imp.debugParam;
-                output.instanceIdx = input.instanceIdx;
-
-                return output;
-            }
-            
-            struct FragmentOutput {
-                @location(0) albedo : vec4f,
-                @location(1) normal : vec4f,
-                @location(2) RMO : vec4f,
-            };
-
-            fn c1(input: VertexOutput) -> FragmentOutput {
-                var output: FragmentOutput;
-
-                var color0 = textureSample(normalTexture, textureSampler, input.vUv);
-                var color1 = textureSample(normalTexture2, textureSampler, input.vUv);
-                var color001 = vec4(0.0);
-                if (input.vUv.x > 0.5) {
-                    color001 = color1;
-                }
-                else {
-                    color001 = color0;
+                fn inverse(m: mat4x4f) -> mat4x4f {
+                    let a00 = m[0][0]; let a01 = m[1][0]; let a02 = m[2][0]; let a03 = m[3][0];
+                    let a10 = m[0][1]; let a11 = m[1][1]; let a12 = m[2][1]; let a13 = m[3][1];
+                    let a20 = m[0][2]; let a21 = m[1][2]; let a22 = m[2][2]; let a23 = m[3][2];
+                    let a30 = m[0][3]; let a31 = m[1][3]; let a32 = m[2][3]; let a33 = m[3][3];
+                    let b00 = a00*a11 - a01*a10; let b01 = a00*a12 - a02*a10;
+                    let b02 = a00*a13 - a03*a10; let b03 = a01*a12 - a02*a11;
+                    let b04 = a01*a13 - a03*a11; let b05 = a02*a13 - a03*a12;
+                    let b06 = a20*a31 - a21*a30; let b07 = a20*a32 - a22*a30;
+                    let b08 = a20*a33 - a23*a30; let b09 = a21*a32 - a22*a31;
+                    let b10 = a21*a33 - a23*a31; let b11 = a22*a33 - a23*a32;
+                    let det = b00*b11 - b01*b10 + b02*b09 + b03*b08 - b04*b07 + b05*b06;
+                    return mat4x4f(
+                        a11*b11 - a12*b10 + a13*b09,  a02*b10 - a01*b11 - a03*b09,
+                        a31*b05 - a32*b04 + a33*b03,  a22*b04 - a21*b05 - a23*b03,
+                        a12*b08 - a10*b11 - a13*b07,  a00*b11 - a02*b08 + a03*b07,
+                        a32*b02 - a30*b05 - a33*b01,  a20*b05 - a22*b02 + a23*b01,
+                        a10*b10 - a11*b08 + a13*b06,  a01*b08 - a00*b10 - a03*b06,
+                        a30*b04 - a31*b02 + a33*b00,  a21*b02 - a20*b04 - a23*b00,
+                        a11*b07 - a10*b09 - a12*b06,  a00*b09 - a01*b07 + a02*b06,
+                        a31*b01 - a30*b03 - a32*b00,  a20*b03 - a21*b01 + a22*b00,
+                    ) * (1.0 / det);
                 }
 
-                var t = 0.0;
-                if (color001.a > 0.999) {
-                    t = 1.0;
+                fn encodeDirection(d: vec3<f32>) -> vec2<f32> {
+                    let oct = d / dot(d, sign(d));
+                    return vec2<f32>(1.0 + oct.x + oct.z, 1.0 + oct.z - oct.x) * 0.5;
                 }
-                output.albedo = vec4(vec3(color001.a, t, 0 ), 1.0);
-                // output.albedo = vec4(vec3(color0.r, color1.r, 0), 1.0);
-                output.normal = vec4(1.0);
-                output.RMO = vec4(1.0);
-                return output;
-            }
-
-            fn c3(input: VertexOutput) -> FragmentOutput {
-                var output: FragmentOutput;
-                
-                var imp: ImposterData;
-                //set inputs
-                imp.uv = input.texCoord.xy;
-                imp.grid = input.texCoord.zw;
-                imp.frame0 = input.plane0;
-                imp.frame1 = input.plane1;
-                imp.frame2 = input.plane2;
-
-
-
-
-
-
-                var out = ImposterSample(imp);
-                var baseTex: vec4f = out.baseTex;
-                var normalTex: vec4f = out.worldNormal;
-                
-                baseTex.a = saturate( pow(baseTex.a,_Cutoff) );
-                if (baseTex.a <= _Cutoff) {
-                    discard;
+                fn decodeDirection(grid: vec2<f32>, gridMax: vec2<f32>) -> vec3<f32> {
+                    let g = grid / gridMax;
+                    var p = vec3<f32>(g.x - g.y, 0.0, g.x + g.y - 1.0);
+                    p.y = 1.0 - abs(p.x) - abs(p.z);
+                    return normalize(p);
+                }
+                fn planeBasis(n: vec3<f32>) -> mat2x3<f32> {
+                    var up = vec3<f32>(0.0, 1.0, 0.0);
+                    if (abs(n.y) > 0.999) { up = vec3<f32>(1.0, 0.0, 0.0); }
+                    let t = normalize(cross(up, n));
+                    return mat2x3<f32>(t, cross(n, t));
+                }
+                fn projectToPlaneUV(n: vec3<f32>, basis: mat2x3<f32>, camDir: vec3<f32>, vertexLocal: vec3<f32>) -> vec2<f32> {
+                    let denom = dot(camDir, n);
+                    let hit = vertexLocal - camDir * (dot(vertexLocal, n) / denom);
+                    return vec2<f32>(
+                        0.5 + dot(basis[0], hit) * 0.5,
+                        0.5 - dot(basis[1], hit) * 0.5
+                    );
                 }
 
-                //scale world normal back to -1 to 1
-                var worldNormal = normalTex.xyz*2-1;
-                
-                //this works but not ideal
-                var unity_ObjectToWorld = modelMatrix[input.instanceIdx];
-                worldNormal = (unity_ObjectToWorld * vec4f(worldNormal, 0)).xyz;
+                @vertex fn vertexMain(input: VertexInput) -> VertexOutput {
+                    var output: VertexOutput;
+                    let model = modelMatrix[input.instanceIdx];
 
-                output.albedo = vec4(baseTex.rgb, 1.0);
-                output.normal = vec4(OctEncode(worldNormal.xyz), 0.0, 0.0);
-                output.RMO = vec4(vec3(0), 0.0);
+                    let boundsMat = mat4x4f(
+                        vec4f(originalBounds.w, 0.0, 0.0, 0.0),
+                        vec4f(0.0, originalBounds.w, 0.0, 0.0),
+                        vec4f(0.0, 0.0, originalBounds.w, 0.0),
+                        vec4f(originalBounds.x, originalBounds.y, originalBounds.z, 1.0),
+                    );
+                    let objectToWorld = model * boundsMat;
 
-                return output;
-            }
+                    let camLocal = (inverse(objectToWorld) * vec4<f32>(frameBuffer.viewPosition.xyz, 1.0)).xyz;
+                    let camDir = normalize(camLocal);
 
-            @fragment fn fragmentMain(input: VertexOutput) -> FragmentOutput {
-                return c3(input);
-            }
-            `,
-      colorOutputs: [{ format: gBufferFormat }, { format: gBufferFormat }, { format: gBufferFormat }],
+                    let basisCam  = planeBasis(camDir);
+                    let projected = basisCam[0] * input.position.x + basisCam[1] * input.position.y;
+
+                    let gridMax = vec2<f32>(_ImposterFrames - 1.0);
+                    let grid    = encodeDirection(camDir) * gridMax;
+                    let gFloor  = min(floor(grid), gridMax);
+
+                    let n1  = decodeDirection(gFloor, gridMax);
+                    let uv1 = projectToPlaneUV(n1, basisCam, camDir, projected);
+
+                    output.position    = frameBuffer.projectionMatrix * frameBuffer.viewMatrix * objectToWorld * vec4<f32>(projected, 1.0);
+                    output.tile        = gFloor;
+                    output.uv          = uv1;
+                    output.centerWS    = (objectToWorld * vec4<f32>(0.0, 0.0, 0.0, 1.0)).xyz;
+                    output.instanceIdx = input.instanceIdx;
+                    return output;
+                }
+
+                struct FragmentOutput {
+                    @location(0) albedo : vec4f,
+                    @location(1) normal : vec4f,
+                    @location(2) RMO    : vec4f,
+                };
+
+                fn tileUV(localUV: vec2<f32>, tile: vec2<f32>) -> vec2<f32> {
+                    let local = clamp(localUV, vec2<f32>(0.0), vec2<f32>(1.0));
+                    return clamp((tile + local) / _ImposterFrames, vec2<f32>(0.0), vec2<f32>(1.0));
+                }
+
+                @fragment fn fragmentMain(input: VertexOutput) -> FragmentOutput {
+                    let u = tileUV(input.uv, input.tile);
+
+                    let albedo = textureSample(atlasAlbedo, textureSampler, u);
+                    if (albedo.a < 0.5) { discard; }
+
+                    let ermo = textureSample(atlasERMO, textureSampler, u);
+
+                    // let nRuntime = normalize(frameBuffer.viewPosition.xyz - input.centerWS);
+                    // let normal = vec4<f32>(OctEncode(nRuntime), 0.0, 0.0);
+                    let normalTexel = textureSampleLevel(atlasNormal, textureSampler, u, 0.0);
+                    let normal = normalTexel;
+
+                    var output: FragmentOutput;
+                    output.albedo = albedo;
+                    output.normal = normal;
+                    output.RMO    = ermo;
+                    return output;
+                }
+                `,
+      colorOutputs: [{ format: fmt }, { format: fmt }, { format: fmt }],
       depthOutput: "depth24plus",
       cullMode: "none"
     });
-    shader.SetSampler("textureSampler", new GPU.TextureSampler({ magFilter: "linear", minFilter: "linear", mipmapFilter: "linear", addressModeU: "repeat", addressModeV: "repeat" }));
-    shader.SetTexture("albedoTexture", albedoTexture);
-    shader.SetTexture("normalTexture", normalTexture);
-    shader.SetValue("atlasTiles", atlasTiles);
-    this.geometry = geometry;
-    this.material = new GPU.Material({
-      shader,
-      isDeferred: true
-    });
+    shader.SetSampler("textureSampler", new GPU.TextureSampler());
+    shader.SetTexture("atlasAlbedo", atlasAlbedo);
+    shader.SetTexture("atlasNormal", atlasNormal);
+    shader.SetTexture("atlasERMO", atlasERMO);
+    shader.SetArray("originalBounds", new Float32Array([
+      ...this.originalBounds.center.elements,
+      this.originalBounds.radius
+    ]));
+    this.geometry = Geometry.Plane();
+    this.material = new GPU.Material({ shader, isDeferred: true });
   }
 }
 

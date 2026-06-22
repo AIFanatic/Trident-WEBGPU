@@ -357,7 +357,7 @@ class TerrainMaterial extends (_a = GPU.Material, _terrainLayers_dec = [Serializ
       const flatNormalTextureArray = this.CreateSolidTextureArray([128, 128, 255, 255]);
       const defaultArmTextureArray = this.CreateSolidTextureArray([255, 255, 0, 255]);
       const uvGridTexture = await GPU.Texture.Load(new URL(uv_grid_url, import.meta.url), { format: "rgba8unorm-srgb", generateMips: true });
-      shader.SetSampler("textureSampler", new GPU.TextureSampler());
+      shader.SetSampler("textureSampler", new GPU.TextureSampler({ maxAnisotropy: 4 }));
       shader.SetTexture("albedoTextures", this.CreateTextureArray([uvGridTexture]));
       shader.SetTexture("normalTextures", flatNormalTextureArray);
       shader.SetTexture("armTextures", defaultArmTextureArray);

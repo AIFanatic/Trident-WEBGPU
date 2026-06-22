@@ -51,9 +51,9 @@ fn IsFrustumCulled(meshlet: MeshletInfo, modelMatrix: mat4x4<f32>) -> bool {
     // let centerView = viewCenter(centerWorld);
     let worldRadius = meshlet.bounding_sphere.w * radiusScale;
 
-    if (distance(frameBuffer.viewPosition.xyz, centerWorld) > 1000.0) {
-        return true;
-    }
+    // if (distance(frameBuffer.viewPosition.xyz, centerWorld) > 1000.0) {
+    //     return true;
+    // }
 
     if (bool(meshletParamsBuffer.isDynamicLODEnabled)) {
         // if (!isMeshletVisible(meshlet, modelMatrix)) {
@@ -95,42 +95,29 @@ fn IsFrustumCulled(meshlet: MeshletInfo, modelMatrix: mat4x4<f32>) -> bool {
     return false;
 }
 
-const blockSize: u32 = 4;
+@compute @workgroup_size(8, 32, 1)
+fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
+    let objectIndex = gid.x;
+    if (objectIndex >= meshletParamsBuffer.meshletCount) { return; }
 
-@compute @workgroup_size(blockSize, blockSize, blockSize)
-fn main(@builtin(global_invocation_id) grid: vec3<u32>) {
-    let size = u32(ceil(pow(f32(meshletParamsBuffer.meshletCount), 1.0 / 3.0) / 4));
-    let objectIndex = grid.x + (grid.y * size * blockSize) + (grid.z * size * size * blockSize * blockSize);
+    let object  = objectInfoBuffer[objectIndex];
+    let lodMesh = lodMeshBuffer[object.lodMeshIndex];
 
-    if (objectIndex >= u32(meshletParamsBuffer.meshletCount)) {
-        return;
-    }
-
-    let object = objectInfoBuffer[objectIndex];
-    let meshlet = meshletInfoBuffer[object.meshletIndex];
-    var lodMesh = lodMeshBuffer[object.lodMeshIndex];
-    var meshMatrix = meshInfoBuffer[lodMesh.meshIndex].modelMatrix;
+    let instanceIndex = gid.y;
+    if (instanceIndex >= lodMesh.instanceCount) { return; }
 
     if (!bool(meshletParamsBuffer.isDynamicLODEnabled) && lodMesh.lod != u32(meshletParamsBuffer.staticLODValue)) {
         return;
     }
-    
-    let visible = !IsFrustumCulled(meshlet, meshMatrix);
-    // let visible = visibilityBuffer[objectIndex] > 0.5 && !IsFrustumCulled(meshlet, meshMatrix);
 
-    if (visible) {
-        // let base = 0u;
+    let meshlet    = meshletInfoBuffer[object.meshletIndex];
+    let meshMatrix = meshInfoBuffer[lodMesh.meshIndex + instanceIndex].modelMatrix;
 
-        // drawBuffer[base].vertexCount = 128 * 3;
-        // drawBuffer[base].firstInstance = 0;
-        // let countIndex = atomicAdd(&drawBuffer[base].instanceCount, 1u);
-        // instanceInfoBuffer[countIndex].objectIndex = objectIndex;
+    if (IsFrustumCulled(meshlet, meshMatrix)) { return; }
 
-
-        let mat = lodMesh.materialIndex;
-        let first = drawBuffer[mat].firstInstance;
-        let idx = atomicAdd(&drawBuffer[mat].instanceCount, 1u);
-        instanceInfoBuffer[first + idx].objectIndex = objectIndex;
-    }
-
+    let mat = lodMesh.materialIndex;
+    let first = drawBuffer[mat].firstInstance;
+    let idx = atomicAdd(&drawBuffer[mat].instanceCount, 1u);
+    instanceInfoBuffer[first + idx].objectIndex = objectIndex;
+    instanceInfoBuffer[first + idx].instanceIndex = instanceIndex;
 }

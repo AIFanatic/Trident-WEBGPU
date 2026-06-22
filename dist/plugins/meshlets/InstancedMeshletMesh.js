@@ -1,5 +1,5 @@
-import { Utils, Component, InterleavedVertexAttribute, IndexAttribute } from '@trident/core';
-import { Meshoptimizer } from './meshoptimizer/Meshoptimizer.js';
+import { Utils, Component } from '@trident/core';
+import { buildMeshletData } from './MeshletMesh.js';
 
 var __create = Object.create;
 var __defProp = Object.defineProperty;
@@ -50,58 +50,7 @@ var __privateGet = (obj, member, getter) => (__accessCheck(obj, member, "read fr
 var __privateSet = (obj, member, value, setter) => (__accessCheck(obj, member, "write to private field"), setter ? setter.call(obj, value) : member.set(obj, value), value);
 var __privateMethod = (obj, member, method) => (__accessCheck(obj, member, "access private method"), method);
 var _enableShadows_dec, _material_dec, _a, _init;
-await Meshoptimizer.load();
-class MeshletEvents {
-  static Updated = (meshlet) => {
-  };
-}
-const meshletDataCache = /* @__PURE__ */ new Map();
-const MeshletInfoFloatStride = 20;
-function buildMeshletData(geometry) {
-  const cached = meshletDataCache.get(geometry);
-  if (cached) return cached;
-  const pa = geometry.attributes.get("position");
-  const na = geometry.attributes.get("normal");
-  const ua = geometry.attributes.get("uv");
-  const ta = geometry.attributes.get("tangent");
-  const ia = geometry.index;
-  if (!pa || !na || !ua || !ia || !ta) throw Error("Meshlets need indices, position, normal, uv and tangent attributes");
-  const p = pa.array;
-  const n = na.array;
-  const u = ua.array;
-  const t = ta.array;
-  const indices = ia.array instanceof Uint32Array ? ia.array : Uint32Array.from(ia.array);
-  const interleaved = InterleavedVertexAttribute.fromArrays([p, n, u, t], [3, 3, 2, 4]);
-  const output = Meshoptimizer.nanite(interleaved.array, indices);
-  const bytesPerMeshlet = MeshletInfoFloatStride * 4;
-  const packed = new ArrayBuffer(output.meshlets.length * bytesPerMeshlet);
-  const view = new DataView(packed);
-  for (let i = 0; i < output.meshlets.length; i++) {
-    const m = output.meshlets[i];
-    const base = i * bytesPerMeshlet;
-    view.setUint32(base + 0, m.index_offset, true);
-    view.setUint32(base + 4, m.index_count, true);
-    view.setFloat32(base + 16, m.center[0], true);
-    view.setFloat32(base + 20, m.center[1], true);
-    view.setFloat32(base + 24, m.center[2], true);
-    view.setFloat32(base + 28, m.radius, true);
-    view.setFloat32(base + 32, m.group_error, true);
-    view.setFloat32(base + 48, m.parent_center[0], true);
-    view.setFloat32(base + 52, m.parent_center[1], true);
-    view.setFloat32(base + 56, m.parent_center[2], true);
-    view.setFloat32(base + 60, m.parent_radius, true);
-    view.setFloat32(base + 64, m.parent_error, true);
-  }
-  const data = {
-    meshlets: output.meshlets,
-    interleavedVertices: interleaved,
-    indices: new IndexAttribute(output.indices),
-    meshletInfoPacked: new Float32Array(packed)
-  };
-  meshletDataCache.set(geometry, data);
-  return data;
-}
-class MeshletMesh extends (_a = Component, _material_dec = [Utils.SerializeField], _enableShadows_dec = [Utils.SerializeField], _a) {
+const _InstancedMeshletMesh = class _InstancedMeshletMesh extends (_a = Component, _material_dec = [Utils.SerializeField], _enableShadows_dec = [Utils.SerializeField], _a) {
   constructor() {
     super(...arguments);
     __runInitializers(_init, 5, this);
@@ -112,12 +61,38 @@ class MeshletMesh extends (_a = Component, _material_dec = [Utils.SerializeField
     __publicField(this, "_material");
     __publicField(this, "enableShadows", __runInitializers(_init, 8, this, true)), __runInitializers(_init, 11, this);
     __publicField(this, "clusterizeOnly", false);
+    __publicField(this, "_matrices", new Float32Array(_InstancedMeshletMesh.DefaultCapacity * 16));
+    __publicField(this, "_instanceCount", 0);
   }
   get material() {
     return this._material;
   }
   set material(material) {
     this._material = material;
+  }
+  get instanceCount() {
+    return this._instanceCount;
+  }
+  get matrices() {
+    return this._matrices.subarray(0, this._instanceCount * 16);
+  }
+  ResetInstances() {
+    this._instanceCount = 0;
+  }
+  SetMatrixAt(index, matrix) {
+    const need = (index + 1) * 16;
+    if (need > this._matrices.length) {
+      const grown = new Float32Array(Math.max(this._matrices.length * 2, need));
+      grown.set(this._matrices);
+      this._matrices = grown;
+    }
+    this._matrices.set(matrix.elements, index * 16);
+    if (index + 1 > this._instanceCount) this._instanceCount = index + 1;
+  }
+  SetMatricesBulk(matrices) {
+    if (matrices.length > this._matrices.length) this._matrices = new Float32Array(matrices.length);
+    this._matrices.set(matrices);
+    this._instanceCount = matrices.length / 16;
   }
   set geometry(geometry) {
     const data = buildMeshletData(geometry);
@@ -126,11 +101,12 @@ class MeshletMesh extends (_a = Component, _material_dec = [Utils.SerializeField
     this.indices = data.indices;
     this.meshletInfoPacked = data.meshletInfoPacked;
   }
-}
+};
 _init = __decoratorStart(_a);
-__decorateElement(_init, 2, "material", _material_dec, MeshletMesh);
-__decorateElement(_init, 5, "enableShadows", _enableShadows_dec, MeshletMesh);
-__decoratorMetadata(_init, MeshletMesh);
-__publicField(MeshletMesh, "MeshletInfoFloatStride", MeshletInfoFloatStride);
+__decorateElement(_init, 2, "material", _material_dec, _InstancedMeshletMesh);
+__decorateElement(_init, 5, "enableShadows", _enableShadows_dec, _InstancedMeshletMesh);
+__decoratorMetadata(_init, _InstancedMeshletMesh);
+__publicField(_InstancedMeshletMesh, "DefaultCapacity", 1024);
+let InstancedMeshletMesh = _InstancedMeshletMesh;
 
-export { MeshletEvents, MeshletInfoFloatStride, MeshletMesh, buildMeshletData };
+export { InstancedMeshletMesh };

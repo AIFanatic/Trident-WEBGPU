@@ -2821,6 +2821,9 @@ class BaseShader {
       binding.activeMipCount = activeMipCount;
     }
   }
+  HasProperty(name) {
+    return this.uniformMap.has(name);
+  }
   SetArray(name, array, bufferOffset = 0, dataOffset, size) {
     this.SetUniformDataFromArray(name, array, bufferOffset, dataOffset, size);
   }
@@ -3752,7 +3755,7 @@ var __decorateElement$7 = (array, flags, name, decorators, target, extra) => {
   return target;
 };
 var __publicField$7 = (obj, key, value) => __defNormalProp$7(obj, typeof key !== "symbol" ? key + "" : key, value);
-var _currentSize_dec, _currentOffset_dec, _arrayType_dec, _array_dec, _type_dec, _init$7, _stride_dec, _a$6, _init2$3, _attributes_dec, _index_dec$1, _name_dec, _id_dec, _assetPath_dec$3, _init3$3;
+var _currentSize_dec, _currentOffset_dec, _arrayType_dec, _array_dec, _type_dec, _init$7, _stride_dec, _a$6, _init2$4, _attributes_dec, _index_dec, _name_dec, _id_dec, _assetPath_dec$3, _init3$3;
 _type_dec = [SerializeField], _array_dec = [SerializeField], _arrayType_dec = [SerializeField], _currentOffset_dec = [SerializeField], _currentSize_dec = [SerializeField];
 class GeometryAttribute {
   constructor(array, type) {
@@ -3821,7 +3824,7 @@ const _InterleavedVertexAttribute = class _InterleavedVertexAttribute extends (_
     super(array, BufferType.VERTEX);
     this.array = array;
     __publicField$7(this, "type", "@trident/core/Geometry/InterleavedVertexAttribute");
-    __publicField$7(this, "stride", __runInitializers$7(_init2$3, 8, this)), __runInitializers$7(_init2$3, 11, this);
+    __publicField$7(this, "stride", __runInitializers$7(_init2$4, 8, this)), __runInitializers$7(_init2$4, 11, this);
     this.stride = stride;
   }
   static fromArrays(attributes, inputStrides, outputStrides) {
@@ -3855,9 +3858,9 @@ const _InterleavedVertexAttribute = class _InterleavedVertexAttribute extends (_
     return new _InterleavedVertexAttribute(interleavedArray, interleavedStride);
   }
 };
-_init2$3 = __decoratorStart$7(_a$6);
-__decorateElement$7(_init2$3, 5, "stride", _stride_dec, _InterleavedVertexAttribute);
-__decoratorMetadata$7(_init2$3, _InterleavedVertexAttribute);
+_init2$4 = __decoratorStart$7(_a$6);
+__decorateElement$7(_init2$4, 5, "stride", _stride_dec, _InterleavedVertexAttribute);
+__decoratorMetadata$7(_init2$4, _InterleavedVertexAttribute);
 let InterleavedVertexAttribute = _InterleavedVertexAttribute;
 class IndexAttribute extends GeometryAttribute {
   type = "@trident/core/Geometry/IndexAttribute";
@@ -3867,7 +3870,7 @@ class IndexAttribute extends GeometryAttribute {
     this.format = array instanceof Uint32Array ? "uint32" : "uint16";
   }
 }
-_assetPath_dec$3 = [SerializeField], _id_dec = [SerializeField], _name_dec = [SerializeField], _index_dec$1 = [SerializeField], _attributes_dec = [SerializeField];
+_assetPath_dec$3 = [SerializeField], _id_dec = [SerializeField], _name_dec = [SerializeField], _index_dec = [SerializeField], _attributes_dec = [SerializeField];
 const _Geometry = class _Geometry {
   constructor() {
     __publicField$7(this, "assetPath", __runInitializers$7(_init3$3, 8, this)), __runInitializers$7(_init3$3, 11, this);
@@ -4113,7 +4116,7 @@ _init3$3 = __decoratorStart$7(null);
 __decorateElement$7(_init3$3, 5, "assetPath", _assetPath_dec$3, _Geometry);
 __decorateElement$7(_init3$3, 5, "id", _id_dec, _Geometry);
 __decorateElement$7(_init3$3, 5, "name", _name_dec, _Geometry);
-__decorateElement$7(_init3$3, 5, "index", _index_dec$1, _Geometry);
+__decorateElement$7(_init3$3, 5, "index", _index_dec, _Geometry);
 __decorateElement$7(_init3$3, 5, "attributes", _attributes_dec, _Geometry);
 __decoratorMetadata$7(_init3$3, _Geometry);
 let Geometry = _Geometry;
@@ -4458,7 +4461,7 @@ var __decorateElement$5 = (array, flags, name, decorators, target, extra) => {
   return target;
 };
 var __publicField$5 = (obj, key, value) => __defNormalProp$5(obj, typeof key !== "symbol" ? key + "" : key, value);
-var _castShadows_dec, _intensity_dec, _color_dec, _a$4, _init$5, _range_dec, _angle_dec, _b$1, _init2$2, _range_dec2, _c, _init3$2, _direction_dec, _d, _init4;
+var _castShadows_dec, _intensity_dec, _color_dec, _a$4, _init$5, _range_dec, _angle_dec, _b$2, _init2$3, _range_dec2, _c, _init3$2, _direction_dec, _d, _init4;
 class LightEvents {
   static Updated = (light) => {
   };
@@ -4489,22 +4492,22 @@ __decorateElement$5(_init$5, 5, "intensity", _intensity_dec, Light);
 __decorateElement$5(_init$5, 5, "castShadows", _castShadows_dec, Light);
 __decoratorMetadata$5(_init$5, Light);
 __publicField$5(Light, "type", "@trident/core/components/Light/Light");
-class SpotLight extends (_b$1 = Light, _angle_dec = [SerializeField], _range_dec = [SerializeField], _b$1) {
+class SpotLight extends (_b$2 = Light, _angle_dec = [SerializeField], _range_dec = [SerializeField], _b$2) {
   constructor() {
     super(...arguments);
     __publicField$5(this, "direction", new Vector3(0, -1, 0));
-    __publicField$5(this, "angle", __runInitializers$5(_init2$2, 8, this, 1)), __runInitializers$5(_init2$2, 11, this);
-    __publicField$5(this, "range", __runInitializers$5(_init2$2, 12, this, 10)), __runInitializers$5(_init2$2, 15, this);
+    __publicField$5(this, "angle", __runInitializers$5(_init2$3, 8, this, 1)), __runInitializers$5(_init2$3, 11, this);
+    __publicField$5(this, "range", __runInitializers$5(_init2$3, 12, this, 10)), __runInitializers$5(_init2$3, 15, this);
   }
   Start() {
     super.Start();
     this.camera.SetPerspective(this.angle / Math.PI * 180 * 2, Renderer.width / Renderer.height, 0.01, 1e3);
   }
 }
-_init2$2 = __decoratorStart$5(_b$1);
-__decorateElement$5(_init2$2, 5, "angle", _angle_dec, SpotLight);
-__decorateElement$5(_init2$2, 5, "range", _range_dec, SpotLight);
-__decoratorMetadata$5(_init2$2, SpotLight);
+_init2$3 = __decoratorStart$5(_b$2);
+__decorateElement$5(_init2$3, 5, "angle", _angle_dec, SpotLight);
+__decorateElement$5(_init2$3, 5, "range", _range_dec, SpotLight);
+__decoratorMetadata$5(_init2$3, SpotLight);
 __publicField$5(SpotLight, "type", "@trident/core/components/Light/SpotLight");
 class PointLight extends (_c = Light, _range_dec2 = [SerializeField(Number)], _c) {
   constructor() {
@@ -5008,7 +5011,7 @@ var __decorateElement$4 = (array, flags, name, decorators, target, extra) => {
   return target;
 };
 var __publicField$4 = (obj, key, value) => __defNormalProp$4(obj, typeof key !== "symbol" ? key + "" : key, value);
-var _isDeferred_dec, _init$4, _params_dec, _assetPath_dec$2, _init2$1, _isDeferred_dec2, _isSkinned_dec, _unlit_dec, _alphaCutoff_dec, _doubleSided_dec, _offset_dec, _repeat_dec, _emissiveMap_dec, _armMap_dec, _heightMap_dec, _normalMap_dec, _albedoMap_dec, _metalness_dec, _roughness_dec, _emissiveColor_dec, _albedoColor_dec, _a$3, _init3$1;
+var _isDeferred_dec, _init$4, _params_dec, _assetPath_dec$2, _init2$2, _isDeferred_dec2, _isSkinned_dec, _unlit_dec, _alphaCutoff_dec, _doubleSided_dec, _offset_dec, _repeat_dec, _emissiveMap_dec, _armMap_dec, _heightMap_dec, _normalMap_dec, _albedoMap_dec, _metalness_dec, _roughness_dec, _emissiveColor_dec, _albedoColor_dec, _a$3, _init3$1;
 const MaterialPool = new Pool();
 _isDeferred_dec = [SerializeField];
 class MaterialParams {
@@ -5025,9 +5028,9 @@ _assetPath_dec$2 = [SerializeField], _params_dec = [SerializeField];
 const _Material = class _Material {
   constructor(params) {
     __publicField$4(this, "id", UUID());
-    __publicField$4(this, "assetPath", __runInitializers$4(_init2$1, 8, this)), __runInitializers$4(_init2$1, 11, this);
+    __publicField$4(this, "assetPath", __runInitializers$4(_init2$2, 8, this)), __runInitializers$4(_init2$2, 11, this);
     __publicField$4(this, "_shader");
-    __publicField$4(this, "params", __runInitializers$4(_init2$1, 12, this)), __runInitializers$4(_init2$1, 15, this);
+    __publicField$4(this, "params", __runInitializers$4(_init2$2, 12, this)), __runInitializers$4(_init2$2, 15, this);
     __publicField$4(this, "materialId");
     this.materialId = MaterialPool.add(this);
     const defaultParams = {
@@ -5064,10 +5067,10 @@ const _Material = class _Material {
     return new _Material(params);
   }
 };
-_init2$1 = __decoratorStart$4(null);
-__decorateElement$4(_init2$1, 5, "assetPath", _assetPath_dec$2, _Material);
-__decorateElement$4(_init2$1, 5, "params", _params_dec, _Material);
-__decoratorMetadata$4(_init2$1, _Material);
+_init2$2 = __decoratorStart$4(null);
+__decorateElement$4(_init2$2, 5, "assetPath", _assetPath_dec$2, _Material);
+__decorateElement$4(_init2$2, 5, "params", _params_dec, _Material);
+__decoratorMetadata$4(_init2$2, _Material);
 __publicField$4(_Material, "type", "@trident/core/renderer/Material");
 let Material = _Material;
 const _PBRMaterialParams = class _PBRMaterialParams extends (_a$3 = MaterialParams, _albedoColor_dec = [SerializeField], _emissiveColor_dec = [SerializeField], _roughness_dec = [SerializeField], _metalness_dec = [SerializeField], _albedoMap_dec = [SerializeField(Texture)], _normalMap_dec = [SerializeField(Texture)], _heightMap_dec = [SerializeField(Texture)], _armMap_dec = [SerializeField(Texture)], _emissiveMap_dec = [SerializeField(Texture)], _repeat_dec = [SerializeField], _offset_dec = [SerializeField], _doubleSided_dec = [SerializeField], _alphaCutoff_dec = [SerializeField], _unlit_dec = [SerializeField], _isSkinned_dec = [SerializeField], _isDeferred_dec2 = [SerializeField], _a$3) {
@@ -5308,16 +5311,16 @@ const _Renderable = class _Renderable extends (_a$2 = Component, _enableShadows_
   }
   OnRenderObject(shaderOverride) {
   }
+  // public Destroy(): void {
+  //     super.Destroy();
+  //     if (this._geometry) { this._geometry.Destroy(); this._geometry = null; }
+  //     if (this._material) { this._material.Destroy(); this._material = null; }
+  //     Renderable.Renderables.delete(this.id);
+  // }
   Destroy() {
     super.Destroy();
-    if (this._geometry) {
-      this._geometry.Destroy();
-      this._geometry = null;
-    }
-    if (this._material) {
-      this._material.Destroy();
-      this._material = null;
-    }
+    this._geometry = null;
+    this._material = null;
     _Renderable.Renderables.delete(this.id);
   }
 };
@@ -5395,95 +5398,86 @@ var __decorateElement$2 = (array, flags, name, decorators, target, extra) => {
   return target;
 };
 var __publicField$2 = (obj, key, value) => __defNormalProp$2(obj, typeof key !== "symbol" ? key + "" : key, value);
-var _inverseBindMatrix_dec, _skinId_dec, _index_dec, _a$1, _init$2;
-class Bone extends (_a$1 = Component, _index_dec = [SerializeField], _skinId_dec = [SerializeField], _inverseBindMatrix_dec = [SerializeField], _a$1) {
+var _inverseBindMatrices_dec, _bones_dec, _a$1, _init$2, _skeletonRoot_dec, _b$1, _init2$1;
+class Skeleton extends (_a$1 = Component, _bones_dec = [SerializeField], _inverseBindMatrices_dec = [SerializeField], _a$1) {
   constructor() {
     super(...arguments);
-    __publicField$2(this, "index", __runInitializers$2(_init$2, 8, this, 0)), __runInitializers$2(_init$2, 11, this);
-    __publicField$2(this, "skinId", __runInitializers$2(_init$2, 12, this, -1)), __runInitializers$2(_init$2, 15, this);
-    __publicField$2(this, "inverseBindMatrix", __runInitializers$2(_init$2, 16, this, new Float32Array(16))), __runInitializers$2(_init$2, 19, this);
+    __publicField$2(this, "bones", __runInitializers$2(_init$2, 8, this, [])), __runInitializers$2(_init$2, 11, this);
+    __publicField$2(this, "inverseBindMatrices", __runInitializers$2(_init$2, 12, this, new Float32Array(0))), __runInitializers$2(_init$2, 15, this);
   }
 }
 _init$2 = __decoratorStart$2(_a$1);
-__decorateElement$2(_init$2, 5, "index", _index_dec, Bone);
-__decorateElement$2(_init$2, 5, "skinId", _skinId_dec, Bone);
-__decorateElement$2(_init$2, 5, "inverseBindMatrix", _inverseBindMatrix_dec, Bone);
-__decoratorMetadata$2(_init$2, Bone);
-__publicField$2(Bone, "type", "@trident/core/components/Bone");
-Component.Registry.set(Bone.type, Bone);
-class SkinnedMesh extends Renderable {
-  static type = "@trident/core/components/SkinnedMesh";
-  skinId = -1;
-  boneMatricesBuffer;
-  bones = [];
-  jointData = new Float32Array(0);
-  modelMatrixOffset = -1;
+__decorateElement$2(_init$2, 5, "bones", _bones_dec, Skeleton);
+__decorateElement$2(_init$2, 5, "inverseBindMatrices", _inverseBindMatrices_dec, Skeleton);
+__decoratorMetadata$2(_init$2, Skeleton);
+__publicField$2(Skeleton, "type", "@trident/core/components/Skeleton");
+Component.Registry.set(Skeleton.type, Skeleton);
+class SkinnedMesh extends (_b$1 = Renderable, _skeletonRoot_dec = [SerializeField], _b$1) {
   constructor(gameObject) {
     super(gameObject);
-    if (!Mesh.modelMatrices) Mesh.modelMatrices = new DynamicBufferMemoryAllocatorDynamic(256 * 10, BufferType.STORAGE, 256 * 10);
+    __publicField$2(this, "skeletonRoot", __runInitializers$2(_init2$1, 8, this)), __runInitializers$2(_init2$1, 11, this);
+    __publicField$2(this, "boneMatricesBuffer");
+    __publicField$2(this, "jointData", new Float32Array(0));
+    __publicField$2(this, "modelMatrixOffset", -1);
+    __publicField$2(this, "_cachedSkeleton", null);
+    __publicField$2(this, "_cachedSkeletonRoot", null);
+    __publicField$2(this, "_tmpMatrix", new Matrix4());
+    __publicField$2(this, "_tmpIBM", new Matrix4());
+    if (!Mesh.modelMatrices) {
+      Mesh.modelMatrices = new DynamicBufferMemoryAllocatorDynamic(256 * 10, BufferType.STORAGE, 256 * 10);
+    }
     EventSystemLocal.on(TransformEvents.Updated, this.transform, () => {
       this.modelMatrixOffset = Mesh.modelMatrices.set(this.id, this.transform.localToWorldMatrix.elements);
     });
     this.modelMatrixOffset = Mesh.modelMatrices.set(this.id, this.transform.localToWorldMatrix.elements);
-    this.tryInitBones();
   }
   GetBoneMatricesBuffer() {
     return this.boneMatricesBuffer;
   }
-  getRootTransform() {
-    let t = this.transform;
-    while (t.parent) t = t.parent;
-    return t;
+  getSkeleton() {
+    if (this.skeletonRoot !== this._cachedSkeletonRoot) {
+      this._cachedSkeleton = null;
+      this._cachedSkeletonRoot = this.skeletonRoot;
+    }
+    if (!this._cachedSkeleton && this.skeletonRoot) {
+      this._cachedSkeleton = this.skeletonRoot.GetComponent(Skeleton);
+    }
+    return this._cachedSkeleton;
   }
-  buildBones() {
-    const root = this.getRootTransform();
-    const bones = [];
-    const walk = (t) => {
-      const bone = t.gameObject.GetComponent(Bone);
-      if (bone && (this.skinId < 0 || bone.skinId === this.skinId)) bones.push(bone);
-      for (const child of t.children) walk(child);
-    };
-    walk(root);
-    bones.sort((a, b) => a.index - b.index);
-    this.bones = bones.map((b) => ({
-      transform: b.transform,
-      inverseBindMatrix: b.inverseBindMatrix,
-      index: b.index
-    }));
-    this.jointData = new Float32Array(this.bones.length * 16);
-  }
-  tryInitBones() {
-    if (this.boneMatricesBuffer) return true;
-    this.buildBones();
-    if (!this.bones.length) return false;
+  ensureBuffer(boneCount) {
+    if (this.boneMatricesBuffer && this.jointData.length === boneCount * 16) return true;
+    if (boneCount === 0) return false;
+    this.jointData = new Float32Array(boneCount * 16);
     this.boneMatricesBuffer = new Buffer(this.jointData.length * 4, BufferType.STORAGE);
-    this.boneMatricesBuffer.SetArray(this.jointData);
     return true;
   }
-  OnPreFrame(shaderOverride) {
-    if (!this.boneMatricesBuffer && !this.tryInitBones()) return;
-    if (!this.bones.length) return;
-    const skinRootWorldMatrix = this.gameObject.transform.worldToLocalMatrix;
-    for (let j = 0; j < this.bones.length; ++j) {
-      const tmp = skinRootWorldMatrix.clone().mul(this.bones[j].transform.localToWorldMatrix).mul(new Matrix4().setFromArray(this.bones[j].inverseBindMatrix));
-      this.jointData.set(tmp.elements, j * 16);
+  OnPreFrame() {
+    const skel = this.getSkeleton();
+    if (!skel || skel.bones.length === 0) return;
+    if (!this.ensureBuffer(skel.bones.length)) return;
+    const skinRoot = this.gameObject.transform.worldToLocalMatrix;
+    const ibm = skel.inverseBindMatrices;
+    for (let j = 0; j < skel.bones.length; j++) {
+      const bone = skel.bones[j];
+      if (!bone) continue;
+      this._tmpIBM.setFromArray(ibm.subarray(j * 16, j * 16 + 16));
+      this._tmpMatrix.copy(skinRoot).mul(bone.transform.localToWorldMatrix).mul(this._tmpIBM);
+      this.jointData.set(this._tmpMatrix.elements, j * 16);
     }
     this.boneMatricesBuffer.SetArray(this.jointData);
   }
   OnPreRender(shaderOverride) {
-    const shader = shaderOverride ? shaderOverride : this.material?.shader;
+    const shader = shaderOverride ?? this.material?.shader;
     if (!this.geometry || !this.material || !shader) return;
     shader.SetBuffer("modelMatrix", Mesh.modelMatrices.getBuffer());
-    if (this.boneMatricesBuffer || this.tryInitBones()) {
-      if (shader.uniformMap?.has("boneMatrices")) {
-        shader.SetBuffer("boneMatrices", this.boneMatricesBuffer);
-      }
-    }
   }
   OnRenderObject(shaderOverride) {
-    const shader = shaderOverride ? shaderOverride : this.material?.shader;
+    const shader = shaderOverride ?? this.material?.shader;
     if (!this.geometry || !this.material || !shader) return;
     if (!this.boneMatricesBuffer) return;
+    if (shader.uniformMap?.has("boneMatrices")) {
+      shader.SetBuffer("boneMatrices", this.boneMatricesBuffer);
+    }
     Mesh.modelMatrices.getBuffer().dynamicOffset = this.modelMatrixOffset * Mesh.modelMatrices.getStride();
     RendererContext.DrawGeometry(this.geometry, shader);
   }
@@ -5492,6 +5486,10 @@ class SkinnedMesh extends Renderable {
     if (Mesh.modelMatrices?.has(this.id)) Mesh.modelMatrices.delete(this.id);
   }
 }
+_init2$1 = __decoratorStart$2(_b$1);
+__decorateElement$2(_init2$1, 5, "skeletonRoot", _skeletonRoot_dec, SkinnedMesh);
+__decoratorMetadata$2(_init2$1, SkinnedMesh);
+__publicField$2(SkinnedMesh, "type", "@trident/core/components/SkinnedMesh");
 Component.Registry.set(SkinnedMesh.type, SkinnedMesh);
 
 class ConsoleVar {
@@ -5572,9 +5570,9 @@ class DeferredShadowMapPass extends RenderPass {
   // TODO: Clean this, csmSplits here to be used by debugger plugin
   csmSplits = [0, 0, 0, 0];
   async init(resources) {
-    const cullMode = "none";
-    const depthBias = 2;
-    const depthBiasSlopeScale = 4;
+    const cullMode = "front";
+    const depthBias = 1;
+    const depthBiasSlopeScale = 1;
     const code = `
         struct VertexInput {
             @builtin(instance_index) instanceIdx : u32, 
@@ -6219,9 +6217,9 @@ class PostExposureTonemap extends RenderPass {
                 col = toneMapping(col);
             }
 
-            // col = applyContrast(col, params.contrast);
-            // col = applySaturation(col, params.saturation);
-            // col = clamp(col, vec3f(0.0), vec3f(1.0));
+            col = applyContrast(col, params.contrast);
+            col = applySaturation(col, params.saturation);
+            col = clamp(col, vec3f(0.0), vec3f(1.0));
 
             return vec4f(col, 1.0);
         }
@@ -6519,35 +6517,46 @@ class Renderer extends System {
   static type = "webgpu";
   static width;
   static height;
+  static resolution = { mode: "fit", scale: 1 };
   static info = new RendererInfo();
   static activeCommandEncoder = null;
   // TODO: Remove one
   static RenderPipeline;
   RenderPipeline;
   previousTime = 0;
-  constructor(canvas, aspectRatio = 1) {
+  constructor(canvas) {
     super();
-    if (canvas.parentElement) {
-      canvas.width = canvas.parentElement.clientWidth * aspectRatio;
-      canvas.height = canvas.parentElement.clientHeight * aspectRatio;
-      canvas.style.width = "100%";
-      canvas.style.height = "100%";
-      canvas.style.userSelect = "none";
-    }
-    if (globalThis.ResizeObserver) {
-      const observer = new ResizeObserver((entries) => {
-        canvas.width = canvas.parentElement.clientWidth * aspectRatio;
-        canvas.height = canvas.parentElement.clientHeight * aspectRatio;
-        Renderer.width = canvas.width;
-        Renderer.height = canvas.height;
-        EventSystem.emit(RendererEvents.Resized, canvas);
-      });
-      observer.observe(canvas);
-    }
+    canvas.style.width = "100%";
+    canvas.style.height = "100%";
+    canvas.style.userSelect = "none";
     Renderer.canvas = canvas;
     Renderer.type = "webgpu";
-    Renderer.width = canvas.width;
-    Renderer.height = canvas.height;
+    this.applyResolution();
+    if (globalThis.ResizeObserver) new ResizeObserver(() => {
+      if (Renderer.resolution.mode === "fit") this.applyResolution();
+    }).observe(canvas);
+  }
+  SetResolution(res) {
+    Renderer.resolution = res;
+    this.applyResolution();
+  }
+  applyResolution() {
+    const c = Renderer.canvas;
+    const r = Renderer.resolution;
+    if (r.mode === "fixed") {
+      c.width = r.width;
+      c.height = r.height;
+    } else {
+      const parent = c.parentElement;
+      const scale = r.scale ?? 1;
+      const w = (parent?.clientWidth ?? c.clientWidth) * scale;
+      const h = (parent?.clientHeight ?? c.clientHeight) * scale;
+      c.width = Math.max(1, Math.floor(w));
+      c.height = Math.max(1, Math.floor(h));
+    }
+    Renderer.width = c.width;
+    Renderer.height = c.height;
+    EventSystem.emit(RendererEvents.Resized, c);
   }
   async Start() {
     const context = Renderer.canvas.getContext("webgpu");
@@ -7140,12 +7149,16 @@ class GameObject {
     for (const child of [...this.transform.children]) {
       child.gameObject.Destroy();
     }
+    if (this.transform.parent) {
+      this.transform.parent.children.delete(this.transform);
+    }
+    this.scene.RemoveGameObject(this);
     for (const component of [...this.allComponents]) {
       component.Destroy();
     }
     this.allComponents.length = 0;
     this.componentsByCtor.clear();
-    this.scene.RemoveGameObject(this);
+    this.transform.children.clear();
   }
 }
 
@@ -7493,7 +7506,6 @@ var index = /*#__PURE__*/Object.freeze({
     __proto__: null,
     AnimationTrack: AnimationTrack,
     Animator: Animator,
-    Bone: Bone,
     Camera: Camera,
     Component: Component,
     ComponentEvents: ComponentEvents,
@@ -7504,6 +7516,7 @@ var index = /*#__PURE__*/Object.freeze({
     PointLight: PointLight,
     Renderable: Renderable,
     RenderableEvents: RenderableEvents,
+    Skeleton: Skeleton,
     SkinnedMesh: SkinnedMesh,
     SpotLight: SpotLight,
     Transform: Transform,
@@ -7557,8 +7570,6 @@ class Deserializer {
       this.instanceLoadCache.delete(key);
     }
   }
-  static deferredRefs = [];
-  static idMap = /* @__PURE__ */ new Map();
   static isAssetRef(data) {
     return !!data && typeof data === "object" && typeof data.assetPath === "string";
   }
@@ -7571,22 +7582,40 @@ class Deserializer {
     }
     return new type();
   }
-  static async deserializeAny(data, expectedType, existing) {
+  static remapTemplateIds(source) {
+    const idMap = /* @__PURE__ */ new Map();
+    const collect = (n) => {
+      if (!n || typeof n !== "object") return;
+      if (Array.isArray(n)) {
+        n.forEach(collect);
+        return;
+      }
+      if (typeof n.id === "string") idMap.set(n.id, UUID());
+      for (const k in n) collect(n[k]);
+    };
+    collect(source);
+    const remap = (n) => {
+      if (!n || typeof n !== "object") return n;
+      if (Array.isArray(n)) return n.map(remap);
+      if (n.__ref === "GameObject" && idMap.has(n.id)) return { __ref: "GameObject", id: idMap.get(n.id) };
+      const out = {};
+      for (const k in n) out[k] = k === "id" && idMap.has(n[k]) ? idMap.get(n[k]) : remap(n[k]);
+      return out;
+    };
+    return remap(source);
+  }
+  static async deserializeAny(data, expectedType, existing, ctx) {
     if (data == null || typeof data !== "object") return data;
-    if (this.isAssetRef(data)) {
-      return this.Load(data.assetPath, data, expectedType);
-    }
-    if (Array.isArray(data) && this.typedArrayCtors.has(expectedType)) {
-      return new expectedType(data);
-    }
+    if (this.isAssetRef(data)) return this.Load(data.assetPath, data, expectedType);
+    if (Array.isArray(data) && this.typedArrayCtors.has(expectedType)) return new expectedType(data);
     if (Array.isArray(data)) {
       const result = new Array(data.length);
       await Promise.all(data.map(async (item, i) => {
-        if (this.isGameObjectRef(item)) {
-          this.deferredRefs.push({ target: result, property: i, id: item.id });
+        if (this.isGameObjectRef(item) && ctx) {
+          ctx.deferredRefs.push({ target: result, property: i, id: item.id });
           result[i] = null;
         } else {
-          result[i] = await this.deserializeAny(item, expectedType);
+          result[i] = await this.deserializeAny(item, expectedType, void 0, ctx);
         }
       }));
       return result;
@@ -7607,76 +7636,71 @@ class Deserializer {
       existing.set(data.r, data.g, data.b, data.a);
       return existing;
     }
-    if (expectedType === Texture && !data.assetPath) {
-      return existing;
-    }
+    if (expectedType === Texture && !data.assetPath) return existing;
     const target = existing ?? (expectedType ? this.createExpectedInstance(expectedType) : void 0);
     if (target) {
       const fields = GetSerializedFields(target);
       if (fields.length > 0) {
-        await this.deserializeFields(target, data);
+        await this.deserializeFields(target, data, ctx);
         return target;
       }
     }
     return data;
   }
-  static async deserializeFields(target, data) {
+  static async deserializeFields(target, data, ctx) {
     const fields = GetSerializedFields(target).filter(({ name }) => data[name] !== void 0);
     const resolved = await Promise.all(fields.map(async ({ name, type }) => {
       const value = data[name];
-      if (this.isGameObjectRef(value)) {
-        return { name, refId: value.id };
-      }
-      return {
-        name,
-        value: await this.deserializeAny(value, type, target[name])
-      };
+      if (this.isGameObjectRef(value)) return { name, refId: value.id };
+      return { name, value: await this.deserializeAny(value, type, target[name], ctx) };
     }));
     for (const item of resolved) {
       if ("refId" in item) {
-        this.deferredRefs.push({ target, property: item.name, id: item.refId });
+        if (ctx) ctx.deferredRefs.push({ target, property: item.name, id: item.refId });
+        else target[item.name] = null;
       } else {
         target[item.name] = item.value;
       }
     }
   }
-  static async deserializeComponent(component, data) {
+  static async deserializeComponent(component, data, ctx) {
     if (data.id) component.id = data.id;
-    await this.deserializeFields(component, data);
+    await this.deserializeFields(component, data, ctx);
   }
-  static async deserializeGameObject(scene, data, parent) {
+  static async deserializeGameObject(scene, data, parent, ctx) {
+    const ownsCtx = !ctx;
+    ctx = ctx ?? { deferredRefs: [], idMap: /* @__PURE__ */ new Map() };
     let source = data;
     if (data.assetPath) {
       source = await this.Load(data.assetPath);
+      source = this.remapTemplateIds(source);
     }
     const go = new GameObject(scene);
     if (data.id) go.id = data.id;
-    go.name = data.name ?? source.name;
-    if (data.id) this.idMap.set(data.id, go);
+    go.name = data.name ?? source.name ?? go.name;
+    if (data.id) ctx.idMap.set(data.id, go);
     if (data.assetPath) go.assetPath = data.assetPath;
     if (parent) go.transform.parent = parent;
-    await this.deserializeComponent(go.transform, source.transform);
-    if (data.assetPath) {
-      await this.deserializeComponent(go.transform, data.transform);
-    }
+    if (source.transform) await this.deserializeComponent(go.transform, source.transform, ctx);
+    if (data.assetPath && data.transform) await this.deserializeComponent(go.transform, data.transform, ctx);
+    const compsData = source.components ?? [];
     const instances = [];
-    for (const compData of source.components ?? []) {
+    for (const compData of compsData) {
       if (compData.assetPath && !Component.Registry.get(compData.type)) await this.Load(compData.assetPath);
       const Ctor = Component.Registry.get(compData.type);
       if (!Ctor) throw Error(`Component ${compData.type} not found`);
       instances.push(go.AddComponent(Ctor));
     }
-    for (let i = 0; i < instances.length; i++) await this.deserializeComponent(instances[i], source.components[i]);
-    for (const child of source.children ?? []) await this.deserializeGameObject(scene, child, go.transform);
+    for (let i = 0; i < instances.length; i++) await this.deserializeComponent(instances[i], compsData[i], ctx);
+    for (const child of source.children ?? []) await this.deserializeGameObject(scene, child, go.transform, ctx);
+    if (ownsCtx) this.resolve(ctx);
     return go;
   }
   static async deserializeScene(scene, data) {
     scene.name = data.name;
-    for (const goData of data.gameObjects) await this.deserializeGameObject(scene, goData);
-    for (const ref of this.deferredRefs) {
-      ref.target[ref.property] = this.idMap.get(ref.id) ?? null;
-    }
-    this.deferredRefs.length = 0;
+    const ctx = { deferredRefs: [], idMap: /* @__PURE__ */ new Map() };
+    for (const goData of data.gameObjects) await this.deserializeGameObject(scene, goData, void 0, ctx);
+    this.resolve(ctx);
     Camera.mainCamera = null;
     for (const go of scene.GetGameObjects()) {
       const cam = go.GetComponent(Camera);
@@ -7684,11 +7708,13 @@ class Deserializer {
         Camera.mainCamera = cam;
         break;
       }
-      if (cam && !Camera.mainCamera) {
-        Camera.mainCamera = cam;
-      }
+      if (cam && !Camera.mainCamera) Camera.mainCamera = cam;
     }
-    this.idMap.clear();
+  }
+  static resolve(ctx) {
+    for (const ref of ctx.deferredRefs) {
+      ref.target[ref.property] = ctx.idMap.get(ref.id) ?? null;
+    }
   }
 }
 
@@ -7785,8 +7811,7 @@ class Scene {
     }
   }
   async Instantiate(prefab, parent) {
-    const data = prefab.data ?? prefab;
-    return await Deserializer.deserializeGameObject(this, data, parent);
+    return await Deserializer.deserializeGameObject(this, { assetPath: prefab.assetPath }, parent);
   }
   Clear() {
     const roots = this.GetRootGameObjects();

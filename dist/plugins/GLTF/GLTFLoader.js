@@ -225,22 +225,28 @@ class GLTFLoader {
       nodes[i].transform.localRotation.set(n.rotation.x, n.rotation.y, n.rotation.z, n.rotation.w);
       nodes[i].transform.scale.set(n.scale.x, n.scale.y, n.scale.z);
     }
+    const skeletonGOBySkin = /* @__PURE__ */ new Map();
     if (gltf.skins) {
       for (let skinIndex = 0; skinIndex < gltf.skins.length; skinIndex++) {
-        const s = gltf.skins[skinIndex];
-        const ibm = s.inverseBindMatricesData;
-        if (!ibm) continue;
-        for (let i = 0; i < s.joints.length; i++) {
-          const jointIdx = nodeIndex.get(s.joints[i]);
-          const bone = nodes[jointIdx].AddComponent(Components.Bone);
-          bone.index = i;
-          bone.skinId = skinIndex;
-          bone.inverseBindMatrix = new Float32Array(
-            ibm.buffer,
-            ibm.byteOffset + Float32Array.BYTES_PER_ELEMENT * 16 * i,
-            16
-          ).slice();
+        const skin = gltf.skins[skinIndex];
+        const ibm = skin.inverseBindMatricesData;
+        if (!ibm || skin.joints.length === 0) {
+          console.warn(`[GLTFLoader] skin ${skinIndex} missing IBM or joints; skipping`);
+          continue;
         }
+        const firstJointIdx = nodeIndex.get(skin.joints[0]);
+        if (firstJointIdx === void 0) continue;
+        let hostGO = nodes[firstJointIdx].transform.parent?.gameObject ?? nodes[firstJointIdx];
+        if (skin.skeleton) {
+          const idx = nodeIndex.get(skin.skeleton);
+          if (idx !== void 0) hostGO = nodes[idx];
+        }
+        const skel = hostGO.AddComponent(Components.Skeleton);
+        skel.bones = skin.joints.map((j) => nodes[nodeIndex.get(j)]);
+        const jointCount = skin.joints.length;
+        skel.inverseBindMatrices = new Float32Array(jointCount * 16);
+        skel.inverseBindMatrices.set(ibm.subarray(0, jointCount * 16));
+        skeletonGOBySkin.set(skinIndex, hostGO);
       }
     }
     let animatorComponent = null;
@@ -295,20 +301,31 @@ class GLTFLoader {
       if (!node.mesh) continue;
       const nodeGO = nodes[i];
       const primitives = node.mesh.primitives ?? [];
+      let skeletonRoot = null;
+      if (node.skin && gltf.skins) {
+        const skinIdx = gltf.skins.indexOf(node.skin);
+        if (skinIdx >= 0) skeletonRoot = skeletonGOBySkin.get(skinIdx) ?? null;
+      }
       for (let primitiveIndex = 0; primitiveIndex < primitives.length; primitiveIndex++) {
         const primitive = primitives[primitiveIndex];
-        const parsed = await this.parsePrimitive(primitive, gltf.textures, { rootName, nodeName: nodeGO.name, meshName: node.mesh.name || nodeGO.name, primitiveIndex });
+        const parsed = await this.parsePrimitive(primitive, gltf.textures, {
+          rootName,
+          nodeName: nodeGO.name,
+          meshName: node.mesh.name || nodeGO.name,
+          primitiveIndex
+        });
         const primGO = new GameObject();
         primGO.name = primitives.length === 1 ? nodeGO.name : `${nodeGO.name}_Prim${primitiveIndex}`;
         primGO.transform.parent = nodeGO.transform;
         primGO.transform.localPosition.set(0, 0, 0);
         primGO.transform.localRotation.set(0, 0, 0, 1);
-        const hasSkin = primitive.attributes && primitive.attributes.JOINTS_0 && primitive.attributes.WEIGHTS_0;
-        if (hasSkin) {
+        const hasSkinAttribs = primitive.attributes && primitive.attributes.JOINTS_0 && primitive.attributes.WEIGHTS_0;
+        if (hasSkinAttribs && skeletonRoot) {
           const mesh = primGO.AddComponent(Components.SkinnedMesh);
           mesh.geometry = parsed.geometry;
           mesh.material = parsed.material;
           mesh.enableShadows = true;
+          mesh.skeletonRoot = skeletonRoot;
         } else {
           const mesh = primGO.AddComponent(Components.Mesh);
           mesh.geometry = parsed.geometry;

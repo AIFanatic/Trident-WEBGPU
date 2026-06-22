@@ -2928,10 +2928,15 @@ async function walkProject() {
 const fileBrowserPlugin = {
   name: "file-browser",
   setup(build) {
-    build.onResolve({ filter: /^\// }, (args) => ({ path: args.path, namespace: "project" }));
+    build.onResolve({ filter: /^\// }, (args) => {
+      let p = args.path;
+      if (!/\.[a-zA-Z0-9]+$/.test(p)) p = `${p}.ts`;
+      return { path: p, namespace: "project" };
+    });
     build.onResolve({ filter: /^\.\.?\// }, (args) => {
       const base = args.importer.substring(0, args.importer.lastIndexOf("/") + 1);
-      const resolved = new URL(args.path, `file://${base}`).pathname;
+      let resolved = new URL(args.path, `file://${base}`).pathname;
+      if (!/\.[a-zA-Z0-9]+$/.test(resolved)) resolved = `${resolved}.ts`;
       return { path: resolved, namespace: "project" };
     });
     build.onResolve({ filter: /^@trident\// }, (args) => {
@@ -2976,10 +2981,7 @@ async function BuildBundle() {
   if (currentBundleUrl) URL.revokeObjectURL(currentBundleUrl);
   const blob = new Blob([code], { type: "text/javascript" });
   currentBundleUrl = URL.createObjectURL(blob);
-  const module = await import(
-    /* @vite-ignore */
-    currentBundleUrl
-  );
+  const module = await import(currentBundleUrl);
   const flattened = {};
   fileToExports.clear();
   for (let i = 0; i < tsFiles.length; i++) {
@@ -2991,6 +2993,7 @@ async function BuildBundle() {
       flattened[exportName] = exp;
       perFile[exportName] = exp;
       if (typeof exp === "function") {
+        if (!exp.type) console.warn(`${exp.name} has no type field`);
         Component$1.Registry.set(exp.type ?? exp.name, exp);
       }
     }
@@ -3181,7 +3184,6 @@ class EnvironmentManager extends (_a = Components.Component, _sunlight_dec = [Se
     this._sunElevation = this.sky.SUN_ELEVATION_DEGREES;
     this._sunAzimuth = this.sky.SUN_AZIMUTH_DEGREES;
     const pipeline = Runtime.Renderer.RenderPipeline;
-    console.log(GPU);
     this.iblPass = pipeline.AddPass(IBLLightingPass, GPU.RenderPassOrder.AfterLighting);
     this.skyboxPass = pipeline.AddPass(SkyboxPass, GPU.RenderPassOrder.AfterLighting);
     this.currentSkyCubemap = this.sky.skyTextureCubemap;
@@ -3267,7 +3269,7 @@ class EditorScene extends Component$1 {
   selectedHierarchyGameObject;
   Start() {
     this.editorCamera = this.gameObject.GetComponent(Components.Camera) ?? this.gameObject.AddComponent(Components.Camera);
-    this.editorCamera.SetPerspective(60, 2, 0.05, 1e3);
+    this.editorCamera.SetPerspective(60, 2, 0.5, 1e4);
     this.editorCamera.transform.position.z = -10;
     this.orbitControls = this.gameObject.GetComponent(OrbitControls) ?? this.gameObject.AddComponent(OrbitControls);
     this.orbitControls.camera = this.editorCamera;
@@ -5778,6 +5780,7 @@ class App extends Component {
     });
     TridentAPI.EventSystem.on(RuntimeEvents.CreatedCanvas, async (canvas) => {
       const Runtime = await engineAPI.createRuntime(canvas);
+      Runtime.Renderer.SetResolution({ mode: "fixed", width: 1280, height: 720 });
       const currentScene = Runtime.SceneManager.CreateScene("DefaultScene");
       currentScene.mode = SceneExecutionMode.Edit;
       Runtime.SceneManager.SetActiveScene(currentScene);

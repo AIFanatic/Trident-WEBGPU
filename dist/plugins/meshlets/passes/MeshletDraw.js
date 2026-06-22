@@ -15,6 +15,7 @@ var MeshletPassParams = /* @__PURE__ */ ((MeshletPassParams2) => {
   MeshletPassParams2["InstanceInfoBuffer"] = "InstanceInfoBuffer";
   MeshletPassParams2["DrawIndirectBuffer"] = "DrawIndirectBuffer";
   MeshletPassParams2["CurrentMeshletCount"] = "CurrentMeshletCount";
+  MeshletPassParams2["MaxInstanceCount"] = "MaxInstanceCount";
   MeshletPassParams2["FrameMeshlets"] = "FrameMeshlets";
   return MeshletPassParams2;
 })(MeshletPassParams || {});

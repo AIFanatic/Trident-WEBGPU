@@ -69,6 +69,7 @@ class Meshoptimizer {
       const meshletRaw = meshletView(i);
       meshlets.push(meshletRaw);
     }
+    console.log(groups);
     const meshlet_indices = new Uint32Array(MeshOptmizer.HEAPU8.buffer, meshlet_indices_ptr, meshlet_indices_count).slice();
     return { indices: meshlet_indices, meshlets };
   }

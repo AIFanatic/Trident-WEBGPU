@@ -13,6 +13,7 @@ class InstancedLODGroup extends Components.Renderable {
   lods = [];
   matrices = new GPU.DynamicBufferMemoryAllocator(16, InstancedLODGroup.DefaultCapacity * 16);
   _instanceCount = 0;
+  builtLodCount = 0;
   get instanceCount() {
     return this._instanceCount;
   }
@@ -152,10 +153,20 @@ class InstancedLODGroup extends Components.Renderable {
             }
         `
     });
+    this.initialized = true;
+  }
+  buildLodBuffers() {
+    this.drawIndirectBuffer?.Destroy();
+    this.lodMatricesScratch?.Destroy();
+    for (const buf of this.lodMatrixBuffers) buf.Destroy();
+    for (const lodData of this.lodRendererData) {
+      if (!lodData) continue;
+      for (const data of lodData) data.drawBuffer.Destroy();
+    }
     this.drawIndirectBuffer = new GPU.Buffer(this.lods.length * 5 * 4, GPU.BufferType.STORAGE_WRITE);
     this.lodMatricesScratch = new GPU.Buffer(this.lods.length * InstancedLODGroup.MATRIX_STRIDE_BYTES, GPU.BufferType.STORAGE_WRITE);
     this.lodMatrixBuffers = this.lods.map(() => new GPU.Buffer(InstancedLODGroup.MATRIX_STRIDE_BYTES, GPU.BufferType.STORAGE));
-    this.lodRendererData.length = this.lods.length;
+    this.lodRendererData = new Array(this.lods.length);
     for (let i = 0; i < this.lods.length; i++) {
       const lod = this.lods[i];
       if (!lod.renderers || lod.renderers.length === 0) throw Error("LOD requires at least one renderer");
@@ -172,11 +183,14 @@ class InstancedLODGroup extends Components.Renderable {
         this.lodRendererData[i].push({ renderer, drawBuffer });
       }
     }
-    this.initialized = true;
+    this.builtLodCount = this.lods.length;
   }
   OnPreFrame() {
     if (!this.initialized) return;
     if (this.lods.length === 0) return;
+    if (this.builtLodCount !== this.lods.length) {
+      this.buildLodBuffers();
+    }
     const lod0 = this.lods[0];
     this.drawCompute.SetArray("boundingSphere", new Float32Array([
       ...lod0.renderers[0].geometry.boundingVolume.center.elements,
