@@ -32,9 +32,18 @@ import { GLTFLoader } from "@trident/plugins/GLTF/GLTFLoader";
 import { TerrainProceduralProp } from "@trident/plugins/TerrainProceduralProp";
 import { LODGroup, LODRenderer } from "@trident/plugins/LOD/LODGroup";
 import { InstancedLODGroup } from "@trident/plugins/LOD/InstancedLODGroup";
+import { ImpostorMesh } from "@trident/plugins/Impostors/ImpostorMesh";
+import { FoliageMaterial } from "@trident/plugins/FoliageMaterial";
+import { Billboarder } from "@trident/plugins/Impostors/Billboarder";
+import { PostProcessingPass } from "@trident/plugins/PostProcessing/PostProcessingPass";
+import { PostProcessingSMAA } from "@trident/plugins/PostProcessing/effects/SMAA";
+import { InstancedMeshletMesh } from "@trident/plugins/meshlets/InstancedMeshletMesh";
+import { MeshletDraw } from "@trident/plugins/meshlets/passes/MeshletDraw";
+import { HDRParser } from "@trident/plugins/HDRParser";
 
 async function Application(canvas: HTMLCanvasElement) {
-    await PlayerRuntime.Create(canvas);
+    await PlayerRuntime.Create(canvas, 1);
+    PlayerRuntime.Renderer.SetResolution({mode: "fixed", width: 1280, height: 720})
     const scene = PlayerRuntime.SceneManager.CreateScene("DefaultScene");
     PlayerRuntime.SceneManager.SetActiveScene(scene);
 
@@ -53,15 +62,17 @@ async function Application(canvas: HTMLCanvasElement) {
     lightGameObject.transform.position.set(-4, 4, -4);
     lightGameObject.transform.LookAtV1(new Mathf.Vector3(0, 0, 0));
     const light = lightGameObject.AddComponent(Components.DirectionalLight);
-    light.intensity = 2
+    light.intensity = 1
 
 
     const skyAtmosphere = new Sky();
     await skyAtmosphere.init();
-    // const hdr = await HDRParser.Load("./assets/textures/HDR/spruit_sunrise_1k.hdr");
-    // const skyTexture = await HDRParser.ToCubemap(hdr);
+    const hdr = await HDRParser.Load("./assets/textures/HDR/autumn_field_puresky_1k.hdr");
+    const skyTexture = await HDRParser.ToCubemap(hdr);
 
-    const skycubemap = skyAtmosphere.skyTextureCubemap;
+    // const skycubemap = skyAtmosphere.skyTextureCubemap;
+    const skycubemap = skyTexture
+
 
     const iblLightingPass = Runtime.Renderer.RenderPipeline.AddPass(IBLLightingPass, GPU.RenderPassOrder.AfterLighting);
     const skyboxPass = Runtime.Renderer.RenderPipeline.AddPass(SkyboxPass, GPU.RenderPassOrder.AfterLighting);
@@ -69,37 +80,37 @@ async function Application(canvas: HTMLCanvasElement) {
     iblLightingPass.SetEnvironment(skycubemap);
     skyboxPass.SetSkybox(skycubemap);
 
-    {
-        setInterval(() => {
-            const radius = 1; // distance of the directional light from origin
-            const elevationRad = Mathf.Deg2Rad * skyAtmosphere.SUN_ELEVATION_DEGREES;
-            const azimuthRad = Mathf.Deg2Rad * skyAtmosphere.SUN_AZIMUTH_DEGREES; // or use your own azimuth angle
+    // {
+    //     setInterval(() => {
+    //         const radius = 1; // distance of the directional light from origin
+    //         const elevationRad = Mathf.Deg2Rad * skyAtmosphere.SUN_ELEVATION_DEGREES;
+    //         const azimuthRad = Mathf.Deg2Rad * skyAtmosphere.SUN_AZIMUTH_DEGREES; // or use your own azimuth angle
 
-            // Convert spherical coordinates to 3D position
-            const x = radius * Mathf.Cos(elevationRad) * Mathf.Cos(azimuthRad);
-            const y = radius * Mathf.Sin(elevationRad);
-            const z = radius * Mathf.Cos(elevationRad) * Mathf.Sin(azimuthRad);
+    //         // Convert spherical coordinates to 3D position
+    //         const x = radius * Mathf.Cos(elevationRad) * Mathf.Cos(azimuthRad);
+    //         const y = radius * Mathf.Sin(elevationRad);
+    //         const z = radius * Mathf.Cos(elevationRad) * Mathf.Sin(azimuthRad);
 
-            const sunPos = new Mathf.Vector3(x, y, z);
+    //         const sunPos = new Mathf.Vector3(x, y, z);
 
-            lightGameObject.transform.position = sunPos;
-            lightGameObject.transform.LookAtV1(new Mathf.Vector3(0, 0, 0));
+    //         lightGameObject.transform.position = sunPos;
+    //         lightGameObject.transform.LookAtV1(new Mathf.Vector3(0, 0, 0));
 
-            skyAtmosphere.Update();
-            iblLightingPass.SetEnvironment(skyAtmosphere.skyTextureCubemap);
-            skyboxPass.SetSkybox(skyAtmosphere.skyTextureCubemap);
-        }, 1000);
-        const skySettings = new UIFolder(Debugger.ui, "Sky");
+    //         skyAtmosphere.Update();
+    //         iblLightingPass.SetEnvironment(skyAtmosphere.skyTextureCubemap);
+    //         skyboxPass.SetSkybox(skyAtmosphere.skyTextureCubemap);
+    //     }, 1000);
+    //     const skySettings = new UIFolder(Debugger.ui, "Sky");
 
-        new UISliderStat(skySettings, "SUN_ELEVATION_DEGREES:", 0, 180, 0.01, skyAtmosphere.SUN_ELEVATION_DEGREES, value => skyAtmosphere.SUN_ELEVATION_DEGREES = value);
-        new UISliderStat(skySettings, "SUN_AZIMUTH_DEGREES:", 0, 180, 0.01, skyAtmosphere.SUN_AZIMUTH_DEGREES, value => skyAtmosphere.SUN_AZIMUTH_DEGREES = value);
-        new UISliderStat(skySettings, "EYE_ALTITUDE:", 0, 1000, 0.01, skyAtmosphere.EYE_ALTITUDE, value => skyAtmosphere.EYE_ALTITUDE = value);
+    //     new UISliderStat(skySettings, "SUN_ELEVATION_DEGREES:", 0, 180, 0.01, skyAtmosphere.SUN_ELEVATION_DEGREES, value => skyAtmosphere.SUN_ELEVATION_DEGREES = value);
+    //     new UISliderStat(skySettings, "SUN_AZIMUTH_DEGREES:", 0, 180, 0.01, skyAtmosphere.SUN_AZIMUTH_DEGREES, value => skyAtmosphere.SUN_AZIMUTH_DEGREES = value);
+    //     new UISliderStat(skySettings, "EYE_ALTITUDE:", 0, 1000, 0.01, skyAtmosphere.EYE_ALTITUDE, value => skyAtmosphere.EYE_ALTITUDE = value);
 
-        // const o0 = new UITextureViewer(skySettings, "Sky output0:", skyAtmosphere.transmittanceLUT);
-        // const o1 = new UITextureViewer(skySettings, "Sky output1:", skyTexture);
+    //     // const o0 = new UITextureViewer(skySettings, "Sky output0:", skyAtmosphere.transmittanceLUT);
+    //     // const o1 = new UITextureViewer(skySettings, "Sky output1:", skyTexture);
 
-        skySettings.Open();
-    }
+    //     skySettings.Open();
+    // }
 
 
     const terrainGameObject = new GameObject();
@@ -125,6 +136,8 @@ async function Application(canvas: HTMLCanvasElement) {
         blankAlbedo.SetData(new Uint8Array([255, 255, 255, 255]), 4);
 
         const base = "/extra/SampleProject/Nature/Terrain"
+        const base2 = "/extra/SampleProject/NatureManufacture Assets/Forest Environment Dynamic Nature/Ground/M_ground_beech_forest_leaves_01"
+
         terrain.material.terrainLayers = [
             // CLIFF
             await PBR({ albedoURL: `${base}/Marble_Cliff_03/marble_cliff_03_diff_2k.jpg`, normalURL: `${base}/Marble_Cliff_03/marble_cliff_03_nor_gl_2k.jpg`, armURL: `${base}/Marble_Cliff_03/marble_cliff_03_arm_2k.jpg` }),
@@ -133,7 +146,7 @@ async function Application(canvas: HTMLCanvasElement) {
             // GRASS
             await PBR({ albedoURL: `${base}/Leafy_Grass/leafy_grass_diff_2k.jpg`, normalURL: `${base}/Leafy_Grass/leafy_grass_nor_gl_2k.jpg`, armURL: `${base}/Leafy_Grass/leafy_grass_arm_2k.jpg` }),
             // SNOW
-            await PBR({ albedoURL: `${base}/Snow_02/snow_02_diff_2k.jpg`, normalURL: `${base}/Snow_02/snow_02_nor_gl_2k.jpg`, armURL: `${base}/Snow_02/snow_02_arm_2k.jpg` }),
+            await PBR({ albedoURL: `${base2}/T_ground_beech_forest_leaves_01_BC_SM.png`, normalURL: `${base2}/T_ground_beech_forest_leaves_01_N.png`, armURL: `${base2}/T_ground_beech_forest_leaves_01_MT_AO_H_SM_orm.png` }),
             // Sand
             await PBR({ albedoURL: `${base}/Sand_03/sand_03_diff_2k.jpg`, normalURL: `${base}/Sand_03/sand_03_nor_gl_2k.jpg`, armURL: `${base}/Sand_03/sand_03_arm_2k.jpg` }),
             // Water
@@ -180,8 +193,7 @@ async function Application(canvas: HTMLCanvasElement) {
 
         const materialIdMapDebug = new UITextureViewer(Debugger.ui, "MaterialID", terrainProcedural.materialIdMap);
 
-
-        // Props
+        // Props - RT mesh and RT impostor
         {
             Component.Registry.set(LODGroup.type, LODGroup);
 
@@ -197,59 +209,87 @@ async function Application(canvas: HTMLCanvasElement) {
             await terrain.terrainData.AddProp(prefab, terrain.gameObject);
 
 
-            {
-                interface AddLODOptions {
-                    enableShadows: boolean;
-                }
-                async function addLOD(url: string, options: AddLODOptions = { enableShadows: false }) {
+            
+            
+            
+            const rtGLB = await GLTFLoader.Load("/extra/SampleProject/GameAssets/Trees/Jacaranda mimosifolia RT.glb", scene);
+            const rtMeshes = rtGLB.GetComponentsInChildren(Components.Mesh);
+            console.log(rtMeshes)
+            rtMeshes[0].material = new FoliageMaterial(rtMeshes[0].geometry, rtMeshes[0].material.params.albedoMap, rtMeshes[0].material.params.normalMap)
+            rtMeshes[1].material = new FoliageMaterial(rtMeshes[1].geometry, rtMeshes[1].material.params.albedoMap, rtMeshes[1].material.params.normalMap)
+            
+            const go = new GameObject();
+            const ldImpostor = go.AddComponent(ImpostorMesh);
+            await ldImpostor.Create([rtMeshes[1], rtMeshes[2]], 4096, 16);
 
-                    const loadedGO = await GLTFLoader.Load(url, scene);
+            const lodGameObject = new GameObject();
+            const lodInstanceRenderable = lodGameObject.AddComponent(InstancedLODGroup);
+            lodInstanceRenderable.enableShadows = false;
 
-                    let lodGroupEntries: { geometry: Geometry, material: GPU.Material }[] = []
-                    const meshes = loadedGO.GetComponentsInChildren(Components.Mesh);
-                    for (const mesh of meshes) {
-                        const mat = mesh.material as PBRMaterial;
-                        const clonedMat = new PBRMaterial({ ...mat.params, doubleSided: true, alphaCutoff: 0.5 });
-                        lodGroupEntries.push({ geometry: mesh.geometry, material: clonedMat });
-                    }
-                    loadedGO.enabled = false;
+            const billboardGO = new GameObject();
+            const billboard = billboardGO.AddComponent(Billboarder);
+            await billboard.Create([rtMeshes[1], rtMeshes[2]]);
+            billboard.material = new FoliageMaterial(billboard.geometry, billboard.albedoTexture, billboard.normalTexture)
 
-                    console.log(lodGroupEntries)
-                    const lodGameObject = new GameObject();
-                    const lodInstanceRenderable = lodGameObject.AddComponent(InstancedLODGroup);
-                    lodInstanceRenderable.enableShadows = options.enableShadows;
-                    // if (lodGroupEntries.length > 0) lodInstanceRenderable.lods.push({ renderers: lodGroupEntries.slice(0, 1), screenSize: 100 });
-                    // if (lodGroupEntries.length > 1) lodInstanceRenderable.lods.push({ renderers: lodGroupEntries.slice(1, 2), screenSize: 200 });
-                    // if (lodGroupEntries.length > 2) lodInstanceRenderable.lods.push({ renderers: lodGroupEntries.slice(2, 3), screenSize: 500 });
-                    // if (lodGroupEntries.length > 3) lodInstanceRenderable.lods.push({ renderers: lodGroupEntries.slice(3, 4), screenSize: 4000 });
+            lodInstanceRenderable.lods.push({ renderers: [
+                { geometry: rtMeshes[1].geometry, material: rtMeshes[1].material },
+                { geometry: rtMeshes[2].geometry, material: rtMeshes[2].material }
+            ], screenSize: 0.2 });
+            lodInstanceRenderable.lods.push({ renderers: [{ geometry: ldImpostor.geometry, material: ldImpostor.material }], screenSize: 0.0 }); // Created impostor
+            // lodInstanceRenderable.lods.push({ renderers: [{ geometry: rtMeshes[0].geometry, material: rtMeshes[0].material }], screenSize: 0.0 }); // Original billboard
+            // lodInstanceRenderable.lods.push({ renderers: [{ geometry: billboard.geometry, material: billboard.material }], screenSize: 0.0 }); // Created billboard
 
-                    if (lodGroupEntries.length > 0) lodInstanceRenderable.lods.push({ renderers: lodGroupEntries.slice(0, 2), screenSize: 2.1 });
-                    if (lodGroupEntries.length > 1) lodInstanceRenderable.lods.push({ renderers: lodGroupEntries.slice(2, 4), screenSize: 1.5 });
-                    if (lodGroupEntries.length > 2) lodInstanceRenderable.lods.push({ renderers: lodGroupEntries.slice(4, 6), screenSize: 0.3 });
-                    if (lodGroupEntries.length > 3) lodInstanceRenderable.lods.push({ renderers: lodGroupEntries.slice(6, 7), screenSize: 0.03 });
-                    // else if (lodGroupEntries.length >= 1) lodInstanceRenderable.lods.push({ renderers: lodGroupEntries.slice(0, 1), screenSize: 300 });
-
-                    return lodInstanceRenderable;
-                }
-
-                const instancedLOD = await addLOD("/extra/test-assets/NatureManufacture Assets/Forest Environment Dynamic Nature/Beech Trees/prefab_beech_tree_05.glb", { enableShadows: true })
-                console.log(instancedLOD)
-
-                const props = terrain.terrainData.paintPropData;
-                const cubeILG = props[props.length - 1].instancedLODGroup;
-
-                // Kill the cube group so it doesn't render its own cubes or chew per-frame work
-                cubeILG.gameObject.RemoveComponent(cubeILG);    // (or `cubeILG.enabled = false` if RemoveComponent doesn't exist)
-
-                // Swap the pointer: now everything that goes through paintPropData[0].instancedLODGroup hits the tree group
-                props[props.length - 1].instancedLODGroup = instancedLOD;
-            }
-
+            terrain.terrainData.paintPropData[0].instancedLODGroup = lodInstanceRenderable;
         }
+
+
+        // // Props - LD Meshlets
+        // {
+        //     function MakeInstanced(instancedMesh: Components.InstancedMesh, rotation?: Mathf.Quaternion, scale?: Mathf.Vector3) {
+        //         const p = new Mathf.Vector3();
+        //         const q = rotation || new Mathf.Quaternion();
+        //         const s = scale || new Mathf.Vector3(1, 1, 1);
+        //         const m = new Mathf.Matrix4();
+        //         const c = 10;
+        //         const off = 100;
+        //         const half = c * off * 0.5;
+        //         let i = 0;
+        //         const matrices = new Float32Array(c * c * c * 16);
+        //         for (let x = 0; x < c; x++) {
+        //             for (let y = 0; y < c; y++) {
+        //                 for (let z = 0; z < c; z++) {
+        //                     p.set(x * off - half, y * off - half, z * off - half);
+        //                     terrain.SampleHeight(p);
+        //                     m.compose(p, q, s);
+        //                     // instancedMesh.SetMatrixAt(i, m);
+        //                     matrices.set(m.elements, i * 16);
+        //                     i++;
+        //                 }
+        //             }
+        //         }
+        //         console.log(i)
+        //         instancedMesh.SetMatricesBulk(matrices);
+        //     }
+            
+        //     const ldGLB = await GLTFLoader.Load("/extra/SampleProject/GameAssets/Trees/Eucalyptus camaldulensis_LD_Clean.glb", scene);
+        //     var ldMeshes = ldGLB.GetComponentsInChildren(Components.Mesh);
+        //     ldMeshes = [ldMeshes[1]]
+
+        //     for (const mesh of ldMeshes) {
+        //         const go = new GameObject();
+        //         const meshletInstanced = go.AddComponent(InstancedMeshletMesh);
+        //         meshletInstanced.geometry = mesh.geometry;
+        //         meshletInstanced.material = mesh.material;
+
+        //         MakeInstanced(meshletInstanced)
+        //     }
+
+        //     Runtime.Renderer.RenderPipeline.AddPass(new MeshletDraw(), GPU.RenderPassOrder.BeforeGBuffer);
+        // }
+
         const terrainProceduralProp = terrainGameObject.AddComponent(TerrainProceduralProp);
         terrainProceduralProp.terrain = terrain;
         await terrainProceduralProp.Generate(terrainProcedural.terrainTexture, terrainProcedural.materialIdMap);
-
 
         const updateTerrainParam = async (param: string, value: number) => {
             terrainProcedural.params[param] = value;
@@ -305,6 +345,11 @@ async function Application(canvas: HTMLCanvasElement) {
     // wireframe.color = [1, 1, 1];       // white lines
     // wireframe.enabled = true;           // toggle on/off
     // Runtime.Renderer.RenderPipeline.AddPass(wireframe, GPU.RenderPassOrder.AfterLighting);
+
+    // const postProcessing = new PostProcessingPass();
+    // const smaa = new PostProcessingSMAA();
+    // postProcessing.effects.push(smaa);
+    // Runtime.Renderer.RenderPipeline.AddPass(postProcessing, GPU.RenderPassOrder.BeforeScreenOutput);
 
 
     const sphereGameObject = new GameObject();

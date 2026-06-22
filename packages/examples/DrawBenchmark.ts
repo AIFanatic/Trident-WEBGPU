@@ -10,6 +10,7 @@ import {
     IndexAttribute,
     InterleavedVertexAttribute,
     Runtime,
+    PlayerRuntime,
 } from "@trident/core";
 
 import { OrbitControls } from "@trident/plugins/OrbitControls";
@@ -22,14 +23,16 @@ import { Meshoptimizer } from "@trident/plugins/meshoptimizer/Meshoptimizer";
 import { MeshletDraw } from "@trident/plugins/meshlets/passes/MeshletDraw";
 import { MeshletMesh } from "@trident/plugins/meshlets/MeshletMesh";
 import { ImpostorMesh } from "@trident/plugins/Impostors/ImpostorMesh";
-import { InstancedLODGroup } from "@trident/plugins/Terrain/InstancedLODGroup";
+import { InstancedLODGroup } from "@trident/plugins/LOD/InstancedLODGroup";
 import { HDRParser } from "@trident/plugins/HDRParser";
-import { Environment } from "@trident/plugins/Environment/Environment";
+import { SkyboxPass } from "@trident/plugins/Environment/SkyboxPass";
+import { IBLLightingPass } from "@trident/plugins/Environment/IBLLightingPass";
+import { InstancedMeshletMesh } from "@trident/plugins/meshlets/InstancedMeshletMesh";
 
 async function Application(canvas: HTMLCanvasElement) {
-    await Runtime.Create(canvas);
-    const scene = Runtime.SceneManager.CreateScene("DefaultScene");
-    Runtime.SceneManager.SetActiveScene(scene);
+    await PlayerRuntime.Create(canvas);
+    const scene = PlayerRuntime.SceneManager.CreateScene("DefaultScene");
+    PlayerRuntime.SceneManager.SetActiveScene(scene);
 
     const mainCameraGameObject = new GameObject();
     mainCameraGameObject.name = "MainCamera";
@@ -39,8 +42,7 @@ async function Application(canvas: HTMLCanvasElement) {
 
     mainCameraGameObject.transform.position.set(0, 0, 5);
     mainCameraGameObject.transform.LookAt(new Mathf.Vector3(0, 0, 0));
-
-    const controls = new OrbitControls(canvas, camera);
+    mainCameraGameObject.AddComponent(OrbitControls);
 
     const lightGameObject = new GameObject();
     lightGameObject.transform.position.set(-10, 10, 10);
@@ -58,8 +60,13 @@ async function Application(canvas: HTMLCanvasElement) {
     const hdr = await HDRParser.Load("./assets/textures/HDR/autumn_field_puresky_1k.hdr");
     const skyTexture = await HDRParser.ToCubemap(hdr);
 
-    const environment = new Environment(scene, skyTexture);
-    await environment.init();
+    // const sky = new Sky();
+    // await sky.init();
+    // const skyTexture = sky.skyTextureCubemap;
+    const iblLightingPass = Runtime.Renderer.RenderPipeline.AddPass(IBLLightingPass, GPU.RenderPassOrder.AfterLighting);
+    const skyboxPass = Runtime.Renderer.RenderPipeline.AddPass(SkyboxPass, GPU.RenderPassOrder.AfterLighting);
+    iblLightingPass.SetEnvironment(skyTexture);
+    skyboxPass.SetSkybox(skyTexture);
 
     const model = await GLTFLoader.Load("./assets/models/bunny.glb", scene);
     const material = new PBRMaterial({ albedoMap: await GPU.Texture.Load("./assets/textures/T_OmniDebugTexture_COL.jpg"), roughness: 1.0, metalness: 0.0, alphaCutoff: 0.1 });
@@ -102,8 +109,8 @@ async function Application(canvas: HTMLCanvasElement) {
     //     const sampleTexture = await GPU.Texture.Load("./assets/textures/T_OmniDebugTexture_COL.jpg");
     //     // const sampleTexture = await GPU.Texture.Load("/packages/examples/assets/models/tree/branch.png", "rgba8unorm-srgb");
 
-    //     const angles = [[0, 0, 0], [0, 45, 0], [0, 90, 0], [0, -45, 0], [90, 0, 0]];
-    //     // const angles = [[0, 0, 0]];
+    //     // const angles = [[0, 0, 0], [0, 45, 0], [0, 90, 0], [0, -45, 0], [90, 0, 0]];
+    //     const angles = [[0, 0, 0]];
     //     const radius = geometry.boundingVolume.radius;
 
     //     for (const angle of angles) {
@@ -138,8 +145,8 @@ async function Application(canvas: HTMLCanvasElement) {
     //     console.log(radius)
     //     const impostorGameObject = new GameObject();
     //     const impostor = impostorGameObject.AddComponent(ImpostorMesh);
-    //     await impostor.Create(geometry, material);
-        
+    //     await impostor.Create(modelMeshes);
+
     //     const gameObject = new GameObject();
     //     const instancedMesh = gameObject.AddComponent(Components.InstancedMesh);
     //     instancedMesh.enableShadows = false;
@@ -169,59 +176,86 @@ async function Application(canvas: HTMLCanvasElement) {
     //     MakeInstanced(instancedMesh);
     // }
 
-    // Meshlets
-    {
-        Runtime.Renderer.RenderPipeline.AddPass(new MeshletDraw(), GPU.RenderPassOrder.BeforeGBuffer);
-        geometry.ComputeNormals();
-        geometry.ComputeTangents();
+  // Meshlets
+  {
+      Runtime.Renderer.RenderPipeline.AddPass(new MeshletDraw(), GPU.RenderPassOrder.BeforeGBuffer);
+      geometry.ComputeNormals();
+      geometry.ComputeTangents();
 
-        const c = 50;
-        const off = 10;
-        const half = c * off * 0.5;
-        for (let x = 0; x < c; x++) {
-            for (let y = 0; y < c; y++) {
-                for (let z = 0; z < c; z++) {
-                    const go2 = new GameObject();
-                    const meshletB = go2.AddComponent(MeshletMesh);
-                    meshletB.transform.position.set(x * off - half, y * off - half, z * off - half);
-                    meshletB.geometry = geometry;
-                    meshletB.material = material;
-                }
-            }
-        }
-    }
+      const go = new GameObject();
+      const meshletGroup = go.AddComponent(InstancedMeshletMesh);
+      meshletGroup.geometry = geometry;
+      meshletGroup.material = material;
+
+      MakeInstanced(meshletGroup);
+  }
 
     // // LODS
     // {
+    //     await Meshoptimizer.load();
+
     //     const lodGameObject = new GameObject();
-    //     const lodInstanceRenderable = lodGameObject.AddComponent(LODInstanceRenderable);
+    //     const lodInstanceRenderable = lodGameObject.AddComponent(InstancedLODGroup);
 
     //     const indices = new Uint32Array(geometry.index.array);
     //     const vertices = geometry.attributes.get("position").array as Float32Array;
-    //     await Meshoptimizer.load();
 
-    //     let lastGeometry: Geometry
-    //     const lodScreenSizes = [10, 20, 100, 300]
-    //     const maxLods = 4;
-    //     const ratio = Math.floor(indices.length / maxLods);
-    //     lodInstanceRenderable.lods.push({ renderers: [{geometry: geometry.Clone(), material: material.clone()}], screenSize: 5 });
-    //     for (let lod = 0; lod < maxLods; lod++) {
+    //     const simplificationSteps = 3;
+    //     const ratio = Math.floor(indices.length / (simplificationSteps + 1));
+    //     const thresholds = [0.15, 0.08, 0.04, 0.02];
+
+    //     // LOD 0: full geometry.
+    //     lodInstanceRenderable.lods.push({
+    //         renderers: [{ geometry: geometry.Clone(), material }],
+    //         screenSize: thresholds[0],
+    //     });
+
+    //     // LOD 1..N-1: progressively simplified meshopt outputs.
+    //     for (let lod = 0; lod < simplificationSteps; lod++) {
     //         const target_index_count = indices.length - (lod + 1) * ratio || 1;
-    //         const result = Meshoptimizer.meshopt_simplify(indices, vertices, vertices.length / 3, 3, target_index_count, 1000, 0);
-    //         console.log(indices.length / 3, result.destination.length / 3, 20 + lod * 20)
+    //         const result = Meshoptimizer.meshopt_simplify(
+    //             indices, vertices, vertices.length / 3, 3, target_index_count, 1000, 0
+    //         );
 
     //         const lodGeometry = geometry.Clone();
     //         lodGeometry.index = new IndexAttribute(result.destination);
-    //         lodInstanceRenderable.lods.push({ renderers: [{geometry: lodGeometry, material: material.clone()}], screenSize: 20 + lod * 20 });
-    //         lastGeometry = lodGeometry;
+
+    //         lodInstanceRenderable.lods.push({
+    //             renderers: [{ geometry: lodGeometry, material }],
+    //             screenSize: thresholds[lod + 1],
+    //         });
+
+    //         console.log(`LOD ${lod + 1}: ${result.destination.length / 3} tris @ ${thresholds[lod + 1]}`);
     //     }
-    //     lodInstanceRenderable.lods.push({ renderers: [{geometry: lastGeometry, material: material.clone()}], screenSize: 10000 });
+
+    //     // Last LOD: billboard. Bake one view of the bunny onto a texture, slap it on a plane.
+    //     const radius = geometry.boundingVolume.radius;
+    //     const billboardTexture = GPU.RenderTexture.Create(256, 256, 1, "rgba16float");
+    //     const sampleTexture = await GPU.Texture.Load("./assets/textures/T_OmniDebugTexture_COL.jpg");
+    //     const billboardMatrix = new Mathf.Matrix4().compose(
+    //         new Mathf.Vector3(0, 0, 0),
+    //         new Mathf.Quaternion(),
+    //         new Mathf.Vector3(1 / radius, 1 / radius, 1 / radius),
+    //     );
+    //     await Billboarder.Create(geometry, billboardMatrix, billboardTexture, sampleTexture);
+
+    //     const billboardMaterial = new PBRMaterial({
+    //         albedoMap: billboardTexture,
+    //         doubleSided: true,
+    //         roughness: 1.0,
+    //         metalness: 0,
+    //         alphaCutoff: 0.1,
+    //     });
+
+    //     lodInstanceRenderable.lods.push({
+    //         renderers: [{ geometry: Geometry.Plane(), material: billboardMaterial }],
+    //         screenSize: 0,
+    //     });
 
     //     MakeInstanced(lodInstanceRenderable);
     // }
 
     Debugger.Enable();
-    Runtime.Play();
 };
 
 Application(document.querySelector("canvas"));

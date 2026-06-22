@@ -8,6 +8,7 @@ import {
     PBRMaterial,
     Object3D,
     Runtime,
+    PlayerRuntime,
 } from "@trident/core";
 
 import { OrbitControls } from "@trident/plugins/OrbitControls";
@@ -16,25 +17,27 @@ import { GLTFLoader } from "@trident/plugins/GLTF/GLTFLoader";
 import { ImpostorMesh } from "@trident/plugins/Impostors/ImpostorMesh";
 import { Debugger } from "@trident/plugins/Debugger";
 import { UITextureViewer } from "@trident/plugins/ui/UIStats";
-import { HDRParser } from "@trident/plugins/HDRParser";
-import { Environment } from "@trident/plugins/Environment/Environment";
 import { Sky } from "@trident/plugins/Environment/Sky";
+import { IBLLightingPass } from "@trident/plugins/Environment/IBLLightingPass";
+import { SkyboxPass } from "@trident/plugins/Environment/SkyboxPass";
+import { FoliageMaterial } from "@trident/plugins/FoliageMaterial";
+import { Billboarder } from "@trident/plugins/Impostors/Billboarder";
 
 
 // GLTFLoader.Load("./assets/DamagedHelmet/DamagedHelmet.gltf");
 
 async function Application(canvas: HTMLCanvasElement) {
-    await Runtime.Create(canvas);
-    const scene = Runtime.SceneManager.CreateScene("DefaultScene");
-    Runtime.SceneManager.SetActiveScene(scene);
+    await PlayerRuntime.Create(canvas);
+    const scene = PlayerRuntime.SceneManager.CreateScene("DefaultScene");
+    PlayerRuntime.SceneManager.SetActiveScene(scene);
 
     const mainCameraGameObject = new GameObject();
-    mainCameraGameObject.transform.position.set(0,0,-5);
+    mainCameraGameObject.transform.position.set(0, 0, 5);
     mainCameraGameObject.name = "MainCamera";
     const camera = mainCameraGameObject.AddComponent(Components.Camera);
     camera.SetPerspective(72, canvas.width / canvas.height, 0.01, 500);
+    mainCameraGameObject.AddComponent(OrbitControls);
 
-    const controls = new OrbitControls(canvas, camera);
 
     {
         const lightGameObject = new GameObject();
@@ -44,14 +47,14 @@ async function Application(canvas: HTMLCanvasElement) {
         light.intensity = 1;
         light.color.set(1, 1, 1, 1);
 
-        const skyAtmosphere = new Sky();
-        await skyAtmosphere.init();
-
-        // const skyTexture = hdrCubemap;
-        const skyTexture = skyAtmosphere.skyTextureCubemap;
-
-        const environment = new Environment(scene, skyTexture);
-        await environment.init();
+        const sky = new Sky();
+        sky.SUN_ELEVATION_DEGREES = 60;
+        await sky.init();
+        const skyTexture = sky.skyTextureCubemap;
+        const iblLightingPass = Runtime.Renderer.RenderPipeline.AddPass(IBLLightingPass, GPU.RenderPassOrder.AfterLighting);
+        const skyboxPass = Runtime.Renderer.RenderPipeline.AddPass(SkyboxPass, GPU.RenderPassOrder.AfterLighting);
+        iblLightingPass.SetEnvironment(skyTexture);
+        skyboxPass.SetSkybox(skyTexture);
     }
 
     // {
@@ -66,103 +69,62 @@ async function Application(canvas: HTMLCanvasElement) {
 
     // const model = await GLTFLoader.Load("./assets/models/Tree.glb", scene);
     // const loadedGO = await GLTFLoader.Load("/extra/test-assets/nature/treessource/american_beech/american_beech_a.glb", scene);
-    const loadedGO = await GLTFLoader.Load("./assets/models/bunny.glb", scene);
-    let geometry: Geometry;
-    let material: GPU.Material = new PBRMaterial();
-    const loadedMeshes = loadedGO.GetComponentsInChildren(Components.Mesh);
-    for (const mesh of loadedMeshes) {
-        geometry = mesh.geometry;
-        material = mesh.material;
-        break;
-    }
-    const go = new GameObject();
-
-    const bunnyImpostor = go.AddComponent(ImpostorMesh);
-    await bunnyImpostor.Create(geometry, material);
-    // const m = new GPU.Material({isDeferred: true});
-    // m.shader = bunnyImpostor.impostorShader;
-
-    // const impostor = new GameObject();
-    // // impostor.transform.position.x = -2
-    // // impostor.transform.scale.set(10, 10, 10)
-    // const im = impostor.AddComponent(Components.Mesh);
-    // im.geometry = bunnyImpostor.geometry;
-    // im.material = m;
-
-    new UITextureViewer(Debugger.ui, "Atlas", bunnyImpostor.albedoTexture);
-    new UITextureViewer(Debugger.ui, "Atlas2", bunnyImpostor.normalTexture);
-
-
-    {
-        loadedGO.transform.position.set(3, 0, 0);
-    }
-
-
-    // // const textureDilated = await Dilator.Dilate(bunnyImpostor.normalTexture);
-    // // // bunnyImpostor.normalTexture = textureDilated;
-    // // bunnyImpostor.impostorShader.SetTexture("normalTexture", textureDilated);
-
-    // // {
-    // //     const dilatorGameObject = new GameObject();
-    // //     dilatorGameObject.transform.position.x = 2;
-    // //     const dilatorMesh = dilatorGameObject.AddComponent(Mesh);
-    // //     await dilatorMesh.geometry = Geometry.Plane();
-
-    // //     const dilatorMaterial = new PBRMaterial({albedoMap: textureDilated, unlit: true});
-    // //     dilatorMesh.material = dilatorMaterial;
-    // // }
-
+    
     // {
-    //     const planeGO = new GameObject();
-    //     planeGO.transform.eulerAngles.x = -90;
-    //     planeGO.transform.position.set(0, -2, 0);
-    //     planeGO.transform.scale.set(100, 100, 1);
-    //     const sphereMesh = planeGO.AddComponent(Components.Mesh);
-    //     sphereMesh.geometry = Geometry.Plane();
-    //     const mat = new PBRMaterial({albedoColor: new Mathf.Color(1, 1, 1), metalness: 0.5, roughness: 0.5});
-    //     sphereMesh.material = mat;
+    //     const loadedGO = await GLTFLoader.Load("./assets/models/bunny.glb", scene);
+    //     const loadedMeshes = loadedGO.GetComponentsInChildren(Components.Mesh);
+    //     const go = new GameObject();
+    //     const bunnyImpostor = go.AddComponent(ImpostorMesh);
+    //     await bunnyImpostor.Create(loadedMeshes, 4096, 16);
+    //     loadedGO.transform.position.x -= 2;
+    //     go.transform.position.x = 2;
     // }
+    
+    const loadedGO = await GLTFLoader.Load("/extra/SampleProject/GameAssets/Trees/Eucalyptus camaldulensis.glb", scene);
+    loadedGO.enabled = false;
+    const loadedMeshes = loadedGO.GetComponentsInChildren(Components.Mesh);
+    const go = new GameObject();
+    const bunnyImpostor = go.AddComponent(ImpostorMesh);
+    loadedMeshes[0].material = new FoliageMaterial(loadedMeshes[0].geometry, loadedMeshes[0].material.params.albedoMap, loadedMeshes[0].material.params.normalMap);
+    await bunnyImpostor.Create([loadedMeshes[0], loadedMeshes[2]], 4096, 16);
+    
+    new UITextureViewer(Debugger.ui, "Atlas", bunnyImpostor.atlasAlbedo);
+    new UITextureViewer(Debugger.ui, "Atlas2", bunnyImpostor.atlasNormal);
+    
+    // RT
+    {
+        const rtGo = new GameObject();
+        rtGo.transform.position.x = -20;
+        {
+            const rtMesh = rtGo.AddComponent(Components.Mesh);
+            rtMesh.geometry = loadedMeshes[0].geometry;
+            rtMesh.material = loadedMeshes[0].material;
+        }
+        {
+            const rtMesh = rtGo.AddComponent(Components.Mesh);
+            rtMesh.geometry = loadedMeshes[2].geometry;
+            rtMesh.material = loadedMeshes[2].material;
+        }
+    }
 
-    // // function traverse(object3D: Object3D, func: (object3D: Object3D) => void) {
-    // //     func(object3D);
-    // //     for (const child of object3D.children) traverse(child, func);
-    // // }
+    // Billboard, created
+    {
+        const billboardGO = new GameObject();
+        const billboard = billboardGO.AddComponent(Billboarder);
+        await billboard.Create([loadedMeshes[0], loadedMeshes[2]]);
+        billboardGO.transform.position.x = 40;
+    }
 
-    // // traverse(model, object3D => {
-    // //     if (!object3D.geometry || !object3D.material) return;
-    // //         const gameObject = new GameObject();
-    // //         const mesh = gameObject.AddComponent(Components.Mesh);
-    // //         mesh.enableShadows = false;
-    // //         object3D.localMatrix.decompose(gameObject.transform.position, gameObject.transform.rotation, gameObject.transform.scale);
-    // //         mesh.geometry = object3D.geometry;
-    // //         mesh.material = object3D.material;
-    // // })
-
-    // const instancedMeshGameObject = new GameObject();
-    // const instancedMesh = instancedMeshGameObject.AddComponent(Components.InstancedMesh);
-    // instancedMesh.enableShadows = false;
-    // instancedMesh.geometry = bunnyImpostor.impostorGeometry;
-    // instancedMesh.material = m;
-
-    // const mat = new Mathf.Matrix4();
-    // const p = new Mathf.Vector3();
-    // const r = new Mathf.Quaternion();
-    // const s = new Mathf.Vector3(1,1,1);
-    // const c = 10;
-    // let i = 0;
-    // for (let x = 0; x < c; x++) {
-    //     for (let z = 0; z < c; z++) {
-    //         p.set((x * 2) - c, 0, (z * 2) - c);
-    //         mat.compose(p, r, s);
-    //         instancedMesh.SetMatrixAt(i, mat);
-    //         i++;
-    //     }
-    // }
-
-    // console.log(i)
+    // Billboard, original
+    {
+        const billboardGO = new GameObject();
+        const billboard = billboardGO.AddComponent(Components.Mesh);
+        billboard.geometry = loadedMeshes[1].geometry;
+        billboard.material = loadedMeshes[1].material;
+        billboardGO.transform.position.x = 60;
+    }
 
     Debugger.Enable();
-    Runtime.Play();
 };
 
 Application(document.querySelector("canvas"));

@@ -61,39 +61,35 @@ async function Application(canvas: HTMLCanvasElement) {
         }
     }
 
-    {
-        const gameObject = await GLTFLoader.Load("./assets/models/Shadow.glb", scene);
-        gameObject.transform.position.x = 2;
-        // gameObject.transform.scale.set(0.01, 0.01, 0.01);
+    const fpArmsAKMGO = await GLTFLoader.Load("/extra/SampleProject/Survival/Wieldables/GLB/FP_Arms_Pickaxe.glb", scene);
+    fpArmsAKMGO.transform.position.x = 2;
+    const fpArmsAKM = fpArmsAKMGO.GetComponent(Components.Animator);
+    console.log(fpArmsAKM)
+    fpArmsAKM.SetClipByIndex(0);
 
-        const animator = gameObject.GetComponent(Components.Animator);
-        console.log(animator)
-//         animator.SetClipByIndex(0)
-//           const animator = gameObject.GetComponent(Components.Animator);
-//   console.log("Available clips:", animator.clips);
-//         // animator.CrossFadeTo(0, 1000);
+    // const fpAKMGO = await GLTFLoader.Load("/extra/SampleProject/Survival/Wieldables/GLB/FP_AKM.glb", scene);
+    // fpAKMGO.transform.position.x = 2;
+    // const fpAKM = fpAKMGO.GetComponent(Components.Animator);
+    // console.log(fpAKM)
+    // // fpAKM.SetClipByIndex(0);
 
-//         // animator.SetLayerClip(1, 2, 0.8);
+    // setTimeout(() => {
+    //     console.log("Playing");
+    //     fpArmsAKM.SetClipByIndex(1);
+    //     fpAKM.SetClipByIndex(0);
+    // }, 3000);
 
-  // Base: jog forward
-  animator.SetClipByIndex(45); // Jog_Fwd_Loop
+    //     {
+    //         const gameObject = await GLTFLoader.Load("/extra/test-assets/bouquet.glb", scene);
+    //         gameObject.transform.position.x = -2;
+    //         // gameObject.transform.scale.set(0.01, 0.01, 0.01);
 
-  console.log(animator)
+    //         const animator = gameObject.GetComponent(Components.Animator);
+    //         console.log(animator)
+    //         // animator.SetClipByIndex(1)
+    //         // animator.CrossFadeTo(0, 1000);
 
-
-    }
-
-//     {
-//         const gameObject = await GLTFLoader.Load("/extra/test-assets/bouquet.glb", scene);
-//         gameObject.transform.position.x = -2;
-//         // gameObject.transform.scale.set(0.01, 0.01, 0.01);
-
-//         const animator = gameObject.GetComponent(Components.Animator);
-//         console.log(animator)
-//         // animator.SetClipByIndex(1)
-//         // animator.CrossFadeTo(0, 1000);
-
-//     }
+    //     }
 
     // const hdr = await HDRParser.Load("./assets/textures/HDR/autumn_field_puresky_1k.hdr");
     const hdr = await HDRParser.Load("./assets/textures/HDR/spruit_sunrise_1k.hdr");
@@ -113,11 +109,11 @@ async function Application(canvas: HTMLCanvasElement) {
     const mesh = gameObject.AddComponent(Components.Mesh);
     mesh.geometry = Geometry.Sphere();
     mesh.material = new PBRMaterial({
-        albedoMap: await GPU.Texture.Load("/extra/SampleProject/Nature/Terrain/leafy_grass/leafy_grass_diff_2k.jpg", {format: "rgba8unorm-srgb"}),
+        albedoMap: await GPU.Texture.Load("/extra/SampleProject/Nature/Terrain/leafy_grass/leafy_grass_diff_2k.jpg", { format: "rgba8unorm-srgb" }),
         normalMap: await GPU.Texture.Load("/extra/SampleProject/Nature/Terrain/leafy_grass/leafy_grass_nor_gl_2k.jpg"),
         armMap: await GPU.Texture.Load("/extra/SampleProject/Nature/Terrain/leafy_grass/leafy_grass_arm_2k.jpg"),
     });
-    
+
 
     // Drag and drop models
     {
@@ -139,7 +135,7 @@ async function Application(canvas: HTMLCanvasElement) {
     }
 
     Debugger.Enable();
-    
+
     // Runtime.Play();
 };
 
