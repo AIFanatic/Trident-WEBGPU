@@ -74,9 +74,9 @@ export class DeferredShadowMapPass extends RenderPass {
     public csmSplits: number[] = [0, 0, 0, 0];
 
     public async init(resources: ResourcePool) {
-        const cullMode: "none" | "back" | "front" = "none";
-        const depthBias = 2;
-        const depthBiasSlopeScale = 4;
+        const cullMode: "none" | "back" | "front" = "front";
+        const depthBias = 1;
+        const depthBiasSlopeScale = 1;
 
         const code = `
         struct VertexInput {
