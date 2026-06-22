@@ -325,7 +325,7 @@ export class TerrainMaterial extends GPU.Material {
 
             const uvGridTexture = await GPU.Texture.Load(new URL(uv_grid_url, import.meta.url), { format: "rgba8unorm-srgb", generateMips: true });
 
-            shader.SetSampler("textureSampler", new GPU.TextureSampler());
+            shader.SetSampler("textureSampler", new GPU.TextureSampler({maxAnisotropy: 4}));
 
             shader.SetTexture("albedoTextures", this.CreateTextureArray([uvGridTexture]));
             // shader.SetTexture("albedoTextures", whiteTextureArray);

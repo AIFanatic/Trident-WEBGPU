@@ -85,3 +85,5 @@ export * from "./SHGenerator";
 
 export { TerrainProcedural } from "./TerrainProcedural";
 export { TerrainProceduralProp } from "./TerrainProceduralProp";
+
+export * from "./FoliageMaterial";

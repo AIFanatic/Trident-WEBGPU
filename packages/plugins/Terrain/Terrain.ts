@@ -143,11 +143,11 @@ export class TerrainData {
         this.RebuildGeometry();
     }
 
-    public InitializePaintMaps(): void {
+    public async InitializePaintMaps() {
         this.InitializePaintMapData();
         this.materialIdMapTexture = GPU.Texture.Create(this.paintMapResolution, this.paintMapResolution, 1, "rgba8unorm");
         this.UploadPaintMaps();
-        this.BindPaintMaps();
+        await this.BindPaintMaps();
     }
 
     public UploadPaintMaps(): void {
@@ -372,7 +372,7 @@ export class Terrain extends Components.Mesh {
     }
 
     private async SetTerrainData(td: TerrainData) {
-        td.InitializePaintMaps();
+        await td.InitializePaintMaps();
         await Promise.all(td.paintPropData.map(prop => prop.RebuildProps(this.gameObject)));
         if (td.heights?.length) td.RebuildGeometry();
         EventSystemLocal.emit(TerrainEvents.Changed, this, this, td);

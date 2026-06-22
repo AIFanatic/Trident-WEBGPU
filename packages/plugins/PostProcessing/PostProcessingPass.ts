@@ -32,9 +32,7 @@ export class PostProcessingPass extends GPU.RenderPass {
         if (this.initialized === false) return;
 
         for (const effect of this.effects) {
-            if (!effect.initialized) {
-                throw Error("Effect not initialized");
-            }
+            if (!effect.initialized) continue;
             effect.execute(resources);
         }
     }

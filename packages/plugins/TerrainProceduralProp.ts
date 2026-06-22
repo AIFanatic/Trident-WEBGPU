@@ -69,10 +69,14 @@ export class TerrainProceduralProp extends Components.Component {
                 let terrainCoord = (uv - 0.5) * terrainSize.x;
                 let n = hash(terrainCoord);
 
-                if (u32(materialId.x) == u32(LAYER_GRASSLAND.w) && n > 0.991) {
+                if (u32(materialId.x) == u32(LAYER_GRASSLAND.w) && n > 0.98) {
                     let writeIndex = atomicAdd(&instanceCounts.DIRT, 1u);
     
-                    DIRT_MATRICES[writeIndex] = mat4x4<f32>(1,0,0,0, 0,1,0,0, 0,0,1,0, terrainCoord.x, terrain.x * 2000.0 - 1000.0, terrainCoord.y, 1);
+                    DIRT_MATRICES[writeIndex] = mat4x4<f32>(
+                    1,0,0,0,
+                    0,1,0,0,
+                    0,0,1,0,
+                    terrainCoord.x, terrain.x * 2000.0 - 1000.0, terrainCoord.y, 1);
                 }
             }
           `,
