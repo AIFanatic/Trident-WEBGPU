@@ -373,6 +373,7 @@ class BaseShader {
         }
     }
 
+    public HasProperty(name: string): boolean { return this.uniformMap.has(name); }
     public SetArray(name: string, array: ArrayBufferView, bufferOffset: number = 0, dataOffset?: number, size?: number) { this.SetUniformDataFromArray(name, array, bufferOffset, dataOffset, size) }
     public SetValue(name: string, value: number) { this.valueArray[0] = value; this.SetUniformDataFromArray(name, this.valueArray) }
     public SetMatrix4(name: string, matrix: Matrix4) { this.SetUniformDataFromArray(name, matrix.elements) }

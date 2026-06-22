@@ -134,9 +134,9 @@ export class PostExposureTonemap extends RenderPass {
                 col = toneMapping(col);
             }
 
-            // col = applyContrast(col, params.contrast);
-            // col = applySaturation(col, params.saturation);
-            // col = clamp(col, vec3f(0.0), vec3f(1.0));
+            col = applyContrast(col, params.contrast);
+            col = applySaturation(col, params.saturation);
+            col = clamp(col, vec3f(0.0), vec3f(1.0));
 
             return vec4f(col, 1.0);
         }
