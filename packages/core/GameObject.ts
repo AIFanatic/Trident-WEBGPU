@@ -120,13 +120,19 @@ export class GameObject {
         for (const child of [...this.transform.children]) {
             child.gameObject.Destroy();
         }
+        
+        if (this.transform.parent) {
+            this.transform.parent.children.delete(this.transform);
+        }
 
+        this.scene.RemoveGameObject(this);
+        
         for (const component of [...this.allComponents]) {
             component.Destroy();
         }
-
+        
         this.allComponents.length = 0;
         this.componentsByCtor.clear();
-        this.scene.RemoveGameObject(this);
+        this.transform.children.clear();
     }
 }
