@@ -115,7 +115,7 @@ export class GLTFLoader {
     }
 
     // TODO: Better is to add rotation to the shader too, might need packing, also need to support different samplers..
-    private static processTextureTransformExtension( materialParams: any, textures: Texture[] | undefined, textureInfos: Array<TextureInfo | null | undefined>) {
+    private static processTextureTransformExtension(materialParams: any, textures: Texture[] | undefined, textureInfos: Array<TextureInfo | null | undefined>) {
         const textureInfo = textureInfos.find((info): info is TextureInfo => {
             return !!info?.extensions?.["KHR_texture_transform"];
         });
@@ -136,8 +136,8 @@ export class GLTFLoader {
         const mirrorV = wrapT === 33648;
 
         if (Math.abs(rotation - Math.PI) < 0.0001) {
-            materialParams.repeat = new Mathf.Vector2( mirrorU ? scale[0] : -scale[0], mirrorV ? scale[1] : -scale[1]);
-            materialParams.offset = new Mathf.Vector2( mirrorU ? offset[0] : 1 + offset[0], mirrorV ? offset[1] : 1 + offset[1]);
+            materialParams.repeat = new Mathf.Vector2(mirrorU ? scale[0] : -scale[0], mirrorV ? scale[1] : -scale[1]);
+            materialParams.offset = new Mathf.Vector2(mirrorU ? offset[0] : 1 + offset[0], mirrorV ? offset[1] : 1 + offset[1]);
             return;
         }
 
@@ -296,22 +296,36 @@ export class GLTFLoader {
             nodes[i].transform.scale.set(n.scale.x, n.scale.y, n.scale.z);
         }
 
-        // Skins → Bone components
+        // Skins → Skeleton components. One Skeleton per gltf.skin, hosted on the
+        // skin's declared root node (or the first joint if no root is specified).
+        const skeletonGOBySkin = new Map<number, GameObject>();
         if (gltf.skins) {
             for (let skinIndex = 0; skinIndex < gltf.skins.length; skinIndex++) {
-                const s = gltf.skins[skinIndex];
-                const ibm = s.inverseBindMatricesData as Float32Array;
-                if (!ibm) continue;
-
-                for (let i = 0; i < s.joints.length; i++) {
-                    const jointIdx = nodeIndex.get(s.joints[i])!;
-                    const bone = nodes[jointIdx].AddComponent(Components.Bone);
-                    bone.index = i;
-                    bone.skinId = skinIndex;
-                    bone.inverseBindMatrix = new Float32Array(
-                        ibm.buffer, ibm.byteOffset + Float32Array.BYTES_PER_ELEMENT * 16 * i, 16
-                    ).slice(); // .slice() to own copy
+                const skin = gltf.skins[skinIndex];
+                const ibm = skin.inverseBindMatricesData as Float32Array | null;
+                if (!ibm || skin.joints.length === 0) {
+                    console.warn(`[GLTFLoader] skin ${skinIndex} missing IBM or joints; skipping`);
+                    continue;
                 }
+
+                // Skin host = explicit skin.skeleton, else parent of first joint (rig root).
+                const firstJointIdx = nodeIndex.get(skin.joints[0]);
+                if (firstJointIdx === undefined) continue;
+
+                let hostGO = nodes[firstJointIdx].transform.parent?.gameObject ?? nodes[firstJointIdx];
+                if (skin.skeleton) {
+                    const idx = nodeIndex.get(skin.skeleton);
+                    if (idx !== undefined) hostGO = nodes[idx];
+                }
+                const skel = hostGO.AddComponent(Components.Skeleton);
+
+                skel.bones = skin.joints.map(j => nodes[nodeIndex.get(j)!]);
+
+                const jointCount = skin.joints.length;
+                skel.inverseBindMatrices = new Float32Array(jointCount * 16);
+                skel.inverseBindMatrices.set(ibm.subarray(0, jointCount * 16));
+
+                skeletonGOBySkin.set(skinIndex, hostGO);
             }
         }
 
@@ -387,24 +401,37 @@ export class GLTFLoader {
             const nodeGO = nodes[i];
             const primitives = node.mesh.primitives ?? [];
 
+            // Resolve which Skeleton GO this node's primitives bind to (if any).
+            let skeletonRoot: GameObject | null = null;
+            if (node.skin && gltf.skins) {
+                const skinIdx = gltf.skins.indexOf(node.skin);
+                if (skinIdx >= 0) skeletonRoot = skeletonGOBySkin.get(skinIdx) ?? null;
+            }
+
             for (let primitiveIndex = 0; primitiveIndex < primitives.length; primitiveIndex++) {
                 const primitive = primitives[primitiveIndex];
 
-                const parsed = await this.parsePrimitive(primitive, gltf.textures, { rootName, nodeName: nodeGO.name, meshName: node.mesh.name || nodeGO.name, primitiveIndex });
+                const parsed = await this.parsePrimitive(primitive, gltf.textures, {
+                    rootName,
+                    nodeName: nodeGO.name,
+                    meshName: node.mesh.name || nodeGO.name,
+                    primitiveIndex,
+                });
 
                 const primGO = new GameObject();
                 primGO.name = primitives.length === 1 ? nodeGO.name : `${nodeGO.name}_Prim${primitiveIndex}`;
-
                 primGO.transform.parent = nodeGO.transform;
                 primGO.transform.localPosition.set(0, 0, 0);
                 primGO.transform.localRotation.set(0, 0, 0, 1);
 
-                const hasSkin = primitive.attributes && primitive.attributes.JOINTS_0 && primitive.attributes.WEIGHTS_0;
-                if (hasSkin) {
+                const hasSkinAttribs = primitive.attributes && primitive.attributes.JOINTS_0 && primitive.attributes.WEIGHTS_0;
+
+                if (hasSkinAttribs && skeletonRoot) {
                     const mesh = primGO.AddComponent(Components.SkinnedMesh);
                     mesh.geometry = parsed.geometry;
                     mesh.material = parsed.material;
                     mesh.enableShadows = true;
+                    mesh.skeletonRoot = skeletonRoot;
                 } else {
                     const mesh = primGO.AddComponent(Components.Mesh);
                     mesh.geometry = parsed.geometry;
