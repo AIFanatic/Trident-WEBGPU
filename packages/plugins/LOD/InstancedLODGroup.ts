@@ -22,6 +22,7 @@ export class InstancedLODGroup extends Components.Renderable {
 
     private matrices = new GPU.DynamicBufferMemoryAllocator(16, InstancedLODGroup.DefaultCapacity * 16);
     private _instanceCount = 0;
+    private builtLodCount = 0;
 
     public get instanceCount(): number { return this._instanceCount; }
     public get matricesBuffer(): GPU.Buffer { return this.matrices.getBuffer(); }
@@ -54,7 +55,7 @@ export class InstancedLODGroup extends Components.Renderable {
 
     public async Start() {
         super.Start()
-        
+
         this.drawCompute = await GPU.ShaderCompute.Create({
             name: this.name + "-Compute",
             code: `
@@ -163,12 +164,24 @@ export class InstancedLODGroup extends Components.Renderable {
             }
         `
         });
+        this.initialized = true;
+    }
+
+    private buildLodBuffers(): void {
+        // Tear down whatever the previous call set up.
+        this.drawIndirectBuffer?.Destroy();
+        this.lodMatricesScratch?.Destroy();
+        for (const buf of this.lodMatrixBuffers) buf.Destroy();
+        for (const lodData of this.lodRendererData) {
+            if (!lodData) continue;
+            for (const data of lodData) data.drawBuffer.Destroy();
+        }
 
         this.drawIndirectBuffer = new GPU.Buffer(this.lods.length * 5 * 4, GPU.BufferType.STORAGE_WRITE);
         this.lodMatricesScratch = new GPU.Buffer(this.lods.length * InstancedLODGroup.MATRIX_STRIDE_BYTES, GPU.BufferType.STORAGE_WRITE);
         this.lodMatrixBuffers = this.lods.map(() => new GPU.Buffer(InstancedLODGroup.MATRIX_STRIDE_BYTES, GPU.BufferType.STORAGE));
 
-        this.lodRendererData.length = this.lods.length;
+        this.lodRendererData = new Array(this.lods.length);
 
         for (let i = 0; i < this.lods.length; i++) {
             const lod = this.lods[i];
@@ -190,12 +203,16 @@ export class InstancedLODGroup extends Components.Renderable {
             }
         }
 
-        this.initialized = true;
+        this.builtLodCount = this.lods.length;
     }
 
     public OnPreFrame(): void {
         if (!this.initialized) return;
         if (this.lods.length === 0) return;
+
+        if (this.builtLodCount !== this.lods.length) {
+            this.buildLodBuffers();
+        }
 
         // Set boundingSphere from first lod
         const lod0 = this.lods[0];
