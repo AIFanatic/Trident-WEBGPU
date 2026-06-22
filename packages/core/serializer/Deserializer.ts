@@ -5,9 +5,30 @@ import { Vector3, Vector2, Quaternion, Color } from "../math";
 import { GetSerializedFields } from "../utils/SerializeField";
 import { Texture } from "../renderer/Texture";
 import { Assets } from "../Assets";
-import { TypeRegistry } from "../utils";
+import { TypeRegistry, UUID } from "../utils";
 
 type DeferredRef = { target: any; property: string | symbol; id: string };
+
+interface DeserializeContext {
+    deferredRefs: DeferredRef[];
+    idMap: Map<string, GameObject>;
+}
+
+interface SerializedGameObjectData {
+    id?: string;
+    name?: string;
+    assetPath?: string;
+    transform?: SerializedComponentData;
+    components?: SerializedComponentData[];
+    children?: SerializedGameObjectData[];
+}
+
+interface SerializedComponentData {
+    id?: string;
+    type?: string;
+    assetPath?: string;
+    [key: string]: any;   // arbitrary serialized fields
+}
 
 export class Deserializer {
     private static readonly binaryExtensions = new Set(["png", "jpg", "jpeg", "bin", "wav", "mp3", "ogg", "glb"]);
@@ -60,9 +81,6 @@ export class Deserializer {
         }
     }
 
-    private static deferredRefs: DeferredRef[] = [];
-    private static idMap = new Map<string, GameObject>();
-
     private static isAssetRef(data: any): boolean {
         return !!data && typeof data === "object" && typeof data.assetPath === "string";
     }
@@ -83,165 +101,142 @@ export class Deserializer {
         return new (type as any)();
     }
 
-    public static async deserializeAny(data: any, expectedType?: Function, existing?: any): Promise<any> {
+    private static remapTemplateIds(source: any): any {
+        const idMap = new Map<string, string>();
+        const collect = (n: any) => {
+            if (!n || typeof n !== "object") return;
+            if (Array.isArray(n)) { n.forEach(collect); return; }
+            if (typeof n.id === "string") idMap.set(n.id, UUID());
+            for (const k in n) collect(n[k]);
+        };
+        collect(source);
+
+        const remap = (n: any): any => {
+            if (!n || typeof n !== "object") return n;
+            if (Array.isArray(n)) return n.map(remap);
+            if (n.__ref === "GameObject" && idMap.has(n.id)) return { __ref: "GameObject", id: idMap.get(n.id) };
+            const out: any = {};
+            for (const k in n) out[k] = k === "id" && idMap.has(n[k]) ? idMap.get(n[k]) : remap(n[k]);
+            return out;
+        };
+        return remap(source);
+    }
+
+    public static async deserializeAny(data: any, expectedType?: Function, existing?: any, ctx?: DeserializeContext): Promise<any> {
         if (data == null || typeof data !== "object") return data;
 
-        if (this.isAssetRef(data)) {
-            return this.Load(data.assetPath, data, expectedType);
-        }
-
-        if (Array.isArray(data) && this.typedArrayCtors.has(expectedType as any)) {
-            return new (expectedType as any)(data);
-        }
+        if (this.isAssetRef(data)) return this.Load(data.assetPath, data, expectedType);
+        if (Array.isArray(data) && this.typedArrayCtors.has(expectedType as any)) return new (expectedType as any)(data);
 
         if (Array.isArray(data)) {
             const result = new Array(data.length);
-
             await Promise.all(data.map(async (item, i) => {
-                if (this.isGameObjectRef(item)) {
-                    this.deferredRefs.push({ target: result, property: i, id: item.id });
+                if (this.isGameObjectRef(item) && ctx) {
+                    ctx.deferredRefs.push({ target: result, property: i, id: item.id });
                     result[i] = null;
                 } else {
-                    result[i] = await this.deserializeAny(item, expectedType);
+                    result[i] = await this.deserializeAny(item, expectedType, undefined, ctx);
                 }
             }));
-
             return result;
         }
 
-        if (existing instanceof Vector3) {
-            existing.set(data.x, data.y, data.z);
-            return existing;
-        }
-
-        if (existing instanceof Vector2) {
-            existing.set(data.x, data.y);
-            return existing;
-        }
-
-        if (existing instanceof Quaternion) {
-            existing.set(data.x, data.y, data.z, data.w);
-            return existing;
-        }
-
-        if (existing instanceof Color) {
-            existing.set(data.r, data.g, data.b, data.a);
-            return existing;
-        }
-
-        if (expectedType === Texture && !data.assetPath) {
-            return existing;
-        }
+        if (existing instanceof Vector3) { existing.set(data.x, data.y, data.z); return existing; }
+        if (existing instanceof Vector2) { existing.set(data.x, data.y); return existing; }
+        if (existing instanceof Quaternion) { existing.set(data.x, data.y, data.z, data.w); return existing; }
+        if (existing instanceof Color) { existing.set(data.r, data.g, data.b, data.a); return existing; }
+        if (expectedType === Texture && !data.assetPath) return existing;
 
         const target = existing ?? (expectedType ? this.createExpectedInstance(expectedType) : undefined);
-
         if (target) {
             const fields = GetSerializedFields(target);
-
             if (fields.length > 0) {
-                await this.deserializeFields(target, data);
+                await this.deserializeFields(target, data, ctx);
                 return target;
             }
         }
-
         return data;
     }
 
-    public static async deserializeFields(target: any, data: any): Promise<void> {
+    public static async deserializeFields(target: any, data: SerializedComponentData, ctx?: DeserializeContext): Promise<void> {
         const fields = GetSerializedFields(target).filter(({ name }) => data[name] !== undefined);
 
         const resolved = await Promise.all(fields.map(async ({ name, type }) => {
             const value = data[name];
-
-            if (this.isGameObjectRef(value)) {
-                return { name, refId: value.id };
-            }
-
-            return {
-                name,
-                value: await this.deserializeAny(value, type, target[name])
-            };
+            if (this.isGameObjectRef(value)) return { name, refId: value.id };
+            return { name, value: await this.deserializeAny(value, type, target[name], ctx) };
         }));
 
         for (const item of resolved) {
             if ("refId" in item) {
-                this.deferredRefs.push({ target, property: item.name, id: item.refId });
+                if (ctx) ctx.deferredRefs.push({ target, property: item.name, id: item.refId });
+                else target[item.name] = null;
             } else {
                 target[item.name] = item.value;
             }
         }
     }
 
-    public static async deserializeComponent(component: Component, data: any): Promise<void> {
+    public static async deserializeComponent(component: Component, data: SerializedComponentData, ctx?: DeserializeContext): Promise<void> {
         if (data.id) component.id = data.id;
-        await this.deserializeFields(component, data);
+        await this.deserializeFields(component, data, ctx);
     }
 
-    public static async deserializeGameObject(scene: Scene, data: any, parent?: Transform): Promise<GameObject> {
-        let source = data;
+    public static async deserializeGameObject(scene: Scene, data: SerializedGameObjectData, parent?: Transform, ctx?: DeserializeContext): Promise<GameObject> {
+        const ownsCtx = !ctx;
+        ctx = ctx ?? { deferredRefs: [], idMap: new Map() };
 
+        let source = data;
         if (data.assetPath) {
             source = await this.Load(data.assetPath);
+            source = this.remapTemplateIds(source);   // fresh ids per use
         }
 
         const go = new GameObject(scene);
-
         if (data.id) go.id = data.id;
-        go.name = data.name ?? source.name;
-
-        if (data.id) this.idMap.set(data.id, go);
+        go.name = data.name ?? source.name ?? go.name;
+        if (data.id) ctx.idMap.set(data.id, go);
         if (data.assetPath) go.assetPath = data.assetPath;
         if (parent) go.transform.parent = parent;
 
-        await this.deserializeComponent(go.transform, source.transform);
+        if (source.transform) await this.deserializeComponent(go.transform, source.transform, ctx);
+        if (data.assetPath && data.transform) await this.deserializeComponent(go.transform, data.transform, ctx);
 
-        if (data.assetPath) {
-            await this.deserializeComponent(go.transform, data.transform);
-        }
-
+        const compsData = source.components ?? [];
         const instances: Component[] = [];
-
-        for (const compData of (source.components ?? [])) {
-            if (compData.assetPath && !Component.Registry.get(compData.type)) await this.Load(compData.assetPath);
-
-            const Ctor = Component.Registry.get(compData.type);
+        for (const compData of compsData) {
+            if (compData.assetPath && !Component.Registry.get(compData.type!)) await this.Load(compData.assetPath);
+            const Ctor = Component.Registry.get(compData.type!);
             if (!Ctor) throw Error(`Component ${compData.type} not found`);
-
             instances.push(go.AddComponent(Ctor as any));
         }
 
-        for (let i = 0; i < instances.length; i++) await this.deserializeComponent(instances[i], source.components[i]);
-        for (const child of (source.children ?? [])) await this.deserializeGameObject(scene, child, go.transform);
+        for (let i = 0; i < instances.length; i++) await this.deserializeComponent(instances[i], compsData[i], ctx);
+        for (const child of (source.children ?? [])) await this.deserializeGameObject(scene, child, go.transform, ctx);
 
+        if (ownsCtx) this.resolve(ctx);
         return go;
     }
 
     public static async deserializeScene(scene: Scene, data: any): Promise<void> {
         scene.name = data.name;
+        const ctx: DeserializeContext = { deferredRefs: [], idMap: new Map() };
 
-        for (const goData of data.gameObjects) await this.deserializeGameObject(scene, goData);
+        for (const goData of data.gameObjects) await this.deserializeGameObject(scene, goData, undefined, ctx);
 
-        for (const ref of this.deferredRefs) {
-            ref.target[ref.property] = this.idMap.get(ref.id) ?? null;
-        }
-
-        this.deferredRefs.length = 0;
+        this.resolve(ctx);
 
         Camera.mainCamera = null;
-
         for (const go of scene.GetGameObjects()) {
             const cam = go.GetComponent(Camera);
-
-            if (cam && cam.id === data.mainCamera) {
-                Camera.mainCamera = cam;
-                break;
-            }
-
-            if (cam && !Camera.mainCamera) {
-                Camera.mainCamera = cam;
-            }
+            if (cam && cam.id === data.mainCamera) { Camera.mainCamera = cam; break; }
+            if (cam && !Camera.mainCamera) Camera.mainCamera = cam;
         }
+    }
 
-        this.idMap.clear();
+    private static resolve(ctx: DeserializeContext): void {
+        for (const ref of ctx.deferredRefs) {
+            ref.target[ref.property] = ctx.idMap.get(ref.id) ?? null;
+        }
     }
 }

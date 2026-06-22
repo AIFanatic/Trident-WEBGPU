@@ -91,8 +91,7 @@ export class Scene {
     }
 
     public async Instantiate(prefab: Prefab, parent?: Transform): Promise<GameObject> {
-        const data = prefab.data ?? prefab;
-        return await Deserializer.deserializeGameObject(this, data, parent);
+        return await Deserializer.deserializeGameObject(this, { assetPath: prefab.assetPath }, parent);
     }
 
     public Clear(): void {
