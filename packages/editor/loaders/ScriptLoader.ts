@@ -39,12 +39,17 @@ const fileBrowserPlugin: esbuild.Plugin = {
     name: "file-browser",
     setup(build) {
         // Absolute project paths
-        build.onResolve({ filter: /^\// }, args => ({ path: args.path, namespace: "project" }));
+        build.onResolve({ filter: /^\// }, args => {
+            let p = args.path;
+            if (!/\.[a-zA-Z0-9]+$/.test(p)) p = `${p}.ts`;
+            return { path: p, namespace: "project" };
+        });
 
         // Relative imports
         build.onResolve({ filter: /^\.\.?\// }, args => {
             const base = args.importer.substring(0, args.importer.lastIndexOf("/") + 1);
-            const resolved = new URL(args.path, `file://${base}`).pathname;
+            let resolved = new URL(args.path, `file://${base}`).pathname;
+            if (!/\.[a-zA-Z0-9]+$/.test(resolved)) resolved = `${resolved}.ts`;
             return { path: resolved, namespace: "project" };
         });
 
@@ -101,7 +106,7 @@ export async function BuildBundle(): Promise<Record<string, any>> {
     const blob = new Blob([code], { type: "text/javascript" });
     currentBundleUrl = URL.createObjectURL(blob);
 
-    const module = await import(/* @vite-ignore */ currentBundleUrl);
+    const module = await import(currentBundleUrl);
 
     // Flatten the M0/M1/... namespaces and register classes
     const flattened: Record<string, any> = {};
@@ -117,6 +122,8 @@ export async function BuildBundle(): Promise<Record<string, any>> {
             flattened[exportName] = exp;
             perFile[exportName] = exp;
             if (typeof exp === "function") {
+                // TODO: This needs to be way better, we dont want to set type stuff all over, figure out an automated way.
+                if (!exp.type) console.warn(`${exp.name} has no type field`)
                 Component.Registry.set(exp.type ?? exp.name, exp);
             }
         }
@@ -125,6 +132,7 @@ export async function BuildBundle(): Promise<Record<string, any>> {
 
     console.log(`[BuildBundle] Built bundle with ${tsFiles.length} files, ${Object.keys(flattened).length} exports`);
     currentModule = flattened;
+
     return flattened;
 }
 
