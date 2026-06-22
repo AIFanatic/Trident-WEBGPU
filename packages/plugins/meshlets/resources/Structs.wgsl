@@ -6,7 +6,8 @@ struct DrawBuffer {
 };
 
 struct InstanceInfo {
-    objectIndex: u32
+    objectIndex: u32,
+    instanceIndex: u32,
 };
 
 struct MeshletParams {
@@ -53,6 +54,7 @@ struct LodMeshInfo {
     baseVertexFloatOffset : u32,
     baseTriangleOffset    : u32,
     materialIndex         : u32,
+    instanceCount         : u32,
 };
 
 struct ObjectInfo {

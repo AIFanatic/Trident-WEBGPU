@@ -1,6 +1,5 @@
 import { Geometry, VertexAttribute, GPU, Scene, PBRMaterial } from "@trident/core";
 import { MeshletPassParams } from "./MeshletDraw";
-import { MeshletMesh } from "../MeshletMesh";
 
 export class IndirectGBufferPass extends GPU.RenderPass {
     public name: string = "IndirectGBufferPass";
@@ -84,7 +83,7 @@ export class IndirectGBufferPass extends GPU.RenderPass {
         ];
 
         GPU.RendererContext.BeginRenderPass(`Meshlets - Draw prepass: ${+true}`, colorTargets, {target: gBufferDepthRT, clear: false}, true);
-        const frameMeshlets = resources.getResource(MeshletPassParams.FrameMeshlets) as Map<PBRMaterial, MeshletMesh[]>;
+        const frameMeshlets = resources.getResource(MeshletPassParams.FrameMeshlets) as Map<PBRMaterial, number>;
         let materialIndex = 0;
         for (const [material] of frameMeshlets) {
             const albedoMap = material.params.albedoMap ? material.params.albedoMap : this.dummyTexture;

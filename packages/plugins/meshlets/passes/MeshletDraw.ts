@@ -25,7 +25,9 @@ export enum MeshletPassParams {
     DrawIndirectBuffer = "DrawIndirectBuffer",
     // Current total meshlet count
     CurrentMeshletCount = "CurrentMeshletCount",
-    // Meshlets to be drawn
+    // Largest per-group instance count (sets the cull dispatch Y dim)
+    MaxInstanceCount = "MaxInstanceCount",
+    // Per-material survivor counts (Map<PBRMaterial, number>)
     FrameMeshlets = "FrameMeshlets",
 };
 

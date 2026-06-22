@@ -57,7 +57,7 @@ export class Meshoptimizer {
         const meshlet_ptr = WASMHelper.call(MeshOptmizer, "meshlet_ptr", "number");
         const meshlet_indices_ptr = WASMHelper.call(MeshOptmizer, "meshlet_indices_ptr", "number");
 
-        function groupView(i): Group {
+        function groupView(i: number): Group {
             const base = group_ptr + i * 24;
             const heap = MeshOptmizer.HEAPU8.buffer;
 
@@ -69,7 +69,7 @@ export class Meshoptimizer {
             };
         }
 
-        function meshletView(i): Meshlet {
+        function meshletView(i: number): Meshlet {
             const base = meshlet_ptr + i * 36;
             const heap = MeshOptmizer.HEAPU8.buffer;
 
@@ -104,8 +104,10 @@ export class Meshoptimizer {
         let meshlets: Meshlet[] = [];
         for (let i = 0; i < meshlet_count; i++) {
             const meshletRaw = meshletView(i);
-            meshlets.push(meshletRaw)
+            meshlets.push(meshletRaw);
         }
+
+        console.log(groups)
 
         const meshlet_indices = new Uint32Array(MeshOptmizer.HEAPU8.buffer, meshlet_indices_ptr, meshlet_indices_count).slice();
         return { indices: meshlet_indices, meshlets: meshlets };

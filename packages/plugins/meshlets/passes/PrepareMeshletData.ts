@@ -2,9 +2,14 @@ import {
     Components,
     EventSystem,
     GPU,
-    PBRMaterial
+    InterleavedVertexAttribute,
+    IndexAttribute,
+    PBRMaterial,
+    Scene
 } from "@trident/core";
-import { MeshletMesh, MeshletEvents } from "../MeshletMesh";
+import { MeshletMesh, MeshletEvents, MeshletInfoFloatStride } from "../MeshletMesh";
+import { InstancedMeshletMesh } from "../InstancedMeshletMesh";
+import { Meshlet } from "../meshoptimizer/Meshoptimizer";
 import { MeshletPassParams } from "./MeshletDraw";
 
 import { MeshletDebug } from "../MeshletDebug";
@@ -13,14 +18,7 @@ type Slot = { n: number; view: "f32" | "u32" | "i32" };
 
 const f32 = { n: 1, view: "f32" } as const;
 const u32 = { n: 1, view: "u32" } as const;
-const i32 = { n: 1, view: "i32" } as const;
 
-const vec2u = { n: 2, view: "u32" } as const;
-const vecfu = { n: 2, view: "f32" } as const;
-
-const vec4u = { n: 4, view: "u32" } as const;
-const vec4f = { n: 4, view: "f32" } as const;
-const mat4f = { n: 16, view: "f32" } as const;
 function autoLayout<T extends Record<string, Slot>>(spec: T) {
     let offset = 0;
     const buffer = new ArrayBuffer(
@@ -49,26 +47,32 @@ function autoLayout<T extends Record<string, Slot>>(spec: T) {
     return { buffer, views };
 }
 
+interface Item {
+    id: string;
+    material: PBRMaterial;
+    meshlets: Meshlet[];
+    interleavedVertices: InterleavedVertexAttribute;
+    indices: IndexAttribute;
+    meshletInfoPacked: Float32Array;
+    matrices: Float32Array;
+    instanceCount: number;
+}
+
 export class PrepareMeshletData extends GPU.RenderPass {
     public name: string = "PrepareMeshletData";
 
     private meshletParams: GPU.Buffer;
 
-    /** Interleaved vertex attributes (Float32) for all meshes */
     private vertexAttribBuffer: GPU.DynamicBufferMemoryAllocator;
-
-    /** meshopt arrays (u32) */
-    private meshletTrianglesBuffer: GPU.DynamicBufferMemoryAllocator;  // expanded meshlet_triangles_result (u8→u32)
-    /** meshlet headers: array<MeshletInfo> (4×u32 each = 16 bytes) */
+    private meshletTrianglesBuffer: GPU.DynamicBufferMemoryAllocator;
     private meshletInfoBuffer: GPU.DynamicBufferMemoryAllocator;
     private meshInfoBuffer: GPU.DynamicBufferMemoryAllocator;
     private lodMeshInfoBuffer: GPU.DynamicBufferMemoryAllocator;
-    /** per-instance: ObjectInfo { meshletIndex:u32, lodMeshIndex:u32 } */
     private objectInfoBuffer: GPU.Buffer;
-
     private materialInfoBuffer: GPU.DynamicBufferMemoryAllocator;
 
     private currentObjectCount = 0;
+    private maxInstanceCount = 0;
 
     private needsUpdate = true;
 
@@ -88,116 +92,145 @@ export class PrepareMeshletData extends GPU.RenderPass {
     public async init(resources: GPU.ResourcePool) {
         const s = 1000;
         this.meshletParams = new GPU.Buffer(92 * 4, GPU.BufferType.STORAGE);
-        this.vertexAttribBuffer = new GPU.DynamicBufferMemoryAllocator(s * 64 * 12 * 4); // guess: s verts * 8 floats * 4B // s * 64 * 8 * 4
-        this.meshletTrianglesBuffer = new GPU.DynamicBufferMemoryAllocator(s * 128 * 3 * 4);// u32 (expanded)
-        this.meshletInfoBuffer = new GPU.DynamicBufferMemoryAllocator(s * 4 * 4);         // 16 bytes/meshlet
-        this.meshInfoBuffer = new GPU.DynamicBufferMemoryAllocator(s * 16 * 4);         // 16 bytes/meshlet
+        this.vertexAttribBuffer = new GPU.DynamicBufferMemoryAllocator(s * 64 * 12 * 4);
+        this.meshletTrianglesBuffer = new GPU.DynamicBufferMemoryAllocator(s * 128 * 3 * 4);
+        this.meshletInfoBuffer = new GPU.DynamicBufferMemoryAllocator(s * 4 * 4);
+        this.meshInfoBuffer = new GPU.DynamicBufferMemoryAllocator(s * 16 * 4);
         this.lodMeshInfoBuffer = new GPU.DynamicBufferMemoryAllocator(s * 10 * 4);
         this.objectInfoBuffer = new GPU.Buffer(s * 2 * 4, GPU.BufferType.STORAGE);
-        this.materialInfoBuffer = new GPU.DynamicBufferMemoryAllocator(s * 80 * 4);          // 80 bytes/mesh
+        this.materialInfoBuffer = new GPU.DynamicBufferMemoryAllocator(s * 80 * 4);
 
         this.initialized = true;
 
-        EventSystem.on(MeshletEvents.Updated, meshlet => {
-            console.log("Updated", meshlet)
-            this.needsUpdate = true;
-        })
+        EventSystem.on(MeshletEvents.Updated, () => { this.needsUpdate = true; });
 
         MeshletDebug.isBackFaceCullingEnabled = true;
     }
 
-    private getOrSet(buffer: GPU.DynamicBufferMemoryAllocator, link: any, setValue: Float32Array | Uint32Array | Uint16Array | Uint8Array) {
+    private getOrSet(buffer: GPU.DynamicBufferMemoryAllocator, link: any, value: Float32Array | Uint32Array | Uint16Array | Uint8Array) {
         if (buffer.has(link)) return buffer.get(link);
-        return buffer.set(link, setValue);
+        return buffer.set(link, value);
+    }
+
+    private collectItems(scene: Scene): Item[] {
+        const out: Item[] = [];
+
+        for (const m of scene.GetComponents(MeshletMesh)) {
+            if (!(m.material instanceof PBRMaterial)) continue;
+            out.push({
+                id: m.id,
+                material: m.material,
+                meshlets: m.meshlets,
+                interleavedVertices: m.interleavedVertices,
+                indices: m.indices,
+                meshletInfoPacked: m.meshletInfoPacked,
+                matrices: m.transform.localToWorldMatrix.elements,
+                instanceCount: 1,
+            });
+        }
+
+        for (const g of scene.GetComponents(InstancedMeshletMesh)) {
+            if (!(g.material instanceof PBRMaterial)) continue;
+            if (g.instanceCount === 0) continue;
+            out.push({
+                id: g.id,
+                material: g.material,
+                meshlets: g.meshlets,
+                interleavedVertices: g.interleavedVertices,
+                indices: g.indices,
+                meshletInfoPacked: g.meshletInfoPacked,
+                matrices: g.matrices,
+                instanceCount: g.instanceCount,
+            });
+        }
+
+        return out;
+    }
+
+    private materialFloats(material: PBRMaterial): Float32Array {
+        const p = material.params;
+        return new Float32Array([
+            p.albedoColor.r, p.albedoColor.g, p.albedoColor.b, p.albedoColor.a,
+            p.emissiveColor.r, p.emissiveColor.g, p.emissiveColor.b, p.emissiveColor.a,
+            p.roughness, p.metalness, +p.unlit, p.alphaCutoff,
+            p.repeat.x, p.repeat.y,
+            p.offset.x, p.offset.y,
+            +p.wireframe,
+            0, 0, 0,
+        ]);
     }
 
     public preFrame(resources: GPU.ResourcePool) {
         if (this.needsUpdate) {
-            resources.setResource(MeshletPassParams.CurrentMeshletCount, 0); // Set here in case of no meshlets
+            resources.setResource(MeshletPassParams.CurrentMeshletCount, 0);
 
             const scene = Components.Camera.mainCamera.gameObject.scene;
-            const sceneMeshlets = scene.GetComponents(MeshletMesh);
-            if (sceneMeshlets.length === 0) return;
+            const items = this.collectItems(scene);
+            if (items.length === 0) { this.needsUpdate = false; return; }
 
-            // Sort frame meshlets per material
-            let frameMeshlets: Map<PBRMaterial, MeshletMesh[]> = new Map();
-            for (const meshletMesh of sceneMeshlets) {
-                if (!(meshletMesh.material instanceof PBRMaterial)) continue;
-                let array = frameMeshlets.get(meshletMesh.material) || [];
-                array.push(meshletMesh);
-                frameMeshlets.set(meshletMesh.material, array);
+            const byMaterial = new Map<PBRMaterial, Item[]>();
+            for (const it of items) {
+                let bucket = byMaterial.get(it.material);
+                if (!bucket) byMaterial.set(it.material, bucket = []);
+                bucket.push(it);
             }
 
-            let materialIndices: Map<PBRMaterial, number> = new Map();
-            let i = 0;
-            for (const [material, frameMeshlet] of frameMeshlets) materialIndices.set(material, i++);
+            const materialIndex = new Map<PBRMaterial, number>();
+            let mi = 0;
+            for (const mat of byMaterial.keys()) materialIndex.set(mat, mi++);
 
-            const drawIndirectBuffer = new GPU.Buffer(frameMeshlets.size * 4 * 4, GPU.BufferType.INDIRECT);
+            let totalObjects = 0;
+            for (const it of items) totalObjects += it.meshlets.length;
 
-            let totalMeshletCount = 0;
-            for (const [, meshletMeshes] of frameMeshlets) {
-                for (const meshletMesh of meshletMeshes) totalMeshletCount += meshletMesh.meshlets.length;
-            }
-            const requiredBytes = totalMeshletCount * 2 * 4;
-            if (requiredBytes > this.objectInfoBuffer.size) {
+            const objectBytes = Math.max(8, totalObjects * 2 * 4);
+            if (objectBytes > this.objectInfoBuffer.size) {
                 this.objectInfoBuffer.Destroy();
-                this.objectInfoBuffer = new GPU.Buffer(requiredBytes, GPU.BufferType.STORAGE_WRITE);
+                this.objectInfoBuffer = new GPU.Buffer(objectBytes, GPU.BufferType.STORAGE_WRITE);
             }
 
             this.currentObjectCount = 0;
+            this.maxInstanceCount = 0;
+            const frameMeshlets = new Map<PBRMaterial, number>();
 
-            console.time("build")
-            for (const [material, meshletMeshes] of frameMeshlets) {
-                const materialIndex = materialIndices.get(material);
+            for (const [material, bucket] of byMaterial) {
+                const matIdx = materialIndex.get(material)!;
+                this.getOrSet(this.materialInfoBuffer, material, this.materialFloats(material));
 
-                const materialInfoIndex = this.getOrSet(this.materialInfoBuffer, material, new Float32Array([
-                    material.params.albedoColor.r, material.params.albedoColor.g, material.params.albedoColor.b, material.params.albedoColor.a,
-                    material.params.emissiveColor.r, material.params.emissiveColor.g, material.params.emissiveColor.b, material.params.emissiveColor.a,
-                    material.params.roughness, material.params.metalness, +material.params.unlit, material.params.alphaCutoff,
-                    material.params.repeat.x, material.params.repeat.y,
-                    material.params.offset.x, material.params.offset.y,
-                    +material.params.wireframe,
-                    0, 0, 0
-                ]));
+                let survivors = 0;
+                for (const it of bucket) {
+                    if (it.instanceCount > this.maxInstanceCount) this.maxInstanceCount = it.instanceCount;
 
-                for (const meshletMesh of meshletMeshes) {
-                    const meshIndex = this.getOrSet(this.meshInfoBuffer, meshletMesh.id, meshletMesh.transform.localToWorldMatrix.elements) / 16;
+                    const meshIndex = this.getOrSet(this.meshInfoBuffer, it.id, it.matrices) / 16;
+                    const baseVertexFloatOffset = this.getOrSet(this.vertexAttribBuffer, it.interleavedVertices.crc, it.interleavedVertices.array);
+                    const baseTriangleOffset    = this.getOrSet(this.meshletTrianglesBuffer, it.indices.crc, it.indices.array);
 
-                    const baseVertexFloatOffset = this.getOrSet(this.vertexAttribBuffer, meshletMesh.interleavedVertices.crc, meshletMesh.interleavedVertices.array);
-                    const baseTriangleOffset = this.getOrSet(this.meshletTrianglesBuffer, meshletMesh.indices.crc, meshletMesh.indices.array);
+                    const meshletInfoOffset = this.getOrSet(this.meshletInfoBuffer, it.indices.crc, it.meshletInfoPacked);
+                    const meshletBaseIndex  = meshletInfoOffset / MeshletInfoFloatStride;
 
-                    const meshlets = meshletMesh.meshlets;
-                    const meshletInfoKey = meshletMesh.indices.crc;
-                    let meshletInfoOffset = this.meshletInfoBuffer.get(meshletInfoKey);
-
-                    if (meshletInfoOffset == null) {
-                        meshletInfoOffset = this.meshletInfoBuffer.set(meshletInfoKey, meshletMesh.meshletInfoPacked);
-                    }
-
-                    const meshletBaseIndex = meshletInfoOffset / MeshletMesh.MeshletInfoFloatStride;
-                    const objectInfo = new Uint32Array(meshlets.length * 2);
+                    const objectInfo = new Uint32Array(it.meshlets.length * 2);
                     const lodIndexCache = new Map<number, number>();
 
-                    for (let meshletIndex = 0; meshletIndex < meshlets.length; meshletIndex++) {
-                        const meshlet = meshlets[meshletIndex];
-                        let lodMeshIndex = lodIndexCache.get(meshlet.lod);
-                        if (lodMeshIndex === undefined) {
-                            const lodMeshData = new Uint32Array([meshlet.lod, meshIndex, baseVertexFloatOffset, baseTriangleOffset, materialIndex]);
-                            lodMeshIndex = this.getOrSet(this.lodMeshInfoBuffer, `${meshletMesh.id}-${meshlet.lod}`, lodMeshData) / lodMeshData.length;
-                            lodIndexCache.set(meshlet.lod, lodMeshIndex);
+                    for (let i = 0; i < it.meshlets.length; i++) {
+                        const meshlet = it.meshlets[i];
+                        let lodIdx = lodIndexCache.get(meshlet.lod);
+                        if (lodIdx === undefined) {
+                            const lodData = new Uint32Array([meshlet.lod, meshIndex, baseVertexFloatOffset, baseTriangleOffset, matIdx, it.instanceCount]);
+                            lodIdx = this.getOrSet(this.lodMeshInfoBuffer, `${it.id}-${meshlet.lod}`, lodData) / lodData.length;
+                            lodIndexCache.set(meshlet.lod, lodIdx);
                         }
-
-                        const base = meshletIndex * 2;
-                        objectInfo[base] = meshletBaseIndex + meshletIndex;
-                        objectInfo[base + 1] = lodMeshIndex;
+                        objectInfo[i * 2]     = meshletBaseIndex + i;
+                        objectInfo[i * 2 + 1] = lodIdx;
                     }
 
-                    const objectInfoByteOffset = this.currentObjectCount * 2 * 4;
-                    this.objectInfoBuffer.SetArray(objectInfo, objectInfoByteOffset);
-                    this.currentObjectCount += meshlets.length;
+                    this.objectInfoBuffer.SetArray(objectInfo, this.currentObjectCount * 2 * 4);
+                    this.currentObjectCount += it.meshlets.length;
+                    survivors += it.meshlets.length * it.instanceCount;
                 }
+
+                frameMeshlets.set(material, survivors);
             }
-            console.timeEnd("build")
+
+            const drawIndirectBuffer = new GPU.Buffer(byMaterial.size * 4 * 4, GPU.BufferType.INDIRECT);
 
             resources.setResource(MeshletPassParams.DrawIndirectBuffer, drawIndirectBuffer);
             resources.setResource(MeshletPassParams.VertexBuffer, this.vertexAttribBuffer.getBuffer());
@@ -208,8 +241,8 @@ export class PrepareMeshletData extends GPU.RenderPass {
             resources.setResource(MeshletPassParams.MaterialInfoBuffer, this.materialInfoBuffer.getBuffer());
             resources.setResource(MeshletPassParams.ObjectInfoBuffer, this.objectInfoBuffer);
             resources.setResource(MeshletPassParams.CurrentMeshletCount, this.currentObjectCount);
+            resources.setResource(MeshletPassParams.MaxInstanceCount, this.maxInstanceCount);
             resources.setResource(MeshletPassParams.FrameMeshlets, frameMeshlets);
-            console.log(frameMeshlets.size, frameMeshlets);
 
             this.needsUpdate = false;
         }

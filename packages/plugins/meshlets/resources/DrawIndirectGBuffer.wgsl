@@ -32,10 +32,8 @@ struct VertexOutput {
 @group(2) @binding(0) var TextureSampler: sampler;
 @group(2) @binding(1) var AlbedoMap: texture_2d<f32>;
 @group(2) @binding(2) var NormalMap: texture_2d<f32>;
-@group(2) @binding(3) var HeightMap: texture_2d<f32>;
-@group(2) @binding(4) var ARMMap: texture_2d<f32>;
-@group(2) @binding(5) var EmissiveMap: texture_2d<f32>;
-@group(2) @binding(6) var AOMap: texture_2d<f32>;
+@group(2) @binding(3) var ARMMap: texture_2d<f32>;
+@group(2) @binding(4) var EmissiveMap: texture_2d<f32>;
 
 @vertex fn vertexMain(input: VertexInput) -> VertexOutput {
     var output: VertexOutput;
@@ -44,7 +42,7 @@ struct VertexOutput {
     let objectInfo = objectInfoBuffer[instanceInfo.objectIndex];
     let meshletInfo = meshletBuffer[objectInfo.meshletIndex];
     let lodMeshInfo = lodMeshBuffer[objectInfo.lodMeshIndex];
-    let meshInfo = meshBuffer[lodMeshInfo.meshIndex];
+    let meshInfo = meshBuffer[lodMeshInfo.meshIndex + instanceInfo.instanceIndex];
 
     // Which micro-triangle and which corner?
     let triIndex    = input.vertexIndex / 3u;
@@ -120,7 +118,7 @@ fn CalcMipLevel(texture_coord: vec2f) -> f32 {
     let objectInfo = objectInfoBuffer[instanceInfo.objectIndex];
     let meshletInfo = meshletBuffer[objectInfo.meshletIndex];
     let lodMeshInfo = lodMeshBuffer[objectInfo.lodMeshIndex];
-    let meshInfo = meshBuffer[lodMeshInfo.meshIndex];
+    let meshInfo = meshBuffer[lodMeshInfo.meshIndex + instanceInfo.instanceIndex];
 
 
     let mat = materialInfoBuffer[lodMeshInfo.materialIndex];
