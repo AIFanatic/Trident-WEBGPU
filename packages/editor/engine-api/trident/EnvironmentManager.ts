@@ -90,7 +90,6 @@ export class EnvironmentManager extends Components.Component {
         this._sunAzimuth = this.sky.SUN_AZIMUTH_DEGREES;
 
         const pipeline = Runtime.Renderer.RenderPipeline;
-        console.log(GPU)
         this.iblPass = pipeline.AddPass(IBLLightingPass, GPU.RenderPassOrder.AfterLighting);
         this.skyboxPass = pipeline.AddPass(SkyboxPass, GPU.RenderPassOrder.AfterLighting);
 

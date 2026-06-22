@@ -13,7 +13,7 @@ export class EditorScene extends Component {
 
     public Start(): void {
         this.editorCamera = this.gameObject.GetComponent(Components.Camera) ?? this.gameObject.AddComponent(Components.Camera);
-        this.editorCamera.SetPerspective(60, 2, 0.05, 1000);
+        this.editorCamera.SetPerspective(60, 2, 0.5, 10000);
         this.editorCamera.transform.position.z = -10;
 
         this.orbitControls = this.gameObject.GetComponent(OrbitControls) ?? this.gameObject.AddComponent(OrbitControls);

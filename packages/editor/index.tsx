@@ -53,9 +53,8 @@ class App extends Component {
         })
 
         TridentAPI.EventSystem.on(RuntimeEvents.CreatedCanvas, async (canvas) => {
-            // Console.getVar("r_shadows_csm_splittypepracticallambda").value = 0.99;
-
             const Runtime = await engineAPI.createRuntime(canvas);
+            Runtime.Renderer.SetResolution({mode: "fixed", width: 1280, height: 720})
             const currentScene = Runtime.SceneManager.CreateScene("DefaultScene");
             currentScene.mode = SceneExecutionMode.Edit;
             Runtime.SceneManager.SetActiveScene(currentScene);
