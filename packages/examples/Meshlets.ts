@@ -1,7 +1,5 @@
 import {
     GameObject,
-    Geometry,
-    Scene,
     Components,
     Mathf,
     PBRMaterial,
@@ -17,10 +15,13 @@ import { GLTFLoader } from "@trident/plugins/GLTF/GLTFLoader";
 import { MeshletMesh as MeshletMesh } from "@trident/plugins/meshlets/MeshletMesh";
 import { MeshletDraw } from "@trident/plugins/meshlets/passes/MeshletDraw";
 import { HDRParser } from "@trident/plugins/HDRParser";
-import { Environment } from "@trident/plugins/Environment/Environment";
+
+import { IBLLightingPass } from "@trident/plugins/Environment/IBLLightingPass";
+import { SkyboxPass } from "@trident/plugins/Environment/SkyboxPass";
+import { InstancedMeshletMesh } from "@trident/plugins/meshlets/InstancedMeshletMesh";
 
 async function Application(canvas: HTMLCanvasElement) {
-    await PlayerRuntime.Create(canvas, window.devicePixelRatio);
+    await PlayerRuntime.Create(canvas);
     const scene = PlayerRuntime.SceneManager.CreateScene("DefaultScene");
     PlayerRuntime.SceneManager.SetActiveScene(scene);
 
@@ -47,107 +48,63 @@ async function Application(canvas: HTMLCanvasElement) {
     light.castShadows = true;
 
     {
-        const mesh = await OBJLoaderIndexed.load("./assets/models/bunny.obj");
-        // const mesh = await OBJLoaderIndexed.load("/extra/test-assets/lucy.obj");
+        // const mesh = await OBJLoaderIndexed.load("./assets/models/bunny.obj");
+        const mesh = await OBJLoaderIndexed.load("/extra/test-assets/lucy.obj");
         mesh.geometry.ComputeNormals();
         mesh.geometry.ComputeTangents();
-        const mat = new PBRMaterial({albedoMap: await GPU.Texture.Load("./assets/textures/T_OmniDebugTexture_COL.jpg")})
-        // const mesh = await OBJLoaderIndexed.load("/extra/test-assets/tree-01/tree-01.obj");
-        const meshletGameObject = new GameObject();
-        meshletGameObject.transform.position.x = 2;
-        const meshletMesh = meshletGameObject.AddComponent(MeshletMesh);
-        meshletMesh.enableShadows = false;
-        meshletMesh.geometry = mesh.geometry;
-        meshletMesh.material = mat;
+        const mat = new PBRMaterial({ albedoMap: await GPU.Texture.Load("./assets/textures/T_OmniDebugTexture_COL.jpg") })
+        // // const mesh = await OBJLoaderIndexed.load("/extra/test-assets/tree-01/tree-01.obj");
+        // const meshletGameObject = new GameObject();
+        // meshletGameObject.transform.position.x = 2;
+        // const meshletMesh = meshletGameObject.AddComponent(MeshletMesh);
+        // meshletMesh.enableShadows = false;
+        // meshletMesh.geometry = mesh.geometry;
+        // meshletMesh.material = mat;
 
-
+        
+        
         const c = 10;
-        const off = 10;
+        const off = 100;
+        const total = c * c * c;
+        
+        const go = new GameObject();
+        const meshletInstanced = go.AddComponent(InstancedMeshletMesh);
+        meshletInstanced.geometry = mesh.geometry;
+        meshletInstanced.material = mat;
+        console.log(meshletInstanced)
+
+        let j = 0;
+        for (const m of meshletInstanced.meshlets) if (m.lod === 0) j++;
+        console.log(j);
+
+        const p = new Mathf.Vector3();
+        const q = new Mathf.Quaternion();
+        const s = new Mathf.Vector3(1, 1, 1);
+        const m = new Mathf.Matrix4();
+        const matrices = new Float32Array(total * 16);
+
+        let i = 0;
         for (let x = 0; x < c; x++) {
             for (let y = 0; y < c; y++) {
                 for (let z = 0; z < c; z++) {
-                    const go2 = new GameObject();
-                    const meshletB = go2.AddComponent(MeshletMesh);
-                    meshletB.geometry = mesh.geometry;
-                    meshletB.transform.position.set(x * off,y * off,z * off);
-                    meshletB.material = mat;
+                    p.set(x * off, y * off, z * off);
+                    m.compose(p, q, s);
+                    matrices.set(m.elements, i * 16);
+                    i++;
                 }
             }
         }
-        // for (let i = 0; i < c; i++) {
-        //     const go2 = new GameObject();
-        //     const meshletB = go2.AddComponent(MeshletMesh);
-        //     meshletB.geometry = mesh.geometry;
-        //     meshletB.transform.position.set(Mathf.RandomRange(-off, off), 0, Mathf.RandomRange(-off, off));
-        //     meshletB.material = mat;
-        // }
+
+        meshletInstanced.SetMatricesBulk(matrices);
     }
-
-
-
-
-
-
-    // {
-    //     const loadedGO = await GLTFLoader.Load("/extra/test-assets/trellis2/rock_pile.glb", scene);
-
-    //     let mesh: { geometry: Geometry, material: GPU.Material };
-    //     const loadedMeshes = loadedGO.GetComponentsInChildren(Components.Mesh);
-    //     for (const m of loadedMeshes) {
-    //         console.log("GOT IT", m)
-    //         mesh = {
-    //             geometry: m.geometry,
-    //             material: m.material
-    //         }
-    //         mesh.geometry.ComputeTangents();
-    //     }
-    //     loadedGO.Destroy();
-
-    //     console.log(mesh)
 
     const hdr = await HDRParser.Load("./assets/textures/HDR/autumn_field_puresky_1k.hdr");
     const skyTexture = await HDRParser.ToCubemap(hdr);
 
-    const environment = new Environment(scene, skyTexture);
-    await environment.init();
-
-
-    // // const rootGO = await GLTFLoader.Load("./assets/models/DamagedHelmet/DamagedHelmet.gltf", scene);
-    // const rootGO = await GLTFLoader.Load("/extra/test-assets/trees/tree_small_02_1k_leaves.glb", scene);
-    // rootGO.transform.position.x = 2;
-
-    // const meshComponents = rootGO.GetComponentsInChildren(Components.Mesh);
-    // for (const mesh of meshComponents) {
-    //     const meshletGameObject = new GameObject();
-    //     meshletGameObject.transform.position.x = -2;
-    //     const meshletMesh = meshletGameObject.AddComponent(MeshletMesh);
-    //     meshletMesh.enableShadows = false;
-    //     meshletMesh.geometry = mesh.geometry;
-    //     meshletMesh.material = mesh.material;
-
-    //     const c = 10;
-    //     const off = 10;
-    //     for (let x = 0; x < c; x++) {
-    //         for (let y = 0; y < c; y++) {
-    //             for (let z = 0; z < c; z++) {
-    //                 const go2 = new GameObject();
-    //                 const meshletB = go2.AddComponent(MeshletMesh);
-    //                 meshletB.geometry = mesh.geometry;
-    //                 meshletB.transform.position.set(x * off,y * off,z * off);
-    //                 meshletB.geometry = mesh.geometry;
-    //                 meshletB.material = mesh.material;
-    //             }
-    //         }
-    //     }
-
-    //     break;
-    // }
-    //     const meshletGameObject = new GameObject();
-    //     const meshletMesh = meshletGameObject.AddComponent(MeshletMesh);
-    //     meshletMesh.enableShadows = false;
-    //     meshletMesh.geometry = mesh.geometry;
-    //     meshletMesh.material = new PBRMaterial({albedoColor: new Mathf.Color(1,1,1,1), roughness: 0.99, metalness: 0.01, wireframe: false});
-    // }
+    const iblLightingPass = Runtime.Renderer.RenderPipeline.AddPass(IBLLightingPass, GPU.RenderPassOrder.AfterLighting);
+    const skyboxPass = Runtime.Renderer.RenderPipeline.AddPass(SkyboxPass, GPU.RenderPassOrder.AfterLighting);
+    iblLightingPass.SetEnvironment(skyTexture);
+    skyboxPass.SetSkybox(skyTexture);
 };
 
 Application(document.querySelector("canvas"));
