@@ -163,7 +163,7 @@ export class Geometry {
         return clone;
     }
 
-    private ApplyOperationToVertices(operation: "+" | "*", vec: Vector3): Geometry {
+    public ApplyOperationToVertices(operation: "+" | "*", vec: Vector3): Geometry {
         let verts = this.attributes.get("position");
         if (!verts) throw Error("No verts");
 

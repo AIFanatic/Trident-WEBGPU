@@ -43,10 +43,16 @@ export class Renderable extends Component {
     public OnPreRender(shaderOverride?: Shader) { }
     public OnRenderObject(shaderOverride?: Shader) { }
 
-    public Destroy(): void {
-        super.Destroy();
-        if (this._geometry) { this._geometry.Destroy(); this._geometry = null; }
-        if (this._material) { this._material.Destroy(); this._material = null; }
-        Renderable.Renderables.delete(this.id);
-    }
+    // public Destroy(): void {
+    //     super.Destroy();
+    //     if (this._geometry) { this._geometry.Destroy(); this._geometry = null; }
+    //     if (this._material) { this._material.Destroy(); this._material = null; }
+    //     Renderable.Renderables.delete(this.id);
+    // }
+  public Destroy(): void {
+      super.Destroy();
+      this._geometry = null;
+      this._material = null;
+      Renderable.Renderables.delete(this.id);
+  }
 }

@@ -8,10 +8,14 @@ import { RenderingPipeline } from "./RenderingPipeline";
 import { TextureFormat } from "./Texture";
 
 export class RendererEvents {
-    public static Created = (renderer: Renderer) => {}
-    public static Resized = (canvas: HTMLCanvasElement) => {}
-    public static FrameEnded = () => {}
+    public static Created = (renderer: Renderer) => { }
+    public static Resized = (canvas: HTMLCanvasElement) => { }
+    public static FrameEnded = () => { }
 }
+
+type ResolutionMode =
+    | { mode: "fit", scale?: number }                       // fit parent × scale (default 1.0)
+    | { mode: "fixed", width: number, height: number };     // explicit resolution
 
 export class Renderer extends System {
     public static canvas: HTMLCanvasElement;
@@ -22,6 +26,7 @@ export class Renderer extends System {
     public static type = "webgpu";
     public static width: number;
     public static height: number;
+    private static resolution: ResolutionMode = { mode: "fit", scale: 1 };
 
     public static info: RendererInfo = new RendererInfo();
     private static activeCommandEncoder: GPUCommandEncoder | null = null;
@@ -32,42 +37,55 @@ export class Renderer extends System {
 
     private previousTime: number = 0;
 
-    constructor(canvas: HTMLCanvasElement, aspectRatio = 1) {
+    constructor(canvas: HTMLCanvasElement) {
         super();
 
-        if (canvas.parentElement) {
-            canvas.width = canvas.parentElement.clientWidth * aspectRatio;
-            canvas.height = canvas.parentElement.clientHeight * aspectRatio;
-            canvas.style.width = "100%";
-            canvas.style.height = "100%";
-            canvas.style.userSelect = "none";
-        }
-
-        if (globalThis.ResizeObserver) {
-            const observer = new ResizeObserver(entries => {
-                canvas.width = canvas.parentElement.clientWidth * aspectRatio;
-                canvas.height = canvas.parentElement.clientHeight * aspectRatio;
-                Renderer.width = canvas.width;
-                Renderer.height = canvas.height;
-                EventSystem.emit(RendererEvents.Resized, canvas);
-            });
-            observer.observe(canvas);
-        }
+        canvas.style.width = "100%";
+        canvas.style.height = "100%";
+        canvas.style.userSelect = "none";
 
         Renderer.canvas = canvas;
         Renderer.type = "webgpu";
-        Renderer.width = canvas.width;
-        Renderer.height = canvas.height;
+
+        this.applyResolution();
+
+        if (globalThis.ResizeObserver) new ResizeObserver(() => { if (Renderer.resolution.mode === "fit") this.applyResolution()}).observe(canvas);
+    }
+
+    public SetResolution(res: ResolutionMode) {
+        Renderer.resolution = res;
+        this.applyResolution();
+    }
+
+    private applyResolution() {
+        const c = Renderer.canvas;
+        const r = Renderer.resolution;
+
+        if (r.mode === "fixed") {
+            c.width = r.width;
+            c.height = r.height;
+        } else {
+            const parent = c.parentElement;
+            const scale = r.scale ?? 1;
+            const w = (parent?.clientWidth ?? c.clientWidth) * scale;
+            const h = (parent?.clientHeight ?? c.clientHeight) * scale;
+            c.width = Math.max(1, Math.floor(w));
+            c.height = Math.max(1, Math.floor(h));
+        }
+
+        Renderer.width = c.width;
+        Renderer.height = c.height;
+        EventSystem.emit(RendererEvents.Resized, c);
     }
 
     public async Start() {
         const context = Renderer.canvas.getContext("webgpu");
         if (!context) throw Error("Could not get WEBGPU context");
-        
+
         const adapter = navigator ? await navigator.gpu.requestAdapter() : null;
         if (!adapter) throw Error("WEBGPU not supported");
 
-        const requiredLimits: {[key: string]: number} = {};
+        const requiredLimits: { [key: string]: number } = {};
         // @ts-ignore
         for (const key in adapter.limits) requiredLimits[key] = adapter.limits[key];
 
@@ -81,12 +99,12 @@ export class Renderer extends System {
         }) : null;
 
         if (!adapter || !device) throw Error("WEBGPU not supported");
-        
+
         Renderer.adapter = adapter;
         Renderer.device = device;
         Renderer.SwapChainFormat = navigator.gpu.getPreferredCanvasFormat();
 
-        context.configure({device: Renderer.device, format: Renderer.SwapChainFormat, alphaMode: "opaque" });
+        context.configure({ device: Renderer.device, format: Renderer.SwapChainFormat, alphaMode: "opaque" });
 
         Renderer.context = context;
 
@@ -101,7 +119,7 @@ export class Renderer extends System {
         RegisterBuiltinGeometries();
         Renderer.RenderPipeline = new RenderingPipeline();
         this.RenderPipeline = Renderer.RenderPipeline;
-        
+
         EventSystem.emit(RendererEvents.Created, this);
     }
 
