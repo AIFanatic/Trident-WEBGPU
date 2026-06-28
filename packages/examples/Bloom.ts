@@ -1,21 +1,11 @@
-import {
-    GameObject,
-    Geometry,
-    Scene,
-    Components,
-    Mathf,
-    PBRMaterial,
-    GPU,
-    Runtime,
-    PlayerRuntime
-} from "@trident/core";
+import { GameObject, Geometry, Components, Mathf, PBRMaterial, GPU, Runtime, PlayerRuntime } from "@trident/core";
 
 import { OrbitControls } from "@trident/plugins/OrbitControls";
-import { LineRenderer } from "@trident/plugins/LineRenderer";
-import { Bloom } from "@trident/plugins/Bloom";
 
 import { UIFolder, UISliderStat, UIVecStat } from "@trident/plugins/ui/UIStats";
 import { Debugger } from "@trident/plugins/Debugger";
+import { PostProcessingPass } from "@trident/plugins/PostProcessing/PostProcessingPass";
+import { PostProcessingBloom } from "@trident/plugins/PostProcessing/effects/Bloom";
 
 async function Application(canvas: HTMLCanvasElement) {
     await PlayerRuntime.Create(canvas);
@@ -31,7 +21,7 @@ async function Application(canvas: HTMLCanvasElement) {
 
     const lightGameObject = new GameObject();
     lightGameObject.transform.position.set(2, 5, 10);
-    lightGameObject.transform.LookAtV1(new Mathf.Vector3(0, 0, 0));
+    lightGameObject.transform.LookAt(new Mathf.Vector3(0, 0, 0));
     // const light = lightGameObject.AddComponent(DirectionalLight);
     const light = lightGameObject.AddComponent(Components.PointLight);
     light.range = 200;
@@ -39,8 +29,6 @@ async function Application(canvas: HTMLCanvasElement) {
     light.intensity = 10;
     light.color.set(1, 1, 1, 1);
     light.castShadows = true;
-    // const l = new LineRenderer(scene, lightGameObject.transform.position, new Mathf.Vector3(0, 0, 0));
-
 
     {
         const lightFolder = new UIFolder(Debugger.ui, "Light");
@@ -152,23 +140,10 @@ async function Application(canvas: HTMLCanvasElement) {
 
 
 
-
-    const bloom = new Bloom();
-    // @ts-ignore
-    await bloom.init(Runtime.Renderer.RenderPipeline.renderGraph.resourcePool);
-
-    Runtime.Renderer.RenderPipeline.AddPass(bloom, GPU.RenderPassOrder.AfterLighting);
-    
-    // Viewer
-    {
-        const viewerGO = new GameObject();
-        viewerGO.transform.scale.set(3,3,3)
-        const viewerMesh = viewerGO.AddComponent(Components.Mesh);
-        viewerMesh.geometry = Geometry.Plane();
-        viewerMesh.material = new PBRMaterial({ albedoMap: bloom.output, unlit: true });
-    }
-
-    // Runtime.Renderer.RenderPipeline.AddPass(new DeferredGBufferPass(), RenderPassOrder.BeforeGBuffer);
+    const postProcessing = new PostProcessingPass();
+    const bloom = new PostProcessingBloom();
+    postProcessing.effects.push(bloom);
+    Runtime.Renderer.RenderPipeline.AddPass(postProcessing, GPU.RenderPassOrder.AfterLighting);
 };
 
 Application(document.querySelector("canvas"));

@@ -93,7 +93,7 @@ async function Application(canvas: HTMLCanvasElement) {
 
 
     mainCameraGameObject.transform.position.set(0, 0, 2);
-    mainCameraGameObject.transform.LookAtV1(new Mathf.Vector3(0, 0, 0));
+    mainCameraGameObject.transform.LookAt(new Mathf.Vector3(0, 0, 0));
 
     const controls = new OrbitControls(canvas, camera);
 
