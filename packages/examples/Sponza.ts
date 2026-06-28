@@ -27,13 +27,13 @@ async function Application(canvas: HTMLCanvasElement) {
 
 
     mainCameraGameObject.transform.position.set(0, 0, 10);
-    mainCameraGameObject.transform.LookAtV1(new Mathf.Vector3(0, 0, 0));
+    mainCameraGameObject.transform.LookAt(new Mathf.Vector3(0, 0, 0));
 
     const controls = new OrbitControls(canvas, camera);
 
     const lightGameObject = new GameObject();
     lightGameObject.transform.position.set(-10, 10, 10);
-    lightGameObject.transform.LookAtV1(new Mathf.Vector3(0, 0, 0));
+    lightGameObject.transform.LookAt(new Mathf.Vector3(0, 0, 0));
     const light = lightGameObject.AddComponent(Components.DirectionalLight);
     light.castShadows = true;
     light.intensity = 0.01

@@ -19,7 +19,7 @@ async function Application(canvas: HTMLCanvasElement) {
 
     const mainCameraGameObject = new GameObject();
     mainCameraGameObject.transform.position.set(0, 6, 16);
-    mainCameraGameObject.transform.LookAtV1(new Mathf.Vector3(0, 2, 0));
+    mainCameraGameObject.transform.LookAt(new Mathf.Vector3(0, 2, 0));
     mainCameraGameObject.name = "MainCamera";
     const camera = mainCameraGameObject.AddComponent(Components.Camera);
     camera.SetPerspective(60, canvas.width / canvas.height, 0.1, 200);
@@ -27,14 +27,14 @@ async function Application(canvas: HTMLCanvasElement) {
 
     const lightGameObject = new GameObject();
     lightGameObject.transform.position.set(-4, 4, 4);
-    lightGameObject.transform.LookAtV1(new Mathf.Vector3(0, 0, 0));
+    lightGameObject.transform.LookAt(new Mathf.Vector3(0, 0, 0));
     const light = lightGameObject.AddComponent(Components.DirectionalLight);
     light.castShadows = true;
     light.intensity = 0.001
 
     const sourceLightGO = new GameObject();
     sourceLightGO.transform.position.set(0, 4, 0);
-    sourceLightGO.transform.LookAtV1(new Mathf.Vector3(0, 2, 0));
+    sourceLightGO.transform.LookAt(new Mathf.Vector3(0, 2, 0));
     const sourceLight = sourceLightGO.AddComponent(Components.PointLight);
     
     const sourceLightGOHelper = new GameObject();

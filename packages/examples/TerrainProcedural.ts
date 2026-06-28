@@ -55,12 +55,12 @@ async function Application(canvas: HTMLCanvasElement) {
 
 
     mainCameraGameObject.transform.position.set(0, 0, 1000);
-    mainCameraGameObject.transform.LookAtV1(new Mathf.Vector3(0, 0, 0));
+    mainCameraGameObject.transform.LookAt(new Mathf.Vector3(0, 0, 0));
     const controls = mainCameraGameObject.AddComponent(OrbitControls);
 
     const lightGameObject = new GameObject();
     lightGameObject.transform.position.set(-4, 4, -4);
-    lightGameObject.transform.LookAtV1(new Mathf.Vector3(0, 0, 0));
+    lightGameObject.transform.LookAt(new Mathf.Vector3(0, 0, 0));
     const light = lightGameObject.AddComponent(Components.DirectionalLight);
     light.intensity = 1
 
@@ -94,7 +94,7 @@ async function Application(canvas: HTMLCanvasElement) {
     //         const sunPos = new Mathf.Vector3(x, y, z);
 
     //         lightGameObject.transform.position = sunPos;
-    //         lightGameObject.transform.LookAtV1(new Mathf.Vector3(0, 0, 0));
+    //         lightGameObject.transform.LookAt(new Mathf.Vector3(0, 0, 0));
 
     //         skyAtmosphere.Update();
     //         iblLightingPass.SetEnvironment(skyAtmosphere.skyTextureCubemap);

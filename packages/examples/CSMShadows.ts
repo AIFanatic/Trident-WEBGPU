@@ -31,11 +31,11 @@ async function Application(canvas: HTMLCanvasElement) {
     
     
     mainCameraGameObject.AddComponent(OrbitControls);
-    camera.transform.LookAtV1(new Mathf.Vector3(-100, 10, 0))
+    camera.transform.LookAt(new Mathf.Vector3(-100, 10, 0))
 
     const lightGameObject = new GameObject();
     lightGameObject.transform.position.set(-1, -1, -1).normalize().mul(-200);
-    lightGameObject.transform.LookAtV1(new Mathf.Vector3(0, 0, 0));
+    lightGameObject.transform.LookAt(new Mathf.Vector3(0, 0, 0));
     const light = lightGameObject.AddComponent(Components.DirectionalLight);
 
     const floor = new GameObject();

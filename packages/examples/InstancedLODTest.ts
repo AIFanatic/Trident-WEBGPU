@@ -15,12 +15,12 @@ async function Application(canvas: HTMLCanvasElement) {
     camera.SetPerspective(72, canvas.width / canvas.height, 0.05, 500);
 
     mainCameraGameObject.transform.position.set(0, 0, 10);
-    mainCameraGameObject.transform.LookAtV1(new Mathf.Vector3(0, 0, 0));
+    mainCameraGameObject.transform.LookAt(new Mathf.Vector3(0, 0, 0));
     mainCameraGameObject.AddComponent(OrbitControls);
 
     const lightGameObject = new GameObject();
     lightGameObject.transform.position.set(-10, 10, 10);
-    lightGameObject.transform.LookAtV1(new Mathf.Vector3(0, 0, 0));
+    lightGameObject.transform.LookAt(new Mathf.Vector3(0, 0, 0));
     const light = lightGameObject.AddComponent(Components.DirectionalLight);
 
     const floorGameObject = new GameObject();

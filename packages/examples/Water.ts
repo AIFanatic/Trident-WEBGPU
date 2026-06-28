@@ -233,7 +233,7 @@ async function Application(canvas: HTMLCanvasElement) {
         const sunPos = new Mathf.Vector3(x, y, z);
 
         lightGameObject.transform.position = sunPos;
-        lightGameObject.transform.LookAtV1(new Mathf.Vector3(0, 0, 0));
+        lightGameObject.transform.LookAt(new Mathf.Vector3(0, 0, 0));
 
         skyAtmosphere.Update();
         iblLightingPass.SetEnvironment(skycubemap);
@@ -262,7 +262,7 @@ async function Application(canvas: HTMLCanvasElement) {
             lightGameObject.transform.position.set((x * offset) - i * 0.5 * 2, 6, (y * offset) - i * 0.5 * 2);
             const look = lightGameObject.transform.position.clone();
             look.y -= 1;
-            lightGameObject.transform.LookAtV1(look);
+            lightGameObject.transform.LookAt(look);
             const light = lightGameObject.AddComponent(Components.PointLight);
             light.color.set(Math.random(), Math.random(), Math.random(), 1);
             light.range = 20;

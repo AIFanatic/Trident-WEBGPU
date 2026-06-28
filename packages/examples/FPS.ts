@@ -68,11 +68,11 @@ async function Application(canvas: HTMLCanvasElement) {
     mainCameraGameObject.name = "MainCamera";
     const camera = mainCameraGameObject.AddComponent(Components.Camera);
     camera.SetPerspective(72, canvas.width / canvas.height, 0.05, 10000);
-    mainCameraGameObject.transform.LookAtV1(new Mathf.Vector3(0, 0, 0));
+    mainCameraGameObject.transform.LookAt(new Mathf.Vector3(0, 0, 0));
 
     const lightGameObject = new GameObject();
     lightGameObject.transform.position.set(4, 4, 4).mul(10);
-    lightGameObject.transform.LookAtV1(new Mathf.Vector3(0, 0, 0));
+    lightGameObject.transform.LookAt(new Mathf.Vector3(0, 0, 0));
     const light = lightGameObject.AddComponent(Components.DirectionalLight);
     light.color.set(1.0, 0.96, 0.88, 1);
     light.intensity = 10;
@@ -151,7 +151,7 @@ async function Application(canvas: HTMLCanvasElement) {
         const sunPos = new Mathf.Vector3(x, y, z);
 
         lightGameObject.transform.position = sunPos;
-        lightGameObject.transform.LookAtV1(new Mathf.Vector3(0, 0, 0));
+        lightGameObject.transform.LookAt(new Mathf.Vector3(0, 0, 0));
 
         light.intensity = sky.SUN_ELEVATION_DEGREES / 10;
         // light.intensity = 0.0001;

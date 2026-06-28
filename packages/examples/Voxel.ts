@@ -38,7 +38,7 @@ async function Application(canvas: HTMLCanvasElement) {
 
     const lightGameObject = new GameObject();
     lightGameObject.transform.position.set(-4, 4, 4);
-    lightGameObject.transform.LookAtV1(new Mathf.Vector3(0, 0, 0));
+    lightGameObject.transform.LookAt(new Mathf.Vector3(0, 0, 0));
     const light = lightGameObject.AddComponent(Components.DirectionalLight);
 
 

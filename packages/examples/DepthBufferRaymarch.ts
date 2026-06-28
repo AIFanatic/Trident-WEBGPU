@@ -34,7 +34,7 @@ async function Application(canvas: HTMLCanvasElement) {
 
     const lightGameObject = new GameObject();
     lightGameObject.transform.position.set(-1, -1, -1).normalize().mul(-200);
-    lightGameObject.transform.LookAtV1(new Mathf.Vector3(0, 0, 0));
+    lightGameObject.transform.LookAt(new Mathf.Vector3(0, 0, 0));
     const light = lightGameObject.AddComponent(Components.DirectionalLight);
     // const light = lightGameObject.AddComponent(Components.SpotLight);
     // light.range = 200;

@@ -7,6 +7,13 @@ import { HDRParser } from "@trident/plugins/HDRParser";
 import { WireframePass } from "@trident/plugins/WireframePass";
 import { IBLLightingPass } from "@trident/plugins/Environment/IBLLightingPass";
 import { SkyboxPass } from "@trident/plugins/Environment/SkyboxPass";
+import { PhysicsDebugger } from "@trident/plugins/PhysicsRapier/PhysicsDebugger";
+import { MeshCollider } from "@trident/plugins/PhysicsRapier/colliders/MeshCollider";
+import { PhysicsRapier } from "@trident/plugins/PhysicsRapier/PhysicsRapier";
+
+import { RigidBody } from "@trident/plugins/PhysicsRapier/RigidBody";
+import { CapsuleCollider } from "@trident/plugins/PhysicsRapier/colliders/CapsuleCollider";
+import { CharacterController } from "@trident/plugins/PhysicsRapier/CharacterController";
 
 async function Application(canvas: HTMLCanvasElement) {
     await PlayerRuntime.Create(canvas);
@@ -17,16 +24,16 @@ async function Application(canvas: HTMLCanvasElement) {
     mainCameraGameObject.transform.position.set(0, 0, -15);
     mainCameraGameObject.name = "MainCamera";
     const camera = mainCameraGameObject.AddComponent(Components.Camera);
-    camera.SetPerspective(60, canvas.width / canvas.height, 0.05, 1000);
+    camera.SetPerspective(60, canvas.width / canvas.height, 0.05, 10000);
 
 
     mainCameraGameObject.transform.position.set(0, 0, 2);
-    mainCameraGameObject.transform.LookAtV1(new Mathf.Vector3(0, 0, 0));
+    mainCameraGameObject.transform.LookAt(new Mathf.Vector3(0, 0, 0));
     mainCameraGameObject.AddComponent(OrbitControls);
 
     const lightGameObject = new GameObject();
     lightGameObject.transform.position.set(2, 0, 0);
-    lightGameObject.transform.LookAtV1(new Mathf.Vector3(0, 0, 0));
+    lightGameObject.transform.LookAt(new Mathf.Vector3(0, 0, 0));
     const light = lightGameObject.AddComponent(Components.DirectionalLight);
     light.castShadows = false;
     light.intensity = 2;
@@ -130,11 +137,38 @@ async function Application(canvas: HTMLCanvasElement) {
             const url = URL.createObjectURL(file);
             const obj = await GLTFLoader.Load(url, scene, "glb");
 
-            console.log(obj)
+
+
+            // const physics = new GameObject();
+            // Runtime.AddSystem(PhysicsRapier)
+            // physics.AddComponent(PhysicsDebugger);
+            // obj.transform.eulerAngles.x = -90;
+            // obj.transform.position.y -= 50;
+            // obj.transform.position.x += 50;
+
+            // const meshes = obj.GetComponentsInChildren(Components.Mesh);
+            // console.log(meshes)
+
+            // for (const mesh of meshes) {
+            //     mesh.gameObject.AddComponent(MeshCollider);
+            // }
+            // console.log(obj)
+
+
+            // const player = new GameObject();
+            // const animator = player.AddComponent(Components.Animator);
+            // const collider = player.AddComponent(CapsuleCollider);
+            // const rigidbody = player.AddComponent(RigidBody);
+            // rigidbody.isKinematic = false;
+            // const characterController = player.AddComponent(CharacterController);
+            // characterController.player = player;
+
+            // mainCameraGameObject.transform.parent = player.transform;
+
         });
     }
 
-    Debugger.Enable();
+    // Debugger.Enable();
 
     // Runtime.Play();
 };

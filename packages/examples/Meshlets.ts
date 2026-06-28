@@ -33,7 +33,7 @@ async function Application(canvas: HTMLCanvasElement) {
 
 
     mainCameraGameObject.transform.position.set(0, 0, 5);
-    mainCameraGameObject.transform.LookAtV1(new Mathf.Vector3(0, 0, 0));
+    mainCameraGameObject.transform.LookAt(new Mathf.Vector3(0, 0, 0));
     mainCameraGameObject.AddComponent(OrbitControls);
 
     // TODO: Should be added automatically from plugin
@@ -41,7 +41,7 @@ async function Application(canvas: HTMLCanvasElement) {
 
     const lightGameObject = new GameObject();
     lightGameObject.transform.position.set(-4, 4, 4);
-    lightGameObject.transform.LookAtV1(new Mathf.Vector3(0, 0, 0));
+    lightGameObject.transform.LookAt(new Mathf.Vector3(0, 0, 0));
     const light = lightGameObject.AddComponent(Components.DirectionalLight);
     light.intensity = 20;
     light.color.set(1, 1, 1, 1);

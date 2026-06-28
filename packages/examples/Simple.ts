@@ -24,13 +24,13 @@ async function Application(canvas: HTMLCanvasElement) {
 
 
     mainCameraGameObject.transform.position.set(0, 0, 10);
-    mainCameraGameObject.transform.LookAtV1(new Mathf.Vector3(0, 0, 0));
+    mainCameraGameObject.transform.LookAt(new Mathf.Vector3(0, 0, 0));
 
     const controls = new OrbitControls(canvas, camera);
 
     // const lightGameObject = new GameObject();
     // lightGameObject.transform.position.set(-10, 10, 10);
-    // lightGameObject.transform.LookAtV1(new Mathf.Vector3(0, 0, 0));
+    // lightGameObject.transform.LookAt(new Mathf.Vector3(0, 0, 0));
     // const light = lightGameObject.AddComponent(Components.DirectionalLight);
     // light.castShadows = true;
 
@@ -51,7 +51,7 @@ async function Application(canvas: HTMLCanvasElement) {
             lightGameObject.transform.position.set((x * offset) - i * 0.5 * 2, 0, (y * offset) - i * 0.5 * 2);
             const look = lightGameObject.transform.position.clone();
             look.y -= 1;
-            lightGameObject.transform.LookAtV1(look);
+            lightGameObject.transform.LookAt(look);
             const light = lightGameObject.AddComponent(Components.PointLight);
             light.color.set(Math.random(), Math.random(), Math.random(), 1);
             light.range = 10;

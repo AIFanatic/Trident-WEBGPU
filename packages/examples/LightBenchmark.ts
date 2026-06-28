@@ -24,7 +24,7 @@ async function Application(canvas: HTMLCanvasElement) {
 
 
     mainCameraGameObject.transform.position.set(0, 0, 10);
-    mainCameraGameObject.transform.LookAtV1(new Mathf.Vector3(0, 0, 0));
+    mainCameraGameObject.transform.LookAt(new Mathf.Vector3(0, 0, 0));
 
     const controls = new OrbitControls(canvas, camera);
 
@@ -57,7 +57,7 @@ async function Application(canvas: HTMLCanvasElement) {
             lightGameObject.transform.position.set(x * offset - half, 0, y * offset - half);
             const look = lightGameObject.transform.position.clone();
             look.y -= 1;
-            lightGameObject.transform.LookAtV1(look);
+            lightGameObject.transform.LookAt(look);
             const light = lightGameObject.AddComponent(Components.SpotLight);
             light.color.set(Math.random(), Math.random(), Math.random(), 1);
             // light.range = 10;

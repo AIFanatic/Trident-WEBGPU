@@ -1,4 +1,4 @@
-import { Components, Scene, GPU, Mathf, GameObject, Runtime } from "@trident/core";
+import { Components, Scene, GPU, Mathf, GameObject, Runtime, PlayerRuntime } from "@trident/core";
 
 import { OrbitControls } from "@trident/plugins/OrbitControls";
 import { Debugger } from "@trident/plugins/Debugger";
@@ -7,11 +7,13 @@ import { ParticleSystem } from "@trident/plugins/ParticleSystem/ParticleSystem";
 
 import { UIButtonStat, UIColorStat, UIFolder, UIGradientStat, UISliderStat, UIVecStat } from "@trident/plugins/ui/UIStats";
 import { GradientEditor } from "@trident/plugins/ui/GradientEditor";
+import { PostProcessingPass } from "@trident/plugins/PostProcessing/PostProcessingPass";
+import { PostProcessingBloom } from "@trident/plugins/PostProcessing/effects/Bloom";
 
 async function Application(canvas: HTMLCanvasElement) {
-    await Runtime.Create(canvas);
-    const scene = Runtime.SceneManager.CreateScene("DefaultScene");
-    Runtime.SceneManager.SetActiveScene(scene);
+    await PlayerRuntime.Create(canvas);
+    const scene = PlayerRuntime.SceneManager.CreateScene("DefaultScene");
+    PlayerRuntime.SceneManager.SetActiveScene(scene);
 
     const mainCameraGameObject = new GameObject();
     mainCameraGameObject.transform.position.set(0,0,-15);
@@ -21,13 +23,12 @@ async function Application(canvas: HTMLCanvasElement) {
 
 
     mainCameraGameObject.transform.position.set(0, 0, 10);
-    mainCameraGameObject.transform.LookAtV1(new Mathf.Vector3(0, 0, 0));
-
-    const controls = new OrbitControls(canvas, camera);
+    mainCameraGameObject.transform.LookAt(new Mathf.Vector3(0, 0, 0));
+    mainCameraGameObject.AddComponent(OrbitControls);
 
     const lightGameObject = new GameObject();
     lightGameObject.transform.position.set(-4, 4, 4);
-    lightGameObject.transform.LookAtV1(new Mathf.Vector3(0, 0, 0));
+    lightGameObject.transform.LookAt(new Mathf.Vector3(0, 0, 0));
     const light = lightGameObject.AddComponent(Components.DirectionalLight);
 
 
@@ -59,9 +60,6 @@ async function Application(canvas: HTMLCanvasElement) {
     particleSystem.colorOverLifetimeAddAlpha({a: 0, t: 100 / 100});
 
 
-
-
-
     const particlesFolder = new UIFolder(Debugger.ui, "Particles");
     new UIVecStat(particlesFolder, "Emitter position:", {min: -10, max: 10, step: 0.1, value: particleSystem.transform.position.x}, {min: -10, max: 10, step: 0.1, value: particleSystem.transform.position.y}, {min: -10, max: 10, step: 0.1, value: particleSystem.transform.position.z}, undefined, value => particleSystem.transform.position.set(value.x,value.y,value.z));
     new UISliderStat(particlesFolder, "Start size:", 0, 10, 0.01, particleSystem.startSize, value => particleSystem.startSize = value);
@@ -82,12 +80,14 @@ async function Application(canvas: HTMLCanvasElement) {
     new UIGradientStat(particlesFolder, "Gradient:", gradient => { particleSystem.colorOverLifetimeSetColorKeys(gradient.colorKeys), particleSystem.colorOverLifetimeSetAlphaKeys(gradient.alphaKeys)}, particleSystem.colorOverLifetimeGradients);
 
 
+    const postProcessing = new PostProcessingPass();
+    const bloom = new PostProcessingBloom();
+    postProcessing.effects.push(bloom);
+    Runtime.Renderer.RenderPipeline.AddPass(postProcessing, GPU.RenderPassOrder.AfterLighting);
 
     particlesFolder.Open();
 
     Debugger.Enable();
-
-    Runtime.Play();
 };
 
 Application(document.querySelector("canvas"));

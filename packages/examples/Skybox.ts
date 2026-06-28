@@ -46,7 +46,7 @@ async function Application(canvas: HTMLCanvasElement) {
 
     const lightGameObject = new GameObject();
     lightGameObject.transform.position.set(-1, 4, 0.01);
-    lightGameObject.transform.LookAtV1(new Mathf.Vector3(0, 0, 0));
+    lightGameObject.transform.LookAt(new Mathf.Vector3(0, 0, 0));
     const light = lightGameObject.AddComponent(Components.DirectionalLight);
     light.intensity = 10;
 
@@ -128,7 +128,7 @@ async function Application(canvas: HTMLCanvasElement) {
             const sunPos = new Mathf.Vector3(x, y, z);
 
             lightGameObject.transform.position = sunPos;
-            lightGameObject.transform.LookAtV1(new Mathf.Vector3(0, 0, 0));
+            lightGameObject.transform.LookAt(new Mathf.Vector3(0, 0, 0));
 
             skyAtmosphere.Update();
             iblLightingPass.SetEnvironment(skyAtmosphere.skyTextureCubemap);

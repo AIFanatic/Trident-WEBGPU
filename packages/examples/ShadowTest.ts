@@ -36,7 +36,7 @@ async function Application(canvas: HTMLCanvasElement) {
     {
         const lightGameObject = new GameObject();
         lightGameObject.transform.position.set(-2, 4, 0.01);
-        lightGameObject.transform.LookAtV1(new Mathf.Vector3(0, 0, 0));
+        lightGameObject.transform.LookAt(new Mathf.Vector3(0, 0, 0));
         const light = lightGameObject.AddComponent(Components.SpotLight);
         light.intensity = 1;
     
@@ -47,7 +47,7 @@ async function Application(canvas: HTMLCanvasElement) {
     {
         const lightGameObject = new GameObject();
         lightGameObject.transform.position.set(2, 4, 0.01);
-        lightGameObject.transform.LookAtV1(new Mathf.Vector3(0, 0, 0));
+        lightGameObject.transform.LookAt(new Mathf.Vector3(0, 0, 0));
         const light = lightGameObject.AddComponent(Components.DirectionalLight);
         light.intensity = 1;
     

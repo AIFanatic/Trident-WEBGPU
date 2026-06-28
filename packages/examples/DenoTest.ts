@@ -7,14 +7,15 @@ import {
     GameObject,
     PBRMaterial,
     Renderer,
+    PlayerRuntime,
 } from "@trident/core";
 
 import { DirectionalLightHelper } from "@trident/plugins/DirectionalLightHelper";
 
 async function Application(canvas: HTMLCanvasElement) {
-    const renderer = Renderer.Create(canvas, "webgpu");
-
-    const scene = new Scene(renderer);
+    await PlayerRuntime.Create(canvas);
+    const scene = PlayerRuntime.SceneManager.CreateScene("DefaultScene");
+    PlayerRuntime.SceneManager.SetActiveScene(scene);
 
     const mainCameraGameObject = new GameObject();
     mainCameraGameObject.transform.position.set(0, 0, 10);
@@ -32,7 +33,7 @@ async function Application(canvas: HTMLCanvasElement) {
 
     const lightGameObject = new GameObject();
     lightGameObject.transform.position.set(-1, 4, 0.01);
-    lightGameObject.transform.LookAtV1(new Mathf.Vector3(0, 0, 0));
+    lightGameObject.transform.LookAt(new Mathf.Vector3(0, 0, 0));
     const light = lightGameObject.AddComponent(Components.DirectionalLight);
     light.intensity = 10;
 
@@ -88,49 +89,45 @@ async function Application(canvas: HTMLCanvasElement) {
         sphereMesh.material = mat;
     }
 
-    {
-        const skyAtmosphere = new Sky();
-        await skyAtmosphere.init();
+    // {
+    //     const skyAtmosphere = new Sky();
+    //     await skyAtmosphere.init();
 
-        // const skyTexture = hdrCubemap;
-        const skyTexture = skyAtmosphere.skyTextureCubemap;
+    //     // const skyTexture = hdrCubemap;
+    //     const skyTexture = skyAtmosphere.skyTextureCubemap;
 
-        const environment = new Environment(scene, skyTexture);
-        await environment.init();
+    //     const environment = new Environment(scene, skyTexture);
+    //     await environment.init();
 
-        setInterval(() => {
-            const radius = 1; // distance of the directional light from origin
-            const elevationRad = Mathf.Deg2Rad * skyAtmosphere.SUN_ELEVATION_DEGREES;
-            const azimuthRad = Mathf.Deg2Rad * skyAtmosphere.SUN_AZIMUTH_DEGREES; // or use your own azimuth angle
+    //     setInterval(() => {
+    //         const radius = 1; // distance of the directional light from origin
+    //         const elevationRad = Mathf.Deg2Rad * skyAtmosphere.SUN_ELEVATION_DEGREES;
+    //         const azimuthRad = Mathf.Deg2Rad * skyAtmosphere.SUN_AZIMUTH_DEGREES; // or use your own azimuth angle
 
-            // Convert spherical coordinates to 3D position
-            const x = radius * Mathf.Cos(elevationRad) * Mathf.Cos(azimuthRad);
-            const y = radius * Mathf.Sin(elevationRad);
-            const z = radius * Mathf.Cos(elevationRad) * Mathf.Sin(azimuthRad);
+    //         // Convert spherical coordinates to 3D position
+    //         const x = radius * Mathf.Cos(elevationRad) * Mathf.Cos(azimuthRad);
+    //         const y = radius * Mathf.Sin(elevationRad);
+    //         const z = radius * Mathf.Cos(elevationRad) * Mathf.Sin(azimuthRad);
 
-            const sunPos = new Mathf.Vector3(x, y, z);
+    //         const sunPos = new Mathf.Vector3(x, y, z);
 
-            lightGameObject.transform.position = sunPos;
-            lightGameObject.transform.LookAtV1(new Mathf.Vector3(0, 0, 0));
-        }, 100);
-    }
+    //         lightGameObject.transform.position = sunPos;
+    //         lightGameObject.transform.LookAt(new Mathf.Vector3(0, 0, 0));
+    //     }, 100);
+    // }
 
-    const postProcessing = new PostProcessingPass();
-    const smaa = new PostProcessingSMAA();
-    postProcessing.effects.push(smaa);
-    Runtime.Renderer.RenderPipeline.AddPass(postProcessing, GPU.RenderPassOrder.BeforeScreenOutput);
+    // const postProcessing = new PostProcessingPass();
+    // const smaa = new PostProcessingSMAA();
+    // postProcessing.effects.push(smaa);
+    // Runtime.Renderer.RenderPipeline.AddPass(postProcessing, GPU.RenderPassOrder.BeforeScreenOutput);
 
-    Runtime.Play();
+    // Runtime.Play();
 };
 
 // Application(document.querySelector("canvas"));
 
-// deno --allow-env --allow-read --allow-write --allow-ffi --sloppy-imports --unstable-raw-imports --unstable-webgpu ./packages/examples/ShadowTest.ts
+// deno --allow-env --allow-read --allow-write --allow-ffi --unstable-webgpu ./packages/examples/DenoTest.ts
 import { createWindowGPU, mainloop } from "jsr:@gfx/dwm/ext/webgpu";
-import { Sky } from "@trident/plugins/Environment/Sky";
-import { Environment } from "@trident/plugins/Environment/Environment";
-import { PostProcessingPass } from "@trident/plugins/PostProcessing/PostProcessingPass";
-import { PostProcessingSMAA } from "@trident/plugins/PostProcessing/effects/SMAA";
 
 const window = await createWindowGPU({
     title: "DenoGL",

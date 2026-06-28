@@ -21,11 +21,11 @@ async function Application(canvas: HTMLCanvasElement) {
     camera.SetPerspective(72, canvas.width / canvas.height, 0.5, 100);
 
     mainCameraGameObject.transform.position.set(0, 0, 10);
-    mainCameraGameObject.transform.LookAtV1(new Mathf.Vector3(0, 0, 0));
+    mainCameraGameObject.transform.LookAt(new Mathf.Vector3(0, 0, 0));
     mainCameraGameObject.AddComponent(OrbitControls);
 
     const lightGameObject = new GameObject();
-    lightGameObject.transform.LookAtV1(new Mathf.Vector3(0, 0, 0));
+    lightGameObject.transform.LookAt(new Mathf.Vector3(0, 0, 0));
     const light = lightGameObject.AddComponent(Components.DirectionalLight);
 
     // await GLTFLoader.Load("./assets/models/cornell.glb", scene);
