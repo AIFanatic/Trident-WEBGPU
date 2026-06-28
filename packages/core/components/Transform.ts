@@ -237,8 +237,4 @@ export class Transform extends Component {
             this.UpdateMatrices();
         }
     }
-
-    public LookAtV1(target: Vector3): void {
-        this.LookAt(target);
-    }
 }

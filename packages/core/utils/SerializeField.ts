@@ -6,6 +6,8 @@ export interface FieldInfo {
     type: Function;
 };
 
+type SerializeFieldContext = ClassFieldDecoratorContext | ClassGetterDecoratorContext;
+
 function addField(instance: object, name: string | symbol, type?: Function) {
     const proto = Object.getPrototypeOf(instance);
     const arr: FieldInfo[] = proto[SERIAL_FIELDS] ?? (proto[SERIAL_FIELDS] = []);
@@ -15,10 +17,10 @@ function addField(instance: object, name: string | symbol, type?: Function) {
 }
 
 // @SerializeField — no parens, infers type from value
-export function SerializeField(_v: any, context: ClassFieldDecoratorContext): void;
+export function SerializeField(_v: any, context: SerializeFieldContext): void;
 // @SerializeField(Texture) — with parens, explicit type hint
-export function SerializeField(typeHint: Function): (_v: any, context: ClassFieldDecoratorContext) => void;
-export function SerializeField(first: any, second?: ClassFieldDecoratorContext) {
+export function SerializeField(typeHint: Function): (_v: any, context: SerializeFieldContext) => void;
+export function SerializeField(first: any, second?: SerializeFieldContext) {
     // @SerializeField (no parens) — second arg is the context
     if (second && typeof second === "object" && second.addInitializer) {
         second.addInitializer(function () { addField(this, second.name); });
@@ -26,7 +28,7 @@ export function SerializeField(first: any, second?: ClassFieldDecoratorContext) 
     }
     // @SerializeField(Texture) — first arg is the type hint, return a decorator
     const typeHint = first as Function;
-    return function (_v: any, context: ClassFieldDecoratorContext) {
+    return function (_v: any, context: SerializeFieldContext) {
         context.addInitializer(function () { addField(this, context.name, typeHint); });
     };
 }

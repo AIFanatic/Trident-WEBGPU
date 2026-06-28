@@ -86,10 +86,10 @@ export class RenderingPipeline {
         this.afterLightingPasses = [
             new BasePass(),
             new DeferredLightingPass(),
+            new ForwardPass(),
         ];
 
         this.beforeScreenOutputPasses = [
-            new ForwardPass(),
             new PostExposureTonemap(),
         ]
 

@@ -118,6 +118,10 @@ export class BufferMemoryAllocator {
 
     public getBuffer(): Buffer { return this.buffer; }
     public getAllocator(): MemoryAllocator { return this.allocator; }
+
+    public Destroy() {
+        this.buffer.Destroy();
+    }
 }
 
 export class DynamicBufferMemoryAllocatorDynamic {
@@ -216,7 +220,7 @@ export class DynamicBufferMemoryAllocator extends BufferMemoryAllocator {
 
     public delete(link: any) {
         const bufferOffset = this.links.get(link);
-        if (bufferOffset === undefined) throw Error("Link not found");
+        if (bufferOffset === undefined) return; // link not found
         this.allocator.free(bufferOffset);
         this.links.delete(link);
         // TODO: Resize buffer
