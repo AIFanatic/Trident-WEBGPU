@@ -80,6 +80,15 @@ fn resetParticle(idx: u32, _p: Particle, grid: vec3<f32>) -> Particle {
         dir = normalize(select(q, onUnitSphere(r3b.xy), length(q) > 1e-5));
     }
 
+    // Circle (ring/disc in XZ plane around emitterPosition, normal = +Y)
+    if (shapeType == 4u) {
+        let phi = select(2.0 * PI * r3.x, 2.0 * PI * settings.arcPhase, settings.arcLoop > 0.5);
+        let rr = select(sqrt(r3.y), 1.0, settings.emitFromShell > 0.5);
+        let radial = vec3(cos(phi), 0.0, sin(phi));
+        pos = pos + radial * settings.radius * rr;
+        dir = radial;
+    }
+
     p.position = vec4f(pos, 1.0);
     // p.velocity = vec4(dir, settings.startSize);
     p.velocity = vec4(dir * settings.startSpeed.xyz, settings.startSize);

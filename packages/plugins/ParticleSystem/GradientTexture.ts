@@ -1,21 +1,17 @@
-import { GPU } from "@trident/core";
+import { GPU, Mathf } from "@trident/core";
 
 // --- Types
 export interface ColorKey { t: number; r: number; g: number; b: number }; // t in [0,1], colors in [0,1] (sRGB inputs)
 export interface AlphaKey { t: number; a: number }; // t in [0,1]
 
-export class Gradient {
+export class GradientTexture extends Mathf.Gradient {
     public readonly rampTexture: GPU.Texture
-    public colorKeys: ColorKey[];
-    public alphaKeys: AlphaKey[];
 
     constructor(textureWidth?: number, format?: GPU.TextureFormat) {
-        this.colorKeys = [];
-        this.alphaKeys = [];
-
-        this.rampTexture = GPU.Texture.Create(textureWidth || 256, 1, 1, format || "rgba8unorm-srgb");
+        super();
+        this.rampTexture = GPU.Texture.Create(textureWidth || 256, 1, 1, format || "rgba16float");
     }
-    
+
     // --- Helpers (sRGB <-> linear)
     private srgbToLinear = (c: number) => (c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4));
     private linearToSrgb = (c: number) => (c <= 0.0031308 ? 12.92 * c : 1.055 * Math.pow(c, 1 / 2.4) - 0.055);
@@ -58,28 +54,24 @@ export class Gradient {
         return [this.srgbToLinear(k.r), this.srgbToLinear(k.g), this.srgbToLinear(k.b)];
     }
 
-    // --- Build ramp pixels (Uint8 RGBA)
-    private buildGradientRamp(size = 256): Uint8Array {
+    private buildGradientRamp(size = 256): Float16Array {
         const colorKeys = this.colorKeys;
         const alphaKeys = this.alphaKeys;
-        if (!colorKeys?.length) return new Uint8Array(size * 4);// throw new Error("gradient.colorKeys must have at least 1 key");
+        if (!colorKeys?.length) return new Float16Array(size * 4);
         const A = (alphaKeys && alphaKeys.length)
             ? alphaKeys.map(k => ({ t: k.t, v: this.clamp01(k.a) }))
             : [{ t: 0, v: 1 }, { t: 1, v: 1 }];
 
-        const data = new Uint8Array(size * 4);
+        const data = new Float16Array(size * 4);
         for (let i = 0; i < size; i++) {
             const t = i / (size - 1);
-            const [lr, lg, lb] = this.sampleRgbLinear(colorKeys, this.clamp01(t)); // linear space
+            const [lr, lg, lb] = this.sampleRgbLinear(colorKeys, this.clamp01(t));
             const a = this.sampleScalar(A, t);
-            const r = this.clamp01(this.linearToSrgb(lr));
-            const g = this.clamp01(this.linearToSrgb(lg));
-            const b = this.clamp01(this.linearToSrgb(lb));
             const o = i * 4;
-            data[o + 0] = (r * 255) | 0;
-            data[o + 1] = (g * 255) | 0;
-            data[o + 2] = (b * 255) | 0;
-            data[o + 3] = (a * 255) | 0;
+            data[o + 0] = lr;
+            data[o + 1] = lg;
+            data[o + 2] = lb;
+            data[o + 3] = a;
         }
         return data;
     }
@@ -88,26 +80,26 @@ export class Gradient {
         const ramp = this.buildGradientRamp();
         const width = ramp.length / 4;
         if (width > this.rampTexture.width) throw Error("Ramp texture not big enough");
-        this.rampTexture.SetData(ramp, this.rampTexture.width * 4);
+        this.rampTexture.SetData(ramp, this.rampTexture.width * 16);
     }
 
     public addColor(color: ColorKey) {
-        this.colorKeys.push(color);
+        super.addColor(color);
         this.updateRampTexture();
     }
 
     public addAlpha(alpha: AlphaKey) {
-        this.alphaKeys.push(alpha);
+        super.addAlpha(alpha);
         this.updateRampTexture();
     }
 
     public setColorKeys(colorKeys: ColorKey[]) {
-        this.colorKeys = colorKeys;
+        super.setColorKeys(colorKeys);
         this.updateRampTexture();
     }
 
     public setAlphaKeys(alphaKeys: AlphaKey[]) {
-        this.alphaKeys = alphaKeys;
+        super.setAlphaKeys(alphaKeys);
         this.updateRampTexture();
     }
 }
