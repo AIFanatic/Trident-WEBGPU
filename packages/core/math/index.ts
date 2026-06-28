@@ -8,6 +8,7 @@ export { Color } from "./Color";
 export { BoundingVolume } from "./BoundingVolume";
 export { Plane } from "./Plane";
 export { Quaternion } from "./Quaternion";
+export { Gradient } from "./Gradient";
 
 function mulberry32(seed: number): () => number {
     return function () {
