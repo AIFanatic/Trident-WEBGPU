@@ -226,6 +226,9 @@ export class Animator extends Component {
     private speed = 1;
     private nextSpeed = 1;
 
+    private currentClipStartTime = 0;
+    private nextClipStartTime = 0;
+
     public Start(): void {
         this.previousTime = performance.now();
         this.Bind();
@@ -254,12 +257,15 @@ export class Animator extends Component {
         this.Bind();
     }
 
-    public SetClipByIndex(i: number, speed: number = 1): void {
+    public SetClipByIndex(i: number, speed: number = 1, startFrame: number = 0, fps: number = 60): void {
         this.Bind();
         if (this.tracks.length === 0) return;
 
+        const startTime = Math.max(0, startFrame / fps);
+
         this.clipIndex = Math.max(0, i);
-        this.currentTime = 0;
+        this.currentTime = startTime;
+        this.currentClipStartTime = startTime;
         this.nextClipIndex = null;
         this.fadeDuration = 0;
         this.fadeTime = 0;
@@ -272,12 +278,15 @@ export class Animator extends Component {
         }
     }
 
-    public CrossFadeTo(i: number, duration: number = 0.25, speed: number = 1): void {
+    public CrossFadeTo(i: number, duration: number = 0.25, speed: number = 1, startFrame: number = 0, fps: number = 60): void {
         this.Bind();
         if (this.tracks.length === 0) return;
 
+        const startTime = Math.max(0, startFrame / fps);
+
         this.nextClipIndex = Math.max(0, i);
-        this.nextTime = 0;
+        this.nextTime = startTime;
+        this.nextClipStartTime = startTime;
         this.fadeDuration = Math.max(0.0001, duration);
         this.fadeTime = 0;
         this.previousTime = performance.now();
@@ -293,9 +302,19 @@ export class Animator extends Component {
         this.previousTime = now;
 
         this.currentTime += dt * this.speed;
+        const curDur = this.animation.clips[this.clipIndex]?.duration ?? 0;
+        if (curDur > 0 && this.currentTime >= curDur) {
+            const span = curDur - this.currentClipStartTime;
+            if (span > 0) this.currentTime = this.currentClipStartTime + ((this.currentTime - this.currentClipStartTime) % span);
+        }
 
         if (this.nextClipIndex !== null) {
             this.nextTime += dt * this.nextSpeed;
+            const nextDur = this.animation.clips[this.nextClipIndex]?.duration ?? 0;
+            if (nextDur > 0 && this.nextTime >= nextDur) {
+                const span = nextDur - this.nextClipStartTime;
+                if (span > 0) this.nextTime = this.nextClipStartTime + ((this.nextTime - this.nextClipStartTime) % span);
+            }
             this.fadeTime += dt;
         }
 
@@ -316,6 +335,7 @@ export class Animator extends Component {
             this.clipIndex = this.nextClipIndex;
             this.currentTime = this.nextTime;
             this.speed = this.nextSpeed;
+            this.currentClipStartTime = this.nextClipStartTime;   // carry over
             this.nextClipIndex = null;
             this.fadeDuration = 0;
             this.fadeTime = 0;
