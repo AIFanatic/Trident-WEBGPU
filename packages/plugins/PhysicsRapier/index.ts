@@ -10,3 +10,4 @@ export { PhysicsRapier } from "./PhysicsRapier";
 export { PhysicsDebugger } from "./PhysicsDebugger";
 export { FirstPersonController } from "./FirstPersonController";
 export { ThirdPersonController } from "./ThirdPersonController";
+export { CharacterController } from "./CharacterController";

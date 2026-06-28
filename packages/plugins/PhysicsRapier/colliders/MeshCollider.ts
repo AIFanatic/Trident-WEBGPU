@@ -32,6 +32,10 @@ export class MeshCollider extends Collider {
     }
 
     private CreateCollider(geometry: Geometry) {
+        if (!PhysicsRapier.hasLoaded) {
+            console.warn("PhysicsRapier not loaded");
+            return
+        }
         const p = new Mathf.Vector3();
         const q = new Mathf.Quaternion();
         const s = new Mathf.Vector3();
