@@ -1,8 +1,8 @@
 import { GPU } from "@trident/core";
-import { ColorPicker } from "./ColorPicker";
 import { Gradient, GradientEditor } from "./GradientEditor";
-import styles from "./resources/UIStats.css";
 import { TextureViewer } from "./TextureViewer";
+
+import styles from "./resources/UIStats.css" with { type: "text" };
 
 class Stat {
     protected statContainer: HTMLDivElement;

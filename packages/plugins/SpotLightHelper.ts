@@ -42,7 +42,7 @@ export class SpotLightHelper extends Component {
         // const coneWidth = coneLength * Math.tan(this.light.angle);
         // this.transform.scale.set(coneWidth, coneWidth, coneLength);
 
-        // this.transform.LookAtV1(new Mathf.Vector3(0,0,0));
+        // this.transform.LookAt(new Mathf.Vector3(0,0,0));
 
         this.transform.scale.set(this.light.angle * Math.PI, this.light.angle * Math.PI, this.light.range * 0.5);
     }
