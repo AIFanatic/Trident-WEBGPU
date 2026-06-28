@@ -4,7 +4,6 @@ import './InspectorComponent.css';
 import { InspectorNumber } from "./InspectorNumber";
 
 export interface InspectorInputProps {
-    title: string;
     value: number;
     min?: number;
     max?: number;
@@ -25,12 +24,8 @@ export class InspectorInput extends Component<InspectorInputProps> {
     }
 
     public render() {
-        return <div className="InspectorComponent">
-            <span className="title">{this.props.title}</span>
-
-            <div class="edit">
-                <InspectorNumber step={this.props.step} min={this.props.min} max={this.props.max} title="N" titleClass="gray-bg" value={this.props.value} onChanged={value => { this.onChanged(value) }} />
-            </div>
+        return <div class="InspectorComponent">
+            <InspectorNumber step={this.props.step} min={this.props.min} max={this.props.max} title="N" titleClass="gray-bg" value={this.props.value} onChanged={value => { this.onChanged(value) }} />
         </div>
     }
 }

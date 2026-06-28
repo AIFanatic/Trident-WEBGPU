@@ -3,7 +3,6 @@ import { createElement, Component } from "../../gooact";
 import './InspectorComponent.css';
 
 interface InspectorCheckboxProps {
-    title: string;
     selected?: boolean;
     onChanged?: (value: boolean) => void;
 };
@@ -21,21 +20,18 @@ export class InspectorCheckbox extends Component<InspectorCheckboxProps> {
     }
 
     public render() {
-        return <div className="InspectorComponent">
-            <span className="title">{this.props.title}</span>
-            <div
-                style={{
-                    width: "100%"
-                }}
-            >
+        return <div
+            style={{
+                width: "100%"
+            }}
+        >
 
-                <input
-                    style={{marginLeft: "0px"}}
-                    type="checkbox"
-                    checked={this.props.selected}
-                    onChange={(event) => {this.onChanged(event)}}
-                />
-            </div>
+            <input
+                style={{ marginLeft: "0px" }}
+                type="checkbox"
+                checked={this.props.selected}
+                onChange={(event) => { this.onChanged(event) }}
+            />
         </div>
     }
 }

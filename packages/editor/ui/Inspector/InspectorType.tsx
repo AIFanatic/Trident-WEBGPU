@@ -1,4 +1,3 @@
-// import { ExtendedDataTransfer } from '../../helpers/ExtendedDataTransfer';
 import { ExtendedDataTransfer } from "../../helpers/ExtendedDataTransfer";
 import { createElement, Component } from "../../gooact";
 import './InspectorComponent.css';
@@ -6,7 +5,6 @@ import './InspectorComponent.css';
 export class Class { };
 
 interface InspectorTypeProps {
-    title: string;
     value: string;
     component: Class;
     property: string;
@@ -28,19 +26,13 @@ export class InspectorType extends Component<InspectorTypeProps> {
 
     private onDrop(event: DragEvent) {
         const draggedItem = ExtendedDataTransfer.data;
-        console.log("onDrop", draggedItem);
         if (!this.isValidDrop(draggedItem)) return;
 
         this.props.component[this.props.property] = draggedItem;
 
         const input = event.currentTarget as HTMLInputElement;
-        if(input.classList.contains("active")) {
-            input.classList.remove("active");
-        }
-
-        if (this.props.onChanged) {
-            this.props.onChanged(draggedItem)
-        }
+        if (input.classList.contains("active")) input.classList.remove("active");
+        if (this.props.onChanged) this.props.onChanged(draggedItem);
 
         event.preventDefault();
         event.stopPropagation();
@@ -59,34 +51,34 @@ export class InspectorType extends Component<InspectorTypeProps> {
         }
 
         const input = event.currentTarget as HTMLInputElement;
-        if(!input.classList.contains("active")) {
-            input.classList.add("active");
-        }
+        if (!input.classList.contains("active")) input.classList.add("active");
     }
 
     private onDragLeave(event: DragEvent) {
         const input = event.currentTarget as HTMLInputElement;
-        if (input.classList.contains("active")) {
-            input.classList.remove("active");
-        }
+        if (input.classList.contains("active")) input.classList.remove("active");
+    }
+
+    private onDelete(event: Event) {
+        if (this.props.onChanged) this.props.onChanged(undefined);
     }
 
     public render() {
-        return <div className="InspectorComponent">
-            <span className="title">{this.props.title}</span>
-
-            <div class="edit">
-                <span class={`vec-label`} style={`background-color: #e67e2250; cursor: auto`}>{"◉"}</span>
-                <input
-                    className="input"
-                    disabled
-                    value={this.props.value}
-                    onDragEnter={(event) => this.onDragEnter(event)}
-                    onDragLeave={(event) => this.onDragLeave(event)}
-                    onDrop={(event) => this.onDrop(event)}
-                    onDragOver={(event) => this.onDragOver(event)}
-                />
-            </div>
+        return <div class="edit" style="position: relative">
+            <span class={`vec-label`} style={`background-color: #e67e2250; cursor: auto`}>{"◉"}</span>
+            <input
+                className="input"
+                disabled
+                value={this.props.value}
+                onDragEnter={(event) => this.onDragEnter(event)}
+                onDragLeave={(event) => this.onDragLeave(event)}
+                onDrop={(event) => this.onDrop(event)}
+                onDragOver={(event) => this.onDragOver(event)}
+            />
+            <div
+                style="position: absolute; top: 50%; right: 1rem; transform: translateY(-50%);cursor: pointer;"
+                onClick={(event) => { this.onDelete(event) }}
+            >x</div>
         </div>
     }
 }

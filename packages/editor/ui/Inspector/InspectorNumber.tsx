@@ -1,6 +1,20 @@
 import { createElement, Component } from "../../gooact";
 
 import './InspectorComponent.css';
+
+export interface InspectorNumberProps {
+    title: string;
+    titleClass?: string;
+
+    value: number;
+
+    min?: number;
+    max?: number;
+    step?: number;
+
+    onChanged?: (value: number) => void;
+}
+
 interface InspectorNumberState { value: number };
 
 export class InspectorNumber extends Component<InspectorNumberProps, InspectorNumberState> {

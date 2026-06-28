@@ -6,7 +6,6 @@ import './InspectorComponent.css';
 import { InspectorNumber } from "./InspectorNumber";
 
 interface InspectorVector3Props {
-    title: string;
     vector3: IVector3;
     onChanged?: (value: IVector3) => void;
 };
@@ -26,24 +25,21 @@ export class InspectorVector3 extends Component<InspectorVector3Props> {
         if (this.props.onChanged) {
             if (_value === "") return;
             const value = parseFloat(_value);
-            
+
             if (property == ChangedProperty.X) this.props.vector3.x = value;
             else if (property == ChangedProperty.Y) this.props.vector3.y = value;
             else if (property == ChangedProperty.Z) this.props.vector3.z = value;
-            
+
             this.props.onChanged(this.props.vector3);
         }
     }
-      
+
+    // TODO: InspectorComponent should be vector3, need to update CSS
     public render() {
         return <div class="InspectorComponent">
-            <span class="title">{this.props.title}</span>
-
-            <div class="edit">
-                <InspectorNumber title="X" titleClass="red-bg" value={this.props.vector3.x} onChanged={value => {this.onChanged(ChangedProperty.X, value)}} />
-                <InspectorNumber title="Y" titleClass="green-bg" value={this.props.vector3.y} onChanged={value => {this.onChanged(ChangedProperty.Y, value)}} />
-                <InspectorNumber title="Z" titleClass="blue-bg" value={this.props.vector3.z} onChanged={value => {this.onChanged(ChangedProperty.Z, value)}} />
-            </div>
+            <InspectorNumber title="X" titleClass="red-bg" value={this.props.vector3.x} onChanged={value => { this.onChanged(ChangedProperty.X, value) }} />
+            <InspectorNumber title="Y" titleClass="green-bg" value={this.props.vector3.y} onChanged={value => { this.onChanged(ChangedProperty.Y, value) }} />
+            <InspectorNumber title="Z" titleClass="blue-bg" value={this.props.vector3.z} onChanged={value => { this.onChanged(ChangedProperty.Z, value) }} />
         </div>
     }
 }

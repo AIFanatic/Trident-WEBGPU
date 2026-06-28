@@ -6,7 +6,6 @@ import './InspectorComponent.css';
 import { InspectorNumber } from "./InspectorNumber";
 
 interface InspectorVector2Props {
-    title: string;
     vector2: IVector2;
     onChanged?: (value: IVector2) => void;
 };
@@ -35,8 +34,6 @@ export class InspectorVector2 extends Component<InspectorVector2Props> {
       
     public render() {
         return <div class="InspectorComponent">
-            <span class="title">{this.props.title}</span>
-
             <div class="edit">
                 <InspectorNumber title="X" titleClass="red-bg" value={this.props.vector2.x} onChanged={value => {this.onChanged(ChangedProperty.X, value)}} />
                 <InspectorNumber title="Y" titleClass="green-bg" value={this.props.vector2.y} onChanged={value => {this.onChanged(ChangedProperty.Y, value)}} />

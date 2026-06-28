@@ -32,7 +32,7 @@ export class InspectorTexture extends Component<InspectorTextureProps> {
         this.props.component[this.props.property] = draggedItem;
 
         const input = event.currentTarget as HTMLInputElement;
-        if(input.classList.contains("active")) {
+        if (input.classList.contains("active")) {
             input.classList.remove("active");
         }
 
@@ -65,7 +65,7 @@ export class InspectorTexture extends Component<InspectorTextureProps> {
         }
 
         const input = event.currentTarget as HTMLInputElement;
-        if(!input.classList.contains("active")) {
+        if (!input.classList.contains("active")) {
             input.classList.add("active");
         }
     }
@@ -78,21 +78,17 @@ export class InspectorTexture extends Component<InspectorTextureProps> {
     }
 
     public render() {
-        return <div className="InspectorComponent">
-            <span className="title">{this.props.title}</span>
-
-            <div class="edit">
-                <span class={`vec-label`} style={`background-color: #e67e2250; cursor: auto`}>{"T"}</span>
-                <input
-                    className="input"
-                    disabled
-                    value={this.props.value}
-                    onDragEnter={(event) => this.onDragEnter(event)}
-                    onDragLeave={(event) => this.onDragLeave(event)}
-                    onDrop={(event) => this.onDrop(event)}
-                    onDragOver={(event) => this.onDragOver(event)}
-                />
-            </div>
+        return <div class="edit">
+            <span class={`vec-label`} style={`background-color: #e67e2250; cursor: auto`}>{"T"}</span>
+            <input
+                className="input"
+                disabled
+                value={this.props.value}
+                onDragEnter={(event: DragEvent) => this.onDragEnter(event)}
+                onDragLeave={(event: DragEvent) => this.onDragLeave(event)}
+                onDrop={(event: DragEvent) => this.onDrop(event)}
+                onDragOver={(event: DragEvent) => this.onDragOver(event)}
+            />
         </div>
     }
 }

@@ -8,7 +8,6 @@ export interface InspectorDropdownOptions {
 }
 
 interface InspectorDropdownProps {
-    title: string;
     options: InspectorDropdownOptions[];
     selected?: string;
     onSelected?: (option: string) => void
@@ -34,19 +33,16 @@ export class InspectorDropdown extends Component<InspectorDropdownProps> {
     }
 
     public render() {
-        return <div className="InspectorComponent">
-            <span className="title">{this.props.title}</span>
-            <select
-                style={{ marginRight: "5px" }}
-                class="input"
-                onChange={(event) => { this.onChanged(event) }}
-                value={this.props.selected}
-            >
-                {this.props.options.map((value) => {
-                    const key = this.props.title + "-" + value.text;
-                    return <option key={key} value={value.value}>{value.text}</option>
-                })}
-            </select>
-        </div>
+        return <select
+            style={{ marginRight: "5px" }}
+            class="input"
+            onChange={(event) => { this.onChanged(event) }}
+            value={this.props.selected}
+        >
+            {this.props.options.map((value) => {
+                const key = value.value + "-" + value.text;
+                return <option key={key} value={value.value}>{value.text}</option>
+            })}
+        </select>
     }
 }

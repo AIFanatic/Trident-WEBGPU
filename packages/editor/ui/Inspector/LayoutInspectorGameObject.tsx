@@ -20,6 +20,8 @@ import { InspectorDropdown, InspectorDropdownOptions } from "./InspectorDropdown
 import { InspectorArray } from "./InspectorArray";
 import { TridentAPI } from "../../engine-api/trident/TridentAPI";
 import { InspectorClass } from "./InspectorClass";
+import { InspectorColorGradient } from "./InspectorColorGradient";
+import { InspectorProperty } from "./InspectorProperty";
 
 interface LayoutInspectorProps {
     engineAPI: IEngineAPI;
@@ -39,7 +41,7 @@ export class LayoutInspectorGameObject extends Component<LayoutInspectorProps> {
     private onComponentPropertyChanged(component: IComponent | ITransform, property: string, value: any) {
         const type = typeof component[property];
         const customType = component[property];
-        
+
         if (this.props.engineAPI.isVector3(component[property]) && this.props.engineAPI.isVector3(value)) {
             component[property].copy(value);
         }
@@ -68,29 +70,29 @@ export class LayoutInspectorGameObject extends Component<LayoutInspectorProps> {
         // this.forceUpdate()
     }
 
-    private renderInspectorForComponentProperty(component: any, property: { name: string | symbol, type?: Function }): Node {
+    private renderInspectorForComponentProperty(component: any, property: { name: string | symbol, type?: Function }): VNode<any> {
         const name = property.name as string;
         const type = property.type;
         const engineType = this.props.engineAPI.getFieldType(type);
 
-        const title = StringUtils.NicifyVariableName(name);
+        // console.log("field:", name, "type:", type?.name, "engineType:", engineType, component);
 
-        if (engineType === "Vector3") return <InspectorVector3 title={title} onChanged={(value) => { this.onComponentPropertyChanged(component, name, value) }} vector3={component[name]} />
-        else if (engineType === "Vector2") return <InspectorVector2 title={title} onChanged={(value) => { this.onComponentPropertyChanged(component, name, value) }} vector2={component[name]} />
-        else if (engineType === "Color") return <InspectorColor title={title} onChanged={(value) => { this.onComponentPropertyChanged(component, name, value) }} color={component[name]} />
-        else if (type === Number) return <InspectorInput onChanged={(value) => { this.onComponentPropertyChanged(component, name, value) }} title={title} value={component[name]} type="number" />
-        else if (type === Boolean) return <InspectorCheckbox onChanged={(value) => { this.onComponentPropertyChanged(component, name, value) }} title={title} selected={component[name]} />
+        if (engineType === "Vector3") return <InspectorVector3 onChanged={(value) => { this.onComponentPropertyChanged(component, name, value) }} vector3={component[name]} />
+        else if (engineType === "Vector2") return <InspectorVector2 onChanged={(value) => { this.onComponentPropertyChanged(component, name, value) }} vector2={component[name]} />
+        else if (engineType === "Color") return <InspectorColor onChanged={(value) => { this.onComponentPropertyChanged(component, name, value) }} color={component[name]} />
+        else if (engineType === "Gradient") return <InspectorColorGradient gradient={component[name]} onChanged={() => this.setState({})} />
+        else if (type === Number) return <InspectorInput onChanged={(value) => { this.onComponentPropertyChanged(component, name, value) }} value={component[name]} type="number" />
+        else if (type === Boolean) return <InspectorCheckbox onChanged={(value) => { this.onComponentPropertyChanged(component, name, value) }} selected={component[name]} />
         else if (Array.isArray(component[name])) {
             return <InspectorArray
                 engineAPI={this.props.engineAPI}
-                title={title}
                 array={component[name]}
                 elementType={type}
                 onChanged={() => this.setState({})}
                 renderItem={(item, index) => {
                     if (!item) return null;
 
-                    return <div title={`${title} ${index}`}>
+                    return <div key={`${name}-${index}`}>
                         {...this.renderInspectorForComponent(item)}
                     </div>
                 }}
@@ -108,7 +110,6 @@ export class LayoutInspectorGameObject extends Component<LayoutInspectorProps> {
 
                 return <InspectorType
                     onChanged={(value) => this.onComponentPropertyChanged(component, name, value)}
-                    title={title}
                     component={component}
                     property={name}
                     value={value}
@@ -117,7 +118,7 @@ export class LayoutInspectorGameObject extends Component<LayoutInspectorProps> {
             }
 
             if (currentValue && this.props.engineAPI.GetSerializedFields(currentValue).length > 0) {
-                return <InspectorClass title={title}>
+                return <InspectorClass>
                     {...this.renderInspectorForComponent(currentValue as any)}
                 </InspectorClass>
             }
@@ -129,12 +130,14 @@ export class LayoutInspectorGameObject extends Component<LayoutInspectorProps> {
                 if (!isNaN(Number(property))) continue;
                 selectOptions.push({ text: property, value: type[property] });
             }
-            return <InspectorDropdown title={title} options={selectOptions} selected={(component as any)[name]} onSelected={(value) => { this.onComponentPropertyChanged(component, name, value) }} />
+            return <InspectorDropdown options={selectOptions} selected={(component as any)[name]} onSelected={(value) => { this.onComponentPropertyChanged(component, name, value) }} />
         }
+
+        throw Error(`Unknown type ${type}`)
     }
 
-    private renderInspectorForComponent(component: IComponent): Node[] {
-        let componentPropertiesHTML: Node[] = [];
+    private renderInspectorForComponent(component: IComponent): VNode[] {
+        let componentPropertiesHTML: VNode[] = [];
 
         const serializedProperties = this.props.engineAPI.GetSerializedFields(component);
         // Parse component properties
@@ -142,7 +145,25 @@ export class LayoutInspectorGameObject extends Component<LayoutInspectorProps> {
             try {
                 const componentPropertyElement = this.renderInspectorForComponentProperty(component, property);
                 if (componentPropertyElement) {
-                    componentPropertiesHTML.push(componentPropertyElement);
+                    const title = StringUtils.NicifyVariableName(property.name as string);
+
+                    const stacked = componentPropertyElement.type === InspectorArray || componentPropertyElement.type === InspectorClass;
+                    // <Collapsible header={"InspectorClass"}></Collapsible>
+
+                    if (stacked) {
+                        componentPropertiesHTML.push(
+                            <Collapsible header={title}>
+                                {componentPropertyElement}
+                            </Collapsible>
+                        );
+                    }
+                    else {
+                        componentPropertiesHTML.push(
+                            <InspectorProperty title={title} stacked={stacked}>
+                                {componentPropertyElement}
+                            </InspectorProperty>
+                        );
+                    }
                 }
             } catch (error) {
                 console.warn(error);
@@ -168,8 +189,8 @@ export class LayoutInspectorGameObject extends Component<LayoutInspectorProps> {
         return inspectorHTML;
     }
 
-    private onGameObjectEnabled(event) {
-        this.props.gameObject.enabled = event.target.checked;
+    private onGameObjectEnabled(event: Event) {
+        this.props.gameObject.enabled = (event.currentTarget as HTMLInputElement).checked;
     }
 
     private onDragEnter(event: DragEvent) {
@@ -184,7 +205,6 @@ export class LayoutInspectorGameObject extends Component<LayoutInspectorProps> {
     private onDrop(event: DragEvent) {
         const draggedItem = ExtendedDataTransfer.data;
         const component = draggedItem[Object.keys(draggedItem)[0]];
-        console.log("onDrop", draggedItem, this.props.engineAPI.getFieldType(component));
         this.props.engineAPI.addComponent(this.props.gameObject, component);
         this.setState({}); // force updated
     }
@@ -197,15 +217,15 @@ export class LayoutInspectorGameObject extends Component<LayoutInspectorProps> {
                 overflow: "auto",
                 width: "100%",
             }}
-                onDragEnter={(event) => { this.onDragEnter(event) }}
-                onDrop={(event) => { this.onDrop(event) }}
-                onDragOver={(event) => this.onDragOver(event)}
+                onDragEnter={(event: DragEvent) => { this.onDragEnter(event) }}
+                onDrop={(event: DragEvent) => { this.onDrop(event) }}
+                onDragOver={(event: DragEvent) => this.onDragOver(event)}
             >
                 <div style={{
                     display: "flex",
                     padding: "10px"
                 }}>
-                    <input type="checkbox" checked={this.props.gameObject.enabled} onChange={event => { this.onGameObjectEnabled(event) }} />
+                    <input type="checkbox" checked={this.props.gameObject.enabled} onChange={(event: Event) => { this.onGameObjectEnabled(event) }} />
                     <input style={{
                         width: "100%",
                         fontSize: "12px",
@@ -218,14 +238,20 @@ export class LayoutInspectorGameObject extends Component<LayoutInspectorProps> {
                     }}
                         type="text"
                         value={this.props.gameObject.name}
-                        onChange={(event) => { this.onGameObjectNameChanged(this.props.gameObject, event) }}
+                        onChange={(event: Event) => { this.onGameObjectNameChanged(this.props.gameObject, event) }}
                     />
                 </div>
 
                 <Collapsible header="Transform">
-                    <InspectorVector3 key={`position-${this.props.gameObject.id}`} title="Position" onChanged={(value) => { this.onComponentPropertyChanged(this.props.gameObject.transform, "localPosition", value) }} vector3={this.props.gameObject.transform.localPosition} />
-                    <InspectorVector3 key={`rotation-${this.props.gameObject.id}`} title="Rotation" onChanged={(value) => { this.onComponentPropertyChanged(this.props.gameObject.transform, "localEulerAngles", value) }} vector3={this.props.gameObject.transform.localEulerAngles} />
-                    <InspectorVector3 key={`scale-${this.props.gameObject.id}`} title="Scale" onChanged={(value) => { this.onComponentPropertyChanged(this.props.gameObject.transform, "scale", value) }} vector3={this.props.gameObject.transform.scale} />
+                    <InspectorProperty title="Position">
+                        <InspectorVector3 key={`position-${this.props.gameObject.id}`} onChanged={(value) => { this.onComponentPropertyChanged(this.props.gameObject.transform, "localPosition", value) }} vector3={this.props.gameObject.transform.localPosition} />
+                    </InspectorProperty>
+                    <InspectorProperty title="Rotation">
+                        <InspectorVector3 key={`rotation-${this.props.gameObject.id}`} onChanged={(value) => { this.onComponentPropertyChanged(this.props.gameObject.transform, "localEulerAngles", value) }} vector3={this.props.gameObject.transform.localEulerAngles} />
+                    </InspectorProperty>
+                    <InspectorProperty title="Scale">
+                        <InspectorVector3 key={`scale-${this.props.gameObject.id}`} onChanged={(value) => { this.onComponentPropertyChanged(this.props.gameObject.transform, "scale", value) }} vector3={this.props.gameObject.transform.scale} />
+                    </InspectorProperty>
                 </Collapsible>
 
                 {componentsElements}
