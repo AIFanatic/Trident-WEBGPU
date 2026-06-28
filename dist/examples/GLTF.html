@@ -31,7 +31,6 @@
                             import { PlayerRuntime, GameObject, Components, Mathf, Runtime, GPU, Geometry, PBRMaterial } from '@trident/core';
             import { OrbitControls } from '@trident/plugins/OrbitControls.js';
             import { GLTFLoader } from '@trident/plugins/GLTF/GLTFLoader.js';
-            import { Debugger } from '@trident/plugins/Debugger.js';
             import { HDRParser } from '@trident/plugins/HDRParser.js';
             import { IBLLightingPass } from '@trident/plugins/Environment/IBLLightingPass.js';
             import { SkyboxPass } from '@trident/plugins/Environment/SkyboxPass.js';
@@ -44,13 +43,13 @@
               mainCameraGameObject.transform.position.set(0, 0, -15);
               mainCameraGameObject.name = "MainCamera";
               const camera = mainCameraGameObject.AddComponent(Components.Camera);
-              camera.SetPerspective(60, canvas.width / canvas.height, 0.05, 1e3);
+              camera.SetPerspective(60, canvas.width / canvas.height, 0.05, 1e4);
               mainCameraGameObject.transform.position.set(0, 0, 2);
-              mainCameraGameObject.transform.LookAtV1(new Mathf.Vector3(0, 0, 0));
+              mainCameraGameObject.transform.LookAt(new Mathf.Vector3(0, 0, 0));
               mainCameraGameObject.AddComponent(OrbitControls);
               const lightGameObject = new GameObject();
               lightGameObject.transform.position.set(2, 0, 0);
-              lightGameObject.transform.LookAtV1(new Mathf.Vector3(0, 0, 0));
+              lightGameObject.transform.LookAt(new Mathf.Vector3(0, 0, 0));
               const light = lightGameObject.AddComponent(Components.DirectionalLight);
               light.castShadows = false;
               light.intensity = 2;
@@ -91,11 +90,9 @@
                   const file = e.dataTransfer?.files?.[0];
                   if (!file) return;
                   const url = URL.createObjectURL(file);
-                  const obj = await GLTFLoader.Load(url, scene, "glb");
-                  console.log(obj);
+                  await GLTFLoader.Load(url, scene, "glb");
                 });
               }
-              Debugger.Enable();
             }
             Application(document.querySelector("canvas"));
             

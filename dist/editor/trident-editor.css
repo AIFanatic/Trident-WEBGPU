@@ -184,6 +184,15 @@ input[type=number] {
     display: flex;
     align-items: center;
     margin-bottom: 5px;
+    width: 100%;
+}
+
+.InspectorComponent.stacked {
+    display: block;
+}
+
+.InspectorComponent.stacked> :not(.title) {
+    padding-left: 5px;
 }
 
 .InspectorComponent .title {
@@ -198,47 +207,44 @@ input[type=number] {
     width: 100%;
 }
 
-.InspectorComponent .input {
+.input {
+    width: 100%;
     font-size: 9px;
     background-color: #121212;
     border-radius: 5px;
     color: white;
     border: 1px solid black;
     outline: none;
-    width: 100%;
     padding: 5px;
 }
 
-.InspectorComponent .input:hover {
+.input:hover {
     border: 1px solid #4d4d4d;
 }
 
-.InspectorComponent .input.active {
+.input.active {
     background-color: #3498db80;
 }
 
-.InspectorComponent {
-    margin-bottom: 5px;
-}
-
-.InspectorComponent .input {
+.edit {
+    display: flex;
     width: 100%;
+    margin-right: 5px;
+    align-items: center;
 }
 
-
-
-.InspectorComponent .range {
+.range {
     -webkit-appearance: none;
     height: 5px;
     background: #4d4d4d;
     outline: none;
 }
 
-.InspectorComponent .range:hover {
+.range:hover {
     opacity: 1;
 }
 
-.InspectorComponent .range::-webkit-slider-thumb {
+.range::-webkit-slider-thumb {
     -webkit-appearance: none;
     appearance: none;
     width: 10px;
@@ -248,7 +254,7 @@ input[type=number] {
     border-radius: 50%;
 }
 
-.InspectorComponent .range::-moz-range-thumb {
+.range::-moz-range-thumb {
     width: 10px;
     height: 10px;
     background: #bfbfbf;
@@ -256,23 +262,23 @@ input[type=number] {
     border-radius: 50%;
 }
 
-.InspectorComponent .gray-bg {
+.gray-bg {
     background-color: #7f8c8d50;
 }
 
-.InspectorComponent .red-bg {
+.red-bg {
     background-color: #e74c3c50;
 }
 
-.InspectorComponent .green-bg {
+.green-bg {
     background-color: #2ecc7150;
 }
 
-.InspectorComponent .blue-bg {
+.blue-bg {
     background-color: #3498db50;
 }
 
-.InspectorComponent .vec-label {
+.vec-label {
     padding: 4px;
     font-size: 9px;
     border-top-left-radius: 2px;
@@ -281,21 +287,81 @@ input[type=number] {
     align-items: center;
 }
 
-.InspectorComponent .vec-label:hover {
+.vec-label:hover {
     cursor: col-resize;
 }
 
-.InspectorComponent .vec-input {
+.vec-input {
     font-size: 9px;
     border-top-left-radius: 0px;
     border-bottom-left-radius: 0px;
 }
 
-.InspectorComponent .edit {
-    display: flex;
+
+
+.color-picker {
     width: 100%;
-    margin-right: 5px;
-    align-items: center;
+}
+
+.color-picker>.color-canvas {
+    position: relative;
+    border-radius: 3px;
+    width: 100%;
+    height: 100px;
+    background: linear-gradient(transparent 0%, rgb(0, 0, 0) 100%), linear-gradient(to left, transparent 0%, rgb(255, 255, 255) 100%), rgb(255, 0, 0);
+}
+
+.color-picker>.color-canvas>.color-canvas-picker {
+    width: 8px;
+    height: 8px;
+    position: absolute;
+    border-radius: 50%;
+    border: 1px solid white;
+
+    transform: translate(-50%, -50%);
+    pointer-events: none;
+    /* so drags hit the canvas, not the dot */
+}
+
+.color-picker>.rgb-picker-container {
+    display: flex;
+}
+
+.color-picker>.range-container {
+    display: flex;
+    width: calc(100% - 8px);
+}
+
+.color-picker>.range-container>.color-preview {
+    border-radius: 3px;
+    width: 28px;
+    height: 28px;
+    background: red;
+}
+
+.color-picker>.range-container>.hue-alpha-container {
+    width: calc(100% - 28px);
+}
+
+.color-picker>.range-container>.hue-alpha-container>.range {
+    height: 10px;
+    width: 100%;
+    -webkit-appearance: none;
+    appearance: none;
+    border: none;
+    border-radius: 3px;
+}
+
+.color-picker>.range-container>.hue-alpha-container>.hue {
+    background: linear-gradient(to right, red 0, #ff0 17%, #0f0 33%, #0ff 50%, #00f 67%, #f0f 83%, red 100%);
+}
+
+.popup {
+    padding: 5px;
+    border-radius: 10px;
+    background-color: #1a1a1a;
+    border: 1px solid black;
+    z-index: 1;
 }
 .treeview {
     overflow: auto;
@@ -335,19 +401,23 @@ input[type=number] {
 }
 .collapsible-content-edonec {
     overflow: auto;
-    transition: height 0.2s ease-in-out;
+    transition: height 0.1s ease-in-out;
+    interpolate-size: allow-keywords;
 }
+
+.collapsible-content-edonec > div {
+    padding: 5px;
+}
+
 .title-text-edonec {
     display: inline-block;
     font-size: 10px;
-    font-weight: bold;
 }
 .title-right-menu {
     float: right;
     margin-right: 10px;
     text-align: center;
     width: 15px;
-    font-weight: bold;
 }
 .title-right-menu:hover {
     opacity: 0.5;
@@ -365,9 +435,6 @@ input[type=number] {
     padding: 7px;
     cursor: pointer;
     border-radius: 10px;
-}
-.collapsible-content-padding-edonec {
-    padding-top: 3px;
 }
 
 .collapsible-icon-button-edonec {

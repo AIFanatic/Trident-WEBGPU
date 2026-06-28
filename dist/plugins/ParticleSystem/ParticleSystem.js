@@ -1,5 +1,5 @@
-import { Assets, Utils, Mathf, GPU, Components, Geometry, Component } from '@trident/core';
-import { Gradient } from './Gradient.js';
+import { Assets, SerializeField, GPU, Mathf, Components, Utils, Geometry, Component } from '@trident/core';
+import { GradientTexture } from './GradientTexture.js';
 import WGSL_Structs from './resources/structs.wgsl.js';
 import WGSL_Draw from './resources/draw.wgsl.js';
 import WGSL_Compute from './resources/update.wgsl.js';
@@ -52,12 +52,21 @@ var __privateIn = (member, obj) => Object(obj) !== obj ? __typeError('Cannot use
 var __privateGet = (obj, member, getter) => (__accessCheck(obj, member, "read from private field"), getter ? getter.call(obj) : member.get(obj));
 var __privateSet = (obj, member, value, setter) => (__accessCheck(obj, member, "write to private field"), setter ? setter.call(obj, value) : member.set(obj, value), value);
 var __privateMethod = (obj, member, method) => (__accessCheck(obj, member, "access private method"), method);
-var _startSpeed_dec, _gravity_dec, _frameOvertime_dec, _textureTiles_dec, _texture_dec, _boxHalfExtents_dec, _coneHeight_dec, _coneAngle_dec, _radius_dec, _emitFromShell_dec, _shapeType_dec, _rateOverTime_dec, _startLifetime_dec, _startSize_dec, _a, _init;
+var _startSpeed_dec, _arcSpeed_dec, _arcLoop_dec, _gravity_dec, _colorOverLifetimeGradients_dec, _frameOvertime_dec, _textureTiles_dec, _texture_dec, _boxHalfExtents_dec, _coneHeight_dec, _coneAngle_dec, _radius_dec, _emitFromShell_dec, _shapeType_dec, _rateOverTime_dec, _startLifetime_dec, _startSize_dec, _a, _init;
 Assets.Register("@trident/plugins/ParticleSystem/resources/structs.wgsl", WGSL_Structs);
-class ParticleSystem extends (_a = Component, _startSize_dec = [Utils.SerializeField], _startLifetime_dec = [Utils.SerializeField], _rateOverTime_dec = [Utils.SerializeField], _shapeType_dec = [Utils.SerializeField], _emitFromShell_dec = [Utils.SerializeField], _radius_dec = [Utils.SerializeField], _coneAngle_dec = [Utils.SerializeField], _coneHeight_dec = [Utils.SerializeField], _boxHalfExtents_dec = [Utils.SerializeField], _texture_dec = [Utils.SerializeField], _textureTiles_dec = [Utils.SerializeField], _frameOvertime_dec = [Utils.SerializeField], _gravity_dec = [Utils.SerializeField], _startSpeed_dec = [Utils.SerializeField], _a) {
+var ShapeType = /* @__PURE__ */ ((ShapeType2) => {
+  ShapeType2[ShapeType2["Sphere"] = 0] = "Sphere";
+  ShapeType2[ShapeType2["HemiSphere"] = 1] = "HemiSphere";
+  ShapeType2[ShapeType2["Cone"] = 2] = "Cone";
+  ShapeType2[ShapeType2["Box"] = 3] = "Box";
+  ShapeType2[ShapeType2["Circle"] = 4] = "Circle";
+  return ShapeType2;
+})(ShapeType || {});
+class ParticleSystem extends (_a = Component, _startSize_dec = [SerializeField], _startLifetime_dec = [SerializeField], _rateOverTime_dec = [SerializeField], _shapeType_dec = [SerializeField(ShapeType)], _emitFromShell_dec = [SerializeField], _radius_dec = [SerializeField], _coneAngle_dec = [SerializeField], _coneHeight_dec = [SerializeField], _boxHalfExtents_dec = [SerializeField], _texture_dec = [SerializeField(GPU.Texture)], _textureTiles_dec = [SerializeField], _frameOvertime_dec = [SerializeField], _colorOverLifetimeGradients_dec = [SerializeField], _gravity_dec = [SerializeField], _arcLoop_dec = [SerializeField], _arcSpeed_dec = [SerializeField], _startSpeed_dec = [SerializeField(Mathf.Vector3)], _a) {
   constructor(gameObject) {
     super(gameObject);
     __runInitializers(_init, 5, this);
+    __publicField(this, "runInEditMode", true);
     __publicField(this, "geometry");
     __publicField(this, "material");
     __publicField(this, "instancedMesh");
@@ -76,15 +85,23 @@ class ParticleSystem extends (_a = Component, _startSize_dec = [Utils.SerializeF
     __publicField(this, "texture", __runInitializers(_init, 44, this)), __runInitializers(_init, 47, this);
     __publicField(this, "textureTiles", __runInitializers(_init, 48, this, new Mathf.Vector2(1, 1))), __runInitializers(_init, 51, this);
     __publicField(this, "frameOvertime", __runInitializers(_init, 52, this, 2 /* Random */)), __runInitializers(_init, 55, this);
-    // Color over lifetime
-    __publicField(this, "_colorOverLifetimeGradients", new Gradient());
-    __publicField(this, "gravity", __runInitializers(_init, 56, this, new Mathf.Vector3(0, 0, 0))), __runInitializers(_init, 59, this);
+    __publicField(this, "colorOverLifetimeGradients", __runInitializers(_init, 56, this, new GradientTexture())), __runInitializers(_init, 59, this);
+    __publicField(this, "gravity", __runInitializers(_init, 60, this, new Mathf.Vector3(0, 0, 0))), __runInitializers(_init, 63, this);
+    __publicField(this, "arcLoop", __runInitializers(_init, 64, this, false)), __runInitializers(_init, 67, this);
+    __publicField(this, "arcSpeed", __runInitializers(_init, 68, this, 1)), __runInitializers(_init, 71, this);
+    // loops per second
+    __publicField(this, "arcPhase", 0);
     __publicField(this, "textureSampler");
     __publicField(this, "_startSpeed", new Mathf.Vector3(1, 1, 1).mul(10));
     this.init();
-  }
-  get colorOverLifetimeGradients() {
-    return this._colorOverLifetimeGradients;
+    this.colorOverLifetimeGradients.setColorKeys([
+      { t: 0, r: 1, g: 1, b: 1 },
+      { t: 1, r: 1, g: 1, b: 1 }
+    ]);
+    this.colorOverLifetimeGradients.setAlphaKeys([
+      { t: 0, a: 1 },
+      { t: 1, a: 0 }
+    ]);
   }
   colorOverLifetimeAddColor(color) {
     this.colorOverLifetimeGradients.addColor(color);
@@ -111,25 +128,11 @@ class ParticleSystem extends (_a = Component, _startSize_dec = [Utils.SerializeF
         code: await GPU.ShaderPreprocessor.ProcessIncludesV2(WGSL_Draw),
         colorOutputs: [{ format: "rgba16float", blendMode: "premultiplied" }],
         depthOutput: "depth24plus",
-        attributes: {
-          position: { location: 0, size: 3, type: "vec3" },
-          normal: { location: 1, size: 3, type: "vec3" },
-          uv: { location: 2, size: 2, type: "vec2" }
-        },
-        uniforms: {
-          projectionMatrix: { group: 0, binding: 0, type: "storage" },
-          viewMatrix: { group: 0, binding: 1, type: "storage" },
-          modelMatrix: { group: 0, binding: 2, type: "storage" },
-          particles: { group: 0, binding: 3, type: "storage" },
-          texture: { group: 0, binding: 4, type: "texture" },
-          textureSampler: { group: 0, binding: 5, type: "sampler" },
-          settings: { group: 0, binding: 6, type: "storage" },
-          colorOverLifetimeRamp: { group: 0, binding: 7, type: "texture" }
-        },
         depthWriteEnabled: false
       })
     });
     this.instancedMesh = this.gameObject.AddComponent(Components.InstancedMesh);
+    this.instancedMesh.flags |= Utils.Flags.DontSaveInEditor;
     this.instancedMesh._instanceCount = 1024;
     this.instancedMesh.name = "ParticleSystem";
     this.instancedMesh.enableShadows = false;
@@ -147,16 +150,15 @@ class ParticleSystem extends (_a = Component, _startSize_dec = [Utils.SerializeF
     this.particleInfoBuffer = new GPU.DynamicBufferMemoryAllocator(this.instancedMesh.instanceCount * 64);
     this.compute.SetBuffer("particles", this.particleInfoBuffer.getBuffer());
     this.material.shader.SetBuffer("particles", this.particleInfoBuffer.getBuffer());
+    this.SetParams();
   }
-  Update() {
+  SetParams() {
     const currentTime = performance.now();
     const elapsed = currentTime - this.lastTime;
     this.lastTime = currentTime;
-    if (!this.compute) return;
+    const dt = elapsed / 1e3;
+    if (this.arcLoop) this.arcPhase = (this.arcPhase + this.arcSpeed * dt) % 1;
     const particleCount = this.instancedMesh.instanceCount;
-    const dispatchSizeX = Math.ceil(Math.cbrt(particleCount) / 4);
-    const dispatchSizeY = Math.ceil(Math.cbrt(particleCount) / 4);
-    const dispatchSizeZ = Math.ceil(Math.cbrt(particleCount) / 4);
     if (!this.texture) this.texture = GPU.Texture.Create(1, 1);
     if (!this.textureSampler) this.textureSampler = new GPU.TextureSampler();
     this.material.shader.SetSampler("textureSampler", this.textureSampler);
@@ -181,20 +183,40 @@ class ParticleSystem extends (_a = Component, _startSize_dec = [Utils.SerializeF
       0,
       ...this.boxHalfExtents.elements,
       +(this.texture.width > 1 || this.texture.height > 1),
-      // hasTexture
       ...this.textureTiles.elements,
       this.frameOvertime,
       0,
       ...this.gravity.elements,
+      0,
+      +this.arcLoop,
+      this.arcPhase,
+      0,
       0
+      // ← new 16-byte row at the end
     ]);
     this.compute.SetArray("settings", settings);
     this.material.shader.SetArray("settings", settings);
+  }
+  Update() {
+    if (!this.compute) return;
+    this.SetParams();
+    const particleCount = this.instancedMesh.instanceCount;
+    const dispatchSizeX = Math.ceil(Math.cbrt(particleCount) / 4);
+    const dispatchSizeY = Math.ceil(Math.cbrt(particleCount) / 4);
+    const dispatchSizeZ = Math.ceil(Math.cbrt(particleCount) / 4);
     GPU.Renderer.BeginRenderFrame();
     GPU.ComputeContext.BeginComputePass("ParticleSystem", true);
     GPU.ComputeContext.Dispatch(this.compute, dispatchSizeX, dispatchSizeY, dispatchSizeZ);
     GPU.ComputeContext.EndComputePass();
     GPU.Renderer.EndRenderFrame();
+  }
+  Destroy() {
+    super.Destroy();
+    this.instancedMesh.Destroy();
+    this.geometry.Destroy();
+    this.material.Destroy();
+    this.compute.Destroy();
+    this.particleInfoBuffer.Destroy();
   }
 }
 _init = __decoratorStart(_a);
@@ -211,7 +233,11 @@ __decorateElement(_init, 5, "boxHalfExtents", _boxHalfExtents_dec, ParticleSyste
 __decorateElement(_init, 5, "texture", _texture_dec, ParticleSystem);
 __decorateElement(_init, 5, "textureTiles", _textureTiles_dec, ParticleSystem);
 __decorateElement(_init, 5, "frameOvertime", _frameOvertime_dec, ParticleSystem);
+__decorateElement(_init, 5, "colorOverLifetimeGradients", _colorOverLifetimeGradients_dec, ParticleSystem);
 __decorateElement(_init, 5, "gravity", _gravity_dec, ParticleSystem);
+__decorateElement(_init, 5, "arcLoop", _arcLoop_dec, ParticleSystem);
+__decorateElement(_init, 5, "arcSpeed", _arcSpeed_dec, ParticleSystem);
 __decoratorMetadata(_init, ParticleSystem);
+__publicField(ParticleSystem, "type", "@trident/plugins/ParticleSystem/ParticleSystem");
 
 export { ParticleSystem };

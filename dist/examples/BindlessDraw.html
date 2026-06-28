@@ -94,7 +94,7 @@
               const camera = mainCameraGameObject.AddComponent(Components.Camera);
               camera.SetPerspective(72, canvas.width / canvas.height, 0.5, 1e3);
               mainCameraGameObject.transform.position.set(0, 0, 2);
-              mainCameraGameObject.transform.LookAtV1(new Mathf.Vector3(0, 0, 0));
+              mainCameraGameObject.transform.LookAt(new Mathf.Vector3(0, 0, 0));
               new OrbitControls(canvas, camera);
               const cubeGeometry = Geometry.Cube();
               const cubeVertices = cubeGeometry.attributes.get("position").array;

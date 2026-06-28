@@ -1,3 +1,4 @@
+#include "@trident/core/resources/webgpu/shaders/deferred/Common.wgsl";
 #include "@trident/plugins/ParticleSystem/resources/structs.wgsl";
 
 struct VertexInput {
@@ -14,8 +15,7 @@ struct VertexOutput {
     @location(2) @interpolate(flat) instanceIdx: u32
 };
 
-@group(0) @binding(0) var<storage, read> projectionMatrix: mat4x4<f32>;
-@group(0) @binding(1) var<storage, read> viewMatrix: mat4x4<f32>;
+@group(0) @binding(0) var<storage, read> frameBuffer: FrameBuffer;
 @group(0) @binding(2) var<storage, read> modelMatrix: array<mat4x4<f32>>;
 @group(0) @binding(3) var<storage, read> particles: array<Particle>;
 @group(0) @binding(4) var texture: texture_2d<f32>;
@@ -38,7 +38,7 @@ fn vertexMain(input: VertexInput) -> VertexOutput {
     let size = max(p.velocity.w, 0.001);
 
     // Particle center in VIEW space
-    let centerVS = (viewMatrix * vec4(p.position.xyz, 1.0)).xyz;
+    let centerVS = (frameBuffer.viewMatrix * vec4(p.position.xyz, 1.0)).xyz;
 
     // Vertex's local quad coords (e.g., [-0.5..0.5] or [-1..1])
     let local = input.position.xy * size;
@@ -47,7 +47,7 @@ fn vertexMain(input: VertexInput) -> VertexOutput {
     let billboardVS = centerVS + vec3(local.x, local.y, 0.0);
 
     // Project to clip space
-    output.position = projectionMatrix * vec4(billboardVS, 1.0);
+    output.position = frameBuffer.projectionMatrix * vec4(billboardVS, 1.0);
 
     output.rawPosition = input.position;
     output.uv = input.uv;

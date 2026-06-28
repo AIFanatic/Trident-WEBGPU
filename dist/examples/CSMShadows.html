@@ -43,10 +43,10 @@
               camera.SetPerspective(70, window.innerWidth / window.innerHeight, 0.1, 1e3);
               camera.transform.position.set(60, 60, 0);
               mainCameraGameObject.AddComponent(OrbitControls);
-              camera.transform.LookAtV1(new Mathf.Vector3(-100, 10, 0));
+              camera.transform.LookAt(new Mathf.Vector3(-100, 10, 0));
               const lightGameObject = new GameObject();
               lightGameObject.transform.position.set(-1, -1, -1).normalize().mul(-200);
-              lightGameObject.transform.LookAtV1(new Mathf.Vector3(0, 0, 0));
+              lightGameObject.transform.LookAt(new Mathf.Vector3(0, 0, 0));
               lightGameObject.AddComponent(Components.DirectionalLight);
               const floor = new GameObject();
               floor.transform.scale.set(1e4, 1e4, 1e4);

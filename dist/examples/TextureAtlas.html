@@ -44,11 +44,11 @@
               camera.SetPerspective(60, canvas.width / canvas.height, 0.01, 100);
               const lightGameObject = new GameObject();
               lightGameObject.transform.position.set(-4, 4, 10);
-              lightGameObject.transform.LookAtV1(new Mathf.Vector3(0, 0, 0));
+              lightGameObject.transform.LookAt(new Mathf.Vector3(0, 0, 0));
               const light = lightGameObject.AddComponent(Components.DirectionalLight);
               light.castShadows = true;
               mainCameraGameObject.transform.position.set(0, 0, 4);
-              mainCameraGameObject.transform.LookAtV1(new Mathf.Vector3(0, 0, 0));
+              mainCameraGameObject.transform.LookAt(new Mathf.Vector3(0, 0, 0));
               new OrbitControls(canvas, camera);
               const t2 = await GPU.RenderTexture.Load("./assets/textures/32x32.png");
               const t3 = await GPU.RenderTexture.Load("./assets/textures/64x64.png", { format: "bgra8unorm", generateMips: true });

@@ -12,6 +12,7 @@ import { TerrainEditor } from '@trident/plugins/Terrain/TerrainEditor.js';
 import { LineRenderer } from '@trident/plugins/LineRenderer.js';
 import { LODGroup } from '@trident/plugins/LOD/LODGroup.js';
 import { WaterV1 } from '@trident/plugins/Water/WaterV1.js';
+import { ParticleSystem } from '@trident/plugins/ParticleSystem/ParticleSystem.js';
 import { IBLLightingPass } from '@trident/plugins/Environment/IBLLightingPass.js';
 import { Sky } from '@trident/plugins/Environment/Sky.js';
 import { SkyboxPass } from '@trident/plugins/Environment/SkyboxPass.js';
@@ -3172,7 +3173,7 @@ class EnvironmentManager extends (_a = Components.Component, _sunlight_dec = [Se
     const z = radius * Mathf.Cos(elevationRad) * Mathf.Sin(azimuthRad);
     const sunPos = new Mathf.Vector3(x, y, z);
     this.sunlight.transform.position = sunPos;
-    this.sunlight.transform.LookAtV1(new Mathf.Vector3(0, 0, 0));
+    this.sunlight.transform.LookAt(new Mathf.Vector3(0, 0, 0));
     if (this.sky.SUN_ELEVATION_DEGREES < 0) this.sunlight.intensity = 0;
     else this.sunlight.intensity = this.sky.SUN_ELEVATION_DEGREES / 10;
     this.sky.Update();
@@ -3391,7 +3392,8 @@ const ComponentRegistry = {
   Terrain: component(Terrain),
   TerrainEditor: component(TerrainEditor),
   LODGroup: component(LODGroup),
-  Water: component(WaterV1)
+  Water: component(WaterV1),
+  ParticleSystem: component(ParticleSystem)
 };
 EventSystem.on(ProjectEvents.Opened, async () => {
   try {
@@ -3467,7 +3469,7 @@ class TridentAPI {
     return GPU.Texture.LoadBlob(blob);
   }
   compareType(value, type) {
-    if (typeof value === "function") return value === type;
+    if (typeof value === "function") return value === type || value.prototype instanceof type;
     if (value instanceof type) return true;
     return value?.constructor?.type === type.type;
   }
@@ -3478,6 +3480,7 @@ class TridentAPI {
     else if (this.compareType(value, Mathf.Vector3)) return "Vector3";
     else if (this.compareType(value, Mathf.Vector2)) return "Vector2";
     else if (this.compareType(value, Mathf.Color)) return "Color";
+    else if (this.compareType(value, Mathf.Gradient)) return "Gradient";
     else if (this.compareType(value, Geometry)) return "Geometry";
     else if (this.compareType(value, GPU.Material)) return "Material";
     else if (this.compareType(value, GPU.Texture)) return "Texture";
@@ -3536,11 +3539,14 @@ const setAttribute = (dom, key, value) => {
     dom.removeEventListener(eventType, dom.__gooactHandlers[eventType]);
     dom.__gooactHandlers[eventType] = value;
     dom.addEventListener(eventType, dom.__gooactHandlers[eventType]);
-  } else if (key == "checked" || key == "value" || key == "className") dom[key] = value;
-  else if (key == "style" && typeof value == "object") Object.assign(dom.style, value);
+  } else if (key == "checked" || key == "value" || key == "className") {
+    if (dom[key] != value) dom[key] = value;
+  } else if (key == "style" && typeof value == "object") Object.assign(dom.style, value);
   else if (key == "ref" && typeof value == "function") value(dom);
   else if (key == "key") dom.__gooactKey = value;
-  else if (typeof value != "object" && typeof value != "function") dom.setAttribute(key, value);
+  else if (typeof value != "object" && typeof value != "function") {
+    if (dom.getAttribute(key) !== String(value)) dom.setAttribute(key, value);
+  }
 };
 const render = (vdom, parent = null) => {
   const mount = parent ? (el) => {
@@ -3608,8 +3614,20 @@ const patch = (dom, vdom, parent = dom.parentNode) => {
       if (instance) instance.componentWillUnmount();
       pool[key].remove();
     }
-    for (const attr of dom.attributes) dom.removeAttribute(attr.name);
-    for (const prop in vdom.props) setAttribute(dom, prop, vdom.props[prop]);
+    const oldProps = dom.__gooactProps || {};
+    const newProps = vdom.props || {};
+    for (const key in oldProps) {
+      if (key in newProps) continue;
+      if (key === "className") dom.className = "";
+      else if (key === "style") dom.style.cssText = "";
+      else if (key.startsWith("on") && dom.__gooactHandlers) dom.__gooactHandlers[key.slice(2).toLowerCase()] = () => {
+      };
+      else if (key !== "key" && key !== "ref") dom.removeAttribute(key);
+    }
+    for (const key in newProps) {
+      if (oldProps[key] !== newProps[key]) setAttribute(dom, key, newProps[key]);
+    }
+    dom.__gooactProps = newProps;
     active && active.focus();
     return dom;
   }
@@ -4799,7 +4817,7 @@ class Collapsible extends Component {
       this.handleFilterOpening();
     } }, /* @__PURE__ */ createElement("button", { type: "button", className: `collapsible-icon-button-edonec` }, /* @__PURE__ */ createElement(Arrow, { isOpen: this.state.isOpen })), /* @__PURE__ */ createElement("div", { className: "title-text-edonec" }, this.props.header), this.props.rightMenuText ? /* @__PURE__ */ createElement("div", { className: "title-right-menu", onPointerDown: (event) => {
       this.onRightMenuClicked(event);
-    } }, this.props.rightMenuText) : "")), /* @__PURE__ */ createElement("div", { className: "collapsible-content-edonec", style: { height: `${this.state.height}` } }, /* @__PURE__ */ createElement("div", null, /* @__PURE__ */ createElement("div", { className: "collapsible-content-padding-edonec collapsible-children" }, this.props.children))));
+    } }, this.props.rightMenuText) : "")), /* @__PURE__ */ createElement("div", { className: "collapsible-content-edonec", style: { height: `${this.state.height}` } }, /* @__PURE__ */ createElement("div", null, /* @__PURE__ */ createElement("div", { className: "collapsible-children" }, this.props.children))));
   }
 }
 
@@ -4818,7 +4836,7 @@ class InspectorDropdown extends Component {
     }
   }
   render() {
-    return /* @__PURE__ */ createElement("div", { className: "InspectorComponent" }, /* @__PURE__ */ createElement("span", { className: "title" }, this.props.title), /* @__PURE__ */ createElement(
+    return /* @__PURE__ */ createElement(
       "select",
       {
         style: { marginRight: "5px" },
@@ -4829,10 +4847,10 @@ class InspectorDropdown extends Component {
         value: this.props.selected
       },
       this.props.options.map((value) => {
-        const key = this.props.title + "-" + value.text;
+        const key = value.value + "-" + value.text;
         return /* @__PURE__ */ createElement("option", { key, value: value.value }, value.text);
       })
-    ));
+    );
   }
 }
 
@@ -4847,7 +4865,7 @@ class InspectorCheckbox extends Component {
     }
   }
   render() {
-    return /* @__PURE__ */ createElement("div", { className: "InspectorComponent" }, /* @__PURE__ */ createElement("span", { className: "title" }, this.props.title), /* @__PURE__ */ createElement(
+    return /* @__PURE__ */ createElement(
       "div",
       {
         style: {
@@ -4865,7 +4883,7 @@ class InspectorCheckbox extends Component {
           }
         }
       )
-    ));
+    );
   }
 }
 
@@ -5027,42 +5045,87 @@ class InspectorVector3 extends Component {
       this.props.onChanged(this.props.vector3);
     }
   }
+  // TODO: InspectorComponent should be vector3, need to update CSS
   render() {
-    return /* @__PURE__ */ createElement("div", { class: "InspectorComponent" }, /* @__PURE__ */ createElement("span", { class: "title" }, this.props.title), /* @__PURE__ */ createElement("div", { class: "edit" }, /* @__PURE__ */ createElement(InspectorNumber, { title: "X", titleClass: "red-bg", value: this.props.vector3.x, onChanged: (value) => {
+    return /* @__PURE__ */ createElement("div", { class: "InspectorComponent" }, /* @__PURE__ */ createElement(InspectorNumber, { title: "X", titleClass: "red-bg", value: this.props.vector3.x, onChanged: (value) => {
       this.onChanged(0 /* X */, value);
     } }), /* @__PURE__ */ createElement(InspectorNumber, { title: "Y", titleClass: "green-bg", value: this.props.vector3.y, onChanged: (value) => {
       this.onChanged(1 /* Y */, value);
     } }), /* @__PURE__ */ createElement(InspectorNumber, { title: "Z", titleClass: "blue-bg", value: this.props.vector3.z, onChanged: (value) => {
       this.onChanged(2 /* Z */, value);
-    } })));
+    } }));
   }
 }
 
+const format = (v) => Math.round(v * 255);
+const cssRGB = (c) => `rgb(${format(c.r)}, ${format(c.g)}, ${format(c.b)})`;
+const cssRGBA = (c) => `rgba(${format(c.r)}, ${format(c.g)}, ${format(c.b)}, ${c.a})`;
 class InspectorColor extends Component {
+  dragging = false;
   constructor(props) {
     super(props);
-    this.state = { color: this.props.color };
+    const hsv = Mathf.Color.RGBToHSV(props.color.r, props.color.g, props.color.b);
+    this.setState({ hue: hsv.h ?? 0, alpha: props.color.a, sx: hsv.s ?? 0, sy: 1 - (hsv.v ?? 1), popupOpen: false });
+    window.addEventListener("pointerup", () => {
+      this.dragging = false;
+    });
   }
-  onChanged(event) {
-    if (this.props.onChanged) {
-      const input = event.currentTarget;
-      this.state.color.setFromHex(input.value);
-      this.props.onChanged(this.state.color);
-    }
+  currentColor() {
+    const { hue, sx, sy, alpha } = this.state;
+    const c = Mathf.Color.HSVToRGB(hue, sx, 1 - sy);
+    return { r: c.r, g: c.g, b: c.b, a: alpha };
+  }
+  commit() {
+    const c = this.currentColor();
+    this.props.color.r = c.r;
+    this.props.color.g = c.g;
+    this.props.color.b = c.b;
+    this.props.color.a = c.a;
+    if (this.props.onChanged) this.props.onChanged(this.props.color);
+  }
+  onChannel(channel, value) {
+    const c = this.props.color;
+    if (channel === "R") c.r = value;
+    if (channel === "G") c.g = value;
+    if (channel === "B") c.b = value;
+    if (channel === "A") c.a = value;
+    const hsv = Mathf.Color.RGBToHSV(c.r, c.g, c.b);
+    this.setState({ hue: hsv.h ?? this.state.hue, sx: hsv.s ?? 0, sy: 1 - (hsv.v ?? 1), alpha: c.a });
+    if (this.props.onChanged) this.props.onChanged(c);
+  }
+  pickFromEvent(event) {
+    if (!this.dragging) return;
+    const rect = event.currentTarget.getBoundingClientRect();
+    const sx = Mathf.Clamp((event.clientX - rect.left) / rect.width, 0, 1);
+    const sy = Mathf.Clamp((event.clientY - rect.top) / rect.height, 0, 1);
+    this.setState({ ...this.state, sx, sy });
+    this.commit();
   }
   render() {
-    return /* @__PURE__ */ createElement("div", { className: "InspectorComponent" }, /* @__PURE__ */ createElement("span", { className: "title" }, this.props.title), /* @__PURE__ */ createElement("div", { class: "edit" }, /* @__PURE__ */ createElement(
-      "input",
+    const { hue, sx, sy, alpha } = this.state;
+    const cur = this.currentColor();
+    const hueColor = Mathf.Color.HSVToRGB(hue, 1, 1);
+    return /* @__PURE__ */ createElement("div", { class: "color-picker" }, /* @__PURE__ */ createElement("div", { onClick: (event) => {
+      this.setState({ ...this.state, popupOpen: !this.state.popupOpen });
+    }, class: "color-preview", style: `background: ${cssRGBA(cur)}; width: 100%; height: 20px; border-radius: 5px; cursor:pointer` }), /* @__PURE__ */ createElement("div", { class: "popup", style: `display: ${this.state.popupOpen ? "" : "none"}` }, /* @__PURE__ */ createElement("div", { class: "color-picker" }, /* @__PURE__ */ createElement(
+      "div",
       {
-        className: "input",
-        style: "padding: 2px;",
-        type: "color",
-        onChange: (event) => {
-          this.onChanged(event);
+        class: "color-canvas",
+        style: `background: linear-gradient(transparent 0%, rgb(0,0,0) 100%), linear-gradient(to left, transparent 0%, rgb(255,255,255) 100%), ${cssRGB(hueColor)}`,
+        onPointerDown: (e) => {
+          this.dragging = true;
+          this.pickFromEvent(e);
         },
-        value: this.state.color.toHex().slice(0, 7)
-      }
-    )));
+        onPointerMove: (e) => this.pickFromEvent(e)
+      },
+      /* @__PURE__ */ createElement("div", { class: "color-canvas-picker", style: `left: ${sx * 100}%; top: ${sy * 100}%` })
+    ), /* @__PURE__ */ createElement("div", { class: "range-container" }, /* @__PURE__ */ createElement("div", { class: "color-preview", style: `background: ${cssRGBA(cur)}` }), /* @__PURE__ */ createElement("div", { class: "hue-alpha-container" }, /* @__PURE__ */ createElement("input", { class: "range hue", type: "range", min: "0", max: "360", step: "0.1", value: hue, onInput: (e) => {
+      this.setState({ ...this.state, hue: parseFloat(e.target.value) });
+      this.commit();
+    } }), /* @__PURE__ */ createElement("input", { class: "range alpha", type: "range", min: "0", max: "1", step: "0.01", value: alpha, onInput: (e) => {
+      this.setState({ ...this.state, alpha: parseFloat(e.target.value) });
+      this.commit();
+    } }))), /* @__PURE__ */ createElement("div", { class: "rgb-picker-container" }, /* @__PURE__ */ createElement(InspectorNumber, { title: "R", titleClass: "red-bg", value: cur.r, step: 0.01, min: 0, max: 1, onChanged: (value) => this.onChannel("R", value) }), /* @__PURE__ */ createElement(InspectorNumber, { title: "G", titleClass: "green-bg", value: cur.g, step: 0.01, min: 0, max: 1, onChanged: (value) => this.onChannel("G", value) }), /* @__PURE__ */ createElement(InspectorNumber, { title: "B", titleClass: "blue-bg", value: cur.b, step: 0.01, min: 0, max: 1, onChanged: (value) => this.onChannel("B", value) }), /* @__PURE__ */ createElement(InspectorNumber, { title: "A", titleClass: "gray-bg", value: cur.a, step: 0.01, min: 0, max: 1, onChanged: (value) => this.onChannel("A", value) })))));
   }
 }
 
@@ -5080,7 +5143,7 @@ class InspectorVector2 extends Component {
     }
   }
   render() {
-    return /* @__PURE__ */ createElement("div", { class: "InspectorComponent" }, /* @__PURE__ */ createElement("span", { class: "title" }, this.props.title), /* @__PURE__ */ createElement("div", { class: "edit" }, /* @__PURE__ */ createElement(InspectorNumber, { title: "X", titleClass: "red-bg", value: this.props.vector2.x, onChanged: (value) => {
+    return /* @__PURE__ */ createElement("div", { class: "InspectorComponent" }, /* @__PURE__ */ createElement("div", { class: "edit" }, /* @__PURE__ */ createElement(InspectorNumber, { title: "X", titleClass: "red-bg", value: this.props.vector2.x, onChanged: (value) => {
       this.onChanged(0 /* X */, value);
     } }), /* @__PURE__ */ createElement(InspectorNumber, { title: "Y", titleClass: "green-bg", value: this.props.vector2.y, onChanged: (value) => {
       this.onChanged(1 /* Y */, value);
@@ -5099,9 +5162,9 @@ class InspectorInput extends Component {
     }
   }
   render() {
-    return /* @__PURE__ */ createElement("div", { className: "InspectorComponent" }, /* @__PURE__ */ createElement("span", { className: "title" }, this.props.title), /* @__PURE__ */ createElement("div", { class: "edit" }, /* @__PURE__ */ createElement(InspectorNumber, { step: this.props.step, min: this.props.min, max: this.props.max, title: "N", titleClass: "gray-bg", value: this.props.value, onChanged: (value) => {
+    return /* @__PURE__ */ createElement("div", { class: "InspectorComponent" }, /* @__PURE__ */ createElement(InspectorNumber, { step: this.props.step, min: this.props.min, max: this.props.max, title: "N", titleClass: "gray-bg", value: this.props.value, onChanged: (value) => {
       this.onChanged(value);
-    } })));
+    } }));
   }
 }
 
@@ -5157,7 +5220,7 @@ class InspectorTexture extends Component {
     }
   }
   render() {
-    return /* @__PURE__ */ createElement("div", { className: "InspectorComponent" }, /* @__PURE__ */ createElement("span", { className: "title" }, this.props.title), /* @__PURE__ */ createElement("div", { class: "edit" }, /* @__PURE__ */ createElement("span", { class: `vec-label`, style: `background-color: #e67e2250; cursor: auto` }, "T"), /* @__PURE__ */ createElement(
+    return /* @__PURE__ */ createElement("div", { class: "edit" }, /* @__PURE__ */ createElement("span", { class: `vec-label`, style: `background-color: #e67e2250; cursor: auto` }, "T"), /* @__PURE__ */ createElement(
       "input",
       {
         className: "input",
@@ -5168,7 +5231,7 @@ class InspectorTexture extends Component {
         onDrop: (event) => this.onDrop(event),
         onDragOver: (event) => this.onDragOver(event)
       }
-    )));
+    ));
   }
 }
 
@@ -5271,7 +5334,7 @@ class AddComponent extends Component {
     this.setState({ isMenuOpen: false });
   }
   render() {
-    return /* @__PURE__ */ createElement("div", { class: "Floating-Menu", style: { position: "inherit", padding: "5px", margin: "10px" } }, /* @__PURE__ */ createElement(Tree, null, /* @__PURE__ */ createElement(TreeFolder, { name: "Add Component" }, /* @__PURE__ */ createElement(TreeFolder, { name: "Physics" }, /* @__PURE__ */ createElement(TreeItem, { name: "Rigidbody", onPointerDown: () => this.addComponent(ComponentRegistry.RigidBody) }), /* @__PURE__ */ createElement(TreeItem, { name: "BoxCollider", onPointerDown: () => this.addComponent(ComponentRegistry.BoxCollider) }), /* @__PURE__ */ createElement(TreeItem, { name: "CapsuleCollider", onPointerDown: () => this.addComponent(ComponentRegistry.CapsuleCollider) }), /* @__PURE__ */ createElement(TreeItem, { name: "MeshCollider", onPointerDown: () => this.addComponent(ComponentRegistry.MeshCollider) }), /* @__PURE__ */ createElement(TreeItem, { name: "PlaneCollider", onPointerDown: () => this.addComponent(ComponentRegistry.PlaneCollider) }), /* @__PURE__ */ createElement(TreeItem, { name: "SphereCollider", onPointerDown: () => this.addComponent(ComponentRegistry.SphereCollider) })), /* @__PURE__ */ createElement(TreeItem, { name: "Mesh", onPointerDown: () => this.addComponent(ComponentRegistry.Mesh) }), /* @__PURE__ */ createElement(TreeItem, { name: "LODGroup", onPointerDown: () => this.addComponent(ComponentRegistry.LODGroup) }), /* @__PURE__ */ createElement(TreeFolder, { name: "Lights" }, /* @__PURE__ */ createElement(TreeItem, { name: "DirectionalLight", onPointerDown: () => this.addComponent(ComponentRegistry.DirectionalLight) }), /* @__PURE__ */ createElement(TreeItem, { name: "PointLight", onPointerDown: () => this.addComponent(ComponentRegistry.PointLight) }), /* @__PURE__ */ createElement(TreeItem, { name: "SpotLight", onPointerDown: () => this.addComponent(ComponentRegistry.SpotLight) })), /* @__PURE__ */ createElement(TreeItem, { name: "Water", onPointerDown: () => this.addComponent(ComponentRegistry.Water) }))));
+    return /* @__PURE__ */ createElement("div", { class: "Floating-Menu", style: { position: "inherit", padding: "5px", margin: "10px" } }, /* @__PURE__ */ createElement(Tree, null, /* @__PURE__ */ createElement(TreeFolder, { name: "Add Component" }, /* @__PURE__ */ createElement(TreeFolder, { name: "Physics" }, /* @__PURE__ */ createElement(TreeItem, { name: "Rigidbody", onPointerDown: () => this.addComponent(ComponentRegistry.RigidBody) }), /* @__PURE__ */ createElement(TreeItem, { name: "BoxCollider", onPointerDown: () => this.addComponent(ComponentRegistry.BoxCollider) }), /* @__PURE__ */ createElement(TreeItem, { name: "CapsuleCollider", onPointerDown: () => this.addComponent(ComponentRegistry.CapsuleCollider) }), /* @__PURE__ */ createElement(TreeItem, { name: "MeshCollider", onPointerDown: () => this.addComponent(ComponentRegistry.MeshCollider) }), /* @__PURE__ */ createElement(TreeItem, { name: "PlaneCollider", onPointerDown: () => this.addComponent(ComponentRegistry.PlaneCollider) }), /* @__PURE__ */ createElement(TreeItem, { name: "SphereCollider", onPointerDown: () => this.addComponent(ComponentRegistry.SphereCollider) })), /* @__PURE__ */ createElement(TreeItem, { name: "Mesh", onPointerDown: () => this.addComponent(ComponentRegistry.Mesh) }), /* @__PURE__ */ createElement(TreeItem, { name: "LODGroup", onPointerDown: () => this.addComponent(ComponentRegistry.LODGroup) }), /* @__PURE__ */ createElement(TreeFolder, { name: "Lights" }, /* @__PURE__ */ createElement(TreeItem, { name: "DirectionalLight", onPointerDown: () => this.addComponent(ComponentRegistry.DirectionalLight) }), /* @__PURE__ */ createElement(TreeItem, { name: "PointLight", onPointerDown: () => this.addComponent(ComponentRegistry.PointLight) }), /* @__PURE__ */ createElement(TreeItem, { name: "SpotLight", onPointerDown: () => this.addComponent(ComponentRegistry.SpotLight) })), /* @__PURE__ */ createElement(TreeItem, { name: "Water", onPointerDown: () => this.addComponent(ComponentRegistry.Water) }), /* @__PURE__ */ createElement(TreeItem, { name: "ParticleSystem", onPointerDown: () => this.addComponent(ComponentRegistry.ParticleSystem) }))));
   }
 }
 
@@ -5287,16 +5350,11 @@ class InspectorType extends Component {
   }
   onDrop(event) {
     const draggedItem = ExtendedDataTransfer.data;
-    console.log("onDrop", draggedItem);
     if (!this.isValidDrop(draggedItem)) return;
     this.props.component[this.props.property] = draggedItem;
     const input = event.currentTarget;
-    if (input.classList.contains("active")) {
-      input.classList.remove("active");
-    }
-    if (this.props.onChanged) {
-      this.props.onChanged(draggedItem);
-    }
+    if (input.classList.contains("active")) input.classList.remove("active");
+    if (this.props.onChanged) this.props.onChanged(draggedItem);
     event.preventDefault();
     event.stopPropagation();
   }
@@ -5311,18 +5369,17 @@ class InspectorType extends Component {
       return;
     }
     const input = event.currentTarget;
-    if (!input.classList.contains("active")) {
-      input.classList.add("active");
-    }
+    if (!input.classList.contains("active")) input.classList.add("active");
   }
   onDragLeave(event) {
     const input = event.currentTarget;
-    if (input.classList.contains("active")) {
-      input.classList.remove("active");
-    }
+    if (input.classList.contains("active")) input.classList.remove("active");
+  }
+  onDelete(event) {
+    if (this.props.onChanged) this.props.onChanged(void 0);
   }
   render() {
-    return /* @__PURE__ */ createElement("div", { className: "InspectorComponent" }, /* @__PURE__ */ createElement("span", { className: "title" }, this.props.title), /* @__PURE__ */ createElement("div", { class: "edit" }, /* @__PURE__ */ createElement("span", { class: `vec-label`, style: `background-color: #e67e2250; cursor: auto` }, "\u25C9"), /* @__PURE__ */ createElement(
+    return /* @__PURE__ */ createElement("div", { class: "edit", style: "position: relative" }, /* @__PURE__ */ createElement("span", { class: `vec-label`, style: `background-color: #e67e2250; cursor: auto` }, "\u25C9"), /* @__PURE__ */ createElement(
       "input",
       {
         className: "input",
@@ -5333,16 +5390,16 @@ class InspectorType extends Component {
         onDrop: (event) => this.onDrop(event),
         onDragOver: (event) => this.onDragOver(event)
       }
-    )));
-  }
-}
-
-class InspectorClass extends Component {
-  constructor(props) {
-    super(props);
-  }
-  render() {
-    return /* @__PURE__ */ createElement(Collapsible, { header: this.props.title }, /* @__PURE__ */ createElement("div", { style: { paddingLeft: "10px" } }, this.props.children));
+    ), /* @__PURE__ */ createElement(
+      "div",
+      {
+        style: "position: absolute; top: 50%; right: 1rem; transform: translateY(-50%);cursor: pointer;",
+        onClick: (event) => {
+          this.onDelete(event);
+        }
+      },
+      "x"
+    ));
   }
 }
 
@@ -5376,7 +5433,6 @@ class InspectorArray extends Component {
           this.setState({});
           if (this.props.onChanged) this.props.onChanged();
         },
-        title: `${this.props.title} ${index}`,
         component: this.props.array,
         property: index,
         value: valueForType,
@@ -5386,13 +5442,170 @@ class InspectorArray extends Component {
   }
   render() {
     const isRef = this.isRefType();
-    return /* @__PURE__ */ createElement("div", null, /* @__PURE__ */ createElement(InspectorClass, { title: this.props.title }, ...this.props.array.map((item, index) => {
+    return /* @__PURE__ */ createElement("div", null, ...this.props.array.map((item, index) => {
       return isRef ? this.renderRefItem(item, index) : this.props.renderItem(item, index);
     }), /* @__PURE__ */ createElement("div", { style: { textAlign: "end", marginRight: "5px", marginBottom: "5px" } }, /* @__PURE__ */ createElement("button", { onClick: () => {
       this.onIncrement();
     }, class: "button", style: { width: "22px", cursor: "pointer" } }, "+"), /* @__PURE__ */ createElement("button", { onClick: () => {
       this.onDecrement();
-    }, class: "button", style: { width: "22px", cursor: "pointer" } }, "-"))));
+    }, class: "button", style: { width: "22px", cursor: "pointer" } }, "-")));
+  }
+}
+
+class InspectorClass extends Component {
+  constructor(props) {
+    super(props);
+  }
+  render() {
+    return /* @__PURE__ */ createElement("div", { style: { paddingLeft: "10px" } }, this.props.children);
+  }
+}
+
+const offsetPercent = (event) => {
+  const rect = event.currentTarget.getBoundingClientRect();
+  return Math.max(0, Math.min(1, (event.clientX - rect.left) / rect.width));
+};
+class InspectorColorGradient extends Component {
+  _color;
+  constructor(props) {
+    super(props);
+    this.setState({ selected: null, dragging: false, popupOpen: false });
+    window.addEventListener("pointerup", (event) => {
+      this.setState({ ...this.state, dragging: false });
+    });
+    this._color = new Mathf.Color();
+  }
+  onPointerMove(type, event) {
+    const selected = this.state.selected;
+    if (!selected || !this.state.dragging || selected.type !== type) return;
+    const t = offsetPercent(event);
+    if (type === "alpha") {
+      this.props.gradient.alphaKeys[selected.index].t = t;
+      this.props.gradient.setAlphaKeys(this.props.gradient.alphaKeys);
+    } else {
+      this.props.gradient.colorKeys[selected.index].t = t;
+      this.props.gradient.setColorKeys(this.props.gradient.colorKeys);
+    }
+    this.props.onChanged?.();
+    this.setState({ ...this.state });
+  }
+  addStop(type, event) {
+    if (this.state.dragging) return;
+    const t = offsetPercent(event);
+    if (type === "alpha") this.props.gradient.addAlpha({ t, a: 1 });
+    else this.props.gradient.addColor({ t, r: 1, g: 1, b: 1 });
+    const index = (type === "alpha" ? this.props.gradient.alphaKeys : this.props.gradient.colorKeys).length - 1;
+    this.props.onChanged?.();
+    this.setState({ ...this.state, selected: { type, index }, dragging: true });
+  }
+  deleteSelected() {
+    const selected = this.state.selected;
+    if (!selected) return;
+    const keys = selected.type === "alpha" ? this.props.gradient.alphaKeys : this.props.gradient.colorKeys;
+    if (keys.length <= 1) return;
+    const filtered = keys.filter((_, i) => i !== selected.index);
+    if (selected.type === "alpha") this.props.gradient.setAlphaKeys(filtered);
+    else this.props.gradient.setColorKeys(filtered);
+    this.props.onChanged?.();
+    this.setState({ ...this.state, selected: null });
+  }
+  getStopElementsForType(type) {
+    const keys = type === "alpha" ? this.props.gradient.alphaKeys : this.props.gradient.colorKeys;
+    return /* @__PURE__ */ createElement(
+      "div",
+      {
+        onPointerDown: (event) => {
+          this.addStop(type, event);
+        },
+        onPointerMove: (event) => {
+          this.onPointerMove(type, event);
+        },
+        class: type,
+        style: "position: relative; height: 10px; background: rgba(255, 255, 255, 0.5); border-radius: 3px;"
+      },
+      keys.map((key, index) => {
+        const selected = this.state.selected;
+        const isSelected = selected?.type === type && selected.index === index;
+        const background = type === "alpha" ? `rgba(255, 255, 255, ${key.a})` : `rgb(${key.r * 255}, ${key.g * 255}, ${key.b * 255})`;
+        return /* @__PURE__ */ createElement(
+          "div",
+          {
+            onPointerDown: (event) => {
+              event.stopPropagation();
+              this.setState({ ...this.state, selected: { type, index }, dragging: true });
+            },
+            class: "picker",
+            style: `width: 8px; height: 8px; background: ${background}; position: absolute; left: ${key.t * 100}%; transform: translateX(-50%); border: 1px solid ${isSelected ? "yellow" : "white"}; border-radius: 50%`
+          }
+        );
+      })
+    );
+  }
+  gradientCss() {
+    const gradient = this.props.gradient;
+    if (!gradient.colorKeys.length && !gradient.alphaKeys.length) return "black";
+    const sample = (keys, field, t, fallback) => {
+      const sorted = [...keys].sort((a, b) => a.t - b.t);
+      if (!sorted.length) return fallback;
+      if (t <= sorted[0].t) return sorted[0][field];
+      if (t >= sorted[sorted.length - 1].t) return sorted[sorted.length - 1][field];
+      for (let i = 0; i < sorted.length - 1; i++) {
+        const a = sorted[i], b = sorted[i + 1];
+        if (t >= a.t && t <= b.t) return a[field] + (b[field] - a[field]) * ((t - a.t) / (b.t - a.t));
+      }
+      return fallback;
+    };
+    const ts = Array.from(/* @__PURE__ */ new Set([...gradient.colorKeys.map((k) => k.t), ...gradient.alphaKeys.map((k) => k.t)])).sort((a, b) => a - b);
+    const stops = ts.map((t) => {
+      const r = sample(gradient.colorKeys, "r", t, 1);
+      const g = sample(gradient.colorKeys, "g", t, 1);
+      const b = sample(gradient.colorKeys, "b", t, 1);
+      const a = sample(gradient.alphaKeys, "a", t, 1);
+      return `rgba(${r * 255}, ${g * 255}, ${b * 255}, ${a}) ${(t * 100).toFixed(2)}%`;
+    }).join(", ");
+    return `linear-gradient(to right, ${stops}), repeating-conic-gradient(#666 0 25%, #333 0 50%) 50% / 10px 10px`;
+  }
+  render() {
+    const selected = this.state.selected;
+    const gradient = this.props.gradient;
+    const colorKey = selected?.type === "color" ? gradient.colorKeys[selected.index] : null;
+    const alphaKey = selected?.type === "alpha" ? gradient.alphaKeys[selected.index] : null;
+    const selectedKey = colorKey ?? alphaKey;
+    if (colorKey) this._color.set(colorKey.r, colorKey.g, colorKey.b, 1);
+    return /* @__PURE__ */ createElement("div", { class: "color-gradient-picker", style: "width: 100%" }, /* @__PURE__ */ createElement("div", { onClick: (event) => {
+      this.setState({ ...this.state, popupOpen: !this.state.popupOpen });
+    }, class: "gradient", style: `cursor: pointer; height: 20px; border-radius: 3px; margin-top: 5px; margin-bottom: 5px; background: ${this.gradientCss()}` }), /* @__PURE__ */ createElement("div", { class: "popup", style: `display: ${this.state.popupOpen ? "" : "none"}` }, this.getStopElementsForType("alpha"), /* @__PURE__ */ createElement("div", { class: "gradient", style: `height: 40px; border-radius: 3px; margin-top: 5px; margin-bottom: 5px; background: ${this.gradientCss()}` }), this.getStopElementsForType("color"), /* @__PURE__ */ createElement("div", { class: "settings", style: "display: flex; align-items: center; gap: 4px;" }, /* @__PURE__ */ createElement(
+      InspectorNumber,
+      {
+        title: "Location",
+        value: selectedKey ? selectedKey.t * 100 : 0,
+        step: 0.1,
+        min: 0,
+        max: 100,
+        onChanged: (value) => {
+          if (!selected) return;
+          const t = Math.max(0, Math.min(1, value / 100));
+          if (selected.type === "alpha") {
+            gradient.alphaKeys[selected.index].t = t;
+            gradient.setAlphaKeys(gradient.alphaKeys);
+          } else {
+            gradient.colorKeys[selected.index].t = t;
+            gradient.setColorKeys(gradient.colorKeys);
+          }
+          this.props.onChanged?.();
+          this.setState({ ...this.state });
+        }
+      }
+    ), /* @__PURE__ */ createElement("button", { class: "button", onClick: () => this.deleteSelected() }, "Delete")), /* @__PURE__ */ createElement("div", null, colorKey ? /* @__PURE__ */ createElement(InspectorColor, { key: selected.index, color: this._color, onChanged: (c) => Object.assign(gradient.colorKeys[selected.index], { r: c.r, g: c.g, b: c.b }) }) : null, alphaKey ? /* @__PURE__ */ createElement(InspectorNumber, { min: 0, max: 1, step: 0.01, title: "A", value: alphaKey.a, onChanged: (value) => gradient.alphaKeys[selected.index].a = value }) : null)));
+  }
+}
+
+class InspectorProperty extends Component {
+  constructor(props) {
+    super(props);
+  }
+  render() {
+    return /* @__PURE__ */ createElement("div", { className: this.props.stacked ? "InspectorComponent stacked" : "InspectorComponent" }, /* @__PURE__ */ createElement("span", { className: "title" }, this.props.title), this.props.children);
   }
 }
 
@@ -5429,34 +5642,33 @@ class LayoutInspectorGameObject extends Component {
     const name = property.name;
     const type = property.type;
     const engineType = this.props.engineAPI.getFieldType(type);
-    const title = StringUtils.NicifyVariableName(name);
-    if (engineType === "Vector3") return /* @__PURE__ */ createElement(InspectorVector3, { title, onChanged: (value) => {
+    if (engineType === "Vector3") return /* @__PURE__ */ createElement(InspectorVector3, { onChanged: (value) => {
       this.onComponentPropertyChanged(component, name, value);
     }, vector3: component[name] });
-    else if (engineType === "Vector2") return /* @__PURE__ */ createElement(InspectorVector2, { title, onChanged: (value) => {
+    else if (engineType === "Vector2") return /* @__PURE__ */ createElement(InspectorVector2, { onChanged: (value) => {
       this.onComponentPropertyChanged(component, name, value);
     }, vector2: component[name] });
-    else if (engineType === "Color") return /* @__PURE__ */ createElement(InspectorColor, { title, onChanged: (value) => {
+    else if (engineType === "Color") return /* @__PURE__ */ createElement(InspectorColor, { onChanged: (value) => {
       this.onComponentPropertyChanged(component, name, value);
     }, color: component[name] });
+    else if (engineType === "Gradient") return /* @__PURE__ */ createElement(InspectorColorGradient, { gradient: component[name], onChanged: () => this.setState({}) });
     else if (type === Number) return /* @__PURE__ */ createElement(InspectorInput, { onChanged: (value) => {
       this.onComponentPropertyChanged(component, name, value);
-    }, title, value: component[name], type: "number" });
+    }, value: component[name], type: "number" });
     else if (type === Boolean) return /* @__PURE__ */ createElement(InspectorCheckbox, { onChanged: (value) => {
       this.onComponentPropertyChanged(component, name, value);
-    }, title, selected: component[name] });
+    }, selected: component[name] });
     else if (Array.isArray(component[name])) {
       return /* @__PURE__ */ createElement(
         InspectorArray,
         {
           engineAPI: this.props.engineAPI,
-          title,
           array: component[name],
           elementType: type,
           onChanged: () => this.setState({}),
           renderItem: (item, index) => {
             if (!item) return null;
-            return /* @__PURE__ */ createElement("div", { title: `${title} ${index}` }, ...this.renderInspectorForComponent(item));
+            return /* @__PURE__ */ createElement("div", { key: `${name}-${index}` }, ...this.renderInspectorForComponent(item));
           }
         }
       );
@@ -5472,7 +5684,6 @@ class LayoutInspectorGameObject extends Component {
           InspectorType,
           {
             onChanged: (value2) => this.onComponentPropertyChanged(component, name, value2),
-            title,
             component,
             property: name,
             value,
@@ -5481,7 +5692,7 @@ class LayoutInspectorGameObject extends Component {
         );
       }
       if (currentValue && this.props.engineAPI.GetSerializedFields(currentValue).length > 0) {
-        return /* @__PURE__ */ createElement(InspectorClass, { title }, ...this.renderInspectorForComponent(currentValue));
+        return /* @__PURE__ */ createElement(InspectorClass, null, ...this.renderInspectorForComponent(currentValue));
       }
     } else if (typeof type === "object") {
       let selectOptions = [];
@@ -5489,10 +5700,11 @@ class LayoutInspectorGameObject extends Component {
         if (!isNaN(Number(property2))) continue;
         selectOptions.push({ text: property2, value: type[property2] });
       }
-      return /* @__PURE__ */ createElement(InspectorDropdown, { title, options: selectOptions, selected: component[name], onSelected: (value) => {
+      return /* @__PURE__ */ createElement(InspectorDropdown, { options: selectOptions, selected: component[name], onSelected: (value) => {
         this.onComponentPropertyChanged(component, name, value);
       } });
     }
+    throw Error(`Unknown type ${type}`);
   }
   renderInspectorForComponent(component) {
     let componentPropertiesHTML = [];
@@ -5501,7 +5713,17 @@ class LayoutInspectorGameObject extends Component {
       try {
         const componentPropertyElement = this.renderInspectorForComponentProperty(component, property);
         if (componentPropertyElement) {
-          componentPropertiesHTML.push(componentPropertyElement);
+          const title = StringUtils.NicifyVariableName(property.name);
+          const stacked = componentPropertyElement.type === InspectorArray || componentPropertyElement.type === InspectorClass;
+          if (stacked) {
+            componentPropertiesHTML.push(
+              /* @__PURE__ */ createElement(Collapsible, { header: title }, componentPropertyElement)
+            );
+          } else {
+            componentPropertiesHTML.push(
+              /* @__PURE__ */ createElement(InspectorProperty, { title, stacked }, componentPropertyElement)
+            );
+          }
         }
       } catch (error) {
         console.warn(error);
@@ -5520,7 +5742,7 @@ class LayoutInspectorGameObject extends Component {
     return inspectorHTML;
   }
   onGameObjectEnabled(event) {
-    this.props.gameObject.enabled = event.target.checked;
+    this.props.gameObject.enabled = event.currentTarget.checked;
   }
   onDragEnter(event) {
     event.preventDefault();
@@ -5532,7 +5754,6 @@ class LayoutInspectorGameObject extends Component {
   onDrop(event) {
     const draggedItem = ExtendedDataTransfer.data;
     const component = draggedItem[Object.keys(draggedItem)[0]];
-    console.log("onDrop", draggedItem, this.props.engineAPI.getFieldType(component));
     this.props.engineAPI.addComponent(this.props.gameObject, component);
     this.setState({});
   }
@@ -5579,13 +5800,13 @@ class LayoutInspectorGameObject extends Component {
           }
         }
       )),
-      /* @__PURE__ */ createElement(Collapsible, { header: "Transform" }, /* @__PURE__ */ createElement(InspectorVector3, { key: `position-${this.props.gameObject.id}`, title: "Position", onChanged: (value) => {
+      /* @__PURE__ */ createElement(Collapsible, { header: "Transform" }, /* @__PURE__ */ createElement(InspectorProperty, { title: "Position" }, /* @__PURE__ */ createElement(InspectorVector3, { key: `position-${this.props.gameObject.id}`, onChanged: (value) => {
         this.onComponentPropertyChanged(this.props.gameObject.transform, "localPosition", value);
-      }, vector3: this.props.gameObject.transform.localPosition }), /* @__PURE__ */ createElement(InspectorVector3, { key: `rotation-${this.props.gameObject.id}`, title: "Rotation", onChanged: (value) => {
+      }, vector3: this.props.gameObject.transform.localPosition })), /* @__PURE__ */ createElement(InspectorProperty, { title: "Rotation" }, /* @__PURE__ */ createElement(InspectorVector3, { key: `rotation-${this.props.gameObject.id}`, onChanged: (value) => {
         this.onComponentPropertyChanged(this.props.gameObject.transform, "localEulerAngles", value);
-      }, vector3: this.props.gameObject.transform.localEulerAngles }), /* @__PURE__ */ createElement(InspectorVector3, { key: `scale-${this.props.gameObject.id}`, title: "Scale", onChanged: (value) => {
+      }, vector3: this.props.gameObject.transform.localEulerAngles })), /* @__PURE__ */ createElement(InspectorProperty, { title: "Scale" }, /* @__PURE__ */ createElement(InspectorVector3, { key: `scale-${this.props.gameObject.id}`, onChanged: (value) => {
         this.onComponentPropertyChanged(this.props.gameObject.transform, "scale", value);
-      }, vector3: this.props.gameObject.transform.scale })),
+      }, vector3: this.props.gameObject.transform.scale }))),
       componentsElements,
       /* @__PURE__ */ createElement(AddComponent, { engineAPI: this.props.engineAPI, gameObject: this.props.gameObject })
     );

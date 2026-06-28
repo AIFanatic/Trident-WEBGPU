@@ -1,6 +1,6 @@
 import { GradientEditor } from './GradientEditor.js';
-import styles from './resources/UIStats.css.js';
 import { TextureViewer } from './TextureViewer.js';
+import styles from './resources/UIStats.css.js';
 
 class Stat {
   statContainer;

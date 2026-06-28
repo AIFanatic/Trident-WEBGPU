@@ -343,7 +343,7 @@
               const cameraGameObject = new GameObject();
               cameraGameObject.name = "MainCamera";
               cameraGameObject.transform.position.set(0, 0, 12);
-              cameraGameObject.transform.LookAtV1(new Mathf.Vector3(0, 0, 0));
+              cameraGameObject.transform.LookAt(new Mathf.Vector3(0, 0, 0));
               const camera = cameraGameObject.AddComponent(Components.Camera);
               camera.SetPerspective(72, canvas.width / canvas.height, 0.05, 128);
               cameraGameObject.AddComponent(OrbitControls);

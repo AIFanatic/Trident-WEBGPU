@@ -28,27 +28,29 @@
             <script type="module">
                 const canvas = document.createElement("canvas");
                 document.body.appendChild(canvas);
-                            import { Runtime, GameObject, Components, Mathf, GPU } from '@trident/core';
+                            import { PlayerRuntime, GameObject, Components, Mathf, GPU, Runtime } from '@trident/core';
             import { OrbitControls } from '@trident/plugins/OrbitControls.js';
             import { Debugger } from '@trident/plugins/Debugger.js';
             import { ParticleSystem } from '@trident/plugins/ParticleSystem/ParticleSystem.js';
             import { UIFolder, UIVecStat, UISliderStat, UIButtonStat, UIGradientStat } from '@trident/plugins/ui/UIStats.js';
+            import { PostProcessingPass } from '@trident/plugins/PostProcessing/PostProcessingPass.js';
+            import { PostProcessingBloom } from '@trident/plugins/PostProcessing/effects/Bloom.js';
             
             async function Application(canvas) {
-              await Runtime.Create(canvas);
-              const scene = Runtime.SceneManager.CreateScene("DefaultScene");
-              Runtime.SceneManager.SetActiveScene(scene);
+              await PlayerRuntime.Create(canvas);
+              const scene = PlayerRuntime.SceneManager.CreateScene("DefaultScene");
+              PlayerRuntime.SceneManager.SetActiveScene(scene);
               const mainCameraGameObject = new GameObject();
               mainCameraGameObject.transform.position.set(0, 0, -15);
               mainCameraGameObject.name = "MainCamera";
               const camera = mainCameraGameObject.AddComponent(Components.Camera);
               camera.SetPerspective(72, canvas.width / canvas.height, 0.01, 1e3);
               mainCameraGameObject.transform.position.set(0, 0, 10);
-              mainCameraGameObject.transform.LookAtV1(new Mathf.Vector3(0, 0, 0));
-              new OrbitControls(canvas, camera);
+              mainCameraGameObject.transform.LookAt(new Mathf.Vector3(0, 0, 0));
+              mainCameraGameObject.AddComponent(OrbitControls);
               const lightGameObject = new GameObject();
               lightGameObject.transform.position.set(-4, 4, 4);
-              lightGameObject.transform.LookAtV1(new Mathf.Vector3(0, 0, 0));
+              lightGameObject.transform.LookAt(new Mathf.Vector3(0, 0, 0));
               lightGameObject.AddComponent(Components.DirectionalLight);
               const particleSystemGameObject = new GameObject();
               const particleSystem = particleSystemGameObject.AddComponent(ParticleSystem);
@@ -84,9 +86,12 @@
               new UIGradientStat(particlesFolder, "Gradient:", (gradient) => {
                 particleSystem.colorOverLifetimeSetColorKeys(gradient.colorKeys), particleSystem.colorOverLifetimeSetAlphaKeys(gradient.alphaKeys);
               }, particleSystem.colorOverLifetimeGradients);
+              const postProcessing = new PostProcessingPass();
+              const bloom = new PostProcessingBloom();
+              postProcessing.effects.push(bloom);
+              Runtime.Renderer.RenderPipeline.AddPass(postProcessing, GPU.RenderPassOrder.AfterLighting);
               particlesFolder.Open();
               Debugger.Enable();
-              Runtime.Play();
             }
             Application(document.querySelector("canvas"));
             

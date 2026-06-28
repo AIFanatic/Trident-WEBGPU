@@ -75,7 +75,7 @@
                 const z = radius * Mathf.Cos(elevationRad) * Mathf.Sin(azimuthRad);
                 const sunPos = new Mathf.Vector3(x, y, z);
                 lightGameObject.transform.position = sunPos;
-                lightGameObject.transform.LookAtV1(new Mathf.Vector3(0, 0, 0));
+                lightGameObject.transform.LookAt(new Mathf.Vector3(0, 0, 0));
                 skyAtmosphere.Update();
                 iblLightingPass.SetEnvironment(skycubemap);
                 skyboxPass.SetSkybox(skycubemap);
@@ -95,7 +95,7 @@
                   lightGameObject2.transform.position.set(x * offset - i * 0.5 * 2, 6, y * offset - i * 0.5 * 2);
                   const look = lightGameObject2.transform.position.clone();
                   look.y -= 1;
-                  lightGameObject2.transform.LookAtV1(look);
+                  lightGameObject2.transform.LookAt(look);
                   const light2 = lightGameObject2.AddComponent(Components.PointLight);
                   light2.color.set(Math.random(), Math.random(), Math.random(), 1);
                   light2.range = 20;

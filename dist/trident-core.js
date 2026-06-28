@@ -1477,9 +1477,6 @@ class Transform extends (_a$7 = Component, _localPosition_dec = [SerializeField]
       this.UpdateMatrices();
     }
   }
-  LookAtV1(target) {
-    this.LookAt(target);
-  }
 }
 _init$8 = __decoratorStart$8(_a$7);
 __decorateElement$8(_init$8, 2, "localPosition", _localPosition_dec, Transform);
@@ -3661,6 +3658,57 @@ class Color {
     this.set(color.r, color.g, color.b, color.a);
     return this;
   }
+  // This mehods need to be cleaned with the above
+  static HexToRGB(hex) {
+    hex = hex.replace(/^#/, "");
+    if (hex.length === 3) hex = hex.split("").map((ch) => ch + ch).join("");
+    const int = parseInt(hex, 16);
+    return { r: (int >> 16 & 255) / 255, g: (int >> 8 & 255) / 255, b: (int & 255) / 255 };
+  }
+  static RGBToHex(r, g, b) {
+    const toHex = (c) => c.toString(16).padStart(2, "0");
+    return `#${toHex(r)}${toHex(g)}${toHex(b)}`;
+  }
+  static HSVToRGB(h, s, v) {
+    let c = v * s;
+    let x = c * (1 - Math.abs(h / 60 % 2 - 1));
+    let m = v - c;
+    let r, g, b;
+    if (h < 60) [r, g, b] = [c, x, 0];
+    else if (h < 120) [r, g, b] = [x, c, 0];
+    else if (h < 180) [r, g, b] = [0, c, x];
+    else if (h < 240) [r, g, b] = [0, x, c];
+    else if (h < 300) [r, g, b] = [x, 0, c];
+    else [r, g, b] = [c, 0, x];
+    return { r: r + m, g: g + m, b: b + m };
+  }
+  static RGBToHSV(r, g, b) {
+    let max = Math.max(r, g, b), min = Math.min(r, g, b);
+    let d = max - min, h, s, v = max;
+    s = max === 0 ? 0 : d / max;
+    if (d === 0) h = 0;
+    else if (max === r) h = (g - b) / d + (g < b ? 6 : 0);
+    else if (max === g) h = (b - r) / d + 2;
+    else h = (r - g) / d + 4;
+    return { h: h * 60, s, v };
+  }
+}
+
+class Gradient {
+  colorKeys = [];
+  alphaKeys = [];
+  addColor(color) {
+    this.colorKeys.push(color);
+  }
+  addAlpha(alpha) {
+    this.alphaKeys.push(alpha);
+  }
+  setColorKeys(colorKeys) {
+    this.colorKeys = colorKeys;
+  }
+  setAlphaKeys(alphaKeys) {
+    this.alphaKeys = alphaKeys;
+  }
 }
 
 function mulberry32(seed) {
@@ -3702,6 +3750,7 @@ var index$2 = /*#__PURE__*/Object.freeze({
     Epsilon: Epsilon,
     Floor: Floor,
     Frustum: Frustum,
+    Gradient: Gradient,
     Lerp: Lerp,
     Matrix4: Matrix4,
     Max: Max,
@@ -4639,6 +4688,9 @@ class BufferMemoryAllocator {
   getAllocator() {
     return this.allocator;
   }
+  Destroy() {
+    this.buffer.Destroy();
+  }
 }
 class DynamicBufferMemoryAllocatorDynamic {
   allocator;
@@ -4723,7 +4775,7 @@ class DynamicBufferMemoryAllocator extends BufferMemoryAllocator {
   }
   delete(link) {
     const bufferOffset = this.links.get(link);
-    if (bufferOffset === void 0) throw Error("Link not found");
+    if (bufferOffset === void 0) return;
     this.allocator.free(bufferOffset);
     this.links.delete(link);
   }
@@ -4902,7 +4954,7 @@ class DeferredLightingPass extends RenderPass {
       this.gBufferDepthClone = DepthTexture.Create(GBufferDepth.width, GBufferDepth.height, GBufferDepth.depth, GBufferDepth.format);
     }
     RendererContext.CopyTextureToTextureV3({ texture: GBufferDepth }, { texture: this.gBufferDepthClone });
-    RendererContext.BeginRenderPass("DeferredLightingPass", [{ target: this.outputLightingPass, clear: true }], { target: this.gBufferDepthClone, clear: false }, true);
+    RendererContext.BeginRenderPass("DeferredLightingPass", [{ target: this.outputLightingPass, clear: false }], { target: this.gBufferDepthClone, clear: false }, true);
     for (const draw of this.drawCommands) {
       RendererContext.DrawGeometry(draw.geometry, draw.shader, draw.instanceCount, draw.firstInstance);
     }
@@ -6424,10 +6476,10 @@ class RenderingPipeline {
     this.beforeLightingPasses = [];
     this.afterLightingPasses = [
       new BasePass(),
-      new DeferredLightingPass()
+      new DeferredLightingPass(),
+      new ForwardPass()
     ];
     this.beforeScreenOutputPasses = [
-      new ForwardPass(),
       new PostExposureTonemap()
     ];
     this.afterScreenOutputPasses = [
@@ -7395,6 +7447,8 @@ class Animator extends (_b = Component, _animation_dec = [SerializeField(Animati
     __publicField$1(this, "nextClipIndex", null);
     __publicField$1(this, "speed", 1);
     __publicField$1(this, "nextSpeed", 1);
+    __publicField$1(this, "currentClipStartTime", 0);
+    __publicField$1(this, "nextClipStartTime", 0);
   }
   get assetPath() {
     return this.animation.assetPath;
@@ -7434,11 +7488,13 @@ class Animator extends (_b = Component, _animation_dec = [SerializeField(Animati
     this.bound = false;
     this.Bind();
   }
-  SetClipByIndex(i, speed = 1) {
+  SetClipByIndex(i, speed = 1, startFrame = 0, fps = 60) {
     this.Bind();
     if (this.tracks.length === 0) return;
+    const startTime = Math.max(0, startFrame / fps);
     this.clipIndex = Math.max(0, i);
-    this.currentTime = 0;
+    this.currentTime = startTime;
+    this.currentClipStartTime = startTime;
     this.nextClipIndex = null;
     this.fadeDuration = 0;
     this.fadeTime = 0;
@@ -7449,11 +7505,13 @@ class Animator extends (_b = Component, _animation_dec = [SerializeField(Animati
       track.apply(this.clipIndex, this.currentTime);
     }
   }
-  CrossFadeTo(i, duration = 0.25, speed = 1) {
+  CrossFadeTo(i, duration = 0.25, speed = 1, startFrame = 0, fps = 60) {
     this.Bind();
     if (this.tracks.length === 0) return;
+    const startTime = Math.max(0, startFrame / fps);
     this.nextClipIndex = Math.max(0, i);
-    this.nextTime = 0;
+    this.nextTime = startTime;
+    this.nextClipStartTime = startTime;
     this.fadeDuration = Math.max(1e-4, duration);
     this.fadeTime = 0;
     this.previousTime = performance.now();
@@ -7466,8 +7524,18 @@ class Animator extends (_b = Component, _animation_dec = [SerializeField(Animati
     const dt = (now - this.previousTime) / 1e3;
     this.previousTime = now;
     this.currentTime += dt * this.speed;
+    const curDur = this.animation.clips[this.clipIndex]?.duration ?? 0;
+    if (curDur > 0 && this.currentTime >= curDur) {
+      const span = curDur - this.currentClipStartTime;
+      if (span > 0) this.currentTime = this.currentClipStartTime + (this.currentTime - this.currentClipStartTime) % span;
+    }
     if (this.nextClipIndex !== null) {
       this.nextTime += dt * this.nextSpeed;
+      const nextDur = this.animation.clips[this.nextClipIndex]?.duration ?? 0;
+      if (nextDur > 0 && this.nextTime >= nextDur) {
+        const span = nextDur - this.nextClipStartTime;
+        if (span > 0) this.nextTime = this.nextClipStartTime + (this.nextTime - this.nextClipStartTime) % span;
+      }
       this.fadeTime += dt;
     }
     if (this.nextClipIndex === null) {
@@ -7484,6 +7552,7 @@ class Animator extends (_b = Component, _animation_dec = [SerializeField(Animati
       this.clipIndex = this.nextClipIndex;
       this.currentTime = this.nextTime;
       this.speed = this.nextSpeed;
+      this.currentClipStartTime = this.nextClipStartTime;
       this.nextClipIndex = null;
       this.fadeDuration = 0;
       this.fadeTime = 0;

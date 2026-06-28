@@ -6,24 +6,25 @@ struct SystemSettings {
     startSpeed: vec4<f32>,
     emitterPosition: vec4<f32>,
 
-    // Emission
-    timeMs: f32,              // total time
-    rateOverTime: f32,        // particles per second
+    timeMs: f32,
+    rateOverTime: f32,
 
-    // Shape
-    shapeType: f32, // 0=Sphere, 1=HemiSphere, 2=Cone, 3=Box
-    emitFromShell: f32, // >0.5 => surface only (Sphere/HemiSphere)
+    shapeType: f32,
+    emitFromShell: f32,
     radius: f32,
     coneAngle: f32,
     coneHeight: f32,
+
     boxHalfExtents: vec3<f32>,
-
-    // Texture sheet animation
     hasTexture: f32,
-    tiles: vec2<f32>,
-    frameOvertime: f32, // 0=constant, 1=over lifetime, 2=random
 
-    gravity: vec4<f32>
+    tiles: vec2<f32>,
+    frameOvertime: f32,
+
+    gravity: vec4<f32>,
+
+    arcLoop: f32,
+    arcPhase: f32,
 };
 
 struct Particle {
