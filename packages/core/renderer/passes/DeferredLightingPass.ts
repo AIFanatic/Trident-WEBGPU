@@ -241,7 +241,7 @@ export class DeferredLightingPass extends RenderPass {
         }
         RendererContext.CopyTextureToTextureV3({ texture: GBufferDepth }, { texture: this.gBufferDepthClone });
 
-        RendererContext.BeginRenderPass("DeferredLightingPass", [{ target: this.outputLightingPass, clear: true }], { target: this.gBufferDepthClone, clear: false }, true);
+        RendererContext.BeginRenderPass("DeferredLightingPass", [{ target: this.outputLightingPass, clear: false }], { target: this.gBufferDepthClone, clear: false }, true);
 
         for (const draw of this.drawCommands) {
             RendererContext.DrawGeometry(draw.geometry, draw.shader, draw.instanceCount, draw.firstInstance);
