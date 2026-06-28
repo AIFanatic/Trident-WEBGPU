@@ -48,11 +48,15 @@ const setAttribute = (dom: GooactHTMLElement, key: string, value: any): void => 
         dom.removeEventListener(eventType, dom.__gooactHandlers[eventType]);
         dom.__gooactHandlers[eventType] = value as EventListener;
         dom.addEventListener(eventType, dom.__gooactHandlers[eventType]);
-    } else if (key == 'checked' || key == 'value' || key == 'className') (dom as any)[key] = value;
+    } else if (key == 'checked' || key == 'value' || key == 'className') {
+        if ((dom as any)[key] != value) (dom as any)[key] = value;
+    }
     else if (key == 'style' && typeof value == 'object') Object.assign(dom.style, value);
     else if (key == 'ref' && typeof value == 'function') (value as (el: HTMLElement) => void)(dom);
     else if (key == 'key') dom.__gooactKey = value;
-    else if (typeof value != 'object' && typeof value != 'function') dom.setAttribute(key, value);
+    else if (typeof value != 'object' && typeof value != 'function') {
+        if (dom.getAttribute(key) !== String(value)) dom.setAttribute(key, value);
+    }
 };
 
 export const render = (vdom: VNodeChild, parent: HTMLElement | null = null): GooactNode => {
@@ -133,9 +137,21 @@ const patch = (dom: GooactNode, vdom: VNodeChild, parent: (Node & ParentNode) | 
             if (instance) instance.componentWillUnmount();
             (pool[key] as any).remove();
         }
-        // Reset attributes:
-        for (const attr of (dom as HTMLElement).attributes as any) (dom as HTMLElement).removeAttribute(attr.name);
-        for (const prop in (vdom as VNode).props) setAttribute(dom as GooactHTMLElement, prop, (vdom as VNode).props[prop]);
+        const oldProps = (dom as any).__gooactProps || {};
+        const newProps = (vdom as VNode).props || {};
+
+        for (const key in oldProps) {
+            if (key in newProps) continue;
+            if (key === 'className') (dom as any).className = '';
+            else if (key === 'style') (dom as HTMLElement).style.cssText = '';
+            else if (key.startsWith('on') && (dom as any).__gooactHandlers) (dom as any).__gooactHandlers[key.slice(2).toLowerCase()] = () => { };
+            else if (key !== 'key' && key !== 'ref') (dom as HTMLElement).removeAttribute(key);
+        }
+
+        for (const key in newProps) {
+            if (oldProps[key] !== newProps[key]) setAttribute(dom as GooactHTMLElement, key, newProps[key]);
+        }
+        (dom as any).__gooactProps = newProps;
         active && active.focus();
         return dom;
     }
