@@ -101,18 +101,19 @@ export class TridentAPI implements IEngineAPI {
     }
 
     private compareType(value: any, type: Function): boolean {
-        if (typeof value === "function") return value === type;
+        if (typeof value === "function") return value === type || value.prototype instanceof type; // Match extends
         if (value instanceof type) return true;
         return value?.constructor?.type === (type as any).type;
     }
 
-    public getFieldType(value: any): "Prefab" | "GameObject" | "Component" | "Vector3" | "Vector2" | "Color" | "Geometry" | "Material" | "Texture" | "unknown" {
+    public getFieldType(value: any): "Prefab" | "GameObject" | "Component" | "Vector3" | "Vector2" | "Color" | "Gradient" | "Geometry" | "Material" | "Texture" | "unknown" {
         if (this.compareType(value, Prefab)) return "Prefab";
         else if (this.compareType(value, GameObject)) return "GameObject";
         else if (this.compareType(value, Component)) return "Component";
         else if (this.compareType(value, Mathf.Vector3)) return "Vector3";
         else if (this.compareType(value, Mathf.Vector2)) return "Vector2";
         else if (this.compareType(value, Mathf.Color)) return "Color";
+        else if (this.compareType(value, Mathf.Gradient)) return "Gradient";   // ← add
         else if (this.compareType(value, Geometry)) return "Geometry";
         else if (this.compareType(value, GPU.Material)) return "Material";
         else if (this.compareType(value, GPU.Texture)) return "Texture";

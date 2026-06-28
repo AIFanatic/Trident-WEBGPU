@@ -63,8 +63,8 @@ export interface IEngineAPI {
 
     GetSerializedFields: (instance: object) => { name: string | symbol, type?: Function }[];
 
-    getFieldType(value: any): "Prefab" | "GameObject" | "Component" | "Vector3" | "Vector2" | "Color" | "Geometry" | "Material" | "Texture" | "unknown";
-
+    getFieldType(value: any): "Prefab" | "GameObject" | "Component" | "Vector3" | "Vector2" | "Color" | "Gradient" | "Geometry" | "Material" | "Texture" | "unknown";
+   
     serializer: {
         serializeScene(scene: any): any;
         serializeGameObject(gameObject: any): any;

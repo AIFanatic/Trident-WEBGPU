@@ -61,7 +61,7 @@ export class Collapsible extends Component<ICollapsibleProps, ICollapsibleState>
                     </div>
                     <div className="collapsible-content-edonec" style={{ height: `${this.state.height}` }}>
                     <div>
-                        <div className="collapsible-content-padding-edonec collapsible-children">{this.props.children}</div>
+                        <div className="collapsible-children">{this.props.children}</div>
                     </div>
                 </div>
             </div>

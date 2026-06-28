@@ -1,18 +1,22 @@
 .collapsible-content-edonec {
     overflow: auto;
-    transition: height 0.2s ease-in-out;
+    transition: height 0.1s ease-in-out;
+    interpolate-size: allow-keywords;
 }
+
+.collapsible-content-edonec > div {
+    padding: 5px;
+}
+
 .title-text-edonec {
     display: inline-block;
     font-size: 10px;
-    font-weight: bold;
 }
 .title-right-menu {
     float: right;
     margin-right: 10px;
     text-align: center;
     width: 15px;
-    font-weight: bold;
 }
 .title-right-menu:hover {
     opacity: 0.5;
@@ -30,9 +34,6 @@
     padding: 7px;
     cursor: pointer;
     border-radius: 10px;
-}
-.collapsible-content-padding-edonec {
-    padding-top: 3px;
 }
 
 .collapsible-icon-button-edonec {

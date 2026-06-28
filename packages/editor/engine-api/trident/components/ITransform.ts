@@ -12,5 +12,4 @@ export interface ITransform extends IComponent {
     children: ITransform[];
 
     LookAt(target: IVector3);
-    LookAtV1(target: IVector3);
 };

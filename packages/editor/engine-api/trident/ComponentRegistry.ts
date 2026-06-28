@@ -23,11 +23,12 @@ import { LineRenderer } from "@trident/plugins/LineRenderer";
 import { LODGroup } from "@trident/plugins/LOD/LODGroup";
 import { WaterV1 as Water } from "@trident/plugins/Water/WaterV1";
 
+import { ParticleSystem } from "@trident/plugins/ParticleSystem/ParticleSystem.js";
+
 import { EditorScene } from "./EditorScene";
 
 import { ProjectEvents } from "../../Events";
-import { FileBrowser, MODE } from "../../helpers/FileBrowser";
-import { BuildBundle, LoadScript } from "../../loaders/ScriptLoader";
+import { BuildBundle } from "../../loaders/ScriptLoader";
 
 const component = <T extends IComponent>(ctor: unknown): IComponentConstructor<T> => ctor as IComponentConstructor<T>;
 
@@ -80,6 +81,8 @@ export const ComponentRegistry = {
 
     LODGroup: component<IComponent>(LODGroup),
     Water: component<IComponent>(Water),
+
+    ParticleSystem: component<IComponent>(ParticleSystem),
 };
 
 // Dynamic Plugin loader

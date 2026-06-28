@@ -52,6 +52,7 @@ export class AddComponent extends GOActComponent<AddComponentProps> {
                             <TreeItem name="SpotLight" onPointerDown={() => this.addComponent(ComponentRegistry.SpotLight)} />
                         </TreeFolder>
                         <TreeItem name="Water" onPointerDown={() => this.addComponent(ComponentRegistry.Water)} />
+                        <TreeItem name="ParticleSystem" onPointerDown={() => this.addComponent(ComponentRegistry.ParticleSystem)} />
                     </TreeFolder>
                 </Tree>
             </div>
