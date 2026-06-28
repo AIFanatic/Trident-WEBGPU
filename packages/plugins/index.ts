@@ -21,7 +21,6 @@ export * from "./Debugger";
 
 export * from "./TextureBlender";
 export * from "./Upscaler";
-export * from "./Bloom";
 
 export * from "./HiZPass";
 
