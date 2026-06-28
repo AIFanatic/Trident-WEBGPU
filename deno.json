@@ -1,6 +1,0 @@
-{
-    "imports": {
-        "@trident/core": "./packages/core/",
-        "@trident/plugins/": "./packages/plugins/"
-    }
-}
