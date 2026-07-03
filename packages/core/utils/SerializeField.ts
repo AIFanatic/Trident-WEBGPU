@@ -1,5 +1,6 @@
 const SERIAL_FIELDS = Symbol("serial_fields");
 const NON_SERIALIZED = Symbol("non_serialized");
+const HIDDEN_INSPECTOR = Symbol("hidden_inspector");
 
 export interface FieldInfo {
     name: string | symbol;
@@ -45,4 +46,18 @@ export function NonSerialized(_v: any, context: any) {
         const set: Set<string | symbol> = proto[NON_SERIALIZED] ?? (proto[NON_SERIALIZED] = new Set());
         set.add(context.name);
     });
+}
+
+export function HideInInspector(_v: any, context: any) {
+    context.addInitializer(function () {
+        const proto = Object.getPrototypeOf(this);
+        const set: Set<string | symbol> = proto[HIDDEN_INSPECTOR] ?? (proto[HIDDEN_INSPECTOR] = new Set());
+        set.add(context.name);
+    });
+}
+
+export function GetInspectableFields(classInstance: object): FieldInfo[] {
+    const proto = Object.getPrototypeOf(classInstance);
+    const hidden: Set<string | symbol> = (proto as any)[HIDDEN_INSPECTOR] ?? new Set();
+    return GetSerializedFields(classInstance).filter(f => !hidden.has(f.name));
 }

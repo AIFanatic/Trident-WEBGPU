@@ -21,7 +21,7 @@ export * as Mathf from './math';
 export * as GPU from "./renderer";
 
 export * as Utils from "./utils";
-export { SerializeField, NonSerialized, GetSerializedFields } from "./utils";
+export { SerializeField, NonSerialized, HideInInspector, GetSerializedFields, GetInspectableFields } from "./utils";
 
 export { Assets, AssetMeta } from "./Assets";
 
@@ -42,3 +42,5 @@ export type { ISerializedScene } from "./serializer/Serializer";
 export { Runtime, PlayerRuntime } from "./Runtime";
 export { System } from "./System";
 export { SceneManager } from "./SceneManager";
+
+export { AudioClip } from "./components/AudioSource";
