@@ -131,8 +131,8 @@ class RigidBody extends (_a = Component, _constraints_dec = [SerializeField(Rigi
     this.rigidBody.setTranslation(this.transform.position, true);
     this.rigidBody.setRotation(this.transform.rotation, true);
     this.constraints = this._constraints;
-    PhysicsRapier.PhysicsWorld.removeCollider(collider.collider, false);
-    collider.collider = PhysicsRapier.PhysicsWorld.createCollider(collider.colliderDesc, this.rigidBody);
+    PhysicsRapier.RemoveCollider(collider.collider, false);
+    collider.collider = PhysicsRapier.CreateCollider(collider, collider.colliderDesc, this.rigidBody);
     collider.colliderDesc = collider.colliderDesc;
   }
   Update() {

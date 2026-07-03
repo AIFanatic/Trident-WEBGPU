@@ -71,9 +71,9 @@ class PostProcessingBloom extends GPU.RenderPass {
             fn prefilter(uv: vec2f) -> vec4f {
                 let color = textureSample(mainTex, textureSampler, uv);
                 let k = dot(vec3f(0.299, 0.587, 0.114), color.rgb);
-                var soft = clamp(k - params.thresholdFilter.y, 0.0, params.thresholdFilter.z);   // \u2190 was filter.y / filter.z
-                soft = soft * soft * params.thresholdFilter.w;                                    // \u2190 was filter.w
-                let factor = max(soft, k - params.thresholdFilter.x) / max(k, 0.00001);           // \u2190 was filter.x
+                var soft = clamp(k - params.thresholdFilter.y, 0.0, params.thresholdFilter.z);
+                soft = soft * soft * params.thresholdFilter.w;
+                let factor = max(soft, k - params.thresholdFilter.x) / max(k, 0.00001);
                 return color * factor;
             }
 

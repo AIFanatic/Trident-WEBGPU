@@ -9,6 +9,7 @@ class PhysicsRapier extends System {
   static PhysicsWorld;
   static fixedDeltaTime = 1 / 60;
   // seconds
+  static ColliderMap = /* @__PURE__ */ new Map();
   async Start() {
     await Tg.init();
     let gravity = { x: 0, y: -9.81, z: 0 };
@@ -38,6 +39,35 @@ class PhysicsRapier extends System {
       point: new Mathf.Vector3(hitPoint.x, hitPoint.y, hitPoint.z),
       normal: new Mathf.Vector3(rayHit.normal.x, rayHit.normal.y, rayHit.normal.z)
     };
+  }
+  static OverlapBox(center, halfExtents, orientation = new Mathf.Quaternion(), layerMask = -1) {
+    const shape = new PhysicsRapier.Physics.Cuboid(halfExtents.x, halfExtents.y, halfExtents.z);
+    let overlappingColliders = [];
+    this.PhysicsWorld.intersectionsWithShape(center, orientation, shape, (colliderInternal) => {
+      const collider = PhysicsRapier.ColliderMap.get(colliderInternal);
+      if (collider) overlappingColliders.push(collider);
+      return true;
+    }, void 0, layerMask);
+    return overlappingColliders;
+  }
+  static OverlapSphere(center, radius, orientation = new Mathf.Quaternion(), layerMask = -1) {
+    const shape = new PhysicsRapier.Physics.Ball(radius);
+    let overlappingColliders = [];
+    this.PhysicsWorld.intersectionsWithShape(center, orientation, shape, (colliderInternal) => {
+      const collider = PhysicsRapier.ColliderMap.get(colliderInternal);
+      if (collider) overlappingColliders.push(collider);
+      return true;
+    }, void 0, layerMask);
+    return overlappingColliders;
+  }
+  static CreateCollider(collider, desc, parent) {
+    const colliderInternal = PhysicsRapier.PhysicsWorld.createCollider(desc, parent);
+    PhysicsRapier.ColliderMap.set(colliderInternal, collider);
+    return colliderInternal;
+  }
+  static RemoveCollider(collider, wakeUp) {
+    PhysicsRapier.PhysicsWorld.removeCollider(collider, wakeUp);
+    PhysicsRapier.ColliderMap.delete(collider);
   }
   Update() {
     if (!PhysicsRapier.hasLoaded) return;

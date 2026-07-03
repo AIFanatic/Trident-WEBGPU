@@ -192,7 +192,6 @@ class ParticleSystem extends (_a = Component, _startSize_dec = [SerializeField],
       this.arcPhase,
       0,
       0
-      // ← new 16-byte row at the end
     ]);
     this.compute.SetArray("settings", settings);
     this.material.shader.SetArray("settings", settings);

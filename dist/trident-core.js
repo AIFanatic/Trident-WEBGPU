@@ -84,6 +84,7 @@ function StringFindAllBetween(source, start, end, exclusive = true) {
 
 const SERIAL_FIELDS = Symbol("serial_fields");
 const NON_SERIALIZED = Symbol("non_serialized");
+const HIDDEN_INSPECTOR = Symbol("hidden_inspector");
 function addField(instance, name, type) {
   const proto = Object.getPrototypeOf(instance);
   const arr = proto[SERIAL_FIELDS] ?? (proto[SERIAL_FIELDS] = []);
@@ -116,6 +117,18 @@ function NonSerialized(_v, context) {
     const set = proto[NON_SERIALIZED] ?? (proto[NON_SERIALIZED] = /* @__PURE__ */ new Set());
     set.add(context.name);
   });
+}
+function HideInInspector(_v, context) {
+  context.addInitializer(function() {
+    const proto = Object.getPrototypeOf(this);
+    const set = proto[HIDDEN_INSPECTOR] ?? (proto[HIDDEN_INSPECTOR] = /* @__PURE__ */ new Set());
+    set.add(context.name);
+  });
+}
+function GetInspectableFields(classInstance) {
+  const proto = Object.getPrototypeOf(classInstance);
+  const hidden = proto[HIDDEN_INSPECTOR] ?? /* @__PURE__ */ new Set();
+  return GetSerializedFields(classInstance).filter((f) => !hidden.has(f.name));
 }
 
 class CRC32 {
@@ -195,7 +208,9 @@ var index$3 = /*#__PURE__*/Object.freeze({
     __proto__: null,
     CRC32: CRC32,
     Flags: Flags,
+    GetInspectableFields: GetInspectableFields,
     GetSerializedFields: GetSerializedFields,
+    HideInInspector: HideInInspector,
     NonSerialized: NonSerialized,
     Pool: Pool,
     SerializeField: SerializeField,
@@ -204,33 +219,74 @@ var index$3 = /*#__PURE__*/Object.freeze({
     UUID: UUID
 });
 
+var __create$a = Object.create;
+var __defProp$a = Object.defineProperty;
+var __getOwnPropDesc$3 = Object.getOwnPropertyDescriptor;
+var __knownSymbol$a = (name, symbol) => (symbol = Symbol[name]) ? symbol : Symbol.for("Symbol." + name);
+var __typeError$a = (msg) => {
+  throw TypeError(msg);
+};
+var __defNormalProp$a = (obj, key, value) => key in obj ? __defProp$a(obj, key, { enumerable: true, configurable: true, writable: true, value }) : obj[key] = value;
+var __decoratorStart$a = (base) => [, , , __create$a(null)];
+var __decoratorStrings$a = ["class", "method", "getter", "setter", "accessor", "field", "value", "get", "set"];
+var __expectFn$a = (fn) => fn !== void 0 && typeof fn !== "function" ? __typeError$a("Function expected") : fn;
+var __decoratorContext$a = (kind, name, done, metadata, fns) => ({ kind: __decoratorStrings$a[kind], name, metadata, addInitializer: (fn) => done._ ? __typeError$a("Already initialized") : fns.push(__expectFn$a(fn || null)) });
+var __decoratorMetadata$a = (array, target) => __defNormalProp$a(target, __knownSymbol$a("metadata"), array[3]);
+var __runInitializers$a = (array, flags, self, value) => {
+  for (var i = 0, fns = array[flags >> 1], n = fns && fns.length; i < n; i++) fns[i].call(self) ;
+  return value;
+};
+var __decorateElement$a = (array, flags, name, decorators, target, extra) => {
+  var it, done, ctx, access, k = flags & 7, s = false, p = false;
+  var j = 2 , key = __decoratorStrings$a[k + 5];
+  var extraInitializers = array[j] || (array[j] = []);
+  var desc = ((target = target.prototype), __getOwnPropDesc$3(target , name));
+  for (var i = decorators.length - 1; i >= 0; i--) {
+    ctx = __decoratorContext$a(k, name, done = {}, array[3], extraInitializers);
+    {
+      ctx.static = s, ctx.private = p, access = ctx.access = { has: (x) => name in x };
+      access.get = (x) => x[name];
+    }
+    it = (0, decorators[i])(desc[key]  , ctx), done._ = 1;
+    __expectFn$a(it) && (desc[key] = it );
+  }
+  return desc && __defProp$a(target, name, desc), target;
+};
+var __publicField$a = (obj, key, value) => __defNormalProp$a(obj, typeof key !== "symbol" ? key + "" : key, value);
+var _enabled_dec, _init$a;
 class ComponentEvents {
   static AddedComponent = (component, scene) => {
   };
   static RemovedComponent = (component, scene) => {
   };
 }
-class Component {
-  runInEditMode = false;
-  flags = Flags.None;
-  static type;
-  id = UUID();
-  enabled = true;
-  hasStarted = false;
-  name;
-  assetPath;
-  shouldUpdate;
-  gameObject;
-  transform;
-  static Registry = TypeRegistry;
+_enabled_dec = [SerializeField, HideInInspector];
+const _Component = class _Component {
   constructor(gameObject) {
+    __runInitializers$a(_init$a, 5, this);
+    __publicField$a(this, "runInEditMode", false);
+    __publicField$a(this, "flags", Flags.None);
+    __publicField$a(this, "id", UUID());
+    __publicField$a(this, "hasStarted", false);
+    __publicField$a(this, "name");
+    __publicField$a(this, "assetPath");
+    __publicField$a(this, "shouldUpdate");
+    __publicField$a(this, "gameObject");
+    __publicField$a(this, "transform");
+    __publicField$a(this, "_enabled", true);
     this.gameObject = gameObject;
     this.transform = gameObject.transform;
     this.name = this.constructor.name;
-    this.shouldUpdate = this.Update !== Component.prototype.Update;
+    this.shouldUpdate = this.Update !== _Component.prototype.Update;
     EventSystem.emit(ComponentEvents.AddedComponent, this, this.gameObject.scene);
     const ctor = this.constructor;
-    Component.Registry.set(ctor.type || ctor.name, ctor);
+    _Component.Registry.set(ctor.type || ctor.name, ctor);
+  }
+  get enabled() {
+    return this._enabled;
+  }
+  set enabled(value) {
+    this._enabled = value;
   }
   Start() {
   }
@@ -239,7 +295,13 @@ class Component {
   Destroy() {
     EventSystem.emit(ComponentEvents.RemovedComponent, this, this.gameObject.scene);
   }
-}
+};
+_init$a = __decoratorStart$a();
+__decorateElement$a(_init$a, 2, "enabled", _enabled_dec, _Component);
+__decoratorMetadata$a(_init$a, _Component);
+__publicField$a(_Component, "type");
+__publicField$a(_Component, "Registry", TypeRegistry);
+let Component = _Component;
 
 const EPSILON = 1e-4;
 class Quaternion {
@@ -565,6 +627,8 @@ class ObservableQuaternion extends Quaternion {
 }
 
 class Vector3 {
+  static up = new Vector3(0, 1, 0);
+  static forward = new Vector3(0, 0, -1);
   _x;
   _y;
   _z;
@@ -752,6 +816,12 @@ class Vector3 {
     this.y = Math.sign(this.y);
     this.z = Math.sign(this.z);
     return this;
+  }
+  AngleTo(v) {
+    const denominator = Math.sqrt(this.lengthSq() * v.lengthSq());
+    if (denominator === 0) return Math.PI / 2;
+    const theta = this.dot(v) / denominator;
+    return Math.acos(Math.max(-1, Math.min(1, theta)));
   }
   toString() {
     return `Vector3(x: ${this.x.toPrecision(2)}, y: ${this.y.toPrecision(2)}, z: ${this.z.toPrecision(2)})`;
@@ -1225,85 +1295,84 @@ class Matrix4 {
 const _v1 = new Vector3();
 const _m1 = new Matrix4();
 
-var __create$8 = Object.create;
-var __defProp$8 = Object.defineProperty;
+var __create$9 = Object.create;
+var __defProp$9 = Object.defineProperty;
 var __getOwnPropDesc$2 = Object.getOwnPropertyDescriptor;
-var __knownSymbol$8 = (name, symbol) => (symbol = Symbol[name]) ? symbol : Symbol.for("Symbol." + name);
-var __typeError$8 = (msg) => {
+var __knownSymbol$9 = (name, symbol) => (symbol = Symbol[name]) ? symbol : Symbol.for("Symbol." + name);
+var __typeError$9 = (msg) => {
   throw TypeError(msg);
 };
-var __defNormalProp$8 = (obj, key, value) => key in obj ? __defProp$8(obj, key, { enumerable: true, configurable: true, writable: true, value }) : obj[key] = value;
-var __decoratorStart$8 = (base) => [, , , __create$8(base?.[__knownSymbol$8("metadata")] ?? null)];
-var __decoratorStrings$8 = ["class", "method", "getter", "setter", "accessor", "field", "value", "get", "set"];
-var __expectFn$8 = (fn) => fn !== void 0 && typeof fn !== "function" ? __typeError$8("Function expected") : fn;
-var __decoratorContext$8 = (kind, name, done, metadata, fns) => ({ kind: __decoratorStrings$8[kind], name, metadata, addInitializer: (fn) => done._ ? __typeError$8("Already initialized") : fns.push(__expectFn$8(fn || null)) });
-var __decoratorMetadata$8 = (array, target) => __defNormalProp$8(target, __knownSymbol$8("metadata"), array[3]);
-var __runInitializers$8 = (array, flags, self, value) => {
+var __defNormalProp$9 = (obj, key, value) => key in obj ? __defProp$9(obj, key, { enumerable: true, configurable: true, writable: true, value }) : obj[key] = value;
+var __decoratorStart$9 = (base) => [, , , __create$9(base?.[__knownSymbol$9("metadata")] ?? null)];
+var __decoratorStrings$9 = ["class", "method", "getter", "setter", "accessor", "field", "value", "get", "set"];
+var __expectFn$9 = (fn) => fn !== void 0 && typeof fn !== "function" ? __typeError$9("Function expected") : fn;
+var __decoratorContext$9 = (kind, name, done, metadata, fns) => ({ kind: __decoratorStrings$9[kind], name, metadata, addInitializer: (fn) => done._ ? __typeError$9("Already initialized") : fns.push(__expectFn$9(fn || null)) });
+var __decoratorMetadata$9 = (array, target) => __defNormalProp$9(target, __knownSymbol$9("metadata"), array[3]);
+var __runInitializers$9 = (array, flags, self, value) => {
   for (var i = 0, fns = array[flags >> 1], n = fns && fns.length; i < n; i++) fns[i].call(self) ;
   return value;
 };
-var __decorateElement$8 = (array, flags, name, decorators, target, extra) => {
+var __decorateElement$9 = (array, flags, name, decorators, target, extra) => {
   var it, done, ctx, access, k = flags & 7, s = false, p = false;
-  var j = 2 , key = __decoratorStrings$8[k + 5];
+  var j = 2 , key = __decoratorStrings$9[k + 5];
   var extraInitializers = array[j] || (array[j] = []);
   var desc = ((target = target.prototype), __getOwnPropDesc$2(target , name));
   for (var i = decorators.length - 1; i >= 0; i--) {
-    ctx = __decoratorContext$8(k, name, done = {}, array[3], extraInitializers);
+    ctx = __decoratorContext$9(k, name, done = {}, array[3], extraInitializers);
     {
       ctx.static = s, ctx.private = p, access = ctx.access = { has: (x) => name in x };
       access.get = (x) => x[name];
     }
     it = (0, decorators[i])(desc[key]  , ctx), done._ = 1;
-    __expectFn$8(it) && (desc[key] = it );
+    __expectFn$9(it) && (desc[key] = it );
   }
-  return desc && __defProp$8(target, name, desc), target;
+  return desc && __defProp$9(target, name, desc), target;
 };
-var __publicField$8 = (obj, key, value) => __defNormalProp$8(obj, typeof key !== "symbol" ? key + "" : key, value);
-var _scale_dec, _localRotation_dec, _localPosition_dec, _a$7, _init$8;
+var __publicField$9 = (obj, key, value) => __defNormalProp$9(obj, typeof key !== "symbol" ? key + "" : key, value);
+var _scale_dec, _localRotation_dec, _localPosition_dec, _a$8, _init$9;
 class TransformEvents {
   static Updated = () => {
   };
 }
-class Transform extends (_a$7 = Component, _localPosition_dec = [SerializeField], _localRotation_dec = [SerializeField], _scale_dec = [SerializeField], _a$7) {
+class Transform extends (_a$8 = Component, _localPosition_dec = [SerializeField], _localRotation_dec = [SerializeField], _scale_dec = [SerializeField], _a$8) {
   constructor() {
     super(...arguments);
-    __runInitializers$8(_init$8, 5, this);
-    __publicField$8(this, "runInEditMode", true);
-    __publicField$8(this, "tempRotation", new Quaternion());
-    __publicField$8(this, "tempPosition", new Vector3());
-    __publicField$8(this, "tempQuaternion", new Quaternion());
-    __publicField$8(this, "up", new Vector3(0, 1, 0));
-    __publicField$8(this, "forward", new Vector3(0, 0, 1));
-    __publicField$8(this, "right", new Vector3(1, 0, 0));
-    __publicField$8(this, "_localToWorldMatrix", new Matrix4());
-    __publicField$8(this, "_worldToLocalMatrix", new Matrix4());
-    __publicField$8(this, "_localPosition", new ObservableVector3(() => {
+    __runInitializers$9(_init$9, 5, this);
+    __publicField$9(this, "runInEditMode", true);
+    __publicField$9(this, "tempRotation", new Quaternion());
+    __publicField$9(this, "tempPosition", new Vector3());
+    __publicField$9(this, "tempQuaternion", new Quaternion());
+    __publicField$9(this, "up", new Vector3(0, 1, 0));
+    __publicField$9(this, "forward", new Vector3(0, 0, 1));
+    __publicField$9(this, "_localToWorldMatrix", new Matrix4());
+    __publicField$9(this, "_worldToLocalMatrix", new Matrix4());
+    __publicField$9(this, "_localPosition", new ObservableVector3(() => {
       this.onLocalPositionScaleChanged();
     }, 0, 0, 0));
-    __publicField$8(this, "_localRotation", new ObservableQuaternion(() => {
+    __publicField$9(this, "_localRotation", new ObservableQuaternion(() => {
       this.onLocalRotationChanged();
     }));
-    __publicField$8(this, "_localScale", new ObservableVector3(() => {
+    __publicField$9(this, "_localScale", new ObservableVector3(() => {
       this.onLocalPositionScaleChanged();
     }, 1, 1, 1));
-    __publicField$8(this, "_localEulerAngles", new ObservableVector3(() => {
+    __publicField$9(this, "_localEulerAngles", new ObservableVector3(() => {
       this.onLocalEulerChanged();
     }));
-    __publicField$8(this, "_position", new ObservableVector3(() => {
+    __publicField$9(this, "_position", new ObservableVector3(() => {
       this.onWorldPositionChanged();
     }, 0, 0, 0));
-    __publicField$8(this, "_rotation", new ObservableQuaternion(() => {
+    __publicField$9(this, "_rotation", new ObservableQuaternion(() => {
       this.onWorldRotationChanged();
     }));
-    __publicField$8(this, "_eulerAngles", new ObservableVector3(() => {
+    __publicField$9(this, "_eulerAngles", new ObservableVector3(() => {
       this.onWorldEulerChanged();
     }));
-    __publicField$8(this, "_suppressLocalCallbacks", false);
-    __publicField$8(this, "_suppressWorldCallbacks", false);
+    __publicField$9(this, "_suppressLocalCallbacks", false);
+    __publicField$9(this, "_suppressWorldCallbacks", false);
     // NEW: which space was edited last (source-of-truth for this update)
-    __publicField$8(this, "_lastChanged", "local");
-    __publicField$8(this, "children", /* @__PURE__ */ new Set());
-    __publicField$8(this, "_parent", null);
+    __publicField$9(this, "_lastChanged", "local");
+    __publicField$9(this, "children", /* @__PURE__ */ new Set());
+    __publicField$9(this, "_parent", null);
   }
   get localToWorldMatrix() {
     return this._localToWorldMatrix;
@@ -1462,12 +1531,14 @@ class Transform extends (_a$7 = Component, _localPosition_dec = [SerializeField]
     for (const child of this.children) {
       child.UpdateMatrices();
     }
+    this.forward.set(0, 0, -1).applyQuaternion(this.rotation);
+    this.up.set(0, 1, 0).applyQuaternion(this.rotation);
     EventSystem.emit(TransformEvents.Updated);
     EventSystemLocal.emit(TransformEvents.Updated, this);
   }
   LookAt(target) {
-    this.rotation.lookAt(this.position, target, this.up);
-    this.tempRotation.lookAt(this.position, target, this.up);
+    this.rotation.lookAt(this.position, target, Vector3.up);
+    this.tempRotation.lookAt(this.position, target, Vector3.up);
     if (!this.tempRotation.equals(this.rotation)) {
       this._suppressWorldCallbacks = true;
       this._rotation.copy(this.tempRotation);
@@ -1478,12 +1549,32 @@ class Transform extends (_a$7 = Component, _localPosition_dec = [SerializeField]
     }
   }
 }
-_init$8 = __decoratorStart$8(_a$7);
-__decorateElement$8(_init$8, 2, "localPosition", _localPosition_dec, Transform);
-__decorateElement$8(_init$8, 2, "localRotation", _localRotation_dec, Transform);
-__decorateElement$8(_init$8, 2, "scale", _scale_dec, Transform);
-__decoratorMetadata$8(_init$8, Transform);
-__publicField$8(Transform, "type", "@trident/core/components/Transform");
+_init$9 = __decoratorStart$9(_a$8);
+__decorateElement$9(_init$9, 2, "localPosition", _localPosition_dec, Transform);
+__decorateElement$9(_init$9, 2, "localRotation", _localRotation_dec, Transform);
+__decorateElement$9(_init$9, 2, "scale", _scale_dec, Transform);
+__decoratorMetadata$9(_init$9, Transform);
+__publicField$9(Transform, "type", "@trident/core/components/Transform");
+
+class System {
+  runInEditMode = false;
+  async Start() {
+  }
+  Update() {
+  }
+  async Destroy() {
+  }
+}
+
+class AudioManager extends System {
+  static ctx;
+  static masterGainNode;
+  async Start() {
+    AudioManager.ctx = new AudioContext();
+    AudioManager.masterGainNode = AudioManager.ctx.createGain();
+    AudioManager.masterGainNode.connect(AudioManager.ctx.destination);
+  }
+}
 
 class Vector2 {
   _x;
@@ -1562,12 +1653,14 @@ class BoundingVolume {
   center;
   radius;
   scale;
+  halfExtents;
   constructor(min = new Vector3(Infinity, Infinity, Infinity), max = new Vector3(-Infinity, -Infinity, -Infinity), center = new Vector3(), radius = 0, scale = 1) {
     this.min = min;
     this.max = max;
     this.center = center;
     this.radius = radius;
     this.scale = scale;
+    this.halfExtents = this.max.clone().sub(this.min).mul(0.5);
   }
   static FromVertices(vertices) {
     let maxX = -Infinity;
@@ -3770,53 +3863,53 @@ var index$2 = /*#__PURE__*/Object.freeze({
     Vector4: Vector4
 });
 
-var __create$7 = Object.create;
-var __defProp$7 = Object.defineProperty;
-var __knownSymbol$7 = (name, symbol) => (symbol = Symbol[name]) ? symbol : Symbol.for("Symbol." + name);
-var __typeError$7 = (msg) => {
+var __create$8 = Object.create;
+var __defProp$8 = Object.defineProperty;
+var __knownSymbol$8 = (name, symbol) => (symbol = Symbol[name]) ? symbol : Symbol.for("Symbol." + name);
+var __typeError$8 = (msg) => {
   throw TypeError(msg);
 };
-var __defNormalProp$7 = (obj, key, value) => key in obj ? __defProp$7(obj, key, { enumerable: true, configurable: true, writable: true, value }) : obj[key] = value;
-var __decoratorStart$7 = (base) => [, , , __create$7(base?.[__knownSymbol$7("metadata")] ?? null)];
-var __decoratorStrings$7 = ["class", "method", "getter", "setter", "accessor", "field", "value", "get", "set"];
-var __expectFn$7 = (fn) => fn !== void 0 && typeof fn !== "function" ? __typeError$7("Function expected") : fn;
-var __decoratorContext$7 = (kind, name, done, metadata, fns) => ({ kind: __decoratorStrings$7[kind], name, metadata, addInitializer: (fn) => done._ ? __typeError$7("Already initialized") : fns.push(__expectFn$7(fn || null)) });
-var __decoratorMetadata$7 = (array, target) => __defNormalProp$7(target, __knownSymbol$7("metadata"), array[3]);
-var __runInitializers$7 = (array, flags, self, value) => {
+var __defNormalProp$8 = (obj, key, value) => key in obj ? __defProp$8(obj, key, { enumerable: true, configurable: true, writable: true, value }) : obj[key] = value;
+var __decoratorStart$8 = (base) => [, , , __create$8(base?.[__knownSymbol$8("metadata")] ?? null)];
+var __decoratorStrings$8 = ["class", "method", "getter", "setter", "accessor", "field", "value", "get", "set"];
+var __expectFn$8 = (fn) => fn !== void 0 && typeof fn !== "function" ? __typeError$8("Function expected") : fn;
+var __decoratorContext$8 = (kind, name, done, metadata, fns) => ({ kind: __decoratorStrings$8[kind], name, metadata, addInitializer: (fn) => done._ ? __typeError$8("Already initialized") : fns.push(__expectFn$8(fn || null)) });
+var __decoratorMetadata$8 = (array, target) => __defNormalProp$8(target, __knownSymbol$8("metadata"), array[3]);
+var __runInitializers$8 = (array, flags, self, value) => {
   for (var i = 0, fns = array[flags >> 1], n = fns && fns.length; i < n; i++) flags & 1 ? fns[i].call(self) : value = fns[i].call(self, value);
   return value;
 };
-var __decorateElement$7 = (array, flags, name, decorators, target, extra) => {
+var __decorateElement$8 = (array, flags, name, decorators, target, extra) => {
   var it, done, ctx, access, k = flags & 7, s = false, p = false;
   var j = array.length + 1 ;
   var initializers = (array[j - 1] = []), extraInitializers = array[j] || (array[j] = []);
   ((target = target.prototype), k < 5);
   for (var i = decorators.length - 1; i >= 0; i--) {
-    ctx = __decoratorContext$7(k, name, done = {}, array[3], extraInitializers);
+    ctx = __decoratorContext$8(k, name, done = {}, array[3], extraInitializers);
     {
       ctx.static = s, ctx.private = p, access = ctx.access = { has: (x) => name in x };
       access.get = (x) => x[name];
       access.set = (x, y) => x[name] = y;
     }
     it = (0, decorators[i])(void 0  , ctx), done._ = 1;
-    __expectFn$7(it) && (initializers.unshift(it) );
+    __expectFn$8(it) && (initializers.unshift(it) );
   }
   return target;
 };
-var __publicField$7 = (obj, key, value) => __defNormalProp$7(obj, typeof key !== "symbol" ? key + "" : key, value);
-var _currentSize_dec, _currentOffset_dec, _arrayType_dec, _array_dec, _type_dec, _init$7, _stride_dec, _a$6, _init2$4, _attributes_dec, _index_dec, _name_dec, _id_dec, _assetPath_dec$3, _init3$3;
+var __publicField$8 = (obj, key, value) => __defNormalProp$8(obj, typeof key !== "symbol" ? key + "" : key, value);
+var _currentSize_dec, _currentOffset_dec, _arrayType_dec, _array_dec, _type_dec, _init$8, _stride_dec, _a$7, _init2$5, _attributes_dec, _index_dec, _name_dec$1, _id_dec$1, _assetPath_dec$4, _init3$3;
 _type_dec = [SerializeField], _array_dec = [SerializeField], _arrayType_dec = [SerializeField], _currentOffset_dec = [SerializeField], _currentSize_dec = [SerializeField];
 class GeometryAttribute {
   constructor(array, type) {
-    __publicField$7(this, "type", __runInitializers$7(_init$7, 8, this, "@trident/core/Geometry/GeometryAttribute")), __runInitializers$7(_init$7, 11, this);
-    __publicField$7(this, "array", __runInitializers$7(_init$7, 12, this)), __runInitializers$7(_init$7, 15, this);
-    __publicField$7(this, "arrayType", __runInitializers$7(_init$7, 16, this)), __runInitializers$7(_init$7, 19, this);
-    __publicField$7(this, "buffer");
-    __publicField$7(this, "bufferType");
-    __publicField$7(this, "currentOffset", __runInitializers$7(_init$7, 20, this)), __runInitializers$7(_init$7, 23, this);
-    __publicField$7(this, "currentSize", __runInitializers$7(_init$7, 24, this)), __runInitializers$7(_init$7, 27, this);
-    __publicField$7(this, "count");
-    __publicField$7(this, "_crc");
+    __publicField$8(this, "type", __runInitializers$8(_init$8, 8, this, "@trident/core/Geometry/GeometryAttribute")), __runInitializers$8(_init$8, 11, this);
+    __publicField$8(this, "array", __runInitializers$8(_init$8, 12, this)), __runInitializers$8(_init$8, 15, this);
+    __publicField$8(this, "arrayType", __runInitializers$8(_init$8, 16, this)), __runInitializers$8(_init$8, 19, this);
+    __publicField$8(this, "buffer");
+    __publicField$8(this, "bufferType");
+    __publicField$8(this, "currentOffset", __runInitializers$8(_init$8, 20, this)), __runInitializers$8(_init$8, 23, this);
+    __publicField$8(this, "currentSize", __runInitializers$8(_init$8, 24, this)), __runInitializers$8(_init$8, 27, this);
+    __publicField$8(this, "count");
+    __publicField$8(this, "_crc");
     if (array.length === 0) throw Error("GeometryAttribute data is empty");
     let bufferArray = array;
     let bufferSize = array.byteLength;
@@ -3855,25 +3948,25 @@ class GeometryAttribute {
     this.buffer.Destroy();
   }
 }
-_init$7 = __decoratorStart$7(null);
-__decorateElement$7(_init$7, 5, "type", _type_dec, GeometryAttribute);
-__decorateElement$7(_init$7, 5, "array", _array_dec, GeometryAttribute);
-__decorateElement$7(_init$7, 5, "arrayType", _arrayType_dec, GeometryAttribute);
-__decorateElement$7(_init$7, 5, "currentOffset", _currentOffset_dec, GeometryAttribute);
-__decorateElement$7(_init$7, 5, "currentSize", _currentSize_dec, GeometryAttribute);
-__decoratorMetadata$7(_init$7, GeometryAttribute);
+_init$8 = __decoratorStart$8(null);
+__decorateElement$8(_init$8, 5, "type", _type_dec, GeometryAttribute);
+__decorateElement$8(_init$8, 5, "array", _array_dec, GeometryAttribute);
+__decorateElement$8(_init$8, 5, "arrayType", _arrayType_dec, GeometryAttribute);
+__decorateElement$8(_init$8, 5, "currentOffset", _currentOffset_dec, GeometryAttribute);
+__decorateElement$8(_init$8, 5, "currentSize", _currentSize_dec, GeometryAttribute);
+__decoratorMetadata$8(_init$8, GeometryAttribute);
 class VertexAttribute extends GeometryAttribute {
   type = "@trident/core/Geometry/VertexAttribute";
   constructor(array) {
     super(array, BufferType.VERTEX);
   }
 }
-const _InterleavedVertexAttribute = class _InterleavedVertexAttribute extends (_a$6 = GeometryAttribute, _stride_dec = [SerializeField], _a$6) {
+const _InterleavedVertexAttribute = class _InterleavedVertexAttribute extends (_a$7 = GeometryAttribute, _stride_dec = [SerializeField], _a$7) {
   constructor(array, stride) {
     super(array, BufferType.VERTEX);
     this.array = array;
-    __publicField$7(this, "type", "@trident/core/Geometry/InterleavedVertexAttribute");
-    __publicField$7(this, "stride", __runInitializers$7(_init2$4, 8, this)), __runInitializers$7(_init2$4, 11, this);
+    __publicField$8(this, "type", "@trident/core/Geometry/InterleavedVertexAttribute");
+    __publicField$8(this, "stride", __runInitializers$8(_init2$5, 8, this)), __runInitializers$8(_init2$5, 11, this);
     this.stride = stride;
   }
   static fromArrays(attributes, inputStrides, outputStrides) {
@@ -3907,9 +4000,9 @@ const _InterleavedVertexAttribute = class _InterleavedVertexAttribute extends (_
     return new _InterleavedVertexAttribute(interleavedArray, interleavedStride);
   }
 };
-_init2$4 = __decoratorStart$7(_a$6);
-__decorateElement$7(_init2$4, 5, "stride", _stride_dec, _InterleavedVertexAttribute);
-__decoratorMetadata$7(_init2$4, _InterleavedVertexAttribute);
+_init2$5 = __decoratorStart$8(_a$7);
+__decorateElement$8(_init2$5, 5, "stride", _stride_dec, _InterleavedVertexAttribute);
+__decoratorMetadata$8(_init2$5, _InterleavedVertexAttribute);
 let InterleavedVertexAttribute = _InterleavedVertexAttribute;
 class IndexAttribute extends GeometryAttribute {
   type = "@trident/core/Geometry/IndexAttribute";
@@ -3919,15 +4012,15 @@ class IndexAttribute extends GeometryAttribute {
     this.format = array instanceof Uint32Array ? "uint32" : "uint16";
   }
 }
-_assetPath_dec$3 = [SerializeField], _id_dec = [SerializeField], _name_dec = [SerializeField], _index_dec = [SerializeField], _attributes_dec = [SerializeField];
+_assetPath_dec$4 = [SerializeField], _id_dec$1 = [SerializeField], _name_dec$1 = [SerializeField], _index_dec = [SerializeField], _attributes_dec = [SerializeField];
 const _Geometry = class _Geometry {
   constructor() {
-    __publicField$7(this, "assetPath", __runInitializers$7(_init3$3, 8, this)), __runInitializers$7(_init3$3, 11, this);
-    __publicField$7(this, "id", __runInitializers$7(_init3$3, 12, this, UUID())), __runInitializers$7(_init3$3, 15, this);
-    __publicField$7(this, "name", __runInitializers$7(_init3$3, 16, this, "")), __runInitializers$7(_init3$3, 19, this);
-    __publicField$7(this, "index", __runInitializers$7(_init3$3, 20, this)), __runInitializers$7(_init3$3, 23, this);
-    __publicField$7(this, "attributes", __runInitializers$7(_init3$3, 24, this, /* @__PURE__ */ new Map())), __runInitializers$7(_init3$3, 27, this);
-    __publicField$7(this, "_boundingVolume");
+    __publicField$8(this, "assetPath", __runInitializers$8(_init3$3, 8, this)), __runInitializers$8(_init3$3, 11, this);
+    __publicField$8(this, "id", __runInitializers$8(_init3$3, 12, this, UUID())), __runInitializers$8(_init3$3, 15, this);
+    __publicField$8(this, "name", __runInitializers$8(_init3$3, 16, this, "")), __runInitializers$8(_init3$3, 19, this);
+    __publicField$8(this, "index", __runInitializers$8(_init3$3, 20, this)), __runInitializers$8(_init3$3, 23, this);
+    __publicField$8(this, "attributes", __runInitializers$8(_init3$3, 24, this, /* @__PURE__ */ new Map())), __runInitializers$8(_init3$3, 27, this);
+    __publicField$8(this, "_boundingVolume");
   }
   get boundingVolume() {
     const positions = this.attributes.get("position");
@@ -4161,13 +4254,13 @@ const _Geometry = class _Geometry {
     return instance;
   }
 };
-_init3$3 = __decoratorStart$7(null);
-__decorateElement$7(_init3$3, 5, "assetPath", _assetPath_dec$3, _Geometry);
-__decorateElement$7(_init3$3, 5, "id", _id_dec, _Geometry);
-__decorateElement$7(_init3$3, 5, "name", _name_dec, _Geometry);
-__decorateElement$7(_init3$3, 5, "index", _index_dec, _Geometry);
-__decorateElement$7(_init3$3, 5, "attributes", _attributes_dec, _Geometry);
-__decoratorMetadata$7(_init3$3, _Geometry);
+_init3$3 = __decoratorStart$8(null);
+__decorateElement$8(_init3$3, 5, "assetPath", _assetPath_dec$4, _Geometry);
+__decorateElement$8(_init3$3, 5, "id", _id_dec$1, _Geometry);
+__decorateElement$8(_init3$3, 5, "name", _name_dec$1, _Geometry);
+__decorateElement$8(_init3$3, 5, "index", _index_dec, _Geometry);
+__decorateElement$8(_init3$3, 5, "attributes", _attributes_dec, _Geometry);
+__decoratorMetadata$8(_init3$3, _Geometry);
 let Geometry = _Geometry;
 function RegisterBuiltinGeometries() {
   {
@@ -4249,16 +4342,6 @@ function RegisterBuiltinGeometries() {
     geometry.attributes.set("uv", new VertexAttribute(new Float32Array(uvs)));
     geometry.ComputeTangents();
     Assets.SetInstance(instancePath, geometry);
-  }
-}
-
-class System {
-  runInEditMode = false;
-  async Start() {
-  }
-  Update() {
-  }
-  async Destroy() {
   }
 }
 
@@ -4352,27 +4435,27 @@ class RenderGraph {
   }
 }
 
-var __create$6 = Object.create;
-var __defProp$6 = Object.defineProperty;
+var __create$7 = Object.create;
+var __defProp$7 = Object.defineProperty;
 var __getOwnPropDesc$1 = Object.getOwnPropertyDescriptor;
-var __knownSymbol$6 = (name, symbol) => (symbol = Symbol[name]) ? symbol : Symbol.for("Symbol." + name);
-var __typeError$6 = (msg) => {
+var __knownSymbol$7 = (name, symbol) => (symbol = Symbol[name]) ? symbol : Symbol.for("Symbol." + name);
+var __typeError$7 = (msg) => {
   throw TypeError(msg);
 };
-var __defNormalProp$6 = (obj, key, value) => key in obj ? __defProp$6(obj, key, { enumerable: true, configurable: true, writable: true, value }) : obj[key] = value;
-var __name$1 = (target, value) => __defProp$6(target, "name", { value, configurable: true });
-var __decoratorStart$6 = (base) => [, , , __create$6(base?.[__knownSymbol$6("metadata")] ?? null)];
-var __decoratorStrings$6 = ["class", "method", "getter", "setter", "accessor", "field", "value", "get", "set"];
-var __expectFn$6 = (fn) => fn !== void 0 && typeof fn !== "function" ? __typeError$6("Function expected") : fn;
-var __decoratorContext$6 = (kind, name, done, metadata, fns) => ({ kind: __decoratorStrings$6[kind], name, metadata, addInitializer: (fn) => done._ ? __typeError$6("Already initialized") : fns.push(__expectFn$6(fn || null)) });
-var __decoratorMetadata$6 = (array, target) => __defNormalProp$6(target, __knownSymbol$6("metadata"), array[3]);
-var __runInitializers$6 = (array, flags, self, value) => {
+var __defNormalProp$7 = (obj, key, value) => key in obj ? __defProp$7(obj, key, { enumerable: true, configurable: true, writable: true, value }) : obj[key] = value;
+var __name$1 = (target, value) => __defProp$7(target, "name", { value, configurable: true });
+var __decoratorStart$7 = (base) => [, , , __create$7(base?.[__knownSymbol$7("metadata")] ?? null)];
+var __decoratorStrings$7 = ["class", "method", "getter", "setter", "accessor", "field", "value", "get", "set"];
+var __expectFn$7 = (fn) => fn !== void 0 && typeof fn !== "function" ? __typeError$7("Function expected") : fn;
+var __decoratorContext$7 = (kind, name, done, metadata, fns) => ({ kind: __decoratorStrings$7[kind], name, metadata, addInitializer: (fn) => done._ ? __typeError$7("Already initialized") : fns.push(__expectFn$7(fn || null)) });
+var __decoratorMetadata$7 = (array, target) => __defNormalProp$7(target, __knownSymbol$7("metadata"), array[3]);
+var __runInitializers$7 = (array, flags, self, value) => {
   for (var i = 0, fns = array[flags >> 1], n = fns && fns.length; i < n; i++) flags & 1 ? fns[i].call(self) : value = fns[i].call(self, value);
   return value;
 };
-var __decorateElement$6 = (array, flags, name, decorators, target, extra) => {
+var __decorateElement$7 = (array, flags, name, decorators, target, extra) => {
   var fn, it, done, ctx, access, k = flags & 7, s = !!(flags & 8), p = !!(flags & 16);
-  var j = k > 3 ? array.length + 1 : k ? s ? 1 : 2 : 0, key = __decoratorStrings$6[k + 5];
+  var j = k > 3 ? array.length + 1 : k ? s ? 1 : 2 : 0, key = __decoratorStrings$7[k + 5];
   var initializers = k > 3 && (array[j - 1] = []), extraInitializers = array[j] || (array[j] = []);
   var desc = k && (!p && !s && (target = target.prototype), k < 5 && (k > 3 || !p) && __getOwnPropDesc$1(k < 4 ? target : { get [name]() {
     return __privateGet$1(this, extra);
@@ -4381,41 +4464,41 @@ var __decorateElement$6 = (array, flags, name, decorators, target, extra) => {
   } }, name));
   k ? p && k < 4 && __name$1(extra, (k > 2 ? "set " : k > 1 ? "get " : "") + name) : __name$1(target, name);
   for (var i = decorators.length - 1; i >= 0; i--) {
-    ctx = __decoratorContext$6(k, name, done = {}, array[3], extraInitializers);
+    ctx = __decoratorContext$7(k, name, done = {}, array[3], extraInitializers);
     if (k) {
       ctx.static = s, ctx.private = p, access = ctx.access = { has: p ? (x) => __privateIn$1(target, x) : (x) => name in x };
       if (k ^ 3) access.get = p ? (x) => (k ^ 1 ? __privateGet$1 : __privateMethod$1)(x, target, k ^ 4 ? extra : desc.get) : (x) => x[name];
       if (k > 2) access.set = p ? (x, y) => __privateSet$1(x, target, y, k ^ 4 ? extra : desc.set) : (x, y) => x[name] = y;
     }
     it = (0, decorators[i])(k ? k < 4 ? p ? extra : desc[key] : k > 4 ? void 0 : { get: desc.get, set: desc.set } : target, ctx), done._ = 1;
-    if (k ^ 4 || it === void 0) __expectFn$6(it) && (k > 4 ? initializers.unshift(it) : k ? p ? extra = it : desc[key] = it : target = it);
-    else if (typeof it !== "object" || it === null) __typeError$6("Object expected");
-    else __expectFn$6(fn = it.get) && (desc.get = fn), __expectFn$6(fn = it.set) && (desc.set = fn), __expectFn$6(fn = it.init) && initializers.unshift(fn);
+    if (k ^ 4 || it === void 0) __expectFn$7(it) && (k > 4 ? initializers.unshift(it) : k ? p ? extra = it : desc[key] = it : target = it);
+    else if (typeof it !== "object" || it === null) __typeError$7("Object expected");
+    else __expectFn$7(fn = it.get) && (desc.get = fn), __expectFn$7(fn = it.set) && (desc.set = fn), __expectFn$7(fn = it.init) && initializers.unshift(fn);
   }
-  return k || __decoratorMetadata$6(array, target), desc && __defProp$6(target, name, desc), p ? k ^ 4 ? extra : desc : target;
+  return k || __decoratorMetadata$7(array, target), desc && __defProp$7(target, name, desc), p ? k ^ 4 ? extra : desc : target;
 };
-var __publicField$6 = (obj, key, value) => __defNormalProp$6(obj, typeof key !== "symbol" ? key + "" : key, value);
-var __accessCheck$1 = (obj, member, msg) => member.has(obj) || __typeError$6("Cannot " + msg);
-var __privateIn$1 = (member, obj) => Object(obj) !== obj ? __typeError$6('Cannot use the "in" operator on this value') : member.has(obj);
+var __publicField$7 = (obj, key, value) => __defNormalProp$7(obj, typeof key !== "symbol" ? key + "" : key, value);
+var __accessCheck$1 = (obj, member, msg) => member.has(obj) || __typeError$7("Cannot " + msg);
+var __privateIn$1 = (member, obj) => Object(obj) !== obj ? __typeError$7('Cannot use the "in" operator on this value') : member.has(obj);
 var __privateGet$1 = (obj, member, getter) => (__accessCheck$1(obj, member, "read from private field"), getter ? getter.call(obj) : member.get(obj));
 var __privateSet$1 = (obj, member, value, setter) => (__accessCheck$1(obj, member, "write to private field"), setter ? setter.call(obj, value) : member.set(obj, value), value);
 var __privateMethod$1 = (obj, member, method) => (__accessCheck$1(obj, member, "access private method"), method);
-var _aspect_dec, _fov_dec, _far_dec, _near_dec, _backgroundColor_dec, _a$5, _init$6;
-const _Camera = class _Camera extends (_a$5 = Component, _backgroundColor_dec = [SerializeField], _near_dec = [SerializeField(Number)], _far_dec = [SerializeField(Number)], _fov_dec = [SerializeField(Number)], _aspect_dec = [SerializeField(Number)], _a$5) {
+var _aspect_dec, _fov_dec, _far_dec, _near_dec, _backgroundColor_dec, _a$6, _init$7;
+const _Camera = class _Camera extends (_a$6 = Component, _backgroundColor_dec = [SerializeField], _near_dec = [SerializeField(Number)], _far_dec = [SerializeField(Number)], _fov_dec = [SerializeField(Number)], _aspect_dec = [SerializeField(Number)], _a$6) {
   constructor(gameObject) {
     super(gameObject);
-    __runInitializers$6(_init$6, 5, this);
-    __publicField$6(this, "runInEditMode", true);
-    __publicField$6(this, "backgroundColor", __runInitializers$6(_init$6, 8, this, new Color(0, 0, 0, 1))), __runInitializers$6(_init$6, 11, this);
-    __publicField$6(this, "projectionMatrix", new Matrix4());
-    __publicField$6(this, "projectionScreenMatrix", new Matrix4());
-    __publicField$6(this, "projectionViewMatrix", new Matrix4());
-    __publicField$6(this, "viewMatrix", new Matrix4());
-    __publicField$6(this, "frustum", new Frustum());
-    __publicField$6(this, "_near", 0.05);
-    __publicField$6(this, "_far", 1e3);
-    __publicField$6(this, "_fov", 60);
-    __publicField$6(this, "_aspect", window.innerWidth / window.innerHeight);
+    __runInitializers$7(_init$7, 5, this);
+    __publicField$7(this, "runInEditMode", true);
+    __publicField$7(this, "backgroundColor", __runInitializers$7(_init$7, 8, this, new Color(0, 0, 0, 1))), __runInitializers$7(_init$7, 11, this);
+    __publicField$7(this, "projectionMatrix", new Matrix4());
+    __publicField$7(this, "projectionScreenMatrix", new Matrix4());
+    __publicField$7(this, "projectionViewMatrix", new Matrix4());
+    __publicField$7(this, "viewMatrix", new Matrix4());
+    __publicField$7(this, "frustum", new Frustum());
+    __publicField$7(this, "_near", 0.05);
+    __publicField$7(this, "_far", 1e3);
+    __publicField$7(this, "_fov", 60);
+    __publicField$7(this, "_aspect", window.innerWidth / window.innerHeight);
     if (!_Camera.mainCamera) _Camera.mainCamera = this;
     EventSystemLocal.on(TransformEvents.Updated, this.transform, () => {
       this.Update();
@@ -4464,67 +4547,67 @@ const _Camera = class _Camera extends (_a$5 = Component, _backgroundColor_dec = 
     this.projectionViewMatrix.multiplyMatrices(this.projectionMatrix, this.viewMatrix);
   }
 };
-_init$6 = __decoratorStart$6(_a$5);
-__decorateElement$6(_init$6, 2, "near", _near_dec, _Camera);
-__decorateElement$6(_init$6, 2, "far", _far_dec, _Camera);
-__decorateElement$6(_init$6, 2, "fov", _fov_dec, _Camera);
-__decorateElement$6(_init$6, 2, "aspect", _aspect_dec, _Camera);
-__decorateElement$6(_init$6, 5, "backgroundColor", _backgroundColor_dec, _Camera);
-__decoratorMetadata$6(_init$6, _Camera);
-__publicField$6(_Camera, "type", "@trident/core/components/Camera");
-__publicField$6(_Camera, "mainCamera");
+_init$7 = __decoratorStart$7(_a$6);
+__decorateElement$7(_init$7, 2, "near", _near_dec, _Camera);
+__decorateElement$7(_init$7, 2, "far", _far_dec, _Camera);
+__decorateElement$7(_init$7, 2, "fov", _fov_dec, _Camera);
+__decorateElement$7(_init$7, 2, "aspect", _aspect_dec, _Camera);
+__decorateElement$7(_init$7, 5, "backgroundColor", _backgroundColor_dec, _Camera);
+__decoratorMetadata$7(_init$7, _Camera);
+__publicField$7(_Camera, "type", "@trident/core/components/Camera");
+__publicField$7(_Camera, "mainCamera");
 let Camera = _Camera;
 Component.Registry.set(Camera.type, Camera);
 
-var __create$5 = Object.create;
-var __defProp$5 = Object.defineProperty;
-var __knownSymbol$5 = (name, symbol) => (symbol = Symbol[name]) ? symbol : Symbol.for("Symbol." + name);
-var __typeError$5 = (msg) => {
+var __create$6 = Object.create;
+var __defProp$6 = Object.defineProperty;
+var __knownSymbol$6 = (name, symbol) => (symbol = Symbol[name]) ? symbol : Symbol.for("Symbol." + name);
+var __typeError$6 = (msg) => {
   throw TypeError(msg);
 };
-var __defNormalProp$5 = (obj, key, value) => key in obj ? __defProp$5(obj, key, { enumerable: true, configurable: true, writable: true, value }) : obj[key] = value;
-var __decoratorStart$5 = (base) => [, , , __create$5(base?.[__knownSymbol$5("metadata")] ?? null)];
-var __decoratorStrings$5 = ["class", "method", "getter", "setter", "accessor", "field", "value", "get", "set"];
-var __expectFn$5 = (fn) => fn !== void 0 && typeof fn !== "function" ? __typeError$5("Function expected") : fn;
-var __decoratorContext$5 = (kind, name, done, metadata, fns) => ({ kind: __decoratorStrings$5[kind], name, metadata, addInitializer: (fn) => done._ ? __typeError$5("Already initialized") : fns.push(__expectFn$5(fn || null)) });
-var __decoratorMetadata$5 = (array, target) => __defNormalProp$5(target, __knownSymbol$5("metadata"), array[3]);
-var __runInitializers$5 = (array, flags, self, value) => {
+var __defNormalProp$6 = (obj, key, value) => key in obj ? __defProp$6(obj, key, { enumerable: true, configurable: true, writable: true, value }) : obj[key] = value;
+var __decoratorStart$6 = (base) => [, , , __create$6(base?.[__knownSymbol$6("metadata")] ?? null)];
+var __decoratorStrings$6 = ["class", "method", "getter", "setter", "accessor", "field", "value", "get", "set"];
+var __expectFn$6 = (fn) => fn !== void 0 && typeof fn !== "function" ? __typeError$6("Function expected") : fn;
+var __decoratorContext$6 = (kind, name, done, metadata, fns) => ({ kind: __decoratorStrings$6[kind], name, metadata, addInitializer: (fn) => done._ ? __typeError$6("Already initialized") : fns.push(__expectFn$6(fn || null)) });
+var __decoratorMetadata$6 = (array, target) => __defNormalProp$6(target, __knownSymbol$6("metadata"), array[3]);
+var __runInitializers$6 = (array, flags, self, value) => {
   for (var i = 0, fns = array[flags >> 1], n = fns && fns.length; i < n; i++) flags & 1 ? fns[i].call(self) : value = fns[i].call(self, value);
   return value;
 };
-var __decorateElement$5 = (array, flags, name, decorators, target, extra) => {
+var __decorateElement$6 = (array, flags, name, decorators, target, extra) => {
   var it, done, ctx, access, k = flags & 7, s = false, p = false;
   var j = array.length + 1 ;
   var initializers = (array[j - 1] = []), extraInitializers = array[j] || (array[j] = []);
   ((target = target.prototype), k < 5);
   for (var i = decorators.length - 1; i >= 0; i--) {
-    ctx = __decoratorContext$5(k, name, done = {}, array[3], extraInitializers);
+    ctx = __decoratorContext$6(k, name, done = {}, array[3], extraInitializers);
     {
       ctx.static = s, ctx.private = p, access = ctx.access = { has: (x) => name in x };
       access.get = (x) => x[name];
       access.set = (x, y) => x[name] = y;
     }
     it = (0, decorators[i])(void 0  , ctx), done._ = 1;
-    __expectFn$5(it) && (initializers.unshift(it) );
+    __expectFn$6(it) && (initializers.unshift(it) );
   }
   return target;
 };
-var __publicField$5 = (obj, key, value) => __defNormalProp$5(obj, typeof key !== "symbol" ? key + "" : key, value);
-var _castShadows_dec, _intensity_dec, _color_dec, _a$4, _init$5, _range_dec, _angle_dec, _b$2, _init2$3, _range_dec2, _c, _init3$2, _direction_dec, _d, _init4;
+var __publicField$6 = (obj, key, value) => __defNormalProp$6(obj, typeof key !== "symbol" ? key + "" : key, value);
+var _castShadows_dec, _intensity_dec, _color_dec, _a$5, _init$6, _range_dec, _angle_dec, _b$2, _init2$4, _range_dec2, _c, _init3$2, _direction_dec, _d, _init4;
 class LightEvents {
   static Updated = (light) => {
   };
   static Destroyed = (light) => {
   };
 }
-class Light extends (_a$4 = Component, _color_dec = [SerializeField], _intensity_dec = [SerializeField], _castShadows_dec = [SerializeField], _a$4) {
+class Light extends (_a$5 = Component, _color_dec = [SerializeField], _intensity_dec = [SerializeField], _castShadows_dec = [SerializeField], _a$5) {
   constructor() {
     super(...arguments);
-    __publicField$5(this, "runInEditMode", true);
-    __publicField$5(this, "camera", new Camera(this.gameObject));
-    __publicField$5(this, "color", __runInitializers$5(_init$5, 8, this, new Color(1, 1, 1))), __runInitializers$5(_init$5, 11, this);
-    __publicField$5(this, "intensity", __runInitializers$5(_init$5, 12, this, 1)), __runInitializers$5(_init$5, 15, this);
-    __publicField$5(this, "castShadows", __runInitializers$5(_init$5, 16, this, true)), __runInitializers$5(_init$5, 19, this);
+    __publicField$6(this, "runInEditMode", true);
+    __publicField$6(this, "camera", new Camera(this.gameObject));
+    __publicField$6(this, "color", __runInitializers$6(_init$6, 8, this, new Color(1, 1, 1))), __runInitializers$6(_init$6, 11, this);
+    __publicField$6(this, "intensity", __runInitializers$6(_init$6, 12, this, 1)), __runInitializers$6(_init$6, 15, this);
+    __publicField$6(this, "castShadows", __runInitializers$6(_init$6, 16, this, true)), __runInitializers$6(_init$6, 19, this);
   }
   Start() {
     EventSystemLocal.on(TransformEvents.Updated, this.transform, () => {
@@ -4535,43 +4618,43 @@ class Light extends (_a$4 = Component, _color_dec = [SerializeField], _intensity
     EventSystem.emit(LightEvents.Destroyed, this);
   }
 }
-_init$5 = __decoratorStart$5(_a$4);
-__decorateElement$5(_init$5, 5, "color", _color_dec, Light);
-__decorateElement$5(_init$5, 5, "intensity", _intensity_dec, Light);
-__decorateElement$5(_init$5, 5, "castShadows", _castShadows_dec, Light);
-__decoratorMetadata$5(_init$5, Light);
-__publicField$5(Light, "type", "@trident/core/components/Light/Light");
+_init$6 = __decoratorStart$6(_a$5);
+__decorateElement$6(_init$6, 5, "color", _color_dec, Light);
+__decorateElement$6(_init$6, 5, "intensity", _intensity_dec, Light);
+__decorateElement$6(_init$6, 5, "castShadows", _castShadows_dec, Light);
+__decoratorMetadata$6(_init$6, Light);
+__publicField$6(Light, "type", "@trident/core/components/Light/Light");
 class SpotLight extends (_b$2 = Light, _angle_dec = [SerializeField], _range_dec = [SerializeField], _b$2) {
   constructor() {
     super(...arguments);
-    __publicField$5(this, "direction", new Vector3(0, -1, 0));
-    __publicField$5(this, "angle", __runInitializers$5(_init2$3, 8, this, 1)), __runInitializers$5(_init2$3, 11, this);
-    __publicField$5(this, "range", __runInitializers$5(_init2$3, 12, this, 10)), __runInitializers$5(_init2$3, 15, this);
+    __publicField$6(this, "direction", new Vector3(0, -1, 0));
+    __publicField$6(this, "angle", __runInitializers$6(_init2$4, 8, this, 1)), __runInitializers$6(_init2$4, 11, this);
+    __publicField$6(this, "range", __runInitializers$6(_init2$4, 12, this, 10)), __runInitializers$6(_init2$4, 15, this);
   }
   Start() {
     super.Start();
     this.camera.SetPerspective(this.angle / Math.PI * 180 * 2, Renderer.width / Renderer.height, 0.01, 1e3);
   }
 }
-_init2$3 = __decoratorStart$5(_b$2);
-__decorateElement$5(_init2$3, 5, "angle", _angle_dec, SpotLight);
-__decorateElement$5(_init2$3, 5, "range", _range_dec, SpotLight);
-__decoratorMetadata$5(_init2$3, SpotLight);
-__publicField$5(SpotLight, "type", "@trident/core/components/Light/SpotLight");
+_init2$4 = __decoratorStart$6(_b$2);
+__decorateElement$6(_init2$4, 5, "angle", _angle_dec, SpotLight);
+__decorateElement$6(_init2$4, 5, "range", _range_dec, SpotLight);
+__decoratorMetadata$6(_init2$4, SpotLight);
+__publicField$6(SpotLight, "type", "@trident/core/components/Light/SpotLight");
 class PointLight extends (_c = Light, _range_dec2 = [SerializeField(Number)], _c) {
   constructor() {
     super(...arguments);
-    __publicField$5(this, "range", __runInitializers$5(_init3$2, 8, this, 10)), __runInitializers$5(_init3$2, 11, this);
+    __publicField$6(this, "range", __runInitializers$6(_init3$2, 8, this, 10)), __runInitializers$6(_init3$2, 11, this);
   }
   Start() {
     super.Start();
     this.camera.SetPerspective(60, Renderer.width / Renderer.height, 0.01, 1e3);
   }
 }
-_init3$2 = __decoratorStart$5(_c);
-__decorateElement$5(_init3$2, 5, "range", _range_dec2, PointLight);
-__decoratorMetadata$5(_init3$2, PointLight);
-__publicField$5(PointLight, "type", "@trident/core/components/Light/PointLight");
+_init3$2 = __decoratorStart$6(_c);
+__decorateElement$6(_init3$2, 5, "range", _range_dec2, PointLight);
+__decoratorMetadata$6(_init3$2, PointLight);
+__publicField$6(PointLight, "type", "@trident/core/components/Light/PointLight");
 class AreaLight extends Light {
   static type = "@trident/core/components/Light/AreaLight";
   Start() {
@@ -4582,7 +4665,7 @@ class AreaLight extends Light {
 class DirectionalLight extends (_d = Light, _direction_dec = [SerializeField], _d) {
   constructor() {
     super(...arguments);
-    __publicField$5(this, "direction", __runInitializers$5(_init4, 8, this, new Vector3(0, 1, 0))), __runInitializers$5(_init4, 11, this);
+    __publicField$6(this, "direction", __runInitializers$6(_init4, 8, this, new Vector3(0, 1, 0))), __runInitializers$6(_init4, 11, this);
   }
   Start() {
     super.Start();
@@ -4590,10 +4673,10 @@ class DirectionalLight extends (_d = Light, _direction_dec = [SerializeField], _
     this.camera.SetOrthographic(-size, size, -size, size, 0.1, 100);
   }
 }
-_init4 = __decoratorStart$5(_d);
-__decorateElement$5(_init4, 5, "direction", _direction_dec, DirectionalLight);
-__decoratorMetadata$5(_init4, DirectionalLight);
-__publicField$5(DirectionalLight, "type", "@trident/core/components/Light/DirectionalLight");
+_init4 = __decoratorStart$6(_d);
+__decorateElement$6(_init4, 5, "direction", _direction_dec, DirectionalLight);
+__decoratorMetadata$6(_init4, DirectionalLight);
+__publicField$6(DirectionalLight, "type", "@trident/core/components/Light/DirectionalLight");
 Component.Registry.set(SpotLight.type, SpotLight);
 Component.Registry.set(PointLight.type, PointLight);
 Component.Registry.set(DirectionalLight.type, DirectionalLight);
@@ -5029,61 +5112,61 @@ class TextureViewer extends RenderPass {
   }
 }
 
-var __create$4 = Object.create;
-var __defProp$4 = Object.defineProperty;
-var __knownSymbol$4 = (name, symbol) => (symbol = Symbol[name]) ? symbol : Symbol.for("Symbol." + name);
-var __typeError$4 = (msg) => {
+var __create$5 = Object.create;
+var __defProp$5 = Object.defineProperty;
+var __knownSymbol$5 = (name, symbol) => (symbol = Symbol[name]) ? symbol : Symbol.for("Symbol." + name);
+var __typeError$5 = (msg) => {
   throw TypeError(msg);
 };
-var __defNormalProp$4 = (obj, key, value) => key in obj ? __defProp$4(obj, key, { enumerable: true, configurable: true, writable: true, value }) : obj[key] = value;
-var __decoratorStart$4 = (base) => [, , , __create$4(base?.[__knownSymbol$4("metadata")] ?? null)];
-var __decoratorStrings$4 = ["class", "method", "getter", "setter", "accessor", "field", "value", "get", "set"];
-var __expectFn$4 = (fn) => fn !== void 0 && typeof fn !== "function" ? __typeError$4("Function expected") : fn;
-var __decoratorContext$4 = (kind, name, done, metadata, fns) => ({ kind: __decoratorStrings$4[kind], name, metadata, addInitializer: (fn) => done._ ? __typeError$4("Already initialized") : fns.push(__expectFn$4(fn || null)) });
-var __decoratorMetadata$4 = (array, target) => __defNormalProp$4(target, __knownSymbol$4("metadata"), array[3]);
-var __runInitializers$4 = (array, flags, self, value) => {
+var __defNormalProp$5 = (obj, key, value) => key in obj ? __defProp$5(obj, key, { enumerable: true, configurable: true, writable: true, value }) : obj[key] = value;
+var __decoratorStart$5 = (base) => [, , , __create$5(base?.[__knownSymbol$5("metadata")] ?? null)];
+var __decoratorStrings$5 = ["class", "method", "getter", "setter", "accessor", "field", "value", "get", "set"];
+var __expectFn$5 = (fn) => fn !== void 0 && typeof fn !== "function" ? __typeError$5("Function expected") : fn;
+var __decoratorContext$5 = (kind, name, done, metadata, fns) => ({ kind: __decoratorStrings$5[kind], name, metadata, addInitializer: (fn) => done._ ? __typeError$5("Already initialized") : fns.push(__expectFn$5(fn || null)) });
+var __decoratorMetadata$5 = (array, target) => __defNormalProp$5(target, __knownSymbol$5("metadata"), array[3]);
+var __runInitializers$5 = (array, flags, self, value) => {
   for (var i = 0, fns = array[flags >> 1], n = fns && fns.length; i < n; i++) flags & 1 ? fns[i].call(self) : value = fns[i].call(self, value);
   return value;
 };
-var __decorateElement$4 = (array, flags, name, decorators, target, extra) => {
+var __decorateElement$5 = (array, flags, name, decorators, target, extra) => {
   var it, done, ctx, access, k = flags & 7, s = false, p = false;
   var j = array.length + 1 ;
   var initializers = (array[j - 1] = []), extraInitializers = array[j] || (array[j] = []);
   ((target = target.prototype), k < 5);
   for (var i = decorators.length - 1; i >= 0; i--) {
-    ctx = __decoratorContext$4(k, name, done = {}, array[3], extraInitializers);
+    ctx = __decoratorContext$5(k, name, done = {}, array[3], extraInitializers);
     {
       ctx.static = s, ctx.private = p, access = ctx.access = { has: (x) => name in x };
       access.get = (x) => x[name];
       access.set = (x, y) => x[name] = y;
     }
     it = (0, decorators[i])(void 0  , ctx), done._ = 1;
-    __expectFn$4(it) && (initializers.unshift(it) );
+    __expectFn$5(it) && (initializers.unshift(it) );
   }
   return target;
 };
-var __publicField$4 = (obj, key, value) => __defNormalProp$4(obj, typeof key !== "symbol" ? key + "" : key, value);
-var _isDeferred_dec, _init$4, _params_dec, _assetPath_dec$2, _init2$2, _isDeferred_dec2, _isSkinned_dec, _unlit_dec, _alphaCutoff_dec, _doubleSided_dec, _offset_dec, _repeat_dec, _emissiveMap_dec, _armMap_dec, _heightMap_dec, _normalMap_dec, _albedoMap_dec, _metalness_dec, _roughness_dec, _emissiveColor_dec, _albedoColor_dec, _a$3, _init3$1;
+var __publicField$5 = (obj, key, value) => __defNormalProp$5(obj, typeof key !== "symbol" ? key + "" : key, value);
+var _isDeferred_dec, _init$5, _params_dec, _assetPath_dec$3, _init2$3, _isDeferred_dec2, _isSkinned_dec, _unlit_dec, _alphaCutoff_dec, _doubleSided_dec, _offset_dec, _repeat_dec, _emissiveMap_dec, _armMap_dec, _heightMap_dec, _normalMap_dec, _albedoMap_dec, _metalness_dec, _roughness_dec, _emissiveColor_dec, _albedoColor_dec, _a$4, _init3$1;
 const MaterialPool = new Pool();
 _isDeferred_dec = [SerializeField];
 class MaterialParams {
   constructor() {
-    __publicField$4(this, "isDeferred", __runInitializers$4(_init$4, 8, this, false)), __runInitializers$4(_init$4, 11, this);
-    __publicField$4(this, "shader");
-    __publicField$4(this, "materialID");
+    __publicField$5(this, "isDeferred", __runInitializers$5(_init$5, 8, this, false)), __runInitializers$5(_init$5, 11, this);
+    __publicField$5(this, "shader");
+    __publicField$5(this, "materialID");
   }
 }
-_init$4 = __decoratorStart$4(null);
-__decorateElement$4(_init$4, 5, "isDeferred", _isDeferred_dec, MaterialParams);
-__decoratorMetadata$4(_init$4, MaterialParams);
-_assetPath_dec$2 = [SerializeField], _params_dec = [SerializeField];
+_init$5 = __decoratorStart$5(null);
+__decorateElement$5(_init$5, 5, "isDeferred", _isDeferred_dec, MaterialParams);
+__decoratorMetadata$5(_init$5, MaterialParams);
+_assetPath_dec$3 = [SerializeField], _params_dec = [SerializeField];
 const _Material = class _Material {
   constructor(params) {
-    __publicField$4(this, "id", UUID());
-    __publicField$4(this, "assetPath", __runInitializers$4(_init2$2, 8, this)), __runInitializers$4(_init2$2, 11, this);
-    __publicField$4(this, "_shader");
-    __publicField$4(this, "params", __runInitializers$4(_init2$2, 12, this)), __runInitializers$4(_init2$2, 15, this);
-    __publicField$4(this, "materialId");
+    __publicField$5(this, "id", UUID());
+    __publicField$5(this, "assetPath", __runInitializers$5(_init2$3, 8, this)), __runInitializers$5(_init2$3, 11, this);
+    __publicField$5(this, "_shader");
+    __publicField$5(this, "params", __runInitializers$5(_init2$3, 12, this)), __runInitializers$5(_init2$3, 15, this);
+    __publicField$5(this, "materialId");
     this.materialId = MaterialPool.add(this);
     const defaultParams = {
       isDeferred: false,
@@ -5119,32 +5202,32 @@ const _Material = class _Material {
     return new _Material(params);
   }
 };
-_init2$2 = __decoratorStart$4(null);
-__decorateElement$4(_init2$2, 5, "assetPath", _assetPath_dec$2, _Material);
-__decorateElement$4(_init2$2, 5, "params", _params_dec, _Material);
-__decoratorMetadata$4(_init2$2, _Material);
-__publicField$4(_Material, "type", "@trident/core/renderer/Material");
+_init2$3 = __decoratorStart$5(null);
+__decorateElement$5(_init2$3, 5, "assetPath", _assetPath_dec$3, _Material);
+__decorateElement$5(_init2$3, 5, "params", _params_dec, _Material);
+__decoratorMetadata$5(_init2$3, _Material);
+__publicField$5(_Material, "type", "@trident/core/renderer/Material");
 let Material = _Material;
-const _PBRMaterialParams = class _PBRMaterialParams extends (_a$3 = MaterialParams, _albedoColor_dec = [SerializeField], _emissiveColor_dec = [SerializeField], _roughness_dec = [SerializeField], _metalness_dec = [SerializeField], _albedoMap_dec = [SerializeField(Texture)], _normalMap_dec = [SerializeField(Texture)], _heightMap_dec = [SerializeField(Texture)], _armMap_dec = [SerializeField(Texture)], _emissiveMap_dec = [SerializeField(Texture)], _repeat_dec = [SerializeField], _offset_dec = [SerializeField], _doubleSided_dec = [SerializeField], _alphaCutoff_dec = [SerializeField], _unlit_dec = [SerializeField], _isSkinned_dec = [SerializeField], _isDeferred_dec2 = [SerializeField], _a$3) {
+const _PBRMaterialParams = class _PBRMaterialParams extends (_a$4 = MaterialParams, _albedoColor_dec = [SerializeField], _emissiveColor_dec = [SerializeField], _roughness_dec = [SerializeField], _metalness_dec = [SerializeField], _albedoMap_dec = [SerializeField(Texture)], _normalMap_dec = [SerializeField(Texture)], _heightMap_dec = [SerializeField(Texture)], _armMap_dec = [SerializeField(Texture)], _emissiveMap_dec = [SerializeField(Texture)], _repeat_dec = [SerializeField], _offset_dec = [SerializeField], _doubleSided_dec = [SerializeField], _alphaCutoff_dec = [SerializeField], _unlit_dec = [SerializeField], _isSkinned_dec = [SerializeField], _isDeferred_dec2 = [SerializeField], _a$4) {
   // 1x1 (255, roughness_default, 0) or just white
   constructor() {
     super();
-    __publicField$4(this, "albedoColor", __runInitializers$4(_init3$1, 8, this, new Color(1, 1, 1, 1))), __runInitializers$4(_init3$1, 11, this);
-    __publicField$4(this, "emissiveColor", __runInitializers$4(_init3$1, 12, this, new Color(0, 0, 0, 0))), __runInitializers$4(_init3$1, 15, this);
-    __publicField$4(this, "roughness", __runInitializers$4(_init3$1, 16, this, 0.5)), __runInitializers$4(_init3$1, 19, this);
-    __publicField$4(this, "metalness", __runInitializers$4(_init3$1, 20, this, 0)), __runInitializers$4(_init3$1, 23, this);
-    __publicField$4(this, "albedoMap", __runInitializers$4(_init3$1, 24, this)), __runInitializers$4(_init3$1, 27, this);
-    __publicField$4(this, "normalMap", __runInitializers$4(_init3$1, 28, this)), __runInitializers$4(_init3$1, 31, this);
-    __publicField$4(this, "heightMap", __runInitializers$4(_init3$1, 32, this)), __runInitializers$4(_init3$1, 35, this);
-    __publicField$4(this, "armMap", __runInitializers$4(_init3$1, 36, this)), __runInitializers$4(_init3$1, 39, this);
-    __publicField$4(this, "emissiveMap", __runInitializers$4(_init3$1, 40, this)), __runInitializers$4(_init3$1, 43, this);
-    __publicField$4(this, "repeat", __runInitializers$4(_init3$1, 44, this, new Vector2(1, 1))), __runInitializers$4(_init3$1, 47, this);
-    __publicField$4(this, "offset", __runInitializers$4(_init3$1, 48, this, new Vector2(0, 0))), __runInitializers$4(_init3$1, 51, this);
-    __publicField$4(this, "doubleSided", __runInitializers$4(_init3$1, 52, this, false)), __runInitializers$4(_init3$1, 55, this);
-    __publicField$4(this, "alphaCutoff", __runInitializers$4(_init3$1, 56, this, 0.5)), __runInitializers$4(_init3$1, 59, this);
-    __publicField$4(this, "unlit", __runInitializers$4(_init3$1, 60, this, false)), __runInitializers$4(_init3$1, 63, this);
-    __publicField$4(this, "isSkinned", __runInitializers$4(_init3$1, 64, this, false)), __runInitializers$4(_init3$1, 67, this);
-    __publicField$4(this, "isDeferred", __runInitializers$4(_init3$1, 68, this, true)), __runInitializers$4(_init3$1, 71, this);
+    __publicField$5(this, "albedoColor", __runInitializers$5(_init3$1, 8, this, new Color(1, 1, 1, 1))), __runInitializers$5(_init3$1, 11, this);
+    __publicField$5(this, "emissiveColor", __runInitializers$5(_init3$1, 12, this, new Color(0, 0, 0, 0))), __runInitializers$5(_init3$1, 15, this);
+    __publicField$5(this, "roughness", __runInitializers$5(_init3$1, 16, this, 0.5)), __runInitializers$5(_init3$1, 19, this);
+    __publicField$5(this, "metalness", __runInitializers$5(_init3$1, 20, this, 0)), __runInitializers$5(_init3$1, 23, this);
+    __publicField$5(this, "albedoMap", __runInitializers$5(_init3$1, 24, this)), __runInitializers$5(_init3$1, 27, this);
+    __publicField$5(this, "normalMap", __runInitializers$5(_init3$1, 28, this)), __runInitializers$5(_init3$1, 31, this);
+    __publicField$5(this, "heightMap", __runInitializers$5(_init3$1, 32, this)), __runInitializers$5(_init3$1, 35, this);
+    __publicField$5(this, "armMap", __runInitializers$5(_init3$1, 36, this)), __runInitializers$5(_init3$1, 39, this);
+    __publicField$5(this, "emissiveMap", __runInitializers$5(_init3$1, 40, this)), __runInitializers$5(_init3$1, 43, this);
+    __publicField$5(this, "repeat", __runInitializers$5(_init3$1, 44, this, new Vector2(1, 1))), __runInitializers$5(_init3$1, 47, this);
+    __publicField$5(this, "offset", __runInitializers$5(_init3$1, 48, this, new Vector2(0, 0))), __runInitializers$5(_init3$1, 51, this);
+    __publicField$5(this, "doubleSided", __runInitializers$5(_init3$1, 52, this, false)), __runInitializers$5(_init3$1, 55, this);
+    __publicField$5(this, "alphaCutoff", __runInitializers$5(_init3$1, 56, this, 0.5)), __runInitializers$5(_init3$1, 59, this);
+    __publicField$5(this, "unlit", __runInitializers$5(_init3$1, 60, this, false)), __runInitializers$5(_init3$1, 63, this);
+    __publicField$5(this, "isSkinned", __runInitializers$5(_init3$1, 64, this, false)), __runInitializers$5(_init3$1, 67, this);
+    __publicField$5(this, "isDeferred", __runInitializers$5(_init3$1, 68, this, true)), __runInitializers$5(_init3$1, 71, this);
     if (!_PBRMaterialParams.dummyAlbedo) _PBRMaterialParams.InitDummies();
     this.albedoMap = _PBRMaterialParams.dummyAlbedo;
     this.normalMap = _PBRMaterialParams.dummyNormal;
@@ -5165,33 +5248,33 @@ const _PBRMaterialParams = class _PBRMaterialParams extends (_a$3 = MaterialPara
     _PBRMaterialParams.dummyARM.SetData(new Uint8Array([255, 255, 255, 255]), 4);
   }
 };
-_init3$1 = __decoratorStart$4(_a$3);
-__decorateElement$4(_init3$1, 5, "albedoColor", _albedoColor_dec, _PBRMaterialParams);
-__decorateElement$4(_init3$1, 5, "emissiveColor", _emissiveColor_dec, _PBRMaterialParams);
-__decorateElement$4(_init3$1, 5, "roughness", _roughness_dec, _PBRMaterialParams);
-__decorateElement$4(_init3$1, 5, "metalness", _metalness_dec, _PBRMaterialParams);
-__decorateElement$4(_init3$1, 5, "albedoMap", _albedoMap_dec, _PBRMaterialParams);
-__decorateElement$4(_init3$1, 5, "normalMap", _normalMap_dec, _PBRMaterialParams);
-__decorateElement$4(_init3$1, 5, "heightMap", _heightMap_dec, _PBRMaterialParams);
-__decorateElement$4(_init3$1, 5, "armMap", _armMap_dec, _PBRMaterialParams);
-__decorateElement$4(_init3$1, 5, "emissiveMap", _emissiveMap_dec, _PBRMaterialParams);
-__decorateElement$4(_init3$1, 5, "repeat", _repeat_dec, _PBRMaterialParams);
-__decorateElement$4(_init3$1, 5, "offset", _offset_dec, _PBRMaterialParams);
-__decorateElement$4(_init3$1, 5, "doubleSided", _doubleSided_dec, _PBRMaterialParams);
-__decorateElement$4(_init3$1, 5, "alphaCutoff", _alphaCutoff_dec, _PBRMaterialParams);
-__decorateElement$4(_init3$1, 5, "unlit", _unlit_dec, _PBRMaterialParams);
-__decorateElement$4(_init3$1, 5, "isSkinned", _isSkinned_dec, _PBRMaterialParams);
-__decorateElement$4(_init3$1, 5, "isDeferred", _isDeferred_dec2, _PBRMaterialParams);
-__decoratorMetadata$4(_init3$1, _PBRMaterialParams);
-__publicField$4(_PBRMaterialParams, "dummyAlbedo");
+_init3$1 = __decoratorStart$5(_a$4);
+__decorateElement$5(_init3$1, 5, "albedoColor", _albedoColor_dec, _PBRMaterialParams);
+__decorateElement$5(_init3$1, 5, "emissiveColor", _emissiveColor_dec, _PBRMaterialParams);
+__decorateElement$5(_init3$1, 5, "roughness", _roughness_dec, _PBRMaterialParams);
+__decorateElement$5(_init3$1, 5, "metalness", _metalness_dec, _PBRMaterialParams);
+__decorateElement$5(_init3$1, 5, "albedoMap", _albedoMap_dec, _PBRMaterialParams);
+__decorateElement$5(_init3$1, 5, "normalMap", _normalMap_dec, _PBRMaterialParams);
+__decorateElement$5(_init3$1, 5, "heightMap", _heightMap_dec, _PBRMaterialParams);
+__decorateElement$5(_init3$1, 5, "armMap", _armMap_dec, _PBRMaterialParams);
+__decorateElement$5(_init3$1, 5, "emissiveMap", _emissiveMap_dec, _PBRMaterialParams);
+__decorateElement$5(_init3$1, 5, "repeat", _repeat_dec, _PBRMaterialParams);
+__decorateElement$5(_init3$1, 5, "offset", _offset_dec, _PBRMaterialParams);
+__decorateElement$5(_init3$1, 5, "doubleSided", _doubleSided_dec, _PBRMaterialParams);
+__decorateElement$5(_init3$1, 5, "alphaCutoff", _alphaCutoff_dec, _PBRMaterialParams);
+__decorateElement$5(_init3$1, 5, "unlit", _unlit_dec, _PBRMaterialParams);
+__decorateElement$5(_init3$1, 5, "isSkinned", _isSkinned_dec, _PBRMaterialParams);
+__decorateElement$5(_init3$1, 5, "isDeferred", _isDeferred_dec2, _PBRMaterialParams);
+__decoratorMetadata$5(_init3$1, _PBRMaterialParams);
+__publicField$5(_PBRMaterialParams, "dummyAlbedo");
 // 1x1 white
-__publicField$4(_PBRMaterialParams, "dummyNormal");
+__publicField$5(_PBRMaterialParams, "dummyNormal");
 // 1x1 flat (128, 128, 255)
-__publicField$4(_PBRMaterialParams, "dummyBlack");
+__publicField$5(_PBRMaterialParams, "dummyBlack");
 // 1x1 black (for height, emissive)
-__publicField$4(_PBRMaterialParams, "dummyWhite");
+__publicField$5(_PBRMaterialParams, "dummyWhite");
 // 1x1 black (for height, emissive)
-__publicField$4(_PBRMaterialParams, "dummyARM");
+__publicField$5(_PBRMaterialParams, "dummyARM");
 let PBRMaterialParams = _PBRMaterialParams;
 class PBRMaterial extends Material {
   static type = "@trident/core/renderer/Material/PBRMaterial";
@@ -5276,27 +5359,27 @@ class PBRMaterial extends Material {
   }
 }
 
-var __create$3 = Object.create;
-var __defProp$3 = Object.defineProperty;
+var __create$4 = Object.create;
+var __defProp$4 = Object.defineProperty;
 var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
-var __knownSymbol$3 = (name, symbol) => (symbol = Symbol[name]) ? symbol : Symbol.for("Symbol." + name);
-var __typeError$3 = (msg) => {
+var __knownSymbol$4 = (name, symbol) => (symbol = Symbol[name]) ? symbol : Symbol.for("Symbol." + name);
+var __typeError$4 = (msg) => {
   throw TypeError(msg);
 };
-var __defNormalProp$3 = (obj, key, value) => key in obj ? __defProp$3(obj, key, { enumerable: true, configurable: true, writable: true, value }) : obj[key] = value;
-var __name = (target, value) => __defProp$3(target, "name", { value, configurable: true });
-var __decoratorStart$3 = (base) => [, , , __create$3(base?.[__knownSymbol$3("metadata")] ?? null)];
-var __decoratorStrings$3 = ["class", "method", "getter", "setter", "accessor", "field", "value", "get", "set"];
-var __expectFn$3 = (fn) => fn !== void 0 && typeof fn !== "function" ? __typeError$3("Function expected") : fn;
-var __decoratorContext$3 = (kind, name, done, metadata, fns) => ({ kind: __decoratorStrings$3[kind], name, metadata, addInitializer: (fn) => done._ ? __typeError$3("Already initialized") : fns.push(__expectFn$3(fn || null)) });
-var __decoratorMetadata$3 = (array, target) => __defNormalProp$3(target, __knownSymbol$3("metadata"), array[3]);
-var __runInitializers$3 = (array, flags, self, value) => {
+var __defNormalProp$4 = (obj, key, value) => key in obj ? __defProp$4(obj, key, { enumerable: true, configurable: true, writable: true, value }) : obj[key] = value;
+var __name = (target, value) => __defProp$4(target, "name", { value, configurable: true });
+var __decoratorStart$4 = (base) => [, , , __create$4(base?.[__knownSymbol$4("metadata")] ?? null)];
+var __decoratorStrings$4 = ["class", "method", "getter", "setter", "accessor", "field", "value", "get", "set"];
+var __expectFn$4 = (fn) => fn !== void 0 && typeof fn !== "function" ? __typeError$4("Function expected") : fn;
+var __decoratorContext$4 = (kind, name, done, metadata, fns) => ({ kind: __decoratorStrings$4[kind], name, metadata, addInitializer: (fn) => done._ ? __typeError$4("Already initialized") : fns.push(__expectFn$4(fn || null)) });
+var __decoratorMetadata$4 = (array, target) => __defNormalProp$4(target, __knownSymbol$4("metadata"), array[3]);
+var __runInitializers$4 = (array, flags, self, value) => {
   for (var i = 0, fns = array[flags >> 1], n = fns && fns.length; i < n; i++) flags & 1 ? fns[i].call(self) : value = fns[i].call(self, value);
   return value;
 };
-var __decorateElement$3 = (array, flags, name, decorators, target, extra) => {
+var __decorateElement$4 = (array, flags, name, decorators, target, extra) => {
   var fn, it, done, ctx, access, k = flags & 7, s = !!(flags & 8), p = !!(flags & 16);
-  var j = k > 3 ? array.length + 1 : k ? s ? 1 : 2 : 0, key = __decoratorStrings$3[k + 5];
+  var j = k > 3 ? array.length + 1 : k ? s ? 1 : 2 : 0, key = __decoratorStrings$4[k + 5];
   var initializers = k > 3 && (array[j - 1] = []), extraInitializers = array[j] || (array[j] = []);
   var desc = k && (!p && !s && (target = target.prototype), k < 5 && (k > 3 || !p) && __getOwnPropDesc(k < 4 ? target : { get [name]() {
     return __privateGet(this, extra);
@@ -5305,40 +5388,40 @@ var __decorateElement$3 = (array, flags, name, decorators, target, extra) => {
   } }, name));
   k ? p && k < 4 && __name(extra, (k > 2 ? "set " : k > 1 ? "get " : "") + name) : __name(target, name);
   for (var i = decorators.length - 1; i >= 0; i--) {
-    ctx = __decoratorContext$3(k, name, done = {}, array[3], extraInitializers);
+    ctx = __decoratorContext$4(k, name, done = {}, array[3], extraInitializers);
     if (k) {
       ctx.static = s, ctx.private = p, access = ctx.access = { has: p ? (x) => __privateIn(target, x) : (x) => name in x };
       if (k ^ 3) access.get = p ? (x) => (k ^ 1 ? __privateGet : __privateMethod)(x, target, k ^ 4 ? extra : desc.get) : (x) => x[name];
       if (k > 2) access.set = p ? (x, y) => __privateSet(x, target, y, k ^ 4 ? extra : desc.set) : (x, y) => x[name] = y;
     }
     it = (0, decorators[i])(k ? k < 4 ? p ? extra : desc[key] : k > 4 ? void 0 : { get: desc.get, set: desc.set } : target, ctx), done._ = 1;
-    if (k ^ 4 || it === void 0) __expectFn$3(it) && (k > 4 ? initializers.unshift(it) : k ? p ? extra = it : desc[key] = it : target = it);
-    else if (typeof it !== "object" || it === null) __typeError$3("Object expected");
-    else __expectFn$3(fn = it.get) && (desc.get = fn), __expectFn$3(fn = it.set) && (desc.set = fn), __expectFn$3(fn = it.init) && initializers.unshift(fn);
+    if (k ^ 4 || it === void 0) __expectFn$4(it) && (k > 4 ? initializers.unshift(it) : k ? p ? extra = it : desc[key] = it : target = it);
+    else if (typeof it !== "object" || it === null) __typeError$4("Object expected");
+    else __expectFn$4(fn = it.get) && (desc.get = fn), __expectFn$4(fn = it.set) && (desc.set = fn), __expectFn$4(fn = it.init) && initializers.unshift(fn);
   }
-  return k || __decoratorMetadata$3(array, target), desc && __defProp$3(target, name, desc), p ? k ^ 4 ? extra : desc : target;
+  return k || __decoratorMetadata$4(array, target), desc && __defProp$4(target, name, desc), p ? k ^ 4 ? extra : desc : target;
 };
-var __publicField$3 = (obj, key, value) => __defNormalProp$3(obj, typeof key !== "symbol" ? key + "" : key, value);
-var __accessCheck = (obj, member, msg) => member.has(obj) || __typeError$3("Cannot " + msg);
-var __privateIn = (member, obj) => Object(obj) !== obj ? __typeError$3('Cannot use the "in" operator on this value') : member.has(obj);
+var __publicField$4 = (obj, key, value) => __defNormalProp$4(obj, typeof key !== "symbol" ? key + "" : key, value);
+var __accessCheck = (obj, member, msg) => member.has(obj) || __typeError$4("Cannot " + msg);
+var __privateIn = (member, obj) => Object(obj) !== obj ? __typeError$4('Cannot use the "in" operator on this value') : member.has(obj);
 var __privateGet = (obj, member, getter) => (__accessCheck(obj, member, "read from private field"), getter ? getter.call(obj) : member.get(obj));
 var __privateSet = (obj, member, value, setter) => (__accessCheck(obj, member, "write to private field"), setter ? setter.call(obj, value) : member.set(obj, value), value);
 var __privateMethod = (obj, member, method) => (__accessCheck(obj, member, "access private method"), method);
-var _material_dec, _geometry_dec, _enableShadows_dec, _a$2, _init$3;
+var _material_dec, _geometry_dec, _enableShadows_dec, _a$3, _init$4;
 class RenderableEvents {
   static MaterialUpdated = (gameObject, material) => {
   };
   static GeometryUpdated = (gameObject, geometry) => {
   };
 }
-const _Renderable = class _Renderable extends (_a$2 = Component, _enableShadows_dec = [SerializeField], _geometry_dec = [SerializeField(Geometry)], _material_dec = [SerializeField(Material)], _a$2) {
+const _Renderable = class _Renderable extends (_a$3 = Component, _enableShadows_dec = [SerializeField], _geometry_dec = [SerializeField(Geometry)], _material_dec = [SerializeField(Material)], _a$3) {
   constructor() {
     super(...arguments);
-    __runInitializers$3(_init$3, 5, this);
-    __publicField$3(this, "runInEditMode", true);
-    __publicField$3(this, "enableShadows", __runInitializers$3(_init$3, 8, this, true)), __runInitializers$3(_init$3, 11, this);
-    __publicField$3(this, "_geometry", new Geometry());
-    __publicField$3(this, "_material", new PBRMaterial());
+    __runInitializers$4(_init$4, 5, this);
+    __publicField$4(this, "runInEditMode", true);
+    __publicField$4(this, "enableShadows", __runInitializers$4(_init$4, 8, this, true)), __runInitializers$4(_init$4, 11, this);
+    __publicField$4(this, "_geometry", new Geometry());
+    __publicField$4(this, "_material", new PBRMaterial());
   }
   get geometry() {
     return this._geometry;
@@ -5376,13 +5459,13 @@ const _Renderable = class _Renderable extends (_a$2 = Component, _enableShadows_
     _Renderable.Renderables.delete(this.id);
   }
 };
-_init$3 = __decoratorStart$3(_a$2);
-__decorateElement$3(_init$3, 2, "geometry", _geometry_dec, _Renderable);
-__decorateElement$3(_init$3, 2, "material", _material_dec, _Renderable);
-__decorateElement$3(_init$3, 5, "enableShadows", _enableShadows_dec, _Renderable);
-__decoratorMetadata$3(_init$3, _Renderable);
-__publicField$3(_Renderable, "Renderables", /* @__PURE__ */ new Map());
-__publicField$3(_Renderable, "type", "@trident/core/components/Renderable");
+_init$4 = __decoratorStart$4(_a$3);
+__decorateElement$4(_init$4, 2, "geometry", _geometry_dec, _Renderable);
+__decorateElement$4(_init$4, 2, "material", _material_dec, _Renderable);
+__decorateElement$4(_init$4, 5, "enableShadows", _enableShadows_dec, _Renderable);
+__decoratorMetadata$4(_init$4, _Renderable);
+__publicField$4(_Renderable, "Renderables", /* @__PURE__ */ new Map());
+__publicField$4(_Renderable, "type", "@trident/core/components/Renderable");
 let Renderable = _Renderable;
 
 class Mesh extends Renderable {
@@ -5416,65 +5499,65 @@ class Mesh extends Renderable {
 }
 Component.Registry.set(Mesh.type, Mesh);
 
-var __create$2 = Object.create;
-var __defProp$2 = Object.defineProperty;
-var __knownSymbol$2 = (name, symbol) => (symbol = Symbol[name]) ? symbol : Symbol.for("Symbol." + name);
-var __typeError$2 = (msg) => {
+var __create$3 = Object.create;
+var __defProp$3 = Object.defineProperty;
+var __knownSymbol$3 = (name, symbol) => (symbol = Symbol[name]) ? symbol : Symbol.for("Symbol." + name);
+var __typeError$3 = (msg) => {
   throw TypeError(msg);
 };
-var __defNormalProp$2 = (obj, key, value) => key in obj ? __defProp$2(obj, key, { enumerable: true, configurable: true, writable: true, value }) : obj[key] = value;
-var __decoratorStart$2 = (base) => [, , , __create$2(base?.[__knownSymbol$2("metadata")] ?? null)];
-var __decoratorStrings$2 = ["class", "method", "getter", "setter", "accessor", "field", "value", "get", "set"];
-var __expectFn$2 = (fn) => fn !== void 0 && typeof fn !== "function" ? __typeError$2("Function expected") : fn;
-var __decoratorContext$2 = (kind, name, done, metadata, fns) => ({ kind: __decoratorStrings$2[kind], name, metadata, addInitializer: (fn) => done._ ? __typeError$2("Already initialized") : fns.push(__expectFn$2(fn || null)) });
-var __decoratorMetadata$2 = (array, target) => __defNormalProp$2(target, __knownSymbol$2("metadata"), array[3]);
-var __runInitializers$2 = (array, flags, self, value) => {
+var __defNormalProp$3 = (obj, key, value) => key in obj ? __defProp$3(obj, key, { enumerable: true, configurable: true, writable: true, value }) : obj[key] = value;
+var __decoratorStart$3 = (base) => [, , , __create$3(base?.[__knownSymbol$3("metadata")] ?? null)];
+var __decoratorStrings$3 = ["class", "method", "getter", "setter", "accessor", "field", "value", "get", "set"];
+var __expectFn$3 = (fn) => fn !== void 0 && typeof fn !== "function" ? __typeError$3("Function expected") : fn;
+var __decoratorContext$3 = (kind, name, done, metadata, fns) => ({ kind: __decoratorStrings$3[kind], name, metadata, addInitializer: (fn) => done._ ? __typeError$3("Already initialized") : fns.push(__expectFn$3(fn || null)) });
+var __decoratorMetadata$3 = (array, target) => __defNormalProp$3(target, __knownSymbol$3("metadata"), array[3]);
+var __runInitializers$3 = (array, flags, self, value) => {
   for (var i = 0, fns = array[flags >> 1], n = fns && fns.length; i < n; i++) flags & 1 ? fns[i].call(self) : value = fns[i].call(self, value);
   return value;
 };
-var __decorateElement$2 = (array, flags, name, decorators, target, extra) => {
+var __decorateElement$3 = (array, flags, name, decorators, target, extra) => {
   var it, done, ctx, access, k = flags & 7, s = false, p = false;
   var j = array.length + 1 ;
   var initializers = (array[j - 1] = []), extraInitializers = array[j] || (array[j] = []);
   ((target = target.prototype), k < 5);
   for (var i = decorators.length - 1; i >= 0; i--) {
-    ctx = __decoratorContext$2(k, name, done = {}, array[3], extraInitializers);
+    ctx = __decoratorContext$3(k, name, done = {}, array[3], extraInitializers);
     {
       ctx.static = s, ctx.private = p, access = ctx.access = { has: (x) => name in x };
       access.get = (x) => x[name];
       access.set = (x, y) => x[name] = y;
     }
     it = (0, decorators[i])(void 0  , ctx), done._ = 1;
-    __expectFn$2(it) && (initializers.unshift(it) );
+    __expectFn$3(it) && (initializers.unshift(it) );
   }
   return target;
 };
-var __publicField$2 = (obj, key, value) => __defNormalProp$2(obj, typeof key !== "symbol" ? key + "" : key, value);
-var _inverseBindMatrices_dec, _bones_dec, _a$1, _init$2, _skeletonRoot_dec, _b$1, _init2$1;
-class Skeleton extends (_a$1 = Component, _bones_dec = [SerializeField], _inverseBindMatrices_dec = [SerializeField], _a$1) {
+var __publicField$3 = (obj, key, value) => __defNormalProp$3(obj, typeof key !== "symbol" ? key + "" : key, value);
+var _inverseBindMatrices_dec, _bones_dec, _a$2, _init$3, _skeletonRoot_dec, _b$1, _init2$2;
+class Skeleton extends (_a$2 = Component, _bones_dec = [SerializeField], _inverseBindMatrices_dec = [SerializeField], _a$2) {
   constructor() {
     super(...arguments);
-    __publicField$2(this, "bones", __runInitializers$2(_init$2, 8, this, [])), __runInitializers$2(_init$2, 11, this);
-    __publicField$2(this, "inverseBindMatrices", __runInitializers$2(_init$2, 12, this, new Float32Array(0))), __runInitializers$2(_init$2, 15, this);
+    __publicField$3(this, "bones", __runInitializers$3(_init$3, 8, this, [])), __runInitializers$3(_init$3, 11, this);
+    __publicField$3(this, "inverseBindMatrices", __runInitializers$3(_init$3, 12, this, new Float32Array(0))), __runInitializers$3(_init$3, 15, this);
   }
 }
-_init$2 = __decoratorStart$2(_a$1);
-__decorateElement$2(_init$2, 5, "bones", _bones_dec, Skeleton);
-__decorateElement$2(_init$2, 5, "inverseBindMatrices", _inverseBindMatrices_dec, Skeleton);
-__decoratorMetadata$2(_init$2, Skeleton);
-__publicField$2(Skeleton, "type", "@trident/core/components/Skeleton");
+_init$3 = __decoratorStart$3(_a$2);
+__decorateElement$3(_init$3, 5, "bones", _bones_dec, Skeleton);
+__decorateElement$3(_init$3, 5, "inverseBindMatrices", _inverseBindMatrices_dec, Skeleton);
+__decoratorMetadata$3(_init$3, Skeleton);
+__publicField$3(Skeleton, "type", "@trident/core/components/Skeleton");
 Component.Registry.set(Skeleton.type, Skeleton);
 class SkinnedMesh extends (_b$1 = Renderable, _skeletonRoot_dec = [SerializeField], _b$1) {
   constructor(gameObject) {
     super(gameObject);
-    __publicField$2(this, "skeletonRoot", __runInitializers$2(_init2$1, 8, this)), __runInitializers$2(_init2$1, 11, this);
-    __publicField$2(this, "boneMatricesBuffer");
-    __publicField$2(this, "jointData", new Float32Array(0));
-    __publicField$2(this, "modelMatrixOffset", -1);
-    __publicField$2(this, "_cachedSkeleton", null);
-    __publicField$2(this, "_cachedSkeletonRoot", null);
-    __publicField$2(this, "_tmpMatrix", new Matrix4());
-    __publicField$2(this, "_tmpIBM", new Matrix4());
+    __publicField$3(this, "skeletonRoot", __runInitializers$3(_init2$2, 8, this)), __runInitializers$3(_init2$2, 11, this);
+    __publicField$3(this, "boneMatricesBuffer");
+    __publicField$3(this, "jointData", new Float32Array(0));
+    __publicField$3(this, "modelMatrixOffset", -1);
+    __publicField$3(this, "_cachedSkeleton", null);
+    __publicField$3(this, "_cachedSkeletonRoot", null);
+    __publicField$3(this, "_tmpMatrix", new Matrix4());
+    __publicField$3(this, "_tmpIBM", new Matrix4());
     if (!Mesh.modelMatrices) {
       Mesh.modelMatrices = new DynamicBufferMemoryAllocatorDynamic(256 * 10, BufferType.STORAGE, 256 * 10);
     }
@@ -5538,10 +5621,10 @@ class SkinnedMesh extends (_b$1 = Renderable, _skeletonRoot_dec = [SerializeFiel
     if (Mesh.modelMatrices?.has(this.id)) Mesh.modelMatrices.delete(this.id);
   }
 }
-_init2$1 = __decoratorStart$2(_b$1);
-__decorateElement$2(_init2$1, 5, "skeletonRoot", _skeletonRoot_dec, SkinnedMesh);
-__decoratorMetadata$2(_init2$1, SkinnedMesh);
-__publicField$2(SkinnedMesh, "type", "@trident/core/components/SkinnedMesh");
+_init2$2 = __decoratorStart$3(_b$1);
+__decorateElement$3(_init2$2, 5, "skeletonRoot", _skeletonRoot_dec, SkinnedMesh);
+__decoratorMetadata$3(_init2$2, SkinnedMesh);
+__publicField$3(SkinnedMesh, "type", "@trident/core/components/SkinnedMesh");
 Component.Registry.set(SkinnedMesh.type, SkinnedMesh);
 
 class ConsoleVar {
@@ -7056,6 +7139,7 @@ class Runtime {
   static _Input;
   static _SceneManager;
   static _Renderer;
+  static _AudioManager;
   static _systems = /* @__PURE__ */ new Map();
   static get Input() {
     return Runtime._Input;
@@ -7066,16 +7150,21 @@ class Runtime {
   static get Renderer() {
     return Runtime._Renderer;
   }
+  static get AudioManager() {
+    return Runtime._AudioManager;
+  }
   static get systems() {
     return Runtime._systems;
   }
-  static async Create(canvas, aspectRatio = 1) {
+  static async Create(canvas) {
     Runtime._Input = new Input();
     Runtime._SceneManager = new SceneManager();
-    Runtime._Renderer = new Renderer(canvas, aspectRatio);
+    Runtime._Renderer = new Renderer(canvas);
+    Runtime._AudioManager = new AudioManager();
     await Runtime._SceneManager.Start();
     await Runtime._Renderer.Start();
     await Runtime._Input.Start();
+    await Runtime._AudioManager.Start();
     return this;
   }
   static async AddSystem(ctor, ...args) {
@@ -7251,57 +7340,57 @@ class InstancedMesh extends Renderable {
   }
 }
 
-var __create$1 = Object.create;
-var __defProp$1 = Object.defineProperty;
-var __knownSymbol$1 = (name, symbol) => (symbol = Symbol[name]) ? symbol : Symbol.for("Symbol." + name);
-var __typeError$1 = (msg) => {
+var __create$2 = Object.create;
+var __defProp$2 = Object.defineProperty;
+var __knownSymbol$2 = (name, symbol) => (symbol = Symbol[name]) ? symbol : Symbol.for("Symbol." + name);
+var __typeError$2 = (msg) => {
   throw TypeError(msg);
 };
-var __defNormalProp$1 = (obj, key, value) => key in obj ? __defProp$1(obj, key, { enumerable: true, configurable: true, writable: true, value }) : obj[key] = value;
-var __decoratorStart$1 = (base) => [, , , __create$1(base?.[__knownSymbol$1("metadata")] ?? null)];
-var __decoratorStrings$1 = ["class", "method", "getter", "setter", "accessor", "field", "value", "get", "set"];
-var __expectFn$1 = (fn) => fn !== void 0 && typeof fn !== "function" ? __typeError$1("Function expected") : fn;
-var __decoratorContext$1 = (kind, name, done, metadata, fns) => ({ kind: __decoratorStrings$1[kind], name, metadata, addInitializer: (fn) => done._ ? __typeError$1("Already initialized") : fns.push(__expectFn$1(fn || null)) });
-var __decoratorMetadata$1 = (array, target) => __defNormalProp$1(target, __knownSymbol$1("metadata"), array[3]);
-var __runInitializers$1 = (array, flags, self, value) => {
+var __defNormalProp$2 = (obj, key, value) => key in obj ? __defProp$2(obj, key, { enumerable: true, configurable: true, writable: true, value }) : obj[key] = value;
+var __decoratorStart$2 = (base) => [, , , __create$2(base?.[__knownSymbol$2("metadata")] ?? null)];
+var __decoratorStrings$2 = ["class", "method", "getter", "setter", "accessor", "field", "value", "get", "set"];
+var __expectFn$2 = (fn) => fn !== void 0 && typeof fn !== "function" ? __typeError$2("Function expected") : fn;
+var __decoratorContext$2 = (kind, name, done, metadata, fns) => ({ kind: __decoratorStrings$2[kind], name, metadata, addInitializer: (fn) => done._ ? __typeError$2("Already initialized") : fns.push(__expectFn$2(fn || null)) });
+var __decoratorMetadata$2 = (array, target) => __defNormalProp$2(target, __knownSymbol$2("metadata"), array[3]);
+var __runInitializers$2 = (array, flags, self, value) => {
   for (var i = 0, fns = array[flags >> 1], n = fns && fns.length; i < n; i++) flags & 1 ? fns[i].call(self) : value = fns[i].call(self, value);
   return value;
 };
-var __decorateElement$1 = (array, flags, name, decorators, target, extra) => {
+var __decorateElement$2 = (array, flags, name, decorators, target, extra) => {
   var it, done, ctx, access, k = flags & 7, s = false, p = false;
   var j = array.length + 1 ;
   var initializers = (array[j - 1] = []), extraInitializers = array[j] || (array[j] = []);
   ((target = target.prototype), k < 5);
   for (var i = decorators.length - 1; i >= 0; i--) {
-    ctx = __decoratorContext$1(k, name, done = {}, array[3], extraInitializers);
+    ctx = __decoratorContext$2(k, name, done = {}, array[3], extraInitializers);
     {
       ctx.static = s, ctx.private = p, access = ctx.access = { has: (x) => name in x };
       access.get = (x) => x[name];
       access.set = (x, y) => x[name] = y;
     }
     it = (0, decorators[i])(void 0  , ctx), done._ = 1;
-    __expectFn$1(it) && (initializers.unshift(it) );
+    __expectFn$2(it) && (initializers.unshift(it) );
   }
   return target;
 };
-var __publicField$1 = (obj, key, value) => __defNormalProp$1(obj, typeof key !== "symbol" ? key + "" : key, value);
-var _trackName_dec, _a, _init$1, _tracksData_dec, _clips_dec, _assetPath_dec$1, _init2, _animation_dec, _b, _init3;
-class AnimationTrack extends (_a = Component, _trackName_dec = [SerializeField], _a) {
+var __publicField$2 = (obj, key, value) => __defNormalProp$2(obj, typeof key !== "symbol" ? key + "" : key, value);
+var _trackName_dec, _a$1, _init$2, _tracksData_dec, _clips_dec, _assetPath_dec$2, _init2$1, _animation_dec, _b, _init3;
+class AnimationTrack extends (_a$1 = Component, _trackName_dec = [SerializeField], _a$1) {
   constructor() {
     super(...arguments);
-    __publicField$1(this, "trackName", __runInitializers$1(_init$1, 8, this, "")), __runInitializers$1(_init$1, 11, this);
-    __publicField$1(this, "_clips", []);
-    __publicField$1(this, "_clipsByIndex", null);
-    __publicField$1(this, "_v0", new Vector3());
-    __publicField$1(this, "_v1", new Vector3());
-    __publicField$1(this, "_q0", new Quaternion());
-    __publicField$1(this, "_q1", new Quaternion());
-    __publicField$1(this, "_sampleQ0", new Quaternion());
-    __publicField$1(this, "_sampleQ1", new Quaternion());
-    __publicField$1(this, "_bindPos", new Vector3());
-    __publicField$1(this, "_bindRot", new Quaternion());
-    __publicField$1(this, "_bindScl", new Vector3(1, 1, 1));
-    __publicField$1(this, "_bindCaptured", false);
+    __publicField$2(this, "trackName", __runInitializers$2(_init$2, 8, this, "")), __runInitializers$2(_init$2, 11, this);
+    __publicField$2(this, "_clips", []);
+    __publicField$2(this, "_clipsByIndex", null);
+    __publicField$2(this, "_v0", new Vector3());
+    __publicField$2(this, "_v1", new Vector3());
+    __publicField$2(this, "_q0", new Quaternion());
+    __publicField$2(this, "_q1", new Quaternion());
+    __publicField$2(this, "_sampleQ0", new Quaternion());
+    __publicField$2(this, "_sampleQ1", new Quaternion());
+    __publicField$2(this, "_bindPos", new Vector3());
+    __publicField$2(this, "_bindRot", new Quaternion());
+    __publicField$2(this, "_bindScl", new Vector3(1, 1, 1));
+    __publicField$2(this, "_bindCaptured", false);
   }
   get clips() {
     return this._clips;
@@ -7412,43 +7501,43 @@ class AnimationTrack extends (_a = Component, _trackName_dec = [SerializeField],
     tr.scale.copy(this._v0.lerp(this._v1, alpha));
   }
 }
-_init$1 = __decoratorStart$1(_a);
-__decorateElement$1(_init$1, 5, "trackName", _trackName_dec, AnimationTrack);
-__decoratorMetadata$1(_init$1, AnimationTrack);
-__publicField$1(AnimationTrack, "type", "@trident/core/components/AnimationTrack");
+_init$2 = __decoratorStart$2(_a$1);
+__decorateElement$2(_init$2, 5, "trackName", _trackName_dec, AnimationTrack);
+__decoratorMetadata$2(_init$2, AnimationTrack);
+__publicField$2(AnimationTrack, "type", "@trident/core/components/AnimationTrack");
 Component.Registry.set(AnimationTrack.type, AnimationTrack);
-_assetPath_dec$1 = [SerializeField], _clips_dec = [SerializeField], _tracksData_dec = [SerializeField];
+_assetPath_dec$2 = [SerializeField], _clips_dec = [SerializeField], _tracksData_dec = [SerializeField];
 class AnimationData {
   constructor() {
-    __publicField$1(this, "assetPath", __runInitializers$1(_init2, 8, this)), __runInitializers$1(_init2, 11, this);
-    __publicField$1(this, "clips", __runInitializers$1(_init2, 12, this, [])), __runInitializers$1(_init2, 15, this);
-    __publicField$1(this, "tracksData", __runInitializers$1(_init2, 16, this, {})), __runInitializers$1(_init2, 19, this);
+    __publicField$2(this, "assetPath", __runInitializers$2(_init2$1, 8, this)), __runInitializers$2(_init2$1, 11, this);
+    __publicField$2(this, "clips", __runInitializers$2(_init2$1, 12, this, [])), __runInitializers$2(_init2$1, 15, this);
+    __publicField$2(this, "tracksData", __runInitializers$2(_init2$1, 16, this, {})), __runInitializers$2(_init2$1, 19, this);
   }
 }
-_init2 = __decoratorStart$1(null);
-__decorateElement$1(_init2, 5, "assetPath", _assetPath_dec$1, AnimationData);
-__decorateElement$1(_init2, 5, "clips", _clips_dec, AnimationData);
-__decorateElement$1(_init2, 5, "tracksData", _tracksData_dec, AnimationData);
-__decoratorMetadata$1(_init2, AnimationData);
-__publicField$1(AnimationData, "type", "@trident/core/AnimationData");
+_init2$1 = __decoratorStart$2(null);
+__decorateElement$2(_init2$1, 5, "assetPath", _assetPath_dec$2, AnimationData);
+__decorateElement$2(_init2$1, 5, "clips", _clips_dec, AnimationData);
+__decorateElement$2(_init2$1, 5, "tracksData", _tracksData_dec, AnimationData);
+__decoratorMetadata$2(_init2$1, AnimationData);
+__publicField$2(AnimationData, "type", "@trident/core/AnimationData");
 class Animator extends (_b = Component, _animation_dec = [SerializeField(AnimationData)], _b) {
   constructor() {
     super(...arguments);
-    __publicField$1(this, "animation", __runInitializers$1(_init3, 8, this, new AnimationData())), __runInitializers$1(_init3, 11, this);
-    __publicField$1(this, "clipIndex", 0);
-    __publicField$1(this, "playing", false);
-    __publicField$1(this, "previousTime", 0);
-    __publicField$1(this, "tracks", []);
-    __publicField$1(this, "bound", false);
-    __publicField$1(this, "currentTime", 0);
-    __publicField$1(this, "nextTime", 0);
-    __publicField$1(this, "fadeDuration", 0);
-    __publicField$1(this, "fadeTime", 0);
-    __publicField$1(this, "nextClipIndex", null);
-    __publicField$1(this, "speed", 1);
-    __publicField$1(this, "nextSpeed", 1);
-    __publicField$1(this, "currentClipStartTime", 0);
-    __publicField$1(this, "nextClipStartTime", 0);
+    __publicField$2(this, "animation", __runInitializers$2(_init3, 8, this, new AnimationData())), __runInitializers$2(_init3, 11, this);
+    __publicField$2(this, "clipIndex", 0);
+    __publicField$2(this, "playing", false);
+    __publicField$2(this, "previousTime", 0);
+    __publicField$2(this, "tracks", []);
+    __publicField$2(this, "bound", false);
+    __publicField$2(this, "currentTime", 0);
+    __publicField$2(this, "nextTime", 0);
+    __publicField$2(this, "fadeDuration", 0);
+    __publicField$2(this, "fadeTime", 0);
+    __publicField$2(this, "nextClipIndex", null);
+    __publicField$2(this, "speed", 1);
+    __publicField$2(this, "nextSpeed", 1);
+    __publicField$2(this, "currentClipStartTime", 0);
+    __publicField$2(this, "nextClipStartTime", 0);
   }
   get assetPath() {
     return this.animation.assetPath;
@@ -7564,17 +7653,165 @@ class Animator extends (_b = Component, _animation_dec = [SerializeField(Animati
     return this.animation.clips.findIndex((c) => c.name === name);
   }
 }
-_init3 = __decoratorStart$1(_b);
-__decorateElement$1(_init3, 5, "animation", _animation_dec, Animator);
-__decoratorMetadata$1(_init3, Animator);
-__publicField$1(Animator, "type", "@trident/core/components/Animator");
+_init3 = __decoratorStart$2(_b);
+__decorateElement$2(_init3, 5, "animation", _animation_dec, Animator);
+__decoratorMetadata$2(_init3, Animator);
+__publicField$2(Animator, "type", "@trident/core/components/Animator");
 Component.Registry.set(AnimationData.type, AnimationData);
 Component.Registry.set(Animator.type, Animator);
+
+var __create$1 = Object.create;
+var __defProp$1 = Object.defineProperty;
+var __knownSymbol$1 = (name, symbol) => (symbol = Symbol[name]) ? symbol : Symbol.for("Symbol." + name);
+var __typeError$1 = (msg) => {
+  throw TypeError(msg);
+};
+var __defNormalProp$1 = (obj, key, value) => key in obj ? __defProp$1(obj, key, { enumerable: true, configurable: true, writable: true, value }) : obj[key] = value;
+var __decoratorStart$1 = (base) => [, , , __create$1(base?.[__knownSymbol$1("metadata")] ?? null)];
+var __decoratorStrings$1 = ["class", "method", "getter", "setter", "accessor", "field", "value", "get", "set"];
+var __expectFn$1 = (fn) => fn !== void 0 && typeof fn !== "function" ? __typeError$1("Function expected") : fn;
+var __decoratorContext$1 = (kind, name, done, metadata, fns) => ({ kind: __decoratorStrings$1[kind], name, metadata, addInitializer: (fn) => done._ ? __typeError$1("Already initialized") : fns.push(__expectFn$1(fn || null)) });
+var __decoratorMetadata$1 = (array, target) => __defNormalProp$1(target, __knownSymbol$1("metadata"), array[3]);
+var __runInitializers$1 = (array, flags, self, value) => {
+  for (var i = 0, fns = array[flags >> 1], n = fns && fns.length; i < n; i++) flags & 1 ? fns[i].call(self) : value = fns[i].call(self, value);
+  return value;
+};
+var __decorateElement$1 = (array, flags, name, decorators, target, extra) => {
+  var it, done, ctx, access, k = flags & 7, s = false, p = false;
+  var j = array.length + 1 ;
+  var initializers = (array[j - 1] = []), extraInitializers = array[j] || (array[j] = []);
+  ((target = target.prototype), k < 5);
+  for (var i = decorators.length - 1; i >= 0; i--) {
+    ctx = __decoratorContext$1(k, name, done = {}, array[3], extraInitializers);
+    {
+      ctx.static = s, ctx.private = p, access = ctx.access = { has: (x) => name in x };
+      access.get = (x) => x[name];
+      access.set = (x, y) => x[name] = y;
+    }
+    it = (0, decorators[i])(void 0  , ctx), done._ = 1;
+    __expectFn$1(it) && (initializers.unshift(it) );
+  }
+  return target;
+};
+var __publicField$1 = (obj, key, value) => __defNormalProp$1(obj, typeof key !== "symbol" ? key + "" : key, value);
+var _name_dec, _id_dec, _assetPath_dec$1, _init$1, _spatial_dec, _clip_dec, _a, _init2;
+const bufferCache = /* @__PURE__ */ new Map();
+_assetPath_dec$1 = [SerializeField], _id_dec = [SerializeField], _name_dec = [SerializeField];
+const _AudioClip = class _AudioClip {
+  constructor() {
+    __publicField$1(this, "assetPath", __runInitializers$1(_init$1, 8, this)), __runInitializers$1(_init$1, 11, this);
+    __publicField$1(this, "id", __runInitializers$1(_init$1, 12, this, UUID())), __runInitializers$1(_init$1, 15, this);
+    __publicField$1(this, "name", __runInitializers$1(_init$1, 16, this, "")), __runInitializers$1(_init$1, 19, this);
+    __publicField$1(this, "buffer");
+  }
+  static async Deserialize(assetPath, data, bytes) {
+    const audioClip = new _AudioClip();
+    audioClip.assetPath = assetPath;
+    let audioBuffer = bufferCache.get(assetPath);
+    if (!audioBuffer) {
+      const buffer = bytes ?? await Assets.Load(assetPath, "binary");
+      audioBuffer = await AudioManager.ctx.decodeAudioData(buffer);
+      bufferCache.set(assetPath, audioBuffer);
+    }
+    audioClip.buffer = audioBuffer;
+    return audioClip;
+  }
+  GetBuffer() {
+    return this.buffer;
+  }
+};
+_init$1 = __decoratorStart$1(null);
+__decorateElement$1(_init$1, 5, "assetPath", _assetPath_dec$1, _AudioClip);
+__decorateElement$1(_init$1, 5, "id", _id_dec, _AudioClip);
+__decorateElement$1(_init$1, 5, "name", _name_dec, _AudioClip);
+__decoratorMetadata$1(_init$1, _AudioClip);
+__publicField$1(_AudioClip, "type", "@trident/core/components/AudioClip");
+let AudioClip = _AudioClip;
+class AudioListener extends Component {
+  static type = "@trident/core/components/AudioListener";
+  static listener;
+  Start() {
+    if (AudioListener.listener) {
+      console.warn("Only one AudioListener is allowed.");
+      return;
+    }
+    AudioListener.listener = AudioManager.ctx.listener;
+    EventSystemLocal.on(TransformEvents.Updated, this.transform, this.onTransformUpdated);
+  }
+  onTransformUpdated = () => {
+    AudioListener.listener.positionX.value = this.transform.position.x;
+    AudioListener.listener.positionY.value = this.transform.position.y;
+    AudioListener.listener.positionZ.value = this.transform.position.z;
+    AudioListener.listener.forwardX.value = this.transform.forward.x;
+    AudioListener.listener.forwardY.value = this.transform.forward.y;
+    AudioListener.listener.forwardZ.value = this.transform.forward.z;
+    AudioListener.listener.upX.value = this.transform.up.x;
+    AudioListener.listener.upY.value = this.transform.up.y;
+    AudioListener.listener.upZ.value = this.transform.up.z;
+  };
+  Destroy() {
+    EventSystemLocal.off(TransformEvents.Updated, this.transform, this.onTransformUpdated);
+  }
+}
+class AudioSource extends (_a = Component, _clip_dec = [SerializeField(AudioClip)], _spatial_dec = [SerializeField], _a) {
+  constructor() {
+    super(...arguments);
+    __publicField$1(this, "clip", __runInitializers$1(_init2, 8, this)), __runInitializers$1(_init2, 11, this);
+    __publicField$1(this, "spatial", __runInitializers$1(_init2, 12, this, true)), __runInitializers$1(_init2, 15, this);
+  }
+  Play() {
+    if (!this.clip) {
+      console.warn("AudioSource has no clip.");
+      return;
+    }
+    return this.PlayOneShot(this.clip);
+  }
+  PlayOneShot(clip) {
+    if (!clip) {
+      console.warn("AudioSource.PlayOneShot called with no clip.");
+      return;
+    }
+    const ctx = AudioManager.ctx;
+    const source = ctx.createBufferSource();
+    source.buffer = clip.GetBuffer();
+    const gain = ctx.createGain();
+    gain.gain.value = 1;
+    if (this.spatial) {
+      if (!AudioListener.listener) {
+        console.warn("No AudioListener exists.");
+        return;
+      }
+      const panner = new PannerNode(ctx, {
+        panningModel: "HRTF",
+        distanceModel: "inverse",
+        refDistance: 5,
+        rolloffFactor: 1,
+        maxDistance: 100,
+        positionX: this.transform.position.x,
+        positionY: this.transform.position.y,
+        positionZ: this.transform.position.z
+      });
+      source.connect(panner).connect(gain).connect(AudioManager.masterGainNode);
+    } else {
+      source.connect(gain).connect(AudioManager.masterGainNode);
+    }
+    source.start();
+  }
+}
+_init2 = __decoratorStart$1(_a);
+__decorateElement$1(_init2, 5, "clip", _clip_dec, AudioSource);
+__decorateElement$1(_init2, 5, "spatial", _spatial_dec, AudioSource);
+__decoratorMetadata$1(_init2, AudioSource);
+__publicField$1(AudioSource, "type", "@trident/core/components/AudioSource");
+Component.Registry.set(AudioListener.type, AudioListener);
+Component.Registry.set(AudioSource.type, AudioSource);
 
 var index = /*#__PURE__*/Object.freeze({
     __proto__: null,
     AnimationTrack: AnimationTrack,
     Animator: Animator,
+    AudioListener: AudioListener,
+    AudioSource: AudioSource,
     Camera: Camera,
     Component: Component,
     ComponentEvents: ComponentEvents,
@@ -7677,6 +7914,11 @@ class Deserializer {
     if (data == null || typeof data !== "object") return data;
     if (this.isAssetRef(data)) return this.Load(data.assetPath, data, expectedType);
     if (Array.isArray(data) && this.typedArrayCtors.has(expectedType)) return new expectedType(data);
+    if (existing instanceof Map && Array.isArray(data)) {
+      existing.clear();
+      for (const [k, v] of data) existing.set(k, await this.deserializeAny(v, void 0, void 0, ctx));
+      return existing;
+    }
     if (Array.isArray(data)) {
       const result = new Array(data.length);
       await Promise.all(data.map(async (item, i) => {
@@ -7706,6 +7948,7 @@ class Deserializer {
       return existing;
     }
     if (expectedType === Texture && !data.assetPath) return existing;
+    if (expectedType === AudioClip && !data.assetPath) return existing;
     const target = existing ?? (expectedType ? this.createExpectedInstance(expectedType) : void 0);
     if (target) {
       const fields = GetSerializedFields(target);
@@ -7880,7 +8123,8 @@ class Scene {
     }
   }
   async Instantiate(prefab, parent) {
-    return await Deserializer.deserializeGameObject(this, { assetPath: prefab.assetPath }, parent);
+    const source = Deserializer.remapTemplateIds(prefab.data);
+    return await Deserializer.deserializeGameObject(this, source, parent);
   }
   Clear() {
     const roots = this.GetRootGameObjects();
@@ -7929,27 +8173,12 @@ _assetPath_dec = [SerializeField];
 const _Prefab = class _Prefab {
   constructor() {
     __publicField(this, "assetPath", __runInitializers(_init, 8, this)), __runInitializers(_init, 11, this);
-    __publicField(this, "id");
-    __publicField(this, "name");
-    __publicField(this, "components", []);
-    __publicField(this, "transform");
-    __publicField(this, "children", []);
     __publicField(this, "data");
   }
-  traverse(fn) {
-    fn(this);
-    for (const child of this.children) child.traverse(fn);
-  }
   static Deserialize(assetPath, data, asset) {
-    const source = asset ?? data;
     const prefab = new _Prefab();
-    prefab.id = source.id;
-    prefab.name = source.name;
-    prefab.assetPath = assetPath;
-    prefab.transform = source.transform;
-    prefab.components = Array.isArray(source?.components) ? source.components : [];
-    prefab.children = Array.isArray(source?.children) ? source.children.map((c) => _Prefab.Deserialize(c.assetPath, null, c)) : [];
-    prefab.data = source;
+    prefab.assetPath = assetPath || void 0;
+    prefab.data = asset ?? data;
     return prefab;
   }
 };
@@ -7964,6 +8193,9 @@ class Serializer {
   static isTextureLike(value) {
     return value instanceof Texture || value?.constructor?.type === Texture.type;
   }
+  static isAudioClipLike(value) {
+    return value instanceof AudioClip || value?.constructor?.type === AudioClip.type;
+  }
   static serializeValue(value) {
     if (value == null || typeof value !== "object") return value;
     if (Array.isArray(value)) return value.map((v) => this.serializeValue(v));
@@ -7972,6 +8204,10 @@ class Serializer {
     if (this.isTextureLike(value)) {
       if (!value.assetPath) return void 0;
       return { assetPath: value.assetPath, name: value.name, format: value.format, generateMips: value.mipLevels > 1 };
+    }
+    if (this.isAudioClipLike(value)) {
+      if (!value.assetPath) return void 0;
+      return { assetPath: value.assetPath, name: value.name };
     }
     if (value instanceof Vector3) return { x: value.x, y: value.y, z: value.z };
     if (value instanceof Vector2) return { x: value.x, y: value.y };
@@ -8022,4 +8258,4 @@ class Serializer {
   }
 }
 
-export { AssetMeta, Assets, Component, index as Components, Console, Deserializer, EventSystem, EventSystemLocal, index$1 as GPU, GameObject, Geometry, GetSerializedFields, IndexAttribute, Input, InterleavedVertexAttribute, KeyCodes, index$2 as Mathf, MouseCodes, NonSerialized, PBRMaterial, PlayerRuntime, Prefab, Renderer, Runtime, Scene, SceneExecutionMode, SceneManager, SerializeField, Serializer, System, Texture, index$3 as Utils, VertexAttribute };
+export { AssetMeta, Assets, AudioClip, Component, index as Components, Console, Deserializer, EventSystem, EventSystemLocal, index$1 as GPU, GameObject, Geometry, GetInspectableFields, GetSerializedFields, HideInInspector, IndexAttribute, Input, InterleavedVertexAttribute, KeyCodes, index$2 as Mathf, MouseCodes, NonSerialized, PBRMaterial, PlayerRuntime, Prefab, Renderer, Runtime, Scene, SceneExecutionMode, SceneManager, SerializeField, Serializer, System, Texture, index$3 as Utils, VertexAttribute };

@@ -24,6 +24,10 @@ html, body {
     background: #444; 
 }
 
+input[type="checkbox"] {
+    accent-color: #7f8c8d;
+}
+
 flex {
     display: flex;
     overflow: hidden;
@@ -211,7 +215,7 @@ input[type=number] {
     width: 100%;
     font-size: 9px;
     background-color: #121212;
-    border-radius: 5px;
+    border-radius: 0px 5px 5px 0px;
     color: white;
     border: 1px solid black;
     outline: none;
@@ -279,10 +283,11 @@ input[type=number] {
 }
 
 .vec-label {
-    padding: 4px;
+    padding: 5px;
     font-size: 9px;
-    border-top-left-radius: 2px;
-    border-bottom-left-radius: 2px;
+    border-top-left-radius: 5px;
+    border-bottom-left-radius: 5px;
+    border: 1px solid black;
     display: flex;
     align-items: center;
 }
@@ -405,7 +410,7 @@ input[type=number] {
     interpolate-size: allow-keywords;
 }
 
-.collapsible-content-edonec > div {
+.collapsible-content-edonec>div {
     padding: 5px;
 }
 
@@ -413,12 +418,13 @@ input[type=number] {
     display: inline-block;
     font-size: 10px;
 }
+
 .title-right-menu {
-    float: right;
-    margin-right: 10px;
-    text-align: center;
-    width: 15px;
+    margin-left: auto;
+    margin-right: 15px;
+    cursor: pointer;
 }
+
 .title-right-menu:hover {
     opacity: 0.5;
 }
@@ -428,13 +434,14 @@ input[type=number] {
     border-radius: 10px;
     background-color: #1a1a1a;
     box-shadow: 1px 1px 3px 0px black;
+    border: 1px solid #ffffff10;
 }
 
 .collapsible-header-edonec {
     align-items: center;
-    padding: 7px;
-    cursor: pointer;
-    border-radius: 10px;
+    padding: 5px;
+    display: flex;
+    width: 100%;
 }
 
 .collapsible-icon-button-edonec {

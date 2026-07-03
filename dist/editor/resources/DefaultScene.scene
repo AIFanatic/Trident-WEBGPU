@@ -40,6 +40,10 @@
                         "b": 0,
                         "a": 1
                     }
+                },
+                {
+                    "id": "52671",
+                    "type": "@trident/core/components/AudioListener"
                 }
             ],
             "children": []

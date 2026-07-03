@@ -1,4 +1,4 @@
-import { Component as Component$1, Assets, Deserializer, Geometry, PBRMaterial, GPU, InterleavedVertexAttribute, IndexAttribute, VertexAttribute, Components, SerializeField, GameObject, Mathf, Runtime, Serializer, SceneExecutionMode, Input, KeyCodes, EventSystem, Scene, Prefab, Utils, EventSystemLocal, Texture, GetSerializedFields, AssetMeta } from '@trident/core';
+import { Component as Component$1, Assets, Deserializer, Geometry, PBRMaterial, GPU, InterleavedVertexAttribute, IndexAttribute, VertexAttribute, Components, SerializeField, GameObject, Mathf, Runtime, Serializer, SceneExecutionMode, Input, KeyCodes, EventSystem, Scene, Prefab, AudioClip, Utils, EventSystemLocal, Texture, GetSerializedFields, AssetMeta } from '@trident/core';
 import { OrbitControls } from '@trident/plugins/OrbitControls.js';
 import { RigidBody } from '@trident/plugins/PhysicsRapier/RigidBody.js';
 import { BoxCollider } from '@trident/plugins/PhysicsRapier/colliders/BoxCollider.js';
@@ -3382,6 +3382,8 @@ const ComponentRegistry = {
   SkinnedMesh: component(Components.SkinnedMesh),
   Animator: component(Components.Animator),
   AnimationTrack: component(Components.AnimationTrack),
+  AudioListener: component(Components.AudioListener),
+  AudioSource: component(Components.AudioSource),
   RigidBody: component(RigidBody),
   BoxCollider: component(BoxCollider),
   CapsuleCollider: component(CapsuleCollider),
@@ -3453,9 +3455,6 @@ class TridentAPI {
   createPBRMaterial(args) {
     return new PBRMaterial(args);
   }
-  createPrefab() {
-    return new Prefab();
-  }
   addComponent(gameObject, component) {
     return gameObject.AddComponent(component);
   }
@@ -3484,6 +3483,7 @@ class TridentAPI {
     else if (this.compareType(value, Geometry)) return "Geometry";
     else if (this.compareType(value, GPU.Material)) return "Material";
     else if (this.compareType(value, GPU.Texture)) return "Texture";
+    else if (this.compareType(value, AudioClip)) return "AudioClip";
     return "unknown";
   }
   isGameObject(value) {
@@ -3523,6 +3523,7 @@ class TridentAPI {
     return value instanceof GPU.Texture;
   }
   GetSerializedFields = Utils.GetSerializedFields;
+  GetInspectableFields = Utils.GetInspectableFields;
   static EventSystem = EventSystem;
   static EventSystemLocal = EventSystemLocal;
   flags = Utils.Flags;
@@ -4114,6 +4115,8 @@ async function LoadFile(path, file, engineAPI) {
     return Deserializer.Load(path, void 0, Prefab);
   } else if (ext === "png" || ext === "jpg" || ext === "jpeg") {
     return Deserializer.Load(path, void 0, Texture);
+  } else if (ext === "wav" || ext === "mp3" || ext === "ogg") {
+    return Deserializer.Load(path, void 0, AudioClip);
   }
   return Deserializer.Load(path);
 }
@@ -4798,7 +4801,8 @@ class Collapsible extends Component {
     super(props);
     this.state = { isOpen: this.props.open ? this.props.open : true, height: "" };
   }
-  handleFilterOpening() {
+  handleFilterOpening(event) {
+    console.log(event, event.target);
     if (this.state.isOpen) {
       this.setState({ isOpen: false, height: "0px" });
     } else {
@@ -4812,10 +4816,19 @@ class Collapsible extends Component {
     event.preventDefault();
     event.stopPropagation();
   }
+  onEnabledChanged(event) {
+    if (this.props.onEnabledChanged) {
+      this.props.onEnabledChanged(event.currentTarget.checked);
+    }
+    event.preventDefault();
+    event.stopPropagation();
+  }
   render() {
-    return /* @__PURE__ */ createElement("div", { className: "collapsible-card-edonec", id: this.props.id ? this.props.id : "" }, /* @__PURE__ */ createElement("div", null, /* @__PURE__ */ createElement("div", { className: "collapsible-header-edonec", onPointerDown: () => {
-      this.handleFilterOpening();
-    } }, /* @__PURE__ */ createElement("button", { type: "button", className: `collapsible-icon-button-edonec` }, /* @__PURE__ */ createElement(Arrow, { isOpen: this.state.isOpen })), /* @__PURE__ */ createElement("div", { className: "title-text-edonec" }, this.props.header), this.props.rightMenuText ? /* @__PURE__ */ createElement("div", { className: "title-right-menu", onPointerDown: (event) => {
+    return /* @__PURE__ */ createElement("div", { className: "collapsible-card-edonec", id: this.props.id ? this.props.id : "" }, /* @__PURE__ */ createElement("div", null, /* @__PURE__ */ createElement("div", { className: "collapsible-header-edonec" }, /* @__PURE__ */ createElement("button", { onPointerDown: (event) => {
+      this.handleFilterOpening(event);
+    }, type: "button", className: `collapsible-icon-button-edonec` }, /* @__PURE__ */ createElement(Arrow, { isOpen: this.state.isOpen })), this.props.enabledCheckbox !== void 0 ? /* @__PURE__ */ createElement("input", { checked: this.props.enabledCheckbox, type: "checkbox", onChange: (event) => {
+      this.onEnabledChanged(event);
+    } }) : "", /* @__PURE__ */ createElement("div", { className: "title-text-edonec" }, this.props.header), this.props.rightMenuText ? /* @__PURE__ */ createElement("div", { className: "title-right-menu", onPointerDown: (event) => {
       this.onRightMenuClicked(event);
     } }, this.props.rightMenuText) : "")), /* @__PURE__ */ createElement("div", { className: "collapsible-content-edonec", style: { height: `${this.state.height}` } }, /* @__PURE__ */ createElement("div", null, /* @__PURE__ */ createElement("div", { className: "collapsible-children" }, this.props.children))));
   }
@@ -5025,7 +5038,7 @@ class InspectorNumber extends Component {
         onChange: (event) => {
           this.onChanged(event);
         },
-        value: this.state.value.toPrecision(4)
+        value: Number(this.state.value.toPrecision(4)).toLocaleString("fullwide", { useGrouping: false })
       }
     ));
   }
@@ -5235,109 +5248,6 @@ class InspectorTexture extends Component {
   }
 }
 
-class InspectorMaterial extends Component {
-  constructor(props) {
-    super(props);
-  }
-  onPropertyChanged(object, property, value) {
-    object[property] = value;
-    this.setState({});
-  }
-  renderInspectorForComponentProperty(component, property) {
-    const name = property.name;
-    const type = property.type;
-    const engineType = this.props.engineAPI.getFieldType(type);
-    const title = StringUtils.CapitalizeStrArray(StringUtils.CamelCaseToArray(name)).join(" ");
-    if (engineType === "Vector3") return /* @__PURE__ */ createElement(InspectorVector3, { title, onChanged: (value) => {
-      this.onPropertyChanged(component, name, value);
-    }, vector3: component[name] });
-    else if (engineType === "Vector2") return /* @__PURE__ */ createElement(InspectorVector2, { title, onChanged: (value) => {
-      this.onPropertyChanged(component, name, value);
-    }, vector2: component[name] });
-    else if (engineType === "Color") return /* @__PURE__ */ createElement(InspectorColor, { title, onChanged: (value) => {
-      this.onPropertyChanged(component, name, value);
-    }, color: component[name] });
-    else if (engineType === "Texture") {
-      let valueForType = component[name].constructor.name;
-      if (component[name].assetPath) {
-        valueForType = StringUtils.GetNameForPath(component[name].assetPath);
-      }
-      return /* @__PURE__ */ createElement(
-        InspectorTexture,
-        {
-          onChanged: (value) => {
-            this.onPropertyChanged(component, name, value);
-          },
-          title,
-          component,
-          property: name,
-          value: valueForType
-        }
-      );
-    } else if (type === Number) return /* @__PURE__ */ createElement(InspectorInput, { onChanged: (value) => {
-      this.onPropertyChanged(component, name, value);
-    }, title, value: component[name], type: "number" });
-    else if (type === Boolean) return /* @__PURE__ */ createElement(InspectorCheckbox, { onChanged: (value) => {
-      this.onPropertyChanged(component, name, value);
-    }, title, selected: component[name] });
-  }
-  renderInspectorForObject(object) {
-    let componentPropertiesHTML = [];
-    const serializedProperties = this.props.engineAPI.GetSerializedFields(object);
-    for (let property of serializedProperties) {
-      try {
-        const componentPropertyElement = this.renderInspectorForComponentProperty(object, property);
-        if (componentPropertyElement) {
-          componentPropertiesHTML.push(componentPropertyElement);
-        }
-      } catch (error) {
-        console.warn(error);
-      }
-    }
-    return componentPropertiesHTML;
-  }
-  SaveClicked() {
-    TridentAPI.EventSystem.emit(LayoutAssetEvents.RequestSaveAsset, this.props.material);
-  }
-  render() {
-    let title = this.props.material.name;
-    if (this.props.material.assetPath) {
-      const path = this.props.material.assetPath;
-      title = path.slice(path.lastIndexOf("/") + 1, path.lastIndexOf("."));
-    }
-    const componentsElements = this.renderInspectorForObject(this.props.material.params);
-    return /* @__PURE__ */ createElement("div", { style: {
-      height: "100%",
-      overflow: "auto",
-      width: "100%"
-    } }, /* @__PURE__ */ createElement(Collapsible, { header: `Material: ${title}` }, ...componentsElements), /* @__PURE__ */ createElement(
-      "button",
-      {
-        class: "Floating-Menu",
-        style: { position: "initial", margin: "10px", width: "calc(100% - 20px)", color: "white", cursor: "pointer" },
-        onClick: (event) => {
-          this.SaveClicked();
-        }
-      },
-      "SAVE"
-    ));
-  }
-}
-
-class AddComponent extends Component {
-  constructor(props) {
-    super(props);
-  }
-  addComponent(component) {
-    const componentInstance = this.props.engineAPI.addComponent(this.props.gameObject, component);
-    TridentAPI.EventSystem.emit(ComponentEvents.Created, this.props.gameObject, componentInstance);
-    this.setState({ isMenuOpen: false });
-  }
-  render() {
-    return /* @__PURE__ */ createElement("div", { class: "Floating-Menu", style: { position: "inherit", padding: "5px", margin: "10px" } }, /* @__PURE__ */ createElement(Tree, null, /* @__PURE__ */ createElement(TreeFolder, { name: "Add Component" }, /* @__PURE__ */ createElement(TreeFolder, { name: "Physics" }, /* @__PURE__ */ createElement(TreeItem, { name: "Rigidbody", onPointerDown: () => this.addComponent(ComponentRegistry.RigidBody) }), /* @__PURE__ */ createElement(TreeItem, { name: "BoxCollider", onPointerDown: () => this.addComponent(ComponentRegistry.BoxCollider) }), /* @__PURE__ */ createElement(TreeItem, { name: "CapsuleCollider", onPointerDown: () => this.addComponent(ComponentRegistry.CapsuleCollider) }), /* @__PURE__ */ createElement(TreeItem, { name: "MeshCollider", onPointerDown: () => this.addComponent(ComponentRegistry.MeshCollider) }), /* @__PURE__ */ createElement(TreeItem, { name: "PlaneCollider", onPointerDown: () => this.addComponent(ComponentRegistry.PlaneCollider) }), /* @__PURE__ */ createElement(TreeItem, { name: "SphereCollider", onPointerDown: () => this.addComponent(ComponentRegistry.SphereCollider) })), /* @__PURE__ */ createElement(TreeItem, { name: "Mesh", onPointerDown: () => this.addComponent(ComponentRegistry.Mesh) }), /* @__PURE__ */ createElement(TreeItem, { name: "LODGroup", onPointerDown: () => this.addComponent(ComponentRegistry.LODGroup) }), /* @__PURE__ */ createElement(TreeFolder, { name: "Lights" }, /* @__PURE__ */ createElement(TreeItem, { name: "DirectionalLight", onPointerDown: () => this.addComponent(ComponentRegistry.DirectionalLight) }), /* @__PURE__ */ createElement(TreeItem, { name: "PointLight", onPointerDown: () => this.addComponent(ComponentRegistry.PointLight) }), /* @__PURE__ */ createElement(TreeItem, { name: "SpotLight", onPointerDown: () => this.addComponent(ComponentRegistry.SpotLight) })), /* @__PURE__ */ createElement(TreeItem, { name: "Water", onPointerDown: () => this.addComponent(ComponentRegistry.Water) }), /* @__PURE__ */ createElement(TreeItem, { name: "ParticleSystem", onPointerDown: () => this.addComponent(ComponentRegistry.ParticleSystem) }))));
-  }
-}
-
 class InspectorType extends Component {
   constructor(props) {
     super(props);
@@ -5458,6 +5368,119 @@ class InspectorClass extends Component {
   }
   render() {
     return /* @__PURE__ */ createElement("div", { style: { paddingLeft: "10px" } }, this.props.children);
+  }
+}
+
+class InspectorProperty extends Component {
+  constructor(props) {
+    super(props);
+  }
+  render() {
+    return /* @__PURE__ */ createElement("div", { className: this.props.stacked ? "InspectorComponent stacked" : "InspectorComponent" }, /* @__PURE__ */ createElement("span", { className: "title" }, this.props.title), this.props.children);
+  }
+}
+
+class InspectorMaterial extends Component {
+  constructor(props) {
+    super(props);
+  }
+  onPropertyChanged(object, property, value) {
+    object[property] = value;
+    this.setState({});
+  }
+  renderInspectorForComponentProperty(component, property) {
+    const name = property.name;
+    const type = property.type;
+    const engineType = this.props.engineAPI.getFieldType(type);
+    const title = StringUtils.CapitalizeStrArray(StringUtils.CamelCaseToArray(name)).join(" ");
+    if (engineType === "Vector3") return /* @__PURE__ */ createElement(InspectorVector3, { onChanged: (value) => {
+      this.onPropertyChanged(component, name, value);
+    }, vector3: component[name] });
+    else if (engineType === "Vector2") return /* @__PURE__ */ createElement(InspectorVector2, { onChanged: (value) => {
+      this.onPropertyChanged(component, name, value);
+    }, vector2: component[name] });
+    else if (engineType === "Color") return /* @__PURE__ */ createElement(InspectorColor, { onChanged: (value) => {
+      this.onPropertyChanged(component, name, value);
+    }, color: component[name] });
+    else if (engineType === "Texture") {
+      let valueForType = component[name].constructor.name;
+      if (component[name].assetPath) {
+        valueForType = StringUtils.GetNameForPath(component[name].assetPath);
+      }
+      return /* @__PURE__ */ createElement(
+        InspectorTexture,
+        {
+          onChanged: (value) => {
+            this.onPropertyChanged(component, name, value);
+          },
+          title,
+          component,
+          property: name,
+          value: valueForType
+        }
+      );
+    } else if (type === Number) return /* @__PURE__ */ createElement(InspectorInput, { onChanged: (value) => {
+      this.onPropertyChanged(component, name, value);
+    }, value: component[name], type: "number" });
+    else if (type === Boolean) return /* @__PURE__ */ createElement(InspectorCheckbox, { onChanged: (value) => {
+      this.onPropertyChanged(component, name, value);
+    }, selected: component[name] });
+  }
+  renderInspectorForObject(object) {
+    let componentPropertiesHTML = [];
+    const serializedProperties = this.props.engineAPI.GetSerializedFields(object);
+    for (let property of serializedProperties) {
+      try {
+        const componentPropertyElement = this.renderInspectorForComponentProperty(object, property);
+        const title = StringUtils.NicifyVariableName(property.name);
+        const stacked = componentPropertyElement.type === InspectorArray || componentPropertyElement.type === InspectorClass;
+        if (stacked) componentPropertiesHTML.push(/* @__PURE__ */ createElement(Collapsible, { header: title }, " ", componentPropertyElement, " "));
+        else componentPropertiesHTML.push(/* @__PURE__ */ createElement(InspectorProperty, { title, stacked }, " ", componentPropertyElement, " "));
+      } catch (error) {
+        console.warn(error);
+      }
+    }
+    return componentPropertiesHTML;
+  }
+  SaveClicked() {
+    TridentAPI.EventSystem.emit(LayoutAssetEvents.RequestSaveAsset, this.props.material);
+  }
+  render() {
+    let title = this.props.material.name;
+    if (this.props.material.assetPath) {
+      const path = this.props.material.assetPath;
+      title = path.slice(path.lastIndexOf("/") + 1, path.lastIndexOf("."));
+    }
+    const componentsElements = this.renderInspectorForObject(this.props.material.params);
+    return /* @__PURE__ */ createElement("div", { style: {
+      height: "100%",
+      overflow: "auto",
+      width: "100%"
+    } }, /* @__PURE__ */ createElement(Collapsible, { header: `Material: ${title}` }, ...componentsElements), /* @__PURE__ */ createElement(
+      "button",
+      {
+        class: "Floating-Menu",
+        style: { position: "initial", margin: "10px", width: "calc(100% - 20px)", color: "white", cursor: "pointer" },
+        onClick: (event) => {
+          this.SaveClicked();
+        }
+      },
+      "SAVE"
+    ));
+  }
+}
+
+class AddComponent extends Component {
+  constructor(props) {
+    super(props);
+  }
+  addComponent(component) {
+    const componentInstance = this.props.engineAPI.addComponent(this.props.gameObject, component);
+    TridentAPI.EventSystem.emit(ComponentEvents.Created, this.props.gameObject, componentInstance);
+    this.setState({ isMenuOpen: false });
+  }
+  render() {
+    return /* @__PURE__ */ createElement("div", { class: "Floating-Menu", style: { position: "inherit", padding: "5px", margin: "10px" } }, /* @__PURE__ */ createElement(Tree, null, /* @__PURE__ */ createElement(TreeFolder, { name: "Add Component" }, /* @__PURE__ */ createElement(TreeFolder, { name: "Physics" }, /* @__PURE__ */ createElement(TreeItem, { name: "Rigidbody", onPointerDown: () => this.addComponent(ComponentRegistry.RigidBody) }), /* @__PURE__ */ createElement(TreeItem, { name: "BoxCollider", onPointerDown: () => this.addComponent(ComponentRegistry.BoxCollider) }), /* @__PURE__ */ createElement(TreeItem, { name: "CapsuleCollider", onPointerDown: () => this.addComponent(ComponentRegistry.CapsuleCollider) }), /* @__PURE__ */ createElement(TreeItem, { name: "MeshCollider", onPointerDown: () => this.addComponent(ComponentRegistry.MeshCollider) }), /* @__PURE__ */ createElement(TreeItem, { name: "PlaneCollider", onPointerDown: () => this.addComponent(ComponentRegistry.PlaneCollider) }), /* @__PURE__ */ createElement(TreeItem, { name: "SphereCollider", onPointerDown: () => this.addComponent(ComponentRegistry.SphereCollider) })), /* @__PURE__ */ createElement(TreeItem, { name: "Mesh", onPointerDown: () => this.addComponent(ComponentRegistry.Mesh) }), /* @__PURE__ */ createElement(TreeItem, { name: "LODGroup", onPointerDown: () => this.addComponent(ComponentRegistry.LODGroup) }), /* @__PURE__ */ createElement(TreeFolder, { name: "Lights" }, /* @__PURE__ */ createElement(TreeItem, { name: "DirectionalLight", onPointerDown: () => this.addComponent(ComponentRegistry.DirectionalLight) }), /* @__PURE__ */ createElement(TreeItem, { name: "PointLight", onPointerDown: () => this.addComponent(ComponentRegistry.PointLight) }), /* @__PURE__ */ createElement(TreeItem, { name: "SpotLight", onPointerDown: () => this.addComponent(ComponentRegistry.SpotLight) })), /* @__PURE__ */ createElement(TreeFolder, { name: "Audio" }, /* @__PURE__ */ createElement(TreeItem, { name: "AudioListener", onPointerDown: () => this.addComponent(ComponentRegistry.AudioListener) }), /* @__PURE__ */ createElement(TreeItem, { name: "AudioSource", onPointerDown: () => this.addComponent(ComponentRegistry.AudioSource) })), /* @__PURE__ */ createElement(TreeItem, { name: "Water", onPointerDown: () => this.addComponent(ComponentRegistry.Water) }), /* @__PURE__ */ createElement(TreeItem, { name: "ParticleSystem", onPointerDown: () => this.addComponent(ComponentRegistry.ParticleSystem) }))));
   }
 }
 
@@ -5600,15 +5623,6 @@ class InspectorColorGradient extends Component {
   }
 }
 
-class InspectorProperty extends Component {
-  constructor(props) {
-    super(props);
-  }
-  render() {
-    return /* @__PURE__ */ createElement("div", { className: this.props.stacked ? "InspectorComponent stacked" : "InspectorComponent" }, /* @__PURE__ */ createElement("span", { className: "title" }, this.props.title), this.props.children);
-  }
-}
-
 class LayoutInspectorGameObject extends Component {
   constructor(props) {
     super(props);
@@ -5708,22 +5722,15 @@ class LayoutInspectorGameObject extends Component {
   }
   renderInspectorForComponent(component) {
     let componentPropertiesHTML = [];
-    const serializedProperties = this.props.engineAPI.GetSerializedFields(component);
+    const serializedProperties = this.props.engineAPI.GetInspectableFields(component);
     for (let property of serializedProperties) {
       try {
         const componentPropertyElement = this.renderInspectorForComponentProperty(component, property);
         if (componentPropertyElement) {
           const title = StringUtils.NicifyVariableName(property.name);
           const stacked = componentPropertyElement.type === InspectorArray || componentPropertyElement.type === InspectorClass;
-          if (stacked) {
-            componentPropertiesHTML.push(
-              /* @__PURE__ */ createElement(Collapsible, { header: title }, componentPropertyElement)
-            );
-          } else {
-            componentPropertiesHTML.push(
-              /* @__PURE__ */ createElement(InspectorProperty, { title, stacked }, componentPropertyElement)
-            );
-          }
+          if (stacked) componentPropertiesHTML.push(/* @__PURE__ */ createElement(Collapsible, { header: title }, " ", componentPropertyElement, " "));
+          else componentPropertiesHTML.push(/* @__PURE__ */ createElement(InspectorProperty, { title, stacked }, " ", componentPropertyElement, " "));
         }
       } catch (error) {
         console.warn(error);
@@ -5737,7 +5744,19 @@ class LayoutInspectorGameObject extends Component {
     for (let component of components) {
       if (component.flags & this.props.engineAPI.flags.HideInInspector) continue;
       const componentPropertiesHTML = typeof component["OnInspectorGUI"] === "function" ? [component["OnInspectorGUI"]()] : this.renderInspectorForComponent(component);
-      inspectorHTML.push(/* @__PURE__ */ createElement(Collapsible, { header: component.constructor.name, onRightMenuClicked: () => this.onRemoveComponent(component), rightMenuText: "x" }, ...componentPropertiesHTML));
+      inspectorHTML.push(/* @__PURE__ */ createElement(
+        Collapsible,
+        {
+          header: component.constructor.name,
+          onRightMenuClicked: () => this.onRemoveComponent(component),
+          rightMenuText: "x",
+          onEnabledChanged: (enabled) => {
+            component.enabled = enabled;
+          },
+          enabledCheckbox: component.enabled
+        },
+        ...componentPropertiesHTML
+      ));
     }
     return inspectorHTML;
   }
@@ -5780,26 +5799,9 @@ class LayoutInspectorGameObject extends Component {
         padding: "10px"
       } }, /* @__PURE__ */ createElement("input", { type: "checkbox", checked: this.props.gameObject.enabled, onChange: (event) => {
         this.onGameObjectEnabled(event);
-      } }), /* @__PURE__ */ createElement(
-        "input",
-        {
-          style: {
-            width: "100%",
-            fontSize: "12px",
-            background: "#121212",
-            borderRadius: "5px",
-            color: "white",
-            border: "none",
-            outline: "none",
-            paddingLeft: "5px"
-          },
-          type: "text",
-          value: this.props.gameObject.name,
-          onChange: (event) => {
-            this.onGameObjectNameChanged(this.props.gameObject, event);
-          }
-        }
-      )),
+      } }), /* @__PURE__ */ createElement("input", { class: "input", style: "font-size: 10px;", type: "text", value: this.props.gameObject.name, onChange: (event) => {
+        this.onGameObjectNameChanged(this.props.gameObject, event);
+      } })),
       /* @__PURE__ */ createElement(Collapsible, { header: "Transform" }, /* @__PURE__ */ createElement(InspectorProperty, { title: "Position" }, /* @__PURE__ */ createElement(InspectorVector3, { key: `position-${this.props.gameObject.id}`, onChanged: (value) => {
         this.onComponentPropertyChanged(this.props.gameObject.transform, "localPosition", value);
       }, vector3: this.props.gameObject.transform.localPosition })), /* @__PURE__ */ createElement(InspectorProperty, { title: "Rotation" }, /* @__PURE__ */ createElement(InspectorVector3, { key: `rotation-${this.props.gameObject.id}`, onChanged: (value) => {

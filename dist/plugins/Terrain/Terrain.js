@@ -74,13 +74,19 @@ class PaintPropData {
       this.instancedPrefab.enabled = false;
       this.instancedPrefab.flags = Utils.Flags.DontSaveInEditor | Utils.Flags.HideInHierarchy;
     }
-    const lodGroup = this.instancedPrefab.GetComponent(LODGroup);
-    if (!lodGroup) throw Error("No LODGroup found");
-    if (lodGroup.lods.length === 0) throw Error("No LODGroup found");
+    const lodGroup = this.instancedPrefab.GetComponentsInChildren(LODGroup);
+    let lods = lodGroup.length > 0 ? lodGroup[0].lods : void 0;
+    if (!lods) {
+      const meshes = this.instancedPrefab.GetComponentsInChildren(Components.Mesh);
+      if (meshes.length === 0) throw Error("No LODS or meshes found.");
+      const mesh = meshes[0];
+      if (!mesh.geometry || !mesh.material) throw Error("Mesh has no geometry or material.");
+      lods = [{ renderers: [{ geometry: mesh.geometry, material: mesh.material }], screenSize: 0 }];
+    }
     if (!this.instancedLODGroup) {
       this.instancedLODGroup = terrainGameObject.AddComponent(InstancedLODGroup);
       this.instancedLODGroup.flags = Utils.Flags.DontSaveInEditor | Utils.Flags.HideInInspector;
-      this.instancedLODGroup.lods = lodGroup.lods;
+      this.instancedLODGroup.lods = lods;
     }
     this.instancedLODGroup.SetMatricesBulk(new Float32Array(this.matrices));
   }

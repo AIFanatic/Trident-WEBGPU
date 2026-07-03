@@ -147,6 +147,7 @@
                   const lodGroup = gameObject.AddComponent(LODGroup);
                   lodGroup.lods.push({ screenSize: 1e9, renderers: [{ geometry: Geometry.Cube(), material: new PBRMaterial() }] });
                   const prefab = PrefabFromGameObject(gameObject);
+                  console.log(prefab);
                   await terrain.terrainData.AddProp(prefab, terrain.gameObject);
                   const rtGLB = await GLTFLoader.Load("/extra/SampleProject/GameAssets/Trees/Jacaranda mimosifolia RT.glb", scene);
                   const rtMeshes = rtGLB.GetComponentsInChildren(Components.Mesh);

@@ -1,0 +1,69 @@
+
+    <!DOCTYPE html>
+    <html>
+        <head>
+            <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no">
+            <meta name="mobile-web-app-capable" content="yes">
+            <meta name="apple-mobile-web-app-capable" content="yes">
+            <meta charset="UTF-8">
+            
+            <style>
+                html, body {
+                    margin: 0;
+                    overflow: hidden;
+                    width: 100%;
+                    height: 100%;
+                }
+            </style>
+        </head>
+        <body>
+            <script type="importmap">
+                {
+                    "imports": {
+                        "@trident/core": "../trident-core.js",
+                        "@trident/plugins/": "../plugins/"
+                    }
+                }
+            </script>
+            <script type="module">
+                const canvas = document.createElement("canvas");
+                document.body.appendChild(canvas);
+                            import { PlayerRuntime, GameObject, Components, Mathf, Geometry, PBRMaterial, AudioClip } from '@trident/core';
+            import { OrbitControls } from '@trident/plugins/OrbitControls.js';
+            
+            async function Application(canvas) {
+              await PlayerRuntime.Create(canvas);
+              const scene = PlayerRuntime.SceneManager.CreateScene("DefaultScene");
+              PlayerRuntime.SceneManager.SetActiveScene(scene);
+              const mainCameraGameObject = new GameObject();
+              mainCameraGameObject.transform.position.set(0, 0, -15);
+              mainCameraGameObject.name = "MainCamera";
+              const camera = mainCameraGameObject.AddComponent(Components.Camera);
+              camera.SetPerspective(60, canvas.width / canvas.height, 0.05, 1e4);
+              mainCameraGameObject.transform.position.set(0, 0, 2);
+              mainCameraGameObject.transform.LookAt(new Mathf.Vector3(0, 0, 0));
+              mainCameraGameObject.AddComponent(OrbitControls);
+              const lightGameObject = new GameObject();
+              lightGameObject.transform.position.set(1.2, 1.4, 1.6);
+              lightGameObject.transform.LookAt(new Mathf.Vector3(0, 0, 0));
+              lightGameObject.AddComponent(Components.DirectionalLight);
+              const cube = new GameObject();
+              const cubeMesh = cube.AddComponent(Components.Mesh);
+              cubeMesh.geometry = Geometry.Cube();
+              cubeMesh.material = new PBRMaterial();
+              mainCameraGameObject.AddComponent(Components.AudioListener);
+              const audioSource = cube.AddComponent(Components.AudioSource);
+              audioSource.clip = await AudioClip.Deserialize("./assets/sounds/Click1.wav");
+              const button = document.createElement("button");
+              button.textContent = "Play";
+              button.style = "position: absolute; top: 50%; left: 50%";
+              button.addEventListener("click", () => {
+                audioSource.Play();
+              });
+              document.body.appendChild(button);
+            }
+            Application(document.querySelector("canvas"));
+            
+            </script>
+        </body>
+    </html>
