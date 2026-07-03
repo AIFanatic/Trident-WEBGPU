@@ -1,4 +1,4 @@
-import { createElement, Component } from "../../gooact";
+import { createElement, Component, VNode } from "../../gooact";
 import { GPU } from "@trident/core";
 import { IMaterial } from "../../engine-api/trident/IMaterial";
 
@@ -14,6 +14,9 @@ import { BaseProps } from "../Layout";
 import { InspectorTexture } from "./InspectorTexture";
 import { TridentAPI } from "../../engine-api/trident/TridentAPI";
 import { LayoutAssetEvents } from "../../Events";
+import { InspectorArray } from "./InspectorArray";
+import { InspectorClass } from "./InspectorClass";
+import { InspectorProperty } from "./InspectorProperty";
 
 interface InspectorMaterialProps extends BaseProps {
     material: IMaterial;
@@ -30,16 +33,16 @@ export class InspectorMaterial extends Component<InspectorMaterialProps> {
         this.setState({}); // force updated
     }
 
-    private renderInspectorForComponentProperty(component: Object, property: { name: string | symbol, type?: Function }): Node {
+    private renderInspectorForComponentProperty(component: any, property: { name: string | symbol, type?: Function }): VNode<any> {
         const name = property.name as string;
         const type = property.type;
         const engineType = this.props.engineAPI.getFieldType(type);
 
         const title = StringUtils.CapitalizeStrArray(StringUtils.CamelCaseToArray(name)).join(" ");
 
-        if (engineType === "Vector3") return <InspectorVector3 title={title} onChanged={(value) => { this.onPropertyChanged(component, name, value) }} vector3={component[name]} />
-        else if (engineType === "Vector2") return <InspectorVector2 title={title} onChanged={(value) => { this.onPropertyChanged(component, name, value) }} vector2={component[name]} />
-        else if (engineType === "Color") return <InspectorColor title={title} onChanged={(value) => { this.onPropertyChanged(component, name, value) }} color={component[name]} />
+        if (engineType === "Vector3") return <InspectorVector3 onChanged={(value) => { this.onPropertyChanged(component, name, value) }} vector3={component[name]} />
+        else if (engineType === "Vector2") return <InspectorVector2 onChanged={(value) => { this.onPropertyChanged(component, name, value) }} vector2={component[name]} />
+        else if (engineType === "Color") return <InspectorColor onChanged={(value) => { this.onPropertyChanged(component, name, value) }} color={component[name]} />
         else if (engineType === "Texture") {
             let valueForType = component[name].constructor.name;
             if (component[name].assetPath) {
@@ -54,21 +57,23 @@ export class InspectorMaterial extends Component<InspectorMaterialProps> {
                 value={valueForType}
             />
         }
-        else if (type === Number) return <InspectorInput onChanged={(value) => { this.onPropertyChanged(component, name, value) }} title={title} value={component[name]} type="number" />
-        else if (type === Boolean) return <InspectorCheckbox onChanged={(value) => { this.onPropertyChanged(component, name, value) }} title={title} selected={component[name]} />
+        else if (type === Number) return <InspectorInput onChanged={(value) => { this.onPropertyChanged(component, name, value) }} value={component[name]} type="number" />
+        else if (type === Boolean) return <InspectorCheckbox onChanged={(value) => { this.onPropertyChanged(component, name, value) }} selected={component[name]} />
     }
 
     private renderInspectorForObject(object: Object): Node[] {
-        let componentPropertiesHTML: Node[] = [];
+        let componentPropertiesHTML: VNode<any>[] = [];
 
         const serializedProperties = this.props.engineAPI.GetSerializedFields(object);
         // Parse component properties
         for (let property of serializedProperties) {
             try {
                 const componentPropertyElement = this.renderInspectorForComponentProperty(object, property);
-                if (componentPropertyElement) {
-                    componentPropertiesHTML.push(componentPropertyElement);
-                }
+                const title = StringUtils.NicifyVariableName(property.name as string);
+
+                const stacked = componentPropertyElement.type === InspectorArray || componentPropertyElement.type === InspectorClass;
+                if (stacked) componentPropertiesHTML.push( <Collapsible header={title}> {componentPropertyElement} </Collapsible>);
+                else componentPropertiesHTML.push( <InspectorProperty title={title} stacked={stacked}> {componentPropertyElement} </InspectorProperty>);
             } catch (error) {
                 console.warn(error);
             }
@@ -96,14 +101,14 @@ export class InspectorMaterial extends Component<InspectorMaterialProps> {
             width: "100%"
         }}>
 
-            <Collapsible header={`Material: ${ title }`}>
+            <Collapsible header={`Material: ${title}`}>
                 {...componentsElements}
             </Collapsible>
-            
+
             <button
                 class="Floating-Menu"
-                style={{position: "initial", margin: "10px", width: "calc(100% - 20px)", color: "white", cursor: "pointer"}}
-                onClick={event => {this.SaveClicked()}}
+                style={{ position: "initial", margin: "10px", width: "calc(100% - 20px)", color: "white", cursor: "pointer" }}
+                onClick={event => { this.SaveClicked() }}
             >
                 SAVE
             </button>

@@ -139,7 +139,7 @@ export class LayoutInspectorGameObject extends Component<LayoutInspectorProps> {
     private renderInspectorForComponent(component: IComponent): VNode[] {
         let componentPropertiesHTML: VNode[] = [];
 
-        const serializedProperties = this.props.engineAPI.GetSerializedFields(component);
+        const serializedProperties = this.props.engineAPI.GetInspectableFields(component);
         // Parse component properties
         for (let property of serializedProperties) {
             try {
@@ -148,22 +148,8 @@ export class LayoutInspectorGameObject extends Component<LayoutInspectorProps> {
                     const title = StringUtils.NicifyVariableName(property.name as string);
 
                     const stacked = componentPropertyElement.type === InspectorArray || componentPropertyElement.type === InspectorClass;
-                    // <Collapsible header={"InspectorClass"}></Collapsible>
-
-                    if (stacked) {
-                        componentPropertiesHTML.push(
-                            <Collapsible header={title}>
-                                {componentPropertyElement}
-                            </Collapsible>
-                        );
-                    }
-                    else {
-                        componentPropertiesHTML.push(
-                            <InspectorProperty title={title} stacked={stacked}>
-                                {componentPropertyElement}
-                            </InspectorProperty>
-                        );
-                    }
+                    if (stacked) componentPropertiesHTML.push(<Collapsible header={title}> {componentPropertyElement} </Collapsible>);
+                    else componentPropertiesHTML.push(<InspectorProperty title={title} stacked={stacked}> {componentPropertyElement} </InspectorProperty>);
                 }
             } catch (error) {
                 console.warn(error);
@@ -181,7 +167,11 @@ export class LayoutInspectorGameObject extends Component<LayoutInspectorProps> {
 
             const componentPropertiesHTML = typeof component["OnInspectorGUI"] === "function" ? [component["OnInspectorGUI"]()] : this.renderInspectorForComponent(component);
 
-            inspectorHTML.push(<Collapsible header={component.constructor.name} onRightMenuClicked={() => this.onRemoveComponent(component)} rightMenuText="x">
+            inspectorHTML.push(<Collapsible
+                header={component.constructor.name}
+                onRightMenuClicked={() => this.onRemoveComponent(component)} rightMenuText="x"
+                onEnabledChanged={enabled => { component.enabled = enabled }} enabledCheckbox={component.enabled}
+            >
                 {...componentPropertiesHTML}
             </Collapsible>);
         }
@@ -226,22 +216,8 @@ export class LayoutInspectorGameObject extends Component<LayoutInspectorProps> {
                     padding: "10px"
                 }}>
                     <input type="checkbox" checked={this.props.gameObject.enabled} onChange={(event: Event) => { this.onGameObjectEnabled(event) }} />
-                    <input style={{
-                        width: "100%",
-                        fontSize: "12px",
-                        background: "#121212",
-                        borderRadius: "5px",
-                        color: "white",
-                        border: "none",
-                        outline: "none",
-                        paddingLeft: "5px",
-                    }}
-                        type="text"
-                        value={this.props.gameObject.name}
-                        onChange={(event: Event) => { this.onGameObjectNameChanged(this.props.gameObject, event) }}
-                    />
+                    <input class="input" style="font-size: 10px;" type="text" value={this.props.gameObject.name} onChange={(event: Event) => { this.onGameObjectNameChanged(this.props.gameObject, event) }} />
                 </div>
-
                 <Collapsible header="Transform">
                     <InspectorProperty title="Position">
                         <InspectorVector3 key={`position-${this.props.gameObject.id}`} onChanged={(value) => { this.onComponentPropertyChanged(this.props.gameObject.transform, "localPosition", value) }} vector3={this.props.gameObject.transform.localPosition} />
