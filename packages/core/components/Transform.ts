@@ -19,7 +19,6 @@ export class Transform extends Component {
 
     public up: Vector3 = new Vector3(0, 1, 0);
     public forward: Vector3 = new Vector3(0, 0, 1);
-    public right: Vector3 = new Vector3(1, 0, 0);
 
     private _localToWorldMatrix: Matrix4 = new Matrix4();
     private _worldToLocalMatrix: Matrix4 = new Matrix4();
@@ -220,13 +219,16 @@ export class Transform extends Component {
             child.UpdateMatrices();
         }
 
+        this.forward.set(0, 0, -1).applyQuaternion(this.rotation);
+        this.up.set(0, 1, 0).applyQuaternion(this.rotation);
+
         EventSystem.emit(TransformEvents.Updated);
         EventSystemLocal.emit(TransformEvents.Updated, this);
     }
 
     public LookAt(target: Vector3): void {
-        this.rotation.lookAt(this.position, target, this.up);
-        this.tempRotation.lookAt(this.position, target, this.up);
+        this.rotation.lookAt(this.position, target, Vector3.up);
+        this.tempRotation.lookAt(this.position, target, Vector3.up);
 
         if (!this.tempRotation.equals(this.rotation)) {
             this._suppressWorldCallbacks = true;
