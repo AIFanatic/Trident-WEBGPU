@@ -1,4 +1,4 @@
-import { Deserializer, Prefab, Texture } from "@trident/core";
+import { AudioClip, Deserializer, Prefab, Texture } from "@trident/core";
 import { IEngineAPI } from "../engine-api/trident/IEngineAPI";
 import { GetFileExports, LoadScript } from "./ScriptLoader";
 
@@ -19,6 +19,9 @@ export async function LoadFile(path: string, file: FileSystemFileHandle, engineA
     }
     else if (ext === "png" || ext === "jpg" || ext === "jpeg") {
         return Deserializer.Load(path, undefined, Texture);
+    }
+    else if (ext === "wav" || ext === "mp3" || ext === "ogg") {
+        return Deserializer.Load(path, undefined, AudioClip);
     }
 
     return Deserializer.Load(path);

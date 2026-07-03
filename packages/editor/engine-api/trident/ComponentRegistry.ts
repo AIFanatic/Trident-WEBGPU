@@ -63,6 +63,9 @@ export const ComponentRegistry = {
     Animator: component<IComponent>(Components.Animator),
     AnimationTrack: component<IComponent>(Components.AnimationTrack),
 
+    AudioListener: component<IComponent>(Components.AudioListener),
+    AudioSource: component<IComponent>(Components.AudioSource),
+
     EditorScene: component<IComponent>(EditorScene),
     OrbitControls: component<IComponent>(OrbitControls),
 

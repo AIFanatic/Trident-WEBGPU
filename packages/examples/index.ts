@@ -79,3 +79,5 @@ import "./GLSL2WGSL";
 import "./TerrainProcedural";
 
 import "./FoliageShader";
+
+import "./Audio";

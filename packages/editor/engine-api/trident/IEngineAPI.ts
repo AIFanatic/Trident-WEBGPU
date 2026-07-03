@@ -53,7 +53,6 @@ export interface IEngineAPI {
 
     createPBRMaterial(args?): IMaterial;
 
-    createPrefab(): IPrefab;
     addComponent<T extends IComponent>(gameObject: IGameObject, component: IComponentConstructor<T>): T;
 
     createTextureFromBlob(blob: Blob, format?: GPU.TextureFormat, options?: GPU.ImageLoadOptions): Promise<ITexture>;
@@ -62,8 +61,9 @@ export interface IEngineAPI {
     deserializeMaterial(serialized): Promise<IMaterial>;
 
     GetSerializedFields: (instance: object) => { name: string | symbol, type?: Function }[];
+    GetInspectableFields: (instance: object) => { name: string | symbol, type?: Function }[];
 
-    getFieldType(value: any): "Prefab" | "GameObject" | "Component" | "Vector3" | "Vector2" | "Color" | "Gradient" | "Geometry" | "Material" | "Texture" | "unknown";
+    getFieldType(value: any): "Prefab" | "GameObject" | "Component" | "Vector3" | "Vector2" | "Color" | "Gradient" | "Geometry" | "Material" | "Texture" | "AudioClip" | "unknown";
    
     serializer: {
         serializeScene(scene: any): any;

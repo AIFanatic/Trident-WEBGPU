@@ -6,6 +6,7 @@ import { GetSerializedFields } from "../utils/SerializeField";
 import { Texture } from "../renderer/Texture";
 import { Assets } from "../Assets";
 import { TypeRegistry, UUID } from "../utils";
+import { AudioClip } from "../components/AudioSource";
 
 type DeferredRef = { target: any; property: string | symbol; id: string };
 
@@ -101,7 +102,7 @@ export class Deserializer {
         return new (type as any)();
     }
 
-    private static remapTemplateIds(source: any): any {
+    public static remapTemplateIds(source: any): any {
         const idMap = new Map<string, string>();
         const collect = (n: any) => {
             if (!n || typeof n !== "object") return;
@@ -128,6 +129,12 @@ export class Deserializer {
         if (this.isAssetRef(data)) return this.Load(data.assetPath, data, expectedType);
         if (Array.isArray(data) && this.typedArrayCtors.has(expectedType as any)) return new (expectedType as any)(data);
 
+        if (existing instanceof Map && Array.isArray(data)) {
+            existing.clear();
+            for (const [k, v] of data) existing.set(k, await this.deserializeAny(v, undefined, undefined, ctx));
+            return existing;
+        }
+
         if (Array.isArray(data)) {
             const result = new Array(data.length);
             await Promise.all(data.map(async (item, i) => {
@@ -146,6 +153,7 @@ export class Deserializer {
         if (existing instanceof Quaternion) { existing.set(data.x, data.y, data.z, data.w); return existing; }
         if (existing instanceof Color) { existing.set(data.r, data.g, data.b, data.a); return existing; }
         if (expectedType === Texture && !data.assetPath) return existing;
+        if (expectedType === AudioClip && !data.assetPath) return existing;
 
         const target = existing ?? (expectedType ? this.createExpectedInstance(expectedType) : undefined);
         if (target) {

@@ -1,4 +1,4 @@
-import { GameObject, Scene, Mathf, Geometry, PBRMaterial, Utils, Component, GPU, Serializer, Deserializer, Prefab, EventSystem, EventSystemLocal } from "@trident/core";
+import { GameObject, Scene, Mathf, Geometry, PBRMaterial, Utils, Component, GPU, Serializer, Deserializer, Prefab, EventSystem, EventSystemLocal, AudioClip } from "@trident/core";
 
 import { IEngineAPI } from "./IEngineAPI";
 import { IComponentConstructor, IComponentInstance } from "./components/IComponent";
@@ -13,7 +13,7 @@ import { ITexture } from "./components/ITexture";
 import { ISystem } from "./ISystem";
 import { IRuntime } from "./IRuntime";
 
-import "../../serialization/EditorLoad";
+import "../../loaders/EditorLoad";
 import "./ComponentRegistry";
 import { EditorRuntime } from "./EditorRuntime";
 
@@ -80,10 +80,6 @@ export class TridentAPI implements IEngineAPI {
         return new PBRMaterial(args);
     }
 
-    public createPrefab(): IPrefab {
-        return new Prefab();
-    }
-
     public addComponent<T extends IComponentConstructor>(gameObject: IGameObject, component: T): IComponentInstance<T> {
         return gameObject.AddComponent(component as any) as IComponentInstance<T>;
     }
@@ -106,17 +102,18 @@ export class TridentAPI implements IEngineAPI {
         return value?.constructor?.type === (type as any).type;
     }
 
-    public getFieldType(value: any): "Prefab" | "GameObject" | "Component" | "Vector3" | "Vector2" | "Color" | "Gradient" | "Geometry" | "Material" | "Texture" | "unknown" {
+    public getFieldType(value: any): "Prefab" | "GameObject" | "Component" | "Vector3" | "Vector2" | "Color" | "Gradient" | "Geometry" | "Material" | "Texture" | "AudioClip" | "unknown" {
         if (this.compareType(value, Prefab)) return "Prefab";
         else if (this.compareType(value, GameObject)) return "GameObject";
         else if (this.compareType(value, Component)) return "Component";
         else if (this.compareType(value, Mathf.Vector3)) return "Vector3";
         else if (this.compareType(value, Mathf.Vector2)) return "Vector2";
         else if (this.compareType(value, Mathf.Color)) return "Color";
-        else if (this.compareType(value, Mathf.Gradient)) return "Gradient";   // ← add
+        else if (this.compareType(value, Mathf.Gradient)) return "Gradient";
         else if (this.compareType(value, Geometry)) return "Geometry";
         else if (this.compareType(value, GPU.Material)) return "Material";
         else if (this.compareType(value, GPU.Texture)) return "Texture";
+        else if (this.compareType(value, AudioClip)) return "AudioClip";
         return "unknown";
     }
 
@@ -166,6 +163,7 @@ export class TridentAPI implements IEngineAPI {
     }
 
     public GetSerializedFields = Utils.GetSerializedFields;
+    public GetInspectableFields = Utils.GetInspectableFields;
 
     public static EventSystem = EventSystem;
     public static EventSystemLocal = EventSystemLocal;

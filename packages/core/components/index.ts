@@ -7,3 +7,4 @@ export { SkinnedMesh, Skeleton } from "./SkinnedMesh";
 export { Animator, AnimationTrack } from "./Animator";
 export { Transform, TransformEvents } from "./Transform";
 export { Renderable, RenderableEvents } from "./Renderable";
+export { AudioListener, AudioSource } from "./AudioSource";

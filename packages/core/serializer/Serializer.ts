@@ -6,6 +6,7 @@ import { Prefab } from "../Prefab";
 import { Texture } from "../renderer/Texture";
 import { GetSerializedFields } from "../utils/SerializeField";
 import { Flags } from "../utils";
+import { AudioClip } from "../components/AudioSource";
 
 export interface ISerializedGameObject {
     assetPath?: string;
@@ -28,6 +29,10 @@ export class Serializer {
         return value instanceof Texture || value?.constructor?.type === Texture.type;
     }
 
+    private static isAudioClipLike(value: any): value is AudioClip {
+        return value instanceof AudioClip || value?.constructor?.type === AudioClip.type;
+    }
+
     public static serializeValue(value: any): any {
         if (value == null || typeof value !== 'object') return value;
         if (Array.isArray(value)) return value.map(v => this.serializeValue(v));
@@ -36,6 +41,10 @@ export class Serializer {
         if (this.isTextureLike(value)) {
             if (!value.assetPath) return undefined;
             return { assetPath: value.assetPath, name: value.name, format: value.format, generateMips: value.mipLevels > 1 };
+        }
+        if (this.isAudioClipLike(value)) {
+            if (!value.assetPath) return undefined;
+            return { assetPath: value.assetPath, name: value.name };
         }
         if (value instanceof Vector3) return { x: value.x, y: value.y, z: value.z };
         if (value instanceof Vector2) return { x: value.x, y: value.y };
