@@ -6,6 +6,7 @@ export class BoundingVolume {
     public center: Vector3;
     public radius: number;
     public scale: number;
+    public halfExtents: Vector3;
 
     constructor(min = new Vector3(+Infinity, +Infinity, +Infinity), max = new Vector3(-Infinity, -Infinity, -Infinity), center = new Vector3(), radius = 0, scale = 1) {
         this.min = min;
@@ -13,6 +14,7 @@ export class BoundingVolume {
         this.center = center;
         this.radius = radius;
         this.scale = scale;
+        this.halfExtents = this.max.clone().sub(this.min).mul(0.5);
     }
 
     public static FromVertices(vertices: Float32Array): BoundingVolume {
