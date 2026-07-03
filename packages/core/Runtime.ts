@@ -1,3 +1,4 @@
+import { AudioManager } from "./AudioManager";
 import { Input } from "./Input";
 import { Renderer } from "./renderer";
 import { SceneExecutionMode } from "./Scene";
@@ -8,21 +9,25 @@ export class Runtime {
     protected static _Input: Input;
     protected static _SceneManager: SceneManager;
     protected static _Renderer: Renderer;
+    protected static _AudioManager: AudioManager;
     protected static _systems = new Map<Function, System>();
 
     public static get Input() { return Runtime._Input; }
     public static get SceneManager() { return Runtime._SceneManager; }
     public static get Renderer() { return Runtime._Renderer; }
+    public static get AudioManager() { return Runtime._AudioManager; }
     public static get systems() { return Runtime._systems; }
 
-    protected static async Create(canvas: HTMLCanvasElement, aspectRatio = 1): Promise<Runtime> {
+    protected static async Create(canvas: HTMLCanvasElement): Promise<Runtime> {
         Runtime._Input = new Input();
         Runtime._SceneManager = new SceneManager();
-        Runtime._Renderer = new Renderer(canvas, aspectRatio);
+        Runtime._Renderer = new Renderer(canvas);
+        Runtime._AudioManager = new AudioManager();
 
         await Runtime._SceneManager.Start();
         await Runtime._Renderer.Start();
         await Runtime._Input.Start();
+        await Runtime._AudioManager.Start();
 
         return this;
     }
