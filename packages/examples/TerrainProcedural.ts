@@ -206,6 +206,7 @@ async function Application(canvas: HTMLCanvasElement) {
             const lodGroup = gameObject.AddComponent(LODGroup);
             lodGroup.lods.push({ screenSize: 1e9, renderers: [{ geometry: Geometry.Cube(), material: new PBRMaterial() }] });
             const prefab = PrefabFromGameObject(gameObject);
+            console.log(prefab)
             await terrain.terrainData.AddProp(prefab, terrain.gameObject);
 
 

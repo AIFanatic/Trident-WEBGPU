@@ -240,7 +240,7 @@ export class TerrainMaterial extends GPU.Material {
 
                 fn sample_layer(uv: vec2<f32>, layer_index: u32) -> TerrainSample {
                     let layer = TerrainLayers[layer_index];
-                    let uv_layer = uv * 1 / (layer.transform.xy * 10.0) + layer.transform.zw;
+                    let uv_layer = uv * 1 / (layer.transform.xy * 5.0) + layer.transform.zw;
                     let layerAlbedo = textureSample(albedoTextures, textureSampler, uv_layer, u32(layer.textureIndices.x));
                     let albedo = layerAlbedo.rgb * layer.albedoColor.rgb;
                     let layerNormalSample = textureSample(normalTextures, textureSampler, uv_layer, u32(layer.textureIndices.y));

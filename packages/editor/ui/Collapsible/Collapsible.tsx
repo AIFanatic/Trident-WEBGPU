@@ -9,6 +9,8 @@ interface ICollapsibleProps {
     open?: boolean;
     rightMenuText?: string;
     onRightMenuClicked?: () => void;
+    enabledCheckbox?: boolean;
+    onEnabledChanged?: (value: boolean) => void;
 }
 
 interface ICollapsibleState {
@@ -21,10 +23,10 @@ export class Collapsible extends Component<ICollapsibleProps, ICollapsibleState>
         super(props);
 
         this.state = {isOpen: this.props.open ? this.props.open : true, height: ""}
-        // this.handleFilterOpening();
     }
     
-    private handleFilterOpening() {
+    private handleFilterOpening(event: Event) {
+        console.log(event, event.target)
         if (this.state.isOpen) {
             this.setState({isOpen: false, height: "0px"});
         }
@@ -41,21 +43,29 @@ export class Collapsible extends Component<ICollapsibleProps, ICollapsibleState>
         event.preventDefault();
         event.stopPropagation();
     }
+
+    private onEnabledChanged(event: Event) {
+        if (this.props.onEnabledChanged) {
+            this.props.onEnabledChanged((event.currentTarget as HTMLInputElement).checked);
+        }
+
+        event.preventDefault();
+        event.stopPropagation();
+    }
     
     render() {
 
         return (
             <div className="collapsible-card-edonec" id={this.props.id ? this.props.id : ""}>
                 <div>
-                    <div className="collapsible-header-edonec" onPointerDown={() => {this.handleFilterOpening() }}>
-                        <button type="button" className={`collapsible-icon-button-edonec`}>
+                    <div className="collapsible-header-edonec">
+                        <button onPointerDown={(event: Event) => {this.handleFilterOpening(event) }} type="button" className={`collapsible-icon-button-edonec`}>
                             <Arrow isOpen={this.state.isOpen}/>
                         </button>
+                        {this.props.enabledCheckbox !== undefined ? <input checked={this.props.enabledCheckbox} type="checkbox" onChange={(event: Event) => {this.onEnabledChanged(event)}}/> : ""}
                         <div className="title-text-edonec">{this.props.header}</div>
                         {
-                            this.props.rightMenuText ? 
-                            <div className="title-right-menu" onPointerDown={(event) => {this.onRightMenuClicked(event)}}>{this.props.rightMenuText}</div>
-                            : ""
+                            this.props.rightMenuText ?  <div className="title-right-menu" onPointerDown={(event: PointerEvent) => {this.onRightMenuClicked(event)}}>{this.props.rightMenuText}</div> : ""
                         }
                     </div>
                     </div>

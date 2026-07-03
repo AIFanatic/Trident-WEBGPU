@@ -29,7 +29,7 @@
     width: 100%;
     font-size: 9px;
     background-color: #121212;
-    border-radius: 5px;
+    border-radius: 0px 5px 5px 0px;
     color: white;
     border: 1px solid black;
     outline: none;
@@ -97,10 +97,11 @@
 }
 
 .vec-label {
-    padding: 4px;
+    padding: 5px;
     font-size: 9px;
-    border-top-left-radius: 2px;
-    border-bottom-left-radius: 2px;
+    border-top-left-radius: 5px;
+    border-bottom-left-radius: 5px;
+    border: 1px solid black;
     display: flex;
     align-items: center;
 }

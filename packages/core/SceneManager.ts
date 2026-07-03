@@ -3,7 +3,7 @@ import { ISerializedScene } from "./serializer/Serializer";
 import { Deserializer } from "./serializer/Deserializer";
 import { System } from "./System";
 
-export class SceneManager  extends System {
+export class SceneManager extends System {
     private activeScene: Scene;
 
     public CreateScene(name: string): Scene {

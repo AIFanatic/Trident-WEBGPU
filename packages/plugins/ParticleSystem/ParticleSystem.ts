@@ -169,7 +169,7 @@ export class ParticleSystem extends Component {
 
             ...this.gravity.elements, 0,
 
-            +this.arcLoop, this.arcPhase, 0, 0,        // ← new 16-byte row at the end
+            +this.arcLoop, this.arcPhase, 0, 0,
         ]);
         this.compute.SetArray("settings", settings);
         this.material.shader.SetArray("settings", settings);

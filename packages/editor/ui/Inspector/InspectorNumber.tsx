@@ -77,7 +77,7 @@ export class InspectorNumber extends Component<InspectorNumberProps, InspectorNu
                 max={this.props.max}
                 step={this.props.step}
                 onChange={(event) => { this.onChanged(event) }}
-                value={this.state.value.toPrecision(4)}
+                value={Number(this.state.value.toPrecision(4)).toLocaleString("fullwide", { useGrouping: false })}
             />
         </div>
     }

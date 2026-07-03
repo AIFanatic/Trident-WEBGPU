@@ -14,6 +14,8 @@ import { SceneExecutionMode } from "@trident/core";
 import { PhysicsRapier } from "@trident/plugins/PhysicsRapier/PhysicsRapier";
 // import "./helpers/LeakTracker";
 
+import { Debugger } from "@trident/plugins/Debugger";
+
 export type EditorEventHandler<T extends (...args: any[]) => void> = (...args: Parameters<T>) => void;
 
 const EngineAPI = new TridentAPI();
@@ -69,6 +71,8 @@ class App extends Component {
             TridentAPI.EventSystem.emit(SceneEvents.Loaded, EngineAPI.currentScene);
 
             TridentAPI.EventSystem.emit(SceneEvents.Loaded, currentScene);
+
+            // Debugger.Enable()
         })
     }
 

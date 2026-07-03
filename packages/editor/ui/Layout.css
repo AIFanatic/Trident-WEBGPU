@@ -24,6 +24,10 @@ html, body {
     background: #444; 
 }
 
+input[type="checkbox"] {
+    accent-color: #7f8c8d;
+}
+
 flex {
     display: flex;
     overflow: hidden;
