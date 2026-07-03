@@ -1,7 +1,7 @@
 import { EventSystem } from "../Events";
 import { GameObject } from "../GameObject";
 import { Scene } from "../Scene";
-import { UUID } from "../utils";
+import { HideInInspector, SerializeField, UUID } from "../utils";
 import { Flags } from "../utils/Flags";
 import { TypeRegistry } from "../utils/TypeRegistry";
 import { Transform } from "./Transform";
@@ -18,7 +18,6 @@ export class Component {
     public flags: Flags = Flags.None;
     public static type: string;
     public id = UUID();
-    public enabled: boolean = true;
     public hasStarted: boolean = false;
     public name: string;
     public assetPath: string;
@@ -28,6 +27,10 @@ export class Component {
     public readonly transform: Transform;
 
     public static Registry = TypeRegistry;
+
+    protected _enabled: boolean = true;
+    @SerializeField @HideInInspector public get enabled(): boolean { return this._enabled }
+    public set enabled(value: boolean) { this._enabled = value }
 
     constructor(gameObject: GameObject) {
         this.gameObject = gameObject;
