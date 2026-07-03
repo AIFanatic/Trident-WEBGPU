@@ -2,6 +2,7 @@ import { System, Mathf, Runtime, SceneExecutionMode } from "@trident/core"
 
 import RAPIER_Module from "./rapier/rapier.es.js"
 import RAPIER from "./rapier/rapier";
+import { Collider } from "./colliders/Collider.js";
 
 export interface RaycastHit {
     point: Mathf.Vector3;
@@ -17,6 +18,8 @@ export class PhysicsRapier extends System {
     public static PhysicsWorld: RAPIER.World;
 
     public static fixedDeltaTime = 1 / 60;   // seconds
+
+    private static ColliderMap: Map<RAPIER.Collider, Collider> = new Map();
 
     public async Start() {
         await RAPIER_Module.init()
@@ -49,11 +52,49 @@ export class PhysicsRapier extends System {
 
         const hitPoint = ray.pointAt(rayHit.timeOfImpact);
 
-
         return {
             point: new Mathf.Vector3(hitPoint.x, hitPoint.y, hitPoint.z),
             normal: new Mathf.Vector3(rayHit.normal.x, rayHit.normal.y, rayHit.normal.z)
         }
+    }
+
+    public static OverlapBox(center: Mathf.Vector3, halfExtents: Mathf.Vector3, orientation: Mathf.Quaternion = new Mathf.Quaternion(), layerMask = -1): Collider[] {
+        const shape = new PhysicsRapier.Physics.Cuboid(halfExtents.x, halfExtents.y, halfExtents.z);
+
+        let overlappingColliders: Collider[] = [];
+
+        this.PhysicsWorld.intersectionsWithShape(center, orientation, shape, (colliderInternal) => {
+            const collider = PhysicsRapier.ColliderMap.get(colliderInternal);
+            if (collider) overlappingColliders.push(collider);
+            return true;
+        }, undefined, layerMask);
+
+        return overlappingColliders;
+    }
+
+    public static OverlapSphere(center: Mathf.Vector3, radius: number, orientation: Mathf.Quaternion = new Mathf.Quaternion(), layerMask = -1): Collider[] {
+        const shape = new PhysicsRapier.Physics.Ball(radius);
+
+        let overlappingColliders: Collider[] = [];
+
+        this.PhysicsWorld.intersectionsWithShape(center, orientation, shape, (colliderInternal) => {
+            const collider = PhysicsRapier.ColliderMap.get(colliderInternal);
+            if (collider) overlappingColliders.push(collider);
+            return true;
+        }, undefined, layerMask);
+
+        return overlappingColliders;
+    }
+
+    public static CreateCollider(collider: Collider, desc: RAPIER.ColliderDesc, parent?: RAPIER.RigidBody): RAPIER.Collider {
+        const colliderInternal = PhysicsRapier.PhysicsWorld.createCollider(desc, parent);
+        PhysicsRapier.ColliderMap.set(colliderInternal, collider);
+        return colliderInternal;
+    }
+
+    public static RemoveCollider(collider: RAPIER.Collider, wakeUp: boolean) {
+        PhysicsRapier.PhysicsWorld.removeCollider(collider, wakeUp);
+        PhysicsRapier.ColliderMap.delete(collider);
     }
 
     public Update(): void {

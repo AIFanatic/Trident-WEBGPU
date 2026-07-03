@@ -30,9 +30,9 @@ export class TerrainCollider extends Collider {
         if (!heights?.length) return;
         const size = Math.sqrt(heights.length);
 
-        if (this.collider) PhysicsRapier.PhysicsWorld.removeCollider(this.collider, true);
+        if (this.collider) PhysicsRapier.RemoveCollider(this.collider, true);
         this.colliderDesc = PhysicsRapier.Physics.ColliderDesc.heightfield(size - 1, size - 1, heights, terrainData.size);
-        this.collider = PhysicsRapier.PhysicsWorld.createCollider(this.colliderDesc);
+        this.collider = PhysicsRapier.CreateCollider(this, this.colliderDesc);
         const pos = this.transform.position.clone();
         pos.y -= terrainData.size.y * 0.5;
         this.collider.setTranslation(pos);
@@ -41,6 +41,6 @@ export class TerrainCollider extends Collider {
 
     public Destroy(): void {
         if (this._terrainData) EventSystemLocal.off(TerrainEvents.GeometryUpdated, this._terrainData, this.onGeometryUpdated);
-        if (this.collider && PhysicsRapier.PhysicsWorld) PhysicsRapier.PhysicsWorld.removeCollider(this.collider, true);
+        if (this.collider && PhysicsRapier.PhysicsWorld) PhysicsRapier.RemoveCollider(this.collider, true);
     }
 }

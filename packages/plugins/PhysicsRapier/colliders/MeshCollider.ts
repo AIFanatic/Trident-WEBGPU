@@ -1,4 +1,4 @@
-import { Components, EventSystemLocal, GameObject, Mathf, Geometry } from "@trident/core";
+import { Mathf, Geometry, SerializeField, GameObject, EventSystemLocal, Components } from "@trident/core";
 import { PhysicsRapier } from "../PhysicsRapier";
 import { Collider } from "./Collider";
 
@@ -6,29 +6,22 @@ export class MeshCollider extends Collider {
     public static type = "@trident/plugins/PhysicsRapier/Colliders/MeshCollider";
     public runInEditMode = true;
 
+    private _geometry: Geometry;
+    @SerializeField(Geometry) public get geometry(): Geometry { return this._geometry }
+    public set geometry(geometry: Geometry) {
+        this._geometry = geometry;
+        this.CreateCollider(this._geometry);
+    }
+
     constructor(gameObject: GameObject) {
         super(gameObject);
 
-        EventSystemLocal.on(Components.RenderableEvents.GeometryUpdated, this.transform, (gameObject, geometry) => {
-            let meshes: Components.Mesh[] = this.gameObject.GetComponentsInChildren(Components.Mesh);
-            if (meshes.length === 0) {
-                console.warn("No mesh");
-                return;
-            }
-    
-            const mesh = meshes[0];
-            if (!mesh.geometry) {
-                console.warn("No mesh or mesh.geometry");
-                return;
-            }
-    
-            this.CreateCollider(mesh.geometry);
-        });
-
-        const meshes = this.gameObject.GetComponentsInChildren(Components.Mesh);
-        if (meshes.length > 0 && meshes[0].geometry?.attributes?.has("position")) {
-            this.CreateCollider(meshes[0].geometry);
-        }
+        EventSystemLocal.on(Components.TransformEvents.Updated, this.transform, () => {
+            if (!this.collider) return;
+            if (this.collider.parent()) return;   // attached to a Rigidbody — let physics drive it
+            this.collider.setTranslation(this.transform.position);
+            this.collider.setRotation(this.transform.rotation);
+        })
     }
 
     private CreateCollider(geometry: Geometry) {
@@ -52,15 +45,11 @@ export class MeshCollider extends Collider {
             baked[i + 2] = verts[i + 2] * s.z;
         }
 
-        if (this.collider) PhysicsRapier.PhysicsWorld.removeCollider(this.collider, true);
+        if (this.collider) PhysicsRapier.RemoveCollider(this.collider, true);
         this.colliderDesc = PhysicsRapier.Physics.ColliderDesc.trimesh(baked, idx32);
-        this.collider = PhysicsRapier.PhysicsWorld.createCollider(this.colliderDesc);
+        this.collider = PhysicsRapier.CreateCollider(this, this.colliderDesc);
 
         this.collider.setTranslation(p);
         this.collider.setRotation(q);
-    }
-
-    public Destroy(): void {
-        if (this.collider && PhysicsRapier.PhysicsWorld) PhysicsRapier.PhysicsWorld.removeCollider(this.collider, true);
     }
 }
