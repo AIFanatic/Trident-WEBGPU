@@ -133,7 +133,7 @@ async function Application(canvas: HTMLCanvasElement) {
         mesh.geometry = Geometry.Sphere();
 
 
-        const material = new GPU.Material({
+        const material = new GPU.ShaderMaterial({
             isDeferred: false,
             shader: await GPU.Shader.Create({
                 code: `

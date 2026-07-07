@@ -215,10 +215,10 @@ async function Application(canvas: HTMLCanvasElement) {
             
             const rtGLB = await GLTFLoader.Load("/extra/SampleProject/GameAssets/Trees/Jacaranda mimosifolia RT.glb", scene);
             const rtMeshes = rtGLB.GetComponentsInChildren(Components.Mesh);
-            console.log(rtMeshes)
-            rtMeshes[0].material = new FoliageMaterial(rtMeshes[0].geometry, rtMeshes[0].material.params.albedoMap, rtMeshes[0].material.params.normalMap)
-            rtMeshes[1].material = new FoliageMaterial(rtMeshes[1].geometry, rtMeshes[1].material.params.albedoMap, rtMeshes[1].material.params.normalMap)
-            
+            console.log(rtMeshes);
+            rtMeshes[0].material = FoliageMaterial.SetFromMesh(rtMeshes[0]);
+            rtMeshes[1].material = FoliageMaterial.SetFromMesh(rtMeshes[1]);
+
             const go = new GameObject();
             const ldImpostor = go.AddComponent(ImpostorMesh);
             await ldImpostor.Create([rtMeshes[1], rtMeshes[2]], 4096, 16);
@@ -230,7 +230,10 @@ async function Application(canvas: HTMLCanvasElement) {
             const billboardGO = new GameObject();
             const billboard = billboardGO.AddComponent(Billboarder);
             await billboard.Create([rtMeshes[1], rtMeshes[2]]);
-            billboard.material = new FoliageMaterial(billboard.geometry, billboard.albedoTexture, billboard.normalTexture)
+            billboard.material = new FoliageMaterial();
+            (billboard.material as FoliageMaterial).params.foliageGeometry = billboard.geometry;
+            (billboard.material as FoliageMaterial).params.foliageAlbedo = billboard.albedoTexture;
+            (billboard.material as FoliageMaterial).params.foliageNormal = billboard.normalTexture;
 
             lodInstanceRenderable.lods.push({ renderers: [
                 { geometry: rtMeshes[1].geometry, material: rtMeshes[1].material },
