@@ -1,21 +1,36 @@
-import { Geometry, GPU } from "@trident/core";
+import { Components, Geometry, GPU, PBRMaterial, SerializeField } from "@trident/core";
 
-export class FoliageMaterial extends GPU.Material {
+class FoliageMaterialParams extends GPU.MaterialParams {
+    @SerializeField(Geometry) public foliageGeometry: Geometry;
+    @SerializeField(GPU.Texture) public foliageAlbedo: GPU.Texture;
+    @SerializeField(GPU.Texture) public foliageNormal: GPU.Texture;
+}
+
+export class FoliageMaterial extends GPU.Material<FoliageMaterialParams> {
     public static type = "@trident/plugins/FoliageMaterial";
 
-    public get shader(): GPU.Shader {
-        if (!this._shader && !this.pendingShaderCreation) this.createShader();
-        return this._shader;
+    // Just conveniences
+    public SetFromMesh(mesh: Components.Mesh) {
+        const geometry = mesh.geometry;
+        const material = mesh.material as PBRMaterial;
+        if (geometry && material && material instanceof PBRMaterial) {
+            this.params.foliageGeometry = geometry;
+            this.params.foliageAlbedo = material.params.albedoMap;
+            this.params.foliageNormal = material.params.normalMap;
+            this.BuildShader().then(shader => {
+                this.shader = shader;
+            })
+        }
+    }
+    // Just conveniences
+    public static SetFromMesh(mesh: Components.Mesh): FoliageMaterial {
+        const foliageMaterial = new FoliageMaterial();
+        foliageMaterial.SetFromMesh(mesh);
+        return foliageMaterial;
     }
 
-    private pendingShaderCreation?: Promise<GPU.Shader>;
-
-    constructor(
-        private foliageGeometry: Geometry,
-        private foliageAlbedo: GPU.Texture,
-        private foliageNormal: GPU.Texture
-    ) {
-        super({ isDeferred: true });
+    constructor(params?: Partial<FoliageMaterialParams>) {
+        super(new FoliageMaterialParams(), { isDeferred: true, ...params });
     }
 
     /**
@@ -23,11 +38,7 @@ export class FoliageMaterial extends GPU.Material {
      * center and writes it to every vertex of that quad. Used in the vertex
      * shader to pivot each leaf plane toward the camera.
      */
-    private computeBillboardCenters(
-        vertices: Float32Array | number[],
-        indices: Uint16Array | Uint32Array | number[],
-        { vertexStride = 3, positionOffset = 0, indexStart = 0, indexCount = indices.length } = {}
-    ): Float32Array {
+    private computeBillboardCenters(vertices: Float32Array | number[], indices: Uint16Array | Uint32Array | number[], { vertexStride = 3, positionOffset = 0, indexStart = 0, indexCount = indices.length } = {}): Float32Array {
         if (indexCount % 6 !== 0) {
             console.warn("Index count is not divisible by 6. Expected billboard quads (2 triangles / 6 indices).");
         }
@@ -64,15 +75,14 @@ export class FoliageMaterial extends GPU.Material {
         return centers;
     }
 
-    private async createShader(): Promise<GPU.Shader> {
-        if (this.pendingShaderCreation) return this.pendingShaderCreation;
+    protected async BuildShader(): Promise<GPU.Shader> {
+        if (!this.params.foliageGeometry || !this.params.foliageAlbedo || !this.params.foliageNormal) return;
 
-        this.pendingShaderCreation = (async () => {
-            const gbufferFormat = GPU.RenderingPipeline.GBufferFormat;
+        const gbufferFormat = GPU.RenderingPipeline.GBufferFormat;
 
-            const shader = await GPU.Shader.Create({
-                name: "FoliageMaterial",
-                code: `
+        const shader = await GPU.Shader.Create({
+            name: "FoliageMaterial",
+            code: `
                     #include "@trident/core/resources/webgpu/shaders/deferred/Common.wgsl";
 
                     @group(0) @binding(0) var<storage, read> frameBuffer: FrameBuffer;
@@ -149,28 +159,33 @@ export class FoliageMaterial extends GPU.Material {
                         return output;
                     }
                 `,
-                colorOutputs: Array(3).fill({ format: gbufferFormat }),
-                depthOutput: "depth24plus",
-                cullMode: "none"
-            });
+            colorOutputs: Array(3).fill({ format: gbufferFormat }),
+            depthOutput: "depth24plus",
+            cullMode: "none"
+        });
 
-            shader.SetTexture("albedoMap", this.foliageAlbedo);
-            shader.SetTexture("normalMap", this.foliageNormal);
-            shader.SetSampler("textureSampler", new GPU.TextureSampler());
+        shader.SetTexture("albedoMap", this.params.foliageAlbedo);
+        shader.SetTexture("normalMap", this.params.foliageNormal);
+        shader.SetSampler("textureSampler", new GPU.TextureSampler());
 
-            const vertices = this.foliageGeometry.attributes.get("position");
-            const indices = this.foliageGeometry.index;
-            if (!vertices || !indices) {
-                throw new Error("Foliage geometry needs both vertices and indices");
-            }
+        const vertices = this.params.foliageGeometry.attributes.get("position");
+        const indices = this.params.foliageGeometry.index;
+        if (!vertices || !indices) {
+            throw new Error("Foliage geometry needs both vertices and indices");
+        }
 
-            const leafCenters = this.computeBillboardCenters(vertices.array as Float32Array, indices.array);
-            shader.SetArray("leafCenters", leafCenters);
+        const leafCenters = this.computeBillboardCenters(vertices.array as Float32Array, indices.array);
+        shader.SetArray("leafCenters", leafCenters);
 
-            this._shader = shader;
-            return shader;
-        })();
+        return shader;          // ← was: this._shader = shader; return shader;
+    }
 
-        return this.pendingShaderCreation;
+    public ReloadMaterial(): void {
+        const s = this._shader;
+        if (!s) return;
+        s.SetTexture("albedoMap", this.params.foliageAlbedo);
+        s.SetTexture("normalMap", this.params.foliageNormal);
     }
 }
+
+GPU.Material.Registry.set(FoliageMaterial.type, FoliageMaterial);
