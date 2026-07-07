@@ -1,22 +1,33 @@
 import { Vector2 } from "../math";
 import { Color } from "../math/Color";
 import { Assets } from "../Assets";
-import { Pool, SerializeField, UUID } from "../utils/";
+import { HideInInspector, Pool, SerializeField, UUID } from "../utils/";
 import { Shader } from "./Shader";
 import { ShaderLoader } from "./ShaderUtils";
 import { Texture } from "./Texture";
 import { TextureSampler } from "./TextureSampler";
 import { RenderingPipeline } from "./RenderingPipeline";
+import { Renderer } from "./Renderer";
 
 export const MaterialPool = new Pool<Material>();
 
+export enum CullMode {
+    Back = "back",
+    Front = "front",
+    None = "none",
+}
+
 export class MaterialParams {
     @SerializeField public isDeferred?: boolean = false;
+    @SerializeField(CullMode) public cullMode: CullMode = CullMode.Back;
+    @SerializeField public defines: Record<string, boolean> = {};
     public shader?: Shader;
     public materialID?: number;
 }
 
-export class Material {
+export abstract class Material<TParams extends MaterialParams = MaterialParams> {
+    public static Registry = new Map<string, typeof Material>();
+
     public get name(): string {
         if (this.assetPath && !this.assetPath.startsWith("@builtin")) {
             const slash = this.assetPath.lastIndexOf("/");
@@ -29,23 +40,63 @@ export class Material {
     public id = UUID();
     public static type = "@trident/core/renderer/Material";
 
-    @SerializeField public assetPath?: string;
+    @SerializeField @HideInInspector public assetPath?: string;
     protected _shader: Shader;
-    public get shader(): Shader { return this._shader };
+
+    public get shader(): Shader {
+        if (!this._shader && !this.pendingShaderCreation) this.createShader();
+        return this._shader;
+    }
     public set shader(shader: Shader) { this._shader = shader };
-    @SerializeField public params: MaterialParams;
+
+    // Public: mutate freely. The render loop syncs it — no Set/Apply.
+    @SerializeField(MaterialParams) public params: TParams;
     public materialId: number;
 
-    constructor(params?: Partial<MaterialParams>) {
-        this.materialId = MaterialPool.add(this);
+    private pendingShaderCreation?: Promise<Shader>;
+    private builtVariant?: string;
+    private lastSync = -1;
 
-        const defaultParams: MaterialParams = {
-            isDeferred: false,
-            shader: undefined,
-            materialID: this.materialId
-        }
-        this.params = Object.assign({}, defaultParams, params);
-        this._shader = this.params.shader;
+    constructor(defaults: TParams, params?: Partial<TParams>) {
+        this.materialId = MaterialPool.add(this);
+        this.params = Object.assign(defaults, params);
+        this.params.materialID = this.materialId;
+    }
+
+    // A material provides these two: how to build its shader, and how to push its params into it.
+    protected abstract BuildShader(): Promise<Shader>;
+    public abstract ReloadMaterial(): void;
+
+    // The cull/defines signature the shader is compiled for.
+    private variantKey(): string {
+        return this.params.cullMode + "|" + JSON.stringify(this.params.defines);
+    }
+
+    // Runs once per frame via the shader's pre-render hook: recompile on variant change, then upload.
+    private Sync(): void {
+        if (this.lastSync === Renderer.info.frame) return;
+        this.lastSync = Renderer.info.frame;
+
+        if (this.variantKey() !== this.builtVariant && !this.pendingShaderCreation) this.createShader();
+        this.ReloadMaterial();
+    }
+
+    private async createShader(): Promise<Shader> {
+        if (this.pendingShaderCreation) return this.pendingShaderCreation;
+
+        this.pendingShaderCreation = (async () => {
+            const shader = await this.BuildShader();
+            shader.OnPreRender = () => { this.Sync(); return true; };
+
+            const old = this._shader;   // build new, then swap — no gap
+            this._shader = shader;
+            this.builtVariant = this.variantKey();
+            old?.Destroy();
+            return shader;
+        })();
+
+        this.pendingShaderCreation.finally(() => (this.pendingShaderCreation = undefined));
+        return this.pendingShaderCreation;
     }
 
     public Destroy() {
@@ -56,161 +107,76 @@ export class Material {
         MaterialPool.remove(this.materialId);
     }
 
-    public static Create(type: string, params?: any) {
-        if (type === PBRMaterial.type) return new PBRMaterial(params);
-        return new Material(params);
+    public static Create(type: string, params?: any): Material {
+        const Ctor = Material.Registry.get(type);
+        if (!Ctor) throw new Error(`No material registered for type "${type}"`);
+        return new (Ctor as any)(params);
     }
 }
 
-class PBRMaterialParams extends MaterialParams {
+export class PBRMaterialParams extends MaterialParams {
+    @SerializeField public isDeferred = true;
+    @SerializeField public defines = { USE_SKINNING: false };
+
     @SerializeField public albedoColor = new Color(1, 1, 1, 1);
     @SerializeField public emissiveColor = new Color(0, 0, 0, 0);
     @SerializeField public roughness = 0.5;
     @SerializeField public metalness = 0.0;
-
-    @SerializeField(Texture) public albedoMap: Texture;
-    @SerializeField(Texture) public normalMap: Texture;
-    @SerializeField(Texture) public heightMap: Texture;
-    @SerializeField(Texture) public armMap: Texture;
-    @SerializeField(Texture) public emissiveMap: Texture;
-
+    @SerializeField public unlit = false;
+    @SerializeField public alphaCutoff = 0.5;
     @SerializeField public repeat = new Vector2(1, 1);
     @SerializeField public offset = new Vector2(0, 0);
 
-    @SerializeField public doubleSided = false;
-    @SerializeField public alphaCutoff = 0.5;
-    @SerializeField public unlit = false;
-    @SerializeField public isSkinned = false;
-    @SerializeField public isDeferred = true;
-
-    private static dummyAlbedo: Texture;    // 1x1 white
-    private static dummyNormal: Texture;    // 1x1 flat (128, 128, 255)
-    private static dummyBlack: Texture;     // 1x1 black (for height, emissive)
-    private static dummyWhite: Texture;     // 1x1 black (for height, emissive)
-    private static dummyARM: Texture;       // 1x1 (255, roughness_default, 0) or just white
-
-    constructor() {
-        super();
-
-        if (!PBRMaterialParams.dummyAlbedo) PBRMaterialParams.InitDummies();
-
-        this.albedoMap = PBRMaterialParams.dummyAlbedo;
-        this.normalMap = PBRMaterialParams.dummyNormal;
-        this.heightMap = PBRMaterialParams.dummyBlack;
-        this.armMap = PBRMaterialParams.dummyARM;
-        this.emissiveMap = PBRMaterialParams.dummyWhite;
-    }
-
-    public static InitDummies() {
-        PBRMaterialParams.dummyAlbedo = Texture.Create(1, 1, 1, "bgra8unorm");
-        PBRMaterialParams.dummyAlbedo.SetData(new Uint8Array([255, 255, 255, 255]), 4);
-
-        PBRMaterialParams.dummyNormal = Texture.Create(1, 1, 1, "bgra8unorm");
-        PBRMaterialParams.dummyNormal.SetData(new Uint8Array([255, 128, 128, 255]), 4); // BGRA flat normal
-
-        PBRMaterialParams.dummyBlack = Texture.Create(1, 1, 1, "bgra8unorm");
-        PBRMaterialParams.dummyBlack.SetData(new Uint8Array([0, 0, 0, 255]), 4);
-
-        PBRMaterialParams.dummyWhite = Texture.Create(1, 1, 1, "bgra8unorm");
-        PBRMaterialParams.dummyWhite.SetData(new Uint8Array([255, 255, 255, 255]), 4);
-
-        PBRMaterialParams.dummyARM = Texture.Create(1, 1, 1, "bgra8unorm");
-        PBRMaterialParams.dummyARM.SetData(new Uint8Array([255, 255, 255, 255]), 4);
-    }
-
+    @SerializeField(Texture) public albedoMap: Texture = Texture.WhiteTexture;
+    @SerializeField(Texture) public normalMap: Texture = Texture.NormalTexture;
+    @SerializeField(Texture) public heightMap: Texture = Texture.BlackTexture;
+    @SerializeField(Texture) public armMap: Texture = Texture.WhiteTexture;
+    @SerializeField(Texture) public emissiveMap: Texture = Texture.WhiteTexture;
 }
 
-export class PBRMaterial extends Material {
+export class PBRMaterial extends Material<PBRMaterialParams> {
     public static type = "@trident/core/renderer/Material/PBRMaterial";
     private static sampler: TextureSampler;
 
-    public params: PBRMaterialParams = new PBRMaterialParams();
-
-    public get shader(): Shader {
-        if (!this._shader && !this.pendingShaderCreation) this.createShader();
-        return this._shader;
-    }
-
     constructor(params?: Partial<PBRMaterialParams>) {
-        super({ isDeferred: params?.isDeferred ?? true });
+        super(new PBRMaterialParams(), { isDeferred: true, ...params });
         this.assetPath = "@builtin/material/pbr";
-
-        if (!Assets.GetInstance("@builtin/material/pbr")) {
-            Assets.SetInstance("@builtin/material/pbr", this);
-        }
-
-        Object.assign(this.params, params);
-
+        if (!Assets.GetInstance("@builtin/material/pbr")) Assets.SetInstance("@builtin/material/pbr", this);
         if (!PBRMaterial.sampler) PBRMaterial.sampler = new TextureSampler({ maxAnisotropy: 4 });
     }
 
-    private pendingShaderCreation?: Promise<Shader>;
-
-    private async createShader() {
-        if (this.pendingShaderCreation) return this.pendingShaderCreation;
-
-        this.pendingShaderCreation = (async () => {
-            const gbufferFormat = RenderingPipeline.GBufferFormat;
-
-            const defines = {
-                USE_SKINNING: !!this.params.isSkinned
-            };
-
-            const shader = await Shader.Create({
-                name: "PBRMaterial",
-                code: await ShaderLoader.Draw,
-                defines,
-                colorOutputs: Array(3).fill({ format: gbufferFormat }),
-                depthOutput: "depth24plus",
-                cullMode: this.params.doubleSided === true ? "none" : "back",
-            });
-
-            shader.SetSampler("TextureSampler", PBRMaterial.sampler);
-
-            this._shader = shader;
-
-            const self = this;
-
-            const handler = {
-                set(obj, prop, value) {
-                    obj[prop] = value;
-
-                    if (prop === "doubleSided" || prop === "isSkinned") {
-                        self.shader.Destroy();
-                        self.shader = undefined;
-                        self.pendingShaderCreation = undefined;
-                        self.createShader();
-                    }
-                    else {
-                        self.ReloadMaterial();
-                    }
-                    return true;
-                },
-
-            }
-            this.params = new Proxy(this.params, handler);
-
-            this.ReloadMaterial();
-
-            return shader;
-        })();
-
-        return this.pendingShaderCreation;
+    protected async BuildShader(): Promise<Shader> {
+        const shader = await Shader.Create({
+            name: "PBRMaterial",
+            code: await ShaderLoader.Draw,
+            defines: this.params.defines,
+            colorOutputs: Array(3).fill({ format: RenderingPipeline.GBufferFormat }),
+            depthOutput: "depth24plus",
+            cullMode: this.params.cullMode,
+        });
+        shader.SetSampler("TextureSampler", PBRMaterial.sampler);
+        return shader;
     }
 
-    public ReloadMaterial() {
-        this.shader.SetArray("material", new Float32Array([
-            this.params.albedoColor.r, this.params.albedoColor.g, this.params.albedoColor.b, this.params.albedoColor.a,
-            this.params.emissiveColor.r, this.params.emissiveColor.g, this.params.emissiveColor.b, this.params.emissiveColor.a,
-            this.params.roughness, this.params.metalness, +this.params.unlit, this.params.alphaCutoff,
-            this.params.repeat.x, this.params.repeat.y,
-            this.params.offset.x, this.params.offset.y,
+    public ReloadMaterial(): void {
+        const s = this._shader;
+        if (!s) return;
+        const p = this.params;
+
+        s.SetArray("material", new Float32Array([
+            p.albedoColor.r, p.albedoColor.g, p.albedoColor.b, p.albedoColor.a,
+            p.emissiveColor.r, p.emissiveColor.g, p.emissiveColor.b, p.emissiveColor.a,
+            p.roughness, p.metalness, +p.unlit, p.alphaCutoff,
+            p.repeat.x, p.repeat.y,
+            p.offset.x, p.offset.y,
         ]));
 
-        this.shader.SetTexture("AlbedoMap", this.params.albedoMap);
-        this.shader.SetTexture("NormalMap", this.params.normalMap);
-        this.shader.SetTexture("HeightMap", this.params.heightMap);
-        this.shader.SetTexture("ARMMap", this.params.armMap);
-        this.shader.SetTexture("EmissiveMap", this.params.emissiveMap);
+        s.SetTexture("albedoMap", p.albedoMap);
+        s.SetTexture("normalMap", p.normalMap);
+        s.SetTexture("heightMap", p.heightMap);
+        s.SetTexture("armMap", p.armMap);
+        s.SetTexture("emissiveMap", p.emissiveMap);
     }
 }
+
+Material.Registry.set(PBRMaterial.type, PBRMaterial);

@@ -9,7 +9,7 @@ export { ShaderLoader, ShaderPreprocessor } from "./ShaderUtils";
 export { DepthTexture, RenderTexture, Texture, TextureArray, CubeTexture, RenderTexture3D, RenderTextureStorage3D, RenderTextureStorage2D, RenderTextureCube } from "./Texture";
 export type { ImageLoadOptions } from "./Texture";
 export { TextureSampler } from "./TextureSampler";
-export { Material, MaterialPool } from "./Material";
+export { Material, MaterialPool, MaterialParams } from "./Material";
 export { MemoryAllocator, BufferMemoryAllocator, DynamicBufferMemoryAllocator, DynamicBufferMemoryAllocatorDynamic } from "./MemoryAllocator";
 
 export type { TextureFormat, TextureDimension, TextureType } from "./Texture";

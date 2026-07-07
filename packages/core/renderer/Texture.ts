@@ -105,6 +105,33 @@ export class Texture {
     public blob: Blob;
     public assetPath: string;
 
+
+
+    private static _WhiteTexture: Texture;
+    private static _BlackTexture: Texture;
+    private static _NormalTexture: Texture;
+
+    private static CreateTextureWithData(data: BufferSource): Texture {
+        const texture = Texture.Create(1, 1, 1, "bgra8unorm");
+        texture.SetData(data, 4);
+        return texture;
+    }
+    
+    public static get WhiteTexture(): Texture {
+        if (!this._WhiteTexture) Texture._WhiteTexture = Texture.CreateTextureWithData(new Uint8Array([255, 255, 255, 255]));
+        return Texture._WhiteTexture;
+    }
+
+    public static get BlackTexture(): Texture {
+        if (!this._BlackTexture) Texture._BlackTexture = Texture.CreateTextureWithData(new Uint8Array([0, 0, 0, 255]));
+        return Texture._BlackTexture;
+    }
+
+    public static get NormalTexture(): Texture {
+        if (!this._NormalTexture) Texture._NormalTexture = Texture.CreateTextureWithData(new Uint8Array([255, 128, 128, 255]));
+        return Texture._NormalTexture;
+    }
+
     constructor(width: number, height: number, depth: number, format: TextureFormat, type: TextureType, dimension: TextureDimension, mipLevels: number) {
         let textureUsage: GPUTextureUsageFlags = GPUTextureUsage.COPY_DST;
         let textureType: GPUTextureUsageFlags = GPUTextureUsage.TEXTURE_BINDING;
@@ -275,7 +302,7 @@ export class Texture {
         blockWidth = blockWidth ?? this.width;
         blockHeight = blockHeight ?? this.height;
         mipLevel = mipLevel ?? 0;
-        
+
         if (Renderer.HasActiveFrame()) {
             throw Error("Texture.GetPixels() cannot run inside an active render frame. Call it after EndRenderFrame().");
         }
