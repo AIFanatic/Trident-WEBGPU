@@ -42,6 +42,7 @@ export class AnimationTrack extends Component {
 
     private _v0 = new Vector3();
     private _v1 = new Vector3();
+    private _v2 = new Vector3();
     private _q0 = new Quaternion();
     private _q1 = new Quaternion();
 
@@ -140,16 +141,14 @@ export class AnimationTrack extends Component {
         const tr = this.gameObject.transform;
 
         const pos = this.channel(clip, "translation");
-        if (pos) this.sampleVec3(pos.sampler, time, tr.localPosition);
-        else tr.localPosition.copy(this._bindPos);
-
         const rot = this.channel(clip, "rotation");
-        if (rot) this.sampleQuat(rot.sampler, time, tr.localRotation);
-        else tr.localRotation.copy(this._bindRot);
-
         const scl = this.channel(clip, "scale");
-        if (scl) this.sampleVec3(scl.sampler, time, tr.scale);
-        else tr.scale.copy(this._bindScl);
+
+        if (pos) this.sampleVec3(pos.sampler, time, this._v0); else this._v0.copy(this._bindPos);
+        if (rot) this.sampleQuat(rot.sampler, time, this._q0); else this._q0.copy(this._bindRot);
+        if (scl) this.sampleVec3(scl.sampler, time, this._v1); else this._v1.copy(this._bindScl);
+
+        tr.SetLocalTRS(this._v0, this._q0, this._v1);
     }
 
     public applyBlended(clipA: number, timeA: number, clipB: number, timeB: number, alpha: number): void {
@@ -159,29 +158,28 @@ export class AnimationTrack extends Component {
         const b = this.clip(clipB);
         const tr = this.gameObject.transform;
 
+        // position → _v0  (temps: _v0 = A, _v1 = B)
         const posA = this.channel(a, "translation");
         const posB = this.channel(b, "translation");
-        if (posA) this.sampleVec3(posA.sampler, timeA, this._v0);
-        else this._v0.copy(this._bindPos);
-        if (posB) this.sampleVec3(posB.sampler, timeB, this._v1);
-        else this._v1.copy(this._bindPos);
-        tr.localPosition.copy(this._v0.lerp(this._v1, alpha));
+        if (posA) this.sampleVec3(posA.sampler, timeA, this._v0); else this._v0.copy(this._bindPos);
+        if (posB) this.sampleVec3(posB.sampler, timeB, this._v1); else this._v1.copy(this._bindPos);
+        this._v0.lerp(this._v1, alpha);
 
+        // rotation → _q0
         const rotA = this.channel(a, "rotation");
         const rotB = this.channel(b, "rotation");
-        if (rotA) this.sampleQuat(rotA.sampler, timeA, this._q0);
-        else this._q0.copy(this._bindRot);
-        if (rotB) this.sampleQuat(rotB.sampler, timeB, this._q1);
-        else this._q1.copy(this._bindRot);
-        tr.localRotation.copy(this._q0.slerp(this._q1, alpha)).normalize();
+        if (rotA) this.sampleQuat(rotA.sampler, timeA, this._q0); else this._q0.copy(this._bindRot);
+        if (rotB) this.sampleQuat(rotB.sampler, timeB, this._q1); else this._q1.copy(this._bindRot);
+        this._q0.slerp(this._q1, alpha).normalize();
 
+        // scale → _v1  (temps: _v1 = A, _v2 = B; _v0 already holds blended position)
         const sclA = this.channel(a, "scale");
         const sclB = this.channel(b, "scale");
-        if (sclA) this.sampleVec3(sclA.sampler, timeA, this._v0);
-        else this._v0.copy(this._bindScl);
-        if (sclB) this.sampleVec3(sclB.sampler, timeB, this._v1);
-        else this._v1.copy(this._bindScl);
-        tr.scale.copy(this._v0.lerp(this._v1, alpha));
+        if (sclA) this.sampleVec3(sclA.sampler, timeA, this._v1); else this._v1.copy(this._bindScl);
+        if (sclB) this.sampleVec3(sclB.sampler, timeB, this._v2); else this._v2.copy(this._bindScl);
+        this._v1.lerp(this._v2, alpha);
+
+        tr.SetLocalTRS(this._v0, this._q0, this._v1);
     }
 }
 
