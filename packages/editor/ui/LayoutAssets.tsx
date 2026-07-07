@@ -26,7 +26,8 @@ import {
     ExtractGLB,
     SaveAsset,
     SaveToFile,
-    ReloadScript
+    ReloadScript,
+    CreateMaterialFromType
 } from "../commands";
 
 // Re-export types for backward compatibility
@@ -94,6 +95,13 @@ export class LayoutAssets extends Component<BaseProps, LayoutAssetsState> {
 
         TridentAPI.EventSystem.on(LayoutAssetEvents.RequestSaveAsset, (material) => {
             SaveAsset(material);
+        });
+
+        TridentAPI.EventSystem.on(LayoutAssetEvents.RequestChangeMaterialType, async (oldMaterial, newTypeId) => {
+            const newMaterial = CreateMaterialFromType(newTypeId);
+            newMaterial.assetPath = oldMaterial.assetPath;
+            SaveAsset(newMaterial);
+            TridentAPI.EventSystem.emit(LayoutAssetEvents.Selected, newMaterial);
         });
 
         dir().then(handle => {

@@ -1,5 +1,6 @@
 import { IComponent } from "./engine-api/trident/components/IComponent";
 import { IGameObject } from "./engine-api/trident/components/IGameObject";
+import { IMaterial } from "./engine-api/trident/IMaterial";
 import { IScene } from "./engine-api/trident/IScene";
 
 export class ComponentEvents {
@@ -38,6 +39,7 @@ export class LayoutAssetEvents {
     public static Selected = (instance: any) => { };
     public static RequestSaveAsset = (asset: { assetPath: string }) => { };
     public static ScriptReloaded = () => { };
+    public static RequestChangeMaterialType = (oldMaterial: IMaterial, newTypeId: string) => { };
 }
 
 export class LayoutInspectorEvents {
