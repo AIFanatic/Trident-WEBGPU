@@ -26,13 +26,8 @@ export class Collapsible extends Component<ICollapsibleProps, ICollapsibleState>
     }
     
     private handleFilterOpening(event: Event) {
-        console.log(event, event.target)
-        if (this.state.isOpen) {
-            this.setState({isOpen: false, height: "0px"});
-        }
-        else {
-            this.setState({isOpen: true, height: ""});
-        }
+        if (this.state.isOpen) this.setState({isOpen: false, height: "0px"});
+        else this.setState({isOpen: true, height: ""});
     };
 
     private onRightMenuClicked(event: MouseEvent) {

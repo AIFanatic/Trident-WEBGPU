@@ -1,21 +1,6 @@
-import {
-    GameObject,
-    Geometry,
-    Components,
-    Mathf,
-    PBRMaterial,
-    GPU,
-    Runtime,
-    PlayerRuntime
-} from "@trident/core";
-
+import { GameObject, Geometry, Components, Mathf, PBRMaterial, GPU, PlayerRuntime } from "@trident/core";
 import { OrbitControls } from "@trident/plugins/OrbitControls";
-
 import { Debugger } from "@trident/plugins/Debugger";
-import { UIButtonStat, UIDropdownStat, UIFolder, UISliderStat, UITextStat, UIVecStat } from "@trident/plugins/ui/UIStats";
-import { LineRenderer } from "@trident/plugins/LineRenderer";
-import { GLTFLoader } from "@trident/plugins/GLTF/GLTFLoader";
-
 
 async function Application(canvas: HTMLCanvasElement) {
     await PlayerRuntime.Create(canvas);
@@ -51,9 +36,7 @@ async function Application(canvas: HTMLCanvasElement) {
     cubeMesh.geometry = Geometry.Cube();
 
     const texture = await GPU.Texture.Load("./assets/textures/32x32.png")
-    cubeMesh.material = new PBRMaterial({ albedoMap: texture, roughness: 0.7, metalness: 0.1 });
-
-
+    cubeMesh.material = new PBRMaterial({ albedoMap: texture, roughness: 0.7, metalness: 0.1} );
 
     const material1 = new PBRMaterial({albedoColor: Mathf.Color.fromHex(0x08d9d6)});
     const material2 = new PBRMaterial({albedoColor: Mathf.Color.fromHex(0xff2e63)});
@@ -61,9 +44,6 @@ async function Application(canvas: HTMLCanvasElement) {
     const geometry = Geometry.Cube();
 
     for ( let i = 0; i < 40; i ++ ) {
-        // const cube1 = new THREE.Mesh( geometry, i % 2 === 0 ? material1 : material2 );
-        // const cube1 = new Mesh( geometry, i % 2 === 0 ? material1 : material2 );
-
         const gameObject1 = new GameObject();
         const cube1 = gameObject1.AddComponent(Components.Mesh);
         cube1.geometry = geometry;
@@ -82,152 +62,16 @@ async function Application(canvas: HTMLCanvasElement) {
         cube2.transform.scale.mul(10);
     }
 
+    setTimeout(() => {
+        console.log("CHANGED");
+        // material1.Set("albedoColor", new Mathf.Color(0.5, 0.5, 0.5));
+        // material2.params.albedoColor = new Mathf.Color(0.5, 0.5, 0.5);
 
+        material2.params.albedoColor.r = 0.5;
+    }, 5000);
 
-    // // const depthBufferRaymarchPass = new DepthBufferRaymarchPass();
-    // // Runtime.Renderer.RenderPipeline.AddPass(depthBufferRaymarchPass, GPU.RenderPassOrder.AfterLighting);
-
-    // // const sss = new SSSRenderPass(light);
-    // // Runtime.Renderer.RenderPipeline.AddPass(sss, GPU.RenderPassOrder.AfterLighting);
-    
-    // {
-    //     function worldCornersFromViewProj(viewProj: Mathf.Matrix4): Mathf.Vector3[] {
-    //         const invVP = viewProj.clone().invert();
-
-    //         // Clip-space corners for three.js default (NDC z in [-1, +1])
-    //         // If your projection used z in [0,1], change zNear=-1 -> 0 and zFar=1 -> 1,
-    //         // then still do the homogeneous divide.
-    //         const zNear = 0, zFar = 1;
-    //         const ndc = [
-    //             new Mathf.Vector4(-1,-1,zNear,1), new Mathf.Vector4(-1, 1,zNear,1),
-    //             new Mathf.Vector4( 1, 1,zNear,1), new Mathf.Vector4( 1,-1,zNear,1),
-    //             new Mathf.Vector4(-1,-1,zFar ,1), new Mathf.Vector4(-1, 1,zFar ,1),
-    //             new Mathf.Vector4( 1, 1,zFar ,1), new Mathf.Vector4( 1,-1,zFar ,1),
-    //         ];
-
-    //         return ndc.map(p => {
-    //             p.applyMatrix4(invVP);
-    //             p.mul(1 / p.w);
-    //             return new Mathf.Vector3(p.x, p.y, p.z);
-    //         });
-    //     }
-
-
-    //     const csmDebugGO = new GameObject();
-    //     const lineRenderer = csmDebugGO.AddComponent(LineRenderer);
-
-    //     const shadowPass = Runtime.Renderer.RenderPipeline.DeferredShadowMapPass;
-    //     const lightsShadowData = shadowPass.lightShadowData;
-    
-    //     const CSMFolder = new UIFolder(Debugger.ui, "CSM");
-    //     CSMFolder.Open();
-
-    //     new UIButtonStat(CSMFolder, "Enabled:", state => {
-    //         Console.getVar("r_shadows_enabled").value = state;
-    //         camera.SetPerspective(camera.fov, camera.aspect, camera.near, state ? 1000 : 50000);
-    //         console.log(camera.fov, state)
-            
-    //     }, Console.getVar<boolean>("r_shadows_enabled").value);
-
-    //     // lineRenderer.SetPositions([
-            
-    //     // ]);
-
-    //     const m = new Mathf.Matrix4();
-    //     setInterval(() => {
-    //         let positions: Mathf.Vector3[] = [];
-    //         let colors: Mathf.Color[] = [];
-
-    //         const palette = [
-    //             Mathf.Color.fromHex(0xff0000),
-    //             Mathf.Color.fromHex(0x00ff00),
-    //             Mathf.Color.fromHex(0x0000ff),
-    //             Mathf.Color.fromHex(0xffff00),
-    //         ];
-
-    //         function DrawFrustum(corners: Mathf.Vector3[], color: Mathf.Color, matrix = new Mathf.Matrix4()) {
-    //             if (corners.length !== 8) throw Error("Need 8 corners")
-    //             const [c0, c1, c2, c3, c4, c5, c6, c7] = corners;
-    //             // Apply matrix
-    //             c0.applyMatrix4(matrix); c1.applyMatrix4(matrix); c2.applyMatrix4(matrix); c3.applyMatrix4(matrix);
-    //             c4.applyMatrix4(matrix); c5.applyMatrix4(matrix); c6.applyMatrix4(matrix); c7.applyMatrix4(matrix);
-
-    //             // Near
-    //             positions.push(c0, c1);
-    //             positions.push(c1, c2);
-    //             positions.push(c2, c3);
-    //             positions.push(c3, c0);
-
-    //             // Far
-    //             positions.push(c4, c5);
-    //             positions.push(c5, c6);
-    //             positions.push(c6, c7);
-    //             positions.push(c7, c4);
-
-    //             // Connections
-    //             positions.push(c0, c4);
-    //             positions.push(c1, c5);
-    //             positions.push(c2, c6);
-    //             positions.push(c3, c7);
-
-    //             colors.push(...new Array(24).fill(color));
-    //         }
-
-    //         window.meshes = window.meshes || new Array(4);
-    //         function DrawSphere(index: number, position: Mathf.Vector3, radius: number = 1, color = new Mathf.Color(1, 0, 0, 1)) {
-    //             let mesh = window.meshes[index];
-    //             if (!mesh) {
-    //                 const gameObject = new GameObject();
-    //                 const newMesh = gameObject.AddComponent(Components.Mesh);
-    //                 newMesh.enableShadows = false;
-    //                 newMesh.geometry = Geometry.Sphere();
-    //                 newMesh.material = new PBRMaterial({unlit: true, albedoColor: color});
-    //                 window.meshes[index] = newMesh;
-    //                 console.log("HERE", mesh)
-    //                 mesh = newMesh;
-    //             }
-
-    //             mesh.transform.position.copy(position);
-    //             mesh.transform.scale.mul(radius);
-    //         }
-
-    //         const m = new Mathf.Matrix4(); //camera.projectionMatrix.clone().mul(camera.viewMatrix);
-    //         DrawFrustum(shadowPass.frustumData.corners.slice(0, 8), palette[0], m);
-    //         DrawFrustum(shadowPass.frustumData.corners.slice(8, 16), palette[0], m);
-    //         DrawFrustum(shadowPass.frustumData.corners.slice(16, 24), palette[0], m);
-    //         DrawFrustum(shadowPass.frustumData.corners.slice(24, 32), palette[0], m);
-
-    //         DrawSphere(0, shadowPass.frustumData.frustumCenters[0], 1, palette[0]);
-    //         DrawSphere(1, shadowPass.frustumData.frustumCenters[1], 1, palette[1]);
-    //         DrawSphere(2, shadowPass.frustumData.frustumCenters[2], 10, palette[2]);
-    //         DrawSphere(3, shadowPass.frustumData.frustumCenters[3], 100, palette[3]);
-
-    //         // DrawFrustum(shadowPass.frustumData.corners.slice(0, 8), palette[1], shadowPass.frustumData.lightMatrix);
-
-    //         const shadowEntry = lightsShadowData.get(light.id);
-    //         if (shadowEntry) {
-    //             const { projectionMatrices } = shadowEntry;
-    //             for (let cascade = 0; cascade < Console.getVar<number>("r_shadows_csm_numofcascades").value; cascade++) {
-    //                 const vp = new Mathf.Matrix4();
-    //                 vp.setFromArray(projectionMatrices.subarray(cascade * 16, (cascade + 1) * 16));
-    //                 const lightCorners = worldCornersFromViewProj(vp); // zNear=0, zFar=1 for orthoZO
-    //                 DrawFrustum(lightCorners, palette[cascade]);
-
-    //             }
-    //         }
-
-    //         lineRenderer.SetPositions(positions);
-    //         lineRenderer.SetColors(colors);
-    //     }, 1000);
-    // }
-
-    // // const gameObjects = await GLTFLoader.loadAsGameObjects(scene, "./assets/models/Fox.glb");
-    // // const root = gameObjects[0]
-    // // // root.transform.scale.mul(0.01);
-    // // // root.transform.position.x = 5;
-    
     Debugger.Enable();
 
 };
 
-Application(document.querySelector("canvas"));
+Application(document.querySelector("canvas") as HTMLCanvasElement);

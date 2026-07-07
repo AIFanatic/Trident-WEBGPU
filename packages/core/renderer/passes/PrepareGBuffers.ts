@@ -81,7 +81,7 @@ export class PrepareGBuffers extends RenderPass {
             0, // Debugger.debugDepthMipLevel,
             0, // Debugger.debugDepthExposure,
             0, // Renderer.info.viewTypeValue,
-            0, // +Renderer.info.useHeightMapValue,
+            0, // +Renderer.info.useheightMapValue,
             0, // Debugger.heightScale,
             
             +false, // ShadowMapSettings.debugCascadesValue.value,

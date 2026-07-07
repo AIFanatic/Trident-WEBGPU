@@ -41,11 +41,11 @@ struct VertexOutput {
 @group(0) @binding(3) var TextureSampler: sampler;
 
 // These get optimized out based on "USE*" defines
-@group(0) @binding(4) var AlbedoMap: texture_2d<f32>;
-@group(0) @binding(5) var NormalMap: texture_2d<f32>;
-@group(0) @binding(6) var HeightMap: texture_2d<f32>;
-@group(0) @binding(7) var ARMMap: texture_2d<f32>;
-@group(0) @binding(8) var EmissiveMap: texture_2d<f32>;
+@group(0) @binding(4) var albedoMap: texture_2d<f32>;
+@group(0) @binding(5) var normalMap: texture_2d<f32>;
+@group(0) @binding(6) var heightMap: texture_2d<f32>;
+@group(0) @binding(7) var armMap: texture_2d<f32>;
+@group(0) @binding(8) var emissiveMap: texture_2d<f32>;
 
 
 #if USE_SKINNING
@@ -128,13 +128,13 @@ fn fragmentMain(@builtin(front_facing) isFrontFace: bool, input: VertexOutput) -
     var occlusion = 1.0;
 
     // var albedo = mat.AlbedoColor;
-    albedo *= textureSample(AlbedoMap, TextureSampler, uv);
+    albedo *= textureSample(albedoMap, TextureSampler, uv);
 
 
     // https://bgolus.medium.com/anti-aliased-alpha-test-the-esoteric-alpha-to-coverage-8b177335ae4f
     let cutoff = mat.AlphaCutoff;
     let mipScale = 0.25;
-    let albedoMapSize = vec2<f32>(textureDimensions(AlbedoMap));
+    let albedoMapSize = vec2<f32>(textureDimensions(albedoMap));
 
     var alphaAA = albedo.a;
     alphaAA *= 1.0 + max(0.0, CalcMipLevel(uv * albedoMapSize)) * mipScale;
@@ -158,10 +158,10 @@ fn fragmentMain(@builtin(front_facing) isFrontFace: bool, input: VertexOutput) -
         tbn[1] = -tbn[1];
         tbn[2] = -tbn[2];
     }
-    let normalSample = textureSample(NormalMap, TextureSampler, uv).xyz * 2.0 - 1.0;
+    let normalSample = textureSample(normalMap, TextureSampler, uv).xyz * 2.0 - 1.0;
     normal = normalize(tbn * normalSample);
 
-    let metalnessRoughness = textureSample(ARMMap, TextureSampler, uv);
+    let metalnessRoughness = textureSample(armMap, TextureSampler, uv);
 
     occlusion *= metalnessRoughness.r;
     roughness *= metalnessRoughness.g;
@@ -174,7 +174,7 @@ fn fragmentMain(@builtin(front_facing) isFrontFace: bool, input: VertexOutput) -
 
 
     var emissive = mat.EmissiveColor;
-    emissive *= textureSample(EmissiveMap, TextureSampler, uv);
+    emissive *= textureSample(emissiveMap, TextureSampler, uv);
 
     output.albedo = vec4(albedo.rgb, roughness);
     output.normal = vec4(OctEncode(normal.xyz), occlusion, metalness);

@@ -221,10 +221,10 @@ class _Debugger {
     private textureViews: UITextStat;
     private viewTypeStat: UIDropdownStat;
     // private heightScale: UISliderStat;
-    // private useHeightMapStat: UIButtonStat;
+    // private useheightMapStat: UIButtonStat;
 
     // public heightScaleValue: UITextStat;
-    // public useHeightMapValue: boolean = false;
+    // public useheightMapValue: boolean = false;
 
     private gpuBufferSizeTotal: UITextStat;
     private gpuBufferCount: UITextStat;

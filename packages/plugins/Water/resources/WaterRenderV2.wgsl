@@ -40,7 +40,7 @@ fn WaterRender(TIME: f32, UV: vec2f, SCREEN_UV: vec2f, VERTEX: vec3f, vertex_tan
     var normalmap = textureSample(normalmap_a_sampler, texture_sampler, uv - uv_offset).rgb;		// 75 % sampler A
     // var normalmap = nonRepeatingTexture(normalmap_a_sampler, texture_sampler, uv - uv_offset).rgb;		// 75 % sampler A
 
-    // var normalmap = nonRepeatingNormalMap( normalmap_a_sampler, uv - uv_offset, NORMAL_TEXTURE_SCALE);
+    // var normalmap = nonRepeatingnormalMap( normalmap_a_sampler, uv - uv_offset, NORMAL_TEXTURE_SCALE);
 	
 	// Refraction UV:
 	var	ref_normalmap				 = normalmap * 2.0 - 1.0;

@@ -3,7 +3,7 @@ struct Settings {
     debugDepthMipLevel: f32,
     debugDepthExposure: f32,
     viewType: f32,
-    useHeightMap: f32,
+    useheightMap: f32,
     heightScale: f32,
 
     debugShadowCascades: f32,

@@ -1,4 +1,4 @@
-import { Components, GPU, Mathf, GameObject, Runtime, PlayerRuntime, PBRMaterial, Geometry } from "@trident/core";
+import { Components, GPU, Mathf, GameObject, Runtime, PlayerRuntime, PBRMaterial, Geometry, EventSystem } from "@trident/core";
 
 import { OrbitControls } from "@trident/plugins/OrbitControls";
 import { GLTFLoader } from "@trident/plugins/GLTF/GLTFLoader";
@@ -11,6 +11,10 @@ import { ImpostorMesh } from "@trident/plugins/Impostors/ImpostorMesh";
 import { UITextureViewer } from "@trident/plugins/ui/UIStats";
 
 async function Application(canvas: HTMLCanvasElement) {
+    EventSystem.on(GPU.RendererEvents.FrameEnded, () => {
+        console.log("GPU.RendererEvents.FrameEnded");
+    });
+    
     await PlayerRuntime.Create(canvas);
     const scene = PlayerRuntime.SceneManager.CreateScene("DefaultScene");
     PlayerRuntime.SceneManager.SetActiveScene(scene);
@@ -50,16 +54,18 @@ async function Application(canvas: HTMLCanvasElement) {
 
     const rootGO = await GLTFLoader.Load("/extra/SampleProject/GameAssets/Trees/Eucalyptus camaldulensis.glb", scene);
     const meshes = rootGO.GetComponentsInChildren(Components.Mesh);
-    console.log(meshes)
     let mesh = meshes[0];
-    for (const mesh of meshes) console.log(mesh.material.params.albedoColor)
-    mesh.material = new FoliageMaterial(mesh.geometry, mesh.material.params.albedoMap, mesh.material.params.normalMap);
+    const material = mesh.material as PBRMaterial;
+    // for (const mesh of meshes) console.log(mesh.material.params.albedoColor)
+    mesh.material = new FoliageMaterial({foliageGeometry: mesh.geometry, foliageAlbedo: material.params.albedoMap, foliageNormal: material.params.normalMap });
 
-    mesh = meshes[1];
-    mesh.material = new FoliageMaterial(mesh.geometry, mesh.material.params.albedoMap, mesh.material.params.normalMap);
+    // mesh = meshes[1];
+    // mesh.material = new FoliageMaterial(mesh.geometry, mesh.material.params.albedoMap, mesh.material.params.normalMap);
 
 
     Debugger.Enable();
+
+    console.log("END");
 };
 
 Application(document.querySelector("canvas"));
