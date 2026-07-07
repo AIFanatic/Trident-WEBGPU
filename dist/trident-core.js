@@ -1339,84 +1339,87 @@ class Transform extends (_a$8 = Component, _localPosition_dec = [SerializeField]
     super(...arguments);
     __runInitializers$9(_init$9, 5, this);
     __publicField$9(this, "runInEditMode", true);
-    __publicField$9(this, "tempRotation", new Quaternion());
     __publicField$9(this, "tempPosition", new Vector3());
     __publicField$9(this, "tempQuaternion", new Quaternion());
-    __publicField$9(this, "up", new Vector3(0, 1, 0));
-    __publicField$9(this, "forward", new Vector3(0, 0, 1));
+    __publicField$9(this, "tempRotation", new Quaternion());
+    __publicField$9(this, "_up", new Vector3(0, 1, 0));
+    __publicField$9(this, "_forward", new Vector3(0, 0, -1));
     __publicField$9(this, "_localToWorldMatrix", new Matrix4());
     __publicField$9(this, "_worldToLocalMatrix", new Matrix4());
-    __publicField$9(this, "_localPosition", new ObservableVector3(() => {
-      this.onLocalPositionScaleChanged();
-    }, 0, 0, 0));
-    __publicField$9(this, "_localRotation", new ObservableQuaternion(() => {
-      this.onLocalRotationChanged();
-    }));
-    __publicField$9(this, "_localScale", new ObservableVector3(() => {
-      this.onLocalPositionScaleChanged();
-    }, 1, 1, 1));
-    __publicField$9(this, "_localEulerAngles", new ObservableVector3(() => {
-      this.onLocalEulerChanged();
-    }));
-    __publicField$9(this, "_position", new ObservableVector3(() => {
-      this.onWorldPositionChanged();
-    }, 0, 0, 0));
-    __publicField$9(this, "_rotation", new ObservableQuaternion(() => {
-      this.onWorldRotationChanged();
-    }));
-    __publicField$9(this, "_eulerAngles", new ObservableVector3(() => {
-      this.onWorldEulerChanged();
-    }));
+    __publicField$9(this, "_localPosition", new ObservableVector3(() => this.onLocalChanged(), 0, 0, 0));
+    __publicField$9(this, "_localRotation", new ObservableQuaternion(() => this.onLocalChanged()));
+    __publicField$9(this, "_localScale", new ObservableVector3(() => this.onLocalChanged(), 1, 1, 1));
+    __publicField$9(this, "_localEulerAngles", new ObservableVector3(() => this.onLocalEulerChanged()));
+    __publicField$9(this, "_position", new ObservableVector3(() => this.onWorldChanged(), 0, 0, 0));
+    __publicField$9(this, "_rotation", new ObservableQuaternion(() => this.onWorldChanged()));
+    __publicField$9(this, "_eulerAngles", new ObservableVector3(() => this.onWorldEulerChanged()));
     __publicField$9(this, "_suppressLocalCallbacks", false);
     __publicField$9(this, "_suppressWorldCallbacks", false);
-    // NEW: which space was edited last (source-of-truth for this update)
     __publicField$9(this, "_lastChanged", "local");
+    __publicField$9(this, "_dirty", true);
     __publicField$9(this, "children", /* @__PURE__ */ new Set());
     __publicField$9(this, "_parent", null);
   }
+  get up() {
+    this.resolve();
+    return this._up;
+  }
+  get forward() {
+    this.resolve();
+    return this._forward;
+  }
   get localToWorldMatrix() {
+    this.resolve();
     return this._localToWorldMatrix;
   }
   get worldToLocalMatrix() {
+    this.resolve();
     return this._worldToLocalMatrix;
   }
   get localPosition() {
+    this.resolve();
     return this._localPosition;
   }
   set localPosition(value) {
     this._localPosition.copy(value);
   }
   get localRotation() {
+    this.resolve();
     return this._localRotation;
   }
   set localRotation(value) {
     this._localRotation.copy(value);
   }
   get localEulerAngles() {
+    this.resolve();
     return this._localEulerAngles;
   }
   set localEulerAngles(value) {
     this._localEulerAngles.copy(value);
   }
   get position() {
+    this.resolve();
     return this._position;
   }
   set position(value) {
     this._position.copy(value);
   }
   get rotation() {
+    this.resolve();
     return this._rotation;
   }
   set rotation(value) {
     this._rotation.copy(value);
   }
   get eulerAngles() {
+    this.resolve();
     return this._eulerAngles;
   }
   set eulerAngles(value) {
     this._eulerAngles.copy(value);
   }
   get scale() {
+    this.resolve();
     return this._localScale;
   }
   set scale(value) {
@@ -1426,127 +1429,96 @@ class Transform extends (_a$8 = Component, _localPosition_dec = [SerializeField]
     return this._parent;
   }
   set parent(parent) {
-    if (this._parent !== null) {
-      this._parent.children.delete(this);
-    }
-    if (parent !== null) {
-      parent.children.add(this);
-      parent.UpdateMatrices();
-    }
+    if (this._parent) this._parent.children.delete(this);
+    if (parent) parent.children.add(this);
     this._parent = parent;
     this._lastChanged = "world";
-    this.onWorldPositionChanged();
-    this.onWorldRotationChanged();
+    this.markDirty();
+  }
+  // ── cheap: flag self + subtree, once ──
+  markDirty() {
+    if (this._dirty) return;
+    this._dirty = true;
+    for (const child of this.children) child.markDirty();
+  }
+  // ── callbacks just record authority + mark dirty (idempotent, so per-component fires are free) ──
+  onLocalChanged() {
+    if (this._suppressLocalCallbacks) return;
+    this._lastChanged = "local";
+    this.markDirty();
   }
   onLocalEulerChanged() {
     if (this._suppressLocalCallbacks) return;
     this._suppressLocalCallbacks = true;
     this._localRotation.setFromEuler(this._localEulerAngles, true);
     this._suppressLocalCallbacks = false;
-    this.onLocalChanged();
-  }
-  onLocalPositionScaleChanged() {
-    if (this._suppressLocalCallbacks) return;
-    this.onLocalChanged();
-  }
-  onLocalRotationChanged() {
-    if (this._suppressLocalCallbacks) return;
-    this._suppressLocalCallbacks = true;
-    this._localEulerAngles.copy(this._localRotation.toEuler(true));
-    this._suppressLocalCallbacks = false;
-    this.onLocalChanged();
-  }
-  onLocalChanged() {
     this._lastChanged = "local";
-    this.UpdateMatrices();
+    this.markDirty();
+  }
+  onWorldChanged() {
+    if (this._suppressWorldCallbacks) return;
+    this._lastChanged = "world";
+    this.markDirty();
   }
   onWorldEulerChanged() {
     if (this._suppressWorldCallbacks) return;
     this._suppressWorldCallbacks = true;
     this._rotation.setFromEuler(this._eulerAngles, true);
     this._suppressWorldCallbacks = false;
-    this.onWorldRotationChanged();
-  }
-  onWorldPositionChanged() {
-    if (this._suppressWorldCallbacks) return;
     this._lastChanged = "world";
-    if (this.parent !== null) {
-      this.parent.UpdateMatrices();
+    this.markDirty();
+  }
+  // ── lazy: runs once per changed transform when something reads it ──
+  resolve() {
+    if (!this._dirty) return;
+    this._dirty = false;
+    if (this._parent) this._parent.resolve();
+    if (this._lastChanged === "world") {
       this._suppressLocalCallbacks = true;
-      this._localPosition.copy(
-        this.tempPosition.copy(this._position).applyMatrix4(this.parent._worldToLocalMatrix)
-      );
-      this._suppressLocalCallbacks = false;
-    } else {
-      this._suppressLocalCallbacks = true;
-      this._localPosition.copy(this._position);
+      if (this._parent) {
+        this._localPosition.copy(this.tempPosition.copy(this._position).applyMatrix4(this._parent._worldToLocalMatrix));
+        this._localRotation.copy(this.tempQuaternion.copy(this._parent._rotation).invert().mul(this._rotation).normalize());
+      } else {
+        this._localPosition.copy(this._position);
+        this._localRotation.copy(this._rotation);
+      }
       this._suppressLocalCallbacks = false;
     }
-    this.UpdateMatrices();
-  }
-  onWorldRotationChanged() {
-    if (this._suppressWorldCallbacks) return;
-    this._lastChanged = "world";
-    if (this.parent !== null) {
-      this.parent.UpdateMatrices();
-      this._suppressLocalCallbacks = true;
-      this._localRotation.copy(
-        this.tempQuaternion.copy(this.parent._rotation).invert().mul(this._rotation).normalize()
-      );
-      this._localEulerAngles.copy(this._localRotation.toEuler(true));
-      this._suppressLocalCallbacks = false;
-    } else {
-      this._suppressLocalCallbacks = true;
-      this._localRotation.copy(this._rotation);
-      this._localEulerAngles.copy(this._localRotation.toEuler(true));
-      this._suppressLocalCallbacks = false;
-    }
-    this.UpdateMatrices();
-  }
-  syncWorldFromLocal() {
-    this._suppressWorldCallbacks = true;
-    if (this.parent !== null) {
-      this._position.copy(this.tempPosition.copy(this._localPosition).applyMatrix4(this.parent._localToWorldMatrix));
-      this._rotation.copy(this.tempQuaternion.copy(this.parent._rotation).mul(this._localRotation).normalize());
-    } else {
-      this._position.copy(this._localPosition);
-      this._rotation.copy(this._localRotation);
-    }
-    this._eulerAngles.copy(this._rotation.toEuler(true));
-    this._suppressWorldCallbacks = false;
-  }
-  UpdateMatrices() {
     this._localToWorldMatrix.compose(this._localPosition, this._localRotation, this._localScale);
-    if (this.parent !== null) {
-      this._localToWorldMatrix.premultiply(this.parent._localToWorldMatrix);
-    }
+    if (this._parent) this._localToWorldMatrix.premultiply(this._parent._localToWorldMatrix);
     this._worldToLocalMatrix.copy(this._localToWorldMatrix).invert();
     if (this._lastChanged === "local") {
-      this.syncWorldFromLocal();
-    } else {
       this._suppressWorldCallbacks = true;
-      this._eulerAngles.copy(this._rotation.toEuler(true));
+      if (this._parent) {
+        this._position.copy(this.tempPosition.copy(this._localPosition).applyMatrix4(this._parent._localToWorldMatrix));
+        this._rotation.copy(this.tempQuaternion.copy(this._parent._rotation).mul(this._localRotation).normalize());
+      } else {
+        this._position.copy(this._localPosition);
+        this._rotation.copy(this._localRotation);
+      }
       this._suppressWorldCallbacks = false;
     }
-    for (const child of this.children) {
-      child.UpdateMatrices();
-    }
-    this.forward.set(0, 0, -1).applyQuaternion(this.rotation);
-    this.up.set(0, 1, 0).applyQuaternion(this.rotation);
+    this._suppressLocalCallbacks = this._suppressWorldCallbacks = true;
+    this._localEulerAngles.copy(this._localRotation.toEuler(true));
+    this._eulerAngles.copy(this._rotation.toEuler(true));
+    this._suppressLocalCallbacks = this._suppressWorldCallbacks = false;
+    this._forward.set(0, 0, -1).applyQuaternion(this._rotation);
+    this._up.set(0, 1, 0).applyQuaternion(this._rotation);
     EventSystem.emit(TransformEvents.Updated);
     EventSystemLocal.emit(TransformEvents.Updated, this);
   }
   LookAt(target) {
-    this.rotation.lookAt(this.position, target, Vector3.up);
     this.tempRotation.lookAt(this.position, target, Vector3.up);
-    if (!this.tempRotation.equals(this.rotation)) {
-      this._suppressWorldCallbacks = true;
-      this._rotation.copy(this.tempRotation);
-      this._eulerAngles.copy(this._rotation.toEuler(true));
-      this._suppressWorldCallbacks = false;
-      this.onWorldRotationChanged();
-      this.UpdateMatrices();
-    }
+    this.rotation = this.tempRotation;
+  }
+  SetLocalTRS(position, rotation, scale) {
+    this._suppressLocalCallbacks = true;
+    this._localPosition.copy(position);
+    this._localRotation.copy(rotation);
+    this._localScale.copy(scale);
+    this._suppressLocalCallbacks = false;
+    this._lastChanged = "local";
+    this.markDirty();
   }
 }
 _init$9 = __decoratorStart$9(_a$8);
@@ -1780,9 +1752,9 @@ class AssetMeta {
   }
 }
 
-var WGSL_Shader_Draw_URL = "#include \"@trident/core/resources/webgpu/shaders/deferred/Common.wgsl\";\n\nstruct VertexInput {\n    @builtin(instance_index) instance : u32, \n    @builtin(vertex_index) vertex : u32,\n    @location(0) position : vec3<f32>,\n    @location(1) normal : vec3<f32>,\n    @location(2) uv : vec2<f32>,\n\n    @location(3) tangent : vec4<f32>,\n    #if USE_SKINNING\n        @location(4) joints: vec4<u32>,\n        @location(5) weights: vec4<f32>,\n    #endif\n};\n\nstruct Material {\n    AlbedoColor: vec4<f32>,\n    EmissiveColor: vec4<f32>,\n    Roughness: f32,\n    Metalness: f32,\n    Unlit: f32,\n    AlphaCutoff: f32,\n    RepeatOffset: vec4<f32>, // xy = repeat, zw = offset\n};\n\nstruct VertexOutput {\n    @builtin(position) position : vec4<f32>,\n    @location(0) vPosition : vec3<f32>,\n    @location(1) vNormal : vec3<f32>,\n    @location(2) vUv : vec2<f32>,\n    @location(3) @interpolate(flat) instance : u32,\n    @location(4) tangent : vec3<f32>,\n    @location(5) bitangent : vec3<f32>,\n    @location(6) normal : vec3<f32>,\n};\n\n@group(0) @binding(0) var<storage, read> frameBuffer: FrameBuffer;\n@group(0) @binding(1) var<storage, read> modelMatrix: array<mat4x4<f32>>;\n@group(0) @binding(2) var<storage, read> material: Material;\n@group(0) @binding(3) var TextureSampler: sampler;\n\n// These get optimized out based on \"USE*\" defines\n@group(0) @binding(4) var AlbedoMap: texture_2d<f32>;\n@group(0) @binding(5) var NormalMap: texture_2d<f32>;\n@group(0) @binding(6) var HeightMap: texture_2d<f32>;\n@group(0) @binding(7) var ARMMap: texture_2d<f32>;\n@group(0) @binding(8) var EmissiveMap: texture_2d<f32>;\n\n\n#if USE_SKINNING\n    @group(1) @binding(0) var<storage, read> boneMatrices: array<mat4x4<f32>>;\n#endif\n\n@vertex\nfn vertexMain(input: VertexInput) -> VertexOutput {\n    var output : VertexOutput;\n\n      var finalPosition = vec4(input.position, 1.0);\n      var finalNormal = vec4(input.normal, 0.0);\n\n    #if USE_SKINNING\n        var skinnedPosition = vec4(0.0);\n        var skinnedNormal = vec4(0.0);\n\n        let skinMatrix: mat4x4<f32> = \n            boneMatrices[input.joints[0]] * input.weights[0] +\n            boneMatrices[input.joints[1]] * input.weights[1] +\n            boneMatrices[input.joints[2]] * input.weights[2] +\n            boneMatrices[input.joints[3]] * input.weights[3];\n        \n        finalPosition = skinMatrix * vec4(input.position, 1.0);\n        finalNormal   = normalize(skinMatrix * vec4(input.normal, 0.0));\n    #endif\n\n    let cameraPos = frameBuffer.viewInverseMatrix[3].xyz;\n\n    let modelMatrixInstance = modelMatrix[input.instance];\n    let modelViewMatrix = frameBuffer.viewMatrix * modelMatrixInstance;\n\n    let worldNormal = normalize(modelMatrixInstance * vec4(finalNormal.xyz, 0.0)).xyz;\n    let worldTangent = normalize(modelMatrixInstance * vec4(input.tangent.xyz, 0.0)).xyz;\n    let worldBitangent = cross(worldNormal, worldTangent) * input.tangent.w;\n\n    output.instance = input.instance;\n    output.position = frameBuffer.projectionMatrix * modelViewMatrix * vec4(finalPosition.xyz, 1.0);\n    output.vPosition = finalPosition.xyz;\n    output.vUv = input.uv;\n    \n    output.vNormal = worldNormal;\n    output.normal = finalNormal.xyz;\n    output.tangent = worldTangent;\n    output.bitangent = worldBitangent;\n\n    return output;\n}\n\nstruct FragmentOutput {\n    @location(0) albedo : vec4f,\n    @location(1) normal : vec4f,\n    @location(2) RMO : vec4f,\n};\n\nfn inversesqrt(v: f32) -> f32 {\n    return 1.0 / sqrt(v);\n}\n\nfn CalcMipLevel(texture_coord: vec2f) -> f32 {\n    let dx = dpdx(texture_coord);\n    let dy = dpdy(texture_coord);\n    let delta_max_sqr = max(dot(dx, dx), dot(dy, dy));\n    \n    return max(0.0, 0.5 * log2(delta_max_sqr));\n}\n\n@fragment\nfn fragmentMain(@builtin(front_facing) isFrontFace: bool, input: VertexOutput) -> FragmentOutput {\n    var output: FragmentOutput;\n\n\n    let mat = material;\n\n    var uv = input.vUv * mat.RepeatOffset.xy + mat.RepeatOffset.zw;\n\n    var albedo = mat.AlbedoColor;\n    var roughness = mat.Roughness;\n    var metalness = mat.Metalness;\n    var occlusion = 1.0;\n\n    // var albedo = mat.AlbedoColor;\n    albedo *= textureSample(AlbedoMap, TextureSampler, uv);\n\n\n    // https://bgolus.medium.com/anti-aliased-alpha-test-the-esoteric-alpha-to-coverage-8b177335ae4f\n    let cutoff = mat.AlphaCutoff;\n    let mipScale = 0.25;\n    let albedoMapSize = vec2<f32>(textureDimensions(AlbedoMap));\n\n    var alphaAA = albedo.a;\n    alphaAA *= 1.0 + max(0.0, CalcMipLevel(uv * albedoMapSize)) * mipScale;\n    alphaAA = (alphaAA - cutoff) / max(fwidth(alphaAA), 0.0001) + 0.5;\n\n    if (cutoff > 0.0 && alphaAA < cutoff) {\n        discard;\n    }\n\n    // if (albedo.a < mat.AlphaCutoff) {\n    //     discard;\n    // }\n\n    var normal: vec3f = normalize(input.vNormal);\n    var tbn: mat3x3<f32>;\n    tbn[0] = input.tangent;      // column-major: T, B, N\n    tbn[1] = input.bitangent;\n    tbn[2] = input.vNormal;\n    if (!isFrontFace) {\n        // tbn[0] = -tbn[0];\n        tbn[1] = -tbn[1];\n        tbn[2] = -tbn[2];\n    }\n    let normalSample = textureSample(NormalMap, TextureSampler, uv).xyz * 2.0 - 1.0;\n    normal = normalize(tbn * normalSample);\n\n    let metalnessRoughness = textureSample(ARMMap, TextureSampler, uv);\n\n    occlusion *= metalnessRoughness.r;\n    roughness *= metalnessRoughness.g;\n    metalness *= metalnessRoughness.b;\n\n    // // Unity style - Mask map MT(R) AO(G) SM(A)\n    // metalness *= metalnessRoughness.r;\n    // occlusion *= metalnessRoughness.g; \n    // roughness *= metalnessRoughness.a;\n\n\n    var emissive = mat.EmissiveColor;\n    emissive *= textureSample(EmissiveMap, TextureSampler, uv);\n\n    output.albedo = vec4(albedo.rgb, roughness);\n    output.normal = vec4(OctEncode(normal.xyz), occlusion, metalness);\n    output.RMO = vec4(emissive.rgb, mat.Unlit);\n\n\n    // // Flat shading\n    // let xTangent: vec3f = dpdx( input.vPosition );\n    // let yTangent: vec3f = dpdy( input.vPosition );\n    // let faceNormal: vec3f = normalize( cross( xTangent, yTangent ) );\n\n    // output.normal = vec4(OctEncode(faceNormal.xyz), occlusion, metalness);\n\n    return output;\n}";
+var WGSL_Shader_Draw_URL = "#include \"@trident/core/resources/webgpu/shaders/deferred/Common.wgsl\";\n\nstruct VertexInput {\n    @builtin(instance_index) instance : u32, \n    @builtin(vertex_index) vertex : u32,\n    @location(0) position : vec3<f32>,\n    @location(1) normal : vec3<f32>,\n    @location(2) uv : vec2<f32>,\n\n    @location(3) tangent : vec4<f32>,\n    #if USE_SKINNING\n        @location(4) joints: vec4<u32>,\n        @location(5) weights: vec4<f32>,\n    #endif\n};\n\nstruct Material {\n    AlbedoColor: vec4<f32>,\n    EmissiveColor: vec4<f32>,\n    Roughness: f32,\n    Metalness: f32,\n    Unlit: f32,\n    AlphaCutoff: f32,\n    RepeatOffset: vec4<f32>, // xy = repeat, zw = offset\n};\n\nstruct VertexOutput {\n    @builtin(position) position : vec4<f32>,\n    @location(0) vPosition : vec3<f32>,\n    @location(1) vNormal : vec3<f32>,\n    @location(2) vUv : vec2<f32>,\n    @location(3) @interpolate(flat) instance : u32,\n    @location(4) tangent : vec3<f32>,\n    @location(5) bitangent : vec3<f32>,\n    @location(6) normal : vec3<f32>,\n};\n\n@group(0) @binding(0) var<storage, read> frameBuffer: FrameBuffer;\n@group(0) @binding(1) var<storage, read> modelMatrix: array<mat4x4<f32>>;\n@group(0) @binding(2) var<storage, read> material: Material;\n@group(0) @binding(3) var TextureSampler: sampler;\n\n// These get optimized out based on \"USE*\" defines\n@group(0) @binding(4) var albedoMap: texture_2d<f32>;\n@group(0) @binding(5) var normalMap: texture_2d<f32>;\n@group(0) @binding(6) var heightMap: texture_2d<f32>;\n@group(0) @binding(7) var armMap: texture_2d<f32>;\n@group(0) @binding(8) var emissiveMap: texture_2d<f32>;\n\n\n#if USE_SKINNING\n    @group(1) @binding(0) var<storage, read> boneMatrices: array<mat4x4<f32>>;\n#endif\n\n@vertex\nfn vertexMain(input: VertexInput) -> VertexOutput {\n    var output : VertexOutput;\n\n      var finalPosition = vec4(input.position, 1.0);\n      var finalNormal = vec4(input.normal, 0.0);\n\n    #if USE_SKINNING\n        var skinnedPosition = vec4(0.0);\n        var skinnedNormal = vec4(0.0);\n\n        let skinMatrix: mat4x4<f32> = \n            boneMatrices[input.joints[0]] * input.weights[0] +\n            boneMatrices[input.joints[1]] * input.weights[1] +\n            boneMatrices[input.joints[2]] * input.weights[2] +\n            boneMatrices[input.joints[3]] * input.weights[3];\n        \n        finalPosition = skinMatrix * vec4(input.position, 1.0);\n        finalNormal   = normalize(skinMatrix * vec4(input.normal, 0.0));\n    #endif\n\n    let cameraPos = frameBuffer.viewInverseMatrix[3].xyz;\n\n    let modelMatrixInstance = modelMatrix[input.instance];\n    let modelViewMatrix = frameBuffer.viewMatrix * modelMatrixInstance;\n\n    let worldNormal = normalize(modelMatrixInstance * vec4(finalNormal.xyz, 0.0)).xyz;\n    let worldTangent = normalize(modelMatrixInstance * vec4(input.tangent.xyz, 0.0)).xyz;\n    let worldBitangent = cross(worldNormal, worldTangent) * input.tangent.w;\n\n    output.instance = input.instance;\n    output.position = frameBuffer.projectionMatrix * modelViewMatrix * vec4(finalPosition.xyz, 1.0);\n    output.vPosition = finalPosition.xyz;\n    output.vUv = input.uv;\n    \n    output.vNormal = worldNormal;\n    output.normal = finalNormal.xyz;\n    output.tangent = worldTangent;\n    output.bitangent = worldBitangent;\n\n    return output;\n}\n\nstruct FragmentOutput {\n    @location(0) albedo : vec4f,\n    @location(1) normal : vec4f,\n    @location(2) RMO : vec4f,\n};\n\nfn inversesqrt(v: f32) -> f32 {\n    return 1.0 / sqrt(v);\n}\n\nfn CalcMipLevel(texture_coord: vec2f) -> f32 {\n    let dx = dpdx(texture_coord);\n    let dy = dpdy(texture_coord);\n    let delta_max_sqr = max(dot(dx, dx), dot(dy, dy));\n    \n    return max(0.0, 0.5 * log2(delta_max_sqr));\n}\n\n@fragment\nfn fragmentMain(@builtin(front_facing) isFrontFace: bool, input: VertexOutput) -> FragmentOutput {\n    var output: FragmentOutput;\n\n\n    let mat = material;\n\n    var uv = input.vUv * mat.RepeatOffset.xy + mat.RepeatOffset.zw;\n\n    var albedo = mat.AlbedoColor;\n    var roughness = mat.Roughness;\n    var metalness = mat.Metalness;\n    var occlusion = 1.0;\n\n    // var albedo = mat.AlbedoColor;\n    albedo *= textureSample(albedoMap, TextureSampler, uv);\n\n\n    // https://bgolus.medium.com/anti-aliased-alpha-test-the-esoteric-alpha-to-coverage-8b177335ae4f\n    let cutoff = mat.AlphaCutoff;\n    let mipScale = 0.25;\n    let albedoMapSize = vec2<f32>(textureDimensions(albedoMap));\n\n    var alphaAA = albedo.a;\n    alphaAA *= 1.0 + max(0.0, CalcMipLevel(uv * albedoMapSize)) * mipScale;\n    alphaAA = (alphaAA - cutoff) / max(fwidth(alphaAA), 0.0001) + 0.5;\n\n    if (cutoff > 0.0 && alphaAA < cutoff) {\n        discard;\n    }\n\n    // if (albedo.a < mat.AlphaCutoff) {\n    //     discard;\n    // }\n\n    var normal: vec3f = normalize(input.vNormal);\n    var tbn: mat3x3<f32>;\n    tbn[0] = input.tangent;      // column-major: T, B, N\n    tbn[1] = input.bitangent;\n    tbn[2] = input.vNormal;\n    if (!isFrontFace) {\n        // tbn[0] = -tbn[0];\n        tbn[1] = -tbn[1];\n        tbn[2] = -tbn[2];\n    }\n    let normalSample = textureSample(normalMap, TextureSampler, uv).xyz * 2.0 - 1.0;\n    normal = normalize(tbn * normalSample);\n\n    let metalnessRoughness = textureSample(armMap, TextureSampler, uv);\n\n    occlusion *= metalnessRoughness.r;\n    roughness *= metalnessRoughness.g;\n    metalness *= metalnessRoughness.b;\n\n    // // Unity style - Mask map MT(R) AO(G) SM(A)\n    // metalness *= metalnessRoughness.r;\n    // occlusion *= metalnessRoughness.g; \n    // roughness *= metalnessRoughness.a;\n\n\n    var emissive = mat.EmissiveColor;\n    emissive *= textureSample(emissiveMap, TextureSampler, uv);\n\n    output.albedo = vec4(albedo.rgb, roughness);\n    output.normal = vec4(OctEncode(normal.xyz), occlusion, metalness);\n    output.RMO = vec4(emissive.rgb, mat.Unlit);\n\n\n    // // Flat shading\n    // let xTangent: vec3f = dpdx( input.vPosition );\n    // let yTangent: vec3f = dpdy( input.vPosition );\n    // let faceNormal: vec3f = normalize( cross( xTangent, yTangent ) );\n\n    // output.normal = vec4(OctEncode(faceNormal.xyz), occlusion, metalness);\n\n    return output;\n}";
 
-var WGSL_Shader_DeferredLighting_URL = "#include \"@trident/core/resources/webgpu/shaders/deferred/Common.wgsl\";\n#include \"@trident/core/resources/webgpu/shaders/deferred/SurfaceStruct.wgsl\";\n#include \"@trident/core/resources/webgpu/shaders/deferred/LightStruct.wgsl\";\n#include \"@trident/core/resources/webgpu/shaders/deferred/ShadowMap.wgsl\";\n#include \"@trident/core/resources/webgpu/shaders/deferred/ShadowMapCSM.wgsl\";\n\nstruct Settings {\n    debugDepthPass: f32,\n    debugDepthMipLevel: f32,\n    debugDepthExposure: f32,\n    viewType: f32,\n    useHeightMap: f32,\n    heightScale: f32,\n\n    debugShadowCascades: f32,\n    pcfResolution: f32,\n    blendThreshold: f32,\n    viewBlendThreshold: f32,\n\n    cameraPosition: vec4<f32>,\n};\n\nstruct VertexInput {\n    @builtin(instance_index) instance : u32, \n    @location(0) position : vec3<f32>,\n    @location(1) normal : vec3<f32>,\n    @location(2) uv : vec2<f32>,\n};\n\nstruct VertexOutput {\n    @builtin(position) position: vec4<f32>,\n    @location(0) vUv: vec2<f32>,\n    @location(1) @interpolate(flat) lightIndex: u32,\n};\n\n@group(0) @binding(0) var textureSampler: sampler;\n\n@group(0) @binding(1) var albedoTexture: texture_2d<f32>;\n@group(0) @binding(2) var normalTexture: texture_2d<f32>;\n@group(0) @binding(3) var ermoTexture: texture_2d<f32>;\n@group(0) @binding(4) var depthTexture: texture_depth_2d;\n@group(0) @binding(5) var shadowPassDepth: texture_depth_2d_array;\n\n@group(0) @binding(6) var<storage, read> lights: array<Light>;\n@group(0) @binding(7) var<storage, read> lightCount: u32;\n\nstruct View {\n    projectionOutputSize: vec4<f32>,\n    viewPosition: vec4<f32>,\n    projectionInverseMatrix: mat4x4<f32>,\n    viewInverseMatrix: mat4x4<f32>,\n    viewMatrix: mat4x4<f32>,\n    projectionMatrix: mat4x4<f32>,\n};\n@group(0) @binding(8) var<storage, read> view: View;\n\n\nconst numCascades = 4;\n\n@group(0) @binding(9) var shadowSamplerComp: sampler_comparison;\n\n@group(0) @binding(10) var<storage, read> settings: Settings;\n\n@vertex\nfn vertexMain(input: VertexInput) -> VertexOutput {\n    var output: VertexOutput;\n    let light = lights[input.instance];\n    let lightType = u32(light.color.a);\n\n    output.position = view.projectionMatrix * view.viewMatrix * light.lightModelMatrix * vec4(input.position, 1.0);\n    if (lightType == DIRECTIONAL_LIGHT) {\n        // Flip X so the quad becomes back-facing (survives front-face cull).\n        // Place it at the far plane so it passes depthCompare \"greater-equal\".\n        output.position = vec4(-input.position.x, input.position.y, 1.0, 1.0);\n    }\n\n    output.vUv = input.uv;\n    output.lightIndex = input.instance;\n    return output;\n}\n\nconst PI = 3.141592653589793;\n\nconst SPOT_LIGHT: u32 = 0;\nconst DIRECTIONAL_LIGHT: u32 = 1;\nconst POINT_LIGHT: u32 = 2;\nconst AREA_LIGHT: u32 = 3;\n\nfn reconstructWorldPosFromZ(\n    coords: vec2<f32>,\n    size: vec2<f32>,\n    depth: f32,\n    projInverse: mat4x4<f32>,\n    viewInverse: mat4x4<f32>\n    ) -> vec4<f32> {\n    let uv = coords.xy / size;\n    let x = uv.x * 2.0 - 1.0;\n    let y = (1.0 - uv.y) * 2.0 - 1.0;\n    let projectedPos = vec4(x, y, depth, 1.0);\n    var worldPosition = projInverse * projectedPos;\n    worldPosition = vec4(worldPosition.xyz / worldPosition.w, 1.0);\n    worldPosition = viewInverse * worldPosition;\n    return worldPosition;\n}\n\nfn DistributionGGX(n: vec3f, h: vec3f, roughness: f32) -> f32 {\n  let a = roughness * roughness;\n  let a2 = a * a;\n  let nDotH = max(dot(n, h), 0.0);\n  let nDotH2 = nDotH * nDotH;\n  var denom = (nDotH2 * (a2 - 1.0) + 1.0);\n  denom = PI * denom * denom;\n  return a2 / denom;\n}\n\nfn GeometrySchlickGGX(nDotV: f32, roughness: f32) -> f32 {\n  let r = (roughness + 1.0);\n  let k = (r * r) / 8.0;\n  return nDotV / (nDotV * (1.0 - k) + k);\n}\n\nfn GeometrySmith(n: vec3f, v: vec3f, l: vec3f, roughness: f32) -> f32 {\n  let nDotV = max(dot(n, v), 0.0);\n  let nDotL = max(dot(n, l), 0.0);\n  let ggx2 = GeometrySchlickGGX(nDotV, roughness);\n  let ggx1 = GeometrySchlickGGX(nDotL, roughness);\n  return ggx1 * ggx2;\n}\n\nfn FresnelSchlick(cosTheta: f32, f0: vec3f) -> vec3f {\n  return f0 + (1.0 - f0) * pow(clamp(1.0 - cosTheta, 0.0, 1.0), 5.0);\n}\n\nfn CalculateBRDF(surface: Surface, pointToLight: vec3<f32>) -> vec3<f32> {\n    // cook-torrance brdf\n    let L = normalize(pointToLight);\n    let H = normalize(surface.V + L);\n    let distance = length(pointToLight);\n\n    let NDF = DistributionGGX(surface.N, H, surface.roughness);\n    let G = GeometrySmith(surface.N, surface.V, L, surface.roughness);\n    let F = FresnelSchlick(max(dot(H, surface.V), 0.0), surface.F0);\n\n    let kD = (vec3(1.0, 1.0, 1.0) - F) * (1.0 - surface.metallic);\n\n    let NdotL = max(dot(surface.N, L), 0.0);\n\n    let numerator = NDF * G * F;\n    let denominator = max(4.0 * max(dot(surface.N, surface.V), 0.0) * NdotL, 0.001);\n    let specular = numerator / vec3(denominator, denominator, denominator);\n\n    return (kD * surface.albedo.rgb / vec3(PI, PI, PI) + specular) * NdotL;\n}\n\nfn DirectionalLightRadiance(light: DirectionalLight, surface : Surface) -> vec3<f32> {\n    return CalculateBRDF(surface, light.direction) * light.color * light.intensity;\n}\n\nfn rangeAttenuation(range : f32, distance : f32) -> f32 {\n    if (range <= 0.0) {\n        // Negative range means no cutoff\n        return 1.0 / pow(distance, 2.0);\n    }\n    return clamp(1.0 - pow(distance / range, 4.0), 0.0, 1.0) / pow(distance, 2.0);\n}\n\nfn SpotLightRadiance(light : SpotLight, surface : Surface) -> vec3<f32> {\n    // pointToLight is SURFACE -> LIGHT (as you already set)\n    let dist = length(light.pointToLight);\n\n    // For cone test we need LIGHT -> SURFACE\n    let L_ls = normalize(-light.pointToLight);   // light -> surface\n    let cd   = dot(light.direction, L_ls);       // cos(theta), 1 at center\n\n    // Smooth falloff from edge to center: 0 at cos(angle), 1 at 1.0\n    let spot = smoothstep(cos(light.angle), 1.0, cd);\n\n    // Range attenuation as you have it\n    let attenuation = rangeAttenuation(light.range, dist) * spot;\n\n    // BRDF usually expects wi = SURFACE -> LIGHT\n    let wi = -L_ls; // (surface -> light)\n    let radiance = CalculateBRDF(surface, wi) * light.color * light.intensity * attenuation;\n    return radiance;\n}\n\nfn PointLightRadiance(light: PointLight, surface: Surface) -> vec3<f32> {\n    let dist = length(light.pointToLight);\n    let wi   = normalize(light.pointToLight);        // surface -> light\n    let att  = rangeAttenuation(light.range, dist);  // your smooth cutoff / r^2\n    return CalculateBRDF(surface, wi) * light.color * light.intensity * att;\n}\n\n@fragment\nfn fragmentMain(input: VertexOutput) -> @location(0) vec4<f32> {\n    // Load depth once\n    let pix = vec2<i32>(input.position.xy);\n    let depth = textureLoad(depthTexture, pix, 0);\n\n    if (depth > 0.99999) {\n        discard;\n    }\n\n    let fragCoord = input.position.xy;\n    let screenSize = view.projectionOutputSize.xy;\n\n    let uv = fragCoord / screenSize;\n\n    let worldPosition = reconstructWorldPosFromZ(\n        input.position.xy,\n        view.projectionOutputSize.xy,\n        depth,\n        view.projectionInverseMatrix,\n        view.viewInverseMatrix\n    );\n\n    let albedo = textureLoad(albedoTexture, pix, 0);\n    var normal = textureLoad(normalTexture, pix, 0);\n    let ermo   = textureLoad(ermoTexture,   pix, 0);\n\n\n    let unlit = ermo.a;\n\n    if (unlit > 0.5) {\n        var color = albedo.rgb;\n        return vec4f(color, 1.0);\n    }\n\n    var surface: Surface;\n    surface.depth          = depth;\n    surface.albedo         = albedo.rgb;\n    surface.roughness      = clamp(albedo.a, 0.0, 0.99);\n    surface.occlusion      = normal.z;\n    surface.metallic       = normal.a;\n    surface.emissive       = ermo.rgb;\n    surface.worldPosition  = worldPosition.xyz;\n    \n    surface.N = OctDecode(normal.rg);\n    surface.F0             = mix(vec3(0.04), surface.albedo.rgb, vec3(surface.metallic));\n    surface.V              = normalize(view.viewPosition.xyz - surface.worldPosition);\n\n    var lo = vec3f(0.0);\n    var selectedCascade = 0;\n\n    var light = lights[input.lightIndex];\n    let lightType = u32(light.color.a);\n\n    if (lightType == DIRECTIONAL_LIGHT) {\n        var directionalLight: DirectionalLight;\n        directionalLight.direction = normalize((light.viewMatrixInverse * vec4(0.0, 0.0, 1.0, 0.0)).xyz);\n        // directionalLight.direction = light.direction.xyz;\n        directionalLight.color = light.color.rgb;\n        directionalLight.intensity = light.params1.x;\n\n        let castShadows = light.params1.z > 0.5;\n        var shadow = 1.0;\n        if (castShadows) {\n            let shadowCSM = CalculateShadowCSM(shadowPassDepth, shadowSamplerComp, surface, light, input.lightIndex);\n            shadow = shadowCSM.visibility;\n            selectedCascade = shadowCSM.selectedCascade;\n        }\n\n        // lo += shadow * DirectionalLightRadiance(directionalLight, surface) * radiance;\n        lo += shadow * DirectionalLightRadiance(directionalLight, surface);\n    }\n\n    else if (lightType == SPOT_LIGHT) {\n        var spotLight: SpotLight;\n        \n        // light.position.x *= -1.0;\n        // light.position.z *= -1.0;\n        spotLight.pointToLight = light.position.xyz - surface.worldPosition;\n        spotLight.color = light.color.rgb;\n        spotLight.intensity = light.params1.r;\n        spotLight.range = light.params1.g;\n        spotLight.direction = normalize((light.viewMatrixInverse * vec4(0.0, 0.0, -1.0, 0.0)).xyz);\n        // spotLight.direction = normalize(light.params2.xyz);\n        // spotLight.direction = light.direction.xyz;\n        spotLight.angle = light.params2.w;\n\n        let castShadows = light.params1.z > 0.5;\n        var shadow = 1.0;\n        if (castShadows) {\n            let shadowCSM = CalculateShadowCSMSpot(shadowPassDepth, shadowSamplerComp, surface, light, input.lightIndex);\n            shadow = shadowCSM.visibility;\n            selectedCascade = shadowCSM.selectedCascade;\n            // shadow = SampleSpotShadowMap(surface, light); // <— single 2D map on this layer\n\n        }\n\n        lo += shadow * SpotLightRadiance(spotLight, surface);\n    }\n\n    else if (lightType == POINT_LIGHT) {\n        var p: PointLight;\n        p.pointToLight = light.position.xyz - surface.worldPosition;\n        p.color        = light.color.rgb;\n        p.intensity    = light.params1.x;\n        p.range        = light.params1.y;\n\n        var shadow = 1.0;\n        let castShadows = light.params1.z > 0.5;\n        // if (castShadows) {\n        //     shadow = SamplePointShadow(surface, light, i);\n        // }\n\n        lo += shadow * PointLightRadiance(p, surface);\n    }\n\n    return vec4f(lo, 0.0);\n}";
+var WGSL_Shader_DeferredLighting_URL = "#include \"@trident/core/resources/webgpu/shaders/deferred/Common.wgsl\";\n#include \"@trident/core/resources/webgpu/shaders/deferred/SurfaceStruct.wgsl\";\n#include \"@trident/core/resources/webgpu/shaders/deferred/LightStruct.wgsl\";\n#include \"@trident/core/resources/webgpu/shaders/deferred/ShadowMap.wgsl\";\n#include \"@trident/core/resources/webgpu/shaders/deferred/ShadowMapCSM.wgsl\";\n\nstruct Settings {\n    debugDepthPass: f32,\n    debugDepthMipLevel: f32,\n    debugDepthExposure: f32,\n    viewType: f32,\n    useheightMap: f32,\n    heightScale: f32,\n\n    debugShadowCascades: f32,\n    pcfResolution: f32,\n    blendThreshold: f32,\n    viewBlendThreshold: f32,\n\n    cameraPosition: vec4<f32>,\n};\n\nstruct VertexInput {\n    @builtin(instance_index) instance : u32, \n    @location(0) position : vec3<f32>,\n    @location(1) normal : vec3<f32>,\n    @location(2) uv : vec2<f32>,\n};\n\nstruct VertexOutput {\n    @builtin(position) position: vec4<f32>,\n    @location(0) vUv: vec2<f32>,\n    @location(1) @interpolate(flat) lightIndex: u32,\n};\n\n@group(0) @binding(0) var textureSampler: sampler;\n\n@group(0) @binding(1) var albedoTexture: texture_2d<f32>;\n@group(0) @binding(2) var normalTexture: texture_2d<f32>;\n@group(0) @binding(3) var ermoTexture: texture_2d<f32>;\n@group(0) @binding(4) var depthTexture: texture_depth_2d;\n@group(0) @binding(5) var shadowPassDepth: texture_depth_2d_array;\n\n@group(0) @binding(6) var<storage, read> lights: array<Light>;\n@group(0) @binding(7) var<storage, read> lightCount: u32;\n\nstruct View {\n    projectionOutputSize: vec4<f32>,\n    viewPosition: vec4<f32>,\n    projectionInverseMatrix: mat4x4<f32>,\n    viewInverseMatrix: mat4x4<f32>,\n    viewMatrix: mat4x4<f32>,\n    projectionMatrix: mat4x4<f32>,\n};\n@group(0) @binding(8) var<storage, read> view: View;\n\n\nconst numCascades = 4;\n\n@group(0) @binding(9) var shadowSamplerComp: sampler_comparison;\n\n@group(0) @binding(10) var<storage, read> settings: Settings;\n\n@vertex\nfn vertexMain(input: VertexInput) -> VertexOutput {\n    var output: VertexOutput;\n    let light = lights[input.instance];\n    let lightType = u32(light.color.a);\n\n    output.position = view.projectionMatrix * view.viewMatrix * light.lightModelMatrix * vec4(input.position, 1.0);\n    if (lightType == DIRECTIONAL_LIGHT) {\n        // Flip X so the quad becomes back-facing (survives front-face cull).\n        // Place it at the far plane so it passes depthCompare \"greater-equal\".\n        output.position = vec4(-input.position.x, input.position.y, 1.0, 1.0);\n    }\n\n    output.vUv = input.uv;\n    output.lightIndex = input.instance;\n    return output;\n}\n\nconst PI = 3.141592653589793;\n\nconst SPOT_LIGHT: u32 = 0;\nconst DIRECTIONAL_LIGHT: u32 = 1;\nconst POINT_LIGHT: u32 = 2;\nconst AREA_LIGHT: u32 = 3;\n\nfn reconstructWorldPosFromZ(\n    coords: vec2<f32>,\n    size: vec2<f32>,\n    depth: f32,\n    projInverse: mat4x4<f32>,\n    viewInverse: mat4x4<f32>\n    ) -> vec4<f32> {\n    let uv = coords.xy / size;\n    let x = uv.x * 2.0 - 1.0;\n    let y = (1.0 - uv.y) * 2.0 - 1.0;\n    let projectedPos = vec4(x, y, depth, 1.0);\n    var worldPosition = projInverse * projectedPos;\n    worldPosition = vec4(worldPosition.xyz / worldPosition.w, 1.0);\n    worldPosition = viewInverse * worldPosition;\n    return worldPosition;\n}\n\nfn DistributionGGX(n: vec3f, h: vec3f, roughness: f32) -> f32 {\n  let a = roughness * roughness;\n  let a2 = a * a;\n  let nDotH = max(dot(n, h), 0.0);\n  let nDotH2 = nDotH * nDotH;\n  var denom = (nDotH2 * (a2 - 1.0) + 1.0);\n  denom = PI * denom * denom;\n  return a2 / denom;\n}\n\nfn GeometrySchlickGGX(nDotV: f32, roughness: f32) -> f32 {\n  let r = (roughness + 1.0);\n  let k = (r * r) / 8.0;\n  return nDotV / (nDotV * (1.0 - k) + k);\n}\n\nfn GeometrySmith(n: vec3f, v: vec3f, l: vec3f, roughness: f32) -> f32 {\n  let nDotV = max(dot(n, v), 0.0);\n  let nDotL = max(dot(n, l), 0.0);\n  let ggx2 = GeometrySchlickGGX(nDotV, roughness);\n  let ggx1 = GeometrySchlickGGX(nDotL, roughness);\n  return ggx1 * ggx2;\n}\n\nfn FresnelSchlick(cosTheta: f32, f0: vec3f) -> vec3f {\n  return f0 + (1.0 - f0) * pow(clamp(1.0 - cosTheta, 0.0, 1.0), 5.0);\n}\n\nfn CalculateBRDF(surface: Surface, pointToLight: vec3<f32>) -> vec3<f32> {\n    // cook-torrance brdf\n    let L = normalize(pointToLight);\n    let H = normalize(surface.V + L);\n    let distance = length(pointToLight);\n\n    let NDF = DistributionGGX(surface.N, H, surface.roughness);\n    let G = GeometrySmith(surface.N, surface.V, L, surface.roughness);\n    let F = FresnelSchlick(max(dot(H, surface.V), 0.0), surface.F0);\n\n    let kD = (vec3(1.0, 1.0, 1.0) - F) * (1.0 - surface.metallic);\n\n    let NdotL = max(dot(surface.N, L), 0.0);\n\n    let numerator = NDF * G * F;\n    let denominator = max(4.0 * max(dot(surface.N, surface.V), 0.0) * NdotL, 0.001);\n    let specular = numerator / vec3(denominator, denominator, denominator);\n\n    return (kD * surface.albedo.rgb / vec3(PI, PI, PI) + specular) * NdotL;\n}\n\nfn DirectionalLightRadiance(light: DirectionalLight, surface : Surface) -> vec3<f32> {\n    return CalculateBRDF(surface, light.direction) * light.color * light.intensity;\n}\n\nfn rangeAttenuation(range : f32, distance : f32) -> f32 {\n    if (range <= 0.0) {\n        // Negative range means no cutoff\n        return 1.0 / pow(distance, 2.0);\n    }\n    return clamp(1.0 - pow(distance / range, 4.0), 0.0, 1.0) / pow(distance, 2.0);\n}\n\nfn SpotLightRadiance(light : SpotLight, surface : Surface) -> vec3<f32> {\n    // pointToLight is SURFACE -> LIGHT (as you already set)\n    let dist = length(light.pointToLight);\n\n    // For cone test we need LIGHT -> SURFACE\n    let L_ls = normalize(-light.pointToLight);   // light -> surface\n    let cd   = dot(light.direction, L_ls);       // cos(theta), 1 at center\n\n    // Smooth falloff from edge to center: 0 at cos(angle), 1 at 1.0\n    let spot = smoothstep(cos(light.angle), 1.0, cd);\n\n    // Range attenuation as you have it\n    let attenuation = rangeAttenuation(light.range, dist) * spot;\n\n    // BRDF usually expects wi = SURFACE -> LIGHT\n    let wi = -L_ls; // (surface -> light)\n    let radiance = CalculateBRDF(surface, wi) * light.color * light.intensity * attenuation;\n    return radiance;\n}\n\nfn PointLightRadiance(light: PointLight, surface: Surface) -> vec3<f32> {\n    let dist = length(light.pointToLight);\n    let wi   = normalize(light.pointToLight);        // surface -> light\n    let att  = rangeAttenuation(light.range, dist);  // your smooth cutoff / r^2\n    return CalculateBRDF(surface, wi) * light.color * light.intensity * att;\n}\n\n@fragment\nfn fragmentMain(input: VertexOutput) -> @location(0) vec4<f32> {\n    // Load depth once\n    let pix = vec2<i32>(input.position.xy);\n    let depth = textureLoad(depthTexture, pix, 0);\n\n    if (depth > 0.99999) {\n        discard;\n    }\n\n    let fragCoord = input.position.xy;\n    let screenSize = view.projectionOutputSize.xy;\n\n    let uv = fragCoord / screenSize;\n\n    let worldPosition = reconstructWorldPosFromZ(\n        input.position.xy,\n        view.projectionOutputSize.xy,\n        depth,\n        view.projectionInverseMatrix,\n        view.viewInverseMatrix\n    );\n\n    let albedo = textureLoad(albedoTexture, pix, 0);\n    var normal = textureLoad(normalTexture, pix, 0);\n    let ermo   = textureLoad(ermoTexture,   pix, 0);\n\n\n    let unlit = ermo.a;\n\n    if (unlit > 0.5) {\n        var color = albedo.rgb;\n        return vec4f(color, 1.0);\n    }\n\n    var surface: Surface;\n    surface.depth          = depth;\n    surface.albedo         = albedo.rgb;\n    surface.roughness      = clamp(albedo.a, 0.0, 0.99);\n    surface.occlusion      = normal.z;\n    surface.metallic       = normal.a;\n    surface.emissive       = ermo.rgb;\n    surface.worldPosition  = worldPosition.xyz;\n    \n    surface.N = OctDecode(normal.rg);\n    surface.F0             = mix(vec3(0.04), surface.albedo.rgb, vec3(surface.metallic));\n    surface.V              = normalize(view.viewPosition.xyz - surface.worldPosition);\n\n    var lo = vec3f(0.0);\n    var selectedCascade = 0;\n\n    var light = lights[input.lightIndex];\n    let lightType = u32(light.color.a);\n\n    if (lightType == DIRECTIONAL_LIGHT) {\n        var directionalLight: DirectionalLight;\n        directionalLight.direction = normalize((light.viewMatrixInverse * vec4(0.0, 0.0, 1.0, 0.0)).xyz);\n        // directionalLight.direction = light.direction.xyz;\n        directionalLight.color = light.color.rgb;\n        directionalLight.intensity = light.params1.x;\n\n        let castShadows = light.params1.z > 0.5;\n        var shadow = 1.0;\n        if (castShadows) {\n            let shadowCSM = CalculateShadowCSM(shadowPassDepth, shadowSamplerComp, surface, light, input.lightIndex);\n            shadow = shadowCSM.visibility;\n            selectedCascade = shadowCSM.selectedCascade;\n        }\n\n        // lo += shadow * DirectionalLightRadiance(directionalLight, surface) * radiance;\n        lo += shadow * DirectionalLightRadiance(directionalLight, surface);\n    }\n\n    else if (lightType == SPOT_LIGHT) {\n        var spotLight: SpotLight;\n        \n        // light.position.x *= -1.0;\n        // light.position.z *= -1.0;\n        spotLight.pointToLight = light.position.xyz - surface.worldPosition;\n        spotLight.color = light.color.rgb;\n        spotLight.intensity = light.params1.r;\n        spotLight.range = light.params1.g;\n        spotLight.direction = normalize((light.viewMatrixInverse * vec4(0.0, 0.0, -1.0, 0.0)).xyz);\n        // spotLight.direction = normalize(light.params2.xyz);\n        // spotLight.direction = light.direction.xyz;\n        spotLight.angle = light.params2.w;\n\n        let castShadows = light.params1.z > 0.5;\n        var shadow = 1.0;\n        if (castShadows) {\n            let shadowCSM = CalculateShadowCSMSpot(shadowPassDepth, shadowSamplerComp, surface, light, input.lightIndex);\n            shadow = shadowCSM.visibility;\n            selectedCascade = shadowCSM.selectedCascade;\n            // shadow = SampleSpotShadowMap(surface, light); // <— single 2D map on this layer\n\n        }\n\n        lo += shadow * SpotLightRadiance(spotLight, surface);\n    }\n\n    else if (lightType == POINT_LIGHT) {\n        var p: PointLight;\n        p.pointToLight = light.position.xyz - surface.worldPosition;\n        p.color        = light.color.rgb;\n        p.intensity    = light.params1.x;\n        p.range        = light.params1.y;\n\n        var shadow = 1.0;\n        let castShadows = light.params1.z > 0.5;\n        // if (castShadows) {\n        //     shadow = SamplePointShadow(surface, light, i);\n        // }\n\n        lo += shadow * PointLightRadiance(p, surface);\n    }\n\n    return vec4f(lo, 0.0);\n}";
 
 var WGSL_Shader_Deferred_SurfaceStruct = "struct Surface {\n    albedo: vec3<f32>,\n    emissive: vec3<f32>,\n    metallic: f32,\n    roughness: f32,\n    occlusion: f32,\n    worldPosition: vec3<f32>,\n    N: vec3<f32>,\n    F0: vec3<f32>,\n    V: vec3<f32>,\n    depth: f32\n};";
 
@@ -2321,6 +2293,26 @@ class Texture {
   activeMipCount = 1;
   blob;
   assetPath;
+  static _WhiteTexture;
+  static _BlackTexture;
+  static _NormalTexture;
+  static CreateTextureWithData(data) {
+    const texture = Texture.Create(1, 1, 1, "bgra8unorm");
+    texture.SetData(data, 4);
+    return texture;
+  }
+  static get WhiteTexture() {
+    if (!this._WhiteTexture) Texture._WhiteTexture = Texture.CreateTextureWithData(new Uint8Array([255, 255, 255, 255]));
+    return Texture._WhiteTexture;
+  }
+  static get BlackTexture() {
+    if (!this._BlackTexture) Texture._BlackTexture = Texture.CreateTextureWithData(new Uint8Array([0, 0, 0, 255]));
+    return Texture._BlackTexture;
+  }
+  static get NormalTexture() {
+    if (!this._NormalTexture) Texture._NormalTexture = Texture.CreateTextureWithData(new Uint8Array([255, 128, 128, 255]));
+    return Texture._NormalTexture;
+  }
   constructor(width, height, depth, format, type, dimension, mipLevels) {
     let textureUsage = GPUTextureUsage.COPY_DST;
     let textureType = GPUTextureUsage.TEXTURE_BINDING;
@@ -5146,35 +5138,43 @@ var __decorateElement$5 = (array, flags, name, decorators, target, extra) => {
   return target;
 };
 var __publicField$5 = (obj, key, value) => __defNormalProp$5(obj, typeof key !== "symbol" ? key + "" : key, value);
-var _isDeferred_dec, _init$5, _params_dec, _assetPath_dec$3, _init2$3, _isDeferred_dec2, _isSkinned_dec, _unlit_dec, _alphaCutoff_dec, _doubleSided_dec, _offset_dec, _repeat_dec, _emissiveMap_dec, _armMap_dec, _heightMap_dec, _normalMap_dec, _albedoMap_dec, _metalness_dec, _roughness_dec, _emissiveColor_dec, _albedoColor_dec, _a$4, _init3$1;
+var _defines_dec, _cullMode_dec, _isDeferred_dec, _init$5, _params_dec, _assetPath_dec$3, _init2$3, _emissiveMap_dec, _armMap_dec, _heightMap_dec, _normalMap_dec, _albedoMap_dec, _offset_dec, _repeat_dec, _alphaCutoff_dec, _unlit_dec, _metalness_dec, _roughness_dec, _emissiveColor_dec, _albedoColor_dec, _defines_dec2, _isDeferred_dec2, _a$4, _init3$1;
 const MaterialPool = new Pool();
-_isDeferred_dec = [SerializeField];
+var CullMode = /* @__PURE__ */ ((CullMode2) => {
+  CullMode2["Back"] = "back";
+  CullMode2["Front"] = "front";
+  CullMode2["None"] = "none";
+  return CullMode2;
+})(CullMode || {});
+_isDeferred_dec = [SerializeField], _cullMode_dec = [SerializeField(CullMode)], _defines_dec = [SerializeField];
 class MaterialParams {
   constructor() {
     __publicField$5(this, "isDeferred", __runInitializers$5(_init$5, 8, this, false)), __runInitializers$5(_init$5, 11, this);
+    __publicField$5(this, "cullMode", __runInitializers$5(_init$5, 12, this, "back" /* Back */)), __runInitializers$5(_init$5, 15, this);
+    __publicField$5(this, "defines", __runInitializers$5(_init$5, 16, this, {})), __runInitializers$5(_init$5, 19, this);
     __publicField$5(this, "shader");
     __publicField$5(this, "materialID");
   }
 }
 _init$5 = __decoratorStart$5(null);
 __decorateElement$5(_init$5, 5, "isDeferred", _isDeferred_dec, MaterialParams);
+__decorateElement$5(_init$5, 5, "cullMode", _cullMode_dec, MaterialParams);
+__decorateElement$5(_init$5, 5, "defines", _defines_dec, MaterialParams);
 __decoratorMetadata$5(_init$5, MaterialParams);
-_assetPath_dec$3 = [SerializeField], _params_dec = [SerializeField];
+_assetPath_dec$3 = [SerializeField, HideInInspector], _params_dec = [SerializeField(MaterialParams)];
 const _Material = class _Material {
-  constructor(params) {
+  constructor(defaults, params) {
     __publicField$5(this, "id", UUID());
     __publicField$5(this, "assetPath", __runInitializers$5(_init2$3, 8, this)), __runInitializers$5(_init2$3, 11, this);
     __publicField$5(this, "_shader");
     __publicField$5(this, "params", __runInitializers$5(_init2$3, 12, this)), __runInitializers$5(_init2$3, 15, this);
     __publicField$5(this, "materialId");
+    __publicField$5(this, "pendingShaderCreation");
+    __publicField$5(this, "builtVariant");
+    __publicField$5(this, "lastSync", -1);
     this.materialId = MaterialPool.add(this);
-    const defaultParams = {
-      isDeferred: false,
-      shader: void 0,
-      materialID: this.materialId
-    };
-    this.params = Object.assign({}, defaultParams, params);
-    this._shader = this.params.shader;
+    this.params = Object.assign(defaults, params);
+    this.params.materialID = this.materialId;
   }
   get name() {
     if (this.assetPath && !this.assetPath.startsWith("@builtin")) {
@@ -5185,10 +5185,39 @@ const _Material = class _Material {
     return "Material";
   }
   get shader() {
+    if (!this._shader && !this.pendingShaderCreation) this.createShader();
     return this._shader;
   }
   set shader(shader) {
     this._shader = shader;
+  }
+  // The cull/defines signature the shader is compiled for.
+  variantKey() {
+    return this.params.cullMode + "|" + JSON.stringify(this.params.defines);
+  }
+  // Runs once per frame via the shader's pre-render hook: recompile on variant change, then upload.
+  Sync() {
+    if (this.lastSync === Renderer.info.frame) return;
+    this.lastSync = Renderer.info.frame;
+    if (this.variantKey() !== this.builtVariant && !this.pendingShaderCreation) this.createShader();
+    this.ReloadMaterial();
+  }
+  async createShader() {
+    if (this.pendingShaderCreation) return this.pendingShaderCreation;
+    this.pendingShaderCreation = (async () => {
+      const shader = await this.BuildShader();
+      shader.OnPreRender = () => {
+        this.Sync();
+        return true;
+      };
+      const old = this._shader;
+      this._shader = shader;
+      this.builtVariant = this.variantKey();
+      old?.Destroy();
+      return shader;
+    })();
+    this.pendingShaderCreation.finally(() => this.pendingShaderCreation = void 0);
+    return this.pendingShaderCreation;
   }
   Destroy() {
     if (this.assetPath && Assets.GetInstance(this.assetPath) === this) {
@@ -5198,166 +5227,119 @@ const _Material = class _Material {
     MaterialPool.remove(this.materialId);
   }
   static Create(type, params) {
-    if (type === PBRMaterial.type) return new PBRMaterial(params);
-    return new _Material(params);
+    const Ctor = _Material.Registry.get(type);
+    if (!Ctor) throw new Error(`No material registered for type "${type}"`);
+    return new Ctor(params);
   }
 };
 _init2$3 = __decoratorStart$5(null);
 __decorateElement$5(_init2$3, 5, "assetPath", _assetPath_dec$3, _Material);
 __decorateElement$5(_init2$3, 5, "params", _params_dec, _Material);
 __decoratorMetadata$5(_init2$3, _Material);
+__publicField$5(_Material, "Registry", /* @__PURE__ */ new Map());
 __publicField$5(_Material, "type", "@trident/core/renderer/Material");
 let Material = _Material;
-const _PBRMaterialParams = class _PBRMaterialParams extends (_a$4 = MaterialParams, _albedoColor_dec = [SerializeField], _emissiveColor_dec = [SerializeField], _roughness_dec = [SerializeField], _metalness_dec = [SerializeField], _albedoMap_dec = [SerializeField(Texture)], _normalMap_dec = [SerializeField(Texture)], _heightMap_dec = [SerializeField(Texture)], _armMap_dec = [SerializeField(Texture)], _emissiveMap_dec = [SerializeField(Texture)], _repeat_dec = [SerializeField], _offset_dec = [SerializeField], _doubleSided_dec = [SerializeField], _alphaCutoff_dec = [SerializeField], _unlit_dec = [SerializeField], _isSkinned_dec = [SerializeField], _isDeferred_dec2 = [SerializeField], _a$4) {
-  // 1x1 (255, roughness_default, 0) or just white
+class PBRMaterialParams extends (_a$4 = MaterialParams, _isDeferred_dec2 = [SerializeField], _defines_dec2 = [SerializeField], _albedoColor_dec = [SerializeField], _emissiveColor_dec = [SerializeField], _roughness_dec = [SerializeField], _metalness_dec = [SerializeField], _unlit_dec = [SerializeField], _alphaCutoff_dec = [SerializeField], _repeat_dec = [SerializeField], _offset_dec = [SerializeField], _albedoMap_dec = [SerializeField(Texture)], _normalMap_dec = [SerializeField(Texture)], _heightMap_dec = [SerializeField(Texture)], _armMap_dec = [SerializeField(Texture)], _emissiveMap_dec = [SerializeField(Texture)], _a$4) {
   constructor() {
-    super();
-    __publicField$5(this, "albedoColor", __runInitializers$5(_init3$1, 8, this, new Color(1, 1, 1, 1))), __runInitializers$5(_init3$1, 11, this);
-    __publicField$5(this, "emissiveColor", __runInitializers$5(_init3$1, 12, this, new Color(0, 0, 0, 0))), __runInitializers$5(_init3$1, 15, this);
-    __publicField$5(this, "roughness", __runInitializers$5(_init3$1, 16, this, 0.5)), __runInitializers$5(_init3$1, 19, this);
-    __publicField$5(this, "metalness", __runInitializers$5(_init3$1, 20, this, 0)), __runInitializers$5(_init3$1, 23, this);
-    __publicField$5(this, "albedoMap", __runInitializers$5(_init3$1, 24, this)), __runInitializers$5(_init3$1, 27, this);
-    __publicField$5(this, "normalMap", __runInitializers$5(_init3$1, 28, this)), __runInitializers$5(_init3$1, 31, this);
-    __publicField$5(this, "heightMap", __runInitializers$5(_init3$1, 32, this)), __runInitializers$5(_init3$1, 35, this);
-    __publicField$5(this, "armMap", __runInitializers$5(_init3$1, 36, this)), __runInitializers$5(_init3$1, 39, this);
-    __publicField$5(this, "emissiveMap", __runInitializers$5(_init3$1, 40, this)), __runInitializers$5(_init3$1, 43, this);
-    __publicField$5(this, "repeat", __runInitializers$5(_init3$1, 44, this, new Vector2(1, 1))), __runInitializers$5(_init3$1, 47, this);
-    __publicField$5(this, "offset", __runInitializers$5(_init3$1, 48, this, new Vector2(0, 0))), __runInitializers$5(_init3$1, 51, this);
-    __publicField$5(this, "doubleSided", __runInitializers$5(_init3$1, 52, this, false)), __runInitializers$5(_init3$1, 55, this);
-    __publicField$5(this, "alphaCutoff", __runInitializers$5(_init3$1, 56, this, 0.5)), __runInitializers$5(_init3$1, 59, this);
-    __publicField$5(this, "unlit", __runInitializers$5(_init3$1, 60, this, false)), __runInitializers$5(_init3$1, 63, this);
-    __publicField$5(this, "isSkinned", __runInitializers$5(_init3$1, 64, this, false)), __runInitializers$5(_init3$1, 67, this);
-    __publicField$5(this, "isDeferred", __runInitializers$5(_init3$1, 68, this, true)), __runInitializers$5(_init3$1, 71, this);
-    if (!_PBRMaterialParams.dummyAlbedo) _PBRMaterialParams.InitDummies();
-    this.albedoMap = _PBRMaterialParams.dummyAlbedo;
-    this.normalMap = _PBRMaterialParams.dummyNormal;
-    this.heightMap = _PBRMaterialParams.dummyBlack;
-    this.armMap = _PBRMaterialParams.dummyARM;
-    this.emissiveMap = _PBRMaterialParams.dummyWhite;
+    super(...arguments);
+    __publicField$5(this, "isDeferred", __runInitializers$5(_init3$1, 8, this, true)), __runInitializers$5(_init3$1, 11, this);
+    __publicField$5(this, "defines", __runInitializers$5(_init3$1, 12, this, { USE_SKINNING: false })), __runInitializers$5(_init3$1, 15, this);
+    __publicField$5(this, "albedoColor", __runInitializers$5(_init3$1, 16, this, new Color(1, 1, 1, 1))), __runInitializers$5(_init3$1, 19, this);
+    __publicField$5(this, "emissiveColor", __runInitializers$5(_init3$1, 20, this, new Color(0, 0, 0, 0))), __runInitializers$5(_init3$1, 23, this);
+    __publicField$5(this, "roughness", __runInitializers$5(_init3$1, 24, this, 0.5)), __runInitializers$5(_init3$1, 27, this);
+    __publicField$5(this, "metalness", __runInitializers$5(_init3$1, 28, this, 0)), __runInitializers$5(_init3$1, 31, this);
+    __publicField$5(this, "unlit", __runInitializers$5(_init3$1, 32, this, false)), __runInitializers$5(_init3$1, 35, this);
+    __publicField$5(this, "alphaCutoff", __runInitializers$5(_init3$1, 36, this, 0.5)), __runInitializers$5(_init3$1, 39, this);
+    __publicField$5(this, "repeat", __runInitializers$5(_init3$1, 40, this, new Vector2(1, 1))), __runInitializers$5(_init3$1, 43, this);
+    __publicField$5(this, "offset", __runInitializers$5(_init3$1, 44, this, new Vector2(0, 0))), __runInitializers$5(_init3$1, 47, this);
+    __publicField$5(this, "albedoMap", __runInitializers$5(_init3$1, 48, this, Texture.WhiteTexture)), __runInitializers$5(_init3$1, 51, this);
+    __publicField$5(this, "normalMap", __runInitializers$5(_init3$1, 52, this, Texture.NormalTexture)), __runInitializers$5(_init3$1, 55, this);
+    __publicField$5(this, "heightMap", __runInitializers$5(_init3$1, 56, this, Texture.BlackTexture)), __runInitializers$5(_init3$1, 59, this);
+    __publicField$5(this, "armMap", __runInitializers$5(_init3$1, 60, this, Texture.WhiteTexture)), __runInitializers$5(_init3$1, 63, this);
+    __publicField$5(this, "emissiveMap", __runInitializers$5(_init3$1, 64, this, Texture.WhiteTexture)), __runInitializers$5(_init3$1, 67, this);
   }
-  static InitDummies() {
-    _PBRMaterialParams.dummyAlbedo = Texture.Create(1, 1, 1, "bgra8unorm");
-    _PBRMaterialParams.dummyAlbedo.SetData(new Uint8Array([255, 255, 255, 255]), 4);
-    _PBRMaterialParams.dummyNormal = Texture.Create(1, 1, 1, "bgra8unorm");
-    _PBRMaterialParams.dummyNormal.SetData(new Uint8Array([255, 128, 128, 255]), 4);
-    _PBRMaterialParams.dummyBlack = Texture.Create(1, 1, 1, "bgra8unorm");
-    _PBRMaterialParams.dummyBlack.SetData(new Uint8Array([0, 0, 0, 255]), 4);
-    _PBRMaterialParams.dummyWhite = Texture.Create(1, 1, 1, "bgra8unorm");
-    _PBRMaterialParams.dummyWhite.SetData(new Uint8Array([255, 255, 255, 255]), 4);
-    _PBRMaterialParams.dummyARM = Texture.Create(1, 1, 1, "bgra8unorm");
-    _PBRMaterialParams.dummyARM.SetData(new Uint8Array([255, 255, 255, 255]), 4);
-  }
-};
+}
 _init3$1 = __decoratorStart$5(_a$4);
-__decorateElement$5(_init3$1, 5, "albedoColor", _albedoColor_dec, _PBRMaterialParams);
-__decorateElement$5(_init3$1, 5, "emissiveColor", _emissiveColor_dec, _PBRMaterialParams);
-__decorateElement$5(_init3$1, 5, "roughness", _roughness_dec, _PBRMaterialParams);
-__decorateElement$5(_init3$1, 5, "metalness", _metalness_dec, _PBRMaterialParams);
-__decorateElement$5(_init3$1, 5, "albedoMap", _albedoMap_dec, _PBRMaterialParams);
-__decorateElement$5(_init3$1, 5, "normalMap", _normalMap_dec, _PBRMaterialParams);
-__decorateElement$5(_init3$1, 5, "heightMap", _heightMap_dec, _PBRMaterialParams);
-__decorateElement$5(_init3$1, 5, "armMap", _armMap_dec, _PBRMaterialParams);
-__decorateElement$5(_init3$1, 5, "emissiveMap", _emissiveMap_dec, _PBRMaterialParams);
-__decorateElement$5(_init3$1, 5, "repeat", _repeat_dec, _PBRMaterialParams);
-__decorateElement$5(_init3$1, 5, "offset", _offset_dec, _PBRMaterialParams);
-__decorateElement$5(_init3$1, 5, "doubleSided", _doubleSided_dec, _PBRMaterialParams);
-__decorateElement$5(_init3$1, 5, "alphaCutoff", _alphaCutoff_dec, _PBRMaterialParams);
-__decorateElement$5(_init3$1, 5, "unlit", _unlit_dec, _PBRMaterialParams);
-__decorateElement$5(_init3$1, 5, "isSkinned", _isSkinned_dec, _PBRMaterialParams);
-__decorateElement$5(_init3$1, 5, "isDeferred", _isDeferred_dec2, _PBRMaterialParams);
-__decoratorMetadata$5(_init3$1, _PBRMaterialParams);
-__publicField$5(_PBRMaterialParams, "dummyAlbedo");
-// 1x1 white
-__publicField$5(_PBRMaterialParams, "dummyNormal");
-// 1x1 flat (128, 128, 255)
-__publicField$5(_PBRMaterialParams, "dummyBlack");
-// 1x1 black (for height, emissive)
-__publicField$5(_PBRMaterialParams, "dummyWhite");
-// 1x1 black (for height, emissive)
-__publicField$5(_PBRMaterialParams, "dummyARM");
-let PBRMaterialParams = _PBRMaterialParams;
+__decorateElement$5(_init3$1, 5, "isDeferred", _isDeferred_dec2, PBRMaterialParams);
+__decorateElement$5(_init3$1, 5, "defines", _defines_dec2, PBRMaterialParams);
+__decorateElement$5(_init3$1, 5, "albedoColor", _albedoColor_dec, PBRMaterialParams);
+__decorateElement$5(_init3$1, 5, "emissiveColor", _emissiveColor_dec, PBRMaterialParams);
+__decorateElement$5(_init3$1, 5, "roughness", _roughness_dec, PBRMaterialParams);
+__decorateElement$5(_init3$1, 5, "metalness", _metalness_dec, PBRMaterialParams);
+__decorateElement$5(_init3$1, 5, "unlit", _unlit_dec, PBRMaterialParams);
+__decorateElement$5(_init3$1, 5, "alphaCutoff", _alphaCutoff_dec, PBRMaterialParams);
+__decorateElement$5(_init3$1, 5, "repeat", _repeat_dec, PBRMaterialParams);
+__decorateElement$5(_init3$1, 5, "offset", _offset_dec, PBRMaterialParams);
+__decorateElement$5(_init3$1, 5, "albedoMap", _albedoMap_dec, PBRMaterialParams);
+__decorateElement$5(_init3$1, 5, "normalMap", _normalMap_dec, PBRMaterialParams);
+__decorateElement$5(_init3$1, 5, "heightMap", _heightMap_dec, PBRMaterialParams);
+__decorateElement$5(_init3$1, 5, "armMap", _armMap_dec, PBRMaterialParams);
+__decorateElement$5(_init3$1, 5, "emissiveMap", _emissiveMap_dec, PBRMaterialParams);
+__decoratorMetadata$5(_init3$1, PBRMaterialParams);
 class PBRMaterial extends Material {
   static type = "@trident/core/renderer/Material/PBRMaterial";
   static sampler;
-  params = new PBRMaterialParams();
-  get shader() {
-    if (!this._shader && !this.pendingShaderCreation) this.createShader();
-    return this._shader;
-  }
   constructor(params) {
-    super({ isDeferred: params?.isDeferred ?? true });
+    super(new PBRMaterialParams(), { isDeferred: true, ...params });
     this.assetPath = "@builtin/material/pbr";
-    if (!Assets.GetInstance("@builtin/material/pbr")) {
-      Assets.SetInstance("@builtin/material/pbr", this);
-    }
-    Object.assign(this.params, params);
+    if (!Assets.GetInstance("@builtin/material/pbr")) Assets.SetInstance("@builtin/material/pbr", this);
     if (!PBRMaterial.sampler) PBRMaterial.sampler = new TextureSampler({ maxAnisotropy: 4 });
   }
-  pendingShaderCreation;
-  async createShader() {
-    if (this.pendingShaderCreation) return this.pendingShaderCreation;
-    this.pendingShaderCreation = (async () => {
-      const gbufferFormat = RenderingPipeline.GBufferFormat;
-      const defines = {
-        USE_SKINNING: !!this.params.isSkinned
-      };
-      const shader = await Shader.Create({
-        name: "PBRMaterial",
-        code: await ShaderLoader.Draw,
-        defines,
-        colorOutputs: Array(3).fill({ format: gbufferFormat }),
-        depthOutput: "depth24plus",
-        cullMode: this.params.doubleSided === true ? "none" : "back"
-      });
-      shader.SetSampler("TextureSampler", PBRMaterial.sampler);
-      this._shader = shader;
-      const self = this;
-      const handler = {
-        set(obj, prop, value) {
-          obj[prop] = value;
-          if (prop === "doubleSided" || prop === "isSkinned") {
-            self.shader.Destroy();
-            self.shader = void 0;
-            self.pendingShaderCreation = void 0;
-            self.createShader();
-          } else {
-            self.ReloadMaterial();
-          }
-          return true;
-        }
-      };
-      this.params = new Proxy(this.params, handler);
-      this.ReloadMaterial();
-      return shader;
-    })();
-    return this.pendingShaderCreation;
+  async BuildShader() {
+    const shader = await Shader.Create({
+      name: "PBRMaterial",
+      code: await ShaderLoader.Draw,
+      defines: this.params.defines,
+      colorOutputs: Array(3).fill({ format: RenderingPipeline.GBufferFormat }),
+      depthOutput: "depth24plus",
+      cullMode: this.params.cullMode
+    });
+    shader.SetSampler("TextureSampler", PBRMaterial.sampler);
+    return shader;
   }
   ReloadMaterial() {
-    this.shader.SetArray("material", new Float32Array([
-      this.params.albedoColor.r,
-      this.params.albedoColor.g,
-      this.params.albedoColor.b,
-      this.params.albedoColor.a,
-      this.params.emissiveColor.r,
-      this.params.emissiveColor.g,
-      this.params.emissiveColor.b,
-      this.params.emissiveColor.a,
-      this.params.roughness,
-      this.params.metalness,
-      +this.params.unlit,
-      this.params.alphaCutoff,
-      this.params.repeat.x,
-      this.params.repeat.y,
-      this.params.offset.x,
-      this.params.offset.y
+    const s = this._shader;
+    if (!s) return;
+    const p = this.params;
+    s.SetArray("material", new Float32Array([
+      p.albedoColor.r,
+      p.albedoColor.g,
+      p.albedoColor.b,
+      p.albedoColor.a,
+      p.emissiveColor.r,
+      p.emissiveColor.g,
+      p.emissiveColor.b,
+      p.emissiveColor.a,
+      p.roughness,
+      p.metalness,
+      +p.unlit,
+      p.alphaCutoff,
+      p.repeat.x,
+      p.repeat.y,
+      p.offset.x,
+      p.offset.y
     ]));
-    this.shader.SetTexture("AlbedoMap", this.params.albedoMap);
-    this.shader.SetTexture("NormalMap", this.params.normalMap);
-    this.shader.SetTexture("HeightMap", this.params.heightMap);
-    this.shader.SetTexture("ARMMap", this.params.armMap);
-    this.shader.SetTexture("EmissiveMap", this.params.emissiveMap);
+    s.SetTexture("albedoMap", p.albedoMap);
+    s.SetTexture("normalMap", p.normalMap);
+    s.SetTexture("heightMap", p.heightMap);
+    s.SetTexture("armMap", p.armMap);
+    s.SetTexture("emissiveMap", p.emissiveMap);
   }
 }
+Material.Registry.set(PBRMaterial.type, PBRMaterial);
+class ShaderMaterial extends Material {
+  static type = "@trident/core/renderer/Material/ShaderMaterial";
+  constructor(params) {
+    super(new MaterialParams(), params);
+    this._shader = params.shader;
+  }
+  async BuildShader() {
+    return this._shader;
+  }
+  ReloadMaterial() {
+  }
+}
+Material.Registry.set(ShaderMaterial.type, ShaderMaterial);
 
 var __create$4 = Object.create;
 var __defProp$4 = Object.defineProperty;
@@ -6104,7 +6086,7 @@ class PrepareGBuffers extends RenderPass {
       0,
       // Renderer.info.viewTypeValue,
       0,
-      // +Renderer.info.useHeightMapValue,
+      // +Renderer.info.useheightMapValue,
       0,
       // Debugger.heightScale,
       0,
@@ -7088,6 +7070,7 @@ var index$1 = /*#__PURE__*/Object.freeze({
     DynamicBufferMemoryAllocator: DynamicBufferMemoryAllocator,
     DynamicBufferMemoryAllocatorDynamic: DynamicBufferMemoryAllocatorDynamic,
     Material: Material,
+    MaterialParams: MaterialParams,
     MaterialPool: MaterialPool,
     MemoryAllocator: MemoryAllocator,
     PassParams: PassParams,
@@ -7106,6 +7089,7 @@ var index$1 = /*#__PURE__*/Object.freeze({
     Shader: Shader,
     ShaderCompute: ShaderCompute,
     ShaderLoader: ShaderLoader,
+    ShaderMaterial: ShaderMaterial,
     ShaderPreprocessor: ShaderPreprocessor,
     Texture: Texture,
     TextureArray: TextureArray,
@@ -7383,6 +7367,7 @@ class AnimationTrack extends (_a$1 = Component, _trackName_dec = [SerializeField
     __publicField$2(this, "_clipsByIndex", null);
     __publicField$2(this, "_v0", new Vector3());
     __publicField$2(this, "_v1", new Vector3());
+    __publicField$2(this, "_v2", new Vector3());
     __publicField$2(this, "_q0", new Quaternion());
     __publicField$2(this, "_q1", new Quaternion());
     __publicField$2(this, "_sampleQ0", new Quaternion());
@@ -7464,14 +7449,15 @@ class AnimationTrack extends (_a$1 = Component, _trackName_dec = [SerializeField
     const clip = this.clip(clipIndex);
     const tr = this.gameObject.transform;
     const pos = this.channel(clip, "translation");
-    if (pos) this.sampleVec3(pos.sampler, time, tr.localPosition);
-    else tr.localPosition.copy(this._bindPos);
     const rot = this.channel(clip, "rotation");
-    if (rot) this.sampleQuat(rot.sampler, time, tr.localRotation);
-    else tr.localRotation.copy(this._bindRot);
     const scl = this.channel(clip, "scale");
-    if (scl) this.sampleVec3(scl.sampler, time, tr.scale);
-    else tr.scale.copy(this._bindScl);
+    if (pos) this.sampleVec3(pos.sampler, time, this._v0);
+    else this._v0.copy(this._bindPos);
+    if (rot) this.sampleQuat(rot.sampler, time, this._q0);
+    else this._q0.copy(this._bindRot);
+    if (scl) this.sampleVec3(scl.sampler, time, this._v1);
+    else this._v1.copy(this._bindScl);
+    tr.SetLocalTRS(this._v0, this._q0, this._v1);
   }
   applyBlended(clipA, timeA, clipB, timeB, alpha) {
     this.captureBindPose();
@@ -7484,21 +7470,22 @@ class AnimationTrack extends (_a$1 = Component, _trackName_dec = [SerializeField
     else this._v0.copy(this._bindPos);
     if (posB) this.sampleVec3(posB.sampler, timeB, this._v1);
     else this._v1.copy(this._bindPos);
-    tr.localPosition.copy(this._v0.lerp(this._v1, alpha));
+    this._v0.lerp(this._v1, alpha);
     const rotA = this.channel(a, "rotation");
     const rotB = this.channel(b, "rotation");
     if (rotA) this.sampleQuat(rotA.sampler, timeA, this._q0);
     else this._q0.copy(this._bindRot);
     if (rotB) this.sampleQuat(rotB.sampler, timeB, this._q1);
     else this._q1.copy(this._bindRot);
-    tr.localRotation.copy(this._q0.slerp(this._q1, alpha)).normalize();
+    this._q0.slerp(this._q1, alpha).normalize();
     const sclA = this.channel(a, "scale");
     const sclB = this.channel(b, "scale");
-    if (sclA) this.sampleVec3(sclA.sampler, timeA, this._v0);
-    else this._v0.copy(this._bindScl);
-    if (sclB) this.sampleVec3(sclB.sampler, timeB, this._v1);
+    if (sclA) this.sampleVec3(sclA.sampler, timeA, this._v1);
     else this._v1.copy(this._bindScl);
-    tr.scale.copy(this._v0.lerp(this._v1, alpha));
+    if (sclB) this.sampleVec3(sclB.sampler, timeB, this._v2);
+    else this._v2.copy(this._bindScl);
+    this._v1.lerp(this._v2, alpha);
+    tr.SetLocalTRS(this._v0, this._q0, this._v1);
   }
 }
 _init$2 = __decoratorStart$2(_a$1);
@@ -8173,12 +8160,27 @@ _assetPath_dec = [SerializeField];
 const _Prefab = class _Prefab {
   constructor() {
     __publicField(this, "assetPath", __runInitializers(_init, 8, this)), __runInitializers(_init, 11, this);
+    __publicField(this, "id");
+    __publicField(this, "name");
+    __publicField(this, "components", []);
+    __publicField(this, "transform");
+    __publicField(this, "children", []);
     __publicField(this, "data");
   }
+  traverse(fn) {
+    fn(this);
+    for (const child of this.children) child.traverse(fn);
+  }
   static Deserialize(assetPath, data, asset) {
+    const source = asset ?? data;
     const prefab = new _Prefab();
-    prefab.assetPath = assetPath || void 0;
-    prefab.data = asset ?? data;
+    prefab.id = source.id;
+    prefab.name = source.name;
+    prefab.assetPath = assetPath;
+    prefab.transform = source.transform;
+    prefab.components = Array.isArray(source?.components) ? source.components : [];
+    prefab.children = Array.isArray(source?.children) ? source.children.map((c) => _Prefab.Deserialize(c.assetPath, null, c)) : [];
+    prefab.data = source;
     return prefab;
   }
 };

@@ -210,9 +210,9 @@ class _Debugger {
   textureViews;
   viewTypeStat;
   // private heightScale: UISliderStat;
-  // private useHeightMapStat: UIButtonStat;
+  // private useheightMapStat: UIButtonStat;
   // public heightScaleValue: UITextStat;
-  // public useHeightMapValue: boolean = false;
+  // public useheightMapValue: boolean = false;
   gpuBufferSizeTotal;
   gpuBufferCount;
   gpuTextureSizeTotal;

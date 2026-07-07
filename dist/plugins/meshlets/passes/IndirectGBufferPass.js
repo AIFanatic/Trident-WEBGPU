@@ -71,10 +71,10 @@ class IndirectGBufferPass extends GPU.RenderPass {
       const normalMap = material.params.normalMap ? material.params.normalMap : this.dummyTexture;
       const armMap = material.params.armMap ? material.params.armMap : this.dummyTexture;
       const emissiveMap = material.params.emissiveMap ? material.params.emissiveMap : this.dummyTexture;
-      this.shader.SetTexture("AlbedoMap", albedoMap);
-      this.shader.SetTexture("NormalMap", normalMap);
-      this.shader.SetTexture("ARMMap", armMap);
-      this.shader.SetTexture("EmissiveMap", emissiveMap);
+      this.shader.SetTexture("albedoMap", albedoMap);
+      this.shader.SetTexture("normalMap", normalMap);
+      this.shader.SetTexture("armMap", armMap);
+      this.shader.SetTexture("emissiveMap", emissiveMap);
       GPU.RendererContext.DrawIndirect(this.geometry, this.shader, inputIndirectDrawBuffer, materialIndex * 16);
       materialIndex++;
     }

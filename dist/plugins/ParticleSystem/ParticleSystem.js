@@ -122,7 +122,7 @@ class ParticleSystem extends (_a = Component, _startSize_dec = [SerializeField],
     this._startSpeed.copy(startSpeed);
   }
   async init() {
-    this.material = new GPU.Material({
+    this.material = new GPU.ShaderMaterial({
       isDeferred: false,
       shader: await GPU.Shader.Create({
         code: await GPU.ShaderPreprocessor.ProcessIncludesV2(WGSL_Draw),

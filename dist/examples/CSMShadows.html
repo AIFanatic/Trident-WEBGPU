@@ -79,6 +79,10 @@
                 cube2.transform.scale.y = Math.random() * 2 + 6;
                 cube2.transform.scale.mul(10);
               }
+              setTimeout(() => {
+                console.log("CHANGED");
+                material2.params.albedoColor.r = 0.5;
+              }, 5e3);
               Debugger.Enable();
             }
             Application(document.querySelector("canvas"));
