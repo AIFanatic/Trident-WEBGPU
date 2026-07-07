@@ -180,3 +180,20 @@ export class PBRMaterial extends Material<PBRMaterialParams> {
 }
 
 Material.Registry.set(PBRMaterial.type, PBRMaterial);
+
+export class ShaderMaterial extends Material {
+    public static type = "@trident/core/renderer/Material/ShaderMaterial";
+
+    constructor(params: { shader: Shader } & Partial<MaterialParams>) {
+        super(new MaterialParams(), params);
+        this._shader = params.shader;
+    }
+
+    protected async BuildShader(): Promise<Shader> {
+        return this._shader;
+    }
+
+    public ReloadMaterial(): void { }
+}
+
+Material.Registry.set(ShaderMaterial.type, ShaderMaterial);

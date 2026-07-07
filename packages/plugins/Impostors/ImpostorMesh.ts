@@ -235,6 +235,6 @@ export class ImpostorMesh extends Components.Mesh {
         ]));
 
         this.geometry = Geometry.Plane();
-        this.material = new GPU.Material({ shader, isDeferred: true });
+        this.material = new GPU.ShaderMaterial({ shader, isDeferred: true });
     }
 }
