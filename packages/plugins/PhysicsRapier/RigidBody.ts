@@ -1,6 +1,6 @@
-import { GameObject, Component, Mathf, SerializeField } from "@trident/core";
+import { GameObject, Component, Mathf, SerializeField, EventSystemLocal } from "@trident/core";
 import { PhysicsRapier } from "./PhysicsRapier";
-import { Collider } from "./colliders/Collider";
+import { Collider, ColliderEvents } from "./colliders/Collider";
 import RAPIER from "./rapier/rapier";
 
 function isFrozen(c: number, flag: number): boolean {
@@ -66,21 +66,23 @@ export class RigidBody extends Component {
     @SerializeField(Boolean)
     public get isKinematic(): boolean { return this._isKinematic; }
     public set isKinematic(isKinematic: boolean) {
-        if (isKinematic === true) this.Create("kinematicPosition");
-        else this.Create("dynamic");
         this._isKinematic = isKinematic;
-    }
-
-    constructor(gameObject: GameObject) {
-        super(gameObject);
+        if (this.rigidBody) {
+            this.rigidBody.setBodyType(isKinematic ? PhysicsRapier.Physics.RigidBodyType.KinematicPositionBased: PhysicsRapier.Physics.RigidBodyType.Dynamic, true);
+        }
     }
 
     public Start(): void {
-        if (!this.rigidBody) {
-            this.Create("kinematicPosition");
+        const collider = this.gameObject.GetComponent(Collider);
+
+        if (collider?.collider) {
+            this.Create(this.isKinematic ? "kinematicPosition" : "dynamic");
         }
-        this.rigidBody.setTranslation(this.transform.position, true);
-        this.rigidBody.setRotation(this.transform.rotation, true);
+
+        EventSystemLocal.on(ColliderEvents.Created, this.transform, (created: Collider) => {
+            if (created.gameObject !== this.gameObject) return;
+            this.Create(this.isKinematic ? "kinematicPosition" : "dynamic");
+        });
     }
 
     public AddForce(force: Mathf.Vector3) {
@@ -99,7 +101,7 @@ export class RigidBody extends Component {
         this.AddForce(force);
     }
 
-    public Create(type: "fixed" | "dynamic" | "kinematicVelocity" | "kinematicPosition") {
+    private Create(type: "fixed" | "dynamic" | "kinematicVelocity" | "kinematicPosition") {
         const collider = this.gameObject.GetComponent(Collider) as Collider;
         if (!collider || !collider.collider) throw Error("Rigidbody needs a collider");
 
@@ -132,7 +134,7 @@ export class RigidBody extends Component {
         else {
             const t = this.rigidBody.translation();
             const r = this.rigidBody.rotation();
-    
+
             this.transform.position.set(t.x, t.y, t.z);
             this.transform.rotation.set(r.x, r.y, r.z, r.w);
         }

@@ -1,6 +1,6 @@
 import { System, Mathf, Runtime, SceneExecutionMode } from "@trident/core"
 
-import RAPIER_Module from "./rapier/rapier.es.js"
+import RAPIER_Module from "./rapier/rapier.mjs"
 import RAPIER from "./rapier/rapier";
 import { Collider } from "./colliders/Collider.js";
 
@@ -101,7 +101,7 @@ export class PhysicsRapier extends System {
         if (!PhysicsRapier.hasLoaded) return;
         const scene = Runtime.SceneManager.GetActiveScene();
         if (scene?.mode === SceneExecutionMode.Edit) {
-            PhysicsRapier.PhysicsWorld.updateSceneQueries(); // Needed for editor queries
+            // PhysicsRapier.PhysicsWorld.updateSceneQueries(); // Needed for editor queries
         } else {
             PhysicsRapier.PhysicsWorld.step();
         }
