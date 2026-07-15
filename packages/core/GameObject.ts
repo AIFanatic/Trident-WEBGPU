@@ -26,13 +26,15 @@ export class GameObject {
     private componentsByCtor = new Map<Function, Component[]>();
     private allComponents: Component[] = [];
 
-    public _enabled: boolean = true;
+    public activeSelf = true;
+    public activeInHierarchy = true;
 
-    public get enabled(): boolean { return this._enabled };
-    public set enabled(enabled: boolean) {
-        this._enabled = enabled;
-        for (const child of this.transform.children) child.gameObject.enabled = enabled;
-    };
+    public get enabled(): boolean { return this.activeInHierarchy; }
+    public set enabled(value: boolean) {
+        this.activeSelf = value;
+        this.activeInHierarchy = value && (this.transform.parent?.gameObject.activeInHierarchy ?? true);
+        for (const child of this.transform.children) child.gameObject.enabled = child.gameObject.activeSelf;
+    }
 
     public assetPath?: string;
 
@@ -120,17 +122,17 @@ export class GameObject {
         for (const child of [...this.transform.children]) {
             child.gameObject.Destroy();
         }
-        
+
         if (this.transform.parent) {
             this.transform.parent.children.delete(this.transform);
         }
 
         this.scene.RemoveGameObject(this);
-        
+
         for (const component of [...this.allComponents]) {
             component.Destroy();
         }
-        
+
         this.allComponents.length = 0;
         this.componentsByCtor.clear();
         this.transform.children.clear();

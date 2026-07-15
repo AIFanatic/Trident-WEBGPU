@@ -19,6 +19,7 @@ export class Component {
     public static type: string;
     public id = UUID();
     public hasStarted: boolean = false;
+    public isDeserializing: boolean = false;
     public name: string;
     public assetPath: string;
     public readonly shouldUpdate: boolean;

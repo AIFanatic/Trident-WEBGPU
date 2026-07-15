@@ -77,14 +77,17 @@ export class Scene {
             if (!go.enabled) continue;
             for (const c of go.GetComponents()) {
                 if (!c.enabled) continue;
+                if (c.isDeserializing) continue;
                 if (edit && !(c as Component).runInEditMode) continue;
+
                 if (!c.hasStarted) {
                     c.hasStarted = true;
-                    try { c.Start(); } // Dont crash everything
+                    try { c.Start(); }
                     catch (err) { console.error(`[${c.constructor.name}.Start]`, err); c.enabled = false; }
                 }
-                if (!c.shouldUpdate) continue; // TODO: Empty updates, this can be optimized further by tracking on a list
-                try { c.Update(); } // Dont crash everything
+
+                if (!c.shouldUpdate) continue;
+                try { c.Update(); }
                 catch (err) { console.error(`[${c.constructor.name}.Update]`, err); c.enabled = false; }
             }
         }

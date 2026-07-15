@@ -12,6 +12,7 @@ export interface ISerializedGameObject {
     assetPath?: string;
     id: string;
     name: string;
+    enabled: boolean;
     transform: any;
     components: any[];
     children: any[];
@@ -78,7 +79,7 @@ export class Serializer {
     }
 
     public static serializeGameObject(gameObject: GameObject): ISerializedGameObject {
-        const out: ISerializedGameObject = { id: gameObject.id, name: gameObject.name, transform: this.serializeComponent(gameObject.transform), components: [], children: [] };
+        const out: ISerializedGameObject = { id: gameObject.id, name: gameObject.name, enabled: gameObject.activeSelf, transform: this.serializeComponent(gameObject.transform), components: [], children: [] };
         if (gameObject.assetPath) { out.assetPath = gameObject.assetPath; return out; }
         out.components = gameObject.GetComponents().filter(c => !(c instanceof Transform)).filter(c => ((c.flags ?? Flags.None) & Flags.DontSaveInEditor) === 0).map(component => this.serializeComponent(component));
         out.children = [];

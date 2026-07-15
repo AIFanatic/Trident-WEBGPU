@@ -18,6 +18,7 @@ interface DeserializeContext {
 interface SerializedGameObjectData {
     id?: string;
     name?: string;
+    enabled?: boolean;
     assetPath?: string;
     transform?: SerializedComponentData;
     components?: SerializedComponentData[];
@@ -186,8 +187,15 @@ export class Deserializer {
     }
 
     public static async deserializeComponent(component: Component, data: SerializedComponentData, ctx?: DeserializeContext): Promise<void> {
-        if (data.id) component.id = data.id;
-        await this.deserializeFields(component, data, ctx);
+        const wasDeserializing = component.isDeserializing;
+        component.isDeserializing = true;
+
+        try {
+            if (data.id) component.id = data.id;
+            await this.deserializeFields(component, data, ctx);
+        } finally {
+            component.isDeserializing = wasDeserializing;
+        }
     }
 
     public static async deserializeGameObject(scene: Scene, data: SerializedGameObjectData, parent?: Transform, ctx?: DeserializeContext): Promise<GameObject> {
@@ -206,21 +214,31 @@ export class Deserializer {
         if (data.id) ctx.idMap.set(data.id, go);
         if (data.assetPath) go.assetPath = data.assetPath;
         if (parent) go.transform.parent = parent;
+        go.enabled = data.enabled ?? true;
 
         if (source.transform) await this.deserializeComponent(go.transform, source.transform, ctx);
         if (data.assetPath && data.transform) await this.deserializeComponent(go.transform, data.transform, ctx);
 
         const compsData = source.components ?? [];
         const instances: Component[] = [];
+
         for (const compData of compsData) {
             if (compData.assetPath && !Component.Registry.get(compData.type!)) await this.Load(compData.assetPath);
+
             const Ctor = Component.Registry.get(compData.type!);
             if (!Ctor) throw Error(`Component ${compData.type} not found`);
-            instances.push(go.AddComponent(Ctor as any));
+
+            const instance = go.AddComponent(Ctor as any);
+            instance.isDeserializing = true;
+            instances.push(instance);
         }
 
-        for (let i = 0; i < instances.length; i++) await this.deserializeComponent(instances[i], compsData[i], ctx);
-        for (const child of (source.children ?? [])) await this.deserializeGameObject(scene, child, go.transform, ctx);
+        try {
+            for (let i = 0; i < instances.length; i++) await this.deserializeComponent(instances[i], compsData[i], ctx);
+            for (const child of (source.children ?? [])) await this.deserializeGameObject(scene, child, go.transform, ctx);
+        } finally {
+            for (const instance of instances) instance.isDeserializing = false;
+        }
 
         if (ownsCtx) this.resolve(ctx);
         return go;
