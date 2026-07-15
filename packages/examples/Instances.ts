@@ -1,12 +1,12 @@
-import { Components, Scene, GPU, Mathf, GameObject, Geometry, PBRMaterial, Component, VertexAttribute, Runtime } from "@trident/core";
+import { Components, Scene, GPU, Mathf, GameObject, Geometry, PBRMaterial, Component, VertexAttribute, Runtime, PlayerRuntime } from "@trident/core";
 
 import { OrbitControls } from "@trident/plugins/OrbitControls";
 import { Debugger } from "@trident/plugins/Debugger";
 
 async function Application(canvas: HTMLCanvasElement) {
-    await Runtime.Create(canvas);
-    const scene = Runtime.SceneManager.CreateScene("DefaultScene");
-    Runtime.SceneManager.SetActiveScene(scene);
+    await PlayerRuntime.Create(canvas);
+    const scene = PlayerRuntime.SceneManager.CreateScene("DefaultScene");
+    PlayerRuntime.SceneManager.SetActiveScene(scene);
 
     const mainCameraGameObject = new GameObject();
     mainCameraGameObject.transform.position.set(0, 0, -15);
@@ -17,8 +17,7 @@ async function Application(canvas: HTMLCanvasElement) {
 
     mainCameraGameObject.transform.position.set(0, 0, 10);
     mainCameraGameObject.transform.LookAt(new Mathf.Vector3(0, 0, 0));
-
-    const controls = new OrbitControls(canvas, camera);
+    mainCameraGameObject.AddComponent(OrbitControls);
 
     const lightGameObject = new GameObject();
     lightGameObject.transform.position.set(-4, 4, 4);
@@ -42,7 +41,7 @@ async function Application(canvas: HTMLCanvasElement) {
     instancedMesh.geometry = Geometry.Cube();
     instancedMesh.material = new PBRMaterial();
 
-    const count = 20;
+    const count = 100;
     let position = new Mathf.Vector3();
     let rotation = new Mathf.Quaternion();
     let scale = new Mathf.Vector3(1,1,1);
@@ -63,8 +62,6 @@ async function Application(canvas: HTMLCanvasElement) {
 
 
     Debugger.Enable();
-
-    Runtime.Play();
 };
 
 Application(document.querySelector("canvas"));

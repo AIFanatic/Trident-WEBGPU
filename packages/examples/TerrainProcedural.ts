@@ -42,8 +42,7 @@ import { MeshletDraw } from "@trident/plugins/meshlets/passes/MeshletDraw";
 import { HDRParser } from "@trident/plugins/HDRParser";
 
 async function Application(canvas: HTMLCanvasElement) {
-    await PlayerRuntime.Create(canvas, 1);
-    PlayerRuntime.Renderer.SetResolution({mode: "fixed", width: 1280, height: 720})
+    await PlayerRuntime.Create(canvas);
     const scene = PlayerRuntime.SceneManager.CreateScene("DefaultScene");
     PlayerRuntime.SceneManager.SetActiveScene(scene);
 
@@ -62,7 +61,7 @@ async function Application(canvas: HTMLCanvasElement) {
     lightGameObject.transform.position.set(-4, 4, -4);
     lightGameObject.transform.LookAt(new Mathf.Vector3(0, 0, 0));
     const light = lightGameObject.AddComponent(Components.DirectionalLight);
-    light.intensity = 1
+    light.intensity = 5
 
 
     const skyAtmosphere = new Sky();
@@ -213,31 +212,32 @@ async function Application(canvas: HTMLCanvasElement) {
             
             
             
-            const rtGLB = await GLTFLoader.Load("/extra/SampleProject/GameAssets/Trees/Jacaranda mimosifolia RT.glb", scene);
+            // const rtGLB = await GLTFLoader.Load("/extra/SampleProject/GameAssets/Trees/Jacaranda mimosifolia RT.glb", scene);
+            const rtGLB = await GLTFLoader.Load("/extra/SampleProject/GameAssets/Trees/White Ash RT.glb", scene);
             const rtMeshes = rtGLB.GetComponentsInChildren(Components.Mesh);
             console.log(rtMeshes);
             rtMeshes[0].material = FoliageMaterial.SetFromMesh(rtMeshes[0]);
-            rtMeshes[1].material = FoliageMaterial.SetFromMesh(rtMeshes[1]);
+            // rtMeshes[1].material = FoliageMaterial.SetFromMesh(rtMeshes[1]);
 
             const go = new GameObject();
             const ldImpostor = go.AddComponent(ImpostorMesh);
-            await ldImpostor.Create([rtMeshes[1], rtMeshes[2]], 4096, 16);
+            await ldImpostor.Create([rtMeshes[0], rtMeshes[1]], 4096, 16);
 
             const lodGameObject = new GameObject();
             const lodInstanceRenderable = lodGameObject.AddComponent(InstancedLODGroup);
             lodInstanceRenderable.enableShadows = false;
 
-            const billboardGO = new GameObject();
-            const billboard = billboardGO.AddComponent(Billboarder);
-            await billboard.Create([rtMeshes[1], rtMeshes[2]]);
-            billboard.material = new FoliageMaterial();
-            (billboard.material as FoliageMaterial).params.foliageGeometry = billboard.geometry;
-            (billboard.material as FoliageMaterial).params.foliageAlbedo = billboard.albedoTexture;
-            (billboard.material as FoliageMaterial).params.foliageNormal = billboard.normalTexture;
+            // const billboardGO = new GameObject();
+            // const billboard = billboardGO.AddComponent(Billboarder);
+            // await billboard.Create([rtMeshes[1], rtMeshes[2]]);
+            // billboard.material = new FoliageMaterial();
+            // (billboard.material as FoliageMaterial).params.foliageGeometry = billboard.geometry;
+            // (billboard.material as FoliageMaterial).params.foliageAlbedo = billboard.albedoTexture;
+            // (billboard.material as FoliageMaterial).params.foliageNormal = billboard.normalTexture;
 
             lodInstanceRenderable.lods.push({ renderers: [
-                { geometry: rtMeshes[1].geometry, material: rtMeshes[1].material },
-                { geometry: rtMeshes[2].geometry, material: rtMeshes[2].material }
+                { geometry: rtMeshes[0].geometry, material: rtMeshes[0].material },
+                { geometry: rtMeshes[1].geometry, material: rtMeshes[1].material }
             ], screenSize: 0.2 });
             lodInstanceRenderable.lods.push({ renderers: [{ geometry: ldImpostor.geometry, material: ldImpostor.material }], screenSize: 0.0 }); // Created impostor
             // lodInstanceRenderable.lods.push({ renderers: [{ geometry: rtMeshes[0].geometry, material: rtMeshes[0].material }], screenSize: 0.0 }); // Original billboard
@@ -245,6 +245,45 @@ async function Application(canvas: HTMLCanvasElement) {
 
             terrain.terrainData.paintPropData[0].instancedLODGroup = lodInstanceRenderable;
         }
+
+        // // R
+        // {
+        //     Component.Registry.set(LODGroup.type, LODGroup);
+
+        //     const PrefabFromGameObject = (go: GameObject): Prefab => {
+        //         const data = Serializer.serializeGameObject(go);
+        //         return Prefab.Deserialize(go.assetPath ?? "", data, data);
+        //     }
+
+        //     const gameObject = new GameObject();
+        //     const lodGroup = gameObject.AddComponent(LODGroup);
+        //     lodGroup.lods.push({ screenSize: 1e9, renderers: [{ geometry: Geometry.Cube(), material: new PBRMaterial() }] });
+        //     const prefab = PrefabFromGameObject(gameObject);
+        //     console.log(prefab)
+        //     await terrain.terrainData.AddProp(prefab, terrain.gameObject);
+
+
+            
+            
+            
+        //     const rtGLB = await GLTFLoader.Load("/extra/test-assets/nature/treessource/american_beech/american_beech_a.glb", scene);
+        //     const rtMeshes = rtGLB.GetComponentsInChildren(Components.Mesh);
+            
+        //     const lodGameObject = new GameObject();
+        //     const lodInstanceRenderable = lodGameObject.AddComponent(InstancedLODGroup);
+        //     lodInstanceRenderable.enableShadows = false;
+
+        //     const f = new FoliageMaterial();
+        //     f.SetFromMesh(rtMeshes[3]);
+        //     rtMeshes[3].material = f;
+
+        //     lodInstanceRenderable.lods.push({ renderers: [{ geometry: rtMeshes[0].geometry, material: rtMeshes[0].material }], screenSize: 0.7 });
+        //     lodInstanceRenderable.lods.push({ renderers: [{ geometry: rtMeshes[1].geometry, material: rtMeshes[1].material }], screenSize: 0.5 });
+        //     lodInstanceRenderable.lods.push({ renderers: [{ geometry: rtMeshes[2].geometry, material: rtMeshes[2].material }], screenSize: 0.2 });
+        //     lodInstanceRenderable.lods.push({ renderers: [{ geometry: rtMeshes[3].geometry, material: rtMeshes[3].material }], screenSize: 0.0 });
+
+        //     terrain.terrainData.paintPropData[0].instancedLODGroup = lodInstanceRenderable;
+        // }
 
 
         // // Props - LD Meshlets

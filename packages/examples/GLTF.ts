@@ -68,7 +68,7 @@ async function Application(canvas: HTMLCanvasElement) {
         }
     }
 
-    const fpArmsAKMGO = await GLTFLoader.Load("/extra/SampleProject/Survival/Wieldables/GLB/FP_Arms_Pickaxe.glb", scene);
+    const fpArmsAKMGO = await GLTFLoader.Load("/extra/SampleProject/GameAssets/GLB/FP_Arms_AKM.glb", scene);
     fpArmsAKMGO.transform.position.x = 2;
     const fpArmsAKM = fpArmsAKMGO.GetComponent(Components.Animator);
     console.log(fpArmsAKM)
