@@ -10,7 +10,7 @@ Assets.Register("@trident/plugins/Sky/resources/Vertex.wgsl", VertexWGSL);
 class Sky {
   SUN_ELEVATION_DEGREES = 60;
   SUN_AZIMUTH_DEGREES = 40;
-  EYE_ALTITUDE = 0.5;
+  EYE_ALTITUDE = 0.05;
   skyTexture;
   skyTextureCubemap;
   transmittanceLUT;

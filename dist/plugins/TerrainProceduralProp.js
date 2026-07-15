@@ -34,13 +34,6 @@ class TerrainProceduralProp extends Components.Component {
             fn hash(p: vec2f) -> f32 {
                 return fract(sin(dot(p, vec2(11.9898, 78.233))) * 43758.5453);
             }
-            fn blueNoise(U: vec2f) -> f32 {
-                let v =  hash( U + vec2(-1, 0) )
-                        + hash( U + vec2( 1, 0) )
-                        + hash( U + vec2( 0, 1) )
-                        + hash( U + vec2( 0,-1) ); 
-                return  hash(U) - v/4.  + .5;
-            }
 
             @compute @workgroup_size(8, 8, 1)
             fn main(@builtin(global_invocation_id) grid: vec3<u32>) {

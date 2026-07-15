@@ -6,7 +6,8 @@ class InstancedLODGroup extends Components.Renderable {
   drawIndirectBuffer;
   lodRendererData = [];
   lodMatricesScratch;
-  lodMatrixBuffers = [];
+  // private lodMatrixBuffers: GPU.Buffer[] = [];
+  matrixBuffer;
   static DefaultCapacity = 65536;
   static MATRICES_PER_LOD = InstancedLODGroup.DefaultCapacity;
   static MATRIX_STRIDE_BYTES = InstancedLODGroup.MATRICES_PER_LOD * 16 * 4;
@@ -158,14 +159,18 @@ class InstancedLODGroup extends Components.Renderable {
   buildLodBuffers() {
     this.drawIndirectBuffer?.Destroy();
     this.lodMatricesScratch?.Destroy();
-    for (const buf of this.lodMatrixBuffers) buf.Destroy();
     for (const lodData of this.lodRendererData) {
       if (!lodData) continue;
       for (const data of lodData) data.drawBuffer.Destroy();
     }
     this.drawIndirectBuffer = new GPU.Buffer(this.lods.length * 5 * 4, GPU.BufferType.STORAGE_WRITE);
     this.lodMatricesScratch = new GPU.Buffer(this.lods.length * InstancedLODGroup.MATRIX_STRIDE_BYTES, GPU.BufferType.STORAGE_WRITE);
-    this.lodMatrixBuffers = this.lods.map(() => new GPU.Buffer(InstancedLODGroup.MATRIX_STRIDE_BYTES, GPU.BufferType.STORAGE));
+    this.matrixBuffer = new GPU.DynamicBuffer(
+      this.lods.length * InstancedLODGroup.MATRIX_STRIDE_BYTES,
+      GPU.BufferType.STORAGE,
+      InstancedLODGroup.MATRIX_STRIDE_BYTES
+      // one LOD slice
+    );
     this.lodRendererData = new Array(this.lods.length);
     for (let i = 0; i < this.lods.length; i++) {
       const lod = this.lods[i];
@@ -224,26 +229,32 @@ class InstancedLODGroup extends Components.Renderable {
     const FrameBuffer = resources.getResource(GPU.PassParams.FrameBuffer);
     for (let i = 0; i < this.lods.length; i++) {
       const lodMatricesOffset = i * InstancedLODGroup.MATRIX_STRIDE_BYTES;
-      GPU.RendererContext.CopyBufferToBuffer(this.lodMatricesScratch, this.lodMatrixBuffers[i], lodMatricesOffset, 0, InstancedLODGroup.MATRIX_STRIDE_BYTES);
+      GPU.RendererContext.CopyBufferToBuffer(
+        this.lodMatricesScratch,
+        this.matrixBuffer,
+        lodMatricesOffset,
+        i * InstancedLODGroup.MATRIX_STRIDE_BYTES,
+        InstancedLODGroup.MATRIX_STRIDE_BYTES
+      );
       const lodDrawOffset = i * 5 * 4;
       for (const data of this.lodRendererData[i]) {
         GPU.RendererContext.CopyBufferToBuffer(this.drawIndirectBuffer, data.drawBuffer, lodDrawOffset + 4, 4, 4);
-        const { geometry, material } = data.renderer;
+        const { material } = data.renderer;
         if (!material?.shader) continue;
         material.shader.SetBuffer("frameBuffer", FrameBuffer);
+        material.shader.SetBuffer("modelMatrix", this.matrixBuffer);
       }
     }
   }
   OnRenderObject(shaderOverride) {
     if (!this.initialized) return;
     for (let lodIndex = 0; lodIndex < this.lodRendererData.length; lodIndex++) {
-      const lodData = this.lodRendererData[lodIndex];
-      const modelMatrix = this.lodMatrixBuffers[lodIndex];
-      for (const data of lodData) {
+      this.matrixBuffer.dynamicOffset = lodIndex * InstancedLODGroup.MATRIX_STRIDE_BYTES;
+      for (const data of this.lodRendererData[lodIndex]) {
         const { geometry, material } = data.renderer;
-        const shader = shaderOverride ? shaderOverride : material.shader;
+        const shader = shaderOverride ?? material.shader;
         if (!shader) continue;
-        shader.SetBuffer("modelMatrix", modelMatrix);
+        if (shaderOverride) shader.SetBuffer("modelMatrix", this.matrixBuffer);
         GPU.RendererContext.DrawIndirect(geometry, shader, data.drawBuffer);
       }
     }
@@ -251,7 +262,7 @@ class InstancedLODGroup extends Components.Renderable {
   Destroy() {
     this.drawIndirectBuffer?.Destroy();
     this.lodMatricesScratch?.Destroy();
-    for (const buffer of this.lodMatrixBuffers) buffer.Destroy();
+    this.matrixBuffer?.Destroy();
     for (const lodData of this.lodRendererData) {
       for (const data of lodData) {
         data.drawBuffer.Destroy();

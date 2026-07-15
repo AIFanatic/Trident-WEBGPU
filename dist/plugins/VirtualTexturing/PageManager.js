@@ -23,13 +23,13 @@ class PageManager {
   loader_ = new ImageLoader();
   processing_ = /* @__PURE__ */ new Set();
   ImageRequest;
-  constructor(virtual_size, page_padding, page_size) {
-    this.page_cache_ = new PageCache(slots_in_cache, min_pinned_lod_idx);
+  constructor(virtual_size, page_padding, page_size, slots = slots_in_cache, min_pinned_lod = min_pinned_lod_idx) {
+    this.page_cache_ = new PageCache(slots, min_pinned_lod);
     const pages_x = Math.max(Math.floor(virtual_size.x / page_size.x), 1);
     const pages_y = Math.max(Math.floor(virtual_size.y / page_size.y), 1);
     this.page_tables_ = new PageTables(pages_x, pages_y);
     this.slot_size_ = new Mathf.Vector2(page_size.x + page_padding.x, page_size.y + page_padding.y);
-    this.atlas_size_ = new Mathf.Vector2(this.slot_size_.x * slots_in_cache.x, this.slot_size_.y * slots_in_cache.y);
+    this.atlas_size_ = new Mathf.Vector2(this.slot_size_.x * slots.x, this.slot_size_.y * slots.y);
     this.atlas_ = GPU.Texture.Create(
       this.atlas_size_.x,
       this.atlas_size_.y,

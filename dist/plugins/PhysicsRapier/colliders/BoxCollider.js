@@ -1,6 +1,6 @@
 import { SerializeField, Mathf, Components, EventSystemLocal } from '@trident/core';
 import { PhysicsRapier } from '../PhysicsRapier.js';
-import { Collider } from './Collider.js';
+import { ColliderEvents, Collider } from './Collider.js';
 
 var __create = Object.create;
 var __defProp = Object.defineProperty;
@@ -36,27 +36,20 @@ var __decorateElement = (array, flags, name, decorators, target, extra) => {
   return target;
 };
 var __publicField = (obj, key, value) => __defNormalProp(obj, typeof key !== "symbol" ? key + "" : key, value);
-var _size_dec, _center_dec, _a, _init;
-class BoxCollider extends (_a = Collider, _center_dec = [SerializeField(Mathf.Vector3)], _size_dec = [SerializeField(Mathf.Vector3)], _a) {
-  constructor(gameObject) {
-    super(gameObject);
-    __publicField(this, "center", __runInitializers(_init, 8, this, new Mathf.Vector3(0, 0, 0))), __runInitializers(_init, 11, this);
-    __publicField(this, "size", __runInitializers(_init, 12, this, new Mathf.Vector3(1, 1, 1))), __runInitializers(_init, 15, this);
-    const mesh = gameObject.GetComponent(Components.Mesh);
+var _size_dec, _a, _init;
+class BoxCollider extends (_a = Collider, _size_dec = [SerializeField(Mathf.Vector3)], _a) {
+  constructor() {
+    super(...arguments);
+    __publicField(this, "size", __runInitializers(_init, 8, this, new Mathf.Vector3(1, 1, 1))), __runInitializers(_init, 11, this);
+  }
+  Start() {
+    super.Start();
+    const mesh = this.gameObject.GetComponent(Components.Mesh);
     if (mesh?.geometry?.attributes?.has("position")) {
       const bv = mesh.geometry.boundingVolume;
       this.center.copy(bv.center);
       this.size.set(bv.halfExtents.x * 2, bv.halfExtents.y * 2, bv.halfExtents.z * 2);
     }
-    EventSystemLocal.on(Components.TransformEvents.Updated, this.transform, () => {
-      if (!this.collider || this.collider.parent()) return;
-      this.collider.setTranslation(this.center.clone().mul(this.transform.scale).applyQuaternion(this.transform.rotation).add(this.transform.position));
-      this.collider.setRotation(this.transform.rotation);
-    });
-    EventSystemLocal.on(Components.TransformEvents.Updated, this.transform, () => {
-    });
-  }
-  Start() {
     this.CreateCollider();
   }
   CreateCollider() {
@@ -64,26 +57,18 @@ class BoxCollider extends (_a = Collider, _center_dec = [SerializeField(Mathf.Ve
       console.warn("PhysicsRapier not loaded");
       return;
     }
-    const p = new Mathf.Vector3();
-    const q = new Mathf.Quaternion();
-    const s = new Mathf.Vector3();
-    this.transform.localToWorldMatrix.decompose(p, q, s);
-    const halfX = Math.abs(this.size.x * 0.5 * s.x);
-    const halfY = Math.abs(this.size.y * 0.5 * s.y);
-    const halfZ = Math.abs(this.size.z * 0.5 * s.z);
+    console.log("CALLED");
+    const halfX = Math.abs(this.size.x * 0.5 * this.transform.scale.x);
+    const halfY = Math.abs(this.size.y * 0.5 * this.transform.scale.y);
+    const halfZ = Math.abs(this.size.z * 0.5 * this.transform.scale.z);
     if (this.collider) PhysicsRapier.PhysicsWorld.removeCollider(this.collider, true);
     this.colliderDesc = PhysicsRapier.Physics.ColliderDesc.cuboid(halfX, halfY, halfZ);
     this.collider = PhysicsRapier.CreateCollider(this, this.colliderDesc);
-    const offset = new Mathf.Vector3(this.center.x * s.x, this.center.y * s.y, this.center.z * s.z).applyQuaternion(q);
-    this.collider.setTranslation({ x: p.x + offset.x, y: p.y + offset.y, z: p.z + offset.z });
-    this.collider.setRotation(q);
-  }
-  Destroy() {
-    if (this.collider && PhysicsRapier.PhysicsWorld) PhysicsRapier.PhysicsWorld.removeCollider(this.collider, true);
+    this.UpdateTRS();
+    EventSystemLocal.emit(ColliderEvents.Created, this.transform, this);
   }
 }
 _init = __decoratorStart(_a);
-__decorateElement(_init, 5, "center", _center_dec, BoxCollider);
 __decorateElement(_init, 5, "size", _size_dec, BoxCollider);
 __decoratorMetadata(_init, BoxCollider);
 __publicField(BoxCollider, "type", "@trident/plugins/PhysicsRapier/Colliders/BoxCollider");

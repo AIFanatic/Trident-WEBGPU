@@ -150,7 +150,7 @@ class GLTFLoader {
     materialParams.unlit = mat?.extensions?.["KHR_materials_unlit"] ? true : false;
     materialParams.doubleSided = !!mat?.doubleSided;
     materialParams.alphaCutoff = mat?.alphaCutoff;
-    if (primitive.attributes.JOINTS_0 && primitive.attributes.WEIGHTS_0) materialParams.isSkinned = true;
+    if (primitive.attributes.JOINTS_0 && primitive.attributes.WEIGHTS_0) materialParams.defines = { USE_SKINNING: true };
     this.processTextureTransformExtension(materialParams, textures, [
       mat?.pbrMetallicRoughness?.baseColorTexture,
       mat?.pbrMetallicRoughness?.metallicRoughnessTexture,

@@ -52,7 +52,7 @@ class MeshBaker {
       { target: targets.albedo, clear: clearColor },
       { target: targets.normal, clear: clearColor },
       { target: targets.ermo, clear: clearColor }
-    ], { target: targets.depth, clear: true });
+    ], { target: targets.depth, clear: clearColor });
     if (viewport) {
       GPU.RendererContext.SetViewport(viewport.x, viewport.y, viewport.width, viewport.height);
       GPU.RendererContext.SetScissor(viewport.x, viewport.y, viewport.width, viewport.height);

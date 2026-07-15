@@ -34,19 +34,21 @@ var __decorateElement = (array, flags, name, decorators, target, extra) => {
   return target;
 };
 var __publicField = (obj, key, value) => __defNormalProp(obj, typeof key !== "symbol" ? key + "" : key, value);
-var _foliageNormal_dec, _foliageAlbedo_dec, _foliageGeometry_dec, _a, _init;
-class FoliageMaterialParams extends (_a = GPU.MaterialParams, _foliageGeometry_dec = [SerializeField(Geometry)], _foliageAlbedo_dec = [SerializeField(GPU.Texture)], _foliageNormal_dec = [SerializeField(GPU.Texture)], _a) {
+var _foliageArm_dec, _foliageNormal_dec, _foliageAlbedo_dec, _foliageGeometry_dec, _a, _init;
+class FoliageMaterialParams extends (_a = GPU.MaterialParams, _foliageGeometry_dec = [SerializeField(Geometry)], _foliageAlbedo_dec = [SerializeField(GPU.Texture)], _foliageNormal_dec = [SerializeField(GPU.Texture)], _foliageArm_dec = [SerializeField(GPU.Texture)], _a) {
   constructor() {
     super(...arguments);
     __publicField(this, "foliageGeometry", __runInitializers(_init, 8, this)), __runInitializers(_init, 11, this);
     __publicField(this, "foliageAlbedo", __runInitializers(_init, 12, this)), __runInitializers(_init, 15, this);
     __publicField(this, "foliageNormal", __runInitializers(_init, 16, this)), __runInitializers(_init, 19, this);
+    __publicField(this, "foliageArm", __runInitializers(_init, 20, this)), __runInitializers(_init, 23, this);
   }
 }
 _init = __decoratorStart(_a);
 __decorateElement(_init, 5, "foliageGeometry", _foliageGeometry_dec, FoliageMaterialParams);
 __decorateElement(_init, 5, "foliageAlbedo", _foliageAlbedo_dec, FoliageMaterialParams);
 __decorateElement(_init, 5, "foliageNormal", _foliageNormal_dec, FoliageMaterialParams);
+__decorateElement(_init, 5, "foliageArm", _foliageArm_dec, FoliageMaterialParams);
 __decoratorMetadata(_init, FoliageMaterialParams);
 class FoliageMaterial extends GPU.Material {
   static type = "@trident/plugins/FoliageMaterial";
@@ -58,6 +60,7 @@ class FoliageMaterial extends GPU.Material {
       this.params.foliageGeometry = geometry;
       this.params.foliageAlbedo = material.params.albedoMap;
       this.params.foliageNormal = material.params.normalMap;
+      this.params.foliageArm = material.params.armMap;
       this.BuildShader().then((shader) => {
         this.shader = shader;
       });
@@ -108,86 +111,114 @@ class FoliageMaterial extends GPU.Material {
     return centers;
   }
   async BuildShader() {
-    if (!this.params.foliageGeometry || !this.params.foliageAlbedo || !this.params.foliageNormal) return;
+    const { foliageGeometry, foliageAlbedo, foliageNormal, foliageArm } = this.params;
+    if (!foliageGeometry || !foliageAlbedo || !foliageNormal || !foliageArm) {
+      throw new Error("FoliageMaterial has missing parameters.");
+    }
     const gbufferFormat = GPU.RenderingPipeline.GBufferFormat;
     const shader = await GPU.Shader.Create({
       name: "FoliageMaterial",
       code: `
-                    #include "@trident/core/resources/webgpu/shaders/deferred/Common.wgsl";
+                #include "@trident/core/resources/webgpu/shaders/deferred/Common.wgsl";
 
-                    @group(0) @binding(0) var<storage, read> frameBuffer: FrameBuffer;
-                    @group(0) @binding(1) var<storage, read> modelMatrix: array<mat4x4<f32>>;
+                @group(0) @binding(0) var<storage, read> frameBuffer: FrameBuffer;
+                @group(0) @binding(1) var<storage, read> modelMatrix: array<mat4x4<f32>>;
 
-                    @group(0) @binding(2) var textureSampler: sampler;
-                    @group(0) @binding(3) var albedoMap: texture_2d<f32>;
-                    @group(0) @binding(4) var normalMap: texture_2d<f32>;
+                @group(0) @binding(2) var textureSampler: sampler;
+                @group(0) @binding(3) var albedoMap: texture_2d<f32>;
+                @group(0) @binding(4) var normalMap: texture_2d<f32>;
+                @group(0) @binding(5) var armMap: texture_2d<f32>;
 
-                    @group(0) @binding(5) var<storage, read> leafCenters: array<f32>;
+                @group(0) @binding(6) var<storage, read> leafCenters: array<f32>;
 
-                    struct VertexInput {
-                        @builtin(instance_index) instanceIdx: u32,
-                        @builtin(vertex_index) vertexIdx: u32,
-                        @location(0) position : vec3<f32>,
-                        @location(1) normal : vec3<f32>,
-                        @location(2) uv : vec2<f32>,
-                    };
+                struct VertexInput {
+                    @builtin(instance_index) instanceIdx: u32,
+                    @builtin(vertex_index) vertexIdx: u32,
+                    @location(0) position : vec3<f32>,
+                    @location(1) normal : vec3<f32>,
+                    @location(2) uv : vec2<f32>,
+                };
 
-                    struct VertexOutput {
-                        @builtin(position) position : vec4<f32>,
-                        @location(0) vUv : vec2<f32>,
-                    };
+                struct VertexOutput {
+                    @builtin(position) position : vec4<f32>,
+                    @location(0) vUv : vec2<f32>,
+                    @location(1) tangent : vec3<f32>,    // world-space billboard basis
+                    @location(2) bitangent : vec3<f32>,
+                    @location(3) vNormal : vec3<f32>,
+                };
 
-                    @vertex
-                    fn vertexMain(input: VertexInput) -> VertexOutput {
-                        var output : VertexOutput;
+                @vertex
+                fn vertexMain(input: VertexInput) -> VertexOutput {
+                    var output : VertexOutput;
 
-                        let centerBase = input.vertexIdx * 3u;
-                        let leafCenterOS = vec3<f32>(
-                            leafCenters[centerBase + 0u],
-                            leafCenters[centerBase + 1u],
-                            leafCenters[centerBase + 2u]
-                        );
+                    let centerBase = input.vertexIdx * 3u;
+                    let leafCenterOS = vec3<f32>(
+                        leafCenters[centerBase + 0u],
+                        leafCenters[centerBase + 1u],
+                        leafCenters[centerBase + 2u]
+                    );
 
-                        let localOffsetOS = input.position - leafCenterOS;
+                    let localOffsetOS = input.position - leafCenterOS;
 
-                        let model = modelMatrix[input.instanceIdx];
-                        let centerWS = (model * vec4<f32>(leafCenterOS, 1.0)).xyz;
+                    let model = modelMatrix[input.instanceIdx];
+                    let centerWS = (model * vec4<f32>(leafCenterOS, 1.0)).xyz;
 
-                        let forwardWS = normalize(frameBuffer.viewPosition.xyz - centerWS);
-                        let rightWS = normalize(frameBuffer.viewInverseMatrix[0].xyz);
-                        let upWS    = normalize(frameBuffer.viewInverseMatrix[1].xyz);
+                    let rightWS = normalize(frameBuffer.viewInverseMatrix[0].xyz);
+                    let upWS    = normalize(frameBuffer.viewInverseMatrix[1].xyz);
+                    // Camera forward (pointing from the quad toward the camera) -
+                    // this is the geometric normal of the billboarded quad.
+                    let normalWS = normalize(frameBuffer.viewInverseMatrix[2].xyz);
 
-                        let billboardPositionWS = centerWS + rightWS * localOffsetOS.x + upWS * localOffsetOS.y;
+                    let billboardPositionWS = centerWS + rightWS * localOffsetOS.x + upWS * localOffsetOS.y;
 
-                        output.position = frameBuffer.viewProjectionMatrix * vec4<f32>(billboardPositionWS, 1.0);
-                        output.vUv = input.uv;
-                        return output;
+                    output.position = frameBuffer.viewProjectionMatrix * vec4<f32>(billboardPositionWS, 1.0);
+                    output.vUv = input.uv;
+
+                    // TBN of the billboard, already in world space
+                    output.tangent   = rightWS;
+                    output.bitangent = upWS;
+                    output.vNormal   = normalWS;
+
+                    return output;
+                }
+
+                struct FragmentOutput {
+                    @location(0) albedo : vec4f,
+                    @location(1) normal : vec4f,
+                    @location(2) RMO : vec4f,
+                };
+
+                @fragment
+                fn fragmentMain(input: VertexOutput) -> FragmentOutput {
+                    var output: FragmentOutput;
+
+                    let albedo = textureSample(albedoMap, textureSampler, input.vUv);
+                    if (albedo.a < 0.5) {
+                        discard;
                     }
 
-                    struct FragmentOutput {
-                        @location(0) albedo : vec4f,
-                        @location(1) normal : vec4f,
-                        @location(2) RMO : vec4f,
-                    };
+                    // Same as the mesh path: unpack tangent-space normal, rotate into world space via TBN
+                    var tbn: mat3x3<f32>;
+                    tbn[0] = input.tangent;
+                    tbn[1] = input.bitangent;
+                    tbn[2] = input.vNormal;
 
-                    @fragment
-                    fn fragmentMain(input: VertexOutput) -> FragmentOutput {
-                        var output: FragmentOutput;
+                    let normalSample = textureSample(normalMap, textureSampler, input.vUv).xyz * 2.0 - 1.0;
+                    let normal = normalize(tbn * normalSample);
 
-                        let albedo = textureSample(albedoMap, textureSampler, input.vUv);
-                        if (albedo.a < 0.5) {
-                            discard;
-                        }
+                    // ARM: r = occlusion, g = roughness, b = metalness (matching the mesh shader)
+                    let arm = textureSample(armMap, textureSampler, input.vUv);
+                    let occlusion = arm.r;
+                    let roughness = arm.g;
+                    let metalness = arm.b;
 
-                        // TODO: Should the normal just pass through?
-                        let normalSample = textureSample(normalMap, textureSampler, input.vUv);
+                    // Match the mesh G-buffer packing
+                    output.albedo = vec4f(albedo.rgb, roughness);
+                    output.normal = vec4f(OctEncode(normal), occlusion, metalness);
+                    output.RMO = vec4f(0.0, 0.0, 0.0, 0.0); // no emissive, lit
 
-                        output.albedo = vec4f(albedo.rgb, 1.0);
-                        output.normal = normalSample;
-                        output.RMO = vec4f(0.0);
-
-                        return output;
-                    }
+                    return output;
+                }
                 `,
       colorOutputs: Array(3).fill({ format: gbufferFormat }),
       depthOutput: "depth24plus",
@@ -195,6 +226,7 @@ class FoliageMaterial extends GPU.Material {
     });
     shader.SetTexture("albedoMap", this.params.foliageAlbedo);
     shader.SetTexture("normalMap", this.params.foliageNormal);
+    shader.SetTexture("armMap", this.params.foliageArm);
     shader.SetSampler("textureSampler", new GPU.TextureSampler());
     const vertices = this.params.foliageGeometry.attributes.get("position");
     const indices = this.params.foliageGeometry.index;
@@ -210,6 +242,7 @@ class FoliageMaterial extends GPU.Material {
     if (!s) return;
     s.SetTexture("albedoMap", this.params.foliageAlbedo);
     s.SetTexture("normalMap", this.params.foliageNormal);
+    s.SetTexture("armMap", this.params.foliageArm);
   }
 }
 GPU.Material.Registry.set(FoliageMaterial.type, FoliageMaterial);

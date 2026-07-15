@@ -1,6 +1,6 @@
-import { SerializeField, Mathf, Component } from '@trident/core';
+import { SerializeField, Mathf, EventSystemLocal, Component } from '@trident/core';
 import { PhysicsRapier } from './PhysicsRapier.js';
-import { Collider } from './colliders/Collider.js';
+import { Collider, ColliderEvents } from './colliders/Collider.js';
 
 var __create = Object.create;
 var __defProp = Object.defineProperty;
@@ -53,8 +53,8 @@ const RigidbodyConstraints = {
   FreezeAll: 1 << 0 | 1 << 1 | 1 << 2 | (1 << 3 | 1 << 4 | 1 << 5)
 };
 class RigidBody extends (_a = Component, _constraints_dec = [SerializeField(RigidbodyConstraints)], _isKinematic_dec = [SerializeField(Boolean)], _a) {
-  constructor(gameObject) {
-    super(gameObject);
+  constructor() {
+    super(...arguments);
     __runInitializers(_init, 5, this);
     __publicField(this, "rigidBody");
     __publicField(this, "rigidBodyDesc");
@@ -95,16 +95,20 @@ class RigidBody extends (_a = Component, _constraints_dec = [SerializeField(Rigi
     return this._isKinematic;
   }
   set isKinematic(isKinematic) {
-    if (isKinematic === true) this.Create("kinematicPosition");
-    else this.Create("dynamic");
     this._isKinematic = isKinematic;
+    if (this.rigidBody) {
+      this.rigidBody.setBodyType(isKinematic ? PhysicsRapier.Physics.RigidBodyType.KinematicPositionBased : PhysicsRapier.Physics.RigidBodyType.Dynamic, true);
+    }
   }
   Start() {
-    if (!this.rigidBody) {
-      this.Create("kinematicPosition");
+    const collider = this.gameObject.GetComponent(Collider);
+    if (collider?.collider) {
+      this.Create(this.isKinematic ? "kinematicPosition" : "dynamic");
     }
-    this.rigidBody.setTranslation(this.transform.position, true);
-    this.rigidBody.setRotation(this.transform.rotation, true);
+    EventSystemLocal.on(ColliderEvents.Created, this.transform, (created) => {
+      if (created.gameObject !== this.gameObject) return;
+      this.Create(this.isKinematic ? "kinematicPosition" : "dynamic");
+    });
   }
   AddForce(force) {
     this.rigidBody.addForce(force, true);

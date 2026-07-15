@@ -1,5 +1,5 @@
 import { System, Mathf, Runtime, SceneExecutionMode } from '@trident/core';
-import Tg from './rapier/rapier.es.js';
+import bg from './rapier/rapier.js';
 
 class PhysicsRapier extends System {
   static type = "@trident/plugins/PhysicsRapier";
@@ -11,10 +11,10 @@ class PhysicsRapier extends System {
   // seconds
   static ColliderMap = /* @__PURE__ */ new Map();
   async Start() {
-    await Tg.init();
+    await bg.init();
     let gravity = { x: 0, y: -9.81, z: 0 };
-    let world = new Tg.World(gravity);
-    PhysicsRapier.Physics = Tg;
+    let world = new bg.World(gravity);
+    PhysicsRapier.Physics = bg;
     PhysicsRapier.PhysicsWorld = world;
     PhysicsRapier.hasLoaded = true;
     world.timestep = PhysicsRapier.fixedDeltaTime;
@@ -72,9 +72,7 @@ class PhysicsRapier extends System {
   Update() {
     if (!PhysicsRapier.hasLoaded) return;
     const scene = Runtime.SceneManager.GetActiveScene();
-    if (scene?.mode === SceneExecutionMode.Edit) {
-      PhysicsRapier.PhysicsWorld.updateSceneQueries();
-    } else {
+    if (scene?.mode === SceneExecutionMode.Edit) ; else {
       PhysicsRapier.PhysicsWorld.step();
     }
   }

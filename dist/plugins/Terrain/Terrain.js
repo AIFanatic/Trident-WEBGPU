@@ -119,6 +119,7 @@ const _TerrainData = class _TerrainData {
     __publicField(this, "size", __runInitializers(_init2, 12, this)), __runInitializers(_init2, 15, this);
     __publicField(this, "geometry", __runInitializers(_init2, 16, this)), __runInitializers(_init2, 19, this);
     __publicField(this, "material", __runInitializers(_init2, 20, this)), __runInitializers(_init2, 23, this);
+    __publicField(this, "heightsBuffer");
     __publicField(this, "_heights");
     __publicField(this, "paintMapResolution", __runInitializers(_init2, 24, this, 256)), __runInitializers(_init2, 27, this);
     __publicField(this, "_materialIdMapData");
@@ -144,7 +145,15 @@ const _TerrainData = class _TerrainData {
       heights = _TerrainData.resampleHeights(heights, expectedSide);
     }
     this._heights = heights;
+    if (!this.heightsBuffer || this.heightsBuffer.size !== heights.byteLength) {
+      this.heightsBuffer?.Destroy();
+      this.heightsBuffer = new GPU.Buffer(heights.byteLength, GPU.BufferType.STORAGE);
+    }
+    this.heightsBuffer.SetArray(heights);
     this.RebuildGeometry();
+  }
+  GetHeightsBuffer() {
+    return this.heightsBuffer;
   }
   get materialIdMapData() {
     return this._materialIdMapData;
@@ -356,6 +365,7 @@ const _TerrainData = class _TerrainData {
     this.geometry?.Destroy();
     this.material?.Destroy();
     this.materialIdMapTexture?.Destroy();
+    this.heightsBuffer?.Destroy();
   }
 };
 _init2 = __decoratorStart(null);

@@ -16,6 +16,7 @@ import { ParticleSystem } from '@trident/plugins/ParticleSystem/ParticleSystem.j
 import { IBLLightingPass } from '@trident/plugins/Environment/IBLLightingPass.js';
 import { Sky } from '@trident/plugins/Environment/Sky.js';
 import { SkyboxPass } from '@trident/plugins/Environment/SkyboxPass.js';
+import { PhysicsDebugger } from '@trident/plugins/PhysicsRapier/PhysicsDebugger.js';
 import { EditorAPI, registerEditorBridge } from '@trident/editor';
 import { GLTFLoader } from '@trident/plugins/GLTF/GLTFLoader.js';
 import { PhysicsRapier } from '@trident/plugins/PhysicsRapier/PhysicsRapier.js';
@@ -3235,6 +3236,11 @@ class EditorRuntime extends Runtime {
     if (existing) return existing;
     const go = new GameObject(scene);
     go.name = "EditorScene";
+    {
+      const go2 = new GameObject(scene);
+      go2.name = "PhysicsDebugger";
+      go2.AddComponent(PhysicsDebugger);
+    }
     return go.AddComponent(EditorScene);
   }
   static AttachEnvironment(scene) {
@@ -3945,8 +3951,7 @@ class TreeFolder extends Component {
     if (this.folderRef) this.folderRef.style.backgroundColor = "";
   }
   render() {
-    let classes = "item-title";
-    if (this.props.isSelected) classes += " active";
+    const classes = `item-title ${this.props.isSelected ? "active" : ""} ${this.props.className}`;
     return /* @__PURE__ */ createElement("div", { key: this.props.key, className: "item", ref: (ref) => this.folderRef = ref }, /* @__PURE__ */ createElement(
       "div",
       {
@@ -4022,8 +4027,7 @@ class TreeItem extends Component {
     if (this.props.onClicked) this.props.onClicked();
   }
   render() {
-    let classes = "item-title";
-    if (this.props.isSelected) classes += " active";
+    const classes = `item-title ${this.props.isSelected ? "active" : ""} ${this.props.className}`;
     return /* @__PURE__ */ createElement("div", { className: "item" }, /* @__PURE__ */ createElement(
       "div",
       {
@@ -4398,10 +4402,12 @@ class LayoutAssets extends Component {
     });
     TridentAPI.EventSystem.on(FileEvents.Changed, async (path) => {
       if (!path.endsWith(".ts")) return;
-      await ReloadScript(this.props.engineAPI).then((value) => {
-        console.log(`[auto-reload] ${path}`);
-      }).catch((err) => console.error(`[auto-reload] ${path}`, err));
-      TridentAPI.EventSystem.emit(LayoutAssetEvents.ScriptReloaded);
+      await ReloadScript(this.props.engineAPI).then(
+        (value) => {
+          console.log(`[auto-reload] ${path}`);
+          TridentAPI.EventSystem.emit(LayoutAssetEvents.ScriptReloaded);
+        }
+      ).catch((err) => console.error(`[auto-reload] ${path}`, err));
     });
     TridentAPI.EventSystem.on(LayoutAssetEvents.RequestSaveAsset, (material) => {
       SaveAsset(material);
@@ -4650,7 +4656,6 @@ class LayoutHierarchy extends Component {
     });
   }
   selectGameObject(gameObject) {
-    console.log(gameObject);
     TridentAPI.EventSystem.emit(LayoutHierarchyEvents.Selected, gameObject);
     this.setState({ ...this.state, selectedGameObject: gameObject });
   }
@@ -4743,7 +4748,9 @@ class LayoutHierarchy extends Component {
     this.setState({ ...this.state, headerMenuOpen: false });
   }
   renderGameObjects(gameObjects) {
+    const isPrefabInstance = (go) => typeof go.assetPath === "string" && go.assetPath.length > 0;
     return gameObjects.map((go) => {
+      const className = `${!go.enabled ? "disabled" : ""} ${isPrefabInstance(go) ? "red-text" : ""}`;
       const isSelected = this.state.selectedGameObject === go;
       const children = Array.from(go.transform.children).map((c) => c.gameObject).filter((go2) => (go2.flags & this.props.engineAPI.flags.HideInHierarchy) === 0);
       if (children.length > 0) {
@@ -4752,6 +4759,7 @@ class LayoutHierarchy extends Component {
           {
             name: go.name,
             id: go.transform.id,
+            className,
             isSelected,
             onClicked: () => this.selectGameObject(go),
             onDroppedItem: (from, to) => this.onDroppedItem(from, to),
@@ -4765,6 +4773,7 @@ class LayoutHierarchy extends Component {
         {
           name: go.name,
           id: go.transform.id,
+          className,
           isSelected,
           onClicked: () => this.selectGameObject(go),
           onDroppedItem: (from, to) => this.onDroppedItem(from, to),
@@ -5256,6 +5265,52 @@ class InspectorType extends Component {
   }
 }
 
+class DraggableList extends Component {
+  state = {
+    draggingIndex: null
+  };
+  onDragStart(index, e) {
+    this.setState({ draggingIndex: index });
+    if (e.dataTransfer) {
+      e.dataTransfer.effectAllowed = "move";
+      e.dataTransfer.setData("text/plain", index.toString());
+    }
+  }
+  onDragOver(index, e) {
+    e.preventDefault();
+    const fromIndex = this.state.draggingIndex;
+    const toIndex = index;
+    if (fromIndex === null || fromIndex === toIndex) return;
+    const reordered = this.props.items.slice();
+    const [movedItem] = reordered.splice(fromIndex, 1);
+    reordered.splice(toIndex, 0, movedItem);
+    this.setState({ draggingIndex: toIndex });
+    this.props.onReorder(reordered);
+  }
+  onDragEnd() {
+    this.setState({ draggingIndex: null });
+  }
+  onDrop(e) {
+    e.stopPropagation();
+  }
+  render() {
+    return /* @__PURE__ */ createElement("div", null, ...this.props.items.map((item, index) => {
+      return /* @__PURE__ */ createElement(
+        "div",
+        {
+          draggable: true,
+          onDragStart: (e) => this.onDragStart(index, e),
+          onDragOver: (e) => this.onDragOver(index, e),
+          onDragEnd: () => this.onDragEnd(),
+          onDrop: (e) => this.onDrop(e),
+          style: { cursor: "move" }
+        },
+        this.props.renderItem(item, index)
+      );
+    }));
+  }
+}
+
 class InspectorArray extends Component {
   isRefType() {
     if (!this.props.engineAPI || !this.props.elementType) return false;
@@ -5287,7 +5342,7 @@ class InspectorArray extends Component {
           if (this.props.onChanged) this.props.onChanged();
         },
         component: this.props.array,
-        property: index,
+        property: index.toString(),
         value: valueForType,
         expectedType: this.props.elementType
       }
@@ -5295,13 +5350,40 @@ class InspectorArray extends Component {
   }
   render() {
     const isRef = this.isRefType();
-    return /* @__PURE__ */ createElement("div", null, ...this.props.array.map((item, index) => {
-      return isRef ? this.renderRefItem(item, index) : this.props.renderItem(item, index);
-    }), /* @__PURE__ */ createElement("div", { style: { textAlign: "end", marginRight: "5px", marginBottom: "5px" } }, /* @__PURE__ */ createElement("button", { onClick: () => {
-      this.onIncrement();
-    }, class: "button", style: { width: "22px", cursor: "pointer" } }, "+"), /* @__PURE__ */ createElement("button", { onClick: () => {
-      this.onDecrement();
-    }, class: "button", style: { width: "22px", cursor: "pointer" } }, "-")));
+    return /* @__PURE__ */ createElement("div", null, /* @__PURE__ */ createElement(
+      DraggableList,
+      {
+        items: this.props.array,
+        renderItem: (item, index) => {
+          return isRef ? this.renderRefItem(item, index) : this.props.renderItem(item, index);
+        },
+        onReorder: (items) => {
+          this.props.array.splice(0, this.props.array.length, ...items);
+          if (this.props.onChanged) this.props.onChanged();
+          this.setState({});
+        }
+      }
+    ), /* @__PURE__ */ createElement("div", { style: { textAlign: "end", marginRight: "5px", marginBottom: "5px" } }, /* @__PURE__ */ createElement(
+      "button",
+      {
+        onClick: () => {
+          this.onIncrement();
+        },
+        class: "button",
+        style: { width: "22px", cursor: "pointer" }
+      },
+      "+"
+    ), /* @__PURE__ */ createElement(
+      "button",
+      {
+        onClick: () => {
+          this.onDecrement();
+        },
+        class: "button",
+        style: { width: "22px", cursor: "pointer" }
+      },
+      "-"
+    )));
   }
 }
 
@@ -5751,6 +5833,7 @@ class LayoutInspectorGameObject extends Component {
   }
   onGameObjectEnabled(event) {
     this.props.gameObject.enabled = event.currentTarget.checked;
+    TridentAPI.EventSystem.emit(GameObjectEvents.Changed, this.props.gameObject);
   }
   onDragEnter(event) {
     event.preventDefault();

@@ -184,6 +184,10 @@ input[type=number] {
 .button:hover {
     opacity: 0.5;
 }
+
+.disabled {
+    opacity: 0.5;
+}
 .InspectorComponent {
     display: flex;
     align-items: center;
@@ -280,6 +284,10 @@ input[type=number] {
 
 .blue-bg {
     background-color: #3498db50;
+}
+
+.red-text {
+    color: #e74c3c;
 }
 
 .vec-label {

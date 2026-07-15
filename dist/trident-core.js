@@ -268,6 +268,7 @@ const _Component = class _Component {
     __publicField$a(this, "flags", Flags.None);
     __publicField$a(this, "id", UUID());
     __publicField$a(this, "hasStarted", false);
+    __publicField$a(this, "isDeserializing", false);
     __publicField$a(this, "name");
     __publicField$a(this, "assetPath");
     __publicField$a(this, "shouldUpdate");
@@ -2350,7 +2351,7 @@ class Texture {
     return this.buffer;
   }
   GetView() {
-    const key = `${this.currentLayer}-${this.currentMip}`;
+    const key = `${this.currentLayer}-${this.currentMip}-${this.activeMipCount}`;
     let view = this.viewCache.get(key);
     if (!view) {
       const viewDimension = this.dimension === "cube" || this.dimension === "2d-array" || this.dimension === "cube-array" ? "2d" : this.dimension;
@@ -2367,6 +2368,23 @@ class Texture {
     if (Renderer.info.frame !== this.lastBandwidthFrame) {
       Renderer.info.gpuBandwidthInBytes += this.byteSize;
       this.lastBandwidthFrame = Renderer.info.frame;
+    }
+    return view;
+  }
+  GetBindingView(baseMipLevel, mipLevelCount) {
+    const arrayLayerCount = this.dimension !== "3d" ? this.depth : 1;
+    const key = `binding-${this.dimension}-${baseMipLevel}-${mipLevelCount}-${arrayLayerCount}`;
+    let view = this.viewCache.get(key);
+    if (!view) {
+      view = this.buffer.createView({
+        dimension: this.dimension,
+        arrayLayerCount,
+        baseArrayLayer: 0,
+        baseMipLevel,
+        mipLevelCount
+      });
+      this.viewCache.set(key, view);
+      Renderer.info.textureViews++;
     }
     return view;
   }
@@ -2834,17 +2852,8 @@ class BaseShader {
         });
         group.buffers.push(uniform.buffer);
       } else if (uniform.buffer instanceof Texture) {
-        const view = {
-          dimension: uniform.buffer.dimension,
-          arrayLayerCount: uniform.buffer.dimension != "3d" ? uniform.buffer.GetBuffer().depthOrArrayLayers : 1,
-          // arrayLayerCount: uniform.buffer.GetBuffer().depthOrArrayLayers,
-          baseArrayLayer: 0,
-          baseMipLevel: uniform.textureMip,
-          mipLevelCount: uniform.activeMipCount
-        };
-        group.entries.push({ binding: uniform.binding, resource: uniform.buffer.GetBuffer().createView(view) });
+        group.entries.push({ binding: uniform.binding, resource: uniform.buffer.GetBindingView(uniform.textureMip ?? 0, uniform.activeMipCount ?? uniform.buffer.mipLevels) });
         group.buffers.push(uniform.buffer);
-        Renderer.info.textureViews++;
       } else if (uniform.buffer instanceof TextureSampler) {
         group.entries.push({ binding: uniform.binding, resource: uniform.buffer.GetBuffer() });
         group.buffers.push(uniform.buffer);
@@ -5206,6 +5215,7 @@ const _Material = class _Material {
     if (this.pendingShaderCreation) return this.pendingShaderCreation;
     this.pendingShaderCreation = (async () => {
       const shader = await this.BuildShader();
+      if (!shader) throw new Error(`${this.constructor.name}.BuildShader() returned no shader \u2014 material not fully configured`);
       shader.OnPreRender = () => {
         this.Sync();
         return true;
@@ -5246,8 +5256,8 @@ class PBRMaterialParams extends (_a$4 = MaterialParams, _isDeferred_dec2 = [Seri
     __publicField$5(this, "defines", __runInitializers$5(_init3$1, 12, this, { USE_SKINNING: false })), __runInitializers$5(_init3$1, 15, this);
     __publicField$5(this, "albedoColor", __runInitializers$5(_init3$1, 16, this, new Color(1, 1, 1, 1))), __runInitializers$5(_init3$1, 19, this);
     __publicField$5(this, "emissiveColor", __runInitializers$5(_init3$1, 20, this, new Color(0, 0, 0, 0))), __runInitializers$5(_init3$1, 23, this);
-    __publicField$5(this, "roughness", __runInitializers$5(_init3$1, 24, this, 0.5)), __runInitializers$5(_init3$1, 27, this);
-    __publicField$5(this, "metalness", __runInitializers$5(_init3$1, 28, this, 0)), __runInitializers$5(_init3$1, 31, this);
+    __publicField$5(this, "roughness", __runInitializers$5(_init3$1, 24, this, 1)), __runInitializers$5(_init3$1, 27, this);
+    __publicField$5(this, "metalness", __runInitializers$5(_init3$1, 28, this, 1)), __runInitializers$5(_init3$1, 31, this);
     __publicField$5(this, "unlit", __runInitializers$5(_init3$1, 32, this, false)), __runInitializers$5(_init3$1, 35, this);
     __publicField$5(this, "alphaCutoff", __runInitializers$5(_init3$1, 36, this, 0.5)), __runInitializers$5(_init3$1, 39, this);
     __publicField$5(this, "repeat", __runInitializers$5(_init3$1, 40, this, new Vector2(1, 1))), __runInitializers$5(_init3$1, 43, this);
@@ -5945,7 +5955,7 @@ class DeferredShadowMapPass extends RenderPass {
     if (!this.initialized) return;
     const mainCamera = Camera.mainCamera;
     if (!mainCamera) return;
-    if (!ShadowMapSettings.r_shadows_enabled) return;
+    if (!ShadowMapSettings.r_shadows_enabled.value) return;
     const frameData = resources.getResource(PassParams.FrameRenderData);
     if (!frameData) return;
     this.lightShadowData.clear();
@@ -5985,6 +5995,7 @@ class DeferredShadowMapPass extends RenderPass {
   execute(resources) {
     if (!this.initialized) return;
     if (this.lightShadowData.size === 0) return;
+    if (!ShadowMapSettings.r_shadows_enabled.value) return;
     const shadowOutput = this.shadowOutput;
     shadowOutput.SetActiveLayer(0);
     for (const [lightId, lightShadowData] of this.lightShadowData) {
@@ -7173,8 +7184,8 @@ class Runtime {
   }
 }
 class PlayerRuntime extends Runtime {
-  static async Create(canvas, aspectRatio = 1) {
-    await Runtime.Create(canvas, aspectRatio);
+  static async Create(canvas) {
+    await Runtime.Create(canvas);
     const loop = () => {
       this.Tick();
       this.Render();
@@ -7200,13 +7211,15 @@ class GameObject {
   transform;
   componentsByCtor = /* @__PURE__ */ new Map();
   allComponents = [];
-  _enabled = true;
+  activeSelf = true;
+  activeInHierarchy = true;
   get enabled() {
-    return this._enabled;
+    return this.activeInHierarchy;
   }
-  set enabled(enabled) {
-    this._enabled = enabled;
-    for (const child of this.transform.children) child.gameObject.enabled = enabled;
+  set enabled(value) {
+    this.activeSelf = value;
+    this.activeInHierarchy = value && (this.transform.parent?.gameObject.activeInHierarchy ?? true);
+    for (const child of this.transform.children) child.gameObject.enabled = child.gameObject.activeSelf;
   }
   assetPath;
   constructor(scene) {
@@ -7963,8 +7976,14 @@ class Deserializer {
     }
   }
   static async deserializeComponent(component, data, ctx) {
-    if (data.id) component.id = data.id;
-    await this.deserializeFields(component, data, ctx);
+    const wasDeserializing = component.isDeserializing;
+    component.isDeserializing = true;
+    try {
+      if (data.id) component.id = data.id;
+      await this.deserializeFields(component, data, ctx);
+    } finally {
+      component.isDeserializing = wasDeserializing;
+    }
   }
   static async deserializeGameObject(scene, data, parent, ctx) {
     const ownsCtx = !ctx;
@@ -7980,6 +7999,7 @@ class Deserializer {
     if (data.id) ctx.idMap.set(data.id, go);
     if (data.assetPath) go.assetPath = data.assetPath;
     if (parent) go.transform.parent = parent;
+    go.enabled = data.enabled ?? true;
     if (source.transform) await this.deserializeComponent(go.transform, source.transform, ctx);
     if (data.assetPath && data.transform) await this.deserializeComponent(go.transform, data.transform, ctx);
     const compsData = source.components ?? [];
@@ -7988,10 +8008,16 @@ class Deserializer {
       if (compData.assetPath && !Component.Registry.get(compData.type)) await this.Load(compData.assetPath);
       const Ctor = Component.Registry.get(compData.type);
       if (!Ctor) throw Error(`Component ${compData.type} not found`);
-      instances.push(go.AddComponent(Ctor));
+      const instance = go.AddComponent(Ctor);
+      instance.isDeserializing = true;
+      instances.push(instance);
     }
-    for (let i = 0; i < instances.length; i++) await this.deserializeComponent(instances[i], compsData[i], ctx);
-    for (const child of source.children ?? []) await this.deserializeGameObject(scene, child, go.transform, ctx);
+    try {
+      for (let i = 0; i < instances.length; i++) await this.deserializeComponent(instances[i], compsData[i], ctx);
+      for (const child of source.children ?? []) await this.deserializeGameObject(scene, child, go.transform, ctx);
+    } finally {
+      for (const instance of instances) instance.isDeserializing = false;
+    }
     if (ownsCtx) this.resolve(ctx);
     return go;
   }
@@ -8089,6 +8115,7 @@ class Scene {
       if (!go.enabled) continue;
       for (const c of go.GetComponents()) {
         if (!c.enabled) continue;
+        if (c.isDeserializing) continue;
         if (edit && !c.runInEditMode) continue;
         if (!c.hasStarted) {
           c.hasStarted = true;
@@ -8237,7 +8264,7 @@ class Serializer {
     return out;
   }
   static serializeGameObject(gameObject) {
-    const out = { id: gameObject.id, name: gameObject.name, transform: this.serializeComponent(gameObject.transform), components: [], children: [] };
+    const out = { id: gameObject.id, name: gameObject.name, enabled: gameObject.activeSelf, transform: this.serializeComponent(gameObject.transform), components: [], children: [] };
     if (gameObject.assetPath) {
       out.assetPath = gameObject.assetPath;
       return out;

@@ -28,53 +28,78 @@
             <script type="module">
                 const canvas = document.createElement("canvas");
                 document.body.appendChild(canvas);
-                            import { Runtime, GameObject, Components, Mathf, Geometry, PBRMaterial, GPU } from '@trident/core';
+                            import { PlayerRuntime, GameObject, Components, Mathf, Runtime, GPU, Geometry, PBRMaterial } from '@trident/core';
             import { OrbitControls } from '@trident/plugins/OrbitControls.js';
+            import { ImpostorMesh } from '@trident/plugins/Impostors/ImpostorMesh.js';
             import { Debugger } from '@trident/plugins/Debugger.js';
-            import { GLTFLoader } from '@trident/plugins/GLTF/GLTFLoader.js';
+            import { UIVecStat, UITextureViewer } from '@trident/plugins/ui/UIStats.js';
+            import { Sky } from '@trident/plugins/Environment/Sky.js';
+            import { IBLLightingPass } from '@trident/plugins/Environment/IBLLightingPass.js';
+            import { SkyboxPass } from '@trident/plugins/Environment/SkyboxPass.js';
             import { Billboarder } from '@trident/plugins/Impostors/Billboarder.js';
             
             async function Application(canvas) {
-              await Runtime.Create(canvas);
-              const scene = Runtime.SceneManager.CreateScene("DefaultScene");
-              Runtime.SceneManager.SetActiveScene(scene);
+              await PlayerRuntime.Create(canvas);
+              const scene = PlayerRuntime.SceneManager.CreateScene("DefaultScene");
+              PlayerRuntime.SceneManager.SetActiveScene(scene);
               const mainCameraGameObject = new GameObject();
+              mainCameraGameObject.transform.position.set(0, 0, 5);
               mainCameraGameObject.name = "MainCamera";
               const camera = mainCameraGameObject.AddComponent(Components.Camera);
-              camera.SetPerspective(60, canvas.width / canvas.height, 0.5, 100);
-              mainCameraGameObject.transform.position.set(0, 0, 5);
-              mainCameraGameObject.transform.LookAt(new Mathf.Vector3(0, 0, 0));
-              new OrbitControls(canvas, camera);
-              const lightGameObject = new GameObject();
-              lightGameObject.transform.position.set(-10, 10, 10);
-              lightGameObject.transform.LookAt(new Mathf.Vector3(0, 0, 0));
-              lightGameObject.AddComponent(Components.DirectionalLight);
-              const floor = new GameObject();
-              floor.transform.position.y = -0.5;
-              floor.transform.scale.set(100, 100, 100);
-              floor.transform.eulerAngles.x = -90;
-              const meshbottom = floor.AddComponent(Components.Mesh);
-              meshbottom.geometry = Geometry.Plane();
-              meshbottom.material = new PBRMaterial();
-              const model = await GLTFLoader.Load("./assets/models/bunny.glb", scene);
-              let geometry;
-              const modelMeshes = model.GetComponentsInChildren(Components.Mesh);
-              for (const mesh of modelMeshes) {
-                geometry = mesh.geometry;
-                mesh.material;
+              camera.SetPerspective(72, canvas.width / canvas.height, 0.01, 500);
+              mainCameraGameObject.AddComponent(OrbitControls);
+              {
+                const lightGameObject = new GameObject();
+                lightGameObject.transform.position.set(4, 4, 4);
+                lightGameObject.transform.LookAt(new Mathf.Vector3(0, 0, 0));
+                const light = lightGameObject.AddComponent(Components.DirectionalLight);
+                light.intensity = 10;
+                light.color.set(1, 1, 1, 1);
+                new UIVecStat(
+                  Debugger.ui,
+                  "Light position:",
+                  { min: -100, max: 100, step: 0.1, value: light.transform.position.x },
+                  { min: -100, max: 100, step: 0.1, value: light.transform.position.y },
+                  { min: -100, max: 100, step: 0.1, value: light.transform.position.z },
+                  void 0,
+                  (value) => {
+                    light.transform.position.set(value.x, value.y, value.z);
+                    lightGameObject.transform.LookAt(new Mathf.Vector3(0, 0, 0));
+                  }
+                );
+                const sky = new Sky();
+                sky.SUN_ELEVATION_DEGREES = 60;
+                await sky.init();
+                const skyTexture = sky.skyTextureCubemap;
+                const iblLightingPass = Runtime.Renderer.RenderPipeline.AddPass(IBLLightingPass, GPU.RenderPassOrder.AfterLighting);
+                const skyboxPass = Runtime.Renderer.RenderPipeline.AddPass(SkyboxPass, GPU.RenderPassOrder.AfterLighting);
+                iblLightingPass.SetEnvironment(skyTexture);
+                skyboxPass.SetSkybox(skyTexture);
               }
-              console.log("geometry", geometry);
-              const albedoTexture = GPU.Texture.Create(1, 1);
-              albedoTexture.SetSubData(new Float32Array([1, 1, 1, 1]), 1, 1, 0);
-              const billboardTexture = await Billboarder.Create(geometry, albedoTexture);
-              billboardTexture.name = "Billboard";
-              const billboard = new GameObject();
-              billboard.transform.position.set(1, 1, 0);
-              const billboardMesh = billboard.AddComponent(Components.Mesh);
-              billboardMesh.geometry = Geometry.Plane();
-              billboardMesh.material = new PBRMaterial({ albedoMap: billboardTexture });
+              const sourceGameObject = new GameObject();
+              const sourceMesh = sourceGameObject.AddComponent(Components.Mesh);
+              sourceMesh.geometry = Geometry.Sphere();
+              sourceMesh.material = new PBRMaterial({
+                albedoMap: await GPU.Texture.Load("/extra/test-assets/worn-painted-metal-bl/worn-painted-metal_albedo.png", { format: "rgba8unorm-srgb" }),
+                normalMap: await GPU.Texture.Load("/extra/test-assets/worn-painted-metal-bl/worn-painted-metal_normal-ogl.png", { format: "rgba8unorm" }),
+                armMap: await GPU.Texture.Load("/extra/test-assets/worn-painted-metal-bl/worn-painted-metal_orm.png", { format: "rgba8unorm" }),
+                repeat: new Mathf.Vector2(2, 2)
+              });
+              sourceGameObject.transform.position.x = -2;
+              const impostorGameObject = new GameObject();
+              impostorGameObject.transform.position.x = 2;
+              const impostor = impostorGameObject.AddComponent(ImpostorMesh);
+              await impostor.Create([sourceMesh], 8192, 12);
+              new UITextureViewer(Debugger.ui, "atlasAlbedo", impostor.atlasAlbedo);
+              new UITextureViewer(Debugger.ui, "atlasNormal", impostor.atlasNormal);
+              new UITextureViewer(Debugger.ui, "atlasERMO", impostor.atlasERMO);
+              {
+                const bbGO = new GameObject();
+                const billboarder = bbGO.AddComponent(Billboarder);
+                await billboarder.Create([sourceMesh], 2048);
+                bbGO.transform.position.x = 4;
+              }
               Debugger.Enable();
-              Runtime.Play();
             }
             Application(document.querySelector("canvas"));
             
