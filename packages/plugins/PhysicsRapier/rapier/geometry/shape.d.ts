@@ -84,7 +84,8 @@ export declare enum ShapeType {
     RoundCylinder = 14,
     RoundCone = 15,
     RoundConvexPolyhedron = 16,
-    HalfSpace = 17
+    HalfSpace = 17,
+    Voxels = 18
 }
 /**
  * Flags controlling the behavior of some operations involving heightfields.
@@ -149,7 +150,7 @@ export declare enum TriMeshFlags {
      *
      * /!\ NOT SUPPORTED IN THE 2D VERSION OF RAPIER.
      */
-    FIX_INTERNAL_EDGES = 152
+    FIX_INTERNAL_EDGES = 144
 }
 /**
  * A shape that is a sphere in 3D and a circle in 2D.
@@ -347,6 +348,34 @@ export declare class Polyline extends Shape {
      *    the vertices are assumed to form a line strip.
      */
     constructor(vertices: Float32Array, indices?: Uint32Array);
+    intoRaw(): RawShape;
+}
+/**
+ * A shape made of voxels.
+ */
+export declare class Voxels extends Shape {
+    readonly type = ShapeType.Voxels;
+    /**
+     * The points or grid coordinates used to initialize the voxels.
+     */
+    data: Float32Array | Int32Array;
+    /**
+     * The dimensions of each voxel.
+     */
+    voxelSize: Vector;
+    /**
+     * Creates a new shape made of voxels.
+     *
+     * @param data - Defines the set of voxels. If this is a `Int32Array` then
+     *               each voxel is defined from its (signed) grid coordinates,
+     *               with 3 (resp 2) contiguous integers per voxel in 3D (resp 2D).
+     *               If this is a `Float32Array`, each voxel will be such that
+     *               they contain at least one point from this array (where each
+     *               point is defined from 3 (resp 2) contiguous numbers per point
+     *               in 3D (resp 2D).
+     * @param voxelSize - The size of each voxel.
+     */
+    constructor(data: Float32Array | Int32Array, voxelSize: Vector);
     intoRaw(): RawShape;
 }
 /**

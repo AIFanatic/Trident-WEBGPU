@@ -1,6 +1,6 @@
 import { Vector } from "../math";
-import { Collider, ColliderSet, InteractionGroups } from "../geometry";
-import { QueryFilterFlags, QueryPipeline } from "../pipeline";
+import { BroadPhase, Collider, ColliderSet, InteractionGroups, NarrowPhase } from "../geometry";
+import { QueryFilterFlags } from "../pipeline";
 import { IntegrationParameters, RigidBodySet } from "../dynamics";
 /**
  * A collision between the character and an obstacle hit on its path.
@@ -31,12 +31,13 @@ export declare class KinematicCharacterController {
     private raw;
     private rawCharacterCollision;
     private params;
+    private broadPhase;
+    private narrowPhase;
     private bodies;
     private colliders;
-    private queries;
     private _applyImpulsesToDynamicBodies;
     private _characterMass;
-    constructor(offset: number, params: IntegrationParameters, bodies: RigidBodySet, colliders: ColliderSet, queries: QueryPipeline);
+    constructor(offset: number, params: IntegrationParameters, broadPhase: BroadPhase, narrowPhase: NarrowPhase, bodies: RigidBodySet, colliders: ColliderSet);
     /** @internal */
     free(): void;
     /**

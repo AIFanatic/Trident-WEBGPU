@@ -57,7 +57,7 @@ export declare enum ActiveCollisionTypes {
 /**
  * The integer identifier of a collider added to a `ColliderSet`.
  */
-export type ColliderHandle = number;
+export declare type ColliderHandle = number;
 /**
  * A geometric entity that can be attached to a body so it can be affected
  * by contacts and proximity queries.
@@ -76,24 +76,45 @@ export declare class Collider {
      */
     get shape(): Shape;
     /**
+     * Set the internal cached JS shape to null.
+     *
+     * This can be useful if you want to free some memory (assuming you are not
+     * holding any other references to the shape object), or in order to force
+     * the recalculation of the JS shape (the next time the `shape` getter is
+     * accessed) from the WASM source of truth.
+     */
+    clearShapeCache(): void;
+    /**
      * Checks if this collider is still valid (i.e. that it has
      * not been deleted from the collider set yet).
      */
     isValid(): boolean;
     /**
-     * The world-space translation of this rigid-body.
+     * The world-space translation of this collider.
      */
     translation(): Vector;
     /**
-     * The world-space orientation of this rigid-body.
+     * The translation of this collider relative to its parent rigid-body.
+     *
+     * Returns `null` if the collider doesn’t have a parent rigid-body.
+     */
+    translationWrtParent(): Vector | null;
+    /**
+     * The world-space orientation of this collider.
      */
     rotation(): Rotation;
+    /**
+     * The orientation of this collider relative to its parent rigid-body.
+     *
+     * Returns `null` if the collider doesn’t have a parent rigid-body.
+     */
+    rotationWrtParent(): Rotation | null;
     /**
      * Is this collider a sensor?
      */
     isSensor(): boolean;
     /**
-     * Sets whether or not this collider is a sensor.
+     * Sets whether this collider is a sensor.
      * @param isSensor - If `true`, the collider will be a sensor.
      */
     setSensor(isSensor: boolean): void;
@@ -292,12 +313,10 @@ export declare class Collider {
     setRotationWrtParent(rot: Rotation): void;
     /**
      * The type of the shape of this collider.
-     * @deprecated this field will be removed in the future, please access this field on `shape` member instead.
      */
     shapeType(): ShapeType;
     /**
      * The half-extents of this collider if it is a cuboid shape.
-     * @deprecated this field will be removed in the future, please access this field on `shape` member instead.
      */
     halfExtents(): Vector;
     /**
@@ -308,7 +327,6 @@ export declare class Collider {
     setHalfExtents(newHalfExtents: Vector): void;
     /**
      * The radius of this collider if it is a ball, cylinder, capsule, or cone shape.
-     * @deprecated this field will be removed in the future, please access this field on `shape` member instead.
      */
     radius(): number;
     /**
@@ -319,7 +337,6 @@ export declare class Collider {
     setRadius(newRadius: number): void;
     /**
      * The radius of the round edges of this collider if it is a round cylinder.
-     * @deprecated this field will be removed in the future, please access this field on `shape` member instead.
      */
     roundRadius(): number;
     /**
@@ -330,7 +347,6 @@ export declare class Collider {
     setRoundRadius(newBorderRadius: number): void;
     /**
      * The half height of this collider if it is a cylinder, capsule, or cone shape.
-     * @deprecated this field will be removed in the future, please access this field on `shape` member instead.
      */
     halfHeight(): number;
     /**
@@ -340,40 +356,82 @@ export declare class Collider {
      */
     setHalfHeight(newHalfheight: number): void;
     /**
+     * If this collider has a Voxels shape, this will mark the voxel at the
+     * given grid coordinates as filled or empty (depending on the `filled`
+     * argument).
+     *
+     * Each input value is assumed to be an integer.
+     *
+     * The operation is O(1), unless the provided coordinates are out of the
+     * bounds of the currently allocated internal grid in which case the grid
+     * will be grown automatically.
+     */
+    setVoxel(ix: number, iy: number, iz: number, filled: boolean): void;
+    /**
+     * If this and `voxels2` are voxel colliders, and a voxel from `this` was
+     * modified with `setVoxel`, this will ensure that a
+     * moving object transitioning across the boundaries of these colliders
+     * won’t suffer from the "internal edges" artifact.
+     *
+     * The indices `ix, iy, iz` indicate the integer coordinates of the voxel in
+     * the local coordinate frame of `this`.
+     *
+     * If the voxels in `voxels2` live in a different coordinate space from `this`,
+     * then the `shift_*` argument indicate the distance, in voxel units, between
+     * the origin of `this` to the origin of `voxels2`.
+     *
+     * This method is intended to be called between `this` and all the other
+     * voxels colliders with a domain intersecting `this` or sharing a domain
+     * boundary. This is an incremental maintenance of the effect of
+     * `combineVoxelStates`.
+     */
+    propagateVoxelChange(voxels2: Collider, ix: number, iy: number, iz: number, shift_x: number, shift_y: number, shift_z: number): void;
+    /**
+     * If this and `voxels2` are voxel colliders, this will ensure that a
+     * moving object transitioning across the boundaries of these colliders
+     * won’t suffer from the "internal edges" artifact.
+     *
+     * If the voxels in `voxels2` live in a different coordinate space from `this`,
+     * then the `shift_*` argument indicate the distance, in voxel units, between
+     * the origin of `this` to the origin of `voxels2`.
+     *
+     * This method is intended to be called once between all pairs of voxels
+     * colliders with intersecting domains or shared boundaries.
+     *
+     * If either voxels collider is then modified with `setVoxel`, the
+     * `propagateVoxelChange` method must be called to maintain the coupling
+     * between the voxels shapes after the modification.
+     */
+    combineVoxelStates(voxels2: Collider, shift_x: number, shift_y: number, shift_z: number): void;
+    /**
      * If this collider has a triangle mesh, polyline, convex polygon, or convex polyhedron shape,
      * this returns the vertex buffer of said shape.
-     * @deprecated this field will be removed in the future, please access this field on `shape` member instead.
      */
     vertices(): Float32Array;
     /**
      * If this collider has a triangle mesh, polyline, or convex polyhedron shape,
      * this returns the index buffer of said shape.
-     * @deprecated this field will be removed in the future, please access this field on `shape` member instead.
      */
     indices(): Uint32Array | undefined;
     /**
      * If this collider has a heightfield shape, this returns the heights buffer of
      * the heightfield.
      * In 3D, the returned height matrix is provided in column-major order.
-     * @deprecated this field will be removed in the future, please access this field on `shape` member instead.
      */
     heightfieldHeights(): Float32Array;
     /**
      * If this collider has a heightfield shape, this returns the scale
      * applied to it.
-     * @deprecated this field will be removed in the future, please access this field on `shape` member instead.
      */
     heightfieldScale(): Vector;
     /**
      * If this collider has a heightfield shape, this returns the number of
      * rows of its height matrix.
-     * @deprecated this field will be removed in the future, please access this field on `shape` member instead.
      */
     heightfieldNRows(): number;
     /**
      * If this collider has a heightfield shape, this returns the number of
      * columns of its height matrix.
-     * @deprecated this field will be removed in the future, please access this field on `shape` member instead.
      */
     heightfieldNCols(): number;
     /**
@@ -560,6 +618,19 @@ export declare class ColliderDesc {
      *    the vertices are assumed to describe a line strip.
      */
     static polyline(vertices: Float32Array, indices?: Uint32Array | null): ColliderDesc;
+    /**
+     * Creates a new collider descriptor with a shape made of voxels.
+     *
+     * @param data - Defines the set of voxels. If this is a `Int32Array` then
+     *               each voxel is defined from its (signed) grid coordinates,
+     *               with 3 (resp 2) contiguous integers per voxel in 3D (resp 2D).
+     *               If this is a `Float32Array`, each voxel will be such that
+     *               they contain at least one point from this array (where each
+     *               point is defined from 3 (resp 2) contiguous numbers per point
+     *               in 3D (resp 2D).
+     * @param voxelSize - The size of each voxel.
+     */
+    static voxels(voxels: Float32Array | Int32Array, voxelSize: Vector): ColliderDesc;
     /**
      * Creates a new collider descriptor with a triangle mesh shape.
      *

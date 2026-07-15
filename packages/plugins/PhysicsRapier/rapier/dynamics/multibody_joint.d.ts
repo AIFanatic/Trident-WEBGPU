@@ -2,7 +2,7 @@ import { RawJointAxis, RawMultibodyJointSet } from "../raw";
 /**
  * The integer identifier of a collider added to a `ColliderSet`.
  */
-export type MultibodyJointHandle = number;
+export declare type MultibodyJointHandle = number;
 export declare class MultibodyJoint {
     protected rawSet: RawMultibodyJointSet;
     handle: MultibodyJointHandle;

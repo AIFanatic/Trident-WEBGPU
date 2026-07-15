@@ -5,7 +5,7 @@ import { Collider, ColliderSet } from "../geometry";
 /**
  * The integer identifier of a collider added to a `ColliderSet`.
  */
-export type RigidBodyHandle = number;
+export declare type RigidBodyHandle = number;
 /**
  * The simulation status of a rigid-body.
  */
@@ -255,6 +255,10 @@ export declare class RigidBody {
      */
     linvel(): Vector;
     /**
+     * The velocity of the given world-space point on this rigid-body.
+     */
+    velocityAtPoint(point: Vector): Vector;
+    /**
      * The angular velocity of this rigid-body.
      */
     angvel(): Vector;
@@ -285,7 +289,7 @@ export declare class RigidBody {
      *
      * Components set to zero are assumed to be infinite along the corresponding principal axis.
      */
-    invPrincipalInertiaSqrt(): Vector;
+    invPrincipalInertia(): Vector;
     /**
      * The angular inertia along the principal inertia axes of the rigid-body.
      */
@@ -295,10 +299,10 @@ export declare class RigidBody {
      */
     principalInertiaLocalFrame(): Rotation;
     /**
-     * The square-root of the world-space inverse angular inertia tensor of the rigid-body,
+     * The world-space inverse angular inertia tensor of the rigid-body,
      * taking into account rotation locking.
      */
-    effectiveWorldInvInertiaSqrt(): SdpMatrix3;
+    effectiveWorldInvInertia(): SdpMatrix3;
     /**
      * The effective world-space angular inertia (that takes the potential rotation locking into account) of
      * this rigid-body.

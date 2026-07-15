@@ -1,17 +1,18 @@
 import { Vector } from "../math";
-import { Collider, ColliderSet, InteractionGroups } from "../geometry";
-import { QueryFilterFlags, QueryPipeline } from "../pipeline";
+import { BroadPhase, Collider, ColliderSet, InteractionGroups, NarrowPhase } from "../geometry";
+import { QueryFilterFlags } from "../pipeline";
 import { RigidBody, RigidBodySet } from "../dynamics";
 /**
  * A character controller to simulate vehicles using ray-casting for the wheels.
  */
 export declare class DynamicRayCastVehicleController {
     private raw;
+    private broadPhase;
+    private narrowPhase;
     private bodies;
     private colliders;
-    private queries;
     private _chassis;
-    constructor(chassis: RigidBody, bodies: RigidBodySet, colliders: ColliderSet, queries: QueryPipeline);
+    constructor(chassis: RigidBody, broadPhase: BroadPhase, narrowPhase: NarrowPhase, bodies: RigidBodySet, colliders: ColliderSet);
     /** @internal */
     free(): void;
     /**

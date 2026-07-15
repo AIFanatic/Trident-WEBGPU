@@ -1,14 +1,14 @@
-import { RawBroadPhase, RawCCDSolver, RawColliderSet, RawDeserializedWorld, RawIntegrationParameters, RawIslandManager, RawImpulseJointSet, RawMultibodyJointSet, RawNarrowPhase, RawPhysicsPipeline, RawQueryPipeline, RawRigidBodySet, RawSerializationPipeline, RawDebugRenderPipeline } from "../raw";
+import { RawBroadPhase, RawCCDSolver, RawColliderSet, RawDeserializedWorld, RawIntegrationParameters, RawIslandManager, RawImpulseJointSet, RawMultibodyJointSet, RawNarrowPhase, RawPhysicsPipeline, RawRigidBodySet, RawSerializationPipeline, RawDebugRenderPipeline } from "../raw";
 import { BroadPhase, Collider, ColliderDesc, ColliderHandle, ColliderSet, InteractionGroups, NarrowPhase, PointColliderProjection, Ray, RayColliderIntersection, RayColliderHit, Shape, ColliderShapeCastHit, TempContactManifold } from "../geometry";
 import { CCDSolver, IntegrationParameters, IslandManager, ImpulseJoint, ImpulseJointHandle, MultibodyJoint, MultibodyJointHandle, JointData, ImpulseJointSet, MultibodyJointSet, RigidBody, RigidBodyDesc, RigidBodyHandle, RigidBodySet } from "../dynamics";
 import { Rotation, Vector } from "../math";
 import { PhysicsPipeline } from "./physics_pipeline";
-import { QueryFilterFlags, QueryPipeline } from "./query_pipeline";
+import { QueryFilterFlags } from "./query_pipeline";
 import { SerializationPipeline } from "./serialization_pipeline";
 import { EventQueue } from "./event_queue";
 import { PhysicsHooks } from "./physics_hooks";
 import { DebugRenderBuffers, DebugRenderPipeline } from "./debug_render_pipeline";
-import { KinematicCharacterController } from "../control";
+import { KinematicCharacterController, PidAxesMask, PidController } from "../control";
 import { DynamicRayCastVehicleController } from "../control";
 /**
  * The physics world.
@@ -27,11 +27,11 @@ export declare class World {
     impulseJoints: ImpulseJointSet;
     multibodyJoints: MultibodyJointSet;
     ccdSolver: CCDSolver;
-    queryPipeline: QueryPipeline;
     physicsPipeline: PhysicsPipeline;
     serializationPipeline: SerializationPipeline;
     debugRenderPipeline: DebugRenderPipeline;
     characterControllers: Set<KinematicCharacterController>;
+    pidControllers: Set<PidController>;
     vehicleControllers: Set<DynamicRayCastVehicleController>;
     /**
      * Release the WASM memory occupied by this physics world.
@@ -40,7 +40,7 @@ export declare class World {
      * so there is no need to call their `.free()` methods individually.
      */
     free(): void;
-    constructor(gravity: Vector, rawIntegrationParameters?: RawIntegrationParameters, rawIslands?: RawIslandManager, rawBroadPhase?: RawBroadPhase, rawNarrowPhase?: RawNarrowPhase, rawBodies?: RawRigidBodySet, rawColliders?: RawColliderSet, rawImpulseJoints?: RawImpulseJointSet, rawMultibodyJoints?: RawMultibodyJointSet, rawCCDSolver?: RawCCDSolver, rawQueryPipeline?: RawQueryPipeline, rawPhysicsPipeline?: RawPhysicsPipeline, rawSerializationPipeline?: RawSerializationPipeline, rawDebugRenderPipeline?: RawDebugRenderPipeline);
+    constructor(gravity: Vector, rawIntegrationParameters?: RawIntegrationParameters, rawIslands?: RawIslandManager, rawBroadPhase?: RawBroadPhase, rawNarrowPhase?: RawNarrowPhase, rawBodies?: RawRigidBodySet, rawColliders?: RawColliderSet, rawImpulseJoints?: RawImpulseJointSet, rawMultibodyJoints?: RawMultibodyJointSet, rawCCDSolver?: RawCCDSolver, rawPhysicsPipeline?: RawPhysicsPipeline, rawSerializationPipeline?: RawSerializationPipeline, rawDebugRenderPipeline?: RawDebugRenderPipeline);
     static fromRaw(raw: RawDeserializedWorld): World;
     /**
      * Takes a snapshot of this world.
@@ -57,8 +57,12 @@ export declare class World {
     static restoreSnapshot(data: Uint8Array): World;
     /**
      * Computes all the lines (and their colors) needed to render the scene.
+     *
+     * @param filterFlags - Flags for excluding whole subsets of colliders from rendering.
+     * @param filterPredicate - Any collider for which this closure returns `false` will be excluded from the
+     *                          debug rendering.
      */
-    debugRender(): DebugRenderBuffers;
+    debugRender(filterFlags?: QueryFilterFlags, filterPredicate?: (collider: Collider) => boolean): DebugRenderBuffers;
     /**
      * Advance the simulation by one time step.
      *
@@ -76,12 +80,6 @@ export declare class World {
      * If the positions need to be updated without running a simulation step this method can be called manually.
      */
     propagateModifiedBodyPositionsToColliders(): void;
-    /**
-     * Ensure subsequent scene queries take into account the collider positions set before this method is called.
-     *
-     * This does not step the physics simulation forward.
-     */
-    updateSceneQueries(): void;
     /**
      * The current simulation timestep.
      */
@@ -135,19 +133,6 @@ export declare class World {
      */
     set numSolverIterations(niter: number);
     /**
-     * Number of addition friction resolution iteration run during the last solver sub-step (default: `4`).
-     */
-    get numAdditionalFrictionIterations(): number;
-    /**
-     * Sets the number of addition friction resolution iteration run during the last solver sub-step (default: `4`).
-     *
-     * The greater this value is, the most realistic friction will be.
-     * However a greater number of iterations is more computationally intensive.
-     *
-     * @param niter - The new number of additional friction iterations.
-     */
-    set numAdditionalFrictionIterations(niter: number);
-    /**
      * Number of internal Project Gauss Seidel (PGS) iterations run at each solver iteration (default: `1`).
      */
     get numInternalPgsIterations(): number;
@@ -160,9 +145,21 @@ export declare class World {
      * @param niter - The new number of internal PGS iterations.
      */
     set numInternalPgsIterations(niter: number);
-    switchToStandardPgsSolver(): void;
-    switchToSmallStepsPgsSolver(): void;
-    switchToSmallStepsPgsSolverWithoutWarmstart(): void;
+    /**
+     * The number of substeps continuous collision-detection can run (default: `1`).
+     */
+    get maxCcdSubsteps(): number;
+    /**
+     * Sets the number of substeps continuous collision-detection can run (default: `1`).
+     *
+     * CCD operates using a "motion clamping" mechanism where all fast-moving object trajectories will
+     * be truncated to their first impact on their path. The number of CCD substeps beyond 1 indicate how
+     * many times that trajectory will be updated and continued after a hit. This can results in smoother
+     * paths, but at a significant computational cost.
+     *
+     * @param niter - The new maximum number of CCD substeps. Setting to `0` disables CCD entirely.
+     */
+    set maxCcdSubsteps(substeps: number);
     /**
      * Creates a new rigid-body from the given rigid-body descriptor.
      *
@@ -181,6 +178,28 @@ export declare class World {
      * @param controller - The character controller to remove.
      */
     removeCharacterController(controller: KinematicCharacterController): void;
+    /**
+     * Creates a new PID (Proportional-Integral-Derivative) controller.
+     *
+     * @param kp - The Proportional gain applied to the instantaneous linear position errors.
+     *             This is usually set to a multiple of the inverse of simulation step time
+     *             (e.g. `60` if the delta-time is `1.0 / 60.0`).
+     * @param ki - The linear gain applied to the Integral part of the PID controller.
+     * @param kd - The Derivative gain applied to the instantaneous linear velocity errors.
+     *             This is usually set to a value in `[0.0, 1.0]` where `0.0` implies no damping
+     *             (no correction of velocity errors) and `1.0` implies complete damping (velocity errors
+     *             are corrected in a single simulation step).
+     * @param axes - The axes affected by this controller.
+     *               Only coordinate axes with a bit flags set to `true` will be taken into
+     *               account when calculating the errors and corrections.
+     */
+    createPidController(kp: number, ki: number, kd: number, axes: PidAxesMask): PidController;
+    /**
+     * Removes a PID controller from this world.
+     *
+     * @param controller - The PID controller to remove.
+     */
+    removePidController(controller: PidController): void;
     /**
      * Creates a new vehicle controller.
      *
@@ -445,4 +464,127 @@ export declare class World {
      * @param collider2 − The second collider involved in the intersection.
      */
     intersectionPair(collider1: Collider, collider2: Collider): boolean;
+    /**
+     * Sets whether internal performance profiling is enabled (default: false).
+     *
+     * Only works if the internal profiler is enabled with `World.profilerEnabled = true`.
+     */
+    set profilerEnabled(enabled: boolean);
+    /**
+     * Indicates if the internal performance profiling is enabled.
+     *
+     * Only works if the internal profiler is enabled with `World.profilerEnabled = true`.
+     */
+    get profilerEnabled(): boolean;
+    /**
+     * The time spent in milliseconds by the last step to run the entire simulation step.
+     *
+     * Only works if the internal profiler is enabled with `World.profilerEnabled = true`.
+     */
+    timingStep(): number;
+    /**
+     * The time spent in milliseconds by the last step to run the collision-detection
+     * (broad-phase + narrow-phase).
+     *
+     * Only works if the internal profiler is enabled with `World.profilerEnabled = true`.
+     */
+    timingCollisionDetection(): number;
+    /**
+     * The time spent in milliseconds by the last step to run the broad-phase.
+     *
+     * This timing is included in `timingCollisionDetection`.
+     * Only works if the internal profiler is enabled with `World.profilerEnabled = true`.
+     */
+    timingBroadPhase(): number;
+    /**
+     * The time spent in milliseconds by the last step to run the narrow-phase.
+     *
+     * This timing is included in `timingCollisionDetection`.
+     * Only works if the internal profiler is enabled with `World.profilerEnabled = true`.
+     */
+    timingNarrowPhase(): number;
+    /**
+     * The time spent in milliseconds by the last step to run the constraint solver.
+     *
+     * Only works if the internal profiler is enabled with `World.profilerEnabled = true`.
+     */
+    timingSolver(): number;
+    /**
+     * The time spent in milliseconds by the last step to run the constraint
+     * initialization.
+     *
+     * This timing is included in `timingSolver`.
+     * Only works if the internal profiler is enabled with `World.profilerEnabled = true`.
+     */
+    timingVelocityAssembly(): number;
+    /**
+     * The time spent in milliseconds by the last step to run the constraint
+     * resolution.
+     *
+     * This timing is included in `timingSolver`.
+     * Only works if the internal profiler is enabled with `World.profilerEnabled = true`.
+     */
+    timingVelocityResolution(): number;
+    /**
+     * The time spent in milliseconds by the last step to run the rigid-body
+     * velocity update.
+     *
+     * This timing is included in `timingSolver`.
+     * Only works if the internal profiler is enabled with `World.profilerEnabled = true`.
+     */
+    timingVelocityUpdate(): number;
+    /**
+     * The time spent in milliseconds by writing rigid-body velocities
+     * calculated by the solver back into the rigid-bodies.
+     *
+     * This timing is included in `timingSolver`.
+     * Only works if the internal profiler is enabled with `World.profilerEnabled = true`.
+     */
+    timingVelocityWriteback(): number;
+    /**
+     * The total time spent in CCD detection and resolution.
+     *
+     * Only works if the internal profiler is enabled with `World.profilerEnabled = true`.
+     */
+    timingCcd(): number;
+    /**
+     * The total time spent searching for the continuous hits during CCD.
+     *
+     * This timing is included in `timingCcd`.
+     * Only works if the internal profiler is enabled with `World.profilerEnabled = true`.
+     */
+    timingCcdToiComputation(): number;
+    /**
+     * The total time spent in the broad-phase during CCD.
+     *
+     * This timing is included in `timingCcd`.
+     * Only works if the internal profiler is enabled with `World.profilerEnabled = true`.
+     */
+    timingCcdBroadPhase(): number;
+    /**
+     * The total time spent in the narrow-phase during CCD.
+     *
+     * This timing is included in `timingCcd`.
+     * Only works if the internal profiler is enabled with `World.profilerEnabled = true`.
+     */
+    timingCcdNarrowPhase(): number;
+    /**
+     * The total time spent in the constraints resolution during CCD.
+     *
+     * This timing is included in `timingCcd`.
+     * Only works if the internal profiler is enabled with `World.profilerEnabled = true`.
+     */
+    timingCcdSolver(): number;
+    /**
+     * The total time spent in the islands calculation during CCD.
+     *
+     * Only works if the internal profiler is enabled with `World.profilerEnabled = true`.
+     */
+    timingIslandConstruction(): number;
+    /**
+     * The total time spent propagating detected user changes.
+     *
+     * Only works if the internal profiler is enabled with `World.profilerEnabled = true`.
+     */
+    timingUserChanges(): number;
 }

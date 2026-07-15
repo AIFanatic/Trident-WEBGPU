@@ -1,6 +1,7 @@
 import { RawDebugRenderPipeline } from "../raw";
 import { ImpulseJointSet, MultibodyJointSet, RigidBodySet } from "../dynamics";
-import { ColliderSet, NarrowPhase } from "../geometry";
+import { Collider, ColliderSet, NarrowPhase } from "../geometry";
+import { QueryFilterFlags } from "./query_pipeline";
 /**
  * The vertex and color buffers for debug-redering the physics scene.
  */
@@ -35,5 +36,5 @@ export declare class DebugRenderPipeline {
      */
     free(): void;
     constructor(raw?: RawDebugRenderPipeline);
-    render(bodies: RigidBodySet, colliders: ColliderSet, impulse_joints: ImpulseJointSet, multibody_joints: MultibodyJointSet, narrow_phase: NarrowPhase): void;
+    render(bodies: RigidBodySet, colliders: ColliderSet, impulse_joints: ImpulseJointSet, multibody_joints: MultibodyJointSet, narrow_phase: NarrowPhase, filterFlags?: QueryFilterFlags, filterPredicate?: (collider: Collider) => boolean): void;
 }

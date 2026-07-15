@@ -33,10 +33,6 @@ export declare class IntegrationParameters {
      */
     get numSolverIterations(): number;
     /**
-     * Number of addition friction resolution iteration run during the last solver sub-step (default: `4`).
-     */
-    get numAdditionalFrictionIterations(): number;
-    /**
      * Number of internal Project Gauss Seidel (PGS) iterations run at each solver iteration (default: `1`).
      */
     get numInternalPgsIterations(): number;
@@ -58,16 +54,9 @@ export declare class IntegrationParameters {
      */
     set numSolverIterations(value: number);
     /**
-     * Sets the number of addition friction resolution iteration run during the last solver sub-step (default: `4`).
-     */
-    set numAdditionalFrictionIterations(value: number);
-    /**
      * Sets the number of internal Project Gauss Seidel (PGS) iterations run at each solver iteration (default: `1`).
      */
     set numInternalPgsIterations(value: number);
     set minIslandSize(value: number);
     set maxCcdSubsteps(value: number);
-    switchToStandardPgsSolver(): void;
-    switchToSmallStepsPgsSolver(): void;
-    switchToSmallStepsPgsSolverWithoutWarmstart(): void;
 }

@@ -15,4 +15,4 @@
  * ((a >> 16) & b) != 0 && ((b >> 16) & a) != 0
  * ```
  */
-export type InteractionGroups = number;
+export declare type InteractionGroups = number;
