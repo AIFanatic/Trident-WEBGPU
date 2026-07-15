@@ -12,7 +12,8 @@ export class InstancedLODGroup extends Components.Renderable {
     private drawIndirectBuffer: GPU.Buffer;
     private lodRendererData: { renderer: LODRenderer, drawBuffer: GPU.Buffer }[][] = [];
     private lodMatricesScratch: GPU.Buffer;
-    private lodMatrixBuffers: GPU.Buffer[] = [];
+    // private lodMatrixBuffers: GPU.Buffer[] = [];
+    private matrixBuffer: GPU.DynamicBuffer;
 
     public static readonly DefaultCapacity = 65536;
     public static readonly MATRICES_PER_LOD = InstancedLODGroup.DefaultCapacity;
@@ -171,7 +172,7 @@ export class InstancedLODGroup extends Components.Renderable {
         // Tear down whatever the previous call set up.
         this.drawIndirectBuffer?.Destroy();
         this.lodMatricesScratch?.Destroy();
-        for (const buf of this.lodMatrixBuffers) buf.Destroy();
+        // for (const buf of this.lodMatrixBuffers) buf.Destroy();
         for (const lodData of this.lodRendererData) {
             if (!lodData) continue;
             for (const data of lodData) data.drawBuffer.Destroy();
@@ -179,7 +180,12 @@ export class InstancedLODGroup extends Components.Renderable {
 
         this.drawIndirectBuffer = new GPU.Buffer(this.lods.length * 5 * 4, GPU.BufferType.STORAGE_WRITE);
         this.lodMatricesScratch = new GPU.Buffer(this.lods.length * InstancedLODGroup.MATRIX_STRIDE_BYTES, GPU.BufferType.STORAGE_WRITE);
-        this.lodMatrixBuffers = this.lods.map(() => new GPU.Buffer(InstancedLODGroup.MATRIX_STRIDE_BYTES, GPU.BufferType.STORAGE));
+        // this.lodMatrixBuffers = this.lods.map(() => new GPU.Buffer(InstancedLODGroup.MATRIX_STRIDE_BYTES, GPU.BufferType.STORAGE));
+        this.matrixBuffer = new GPU.DynamicBuffer(
+            this.lods.length * InstancedLODGroup.MATRIX_STRIDE_BYTES,
+            GPU.BufferType.STORAGE,
+            InstancedLODGroup.MATRIX_STRIDE_BYTES,   // one LOD slice
+        );
 
         this.lodRendererData = new Array(this.lods.length);
 
@@ -252,22 +258,23 @@ export class InstancedLODGroup extends Components.Renderable {
 
     public OnPreRender(): void {
         if (!this.initialized) return;
-
         const resources = Runtime.Renderer.RenderPipeline.renderGraph.resourcePool;
         const FrameBuffer = resources.getResource(GPU.PassParams.FrameBuffer);
 
         for (let i = 0; i < this.lods.length; i++) {
             const lodMatricesOffset = i * InstancedLODGroup.MATRIX_STRIDE_BYTES;
-            GPU.RendererContext.CopyBufferToBuffer(this.lodMatricesScratch, this.lodMatrixBuffers[i], lodMatricesOffset, 0, InstancedLODGroup.MATRIX_STRIDE_BYTES);
-
+            GPU.RendererContext.CopyBufferToBuffer(
+                this.lodMatricesScratch, this.matrixBuffer,
+                lodMatricesOffset, i * InstancedLODGroup.MATRIX_STRIDE_BYTES,
+                InstancedLODGroup.MATRIX_STRIDE_BYTES,
+            );
             const lodDrawOffset = i * 5 * 4;
-
             for (const data of this.lodRendererData[i]) {
                 GPU.RendererContext.CopyBufferToBuffer(this.drawIndirectBuffer, data.drawBuffer, lodDrawOffset + 4, 4, 4);
-
-                const { geometry, material } = data.renderer;
+                const { material } = data.renderer;
                 if (!material?.shader) continue;
                 material.shader.SetBuffer("frameBuffer", FrameBuffer);
+                material.shader.SetBuffer("modelMatrix", this.matrixBuffer);   // bound once, same object every frame
             }
         }
     }
@@ -276,15 +283,13 @@ export class InstancedLODGroup extends Components.Renderable {
         if (!this.initialized) return;
 
         for (let lodIndex = 0; lodIndex < this.lodRendererData.length; lodIndex++) {
-            const lodData = this.lodRendererData[lodIndex];
-            const modelMatrix = this.lodMatrixBuffers[lodIndex];
+            this.matrixBuffer.dynamicOffset = lodIndex * InstancedLODGroup.MATRIX_STRIDE_BYTES;  // per-LOD, not a rebind
 
-            for (const data of lodData) {
+            for (const data of this.lodRendererData[lodIndex]) {
                 const { geometry, material } = data.renderer;
-                const shader = shaderOverride ? shaderOverride : material.shader;
+                const shader = shaderOverride ?? material.shader;
                 if (!shader) continue;
-
-                shader.SetBuffer("modelMatrix", modelMatrix);
+                if (shaderOverride) shader.SetBuffer("modelMatrix", this.matrixBuffer); // shadow variant: same object → no churn
                 GPU.RendererContext.DrawIndirect(geometry, shader, data.drawBuffer);
             }
         }
@@ -293,7 +298,8 @@ export class InstancedLODGroup extends Components.Renderable {
     public Destroy(): void {
         this.drawIndirectBuffer?.Destroy();
         this.lodMatricesScratch?.Destroy();
-        for (const buffer of this.lodMatrixBuffers) buffer.Destroy();
+        // for (const buffer of this.lodMatrixBuffers) buffer.Destroy();
+        this.matrixBuffer?.Destroy();
         for (const lodData of this.lodRendererData) {
             for (const data of lodData) {
                 data.drawBuffer.Destroy();

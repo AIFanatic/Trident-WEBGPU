@@ -22,52 +22,54 @@ export class LineRenderer extends Components.Mesh {
 
     public async Start() {
         super.Start();
-        this.material = new GPU.Material({ isDeferred: false });
-
-        this.material.shader = await GPU.Shader.Create({
-            code: `
-            #include "@trident/core/resources/webgpu/shaders/deferred/Common.wgsl";
-
-            struct VertexInput {
-                @builtin(instance_index) instanceIdx : u32, 
-                @location(0) position : vec3<f32>,
-                @location(1) color : vec4<f32>,
-            };
-            
-            struct VertexOutput {
-                @builtin(position) position : vec4<f32>,
-                @location(0) vPosition : vec3<f32>,
-                @location(1) vColor : vec3<f32>,
-            };
-            
-            @group(0) @binding(0) var<storage, read> frameBuffer: FrameBuffer;
-            @group(0) @binding(1) var<storage, read> modelMatrix: array<mat4x4<f32>>;
-            
-            @vertex
-            fn vertexMain(input: VertexInput) -> VertexOutput {
-                var output : VertexOutput;
-            
-                var modelMatrixInstance = modelMatrix[input.instanceIdx];
-                var modelViewMatrix = frameBuffer.viewMatrix * modelMatrixInstance;
-            
-                output.position = frameBuffer.projectionMatrix * modelViewMatrix * vec4(input.position, 1.0);
+        this.material = new GPU.ShaderMaterial({
+            isDeferred: false,
+            shader: await GPU.Shader.Create({
+                code: `
+                #include "@trident/core/resources/webgpu/shaders/deferred/Common.wgsl";
+    
+                struct VertexInput {
+                    @builtin(instance_index) instanceIdx : u32, 
+                    @location(0) position : vec3<f32>,
+                    @location(1) color : vec4<f32>,
+                };
                 
-                output.vPosition = input.position;
-                output.vColor = input.color.rgb;
-            
-                return output;
-            }
-            
-            @fragment
-            fn fragmentMain(input: VertexOutput) -> @location(0) vec4f {
-                return vec4f(input.vColor, 1.0);
-            }
-            `,
-            topology: GPU.Topology.Lines,
-            cullMode: "none",
-            colorOutputs: [{ format: "rgba16float" }],
-            depthOutput: "depth24plus",
+                struct VertexOutput {
+                    @builtin(position) position : vec4<f32>,
+                    @location(0) vPosition : vec3<f32>,
+                    @location(1) vColor : vec3<f32>,
+                };
+                
+                @group(0) @binding(0) var<storage, read> frameBuffer: FrameBuffer;
+                @group(0) @binding(1) var<storage, read> modelMatrix: array<mat4x4<f32>>;
+                
+                @vertex
+                fn vertexMain(input: VertexInput) -> VertexOutput {
+                    var output : VertexOutput;
+                
+                    var modelMatrixInstance = modelMatrix[input.instanceIdx];
+                    var modelViewMatrix = frameBuffer.viewMatrix * modelMatrixInstance;
+                
+                    output.position = frameBuffer.projectionMatrix * modelViewMatrix * vec4(input.position, 1.0);
+                    
+                    output.vPosition = input.position;
+                    output.vColor = input.color.rgb;
+                
+                    return output;
+                }
+                
+                @fragment
+                fn fragmentMain(input: VertexOutput) -> @location(0) vec4f {
+                    return vec4f(input.vColor, 1.0);
+                }
+                `,
+                topology: GPU.Topology.Lines,
+                cullMode: "none",
+                colorOutputs: [{ format: "rgba16float" }],
+                depthOutput: "depth24plus",
+            })
         });
+
     }
 
     public SetPositions(positions: Mathf.Vector3[] | Float32Array) {
