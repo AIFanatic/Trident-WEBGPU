@@ -86,3 +86,5 @@ export { TerrainProcedural } from "./TerrainProcedural";
 export { TerrainProceduralProp } from "./TerrainProceduralProp";
 
 export * from "./FoliageMaterial";
+
+export * from "./Bindless";
