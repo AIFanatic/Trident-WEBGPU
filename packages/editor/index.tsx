@@ -15,6 +15,8 @@ import { PhysicsRapier } from "@trident/plugins/PhysicsRapier/PhysicsRapier";
 // import "./helpers/LeakTracker";
 
 import { Debugger } from "@trident/plugins/Debugger";
+import { UITextureViewer } from "@trident/plugins/ui/UIStats";
+import { BindlessVT } from "@trident/plugins/Bindless/BindlessVT";
 
 export type EditorEventHandler<T extends (...args: any[]) => void> = (...args: Parameters<T>) => void;
 
@@ -72,7 +74,11 @@ class App extends Component {
 
             TridentAPI.EventSystem.emit(SceneEvents.Loaded, currentScene);
 
-            // Debugger.Enable()
+            // Debugger.Enable();
+
+            // const atlasView = new UITextureViewer(Debugger.ui, "VT Atlas", BindlessVT.manager.Atlas());
+            // const tableView = new UITextureViewer(Debugger.ui, "VT PageTable", BindlessVT.manager.PageTables());
+            // setInterval(() => { atlasView.Update(); tableView.Update(); }, 1000);            
         })
     }
 

@@ -86,6 +86,7 @@ export abstract class Material<TParams extends MaterialParams = MaterialParams> 
 
         this.pendingShaderCreation = (async () => {
             const shader = await this.BuildShader();
+            if (!shader) throw new Error(`${this.constructor.name}.BuildShader() returned no shader — material not fully configured`);
             shader.OnPreRender = () => { this.Sync(); return true; };
 
             const old = this._shader;   // build new, then swap — no gap
@@ -120,8 +121,8 @@ export class PBRMaterialParams extends MaterialParams {
 
     @SerializeField public albedoColor = new Color(1, 1, 1, 1);
     @SerializeField public emissiveColor = new Color(0, 0, 0, 0);
-    @SerializeField public roughness = 0.5;
-    @SerializeField public metalness = 0.0;
+    @SerializeField public roughness = 1.0;
+    @SerializeField public metalness = 1.0;
     @SerializeField public unlit = false;
     @SerializeField public alphaCutoff = 0.5;
     @SerializeField public repeat = new Vector2(1, 1);

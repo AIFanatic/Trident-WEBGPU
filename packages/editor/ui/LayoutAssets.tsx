@@ -89,8 +89,11 @@ export class LayoutAssets extends Component<BaseProps, LayoutAssetsState> {
 
         TridentAPI.EventSystem.on(FileEvents.Changed, async (path: string) => {
             if (!path.endsWith(".ts")) return;
-            await ReloadScript(this.props.engineAPI, path).then(value => { console.log(`[auto-reload] ${path}`) }).catch(err => console.error(`[auto-reload] ${path}`, err));
-            TridentAPI.EventSystem.emit(LayoutAssetEvents.ScriptReloaded);
+            await ReloadScript(this.props.engineAPI, path).then(value => {
+                console.log(`[auto-reload] ${path}`);
+                TridentAPI.EventSystem.emit(LayoutAssetEvents.ScriptReloaded);
+            }
+            ).catch(err => console.error(`[auto-reload] ${path}`, err));
         });
 
         TridentAPI.EventSystem.on(LayoutAssetEvents.RequestSaveAsset, (material) => {

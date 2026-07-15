@@ -383,7 +383,7 @@ export class DeferredShadowMapPass extends RenderPass {
         if (!this.initialized) return;
         const mainCamera = Camera.mainCamera;
         if (!mainCamera) return;
-        if (!ShadowMapSettings.r_shadows_enabled) return;
+        if (!ShadowMapSettings.r_shadows_enabled.value) return;
 
         const frameData = resources.getResource(PassParams.FrameRenderData) as FrameRenderData | undefined;
         if (!frameData) return;
@@ -436,6 +436,7 @@ export class DeferredShadowMapPass extends RenderPass {
     public execute(resources: ResourcePool) {
         if (!this.initialized) return;
         if (this.lightShadowData.size === 0) return;
+        if (!ShadowMapSettings.r_shadows_enabled.value) return;
 
         const shadowOutput = this.shadowOutput;
         shadowOutput.SetActiveLayer(0);

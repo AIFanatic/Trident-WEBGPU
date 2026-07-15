@@ -1,7 +1,5 @@
 import { Camera } from "../../components/Camera";
-import { InstancedMesh } from "../../components/InstancedMesh";
 import { Light } from "../../components/Light";
-import { Mesh } from "../../components/Mesh";
 import { Renderable } from "../../components/Renderable";
 import { Buffer } from "../Buffer";
 import { RenderPass, ResourcePool } from "../RenderGraph";

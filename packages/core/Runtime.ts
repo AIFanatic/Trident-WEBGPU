@@ -59,8 +59,8 @@ export class Runtime {
 }
 
 export class PlayerRuntime extends Runtime {
-    public static async Create(canvas: HTMLCanvasElement, aspectRatio = 1): Promise<Runtime> {
-        await Runtime.Create(canvas, aspectRatio);
+    public static async Create(canvas: HTMLCanvasElement): Promise<Runtime> {
+        await Runtime.Create(canvas);
 
         const loop = () => {
             this.Tick();

@@ -184,3 +184,7 @@ input[type=number] {
 .button:hover {
     opacity: 0.5;
 }
+
+.disabled {
+    opacity: 0.5;
+}

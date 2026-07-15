@@ -2,6 +2,8 @@ import { Deserializer, GameObject, ISerializedScene, Runtime, Scene, SceneExecut
 import { EditorScene } from "./EditorScene";
 import { EnvironmentManager } from "./EnvironmentManager";
 
+import { PhysicsDebugger } from "@trident/plugins/PhysicsRapier/PhysicsDebugger";
+
 export class EditorRuntime extends Runtime {
     public static isPlaying = false;
     private static snapshot: ISerializedScene | null = null;
@@ -23,6 +25,14 @@ export class EditorRuntime extends Runtime {
 
         const go = new GameObject(scene);
         go.name = "EditorScene";
+
+        // PhysicsDebugger
+        {
+            const go = new GameObject(scene);
+            go.name = "PhysicsDebugger";
+            go.AddComponent(PhysicsDebugger);
+        }
+
         return go.AddComponent(EditorScene);
     }
 
