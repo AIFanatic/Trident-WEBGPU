@@ -181,6 +181,7 @@ export class LayoutInspectorGameObject extends Component<LayoutInspectorProps> {
 
     private onGameObjectEnabled(event: Event) {
         this.props.gameObject.enabled = (event.currentTarget as HTMLInputElement).checked;
+        TridentAPI.EventSystem.emit(GameObjectEvents.Changed, this.props.gameObject);
     }
 
     private onDragEnter(event: DragEvent) {

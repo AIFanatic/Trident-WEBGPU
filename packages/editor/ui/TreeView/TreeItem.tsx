@@ -5,6 +5,7 @@ interface TreeItemProps {
     id?: string;
     isSelected?: boolean;
     data?: any;
+    className?: string;
     onPointerDown?: () => void;
     onClicked?: () => void;
     onPointerUp?: () => void;
@@ -49,28 +50,26 @@ export class TreeItem extends Component<TreeItemProps> {
         this.lastClickTs = now;
     }
 
-    private onClick(event: MouseEvent) {
+    private onClick(event: Event) {
         if (this.props.onClicked) this.props.onClicked();
     }
 
     public render() {
-        let classes = "item-title";
-        if (this.props.isSelected) classes += " active";
-
+        const classes = `item-title ${this.props.isSelected ? "active": ""} ${this.props.className}`;
         return (
             <div className="item">
                 <div
                     style={{ display: "flex", alignItems: "center" }}
                     className={classes}
                     draggable={true}
-                    onDragStart={(event) => this.onDragStart(event)}
-                    onDragEnter={(event) => this.onDragEnter(event)}
-                    onDragLeave={(event) => this.onDragLeave(event)}
-                    onDrop={(event) => this.onDrop(event)}
-                    onDragOver={(event) => this.onDragOver(event)}
-                    onPointerDown={(event) => this.onPointerDown(event)}
-                    onPointerUp={(event) => { if (this.props.onPointerUp) this.props.onPointerUp(); }}
-                    onClick={(event) => this.onClick(event)}
+                    onDragStart={(event: DragEvent) => this.onDragStart(event)}
+                    onDragEnter={(event: DragEvent) => this.onDragEnter(event)}
+                    onDragLeave={(event: DragEvent) => this.onDragLeave(event)}
+                    onDrop={(event: DragEvent) => this.onDrop(event)}
+                    onDragOver={(event: DragEvent) => this.onDragOver(event)}
+                    onPointerDown={(event: PointerEvent) => this.onPointerDown(event)}
+                    onPointerUp={(event: PointerEvent) => { if (this.props.onPointerUp) this.props.onPointerUp(); }}
+                    onClick={(event: Event) => this.onClick(event)}
                 >
                     <span style={{ paddingLeft: "15px" }}></span>
                     { this.props.render ? this.props.render : <span>{this.props.name}</span> }

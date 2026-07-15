@@ -96,6 +96,10 @@
     background-color: #3498db50;
 }
 
+.red-text {
+    color: #e74c3c;
+}
+
 .vec-label {
     padding: 5px;
     font-size: 9px;

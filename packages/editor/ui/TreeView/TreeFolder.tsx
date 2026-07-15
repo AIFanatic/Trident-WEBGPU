@@ -7,6 +7,7 @@ interface TreeFolderProps {
     id?: string;
     isSelected?: boolean;
     data?: any;
+    className?: string;
     onPointerDown?: () => void;
     onPointerUp?: () => void;
     onDoubleClicked?: () => void;
@@ -58,8 +59,7 @@ export class TreeFolder extends Component<TreeFolderProps, TreeFolderState> {
     private onDragLeave(event: DragEvent) { if (this.folderRef) this.folderRef.style.backgroundColor = ""; }
 
     public render() {
-        let classes = "item-title";
-        if (this.props.isSelected) classes += " active";
+        const classes = `item-title ${this.props.isSelected ? "active": ""} ${this.props.className}`;
 
         return (
             <div key={this.props.key} className="item" ref={(ref) => this.folderRef = ref}>

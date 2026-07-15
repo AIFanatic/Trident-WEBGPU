@@ -8,9 +8,7 @@ import { TreeFolder } from "./TreeView/TreeFolder";
 import { TreeItem } from "./TreeView/TreeItem";
 import { Tree } from "./TreeView/Tree";
 import { FloatingMenu } from "./FloatingMenu";
-import { SaveToFile } from "../commands/SaveToFile";
 import { TridentAPI } from "../engine-api/trident/TridentAPI";
-import { Serializer } from "@trident/core";
 import { SaveAsset } from "../commands/SaveAsset";
 
 export class LayoutHierarchyEvents {
@@ -50,7 +48,6 @@ export class LayoutHierarchy extends Component<BaseProps, LayoutHierarchyState> 
     }
 
     private selectGameObject(gameObject: IGameObject) {
-        console.log(gameObject)
         TridentAPI.EventSystem.emit(LayoutHierarchyEvents.Selected, gameObject);
         this.setState({ ...this.state, selectedGameObject: gameObject });
     }
@@ -129,7 +126,7 @@ export class LayoutHierarchy extends Component<BaseProps, LayoutHierarchyState> 
         const terrainCollider = this.props.engineAPI.addComponent(gameObject, ComponentRegistry.TerrainCollider) as any;
         const terrainEditor = this.props.engineAPI.addComponent(gameObject, ComponentRegistry.TerrainEditor) as any;
         terrainCollider.terrainData = terrain.terrainData;
-        
+
         const terrainPath = `${gameObject.name}_${gameObject.id}.terrain`;
         terrain.terrainData.assetPath = terrainPath;
         SaveAsset(terrain.terrainData);
@@ -161,7 +158,10 @@ export class LayoutHierarchy extends Component<BaseProps, LayoutHierarchyState> 
     }
 
     private renderGameObjects(gameObjects: IGameObject[]) {
+        const isPrefabInstance = (go: IGameObject): boolean => typeof go.assetPath === "string" && go.assetPath.length > 0;
+
         return gameObjects.map(go => {
+            const className = `${!go.enabled ? "disabled" : ""} ${isPrefabInstance(go) ? "red-text" : ""}`
             const isSelected = this.state.selectedGameObject === go;
 
             const children = Array.from(go.transform.children).map(c => c.gameObject).filter(go => (go.flags & this.props.engineAPI.flags.HideInHierarchy) === 0);
@@ -170,6 +170,7 @@ export class LayoutHierarchy extends Component<BaseProps, LayoutHierarchyState> 
                 return <TreeFolder
                     name={go.name}
                     id={go.transform.id}
+                    className={className}
                     isSelected={isSelected}
                     onClicked={() => this.selectGameObject(go)}
                     onDroppedItem={(from, to) => this.onDroppedItem(from, to)}
@@ -181,6 +182,7 @@ export class LayoutHierarchy extends Component<BaseProps, LayoutHierarchyState> 
             return <TreeItem
                 name={go.name}
                 id={go.transform.id}
+                className={className}
                 isSelected={isSelected}
                 onClicked={() => this.selectGameObject(go)}
                 onDroppedItem={(from, to) => this.onDroppedItem(from, to)}
