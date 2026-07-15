@@ -34,7 +34,7 @@ export class PaintPropData {
             const mesh = meshes[0];
             if (!mesh.geometry || !mesh.material) throw Error("Mesh has no geometry or material.");
 
-            lods = [{renderers: [{geometry: mesh.geometry, material: mesh.material}], screenSize: 0}];
+            lods = [{ renderers: [{ geometry: mesh.geometry, material: mesh.material }], screenSize: 0 }];
         }
 
         // Copy LODGroup
@@ -76,6 +76,8 @@ export class TerrainData {
     @NonSerialized public geometry: Geometry;
     @SerializeField public material: TerrainMaterial;
 
+    private heightsBuffer: GPU.Buffer;
+
     private _heights: Float32Array;
     @SerializeField(Float32Array) public get heights(): Float32Array { return this._heights };
     public set heights(heights: Float32Array) {
@@ -89,7 +91,18 @@ export class TerrainData {
             heights = TerrainData.resampleHeights(heights, expectedSide);
         }
         this._heights = heights;
+
+        if (!this.heightsBuffer || this.heightsBuffer.size !== heights.byteLength) {
+            this.heightsBuffer?.Destroy();
+            this.heightsBuffer = new GPU.Buffer(heights.byteLength, GPU.BufferType.STORAGE);
+        }
+        this.heightsBuffer.SetArray(heights);   // ← always, not just on (re)alloc
+
         this.RebuildGeometry();
+    }
+
+    public GetHeightsBuffer(): GPU.Buffer {
+        return this.heightsBuffer;
     }
 
     @SerializeField public paintMapResolution: number = 256;
@@ -363,6 +376,7 @@ export class TerrainData {
         this.geometry?.Destroy();
         this.material?.Destroy();
         this.materialIdMapTexture?.Destroy();
+        this.heightsBuffer?.Destroy();
     }
 }
 
