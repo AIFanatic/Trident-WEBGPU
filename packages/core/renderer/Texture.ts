@@ -116,7 +116,7 @@ export class Texture {
         texture.SetData(data, 4);
         return texture;
     }
-    
+
     public static get WhiteTexture(): Texture {
         if (!this._WhiteTexture) Texture._WhiteTexture = Texture.CreateTextureWithData(new Uint8Array([255, 255, 255, 255]));
         return Texture._WhiteTexture;
@@ -176,7 +176,7 @@ export class Texture {
     public GetBuffer(): GPUTexture { return this.buffer }
 
     public GetView(): GPUTextureView {
-        const key = `${this.currentLayer}-${this.currentMip}`;
+        const key = `${this.currentLayer}-${this.currentMip}-${this.activeMipCount}`;
         let view = this.viewCache.get(key);
         if (!view) {
             const viewDimension =
@@ -201,6 +201,27 @@ export class Texture {
             Renderer.info.gpuBandwidthInBytes += this.byteSize;
             this.lastBandwidthFrame = Renderer.info.frame;
         }
+        return view;
+    }
+
+    public GetBindingView(baseMipLevel: number, mipLevelCount: number): GPUTextureView {
+        const arrayLayerCount = this.dimension !== "3d" ? this.depth : 1;
+        const key = `binding-${this.dimension}-${baseMipLevel}-${mipLevelCount}-${arrayLayerCount}`;
+
+        let view = this.viewCache.get(key);
+        if (!view) {
+            view = this.buffer.createView({
+                dimension: this.dimension,
+                arrayLayerCount,
+                baseArrayLayer: 0,
+                baseMipLevel,
+                mipLevelCount,
+            });
+
+            this.viewCache.set(key, view);
+            Renderer.info.textureViews++;
+        }
+
         return view;
     }
 

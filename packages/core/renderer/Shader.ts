@@ -288,19 +288,8 @@ class BaseShader {
                 group.buffers.push(uniform.buffer);
             }
             else if (uniform.buffer instanceof Texture) {
-                // TODO: Can this use Texture.GetView()?
-                // Remember this is for binding textures not color/depth outputs
-                const view: GPUTextureViewDescriptor = {
-                    dimension: uniform.buffer.dimension,
-                    arrayLayerCount: uniform.buffer.dimension != "3d" ? uniform.buffer.GetBuffer().depthOrArrayLayers : 1,
-                    // arrayLayerCount: uniform.buffer.GetBuffer().depthOrArrayLayers,
-                    baseArrayLayer: 0,
-                    baseMipLevel: uniform.textureMip,
-                    mipLevelCount: uniform.activeMipCount
-                };
-                group.entries.push({ binding: uniform.binding, resource: uniform.buffer.GetBuffer().createView(view) });
+                group.entries.push({ binding: uniform.binding, resource: uniform.buffer.GetBindingView(uniform.textureMip ?? 0,uniform.activeMipCount ?? uniform.buffer.mipLevels)});
                 group.buffers.push(uniform.buffer);
-                Renderer.info.textureViews++;
             }
             else if (uniform.buffer instanceof TextureSampler) {
                 group.entries.push({ binding: uniform.binding, resource: uniform.buffer.GetBuffer() });
@@ -344,6 +333,7 @@ class BaseShader {
             uniform.buffer = new Buffer(data.byteLength, type);
             uniform.ownedByShader = true;
             this.needsUpdate = true;
+            // console.log(`[DIRTY] ${(this.params as any)?.name ?? "shader"} :: ${name} — array buffer created (first time)`);
         }
 
         Renderer.device.queue.writeBuffer(uniform.buffer.GetBuffer() as GPUBuffer, bufferOffset, data, dataOffset, size);
@@ -353,6 +343,7 @@ class BaseShader {
 
         const binding = this.GetValidUniform(name);
         if (!binding.buffer || binding.buffer.GetBuffer() !== data.GetBuffer()) {
+            // console.log(`[DIRTY] ${(this.params as any)?.name ?? "shader"} :: ${name} — ${binding.buffer ? "buffer OBJECT changed" : "first bind"}`);
             // Destroy if owned by the shader (from SetArray)
             if (binding.ownedByShader && (binding.buffer instanceof Buffer || binding.buffer instanceof DynamicBuffer)) binding.buffer.Destroy();
             binding.buffer = data;
@@ -364,6 +355,7 @@ class BaseShader {
             const activeMipCount = data.GetActiveMipCount();
 
             if (binding.textureMip !== textureMip || binding.activeMipCount !== activeMipCount) {
+                // console.log(`[DIRTY] ${(this.params as any)?.name ?? "shader"} :: ${name} — mip changed (${binding.textureMip}/${binding.activeMipCount} → ${textureMip}/${activeMipCount})`);
                 this.needsUpdate = true;
             }
 
