@@ -3984,6 +3984,7 @@ class TreeFolder extends Component {
         },
         /* @__PURE__ */ createElement(Arrow, { isOpen: this.state.isOpen })
       ),
+      /* @__PURE__ */ createElement("span", { style: { paddingRight: "5px" } }, this.props.icon ?? null),
       /* @__PURE__ */ createElement("span", null, this.props.name)
     ), /* @__PURE__ */ createElement("div", { className: "item-content", style: { height: this.state.isOpen ? "auto" : "0" } }, [this.props.children].flat(Infinity)));
   }
@@ -4008,7 +4009,7 @@ class TreeItem extends Component {
     event.preventDefault();
   }
   onDragEnter(event) {
-    event.currentTarget.style.backgroundColor = "#3498db80";
+    event.currentTarget.style.backgroundColor = "var(--accent-translucent)";
   }
   onDragLeave(event) {
     event.currentTarget.style.backgroundColor = "";
@@ -4046,6 +4047,7 @@ class TreeItem extends Component {
         onClick: (event) => this.onClick(event)
       },
       /* @__PURE__ */ createElement("span", { style: { paddingLeft: "15px" } }),
+      /* @__PURE__ */ createElement("span", { style: { paddingRight: "5px" } }, this.props.icon ?? null),
       this.props.render ? this.props.render : /* @__PURE__ */ createElement("span", null, this.props.name)
     ));
   }
@@ -4631,6 +4633,10 @@ class LayoutAssets extends Component {
   }
 }
 
+const GameObjectIcon = (props) => /* @__PURE__ */ createElement("svg", { xmlns: "http://www.w3.org/2000/svg", width: "16", height: "16", fill: "currentColor", viewBox: "0 0 16 16", ...props }, /* @__PURE__ */ createElement("path", { d: "M4 11.5V15l-3-1.5V10zM8 13.5 5 15v-3.5L8 10zM12 11.5V15l-3-1.5V10zM16 13.5 13 15v-3.5l3-1.5zM7.5 9l-3 1.5-3-1.5 3-1.5zM15.5 9l-3 1.5-3-1.5 3-1.5zM8 4.5V8L5 6.5V3zM12 6.5 9 8V4.5L12 3zM11.5 2l-3 1.5-3-1.5 3-1.5z" }));
+
+const ArchiveIcon = (props) => /* @__PURE__ */ createElement("svg", { xmlns: "http://www.w3.org/2000/svg", width: "16", height: "16", fill: "currentColor", viewBox: "0 0 16 16", ...props }, /* @__PURE__ */ createElement("path", { d: "M14 14a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V6h12zM6 7a1 1 0 0 0 0 2h4a1 1 0 1 0 0-2zM14 1a1 1 0 0 1 1 1v3H1V2a1 1 0 0 1 1-1z" }));
+
 class LayoutHierarchyEvents {
   static Selected = (gameObject) => {
   };
@@ -4699,6 +4705,12 @@ class LayoutHierarchy extends Component {
     TridentAPI.EventSystem.emit(GameObjectEvents.Created, gameObject);
     this.setState({ ...this.state, headerMenuOpen: !this.state.headerMenuOpen });
   }
+  async cloneGameObject() {
+    if (this.state.selectedGameObject === null) return;
+    const cloned = await this.state.selectedGameObject.Clone();
+    TridentAPI.EventSystem.emit(GameObjectEvents.Created, cloned);
+    this.setState({ headerMenuOpen: !this.state.headerMenuOpen, selectedGameObject: cloned });
+  }
   deleteGameObject() {
     if (this.state.selectedGameObject === null) return;
     this.state.selectedGameObject.Destroy();
@@ -4750,15 +4762,18 @@ class LayoutHierarchy extends Component {
   renderGameObjects(gameObjects) {
     const isPrefabInstance = (go) => typeof go.assetPath === "string" && go.assetPath.length > 0;
     return gameObjects.map((go) => {
-      const className = `${!go.enabled ? "disabled" : ""} ${isPrefabInstance(go) ? "red-text" : ""}`;
+      const className = `${!go.enabled ? "disabled" : ""}`;
       const isSelected = this.state.selectedGameObject === go;
       const children = Array.from(go.transform.children).map((c) => c.gameObject).filter((go2) => (go2.flags & this.props.engineAPI.flags.HideInHierarchy) === 0);
+      let icon = /* @__PURE__ */ createElement(GameObjectIcon, { style: "color: #6cf" });
+      if (isPrefabInstance(go)) icon = /* @__PURE__ */ createElement(ArchiveIcon, { style: "color: red" });
       if (children.length > 0) {
         return /* @__PURE__ */ createElement(
           TreeFolder,
           {
             name: go.name,
             id: go.transform.id,
+            icon,
             className,
             isSelected,
             onClicked: () => this.selectGameObject(go),
@@ -4773,6 +4788,7 @@ class LayoutHierarchy extends Component {
         {
           name: go.name,
           id: go.transform.id,
+          icon,
           className,
           isSelected,
           onClicked: () => this.selectGameObject(go),
@@ -4787,7 +4803,7 @@ class LayoutHierarchy extends Component {
     const rootGameObjects = this.props.engineAPI.currentScene.GetGameObjects().filter((go) => !go.transform.parent && (go.flags & this.props.engineAPI.flags.HideInHierarchy) === 0);
     return /* @__PURE__ */ createElement("div", { class: "Layout" }, /* @__PURE__ */ createElement("div", { class: "header" }, /* @__PURE__ */ createElement("div", { class: "title" }, this.props.engineAPI.currentScene.name || "Untitled scene"), /* @__PURE__ */ createElement("div", { class: "right-action" }, /* @__PURE__ */ createElement("button", { onClick: (event) => {
       this.setState({ ...this.state, headerMenuOpen: !this.state.headerMenuOpen });
-    } }, "\u22EE"), /* @__PURE__ */ createElement(FloatingMenu, { visible: this.state.headerMenuOpen, onClose: () => this.setState({ ...this.state, headerMenuOpen: false }) }, /* @__PURE__ */ createElement(Tree, null, /* @__PURE__ */ createElement(TreeItem, { name: "Create Empty", onPointerDown: () => this.createEmptyGameObject() }), /* @__PURE__ */ createElement(TreeItem, { name: "Delete", onPointerDown: () => this.deleteGameObject() }), /* @__PURE__ */ createElement(TreeItem, { name: "Unpack Prefab", onPointerDown: () => this.unpackSelectedPrefab() }), /* @__PURE__ */ createElement(TreeFolder, { name: "3D Object" }, /* @__PURE__ */ createElement(TreeItem, { name: "Cube", onPointerDown: () => this.createPrimitive("Cube") }), /* @__PURE__ */ createElement(TreeItem, { name: "Capsule", onPointerDown: () => this.createPrimitive("Capsule") }), /* @__PURE__ */ createElement(TreeItem, { name: "Plane", onPointerDown: () => this.createPrimitive("Plane") }), /* @__PURE__ */ createElement(TreeItem, { name: "Sphere", onPointerDown: () => this.createPrimitive("Sphere") }), /* @__PURE__ */ createElement(TreeItem, { name: "Terrain", onPointerDown: () => this.createTerrain() })), /* @__PURE__ */ createElement(TreeFolder, { name: "Lights" }, /* @__PURE__ */ createElement(TreeItem, { name: "Directional Light", onPointerDown: () => this.createLight("Directional") }), /* @__PURE__ */ createElement(TreeItem, { name: "Point Light", onPointerDown: () => this.createLight("Point") }), /* @__PURE__ */ createElement(TreeItem, { name: "Spot Light", onPointerDown: () => this.createLight("Spot") })))))), /* @__PURE__ */ createElement(
+    } }, "\u22EE"), /* @__PURE__ */ createElement(FloatingMenu, { visible: this.state.headerMenuOpen, onClose: () => this.setState({ ...this.state, headerMenuOpen: false }) }, /* @__PURE__ */ createElement(Tree, null, /* @__PURE__ */ createElement(TreeItem, { name: "Create Empty", onPointerDown: () => this.createEmptyGameObject() }), /* @__PURE__ */ createElement(TreeItem, { name: "Clone", onPointerDown: () => this.cloneGameObject() }), /* @__PURE__ */ createElement(TreeItem, { name: "Delete", onPointerDown: () => this.deleteGameObject() }), /* @__PURE__ */ createElement(TreeItem, { name: "Unpack Prefab", onPointerDown: () => this.unpackSelectedPrefab() }), /* @__PURE__ */ createElement(TreeFolder, { name: "3D Object" }, /* @__PURE__ */ createElement(TreeItem, { name: "Cube", onPointerDown: () => this.createPrimitive("Cube") }), /* @__PURE__ */ createElement(TreeItem, { name: "Capsule", onPointerDown: () => this.createPrimitive("Capsule") }), /* @__PURE__ */ createElement(TreeItem, { name: "Plane", onPointerDown: () => this.createPrimitive("Plane") }), /* @__PURE__ */ createElement(TreeItem, { name: "Sphere", onPointerDown: () => this.createPrimitive("Sphere") }), /* @__PURE__ */ createElement(TreeItem, { name: "Terrain", onPointerDown: () => this.createTerrain() })), /* @__PURE__ */ createElement(TreeFolder, { name: "Lights" }, /* @__PURE__ */ createElement(TreeItem, { name: "Directional Light", onPointerDown: () => this.createLight("Directional") }), /* @__PURE__ */ createElement(TreeItem, { name: "Point Light", onPointerDown: () => this.createLight("Point") }), /* @__PURE__ */ createElement(TreeItem, { name: "Spot Light", onPointerDown: () => this.createLight("Spot") })))))), /* @__PURE__ */ createElement(
       "div",
       {
         style: "width: 100%; height: 100%; overflow: scroll;padding-top:5px",
@@ -5241,7 +5257,7 @@ class InspectorType extends Component {
     if (this.props.onChanged) this.props.onChanged(void 0);
   }
   render() {
-    return /* @__PURE__ */ createElement("div", { class: "edit", style: "position: relative" }, /* @__PURE__ */ createElement("span", { class: `vec-label`, style: `background-color: #e67e2250; cursor: auto` }, "\u25C9"), /* @__PURE__ */ createElement(
+    return /* @__PURE__ */ createElement("div", { class: "edit", style: "position: relative" }, /* @__PURE__ */ createElement("span", { class: `vec-label`, style: `background-color: var(--tint-orange); cursor: auto` }, "\u25C9"), /* @__PURE__ */ createElement(
       "input",
       {
         className: "input",
@@ -5672,7 +5688,7 @@ class InspectorMaterial extends Component {
       "button",
       {
         class: "Floating-Menu",
-        style: { position: "initial", margin: "10px", width: "calc(100% - 20px)", color: "white", cursor: "pointer" },
+        style: { position: "initial", margin: "10px", width: "calc(100% - 20px)", color: "var(--text)", cursor: "pointer" },
         onClick: () => this.SaveClicked()
       },
       "SAVE"

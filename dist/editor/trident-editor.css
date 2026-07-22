@@ -1,10 +1,57 @@
+:root {
+    /* ── surfaces ── */
+    --bg-app: #1a1a1a;               /* page background */
+    --bg-panel: #222;                /* docked panels (flex-item) */
+    --bg-elevated: #262626;          /* floating menus */
+    --bg-card: #1a1a1a;              /* collapsible cards, popups */
+    --bg-input: #121212;             /* inputs, buttons */
+    --bg-hover: #363636;             /* resizer hover */
+    --bg-header-selected: #272727;   /* selected header tab */
+
+    /* ── borders ── */
+    --border-strong: black;          /* inputs, buttons, popups */
+    --border-subtle: #2b2b2b;        /* panel header underline */
+    --border-faint: #ffffff10;       /* card outline */
+    --border-input-hover: #4d4d4d;
+
+    /* ── text ── */
+    --text: white;
+    --text-warn: yellow;
+    --text-error: red;
+
+    /* ── selection & accent ── */
+    --selection: #7ea8d4;            /* tree selection (was --page-blue) */
+    --accent-translucent: #3498db80; /* active inputs, drag-over targets */
+
+    /* ── controls ── */
+    --slider-track: #4d4d4d;
+    --slider-thumb: #bfbfbf;
+    --checkbox-accent: #7f8c8d;
+    --scrollbar-thumb: #333;
+    --scrollbar-thumb-hover: #444;
+
+    /* ── inspector tints ── */
+    --tint-gray: #7f8c8d50;
+    --tint-red: #e74c3c50;
+    --tint-green: #2ecc7150;
+    --tint-blue: #3498db50;
+    --tint-orange: #e67e2250;
+    --status-error: #e74c3c;
+
+    /* ── chrome ── */
+    --shadow-popup: 1px 1px 3px 0px black;
+    --radius-lg: 24px;
+    --radius-md: 16px;
+    --radius-sm: 11px;
+}
+
 html, body {
     margin:0;
     height: 100%;
-    color: white;
+    color: var(--text);
     font-family: monospace;
     font-size: 10px;
-    background-color: #1a1a1a;
+    background-color: var(--bg-app);
 }
 
 ::-webkit-scrollbar {
@@ -16,16 +63,16 @@ html, body {
 }
 
 ::-webkit-scrollbar-thumb {
-    background: #333;
+    background: var(--scrollbar-thumb);
     border-radius: 5px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-    background: #444; 
+    background: var(--scrollbar-thumb-hover);
 }
 
 input[type="checkbox"] {
-    accent-color: #7f8c8d;
+    accent-color: var(--checkbox-accent);
 }
 
 flex {
@@ -71,17 +118,17 @@ flex-item {
     display: flex;
     overflow: hidden;
     border-radius: 20px;
-    background: #222;
+    background: var(--bg-panel);
     margin: 10px;
 }
 
 flex.h>flex-resizer:hover {
-    background-color: #363636;
+    background-color: var(--bg-hover);
     width: 20px;
 }
 
 flex.v>flex-resizer:hover {
-    background-color: #363636;
+    background-color: var(--bg-hover);
     height: 20px;
 }
 
@@ -105,20 +152,6 @@ input[type=number] {
   -moz-appearance: textfield;
 }
 
-
-/* LayoutConsole */
-.LayoutConsole {
-    width: 100%;
-}
-
-.LayoutConsole > .warn {
-    color: yellow;
-}
-
-.LayoutConsole > .error {
-    color: red;
-}
-
 .Layout {
     width: 100%;
 }
@@ -127,7 +160,7 @@ input[type=number] {
     display: flex;
     align-items: center;
     width: 100%;
-    border-bottom: 1px solid #2b2b2b;
+    border-bottom: 1px solid var(--border-subtle);
     padding-left: 10px;
     padding-top: 5px;
 }
@@ -139,7 +172,7 @@ input[type=number] {
 }
 
 .Layout > .header > .selected {
-    background-color: #272727;
+    background-color: var(--bg-header-selected);
 }
 
 .Layout > .header > .right-action {
@@ -161,10 +194,10 @@ input[type=number] {
 
 .Floating-Menu {
     position: absolute;
-    background-color: #262626;
+    background-color: var(--bg-elevated);
     border-radius: 10px;
-    box-shadow: 1px 1px 3px 0px black;
-    border: 1px solid #262626;
+    box-shadow: var(--shadow-popup);
+    border: 1px solid var(--bg-elevated);
     padding: 10px;
     z-index: 1;
     font-size: 10px;
@@ -172,9 +205,9 @@ input[type=number] {
 
 .button {
     font-size: 9px;
-    color: white;
-    background-color: #121212;
-    border: 1px solid black;
+    color: var(--text);
+    background-color: var(--bg-input);
+    border: 1px solid var(--border-strong);
     border-radius: 5px;
     outline: none;
     cursor: pointer;
@@ -218,20 +251,20 @@ input[type=number] {
 .input {
     width: 100%;
     font-size: 9px;
-    background-color: #121212;
+    background-color: var(--bg-input);
     border-radius: 0px 5px 5px 0px;
-    color: white;
-    border: 1px solid black;
+    color: var(--text);
+    border: 1px solid var(--border-strong);
     outline: none;
     padding: 5px;
 }
 
 .input:hover {
-    border: 1px solid #4d4d4d;
+    border: 1px solid var(--border-input-hover);
 }
 
 .input.active {
-    background-color: #3498db80;
+    background-color: var(--accent-translucent);
 }
 
 .edit {
@@ -244,7 +277,7 @@ input[type=number] {
 .range {
     -webkit-appearance: none;
     height: 5px;
-    background: #4d4d4d;
+    background: var(--slider-track);
     outline: none;
 }
 
@@ -257,7 +290,7 @@ input[type=number] {
     appearance: none;
     width: 10px;
     height: 10px;
-    background: #bfbfbf;
+    background: var(--slider-thumb);
     cursor: pointer;
     border-radius: 50%;
 }
@@ -265,29 +298,29 @@ input[type=number] {
 .range::-moz-range-thumb {
     width: 10px;
     height: 10px;
-    background: #bfbfbf;
+    background: var(--slider-thumb);
     cursor: pointer;
     border-radius: 50%;
 }
 
 .gray-bg {
-    background-color: #7f8c8d50;
+    background-color: var(--tint-gray);
 }
 
 .red-bg {
-    background-color: #e74c3c50;
+    background-color: var(--tint-red);
 }
 
 .green-bg {
-    background-color: #2ecc7150;
+    background-color: var(--tint-green);
 }
 
 .blue-bg {
-    background-color: #3498db50;
+    background-color: var(--tint-blue);
 }
 
 .red-text {
-    color: #e74c3c;
+    color: var(--status-error);
 }
 
 .vec-label {
@@ -295,7 +328,7 @@ input[type=number] {
     font-size: 9px;
     border-top-left-radius: 5px;
     border-bottom-left-radius: 5px;
-    border: 1px solid black;
+    border: 1px solid var(--border-input-hover);
     display: flex;
     align-items: center;
 }
@@ -372,8 +405,8 @@ input[type=number] {
 .popup {
     padding: 5px;
     border-radius: 10px;
-    background-color: #1a1a1a;
-    border: 1px solid black;
+    background-color: var(--bg-card);
+    border: 1px solid var(--border-strong);
     z-index: 1;
 }
 .treeview {
@@ -388,7 +421,7 @@ input[type=number] {
 }
 
 .treeview .item .drag-hover {
-    background-color: red;
+    background-color: var(--accent-translucent);
 }
 
 .treeview .item .item-title {
@@ -396,7 +429,8 @@ input[type=number] {
 }
 
 .treeview .item .active {
-    background-color: #3498db;
+    background-color: var(--selection);
+    border-radius: 5px;
 }
 
 .treeview .item .item-title:before {
@@ -440,9 +474,9 @@ input[type=number] {
 .collapsible-card-edonec {
     margin: 10px;
     border-radius: 10px;
-    background-color: #1a1a1a;
-    box-shadow: 1px 1px 3px 0px black;
-    border: 1px solid #ffffff10;
+    background-color: var(--bg-card);
+    box-shadow: var(--shadow-popup);
+    border: 1px solid var(--border-faint);
 }
 
 .collapsible-header-edonec {
@@ -460,7 +494,7 @@ input[type=number] {
     cursor: pointer;
     overflow: hidden;
     outline: none;
-    color: white;
+    color: var(--text);
     font-size: 10px;
     width: 25px;
 }

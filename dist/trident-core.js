@@ -3314,6 +3314,7 @@ class RendererContext {
     this.AccumulateStats(shader, void 0, vertexCount, instanceCount);
   }
   static DrawIndirect(geometry, shader, indirectBuffer, indirectOffset = 0) {
+    if (!this.activeRenderPass) throw Error("No active render pass");
     if (!shader.OnPreRender(geometry)) return;
     this.BindGeometry(shader, geometry);
     if (!geometry.index) {
@@ -4602,13 +4603,15 @@ class LightEvents {
   };
 }
 class Light extends (_a$5 = Component, _color_dec = [SerializeField], _intensity_dec = [SerializeField], _castShadows_dec = [SerializeField], _a$5) {
-  constructor() {
-    super(...arguments);
+  constructor(gameObject) {
+    super(gameObject);
     __publicField$6(this, "runInEditMode", true);
     __publicField$6(this, "camera", new Camera(this.gameObject));
     __publicField$6(this, "color", __runInitializers$6(_init$6, 8, this, new Color(1, 1, 1))), __runInitializers$6(_init$6, 11, this);
     __publicField$6(this, "intensity", __runInitializers$6(_init$6, 12, this, 1)), __runInitializers$6(_init$6, 15, this);
     __publicField$6(this, "castShadows", __runInitializers$6(_init$6, 16, this, true)), __runInitializers$6(_init$6, 19, this);
+    this.camera.enabled = false;
+    if (Camera.mainCamera === this.camera) Camera.mainCamera = void 0;
   }
   Start() {
     EventSystemLocal.on(TransformEvents.Updated, this.transform, () => {
@@ -6472,6 +6475,7 @@ class SceneExtractPass extends RenderPass {
     const shadowCasters = [];
     const shadowInstancedMeshes = [];
     for (const [, renderable] of Renderable.Renderables) {
+      if (renderable.gameObject.scene !== scene) continue;
       if (!renderable.enabled || !renderable.gameObject.enabled) continue;
       if (!renderable.geometry || !renderable.geometry.attributes?.has("position")) continue;
       if (!renderable.material || !renderable.material.shader) continue;
@@ -7110,8 +7114,11 @@ var index$1 = /*#__PURE__*/Object.freeze({
 
 class SceneManager extends System {
   activeScene;
+  static scenes = [];
   CreateScene(name) {
-    return new Scene(name);
+    const scene = new Scene(name);
+    SceneManager.scenes.push(scene);
+    return scene;
   }
   async LoadSceneAsync(sceneSerialized) {
     const scene = this.CreateScene(sceneSerialized.name);
@@ -7124,9 +7131,16 @@ class SceneManager extends System {
   GetActiveScene() {
     return this.activeScene;
   }
+  GetScenes() {
+    return SceneManager.scenes;
+  }
   Update() {
-    if (!this.activeScene) return;
-    this.activeScene.Update();
+    for (const scene of SceneManager.scenes) scene.Update();
+  }
+  UnloadScene(scene) {
+    scene.Clear();
+    const sceneIndex = SceneManager.scenes.indexOf(scene);
+    if (sceneIndex !== -1) SceneManager.scenes.splice(sceneIndex, 1);
   }
 }
 
@@ -7193,110 +7207,6 @@ class PlayerRuntime extends Runtime {
     };
     loop();
     return this;
-  }
-}
-
-function getCtorChain$1(ctor) {
-  const chain = [];
-  for (let c = ctor; c && c !== Component; c = Object.getPrototypeOf(c)) {
-    chain.push(c);
-  }
-  return chain;
-}
-class GameObject {
-  flags = Flags.None;
-  id = UUID();
-  name = "GameObject";
-  scene;
-  transform;
-  componentsByCtor = /* @__PURE__ */ new Map();
-  allComponents = [];
-  activeSelf = true;
-  activeInHierarchy = true;
-  get enabled() {
-    return this.activeInHierarchy;
-  }
-  set enabled(value) {
-    this.activeSelf = value;
-    this.activeInHierarchy = value && (this.transform.parent?.gameObject.activeInHierarchy ?? true);
-    for (const child of this.transform.children) child.gameObject.enabled = child.gameObject.activeSelf;
-  }
-  assetPath;
-  constructor(scene) {
-    this.scene = scene ?? Runtime.SceneManager.GetActiveScene();
-    this.transform = new Transform(this);
-    this.scene.AddGameObject(this);
-    EventSystem.on(ComponentEvents.RemovedComponent, this.OnRemovedComponent);
-  }
-  AddComponent(Ctor, ...args) {
-    const componentInstance = new Ctor(this, ...args);
-    if (!(componentInstance instanceof Component)) throw new Error(`Invalid component ${Ctor.name}`);
-    if (componentInstance instanceof Transform && this.GetComponent(Transform)) throw new Error("A GameObject can only have one Transform");
-    this.allComponents.push(componentInstance);
-    for (const ctor of getCtorChain$1(componentInstance.constructor)) {
-      let arr = this.componentsByCtor.get(ctor);
-      if (!arr) this.componentsByCtor.set(ctor, arr = []);
-      if (!arr.includes(componentInstance)) arr.push(componentInstance);
-    }
-    return componentInstance;
-  }
-  RemoveComponent(component) {
-    const idx = this.allComponents.indexOf(component);
-    if (idx === -1) return;
-    this.allComponents.splice(idx, 1);
-    for (const ctor of getCtorChain$1(component.constructor)) {
-      const arr = this.componentsByCtor.get(ctor);
-      if (!arr) continue;
-      const i = arr.indexOf(component);
-      if (i !== -1) arr.splice(i, 1);
-      if (arr.length === 0) this.componentsByCtor.delete(ctor);
-    }
-    component.Destroy();
-  }
-  GetComponent(Ctor) {
-    const arr = this.componentsByCtor.get(Ctor);
-    return arr && arr.length ? arr[0] : null;
-  }
-  GetComponents(Ctor) {
-    if (!Ctor) return this.allComponents;
-    return this.componentsByCtor.get(Ctor) ?? [];
-  }
-  GetComponentsExact(Ctor) {
-    const arr = this.componentsByCtor.get(Ctor);
-    return arr ? arr.filter((c) => c.constructor === Ctor) : [];
-  }
-  GetComponentsInChildren(Ctor) {
-    const out = [];
-    const walk = (go) => {
-      if (!Ctor) out.push(...go.allComponents);
-      else {
-        const list = go.componentsByCtor.get(Ctor);
-        if (list) out.push(...list);
-      }
-      for (const child of go.transform.children) walk(child.gameObject);
-    };
-    walk(this);
-    return out;
-  }
-  OnRemovedComponent = (component, scene) => {
-    if (scene !== this.scene) return;
-    this.RemoveComponent(component);
-  };
-  Destroy() {
-    EventSystem.off(ComponentEvents.RemovedComponent, this.OnRemovedComponent);
-    for (const child of [...this.transform.children]) {
-      child.gameObject.Destroy();
-    }
-    if (this.transform.parent) {
-      this.transform.parent.children.delete(this.transform);
-    }
-    this.scene.RemoveGameObject(this);
-    for (const component of [...this.allComponents]) {
-      component.Destroy();
-    }
-    this.allComponents.length = 0;
-    this.componentsByCtor.clear();
-    this.transform.children.clear();
   }
 }
 
@@ -7829,6 +7739,253 @@ var index = /*#__PURE__*/Object.freeze({
     TransformEvents: TransformEvents
 });
 
+var __create = Object.create;
+var __defProp = Object.defineProperty;
+var __knownSymbol = (name, symbol) => (symbol = Symbol[name]) ? symbol : Symbol.for("Symbol." + name);
+var __typeError = (msg) => {
+  throw TypeError(msg);
+};
+var __defNormalProp = (obj, key, value) => key in obj ? __defProp(obj, key, { enumerable: true, configurable: true, writable: true, value }) : obj[key] = value;
+var __decoratorStart = (base) => [, , , __create(null)];
+var __decoratorStrings = ["class", "method", "getter", "setter", "accessor", "field", "value", "get", "set"];
+var __expectFn = (fn) => fn !== void 0 && typeof fn !== "function" ? __typeError("Function expected") : fn;
+var __decoratorContext = (kind, name, done, metadata, fns) => ({ kind: __decoratorStrings[kind], name, metadata, addInitializer: (fn) => done._ ? __typeError("Already initialized") : fns.push(__expectFn(fn || null)) });
+var __decoratorMetadata = (array, target) => __defNormalProp(target, __knownSymbol("metadata"), array[3]);
+var __runInitializers = (array, flags, self, value) => {
+  for (var i = 0, fns = array[flags >> 1], n = fns && fns.length; i < n; i++) flags & 1 ? fns[i].call(self) : value = fns[i].call(self, value);
+  return value;
+};
+var __decorateElement = (array, flags, name, decorators, target, extra) => {
+  var it, done, ctx, access, k = flags & 7, s = false, p = false;
+  var j = array.length + 1 ;
+  var initializers = (array[j - 1] = []), extraInitializers = array[j] || (array[j] = []);
+  ((target = target.prototype), k < 5);
+  for (var i = decorators.length - 1; i >= 0; i--) {
+    ctx = __decoratorContext(k, name, done = {}, array[3], extraInitializers);
+    {
+      ctx.static = s, ctx.private = p, access = ctx.access = { has: (x) => name in x };
+      access.get = (x) => x[name];
+      access.set = (x, y) => x[name] = y;
+    }
+    it = (0, decorators[i])(void 0  , ctx), done._ = 1;
+    __expectFn(it) && (initializers.unshift(it) );
+  }
+  return target;
+};
+var __publicField = (obj, key, value) => __defNormalProp(obj, typeof key !== "symbol" ? key + "" : key, value);
+var _assetPath_dec, _init;
+_assetPath_dec = [SerializeField];
+const _Prefab = class _Prefab {
+  constructor() {
+    __publicField(this, "assetPath", __runInitializers(_init, 8, this)), __runInitializers(_init, 11, this);
+    __publicField(this, "id");
+    __publicField(this, "name");
+    __publicField(this, "components", []);
+    __publicField(this, "transform");
+    __publicField(this, "children", []);
+    __publicField(this, "data");
+  }
+  traverse(fn) {
+    fn(this);
+    for (const child of this.children) child.traverse(fn);
+  }
+  static Deserialize(assetPath, data, asset) {
+    const source = asset ?? data;
+    const prefab = new _Prefab();
+    prefab.id = source.id;
+    prefab.name = source.name;
+    prefab.assetPath = assetPath;
+    prefab.transform = source.transform;
+    prefab.components = Array.isArray(source?.components) ? source.components : [];
+    prefab.children = Array.isArray(source?.children) ? source.children.map((c) => _Prefab.Deserialize(c.assetPath, null, c)) : [];
+    prefab.data = source;
+    return prefab;
+  }
+};
+_init = __decoratorStart();
+__decorateElement(_init, 5, "assetPath", _assetPath_dec, _Prefab);
+__decoratorMetadata(_init, _Prefab);
+__publicField(_Prefab, "type", "@trident/core/Prefab");
+let Prefab = _Prefab;
+TypeRegistry.set(Prefab.type, Prefab);
+
+class Serializer {
+  static isTextureLike(value) {
+    return value instanceof Texture || value?.constructor?.type === Texture.type;
+  }
+  static isAudioClipLike(value) {
+    return value instanceof AudioClip || value?.constructor?.type === AudioClip.type;
+  }
+  static serializeValue(value) {
+    if (value == null || typeof value !== "object") return value;
+    if (Array.isArray(value)) return value.map((v) => this.serializeValue(v));
+    if (ArrayBuffer.isView(value)) return Array.from(value);
+    if (value instanceof GameObject) return { __ref: "GameObject", id: value.id };
+    if (this.isTextureLike(value)) {
+      if (!value.assetPath) return void 0;
+      return { assetPath: value.assetPath, name: value.name, format: value.format, generateMips: value.mipLevels > 1 };
+    }
+    if (this.isAudioClipLike(value)) {
+      if (!value.assetPath) return void 0;
+      return { assetPath: value.assetPath, name: value.name };
+    }
+    if (value instanceof Vector3) return { x: value.x, y: value.y, z: value.z };
+    if (value instanceof Vector2) return { x: value.x, y: value.y };
+    if (value instanceof Quaternion) return { x: value.x, y: value.y, z: value.z, w: value.w };
+    if (value instanceof Color) return { r: value.r, g: value.g, b: value.b, a: value.a };
+    if (value instanceof Map) return Array.from(value, ([k, v]) => [k, this.serializeValue(v)]);
+    if (value instanceof Prefab) return value.assetPath ? { assetPath: value.assetPath } : void 0;
+    if (value.assetPath) return { assetPath: value.assetPath };
+    const fields = GetSerializedFields(value);
+    if (fields.length > 0) return this.serializeFields(value);
+    return value;
+  }
+  static serializeFields(value) {
+    const out = {};
+    for (const { name } of GetSerializedFields(value)) {
+      out[name] = this.serializeValue(value[name]);
+    }
+    return out;
+  }
+  static serializeComponent(component) {
+    const ctor = component.constructor;
+    const out = { id: component.id, type: ctor.type || ctor.name };
+    if (ctor.assetPath) out.assetPath = ctor.assetPath;
+    for (const { name } of GetSerializedFields(component)) out[name] = this.serializeValue(component[name]);
+    return out;
+  }
+  static serializeGameObject(gameObject) {
+    const out = { id: gameObject.id, name: gameObject.name, enabled: gameObject.activeSelf, transform: this.serializeComponent(gameObject.transform), components: [], children: [] };
+    if (gameObject.assetPath) {
+      out.assetPath = gameObject.assetPath;
+      return out;
+    }
+    out.components = gameObject.GetComponents().filter((c) => !(c instanceof Transform)).filter((c) => ((c.flags ?? Flags.None) & Flags.DontSaveInEditor) === 0).map((component) => this.serializeComponent(component));
+    out.children = [];
+    for (const child of gameObject.transform.children) {
+      if ((child.gameObject.flags & Flags.DontSaveInEditor) !== 0) continue;
+      out.children.push(this.serializeGameObject(child.gameObject));
+    }
+    return out;
+  }
+  static serializeScene(scene) {
+    return {
+      type: Scene.type,
+      name: scene.name,
+      mainCamera: Camera.mainCamera?.id,
+      gameObjects: scene.GetRootGameObjects().filter((gameObject) => (gameObject.flags & Flags.DontSaveInEditor) === 0).map((gameObject) => this.serializeGameObject(gameObject))
+    };
+  }
+}
+
+function getCtorChain$1(ctor) {
+  const chain = [];
+  for (let c = ctor; c && c !== Component; c = Object.getPrototypeOf(c)) {
+    chain.push(c);
+  }
+  return chain;
+}
+class GameObject {
+  flags = Flags.None;
+  id = UUID();
+  name = "GameObject";
+  scene;
+  transform;
+  componentsByCtor = /* @__PURE__ */ new Map();
+  allComponents = [];
+  activeSelf = true;
+  activeInHierarchy = true;
+  get enabled() {
+    return this.activeInHierarchy;
+  }
+  set enabled(value) {
+    this.activeSelf = value;
+    this.activeInHierarchy = value && (this.transform.parent?.gameObject.activeInHierarchy ?? true);
+    for (const child of this.transform.children) child.gameObject.enabled = child.gameObject.activeSelf;
+  }
+  assetPath;
+  constructor(scene) {
+    this.scene = scene ?? Runtime.SceneManager.GetActiveScene();
+    this.transform = new Transform(this);
+    this.scene.AddGameObject(this);
+    EventSystem.on(ComponentEvents.RemovedComponent, this.OnRemovedComponent);
+  }
+  AddComponent(Ctor, ...args) {
+    const componentInstance = new Ctor(this, ...args);
+    if (!(componentInstance instanceof Component)) throw new Error(`Invalid component ${Ctor.name}`);
+    if (componentInstance instanceof Transform && this.GetComponent(Transform)) throw new Error("A GameObject can only have one Transform");
+    this.allComponents.push(componentInstance);
+    for (const ctor of getCtorChain$1(componentInstance.constructor)) {
+      let arr = this.componentsByCtor.get(ctor);
+      if (!arr) this.componentsByCtor.set(ctor, arr = []);
+      if (!arr.includes(componentInstance)) arr.push(componentInstance);
+    }
+    return componentInstance;
+  }
+  RemoveComponent(component) {
+    const idx = this.allComponents.indexOf(component);
+    if (idx === -1) return;
+    this.allComponents.splice(idx, 1);
+    for (const ctor of getCtorChain$1(component.constructor)) {
+      const arr = this.componentsByCtor.get(ctor);
+      if (!arr) continue;
+      const i = arr.indexOf(component);
+      if (i !== -1) arr.splice(i, 1);
+      if (arr.length === 0) this.componentsByCtor.delete(ctor);
+    }
+    component.Destroy();
+  }
+  GetComponent(Ctor) {
+    const arr = this.componentsByCtor.get(Ctor);
+    return arr && arr.length ? arr[0] : null;
+  }
+  GetComponents(Ctor) {
+    if (!Ctor) return this.allComponents;
+    return this.componentsByCtor.get(Ctor) ?? [];
+  }
+  GetComponentsExact(Ctor) {
+    const arr = this.componentsByCtor.get(Ctor);
+    return arr ? arr.filter((c) => c.constructor === Ctor) : [];
+  }
+  GetComponentsInChildren(Ctor) {
+    const out = [];
+    const walk = (go) => {
+      if (!Ctor) out.push(...go.allComponents);
+      else {
+        const list = go.componentsByCtor.get(Ctor);
+        if (list) out.push(...list);
+      }
+      for (const child of go.transform.children) walk(child.gameObject);
+    };
+    walk(this);
+    return out;
+  }
+  OnRemovedComponent = (component, scene) => {
+    if (scene !== this.scene) return;
+    this.RemoveComponent(component);
+  };
+  Destroy() {
+    EventSystem.off(ComponentEvents.RemovedComponent, this.OnRemovedComponent);
+    for (const child of [...this.transform.children]) {
+      child.gameObject.Destroy();
+    }
+    if (this.transform.parent) {
+      this.transform.parent.children.delete(this.transform);
+    }
+    this.scene.RemoveGameObject(this);
+    for (const component of [...this.allComponents]) {
+      component.Destroy();
+    }
+    this.allComponents.length = 0;
+    this.componentsByCtor.clear();
+    this.transform.children.clear();
+  }
+  Clone() {
+    const serialized = Serializer.serializeGameObject(this);
+    return Deserializer.deserializeGameObject(this.scene, Deserializer.remapTemplateIds(serialized));
+  }
+}
+
 class Deserializer {
   static binaryExtensions = /* @__PURE__ */ new Set(["png", "jpg", "jpeg", "bin", "wav", "mp3", "ogg", "glb"]);
   static typedArrayCtors = /* @__PURE__ */ new Set([
@@ -8145,145 +8302,6 @@ class Scene {
     for (const gameObject of roots) gameObject.Destroy();
     this.componentsByType.clear();
     this.gameObjects = [];
-  }
-}
-
-var __create = Object.create;
-var __defProp = Object.defineProperty;
-var __knownSymbol = (name, symbol) => (symbol = Symbol[name]) ? symbol : Symbol.for("Symbol." + name);
-var __typeError = (msg) => {
-  throw TypeError(msg);
-};
-var __defNormalProp = (obj, key, value) => key in obj ? __defProp(obj, key, { enumerable: true, configurable: true, writable: true, value }) : obj[key] = value;
-var __decoratorStart = (base) => [, , , __create(null)];
-var __decoratorStrings = ["class", "method", "getter", "setter", "accessor", "field", "value", "get", "set"];
-var __expectFn = (fn) => fn !== void 0 && typeof fn !== "function" ? __typeError("Function expected") : fn;
-var __decoratorContext = (kind, name, done, metadata, fns) => ({ kind: __decoratorStrings[kind], name, metadata, addInitializer: (fn) => done._ ? __typeError("Already initialized") : fns.push(__expectFn(fn || null)) });
-var __decoratorMetadata = (array, target) => __defNormalProp(target, __knownSymbol("metadata"), array[3]);
-var __runInitializers = (array, flags, self, value) => {
-  for (var i = 0, fns = array[flags >> 1], n = fns && fns.length; i < n; i++) flags & 1 ? fns[i].call(self) : value = fns[i].call(self, value);
-  return value;
-};
-var __decorateElement = (array, flags, name, decorators, target, extra) => {
-  var it, done, ctx, access, k = flags & 7, s = false, p = false;
-  var j = array.length + 1 ;
-  var initializers = (array[j - 1] = []), extraInitializers = array[j] || (array[j] = []);
-  ((target = target.prototype), k < 5);
-  for (var i = decorators.length - 1; i >= 0; i--) {
-    ctx = __decoratorContext(k, name, done = {}, array[3], extraInitializers);
-    {
-      ctx.static = s, ctx.private = p, access = ctx.access = { has: (x) => name in x };
-      access.get = (x) => x[name];
-      access.set = (x, y) => x[name] = y;
-    }
-    it = (0, decorators[i])(void 0  , ctx), done._ = 1;
-    __expectFn(it) && (initializers.unshift(it) );
-  }
-  return target;
-};
-var __publicField = (obj, key, value) => __defNormalProp(obj, typeof key !== "symbol" ? key + "" : key, value);
-var _assetPath_dec, _init;
-_assetPath_dec = [SerializeField];
-const _Prefab = class _Prefab {
-  constructor() {
-    __publicField(this, "assetPath", __runInitializers(_init, 8, this)), __runInitializers(_init, 11, this);
-    __publicField(this, "id");
-    __publicField(this, "name");
-    __publicField(this, "components", []);
-    __publicField(this, "transform");
-    __publicField(this, "children", []);
-    __publicField(this, "data");
-  }
-  traverse(fn) {
-    fn(this);
-    for (const child of this.children) child.traverse(fn);
-  }
-  static Deserialize(assetPath, data, asset) {
-    const source = asset ?? data;
-    const prefab = new _Prefab();
-    prefab.id = source.id;
-    prefab.name = source.name;
-    prefab.assetPath = assetPath;
-    prefab.transform = source.transform;
-    prefab.components = Array.isArray(source?.components) ? source.components : [];
-    prefab.children = Array.isArray(source?.children) ? source.children.map((c) => _Prefab.Deserialize(c.assetPath, null, c)) : [];
-    prefab.data = source;
-    return prefab;
-  }
-};
-_init = __decoratorStart();
-__decorateElement(_init, 5, "assetPath", _assetPath_dec, _Prefab);
-__decoratorMetadata(_init, _Prefab);
-__publicField(_Prefab, "type", "@trident/core/Prefab");
-let Prefab = _Prefab;
-TypeRegistry.set(Prefab.type, Prefab);
-
-class Serializer {
-  static isTextureLike(value) {
-    return value instanceof Texture || value?.constructor?.type === Texture.type;
-  }
-  static isAudioClipLike(value) {
-    return value instanceof AudioClip || value?.constructor?.type === AudioClip.type;
-  }
-  static serializeValue(value) {
-    if (value == null || typeof value !== "object") return value;
-    if (Array.isArray(value)) return value.map((v) => this.serializeValue(v));
-    if (ArrayBuffer.isView(value)) return Array.from(value);
-    if (value instanceof GameObject) return { __ref: "GameObject", id: value.id };
-    if (this.isTextureLike(value)) {
-      if (!value.assetPath) return void 0;
-      return { assetPath: value.assetPath, name: value.name, format: value.format, generateMips: value.mipLevels > 1 };
-    }
-    if (this.isAudioClipLike(value)) {
-      if (!value.assetPath) return void 0;
-      return { assetPath: value.assetPath, name: value.name };
-    }
-    if (value instanceof Vector3) return { x: value.x, y: value.y, z: value.z };
-    if (value instanceof Vector2) return { x: value.x, y: value.y };
-    if (value instanceof Quaternion) return { x: value.x, y: value.y, z: value.z, w: value.w };
-    if (value instanceof Color) return { r: value.r, g: value.g, b: value.b, a: value.a };
-    if (value instanceof Map) return Array.from(value, ([k, v]) => [k, this.serializeValue(v)]);
-    if (value instanceof Prefab) return value.assetPath ? { assetPath: value.assetPath } : void 0;
-    if (value.assetPath) return { assetPath: value.assetPath };
-    const fields = GetSerializedFields(value);
-    if (fields.length > 0) return this.serializeFields(value);
-    return value;
-  }
-  static serializeFields(value) {
-    const out = {};
-    for (const { name } of GetSerializedFields(value)) {
-      out[name] = this.serializeValue(value[name]);
-    }
-    return out;
-  }
-  static serializeComponent(component) {
-    const ctor = component.constructor;
-    const out = { id: component.id, type: ctor.type || ctor.name };
-    if (ctor.assetPath) out.assetPath = ctor.assetPath;
-    for (const { name } of GetSerializedFields(component)) out[name] = this.serializeValue(component[name]);
-    return out;
-  }
-  static serializeGameObject(gameObject) {
-    const out = { id: gameObject.id, name: gameObject.name, enabled: gameObject.activeSelf, transform: this.serializeComponent(gameObject.transform), components: [], children: [] };
-    if (gameObject.assetPath) {
-      out.assetPath = gameObject.assetPath;
-      return out;
-    }
-    out.components = gameObject.GetComponents().filter((c) => !(c instanceof Transform)).filter((c) => ((c.flags ?? Flags.None) & Flags.DontSaveInEditor) === 0).map((component) => this.serializeComponent(component));
-    out.children = [];
-    for (const child of gameObject.transform.children) {
-      if ((child.gameObject.flags & Flags.DontSaveInEditor) !== 0) continue;
-      out.children.push(this.serializeGameObject(child.gameObject));
-    }
-    return out;
-  }
-  static serializeScene(scene) {
-    return {
-      type: Scene.type,
-      name: scene.name,
-      mainCamera: Camera.mainCamera?.id,
-      gameObjects: scene.GetRootGameObjects().filter((gameObject) => (gameObject.flags & Flags.DontSaveInEditor) === 0).map((gameObject) => this.serializeGameObject(gameObject))
-    };
   }
 }
 
