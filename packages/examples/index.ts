@@ -81,3 +81,6 @@ import "./TerrainProcedural";
 import "./FoliageShader";
 
 import "./Audio";
+
+import "./MultiCanvas";
+import "./Gizmo";
