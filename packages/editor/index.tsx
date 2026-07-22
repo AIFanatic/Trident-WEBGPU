@@ -78,7 +78,7 @@ class App extends Component {
 
             // const atlasView = new UITextureViewer(Debugger.ui, "VT Atlas", BindlessVT.manager.Atlas());
             // const tableView = new UITextureViewer(Debugger.ui, "VT PageTable", BindlessVT.manager.PageTables());
-            // setInterval(() => { atlasView.Update(); tableView.Update(); }, 1000);            
+            // setInterval(() => { atlasView.Update(); tableView.Update(); }, 1000);  
         })
     }
 

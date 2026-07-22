@@ -5,6 +5,7 @@ interface TreeFolderProps {
     key?: string;
     name: string;
     id?: string;
+    icon?: JSX.Element;
     isSelected?: boolean;
     data?: any;
     className?: string;
@@ -81,6 +82,7 @@ export class TreeFolder extends Component<TreeFolderProps, TreeFolderState> {
                         onPointerDown={(event) => this.handleToggle(event)}>
                         <Arrow isOpen={this.state.isOpen} />
                     </span>
+                    <span style={{ paddingRight: "5px" }}>{this.props.icon ?? null}</span>
                     <span>{this.props.name}</span>
                 </div>
                 <div className="item-content" style={{ height: this.state.isOpen ? "auto" : "0" }}>

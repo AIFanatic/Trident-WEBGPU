@@ -14,3 +14,5 @@ export { MemoryAllocator, BufferMemoryAllocator, DynamicBufferMemoryAllocator, D
 
 export type { TextureFormat, TextureDimension, TextureType } from "./Texture";
 export type { RenderTarget } from "./RendererContext";
+
+export type { FrameRenderData } from "./passes/SceneExtractPass";

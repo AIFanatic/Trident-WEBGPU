@@ -43,7 +43,7 @@ export class Runtime {
         return this.systems.get(ctor) as T;
     }
 
-    public static Tick(): void {
+    protected static Tick(): void {
         this.SceneManager.Update();
         for (const s of this.systems.values()) {
             // TODO: Should not have any edit mode here, this is runtime, no editor related stuff
@@ -53,7 +53,7 @@ export class Runtime {
         this.Input.Update();
     }
 
-    public static Render(): void {
+    protected static Render(): void {
         this.Renderer.Update();
     }
 }

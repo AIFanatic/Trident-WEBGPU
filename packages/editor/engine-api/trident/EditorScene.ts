@@ -1,4 +1,4 @@
-import { Component, Components, GameObject, Input, KeyCodes } from "@trident/core";
+import { Component, Components, GameObject, Geometry, HideInInspector, Input, KeyCodes, PBRMaterial } from "@trident/core";
 import { OrbitControls } from "@trident/plugins/OrbitControls";
 import { EditorRuntime } from "./EditorRuntime";
 import { EditorAPI } from "@trident/editor";

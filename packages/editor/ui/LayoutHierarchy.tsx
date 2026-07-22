@@ -10,6 +10,8 @@ import { Tree } from "./TreeView/Tree";
 import { FloatingMenu } from "./FloatingMenu";
 import { TridentAPI } from "../engine-api/trident/TridentAPI";
 import { SaveAsset } from "../commands/SaveAsset";
+import { GameObjectIcon } from "./icons/GameObject";
+import { ArchiveIcon } from "./icons/ArchiveIcon";
 
 export class LayoutHierarchyEvents {
     public static Selected = (gameObject: IGameObject) => { };
@@ -99,6 +101,14 @@ export class LayoutHierarchy extends Component<BaseProps, LayoutHierarchyState> 
         this.setState({ ...this.state, headerMenuOpen: !this.state.headerMenuOpen });
     }
 
+    private async cloneGameObject() {
+        if (this.state.selectedGameObject === null) return;
+
+        const cloned = await this.state.selectedGameObject.Clone();
+        TridentAPI.EventSystem.emit(GameObjectEvents.Created, cloned);
+        this.setState({ headerMenuOpen: !this.state.headerMenuOpen, selectedGameObject: cloned });
+    }
+
     private deleteGameObject() {
         if (this.state.selectedGameObject === null) return;
 
@@ -161,15 +171,19 @@ export class LayoutHierarchy extends Component<BaseProps, LayoutHierarchyState> 
         const isPrefabInstance = (go: IGameObject): boolean => typeof go.assetPath === "string" && go.assetPath.length > 0;
 
         return gameObjects.map(go => {
-            const className = `${!go.enabled ? "disabled" : ""} ${isPrefabInstance(go) ? "red-text" : ""}`
+            const className = `${!go.enabled ? "disabled" : ""}`;
             const isSelected = this.state.selectedGameObject === go;
 
             const children = Array.from(go.transform.children).map(c => c.gameObject).filter(go => (go.flags & this.props.engineAPI.flags.HideInHierarchy) === 0);
+
+            let icon = <GameObjectIcon style={"color: #6cf"} />;
+            if (isPrefabInstance(go)) icon = <ArchiveIcon style={"color: red"} />;
 
             if (children.length > 0) {
                 return <TreeFolder
                     name={go.name}
                     id={go.transform.id}
+                    icon={icon}
                     className={className}
                     isSelected={isSelected}
                     onClicked={() => this.selectGameObject(go)}
@@ -182,6 +196,7 @@ export class LayoutHierarchy extends Component<BaseProps, LayoutHierarchyState> 
             return <TreeItem
                 name={go.name}
                 id={go.transform.id}
+                icon={icon}
                 className={className}
                 isSelected={isSelected}
                 onClicked={() => this.selectGameObject(go)}
@@ -206,6 +221,7 @@ export class LayoutHierarchy extends Component<BaseProps, LayoutHierarchyState> 
                         <FloatingMenu visible={this.state.headerMenuOpen} onClose={() => this.setState({ ...this.state, headerMenuOpen: false })}>
                             <Tree>
                                 <TreeItem name="Create Empty" onPointerDown={() => this.createEmptyGameObject()} />
+                                <TreeItem name="Clone" onPointerDown={() => this.cloneGameObject()} />
                                 <TreeItem name="Delete" onPointerDown={() => this.deleteGameObject()} />
                                 <TreeItem name="Unpack Prefab" onPointerDown={() => this.unpackSelectedPrefab()} />
                                 <TreeFolder name="3D Object">

@@ -79,7 +79,7 @@ export class InspectorTexture extends Component<InspectorTextureProps> {
 
     public render() {
         return <div class="edit">
-            <span class={`vec-label`} style={`background-color: #e67e2250; cursor: auto`}>{"T"}</span>
+            <span class={`vec-label`} style={`background-color: var(--tint-orange); cursor: auto`}>{"T"}</span>
             <input
                 className="input"
                 disabled

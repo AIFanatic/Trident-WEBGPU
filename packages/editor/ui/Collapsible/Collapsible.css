@@ -26,9 +26,9 @@
 .collapsible-card-edonec {
     margin: 10px;
     border-radius: 10px;
-    background-color: #1a1a1a;
-    box-shadow: 1px 1px 3px 0px black;
-    border: 1px solid #ffffff10;
+    background-color: var(--bg-card);
+    box-shadow: var(--shadow-popup);
+    border: 1px solid var(--border-faint);
 }
 
 .collapsible-header-edonec {
@@ -46,7 +46,7 @@
     cursor: pointer;
     overflow: hidden;
     outline: none;
-    color: white;
+    color: var(--text);
     font-size: 10px;
     width: 25px;
 }

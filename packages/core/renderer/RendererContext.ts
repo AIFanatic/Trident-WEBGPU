@@ -181,6 +181,7 @@ export class RendererContext implements RendererContext {
     }
 
     public static DrawIndirect(geometry: Geometry, shader: Shader, indirectBuffer: Buffer, indirectOffset: number = 0) {
+        if (!this.activeRenderPass) throw Error("No active render pass");
         if (!shader.OnPreRender(geometry)) return;
 
         this.BindGeometry(shader, geometry);

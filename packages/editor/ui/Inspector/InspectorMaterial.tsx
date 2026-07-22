@@ -172,7 +172,7 @@ export class InspectorMaterial extends Component<InspectorMaterialProps> {
 
             <button
                 class="Floating-Menu"
-                style={{ position: "initial", margin: "10px", width: "calc(100% - 20px)", color: "white", cursor: "pointer" }}
+                style={{ position: "initial", margin: "10px", width: "calc(100% - 20px)", color: "var(--text)", cursor: "pointer" }}
                 onClick={() => this.SaveClicked()}
             >
                 SAVE

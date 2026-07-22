@@ -3,6 +3,7 @@ import { createElement, Component } from "../../gooact";
 interface TreeItemProps {
     name: string;
     id?: string;
+    icon?: JSX.Element;
     isSelected?: boolean;
     data?: any;
     className?: string;
@@ -35,7 +36,7 @@ export class TreeItem extends Component<TreeItemProps> {
     }
 
     private onDragOver(event: DragEvent) { event.preventDefault(); }
-    private onDragEnter(event: DragEvent) { (event.currentTarget as HTMLElement).style.backgroundColor = "#3498db80"; }
+    private onDragEnter(event: DragEvent) { (event.currentTarget as HTMLElement).style.backgroundColor = "var(--accent-translucent)"; }
     private onDragLeave(event: DragEvent) { (event.currentTarget as HTMLElement).style.backgroundColor = ""; }
 
     private lastClickTs = 0;
@@ -72,6 +73,7 @@ export class TreeItem extends Component<TreeItemProps> {
                     onClick={(event: Event) => this.onClick(event)}
                 >
                     <span style={{ paddingLeft: "15px" }}></span>
+                    <span style={{ paddingRight: "5px" }}>{this.props.icon ?? null}</span>
                     { this.props.render ? this.props.render : <span>{this.props.name}</span> }
                 </div>
             </div>

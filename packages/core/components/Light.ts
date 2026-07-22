@@ -1,4 +1,5 @@
 import { EventSystem, EventSystemLocal } from "../Events";
+import { GameObject } from "../GameObject";
 import { Color } from "../math/Color";
 import { Vector3 } from "../math/Vector3";
 import { Renderer } from "../renderer/Renderer";
@@ -23,6 +24,13 @@ export class Light extends Component {
     public intensity: number = 1;
     @SerializeField
     public castShadows: boolean = true;
+
+    constructor(gameObject: GameObject) {
+        super(gameObject);
+        this.camera.enabled = false;
+        // Probably better to just have projection and viewmatrix here instead of a camera
+        if (Camera.mainCamera === this.camera) Camera.mainCamera = undefined as any;
+    }
 
     public Start(): void {
         EventSystemLocal.on(TransformEvents.Updated, this.transform, () => {

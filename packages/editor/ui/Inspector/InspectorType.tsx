@@ -65,7 +65,7 @@ export class InspectorType extends Component<InspectorTypeProps> {
 
     public render() {
         return <div class="edit" style="position: relative">
-            <span class={`vec-label`} style={`background-color: #e67e2250; cursor: auto`}>{"◉"}</span>
+            <span class={`vec-label`} style={`background-color: var(--tint-orange); cursor: auto`}>{"◉"}</span>
             <input
                 className="input"
                 disabled

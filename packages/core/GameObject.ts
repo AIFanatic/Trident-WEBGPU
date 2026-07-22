@@ -5,6 +5,8 @@ import { UUID } from "./utils";
 import { EventSystem } from "./Events";
 import { Flags } from "./utils/Flags";
 import { Runtime } from "./Runtime";
+import { Serializer } from "./serializer/Serializer";
+import { Deserializer } from "./serializer/Deserializer";
 
 
 function getCtorChain(ctor: Function): Function[] {
@@ -136,5 +138,10 @@ export class GameObject {
         this.allComponents.length = 0;
         this.componentsByCtor.clear();
         this.transform.children.clear();
+    }
+
+    public Clone(): Promise<GameObject> {
+        const serialized = Serializer.serializeGameObject(this);
+        return Deserializer.deserializeGameObject(this.scene, Deserializer.remapTemplateIds(serialized));
     }
 }

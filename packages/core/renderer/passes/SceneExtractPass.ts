@@ -42,6 +42,7 @@ export class SceneExtractPass extends RenderPass {
         const shadowInstancedMeshes: InstancedRenderable[] = [];
 
         for (const [, renderable] of Renderable.Renderables) {
+            if (renderable.gameObject.scene !== scene) continue;
             if (!renderable.enabled || !renderable.gameObject.enabled) continue;
             if (!renderable.geometry || !renderable.geometry.attributes?.has("position")) continue;
             if (!renderable.material || !renderable.material.shader) continue;

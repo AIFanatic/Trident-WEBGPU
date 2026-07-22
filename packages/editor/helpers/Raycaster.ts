@@ -85,14 +85,14 @@ export class Raycaster {
         if (!this.initialized) return;
 
         const resources = Runtime.Renderer.RenderPipeline.renderGraph.resourcePool;
-
+        
         const gBufferDepth = resources.getResource(GPU.PassParams.GBufferDepth);
         if (!gBufferDepth) return;
-
+        
         const camera = Components.Camera.mainCamera;
         this.shader.SetMatrix4("projectionMatrix", camera.projectionMatrix);
         this.shader.SetMatrix4("viewMatrix", camera.viewMatrix);
-
+        
         const all = Runtime.SceneManager.GetActiveScene().GetComponents(Components.Renderable);
         const pickables = all.filter(r => !!r.geometry);
 

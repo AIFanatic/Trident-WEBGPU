@@ -14,4 +14,6 @@ export interface IGameObject {
 
     GetComponents<T extends IComponent>(type?: new (...args: any[]) => T): T[];
     Destroy(): void;
+
+    Clone(): Promise<IGameObject>;
 }
