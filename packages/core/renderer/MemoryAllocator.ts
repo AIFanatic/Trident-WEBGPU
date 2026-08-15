@@ -16,7 +16,7 @@ export class MemoryAllocator {
     constructor(memorySize: number) {
         this.memorySize = memorySize;
         this.availableMemorySize = memorySize;
-        this.freeBlocks.push({offset: 0, size: memorySize});
+        this.freeBlocks.push({ offset: 0, size: memorySize });
     }
 
     public allocate(size: number): number {
@@ -32,7 +32,7 @@ export class MemoryAllocator {
                     this.freeBlocks.splice(i, 1);
                 }
 
-                this.usedBlocks.push({offset: offset, size: size});
+                this.usedBlocks.push({ offset: offset, size: size });
                 return offset;
             }
         }
@@ -43,17 +43,17 @@ export class MemoryAllocator {
     private mergeFreeBlocks() {
         // First, sort the free blocks by their offset
         this.freeBlocks.sort((a, b) => a.offset - b.offset);
-    
+
         // Then, iterate through the sorted free blocks and merge adjacent ones
-        for (let i = 0; i < this.freeBlocks.length - 1; ) {
+        for (let i = 0; i < this.freeBlocks.length - 1;) {
             const currentBlock = this.freeBlocks[i];
             const nextBlock = this.freeBlocks[i + 1];
-    
+
             // Check if the current block is adjacent to the next block
             if (currentBlock.offset + currentBlock.size === nextBlock.offset) {
                 // Merge the next block into the current block
                 currentBlock.size += nextBlock.size;
-    
+
                 // Remove the next block from the freeBlocks array
                 this.freeBlocks.splice(i + 1, 1);
                 // Do not increment 'i' to check for further adjacent blocks
@@ -176,53 +176,82 @@ export class DynamicBufferMemoryAllocator extends BufferMemoryAllocator {
 
     constructor(size: number, incrementAmount?: number, bufferType = BufferType.STORAGE) {
         super(size, bufferType);
-        this.incrementAmount = incrementAmount ? incrementAmount : size;
+        this.incrementAmount = incrementAmount ?? size;
     }
 
     public get(link: any): number | null {
-        return this.links.get(link);
+        return this.links.get(link) ?? null;
     }
 
-    public set(link: any, data: Float32Array | Uint32Array | Uint16Array | Uint8Array, _bufferOffset: number = 0): number {
+    private grow(requiredSize: number): void {
+        const oldCapacity = this.allocator.memorySize;
+        const incrementAmount = Math.max(this.incrementAmount, requiredSize);
+        const newCapacity = oldCapacity + incrementAmount;
+
+        // Extend allocator space after the old capacity. Using allocated/used
+        // memory here would create overlapping free blocks.
+        this.allocator.memorySize = newCapacity;
+        this.allocator.availableMemorySize += incrementAmount;
+        this.allocator.freeBlocks.push({ offset: oldCapacity, size: incrementAmount });
+
+        const oldBuffer = this.buffer;
+        const newBuffer = new Buffer(newCapacity * BufferMemoryAllocator.BYTES_PER_ELEMENT, this.bufferType);
+
+        const hasActiveFrame = Renderer.HasActiveFrame();
+        if (!hasActiveFrame) Renderer.BeginRenderFrame();
+
+        RendererContext.CopyBufferToBuffer(oldBuffer, newBuffer, 0, 0, oldBuffer.size);
+
+        this.buffer = newBuffer;
+
+        EventSystem.once(RendererEvents.FrameEnded, () => {
+            oldBuffer.Destroy();
+        });
+
+        if (!hasActiveFrame) Renderer.EndRenderFrame();
+    }
+
+    private allocate(size: number): number {
+        try {
+            return this.allocator.allocate(size);
+        } catch {
+            // Allocation can fail even when total free memory is sufficient
+            // when the existing free space is fragmented.
+            this.grow(size);
+            return this.allocator.allocate(size);
+        }
+    }
+
+    /**
+     * Reserves a contiguous block without uploading data.
+     * The returned offset is measured in array elements, not bytes.
+     */
+    public reserve(link: any, size: number): number {
         let bufferOffset = this.links.get(link);
+
         if (bufferOffset === undefined) {
-            if (this.allocator.availableMemorySize - data.length < 0) {
-                // Increment allocator
-                const o = this.allocator.memorySize;
-                const incrementAmount = this.incrementAmount > data.length ? this.incrementAmount : data.length;
-                const oldMemorySize = this.allocator.memorySize - this.allocator.availableMemorySize;
-                this.allocator.memorySize += incrementAmount;
-                this.allocator.availableMemorySize += incrementAmount;
-                this.allocator.freeBlocks.push({offset: oldMemorySize, size: incrementAmount});
-
-                // Create new buffer
-                const buffer = new Buffer(this.allocator.memorySize * BufferMemoryAllocator.BYTES_PER_ELEMENT, BufferType.STORAGE);
-                const hasActiveFrame = Renderer.HasActiveFrame();
-                if (!hasActiveFrame) Renderer.BeginRenderFrame();
-                RendererContext.CopyBufferToBuffer(this.buffer, buffer);
-                if (!hasActiveFrame) Renderer.EndRenderFrame();
-                
-                const oldBuffer = this.buffer;
-                EventSystem.once(RendererEvents.FrameEnded, () => {
-                    oldBuffer.Destroy();
-                })
-
-                this.buffer = buffer;
-            }
-            
-            bufferOffset = this.allocator.allocate(data.length);
+            bufferOffset = this.allocate(size);
             this.links.set(link, bufferOffset);
         }
-        const byteOffset = bufferOffset * DynamicBufferMemoryAllocator.BYTES_PER_ELEMENT;
-        this.buffer.SetArray(data, byteOffset + _bufferOffset);
+
         return bufferOffset;
     }
 
-    public delete(link: any) {
+    public set(link: any, data: Float32Array | Uint32Array | Uint16Array | Uint8Array, bufferByteOffset: number = 0): number {
+        const bufferOffset = this.reserve(link, data.length);
+        const byteOffset = bufferOffset * DynamicBufferMemoryAllocator.BYTES_PER_ELEMENT + bufferByteOffset;
+
+        // For TypedArrays, dataOffset and size are measured in elements.
+        this.buffer.SetArray(data, byteOffset, 0, data.length);
+
+        return bufferOffset;
+    }
+
+    public delete(link: any): void {
         const bufferOffset = this.links.get(link);
-        if (bufferOffset === undefined) return; // link not found
+        if (bufferOffset === undefined) return;
+
         this.allocator.free(bufferOffset);
         this.links.delete(link);
-        // TODO: Resize buffer
     }
 }
