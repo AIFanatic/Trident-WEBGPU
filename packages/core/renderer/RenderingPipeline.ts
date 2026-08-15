@@ -12,6 +12,7 @@ import { PostExposureTonemap } from "./passes/PostExposureTonemap";
 import { BasePass } from "./passes/BasePass";
 import { SceneExtractPass } from "./passes/SceneExtractPass";
 import { EventSystem } from "../Events";
+import { SceneCopyPass } from "./passes/SceneCopyPass";
 
 export const PassParams = {
     DebugSettings: "DebugSettings",
@@ -24,6 +25,9 @@ export const PassParams = {
     GBufferNormal: "GBufferNormal",
     GBufferERMO: "GBufferERMO",
     GBufferDepth: "GBufferDepth",
+
+    GBufferAlbedoCopy: "GBufferAlbedoCopy",
+    GBufferDepthCopy: "GBufferDepthCopy",
 
     ShadowPassDepth: "ShadowPassDepth",
 
@@ -79,6 +83,7 @@ export class RenderingPipeline {
 
         this.afterGBufferPasses = [
             new RenderablePass(),
+            new SceneCopyPass(),
             this.DeferredShadowMapPass,
         ];
 
