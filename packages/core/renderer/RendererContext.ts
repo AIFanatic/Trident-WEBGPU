@@ -30,8 +30,14 @@ export interface BufferCopyParameters {
     rowsPerImage?: number;
 }
 
+export interface ActivePass {
+    name: string;
+    buffers?: { [name: string]: Buffer | DynamicBuffer };
+}
+
 export class RendererContext implements RendererContext {
     private static activeRenderPass: GPURenderPassEncoder | null = null;
+    public static activePass: ActivePass | null = null;
 
     public static HasActiveRenderPass(): boolean { return this.activeRenderPass instanceof GPURenderPassEncoder };
 
@@ -66,6 +72,20 @@ export class RendererContext implements RendererContext {
 
         this.activeRenderPass = activeCommandEncoder.beginRenderPass(renderPassDescriptor);
         this.activeRenderPass.label = "RenderPass: " + name;
+
+        /* DEBUG */
+        const layerBytes = (t: Texture) => t.byteSize / Math.max(1, t.depth);   // one array layer (render targets are 1 mip)
+
+        for (const rt of renderTargets) {
+            const t = rt.target as Texture | undefined;
+            if (!t) continue;                                  // swapchain — skip (or add canvas size if you want)
+            Renderer.info.attachmentBandwidthInBytes += (rt.clear ? 1 : 2) * layerBytes(t);   // clear = store only; load = load + store
+        }
+        if (depthTarget?.target) {
+            const t = depthTarget.target as Texture;
+            Renderer.info.attachmentBandwidthInBytes += (depthTarget.clear ? 1 : 2) * layerBytes(t);
+        }
+        /* END DEBUG */
     }
 
     public static EndRenderPass() {
@@ -105,6 +125,7 @@ export class RendererContext implements RendererContext {
                 }
             }
             this.activeRenderPass.setBindGroup(i, shader.bindGroups[i], dynamicOffsets);
+            Renderer.info.bindGroupsPerFrame.add(shader.bindGroups[i]);
         }
 
         if (!geometry) return;
