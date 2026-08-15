@@ -1,10 +1,11 @@
-import { createElement, Component } from "../../gooact";
+import { createElement, Component, VNodeChild } from "../../gooact";
 
 import './InspectorComponent.css';
 
-interface InspectorPropertyProps {
+export interface InspectorPropertyProps {
     title: string;
     stacked?: boolean;
+    children?: VNodeChild[];
 };
 
 export class InspectorProperty extends Component<InspectorPropertyProps> {
