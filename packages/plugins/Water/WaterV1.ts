@@ -1,6 +1,6 @@
 // Ported from: https://github.com/clayjohn/godot-realistic-water/blob/fix-for-4.2/realistic_water_shader/
 
-import { GameObject, Geometry, IndexAttribute, VertexAttribute, Components, Component, Renderer, GPU, Scene, Runtime, Mathf, Assets } from "@trident/core";
+import { GameObject, Geometry, IndexAttribute, VertexAttribute, Components, Component, GPU, Scene, Runtime, Assets, EventSystemLocal } from "@trident/core";
 import { DataBackedBuffer } from "@trident/plugins/DataBackedBuffer";
 
 const WaterPassWGSL = "./resources/WaterPassV1.wgsl";
@@ -94,20 +94,15 @@ export interface WaterSettings {
 interface WaterInfo {
     settings: DataBackedBuffer<WaterSettings>;
     transform: Components.Transform;
+    modelMatrixBuffer: GPU.Buffer;
+    transformDirty: boolean;
 };
 
 class WaterRenderPass extends GPU.RenderPass {
     public name: string = "WaterRenderPass";
 
-    private lightingClone: GPU.RenderTexture;
-    private depthClone: GPU.DepthTexture;
     private waterShader: GPU.Shader;
-
-    // public readonly settings: DataBackedBuffer<WaterSettings>;
-
     public readonly waterGeometries: Map<Geometry, WaterInfo>;
-
-    private waterSettingsBuffer: GPU.Buffer;
 
     constructor() {
         super();
@@ -147,35 +142,36 @@ class WaterRenderPass extends GPU.RenderPass {
 
         this.waterShader.SetTexture("perlin", await GPU.Texture.Load(new URL(perlin_noise, import.meta.url)));
 
-        // this.lightingClone = GPU.RenderTexture.Create(Renderer.width, Renderer.height, 1, GBufferFormat, 1 + Math.log2(Renderer.width) | 0);
-        this.lightingClone = GPU.RenderTexture.Create(Renderer.width, Renderer.height, 1, GBufferFormat);
-        this.lightingClone.name = "LightingCloneWater"
-        this.depthClone = GPU.DepthTexture.Create(Renderer.width, Renderer.height);
-
-        // Ideally get 14 from WaterSettings
-        this.waterSettingsBuffer = new GPU.Buffer(14 * 4 * 4, GPU.BufferType.STORAGE);
-        this.waterShader.SetBuffer("waveSettings", this.waterSettingsBuffer);
-
         this.initialized = true;
+    }
+
+    public preFrame(resources: GPU.ResourcePool) {
+        if (this.waterGeometries.size === 0) return;
+
+        this.waterShader.SetValue("TIME", performance.now() / 1000);
+
+        for (const waterInfo of this.waterGeometries.values()) {
+            // Reading the matrix resolves the transform, which fires Updated and sets transformDirty
+            const matrix = waterInfo.transform.localToWorldMatrix;
+            if (!waterInfo.transformDirty) continue;
+            waterInfo.transformDirty = false;
+            waterInfo.modelMatrixBuffer.SetArray(matrix.elements);
+        }
     }
 
     public async execute(resources: GPU.ResourcePool) {
         if (!this.initialized) return;
-
         if (this.waterGeometries.size === 0) return;
 
         const FrameBuffer = resources.getResource(GPU.PassParams.FrameBuffer);
-        const currentLightingPass = resources.getResource(GPU.PassParams.LightingPassOutput);
         const currentAlbedo = resources.getResource(GPU.PassParams.GBufferAlbedo);
+        const currentAlbedoCopy = resources.getResource(GPU.PassParams.GBufferAlbedoCopy);
         const currentNormal = resources.getResource(GPU.PassParams.GBufferNormal);
         const currentERMO = resources.getResource(GPU.PassParams.GBufferERMO);
         const currentDepth = resources.getResource(GPU.PassParams.GBufferDepth);
+        const currentDepthCopy = resources.getResource(GPU.PassParams.GBufferDepthCopy);
 
-        if (!currentLightingPass || !currentDepth) return;
-
-        GPU.RendererContext.CopyTextureToTextureV3({ texture: currentAlbedo }, { texture: this.lightingClone });
-        // this.lightingClone.GenerateMips();
-        GPU.RendererContext.CopyTextureToTextureV3({ texture: currentDepth }, { texture: this.depthClone });
+        if (!currentAlbedo || !currentDepth) return;
 
         GPU.RendererContext.BeginRenderPass(this.name, [
             { target: currentAlbedo, clear: false },
@@ -184,16 +180,14 @@ class WaterRenderPass extends GPU.RenderPass {
         ],
             { target: currentDepth, clear: false }, true);
 
+        // Bind-group switches only, no buffer writes
         this.waterShader.SetBuffer("frameBuffer", FrameBuffer);
-        this.waterShader.SetTexture("SCREEN_TEXTURE", this.lightingClone);
-        this.waterShader.SetTexture("DEPTH_TEXTURE", this.depthClone);
-        this.waterShader.SetValue("TIME", performance.now() / 1000);
+        this.waterShader.SetTexture("SCREEN_TEXTURE", currentAlbedoCopy);
+        this.waterShader.SetTexture("DEPTH_TEXTURE", currentDepthCopy);
 
         for (const [geometry, waterInfo] of this.waterGeometries) {
-            // TODO: This is bad, causes context switching, use dynamic buffers or storage array
             this.waterShader.SetBuffer("waveSettings", waterInfo.settings.buffer);
-            // RendererContext.CopyBufferToBuffer(waterInfo.settings.buffer, this.waterSettingsBuffer);
-            this.waterShader.SetMatrix4("modelMatrix", waterInfo.transform.localToWorldMatrix);
+            this.waterShader.SetBuffer("modelMatrix", waterInfo.modelMatrixBuffer);
             GPU.RendererContext.DrawGeometry(geometry, this.waterShader, 1);
         }
 
@@ -210,6 +204,9 @@ export class WaterV1 extends Component {
     private static WaterRenderPassScene: Scene;
 
     private geometry: Geometry;
+
+    private waterInfo: WaterInfo;
+    private onTransformUpdated = () => { this.waterInfo.transformDirty = true; };
 
     constructor(gameObject: GameObject) {
         super(gameObject);
@@ -229,9 +226,9 @@ export class WaterV1 extends Component {
             // wave_b: [-0.1, 0.6, 0.3, 1.55],
             // wave_c: [-1.0, -0.8, 0.1, 0.9],
 
-  wave_a: [0.93, 0.37, 0.13, 32.0],
-  wave_b: [-0.41, 0.91, 0.12, 12.0],
-  wave_c: [0.12, -0.99, 0.065, 4.4],
+            wave_a: [0.93, 0.37, 0.13, 32.0],
+            wave_b: [-0.41, 0.91, 0.12, 12.0],
+            wave_c: [0.12, -0.99, 0.065, 4.4],
 
             sampler_scale: [0.125, 0.125, 0.0, 0.0],
             sampler_direction: [0.005, 0.004, 0.0, 0.0],
@@ -254,10 +251,14 @@ export class WaterV1 extends Component {
             depth_offset: [0.75, 0.0, 0.0, 0.0],
         });
 
-        WaterV1.WaterRenderPass.waterGeometries.set(this.geometry, {
+        this.waterInfo = {
             settings: this.settings,
-            transform: this.transform
-        })
+            transform: this.transform,
+            modelMatrixBuffer: new GPU.Buffer(16 * 4, GPU.BufferType.STORAGE),
+            transformDirty: true,
+        };
+        EventSystemLocal.on(Components.TransformEvents.Updated, this.transform, this.onTransformUpdated);
+        WaterV1.WaterRenderPass.waterGeometries.set(this.geometry, this.waterInfo);
     }
 
     public Destroy(): void {
