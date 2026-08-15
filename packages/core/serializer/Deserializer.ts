@@ -1,7 +1,7 @@
 import { Scene } from "../Scene";
 import { GameObject } from "../GameObject";
 import { Component, Transform, Camera } from "../components";
-import { Vector3, Vector2, Quaternion, Color } from "../math";
+import { Vector3, Vector2, Quaternion, Color, Vector4 } from "../math";
 import { GetSerializedFields } from "../utils/SerializeField";
 import { Texture } from "../renderer/Texture";
 import { Assets } from "../Assets";
@@ -149,6 +149,7 @@ export class Deserializer {
             return result;
         }
 
+        if (existing instanceof Vector4) { existing.set(data.x, data.y, data.z, data.w); return existing; }
         if (existing instanceof Vector3) { existing.set(data.x, data.y, data.z); return existing; }
         if (existing instanceof Vector2) { existing.set(data.x, data.y); return existing; }
         if (existing instanceof Quaternion) { existing.set(data.x, data.y, data.z, data.w); return existing; }

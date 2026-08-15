@@ -1,7 +1,7 @@
 import { Scene } from "../Scene";
 import { GameObject } from "../GameObject";
 import { Component, Transform, Camera } from "../components";
-import { Vector3, Vector2, Quaternion, Color } from "../math";
+import { Vector3, Vector2, Quaternion, Color, Vector4 } from "../math";
 import { Prefab } from "../Prefab";
 import { Texture } from "../renderer/Texture";
 import { GetSerializedFields } from "../utils/SerializeField";
@@ -47,6 +47,7 @@ export class Serializer {
             if (!value.assetPath) return undefined;
             return { assetPath: value.assetPath, name: value.name };
         }
+        if (value instanceof Vector4) return { x: value.x, y: value.y, z: value.z, w: value.w };
         if (value instanceof Vector3) return { x: value.x, y: value.y, z: value.z };
         if (value instanceof Vector2) return { x: value.x, y: value.y };
         if (value instanceof Quaternion) return { x: value.x, y: value.y, z: value.z, w: value.w };
