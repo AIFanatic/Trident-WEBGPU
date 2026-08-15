@@ -22,6 +22,7 @@ import { TridentAPI } from "../../engine-api/trident/TridentAPI";
 import { InspectorClass } from "./InspectorClass";
 import { InspectorColorGradient } from "./InspectorColorGradient";
 import { InspectorProperty } from "./InspectorProperty";
+import { InspectorVector4 } from "./InspectorVector4";
 
 interface LayoutInspectorProps {
     engineAPI: IEngineAPI;
@@ -70,14 +71,16 @@ export class LayoutInspectorGameObject extends Component<LayoutInspectorProps> {
         // this.forceUpdate()
     }
 
-    private renderInspectorForComponentProperty(component: any, property: { name: string | symbol, type?: Function }): VNode<any> {
+    private renderInspectorForComponentProperty(component: any, property: { name: string | symbol, type?: Function }): VNode<any> | null {
         const name = property.name as string;
+        if (!(name in component)) return null;
         const type = property.type;
         const engineType = this.props.engineAPI.getFieldType(type);
 
         // console.log("field:", name, "type:", type?.name, "engineType:", engineType, component);
 
-        if (engineType === "Vector3") return <InspectorVector3 onChanged={(value) => { this.onComponentPropertyChanged(component, name, value) }} vector3={component[name]} />
+        if (engineType === "Vector4") return <InspectorVector4 onChanged={(value) => { this.onComponentPropertyChanged(component, name, value) }} vector4={component[name]} />
+        else if (engineType === "Vector3") return <InspectorVector3 onChanged={(value) => { this.onComponentPropertyChanged(component, name, value) }} vector3={component[name]} />
         else if (engineType === "Vector2") return <InspectorVector2 onChanged={(value) => { this.onComponentPropertyChanged(component, name, value) }} vector2={component[name]} />
         else if (engineType === "Color") return <InspectorColor onChanged={(value) => { this.onComponentPropertyChanged(component, name, value) }} color={component[name]} />
         else if (engineType === "Gradient") return <InspectorColorGradient gradient={component[name]} onChanged={() => this.setState({})} />
