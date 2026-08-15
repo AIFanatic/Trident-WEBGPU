@@ -21,6 +21,7 @@ import { InspectorDropdown, InspectorDropdownOptions } from "./InspectorDropdown
 import { InspectorColorGradient } from "./InspectorColorGradient";
 import { InspectorType } from "./InspectorType";
 import { IComponent } from "packages/editor/engine-api/trident/components/IComponent";
+import { InspectorVector4 } from "./InspectorVector4";
 
 interface InspectorMaterialProps extends BaseProps {
     material: IMaterial;
@@ -34,17 +35,12 @@ export class InspectorMaterial extends Component<InspectorMaterialProps> {
 
     private onComponentPropertyChanged(object: Object, property: string, value: any) {
         object[property] = value;
+
+        const engineType = this.props.engineAPI.getFieldType(value);
+        console.log(object, property, value, engineType)
+
         this.setState({}); // force updated
     }
-
-    // private onGameObjectNameChanged(gameObject: IGameObject, event: Event) {
-    //         const input = event.currentTarget as HTMLInputElement;
-    //         gameObject.name = input.value;
-
-    //         TridentAPI.EventSystem.emit(GameObjectEvents.Changed, gameObject);
-
-    //         // this.forceUpdate()
-    //     }
 
     private renderInspectorForComponentProperty(component: any, property: { name: string | symbol, type?: Function }): VNode<any> {
         const name = property.name as string;
@@ -53,7 +49,8 @@ export class InspectorMaterial extends Component<InspectorMaterialProps> {
 
         // console.log("field:", name, "type:", type?.name, "engineType:", engineType, component);
 
-        if (engineType === "Vector3") return <InspectorVector3 onChanged={(value) => { this.onComponentPropertyChanged(component, name, value) }} vector3={component[name]} />
+        if (engineType === "Vector4") return <InspectorVector4 onChanged={(value) => { this.onComponentPropertyChanged(component, name, value) }} vector4={component[name]} />
+        else if (engineType === "Vector3") return <InspectorVector3 onChanged={(value) => { this.onComponentPropertyChanged(component, name, value) }} vector3={component[name]} />
         else if (engineType === "Vector2") return <InspectorVector2 onChanged={(value) => { this.onComponentPropertyChanged(component, name, value) }} vector2={component[name]} />
         else if (engineType === "Color") return <InspectorColor onChanged={(value) => { this.onComponentPropertyChanged(component, name, value) }} color={component[name]} />
         else if (engineType === "Gradient") return <InspectorColorGradient gradient={component[name]} onChanged={() => this.setState({})} />
