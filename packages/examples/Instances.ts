@@ -41,7 +41,7 @@ async function Application(canvas: HTMLCanvasElement) {
     instancedMesh.geometry = Geometry.Cube();
     instancedMesh.material = new PBRMaterial();
 
-    const count = 100;
+    const count = 10;
     let position = new Mathf.Vector3();
     let rotation = new Mathf.Quaternion();
     let scale = new Mathf.Vector3(1,1,1);

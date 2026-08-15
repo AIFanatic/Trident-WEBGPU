@@ -4,7 +4,8 @@ import {
     GameObject,
     PBRMaterial,
     Runtime,
-    GPU
+    GPU,
+    PlayerRuntime
 } from "@trident/core";
 
 import { OrbitControls } from "@trident/plugins/OrbitControls";
@@ -16,9 +17,9 @@ import { PostProcessingPass } from "@trident/plugins/PostProcessing/PostProcessi
 import { PostProcessingSMAA } from "@trident/plugins/PostProcessing/effects/SMAA";
 
 async function Application(canvas: HTMLCanvasElement) {
-    await Runtime.Create(canvas);
-    const scene = Runtime.SceneManager.CreateScene("DefaultScene");
-    Runtime.SceneManager.SetActiveScene(scene);
+    await PlayerRuntime.Create(canvas);
+    const scene = PlayerRuntime.SceneManager.CreateScene("DefaultScene");
+    PlayerRuntime.SceneManager.SetActiveScene(scene);
 
     const mainCameraGameObject = new GameObject();
     mainCameraGameObject.name = "MainCamera";
@@ -28,15 +29,15 @@ async function Application(canvas: HTMLCanvasElement) {
 
     mainCameraGameObject.transform.position.set(0, 0, 10);
     mainCameraGameObject.transform.LookAt(new Mathf.Vector3(0, 0, 0));
-
-    const controls = new OrbitControls(canvas, camera);
+    mainCameraGameObject.AddComponent(OrbitControls);
 
     const lightGameObject = new GameObject();
-    lightGameObject.transform.position.set(-10, 10, 10);
+    lightGameObject.transform.position.set(-10, 100, 10);
     lightGameObject.transform.LookAt(new Mathf.Vector3(0, 0, 0));
     const light = lightGameObject.AddComponent(Components.DirectionalLight);
     light.castShadows = true;
-    light.intensity = 0.01
+    light.intensity = 6
+    console.log(light)
 
     function traverse(gameObjects: GameObject[], fn: (gameObject: GameObject) => void) {
         for (const gameObject of gameObjects) {
@@ -52,38 +53,36 @@ async function Application(canvas: HTMLCanvasElement) {
 
     Debugger.Enable();
 
-    let lightCount = 0;
-    traverse([rootGameObject], gameObject => {
-        const mesh = gameObject.GetComponent(Components.Mesh);
-        if (mesh) {
-            const mat = (mesh.material as PBRMaterial).params;
-            // mesh.enableShadows = false;
-            if (mat.emissiveMap.width > 1 || mat.emissiveColor.r > 0) {
-                // const pointLightGO = new GameObject();
-                const pointLight = gameObject.AddComponent(Components.PointLight);
-                // const pointlightHelper = gameObject.AddComponent(PointLightHelper);
-                // pointlightHelper.light = pointLight;
-                pointLight.intensity = 10;
-                pointLight.range = 50;
-                // pointLightGO.transform.position.copy(gameObject.transform.position)
-                mat.emissiveMap.GetPixels(0, 0, 1, 1, 0).then(pixel => {
-                    pointLight.color.set(pixel[0] / 255, pixel[1] / 255, pixel[2] / 255, 1);
-                })
-                lightCount++;
-            }
-        }
-    })
+    // let lightCount = 0;
+    // traverse([rootGameObject], gameObject => {
+    //     const mesh = gameObject.GetComponent(Components.Mesh);
+    //     if (mesh) {
+    //         const mat = (mesh.material as PBRMaterial).params;
+    //         // mesh.enableShadows = false;
+    //         if (mat.emissiveMap.width > 1 || mat.emissiveColor.r > 0) {
+    //             // const pointLightGO = new GameObject();
+    //             const pointLight = gameObject.AddComponent(Components.PointLight);
+    //             // const pointlightHelper = gameObject.AddComponent(PointLightHelper);
+    //             // pointlightHelper.light = pointLight;
+    //             pointLight.intensity = 10;
+    //             pointLight.range = 50;
+    //             // pointLightGO.transform.position.copy(gameObject.transform.position)
+    //             mat.emissiveMap.GetPixels(0, 0, 1, 1, 0).then(pixel => {
+    //                 pointLight.color.set(pixel[0] / 255, pixel[1] / 255, pixel[2] / 255, 1);
+    //             })
+    //             lightCount++;
+    //         }
+    //     }
+    // })
 
-    console.log(lightCount)
+    // console.log(lightCount)
 
-        const postProcessing = new PostProcessingPass();
-        // postProcessing.effects.push(new PostProcessingFog());
-        // postProcessing.effects.push(new PostProcessingFXAA());
-        const smaa = new PostProcessingSMAA();
-        postProcessing.effects.push(smaa);
-        Runtime.Renderer.RenderPipeline.AddPass(postProcessing, GPU.RenderPassOrder.BeforeScreenOutput);
-        
-    Runtime.Play();
+    const postProcessing = new PostProcessingPass();
+    // postProcessing.effects.push(new PostProcessingFog());
+    // postProcessing.effects.push(new PostProcessingFXAA());
+    const smaa = new PostProcessingSMAA();
+    postProcessing.effects.push(smaa);
+    Runtime.Renderer.RenderPipeline.AddPass(postProcessing, GPU.RenderPassOrder.BeforeScreenOutput);
 };
 
 Application(document.querySelector("canvas"));

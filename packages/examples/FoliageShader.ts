@@ -11,9 +11,6 @@ import { ImpostorMesh } from "@trident/plugins/Impostors/ImpostorMesh";
 import { UITextureViewer } from "@trident/plugins/ui/UIStats";
 
 async function Application(canvas: HTMLCanvasElement) {
-    EventSystem.on(GPU.RendererEvents.FrameEnded, () => {
-        console.log("GPU.RendererEvents.FrameEnded");
-    });
     
     await PlayerRuntime.Create(canvas);
     const scene = PlayerRuntime.SceneManager.CreateScene("DefaultScene");
@@ -34,15 +31,15 @@ async function Application(canvas: HTMLCanvasElement) {
     lightGameObject.transform.LookAt(new Mathf.Vector3(0, 0, 0));
     const light = lightGameObject.AddComponent(Components.DirectionalLight);
     light.castShadows = false;
-    light.intensity = 2;
+    light.intensity = 20;
 
-    const sky = new Sky();
-    await sky.init();
-    const skyTexture = sky.skyTextureCubemap;
-    const iblLightingPass = Runtime.Renderer.RenderPipeline.AddPass(IBLLightingPass, GPU.RenderPassOrder.AfterLighting);
-    const skyboxPass = Runtime.Renderer.RenderPipeline.AddPass(SkyboxPass, GPU.RenderPassOrder.AfterLighting);
-    iblLightingPass.SetEnvironment(skyTexture);
-    skyboxPass.SetSkybox(skyTexture);
+    // const sky = new Sky();
+    // await sky.init();
+    // const skyTexture = sky.skyTextureCubemap;
+    // const iblLightingPass = Runtime.Renderer.RenderPipeline.AddPass(IBLLightingPass, GPU.RenderPassOrder.AfterLighting);
+    // const skyboxPass = Runtime.Renderer.RenderPipeline.AddPass(SkyboxPass, GPU.RenderPassOrder.AfterLighting);
+    // iblLightingPass.SetEnvironment(skyTexture);
+    // skyboxPass.SetSkybox(skyTexture);
 
 
     const floorGameObject = new GameObject();
@@ -52,7 +49,7 @@ async function Application(canvas: HTMLCanvasElement) {
     floorMesh.geometry = Geometry.Plane();
     floorMesh.material = new PBRMaterial();
 
-    const rootGO = await GLTFLoader.Load("/extra/SampleProject/GameAssets/Trees/Eucalyptus camaldulensis.glb", scene);
+    const rootGO = await GLTFLoader.Load("/extra/SampleProject/GameAssets/Trees/Eucalyptus camaldulensis RT.glb", scene);
     const meshes = rootGO.GetComponentsInChildren(Components.Mesh);
     let mesh = meshes[0];
     const material = mesh.material as PBRMaterial;

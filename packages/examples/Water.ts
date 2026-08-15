@@ -167,7 +167,7 @@ async function Application(canvas: HTMLCanvasElement) {
     waterGameObject.transform.eulerAngles.x = -90;
     waterGameObject.transform.position.y = 5;
     waterGameObject.transform.scale.set(1024, 1024, 1);
-    const water = waterGameObject.AddComponent(WaterDynamic);
+    const water = waterGameObject.AddComponent(WaterV1);
 
 
         // // Debug

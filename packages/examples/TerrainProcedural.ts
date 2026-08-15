@@ -61,7 +61,7 @@ async function Application(canvas: HTMLCanvasElement) {
     lightGameObject.transform.position.set(-4, 4, -4);
     lightGameObject.transform.LookAt(new Mathf.Vector3(0, 0, 0));
     const light = lightGameObject.AddComponent(Components.DirectionalLight);
-    light.intensity = 5
+    light.intensity = 4
 
 
     const skyAtmosphere = new Sky();
@@ -69,8 +69,8 @@ async function Application(canvas: HTMLCanvasElement) {
     const hdr = await HDRParser.Load("./assets/textures/HDR/autumn_field_puresky_1k.hdr");
     const skyTexture = await HDRParser.ToCubemap(hdr);
 
-    // const skycubemap = skyAtmosphere.skyTextureCubemap;
-    const skycubemap = skyTexture
+    const skycubemap = skyAtmosphere.skyTextureCubemap;
+    // const skycubemap = skyTexture
 
 
     const iblLightingPass = Runtime.Renderer.RenderPipeline.AddPass(IBLLightingPass, GPU.RenderPassOrder.AfterLighting);
@@ -213,7 +213,7 @@ async function Application(canvas: HTMLCanvasElement) {
             
             
             // const rtGLB = await GLTFLoader.Load("/extra/SampleProject/GameAssets/Trees/Jacaranda mimosifolia RT.glb", scene);
-            const rtGLB = await GLTFLoader.Load("/extra/SampleProject/GameAssets/Trees/White Ash RT.glb", scene);
+            const rtGLB = await GLTFLoader.Load("/extra/SampleProject/GameAssets/Trees/Eucalyptus camaldulensis RT.glb", scene);
             const rtMeshes = rtGLB.GetComponentsInChildren(Components.Mesh);
             console.log(rtMeshes);
             rtMeshes[0].material = FoliageMaterial.SetFromMesh(rtMeshes[0]);
@@ -225,7 +225,7 @@ async function Application(canvas: HTMLCanvasElement) {
 
             const lodGameObject = new GameObject();
             const lodInstanceRenderable = lodGameObject.AddComponent(InstancedLODGroup);
-            lodInstanceRenderable.enableShadows = false;
+            // lodInstanceRenderable.enableShadows = false;
 
             // const billboardGO = new GameObject();
             // const billboard = billboardGO.AddComponent(Billboarder);
@@ -360,21 +360,21 @@ async function Application(canvas: HTMLCanvasElement) {
         new UISliderStat(terrainSettings, "SCROLL_Y:", -10, 10, 0.01, terrainProcedural.params.TERRAIN_SCROLL_Y, async value => { updateTerrainParam("TERRAIN_SCROLL_Y", value) });
         new UISliderStat(terrainSettings, "IS_ISLAND:", 0, 1, 1, terrainProcedural.params.IS_ISLAND, async value => { updateTerrainParam("IS_ISLAND", value) });
 
-        // Water
-        const waterGameObject = new GameObject();
-        waterGameObject.transform.eulerAngles.x = -90;
-        // waterGameObject.transform.position.y = 280;
-        waterGameObject.transform.scale.set(terrain.terrainData.size.x, terrain.terrainData.size.z, 1);
-        const water = waterGameObject.AddComponent(WaterNoise);
+        // // Water
+        // const waterGameObject = new GameObject();
+        // waterGameObject.transform.eulerAngles.x = -90;
+        // // waterGameObject.transform.position.y = 280;
+        // waterGameObject.transform.scale.set(terrain.terrainData.size.x, terrain.terrainData.size.z, 1);
+        // const water = waterGameObject.AddComponent(WaterNoise);
 
-        setInterval(() => {
-            const ty = terrain.terrainData.size.y;
-            waterGameObject.transform.position.y = terrainProcedural.params.WATER_HEIGHT * ty;
-            waterGameObject.transform.position.y -= ty * 0.5;
+        // setInterval(() => {
+        //     const ty = terrain.terrainData.size.y;
+        //     waterGameObject.transform.position.y = terrainProcedural.params.WATER_HEIGHT * ty;
+        //     waterGameObject.transform.position.y -= ty * 0.5;
 
-            terrain.SampleHeight(shadow.transform.position);
-            // controls.center.copy(shadow.transform.position)
-        }, 1000);
+        //     terrain.SampleHeight(shadow.transform.position);
+        //     // controls.center.copy(shadow.transform.position)
+        // }, 1000);
     }
 
 

@@ -80,10 +80,10 @@ async function Application(canvas: HTMLCanvasElement) {
     new UIGradientStat(particlesFolder, "Gradient:", gradient => { particleSystem.colorOverLifetimeSetColorKeys(gradient.colorKeys), particleSystem.colorOverLifetimeSetAlphaKeys(gradient.alphaKeys)}, particleSystem.colorOverLifetimeGradients);
 
 
-    const postProcessing = new PostProcessingPass();
-    const bloom = new PostProcessingBloom();
-    postProcessing.effects.push(bloom);
-    Runtime.Renderer.RenderPipeline.AddPass(postProcessing, GPU.RenderPassOrder.AfterLighting);
+    // const postProcessing = new PostProcessingPass();
+    // const bloom = new PostProcessingBloom();
+    // postProcessing.effects.push(bloom);
+    // Runtime.Renderer.RenderPipeline.AddPass(postProcessing, GPU.RenderPassOrder.AfterLighting);
 
     particlesFolder.Open();
 
