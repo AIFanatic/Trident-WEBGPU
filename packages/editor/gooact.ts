@@ -38,6 +38,7 @@ type GooactHTMLElement = HTMLElement & {
 
 export const createElement = (type: VNode['type'], props: PropsWithChildren | null, ...children: VNodeChild[]): VNode => {
     if (props === null) props = {};
+    if (children.length === 0 && props.children !== undefined) children = props.children;
     return { type, props, children };
 };
 
