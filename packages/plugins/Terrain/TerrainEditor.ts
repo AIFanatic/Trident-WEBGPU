@@ -4,6 +4,7 @@ import { LineRenderer } from "@trident/plugins/LineRenderer";
 import { PhysicsRapier } from "@trident/plugins/PhysicsRapier/PhysicsRapier.js";
 import { Terrain } from "@trident/plugins/Terrain/Terrain.js";
 import { TerrainLayer } from "@trident/plugins/Terrain/TerrainMaterial.js";
+import { TerrainCollider } from "@trident/plugins/PhysicsRapier/colliders/TerrainCollider";
 
 enum EditType {
     RAISE,
@@ -21,6 +22,7 @@ export class TerrainEditor extends Components.Component {
     public runInEditMode: boolean = true;
     public static type = "@trident/plugins/Terrain/TerrainEditor";
     private terrain: Terrain;
+    private terrainCollider: TerrainCollider;
     private lineRenderer: LineRenderer;
 
     private terrainLayersSignature = "";
@@ -51,9 +53,13 @@ export class TerrainEditor extends Components.Component {
 
     public Start(): void {
         const terrain = this.gameObject.GetComponent(Terrain);
+        const terrainCollider = this.gameObject.GetComponent(TerrainCollider);
+
         if (!terrain) throw Error("No terrain found");
+        if (!terrainCollider) throw Error("No terrain collider found");
 
         this.terrain = terrain;
+        this.terrainCollider = terrainCollider;
 
         this.lineRenderer = this.gameObject.GetComponent(LineRenderer) || this.gameObject.AddComponent(LineRenderer);
         this.lineRenderer.flags |= Utils.Flags.DontSaveInEditor | Utils.Flags.HideInInspector;
@@ -133,6 +139,8 @@ export class TerrainEditor extends Components.Component {
     private RaycastTerrain() {
         const camera = Components.Camera.mainCamera;
         const canvas = Renderer.canvas;
+        const collider = this.terrainCollider.collider;
+        if (!camera || !canvas || !collider) return null;
         const rect = canvas.getBoundingClientRect();
 
         const ndcX = ((Input.mousePosition.x - rect.left) / rect.width) * 2 - 1;
@@ -142,7 +150,16 @@ export class TerrainEditor extends Components.Component {
         const viewDir = new Mathf.Vector3(ndcX, ndcY, 0).applyMatrix4(invProj);
         const dir = viewDir.transformDirection(camera.transform.localToWorldMatrix);
 
-        return PhysicsRapier.Raycast(camera.transform.position, dir, 10000);
+        // return PhysicsRapier.Raycast(camera.transform.position, dir, 10000);
+        const ray = new PhysicsRapier.Physics.Ray(camera.transform.position, dir);
+        const hit = collider.castRayAndGetNormal(ray, 10000, true);
+        if (!hit) return null;
+
+        const point = ray.pointAt(hit.timeOfImpact);
+        return {
+            point: new Mathf.Vector3(point.x, point.y, point.z),
+            normal: new Mathf.Vector3(hit.normal.x, hit.normal.y, hit.normal.z),
+        };
     }
 
     private ApplyTerrainLayers(): void {
@@ -510,14 +527,15 @@ export class TerrainEditor extends Components.Component {
         }, label);
     }
 
+    // TODO: Needs cleaning
     public OnInspectorGUI() {
-        
+
         const h: VNodeFactory = (type, props, ...children) => ({ type, props, children });
         const btnStyle = { backgroundColor: this.nonActiveColor, color: "inherit", fontSize: "inherit", borderRadius: "5px", border: "1px solid black", outline: "none", padding: "5px", cursor: "pointer" };
         const dropAreaStyle = { padding: "5px", margin: "5px 5px 5px 10px", border: "1px dashed #ffffff1f", borderRadius: "5px", background: this.dropAreaColor };
-        
+
         let activeSection = h("div", {}, []);
-        
+
         // TODO: Debug why the first terrain creation this doesnt trigger, probably some await missing because the component gets selected on creation
         if (!this.terrain) return h("div", null);
 
@@ -536,8 +554,8 @@ export class TerrainEditor extends Components.Component {
                             h("option", { value: String(EditType.SET_HEIGHT) }, "Set height"),
                         )
                     ),
-                    EditorAPI.LayoutInspectorInput({ title: "Brush Size", value: this.paintRadius, min: 1, max: 64, step: 1, onChanged: value => this.paintRadius = parseFloat(value) }),
-                    EditorAPI.LayoutInspectorInput({ title: "Brush Strength", value: this.paintStrength, min: 0, max: 1, step: 0.01, onChanged: value => this.paintStrength = parseFloat(value) }),
+                    EditorAPI.LayoutInspectorProperty({ title: "Brush Size", children: [EditorAPI.LayoutInspectorInput({ value: this.paintRadius, min: 1, max: 64, step: 1, onChanged: value => this.paintRadius = parseFloat(value) })] }),
+                    EditorAPI.LayoutInspectorProperty({ title: "Brush Strength", children: [EditorAPI.LayoutInspectorInput({ value: this.paintStrength, min: 0, max: 1, step: 0.01, onChanged: value => this.paintStrength = parseFloat(value) })] }),
 
                     // Heightmap
                     h("div", Object.assign({}, this.DropEvents(GPU.Texture, (texture: GPU.Texture) => {
@@ -553,13 +571,13 @@ export class TerrainEditor extends Components.Component {
                         }),
                         "Smooth",
                     ),
-                    EditorAPI.LayoutInspectorInput({ title: "Height Multiplier", value: this.heightmapMultiplier, min: 0, max: 10, step: 0.01, onChanged: value => this.heightmapMultiplier = parseFloat(value) }),
+                    EditorAPI.LayoutInspectorProperty({ title: "Height Multiplier", children: [EditorAPI.LayoutInspectorInput({ value: this.heightmapMultiplier, min: 0, max: 10, step: 0.01, onChanged: value => this.heightmapMultiplier = parseFloat(value) })] }),
                     h("button", { style: Object.assign({}, btnStyle, { width: "100%" }), onClick: () => this.ApplyHeightmap() }, "Apply Heightmap"),
                     h("div", { className: "row", style: { display: "block" } },
-                        EditorAPI.LayoutInspectorInput({ title: "Size X", value: td.size.x, min: 1, max: 10000, step: 1, onChanged: value => td.Resize(parseFloat(value), td.size.y, td.size.z) }),
-                        EditorAPI.LayoutInspectorInput({ title: "Size Y", value: td.size.y, min: 1, max: 10000, step: 1, onChanged: value => td.Resize(td.size.x, parseFloat(value), td.size.z) }),
-                        EditorAPI.LayoutInspectorInput({ title: "Size Z", value: td.size.z, min: 1, max: 10000, step: 1, onChanged: value => td.Resize(td.size.x, td.size.y, parseFloat(value)) }),
-                        EditorAPI.LayoutInspectorInput({ title: "Resolution", value: td.resolution, min: 16, max: 512, step: 16, onChanged: value => td.SetResolution(parseInt(value)) }),
+                        EditorAPI.LayoutInspectorProperty({ title: "Size X", children: [EditorAPI.LayoutInspectorInput({ value: td.size.x, min: 1, max: 10000, step: 1, onChanged: value => td.Resize(parseFloat(value), td.size.y, td.size.z) })] }),
+                        EditorAPI.LayoutInspectorProperty({ title: "Size Y", children: [EditorAPI.LayoutInspectorInput({ value: td.size.y, min: 1, max: 10000, step: 1, onChanged: value => td.Resize(td.size.x, parseFloat(value), td.size.z) })] }),
+                        EditorAPI.LayoutInspectorProperty({ title: "Size Z", children: [EditorAPI.LayoutInspectorInput({ value: td.size.z, min: 1, max: 10000, step: 1, onChanged: value => td.Resize(td.size.x, td.size.y, parseFloat(value)) })] }),
+                        EditorAPI.LayoutInspectorProperty({ title: "Resolution", children: [EditorAPI.LayoutInspectorInput({ value: td.resolution, min: 16, max: 512, step: 16, onChanged: value => td.SetResolution(parseInt(value)) })] }),
                     ),
                 ),
             );
@@ -581,8 +599,8 @@ export class TerrainEditor extends Components.Component {
                             btnStyle,
                         ),
                     ),
-                    EditorAPI.LayoutInspectorInput({ title: "Brush Size", value: this.paintRadius, min: 1, max: 64, step: 1, onChanged: value => this.paintRadius = parseFloat(value) }),
-                    EditorAPI.LayoutInspectorInput({ title: "Brush Strength", value: this.paintTextureStrength, min: 0, max: 1, step: 0.01, onChanged: value => this.paintTextureStrength = parseFloat(value) }),
+                    EditorAPI.LayoutInspectorProperty({ title: "Brush Size", children: [EditorAPI.LayoutInspectorInput({ value: this.paintRadius, min: 1, max: 64, step: 1, onChanged: value => this.paintRadius = parseFloat(value) })] }),
+                    EditorAPI.LayoutInspectorProperty({ title: "Brush Strength", children: [EditorAPI.LayoutInspectorInput({ value: this.paintTextureStrength, min: 0, max: 1, step: 0.01, onChanged: value => this.paintTextureStrength = parseFloat(value) })] }),
                 ),
             );
         }
@@ -615,10 +633,10 @@ export class TerrainEditor extends Components.Component {
                             btnStyle,
                         ),
                     ),
-                    EditorAPI.LayoutInspectorInput({ title: "Brush Size", value: this.paintRadius, min: 1, max: 64, step: 1, onChanged: value => this.paintRadius = parseFloat(value) }),
-                    EditorAPI.LayoutInspectorInput({ title: "Density", value: this.paintObjectDensity, min: 0, max: 1, step: 0.01, onChanged: value => this.paintObjectDensity = parseFloat(value) }),
-                    EditorAPI.LayoutInspectorInput({ title: "Min Scale", value: this.paintObjectMinScale, min: 0.01, max: 10, step: 0.01, onChanged: value => this.paintObjectMinScale = parseFloat(value) }),
-                    EditorAPI.LayoutInspectorInput({ title: "Max Scale", value: this.paintObjectMaxScale, min: 0.01, max: 10, step: 0.01, onChanged: value => this.paintObjectMaxScale = parseFloat(value) }),
+                    EditorAPI.LayoutInspectorProperty({ title: "Brush Size", children: [EditorAPI.LayoutInspectorInput({ value: this.paintRadius, min: 1, max: 64, step: 1, onChanged: value => this.paintRadius = parseFloat(value) })] }),
+                    EditorAPI.LayoutInspectorProperty({ title: "Density", children: [EditorAPI.LayoutInspectorInput({ value: this.paintObjectDensity, min: 0, max: 1, step: 0.01, onChanged: value => this.paintObjectDensity = parseFloat(value) })] }),
+                    EditorAPI.LayoutInspectorProperty({ title: "Min Scale", children: [EditorAPI.LayoutInspectorInput({ value: this.paintObjectMinScale, min: 0.01, max: 10, step: 0.01, onChanged: value => this.paintObjectMinScale = parseFloat(value) })] }),
+                    EditorAPI.LayoutInspectorProperty({ title: "Max Scale", children: [EditorAPI.LayoutInspectorInput({ value: this.paintObjectMaxScale, min: 0.01, max: 10, step: 0.01, onChanged: value => this.paintObjectMaxScale = parseFloat(value) })] }),
                 ),
             );
         }
