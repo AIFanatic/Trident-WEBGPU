@@ -1,16 +1,19 @@
 import { IGameObject } from "./engine-api/trident/components/IGameObject";
 import { createElement, PropsWithChildren, VNode as GoactVNode, VNodeChild } from "./gooact";
 import { InspectorInputProps } from "./ui/Inspector/InspectorInput";
+import { InspectorPropertyProps } from "./ui/Inspector/InspectorProperty";
 
 export interface IEditorBridge {
     saveAsset(asset: { assetPath: string }): Promise<void>;
+    writeFile(path: string, data: BufferSource | Blob | string): Promise<void>;
     repaintInspector(): void;
     LayoutInspectorInput(props: InspectorInputProps): any;
+    LayoutInspectorProperty(props: InspectorPropertyProps): any;
     ExtendedDataTransfer(): any;
     events: {
         onSceneSaved(handler: () => void): void;
         offSceneSaved(handler: () => void): void;
-        
+
         onHierarchySelected(handler: (gameObject: IGameObject) => void): void;
         offHierarchySelected(handler: (gameObject: IGameObject) => void): void;
     };
@@ -35,18 +38,23 @@ function requireBridge(): IEditorBridge {
 export type VNode = GoactVNode;
 export class EditorAPI {
     public static SaveAsset(asset: { assetPath: string }): Promise<void> { return requireBridge().saveAsset(asset) };
+    public static File = {
+        WriteAllBytes(path: string, bytes: Uint8Array | ArrayBuffer): Promise<void> { return requireBridge().writeFile(path, bytes) },
+        WriteAllText(path: string, text: string): Promise<void> { return requireBridge().writeFile(path, text) },
+    };
     public static CreateElement(type: VNode['type'], props: PropsWithChildren | null, ...children: VNodeChild[]): VNode { return createElement(type, props, ...children) };
     public static RepaintInspector(): void { return requireBridge().repaintInspector() };
     public static LayoutInspectorInput(props: InspectorInputProps): any { return requireBridge().LayoutInspectorInput(props) };
+    public static LayoutInspectorProperty(props: InspectorPropertyProps): any { return requireBridge().LayoutInspectorProperty(props) };
     public static ExtendedDataTransfer(): any { return requireBridge().ExtendedDataTransfer() };
     public static Events = {
-        onSceneSaved(handler: () => void): void { return requireBridge().events.onSceneSaved(handler)},
-        offSceneSaved(handler: () => void): void { return requireBridge().events.offSceneSaved(handler)},
-        
-        onHierarchySelected(handler: (gameObject: IGameObject) => void): void { return requireBridge().events.onHierarchySelected(handler)},
-        offHierarchySelected(handler: (gameObject: IGameObject) => void): void { return requireBridge().events.offHierarchySelected(handler)}
+        onSceneSaved(handler: () => void): void { return requireBridge().events.onSceneSaved(handler) },
+        offSceneSaved(handler: () => void): void { return requireBridge().events.offSceneSaved(handler) },
+
+        onHierarchySelected(handler: (gameObject: IGameObject) => void): void { return requireBridge().events.onHierarchySelected(handler) },
+        offHierarchySelected(handler: (gameObject: IGameObject) => void): void { return requireBridge().events.offHierarchySelected(handler) }
     };
     public static Selection = {
-        get activeGameObject(): IGameObject | null { return requireBridge().Selection.activeGameObject},
+        get activeGameObject(): IGameObject | null { return requireBridge().Selection.activeGameObject },
     };
 }
