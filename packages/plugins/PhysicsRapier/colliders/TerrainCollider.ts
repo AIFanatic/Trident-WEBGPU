@@ -8,6 +8,16 @@ export class TerrainCollider extends Collider {
 
     public runInEditMode = true;
 
+    public Start(): void {
+        super.Start();
+        this.CreateCollider();
+    }
+
+    protected CreateCollider(): void {
+        if (!this._terrainData) return;
+        this.Rebuild(this._terrainData);
+    }
+
     private _terrainData: TerrainData;
     @SerializeField(TerrainData)
     public get terrainData(): TerrainData { return this._terrainData; }
@@ -25,7 +35,7 @@ export class TerrainCollider extends Collider {
     private onGeometryUpdated = (td: TerrainData) => this.Rebuild(td);
 
     private Rebuild(terrainData: TerrainData): void {
-        if (!PhysicsRapier.PhysicsWorld) return;
+        if (!PhysicsRapier.hasLoaded) { console.warn("PhysicsRapier not loaded"); return; }
         const heights = terrainData.heights;
         if (!heights?.length) return;
         const size = Math.sqrt(heights.length);
