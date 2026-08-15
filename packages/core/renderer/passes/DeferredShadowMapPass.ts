@@ -14,7 +14,7 @@ import { TransformEvents } from "../../components/Transform";
 import { Vector3 } from "../../math/Vector3";
 import { DepthTextureArray } from "../Texture";
 import { Console, ConsoleVarConfigs } from "../../Console";
-import { FrameRenderData, InstancedRenderable } from "./SceneExtractPass";
+import { FrameRenderData } from "./SceneExtractPass";
 
 interface LightShadowInfoBase {
     numCascades: number;
@@ -51,12 +51,6 @@ export const ShadowMapSettings = Console.define({
 export class DeferredShadowMapPass extends RenderPass {
     public name: string = "DeferredShadowMapPass";
 
-    private drawInstancedShadowShader: Shader;
-    private drawShadowShader: Shader;
-    private drawSkinnedMeshShadowShader: Shader;
-
-    private modelMatrices: DynamicBuffer;
-
     private lightProjectionMatrices: DynamicBuffer;
     private cascadeIndexBuffer: DynamicBuffer;
 
@@ -64,126 +58,14 @@ export class DeferredShadowMapPass extends RenderPass {
 
     private shadowOutput: DepthTextureArray;
 
-    private skinnedBoneMatricesBuffer: Buffer;
-
     private preparedRenderables: Renderable[] = [];
-    private preparedInstancedMeshes: InstancedRenderable[] = [];
 
 
     // TODO: Clean this, csmSplits here to be used by debugger plugin
     public csmSplits: number[] = [0, 0, 0, 0];
 
     public async init(resources: ResourcePool) {
-        const cullMode: "none" | "back" | "front" = "front";
-        const depthBias = 1;
-        const depthBiasSlopeScale = 1;
-
-        const code = `
-        struct VertexInput {
-            @builtin(instance_index) instanceIdx : u32, 
-            @location(0) position : vec3<f32>,
-        };
-        
-        struct VertexOutput {
-            @builtin(position) position : vec4<f32>,
-        };
-        
-        @group(0) @binding(0) var<storage, read> projectionMatrix: array<mat4x4<f32>, 4>;
-        @group(0) @binding(1) var<storage, read> cascadeIndex: u32;
-        
-        @group(1) @binding(0) var<storage, read> modelMatrix: array<mat4x4<f32>>;
-
-        @vertex
-        fn vertexMain(input: VertexInput) -> @builtin(position) vec4<f32> {
-            var output : VertexOutput;
-
-            let modelMatrixInstance = modelMatrix[input.instanceIdx];
-            let lightProjectionViewMatrix = projectionMatrix[cascadeIndex];
-        
-            return lightProjectionViewMatrix * modelMatrixInstance * vec4(input.position, 1.0);
-        }
-        
-        @fragment
-        fn fragmentMain() -> @location(0) vec4<f32> {
-            return vec4(1.0);
-        }
-        `;
-        this.drawShadowShader = await Shader.Create({
-            name: this.name,
-            code: code,
-            colorOutputs: [],
-            depthOutput: "depth24plus",
-            cullMode: cullMode,
-            depthBias: depthBias,
-            depthBiasSlopeScale: depthBiasSlopeScale,
-        })
-
-        this.drawInstancedShadowShader = await Shader.Create({
-            name: this.name + "-Instanced",
-            code: code,
-            colorOutputs: [],
-            depthOutput: "depth24plus",
-            cullMode: cullMode,
-            depthBias: depthBias,
-            depthBiasSlopeScale: depthBiasSlopeScale,
-        });
-
-        this.drawSkinnedMeshShadowShader = await Shader.Create({
-            name: this.name + "-Skinned",
-            code: `
-            struct VertexInput {
-                @builtin(instance_index) instanceIdx : u32, 
-                @location(0) position : vec3<f32>,
-                @location(1) joints: vec4<u32>,
-                @location(2) weights: vec4<f32>,
-            };
-            
-            struct VertexOutput {
-                @builtin(position) position : vec4<f32>,
-            };
-            
-            @group(0) @binding(0) var<storage, read> projectionMatrix: array<mat4x4<f32>, 4>;
-            @group(0) @binding(1) var<storage, read> cascadeIndex: u32;
-            
-            @group(1) @binding(0) var<storage, read> modelMatrix: array<mat4x4<f32>>;
-            @group(1) @binding(1) var<storage, read> boneMatrices: array<mat4x4<f32>>;
-    
-            @vertex
-            fn vertexMain(input: VertexInput) -> @builtin(position) vec4<f32> {
-                var output : VertexOutput;
-
-                let skinMatrix: mat4x4<f32> = 
-                boneMatrices[input.joints[0]] * input.weights[0] +
-                boneMatrices[input.joints[1]] * input.weights[1] +
-                boneMatrices[input.joints[2]] * input.weights[2] +
-                boneMatrices[input.joints[3]] * input.weights[3];
-            
-                let finalPosition = skinMatrix * vec4(input.position, 1.0);
-    
-                let modelMatrixInstance = modelMatrix[input.instanceIdx];
-                let lightProjectionViewMatrix = projectionMatrix[cascadeIndex];
-            
-                return lightProjectionViewMatrix * modelMatrixInstance * finalPosition;
-            }
-            
-            @fragment
-            fn fragmentMain() -> @location(0) vec4<f32> {
-                return vec4(1.0);
-            }
-            `,
-            colorOutputs: [],
-            depthOutput: "depth24plus",
-            cullMode: cullMode,
-            depthBias: depthBias,
-            depthBiasSlopeScale: depthBiasSlopeScale,
-        });
-
-        // 100 matrices 6.4Kb
-        this.skinnedBoneMatricesBuffer = new Buffer(16 * 100 * 4, BufferType.STORAGE);
-        this.drawSkinnedMeshShadowShader.SetBuffer("boneMatrices", this.skinnedBoneMatricesBuffer);
-
         this.shadowOutput = DepthTextureArray.Create(ShadowMapSettings.r_shadows_width.value, ShadowMapSettings.r_shadows_height.value, 1);
-
         this.initialized = true;
     }
 
@@ -222,8 +104,8 @@ export class DeferredShadowMapPass extends RenderPass {
     private practicalSplit(numOfCascades: number, near: number, far: number, lambda: number, target: number[]) {
         const lerp = (x: number, y: number, t: number) => (1 - t) * x + t * y;
 
-        const _uniformArray = [];
-        const _logArray = [];
+        const _uniformArray: number[] = [];
+        const _logArray: number[] = [];
         this.logarithmicSplit(numOfCascades, near, far, _logArray);
         this.uniformSplit(numOfCascades, near, far, _uniformArray);
 
@@ -342,10 +224,6 @@ export class DeferredShadowMapPass extends RenderPass {
 
         if (!this.lightProjectionMatrices || this.lightProjectionMatrices.size !== requiredProjectionSize) {
             this.lightProjectionMatrices = new DynamicBuffer(requiredProjectionSize, BufferType.STORAGE, 256);
-
-            this.drawShadowShader.SetBuffer("projectionMatrix", this.lightProjectionMatrices);
-            this.drawSkinnedMeshShadowShader.SetBuffer("projectionMatrix", this.lightProjectionMatrices);
-            this.drawInstancedShadowShader.SetBuffer("projectionMatrix", this.lightProjectionMatrices);
         }
 
         if (!this.cascadeIndexBuffer || this.cascadeIndexBuffer.size !== dynamicBufferBaseCapacity) {
@@ -353,30 +231,19 @@ export class DeferredShadowMapPass extends RenderPass {
             for (let i = 0; i < cascadeCapacity; i++) {
                 this.cascadeIndexBuffer.SetArray(new Uint32Array([i]), i * 256);
             }
-
-            this.drawShadowShader.SetBuffer("cascadeIndex", this.cascadeIndexBuffer);
-            this.drawSkinnedMeshShadowShader.SetBuffer("cascadeIndex", this.cascadeIndexBuffer);
-            this.drawInstancedShadowShader.SetBuffer("cascadeIndex", this.cascadeIndexBuffer);
         }
     }
 
     private prepareRenderables(frameData: FrameRenderData) {
-        const shadowCasters = frameData.shadowCasters;
-        const instancedMeshes = frameData.shadowInstancedMeshes;
-        if (shadowCasters.length > 0) {
-            const requiredSize = shadowCasters.length * 256;
-            if (!this.modelMatrices || this.modelMatrices.size !== requiredSize) {
-                this.modelMatrices = new DynamicBuffer(requiredSize, BufferType.STORAGE, 256);
-                this.drawShadowShader.SetBuffer("modelMatrix", this.modelMatrices);
-                this.drawSkinnedMeshShadowShader.SetBuffer("modelMatrix", this.modelMatrices);
-            }
+        this.preparedRenderables.length = 0;
 
-            for (let i = 0; i < shadowCasters.length; i++) {
-                this.modelMatrices.SetArray(shadowCasters[i].transform.localToWorldMatrix.elements, i * 256);
-            }
+        for (const r of frameData.shadowCasters) {
+            const s = r.material.GetShader("ShadowCaster");
+            if (!s) continue;
+            s.SetBuffer("lightProjection", this.lightProjectionMatrices);
+            s.SetBuffer("cascadeIndex", this.cascadeIndexBuffer);
+            this.preparedRenderables.push(r);
         }
-        this.preparedRenderables = shadowCasters;
-        this.preparedInstancedMeshes = instancedMeshes;
     }
 
     public preFrame(resources: ResourcePool) {
@@ -388,8 +255,6 @@ export class DeferredShadowMapPass extends RenderPass {
         const frameData = resources.getResource(PassParams.FrameRenderData) as FrameRenderData | undefined;
         if (!frameData) return;
         this.lightShadowData.clear();
-        this.preparedRenderables.length = 0;
-        this.preparedInstancedMeshes.length = 0;
 
         const lights = frameData.lights.filter(light => light.castShadows === true);
 
@@ -433,54 +298,30 @@ export class DeferredShadowMapPass extends RenderPass {
         resources.setResource(PassParams.ShadowPassDepth, this.shadowOutput);
     }
 
-    public execute(resources: ResourcePool) {
-        if (!this.initialized) return;
-        if (this.lightShadowData.size === 0) return;
-        if (!ShadowMapSettings.r_shadows_enabled.value) return;
+      public execute(resources: ResourcePool) {
+          if (!this.initialized || this.lightShadowData.size === 0 || !ShadowMapSettings.r_shadows_enabled.value) return;
+          const shadowOutput = this.shadowOutput;
 
-        const shadowOutput = this.shadowOutput;
-        shadowOutput.SetActiveLayer(0);
+          RendererContext.activePass = {
+              name: "ShadowCaster",
+              buffers: { lightProjection: this.lightProjectionMatrices, cascadeIndex: this.cascadeIndexBuffer },
+          };
 
-        for (const [lightId, lightShadowData] of this.lightShadowData) {
-            shadowOutput.SetActiveLayer(lightShadowData.shadowMapIndex);
+          for (const [lightId, data] of this.lightShadowData) {
+              shadowOutput.SetActiveLayer(data.shadowMapIndex);
+              this.lightProjectionMatrices.dynamicOffset = data.lightOffset;
+              RendererContext.BeginRenderPass("ShadowPass", [], { target: shadowOutput, clear: true }, true);
 
-            this.lightProjectionMatrices.dynamicOffset = lightShadowData.lightOffset;
+              for (let c = 0; c < data.numCascades; c++) {
+                  this.cascadeIndexBuffer.dynamicOffset = c * 256;
+                  const vp = data.cascadeViewports[c];
+                  if (vp) RendererContext.SetViewport(vp.x, vp.y, vp.width, vp.height, 0, 1);
+                  for (const r of this.preparedRenderables) r.OnRenderObject();
+              }
+              RendererContext.EndRenderPass();
+          }
 
-            for (let cascadePass = 0; cascadePass < lightShadowData.numCascades; cascadePass++) {
-                this.cascadeIndexBuffer.dynamicOffset = cascadePass * 256;
-
-                RendererContext.BeginRenderPass("ShadowPass", [], { target: shadowOutput, clear: cascadePass === 0 }, true);
-
-                const viewport = lightShadowData.cascadeViewports[cascadePass];
-                if (viewport) RendererContext.SetViewport(viewport.x, viewport.y, viewport.width, viewport.height, 0, 1);
-                else RendererContext.SetViewport(0, 0, shadowOutput.width, shadowOutput.height, 0, 1);
-
-                let renderableIndex = 0;
-                for (const renderable of this.preparedRenderables) {
-                    this.modelMatrices.dynamicOffset = renderableIndex * 256;
-
-                    if (renderable instanceof SkinnedMesh) {
-                        // TODO: Make this work with more than one skinned mesh, cannot use SetBuffer inside execute
-                        const bones = renderable.GetBoneMatricesBuffer();
-                        if (!bones) { renderableIndex++; continue; }
-                        this.drawSkinnedMeshShadowShader.SetBuffer("boneMatrices", bones);
-                        renderable.OnRenderObject(this.drawSkinnedMeshShadowShader);
-                    } else {
-                        renderable.OnRenderObject(this.drawShadowShader);
-                    }
-
-                    renderableIndex++;
-                }
-
-                for (const instance of this.preparedInstancedMeshes) {
-                    this.drawInstancedShadowShader.SetBuffer("modelMatrix", instance.matricesBuffer);
-                    instance.OnRenderObject(this.drawInstancedShadowShader);
-                }
-
-                RendererContext.EndRenderPass();
-            }
-        }
-
-        shadowOutput.SetActiveLayer(0);
-    }
+          RendererContext.activePass = null;
+          shadowOutput.SetActiveLayer(0);
+      }
 }
