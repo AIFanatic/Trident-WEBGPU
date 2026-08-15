@@ -8,24 +8,25 @@ export class WEBGPUMipsGenerator {
     private static shader: Shader;
     private static geometry: Geometry;
     private static format: TextureFormat;
-    private static mipSource: Texture;
+    private static mipSources = new Map<TextureFormat, Texture>();
 
     public static numMipLevels(...sizes: number[]) {
         return 1 + Math.log2(Math.max(...sizes)) | 0;
     }
 
     private static GetMipSource(width: number, height: number, format: TextureFormat): Texture {
-        if (
-            !this.mipSource ||
-            this.mipSource.width < width ||
-            this.mipSource.height < height ||
-            this.mipSource.format !== format
-        ) {
-            this.mipSource = RenderTexture.Create(width, height, 1, format, 1);
-            this.mipSource.name = "MipSource";
+        let mipSource = this.mipSources.get(format);
+
+        if (!mipSource || mipSource.width < width || mipSource.height < height) {
+            mipSource?.Destroy();
+
+            mipSource = RenderTexture.Create(width, height, 1, format, 1);
+
+            mipSource.name = `MipSource-${format}`;
+            this.mipSources.set(format, mipSource);
         }
 
-        return this.mipSource;
+        return mipSource;
     }
 
     private static GetShader(format: TextureFormat): Shader {
