@@ -28,13 +28,11 @@
             <script type="module">
                 const canvas = document.createElement("canvas");
                 document.body.appendChild(canvas);
-                            import { PlayerRuntime, GameObject, Components, Mathf, GPU, Runtime } from '@trident/core';
+                            import { PlayerRuntime, GameObject, Components, Mathf, GPU } from '@trident/core';
             import { OrbitControls } from '@trident/plugins/OrbitControls.js';
             import { Debugger } from '@trident/plugins/Debugger.js';
             import { ParticleSystem } from '@trident/plugins/ParticleSystem/ParticleSystem.js';
             import { UIFolder, UIVecStat, UISliderStat, UIButtonStat, UIGradientStat } from '@trident/plugins/ui/UIStats.js';
-            import { PostProcessingPass } from '@trident/plugins/PostProcessing/PostProcessingPass.js';
-            import { PostProcessingBloom } from '@trident/plugins/PostProcessing/effects/Bloom.js';
             
             async function Application(canvas) {
               await PlayerRuntime.Create(canvas);
@@ -86,10 +84,6 @@
               new UIGradientStat(particlesFolder, "Gradient:", (gradient) => {
                 particleSystem.colorOverLifetimeSetColorKeys(gradient.colorKeys), particleSystem.colorOverLifetimeSetAlphaKeys(gradient.alphaKeys);
               }, particleSystem.colorOverLifetimeGradients);
-              const postProcessing = new PostProcessingPass();
-              const bloom = new PostProcessingBloom();
-              postProcessing.effects.push(bloom);
-              Runtime.Renderer.RenderPipeline.AddPass(postProcessing, GPU.RenderPassOrder.AfterLighting);
               particlesFolder.Open();
               Debugger.Enable();
             }

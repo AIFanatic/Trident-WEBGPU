@@ -20,6 +20,7 @@ import { PhysicsDebugger } from '@trident/plugins/PhysicsRapier/PhysicsDebugger.
 import { EditorAPI, registerEditorBridge } from '@trident/editor';
 import { GLTFLoader } from '@trident/plugins/GLTF/GLTFLoader.js';
 import { PhysicsRapier } from '@trident/plugins/PhysicsRapier/PhysicsRapier.js';
+import { Debugger } from '@trident/plugins/Debugger.js';
 
 var browser = {exports: {}};
 
@@ -3478,12 +3479,15 @@ class TridentAPI {
   compareType(value, type) {
     if (typeof value === "function") return value === type || value.prototype instanceof type;
     if (value instanceof type) return true;
-    return value?.constructor?.type === type.type;
+    const valueType = value?.constructor?.type;
+    const expectedType = type.type;
+    return valueType !== void 0 && expectedType !== void 0 && valueType === expectedType;
   }
   getFieldType(value) {
     if (this.compareType(value, Prefab)) return "Prefab";
     else if (this.compareType(value, GameObject)) return "GameObject";
     else if (this.compareType(value, Component$1)) return "Component";
+    else if (this.compareType(value, Mathf.Vector4)) return "Vector4";
     else if (this.compareType(value, Mathf.Vector3)) return "Vector3";
     else if (this.compareType(value, Mathf.Vector2)) return "Vector2";
     else if (this.compareType(value, Mathf.Color)) return "Color";
@@ -3539,6 +3543,7 @@ class TridentAPI {
 
 const createElement = (type, props, ...children) => {
   if (props === null) props = {};
+  if (children.length === 0 && props.children !== void 0) children = props.children;
   return { type, props, children };
 };
 const setAttribute = (dom, key, value) => {
@@ -5560,25 +5565,53 @@ class InspectorColorGradient extends Component {
   }
 }
 
+class InspectorVector4 extends Component {
+  constructor(props) {
+    super(props);
+  }
+  onChanged(property, _value) {
+    if (this.props.onChanged) {
+      if (_value === "") return;
+      const value = parseFloat(_value);
+      if (property == 0 /* X */) this.props.vector4.x = value;
+      else if (property == 1 /* Y */) this.props.vector4.y = value;
+      else if (property == 2 /* Z */) this.props.vector4.z = value;
+      else if (property == 3 /* W */) this.props.vector4.w = value;
+      this.props.onChanged(this.props.vector4);
+    }
+  }
+  // TODO: InspectorComponent should be vector4, need to update CSS
+  render() {
+    return /* @__PURE__ */ createElement("div", { class: "InspectorComponent" }, /* @__PURE__ */ createElement(InspectorNumber, { title: "X", titleClass: "red-bg", value: this.props.vector4.x, onChanged: (value) => {
+      this.onChanged(0 /* X */, value);
+    } }), /* @__PURE__ */ createElement(InspectorNumber, { title: "Y", titleClass: "green-bg", value: this.props.vector4.y, onChanged: (value) => {
+      this.onChanged(1 /* Y */, value);
+    } }), /* @__PURE__ */ createElement(InspectorNumber, { title: "Z", titleClass: "blue-bg", value: this.props.vector4.z, onChanged: (value) => {
+      this.onChanged(2 /* Z */, value);
+    } }), /* @__PURE__ */ createElement(InspectorNumber, { title: "W", titleClass: "gray-bg", value: this.props.vector4.z, onChanged: (value) => {
+      this.onChanged(3 /* W */, value);
+    } }));
+  }
+}
+
 class InspectorMaterial extends Component {
   constructor(props) {
     super(props);
   }
   onComponentPropertyChanged(object, property, value) {
     object[property] = value;
+    const engineType = this.props.engineAPI.getFieldType(value);
+    console.log(object, property, value, engineType);
     this.setState({});
   }
-  // private onGameObjectNameChanged(gameObject: IGameObject, event: Event) {
-  //         const input = event.currentTarget as HTMLInputElement;
-  //         gameObject.name = input.value;
-  //         TridentAPI.EventSystem.emit(GameObjectEvents.Changed, gameObject);
-  //         // this.forceUpdate()
-  //     }
   renderInspectorForComponentProperty(component, property) {
     const name = property.name;
     const type = property.type;
     const engineType = this.props.engineAPI.getFieldType(type);
-    if (engineType === "Vector3") return /* @__PURE__ */ createElement(InspectorVector3, { onChanged: (value) => {
+    if (engineType === "Vector4") return /* @__PURE__ */ createElement(InspectorVector4, { onChanged: (value) => {
+      this.onComponentPropertyChanged(component, name, value);
+    }, vector4: component[name] });
+    else if (engineType === "Vector3") return /* @__PURE__ */ createElement(InspectorVector3, { onChanged: (value) => {
       this.onComponentPropertyChanged(component, name, value);
     }, vector3: component[name] });
     else if (engineType === "Vector2") return /* @__PURE__ */ createElement(InspectorVector2, { onChanged: (value) => {
@@ -5741,9 +5774,13 @@ class LayoutInspectorGameObject extends Component {
   }
   renderInspectorForComponentProperty(component, property) {
     const name = property.name;
+    if (!(name in component)) return null;
     const type = property.type;
     const engineType = this.props.engineAPI.getFieldType(type);
-    if (engineType === "Vector3") return /* @__PURE__ */ createElement(InspectorVector3, { onChanged: (value) => {
+    if (engineType === "Vector4") return /* @__PURE__ */ createElement(InspectorVector4, { onChanged: (value) => {
+      this.onComponentPropertyChanged(component, name, value);
+    }, vector4: component[name] });
+    else if (engineType === "Vector3") return /* @__PURE__ */ createElement(InspectorVector3, { onChanged: (value) => {
       this.onComponentPropertyChanged(component, name, value);
     }, vector3: component[name] });
     else if (engineType === "Vector2") return /* @__PURE__ */ createElement(InspectorVector2, { onChanged: (value) => {
@@ -6056,11 +6093,15 @@ class App extends Component {
     });
     registerEditorBridge({
       saveAsset: SaveAsset,
+      writeFile: (path, data) => SaveToFile(path, data instanceof Blob ? data : new Blob([data])),
       repaintInspector: () => {
         TridentAPI.EventSystem.emit(LayoutInspectorEvents.Repaint);
       },
       LayoutInspectorInput: (props) => {
         return /* @__PURE__ */ createElement(InspectorInput, { ...props });
+      },
+      LayoutInspectorProperty: (props) => {
+        return /* @__PURE__ */ createElement(InspectorProperty, { ...props });
       },
       ExtendedDataTransfer: () => {
         return ExtendedDataTransfer;
@@ -6091,7 +6132,6 @@ class App extends Component {
     });
     TridentAPI.EventSystem.on(RuntimeEvents.CreatedCanvas, async (canvas) => {
       const Runtime = await engineAPI.createRuntime(canvas);
-      Runtime.Renderer.SetResolution({ mode: "fixed", width: 1280, height: 720 });
       const currentScene = Runtime.SceneManager.CreateScene("DefaultScene");
       currentScene.mode = SceneExecutionMode.Edit;
       Runtime.SceneManager.SetActiveScene(currentScene);
@@ -6102,6 +6142,10 @@ class App extends Component {
       await EngineAPI.deserializer.deserializeScene(EngineAPI.currentScene, sceneJSON);
       TridentAPI.EventSystem.emit(SceneEvents.Loaded, EngineAPI.currentScene);
       TridentAPI.EventSystem.emit(SceneEvents.Loaded, currentScene);
+      Debugger.Enable();
+      setTimeout(() => {
+        Components.Camera.mainCamera.aspect = canvas.width / canvas.height;
+      }, 1e3);
     });
   }
   render() {

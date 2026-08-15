@@ -94,14 +94,8 @@ class ParticleSystem extends (_a = Component, _startSize_dec = [SerializeField],
     __publicField(this, "textureSampler");
     __publicField(this, "_startSpeed", new Mathf.Vector3(1, 1, 1).mul(10));
     this.init();
-    this.colorOverLifetimeGradients.setColorKeys([
-      { t: 0, r: 1, g: 1, b: 1 },
-      { t: 1, r: 1, g: 1, b: 1 }
-    ]);
-    this.colorOverLifetimeGradients.setAlphaKeys([
-      { t: 0, a: 1 },
-      { t: 1, a: 0 }
-    ]);
+    this.colorOverLifetimeGradients.setColorKeys([{ t: 0, r: 1, g: 1, b: 1 }, { t: 1, r: 1, g: 1, b: 1 }]);
+    this.colorOverLifetimeGradients.setAlphaKeys([{ t: 0, a: 1 }, { t: 1, a: 0 }]);
   }
   colorOverLifetimeAddColor(color) {
     this.colorOverLifetimeGradients.addColor(color);
@@ -127,13 +121,12 @@ class ParticleSystem extends (_a = Component, _startSize_dec = [SerializeField],
       shader: await GPU.Shader.Create({
         code: await GPU.ShaderPreprocessor.ProcessIncludesV2(WGSL_Draw),
         colorOutputs: [{ format: "rgba16float", blendMode: "premultiplied" }],
-        depthOutput: "depth24plus",
-        depthWriteEnabled: false
+        depthOutput: "depth24plus"
       })
     });
     this.instancedMesh = this.gameObject.AddComponent(Components.InstancedMesh);
     this.instancedMesh.flags |= Utils.Flags.DontSaveInEditor;
-    this.instancedMesh._instanceCount = 1024;
+    this.instancedMesh.instanceCount = 1024;
     this.instancedMesh.name = "ParticleSystem";
     this.instancedMesh.enableShadows = false;
     this.geometry = Geometry.Plane();
@@ -203,6 +196,7 @@ class ParticleSystem extends (_a = Component, _startSize_dec = [SerializeField],
     const dispatchSizeX = Math.ceil(Math.cbrt(particleCount) / 4);
     const dispatchSizeY = Math.ceil(Math.cbrt(particleCount) / 4);
     const dispatchSizeZ = Math.ceil(Math.cbrt(particleCount) / 4);
+    if (particleCount === 0) return;
     GPU.Renderer.BeginRenderFrame();
     GPU.ComputeContext.BeginComputePass("ParticleSystem", true);
     GPU.ComputeContext.Dispatch(this.compute, dispatchSizeX, dispatchSizeY, dispatchSizeZ);

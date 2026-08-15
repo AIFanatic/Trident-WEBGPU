@@ -28,19 +28,13 @@
             <script type="module">
                 const canvas = document.createElement("canvas");
                 document.body.appendChild(canvas);
-                            import { EventSystem, GPU, PlayerRuntime, GameObject, Components, Mathf, Runtime, Geometry, PBRMaterial } from '@trident/core';
+                            import { PlayerRuntime, GameObject, Components, Mathf, Geometry, PBRMaterial } from '@trident/core';
             import { OrbitControls } from '@trident/plugins/OrbitControls.js';
             import { GLTFLoader } from '@trident/plugins/GLTF/GLTFLoader.js';
             import { Debugger } from '@trident/plugins/Debugger.js';
-            import { IBLLightingPass } from '@trident/plugins/Environment/IBLLightingPass.js';
-            import { SkyboxPass } from '@trident/plugins/Environment/SkyboxPass.js';
-            import { Sky } from '@trident/plugins/Environment/Sky.js';
             import { FoliageMaterial } from '@trident/plugins/FoliageMaterial.js';
             
             async function Application(canvas) {
-              EventSystem.on(GPU.RendererEvents.FrameEnded, () => {
-                console.log("GPU.RendererEvents.FrameEnded");
-              });
               await PlayerRuntime.Create(canvas);
               const scene = PlayerRuntime.SceneManager.CreateScene("DefaultScene");
               PlayerRuntime.SceneManager.SetActiveScene(scene);
@@ -56,21 +50,14 @@
               lightGameObject.transform.LookAt(new Mathf.Vector3(0, 0, 0));
               const light = lightGameObject.AddComponent(Components.DirectionalLight);
               light.castShadows = false;
-              light.intensity = 2;
-              const sky = new Sky();
-              await sky.init();
-              const skyTexture = sky.skyTextureCubemap;
-              const iblLightingPass = Runtime.Renderer.RenderPipeline.AddPass(IBLLightingPass, GPU.RenderPassOrder.AfterLighting);
-              const skyboxPass = Runtime.Renderer.RenderPipeline.AddPass(SkyboxPass, GPU.RenderPassOrder.AfterLighting);
-              iblLightingPass.SetEnvironment(skyTexture);
-              skyboxPass.SetSkybox(skyTexture);
+              light.intensity = 20;
               const floorGameObject = new GameObject();
               floorGameObject.transform.scale.set(2e3, 2e3, 0);
               floorGameObject.transform.eulerAngles.x = -90;
               const floorMesh = floorGameObject.AddComponent(Components.Mesh);
               floorMesh.geometry = Geometry.Plane();
               floorMesh.material = new PBRMaterial();
-              const rootGO = await GLTFLoader.Load("/extra/SampleProject/GameAssets/Trees/Eucalyptus camaldulensis.glb", scene);
+              const rootGO = await GLTFLoader.Load("/extra/SampleProject/GameAssets/Trees/Eucalyptus camaldulensis RT.glb", scene);
               const meshes = rootGO.GetComponentsInChildren(Components.Mesh);
               let mesh = meshes[0];
               const material = mesh.material;

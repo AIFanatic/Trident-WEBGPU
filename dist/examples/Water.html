@@ -35,7 +35,7 @@
             import { Sky } from '@trident/plugins/Environment/Sky.js';
             import { IBLLightingPass } from '@trident/plugins/Environment/IBLLightingPass.js';
             import { SkyboxPass } from '@trident/plugins/Environment/SkyboxPass.js';
-            import { WaterDynamic } from '@trident/plugins/Water/WaterDynamic.js';
+            import { WaterV1 } from '@trident/plugins/Water/WaterV1.js';
             
             async function Application(canvas) {
               await PlayerRuntime.Create(canvas);
@@ -65,7 +65,7 @@
               waterGameObject.transform.eulerAngles.x = -90;
               waterGameObject.transform.position.y = 5;
               waterGameObject.transform.scale.set(1024, 1024, 1);
-              waterGameObject.AddComponent(WaterDynamic);
+              waterGameObject.AddComponent(WaterV1);
               setInterval(() => {
                 const radius = 1;
                 const elevationRad = Mathf.Deg2Rad * skyAtmosphere.SUN_ELEVATION_DEGREES;

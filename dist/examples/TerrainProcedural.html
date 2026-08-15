@@ -35,7 +35,6 @@
             import { Sky } from '@trident/plugins/Environment/Sky.js';
             import { IBLLightingPass } from '@trident/plugins/Environment/IBLLightingPass.js';
             import { SkyboxPass } from '@trident/plugins/Environment/SkyboxPass.js';
-            import { WaterNoise } from '@trident/plugins/Water/WaterNoise.js';
             import { UITextureViewer, UIFolder, UISliderStat } from '@trident/plugins/ui/UIStats.js';
             import { TerrainProcedural } from '@trident/plugins/TerrainProcedural.js';
             import { GLTFLoader } from '@trident/plugins/GLTF/GLTFLoader.js';
@@ -62,12 +61,12 @@
               lightGameObject.transform.position.set(-4, 4, -4);
               lightGameObject.transform.LookAt(new Mathf.Vector3(0, 0, 0));
               const light = lightGameObject.AddComponent(Components.DirectionalLight);
-              light.intensity = 5;
+              light.intensity = 4;
               const skyAtmosphere = new Sky();
               await skyAtmosphere.init();
               const hdr = await HDRParser.Load("./assets/textures/HDR/autumn_field_puresky_1k.hdr");
-              const skyTexture = await HDRParser.ToCubemap(hdr);
-              const skycubemap = skyTexture;
+              await HDRParser.ToCubemap(hdr);
+              const skycubemap = skyAtmosphere.skyTextureCubemap;
               const iblLightingPass = Runtime.Renderer.RenderPipeline.AddPass(IBLLightingPass, GPU.RenderPassOrder.AfterLighting);
               const skyboxPass = Runtime.Renderer.RenderPipeline.AddPass(SkyboxPass, GPU.RenderPassOrder.AfterLighting);
               iblLightingPass.SetEnvironment(skycubemap);
@@ -147,7 +146,7 @@
                   const prefab = PrefabFromGameObject(gameObject);
                   console.log(prefab);
                   await terrain.terrainData.AddProp(prefab, terrain.gameObject);
-                  const rtGLB = await GLTFLoader.Load("/extra/SampleProject/GameAssets/Trees/White Ash RT.glb", scene);
+                  const rtGLB = await GLTFLoader.Load("/extra/SampleProject/GameAssets/Trees/Eucalyptus camaldulensis RT.glb", scene);
                   const rtMeshes = rtGLB.GetComponentsInChildren(Components.Mesh);
                   console.log(rtMeshes);
                   rtMeshes[0].material = FoliageMaterial.SetFromMesh(rtMeshes[0]);
@@ -156,7 +155,6 @@
                   await ldImpostor.Create([rtMeshes[0], rtMeshes[1]], 4096, 16);
                   const lodGameObject = new GameObject();
                   const lodInstanceRenderable = lodGameObject.AddComponent(InstancedLODGroup);
-                  lodInstanceRenderable.enableShadows = false;
                   lodInstanceRenderable.lods.push({ renderers: [
                     { geometry: rtMeshes[0].geometry, material: rtMeshes[0].material },
                     { geometry: rtMeshes[1].geometry, material: rtMeshes[1].material }
@@ -228,16 +226,6 @@
                 new UISliderStat(terrainSettings, "IS_ISLAND:", 0, 1, 1, terrainProcedural.params.IS_ISLAND, async (value) => {
                   updateTerrainParam("IS_ISLAND", value);
                 });
-                const waterGameObject = new GameObject();
-                waterGameObject.transform.eulerAngles.x = -90;
-                waterGameObject.transform.scale.set(terrain.terrainData.size.x, terrain.terrainData.size.z, 1);
-                waterGameObject.AddComponent(WaterNoise);
-                setInterval(() => {
-                  const ty = terrain.terrainData.size.y;
-                  waterGameObject.transform.position.y = terrainProcedural.params.WATER_HEIGHT * ty;
-                  waterGameObject.transform.position.y -= ty * 0.5;
-                  terrain.SampleHeight(shadow.transform.position);
-                }, 1e3);
               }
               const sphereGameObject = new GameObject();
               sphereGameObject.transform.position.set(0, 30, 0);

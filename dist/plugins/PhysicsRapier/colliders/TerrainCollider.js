@@ -46,6 +46,14 @@ class TerrainCollider extends (_a = Collider, _terrainData_dec = [SerializeField
     __publicField(this, "_terrainData");
     __publicField(this, "onGeometryUpdated", (td) => this.Rebuild(td));
   }
+  Start() {
+    super.Start();
+    this.CreateCollider();
+  }
+  CreateCollider() {
+    if (!this._terrainData) return;
+    this.Rebuild(this._terrainData);
+  }
   get terrainData() {
     return this._terrainData;
   }
@@ -60,7 +68,10 @@ class TerrainCollider extends (_a = Collider, _terrainData_dec = [SerializeField
     this.Rebuild(td);
   }
   Rebuild(terrainData) {
-    if (!PhysicsRapier.PhysicsWorld) return;
+    if (!PhysicsRapier.hasLoaded) {
+      console.warn("PhysicsRapier not loaded");
+      return;
+    }
     const heights = terrainData.heights;
     if (!heights?.length) return;
     const size = Math.sqrt(heights.length);

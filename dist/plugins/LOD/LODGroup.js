@@ -1,4 +1,4 @@
-import { SerializeField, Geometry, GPU, Components, EventSystemLocal, Runtime, NonSerialized } from '@trident/core';
+import { SerializeField, Geometry, GPU, Components, Runtime, NonSerialized } from '@trident/core';
 
 var __create = Object.create;
 var __defProp = Object.defineProperty;
@@ -48,7 +48,7 @@ var __privateIn = (member, obj) => Object(obj) !== obj ? __typeError('Cannot use
 var __privateGet = (obj, member, getter) => (__accessCheck(obj, member, "read from private field"), getter ? getter.call(obj) : member.get(obj));
 var __privateSet = (obj, member, value, setter) => (__accessCheck(obj, member, "write to private field"), setter ? setter.call(obj, value) : member.set(obj, value), value);
 var __privateMethod = (obj, member, method) => (__accessCheck(obj, member, "access private method"), method);
-var _material_dec, _geometry_dec, _init, _renderers_dec, _screenSize_dec, _init2, _geometry_dec2, _lods_dec, _a, _init3;
+var _material_dec, _geometry_dec, _init, _renderers_dec, _screenSize_dec, _init2, _geometry_dec2, _material_dec2, _lods_dec, _a, _init3;
 _geometry_dec = [SerializeField(Geometry)], _material_dec = [SerializeField(GPU.Material)];
 class LODRenderer {
   constructor() {
@@ -71,23 +71,22 @@ _init2 = __decoratorStart(null);
 __decorateElement(_init2, 5, "screenSize", _screenSize_dec, LOD);
 __decorateElement(_init2, 5, "renderers", _renderers_dec, LOD);
 __decoratorMetadata(_init2, LOD);
-class LODGroup extends (_a = Components.Renderable, _lods_dec = [SerializeField(LOD)], _geometry_dec2 = [NonSerialized], _a) {
-  constructor(gameObject) {
-    super(gameObject);
+class LODGroup extends (_a = Components.Mesh, _lods_dec = [SerializeField(LOD)], _material_dec2 = [NonSerialized], _geometry_dec2 = [NonSerialized], _a) {
+  constructor() {
+    super(...arguments);
     __runInitializers(_init3, 5, this);
     __publicField(this, "lods", __runInitializers(_init3, 8, this, [])), __runInitializers(_init3, 11, this);
     __publicField(this, "activeLodIndex", -1);
-    __publicField(this, "modelMatrixOffset", -1);
-    if (!Components.Mesh.modelMatrices) {
-      Components.Mesh.modelMatrices = new GPU.DynamicBufferMemoryAllocatorDynamic(256 * 10, GPU.BufferType.STORAGE, 256 * 10);
-    }
-    EventSystemLocal.on(Components.TransformEvents.Updated, this.transform, () => {
-      this.modelMatrixOffset = Components.Mesh.modelMatrices.set(this.id, this.transform.localToWorldMatrix.elements);
-    });
+  }
+  get material() {
+    return this._material;
+  }
+  get geometry() {
+    const lod = this.lods[this.activeLodIndex] ?? this.lods[0];
+    return lod?.renderers?.[0]?.geometry;
   }
   Start() {
     super.Start();
-    this.modelMatrixOffset = Components.Mesh.modelMatrices.set(this.id, this.transform.localToWorldMatrix.elements);
     this.activeLodIndex = this.SelectLOD();
   }
   GetRelativeScreenSize() {
@@ -124,7 +123,6 @@ class LODGroup extends (_a = Components.Renderable, _lods_dec = [SerializeField(
     const resources = Runtime.Renderer.RenderPipeline.renderGraph.resourcePool;
     const FrameBuffer = resources.getResource(GPU.PassParams.FrameBuffer);
     const modelMatrices = Components.Mesh.modelMatrices.getBuffer();
-    modelMatrices.dynamicOffset = this.modelMatrixOffset * Components.Mesh.modelMatrices.getStride();
     for (const renderer of lod.renderers) {
       const shader = shaderOverride ?? renderer.material?.shader;
       if (!renderer.geometry || !renderer.material || !shader) continue;
@@ -132,30 +130,20 @@ class LODGroup extends (_a = Components.Renderable, _lods_dec = [SerializeField(
       shader.SetBuffer("modelMatrix", modelMatrices);
     }
   }
-  OnRenderObject(shaderOverride) {
+  OnRenderObject() {
     const lod = this.lods[this.activeLodIndex];
     if (!lod) return;
-    Components.Mesh.modelMatrices.getBuffer().dynamicOffset = this.modelMatrixOffset * Components.Mesh.modelMatrices.getStride();
+    const modelMatrices = Components.Mesh.modelMatrices.getBuffer();
     for (const renderer of lod.renderers) {
-      const shader = shaderOverride ?? renderer.material?.shader;
-      if (!renderer.geometry || !renderer.geometry.attributes.has("position") || !renderer.material || !shader) {
-        continue;
-      }
-      GPU.RendererContext.DrawGeometry(renderer.geometry, shader);
+      const shader = renderer.material?.shader;
+      if (!renderer.geometry?.attributes.has("position") || !renderer.material || !shader) continue;
+      shader.SetBuffer("modelMatrix", modelMatrices);
+      GPU.RendererContext.DrawGeometry(renderer.geometry, shader, 1, this.firstInstance);
     }
-  }
-  get geometry() {
-    const lod = this.lods[this.activeLodIndex] ?? this.lods[0];
-    return lod?.renderers?.[0]?.geometry;
-  }
-  Destroy() {
-    if (Components.Mesh.modelMatrices?.has(this.id)) {
-      Components.Mesh.modelMatrices.delete(this.id);
-    }
-    super.Destroy();
   }
 }
 _init3 = __decoratorStart(_a);
+__decorateElement(_init3, 2, "material", _material_dec2, LODGroup);
 __decorateElement(_init3, 2, "geometry", _geometry_dec2, LODGroup);
 __decorateElement(_init3, 5, "lods", _lods_dec, LODGroup);
 __decoratorMetadata(_init3, LODGroup);

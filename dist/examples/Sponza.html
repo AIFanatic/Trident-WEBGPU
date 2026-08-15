@@ -28,7 +28,7 @@
             <script type="module">
                 const canvas = document.createElement("canvas");
                 document.body.appendChild(canvas);
-                            import { Runtime, GameObject, Components, Mathf, GPU } from '@trident/core';
+                            import { PlayerRuntime, GameObject, Components, Mathf, Runtime, GPU } from '@trident/core';
             import { OrbitControls } from '@trident/plugins/OrbitControls.js';
             import { Debugger } from '@trident/plugins/Debugger.js';
             import { GLTFLoader } from '@trident/plugins/GLTF/GLTFLoader.js';
@@ -36,54 +36,29 @@
             import { PostProcessingSMAA } from '@trident/plugins/PostProcessing/effects/SMAA.js';
             
             async function Application(canvas) {
-              await Runtime.Create(canvas);
-              const scene = Runtime.SceneManager.CreateScene("DefaultScene");
-              Runtime.SceneManager.SetActiveScene(scene);
+              await PlayerRuntime.Create(canvas);
+              const scene = PlayerRuntime.SceneManager.CreateScene("DefaultScene");
+              PlayerRuntime.SceneManager.SetActiveScene(scene);
               const mainCameraGameObject = new GameObject();
               mainCameraGameObject.name = "MainCamera";
               const camera = mainCameraGameObject.AddComponent(Components.Camera);
               camera.SetPerspective(72, canvas.width / canvas.height, 0.5, 1e4);
               mainCameraGameObject.transform.position.set(0, 0, 10);
               mainCameraGameObject.transform.LookAt(new Mathf.Vector3(0, 0, 0));
-              new OrbitControls(canvas, camera);
+              mainCameraGameObject.AddComponent(OrbitControls);
               const lightGameObject = new GameObject();
-              lightGameObject.transform.position.set(-10, 10, 10);
+              lightGameObject.transform.position.set(-10, 100, 10);
               lightGameObject.transform.LookAt(new Mathf.Vector3(0, 0, 0));
               const light = lightGameObject.AddComponent(Components.DirectionalLight);
               light.castShadows = true;
-              light.intensity = 0.01;
-              function traverse(gameObjects, fn) {
-                for (const gameObject of gameObjects) {
-                  fn(gameObject);
-                  for (const child of gameObject.transform.children) {
-                    traverse([child.gameObject], fn);
-                  }
-                }
-              }
-              const rootGameObject = await GLTFLoader.Load("/extra/test-assets/scenes/Bistro.glb", scene);
+              light.intensity = 6;
+              console.log(light);
+              await GLTFLoader.Load("/extra/test-assets/scenes/Bistro.glb", scene);
               Debugger.Enable();
-              let lightCount = 0;
-              traverse([rootGameObject], (gameObject) => {
-                const mesh = gameObject.GetComponent(Components.Mesh);
-                if (mesh) {
-                  const mat = mesh.material.params;
-                  if (mat.emissiveMap.width > 1 || mat.emissiveColor.r > 0) {
-                    const pointLight = gameObject.AddComponent(Components.PointLight);
-                    pointLight.intensity = 10;
-                    pointLight.range = 50;
-                    mat.emissiveMap.GetPixels(0, 0, 1, 1, 0).then((pixel) => {
-                      pointLight.color.set(pixel[0] / 255, pixel[1] / 255, pixel[2] / 255, 1);
-                    });
-                    lightCount++;
-                  }
-                }
-              });
-              console.log(lightCount);
               const postProcessing = new PostProcessingPass();
               const smaa = new PostProcessingSMAA();
               postProcessing.effects.push(smaa);
               Runtime.Renderer.RenderPipeline.AddPass(postProcessing, GPU.RenderPassOrder.BeforeScreenOutput);
-              Runtime.Play();
             }
             Application(document.querySelector("canvas"));
             

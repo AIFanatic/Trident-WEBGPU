@@ -1,4 +1,4 @@
-import { Assets, GPU, Runtime, Renderer, Component, Geometry, IndexAttribute, VertexAttribute } from '@trident/core';
+import { Assets, GPU, Runtime, Component, EventSystemLocal, Components, Geometry, IndexAttribute, VertexAttribute } from '@trident/core';
 import { DataBackedBuffer } from '@trident/plugins/DataBackedBuffer.js';
 import water_render_v2_wgsl_url from './resources/WaterRenderV2.wgsl.js';
 
@@ -52,18 +52,14 @@ function PlaneGeometry(width = 1, height = 1, widthSegments = 1, heightSegments 
 }
 class WaterRenderPass extends GPU.RenderPass {
   name = "WaterRenderPass";
-  lightingClone;
-  depthClone;
   waterShader;
-  // public readonly settings: DataBackedBuffer<WaterSettings>;
   waterGeometries;
-  waterSettingsBuffer;
   constructor() {
     super();
     this.waterGeometries = /* @__PURE__ */ new Map();
   }
   async init(resources) {
-    const GBufferFormat = Runtime.Renderer.RenderPipeline.GBufferFormat;
+    Runtime.Renderer.RenderPipeline.GBufferFormat;
     const gbufferFormat = GPU.RenderingPipeline.GBufferFormat;
     this.waterShader = await GPU.Shader.Create({
       code: await GPU.ShaderLoader.LoadURL(new URL(WaterPassWGSL, import.meta.url)),
@@ -88,25 +84,29 @@ class WaterRenderPass extends GPU.RenderPass {
     this.waterShader.SetSampler("texture_sampler", new GPU.TextureSampler());
     this.waterShader.SetSampler("depth_texture_sampler", new GPU.TextureSampler({ compare: "less-equal" }));
     this.waterShader.SetTexture("perlin", await GPU.Texture.Load(new URL(perlin_noise, import.meta.url)));
-    this.lightingClone = GPU.RenderTexture.Create(Renderer.width, Renderer.height, 1, GBufferFormat);
-    this.lightingClone.name = "LightingCloneWater";
-    this.depthClone = GPU.DepthTexture.Create(Renderer.width, Renderer.height);
-    this.waterSettingsBuffer = new GPU.Buffer(14 * 4 * 4, GPU.BufferType.STORAGE);
-    this.waterShader.SetBuffer("waveSettings", this.waterSettingsBuffer);
     this.initialized = true;
+  }
+  preFrame(resources) {
+    if (this.waterGeometries.size === 0) return;
+    this.waterShader.SetValue("TIME", performance.now() / 1e3);
+    for (const waterInfo of this.waterGeometries.values()) {
+      const matrix = waterInfo.transform.localToWorldMatrix;
+      if (!waterInfo.transformDirty) continue;
+      waterInfo.transformDirty = false;
+      waterInfo.modelMatrixBuffer.SetArray(matrix.elements);
+    }
   }
   async execute(resources) {
     if (!this.initialized) return;
     if (this.waterGeometries.size === 0) return;
     const FrameBuffer = resources.getResource(GPU.PassParams.FrameBuffer);
-    const currentLightingPass = resources.getResource(GPU.PassParams.LightingPassOutput);
     const currentAlbedo = resources.getResource(GPU.PassParams.GBufferAlbedo);
+    const currentAlbedoCopy = resources.getResource(GPU.PassParams.GBufferAlbedoCopy);
     const currentNormal = resources.getResource(GPU.PassParams.GBufferNormal);
     const currentERMO = resources.getResource(GPU.PassParams.GBufferERMO);
     const currentDepth = resources.getResource(GPU.PassParams.GBufferDepth);
-    if (!currentLightingPass || !currentDepth) return;
-    GPU.RendererContext.CopyTextureToTextureV3({ texture: currentAlbedo }, { texture: this.lightingClone });
-    GPU.RendererContext.CopyTextureToTextureV3({ texture: currentDepth }, { texture: this.depthClone });
+    const currentDepthCopy = resources.getResource(GPU.PassParams.GBufferDepthCopy);
+    if (!currentAlbedo || !currentDepth) return;
     GPU.RendererContext.BeginRenderPass(
       this.name,
       [
@@ -118,12 +118,11 @@ class WaterRenderPass extends GPU.RenderPass {
       true
     );
     this.waterShader.SetBuffer("frameBuffer", FrameBuffer);
-    this.waterShader.SetTexture("SCREEN_TEXTURE", this.lightingClone);
-    this.waterShader.SetTexture("DEPTH_TEXTURE", this.depthClone);
-    this.waterShader.SetValue("TIME", performance.now() / 1e3);
+    this.waterShader.SetTexture("SCREEN_TEXTURE", currentAlbedoCopy);
+    this.waterShader.SetTexture("DEPTH_TEXTURE", currentDepthCopy);
     for (const [geometry, waterInfo] of this.waterGeometries) {
       this.waterShader.SetBuffer("waveSettings", waterInfo.settings.buffer);
-      this.waterShader.SetMatrix4("modelMatrix", waterInfo.transform.localToWorldMatrix);
+      this.waterShader.SetBuffer("modelMatrix", waterInfo.modelMatrixBuffer);
       GPU.RendererContext.DrawGeometry(geometry, this.waterShader, 1);
     }
     GPU.RendererContext.EndRenderPass();
@@ -136,6 +135,10 @@ class WaterV1 extends Component {
   static WaterRenderPass;
   static WaterRenderPassScene;
   geometry;
+  waterInfo;
+  onTransformUpdated = () => {
+    this.waterInfo.transformDirty = true;
+  };
   constructor(gameObject) {
     super(gameObject);
     if (!WaterV1.WaterRenderPass || WaterV1.WaterRenderPassScene !== gameObject.scene) {
@@ -166,10 +169,14 @@ class WaterV1 extends Component {
       beers_law: [0.2, 0, 0, 0],
       depth_offset: [0.75, 0, 0, 0]
     });
-    WaterV1.WaterRenderPass.waterGeometries.set(this.geometry, {
+    this.waterInfo = {
       settings: this.settings,
-      transform: this.transform
-    });
+      transform: this.transform,
+      modelMatrixBuffer: new GPU.Buffer(16 * 4, GPU.BufferType.STORAGE),
+      transformDirty: true
+    };
+    EventSystemLocal.on(Components.TransformEvents.Updated, this.transform, this.onTransformUpdated);
+    WaterV1.WaterRenderPass.waterGeometries.set(this.geometry, this.waterInfo);
   }
   Destroy() {
     WaterV1.WaterRenderPass?.waterGeometries.delete(this.geometry);

@@ -143,7 +143,7 @@ class DebuggerRenderPass extends GPU.RenderPass {
     this.outputViewerShader.SetSampler("inputDepthSampler", new GPU.TextureSampler());
     this.initialized = true;
   }
-  async execute(resources, ...args) {
+  preFrame(resources) {
     if (this.currentViewType === 0 /* Lighting */) return;
     const GBufferAlbedo = resources.getResource(GPU.PassParams.GBufferAlbedo);
     const GBufferNormal = resources.getResource(GPU.PassParams.GBufferNormal);
@@ -182,6 +182,10 @@ class DebuggerRenderPass extends GPU.RenderPass {
       0
     ]));
     this.outputViewerShader.SetValue("viewType", this.currentViewType);
+  }
+  async execute(resources, ...args) {
+    if (this.currentViewType === 0 /* Lighting */) return;
+    const lightingOutput = resources.getResource(GPU.PassParams.LightingPassOutput);
     GPU.RendererContext.BeginRenderPass("DebugOutputViewer", [{ target: lightingOutput, clear: true }], void 0, true);
     GPU.RendererContext.DrawGeometry(this.geometry, this.outputViewerShader);
     GPU.RendererContext.EndRenderPass();
@@ -202,6 +206,8 @@ class _Debugger {
   gpuTextureSizeStat;
   gpuBandwidth;
   bindGroupLayoutsStat;
+  bindGroupsPerFrameStat;
+  attachmentBandwidth;
   bindGroupsStat;
   frameVertexBuffersStat;
   frameIndexBufferStat;
@@ -241,6 +247,8 @@ class _Debugger {
     this.gpuTextureCount = new UITextStat(this.rendererFolder, "GPU texture count: ", 0, 0);
     this.gpuBandwidth = new UITextStat(this.rendererFolder, "GPU texture bandwidth: ", 0, 0);
     this.bindGroupLayoutsStat = new UITextStat(this.rendererFolder, "Bind group layouts: ");
+    this.bindGroupsPerFrameStat = new UITextStat(this.rendererFolder, "Bind groups frame: ");
+    this.attachmentBandwidth = new UITextStat(this.rendererFolder, "Attachment bandwidth: ");
     this.bindGroupsStat = new UITextStat(this.rendererFolder, "Bind groups: ");
     this.frameVertexBuffersStat = new UITextStat(this.rendererFolder, "Frame vertex buffers: ");
     this.frameIndexBufferStat = new UITextStat(this.rendererFolder, "Frame index buffers: ");
@@ -260,6 +268,7 @@ class _Debugger {
     this.textStatBytesFormatter(this.gpuBufferSizeTotal);
     this.textStatBytesFormatter(this.gpuTextureSizeTotal);
     this.textStatBytesFormatterByFramerate(this.gpuBandwidth);
+    this.textStatBytesFormatterByFramerate(this.attachmentBandwidth);
     setInterval(() => {
       this.Update();
     }, 100);
@@ -298,6 +307,8 @@ class _Debugger {
     this.gpuTextureCount.SetValue(Renderer.info.gpuTextureCount);
     this.gpuBandwidth.SetValue(Renderer.info.gpuBandwidthInBytes);
     this.bindGroupLayoutsStat.SetValue(Renderer.info.bindGroupLayoutsStat);
+    this.bindGroupsPerFrameStat.SetValue(Renderer.info.bindGroupsPerFrame.size);
+    this.attachmentBandwidth.SetValue(Renderer.info.attachmentBandwidthInBytes);
     this.bindGroupsStat.SetValue(Renderer.info.bindGroupsStat);
     this.frameVertexBuffersStat.SetValue(Renderer.info.frameVertexBuffersStat);
     this.frameIndexBufferStat.SetValue(Renderer.info.frameIndexBufferStat);

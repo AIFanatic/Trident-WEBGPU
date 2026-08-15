@@ -37,7 +37,7 @@
     padding: 5px;
 }
 
-.stat button, input, select {
+.stat button, .stat input, .stat select {
     height: 15px;
     font-family: monospace;
     font-size: 10px;

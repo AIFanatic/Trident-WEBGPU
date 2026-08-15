@@ -206,11 +206,12 @@ class ImpostorMesh extends Components.Mesh {
                 @fragment fn fragmentMain(input: VertexOutput) -> FragmentOutput {
                     let u = tileUV(input.uv, input.tile);
 
-                    let atlasDim = vec2<f32>(textureDimensions(atlasDepth));
-                    let coverage = textureLoad(atlasDepth, vec2<i32>(u * atlasDim), 0);
-                    if (coverage >= 1.0) { discard; }
+                    // let atlasDim = vec2<f32>(textureDimensions(atlasDepth));
+                    // let coverage = textureLoad(atlasDepth, vec2<i32>(u * atlasDim), 0);
+                    // if (coverage >= 1.0) { discard; }
 
                     let albedo = textureSample(atlasAlbedo, textureSampler, u);
+                    if (albedo.a <= 0.5) { discard; }
                     // let normalTexel = textureSample(atlasNormal, textureSampler, u);
                     let normalTexel = textureSample(atlasNormal, textureSampler, u);   // filtered + mipped, safe now
                     let worldN = normalize(normalTexel.xyz * 2.0 - 1.0);

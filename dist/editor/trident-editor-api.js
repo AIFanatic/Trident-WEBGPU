@@ -1,5 +1,6 @@
 const createElement = (type, props, ...children) => {
   if (props === null) props = {};
+  if (children.length === 0 && props.children !== void 0) children = props.children;
   return { type, props, children };
 };
 
@@ -17,6 +18,14 @@ class EditorAPI {
   static SaveAsset(asset) {
     return requireBridge().saveAsset(asset);
   }
+  static File = {
+    WriteAllBytes(path, bytes) {
+      return requireBridge().writeFile(path, bytes);
+    },
+    WriteAllText(path, text) {
+      return requireBridge().writeFile(path, text);
+    }
+  };
   static CreateElement(type, props, ...children) {
     return createElement(type, props, ...children);
   }
@@ -25,6 +34,9 @@ class EditorAPI {
   }
   static LayoutInspectorInput(props) {
     return requireBridge().LayoutInspectorInput(props);
+  }
+  static LayoutInspectorProperty(props) {
+    return requireBridge().LayoutInspectorProperty(props);
   }
   static ExtendedDataTransfer() {
     return requireBridge().ExtendedDataTransfer();
