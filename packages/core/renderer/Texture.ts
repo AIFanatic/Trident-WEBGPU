@@ -110,6 +110,7 @@ export class Texture {
     private static _WhiteTexture: Texture;
     private static _BlackTexture: Texture;
     private static _NormalTexture: Texture;
+    private static _DepthTexture: Texture;
 
     private static CreateTextureWithData(data: BufferSource): Texture {
         const texture = Texture.Create(1, 1, 1, "bgra8unorm");
@@ -130,6 +131,13 @@ export class Texture {
     public static get NormalTexture(): Texture {
         if (!this._NormalTexture) Texture._NormalTexture = Texture.CreateTextureWithData(new Uint8Array([255, 128, 128, 255]));
         return Texture._NormalTexture;
+    }
+
+    public static get DepthTexture(): Texture {
+        if (!this._DepthTexture) {
+            Texture._DepthTexture = Texture.Create(1, 1, 1, "depth24plus");
+        }
+        return Texture._DepthTexture;
     }
 
     constructor(width: number, height: number, depth: number, format: TextureFormat, type: TextureType, dimension: TextureDimension, mipLevels: number) {
@@ -228,23 +236,32 @@ export class Texture {
     public GenerateMips() {
         const name = this.name;
         const mipLevels = WEBGPUMipsGenerator.numMipLevels(this.width, this.height, this.depth);
+
         const destination = this.mipLevels === mipLevels ? this : undefined;
+
         const oldBuffer = this.buffer;
+        const oldByteSize = this.byteSize;
 
-        if (this.dimension === "cube") {
-            this.buffer = WEBGPUCubeMipsGenerator.generateMips(this, destination);
-        } else {
-            this.buffer = WEBGPUMipsGenerator.generateMips(this, destination);
-        }
+        if (this.dimension === "cube") this.buffer = WEBGPUCubeMipsGenerator.generateMips(this, destination);
+        else this.buffer = WEBGPUMipsGenerator.generateMips(this, destination);
 
-        this.name = name; // TODO: Restore name, this is dumb, dont replace buffers
+        const bufferWasReplaced = this.buffer !== oldBuffer;
+
+        this.name = name;
         this.SetActiveMip(0);
         this.SetActiveMipCount(mipLevels);
         this.mipLevels = mipLevels;
-        if (this.buffer !== oldBuffer) {
+
+        if (bufferWasReplaced) {
             Renderer.info.textureViews -= this.viewCache.size;
             this.viewCache.clear();
+
+            oldBuffer.destroy();
+
+            Renderer.info.gpuTextureSizeTotal -= oldByteSize;
+            Renderer.info.gpuTextureCount--;
         }
+
         this.byteSize = totalBytesForTexture(this.format, this.width, this.height, this.depth, this.mipLevels);
     }
 
@@ -382,6 +399,41 @@ export class Texture {
 
         return packed;
     }
+
+    private async toCanvas(): Promise<HTMLCanvasElement> {
+        const w = this.width, h = this.height;
+        const px = await this.GetPixels();               // tight, w*h*4, type depends on format
+        const out = new Uint8ClampedArray(w * h * 4);
+
+        const isFloat = this.format.includes("float");
+        const isBGRA = this.format.startsWith("bgra");
+
+        for (let i = 0; i < w * h; i++) {
+            let r = px[i * 4 + 0], g = px[i * 4 + 1], b = px[i * 4 + 2], a = px[i * 4 + 3];
+            if (isBGRA) { const t = r; r = b; b = t; }    // bgra -> rgba
+            if (isFloat) {                                 // 0..1 float -> 0..255
+                r = Math.min(1, Math.max(0, r)) * 255;
+                g = Math.min(1, Math.max(0, g)) * 255;
+                b = Math.min(1, Math.max(0, b)) * 255;
+                a = Math.min(1, Math.max(0, a)) * 255;
+            }
+            out[i * 4 + 0] = r; out[i * 4 + 1] = g; out[i * 4 + 2] = b; out[i * 4 + 3] = a;
+        }
+
+        const canvas = document.createElement("canvas");
+        canvas.width = w; canvas.height = h;
+        canvas.getContext("2d")!.putImageData(new ImageData(out, w, h), 0, 0);
+        return canvas;
+    }
+
+    private async encode(mime: string, quality?: number): Promise<Uint8Array> {
+        const canvas = await this.toCanvas();
+        const blob: Blob = await new Promise((res) => canvas.toBlob((b) => res(b!), mime, quality));
+        return new Uint8Array(await blob.arrayBuffer());
+    }
+
+    public EncodeToPNG(): Promise<Uint8Array> { return this.encode("image/png"); }
+    public EncodeToJPG(quality: number = 0.92): Promise<Uint8Array> { return this.encode("image/jpeg", quality); }
 
     // Format and types are very limited for now
     // https://github.com/gpuweb/gpuweb/issues/2322
