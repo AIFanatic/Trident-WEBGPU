@@ -155,7 +155,6 @@ class BaseShader {
     public get bindGroups() { return this._bindGroups };
     public get bindGroupsInfo() { return this._bindGroupsInfo };
 
-
     protected bindGroupLayouts: GPUBindGroupLayout[] = [];
 
     constructor(params: ShaderParams | ShaderComputeParams) {
@@ -288,7 +287,7 @@ class BaseShader {
                 group.buffers.push(uniform.buffer);
             }
             else if (uniform.buffer instanceof Texture) {
-                group.entries.push({ binding: uniform.binding, resource: uniform.buffer.GetBindingView(uniform.textureMip ?? 0,uniform.activeMipCount ?? uniform.buffer.mipLevels)});
+                group.entries.push({ binding: uniform.binding, resource: uniform.buffer.GetBindingView(uniform.textureMip ?? 0, uniform.activeMipCount ?? uniform.buffer.mipLevels) });
                 group.buffers.push(uniform.buffer);
             }
             else if (uniform.buffer instanceof TextureSampler) {
@@ -325,6 +324,7 @@ class BaseShader {
         return uniform;
     }
 
+
     private SetUniformDataFromArray(name: string, data: ArrayBuffer, dataOffset?: number | undefined, bufferOffset: number = 0, size?: number | undefined) {
         const uniform = this.GetValidUniform(name);
         if (!uniform.buffer) {
@@ -333,11 +333,13 @@ class BaseShader {
             uniform.buffer = new Buffer(data.byteLength, type);
             uniform.ownedByShader = true;
             this.needsUpdate = true;
-            // console.log(`[DIRTY] ${(this.params as any)?.name ?? "shader"} :: ${name} — array buffer created (first time)`);
+            // console.log("HERE")
         }
 
-        Renderer.device.queue.writeBuffer(uniform.buffer.GetBuffer() as GPUBuffer, bufferOffset, data, dataOffset, size);
+        (uniform.buffer as Buffer).SetArray(data, bufferOffset, dataOffset, size);
+        // console.warn("HERE")
     }
+
     private SetUniformDataFromBuffer(name: string, data: Texture | TextureSampler | Buffer | DynamicBuffer) {
         if (!data) throw Error(`Invalid buffer ${name}`);
 
@@ -349,6 +351,7 @@ class BaseShader {
             binding.buffer = data;
             binding.ownedByShader = false;
             this.needsUpdate = true;
+            // console.warn("HERE2")
         }
         if (data instanceof Texture) {
             const textureMip = data.GetActiveMip();

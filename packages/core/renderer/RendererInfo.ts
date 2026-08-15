@@ -10,6 +10,8 @@ export class RendererInfo {
     public cpuTime: number = 0;
     public bindGroupLayoutsStat: number = 0;
     public bindGroupsStat: number = 0;
+    public bindGroupsPerFrame: Set<any> = new Set();
+    public attachmentBandwidthInBytes: number = 0;
     public frameVertexBuffersStat: number = 0;
     public frameIndexBufferStat: number = 0;
     public compiledShadersStat: number = 0;
@@ -41,6 +43,8 @@ export class RendererInfo {
         this.frameIndexBufferStat = 0;
         this.drawCallsStat = 0;
         // this.textureViews = 0;
+        this.bindGroupsPerFrame.clear();
+        this.attachmentBandwidthInBytes = 0;
         this.visibleObjects = 0;
         this.visibleTriangles = 0;
 

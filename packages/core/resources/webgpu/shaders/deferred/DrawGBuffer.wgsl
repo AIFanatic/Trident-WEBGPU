@@ -47,7 +47,6 @@ struct VertexOutput {
 @group(0) @binding(7) var armMap: texture_2d<f32>;
 @group(0) @binding(8) var emissiveMap: texture_2d<f32>;
 
-
 #if USE_SKINNING
     @group(1) @binding(0) var<storage, read> boneMatrices: array<mat4x4<f32>>;
 #endif
@@ -56,8 +55,8 @@ struct VertexOutput {
 fn vertexMain(input: VertexInput) -> VertexOutput {
     var output : VertexOutput;
 
-      var finalPosition = vec4(input.position, 1.0);
-      var finalNormal = vec4(input.normal, 0.0);
+    var finalPosition = vec4(input.position, 1.0);
+    var finalNormal = vec4(input.normal, 0.0);
 
     #if USE_SKINNING
         var skinnedPosition = vec4(0.0);
@@ -73,9 +72,9 @@ fn vertexMain(input: VertexInput) -> VertexOutput {
         finalNormal   = normalize(skinMatrix * vec4(input.normal, 0.0));
     #endif
 
-    let cameraPos = frameBuffer.viewInverseMatrix[3].xyz;
-
     let modelMatrixInstance = modelMatrix[input.instance];
+
+    let cameraPos = frameBuffer.viewInverseMatrix[3].xyz;
     let modelViewMatrix = frameBuffer.viewMatrix * modelMatrixInstance;
 
     let worldNormal = normalize(modelMatrixInstance * vec4(finalNormal.xyz, 0.0)).xyz;
@@ -86,7 +85,7 @@ fn vertexMain(input: VertexInput) -> VertexOutput {
     output.position = frameBuffer.projectionMatrix * modelViewMatrix * vec4(finalPosition.xyz, 1.0);
     output.vPosition = finalPosition.xyz;
     output.vUv = input.uv;
-    
+
     output.vNormal = worldNormal;
     output.normal = finalNormal.xyz;
     output.tangent = worldTangent;
@@ -179,7 +178,6 @@ fn fragmentMain(@builtin(front_facing) isFrontFace: bool, input: VertexOutput) -
     output.albedo = vec4(albedo.rgb, roughness);
     output.normal = vec4(OctEncode(normal.xyz), occlusion, metalness);
     output.RMO = vec4(emissive.rgb, mat.Unlit);
-
 
     // // Flat shading
     // let xTangent: vec3f = dpdx( input.vPosition );

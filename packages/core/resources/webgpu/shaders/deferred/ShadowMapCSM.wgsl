@@ -99,9 +99,9 @@ fn CalculateShadowCSM(shadowTexture: texture_depth_2d_array, shadowSampler: samp
         let lerpAmount = smoothstep(0.0, blendThreshold, fadeFactor);
         visibility = lerp(nextSplitVisibility, visibility, lerpAmount);
 
-        if (u32(settings.viewBlendThreshold) == 1u) {
-            visibility *= fadeFactor; // debug view
-        }
+        // if (u32(settings.viewBlendThreshold) == 1u) {
+        //     visibility *= fadeFactor; // debug view
+        // }
     }
 
     out.visibility = clamp(visibility, 0.0, 1.0);
