@@ -79,7 +79,7 @@ export class FoliageMaterial extends GPU.Material<FoliageMaterialParams> {
 
     protected async BuildShader(): Promise<GPU.Shader> {
         const { foliageGeometry, foliageAlbedo, foliageNormal, foliageArm } = this.params;
-        if (!foliageGeometry || !foliageAlbedo || !foliageNormal || !foliageArm) {
+        if (!foliageGeometry) {
             throw new Error("FoliageMaterial has missing parameters.");
         }
 
@@ -111,7 +111,7 @@ export class FoliageMaterial extends GPU.Material<FoliageMaterialParams> {
                 struct VertexOutput {
                     @builtin(position) position : vec4<f32>,
                     @location(0) vUv : vec2<f32>,
-                    @location(1) tangent : vec3<f32>,    // world-space billboard basis
+                    @location(1) tangent : vec3<f32>,
                     @location(2) bitangent : vec3<f32>,
                     @location(3) vNormal : vec3<f32>,
                 };
@@ -158,10 +158,11 @@ export class FoliageMaterial extends GPU.Material<FoliageMaterialParams> {
                 };
 
                 @fragment
-                fn fragmentMain(input: VertexOutput) -> FragmentOutput {
+                fn fragmentMain(@builtin(front_facing) is_front: bool, input: VertexOutput) -> FragmentOutput {
                     var output: FragmentOutput;
 
                     let albedo = textureSample(albedoMap, textureSampler, input.vUv);
+                    // let albedo = vec4(1.0);
                     if (albedo.a < 0.5) {
                         discard;
                     }
@@ -173,7 +174,7 @@ export class FoliageMaterial extends GPU.Material<FoliageMaterialParams> {
                     tbn[2] = input.vNormal;
 
                     let normalSample = textureSample(normalMap, textureSampler, input.vUv).xyz * 2.0 - 1.0;
-                    let normal = normalize(tbn * normalSample);
+                    var normal = normalize(tbn * normalSample);
 
                     // ARM: r = occlusion, g = roughness, b = metalness (matching the mesh shader)
                     let arm = textureSample(armMap, textureSampler, input.vUv);
@@ -191,12 +192,9 @@ export class FoliageMaterial extends GPU.Material<FoliageMaterialParams> {
                 `,
             colorOutputs: Array(3).fill({ format: gbufferFormat }),
             depthOutput: "depth24plus",
-            cullMode: "none"
+            cullMode: "front"
         });
 
-        shader.SetTexture("albedoMap", this.params.foliageAlbedo);
-        shader.SetTexture("normalMap", this.params.foliageNormal);
-        shader.SetTexture("armMap", this.params.foliageArm);
         shader.SetSampler("textureSampler", new GPU.TextureSampler());
 
         const vertices = this.params.foliageGeometry.attributes.get("position");
@@ -208,15 +206,16 @@ export class FoliageMaterial extends GPU.Material<FoliageMaterialParams> {
         const leafCenters = this.computeBillboardCenters(vertices.array as Float32Array, indices.array);
         shader.SetArray("leafCenters", leafCenters);
 
-        return shader;          // ← was: this._shader = shader; return shader;
+        this.ReloadMaterial();
+
+        return shader;
     }
 
     public ReloadMaterial(): void {
-        const s = this._shader;
-        if (!s) return;
-        s.SetTexture("albedoMap", this.params.foliageAlbedo);
-        s.SetTexture("normalMap", this.params.foliageNormal);
-        s.SetTexture("armMap", this.params.foliageArm);
+        if (!this._shader) return;
+        this._shader.SetTexture("albedoMap", this.params.foliageAlbedo || GPU.Texture.WhiteTexture);
+        this._shader.SetTexture("normalMap", this.params.foliageNormal || GPU.Texture.NormalTexture);
+        this._shader.SetTexture("armMap", this.params.foliageArm || GPU.Texture.WhiteTexture);
     }
 }
 

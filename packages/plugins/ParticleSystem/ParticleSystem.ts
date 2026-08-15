@@ -77,14 +77,8 @@ export class ParticleSystem extends Component {
     constructor(gameObject: GameObject) {
         super(gameObject);
         this.init();
-        this.colorOverLifetimeGradients.setColorKeys([
-            { t: 0, r: 1, g: 1, b: 1 },
-            { t: 1, r: 1, g: 1, b: 1 },
-        ]);
-        this.colorOverLifetimeGradients.setAlphaKeys([
-            { t: 0, a: 1 },
-            { t: 1, a: 0 },
-        ]);
+        this.colorOverLifetimeGradients.setColorKeys([ { t: 0, r: 1, g: 1, b: 1 }, { t: 1, r: 1, g: 1, b: 1 } ]);
+        this.colorOverLifetimeGradients.setAlphaKeys([ { t: 0, a: 1 }, { t: 1, a: 0 } ]);
     }
 
     private async init() {
@@ -94,13 +88,12 @@ export class ParticleSystem extends Component {
                 code: await GPU.ShaderPreprocessor.ProcessIncludesV2(WGSL_Draw),
                 colorOutputs: [{ format: "rgba16float", blendMode: "premultiplied" }],
                 depthOutput: "depth24plus",
-                depthWriteEnabled: false
             })
         });
 
         this.instancedMesh = this.gameObject.AddComponent(Components.InstancedMesh);
         this.instancedMesh.flags |= Utils.Flags.DontSaveInEditor;
-        this.instancedMesh._instanceCount = 1024;
+        this.instancedMesh.instanceCount = 1024;
 
         this.instancedMesh.name = "ParticleSystem";
         this.instancedMesh.enableShadows = false;
@@ -183,6 +176,8 @@ export class ParticleSystem extends Component {
         const dispatchSizeX = Math.ceil(Math.cbrt(particleCount) / 4);
         const dispatchSizeY = Math.ceil(Math.cbrt(particleCount) / 4);
         const dispatchSizeZ = Math.ceil(Math.cbrt(particleCount) / 4);
+
+        if (particleCount === 0) return;
 
         GPU.Renderer.BeginRenderFrame();
         GPU.ComputeContext.BeginComputePass("ParticleSystem", true);

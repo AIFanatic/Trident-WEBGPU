@@ -146,7 +146,7 @@ class DebuggerRenderPass extends GPU.RenderPass {
         this.initialized = true;
     }
 
-    public async execute(resources: GPU.ResourcePool, ...args: any) {
+    public preFrame(resources: GPU.ResourcePool): void {
         if (this.currentViewType === ViewTypes.Lighting) return;
 
         const GBufferAlbedo = resources.getResource(GPU.PassParams.GBufferAlbedo);
@@ -189,7 +189,13 @@ class DebuggerRenderPass extends GPU.RenderPass {
         ]));
 
 
-        this.outputViewerShader.SetValue("viewType", this.currentViewType);
+        this.outputViewerShader.SetValue("viewType", this.currentViewType);        
+    }
+
+    public async execute(resources: GPU.ResourcePool, ...args: any) {
+        if (this.currentViewType === ViewTypes.Lighting) return;
+        const lightingOutput = resources.getResource(GPU.PassParams.LightingPassOutput);
+
         GPU.RendererContext.BeginRenderPass("DebugOutputViewer", [{target: lightingOutput, clear: true}], undefined, true);
         GPU.RendererContext.DrawGeometry(this.geometry, this.outputViewerShader);
         GPU.RendererContext.EndRenderPass();
@@ -213,6 +219,8 @@ class _Debugger {
     private gpuTextureSizeStat: UITextStat;
     private gpuBandwidth: UITextStat;
     private bindGroupLayoutsStat: UITextStat;
+    private bindGroupsPerFrameStat: UITextStat;
+    private attachmentBandwidth: UITextStat;
     private bindGroupsStat: UITextStat;
     private frameVertexBuffersStat: UITextStat;
     private frameIndexBufferStat: UITextStat;
@@ -260,6 +268,8 @@ class _Debugger {
         this.gpuTextureCount = new UITextStat(this.rendererFolder, "GPU texture count: ", 0, 0);
         this.gpuBandwidth = new UITextStat(this.rendererFolder, "GPU texture bandwidth: ", 0, 0);
         this.bindGroupLayoutsStat = new UITextStat(this.rendererFolder, "Bind group layouts: ");
+        this.bindGroupsPerFrameStat = new UITextStat(this.rendererFolder, "Bind groups frame: ");
+        this.attachmentBandwidth = new UITextStat(this.rendererFolder, "Attachment bandwidth: ");
         this.bindGroupsStat = new UITextStat(this.rendererFolder, "Bind groups: ");
         this.frameVertexBuffersStat = new UITextStat(this.rendererFolder, "Frame vertex buffers: ");
         this.frameIndexBufferStat = new UITextStat(this.rendererFolder, "Frame index buffers: ");
@@ -280,6 +290,7 @@ class _Debugger {
         this.textStatBytesFormatter(this.gpuBufferSizeTotal);
         this.textStatBytesFormatter(this.gpuTextureSizeTotal);
         this.textStatBytesFormatterByFramerate(this.gpuBandwidth);
+        this.textStatBytesFormatterByFramerate(this.attachmentBandwidth);
 
         setInterval(() => {
             this.Update();
@@ -324,6 +335,8 @@ class _Debugger {
         this.gpuTextureCount.SetValue(Renderer.info.gpuTextureCount);
         this.gpuBandwidth.SetValue(Renderer.info.gpuBandwidthInBytes);
         this.bindGroupLayoutsStat.SetValue(Renderer.info.bindGroupLayoutsStat);
+        this.bindGroupsPerFrameStat.SetValue(Renderer.info.bindGroupsPerFrame.size);
+        this.attachmentBandwidth.SetValue(Renderer.info.attachmentBandwidthInBytes);
         this.bindGroupsStat.SetValue(Renderer.info.bindGroupsStat);
         this.frameVertexBuffersStat.SetValue(Renderer.info.frameVertexBuffersStat);
         this.frameIndexBufferStat.SetValue(Renderer.info.frameIndexBufferStat);
