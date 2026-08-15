@@ -1,49 +1,42 @@
 import { EventSystemLocal } from "../Events";
 import { GameObject } from "../GameObject";
-import { BufferType } from "../renderer/Buffer";
 import { RendererContext } from "../renderer/RendererContext";
 import { Shader } from "../renderer/Shader";
-import { DynamicBufferMemoryAllocatorDynamic } from "../renderer/MemoryAllocator";
+import { DynamicBufferMemoryAllocator } from "../renderer/MemoryAllocator";
 import { Component } from "./Component";
 import { Renderable } from "./Renderable";
 import { TransformEvents } from "./Transform";
 
 export class Mesh extends Renderable {
     public static type = "@trident/core/components/Mesh";
+    public static modelMatrices: DynamicBufferMemoryAllocator;
 
-    // Doing this instead of just passing this.transform.localToWorldMatrix allows the same material/shader to be reused per geometries
-    public static modelMatrices: DynamicBufferMemoryAllocatorDynamic;
-    private modelMatrixOffset: number = -1;
+    protected matrixOffset = 0;
+    protected instanceCount = 1;
+    protected get firstInstance(): number { return this.matrixOffset / 16; }
 
     constructor(gameObject: GameObject) {
         super(gameObject);
-
-        if (!Mesh.modelMatrices) Mesh.modelMatrices = new DynamicBufferMemoryAllocatorDynamic(256 * 10, BufferType.STORAGE, 256 * 10);
-
-        EventSystemLocal.on(TransformEvents.Updated, this.transform, () => {
-            this.modelMatrixOffset = Mesh.modelMatrices.set(this.id, this.transform.localToWorldMatrix.elements);
-        })
-        
-        this.modelMatrixOffset = Mesh.modelMatrices.set(this.id, this.transform.localToWorldMatrix.elements);
+        if (!Mesh.modelMatrices) Mesh.modelMatrices = new DynamicBufferMemoryAllocator(16 * 1000, 16 * 1000);
+        EventSystemLocal.on(TransformEvents.Updated, this.transform, () => this.uploadMatrices());
+        this.uploadMatrices();
     }
 
-    public OnPreRender(shaderOverride?: Shader): void {
-        const shader = shaderOverride ? shaderOverride : this.material?.shader;
-        if (!this.geometry || !this.material || !shader) return;
-        shader.SetBuffer("modelMatrix", Mesh.modelMatrices.getBuffer()); // Set here because the buffer is dynamic
+    protected uploadMatrices(): void {
+        this.matrixOffset = Mesh.modelMatrices.set(this.id, this.transform.localToWorldMatrix.elements);
+        this.instanceCount = 1;
     }
 
-    public OnRenderObject(shaderOverride: Shader): void {
-        const shader = shaderOverride ? shaderOverride : this.material?.shader;
-        if (!this.geometry || !this.geometry.attributes.has("position") || !this.material || !shader) return;
-
-        Mesh.modelMatrices.getBuffer().dynamicOffset = this.modelMatrixOffset * Mesh.modelMatrices.getStride();
-        RendererContext.DrawGeometry(this.geometry, shader);
+    public OnRenderObject(): void {
+        const shader = this.material?.shader;
+        if (!this.geometry?.attributes.has("position") || !this.material || !shader || this.instanceCount === 0) return;
+        shader.SetBuffer("modelMatrix", Mesh.modelMatrices.getBuffer());
+        RendererContext.DrawGeometry(this.geometry, shader, this.instanceCount, this.firstInstance);
     }
 
     public Destroy(): void {
         super.Destroy();
-        if (Mesh.modelMatrices.has(this.id)) Mesh.modelMatrices.delete(this.id);
+        if (Mesh.modelMatrices?.has(this.id)) Mesh.modelMatrices.delete(this.id);
     }
 }
 
