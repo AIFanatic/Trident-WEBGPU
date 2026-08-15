@@ -9,10 +9,10 @@ import { Console, ConsoleVarConfigs } from "../../Console";
 import { RenderTexture } from "../Texture";
 
 const TextureViewerSettings = Console.define({
-    r_tonemapper: { default: 1.0, help: "Tonemapper type (disabled"},
-    r_exposure: { default: 0.0, help: "Exposure"},
-    r_contrast: { default: 1.0, help: "Contrast"},
-    r_saturation: { default: 1.0, help: "Saturation"},
+    r_tonemapper: { default: 1.0, help: "Tonemapper type (disabled" },
+    r_exposure: { default: 0.0, help: "Exposure" },
+    r_contrast: { default: 1.0, help: "Contrast" },
+    r_saturation: { default: 1.0, help: "Saturation" },
 } satisfies ConsoleVarConfigs);
 
 export class PostExposureTonemap extends RenderPass {
@@ -144,7 +144,7 @@ export class PostExposureTonemap extends RenderPass {
 
         this.shader = await Shader.Create({
             code: code,
-            colorOutputs: [{format: "rgba16float"}]
+            colorOutputs: [{ format: "rgba16float" }]
         });
         this.quadGeometry = new Geometry();
 
@@ -153,6 +153,17 @@ export class PostExposureTonemap extends RenderPass {
         this.renderTarget = RenderTexture.Create(Renderer.width, Renderer.height, 1, "rgba16float");
 
         this.initialized = true;
+    }
+
+    public preFrame(resources: ResourcePool): void {
+        if (this.initialized === false) return;
+
+        this.shader.SetArray("params", new Float32Array([
+            TextureViewerSettings.r_tonemapper.value,
+            TextureViewerSettings.r_exposure.value,
+            TextureViewerSettings.r_contrast.value,
+            TextureViewerSettings.r_saturation.value
+        ]));
     }
 
     public execute(resources: ResourcePool) {
@@ -167,14 +178,7 @@ export class PostExposureTonemap extends RenderPass {
 
         this.shader.SetTexture("texture", LightingPassOutputTexture);
 
-        this.shader.SetArray("params", new Float32Array([
-            TextureViewerSettings.r_tonemapper.value,
-            TextureViewerSettings.r_exposure.value,
-            TextureViewerSettings.r_contrast.value,
-            TextureViewerSettings.r_saturation.value
-        ]));
-
-        RendererContext.BeginRenderPass(this.name, [{clear: false, target: this.renderTarget}], undefined, true);
+        RendererContext.BeginRenderPass(this.name, [{ clear: false, target: this.renderTarget }], undefined, true);
         RendererContext.Draw(this.quadGeometry, this.shader, 3);
         RendererContext.EndRenderPass();
 

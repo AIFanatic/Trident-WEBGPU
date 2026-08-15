@@ -55,11 +55,17 @@ export class TextureViewer extends RenderPass {
         this.shader = await Shader.Create({
             name: "TextureViewer",
             code: code,
-            colorOutputs: [{format: Renderer.SwapChainFormat}],
+            colorOutputs: [{ format: Renderer.SwapChainFormat }],
         });
         this.quadGeometry = new Geometry();
 
-        const sampler = new TextureSampler();
+        const sampler = new TextureSampler({
+            minFilter: "nearest",
+            magFilter: "nearest",
+            mipmapFilter: "nearest",
+            addressModeU: "clamp-to-edge",
+            addressModeV: "clamp-to-edge",
+        });
         this.shader.SetSampler("textureSampler", sampler);
 
         this.initialized = true;
@@ -73,7 +79,7 @@ export class TextureViewer extends RenderPass {
 
         this.shader.SetTexture("texture", LightingPassOutputTexture);
 
-        RendererContext.BeginRenderPass("TextureViewer", [{clear: false}], undefined, true);
+        RendererContext.BeginRenderPass("TextureViewer", [{ clear: false }], undefined, true);
         RendererContext.Draw(this.quadGeometry, this.shader, 3);
         RendererContext.EndRenderPass();
     }
