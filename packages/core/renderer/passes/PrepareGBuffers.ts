@@ -34,6 +34,13 @@ export class PrepareGBuffers extends RenderPass {
         frustum: new Float32Array(this.FrameBufferValues, 368, 24),
     };
 
+    private SettingsBuffer: Buffer;
+    private SettingsValues = new ArrayBuffer(64);
+    private SettingsViews = {
+        pcfResolution: new Float32Array(this.SettingsValues, 0, 1),
+        blendThreshold: new Float32Array(this.SettingsValues, 4, 1),
+    };
+
     constructor() {
         super();
         EventSystem.on(RendererEvents.Resized, canvas => {
@@ -62,6 +69,7 @@ export class PrepareGBuffers extends RenderPass {
         this.CreateGBufferTextures();
 
         this.FrameBuffer = new Buffer(this.FrameBufferValues.byteLength, BufferType.STORAGE);
+        this.SettingsBuffer = new Buffer(this.SettingsValues.byteLength, BufferType.STORAGE);
 
         this.initialized = true;
     }
@@ -76,24 +84,10 @@ export class PrepareGBuffers extends RenderPass {
         resources.setResource(PassParams.GBufferNormal, this.gBufferNormalRT);
         resources.setResource(PassParams.GBufferERMO, this.gBufferERMORT);
 
-        const settings = new Float32Array([
-            0, // +Debugger.isDebugDepthPassEnabled,
-            0, // Debugger.debugDepthMipLevel,
-            0, // Debugger.debugDepthExposure,
-            0, // Renderer.info.viewTypeValue,
-            0, // +Renderer.info.useheightMapValue,
-            0, // Debugger.heightScale,
-            
-            +false, // ShadowMapSettings.debugCascadesValue.value,
-            ShadowMapSettings.r_shadows_pcfResolution.value,
-            ShadowMapSettings.r_shadows_csm_blendThresholdValue.value,
-            +false,// DeferredShadowMapPassSettings.viewBlendThresholdValue,
-
-            ...Camera.mainCamera.transform.position.elements, 0,
-            0, 0
-            
-        ]);
-        resources.setResource(PassParams.DebugSettings, settings);
+        this.SettingsViews.pcfResolution.set([ShadowMapSettings.r_shadows_pcfResolution.value]);
+        this.SettingsViews.blendThreshold.set([ShadowMapSettings.r_shadows_csm_blendThresholdValue.value]);
+        this.SettingsBuffer.SetArray(this.SettingsValues);
+        resources.setResource(PassParams.DebugSettings, this.SettingsBuffer);
 
         
         const camera = Camera.mainCamera;

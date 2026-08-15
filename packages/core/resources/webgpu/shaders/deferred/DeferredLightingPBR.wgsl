@@ -5,19 +5,8 @@
 #include "@trident/core/resources/webgpu/shaders/deferred/ShadowMapCSM.wgsl";
 
 struct Settings {
-    debugDepthPass: f32,
-    debugDepthMipLevel: f32,
-    debugDepthExposure: f32,
-    viewType: f32,
-    useheightMap: f32,
-    heightScale: f32,
-
-    debugShadowCascades: f32,
     pcfResolution: f32,
     blendThreshold: f32,
-    viewBlendThreshold: f32,
-
-    cameraPosition: vec4<f32>,
 };
 
 struct VertexInput {

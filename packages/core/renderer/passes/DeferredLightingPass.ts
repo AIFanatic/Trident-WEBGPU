@@ -204,6 +204,7 @@ export class DeferredLightingPass extends RenderPass {
         const inputGBufferDepth = resources.getResource(PassParams.GBufferDepth);
         const inputShadowPassDepth = resources.getResource(PassParams.ShadowPassDepth) || this.dummyShadowPassDepth;
         const inputFrameBuffer = resources.getResource(PassParams.FrameBuffer);
+        const inputSettingsBuffer = resources.getResource(PassParams.DebugSettings);
         if (!inputGBufferAlbedo) return;
 
         this.shader.SetTexture("albedoTexture", inputGBufferAlbedo);
@@ -212,9 +213,7 @@ export class DeferredLightingPass extends RenderPass {
         this.shader.SetTexture("depthTexture", inputGBufferDepth);
         this.shader.SetTexture("shadowPassDepth", inputShadowPassDepth);
         this.shader.SetBuffer("view", inputFrameBuffer);
-
-        const settings = resources.getResource(PassParams.DebugSettings);
-        this.shader.SetArray("settings", settings);
+        this.shader.SetBuffer("settings", inputSettingsBuffer);
 
         // RendererContext.DrawGeometry(this.quadGeometry, this.shader);
         for (let i = 0; i < lights.length; i++) {
