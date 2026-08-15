@@ -63,7 +63,7 @@ export interface IEngineAPI {
     GetSerializedFields: (instance: object) => { name: string | symbol, type?: Function }[];
     GetInspectableFields: (instance: object) => { name: string | symbol, type?: Function }[];
 
-    getFieldType(value: any): "Prefab" | "GameObject" | "Component" | "Vector3" | "Vector2" | "Color" | "Gradient" | "Geometry" | "Material" | "Texture" | "AudioClip" | "unknown";
+    getFieldType(value: any): "Prefab" | "GameObject" | "Component" | "Vector4" | "Vector3" | "Vector2" | "Color" | "Gradient" | "Geometry" | "Material" | "Texture" | "AudioClip" | "unknown";
    
     serializer: {
         serializeScene(scene: any): any;

@@ -95,17 +95,21 @@ export class TridentAPI implements IEngineAPI {
     public async createTextureFromBlob(blob: Blob, format?: GPU.TextureFormat, options?: GPU.ImageLoadOptions): Promise<ITexture> {
         return GPU.Texture.LoadBlob(blob);
     }
-
     private compareType(value: any, type: Function): boolean {
-        if (typeof value === "function") return value === type || value.prototype instanceof type; // Match extends
+        if (typeof value === "function") return value === type || value.prototype instanceof type;
         if (value instanceof type) return true;
-        return value?.constructor?.type === (type as any).type;
+
+        const valueType = value?.constructor?.type;
+        const expectedType = (type as any).type;
+
+        return valueType !== undefined && expectedType !== undefined && valueType === expectedType;
     }
 
-    public getFieldType(value: any): "Prefab" | "GameObject" | "Component" | "Vector3" | "Vector2" | "Color" | "Gradient" | "Geometry" | "Material" | "Texture" | "AudioClip" | "unknown" {
+    public getFieldType(value: any): "Prefab" | "GameObject" | "Component" | "Vector4" | "Vector3" | "Vector2" | "Color" | "Gradient" | "Geometry" | "Material" | "Texture" | "AudioClip" | "unknown" {
         if (this.compareType(value, Prefab)) return "Prefab";
         else if (this.compareType(value, GameObject)) return "GameObject";
         else if (this.compareType(value, Component)) return "Component";
+        else if (this.compareType(value, Mathf.Vector4)) return "Vector4";
         else if (this.compareType(value, Mathf.Vector3)) return "Vector3";
         else if (this.compareType(value, Mathf.Vector2)) return "Vector2";
         else if (this.compareType(value, Mathf.Color)) return "Color";
