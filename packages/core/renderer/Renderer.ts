@@ -109,7 +109,7 @@ export class Renderer extends System {
         Renderer.context = context;
 
         Renderer.device.onuncapturederror = (event) => {
-            throw Error(`WebGPU uncaptured error: ${event.error}`);
+            console.error("WebGPU:", event.error.message);
         };
 
         window.addEventListener("beforeunload", () => {

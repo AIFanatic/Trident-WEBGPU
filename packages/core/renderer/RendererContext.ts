@@ -104,12 +104,13 @@ export class RendererContext implements RendererContext {
         if (isTris) Renderer.info.triangleCount += (vertexOrIndexCount / 3) * instanceCount;
     }
 
-    private static BindGeometry(shader: Shader, geometry?: Geometry) {
+    private static BindGeometry(shader: Shader, geometry?: Geometry): boolean {
         if (!this.activeRenderPass) throw Error("No active render pass");
 
         shader.Compile();
 
-        if (!shader.pipeline) throw Error("Shader doesnt have a pipeline");
+        if (geometry && !shader.OnPreRender(geometry)) return false;
+        if (!shader.pipeline) return false;
 
         // Debug
         Renderer.info.drawCallsStat += 1;
@@ -128,31 +129,29 @@ export class RendererContext implements RendererContext {
             Renderer.info.bindGroupsPerFrame.add(shader.bindGroups[i]);
         }
 
-        if (!geometry) return;
+        if (geometry) {
+            // Bind buffers
+            for (const [name, attribute] of geometry.attributes) {
+                const attributeSlot = shader.GetAttributeSlot(name);
+                if (attributeSlot === undefined) continue;
+                const attributeBuffer = attribute.buffer as Buffer;
+                this.activeRenderPass.setVertexBuffer(attributeSlot, attributeBuffer.GetBuffer(), attribute.currentOffset, attribute.currentSize);
+                Renderer.info.frameVertexBuffersStat++;
+            }
 
-        // Bind buffers
-        for (const [name, attribute] of geometry.attributes) {
-            const attributeSlot = shader.GetAttributeSlot(name);
-            if (attributeSlot === undefined) continue;
-            const attributeBuffer = attribute.buffer as Buffer;
-            this.activeRenderPass.setVertexBuffer(attributeSlot, attributeBuffer.GetBuffer(), attribute.currentOffset, attribute.currentSize);
-            Renderer.info.frameVertexBuffersStat++;
+            if (geometry.index) {
+                const indexBuffer = geometry.index.buffer as Buffer;
+                this.activeRenderPass.setIndexBuffer(indexBuffer.GetBuffer(), geometry.index.format, geometry.index.currentOffset, geometry.index.currentSize);
+                Renderer.info.frameIndexBufferStat++;
+            }
         }
 
-        if (geometry.index) {
-            const indexBuffer = geometry.index.buffer as Buffer;
-            this.activeRenderPass.setIndexBuffer(indexBuffer.GetBuffer(), geometry.index.format, geometry.index.currentOffset, geometry.index.currentSize);
-            Renderer.info.frameIndexBufferStat++;
-        }
-
+        return true;
     }
 
     public static DrawGeometry(geometry: Geometry, shader: Shader, instanceCount = 1, firstInstance = 0) {
         if (!this.activeRenderPass) throw Error("No active render pass");
-
-        if (!shader.OnPreRender(geometry)) return;
-
-        this.BindGeometry(shader, geometry);
+        if (!this.BindGeometry(shader, geometry)) return;
 
         if (!shader.params.topology || shader.params.topology === Topology.Triangles) {
             if (!geometry.index) {
@@ -182,30 +181,28 @@ export class RendererContext implements RendererContext {
 
     public static DrawIndexed(geometry: Geometry, shader: Shader, indexCount: number, instanceCount: number = 1, firstIndex?: number, baseVertex?: number, firstInstance?: number) {
         if (!this.activeRenderPass) throw Error("No active render pass");
-        this.BindGeometry(shader, geometry);
+        if (!this.BindGeometry(shader, geometry)) return;
         this.activeRenderPass.drawIndexed(indexCount, instanceCount, firstIndex, baseVertex, firstInstance);
         this.AccumulateStats(shader, geometry, indexCount, instanceCount);
     }
 
     public static Draw(geometry: Geometry, shader: Shader, vertexCount: number, instanceCount: number = 1, firstVertex?: number, firstInstance?: number) {
         if (!this.activeRenderPass) throw Error("No active render pass");
-        this.BindGeometry(shader, geometry);
+        if (!this.BindGeometry(shader, geometry)) return;
         this.activeRenderPass.draw(vertexCount, instanceCount, firstVertex, firstInstance);
         this.AccumulateStats(shader, geometry, vertexCount, instanceCount);
     }
 
     public static DrawVertex(shader: Shader, vertexCount: number, instanceCount: number = 1, firstVertex?: number, firstInstance?: number) {
         if (!this.activeRenderPass) throw Error("No active render pass");
-        this.BindGeometry(shader);
+        if (!this.BindGeometry(shader)) return;
         this.activeRenderPass.draw(vertexCount, instanceCount, firstVertex, firstInstance);
         this.AccumulateStats(shader, undefined, vertexCount, instanceCount);
     }
 
     public static DrawIndirect(geometry: Geometry, shader: Shader, indirectBuffer: Buffer, indirectOffset: number = 0) {
         if (!this.activeRenderPass) throw Error("No active render pass");
-        if (!shader.OnPreRender(geometry)) return;
-
-        this.BindGeometry(shader, geometry);
+        if (!this.BindGeometry(shader, geometry)) return;
 
         if (!geometry.index) {
             this.activeRenderPass.drawIndirect(indirectBuffer.GetBuffer(), indirectOffset);

@@ -8,18 +8,16 @@ import { DeferredShadowMapPass } from "./passes/DeferredShadowMapPass";
 import { TextureFormat } from "./Texture";
 import { ForwardPass } from "./passes/ForwardPass";
 import { RenderablePass } from "./passes/RenderablePass";
-import { PostExposureTonemap } from "./passes/PostExposureTonemap";
+import { TonemapPass } from "./passes/TonemapPass";
 import { BasePass } from "./passes/BasePass";
 import { SceneExtractPass } from "./passes/SceneExtractPass";
 import { EventSystem } from "../Events";
 import { SceneCopyPass } from "./passes/SceneCopyPass";
+import { ExposurePass } from "./passes/ExposurePass";
 
 export const PassParams = {
     DebugSettings: "DebugSettings",
     MainCamera: "MainCamera",
-
-    depthTexture: "depthTexture",
-    depthTexturePyramid: "depthTexturePyramid",
 
     GBufferAlbedo: "GBufferAlbedo",
     GBufferNormal: "GBufferNormal",
@@ -47,6 +45,7 @@ export enum RenderPassOrder {
     AfterLighting,
     BeforeScreenOutput,
     AfterScreenOutput,
+    BeforePostProcess,
 };
 
 export class RenderingPipeline {
@@ -60,15 +59,14 @@ export class RenderingPipeline {
 
     private beforeLightingPasses: RenderPass[] = [];
     private afterLightingPasses: RenderPass[] = [];
+    private beforePostProcessPasses: RenderPass[] = [];
 
     private beforeScreenOutputPasses: RenderPass[] = [];
     private afterScreenOutputPasses: RenderPass[] = [];
 
-    private prepareGBuffersPass: PrepareGBuffers;
+    public get GBufferFormat(): TextureFormat { return RenderingPipeline.GBufferFormat };
 
-    public get GBufferFormat(): TextureFormat { return this.prepareGBuffersPass.GBufferFormat };
-
-    public static GBufferFormat: TextureFormat = "rgba16float"; // use the current value
+    public static GBufferFormat: TextureFormat = "rgba16float";
 
     public readonly DeferredShadowMapPass = new DeferredShadowMapPass();
 
@@ -78,7 +76,7 @@ export class RenderingPipeline {
         this.renderGraph = new RenderGraph();
         this.beforeGBufferPasses = [
             new SceneExtractPass(),
-            this.prepareGBuffersPass,
+            new PrepareGBuffers(),
         ];
 
         this.afterGBufferPasses = [
@@ -91,11 +89,15 @@ export class RenderingPipeline {
         this.afterLightingPasses = [
             new BasePass(),
             new DeferredLightingPass(),
-            new ForwardPass(),
         ];
 
+          this.beforePostProcessPasses = [
+              new ForwardPass(),
+              new ExposurePass(),
+          ];
+
         this.beforeScreenOutputPasses = [
-            new PostExposureTonemap(),
+            new TonemapPass(),
         ]
 
         this.afterScreenOutputPasses = [
@@ -112,6 +114,7 @@ export class RenderingPipeline {
             ...this.afterGBufferPasses,
             ...this.beforeLightingPasses,
             ...this.afterLightingPasses,
+            ...this.beforePostProcessPasses,
             ...this.beforeScreenOutputPasses,
             ...this.afterScreenOutputPasses
         );
@@ -125,6 +128,7 @@ export class RenderingPipeline {
         else if (order === RenderPassOrder.AfterGBuffer) this.afterGBufferPasses.push(passInstance);
         else if (order === RenderPassOrder.BeforeLighting) this.beforeLightingPasses.push(passInstance);
         else if (order === RenderPassOrder.AfterLighting) this.afterLightingPasses.push(passInstance);
+        else if (order === RenderPassOrder.BeforePostProcess) this.beforePostProcessPasses.push(passInstance);
         else if (order === RenderPassOrder.BeforeScreenOutput) this.beforeScreenOutputPasses.push(passInstance);
         else if (order === RenderPassOrder.AfterScreenOutput) this.afterScreenOutputPasses.push(passInstance);
 
@@ -139,6 +143,7 @@ export class RenderingPipeline {
             [RenderPassOrder.AfterGBuffer]: this.afterGBufferPasses,
             [RenderPassOrder.BeforeLighting]: this.beforeLightingPasses,
             [RenderPassOrder.AfterLighting]: this.afterLightingPasses,
+            [RenderPassOrder.BeforePostProcess]: this.beforePostProcessPasses,
             [RenderPassOrder.BeforeScreenOutput]: this.beforeScreenOutputPasses,
             [RenderPassOrder.AfterScreenOutput]: this.afterScreenOutputPasses,
         };

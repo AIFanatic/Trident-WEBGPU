@@ -24,16 +24,6 @@ export class MaterialParams {
     public materialID?: number;
 }
 
-type TextureKeys<T> = { [K in keyof T]-?: NonNullable<T[K]> extends Texture ? K : never; }[keyof T];
-type ColorKeys<T> = { [K in keyof T]-?: NonNullable<T[K]> extends Mathf.Color ? K : never; }[keyof T];
-type Vector4Keys<T> = { [K in keyof T]-?: NonNullable<T[K]> extends Mathf.Vector4 ? K : never; }[keyof T];
-type Vector3Keys<T> = { [K in keyof T]-?: NonNullable<T[K]> extends Mathf.Vector3 ? K : never; }[keyof T];
-type Vector2Keys<T> = { [K in keyof T]-?: NonNullable<T[K]> extends Mathf.Vector2 ? K : never; }[keyof T];
-type Matrix4Keys<T> = { [K in keyof T]-?: NonNullable<T[K]> extends Mathf.Matrix4 ? K : never; }[keyof T];
-type QuaternionKeys<T> = { [K in keyof T]-?: NonNullable<T[K]> extends Mathf.Quaternion ? K : never; }[keyof T];
-type ValueKeys<T> = { [K in keyof T]-?: NonNullable<T[K]> extends Number ? K : never; }[keyof T];
-type BooleanKeys<T> = { [K in keyof T]-?: NonNullable<T[K]> extends Boolean ? K : never; }[keyof T];
-
 export abstract class Material<TParams extends MaterialParams = MaterialParams> {
     public static type = "@trident/core/renderer/Material";
     public id = UUID();
@@ -77,15 +67,10 @@ export abstract class Material<TParams extends MaterialParams = MaterialParams> 
         return new (Ctor as any)(params);
     }
 
-    public SetTexture<K extends TextureKeys<TParams>>(name: K, value: TParams[K]): void { this.params[name] = value; this.ReloadMaterial(); }
-    public SetColor<K extends ColorKeys<TParams>>(name: K, value: TParams[K]): void { this.params[name] = value; this.ReloadMaterial(); }
-    public SetVector4<K extends Vector4Keys<TParams>>(name: K, value: TParams[K]): void { this.params[name] = value; this.ReloadMaterial(); }
-    public SetVector3<K extends Vector3Keys<TParams>>(name: K, value: TParams[K]): void { this.params[name] = value; this.ReloadMaterial(); }
-    public SetVector2<K extends Vector2Keys<TParams>>(name: K, value: TParams[K]): void { this.params[name] = value; this.ReloadMaterial(); }
-    public SetMatrix4<K extends Matrix4Keys<TParams>>(name: K, value: TParams[K]): void { this.params[name] = value; this.ReloadMaterial(); }
-    public SetQuaternion<K extends QuaternionKeys<TParams>>(name: K, value: TParams[K]): void { this.params[name] = value; this.ReloadMaterial(); }
-    public SetValue<K extends ValueKeys<TParams>>(name: K, value: TParams[K]): void { this.params[name] = value; this.ReloadMaterial(); }
-    public SetBoolean<K extends BooleanKeys<TParams>>(name: K, value: TParams[K]): void { this.params[name] = value; this.ReloadMaterial(); }
+    public SetProperty<K extends keyof TParams>(name: K, value: TParams[K]): void {
+        this.params[name] = value;
+        this.ReloadMaterial();
+    }
 
     private pendingShaderCreation?: Promise<Shader>;
     protected _shader: Shader;
@@ -140,9 +125,10 @@ export class PBRMaterialParams extends MaterialParams {
     @SerializeField public defines = { USE_SKINNING: false };
 
     @SerializeField public albedoColor = new Mathf.Color(1, 1, 1, 1);
-    @SerializeField public emissiveColor = new Mathf.Color(0, 0, 0, 0);
+    @SerializeField public emissiveColor = new Mathf.Color(0, 0, 0, 1);
+    @SerializeField public emissiveExposure = 1.0;
     @SerializeField public roughness = 1.0;
-    @SerializeField public metalness = 1.0;
+    @SerializeField public metalness = 0.0;
     @SerializeField public unlit = false;
     @SerializeField public alphaCutoff = 0.5;
     @SerializeField public repeat = new Mathf.Vector2(1, 1);
@@ -151,7 +137,7 @@ export class PBRMaterialParams extends MaterialParams {
     @SerializeField(Texture) public albedoMap: Texture = Texture.WhiteTexture;
     @SerializeField(Texture) public normalMap: Texture = Texture.NormalTexture;
     @SerializeField(Texture) public heightMap: Texture = Texture.BlackTexture;
-    @SerializeField(Texture) public armMap: Texture = Texture.WhiteTexture;
+    @SerializeField(Texture) public armMap: Texture = Texture.ARMTexture;
     @SerializeField(Texture) public emissiveMap: Texture = Texture.WhiteTexture;
 }
 
@@ -250,9 +236,11 @@ export class PBRMaterial extends Material<PBRMaterialParams> {
 
     protected ReloadMaterial(): void {
         const p = this.params;
+        const emissive = p.emissiveColor.clone();
+        emissive.mul(Math.pow(2, p.emissiveExposure));
         const material = new Float32Array([
             p.albedoColor.r, p.albedoColor.g, p.albedoColor.b, p.albedoColor.a,
-            p.emissiveColor.r, p.emissiveColor.g, p.emissiveColor.b, p.emissiveColor.a,
+            emissive.r, emissive.g, emissive.b, emissive.a,
             p.roughness, p.metalness, +p.unlit, p.alphaCutoff,
             p.repeat.x, p.repeat.y, p.offset.x, p.offset.y,
         ]);
