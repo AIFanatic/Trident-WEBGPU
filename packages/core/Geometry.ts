@@ -438,8 +438,12 @@ export class Geometry {
         if (!instance) throw Error("Capsule not registered as an asset");
         return instance;
     }
-
-
+    
+    public static Cylinder(): Geometry {
+        const instance: Geometry = Assets.GetInstance("@builtin/geometry/cylinder");
+        if (!instance) throw Error("Cylinder not registered as an asset");
+        return instance;
+    }
 }
 
 // Register builtin assets.
@@ -534,6 +538,25 @@ export function RegisterBuiltinGeometries() {
 
         const geometry = new Geometry();
         geometry.name = "Capsule";
+        geometry.assetPath = instancePath;
+        geometry.index = new IndexAttribute(new Uint32Array(indices));
+        geometry.attributes.set("position", new VertexAttribute(new Float32Array(vertices)));
+        geometry.attributes.set("normal", new VertexAttribute(new Float32Array(normals)));
+        geometry.attributes.set("uv", new VertexAttribute(new Float32Array(uvs)));
+        geometry.ComputeTangents();
+
+        Assets.SetInstance(instancePath, geometry);
+    }
+    // Cylinder
+    {
+        const instancePath = "@builtin/geometry/cylinder";
+        const vertices = new Float32Array([0,0.5,0.5,0.3536,0.5,0.3536,0.5,0.5,0,0.3536,0.5,-0.3536,0,0.5,-0.5,-0.3536,0.5,-0.3536,-0.5,0.5,0,-0.3536,0.5,0.3536,0,0.5,0.5,0,-0.5,0.5,0.3536,-0.5,0.3536,0.5,-0.5,0,0.3536,-0.5,-0.3536,0,-0.5,-0.5,-0.3536,-0.5,-0.3536,-0.5,-0.5,0,-0.3536,-0.5,0.3536,0,-0.5,0.5,0,0.5,0,0,0.5,0,0,0.5,0,0,0.5,0,0,0.5,0,0,0.5,0,0,0.5,0,0,0.5,0,0,0.5,0.5,0.3536,0.5,0.3536,0.5,0.5,0,0.3536,0.5,-0.3536,0,0.5,-0.5,-0.3536,0.5,-0.3536,-0.5,0.5,0,-0.3536,0.5,0.3536,0,0.5,0.5,0,-0.5,0,0,-0.5,0,0,-0.5,0,0,-0.5,0,0,-0.5,0,0,-0.5,0,0,-0.5,0,0,-0.5,0,0,-0.5,0.5,0.3536,-0.5,0.3536,0.5,-0.5,0,0.3536,-0.5,-0.3536,0,-0.5,-0.5,-0.3536,-0.5,-0.3536,-0.5,-0.5,0,-0.3536,-0.5,0.3536,0,-0.5,0.5]);
+        const normals = new Float32Array([0,0,1,0.7071,0,0.7071,1,0,0,0.7071,0,-0.7071,0,0,-1,-0.7071,0,-0.7071,-1,0,0,-0.7071,0,0.7071,0,0,1,0,0,1,0.7071,0,0.7071,1,0,0,0.7071,0,-0.7071,0,0,-1,-0.7071,0,-0.7071,-1,0,0,-0.7071,0,0.7071,0,0,1,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,-1,0,0,-1,0,0,-1,0,0,-1,0,0,-1,0,0,-1,0,0,-1,0,0,-1,0,0,-1,0,0,-1,0,0,-1,0,0,-1,0,0,-1,0,0,-1,0,0,-1,0,0,-1,0,0,-1,0]);
+        const uvs = new Float32Array([0,1,0.125,1,0.25,1,0.375,1,0.5,1,0.625,1,0.75,1,0.875,1,1,1,0,0,0.125,0,0.25,0,0.375,0,0.5,0,0.625,0,0.75,0,0.875,0,1,0,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,1,0.5,0.8536,0.8536,0.5,1,0.1464,0.8536,0,0.5,0.1464,0.1464,0.5,0,0.8536,0.1464,1,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,1,0.5,0.8536,0.1464,0.5,0,0.1464,0.1464,0,0.5,0.1464,0.8536,0.5,1,0.8536,0.8536,1,0.5]);
+        const indices = new Uint32Array([0,9,1,9,10,1,1,10,2,10,11,2,2,11,3,11,12,3,3,12,4,12,13,4,4,13,5,13,14,5,5,14,6,14,15,6,6,15,7,15,16,7,7,16,8,16,17,8,26,27,18,27,28,19,28,29,20,29,30,21,30,31,22,31,32,23,32,33,24,33,34,25,44,43,35,45,44,36,46,45,37,47,46,38,48,47,39,49,48,40,50,49,41,51,50,42]);
+
+        const geometry = new Geometry();
+        geometry.name = "Cylinder";
         geometry.assetPath = instancePath;
         geometry.index = new IndexAttribute(new Uint32Array(indices));
         geometry.attributes.set("position", new VertexAttribute(new Float32Array(vertices)));
