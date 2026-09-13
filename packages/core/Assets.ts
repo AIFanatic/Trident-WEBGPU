@@ -9,16 +9,12 @@ export class Assets {
     private static cache: Map<string, Promise<any>> = new Map();
     private static instanceCache: Map<string, any> = new Map();
 
-    public static RemoveInstance(path: string) {
-        return Assets.instanceCache.delete(path);
-    }
+    public static RemoveInstance(path: string) { return Assets.instanceCache.delete(path); }
+    public static GetInstance(path: string) { return Assets.instanceCache.get(path); }
+    public static SetInstance(path: string, instance: any) { return Assets.instanceCache.set(path, instance); }
 
-    public static GetInstance(path: string) {
-        return Assets.instanceCache.get(path);
-    }
-
-    public static SetInstance(path: string, instance: any) {
-        return Assets.instanceCache.set(path, instance);
+    public static ClearInstances(filter: (path: string) => boolean) {
+        for (const path of [...Assets.instanceCache.keys()]) if (filter(path)) Assets.instanceCache.delete(path);
     }
 
     public static async Register(path: string, resource: Promise<any> | any, force = false) {
