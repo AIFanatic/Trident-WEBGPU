@@ -1,8 +1,11 @@
 import { Deserializer, GameObject, ISerializedScene, Runtime, Scene, SceneExecutionMode, Serializer } from "@trident/core";
 import { EditorScene } from "./EditorScene";
 import { EnvironmentManager } from "./EnvironmentManager";
+import { PostProcessing } from "./PostProcessing";
 
 import { PhysicsDebugger } from "@trident/plugins/PhysicsRapier/PhysicsDebugger";
+import { ObjectPicker } from "./ObjectPicker";
+import { TransformControls } from "./TransformControls";
 
 export class EditorRuntime extends Runtime {
     public static isPlaying = false;
@@ -23,26 +26,55 @@ export class EditorRuntime extends Runtime {
         const existing = scene.GetComponents(EditorScene)[0];
         if (existing) return existing;
 
-        const go = new GameObject(scene);
-        go.name = "EditorScene";
+        const editorSceneGO = new GameObject(scene);
+        editorSceneGO.name = "EditorScene";
 
+        // EditorScene
+        {
+            const go = new GameObject(scene);
+            go.transform.parent = editorSceneGO.transform;
+            go.name = "EditorScene";
+            go.AddComponent(EditorScene);
+        }
         // PhysicsDebugger
         {
             const go = new GameObject(scene);
+            go.transform.parent = editorSceneGO.transform;
             go.name = "PhysicsDebugger";
             go.AddComponent(PhysicsDebugger);
         }
+        // EnvironmentManager
+        {
+            const go = new GameObject(scene);
+            go.transform.parent = editorSceneGO.transform;
+            go.name = "EnvironmentManager";
+            go.AddComponent(EnvironmentManager);
+        }
 
-        return go.AddComponent(EditorScene);
-    }
+        // PostProcessing
+        {
+            const go = new GameObject(scene);
+            go.transform.parent = editorSceneGO.transform;
+            go.name = "PostProcessing";
+            go.AddComponent(PostProcessing);
+        }
 
-    public static AttachEnvironment(scene: Scene): EnvironmentManager {
-        const existing = scene.GetComponents(EnvironmentManager)[0];
-        if (existing) return existing;
+        // ObjectPicker
+        {
+            const go = new GameObject(scene);
+            go.transform.parent = editorSceneGO.transform;
+            go.name = "ObjectPicker";
+            go.AddComponent(ObjectPicker);
+        }
+        // TransformControls
+        {
+            const go = new GameObject(scene);
+            go.transform.parent = editorSceneGO.transform;
+            go.name = "TransformControls";
+            go.AddComponent(TransformControls);
+        }
 
-        const go = new GameObject(scene);
-        go.name = "EnvironmentManager";
-        return go.AddComponent(EnvironmentManager);
+        return editorSceneGO;
     }
 
     public static Play() {

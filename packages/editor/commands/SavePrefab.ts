@@ -1,5 +1,5 @@
 import { Serializer } from "@trident/core";
-import { IGameObject } from "../engine-api/trident/components/IGameObject";
+import { IGameObject } from "../engine/api/trident/components/IGameObject";
 import { SaveToFile } from "./SaveToFile";
 
 export async function SavePrefab(baseDir: string, gameObject: IGameObject): Promise<void> {

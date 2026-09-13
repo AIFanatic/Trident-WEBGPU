@@ -13,9 +13,11 @@ import { ITexture } from "./components/ITexture";
 import { ISystem } from "./ISystem";
 import { IRuntime } from "./IRuntime";
 
-import "../../loaders/EditorLoad";
+import "../../../loaders/EditorLoad";
 import "./ComponentRegistry";
-import { EditorRuntime } from "./EditorRuntime";
+
+// TODO: Remove from here?
+import { EditorRuntime } from "../../components/EditorRuntime";
 
 export class TridentAPI implements IEngineAPI {
 
@@ -74,6 +76,10 @@ export class TridentAPI implements IEngineAPI {
 
     public createCapsuleGeometry(): IGeometry {
         return Geometry.Capsule();
+    }
+
+    public createCylinderGeometry(): IGeometry {
+        return Geometry.Cylinder();
     }
 
     public createPBRMaterial(args): IMaterial {

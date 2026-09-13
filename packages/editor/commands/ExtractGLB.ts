@@ -1,5 +1,5 @@
-import { IGameObject } from "../engine-api/trident/components/IGameObject";
-import { ComponentRegistry } from "../engine-api/trident/ComponentRegistry";
+import { IGameObject } from "../engine/api/trident/components/IGameObject";
+import { ComponentRegistry } from "../engine/api/trident/ComponentRegistry";
 import { FileBrowser } from "../helpers/FileBrowser";
 import { Texture, GetSerializedFields, Serializer, AssetMeta } from "@trident/core";
 import { SaveToFile } from "./SaveToFile";

@@ -50,6 +50,7 @@ export interface IEngineAPI {
     createCubeGeometry(): IGeometry;
     createSphereGeometry(): IGeometry;
     createCapsuleGeometry(): IGeometry;
+    createCylinderGeometry(): IGeometry;
 
     createPBRMaterial(args?): IMaterial;
 

@@ -1,7 +1,7 @@
 import { FileBrowser } from "../helpers/FileBrowser";
 import { DirectoryEvents, FileEvents } from "../Events";
 import { FileData } from "../types/AssetTypes";
-import { TridentAPI } from "../engine-api/trident/TridentAPI";
+import { TridentAPI } from "../engine/api/trident/TridentAPI";
 
 export async function DeleteAsset(selected: FileData): Promise<void> {
     if (!selected) return;

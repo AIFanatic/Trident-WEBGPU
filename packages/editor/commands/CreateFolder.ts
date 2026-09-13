@@ -1,6 +1,6 @@
 import { FileBrowser } from "../helpers/FileBrowser";
 import { DirectoryEvents } from "../Events";
-import { TridentAPI } from "../engine-api/trident/TridentAPI";
+import { TridentAPI } from "../engine/api/trident/TridentAPI";
 
 export async function CreateFolder(currentPath: string): Promise<void> {
     const path = `${currentPath}/New folder`;

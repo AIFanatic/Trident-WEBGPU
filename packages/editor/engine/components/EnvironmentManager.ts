@@ -75,8 +75,11 @@ export class EnvironmentManager extends Components.Component {
         this.sunlight.transform.position = sunPos;
         this.sunlight.transform.LookAt(new Mathf.Vector3(0, 0, 0));
 
-        if (this.sky.SUN_ELEVATION_DEGREES < 0) this.sunlight.intensity = 0;
-        else this.sunlight.intensity = this.sky.SUN_ELEVATION_DEGREES / 10;
+        // if (this.sky.SUN_ELEVATION_DEGREES < 0) this.sunlight.intensity = 0;
+        // else this.sunlight.intensity = this.sky.SUN_ELEVATION_DEGREES / 10;
+        // this.sunlight.intensity = this.sky.SUN_ELEVATION_DEGREES < 0 ? 0 : this.sunlight.intensity;
+
+        if (this.skyboxPass) this.skyboxPass.SetSun(sunPos, 300);
 
         this.sky.Update();
     }

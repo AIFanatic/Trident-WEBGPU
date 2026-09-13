@@ -25,15 +25,12 @@ import { WaterV1 as Water } from "@trident/plugins/Water/WaterV1";
 
 import { ParticleSystem } from "@trident/plugins/ParticleSystem/ParticleSystem.js";
 
-import { EditorScene } from "./EditorScene";
-
-import { ProjectEvents } from "../../Events";
-import { BuildBundle } from "../../loaders/ScriptLoader";
+import { ProjectEvents } from "../../../Events";
+import { BuildBundle } from "../../../loaders/ScriptLoader";
 
 const component = <T extends IComponent>(ctor: unknown): IComponentConstructor<T> => ctor as IComponentConstructor<T>;
 
 Component.Registry.set(OrbitControls.type, OrbitControls);
-Component.Registry.set(EditorScene.type, EditorScene);
 
 Component.Registry.set(RigidBody.type, RigidBody);
 Component.Registry.set(BoxCollider.type, BoxCollider);
@@ -66,7 +63,6 @@ export const ComponentRegistry = {
     AudioListener: component<IComponent>(Components.AudioListener),
     AudioSource: component<IComponent>(Components.AudioSource),
 
-    EditorScene: component<IComponent>(EditorScene),
     OrbitControls: component<IComponent>(OrbitControls),
 
     RigidBody: component<IComponent>(RigidBody),
