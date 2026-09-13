@@ -71,6 +71,33 @@ export class Scene {
         }
     }
 
+    public FindGameObject(path: string): GameObject | null {
+        const segments = path.split("/").filter(s => s.length > 0);
+        if (segments.length === 0) return null;
+
+        const match = (gameObject: GameObject, depth: number): GameObject | null => {
+            if (gameObject.name !== segments[depth]) return null;
+            if (depth === segments.length - 1) return gameObject;
+
+            for (const child of gameObject.transform.children) {
+                const hit = match(child.gameObject, depth + 1);
+                if (hit) return hit;
+            }
+            return null;
+        };
+
+        // a bare name matches anywhere; a path is resolved from the roots (as Unity does)
+        if (segments.length === 1 && !path.startsWith("/")) {
+            return this.gameObjects.find(go => go.name === segments[0]) ?? null;
+        }
+
+        for (const root of this.GetRootGameObjects()) {
+            const hit = match(root, 0);
+            if (hit) return hit;
+        }
+        return null;
+    }
+
     public Update() {
         const edit = this.mode === SceneExecutionMode.Edit;
         for (const go of this.gameObjects) {
