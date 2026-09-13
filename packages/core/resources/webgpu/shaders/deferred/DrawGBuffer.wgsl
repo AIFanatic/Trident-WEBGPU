@@ -147,18 +147,18 @@ fn fragmentMain(@builtin(front_facing) isFrontFace: bool, input: VertexOutput) -
     //     discard;
     // }
 
-    var normal: vec3f = normalize(input.vNormal);
     var tbn: mat3x3<f32>;
-    tbn[0] = input.tangent;      // column-major: T, B, N
-    tbn[1] = input.bitangent;
-    tbn[2] = input.vNormal;
-    if (!isFrontFace) {
-        // tbn[0] = -tbn[0];
-        tbn[1] = -tbn[1];
-        tbn[2] = -tbn[2];
-    }
+    tbn[0] = normalize(input.tangent);
+    tbn[1] = normalize(input.bitangent);
+    tbn[2] = normalize(input.vNormal);
+
     let normalSample = textureSample(normalMap, TextureSampler, uv).xyz * 2.0 - 1.0;
-    normal = normalize(tbn * normalSample);
+
+    var normal = normalize(tbn * normalSample);
+
+    if (!isFrontFace) {
+        normal = -normal;
+    }
 
     let metalnessRoughness = textureSample(armMap, TextureSampler, uv);
 

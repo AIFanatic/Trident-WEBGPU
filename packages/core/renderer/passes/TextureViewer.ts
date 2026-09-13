@@ -59,13 +59,7 @@ export class TextureViewer extends RenderPass {
         });
         this.quadGeometry = new Geometry();
 
-        const sampler = new TextureSampler({
-            minFilter: "nearest",
-            magFilter: "nearest",
-            mipmapFilter: "nearest",
-            addressModeU: "clamp-to-edge",
-            addressModeV: "clamp-to-edge",
-        });
+        const sampler = new TextureSampler();
         this.shader.SetSampler("textureSampler", sampler);
 
         this.initialized = true;

@@ -8,15 +8,15 @@ import { PassParams } from "../RenderingPipeline";
 import { Console, ConsoleVarConfigs } from "../../Console";
 import { RenderTexture } from "../Texture";
 
-const TextureViewerSettings = Console.define({
+export const TonemapSettings = Console.define({
     r_tonemapper: { default: 1.0, help: "Tonemapper type (disabled" },
     r_exposure: { default: 0.0, help: "Exposure" },
     r_contrast: { default: 1.0, help: "Contrast" },
     r_saturation: { default: 1.0, help: "Saturation" },
 } satisfies ConsoleVarConfigs);
 
-export class PostExposureTonemap extends RenderPass {
-    public name: string = "PostExposureTonemap";
+export class TonemapPass extends RenderPass {
+    public name: string = "TonemapPass";
     private shader: Shader;
     private quadGeometry: Geometry;
 
@@ -127,11 +127,12 @@ export class PostExposureTonemap extends RenderPass {
             let a = c.a;
             var col = c.rgb;
             
-            col = col * exp2(params.exposure);
-
-            // // Tonemap
+            // Tonemap
             if (i32(params.tonemapType) == 1) {
                 col = toneMapping(col);
+            }
+            else if (i32(params.tonemapType) == 2) {
+                col = aces_fitted(col);
             }
 
             col = applyContrast(col, params.contrast);
@@ -150,7 +151,6 @@ export class PostExposureTonemap extends RenderPass {
 
         const sampler = new TextureSampler();
         this.shader.SetSampler("textureSampler", sampler);
-        this.renderTarget = RenderTexture.Create(Renderer.width, Renderer.height, 1, "rgba16float");
 
         this.initialized = true;
     }
@@ -159,10 +159,10 @@ export class PostExposureTonemap extends RenderPass {
         if (this.initialized === false) return;
 
         this.shader.SetArray("params", new Float32Array([
-            TextureViewerSettings.r_tonemapper.value,
-            TextureViewerSettings.r_exposure.value,
-            TextureViewerSettings.r_contrast.value,
-            TextureViewerSettings.r_saturation.value
+            TonemapSettings.r_tonemapper.value,
+            TonemapSettings.r_exposure.value,
+            TonemapSettings.r_contrast.value,
+            TonemapSettings.r_saturation.value
         ]));
     }
 
@@ -171,8 +171,8 @@ export class PostExposureTonemap extends RenderPass {
 
         const LightingPassOutputTexture = resources.getResource(PassParams.LightingPassOutput);
         if (!LightingPassOutputTexture) return;
-        if (this.renderTarget.width !== LightingPassOutputTexture.width || this.renderTarget.height !== LightingPassOutputTexture.height) {
-            this.renderTarget.Destroy();
+        if (!this.renderTarget || this.renderTarget.width !== LightingPassOutputTexture.width || this.renderTarget.height !== LightingPassOutputTexture.height) {
+            if (this.renderTarget) this.renderTarget.Destroy();
             this.renderTarget = RenderTexture.Create(LightingPassOutputTexture.width, LightingPassOutputTexture.height, LightingPassOutputTexture.depth, LightingPassOutputTexture.format);
         }
 

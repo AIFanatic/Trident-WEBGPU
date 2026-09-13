@@ -1,6 +1,6 @@
 import { RenderPass, ResourcePool } from "../RenderGraph";
 import { DepthTexture, RenderTexture, TextureFormat } from "../Texture";
-import { PassParams } from "../RenderingPipeline";
+import { PassParams, RenderingPipeline } from "../RenderingPipeline";
 import { Renderer, RendererEvents } from "../Renderer";
 import { RenderTarget, RendererContext } from "../RendererContext";
 import { Camera } from "../../components/Camera";
@@ -15,10 +15,9 @@ export class PrepareGBuffers extends RenderPass {
     public gBufferAlbedoRT: RenderTexture;
     public gBufferNormalRT: RenderTexture;
     public gBufferERMORT: RenderTexture;
+    public outputLightingPass: RenderTexture;
 
     public depthTexture: DepthTexture;
-
-    public GBufferFormat: TextureFormat = "rgba16float";
 
     private FrameBuffer: Buffer;
     private FrameBufferValues = new ArrayBuffer(464);
@@ -53,16 +52,21 @@ export class PrepareGBuffers extends RenderPass {
         if (this.gBufferAlbedoRT) this.gBufferAlbedoRT.Destroy();
         if (this.gBufferNormalRT) this.gBufferNormalRT.Destroy();
         if (this.gBufferERMORT) this.gBufferERMORT.Destroy();
+        if (this.outputLightingPass) this.outputLightingPass.Destroy();
 
-        this.depthTexture = DepthTexture.Create(Renderer.width, Renderer.height);
-        this.gBufferAlbedoRT = RenderTexture.Create(Renderer.width, Renderer.height, 1, this.GBufferFormat);
-        this.gBufferNormalRT = RenderTexture.Create(Renderer.width, Renderer.height, 1, this.GBufferFormat);
-        this.gBufferERMORT = RenderTexture.Create(Renderer.width, Renderer.height, 1, this.GBufferFormat);
+        const w = Renderer.width;
+        const h = Renderer.height;
+        this.depthTexture = DepthTexture.Create(w, h);
+        this.gBufferAlbedoRT = RenderTexture.Create(w, h, 1, RenderingPipeline.GBufferFormat);
+        this.gBufferNormalRT = RenderTexture.Create(w, h, 1, RenderingPipeline.GBufferFormat);
+        this.gBufferERMORT = RenderTexture.Create(w, h, 1, RenderingPipeline.GBufferFormat);
+        this.outputLightingPass = RenderTexture.Create(w, h, 1, RenderingPipeline.GBufferFormat);
 
         this.depthTexture.name = "GBufferDepth";
         this.gBufferAlbedoRT.name = "GBufferAlbedo";
         this.gBufferNormalRT.name = "GBufferNormal";
         this.gBufferERMORT.name = "GBufferERMO";
+        this.outputLightingPass.name = "DeferredLighting";
     }
 
     public async init(resources: ResourcePool) {
@@ -78,11 +82,11 @@ export class PrepareGBuffers extends RenderPass {
         if (!this.initialized) return;
         if (!Camera.mainCamera) return;
 
-        resources.setResource(PassParams.depthTexture, this.depthTexture);
         resources.setResource(PassParams.GBufferDepth, this.depthTexture);
         resources.setResource(PassParams.GBufferAlbedo, this.gBufferAlbedoRT);
         resources.setResource(PassParams.GBufferNormal, this.gBufferNormalRT);
         resources.setResource(PassParams.GBufferERMO, this.gBufferERMORT);
+        resources.setResource(PassParams.LightingPassOutput, this.outputLightingPass);
 
         this.SettingsViews.pcfResolution.set([ShadowMapSettings.r_shadows_pcfResolution.value]);
         this.SettingsViews.blendThreshold.set([ShadowMapSettings.r_shadows_csm_blendThresholdValue.value]);
@@ -92,7 +96,7 @@ export class PrepareGBuffers extends RenderPass {
         
         const camera = Camera.mainCamera;
 
-        this.FrameBufferViews.projectionOutputSize.set([Renderer.width, Renderer.height, 0, 0]);
+        this.FrameBufferViews.projectionOutputSize.set([this.outputLightingPass.width, this.outputLightingPass.height, 0, 0]);
         this.FrameBufferViews.viewPosition.set([...camera.transform.position.elements, 0]);
         const tempMatrix = new Matrix4();
         this.FrameBufferViews.projectionInverseMatrix.set(tempMatrix.clone().copy(camera.projectionMatrix).invert().elements);

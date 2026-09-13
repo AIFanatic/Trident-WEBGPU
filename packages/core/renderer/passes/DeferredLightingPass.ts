@@ -1,6 +1,6 @@
 import { Shader } from "../Shader";
 import { Geometry } from "../../Geometry";
-import { CubeTexture, DepthTexture, DepthTextureArray, RenderTexture } from "../Texture";
+import { RenderTexture, Texture } from "../Texture";
 import { TextureSampler } from "../TextureSampler";
 import { Camera } from "../../components/Camera";
 import { RendererContext } from "../RendererContext";
@@ -26,19 +26,13 @@ export class DeferredLightingPass extends RenderPass {
     public name: string = "DeferredLightingPass";
     private shader: Shader;
     private sampler: TextureSampler;
-    private quadGeometry: Geometry;
 
     private lightsBuffer: DynamicBufferMemoryAllocator;
     private lightsCountBuffer: Buffer;
 
-    private outputLightingPass: RenderTexture;
-
     private needsUpdate: boolean = true;
 
     public initialized = false;
-
-    private dummyShadowPassDepth: RenderTexture;
-    private gBufferDepthClone: DepthTexture;
 
     private _volumeMatrix = new Matrix4();
     private _volumeScale = new Vector3();
@@ -51,9 +45,6 @@ export class DeferredLightingPass extends RenderPass {
             colorOutputs: [{ format: "rgba16float", blendMode: "add" }],
             depthOutput: "depth24plus",
             depthWriteEnabled: false,
-            // depthCompare: "less-equal",
-            // cullMode: "back"
-
             depthCompare: "greater-equal",
             cullMode: "front"
         });
@@ -70,27 +61,11 @@ export class DeferredLightingPass extends RenderPass {
         const shadowSamplerComp = new TextureSampler({ minFilter: "linear", magFilter: "linear", compare: "less" });
         this.shader.SetSampler("shadowSamplerComp", shadowSamplerComp);
 
-        this.quadGeometry = new Geometry();
-
         this.lightsBuffer = new DynamicBufferMemoryAllocator(120 * 10000);
         this.lightsCountBuffer = new Buffer(1 * 4, BufferType.STORAGE);
 
         this.shader.SetBuffer("lights", this.lightsBuffer.getBuffer());
         this.shader.SetBuffer("lightCount", this.lightsCountBuffer);
-
-        this.outputLightingPass = RenderTexture.Create(Renderer.width, Renderer.height, 1, "rgba16float");
-        this.outputLightingPass.name = "DeferredLighting";
-
-        EventSystem.on(RendererEvents.Resized, () => {
-            const old = this.outputLightingPass;
-            this.outputLightingPass = RenderTexture.Create(Renderer.width, Renderer.height, 1, "rgba16float");
-            this.outputLightingPass.name = "DeferredLighting";
-            EventSystem.once(RendererEvents.FrameEnded, () => old.Destroy());
-        });
-
-        // If there are no lights in the scene this is used instead
-        this.dummyShadowPassDepth = DepthTextureArray.Create(1, 1, 1);
-        this.gBufferDepthClone = DepthTexture.Create(Renderer.width, Renderer.height);
 
         EventSystem.on(LightEvents.Updated, light => {
             this.needsUpdate = true;
@@ -202,7 +177,7 @@ export class DeferredLightingPass extends RenderPass {
         const inputGBufferNormal = resources.getResource(PassParams.GBufferNormal);
         const inputGbufferERMO = resources.getResource(PassParams.GBufferERMO);
         const inputGBufferDepth = resources.getResource(PassParams.GBufferDepth);
-        const inputShadowPassDepth = resources.getResource(PassParams.ShadowPassDepth) || this.dummyShadowPassDepth;
+        const inputShadowPassDepth = resources.getResource(PassParams.ShadowPassDepth) || Texture.DepthTexture;
         const inputFrameBuffer = resources.getResource(PassParams.FrameBuffer);
         const inputSettingsBuffer = resources.getResource(PassParams.DebugSettings);
         if (!inputGBufferAlbedo) return;
@@ -232,15 +207,10 @@ export class DeferredLightingPass extends RenderPass {
         if (!this.initialized) return;
         if (this.drawCommands.length === 0) return;
 
-        const GBufferDepth = resources.getResource(PassParams.GBufferDepth);
-        if (!GBufferDepth) return;
-        if (this.gBufferDepthClone.width !== GBufferDepth.width || this.gBufferDepthClone.height !== GBufferDepth.height) {
-            this.gBufferDepthClone.Destroy();
-            this.gBufferDepthClone = DepthTexture.Create(GBufferDepth.width, GBufferDepth.height, GBufferDepth.depth, GBufferDepth.format);
-        }
-        RendererContext.CopyTextureToTextureV3({ texture: GBufferDepth }, { texture: this.gBufferDepthClone });
-
-        RendererContext.BeginRenderPass("DeferredLightingPass", [{ target: this.outputLightingPass, clear: false }], { target: this.gBufferDepthClone, clear: false }, true);
+        const GBufferDepthClone = resources.getResource(PassParams.GBufferDepthCopy);
+        const LightingPassOutput = resources.getResource(PassParams.LightingPassOutput);
+        if (!GBufferDepthClone || !LightingPassOutput) return;
+        RendererContext.BeginRenderPass("DeferredLightingPass", [{ target: LightingPassOutput, clear: false }], { target: GBufferDepthClone, clear: false }, true);
 
         for (const draw of this.drawCommands) {
             RendererContext.DrawGeometry(draw.geometry, draw.shader, draw.instanceCount, draw.firstInstance);
@@ -248,7 +218,6 @@ export class DeferredLightingPass extends RenderPass {
 
         RendererContext.EndRenderPass();
 
-        resources.setResource(PassParams.LightingPassOutput, this.outputLightingPass);
         resources.setResource(PassParams.LightsBuffer, this.lightsBuffer);
     }
 }
