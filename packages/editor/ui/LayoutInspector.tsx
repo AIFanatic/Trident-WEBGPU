@@ -1,7 +1,7 @@
-import { IGameObject } from "../engine-api/trident/components/IGameObject";
-import { ITexture } from "../engine-api/trident/components/ITexture";
-import { IMaterial } from "../engine-api/trident/IMaterial";
-import { TridentAPI } from "../engine-api/trident/TridentAPI";
+import { IGameObject } from "../engine/api/trident/components/IGameObject";
+import { ITexture } from "../engine/api/trident/components/ITexture";
+import { IMaterial } from "../engine/api/trident/IMaterial";
+import { TridentAPI } from "../engine/api/trident/TridentAPI";
 import { ComponentEvents, GameObjectEvents, LayoutAssetEvents, LayoutInspectorEvents, RuntimeEvents } from "../Events";
 import { createElement, Component } from "../gooact";
 import { InspectorImage } from "./Inspector/InspectorImage";
@@ -31,7 +31,7 @@ export class LayoutInspector extends Component<BaseProps, LayoutInspectorState> 
             else if (this.props.engineAPI.isTexture(instance)) this.setState({ selected: { type: "Texture", instance } });
         });
 
-        TridentAPI.EventSystem.on(LayoutHierarchyEvents.Selected, gameObject => { this.setState({ selected: { type: "GameObject", id: gameObject.id } }) });
+        TridentAPI.EventSystem.on(LayoutHierarchyEvents.Selected, gameObject => { !gameObject ? this.setState({selected: undefined}) : this.setState({ selected: { type: "GameObject", id: gameObject.id } }) });
         TridentAPI.EventSystem.on(ComponentEvents.Created, (gameObject, component) => { this.setState({ selected: { type: "GameObject", id: gameObject.id } }) });
         TridentAPI.EventSystem.on(GameObjectEvents.Changed, (gameObject, component) => { this.setState({ selected: { type: "GameObject", id: gameObject.id } }) });
         TridentAPI.EventSystem.on(GameObjectEvents.Deleted, (gameObject, component) => {

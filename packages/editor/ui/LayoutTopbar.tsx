@@ -6,7 +6,7 @@ import { BaseProps } from "./Layout";
 import { Tree } from "./TreeView/Tree";
 import { TreeItem } from "./TreeView/TreeItem";
 import { FloatingMenu } from "./FloatingMenu";
-import { TridentAPI } from "../engine-api/trident/TridentAPI";
+import { TridentAPI } from "../engine/api/trident/TridentAPI";
 import { PlayIcon } from "./icons/PlayIcon";
 import { StopIcon } from "./icons/StopIcon";
 

@@ -10,7 +10,7 @@ import { TreeFolder } from "./TreeView/TreeFolder";
 import { TreeItem } from "./TreeView/TreeItem";
 import { Tree } from "./TreeView/Tree";
 import { FloatingMenu } from "./FloatingMenu";
-import { IGameObject } from "../engine-api/trident/components/IGameObject";
+import { IGameObject } from "../engine/api/trident/components/IGameObject";
 
 
 import { AssetMeta, Assets, Scene } from "@trident/core";
@@ -33,7 +33,7 @@ import {
 // Re-export types for backward compatibility
 export { ITreeMapType, ITreeMap, FileData, ProjectTreeMap } from "../types/AssetTypes";
 import { ITreeMapType, ITreeMap, FileData, ProjectTreeMap } from "../types/AssetTypes";
-import { TridentAPI } from "../engine-api/trident/TridentAPI";
+import { TridentAPI } from "../engine/api/trident/TridentAPI";
 
 export async function dir(h?: FileSystemDirectoryHandle): Promise<FileSystemDirectoryHandle> {
     const r = indexedDB.open("d", 1);

@@ -2,7 +2,7 @@ import { createElement, Component } from "../gooact";
 import { BaseProps } from "./Layout";
 
 import { RuntimeEvents } from "../Events";
-import { TridentAPI } from "../engine-api/trident/TridentAPI";
+import { TridentAPI } from "../engine/api/trident/TridentAPI";
 
 export class LayoutCanvas extends Component<BaseProps> {
 

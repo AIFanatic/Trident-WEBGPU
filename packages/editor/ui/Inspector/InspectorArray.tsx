@@ -1,6 +1,6 @@
 import { createElement, Component, VNode } from "../../gooact";
 import { InspectorType } from "./InspectorType";
-import { IEngineAPI } from "../../engine-api/trident/IEngineAPI";
+import { IEngineAPI } from "../../engine/api/trident/IEngineAPI";
 import { StringUtils } from "../../helpers/StringUtils";
 
 import './InspectorComponent.css';

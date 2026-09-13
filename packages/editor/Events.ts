@@ -1,7 +1,7 @@
-import { IComponent } from "./engine-api/trident/components/IComponent";
-import { IGameObject } from "./engine-api/trident/components/IGameObject";
-import { IMaterial } from "./engine-api/trident/IMaterial";
-import { IScene } from "./engine-api/trident/IScene";
+import { IComponent } from "./engine/api/trident/components/IComponent";
+import { IGameObject } from "./engine/api/trident/components/IGameObject";
+import { IMaterial } from "./engine/api/trident/IMaterial";
+import { IScene } from "./engine/api/trident/IScene";
 
 export class ComponentEvents {
     public static Created = (gameObject: IGameObject, component: IComponent) => { };

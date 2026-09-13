@@ -7,7 +7,7 @@ import { LayoutHierarchy } from "./LayoutHierarchy";
 import { LayoutInspector } from "./LayoutInspector";
 
 import "./Layout.css";
-import { IEngineAPI } from "../engine-api/trident/IEngineAPI";
+import { IEngineAPI } from "../engine/api/trident/IEngineAPI";
 import { LayoutTopbar } from "./LayoutTopbar";
 
 export interface BaseProps {

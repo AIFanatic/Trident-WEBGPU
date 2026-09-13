@@ -2,14 +2,14 @@ import { createElement, Component as GOActComponent } from "../../gooact";
 import { ComponentEvents } from "../../Events";
 
 import { Component } from '@trident/core';
-import { IGameObject } from "../../engine-api/trident/components/IGameObject";
-import { ComponentRegistry } from "../../engine-api/trident/ComponentRegistry";
+import { IGameObject } from "../../engine/api/trident/components/IGameObject";
+import { ComponentRegistry } from "../../engine/api/trident/ComponentRegistry";
 import { Tree } from "../TreeView/Tree";
 import { TreeFolder } from "../TreeView/TreeFolder";
 import { TreeItem } from "../TreeView/TreeItem";
-import { IEngineAPI } from "../../engine-api/trident/IEngineAPI";
-import { IComponent, IComponentConstructor } from "../../engine-api/trident/components/IComponent";
-import { TridentAPI } from "../../engine-api/trident/TridentAPI";
+import { IEngineAPI } from "../../engine/api/trident/IEngineAPI";
+import { IComponent, IComponentConstructor } from "../../engine/api/trident/components/IComponent";
+import { TridentAPI } from "../../engine/api/trident/TridentAPI";
 
 interface AddComponentProps {
     engineAPI: IEngineAPI;

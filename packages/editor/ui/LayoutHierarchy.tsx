@@ -1,20 +1,20 @@
 import { createElement, Component } from "../gooact";
-import { IGameObject } from "../engine-api/trident/components/IGameObject";
+import { IGameObject } from "../engine/api/trident/components/IGameObject";
 import { BaseProps } from "./Layout";
 import { GameObjectEvents, SceneEvents } from "../Events";
 import { ExtendedDataTransfer } from "../helpers/ExtendedDataTransfer";
-import { ComponentRegistry } from "../engine-api/trident/ComponentRegistry";
+import { ComponentRegistry } from "../engine/api/trident/ComponentRegistry";
 import { TreeFolder } from "./TreeView/TreeFolder";
 import { TreeItem } from "./TreeView/TreeItem";
 import { Tree } from "./TreeView/Tree";
 import { FloatingMenu } from "./FloatingMenu";
-import { TridentAPI } from "../engine-api/trident/TridentAPI";
+import { TridentAPI } from "../engine/api/trident/TridentAPI";
 import { SaveAsset } from "../commands/SaveAsset";
 import { GameObjectIcon } from "./icons/GameObject";
 import { ArchiveIcon } from "./icons/ArchiveIcon";
 
 export class LayoutHierarchyEvents {
-    public static Selected = (gameObject: IGameObject) => { };
+    public static Selected = (gameObject: IGameObject | null) => { };
 }
 
 interface LayoutHierarchyState {
@@ -117,13 +117,14 @@ export class LayoutHierarchy extends Component<BaseProps, LayoutHierarchyState> 
         this.setState({ headerMenuOpen: !this.state.headerMenuOpen, selectedGameObject: null });
     }
 
-    private createPrimitive(primitiveType: "Cube" | "Capsule" | "Plane" | "Sphere") {
+    private createPrimitive(primitiveType: "Cube" | "Capsule" | "Plane" | "Sphere" | "Cylinder") {
         const gameObject = this.props.engineAPI.createGameObject(this.props.engineAPI.currentScene);
         const mesh = this.props.engineAPI.addComponent(gameObject, ComponentRegistry.Mesh);
         if (primitiveType === "Cube") mesh.geometry = this.props.engineAPI.createCubeGeometry(), gameObject.name = "Cube";
         else if (primitiveType === "Capsule") mesh.geometry = this.props.engineAPI.createCapsuleGeometry(), gameObject.name = "Capsule";
         else if (primitiveType === "Plane") mesh.geometry = this.props.engineAPI.createPlaneGeometry(), gameObject.name = "Plane";
         else if (primitiveType === "Sphere") mesh.geometry = this.props.engineAPI.createSphereGeometry(), gameObject.name = "Sphere";
+        else if (primitiveType === "Cylinder") mesh.geometry = this.props.engineAPI.createCylinderGeometry(), gameObject.name = "Cylinder";
         mesh.material = this.props.engineAPI.createPBRMaterial();
         TridentAPI.EventSystem.emit(GameObjectEvents.Created, gameObject);
         this.setState({ ...this.state, headerMenuOpen: !this.state.headerMenuOpen });
@@ -229,6 +230,7 @@ export class LayoutHierarchy extends Component<BaseProps, LayoutHierarchyState> 
                                     <TreeItem name="Capsule" onPointerDown={() => this.createPrimitive("Capsule")} />
                                     <TreeItem name="Plane" onPointerDown={() => this.createPrimitive("Plane")} />
                                     <TreeItem name="Sphere" onPointerDown={() => this.createPrimitive("Sphere")} />
+                                    <TreeItem name="Cylinder" onPointerDown={() => this.createPrimitive("Cylinder")} />
                                     <TreeItem name="Terrain" onPointerDown={() => this.createTerrain()} />
                                 </TreeFolder>
                                 <TreeFolder name="Lights">

@@ -1,4 +1,4 @@
-import { IGameObject } from "./engine-api/trident/components/IGameObject";
+import { IGameObject } from "./engine/api/trident/components/IGameObject";
 import { createElement, PropsWithChildren, VNode as GoactVNode, VNodeChild } from "./gooact";
 import { InspectorInputProps } from "./ui/Inspector/InspectorInput";
 import { InspectorPropertyProps } from "./ui/Inspector/InspectorProperty";
@@ -16,6 +16,8 @@ export interface IEditorBridge {
 
         onHierarchySelected(handler: (gameObject: IGameObject) => void): void;
         offHierarchySelected(handler: (gameObject: IGameObject) => void): void;
+
+        selectGameObject(gameObject: IGameObject): void;
     };
     Selection: {
         activeGameObject: IGameObject | null;
@@ -52,7 +54,9 @@ export class EditorAPI {
         offSceneSaved(handler: () => void): void { return requireBridge().events.offSceneSaved(handler) },
 
         onHierarchySelected(handler: (gameObject: IGameObject) => void): void { return requireBridge().events.onHierarchySelected(handler) },
-        offHierarchySelected(handler: (gameObject: IGameObject) => void): void { return requireBridge().events.offHierarchySelected(handler) }
+        offHierarchySelected(handler: (gameObject: IGameObject) => void): void { return requireBridge().events.offHierarchySelected(handler) },
+
+        selectGameObject(gameObject: IGameObject): void { return requireBridge().events.selectGameObject(gameObject) }
     };
     public static Selection = {
         get activeGameObject(): IGameObject | null { return requireBridge().Selection.activeGameObject },

@@ -1,6 +1,6 @@
 import { createElement, Component, VNode } from "../../gooact";
 import { GPU } from "@trident/core";
-import { IMaterial } from "../../engine-api/trident/IMaterial";
+import { IMaterial } from "../../engine/api/trident/IMaterial";
 
 import './InspectorComponent.css';
 import { Collapsible } from "../Collapsible/Collapsible";
@@ -12,7 +12,7 @@ import { InspectorInput } from "./InspectorInput";
 import { InspectorCheckbox } from "./InspectorCheckbox";
 import { BaseProps } from "../Layout";
 import { InspectorTexture } from "./InspectorTexture";
-import { TridentAPI } from "../../engine-api/trident/TridentAPI";
+import { TridentAPI } from "../../engine/api/trident/TridentAPI";
 import { LayoutAssetEvents } from "../../Events";
 import { InspectorArray } from "./InspectorArray";
 import { InspectorClass } from "./InspectorClass";
@@ -20,7 +20,7 @@ import { InspectorProperty } from "./InspectorProperty";
 import { InspectorDropdown, InspectorDropdownOptions } from "./InspectorDropdown";
 import { InspectorColorGradient } from "./InspectorColorGradient";
 import { InspectorType } from "./InspectorType";
-import { IComponent } from "packages/editor/engine-api/trident/components/IComponent";
+import { IComponent } from "packages/editor/engine/api/trident/components/IComponent";
 import { InspectorVector4 } from "./InspectorVector4";
 
 interface InspectorMaterialProps extends BaseProps {
@@ -33,13 +33,21 @@ export class InspectorMaterial extends Component<InspectorMaterialProps> {
         super(props);
     }
 
-    private onComponentPropertyChanged(object: Object, property: string, value: any) {
-        object[property] = value;
+    private onComponentPropertyChanged(object: any, property: string, value: any) {
+        const material = this.props.material as any;
 
-        const engineType = this.props.engineAPI.getFieldType(value);
-        console.log(object, property, value, engineType)
+        if (object === material.params) {
+            const currentValue = object[property];
 
-        this.setState({}); // force updated
+            material.SetProperty(
+                property,
+                typeof currentValue === "number" ? parseFloat(value) : value
+            );
+        } else {
+            object[property] = value;
+        }
+
+        this.setState({});
     }
 
     private renderInspectorForComponentProperty(component: any, property: { name: string | symbol, type?: Function }): VNode<any> {

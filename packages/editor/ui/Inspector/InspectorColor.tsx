@@ -1,5 +1,5 @@
 import { createElement, Component } from "../../gooact";
-import { IColor } from "../../engine-api/trident/math/IColor";
+import { IColor } from "../../engine/api/trident/math/IColor";
 
 import './InspectorComponent.css';
 import { InspectorNumber } from "./InspectorNumber";

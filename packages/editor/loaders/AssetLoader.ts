@@ -1,5 +1,5 @@
 import { AudioClip, Deserializer, Prefab, Texture } from "@trident/core";
-import { IEngineAPI } from "../engine-api/trident/IEngineAPI";
+import { IEngineAPI } from "../engine/api/trident/IEngineAPI";
 import { GetFileExports, LoadScript } from "./ScriptLoader";
 
 export async function LoadFile(path: string, file: FileSystemFileHandle, engineAPI: IEngineAPI): Promise<any> {

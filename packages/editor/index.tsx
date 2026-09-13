@@ -1,14 +1,14 @@
-import { TridentAPI } from "./engine-api/trident/TridentAPI";
+import { TridentAPI } from "./engine/api/trident/TridentAPI";
 import { createElement, render, Component } from "./gooact";
 import { Layout } from "./ui/Layout";
 import { registerEditorBridge } from "@trident/editor";
 import { SaveAsset } from "./commands/SaveAsset";
-import { LayoutInspectorEvents, RuntimeEvents, SceneEvents } from "./Events";
+import { GameObjectEvents, LayoutInspectorEvents, RuntimeEvents, SceneEvents } from "./Events";
 import { InspectorInput, InspectorInputProps } from "./ui/Inspector/InspectorInput";
 import { ExtendedDataTransfer } from "./helpers/ExtendedDataTransfer";
 
-import { EditorRuntime } from "./engine-api/trident/EditorRuntime";
-import { IGameObject } from "./engine-api/trident/components/IGameObject";
+import { EditorRuntime } from "./engine/components/EditorRuntime";
+import { IGameObject } from "./engine/api/trident/components/IGameObject";
 import { LayoutHierarchyEvents } from "./ui/LayoutHierarchy";
 import { Components, SceneExecutionMode } from "@trident/core";
 import { PhysicsRapier } from "@trident/plugins/PhysicsRapier/PhysicsRapier";
@@ -46,7 +46,9 @@ class App extends Component {
                 offSceneSaved: (handler: () => void) => { TridentAPI.EventSystem.off(SceneEvents.Saved, handler) },
 
                 onHierarchySelected(handler: (gameObject: IGameObject) => void) { TridentAPI.EventSystem.on(LayoutHierarchyEvents.Selected, handler); },
-                offHierarchySelected(handler: (gameObject: IGameObject) => void) { TridentAPI.EventSystem.off(LayoutHierarchyEvents.Selected, handler); }
+                offHierarchySelected(handler: (gameObject: IGameObject) => void) { TridentAPI.EventSystem.off(LayoutHierarchyEvents.Selected, handler); },
+
+                selectGameObject(gameObject) { TridentAPI.EventSystem.emit(GameObjectEvents.Selected, gameObject); },
             },
             Selection: {
                 get activeGameObject() { return activeGameObject; }
@@ -55,7 +57,6 @@ class App extends Component {
 
         TridentAPI.EventSystem.on(SceneEvents.Loaded, scene => {
             EditorRuntime.AttachEditorScene(engineAPI.currentScene);
-            EditorRuntime.AttachEnvironment(engineAPI.currentScene);
         })
 
         TridentAPI.EventSystem.on(RuntimeEvents.CreatedCanvas, async (canvas) => {

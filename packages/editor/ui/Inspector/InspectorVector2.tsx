@@ -1,6 +1,6 @@
 import { createElement, Component } from "../../gooact";
 
-import { IVector2 } from "../../engine-api/trident/math/IVector2";
+import { IVector2 } from "../../engine/api/trident/math/IVector2";
 
 import './InspectorComponent.css';
 import { InspectorNumber } from "./InspectorNumber";

@@ -1,4 +1,4 @@
-import { TridentAPI } from "../engine-api/trident/TridentAPI";
+import { TridentAPI } from "../engine/api/trident/TridentAPI";
 import { DirectoryEvents, FileEvents } from "../Events";
 import { FileBrowser } from "./FileBrowser";
 
