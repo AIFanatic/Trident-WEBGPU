@@ -1,7 +1,6 @@
 import { EventSystemLocal } from "../Events";
 import { GameObject } from "../GameObject";
 import { RendererContext } from "../renderer/RendererContext";
-import { Shader } from "../renderer/Shader";
 import { DynamicBufferMemoryAllocator } from "../renderer/MemoryAllocator";
 import { Component } from "./Component";
 import { Renderable } from "./Renderable";
@@ -14,17 +13,24 @@ export class Mesh extends Renderable {
     protected matrixOffset = 0;
     protected instanceCount = 1;
     protected get firstInstance(): number { return this.matrixOffset / 16; }
+    private matricesDirty = true;
 
     constructor(gameObject: GameObject) {
         super(gameObject);
         if (!Mesh.modelMatrices) Mesh.modelMatrices = new DynamicBufferMemoryAllocator(16 * 1000, 16 * 1000);
-        EventSystemLocal.on(TransformEvents.Updated, this.transform, () => this.uploadMatrices());
+        EventSystemLocal.on(TransformEvents.Updated, this.transform, () => this.matricesDirty = true);
         this.uploadMatrices();
     }
 
     protected uploadMatrices(): void {
         this.matrixOffset = Mesh.modelMatrices.set(this.id, this.transform.localToWorldMatrix.elements);
         this.instanceCount = 1;
+    }
+
+    public OnPreFrame(): void {
+        if (!this.matricesDirty) return;
+        this.uploadMatrices();
+        this.matricesDirty = false;
     }
 
     public OnRenderObject(): void {

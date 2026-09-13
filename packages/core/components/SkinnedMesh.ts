@@ -59,6 +59,7 @@ export class SkinnedMesh extends Mesh {
     }
 
     public OnPreFrame(): void {
+        super.OnPreFrame();
         const skel = this.getSkeleton();
         if (!skel || skel.bones.length === 0) return;
         if (!this.ensureBuffer(skel.bones.length)) return;

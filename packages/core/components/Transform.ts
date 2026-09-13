@@ -74,14 +74,14 @@ export class Transform extends Component {
         this.markDirty();
     }
 
-    // ── cheap: flag self + subtree, once ──
     private markDirty(): void {
-        if (this._dirty) return;
         this._dirty = true;
         for (const child of this.children) child.markDirty();
+
+        EventSystem.emit(TransformEvents.Updated);
+        EventSystemLocal.emit(TransformEvents.Updated, this);
     }
 
-    // ── callbacks just record authority + mark dirty (idempotent, so per-component fires are free) ──
     private onLocalChanged(): void {
         if (this._suppressLocalCallbacks) return;
         this._lastChanged = "local";
@@ -146,6 +146,7 @@ export class Transform extends Component {
             }
             this._suppressWorldCallbacks = false;
         }
+        this._lastChanged = "local";
 
         // keep euler mirrors consistent (suppressed so they don't re-fire)
         this._suppressLocalCallbacks = this._suppressWorldCallbacks = true;
@@ -156,8 +157,6 @@ export class Transform extends Component {
         this._forward.set(0, 0, -1).applyQuaternion(this._rotation);
         this._up.set(0, 1, 0).applyQuaternion(this._rotation);
 
-        EventSystem.emit(TransformEvents.Updated);
-        EventSystemLocal.emit(TransformEvents.Updated, this);
     }
 
     public LookAt(target: Vector3): void {
