@@ -157,13 +157,24 @@ class BaseShader {
 
     protected bindGroupLayouts: GPUBindGroupLayout[] = [];
 
+    public valid = true;
+    public readonly compiled: Promise<void>;
+
     constructor(params: ShaderParams | ShaderComputeParams) {
         const code = params.defines ? ShaderPreprocessor.ProcessDefines(params.code, params.defines) : params.code;
         this.params = params;
+
+        // Error scope captures the WGSL error instead of letting it hit onuncapturederror.
+        Renderer.device.pushErrorScope("validation");
         this.module = Renderer.device.createShaderModule({ code: code, label: params.name });
-        if (this.params.uniforms) {
-            this.uniformMap = new Map(Object.entries(this.params.uniforms));
-        }
+        this.compiled = Renderer.device.popErrorScope().then(error => {
+            if (!error) return;
+            this.valid = false;
+            this._pipeline = null;
+            console.error(`[Shader] "${params.name ?? "unnamed"}" failed to compile:\n${error.message}`);
+        });
+
+        if (this.params.uniforms) this.uniformMap = new Map(Object.entries(this.params.uniforms));
     }
 
     // TODO: This needs cleaning
@@ -440,11 +451,14 @@ export class Shader extends BaseShader {
         if (!params.attributes) params.attributes = reflection.attributes;
         if (!params.uniforms) params.uniforms = reflection.uniforms;
         else for (const [name, uniform] of Object.entries(reflection.uniforms)) if (!params.uniforms[name]) params.uniforms[name] = uniform;
-        return new Shader(params);
+        const shader = new Shader(params);
+        await shader.compiled;
+        return shader;
     }
 
     // TODO: This needs cleaning
     public Compile() {
+        if (!this.valid) return;
         if (!(this.needsUpdate || !this.pipeline || !this.bindGroups)) return;
 
         const missing: string[] = [];
@@ -574,10 +588,13 @@ export class ShaderCompute extends BaseShader {
         const reflection = ReflectWGSL(reflectionSource);
         if (!params.uniforms) params.uniforms = reflection.uniforms;
         else for (const [name, uniform] of Object.entries(reflection.uniforms)) if (!params.uniforms[name]) params.uniforms[name] = uniform;
-        return new ShaderCompute(params);
+        const shader = new ShaderCompute(params);
+        await shader.compiled;
+        return shader;
     }
 
     public Compile() {
+        if (!this.valid) return;
         if (!(this.needsUpdate || !this.pipeline || !this.bindGroups)) {
             return;
         }
