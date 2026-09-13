@@ -110,7 +110,9 @@ export class Texture {
     private static _WhiteTexture: Texture;
     private static _BlackTexture: Texture;
     private static _NormalTexture: Texture;
+    private static _ARMTexture: Texture;
     private static _DepthTexture: Texture;
+
 
     private static CreateTextureWithData(data: BufferSource): Texture {
         const texture = Texture.Create(1, 1, 1, "bgra8unorm");
@@ -133,9 +135,14 @@ export class Texture {
         return Texture._NormalTexture;
     }
 
+    public static get ARMTexture(): Texture {
+        if (!this._ARMTexture) Texture._ARMTexture = Texture.CreateTextureWithData(new Uint8Array([0, 255, 255, 255]));
+        return Texture._ARMTexture;
+    }
+
     public static get DepthTexture(): Texture {
         if (!this._DepthTexture) {
-            Texture._DepthTexture = Texture.Create(1, 1, 1, "depth24plus");
+            Texture._DepthTexture = TextureArray.Create(1, 1, 1, "depth24plus"); // Does this always work? For now only used as a blank in DeferredLightingPass
         }
         return Texture._DepthTexture;
     }
@@ -400,46 +407,67 @@ export class Texture {
         return packed;
     }
 
-    private async toCanvas(): Promise<HTMLCanvasElement> {
-        const w = this.width, h = this.height;
-        const px = await this.GetPixels();               // tight, w*h*4, type depends on format
-        const out = new Uint8ClampedArray(w * h * 4);
+    private static Chunk(type: string, data: Uint8Array): Uint8Array {
+        const out = new Uint8Array(12 + data.length), v = new DataView(out.buffer);
+        for (let i = 0; i < 4; i++) out[4 + i] = type.charCodeAt(i);
+        out.set(data, 8);
+        v.setUint32(0, data.length);
+        let c = -1;
+        for (const b of out.subarray(4, 8 + data.length)) { c ^= b; for (let i = 8; i--;) c = c >>> 1 ^ (c & 1 ? 0xedb88320 : 0); }
+        v.setUint32(8 + data.length, (c ^ -1) >>> 0);
+        return out;
+    }
 
-        const isFloat = this.format.includes("float");
-        const isBGRA = this.format.startsWith("bgra");
-
-        for (let i = 0; i < w * h; i++) {
-            let r = px[i * 4 + 0], g = px[i * 4 + 1], b = px[i * 4 + 2], a = px[i * 4 + 3];
-            if (isBGRA) { const t = r; r = b; b = t; }    // bgra -> rgba
-            if (isFloat) {                                 // 0..1 float -> 0..255
-                r = Math.min(1, Math.max(0, r)) * 255;
-                g = Math.min(1, Math.max(0, g)) * 255;
-                b = Math.min(1, Math.max(0, b)) * 255;
-                a = Math.min(1, Math.max(0, a)) * 255;
-            }
-            out[i * 4 + 0] = r; out[i * 4 + 1] = g; out[i * 4 + 2] = b; out[i * 4 + 3] = a;
+    private static ToRGBA8(px: ArrayLike<number>, w: number, h: number, format: string, srgb = false): Uint8Array {
+        const out = new Uint8Array(w * h * 4), isFloat = format.includes("float"), bgra = format.startsWith("bgra");
+        const enc = (c: number) => c <= 0.0031308 ? c * 12.92 : 1.055 * Math.pow(c, 1 / 2.4) - 0.055;
+        for (let i = 0; i < w * h * 4; i++) {
+            let c = isFloat ? Math.min(1, Math.max(0, px[i])) : px[i] / 255;
+            if (srgb && isFloat && i % 4 !== 3) c = enc(c);
+            out[i] = c * 255 + 0.5;
         }
-
-        const canvas = document.createElement("canvas");
-        canvas.width = w; canvas.height = h;
-        canvas.getContext("2d")!.putImageData(new ImageData(out, w, h), 0, 0);
-        return canvas;
+        if (bgra) for (let i = 0; i < w * h; i++) { const t = out[i * 4]; out[i * 4] = out[i * 4 + 2]; out[i * 4 + 2] = t; }
+        return out;
     }
 
-    private async encode(mime: string, quality?: number): Promise<Uint8Array> {
-        const canvas = await this.toCanvas();
-        const blob: Blob = await new Promise((res) => canvas.toBlob((b) => res(b!), mime, quality));
-        return new Uint8Array(await blob.arrayBuffer());
+    public async EncodeToPNG(srgb = false): Promise<Uint8Array> {
+        const w = this.width;
+        const h = this.height;
+        const rgba = Texture.ToRGBA8(await this.GetPixels(), w, h, this.format, srgb);
+        const raw = new Uint8Array(h * (w * 4 + 1));                       // leading filter byte 0 per row
+        for (let y = 0; y < h; y++) raw.set(rgba.subarray(y * w * 4, (y + 1) * w * 4), y * (w * 4 + 1) + 1);
+        const idat = new Uint8Array(await new Response(                     // deflate == zlib stream == IDAT
+            new Blob([raw]).stream().pipeThrough(new CompressionStream("deflate"))).arrayBuffer());
+        const ihdr = new Uint8Array(13), v = new DataView(ihdr.buffer);
+        v.setUint32(0, w); v.setUint32(4, h); ihdr.set([8, 6, 0, 0, 0], 8); // 8bpc, RGBA
+        const parts = [new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10]), Texture.Chunk("IHDR", ihdr), Texture.Chunk("IDAT", idat), Texture.Chunk("IEND", new Uint8Array(0))];
+        const out = new Uint8Array(parts.reduce((n, p) => n + p.length, 0));
+        parts.reduce((o, p) => (out.set(p, o), o + p.length), 0);
+        return out;
     }
 
-    public EncodeToPNG(): Promise<Uint8Array> { return this.encode("image/png"); }
-    public EncodeToJPG(quality: number = 0.92): Promise<Uint8Array> { return this.encode("image/jpeg", quality); }
+    public async EncodeToJPG(quality = 0.92): Promise<Uint8Array> {
+        throw Error("Test this");
+        const w = this.width;
+        const h = this.height;
+        const rgba = Texture.ToRGBA8(await this.GetPixels(), w, h, this.format);
+        const c = document.createElement("canvas"); c.width = w; c.height = h;
+        c.getContext("2d")!.putImageData(new ImageData(new Uint8ClampedArray(rgba.buffer, rgba.byteOffset, rgba.byteLength), w, h), 0, 0);
+        return new Promise(res => c.toBlob(async b => res(await b?.bytes()), "image/jpeg", quality));
+
+        // return new Promise(res => c.toBlob(b => res(b!), "image/jpeg", quality));
+    }
 
     // Format and types are very limited for now
     // https://github.com/gpuweb/gpuweb/issues/2322
     public static async LoadBlob(blob: Blob, options?: ImageLoadOptions): Promise<Texture> {
         const _options = Object.assign({}, DefaultOptions, options);
-        const imageBitmap = await createImageBitmap(blob, { resizeWidth: _options.resizeWidth, resizeHeight: _options.resizeHeight });
+        const imageBitmap = await createImageBitmap(blob, {
+            resizeWidth: _options.resizeWidth,
+            resizeHeight: _options.resizeHeight,
+            premultiplyAlpha: "none",
+            colorSpaceConversion: "none",
+        });
 
         const texture = new Texture(imageBitmap.width, imageBitmap.height, 1, _options.format || Renderer.SwapChainFormat, TextureType.RENDER_TARGET, "2d", 1);
         texture.name = _options.name || "Texture";
