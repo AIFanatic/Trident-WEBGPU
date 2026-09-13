@@ -1,4 +1,4 @@
-import { Utils, Component, InterleavedVertexAttribute, IndexAttribute } from '@trident/core';
+import { Utils, EventSystem, Component, InterleavedVertexAttribute, IndexAttribute } from '@trident/core';
 import { Meshoptimizer } from './meshoptimizer/Meshoptimizer.js';
 
 var __create = Object.create;
@@ -81,10 +81,10 @@ function buildMeshletData(geometry) {
     const base = i * bytesPerMeshlet;
     view.setUint32(base + 0, m.index_offset, true);
     view.setUint32(base + 4, m.index_count, true);
-    view.setFloat32(base + 16, m.center[0], true);
-    view.setFloat32(base + 20, m.center[1], true);
-    view.setFloat32(base + 24, m.center[2], true);
-    view.setFloat32(base + 28, m.radius, true);
+    view.setFloat32(base + 16, m.group_center[0], true);
+    view.setFloat32(base + 20, m.group_center[1], true);
+    view.setFloat32(base + 24, m.group_center[2], true);
+    view.setFloat32(base + 28, m.group_radius, true);
     view.setFloat32(base + 32, m.group_error, true);
     view.setFloat32(base + 48, m.parent_center[0], true);
     view.setFloat32(base + 52, m.parent_center[1], true);
@@ -125,6 +125,7 @@ class MeshletMesh extends (_a = Component, _material_dec = [Utils.SerializeField
     this.interleavedVertices = data.interleavedVertices;
     this.indices = data.indices;
     this.meshletInfoPacked = data.meshletInfoPacked;
+    EventSystem.emit(MeshletEvents.Updated, this);
   }
 }
 _init = __decoratorStart(_a);

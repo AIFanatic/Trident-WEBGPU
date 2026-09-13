@@ -10,9 +10,9 @@
                 "id": "856232",
                 "type": "@trident/core/components/Transform",
                 "localPosition": {
-                    "x": -5.259099955288747,
-                    "y": 7.39752684280057,
-                    "z": 9.185208788677233
+                    "x": -5,
+                    "y": 10,
+                    "z": 10
                 },
                 "localRotation": {
                     "x": -0.29020031502442184,
@@ -81,7 +81,7 @@
                         "b": 1,
                         "a": 1
                     },
-                    "intensity": 1,
+                    "intensity": 3.14,
                     "castShadows": true,
                     "direction": {
                         "x": 0,
@@ -100,7 +100,7 @@
                 "type": "@trident/core/components/Transform",
                 "localPosition": {
                     "x": 0,
-                    "y": -2,
+                    "y": -1,
                     "z": 0
                 },
                 "localRotation": {
@@ -110,9 +110,9 @@
                     "w": 0.7071067811865476
                 },
                 "scale": {
-                    "x": 100,
-                    "y": 100,
-                    "z": 100
+                    "x": 10,
+                    "y": 10,
+                    "z": 10
                 }
             },
             "components": [

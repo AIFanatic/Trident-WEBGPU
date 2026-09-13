@@ -53,6 +53,9 @@ class EditorAPI {
     },
     offHierarchySelected(handler) {
       return requireBridge().events.offHierarchySelected(handler);
+    },
+    selectGameObject(gameObject) {
+      return requireBridge().events.selectGameObject(gameObject);
     }
   };
   static Selection = {

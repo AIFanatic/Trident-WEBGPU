@@ -1,24 +1,18 @@
-import { GPU, Mathf, Geometry, Components } from '@trident/core';
+import { Console, Mathf, GPU, Geometry, Components } from '@trident/core';
 
+const FogSettings = Console.define({
+  r_fog_enabled: { default: false, help: "Enable fog" },
+  r_fog_color: { default: new Mathf.Color(1, 1, 1, 1), help: "Fog color" },
+  r_fog_base_height: { default: 0, help: "World Y where fog is densest" },
+  r_fog_height_falloff: { default: 0.05, help: "How fast it thins with height (bigger = tighter band)" },
+  r_fog_density: { default: 0.02, help: "Overall density" },
+  r_fog_max_distance: { default: 2e3, help: "Max distance for fog" }
+});
 class PostProcessingFog extends GPU.RenderPass {
-  params = {
-    fogColor: new Mathf.Color(1, 1, 1, 1),
-    // height fog controls
-    fogBaseHeight: 0,
-    // world Y where fog is densest
-    fogHeightFalloff: 0.05,
-    // how fast it thins with height (bigger = tighter band)
-    fogDensity: 0.02,
-    // overall density
-    fogMaxDistance: 2e3
-  };
   name = "PostProcessingFog";
   shader;
   quadGeometry;
   renderTarget;
-  constructor() {
-    super();
-  }
   async init() {
     const code = `
 			#include "@trident/core/resources/webgpu/shaders/deferred/Common.wgsl";
@@ -37,8 +31,6 @@ class PostProcessingFog extends GPU.RenderPass {
 			@group(0) @binding(0) var textureSampler: sampler;
 			@group(0) @binding(1) var texture: texture_2d<f32>;
 			@group(0) @binding(2) var depthTexture: texture_depth_2d;
-
-			@group(0) @binding(5) var skyboxTexture: texture_cube<f32>;
 
 			struct Params {
 				fogColor: vec4<f32>,
@@ -153,13 +145,22 @@ class PostProcessingFog extends GPU.RenderPass {
     this.initialized = true;
   }
   async preFrame(resources) {
+    if (!this.initialized) return;
+    if (!FogSettings.r_fog_enabled.value) return;
     const FrameBuffer = resources.getResource(GPU.PassParams.FrameBuffer);
     this.shader.SetBuffer("view", FrameBuffer);
     this.shader.SetArray("camera", new Float32Array([Components.Camera.mainCamera.near, Components.Camera.mainCamera.far, 0, 0]));
-    this.shader.SetArray("params", new Float32Array([...this.params.fogColor.elements, this.params.fogBaseHeight, this.params.fogHeightFalloff, this.params.fogDensity, this.params.fogMaxDistance]));
+    this.shader.SetArray("params", new Float32Array([
+      ...FogSettings.r_fog_color.value.elements,
+      FogSettings.r_fog_base_height.value,
+      FogSettings.r_fog_height_falloff.value,
+      FogSettings.r_fog_density.value,
+      FogSettings.r_fog_max_distance.value
+    ]));
   }
   async execute(resources) {
-    if (this.initialized === false) return;
+    if (!this.initialized) return;
+    if (!FogSettings.r_fog_enabled.value) return;
     const LightingPassOutputTexture = resources.getResource(GPU.PassParams.LightingPassOutput);
     const GBufferDepth = resources.getResource(GPU.PassParams.GBufferDepth);
     if (!LightingPassOutputTexture) return;
@@ -172,4 +173,4 @@ class PostProcessingFog extends GPU.RenderPass {
   }
 }
 
-export { PostProcessingFog };
+export { FogSettings, PostProcessingFog };

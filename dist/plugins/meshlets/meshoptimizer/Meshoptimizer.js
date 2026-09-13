@@ -57,6 +57,8 @@ class Meshoptimizer {
         index_offset: new Uint32Array(heap, base + 20, 1)[0],
         index_count: new Uint32Array(heap, base + 24, 1)[0],
         group_error: group.error,
+        group_center: group.center,
+        group_radius: group.radius,
         parent_center: refined.center,
         parent_radius: refined.radius,
         parent_error: refined_group_id >= 0 ? refined.error : 0

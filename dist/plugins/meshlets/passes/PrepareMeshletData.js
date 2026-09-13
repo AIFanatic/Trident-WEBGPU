@@ -124,10 +124,7 @@ class PrepareMeshletData extends GPU.RenderPass {
       resources.setResource(MeshletPassParams.CurrentMeshletCount, 0);
       const scene = Components.Camera.mainCamera.gameObject.scene;
       const items = this.collectItems(scene);
-      if (items.length === 0) {
-        this.needsUpdate = false;
-        return;
-      }
+      if (items.length === 0) return;
       const byMaterial = /* @__PURE__ */ new Map();
       for (const it of items) {
         let bucket = byMaterial.get(it.material);

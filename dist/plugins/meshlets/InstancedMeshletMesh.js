@@ -1,5 +1,5 @@
-import { Utils, Component } from '@trident/core';
-import { buildMeshletData } from './MeshletMesh.js';
+import { Utils, EventSystem, Component } from '@trident/core';
+import { buildMeshletData, MeshletEvents } from './MeshletMesh.js';
 
 var __create = Object.create;
 var __defProp = Object.defineProperty;
@@ -100,6 +100,7 @@ const _InstancedMeshletMesh = class _InstancedMeshletMesh extends (_a = Componen
     this.interleavedVertices = data.interleavedVertices;
     this.indices = data.indices;
     this.meshletInfoPacked = data.meshletInfoPacked;
+    EventSystem.emit(MeshletEvents.Updated, this);
   }
 };
 _init = __decoratorStart(_a);

@@ -76,17 +76,20 @@ class PaintPropData {
     }
     const lodGroup = this.instancedPrefab.GetComponentsInChildren(LODGroup);
     let lods = lodGroup.length > 0 ? lodGroup[0].lods : void 0;
+    let enableShadows = lodGroup.length > 0 ? lodGroup[0].enableShadows : false;
     if (!lods) {
       const meshes = this.instancedPrefab.GetComponentsInChildren(Components.Mesh);
       if (meshes.length === 0) throw Error("No LODS or meshes found.");
       const mesh = meshes[0];
       if (!mesh.geometry || !mesh.material) throw Error("Mesh has no geometry or material.");
       lods = [{ renderers: [{ geometry: mesh.geometry, material: mesh.material }], screenSize: 0 }];
+      enableShadows = mesh.enableShadows;
     }
     if (!this.instancedLODGroup) {
       this.instancedLODGroup = terrainGameObject.AddComponent(InstancedLODGroup);
       this.instancedLODGroup.flags = Utils.Flags.DontSaveInEditor | Utils.Flags.HideInInspector;
       this.instancedLODGroup.lods = lods;
+      this.instancedLODGroup.enableShadows = enableShadows;
     }
     this.instancedLODGroup.SetMatricesBulk(new Float32Array(this.matrices));
   }
@@ -256,7 +259,7 @@ const _TerrainData = class _TerrainData {
       for (let iz = 0; iz < verticesPerSide; iz++) {
         const x = ix * ratio.x;
         const z = iz * ratio.z;
-        const height = heights[i] * size.y - half.y;
+        const height = heights[i] * size.y;
         vertices.push(x - half.x, height, z - half.z);
         uvs.push(ix / divisions, iz / divisions);
         i++;
@@ -351,7 +354,7 @@ const _TerrainData = class _TerrainData {
     for (let x = 0; x < sizeH; x++) {
       for (let z = 0; z < sizeH; z++) {
         const i = x * sizeH + z;
-        vertices[i * 3 + 1] = heights[i] * this.size.y - this.size.y * 0.5;
+        vertices[i * 3 + 1] = heights[i] * this.size.y;
       }
     }
     positions.buffer.SetArray(vertices);
@@ -397,6 +400,7 @@ class Terrain extends (_a = Components.Mesh, _terrainData_dec = [SerializeField(
     this.SetTerrainData(td).catch((err) => console.error("[Terrain] SetTerrainData failed", err));
   }
   async SetTerrainData(td) {
+    if (td.heights?.length) td.RebuildGeometry();
     await td.InitializePaintMaps();
     await Promise.all(td.paintPropData.map((prop) => prop.RebuildProps(this.gameObject)));
     if (td.heights?.length) td.RebuildGeometry();
@@ -430,7 +434,7 @@ class Terrain extends (_a = Components.Mesh, _terrainData_dec = [SerializeField(
     const idx = (x, z) => x * sizeH + z;
     const h0 = heights[idx(x0, z0)] * (1 - tx) + heights[idx(x1, z0)] * tx;
     const h1 = heights[idx(x0, z1)] * (1 - tx) + heights[idx(x1, z1)] * tx;
-    const height = (h0 * (1 - tz) + h1 * tz) * this._terrainData.size.y - this._terrainData.size.y * 0.5 + this.transform.position.y;
+    const height = (h0 * (1 - tz) + h1 * tz) * this._terrainData.size.y + this.transform.position.y;
     worldPosition.y = height;
     return height;
   }

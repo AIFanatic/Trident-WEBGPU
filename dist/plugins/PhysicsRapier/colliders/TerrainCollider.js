@@ -79,7 +79,6 @@ class TerrainCollider extends (_a = Collider, _terrainData_dec = [SerializeField
     this.colliderDesc = PhysicsRapier.Physics.ColliderDesc.heightfield(size - 1, size - 1, heights, terrainData.size);
     this.collider = PhysicsRapier.CreateCollider(this, this.colliderDesc);
     const pos = this.transform.position.clone();
-    pos.y -= terrainData.size.y * 0.5;
     this.collider.setTranslation(pos);
     this.collider.setRotation(this.transform.rotation);
   }

@@ -28,7 +28,7 @@
             <script type="module">
                 const canvas = document.createElement("canvas");
                 document.body.appendChild(canvas);
-                            import { PlayerRuntime, GameObject, Components, Mathf, Runtime, GPU, Geometry, PBRMaterial } from '@trident/core';
+                            import { PlayerRuntime, GameObject, Components, Mathf, Runtime, GPU } from '@trident/core';
             import { OrbitControls } from '@trident/plugins/OrbitControls.js';
             import { GLTFLoader } from '@trident/plugins/GLTF/GLTFLoader.js';
             import { HDRParser } from '@trident/plugins/HDRParser.js';
@@ -37,6 +37,7 @@
             
             async function Application(canvas) {
               await PlayerRuntime.Create(canvas);
+              PlayerRuntime.Renderer.SetResolution({ mode: "fit", scale: window.devicePixelRatio });
               const scene = PlayerRuntime.SceneManager.CreateScene("DefaultScene");
               PlayerRuntime.SceneManager.SetActiveScene(scene);
               const mainCameraGameObject = new GameObject();
@@ -52,11 +53,14 @@
               lightGameObject.transform.LookAt(new Mathf.Vector3(0, 0, 0));
               const light = lightGameObject.AddComponent(Components.DirectionalLight);
               light.castShadows = false;
-              light.intensity = 2;
+              light.intensity = 0;
               const rootGO = await GLTFLoader.Load("./assets/models/Shadow.glb", scene);
+              {
+                await GLTFLoader.Load("/extra/test-assets/grass_medium_01_4k_v2.glb", scene);
+              }
               const meshComponents = rootGO.GetComponentsInChildren(Components.Mesh);
-              for (const mesh2 of meshComponents) {
-                const animator = mesh2.gameObject.GetComponent(Components.Animator);
+              for (const mesh of meshComponents) {
+                const animator = mesh.gameObject.GetComponent(Components.Animator);
                 if (animator) {
                   console.log(animator);
                   break;
@@ -67,20 +71,12 @@
               const fpArmsAKM = fpArmsAKMGO.GetComponent(Components.Animator);
               console.log(fpArmsAKM);
               fpArmsAKM.SetClipByIndex(0);
-              const hdr = await HDRParser.Load("./assets/textures/HDR/spruit_sunrise_1k.hdr");
+              const hdr = await HDRParser.Load("./assets/textures/HDR/forest.hdr");
               const skyTexture = await HDRParser.ToCubemap(hdr);
               const iblLightingPass = Runtime.Renderer.RenderPipeline.AddPass(IBLLightingPass, GPU.RenderPassOrder.AfterLighting);
               const skyboxPass = Runtime.Renderer.RenderPipeline.AddPass(SkyboxPass, GPU.RenderPassOrder.AfterLighting);
               iblLightingPass.SetEnvironment(skyTexture);
               skyboxPass.SetSkybox(skyTexture);
-              const gameObject = new GameObject();
-              const mesh = gameObject.AddComponent(Components.Mesh);
-              mesh.geometry = Geometry.Sphere();
-              mesh.material = new PBRMaterial({
-                albedoMap: await GPU.Texture.Load("/extra/SampleProject/Nature/Terrain/leafy_grass/leafy_grass_diff_2k.jpg", { format: "rgba8unorm-srgb" }),
-                normalMap: await GPU.Texture.Load("/extra/SampleProject/Nature/Terrain/leafy_grass/leafy_grass_nor_gl_2k.jpg"),
-                armMap: await GPU.Texture.Load("/extra/SampleProject/Nature/Terrain/leafy_grass/leafy_grass_arm_2k.jpg")
-              });
               {
                 window.addEventListener("dragover", (e) => {
                   e.preventDefault();

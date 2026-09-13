@@ -117,8 +117,8 @@ fn fragmentMain(input: VertexOutput) -> @location(0) vec4<f32> {
     let diffuseColor = surface.albedo * (vec3f(1.0) - vec3f(0.04)) * (1.0 - surface.metallic);
     let specularColor = mix(vec3f(0.04), surface.albedo, vec3f(surface.metallic));
 
-    let diffuse = diffuseLight * diffuseColor;
-    let specular = specularLight * (specularColor * brdf.x + brdf.y);
+    let diffuse = diffuseLight * diffuseColor * surface.occlusion;
+    let specular = specularLight * (specularColor * brdf.x + brdf.y) * surface.occlusion;
 
     return vec4f(diffuse + specular, 1.0);
 }

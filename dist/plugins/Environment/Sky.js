@@ -10,7 +10,9 @@ Assets.Register("@trident/plugins/Sky/resources/Vertex.wgsl", VertexWGSL);
 class Sky {
   SUN_ELEVATION_DEGREES = 60;
   SUN_AZIMUTH_DEGREES = 40;
-  EYE_ALTITUDE = 0.05;
+  EYE_ALTITUDE = 0.01;
+  AEROSOL_TURBIDITY = 0.4;
+  SKY_EXPOSURE = -4;
   skyTexture;
   skyTextureCubemap;
   transmittanceLUT;
@@ -57,7 +59,16 @@ class Sky {
   }
   Update() {
     if (!this.initialized) return;
-    const params = new Float32Array([this.SUN_ELEVATION_DEGREES, this.SUN_AZIMUTH_DEGREES, this.EYE_ALTITUDE, 0]);
+    const params = new Float32Array([
+      this.SUN_ELEVATION_DEGREES,
+      this.SUN_AZIMUTH_DEGREES,
+      this.EYE_ALTITUDE,
+      this.AEROSOL_TURBIDITY,
+      this.SKY_EXPOSURE,
+      0,
+      0,
+      0
+    ]);
     this.transmittanceLUTShader.SetArray("params", params);
     this.skyTextureShader.SetArray("params", params);
     GPU.Renderer.BeginRenderFrame();

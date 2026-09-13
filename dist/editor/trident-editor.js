@@ -1,4 +1,4 @@
-import { Component as Component$1, Assets, Deserializer, Geometry, PBRMaterial, GPU, InterleavedVertexAttribute, IndexAttribute, VertexAttribute, Components, SerializeField, GameObject, Mathf, Runtime, Serializer, SceneExecutionMode, Input, KeyCodes, EventSystem, Scene, Prefab, AudioClip, Utils, EventSystemLocal, Texture, GetSerializedFields, AssetMeta } from '@trident/core';
+import { Component as Component$1, Assets, Deserializer, Geometry, PBRMaterial, GPU, InterleavedVertexAttribute, IndexAttribute, VertexAttribute, Components, EventSystem, Input, KeyCodes, SerializeField, GameObject, Mathf, Runtime, Console, Utils, MouseCodes, Serializer, SceneExecutionMode, Scene, Prefab, AudioClip, EventSystemLocal, Texture, GetSerializedFields, AssetMeta } from '@trident/core';
 import { OrbitControls } from '@trident/plugins/OrbitControls.js';
 import { RigidBody } from '@trident/plugins/PhysicsRapier/RigidBody.js';
 import { BoxCollider } from '@trident/plugins/PhysicsRapier/colliders/BoxCollider.js';
@@ -13,11 +13,16 @@ import { LineRenderer } from '@trident/plugins/LineRenderer.js';
 import { LODGroup } from '@trident/plugins/LOD/LODGroup.js';
 import { WaterV1 } from '@trident/plugins/Water/WaterV1.js';
 import { ParticleSystem } from '@trident/plugins/ParticleSystem/ParticleSystem.js';
+import { EditorAPI, registerEditorBridge } from '@trident/editor';
 import { IBLLightingPass } from '@trident/plugins/Environment/IBLLightingPass.js';
 import { Sky } from '@trident/plugins/Environment/Sky.js';
 import { SkyboxPass } from '@trident/plugins/Environment/SkyboxPass.js';
+import { PostProcessingPass } from '@trident/plugins/PostProcessing/PostProcessingPass.js';
+import { PostProcessingFXAA } from '@trident/plugins/PostProcessing/effects/FXAA.js';
+import { PostProcessingSMAA } from '@trident/plugins/PostProcessing/effects/SMAA.js';
+import { PostProcessingFog } from '@trident/plugins/PostProcessing/effects/Fog.js';
+import { PostProcessingBloom } from '@trident/plugins/PostProcessing/effects/Bloom.js';
 import { PhysicsDebugger } from '@trident/plugins/PhysicsRapier/PhysicsDebugger.js';
-import { EditorAPI, registerEditorBridge } from '@trident/editor';
 import { GLTFLoader } from '@trident/plugins/GLTF/GLTFLoader.js';
 import { PhysicsRapier } from '@trident/plugins/PhysicsRapier/PhysicsRapier.js';
 import { Debugger } from '@trident/plugins/Debugger.js';
@@ -3070,240 +3075,6 @@ Deserializer.Load = async (assetPath, data, expectedType) => {
   return coreLoad(assetPath, data, expectedType);
 };
 
-var __create = Object.create;
-var __defProp = Object.defineProperty;
-var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
-var __knownSymbol = (name, symbol) => (symbol = Symbol[name]) ? symbol : Symbol.for("Symbol." + name);
-var __typeError = (msg) => {
-  throw TypeError(msg);
-};
-var __defNormalProp = (obj, key, value) => key in obj ? __defProp(obj, key, { enumerable: true, configurable: true, writable: true, value }) : obj[key] = value;
-var __name = (target, value) => __defProp(target, "name", { value, configurable: true });
-var __decoratorStart = (base) => [, , , __create(base?.[__knownSymbol("metadata")] ?? null)];
-var __decoratorStrings = ["class", "method", "getter", "setter", "accessor", "field", "value", "get", "set"];
-var __expectFn = (fn) => fn !== void 0 && typeof fn !== "function" ? __typeError("Function expected") : fn;
-var __decoratorContext = (kind, name, done, metadata, fns) => ({ kind: __decoratorStrings[kind], name, metadata, addInitializer: (fn) => done._ ? __typeError("Already initialized") : fns.push(__expectFn(fn || null)) });
-var __decoratorMetadata = (array, target) => __defNormalProp(target, __knownSymbol("metadata"), array[3]);
-var __runInitializers = (array, flags, self, value) => {
-  for (var i = 0, fns = array[flags >> 1], n = fns && fns.length; i < n; i++) flags & 1 ? fns[i].call(self) : value = fns[i].call(self, value);
-  return value;
-};
-var __decorateElement = (array, flags, name, decorators, target, extra) => {
-  var fn, it, done, ctx, access, k = flags & 7, s = !!(flags & 8), p = !!(flags & 16);
-  var j = k > 3 ? array.length + 1 : k ? s ? 1 : 2 : 0, key = __decoratorStrings[k + 5];
-  var initializers = k > 3 && (array[j - 1] = []), extraInitializers = array[j] || (array[j] = []);
-  var desc = k && (!p && !s && (target = target.prototype), k < 5 && (k > 3 || !p) && __getOwnPropDesc(k < 4 ? target : { get [name]() {
-    return __privateGet(this, extra);
-  }, set [name](x) {
-    return __privateSet(this, extra, x);
-  } }, name));
-  k ? p && k < 4 && __name(extra, (k > 2 ? "set " : k > 1 ? "get " : "") + name) : __name(target, name);
-  for (var i = decorators.length - 1; i >= 0; i--) {
-    ctx = __decoratorContext(k, name, done = {}, array[3], extraInitializers);
-    if (k) {
-      ctx.static = s, ctx.private = p, access = ctx.access = { has: p ? (x) => __privateIn(target, x) : (x) => name in x };
-      if (k ^ 3) access.get = p ? (x) => (k ^ 1 ? __privateGet : __privateMethod)(x, target, k ^ 4 ? extra : desc.get) : (x) => x[name];
-      if (k > 2) access.set = p ? (x, y) => __privateSet(x, target, y, k ^ 4 ? extra : desc.set) : (x, y) => x[name] = y;
-    }
-    it = (0, decorators[i])(k ? k < 4 ? p ? extra : desc[key] : k > 4 ? void 0 : { get: desc.get, set: desc.set } : target, ctx), done._ = 1;
-    if (k ^ 4 || it === void 0) __expectFn(it) && (k > 4 ? initializers.unshift(it) : k ? p ? extra = it : desc[key] = it : target = it);
-    else if (typeof it !== "object" || it === null) __typeError("Object expected");
-    else __expectFn(fn = it.get) && (desc.get = fn), __expectFn(fn = it.set) && (desc.set = fn), __expectFn(fn = it.init) && initializers.unshift(fn);
-  }
-  return k || __decoratorMetadata(array, target), desc && __defProp(target, name, desc), p ? k ^ 4 ? extra : desc : target;
-};
-var __publicField = (obj, key, value) => __defNormalProp(obj, typeof key !== "symbol" ? key + "" : key, value);
-var __accessCheck = (obj, member, msg) => member.has(obj) || __typeError("Cannot " + msg);
-var __privateIn = (member, obj) => Object(obj) !== obj ? __typeError('Cannot use the "in" operator on this value') : member.has(obj);
-var __privateGet = (obj, member, getter) => (__accessCheck(obj, member, "read from private field"), getter ? getter.call(obj) : member.get(obj));
-var __privateSet = (obj, member, value, setter) => (__accessCheck(obj, member, "write to private field"), setter ? setter.call(obj, value) : member.set(obj, value), value);
-var __privateMethod = (obj, member, method) => (__accessCheck(obj, member, "access private method"), method);
-var _sunAzimuth_dec, _sunElevation_dec, _enableSky_dec, _sunlight_dec, _a, _init;
-class EnvironmentManager extends (_a = Components.Component, _sunlight_dec = [SerializeField(GameObject)], _enableSky_dec = [SerializeField(Boolean)], _sunElevation_dec = [SerializeField(Number)], _sunAzimuth_dec = [SerializeField(Number)], _a) {
-  constructor() {
-    super(...arguments);
-    __runInitializers(_init, 5, this);
-    __publicField(this, "runInEditMode", true);
-    __publicField(this, "sunlight", __runInitializers(_init, 8, this)), __runInitializers(_init, 11, this);
-    __publicField(this, "sky");
-    __publicField(this, "iblPass");
-    __publicField(this, "skyboxPass");
-    __publicField(this, "solidColorTexture");
-    __publicField(this, "currentSkyCubemap");
-    __publicField(this, "_enableSky", true);
-    __publicField(this, "_sunElevation", 60);
-    __publicField(this, "_sunAzimuth", 40);
-  }
-  get enableSky() {
-    return this._enableSky;
-  }
-  set enableSky(value) {
-    this._enableSky = value;
-    if (this._enableSky && this.sky) this.currentSkyCubemap = this.sky.skyTextureCubemap;
-    else this.currentSkyCubemap = this.solidColorTexture;
-    this.UpdateEnvironment();
-  }
-  get sunElevation() {
-    return this._sunElevation;
-  }
-  set sunElevation(value) {
-    this._sunElevation = value;
-    this.UpdateEnvironment();
-    this.UpdateSunlight();
-  }
-  get sunAzimuth() {
-    return this._sunAzimuth;
-  }
-  set sunAzimuth(value) {
-    this._sunAzimuth = value;
-    this.UpdateSunlight();
-    this.UpdateEnvironment();
-  }
-  UpdateEnvironment() {
-    if (this.iblPass) this.iblPass.SetEnvironment(this.currentSkyCubemap);
-    if (this.skyboxPass) this.skyboxPass.SetSkybox(this.currentSkyCubemap);
-  }
-  UpdateSunlight() {
-    if (!this.sunlight) return;
-    this.sky.SUN_ELEVATION_DEGREES = this._sunElevation;
-    this.sky.SUN_AZIMUTH_DEGREES = this._sunAzimuth;
-    const radius = 1;
-    const elevationRad = Mathf.Deg2Rad * this.sky.SUN_ELEVATION_DEGREES;
-    const azimuthRad = Mathf.Deg2Rad * this.sky.SUN_AZIMUTH_DEGREES;
-    const x = radius * Mathf.Cos(elevationRad) * Mathf.Cos(azimuthRad);
-    const y = radius * Mathf.Sin(elevationRad);
-    const z = radius * Mathf.Cos(elevationRad) * Mathf.Sin(azimuthRad);
-    const sunPos = new Mathf.Vector3(x, y, z);
-    this.sunlight.transform.position = sunPos;
-    this.sunlight.transform.LookAt(new Mathf.Vector3(0, 0, 0));
-    if (this.sky.SUN_ELEVATION_DEGREES < 0) this.sunlight.intensity = 0;
-    else this.sunlight.intensity = this.sky.SUN_ELEVATION_DEGREES / 10;
-    this.sky.Update();
-  }
-  async Start() {
-    this.solidColorTexture = GPU.CubeTexture.Create(1, 1, 6, "rgba8unorm");
-    this.sky = new Sky();
-    await this.sky.init();
-    this._sunElevation = this.sky.SUN_ELEVATION_DEGREES;
-    this._sunAzimuth = this.sky.SUN_AZIMUTH_DEGREES;
-    const pipeline = Runtime.Renderer.RenderPipeline;
-    this.iblPass = pipeline.AddPass(IBLLightingPass, GPU.RenderPassOrder.AfterLighting);
-    this.skyboxPass = pipeline.AddPass(SkyboxPass, GPU.RenderPassOrder.AfterLighting);
-    this.currentSkyCubemap = this.sky.skyTextureCubemap;
-    this.UpdateEnvironment();
-    const lights = this.gameObject.scene.GetComponents(Components.DirectionalLight);
-    if (lights.length > 0) {
-      this.sunlight = lights[0];
-      this.UpdateSunlight();
-    }
-  }
-  Destroy() {
-    const pipeline = Runtime.Renderer.RenderPipeline;
-    if (this.iblPass) pipeline.RemovePass(this.iblPass, GPU.RenderPassOrder.AfterLighting);
-    if (this.skyboxPass) pipeline.RemovePass(this.skyboxPass, GPU.RenderPassOrder.AfterLighting);
-    this.sky?.Destroy();
-    this.solidColorTexture?.Destroy();
-    this.iblPass = void 0;
-    this.skyboxPass = void 0;
-    this.sky = void 0;
-    this.solidColorTexture = void 0;
-    this.currentSkyCubemap = void 0;
-    super.Destroy();
-  }
-}
-_init = __decoratorStart(_a);
-__decorateElement(_init, 2, "enableSky", _enableSky_dec, EnvironmentManager);
-__decorateElement(_init, 2, "sunElevation", _sunElevation_dec, EnvironmentManager);
-__decorateElement(_init, 2, "sunAzimuth", _sunAzimuth_dec, EnvironmentManager);
-__decorateElement(_init, 5, "sunlight", _sunlight_dec, EnvironmentManager);
-__decoratorMetadata(_init, EnvironmentManager);
-__publicField(EnvironmentManager, "type", "@trident/plugins/EnvironmentManager");
-
-class EditorRuntime extends Runtime {
-  static isPlaying = false;
-  static snapshot = null;
-  static async Create(canvas, aspectRatio = 1) {
-    await Runtime.Create(canvas, aspectRatio);
-    const loop = () => {
-      this.Tick();
-      this.Render();
-      requestAnimationFrame(loop);
-    };
-    loop();
-    return this;
-  }
-  static AttachEditorScene(scene) {
-    const existing = scene.GetComponents(EditorScene)[0];
-    if (existing) return existing;
-    const go = new GameObject(scene);
-    go.name = "EditorScene";
-    {
-      const go2 = new GameObject(scene);
-      go2.name = "PhysicsDebugger";
-      go2.AddComponent(PhysicsDebugger);
-    }
-    return go.AddComponent(EditorScene);
-  }
-  static AttachEnvironment(scene) {
-    const existing = scene.GetComponents(EnvironmentManager)[0];
-    if (existing) return existing;
-    const go = new GameObject(scene);
-    go.name = "EnvironmentManager";
-    return go.AddComponent(EnvironmentManager);
-  }
-  static Play() {
-    const scene = this.SceneManager.GetActiveScene();
-    this.snapshot = Serializer.serializeScene(scene);
-    scene.mode = SceneExecutionMode.Play;
-    this.isPlaying = true;
-  }
-  static async Stop() {
-    this.isPlaying = false;
-    if (!this.snapshot) return;
-    this.SceneManager.GetActiveScene().Clear();
-    const newScene = this.SceneManager.CreateScene(this.snapshot.name);
-    newScene.mode = SceneExecutionMode.Edit;
-    this.SceneManager.SetActiveScene(newScene);
-    await Deserializer.deserializeScene(newScene, this.snapshot);
-    this.snapshot = null;
-  }
-}
-
-class EditorScene extends Component$1 {
-  static type = "@trident/editor/EditorScene";
-  runInEditMode = true;
-  editorCamera;
-  orbitControls;
-  selectedHierarchyGameObject;
-  Start() {
-    this.editorCamera = this.gameObject.GetComponent(Components.Camera) ?? this.gameObject.AddComponent(Components.Camera);
-    this.editorCamera.SetPerspective(60, 2, 0.5, 1e4);
-    this.editorCamera.transform.position.z = -10;
-    this.orbitControls = this.gameObject.GetComponent(OrbitControls) ?? this.gameObject.AddComponent(OrbitControls);
-    this.orbitControls.camera = this.editorCamera;
-    this.orbitControls.runInEditMode = true;
-    Components.Camera.mainCamera = this.editorCamera;
-    EditorAPI.Events.onHierarchySelected((gameObject) => {
-      this.selectedHierarchyGameObject = gameObject;
-    });
-  }
-  Update() {
-    if (EditorRuntime.isPlaying) {
-      const gameCamera = this.gameObject.scene.GetComponents(Components.Camera).find((c) => c !== this.editorCamera);
-      console.log(gameCamera?.gameObject.name);
-      if (gameCamera) Components.Camera.mainCamera = gameCamera;
-      else console.warn("[EditorScene] Play started but scene has no camera.");
-      this.orbitControls.enabled = false;
-      this.enabled = false;
-      return;
-    }
-    if (Input.GetKeyDown(KeyCodes.F) && this.selectedHierarchyGameObject) {
-      this.orbitControls.center.copy(this.selectedHierarchyGameObject.transform.position);
-      this.orbitControls.zoom(1);
-    }
-  }
-}
-
 class ComponentEvents {
   static Created = (gameObject, component) => {
   };
@@ -3369,7 +3140,6 @@ class RuntimeEvents {
 
 const component = (ctor) => ctor;
 Component$1.Registry.set(OrbitControls.type, OrbitControls);
-Component$1.Registry.set(EditorScene.type, EditorScene);
 Component$1.Registry.set(RigidBody.type, RigidBody);
 Component$1.Registry.set(BoxCollider.type, BoxCollider);
 Component$1.Registry.set(CapsuleCollider.type, CapsuleCollider);
@@ -3413,6 +3183,1085 @@ EventSystem.on(ProjectEvents.Opened, async () => {
     console.error("Failed to build project bundle", err);
   }
 });
+
+class EditorScene extends Component$1 {
+  static type = "@trident/editor/EditorScene";
+  runInEditMode = true;
+  editorCamera;
+  orbitControls;
+  selectedHierarchyGameObject;
+  Start() {
+    this.editorCamera = this.gameObject.GetComponent(Components.Camera) ?? this.gameObject.AddComponent(Components.Camera);
+    this.editorCamera.SetPerspective(60, 2, 0.5, 1e4);
+    this.editorCamera.transform.position.z = 10;
+    this.orbitControls = this.gameObject.GetComponent(OrbitControls) ?? this.gameObject.AddComponent(OrbitControls);
+    this.orbitControls.camera = this.editorCamera;
+    this.orbitControls.runInEditMode = true;
+    Components.Camera.mainCamera = this.editorCamera;
+    EditorAPI.Events.onHierarchySelected((gameObject) => {
+      this.selectedHierarchyGameObject = gameObject;
+    });
+  }
+  Update() {
+    if (EditorRuntime.isPlaying) {
+      const gameCamera = this.gameObject.scene.GetComponents(Components.Camera).find((c) => c !== this.editorCamera);
+      console.log(gameCamera?.gameObject.name);
+      if (gameCamera) Components.Camera.mainCamera = gameCamera;
+      else console.warn("[EditorScene] Play started but scene has no camera.");
+      this.orbitControls.enabled = false;
+      this.enabled = false;
+      return;
+    }
+    if (Input.GetKeyDown(KeyCodes.F) && this.selectedHierarchyGameObject) {
+      this.orbitControls.center.copy(this.selectedHierarchyGameObject.transform.position);
+      this.orbitControls.zoom(1);
+    }
+  }
+}
+
+var __create$1 = Object.create;
+var __defProp$1 = Object.defineProperty;
+var __getOwnPropDesc$1 = Object.getOwnPropertyDescriptor;
+var __knownSymbol$1 = (name, symbol) => (symbol = Symbol[name]) ? symbol : Symbol.for("Symbol." + name);
+var __typeError$1 = (msg) => {
+  throw TypeError(msg);
+};
+var __defNormalProp$1 = (obj, key, value) => key in obj ? __defProp$1(obj, key, { enumerable: true, configurable: true, writable: true, value }) : obj[key] = value;
+var __name$1 = (target, value) => __defProp$1(target, "name", { value, configurable: true });
+var __decoratorStart$1 = (base) => [, , , __create$1(base?.[__knownSymbol$1("metadata")] ?? null)];
+var __decoratorStrings$1 = ["class", "method", "getter", "setter", "accessor", "field", "value", "get", "set"];
+var __expectFn$1 = (fn) => fn !== void 0 && typeof fn !== "function" ? __typeError$1("Function expected") : fn;
+var __decoratorContext$1 = (kind, name, done, metadata, fns) => ({ kind: __decoratorStrings$1[kind], name, metadata, addInitializer: (fn) => done._ ? __typeError$1("Already initialized") : fns.push(__expectFn$1(fn || null)) });
+var __decoratorMetadata$1 = (array, target) => __defNormalProp$1(target, __knownSymbol$1("metadata"), array[3]);
+var __runInitializers$1 = (array, flags, self, value) => {
+  for (var i = 0, fns = array[flags >> 1], n = fns && fns.length; i < n; i++) flags & 1 ? fns[i].call(self) : value = fns[i].call(self, value);
+  return value;
+};
+var __decorateElement$1 = (array, flags, name, decorators, target, extra) => {
+  var fn, it, done, ctx, access, k = flags & 7, s = !!(flags & 8), p = !!(flags & 16);
+  var j = k > 3 ? array.length + 1 : k ? s ? 1 : 2 : 0, key = __decoratorStrings$1[k + 5];
+  var initializers = k > 3 && (array[j - 1] = []), extraInitializers = array[j] || (array[j] = []);
+  var desc = k && (!p && !s && (target = target.prototype), k < 5 && (k > 3 || !p) && __getOwnPropDesc$1(k < 4 ? target : { get [name]() {
+    return __privateGet$1(this, extra);
+  }, set [name](x) {
+    return __privateSet$1(this, extra, x);
+  } }, name));
+  k ? p && k < 4 && __name$1(extra, (k > 2 ? "set " : k > 1 ? "get " : "") + name) : __name$1(target, name);
+  for (var i = decorators.length - 1; i >= 0; i--) {
+    ctx = __decoratorContext$1(k, name, done = {}, array[3], extraInitializers);
+    if (k) {
+      ctx.static = s, ctx.private = p, access = ctx.access = { has: p ? (x) => __privateIn$1(target, x) : (x) => name in x };
+      if (k ^ 3) access.get = p ? (x) => (k ^ 1 ? __privateGet$1 : __privateMethod$1)(x, target, k ^ 4 ? extra : desc.get) : (x) => x[name];
+      if (k > 2) access.set = p ? (x, y) => __privateSet$1(x, target, y, k ^ 4 ? extra : desc.set) : (x, y) => x[name] = y;
+    }
+    it = (0, decorators[i])(k ? k < 4 ? p ? extra : desc[key] : k > 4 ? void 0 : { get: desc.get, set: desc.set } : target, ctx), done._ = 1;
+    if (k ^ 4 || it === void 0) __expectFn$1(it) && (k > 4 ? initializers.unshift(it) : k ? p ? extra = it : desc[key] = it : target = it);
+    else if (typeof it !== "object" || it === null) __typeError$1("Object expected");
+    else __expectFn$1(fn = it.get) && (desc.get = fn), __expectFn$1(fn = it.set) && (desc.set = fn), __expectFn$1(fn = it.init) && initializers.unshift(fn);
+  }
+  return k || __decoratorMetadata$1(array, target), desc && __defProp$1(target, name, desc), p ? k ^ 4 ? extra : desc : target;
+};
+var __publicField$1 = (obj, key, value) => __defNormalProp$1(obj, typeof key !== "symbol" ? key + "" : key, value);
+var __accessCheck$1 = (obj, member, msg) => member.has(obj) || __typeError$1("Cannot " + msg);
+var __privateIn$1 = (member, obj) => Object(obj) !== obj ? __typeError$1('Cannot use the "in" operator on this value') : member.has(obj);
+var __privateGet$1 = (obj, member, getter) => (__accessCheck$1(obj, member, "read from private field"), getter ? getter.call(obj) : member.get(obj));
+var __privateSet$1 = (obj, member, value, setter) => (__accessCheck$1(obj, member, "write to private field"), setter ? setter.call(obj, value) : member.set(obj, value), value);
+var __privateMethod$1 = (obj, member, method) => (__accessCheck$1(obj, member, "access private method"), method);
+var _sunAzimuth_dec, _sunElevation_dec, _enableSky_dec, _sunlight_dec, _a$1, _init$1;
+class EnvironmentManager extends (_a$1 = Components.Component, _sunlight_dec = [SerializeField(GameObject)], _enableSky_dec = [SerializeField(Boolean)], _sunElevation_dec = [SerializeField(Number)], _sunAzimuth_dec = [SerializeField(Number)], _a$1) {
+  constructor() {
+    super(...arguments);
+    __runInitializers$1(_init$1, 5, this);
+    __publicField$1(this, "runInEditMode", true);
+    __publicField$1(this, "sunlight", __runInitializers$1(_init$1, 8, this)), __runInitializers$1(_init$1, 11, this);
+    __publicField$1(this, "sky");
+    __publicField$1(this, "iblPass");
+    __publicField$1(this, "skyboxPass");
+    __publicField$1(this, "solidColorTexture");
+    __publicField$1(this, "currentSkyCubemap");
+    __publicField$1(this, "_enableSky", true);
+    __publicField$1(this, "_sunElevation", 60);
+    __publicField$1(this, "_sunAzimuth", 40);
+  }
+  get enableSky() {
+    return this._enableSky;
+  }
+  set enableSky(value) {
+    this._enableSky = value;
+    if (this._enableSky && this.sky) this.currentSkyCubemap = this.sky.skyTextureCubemap;
+    else this.currentSkyCubemap = this.solidColorTexture;
+    this.UpdateEnvironment();
+  }
+  get sunElevation() {
+    return this._sunElevation;
+  }
+  set sunElevation(value) {
+    this._sunElevation = value;
+    this.UpdateEnvironment();
+    this.UpdateSunlight();
+  }
+  get sunAzimuth() {
+    return this._sunAzimuth;
+  }
+  set sunAzimuth(value) {
+    this._sunAzimuth = value;
+    this.UpdateSunlight();
+    this.UpdateEnvironment();
+  }
+  UpdateEnvironment() {
+    if (this.iblPass) this.iblPass.SetEnvironment(this.currentSkyCubemap);
+    if (this.skyboxPass) this.skyboxPass.SetSkybox(this.currentSkyCubemap);
+  }
+  UpdateSunlight() {
+    if (!this.sunlight) return;
+    this.sky.SUN_ELEVATION_DEGREES = this._sunElevation;
+    this.sky.SUN_AZIMUTH_DEGREES = this._sunAzimuth;
+    const radius = 1;
+    const elevationRad = Mathf.Deg2Rad * this.sky.SUN_ELEVATION_DEGREES;
+    const azimuthRad = Mathf.Deg2Rad * this.sky.SUN_AZIMUTH_DEGREES;
+    const x = radius * Mathf.Cos(elevationRad) * Mathf.Cos(azimuthRad);
+    const y = radius * Mathf.Sin(elevationRad);
+    const z = radius * Mathf.Cos(elevationRad) * Mathf.Sin(azimuthRad);
+    const sunPos = new Mathf.Vector3(x, y, z);
+    this.sunlight.transform.position = sunPos;
+    this.sunlight.transform.LookAt(new Mathf.Vector3(0, 0, 0));
+    if (this.skyboxPass) this.skyboxPass.SetSun(sunPos, 300);
+    this.sky.Update();
+  }
+  async Start() {
+    this.solidColorTexture = GPU.CubeTexture.Create(1, 1, 6, "rgba8unorm");
+    this.sky = new Sky();
+    await this.sky.init();
+    this._sunElevation = this.sky.SUN_ELEVATION_DEGREES;
+    this._sunAzimuth = this.sky.SUN_AZIMUTH_DEGREES;
+    const pipeline = Runtime.Renderer.RenderPipeline;
+    this.iblPass = pipeline.AddPass(IBLLightingPass, GPU.RenderPassOrder.AfterLighting);
+    this.skyboxPass = pipeline.AddPass(SkyboxPass, GPU.RenderPassOrder.AfterLighting);
+    this.currentSkyCubemap = this.sky.skyTextureCubemap;
+    this.UpdateEnvironment();
+    const lights = this.gameObject.scene.GetComponents(Components.DirectionalLight);
+    if (lights.length > 0) {
+      this.sunlight = lights[0];
+      this.UpdateSunlight();
+    }
+  }
+  Destroy() {
+    const pipeline = Runtime.Renderer.RenderPipeline;
+    if (this.iblPass) pipeline.RemovePass(this.iblPass, GPU.RenderPassOrder.AfterLighting);
+    if (this.skyboxPass) pipeline.RemovePass(this.skyboxPass, GPU.RenderPassOrder.AfterLighting);
+    this.sky?.Destroy();
+    this.solidColorTexture?.Destroy();
+    this.iblPass = void 0;
+    this.skyboxPass = void 0;
+    this.sky = void 0;
+    this.solidColorTexture = void 0;
+    this.currentSkyCubemap = void 0;
+    super.Destroy();
+  }
+}
+_init$1 = __decoratorStart$1(_a$1);
+__decorateElement$1(_init$1, 2, "enableSky", _enableSky_dec, EnvironmentManager);
+__decorateElement$1(_init$1, 2, "sunElevation", _sunElevation_dec, EnvironmentManager);
+__decorateElement$1(_init$1, 2, "sunAzimuth", _sunAzimuth_dec, EnvironmentManager);
+__decorateElement$1(_init$1, 5, "sunlight", _sunlight_dec, EnvironmentManager);
+__decoratorMetadata$1(_init$1, EnvironmentManager);
+__publicField$1(EnvironmentManager, "type", "@trident/plugins/EnvironmentManager");
+
+var __create = Object.create;
+var __defProp = Object.defineProperty;
+var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
+var __knownSymbol = (name, symbol) => (symbol = Symbol[name]) ? symbol : Symbol.for("Symbol." + name);
+var __typeError = (msg) => {
+  throw TypeError(msg);
+};
+var __defNormalProp = (obj, key, value) => key in obj ? __defProp(obj, key, { enumerable: true, configurable: true, writable: true, value }) : obj[key] = value;
+var __name = (target, value) => __defProp(target, "name", { value, configurable: true });
+var __decoratorStart = (base) => [, , , __create(base?.[__knownSymbol("metadata")] ?? null)];
+var __decoratorStrings = ["class", "method", "getter", "setter", "accessor", "field", "value", "get", "set"];
+var __expectFn = (fn) => fn !== void 0 && typeof fn !== "function" ? __typeError("Function expected") : fn;
+var __decoratorContext = (kind, name, done, metadata, fns) => ({ kind: __decoratorStrings[kind], name, metadata, addInitializer: (fn) => done._ ? __typeError("Already initialized") : fns.push(__expectFn(fn || null)) });
+var __decoratorMetadata = (array, target) => __defNormalProp(target, __knownSymbol("metadata"), array[3]);
+var __runInitializers = (array, flags, self, value) => {
+  for (var i = 0, fns = array[flags >> 1], n = fns && fns.length; i < n; i++) flags & 1 ? fns[i].call(self) : value = fns[i].call(self, value);
+  return value;
+};
+var __decorateElement = (array, flags, name, decorators, target, extra) => {
+  var fn, it, done, ctx, access, k = flags & 7, s = !!(flags & 8), p = !!(flags & 16);
+  var j = k > 3 ? array.length + 1 : k ? s ? 1 : 2 : 0, key = __decoratorStrings[k + 5];
+  var initializers = k > 3 && (array[j - 1] = []), extraInitializers = array[j] || (array[j] = []);
+  var desc = k && (!p && !s && (target = target.prototype), k < 5 && (k > 3 || !p) && __getOwnPropDesc(k < 4 ? target : { get [name]() {
+    return __privateGet(this, extra);
+  }, set [name](x) {
+    return __privateSet(this, extra, x);
+  } }, name));
+  k ? p && k < 4 && __name(extra, (k > 2 ? "set " : k > 1 ? "get " : "") + name) : __name(target, name);
+  for (var i = decorators.length - 1; i >= 0; i--) {
+    ctx = __decoratorContext(k, name, done = {}, array[3], extraInitializers);
+    if (k) {
+      ctx.static = s, ctx.private = p, access = ctx.access = { has: p ? (x) => __privateIn(target, x) : (x) => name in x };
+      if (k ^ 3) access.get = p ? (x) => (k ^ 1 ? __privateGet : __privateMethod)(x, target, k ^ 4 ? extra : desc.get) : (x) => x[name];
+      if (k > 2) access.set = p ? (x, y) => __privateSet(x, target, y, k ^ 4 ? extra : desc.set) : (x, y) => x[name] = y;
+    }
+    it = (0, decorators[i])(k ? k < 4 ? p ? extra : desc[key] : k > 4 ? void 0 : { get: desc.get, set: desc.set } : target, ctx), done._ = 1;
+    if (k ^ 4 || it === void 0) __expectFn(it) && (k > 4 ? initializers.unshift(it) : k ? p ? extra = it : desc[key] = it : target = it);
+    else if (typeof it !== "object" || it === null) __typeError("Object expected");
+    else __expectFn(fn = it.get) && (desc.get = fn), __expectFn(fn = it.set) && (desc.set = fn), __expectFn(fn = it.init) && initializers.unshift(fn);
+  }
+  return k || __decoratorMetadata(array, target), desc && __defProp(target, name, desc), p ? k ^ 4 ? extra : desc : target;
+};
+var __publicField = (obj, key, value) => __defNormalProp(obj, typeof key !== "symbol" ? key + "" : key, value);
+var __accessCheck = (obj, member, msg) => member.has(obj) || __typeError("Cannot " + msg);
+var __privateIn = (member, obj) => Object(obj) !== obj ? __typeError('Cannot use the "in" operator on this value') : member.has(obj);
+var __privateGet = (obj, member, getter) => (__accessCheck(obj, member, "read from private field"), getter ? getter.call(obj) : member.get(obj));
+var __privateSet = (obj, member, value, setter) => (__accessCheck(obj, member, "write to private field"), setter ? setter.call(obj, value) : member.set(obj, value), value);
+var __privateMethod = (obj, member, method) => (__accessCheck(obj, member, "access private method"), method);
+var _enableSMAA_dec, _enableFXAA_dec, _init, _saturation_dec, _contrast_dec, _exposure_dec, _tonemapper_dec, _init2, _iterations_dec, _upsampleDistance_dec, _downsampleDistance_dec, _strength_dec, _softThreshold_dec, _threshold_dec, _enabled_dec, _init3, _maxDistance_dec, _density_dec, _heightFalloff_dec, _baseHeight_dec, _color_dec, _enabled_dec2, _init4, _fog_dec, _bloom_dec, _tonemap_dec, _antiAliasing_dec, _a, _init5;
+function WriteConsole(name, value) {
+  const v = Console.getVar(name);
+  if (v) v.value = value;
+}
+function ReadConsole(name) {
+  const v = Console.getVar(name);
+  if (v) return v.value;
+  return null;
+}
+_enableFXAA_dec = [SerializeField(Boolean)], _enableSMAA_dec = [SerializeField(Boolean)];
+class AntiAliasingSettings {
+  constructor() {
+    __runInitializers(_init, 5, this);
+    /** Fired when the effect list needs rebuilding. Assigned by the owning component. */
+    __publicField(this, "onChange", () => {
+    });
+    __publicField(this, "_enableFXAA", false);
+    __publicField(this, "_enableSMAA", true);
+  }
+  get enableFXAA() {
+    return this._enableFXAA;
+  }
+  set enableFXAA(v) {
+    this._enableFXAA = v;
+    this.onChange();
+  }
+  get enableSMAA() {
+    return this._enableSMAA;
+  }
+  set enableSMAA(v) {
+    this._enableSMAA = v;
+    this.onChange();
+  }
+}
+_init = __decoratorStart(null);
+__decorateElement(_init, 2, "enableFXAA", _enableFXAA_dec, AntiAliasingSettings);
+__decorateElement(_init, 2, "enableSMAA", _enableSMAA_dec, AntiAliasingSettings);
+__decoratorMetadata(_init, AntiAliasingSettings);
+_tonemapper_dec = [SerializeField(Number)], _exposure_dec = [SerializeField(Number)], _contrast_dec = [SerializeField(Number)], _saturation_dec = [SerializeField(Number)];
+class TonemapSettings {
+  constructor() {
+    __runInitializers(_init2, 5, this);
+    // tonemapper: 0 = off, 1 = ACES.
+    // exposure  : stops (use this for "brightness"; +1 = ×2 brightness).
+    // contrast  : 1 = neutral.  saturation: 1 = neutral.
+    __publicField(this, "_tonemapper", 1);
+    __publicField(this, "_exposure", 0);
+    __publicField(this, "_contrast", 1);
+    __publicField(this, "_saturation", 1);
+  }
+  get tonemapper() {
+    return this._tonemapper;
+  }
+  set tonemapper(v) {
+    this._tonemapper = v;
+    WriteConsole("r_tonemapper", v);
+  }
+  get exposure() {
+    return this._exposure;
+  }
+  set exposure(v) {
+    this._exposure = v;
+    WriteConsole("r_exposure", v);
+  }
+  get contrast() {
+    return this._contrast;
+  }
+  set contrast(v) {
+    this._contrast = v;
+    WriteConsole("r_contrast", v);
+  }
+  get saturation() {
+    return this._saturation;
+  }
+  set saturation(v) {
+    this._saturation = v;
+    WriteConsole("r_saturation", v);
+  }
+  /** Push every value at once — console vars may not exist while deserializing. */
+  Apply() {
+    WriteConsole("r_tonemapper", this._tonemapper);
+    WriteConsole("r_exposure", this._exposure);
+    WriteConsole("r_contrast", this._contrast);
+    WriteConsole("r_saturation", this._saturation);
+  }
+}
+_init2 = __decoratorStart(null);
+__decorateElement(_init2, 2, "tonemapper", _tonemapper_dec, TonemapSettings);
+__decorateElement(_init2, 2, "exposure", _exposure_dec, TonemapSettings);
+__decorateElement(_init2, 2, "contrast", _contrast_dec, TonemapSettings);
+__decorateElement(_init2, 2, "saturation", _saturation_dec, TonemapSettings);
+__decoratorMetadata(_init2, TonemapSettings);
+_enabled_dec = [SerializeField(Boolean)], _threshold_dec = [SerializeField(Number)], _softThreshold_dec = [SerializeField(Number)], _strength_dec = [SerializeField(Number)], _downsampleDistance_dec = [SerializeField(Number)], _upsampleDistance_dec = [SerializeField(Number)], _iterations_dec = [SerializeField(Number)];
+class BloomSettings {
+  constructor() {
+    __runInitializers(_init3, 5, this);
+    __publicField(this, "effect");
+  }
+  get enabled() {
+    return ReadConsole("r_bloom_enabled");
+  }
+  set enabled(v) {
+    WriteConsole("r_bloom_enabled", v);
+  }
+  get threshold() {
+    return ReadConsole("r_bloom_threshold");
+  }
+  set threshold(v) {
+    WriteConsole("r_bloom_threshold", v);
+  }
+  get softThreshold() {
+    return ReadConsole("r_bloom_soft_threshold");
+  }
+  set softThreshold(v) {
+    WriteConsole("r_bloom_soft_threshold", v);
+  }
+  get strength() {
+    return ReadConsole("r_bloom_strength");
+  }
+  set strength(v) {
+    WriteConsole("r_bloom_strength", v);
+  }
+  get downsampleDistance() {
+    return ReadConsole("r_bloom_downsample_distance");
+  }
+  set downsampleDistance(v) {
+    WriteConsole("r_bloom_downsample_distance", v);
+  }
+  get upsampleDistance() {
+    return ReadConsole("r_bloom_upsample_distance");
+  }
+  set upsampleDistance(v) {
+    WriteConsole("r_bloom_upsample_distance", v);
+  }
+  get iterations() {
+    return ReadConsole("r_bloom_iterations");
+  }
+  set iterations(v) {
+    WriteConsole("r_bloom_iterations", v);
+  }
+}
+_init3 = __decoratorStart(null);
+__decorateElement(_init3, 2, "enabled", _enabled_dec, BloomSettings);
+__decorateElement(_init3, 2, "threshold", _threshold_dec, BloomSettings);
+__decorateElement(_init3, 2, "softThreshold", _softThreshold_dec, BloomSettings);
+__decorateElement(_init3, 2, "strength", _strength_dec, BloomSettings);
+__decorateElement(_init3, 2, "downsampleDistance", _downsampleDistance_dec, BloomSettings);
+__decorateElement(_init3, 2, "upsampleDistance", _upsampleDistance_dec, BloomSettings);
+__decorateElement(_init3, 2, "iterations", _iterations_dec, BloomSettings);
+__decoratorMetadata(_init3, BloomSettings);
+_enabled_dec2 = [SerializeField(Boolean)], _color_dec = [SerializeField(Mathf.Color)], _baseHeight_dec = [SerializeField], _heightFalloff_dec = [SerializeField], _density_dec = [SerializeField], _maxDistance_dec = [SerializeField];
+class FogSettings {
+  constructor() {
+    __runInitializers(_init4, 5, this);
+    __publicField(this, "effect");
+  }
+  get enabled() {
+    return ReadConsole("r_fog_enabled");
+  }
+  set enabled(v) {
+    WriteConsole("r_fog_enabled", v);
+  }
+  get color() {
+    return ReadConsole("r_fog_color");
+  }
+  set color(v) {
+    WriteConsole("r_fog_color", v);
+  }
+  get baseHeight() {
+    return ReadConsole("r_fog_base_height");
+  }
+  set baseHeight(v) {
+    WriteConsole("r_fog_base_height", v);
+  }
+  get heightFalloff() {
+    return ReadConsole("r_fog_height_falloff");
+  }
+  set heightFalloff(v) {
+    WriteConsole("r_fog_height_falloff", v);
+  }
+  get density() {
+    return ReadConsole("r_fog_density");
+  }
+  set density(v) {
+    WriteConsole("r_fog_density", v);
+  }
+  get maxDistance() {
+    return ReadConsole("r_fog_max_distance");
+  }
+  set maxDistance(v) {
+    WriteConsole("r_fog_max_distance", v);
+  }
+}
+_init4 = __decoratorStart(null);
+__decorateElement(_init4, 2, "enabled", _enabled_dec2, FogSettings);
+__decorateElement(_init4, 2, "color", _color_dec, FogSettings);
+__decorateElement(_init4, 2, "baseHeight", _baseHeight_dec, FogSettings);
+__decorateElement(_init4, 2, "heightFalloff", _heightFalloff_dec, FogSettings);
+__decorateElement(_init4, 2, "density", _density_dec, FogSettings);
+__decorateElement(_init4, 2, "maxDistance", _maxDistance_dec, FogSettings);
+__decoratorMetadata(_init4, FogSettings);
+class PostProcessing extends (_a = Components.Component, _antiAliasing_dec = [SerializeField(AntiAliasingSettings)], _tonemap_dec = [SerializeField(TonemapSettings)], _bloom_dec = [SerializeField(BloomSettings)], _fog_dec = [SerializeField(FogSettings)], _a) {
+  constructor() {
+    super(...arguments);
+    __publicField(this, "runInEditMode", true);
+    // Runs at BeforeScreenOutput, i.e. AFTER tonemapping.
+    __publicField(this, "pass");
+    // Runs at AfterLighting, i.e. BEFORE tonemapping, on linear HDR.
+    __publicField(this, "hdrPass");
+    __publicField(this, "fxaa");
+    __publicField(this, "smaa");
+    __publicField(this, "antiAliasing", __runInitializers(_init5, 8, this, new AntiAliasingSettings())), __runInitializers(_init5, 11, this);
+    __publicField(this, "tonemap", __runInitializers(_init5, 12, this, new TonemapSettings())), __runInitializers(_init5, 15, this);
+    __publicField(this, "bloom", __runInitializers(_init5, 16, this, new BloomSettings())), __runInitializers(_init5, 19, this);
+    __publicField(this, "fog", __runInitializers(_init5, 20, this, new FogSettings())), __runInitializers(_init5, 23, this);
+  }
+  // ───────── Lifecycle ─────────
+  async Start() {
+    if (this.pass) return;
+    this.antiAliasing.onChange = () => this.SyncEffects();
+    this.pass = Runtime.Renderer.RenderPipeline.AddPass(
+      PostProcessingPass,
+      GPU.RenderPassOrder.BeforeScreenOutput
+    );
+    this.hdrPass = Runtime.Renderer.RenderPipeline.AddPass(
+      PostProcessingPass,
+      GPU.RenderPassOrder.BeforePostProcess
+    );
+    this.SyncEffects();
+    this.tonemap.Apply();
+  }
+  SyncEffects() {
+    if (this.pass) {
+      const list = [];
+      if (this.antiAliasing.enableSMAA) {
+        this.smaa ??= new PostProcessingSMAA();
+        list.push(this.smaa);
+      }
+      if (this.antiAliasing.enableFXAA) {
+        this.fxaa ??= new PostProcessingFXAA();
+        list.push(this.fxaa);
+      }
+      this.pass.effects = list;
+    }
+    if (this.hdrPass) {
+      const hdrList = [];
+      this.fog.effect ??= new PostProcessingFog();
+      hdrList.push(this.fog.effect);
+      this.bloom.effect ??= new PostProcessingBloom();
+      hdrList.push(this.bloom.effect);
+      this.hdrPass.effects = hdrList;
+    }
+  }
+  Destroy() {
+    const pipeline = Runtime.Renderer.RenderPipeline;
+    if (this.pass) pipeline.RemovePass(this.pass, GPU.RenderPassOrder.BeforeScreenOutput);
+    if (this.hdrPass) pipeline.RemovePass(this.hdrPass, GPU.RenderPassOrder.BeforePostProcess);
+    this.fxaa?.Destroy?.();
+    this.smaa?.Destroy?.();
+    this.fog.effect?.Destroy?.();
+    this.bloom.effect?.Destroy?.();
+    this.pass = void 0;
+    this.hdrPass = void 0;
+    this.fxaa = void 0;
+    this.smaa = void 0;
+    this.fog.effect = void 0;
+    this.bloom.effect = void 0;
+    super.Destroy();
+  }
+}
+_init5 = __decoratorStart(_a);
+__decorateElement(_init5, 5, "antiAliasing", _antiAliasing_dec, PostProcessing);
+__decorateElement(_init5, 5, "tonemap", _tonemap_dec, PostProcessing);
+__decorateElement(_init5, 5, "bloom", _bloom_dec, PostProcessing);
+__decorateElement(_init5, 5, "fog", _fog_dec, PostProcessing);
+__decoratorMetadata(_init5, PostProcessing);
+__publicField(PostProcessing, "type", "@trident/plugins/PostProcessing");
+
+const DYNAMIC_SLOT_BYTES = 256;
+const DYNAMIC_SLOT_FLOATS = DYNAMIC_SLOT_BYTES / 4;
+const MAX_PICKABLES = 1e4;
+class GPUPicker {
+  static shader;
+  static renderTarget;
+  static depthTarget;
+  static instanceBuffer;
+  static initialized = false;
+  static async init() {
+    this.shader = await GPU.Shader.Create({
+      code: `
+                  struct VertexInput {
+                      @location(0) position : vec3<f32>,
+                  };
+
+                  struct VertexOutput {
+                      @builtin(position) position : vec4<f32>,
+                  };
+
+                  struct PickInstance {
+                      modelMatrix : mat4x4<f32>,
+                      id : f32,
+                  };
+
+                  @group(0) @binding(0) var<storage, read> projectionMatrix: mat4x4<f32>;
+                  @group(0) @binding(1) var<storage, read> viewMatrix: mat4x4<f32>;
+                  @group(0) @binding(2) var<storage, read> instance: PickInstance;
+
+                  @vertex
+                  fn vertexMain(input: VertexInput) -> VertexOutput {
+                      var output : VertexOutput;
+                      output.position = projectionMatrix * viewMatrix * instance.modelMatrix * vec4(input.position, 1.0);
+                      return output;
+                  }
+
+                  @fragment
+                  fn fragmentMain(input: VertexOutput) -> @location(0) u32 {
+                      return u32(instance.id);
+                  }
+                `,
+      colorOutputs: [{ format: "r32uint" }],
+      depthOutput: "depth24plus"
+    });
+    this.renderTarget = GPU.RenderTexture.Create(GPU.Renderer.width, GPU.Renderer.height, 1, "r32uint");
+    this.depthTarget = GPU.DepthTexture.Create(GPU.Renderer.width, GPU.Renderer.height);
+    this.instanceBuffer = new GPU.DynamicBuffer(MAX_PICKABLES * DYNAMIC_SLOT_BYTES, GPU.BufferType.STORAGE, DYNAMIC_SLOT_BYTES);
+    this.shader.SetBuffer("instance", this.instanceBuffer);
+    this.initialized = true;
+  }
+  static mouseToPixel() {
+    const mousePosition = Input.mousePosition;
+    const rect = GPU.Renderer.canvas.getBoundingClientRect();
+    const u = (mousePosition.x - rect.left) / rect.width;
+    const v = (mousePosition.y - rect.top) / rect.height;
+    const texWidth = this.renderTarget.width;
+    const texHeight = this.renderTarget.height;
+    const x = Math.floor(u * texWidth);
+    const y = Math.floor(v * texHeight);
+    return {
+      x: Math.max(0, Math.min(texWidth - 1, x)),
+      y: Math.max(0, Math.min(texHeight - 1, y))
+    };
+  }
+  static async Pick(filter) {
+    if (!this.initialized) await this.init();
+    const camera = Components.Camera.mainCamera;
+    if (!camera) return null;
+    this.shader.SetMatrix4("projectionMatrix", camera.projectionMatrix);
+    this.shader.SetMatrix4("viewMatrix", camera.viewMatrix);
+    const all = Runtime.SceneManager.GetActiveScene().GetComponents(Components.Renderable);
+    const pickables = all.filter(
+      (r) => r.enabled && r.gameObject.enabled && !!r.geometry?.attributes.has("position") && (!filter || filter(r))
+    );
+    if (pickables.length === 0) return null;
+    const count = Math.min(pickables.length, MAX_PICKABLES);
+    const data = new Float32Array(count * DYNAMIC_SLOT_FLOATS);
+    for (let slot = 0; slot < count; slot++) {
+      const base = slot * DYNAMIC_SLOT_FLOATS;
+      data.set(pickables[slot].transform.localToWorldMatrix.elements, base);
+      data[base + 16] = slot + 1;
+    }
+    this.instanceBuffer.SetArray(data);
+    GPU.Renderer.BeginRenderFrame();
+    GPU.RendererContext.BeginRenderPass("GPUPicker", [{ target: this.renderTarget, clear: true }], { target: this.depthTarget, clear: true });
+    for (let slot = 0; slot < count; slot++) {
+      this.instanceBuffer.dynamicOffset = slot * DYNAMIC_SLOT_BYTES;
+      GPU.RendererContext.DrawGeometry(pickables[slot].geometry, this.shader);
+    }
+    GPU.RendererContext.EndRenderPass();
+    GPU.Renderer.EndRenderFrame();
+    const mousePixel = this.mouseToPixel();
+    const id = (await this.renderTarget.GetPixels(mousePixel.x, mousePixel.y, 1, 1, 0))[0];
+    if (id > 0) return pickables[id - 1].gameObject;
+    return null;
+  }
+}
+
+class ObjectHighlighter extends GPU.RenderPass {
+  selectedGameObject;
+  shader;
+  geometry;
+  matrix;
+  async init() {
+    this.shader = await GPU.Shader.Create({
+      code: `
+                  struct VertexInput {
+                      @location(0) position : vec3<f32>,
+                  };
+
+                  struct VertexOutput {
+                      @builtin(position) position : vec4<f32>,
+                  };
+
+                  @group(0) @binding(0) var<storage, read> projectionMatrix: mat4x4<f32>;
+                  @group(0) @binding(1) var<storage, read> viewMatrix: mat4x4<f32>;
+                  @group(0) @binding(2) var<storage, read> modelMatrix: mat4x4<f32>;
+
+                  @vertex
+                  fn vertexMain(input: VertexInput) -> VertexOutput {
+                      var output : VertexOutput;
+                      output.position = projectionMatrix * viewMatrix * modelMatrix * vec4(input.position, 1.0);
+                      return output;
+                  }
+
+                  @fragment
+                  fn fragmentMain(input: VertexOutput) -> @location(0) vec4<f32> {
+                      return vec4(1.0, 0.5, 0.0, 1.0);
+                  }
+                `,
+      colorOutputs: [{ format: "rgba16float" }],
+      // cullMode: "front"
+      // depthOutput: "depth24plus",
+      topology: GPU.Topology.Lines
+    });
+    const vertices = new Float32Array([-0.5, -0.5, -0.5, 0.5, -0.5, -0.5, 0.5, 0.5, -0.5, -0.5, 0.5, -0.5, -0.5, -0.5, 0.5, 0.5, -0.5, 0.5, 0.5, 0.5, 0.5, -0.5, 0.5, 0.5]);
+    const indices = new Uint32Array([0, 1, 1, 2, 2, 3, 3, 0, 4, 5, 5, 6, 6, 7, 7, 4, 0, 4, 1, 5, 2, 6, 3, 7]);
+    const geometry = new Geometry();
+    geometry.attributes.set("position", new VertexAttribute(vertices));
+    geometry.index = new IndexAttribute(indices);
+    geometry.ComputeTangents();
+    this.matrix = new Mathf.Matrix4();
+    this.geometry = geometry;
+    this.initialized = true;
+  }
+  computeWorldBounds(gameObject) {
+    const min = new Mathf.Vector3(Infinity, Infinity, Infinity);
+    const max = new Mathf.Vector3(-Infinity, -Infinity, -Infinity);
+    for (const renderable of gameObject.GetComponentsInChildren(Components.Renderable)) {
+      if (!renderable.geometry?.attributes.has("position")) continue;
+      const bv = renderable.geometry.boundingVolume;
+      const m = renderable.transform.localToWorldMatrix;
+      for (let i = 0; i < 8; i++) {
+        const c = new Mathf.Vector3(
+          i & 1 ? bv.max.x : bv.min.x,
+          i & 2 ? bv.max.y : bv.min.y,
+          i & 4 ? bv.max.z : bv.min.z
+        ).applyMatrix4(m);
+        min.min(c);
+        max.max(c);
+      }
+    }
+    return { center: max.clone().add(min).mul(0.5), size: max.clone().sub(min) };
+  }
+  preFrame(resources) {
+    if (!this.initialized) return;
+    if (!this.selectedGameObject) return;
+    const camera = Components.Camera.mainCamera;
+    this.shader.SetMatrix4("projectionMatrix", camera.projectionMatrix);
+    this.shader.SetMatrix4("viewMatrix", camera.viewMatrix);
+    const { center, size } = this.computeWorldBounds(this.selectedGameObject);
+    this.matrix.compose(center, new Mathf.Quaternion(), size);
+    this.shader.SetMatrix4("modelMatrix", this.matrix);
+  }
+  execute(resources) {
+    if (!this.initialized) return;
+    if (!this.selectedGameObject) return;
+    const LightingOutput = resources.getResource(GPU.PassParams.LightingPassOutput);
+    const DepthOutput = resources.getResource(GPU.PassParams.GBufferDepth);
+    if (!LightingOutput || !DepthOutput) return;
+    GPU.RendererContext.BeginRenderPass("GPUPicker", [{ target: LightingOutput, clear: false }]);
+    GPU.RendererContext.DrawGeometry(this.geometry, this.shader);
+    GPU.RendererContext.EndRenderPass();
+  }
+}
+
+const GIZMO_SCREEN_SIZE = 0.025;
+const MODES = ["move", "rotate", "scale"];
+const ROTATE_AXIS_REMAP = [1, 0, 2];
+const HIGHLIGHT_COLOR = new Mathf.Color(1, 0.85, 0, 1);
+class TransformControls extends Components.Component {
+  static type = "@trident/plugins/TransformControls";
+  static isDragging = false;
+  static dragEndFrame = -1;
+  static active = null;
+  /**
+   * True while dragging and for one frame after. Input.GetMouseButton goes false on the
+   * frame the browser reports mouseup, but Input.GetMouseButtonUp only fires on the
+   * frame AFTER that (`mouseUp[key] == frame - 1`, Input.ts:283). Without the extra
+   * frame of grace, ObjectPicker's mouse-up pick lands after the drag has already
+   * cleared the flag, and releasing the gizmo selects whatever is behind it.
+   */
+  static get suppressSelection() {
+    return TransformControls.isDragging || GPU.Renderer.info.frame <= TransformControls.dragEndFrame + 1;
+  }
+  runInEditMode = true;
+  selectedGameObject = null;
+  gizmo;
+  parts;
+  mode = "move";
+  ready = false;
+  drag = null;
+  pickPending = false;
+  tmpMatrix = new Mathf.Matrix4();
+  canvasRect = null;
+  hoverPending = false;
+  hoverMouse = new Mathf.Vector2(NaN, NaN);
+  highlighted = null;
+  savedColor;
+  async Start() {
+    this.gizmo = await GLTFLoader.Load("./resources/Gizmo.glb", this.gameObject.scene);
+    this.gizmo.transform.parent = this.gameObject.transform;
+    this.gizmo.name = "Gizmo";
+    const move = this.FindDescendant(this.gizmo, "Move");
+    const rotate = this.FindDescendant(this.gizmo, "Rotate");
+    const scale = this.FindDescendant(this.gizmo, "Scale");
+    if (!move || !rotate || !scale) throw Error("Cannot find gizmo");
+    this.parts = { move, rotate, scale };
+    this.ForEachDescendant(this.gizmo, (go) => go.flags |= Utils.Flags.DontSaveInEditor);
+    const meshes = this.gizmo.GetComponentsInChildren(Components.Mesh);
+    for (const mesh of meshes) {
+      mesh.enableShadows = false;
+      mesh.material.params.unlit = true;
+    }
+    this.SetMode(this.mode);
+    this.gizmo.enabled = false;
+    TransformControls.active = this;
+    this.ready = true;
+    EditorAPI.Events.onHierarchySelected((gameObject) => {
+      const go = gameObject;
+      if (go && TransformControls.IsGizmoObject(go)) return;
+      this.selectedGameObject = go ?? null;
+      this.drag = null;
+    });
+  }
+  // ---------------------------------------------------------------- frame
+  Update() {
+    if (!this.ready) return;
+    if (Input.GetKeyDown(KeyCodes.W)) this.SetMode("move");
+    else if (Input.GetKeyDown(KeyCodes.E)) this.SetMode("rotate");
+    else if (Input.GetKeyDown(KeyCodes.R)) this.SetMode("scale");
+    const target = this.selectedGameObject;
+    if (this.gizmo.enabled !== !!target) this.gizmo.enabled = !!target;
+    if (!target) {
+      if (this.drag) this.EndDrag();
+      this.SetHighlight(null);
+      return;
+    }
+    this.UpdateGizmoTransform(target);
+    if (!this.drag && !this.pickPending && Input.GetMouseButtonDown(MouseCodes.MOUSE_LEFT)) {
+      this.BeginPick();
+    }
+    if (this.drag) {
+      if (Input.GetMouseButton(MouseCodes.MOUSE_LEFT)) this.ApplyDrag();
+      else this.EndDrag();
+    }
+    if (!this.drag) this.UpdateHover();
+  }
+  /** One pick in flight at a time, and only when the cursor moved — Pick() is a GPU readback. */
+  UpdateHover() {
+    const mouse = Input.mousePosition;
+    if (this.hoverPending || mouse.x === this.hoverMouse.x && mouse.y === this.hoverMouse.y) return;
+    this.hoverMouse.set(mouse.x, mouse.y);
+    this.hoverPending = true;
+    GPUPicker.Pick((r) => TransformControls.IsGizmoObject(r.gameObject)).then((hit) => {
+      this.hoverPending = false;
+      if (!this.drag) this.SetHighlight(hit?.GetComponent(Components.Renderable) ?? null);
+    });
+  }
+  // GLTFLoader builds a fresh PBRMaterial per primitive (GLTFLoader.ts:221), so recolouring
+  // one handle can't bleed into the others sharing its glTF material.
+  SetHighlight(renderable) {
+    if (renderable === this.highlighted) return;
+    if (this.highlighted) this.highlighted.material.SetProperty("albedoColor", this.savedColor);
+    this.highlighted = renderable;
+    if (!renderable) return;
+    const material = renderable.material;
+    this.savedColor = material.params.albedoColor.clone();
+    material.SetProperty("albedoColor", HIGHLIGHT_COLOR);
+  }
+  UpdateGizmoTransform(target) {
+    const camera = Components.Camera.mainCamera;
+    if (!camera) return;
+    const origin = target.transform.position;
+    const rotation = target.transform.rotation;
+    const size = camera.transform.position.distanceTo(origin) * GIZMO_SCREEN_SIZE;
+    const transform = this.gizmo.transform;
+    if (!transform.position.equals(origin)) transform.position.copy(origin);
+    if (!transform.rotation.equals(rotation)) transform.rotation.copy(rotation);
+    if (Math.abs(transform.scale.x - size) > size * 1e-4) transform.scale.set(size, size, size);
+  }
+  SetMode(mode) {
+    this.mode = mode;
+    if (!this.parts) return;
+    this.SetHighlight(null);
+    for (const m of MODES) this.parts[m].enabled = m === mode;
+  }
+  // ----------------------------------------------------------- hit testing
+  BeginPick() {
+    this.canvasRect = GPU.Renderer.canvas.getBoundingClientRect();
+    const ray = this.ScreenRay();
+    if (!ray) return;
+    this.pickPending = true;
+    GPUPicker.Pick((r) => TransformControls.IsGizmoObject(r.gameObject)).then((hit) => {
+      this.pickPending = false;
+      if (!hit || !this.selectedGameObject) return;
+      if (!Input.GetMouseButton(MouseCodes.MOUSE_LEFT)) return;
+      const part = this.GizmoPartOf(hit);
+      if (!part || part.axisIndex === -1) return;
+      const axisIndex = part.mode === "rotate" ? ROTATE_AXIS_REMAP[part.axisIndex] : part.axisIndex;
+      this.BeginDrag(part.mode, axisIndex, ray);
+    });
+  }
+  /** Which gizmo sub-tree a picked object belongs to, and which axis it encodes. */
+  GizmoPartOf(gameObject) {
+    let axisIndex = -1;
+    for (let t = gameObject.transform; t; t = t.parent) {
+      if (axisIndex === -1) axisIndex = TransformControls.AxisFromName(t.gameObject.name);
+      for (const mode of MODES) {
+        if (t.gameObject === this.parts[mode]) return { mode, axisIndex };
+      }
+    }
+    return null;
+  }
+  /** "Scale_Cube_X" -> 0, "X_Cylinder.001" -> 0, "Center_Cube.001" -> -1 */
+  static AxisFromName(name) {
+    const match = /(?:^|[_\s])([XYZ])(?:[_\s.]|$)/.exec(name);
+    return match ? "XYZ".indexOf(match[1]) : -1;
+  }
+  static IsGizmoObject(gameObject) {
+    const gizmo = TransformControls.active?.gizmo;
+    if (!gizmo) return false;
+    for (let t = gameObject.transform; t; t = t.parent) {
+      if (t.gameObject === gizmo) return true;
+    }
+    return false;
+  }
+  // ---------------------------------------------------------------- drag
+  BeginDrag(mode, axisIndex, ray) {
+    const target = this.selectedGameObject;
+    if (!target) return;
+    const origin = target.transform.position.clone();
+    const axis = new Mathf.Vector3(+(axisIndex === 0), +(axisIndex === 1), +(axisIndex === 2)).applyQuaternion(target.transform.rotation).normalize();
+    const drag = {
+      mode,
+      axisIndex,
+      axis,
+      origin,
+      startPosition: target.transform.position.clone(),
+      startRotation: target.transform.rotation.clone(),
+      startScale: target.transform.scale.clone(),
+      startOffset: 0,
+      startVector: new Mathf.Vector3(),
+      gizmoScale: this.gizmo.transform.scale.x
+    };
+    if (mode === "rotate") {
+      const hit = this.RayPlane(ray, origin, axis);
+      if (!hit) return;
+      drag.startVector = hit.sub(origin);
+    } else {
+      const offset = this.ClosestPointOnAxis(ray, origin, axis);
+      if (offset === null) return;
+      drag.startOffset = offset;
+    }
+    this.drag = drag;
+    TransformControls.isDragging = true;
+  }
+  ApplyDrag() {
+    const drag = this.drag;
+    const target = this.selectedGameObject;
+    if (!drag || !target) return;
+    const ray = this.ScreenRay();
+    if (!ray) return;
+    if (drag.mode === "rotate") {
+      const hit = this.RayPlane(ray, drag.origin, drag.axis);
+      if (!hit) return;
+      const current = hit.sub(drag.origin);
+      const sin = drag.startVector.clone().cross(current).dot(drag.axis);
+      const cos = drag.startVector.dot(current);
+      const angle = Math.atan2(sin, cos);
+      const delta = new Mathf.Quaternion().setFromAxisAngle(drag.axis, angle);
+      target.transform.rotation = delta.mul(drag.startRotation).normalize();
+    } else {
+      const offset = this.ClosestPointOnAxis(ray, drag.origin, drag.axis);
+      if (offset === null) return;
+      const distance = offset - drag.startOffset;
+      if (drag.mode === "move") {
+        target.transform.position = drag.startPosition.clone().add(drag.axis.clone().mul(distance));
+      } else {
+        const factor = Math.max(1e-3, 1 + distance / drag.gizmoScale);
+        const s = drag.startScale;
+        target.transform.scale = new Mathf.Vector3(
+          drag.axisIndex === 0 ? s.x * factor : s.x,
+          drag.axisIndex === 1 ? s.y * factor : s.y,
+          drag.axisIndex === 2 ? s.z * factor : s.z
+        );
+      }
+    }
+  }
+  EndDrag() {
+    this.drag = null;
+    this.canvasRect = null;
+    TransformControls.isDragging = false;
+    TransformControls.dragEndFrame = GPU.Renderer.info.frame;
+    EditorAPI.RepaintInspector();
+  }
+  // ---------------------------------------------------------------- math
+  ScreenRay() {
+    const camera = Components.Camera.mainCamera;
+    if (!camera) return null;
+    const rect = this.canvasRect ?? GPU.Renderer.canvas.getBoundingClientRect();
+    const mouse = Input.mousePosition;
+    const ndcX = (mouse.x - rect.left) / rect.width * 2 - 1;
+    const ndcY = 1 - (mouse.y - rect.top) / rect.height * 2;
+    const inverse = this.tmpMatrix.copy(camera.projectionViewMatrix).invert();
+    const near = new Mathf.Vector3(ndcX, ndcY, 0).applyMatrix4(inverse);
+    const far = new Mathf.Vector3(ndcX, ndcY, 1).applyMatrix4(inverse);
+    return { origin: near, direction: far.sub(near).normalize() };
+  }
+  /** Distance along `axis` from `origin` to the point closest to the ray. */
+  ClosestPointOnAxis(ray, origin, axis) {
+    const w0 = origin.clone().sub(ray.origin);
+    const b = axis.dot(ray.direction);
+    const denominator = 1 - b * b;
+    if (Math.abs(denominator) < 1e-6) return null;
+    const d = axis.dot(w0);
+    const e = ray.direction.dot(w0);
+    return (b * e - d) / denominator;
+  }
+  RayPlane(ray, point, normal) {
+    const denominator = ray.direction.dot(normal);
+    if (Math.abs(denominator) < 1e-6) return null;
+    const t = point.clone().sub(ray.origin).dot(normal) / denominator;
+    if (t < 0) return null;
+    return ray.origin.clone().add(ray.direction.clone().mul(t));
+  }
+  // -------------------------------------------------------------- helpers
+  FindDescendant(root, name) {
+    if (root.name === name) return root;
+    for (const child of root.transform.children) {
+      const hit = this.FindDescendant(child.gameObject, name);
+      if (hit) return hit;
+    }
+    return null;
+  }
+  ForEachDescendant(root, fn) {
+    fn(root);
+    for (const child of root.transform.children) this.ForEachDescendant(child.gameObject, fn);
+  }
+  Destroy() {
+    this.SetHighlight(null);
+    if (TransformControls.active === this) TransformControls.active = null;
+    TransformControls.isDragging = false;
+    super.Destroy();
+  }
+}
+
+class ObjectPicker extends Components.Component {
+  static type = "@trident/plugins/ObjectPicker";
+  runInEditMode = true;
+  objectHighlighterInstance;
+  async Start() {
+    this.objectHighlighterInstance = Runtime.Renderer.RenderPipeline.AddPass(ObjectHighlighter, GPU.RenderPassOrder.BeforeScreenOutput);
+    EditorAPI.Events.onHierarchySelected((gameObject) => {
+      this.PickObject(gameObject);
+    });
+  }
+  PickObject(gameObject) {
+    if (!gameObject) {
+      this.objectHighlighterInstance.selectedGameObject = null;
+      return;
+    }
+    this.objectHighlighterInstance.selectedGameObject = gameObject;
+  }
+  async Update() {
+    if (TransformControls.suppressSelection) return;
+    if (Input.GetMouseButtonUp(MouseCodes.MOUSE_LEFT)) {
+      GPUPicker.Pick((r) => !TransformControls.IsGizmoObject(r.gameObject)).then((gameObject) => {
+        this.PickObject(gameObject);
+        EditorAPI.Events.selectGameObject(gameObject);
+      });
+    }
+  }
+}
+
+class EditorRuntime extends Runtime {
+  static isPlaying = false;
+  static snapshot = null;
+  static async Create(canvas, aspectRatio = 1) {
+    await Runtime.Create(canvas, aspectRatio);
+    const loop = () => {
+      this.Tick();
+      this.Render();
+      requestAnimationFrame(loop);
+    };
+    loop();
+    return this;
+  }
+  static AttachEditorScene(scene) {
+    const existing = scene.GetComponents(EditorScene)[0];
+    if (existing) return existing;
+    const editorSceneGO = new GameObject(scene);
+    editorSceneGO.name = "EditorScene";
+    {
+      const go = new GameObject(scene);
+      go.transform.parent = editorSceneGO.transform;
+      go.name = "EditorScene";
+      go.AddComponent(EditorScene);
+    }
+    {
+      const go = new GameObject(scene);
+      go.transform.parent = editorSceneGO.transform;
+      go.name = "PhysicsDebugger";
+      go.AddComponent(PhysicsDebugger);
+    }
+    {
+      const go = new GameObject(scene);
+      go.transform.parent = editorSceneGO.transform;
+      go.name = "EnvironmentManager";
+      go.AddComponent(EnvironmentManager);
+    }
+    {
+      const go = new GameObject(scene);
+      go.transform.parent = editorSceneGO.transform;
+      go.name = "PostProcessing";
+      go.AddComponent(PostProcessing);
+    }
+    {
+      const go = new GameObject(scene);
+      go.transform.parent = editorSceneGO.transform;
+      go.name = "ObjectPicker";
+      go.AddComponent(ObjectPicker);
+    }
+    {
+      const go = new GameObject(scene);
+      go.transform.parent = editorSceneGO.transform;
+      go.name = "TransformControls";
+      go.AddComponent(TransformControls);
+    }
+    return editorSceneGO;
+  }
+  static Play() {
+    const scene = this.SceneManager.GetActiveScene();
+    this.snapshot = Serializer.serializeScene(scene);
+    scene.mode = SceneExecutionMode.Play;
+    this.isPlaying = true;
+  }
+  static async Stop() {
+    this.isPlaying = false;
+    if (!this.snapshot) return;
+    this.SceneManager.GetActiveScene().Clear();
+    const newScene = this.SceneManager.CreateScene(this.snapshot.name);
+    newScene.mode = SceneExecutionMode.Edit;
+    this.SceneManager.SetActiveScene(newScene);
+    await Deserializer.deserializeScene(newScene, this.snapshot);
+    this.snapshot = null;
+  }
+}
 
 class TridentAPI {
   get currentScene() {
@@ -3460,6 +4309,9 @@ class TridentAPI {
   }
   createCapsuleGeometry() {
     return Geometry.Capsule();
+  }
+  createCylinderGeometry() {
+    return Geometry.Cylinder();
   }
   createPBRMaterial(args) {
     return new PBRMaterial(args);
@@ -4350,6 +5202,7 @@ async function doReload(engineAPI) {
   const scene = engineAPI.currentScene;
   const snapshot = Serializer.serializeScene(scene);
   scene.Clear();
+  Assets.ClearInstances((path) => !path.startsWith("@"));
   await BuildBundle();
   await Deserializer.deserializeScene(scene, snapshot);
 }
@@ -4729,6 +5582,7 @@ class LayoutHierarchy extends Component {
     else if (primitiveType === "Capsule") mesh.geometry = this.props.engineAPI.createCapsuleGeometry(), gameObject.name = "Capsule";
     else if (primitiveType === "Plane") mesh.geometry = this.props.engineAPI.createPlaneGeometry(), gameObject.name = "Plane";
     else if (primitiveType === "Sphere") mesh.geometry = this.props.engineAPI.createSphereGeometry(), gameObject.name = "Sphere";
+    else if (primitiveType === "Cylinder") mesh.geometry = this.props.engineAPI.createCylinderGeometry(), gameObject.name = "Cylinder";
     mesh.material = this.props.engineAPI.createPBRMaterial();
     TridentAPI.EventSystem.emit(GameObjectEvents.Created, gameObject);
     this.setState({ ...this.state, headerMenuOpen: !this.state.headerMenuOpen });
@@ -4808,7 +5662,7 @@ class LayoutHierarchy extends Component {
     const rootGameObjects = this.props.engineAPI.currentScene.GetGameObjects().filter((go) => !go.transform.parent && (go.flags & this.props.engineAPI.flags.HideInHierarchy) === 0);
     return /* @__PURE__ */ createElement("div", { class: "Layout" }, /* @__PURE__ */ createElement("div", { class: "header" }, /* @__PURE__ */ createElement("div", { class: "title" }, this.props.engineAPI.currentScene.name || "Untitled scene"), /* @__PURE__ */ createElement("div", { class: "right-action" }, /* @__PURE__ */ createElement("button", { onClick: (event) => {
       this.setState({ ...this.state, headerMenuOpen: !this.state.headerMenuOpen });
-    } }, "\u22EE"), /* @__PURE__ */ createElement(FloatingMenu, { visible: this.state.headerMenuOpen, onClose: () => this.setState({ ...this.state, headerMenuOpen: false }) }, /* @__PURE__ */ createElement(Tree, null, /* @__PURE__ */ createElement(TreeItem, { name: "Create Empty", onPointerDown: () => this.createEmptyGameObject() }), /* @__PURE__ */ createElement(TreeItem, { name: "Clone", onPointerDown: () => this.cloneGameObject() }), /* @__PURE__ */ createElement(TreeItem, { name: "Delete", onPointerDown: () => this.deleteGameObject() }), /* @__PURE__ */ createElement(TreeItem, { name: "Unpack Prefab", onPointerDown: () => this.unpackSelectedPrefab() }), /* @__PURE__ */ createElement(TreeFolder, { name: "3D Object" }, /* @__PURE__ */ createElement(TreeItem, { name: "Cube", onPointerDown: () => this.createPrimitive("Cube") }), /* @__PURE__ */ createElement(TreeItem, { name: "Capsule", onPointerDown: () => this.createPrimitive("Capsule") }), /* @__PURE__ */ createElement(TreeItem, { name: "Plane", onPointerDown: () => this.createPrimitive("Plane") }), /* @__PURE__ */ createElement(TreeItem, { name: "Sphere", onPointerDown: () => this.createPrimitive("Sphere") }), /* @__PURE__ */ createElement(TreeItem, { name: "Terrain", onPointerDown: () => this.createTerrain() })), /* @__PURE__ */ createElement(TreeFolder, { name: "Lights" }, /* @__PURE__ */ createElement(TreeItem, { name: "Directional Light", onPointerDown: () => this.createLight("Directional") }), /* @__PURE__ */ createElement(TreeItem, { name: "Point Light", onPointerDown: () => this.createLight("Point") }), /* @__PURE__ */ createElement(TreeItem, { name: "Spot Light", onPointerDown: () => this.createLight("Spot") })))))), /* @__PURE__ */ createElement(
+    } }, "\u22EE"), /* @__PURE__ */ createElement(FloatingMenu, { visible: this.state.headerMenuOpen, onClose: () => this.setState({ ...this.state, headerMenuOpen: false }) }, /* @__PURE__ */ createElement(Tree, null, /* @__PURE__ */ createElement(TreeItem, { name: "Create Empty", onPointerDown: () => this.createEmptyGameObject() }), /* @__PURE__ */ createElement(TreeItem, { name: "Clone", onPointerDown: () => this.cloneGameObject() }), /* @__PURE__ */ createElement(TreeItem, { name: "Delete", onPointerDown: () => this.deleteGameObject() }), /* @__PURE__ */ createElement(TreeItem, { name: "Unpack Prefab", onPointerDown: () => this.unpackSelectedPrefab() }), /* @__PURE__ */ createElement(TreeFolder, { name: "3D Object" }, /* @__PURE__ */ createElement(TreeItem, { name: "Cube", onPointerDown: () => this.createPrimitive("Cube") }), /* @__PURE__ */ createElement(TreeItem, { name: "Capsule", onPointerDown: () => this.createPrimitive("Capsule") }), /* @__PURE__ */ createElement(TreeItem, { name: "Plane", onPointerDown: () => this.createPrimitive("Plane") }), /* @__PURE__ */ createElement(TreeItem, { name: "Sphere", onPointerDown: () => this.createPrimitive("Sphere") }), /* @__PURE__ */ createElement(TreeItem, { name: "Cylinder", onPointerDown: () => this.createPrimitive("Cylinder") }), /* @__PURE__ */ createElement(TreeItem, { name: "Terrain", onPointerDown: () => this.createTerrain() })), /* @__PURE__ */ createElement(TreeFolder, { name: "Lights" }, /* @__PURE__ */ createElement(TreeItem, { name: "Directional Light", onPointerDown: () => this.createLight("Directional") }), /* @__PURE__ */ createElement(TreeItem, { name: "Point Light", onPointerDown: () => this.createLight("Point") }), /* @__PURE__ */ createElement(TreeItem, { name: "Spot Light", onPointerDown: () => this.createLight("Spot") })))))), /* @__PURE__ */ createElement(
       "div",
       {
         style: "width: 100%; height: 100%; overflow: scroll;padding-top:5px",
@@ -5599,9 +6453,16 @@ class InspectorMaterial extends Component {
     super(props);
   }
   onComponentPropertyChanged(object, property, value) {
-    object[property] = value;
-    const engineType = this.props.engineAPI.getFieldType(value);
-    console.log(object, property, value, engineType);
+    const material = this.props.material;
+    if (object === material.params) {
+      const currentValue = object[property];
+      material.SetProperty(
+        property,
+        typeof currentValue === "number" ? parseFloat(value) : value
+      );
+    } else {
+      object[property] = value;
+    }
     this.setState({});
   }
   renderInspectorForComponentProperty(component, property) {
@@ -5949,7 +6810,7 @@ class LayoutInspector extends Component {
       else if (this.props.engineAPI.isTexture(instance)) this.setState({ selected: { type: "Texture", instance } });
     });
     TridentAPI.EventSystem.on(LayoutHierarchyEvents.Selected, (gameObject) => {
-      this.setState({ selected: { type: "GameObject", id: gameObject.id } });
+      !gameObject ? this.setState({ selected: void 0 }) : this.setState({ selected: { type: "GameObject", id: gameObject.id } });
     });
     TridentAPI.EventSystem.on(ComponentEvents.Created, (gameObject, component) => {
       this.setState({ selected: { type: "GameObject", id: gameObject.id } });
@@ -6118,6 +6979,9 @@ class App extends Component {
         },
         offHierarchySelected(handler) {
           TridentAPI.EventSystem.off(LayoutHierarchyEvents.Selected, handler);
+        },
+        selectGameObject(gameObject) {
+          TridentAPI.EventSystem.emit(GameObjectEvents.Selected, gameObject);
         }
       },
       Selection: {
@@ -6128,7 +6992,6 @@ class App extends Component {
     });
     TridentAPI.EventSystem.on(SceneEvents.Loaded, (scene) => {
       EditorRuntime.AttachEditorScene(engineAPI.currentScene);
-      EditorRuntime.AttachEnvironment(engineAPI.currentScene);
     });
     TridentAPI.EventSystem.on(RuntimeEvents.CreatedCanvas, async (canvas) => {
       const Runtime = await engineAPI.createRuntime(canvas);

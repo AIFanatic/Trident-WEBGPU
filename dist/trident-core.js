@@ -1436,13 +1436,12 @@ class Transform extends (_a$8 = Component, _localPosition_dec = [SerializeField]
     this._lastChanged = "world";
     this.markDirty();
   }
-  // ── cheap: flag self + subtree, once ──
   markDirty() {
-    if (this._dirty) return;
     this._dirty = true;
     for (const child of this.children) child.markDirty();
+    EventSystem.emit(TransformEvents.Updated);
+    EventSystemLocal.emit(TransformEvents.Updated, this);
   }
-  // ── callbacks just record authority + mark dirty (idempotent, so per-component fires are free) ──
   onLocalChanged() {
     if (this._suppressLocalCallbacks) return;
     this._lastChanged = "local";
@@ -1499,14 +1498,13 @@ class Transform extends (_a$8 = Component, _localPosition_dec = [SerializeField]
       }
       this._suppressWorldCallbacks = false;
     }
+    this._lastChanged = "local";
     this._suppressLocalCallbacks = this._suppressWorldCallbacks = true;
     this._localEulerAngles.copy(this._localRotation.toEuler(true));
     this._eulerAngles.copy(this._rotation.toEuler(true));
     this._suppressLocalCallbacks = this._suppressWorldCallbacks = false;
     this._forward.set(0, 0, -1).applyQuaternion(this._rotation);
     this._up.set(0, 1, 0).applyQuaternion(this._rotation);
-    EventSystem.emit(TransformEvents.Updated);
-    EventSystemLocal.emit(TransformEvents.Updated, this);
   }
   LookAt(target) {
     this.tempRotation.lookAt(this.position, target, Vector3.up);
@@ -1688,6 +1686,9 @@ class Assets {
   static SetInstance(path, instance) {
     return Assets.instanceCache.set(path, instance);
   }
+  static ClearInstances(filter) {
+    for (const path of [...Assets.instanceCache.keys()]) if (filter(path)) Assets.instanceCache.delete(path);
+  }
   static async Register(path, resource, force = false) {
     if (Assets.cache.has(path) && force === false) throw Error(`Assets[Register]: ${path} already set, use "force" to bypass.`);
     Assets.cache.set(path, Promise.resolve(resource));
@@ -1753,7 +1754,7 @@ class AssetMeta {
   }
 }
 
-var WGSL_Shader_Draw_URL = "#include \"@trident/core/resources/webgpu/shaders/deferred/Common.wgsl\";\n\nstruct VertexInput {\n    @builtin(instance_index) instance : u32, \n    @builtin(vertex_index) vertex : u32,\n    @location(0) position : vec3<f32>,\n    @location(1) normal : vec3<f32>,\n    @location(2) uv : vec2<f32>,\n\n    @location(3) tangent : vec4<f32>,\n    #if USE_SKINNING\n        @location(4) joints: vec4<u32>,\n        @location(5) weights: vec4<f32>,\n    #endif\n};\n\nstruct Material {\n    AlbedoColor: vec4<f32>,\n    EmissiveColor: vec4<f32>,\n    Roughness: f32,\n    Metalness: f32,\n    Unlit: f32,\n    AlphaCutoff: f32,\n    RepeatOffset: vec4<f32>, // xy = repeat, zw = offset\n};\n\nstruct VertexOutput {\n    @builtin(position) position : vec4<f32>,\n    @location(0) vPosition : vec3<f32>,\n    @location(1) vNormal : vec3<f32>,\n    @location(2) vUv : vec2<f32>,\n    @location(3) @interpolate(flat) instance : u32,\n    @location(4) tangent : vec3<f32>,\n    @location(5) bitangent : vec3<f32>,\n    @location(6) normal : vec3<f32>,\n};\n\n@group(0) @binding(0) var<storage, read> frameBuffer: FrameBuffer;\n@group(0) @binding(1) var<storage, read> modelMatrix: array<mat4x4<f32>>;\n@group(0) @binding(2) var<storage, read> material: Material;\n@group(0) @binding(3) var TextureSampler: sampler;\n\n// These get optimized out based on \"USE*\" defines\n@group(0) @binding(4) var albedoMap: texture_2d<f32>;\n@group(0) @binding(5) var normalMap: texture_2d<f32>;\n@group(0) @binding(6) var heightMap: texture_2d<f32>;\n@group(0) @binding(7) var armMap: texture_2d<f32>;\n@group(0) @binding(8) var emissiveMap: texture_2d<f32>;\n\n#if USE_SKINNING\n    @group(1) @binding(0) var<storage, read> boneMatrices: array<mat4x4<f32>>;\n#endif\n\n@vertex\nfn vertexMain(input: VertexInput) -> VertexOutput {\n    var output : VertexOutput;\n\n    var finalPosition = vec4(input.position, 1.0);\n    var finalNormal = vec4(input.normal, 0.0);\n\n    #if USE_SKINNING\n        var skinnedPosition = vec4(0.0);\n        var skinnedNormal = vec4(0.0);\n\n        let skinMatrix: mat4x4<f32> = \n            boneMatrices[input.joints[0]] * input.weights[0] +\n            boneMatrices[input.joints[1]] * input.weights[1] +\n            boneMatrices[input.joints[2]] * input.weights[2] +\n            boneMatrices[input.joints[3]] * input.weights[3];\n        \n        finalPosition = skinMatrix * vec4(input.position, 1.0);\n        finalNormal   = normalize(skinMatrix * vec4(input.normal, 0.0));\n    #endif\n\n    let modelMatrixInstance = modelMatrix[input.instance];\n\n    let cameraPos = frameBuffer.viewInverseMatrix[3].xyz;\n    let modelViewMatrix = frameBuffer.viewMatrix * modelMatrixInstance;\n\n    let worldNormal = normalize(modelMatrixInstance * vec4(finalNormal.xyz, 0.0)).xyz;\n    let worldTangent = normalize(modelMatrixInstance * vec4(input.tangent.xyz, 0.0)).xyz;\n    let worldBitangent = cross(worldNormal, worldTangent) * input.tangent.w;\n\n    output.instance = input.instance;\n    output.position = frameBuffer.projectionMatrix * modelViewMatrix * vec4(finalPosition.xyz, 1.0);\n    output.vPosition = finalPosition.xyz;\n    output.vUv = input.uv;\n\n    output.vNormal = worldNormal;\n    output.normal = finalNormal.xyz;\n    output.tangent = worldTangent;\n    output.bitangent = worldBitangent;\n\n    return output;\n}\n\nstruct FragmentOutput {\n    @location(0) albedo : vec4f,\n    @location(1) normal : vec4f,\n    @location(2) RMO : vec4f,\n};\n\nfn inversesqrt(v: f32) -> f32 {\n    return 1.0 / sqrt(v);\n}\n\nfn CalcMipLevel(texture_coord: vec2f) -> f32 {\n    let dx = dpdx(texture_coord);\n    let dy = dpdy(texture_coord);\n    let delta_max_sqr = max(dot(dx, dx), dot(dy, dy));\n    \n    return max(0.0, 0.5 * log2(delta_max_sqr));\n}\n\n@fragment\nfn fragmentMain(@builtin(front_facing) isFrontFace: bool, input: VertexOutput) -> FragmentOutput {\n    var output: FragmentOutput;\n\n\n    let mat = material;\n\n    var uv = input.vUv * mat.RepeatOffset.xy + mat.RepeatOffset.zw;\n\n    var albedo = mat.AlbedoColor;\n    var roughness = mat.Roughness;\n    var metalness = mat.Metalness;\n    var occlusion = 1.0;\n\n    // var albedo = mat.AlbedoColor;\n    albedo *= textureSample(albedoMap, TextureSampler, uv);\n\n\n    // https://bgolus.medium.com/anti-aliased-alpha-test-the-esoteric-alpha-to-coverage-8b177335ae4f\n    let cutoff = mat.AlphaCutoff;\n    let mipScale = 0.25;\n    let albedoMapSize = vec2<f32>(textureDimensions(albedoMap));\n\n    var alphaAA = albedo.a;\n    alphaAA *= 1.0 + max(0.0, CalcMipLevel(uv * albedoMapSize)) * mipScale;\n    alphaAA = (alphaAA - cutoff) / max(fwidth(alphaAA), 0.0001) + 0.5;\n\n    if (cutoff > 0.0 && alphaAA < cutoff) {\n        discard;\n    }\n\n    // if (albedo.a < mat.AlphaCutoff) {\n    //     discard;\n    // }\n\n    var normal: vec3f = normalize(input.vNormal);\n    var tbn: mat3x3<f32>;\n    tbn[0] = input.tangent;      // column-major: T, B, N\n    tbn[1] = input.bitangent;\n    tbn[2] = input.vNormal;\n    if (!isFrontFace) {\n        // tbn[0] = -tbn[0];\n        tbn[1] = -tbn[1];\n        tbn[2] = -tbn[2];\n    }\n    let normalSample = textureSample(normalMap, TextureSampler, uv).xyz * 2.0 - 1.0;\n    normal = normalize(tbn * normalSample);\n\n    let metalnessRoughness = textureSample(armMap, TextureSampler, uv);\n\n    occlusion *= metalnessRoughness.r;\n    roughness *= metalnessRoughness.g;\n    metalness *= metalnessRoughness.b;\n\n    // // Unity style - Mask map MT(R) AO(G) SM(A)\n    // metalness *= metalnessRoughness.r;\n    // occlusion *= metalnessRoughness.g; \n    // roughness *= metalnessRoughness.a;\n\n\n    var emissive = mat.EmissiveColor;\n    emissive *= textureSample(emissiveMap, TextureSampler, uv);\n\n    output.albedo = vec4(albedo.rgb, roughness);\n    output.normal = vec4(OctEncode(normal.xyz), occlusion, metalness);\n    output.RMO = vec4(emissive.rgb, mat.Unlit);\n\n    // // Flat shading\n    // let xTangent: vec3f = dpdx( input.vPosition );\n    // let yTangent: vec3f = dpdy( input.vPosition );\n    // let faceNormal: vec3f = normalize( cross( xTangent, yTangent ) );\n\n    // output.normal = vec4(OctEncode(faceNormal.xyz), occlusion, metalness);\n\n    return output;\n}";
+var WGSL_Shader_Draw_URL = "#include \"@trident/core/resources/webgpu/shaders/deferred/Common.wgsl\";\n\nstruct VertexInput {\n    @builtin(instance_index) instance : u32, \n    @builtin(vertex_index) vertex : u32,\n    @location(0) position : vec3<f32>,\n    @location(1) normal : vec3<f32>,\n    @location(2) uv : vec2<f32>,\n\n    @location(3) tangent : vec4<f32>,\n    #if USE_SKINNING\n        @location(4) joints: vec4<u32>,\n        @location(5) weights: vec4<f32>,\n    #endif\n};\n\nstruct Material {\n    AlbedoColor: vec4<f32>,\n    EmissiveColor: vec4<f32>,\n    Roughness: f32,\n    Metalness: f32,\n    Unlit: f32,\n    AlphaCutoff: f32,\n    RepeatOffset: vec4<f32>, // xy = repeat, zw = offset\n};\n\nstruct VertexOutput {\n    @builtin(position) position : vec4<f32>,\n    @location(0) vPosition : vec3<f32>,\n    @location(1) vNormal : vec3<f32>,\n    @location(2) vUv : vec2<f32>,\n    @location(3) @interpolate(flat) instance : u32,\n    @location(4) tangent : vec3<f32>,\n    @location(5) bitangent : vec3<f32>,\n    @location(6) normal : vec3<f32>,\n};\n\n@group(0) @binding(0) var<storage, read> frameBuffer: FrameBuffer;\n@group(0) @binding(1) var<storage, read> modelMatrix: array<mat4x4<f32>>;\n@group(0) @binding(2) var<storage, read> material: Material;\n@group(0) @binding(3) var TextureSampler: sampler;\n\n// These get optimized out based on \"USE*\" defines\n@group(0) @binding(4) var albedoMap: texture_2d<f32>;\n@group(0) @binding(5) var normalMap: texture_2d<f32>;\n@group(0) @binding(6) var heightMap: texture_2d<f32>;\n@group(0) @binding(7) var armMap: texture_2d<f32>;\n@group(0) @binding(8) var emissiveMap: texture_2d<f32>;\n\n#if USE_SKINNING\n    @group(1) @binding(0) var<storage, read> boneMatrices: array<mat4x4<f32>>;\n#endif\n\n@vertex\nfn vertexMain(input: VertexInput) -> VertexOutput {\n    var output : VertexOutput;\n\n    var finalPosition = vec4(input.position, 1.0);\n    var finalNormal = vec4(input.normal, 0.0);\n\n    #if USE_SKINNING\n        var skinnedPosition = vec4(0.0);\n        var skinnedNormal = vec4(0.0);\n\n        let skinMatrix: mat4x4<f32> = \n            boneMatrices[input.joints[0]] * input.weights[0] +\n            boneMatrices[input.joints[1]] * input.weights[1] +\n            boneMatrices[input.joints[2]] * input.weights[2] +\n            boneMatrices[input.joints[3]] * input.weights[3];\n        \n        finalPosition = skinMatrix * vec4(input.position, 1.0);\n        finalNormal   = normalize(skinMatrix * vec4(input.normal, 0.0));\n    #endif\n\n    let modelMatrixInstance = modelMatrix[input.instance];\n\n    let cameraPos = frameBuffer.viewInverseMatrix[3].xyz;\n    let modelViewMatrix = frameBuffer.viewMatrix * modelMatrixInstance;\n\n    let worldNormal = normalize(modelMatrixInstance * vec4(finalNormal.xyz, 0.0)).xyz;\n    let worldTangent = normalize(modelMatrixInstance * vec4(input.tangent.xyz, 0.0)).xyz;\n    let worldBitangent = cross(worldNormal, worldTangent) * input.tangent.w;\n\n    output.instance = input.instance;\n    output.position = frameBuffer.projectionMatrix * modelViewMatrix * vec4(finalPosition.xyz, 1.0);\n    output.vPosition = finalPosition.xyz;\n    output.vUv = input.uv;\n\n    output.vNormal = worldNormal;\n    output.normal = finalNormal.xyz;\n    output.tangent = worldTangent;\n    output.bitangent = worldBitangent;\n\n    return output;\n}\n\nstruct FragmentOutput {\n    @location(0) albedo : vec4f,\n    @location(1) normal : vec4f,\n    @location(2) RMO : vec4f,\n};\n\nfn inversesqrt(v: f32) -> f32 {\n    return 1.0 / sqrt(v);\n}\n\nfn CalcMipLevel(texture_coord: vec2f) -> f32 {\n    let dx = dpdx(texture_coord);\n    let dy = dpdy(texture_coord);\n    let delta_max_sqr = max(dot(dx, dx), dot(dy, dy));\n    \n    return max(0.0, 0.5 * log2(delta_max_sqr));\n}\n\n@fragment\nfn fragmentMain(@builtin(front_facing) isFrontFace: bool, input: VertexOutput) -> FragmentOutput {\n    var output: FragmentOutput;\n\n\n    let mat = material;\n\n    var uv = input.vUv * mat.RepeatOffset.xy + mat.RepeatOffset.zw;\n\n    var albedo = mat.AlbedoColor;\n    var roughness = mat.Roughness;\n    var metalness = mat.Metalness;\n    var occlusion = 1.0;\n\n    // var albedo = mat.AlbedoColor;\n    albedo *= textureSample(albedoMap, TextureSampler, uv);\n\n\n    // https://bgolus.medium.com/anti-aliased-alpha-test-the-esoteric-alpha-to-coverage-8b177335ae4f\n    let cutoff = mat.AlphaCutoff;\n    let mipScale = 0.25;\n    let albedoMapSize = vec2<f32>(textureDimensions(albedoMap));\n\n    var alphaAA = albedo.a;\n    alphaAA *= 1.0 + max(0.0, CalcMipLevel(uv * albedoMapSize)) * mipScale;\n    alphaAA = (alphaAA - cutoff) / max(fwidth(alphaAA), 0.0001) + 0.5;\n\n    if (cutoff > 0.0 && alphaAA < cutoff) {\n        discard;\n    }\n\n    // if (albedo.a < mat.AlphaCutoff) {\n    //     discard;\n    // }\n\n    var tbn: mat3x3<f32>;\n    tbn[0] = normalize(input.tangent);\n    tbn[1] = normalize(input.bitangent);\n    tbn[2] = normalize(input.vNormal);\n\n    let normalSample = textureSample(normalMap, TextureSampler, uv).xyz * 2.0 - 1.0;\n\n    var normal = normalize(tbn * normalSample);\n\n    if (!isFrontFace) {\n        normal = -normal;\n    }\n\n    let metalnessRoughness = textureSample(armMap, TextureSampler, uv);\n\n    occlusion *= metalnessRoughness.r;\n    roughness *= metalnessRoughness.g;\n    metalness *= metalnessRoughness.b;\n\n    // // Unity style - Mask map MT(R) AO(G) SM(A)\n    // metalness *= metalnessRoughness.r;\n    // occlusion *= metalnessRoughness.g; \n    // roughness *= metalnessRoughness.a;\n\n\n    var emissive = mat.EmissiveColor;\n    emissive *= textureSample(emissiveMap, TextureSampler, uv);\n\n    output.albedo = vec4(albedo.rgb, roughness);\n    output.normal = vec4(OctEncode(normal.xyz), occlusion, metalness);\n    output.RMO = vec4(emissive.rgb, mat.Unlit);\n\n    // // Flat shading\n    // let xTangent: vec3f = dpdx( input.vPosition );\n    // let yTangent: vec3f = dpdy( input.vPosition );\n    // let faceNormal: vec3f = normalize( cross( xTangent, yTangent ) );\n\n    // output.normal = vec4(OctEncode(faceNormal.xyz), occlusion, metalness);\n\n    return output;\n}";
 
 var WGSL_Shader_DeferredLighting_URL = "#include \"@trident/core/resources/webgpu/shaders/deferred/Common.wgsl\";\n#include \"@trident/core/resources/webgpu/shaders/deferred/SurfaceStruct.wgsl\";\n#include \"@trident/core/resources/webgpu/shaders/deferred/LightStruct.wgsl\";\n#include \"@trident/core/resources/webgpu/shaders/deferred/ShadowMap.wgsl\";\n#include \"@trident/core/resources/webgpu/shaders/deferred/ShadowMapCSM.wgsl\";\n\nstruct Settings {\n    pcfResolution: f32,\n    blendThreshold: f32,\n};\n\nstruct VertexInput {\n    @builtin(instance_index) instance : u32, \n    @location(0) position : vec3<f32>,\n    @location(1) normal : vec3<f32>,\n    @location(2) uv : vec2<f32>,\n};\n\nstruct VertexOutput {\n    @builtin(position) position: vec4<f32>,\n    @location(0) vUv: vec2<f32>,\n    @location(1) @interpolate(flat) lightIndex: u32,\n};\n\n@group(0) @binding(0) var textureSampler: sampler;\n\n@group(0) @binding(1) var albedoTexture: texture_2d<f32>;\n@group(0) @binding(2) var normalTexture: texture_2d<f32>;\n@group(0) @binding(3) var ermoTexture: texture_2d<f32>;\n@group(0) @binding(4) var depthTexture: texture_depth_2d;\n@group(0) @binding(5) var shadowPassDepth: texture_depth_2d_array;\n\n@group(0) @binding(6) var<storage, read> lights: array<Light>;\n@group(0) @binding(7) var<storage, read> lightCount: u32;\n\nstruct View {\n    projectionOutputSize: vec4<f32>,\n    viewPosition: vec4<f32>,\n    projectionInverseMatrix: mat4x4<f32>,\n    viewInverseMatrix: mat4x4<f32>,\n    viewMatrix: mat4x4<f32>,\n    projectionMatrix: mat4x4<f32>,\n};\n@group(0) @binding(8) var<storage, read> view: View;\n\n\nconst numCascades = 4;\n\n@group(0) @binding(9) var shadowSamplerComp: sampler_comparison;\n\n@group(0) @binding(10) var<storage, read> settings: Settings;\n\n@vertex\nfn vertexMain(input: VertexInput) -> VertexOutput {\n    var output: VertexOutput;\n    let light = lights[input.instance];\n    let lightType = u32(light.color.a);\n\n    output.position = view.projectionMatrix * view.viewMatrix * light.lightModelMatrix * vec4(input.position, 1.0);\n    if (lightType == DIRECTIONAL_LIGHT) {\n        // Flip X so the quad becomes back-facing (survives front-face cull).\n        // Place it at the far plane so it passes depthCompare \"greater-equal\".\n        output.position = vec4(-input.position.x, input.position.y, 1.0, 1.0);\n    }\n\n    output.vUv = input.uv;\n    output.lightIndex = input.instance;\n    return output;\n}\n\nconst PI = 3.141592653589793;\n\nconst SPOT_LIGHT: u32 = 0;\nconst DIRECTIONAL_LIGHT: u32 = 1;\nconst POINT_LIGHT: u32 = 2;\nconst AREA_LIGHT: u32 = 3;\n\nfn reconstructWorldPosFromZ(\n    coords: vec2<f32>,\n    size: vec2<f32>,\n    depth: f32,\n    projInverse: mat4x4<f32>,\n    viewInverse: mat4x4<f32>\n    ) -> vec4<f32> {\n    let uv = coords.xy / size;\n    let x = uv.x * 2.0 - 1.0;\n    let y = (1.0 - uv.y) * 2.0 - 1.0;\n    let projectedPos = vec4(x, y, depth, 1.0);\n    var worldPosition = projInverse * projectedPos;\n    worldPosition = vec4(worldPosition.xyz / worldPosition.w, 1.0);\n    worldPosition = viewInverse * worldPosition;\n    return worldPosition;\n}\n\nfn DistributionGGX(n: vec3f, h: vec3f, roughness: f32) -> f32 {\n  let a = roughness * roughness;\n  let a2 = a * a;\n  let nDotH = max(dot(n, h), 0.0);\n  let nDotH2 = nDotH * nDotH;\n  var denom = (nDotH2 * (a2 - 1.0) + 1.0);\n  denom = PI * denom * denom;\n  return a2 / denom;\n}\n\nfn GeometrySchlickGGX(nDotV: f32, roughness: f32) -> f32 {\n  let r = (roughness + 1.0);\n  let k = (r * r) / 8.0;\n  return nDotV / (nDotV * (1.0 - k) + k);\n}\n\nfn GeometrySmith(n: vec3f, v: vec3f, l: vec3f, roughness: f32) -> f32 {\n  let nDotV = max(dot(n, v), 0.0);\n  let nDotL = max(dot(n, l), 0.0);\n  let ggx2 = GeometrySchlickGGX(nDotV, roughness);\n  let ggx1 = GeometrySchlickGGX(nDotL, roughness);\n  return ggx1 * ggx2;\n}\n\nfn FresnelSchlick(cosTheta: f32, f0: vec3f) -> vec3f {\n  return f0 + (1.0 - f0) * pow(clamp(1.0 - cosTheta, 0.0, 1.0), 5.0);\n}\n\nfn CalculateBRDF(surface: Surface, pointToLight: vec3<f32>) -> vec3<f32> {\n    // cook-torrance brdf\n    let L = normalize(pointToLight);\n    let H = normalize(surface.V + L);\n    let distance = length(pointToLight);\n\n    let NDF = DistributionGGX(surface.N, H, surface.roughness);\n    let G = GeometrySmith(surface.N, surface.V, L, surface.roughness);\n    let F = FresnelSchlick(max(dot(H, surface.V), 0.0), surface.F0);\n\n    let kD = (vec3(1.0, 1.0, 1.0) - F) * (1.0 - surface.metallic);\n\n    let NdotL = max(dot(surface.N, L), 0.0);\n\n    let numerator = NDF * G * F;\n    let denominator = max(4.0 * max(dot(surface.N, surface.V), 0.0) * NdotL, 0.001);\n    let specular = numerator / vec3(denominator, denominator, denominator);\n\n    return (kD * surface.albedo.rgb / vec3(PI, PI, PI) + specular) * NdotL;\n}\n\nfn DirectionalLightRadiance(light: DirectionalLight, surface : Surface) -> vec3<f32> {\n    return CalculateBRDF(surface, light.direction) * light.color * light.intensity;\n}\n\nfn rangeAttenuation(range : f32, distance : f32) -> f32 {\n    if (range <= 0.0) {\n        // Negative range means no cutoff\n        return 1.0 / pow(distance, 2.0);\n    }\n    return clamp(1.0 - pow(distance / range, 4.0), 0.0, 1.0) / pow(distance, 2.0);\n}\n\nfn SpotLightRadiance(light : SpotLight, surface : Surface) -> vec3<f32> {\n    // pointToLight is SURFACE -> LIGHT (as you already set)\n    let dist = length(light.pointToLight);\n\n    // For cone test we need LIGHT -> SURFACE\n    let L_ls = normalize(-light.pointToLight);   // light -> surface\n    let cd   = dot(light.direction, L_ls);       // cos(theta), 1 at center\n\n    // Smooth falloff from edge to center: 0 at cos(angle), 1 at 1.0\n    let spot = smoothstep(cos(light.angle), 1.0, cd);\n\n    // Range attenuation as you have it\n    let attenuation = rangeAttenuation(light.range, dist) * spot;\n\n    // BRDF usually expects wi = SURFACE -> LIGHT\n    let wi = -L_ls; // (surface -> light)\n    let radiance = CalculateBRDF(surface, wi) * light.color * light.intensity * attenuation;\n    return radiance;\n}\n\nfn PointLightRadiance(light: PointLight, surface: Surface) -> vec3<f32> {\n    let dist = length(light.pointToLight);\n    let wi   = normalize(light.pointToLight);        // surface -> light\n    let att  = rangeAttenuation(light.range, dist);  // your smooth cutoff / r^2\n    return CalculateBRDF(surface, wi) * light.color * light.intensity * att;\n}\n\n@fragment\nfn fragmentMain(input: VertexOutput) -> @location(0) vec4<f32> {\n    // Load depth once\n    let pix = vec2<i32>(input.position.xy);\n    let depth = textureLoad(depthTexture, pix, 0);\n\n    if (depth > 0.99999) {\n        discard;\n    }\n\n    let fragCoord = input.position.xy;\n    let screenSize = view.projectionOutputSize.xy;\n\n    let uv = fragCoord / screenSize;\n\n    let worldPosition = reconstructWorldPosFromZ(\n        input.position.xy,\n        view.projectionOutputSize.xy,\n        depth,\n        view.projectionInverseMatrix,\n        view.viewInverseMatrix\n    );\n\n    let albedo = textureLoad(albedoTexture, pix, 0);\n    var normal = textureLoad(normalTexture, pix, 0);\n    let ermo   = textureLoad(ermoTexture,   pix, 0);\n\n\n    let unlit = ermo.a;\n\n    if (unlit > 0.5) {\n        var color = albedo.rgb;\n        return vec4f(color, 1.0);\n    }\n\n    var surface: Surface;\n    surface.depth          = depth;\n    surface.albedo         = albedo.rgb;\n    surface.roughness      = clamp(albedo.a, 0.0, 0.99);\n    surface.occlusion      = normal.z;\n    surface.metallic       = normal.a;\n    surface.emissive       = ermo.rgb;\n    surface.worldPosition  = worldPosition.xyz;\n    \n    surface.N = OctDecode(normal.rg);\n    surface.F0             = mix(vec3(0.04), surface.albedo.rgb, vec3(surface.metallic));\n    surface.V              = normalize(view.viewPosition.xyz - surface.worldPosition);\n\n    var lo = vec3f(0.0);\n    var selectedCascade = 0;\n\n    var light = lights[input.lightIndex];\n    let lightType = u32(light.color.a);\n\n    if (lightType == DIRECTIONAL_LIGHT) {\n        var directionalLight: DirectionalLight;\n        directionalLight.direction = normalize((light.viewMatrixInverse * vec4(0.0, 0.0, 1.0, 0.0)).xyz);\n        // directionalLight.direction = light.direction.xyz;\n        directionalLight.color = light.color.rgb;\n        directionalLight.intensity = light.params1.x;\n\n        let castShadows = light.params1.z > 0.5;\n        var shadow = 1.0;\n        if (castShadows) {\n            let shadowCSM = CalculateShadowCSM(shadowPassDepth, shadowSamplerComp, surface, light, input.lightIndex);\n            shadow = shadowCSM.visibility;\n            selectedCascade = shadowCSM.selectedCascade;\n        }\n\n        // lo += shadow * DirectionalLightRadiance(directionalLight, surface) * radiance;\n        lo += shadow * DirectionalLightRadiance(directionalLight, surface);\n    }\n\n    else if (lightType == SPOT_LIGHT) {\n        var spotLight: SpotLight;\n        \n        // light.position.x *= -1.0;\n        // light.position.z *= -1.0;\n        spotLight.pointToLight = light.position.xyz - surface.worldPosition;\n        spotLight.color = light.color.rgb;\n        spotLight.intensity = light.params1.r;\n        spotLight.range = light.params1.g;\n        spotLight.direction = normalize((light.viewMatrixInverse * vec4(0.0, 0.0, -1.0, 0.0)).xyz);\n        // spotLight.direction = normalize(light.params2.xyz);\n        // spotLight.direction = light.direction.xyz;\n        spotLight.angle = light.params2.w;\n\n        let castShadows = light.params1.z > 0.5;\n        var shadow = 1.0;\n        if (castShadows) {\n            let shadowCSM = CalculateShadowCSMSpot(shadowPassDepth, shadowSamplerComp, surface, light, input.lightIndex);\n            shadow = shadowCSM.visibility;\n            selectedCascade = shadowCSM.selectedCascade;\n            // shadow = SampleSpotShadowMap(surface, light); // <— single 2D map on this layer\n\n        }\n\n        lo += shadow * SpotLightRadiance(spotLight, surface);\n    }\n\n    else if (lightType == POINT_LIGHT) {\n        var p: PointLight;\n        p.pointToLight = light.position.xyz - surface.worldPosition;\n        p.color        = light.color.rgb;\n        p.intensity    = light.params1.x;\n        p.range        = light.params1.y;\n\n        var shadow = 1.0;\n        let castShadows = light.params1.z > 0.5;\n        // if (castShadows) {\n        //     shadow = SamplePointShadow(surface, light, i);\n        // }\n\n        lo += shadow * PointLightRadiance(p, surface);\n    }\n\n    return vec4f(lo, 0.0);\n}";
 
@@ -2300,6 +2301,7 @@ class Texture {
   static _WhiteTexture;
   static _BlackTexture;
   static _NormalTexture;
+  static _ARMTexture;
   static _DepthTexture;
   static CreateTextureWithData(data) {
     const texture = Texture.Create(1, 1, 1, "bgra8unorm");
@@ -2318,9 +2320,13 @@ class Texture {
     if (!this._NormalTexture) Texture._NormalTexture = Texture.CreateTextureWithData(new Uint8Array([255, 128, 128, 255]));
     return Texture._NormalTexture;
   }
+  static get ARMTexture() {
+    if (!this._ARMTexture) Texture._ARMTexture = Texture.CreateTextureWithData(new Uint8Array([0, 255, 255, 255]));
+    return Texture._ARMTexture;
+  }
   static get DepthTexture() {
     if (!this._DepthTexture) {
-      Texture._DepthTexture = Texture.Create(1, 1, 1, "depth24plus");
+      Texture._DepthTexture = TextureArray.Create(1, 1, 1, "depth24plus");
     }
     return Texture._DepthTexture;
   }
@@ -2532,52 +2538,66 @@ class Texture {
     if (this.format.endsWith("float")) return new Float32Array(packed.buffer);
     return packed;
   }
-  async toCanvas() {
-    const w = this.width, h = this.height;
-    const px = await this.GetPixels();
-    const out = new Uint8ClampedArray(w * h * 4);
-    const isFloat = this.format.includes("float");
-    const isBGRA = this.format.startsWith("bgra");
-    for (let i = 0; i < w * h; i++) {
-      let r = px[i * 4 + 0], g = px[i * 4 + 1], b = px[i * 4 + 2], a = px[i * 4 + 3];
-      if (isBGRA) {
-        const t = r;
-        r = b;
-        b = t;
-      }
-      if (isFloat) {
-        r = Math.min(1, Math.max(0, r)) * 255;
-        g = Math.min(1, Math.max(0, g)) * 255;
-        b = Math.min(1, Math.max(0, b)) * 255;
-        a = Math.min(1, Math.max(0, a)) * 255;
-      }
-      out[i * 4 + 0] = r;
-      out[i * 4 + 1] = g;
-      out[i * 4 + 2] = b;
-      out[i * 4 + 3] = a;
+  static Chunk(type, data) {
+    const out = new Uint8Array(12 + data.length), v = new DataView(out.buffer);
+    for (let i = 0; i < 4; i++) out[4 + i] = type.charCodeAt(i);
+    out.set(data, 8);
+    v.setUint32(0, data.length);
+    let c = -1;
+    for (const b of out.subarray(4, 8 + data.length)) {
+      c ^= b;
+      for (let i = 8; i--; ) c = c >>> 1 ^ (c & 1 ? 3988292384 : 0);
     }
-    const canvas = document.createElement("canvas");
-    canvas.width = w;
-    canvas.height = h;
-    canvas.getContext("2d").putImageData(new ImageData(out, w, h), 0, 0);
-    return canvas;
+    v.setUint32(8 + data.length, (c ^ -1) >>> 0);
+    return out;
   }
-  async encode(mime, quality) {
-    const canvas = await this.toCanvas();
-    const blob = await new Promise((res) => canvas.toBlob((b) => res(b), mime, quality));
-    return new Uint8Array(await blob.arrayBuffer());
+  static ToRGBA8(px, w, h, format, srgb = false) {
+    const out = new Uint8Array(w * h * 4), isFloat = format.includes("float"), bgra = format.startsWith("bgra");
+    const enc = (c) => c <= 31308e-7 ? c * 12.92 : 1.055 * Math.pow(c, 1 / 2.4) - 0.055;
+    for (let i = 0; i < w * h * 4; i++) {
+      let c = isFloat ? Math.min(1, Math.max(0, px[i])) : px[i] / 255;
+      if (srgb && isFloat && i % 4 !== 3) c = enc(c);
+      out[i] = c * 255 + 0.5;
+    }
+    if (bgra) for (let i = 0; i < w * h; i++) {
+      const t = out[i * 4];
+      out[i * 4] = out[i * 4 + 2];
+      out[i * 4 + 2] = t;
+    }
+    return out;
   }
-  EncodeToPNG() {
-    return this.encode("image/png");
+  async EncodeToPNG(srgb = false) {
+    const w = this.width;
+    const h = this.height;
+    const rgba = Texture.ToRGBA8(await this.GetPixels(), w, h, this.format, srgb);
+    const raw = new Uint8Array(h * (w * 4 + 1));
+    for (let y = 0; y < h; y++) raw.set(rgba.subarray(y * w * 4, (y + 1) * w * 4), y * (w * 4 + 1) + 1);
+    const idat = new Uint8Array(await new Response(
+      // deflate == zlib stream == IDAT
+      new Blob([raw]).stream().pipeThrough(new CompressionStream("deflate"))
+    ).arrayBuffer());
+    const ihdr = new Uint8Array(13), v = new DataView(ihdr.buffer);
+    v.setUint32(0, w);
+    v.setUint32(4, h);
+    ihdr.set([8, 6, 0, 0, 0], 8);
+    const parts = [new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10]), Texture.Chunk("IHDR", ihdr), Texture.Chunk("IDAT", idat), Texture.Chunk("IEND", new Uint8Array(0))];
+    const out = new Uint8Array(parts.reduce((n, p) => n + p.length, 0));
+    parts.reduce((o, p) => (out.set(p, o), o + p.length), 0);
+    return out;
   }
-  EncodeToJPG(quality = 0.92) {
-    return this.encode("image/jpeg", quality);
+  async EncodeToJPG(quality = 0.92) {
+    throw Error("Test this");
   }
   // Format and types are very limited for now
   // https://github.com/gpuweb/gpuweb/issues/2322
   static async LoadBlob(blob, options) {
     const _options = Object.assign({}, DefaultOptions, options);
-    const imageBitmap = await createImageBitmap(blob, { resizeWidth: _options.resizeWidth, resizeHeight: _options.resizeHeight });
+    const imageBitmap = await createImageBitmap(blob, {
+      resizeWidth: _options.resizeWidth,
+      resizeHeight: _options.resizeHeight,
+      premultiplyAlpha: "none",
+      colorSpaceConversion: "none"
+    });
     const texture = new Texture(imageBitmap.width, imageBitmap.height, 1, _options.format || Renderer.SwapChainFormat, 2 /* RENDER_TARGET */, "2d", 1);
     texture.name = _options.name || "Texture";
     try {
@@ -2806,13 +2826,21 @@ class BaseShader {
     return this._bindGroupsInfo;
   }
   bindGroupLayouts = [];
+  valid = true;
+  compiled;
   constructor(params) {
     const code = params.defines ? ShaderPreprocessor.ProcessDefines(params.code, params.defines) : params.code;
     this.params = params;
+    Renderer.device.pushErrorScope("validation");
     this.module = Renderer.device.createShaderModule({ code, label: params.name });
-    if (this.params.uniforms) {
-      this.uniformMap = new Map(Object.entries(this.params.uniforms));
-    }
+    this.compiled = Renderer.device.popErrorScope().then((error) => {
+      if (!error) return;
+      this.valid = false;
+      this._pipeline = null;
+      console.error(`[Shader] "${params.name ?? "unnamed"}" failed to compile:
+${error.message}`);
+    });
+    if (this.params.uniforms) this.uniformMap = new Map(Object.entries(this.params.uniforms));
   }
   // TODO: This needs cleaning
   BuildBindGroupLayouts() {
@@ -3051,10 +3079,13 @@ class Shader extends BaseShader {
     if (!params.attributes) params.attributes = reflection.attributes;
     if (!params.uniforms) params.uniforms = reflection.uniforms;
     else for (const [name, uniform] of Object.entries(reflection.uniforms)) if (!params.uniforms[name]) params.uniforms[name] = uniform;
-    return new Shader(params);
+    const shader = new Shader(params);
+    await shader.compiled;
+    return shader;
   }
   // TODO: This needs cleaning
   Compile() {
+    if (!this.valid) return;
     if (!(this.needsUpdate || !this.pipeline || !this.bindGroups)) return;
     const missing = [];
     for (const [name, uniform] of this.uniformMap) {
@@ -3161,9 +3192,12 @@ class ShaderCompute extends BaseShader {
     const reflection = ReflectWGSL(reflectionSource);
     if (!params.uniforms) params.uniforms = reflection.uniforms;
     else for (const [name, uniform] of Object.entries(reflection.uniforms)) if (!params.uniforms[name]) params.uniforms[name] = uniform;
-    return new ShaderCompute(params);
+    const shader = new ShaderCompute(params);
+    await shader.compiled;
+    return shader;
   }
   Compile() {
+    if (!this.valid) return;
     if (!(this.needsUpdate || !this.pipeline || !this.bindGroups)) {
       return;
     }
@@ -3305,7 +3339,8 @@ class RendererContext {
   static BindGeometry(shader, geometry) {
     if (!this.activeRenderPass) throw Error("No active render pass");
     shader.Compile();
-    if (!shader.pipeline) throw Error("Shader doesnt have a pipeline");
+    if (geometry && !shader.OnPreRender(geometry)) return false;
+    if (!shader.pipeline) return false;
     Renderer.info.drawCallsStat += 1;
     Renderer.info.drawCalls.set(this.activeRenderPass.label, shader);
     this.activeRenderPass.setPipeline(shader.pipeline);
@@ -3319,24 +3354,25 @@ class RendererContext {
       this.activeRenderPass.setBindGroup(i, shader.bindGroups[i], dynamicOffsets);
       Renderer.info.bindGroupsPerFrame.add(shader.bindGroups[i]);
     }
-    if (!geometry) return;
-    for (const [name, attribute] of geometry.attributes) {
-      const attributeSlot = shader.GetAttributeSlot(name);
-      if (attributeSlot === void 0) continue;
-      const attributeBuffer = attribute.buffer;
-      this.activeRenderPass.setVertexBuffer(attributeSlot, attributeBuffer.GetBuffer(), attribute.currentOffset, attribute.currentSize);
-      Renderer.info.frameVertexBuffersStat++;
+    if (geometry) {
+      for (const [name, attribute] of geometry.attributes) {
+        const attributeSlot = shader.GetAttributeSlot(name);
+        if (attributeSlot === void 0) continue;
+        const attributeBuffer = attribute.buffer;
+        this.activeRenderPass.setVertexBuffer(attributeSlot, attributeBuffer.GetBuffer(), attribute.currentOffset, attribute.currentSize);
+        Renderer.info.frameVertexBuffersStat++;
+      }
+      if (geometry.index) {
+        const indexBuffer = geometry.index.buffer;
+        this.activeRenderPass.setIndexBuffer(indexBuffer.GetBuffer(), geometry.index.format, geometry.index.currentOffset, geometry.index.currentSize);
+        Renderer.info.frameIndexBufferStat++;
+      }
     }
-    if (geometry.index) {
-      const indexBuffer = geometry.index.buffer;
-      this.activeRenderPass.setIndexBuffer(indexBuffer.GetBuffer(), geometry.index.format, geometry.index.currentOffset, geometry.index.currentSize);
-      Renderer.info.frameIndexBufferStat++;
-    }
+    return true;
   }
   static DrawGeometry(geometry, shader, instanceCount = 1, firstInstance = 0) {
     if (!this.activeRenderPass) throw Error("No active render pass");
-    if (!shader.OnPreRender(geometry)) return;
-    this.BindGeometry(shader, geometry);
+    if (!this.BindGeometry(shader, geometry)) return;
     if (!shader.params.topology || shader.params.topology === Topology.Triangles) {
       if (!geometry.index) {
         const positions = geometry.attributes.get("position");
@@ -3362,26 +3398,25 @@ class RendererContext {
   }
   static DrawIndexed(geometry, shader, indexCount, instanceCount = 1, firstIndex, baseVertex, firstInstance) {
     if (!this.activeRenderPass) throw Error("No active render pass");
-    this.BindGeometry(shader, geometry);
+    if (!this.BindGeometry(shader, geometry)) return;
     this.activeRenderPass.drawIndexed(indexCount, instanceCount, firstIndex, baseVertex, firstInstance);
     this.AccumulateStats(shader, geometry, indexCount, instanceCount);
   }
   static Draw(geometry, shader, vertexCount, instanceCount = 1, firstVertex, firstInstance) {
     if (!this.activeRenderPass) throw Error("No active render pass");
-    this.BindGeometry(shader, geometry);
+    if (!this.BindGeometry(shader, geometry)) return;
     this.activeRenderPass.draw(vertexCount, instanceCount, firstVertex, firstInstance);
     this.AccumulateStats(shader, geometry, vertexCount, instanceCount);
   }
   static DrawVertex(shader, vertexCount, instanceCount = 1, firstVertex, firstInstance) {
     if (!this.activeRenderPass) throw Error("No active render pass");
-    this.BindGeometry(shader);
+    if (!this.BindGeometry(shader)) return;
     this.activeRenderPass.draw(vertexCount, instanceCount, firstVertex, firstInstance);
     this.AccumulateStats(shader, void 0, vertexCount, instanceCount);
   }
   static DrawIndirect(geometry, shader, indirectBuffer, indirectOffset = 0) {
     if (!this.activeRenderPass) throw Error("No active render pass");
-    if (!shader.OnPreRender(geometry)) return;
-    this.BindGeometry(shader, geometry);
+    if (!this.BindGeometry(shader, geometry)) return;
     if (!geometry.index) {
       this.activeRenderPass.drawIndirect(indirectBuffer.GetBuffer(), indirectOffset);
     } else {
@@ -4320,6 +4355,11 @@ const _Geometry = class _Geometry {
     if (!instance) throw Error("Capsule not registered as an asset");
     return instance;
   }
+  static Cylinder() {
+    const instance = Assets.GetInstance("@builtin/geometry/cylinder");
+    if (!instance) throw Error("Cylinder not registered as an asset");
+    return instance;
+  }
 };
 _init3$3 = __decoratorStart$8(null);
 __decorateElement$8(_init3$3, 5, "assetPath", _assetPath_dec$4, _Geometry);
@@ -4402,6 +4442,22 @@ function RegisterBuiltinGeometries() {
     const indices = new Uint32Array([0, 1, 9, 1, 10, 9, 1, 2, 10, 2, 11, 10, 2, 3, 11, 3, 12, 11, 3, 4, 12, 4, 13, 12, 4, 5, 13, 5, 14, 13, 5, 6, 14, 6, 15, 14, 6, 7, 15, 7, 16, 15, 7, 8, 16, 8, 17, 16, 9, 10, 18, 10, 19, 18, 10, 11, 19, 11, 20, 19, 11, 12, 20, 12, 21, 20, 12, 13, 21, 13, 22, 21, 13, 14, 22, 14, 23, 22, 14, 15, 23, 15, 24, 23, 15, 16, 24, 16, 25, 24, 16, 17, 25, 17, 26, 25, 18, 19, 27, 19, 28, 27, 19, 20, 28, 20, 29, 28, 20, 21, 29, 21, 30, 29, 21, 22, 30, 22, 31, 30, 22, 23, 31, 23, 32, 31, 23, 24, 32, 24, 33, 32, 24, 25, 33, 25, 34, 33, 25, 26, 34, 26, 35, 34, 27, 28, 36, 28, 37, 36, 28, 29, 37, 29, 38, 37, 29, 30, 38, 30, 39, 38, 30, 31, 39, 31, 40, 39, 31, 32, 40, 32, 41, 40, 32, 33, 41, 33, 42, 41, 33, 34, 42, 34, 43, 42, 34, 35, 43, 35, 44, 43, 36, 37, 45, 37, 46, 45, 37, 38, 46, 38, 47, 46, 38, 39, 47, 39, 48, 47, 39, 40, 48, 40, 49, 48, 40, 41, 49, 41, 50, 49, 41, 42, 50, 42, 51, 50, 42, 43, 51, 43, 52, 51, 43, 44, 52, 44, 53, 52, 45, 46, 54, 46, 55, 54, 46, 47, 55, 47, 56, 55, 47, 48, 56, 48, 57, 56, 48, 49, 57, 49, 58, 57, 49, 50, 58, 50, 59, 58, 50, 51, 59, 51, 60, 59, 51, 52, 60, 52, 61, 60, 52, 53, 61, 53, 62, 61, 54, 55, 63, 55, 64, 63, 55, 56, 64, 56, 65, 64, 56, 57, 65, 57, 66, 65, 57, 58, 66, 58, 67, 66, 58, 59, 67, 59, 68, 67, 59, 60, 68, 60, 69, 68, 60, 61, 69, 61, 70, 69, 61, 62, 70, 62, 71, 70, 63, 64, 72, 64, 73, 72, 64, 65, 73, 65, 74, 73, 65, 66, 74, 66, 75, 74, 66, 67, 75, 67, 76, 75, 67, 68, 76, 68, 77, 76, 68, 69, 77, 69, 78, 77, 69, 70, 78, 70, 79, 78, 70, 71, 79, 71, 80, 79, 72, 73, 81, 73, 82, 81, 73, 74, 82, 74, 83, 82, 74, 75, 83, 75, 84, 83, 75, 76, 84, 76, 85, 84, 76, 77, 85, 77, 86, 85, 77, 78, 86, 78, 87, 86, 78, 79, 87, 79, 88, 87, 79, 80, 88, 80, 89, 88]);
     const geometry = new Geometry();
     geometry.name = "Capsule";
+    geometry.assetPath = instancePath;
+    geometry.index = new IndexAttribute(new Uint32Array(indices));
+    geometry.attributes.set("position", new VertexAttribute(new Float32Array(vertices)));
+    geometry.attributes.set("normal", new VertexAttribute(new Float32Array(normals)));
+    geometry.attributes.set("uv", new VertexAttribute(new Float32Array(uvs)));
+    geometry.ComputeTangents();
+    Assets.SetInstance(instancePath, geometry);
+  }
+  {
+    const instancePath = "@builtin/geometry/cylinder";
+    const vertices = new Float32Array([0, 0.5, 0.5, 0.3536, 0.5, 0.3536, 0.5, 0.5, 0, 0.3536, 0.5, -0.3536, 0, 0.5, -0.5, -0.3536, 0.5, -0.3536, -0.5, 0.5, 0, -0.3536, 0.5, 0.3536, 0, 0.5, 0.5, 0, -0.5, 0.5, 0.3536, -0.5, 0.3536, 0.5, -0.5, 0, 0.3536, -0.5, -0.3536, 0, -0.5, -0.5, -0.3536, -0.5, -0.3536, -0.5, -0.5, 0, -0.3536, -0.5, 0.3536, 0, -0.5, 0.5, 0, 0.5, 0, 0, 0.5, 0, 0, 0.5, 0, 0, 0.5, 0, 0, 0.5, 0, 0, 0.5, 0, 0, 0.5, 0, 0, 0.5, 0, 0, 0.5, 0.5, 0.3536, 0.5, 0.3536, 0.5, 0.5, 0, 0.3536, 0.5, -0.3536, 0, 0.5, -0.5, -0.3536, 0.5, -0.3536, -0.5, 0.5, 0, -0.3536, 0.5, 0.3536, 0, 0.5, 0.5, 0, -0.5, 0, 0, -0.5, 0, 0, -0.5, 0, 0, -0.5, 0, 0, -0.5, 0, 0, -0.5, 0, 0, -0.5, 0, 0, -0.5, 0, 0, -0.5, 0.5, 0.3536, -0.5, 0.3536, 0.5, -0.5, 0, 0.3536, -0.5, -0.3536, 0, -0.5, -0.5, -0.3536, -0.5, -0.3536, -0.5, -0.5, 0, -0.3536, -0.5, 0.3536, 0, -0.5, 0.5]);
+    const normals = new Float32Array([0, 0, 1, 0.7071, 0, 0.7071, 1, 0, 0, 0.7071, 0, -0.7071, 0, 0, -1, -0.7071, 0, -0.7071, -1, 0, 0, -0.7071, 0, 0.7071, 0, 0, 1, 0, 0, 1, 0.7071, 0, 0.7071, 1, 0, 0, 0.7071, 0, -0.7071, 0, 0, -1, -0.7071, 0, -0.7071, -1, 0, 0, -0.7071, 0, 0.7071, 0, 0, 1, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, -1, 0, 0, -1, 0, 0, -1, 0, 0, -1, 0, 0, -1, 0, 0, -1, 0, 0, -1, 0, 0, -1, 0, 0, -1, 0, 0, -1, 0, 0, -1, 0, 0, -1, 0, 0, -1, 0, 0, -1, 0, 0, -1, 0, 0, -1, 0, 0, -1, 0]);
+    const uvs = new Float32Array([0, 1, 0.125, 1, 0.25, 1, 0.375, 1, 0.5, 1, 0.625, 1, 0.75, 1, 0.875, 1, 1, 1, 0, 0, 0.125, 0, 0.25, 0, 0.375, 0, 0.5, 0, 0.625, 0, 0.75, 0, 0.875, 0, 1, 0, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 1, 0.5, 0.8536, 0.8536, 0.5, 1, 0.1464, 0.8536, 0, 0.5, 0.1464, 0.1464, 0.5, 0, 0.8536, 0.1464, 1, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 1, 0.5, 0.8536, 0.1464, 0.5, 0, 0.1464, 0.1464, 0, 0.5, 0.1464, 0.8536, 0.5, 1, 0.8536, 0.8536, 1, 0.5]);
+    const indices = new Uint32Array([0, 9, 1, 9, 10, 1, 1, 10, 2, 10, 11, 2, 2, 11, 3, 11, 12, 3, 3, 12, 4, 12, 13, 4, 4, 13, 5, 13, 14, 5, 5, 14, 6, 14, 15, 6, 6, 15, 7, 15, 16, 7, 7, 16, 8, 16, 17, 8, 26, 27, 18, 27, 28, 19, 28, 29, 20, 29, 30, 21, 30, 31, 22, 31, 32, 23, 32, 33, 24, 33, 34, 25, 44, 43, 35, 45, 44, 36, 46, 45, 37, 47, 46, 38, 48, 47, 39, 49, 48, 40, 50, 49, 41, 51, 50, 42]);
+    const geometry = new Geometry();
+    geometry.name = "Cylinder";
     geometry.assetPath = instancePath;
     geometry.index = new IndexAttribute(new Uint32Array(indices));
     geometry.attributes.set("position", new VertexAttribute(new Float32Array(vertices)));
@@ -4957,14 +5013,10 @@ class DeferredLightingPass extends RenderPass {
   name = "DeferredLightingPass";
   shader;
   sampler;
-  quadGeometry;
   lightsBuffer;
   lightsCountBuffer;
-  outputLightingPass;
   needsUpdate = true;
   initialized = false;
-  dummyShadowPassDepth;
-  gBufferDepthClone;
   _volumeMatrix = new Matrix4();
   _volumeScale = new Vector3();
   _identityQuat = new Quaternion();
@@ -4975,8 +5027,6 @@ class DeferredLightingPass extends RenderPass {
       colorOutputs: [{ format: "rgba16float", blendMode: "add" }],
       depthOutput: "depth24plus",
       depthWriteEnabled: false,
-      // depthCompare: "less-equal",
-      // cullMode: "back"
       depthCompare: "greater-equal",
       cullMode: "front"
     });
@@ -4990,21 +5040,10 @@ class DeferredLightingPass extends RenderPass {
     this.shader.SetSampler("textureSampler", this.sampler);
     const shadowSamplerComp = new TextureSampler({ minFilter: "linear", magFilter: "linear", compare: "less" });
     this.shader.SetSampler("shadowSamplerComp", shadowSamplerComp);
-    this.quadGeometry = new Geometry();
     this.lightsBuffer = new DynamicBufferMemoryAllocator(120 * 1e4);
     this.lightsCountBuffer = new Buffer(1 * 4, BufferType.STORAGE);
     this.shader.SetBuffer("lights", this.lightsBuffer.getBuffer());
     this.shader.SetBuffer("lightCount", this.lightsCountBuffer);
-    this.outputLightingPass = RenderTexture.Create(Renderer.width, Renderer.height, 1, "rgba16float");
-    this.outputLightingPass.name = "DeferredLighting";
-    EventSystem.on(RendererEvents.Resized, () => {
-      const old = this.outputLightingPass;
-      this.outputLightingPass = RenderTexture.Create(Renderer.width, Renderer.height, 1, "rgba16float");
-      this.outputLightingPass.name = "DeferredLighting";
-      EventSystem.once(RendererEvents.FrameEnded, () => old.Destroy());
-    });
-    this.dummyShadowPassDepth = DepthTextureArray.Create(1, 1, 1);
-    this.gBufferDepthClone = DepthTexture.Create(Renderer.width, Renderer.height);
     EventSystem.on(LightEvents.Updated, (light) => {
       this.needsUpdate = true;
     });
@@ -5095,7 +5134,7 @@ class DeferredLightingPass extends RenderPass {
     const inputGBufferNormal = resources.getResource(PassParams.GBufferNormal);
     const inputGbufferERMO = resources.getResource(PassParams.GBufferERMO);
     const inputGBufferDepth = resources.getResource(PassParams.GBufferDepth);
-    const inputShadowPassDepth = resources.getResource(PassParams.ShadowPassDepth) || this.dummyShadowPassDepth;
+    const inputShadowPassDepth = resources.getResource(PassParams.ShadowPassDepth) || Texture.DepthTexture;
     const inputFrameBuffer = resources.getResource(PassParams.FrameBuffer);
     const inputSettingsBuffer = resources.getResource(PassParams.DebugSettings);
     if (!inputGBufferAlbedo) return;
@@ -5119,19 +5158,14 @@ class DeferredLightingPass extends RenderPass {
   execute(resources) {
     if (!this.initialized) return;
     if (this.drawCommands.length === 0) return;
-    const GBufferDepth = resources.getResource(PassParams.GBufferDepth);
-    if (!GBufferDepth) return;
-    if (this.gBufferDepthClone.width !== GBufferDepth.width || this.gBufferDepthClone.height !== GBufferDepth.height) {
-      this.gBufferDepthClone.Destroy();
-      this.gBufferDepthClone = DepthTexture.Create(GBufferDepth.width, GBufferDepth.height, GBufferDepth.depth, GBufferDepth.format);
-    }
-    RendererContext.CopyTextureToTextureV3({ texture: GBufferDepth }, { texture: this.gBufferDepthClone });
-    RendererContext.BeginRenderPass("DeferredLightingPass", [{ target: this.outputLightingPass, clear: false }], { target: this.gBufferDepthClone, clear: false }, true);
+    const GBufferDepthClone = resources.getResource(PassParams.GBufferDepthCopy);
+    const LightingPassOutput = resources.getResource(PassParams.LightingPassOutput);
+    if (!GBufferDepthClone || !LightingPassOutput) return;
+    RendererContext.BeginRenderPass("DeferredLightingPass", [{ target: LightingPassOutput, clear: false }], { target: GBufferDepthClone, clear: false }, true);
     for (const draw of this.drawCommands) {
       RendererContext.DrawGeometry(draw.geometry, draw.shader, draw.instanceCount, draw.firstInstance);
     }
     RendererContext.EndRenderPass();
-    resources.setResource(PassParams.LightingPassOutput, this.outputLightingPass);
     resources.setResource(PassParams.LightsBuffer, this.lightsBuffer);
   }
 }
@@ -5186,13 +5220,7 @@ class TextureViewer extends RenderPass {
       colorOutputs: [{ format: Renderer.SwapChainFormat }]
     });
     this.quadGeometry = new Geometry();
-    const sampler = new TextureSampler({
-      minFilter: "nearest",
-      magFilter: "nearest",
-      mipmapFilter: "nearest",
-      addressModeU: "clamp-to-edge",
-      addressModeV: "clamp-to-edge"
-    });
+    const sampler = new TextureSampler();
     this.shader.SetSampler("textureSampler", sampler);
     this.initialized = true;
   }
@@ -5486,8 +5514,8 @@ class PrepareGBuffers extends RenderPass {
   gBufferAlbedoRT;
   gBufferNormalRT;
   gBufferERMORT;
+  outputLightingPass;
   depthTexture;
-  GBufferFormat = "rgba16float";
   FrameBuffer;
   FrameBufferValues = new ArrayBuffer(464);
   FrameBufferViews = {
@@ -5518,14 +5546,19 @@ class PrepareGBuffers extends RenderPass {
     if (this.gBufferAlbedoRT) this.gBufferAlbedoRT.Destroy();
     if (this.gBufferNormalRT) this.gBufferNormalRT.Destroy();
     if (this.gBufferERMORT) this.gBufferERMORT.Destroy();
-    this.depthTexture = DepthTexture.Create(Renderer.width, Renderer.height);
-    this.gBufferAlbedoRT = RenderTexture.Create(Renderer.width, Renderer.height, 1, this.GBufferFormat);
-    this.gBufferNormalRT = RenderTexture.Create(Renderer.width, Renderer.height, 1, this.GBufferFormat);
-    this.gBufferERMORT = RenderTexture.Create(Renderer.width, Renderer.height, 1, this.GBufferFormat);
+    if (this.outputLightingPass) this.outputLightingPass.Destroy();
+    const w = Renderer.width;
+    const h = Renderer.height;
+    this.depthTexture = DepthTexture.Create(w, h);
+    this.gBufferAlbedoRT = RenderTexture.Create(w, h, 1, RenderingPipeline.GBufferFormat);
+    this.gBufferNormalRT = RenderTexture.Create(w, h, 1, RenderingPipeline.GBufferFormat);
+    this.gBufferERMORT = RenderTexture.Create(w, h, 1, RenderingPipeline.GBufferFormat);
+    this.outputLightingPass = RenderTexture.Create(w, h, 1, RenderingPipeline.GBufferFormat);
     this.depthTexture.name = "GBufferDepth";
     this.gBufferAlbedoRT.name = "GBufferAlbedo";
     this.gBufferNormalRT.name = "GBufferNormal";
     this.gBufferERMORT.name = "GBufferERMO";
+    this.outputLightingPass.name = "DeferredLighting";
   }
   async init(resources) {
     this.CreateGBufferTextures();
@@ -5536,17 +5569,17 @@ class PrepareGBuffers extends RenderPass {
   preFrame(resources) {
     if (!this.initialized) return;
     if (!Camera.mainCamera) return;
-    resources.setResource(PassParams.depthTexture, this.depthTexture);
     resources.setResource(PassParams.GBufferDepth, this.depthTexture);
     resources.setResource(PassParams.GBufferAlbedo, this.gBufferAlbedoRT);
     resources.setResource(PassParams.GBufferNormal, this.gBufferNormalRT);
     resources.setResource(PassParams.GBufferERMO, this.gBufferERMORT);
+    resources.setResource(PassParams.LightingPassOutput, this.outputLightingPass);
     this.SettingsViews.pcfResolution.set([ShadowMapSettings.r_shadows_pcfResolution.value]);
     this.SettingsViews.blendThreshold.set([ShadowMapSettings.r_shadows_csm_blendThresholdValue.value]);
     this.SettingsBuffer.SetArray(this.SettingsValues);
     resources.setResource(PassParams.DebugSettings, this.SettingsBuffer);
     const camera = Camera.mainCamera;
-    this.FrameBufferViews.projectionOutputSize.set([Renderer.width, Renderer.height, 0, 0]);
+    this.FrameBufferViews.projectionOutputSize.set([this.outputLightingPass.width, this.outputLightingPass.height, 0, 0]);
     this.FrameBufferViews.viewPosition.set([...camera.transform.position.elements, 0]);
     const tempMatrix = new Matrix4();
     this.FrameBufferViews.projectionInverseMatrix.set(tempMatrix.clone().copy(camera.projectionMatrix).invert().elements);
@@ -5655,14 +5688,14 @@ class RenderablePass extends RenderPass {
   }
 }
 
-const TextureViewerSettings = Console.define({
+const TonemapSettings = Console.define({
   r_tonemapper: { default: 1, help: "Tonemapper type (disabled" },
   r_exposure: { default: 0, help: "Exposure" },
   r_contrast: { default: 1, help: "Contrast" },
   r_saturation: { default: 1, help: "Saturation" }
 });
-class PostExposureTonemap extends RenderPass {
-  name = "PostExposureTonemap";
+class TonemapPass extends RenderPass {
+  name = "TonemapPass";
   shader;
   quadGeometry;
   renderTarget;
@@ -5771,11 +5804,12 @@ class PostExposureTonemap extends RenderPass {
             let a = c.a;
             var col = c.rgb;
             
-            col = col * exp2(params.exposure);
-
-            // // Tonemap
+            // Tonemap
             if (i32(params.tonemapType) == 1) {
                 col = toneMapping(col);
+            }
+            else if (i32(params.tonemapType) == 2) {
+                col = aces_fitted(col);
             }
 
             col = applyContrast(col, params.contrast);
@@ -5792,24 +5826,23 @@ class PostExposureTonemap extends RenderPass {
     this.quadGeometry = new Geometry();
     const sampler = new TextureSampler();
     this.shader.SetSampler("textureSampler", sampler);
-    this.renderTarget = RenderTexture.Create(Renderer.width, Renderer.height, 1, "rgba16float");
     this.initialized = true;
   }
   preFrame(resources) {
     if (this.initialized === false) return;
     this.shader.SetArray("params", new Float32Array([
-      TextureViewerSettings.r_tonemapper.value,
-      TextureViewerSettings.r_exposure.value,
-      TextureViewerSettings.r_contrast.value,
-      TextureViewerSettings.r_saturation.value
+      TonemapSettings.r_tonemapper.value,
+      TonemapSettings.r_exposure.value,
+      TonemapSettings.r_contrast.value,
+      TonemapSettings.r_saturation.value
     ]));
   }
   execute(resources) {
     if (this.initialized === false) return;
     const LightingPassOutputTexture = resources.getResource(PassParams.LightingPassOutput);
     if (!LightingPassOutputTexture) return;
-    if (this.renderTarget.width !== LightingPassOutputTexture.width || this.renderTarget.height !== LightingPassOutputTexture.height) {
-      this.renderTarget.Destroy();
+    if (!this.renderTarget || this.renderTarget.width !== LightingPassOutputTexture.width || this.renderTarget.height !== LightingPassOutputTexture.height) {
+      if (this.renderTarget) this.renderTarget.Destroy();
       this.renderTarget = RenderTexture.Create(LightingPassOutputTexture.width, LightingPassOutputTexture.height, LightingPassOutputTexture.depth, LightingPassOutputTexture.format);
     }
     this.shader.SetTexture("texture", LightingPassOutputTexture);
@@ -5924,7 +5957,7 @@ var __decorateElement$5 = (array, flags, name, decorators, target, extra) => {
   return target;
 };
 var __publicField$5 = (obj, key, value) => __defNormalProp$5(obj, typeof key !== "symbol" ? key + "" : key, value);
-var _defines_dec, _cullMode_dec, _isDeferred_dec, _init$5, _params_dec, _assetPath_dec$3, _init2$3, _emissiveMap_dec, _armMap_dec, _heightMap_dec, _normalMap_dec, _albedoMap_dec, _offset_dec, _repeat_dec, _alphaCutoff_dec, _unlit_dec, _metalness_dec, _roughness_dec, _emissiveColor_dec, _albedoColor_dec, _defines_dec2, _isDeferred_dec2, _a$4, _init3$1;
+var _defines_dec, _cullMode_dec, _isDeferred_dec, _init$5, _params_dec, _assetPath_dec$3, _init2$3, _emissiveMap_dec, _armMap_dec, _heightMap_dec, _normalMap_dec, _albedoMap_dec, _offset_dec, _repeat_dec, _alphaCutoff_dec, _unlit_dec, _metalness_dec, _roughness_dec, _emissiveExposure_dec, _emissiveColor_dec, _albedoColor_dec, _defines_dec2, _isDeferred_dec2, _a$4, _init3$1;
 const MaterialPool = new Pool();
 var CullMode = /* @__PURE__ */ ((CullMode2) => {
   CullMode2["Back"] = "back";
@@ -5981,39 +6014,7 @@ const _Material = class _Material {
     if (!Ctor) throw new Error(`No material registered for type "${type}"`);
     return new Ctor(params);
   }
-  SetTexture(name, value) {
-    this.params[name] = value;
-    this.ReloadMaterial();
-  }
-  SetColor(name, value) {
-    this.params[name] = value;
-    this.ReloadMaterial();
-  }
-  SetVector4(name, value) {
-    this.params[name] = value;
-    this.ReloadMaterial();
-  }
-  SetVector3(name, value) {
-    this.params[name] = value;
-    this.ReloadMaterial();
-  }
-  SetVector2(name, value) {
-    this.params[name] = value;
-    this.ReloadMaterial();
-  }
-  SetMatrix4(name, value) {
-    this.params[name] = value;
-    this.ReloadMaterial();
-  }
-  SetQuaternion(name, value) {
-    this.params[name] = value;
-    this.ReloadMaterial();
-  }
-  SetValue(name, value) {
-    this.params[name] = value;
-    this.ReloadMaterial();
-  }
-  SetBoolean(name, value) {
+  SetProperty(name, value) {
     this.params[name] = value;
     this.ReloadMaterial();
   }
@@ -6064,24 +6065,25 @@ __decoratorMetadata$5(_init2$3, _Material);
 __publicField$5(_Material, "type", "@trident/core/renderer/Material");
 __publicField$5(_Material, "Registry", /* @__PURE__ */ new Map());
 let Material = _Material;
-class PBRMaterialParams extends (_a$4 = MaterialParams, _isDeferred_dec2 = [SerializeField], _defines_dec2 = [SerializeField], _albedoColor_dec = [SerializeField], _emissiveColor_dec = [SerializeField], _roughness_dec = [SerializeField], _metalness_dec = [SerializeField], _unlit_dec = [SerializeField], _alphaCutoff_dec = [SerializeField], _repeat_dec = [SerializeField], _offset_dec = [SerializeField], _albedoMap_dec = [SerializeField(Texture)], _normalMap_dec = [SerializeField(Texture)], _heightMap_dec = [SerializeField(Texture)], _armMap_dec = [SerializeField(Texture)], _emissiveMap_dec = [SerializeField(Texture)], _a$4) {
+class PBRMaterialParams extends (_a$4 = MaterialParams, _isDeferred_dec2 = [SerializeField], _defines_dec2 = [SerializeField], _albedoColor_dec = [SerializeField], _emissiveColor_dec = [SerializeField], _emissiveExposure_dec = [SerializeField], _roughness_dec = [SerializeField], _metalness_dec = [SerializeField], _unlit_dec = [SerializeField], _alphaCutoff_dec = [SerializeField], _repeat_dec = [SerializeField], _offset_dec = [SerializeField], _albedoMap_dec = [SerializeField(Texture)], _normalMap_dec = [SerializeField(Texture)], _heightMap_dec = [SerializeField(Texture)], _armMap_dec = [SerializeField(Texture)], _emissiveMap_dec = [SerializeField(Texture)], _a$4) {
   constructor() {
     super(...arguments);
     __publicField$5(this, "isDeferred", __runInitializers$5(_init3$1, 8, this, true)), __runInitializers$5(_init3$1, 11, this);
     __publicField$5(this, "defines", __runInitializers$5(_init3$1, 12, this, { USE_SKINNING: false })), __runInitializers$5(_init3$1, 15, this);
     __publicField$5(this, "albedoColor", __runInitializers$5(_init3$1, 16, this, new Color(1, 1, 1, 1))), __runInitializers$5(_init3$1, 19, this);
-    __publicField$5(this, "emissiveColor", __runInitializers$5(_init3$1, 20, this, new Color(0, 0, 0, 0))), __runInitializers$5(_init3$1, 23, this);
-    __publicField$5(this, "roughness", __runInitializers$5(_init3$1, 24, this, 1)), __runInitializers$5(_init3$1, 27, this);
-    __publicField$5(this, "metalness", __runInitializers$5(_init3$1, 28, this, 1)), __runInitializers$5(_init3$1, 31, this);
-    __publicField$5(this, "unlit", __runInitializers$5(_init3$1, 32, this, false)), __runInitializers$5(_init3$1, 35, this);
-    __publicField$5(this, "alphaCutoff", __runInitializers$5(_init3$1, 36, this, 0.5)), __runInitializers$5(_init3$1, 39, this);
-    __publicField$5(this, "repeat", __runInitializers$5(_init3$1, 40, this, new Vector2(1, 1))), __runInitializers$5(_init3$1, 43, this);
-    __publicField$5(this, "offset", __runInitializers$5(_init3$1, 44, this, new Vector2(0, 0))), __runInitializers$5(_init3$1, 47, this);
-    __publicField$5(this, "albedoMap", __runInitializers$5(_init3$1, 48, this, Texture.WhiteTexture)), __runInitializers$5(_init3$1, 51, this);
-    __publicField$5(this, "normalMap", __runInitializers$5(_init3$1, 52, this, Texture.NormalTexture)), __runInitializers$5(_init3$1, 55, this);
-    __publicField$5(this, "heightMap", __runInitializers$5(_init3$1, 56, this, Texture.BlackTexture)), __runInitializers$5(_init3$1, 59, this);
-    __publicField$5(this, "armMap", __runInitializers$5(_init3$1, 60, this, Texture.WhiteTexture)), __runInitializers$5(_init3$1, 63, this);
-    __publicField$5(this, "emissiveMap", __runInitializers$5(_init3$1, 64, this, Texture.WhiteTexture)), __runInitializers$5(_init3$1, 67, this);
+    __publicField$5(this, "emissiveColor", __runInitializers$5(_init3$1, 20, this, new Color(0, 0, 0, 1))), __runInitializers$5(_init3$1, 23, this);
+    __publicField$5(this, "emissiveExposure", __runInitializers$5(_init3$1, 24, this, 1)), __runInitializers$5(_init3$1, 27, this);
+    __publicField$5(this, "roughness", __runInitializers$5(_init3$1, 28, this, 1)), __runInitializers$5(_init3$1, 31, this);
+    __publicField$5(this, "metalness", __runInitializers$5(_init3$1, 32, this, 0)), __runInitializers$5(_init3$1, 35, this);
+    __publicField$5(this, "unlit", __runInitializers$5(_init3$1, 36, this, false)), __runInitializers$5(_init3$1, 39, this);
+    __publicField$5(this, "alphaCutoff", __runInitializers$5(_init3$1, 40, this, 0.5)), __runInitializers$5(_init3$1, 43, this);
+    __publicField$5(this, "repeat", __runInitializers$5(_init3$1, 44, this, new Vector2(1, 1))), __runInitializers$5(_init3$1, 47, this);
+    __publicField$5(this, "offset", __runInitializers$5(_init3$1, 48, this, new Vector2(0, 0))), __runInitializers$5(_init3$1, 51, this);
+    __publicField$5(this, "albedoMap", __runInitializers$5(_init3$1, 52, this, Texture.WhiteTexture)), __runInitializers$5(_init3$1, 55, this);
+    __publicField$5(this, "normalMap", __runInitializers$5(_init3$1, 56, this, Texture.NormalTexture)), __runInitializers$5(_init3$1, 59, this);
+    __publicField$5(this, "heightMap", __runInitializers$5(_init3$1, 60, this, Texture.BlackTexture)), __runInitializers$5(_init3$1, 63, this);
+    __publicField$5(this, "armMap", __runInitializers$5(_init3$1, 64, this, Texture.ARMTexture)), __runInitializers$5(_init3$1, 67, this);
+    __publicField$5(this, "emissiveMap", __runInitializers$5(_init3$1, 68, this, Texture.WhiteTexture)), __runInitializers$5(_init3$1, 71, this);
   }
 }
 _init3$1 = __decoratorStart$5(_a$4);
@@ -6089,6 +6091,7 @@ __decorateElement$5(_init3$1, 5, "isDeferred", _isDeferred_dec2, PBRMaterialPara
 __decorateElement$5(_init3$1, 5, "defines", _defines_dec2, PBRMaterialParams);
 __decorateElement$5(_init3$1, 5, "albedoColor", _albedoColor_dec, PBRMaterialParams);
 __decorateElement$5(_init3$1, 5, "emissiveColor", _emissiveColor_dec, PBRMaterialParams);
+__decorateElement$5(_init3$1, 5, "emissiveExposure", _emissiveExposure_dec, PBRMaterialParams);
 __decorateElement$5(_init3$1, 5, "roughness", _roughness_dec, PBRMaterialParams);
 __decorateElement$5(_init3$1, 5, "metalness", _metalness_dec, PBRMaterialParams);
 __decorateElement$5(_init3$1, 5, "unlit", _unlit_dec, PBRMaterialParams);
@@ -6189,15 +6192,17 @@ class PBRMaterial extends Material {
   }
   ReloadMaterial() {
     const p = this.params;
+    const emissive = p.emissiveColor.clone();
+    emissive.mul(Math.pow(2, p.emissiveExposure));
     const material = new Float32Array([
       p.albedoColor.r,
       p.albedoColor.g,
       p.albedoColor.b,
       p.albedoColor.a,
-      p.emissiveColor.r,
-      p.emissiveColor.g,
-      p.emissiveColor.b,
-      p.emissiveColor.a,
+      emissive.r,
+      emissive.g,
+      emissive.b,
+      emissive.a,
       p.roughness,
       p.metalness,
       +p.unlit,
@@ -6401,23 +6406,16 @@ class SceneCopyPass extends RenderPass {
   name = "SceneCopyPass";
   gbufferAlbedo;
   gBufferDepth;
-  async init() {
-    this.gbufferAlbedo = RenderTexture.Create(Renderer.width, Renderer.height, 1, RenderingPipeline.GBufferFormat);
-    this.gbufferAlbedo.name = "GBufferAlbedoCopy";
-    this.gBufferDepth = DepthTexture.Create(Renderer.width, Renderer.height);
-    this.gBufferDepth.name = "GBufferDepthCopy";
-    this.initialized = true;
-  }
   execute(resources) {
     if (!this.initialized) return;
     const albedo = resources.getResource(PassParams.GBufferAlbedo);
     const depth = resources.getResource(PassParams.GBufferDepth);
     if (!albedo || !depth) return;
-    if (this.gbufferAlbedo.width !== albedo.width || this.gbufferAlbedo.height !== albedo.height) {
+    if (!this.gbufferAlbedo || this.gbufferAlbedo.width !== albedo.width || this.gbufferAlbedo.height !== albedo.height) {
       this.gbufferAlbedo = RenderTexture.Create(albedo.width, albedo.height, 1, RenderingPipeline.GBufferFormat);
       this.gbufferAlbedo.name = "GBufferAlbedoCopy";
     }
-    if (this.gBufferDepth.width !== depth.width || this.gBufferDepth.height !== depth.height) {
+    if (!this.gBufferDepth || this.gBufferDepth.width !== depth.width || this.gBufferDepth.height !== depth.height) {
       this.gBufferDepth = DepthTexture.Create(depth.width, depth.height, depth.depth, depth.format);
       this.gBufferDepth.name = "GBufferDepthCopy";
     }
@@ -6428,11 +6426,87 @@ class SceneCopyPass extends RenderPass {
   }
 }
 
+class ExposurePass extends RenderPass {
+  name = "ExposurePass";
+  shader;
+  quadGeometry;
+  renderTarget;
+  async init() {
+    const code = `
+        struct VertexOutput {
+            @builtin(position) position : vec4<f32>,
+            @location(0) vUv : vec2<f32>,
+        };
+
+        @group(0) @binding(0) var textureSampler: sampler;
+        @group(0) @binding(1) var texture: texture_2d<f32>;
+
+        struct Params {
+            exposure: f32,
+            padding0: f32,
+            padding1: f32,
+            padding2: f32,
+        };
+        @group(0) @binding(2) var<storage, read> params: Params;
+
+        // Full-screen triangle (covers screen with 3 verts)
+        const p = array<vec2f, 3>(
+            vec2f(-1.0, -1.0),
+            vec2f( 3.0, -1.0),
+            vec2f(-1.0,  3.0)
+        );
+
+        @vertex fn vertexMain(@builtin(vertex_index) vertexIndex : u32) -> VertexOutput {
+            var out : VertexOutput;
+            out.position = vec4f(p[vertexIndex], 0.0, 1.0);
+            let uv = 0.5 * (p[vertexIndex] + vec2f(1.0, 1.0));
+            out.vUv = vec2f(uv.x, 1.0 - uv.y);
+            return out;
+        }
+
+        @fragment fn fragmentMain(input: VertexOutput) -> @location(0) vec4f {
+            let c = textureSampleLevel(texture, textureSampler, input.vUv, 0.0);
+            return vec4f(c.rgb * exp2(params.exposure), c.a);
+        }
+        `;
+    this.shader = await Shader.Create({
+      code,
+      colorOutputs: [{ format: "rgba16float" }]
+    });
+    this.quadGeometry = new Geometry();
+    const sampler = new TextureSampler();
+    this.shader.SetSampler("textureSampler", sampler);
+    this.initialized = true;
+  }
+  preFrame(resources) {
+    if (this.initialized === false) return;
+    this.shader.SetArray("params", new Float32Array([
+      TonemapSettings.r_exposure.value,
+      0,
+      0,
+      0
+    ]));
+  }
+  execute(resources) {
+    if (this.initialized === false) return;
+    if (TonemapSettings.r_exposure.value === 0) return;
+    const LightingPassOutputTexture = resources.getResource(PassParams.LightingPassOutput);
+    if (!LightingPassOutputTexture) return;
+    if (!this.renderTarget || this.renderTarget.width !== LightingPassOutputTexture.width || this.renderTarget.height !== LightingPassOutputTexture.height) {
+      if (this.renderTarget) this.renderTarget.Destroy();
+      this.renderTarget = RenderTexture.Create(LightingPassOutputTexture.width, LightingPassOutputTexture.height, LightingPassOutputTexture.depth, LightingPassOutputTexture.format);
+    }
+    this.shader.SetTexture("texture", LightingPassOutputTexture);
+    RendererContext.BeginRenderPass(this.name, [{ clear: false, target: this.renderTarget }], void 0, true);
+    RendererContext.Draw(this.quadGeometry, this.shader, 3);
+    RendererContext.EndRenderPass();
+    RendererContext.CopyTextureToTexture(this.renderTarget, LightingPassOutputTexture);
+  }
+}
+
 const PassParams = {
   DebugSettings: "DebugSettings",
   MainCamera: "MainCamera",
-  depthTexture: "depthTexture",
-  depthTexturePyramid: "depthTexturePyramid",
   GBufferAlbedo: "GBufferAlbedo",
   GBufferNormal: "GBufferNormal",
   GBufferERMO: "GBufferERMO",
@@ -6453,6 +6527,7 @@ var RenderPassOrder = /* @__PURE__ */ ((RenderPassOrder2) => {
   RenderPassOrder2[RenderPassOrder2["AfterLighting"] = 3] = "AfterLighting";
   RenderPassOrder2[RenderPassOrder2["BeforeScreenOutput"] = 4] = "BeforeScreenOutput";
   RenderPassOrder2[RenderPassOrder2["AfterScreenOutput"] = 5] = "AfterScreenOutput";
+  RenderPassOrder2[RenderPassOrder2["BeforePostProcess"] = 6] = "BeforePostProcess";
   return RenderPassOrder2;
 })(RenderPassOrder || {});
 class RenderingPipeline {
@@ -6463,21 +6538,20 @@ class RenderingPipeline {
   afterGBufferPasses = [];
   beforeLightingPasses = [];
   afterLightingPasses = [];
+  beforePostProcessPasses = [];
   beforeScreenOutputPasses = [];
   afterScreenOutputPasses = [];
-  prepareGBuffersPass;
   get GBufferFormat() {
-    return this.prepareGBuffersPass.GBufferFormat;
+    return RenderingPipeline.GBufferFormat;
   }
   static GBufferFormat = "rgba16float";
-  // use the current value
   DeferredShadowMapPass = new DeferredShadowMapPass();
   constructor() {
     this.prepareGBuffersPass = new PrepareGBuffers();
     this.renderGraph = new RenderGraph();
     this.beforeGBufferPasses = [
       new SceneExtractPass(),
-      this.prepareGBuffersPass
+      new PrepareGBuffers()
     ];
     this.afterGBufferPasses = [
       new RenderablePass(),
@@ -6487,11 +6561,14 @@ class RenderingPipeline {
     this.beforeLightingPasses = [];
     this.afterLightingPasses = [
       new BasePass(),
-      new DeferredLightingPass(),
-      new ForwardPass()
+      new DeferredLightingPass()
+    ];
+    this.beforePostProcessPasses = [
+      new ForwardPass(),
+      new ExposurePass()
     ];
     this.beforeScreenOutputPasses = [
-      new PostExposureTonemap()
+      new TonemapPass()
     ];
     this.afterScreenOutputPasses = [
       new TextureViewer()
@@ -6505,6 +6582,7 @@ class RenderingPipeline {
       ...this.afterGBufferPasses,
       ...this.beforeLightingPasses,
       ...this.afterLightingPasses,
+      ...this.beforePostProcessPasses,
       ...this.beforeScreenOutputPasses,
       ...this.afterScreenOutputPasses
     );
@@ -6516,6 +6594,7 @@ class RenderingPipeline {
     else if (order === 1 /* AfterGBuffer */) this.afterGBufferPasses.push(passInstance);
     else if (order === 2 /* BeforeLighting */) this.beforeLightingPasses.push(passInstance);
     else if (order === 3 /* AfterLighting */) this.afterLightingPasses.push(passInstance);
+    else if (order === 6 /* BeforePostProcess */) this.beforePostProcessPasses.push(passInstance);
     else if (order === 4 /* BeforeScreenOutput */) this.beforeScreenOutputPasses.push(passInstance);
     else if (order === 5 /* AfterScreenOutput */) this.afterScreenOutputPasses.push(passInstance);
     this.UpdateRenderGraphPasses();
@@ -6527,6 +6606,7 @@ class RenderingPipeline {
       [1 /* AfterGBuffer */]: this.afterGBufferPasses,
       [2 /* BeforeLighting */]: this.beforeLightingPasses,
       [3 /* AfterLighting */]: this.afterLightingPasses,
+      [6 /* BeforePostProcess */]: this.beforePostProcessPasses,
       [4 /* BeforeScreenOutput */]: this.beforeScreenOutputPasses,
       [5 /* AfterScreenOutput */]: this.afterScreenOutputPasses
     };
@@ -6642,7 +6722,7 @@ class Renderer extends System {
     context.configure({ device: Renderer.device, format: Renderer.SwapChainFormat, alphaMode: "opaque" });
     Renderer.context = context;
     Renderer.device.onuncapturederror = (event) => {
-      throw Error(`WebGPU uncaptured error: ${event.error}`);
+      console.error("WebGPU:", event.error.message);
     };
     window.addEventListener("beforeunload", () => {
       device.destroy();
@@ -7149,15 +7229,21 @@ class Mesh extends Renderable {
   get firstInstance() {
     return this.matrixOffset / 16;
   }
+  matricesDirty = true;
   constructor(gameObject) {
     super(gameObject);
     if (!Mesh.modelMatrices) Mesh.modelMatrices = new DynamicBufferMemoryAllocator(16 * 1e3, 16 * 1e3);
-    EventSystemLocal.on(TransformEvents.Updated, this.transform, () => this.uploadMatrices());
+    EventSystemLocal.on(TransformEvents.Updated, this.transform, () => this.matricesDirty = true);
     this.uploadMatrices();
   }
   uploadMatrices() {
     this.matrixOffset = Mesh.modelMatrices.set(this.id, this.transform.localToWorldMatrix.elements);
     this.instanceCount = 1;
+  }
+  OnPreFrame() {
+    if (!this.matricesDirty) return;
+    this.uploadMatrices();
+    this.matricesDirty = false;
   }
   OnRenderObject() {
     const shader = this.material?.shader;
@@ -7283,6 +7369,7 @@ class SkinnedMesh extends (_b$1 = Mesh, _skeletonRoot_dec = [SerializeField], _b
     return true;
   }
   OnPreFrame() {
+    super.OnPreFrame();
     const skel = this.getSkeleton();
     if (!skel || skel.bones.length === 0) return;
     if (!this.ensureBuffer(skel.bones.length)) return;
@@ -8338,6 +8425,27 @@ class Scene {
         if (arr.length === 0) this.componentsByType.delete(ctor);
       }
     }
+  }
+  FindGameObject(path) {
+    const segments = path.split("/").filter((s) => s.length > 0);
+    if (segments.length === 0) return null;
+    const match = (gameObject, depth) => {
+      if (gameObject.name !== segments[depth]) return null;
+      if (depth === segments.length - 1) return gameObject;
+      for (const child of gameObject.transform.children) {
+        const hit = match(child.gameObject, depth + 1);
+        if (hit) return hit;
+      }
+      return null;
+    };
+    if (segments.length === 1 && !path.startsWith("/")) {
+      return this.gameObjects.find((go) => go.name === segments[0]) ?? null;
+    }
+    for (const root of this.GetRootGameObjects()) {
+      const hit = match(root, 0);
+      if (hit) return hit;
+    }
+    return null;
   }
   Update() {
     const edit = this.mode === 1 /* Edit */;

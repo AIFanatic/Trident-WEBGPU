@@ -3,26 +3,30 @@ import { GPU } from '@trident/core';
 class PostProcessingPass extends GPU.RenderPass {
   name = "PostProcessingPass";
   effects = [];
-  constructor() {
-    super();
-  }
   async init(resources) {
     for (const effect of this.effects) {
+      if (effect.initialized || effect.initializing) continue;
+      effect.initializing = true;
       await effect.init(resources);
+      effect.initialized = true;
     }
     this.initialized = true;
   }
-  async preFrame(resources) {
+  preFrame(resources) {
     if (this.initialized === false) return;
     for (const effect of this.effects) {
       if (!effect.initialized) {
-        await effect.init(resources);
+        if (effect.initializing) continue;
+        effect.initializing = true;
+        effect.init(resources).then(() => {
+          effect.initialized = true;
+        });
         continue;
       }
       effect.preFrame(resources);
     }
   }
-  async execute(resources) {
+  execute(resources) {
     if (this.initialized === false) return;
     for (const effect of this.effects) {
       if (!effect.initialized) continue;
