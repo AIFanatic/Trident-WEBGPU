@@ -5,30 +5,35 @@ export class PostProcessingPass extends GPU.RenderPass {
 
     public effects: GPU.RenderPass[] = []
 
-    constructor() {
-        super();
-    }
-
     public async init(resources: GPU.ResourcePool) {
         for (const effect of this.effects) {
+            if (effect.initialized || effect.initializing) continue;
+            effect.initializing = true;
             await effect.init(resources);
+            effect.initialized = true;
         }
 
         this.initialized = true;
     }
 
-    public async preFrame(resources: GPU.ResourcePool) {
+    public preFrame(resources: GPU.ResourcePool) {
         if (this.initialized === false) return;
 
         for (const effect of this.effects) {
             if (!effect.initialized) {
-                await effect.init(resources);
+                // RenderGraph calls preFrame fire-and-forget, so without this guard init() is
+                // restarted every frame while the first is still awaiting, and each restart
+                // swaps the effect's shaders out mid-flight.
+                if (effect.initializing) continue;
+                effect.initializing = true;
+                effect.init(resources).then(() => { effect.initialized = true; });
                 continue;
             }
             effect.preFrame(resources);
-        } 
+        }
     }
-    public async execute(resources: GPU.ResourcePool) {
+
+    public execute(resources: GPU.ResourcePool) {
         if (this.initialized === false) return;
 
         for (const effect of this.effects) {

@@ -33,7 +33,7 @@ fn get_multiple_scattering(transmittance_lut: texture_2d<f32>, cos_theta: f32, n
     // Fit of Earth's multiple scattering coming from other points in the atmosphere
     let L_ms = 0.006 * vec4(0.217, 0.347, 0.594, 1.0) * (1.0 / (1.0 + 5.0 * exp(-17.92 * cos_theta)));
 
-    return L_ground;
+    return L_ground + L_ms;
 // #else
 //     return vec4(0.0);
 // #endif
@@ -71,7 +71,7 @@ fn get_sun_direction() -> vec3f {
     let azimuth   = radians(params.SUN_AZIMUTH_DEGREES);
 
     let cos_zenith = cos(radians(90.0) - elevation);
-    let sin_zenith = sin(radians(-90.0) - elevation);
+    let sin_zenith = sin(radians(90.0) - elevation);
 
     let x = sin_zenith * cos(azimuth);
     let y = sin_zenith * sin(azimuth);
@@ -89,7 +89,7 @@ fn compute_inscattering(ray_origin: vec3f, ray_dir: vec3f, t_d: f32) -> ComputeI
     var out: ComputeInscattering;
 
     let sun_dir = get_sun_direction();
-    let cos_theta = dot(-ray_dir, sun_dir);
+    let cos_theta = dot(ray_dir, sun_dir);
 
     let molecular_phase = molecular_phase_function(cos_theta);
     let aerosol_phase = aerosol_phase_function(cos_theta);
@@ -137,19 +137,6 @@ fn compute_inscattering(ray_origin: vec3f, ray_dir: vec3f, t_d: f32) -> ComputeI
     out.L_inscattering = L_inscattering;
     out.transmittance = transmittance;
     return out;
-}
-
-fn sunWithBloom(rayDir: vec3f, sunDir: vec3f) -> vec3f {
-    const sunSolidAngle = 0.53*PI/180.0;
-    const minSunCosTheta = cos(sunSolidAngle);
-
-    let cosTheta = dot(rayDir, sunDir);
-    if (cosTheta >= minSunCosTheta) { return vec3(1.0); }
-    
-    let offset = minSunCosTheta - cosTheta;
-    let gaussianBloom = exp(-offset*50000.0)*0.5;
-    let invBloom = 1.0/(0.02 + offset*300.0)*0.1;
-    return vec3(gaussianBloom+invBloom * vec3(2.0, 1.0, 1.0));
 }
 
 @fragment
@@ -204,4 +191,5 @@ fn fragmentMain(input: VertexOutput) -> @location(0) vec4<f32> {
 
     let col = linear_srgb_from_spectral_samples(L) * exp2(-4.0);
     return vec4(col, 1.0);
+    // return vec4(L.rgb, 1.0);
 }

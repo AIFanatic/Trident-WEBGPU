@@ -56,7 +56,7 @@ const uint32_t* meshlet_indices_ptr() { return out_indices.data(); }
 void nanite(const Vertex* _vertices, size_t vertex_count, const unsigned int* _indices, size_t index_count) {
 	clodConfig config = clodDefaultConfig(/*max_triangles=*/128);
 	
-	const float attribute_weights[3] = {0.5f, 0.5f, 0.5f};
+	const float attribute_weights[5] = {0.5f, 0.5f, 0.5f, 1.0f, 1.0f};
 	
 	std::vector<Vertex> vertices(_vertices, _vertices + vertex_count);
 	std::vector<unsigned int> indices(_indices, _indices + index_count);

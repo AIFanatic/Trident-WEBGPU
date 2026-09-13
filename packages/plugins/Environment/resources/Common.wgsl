@@ -14,8 +14,10 @@ struct Params {
     SUN_AZIMUTH_DEGREES: f32,
     EYE_ALTITUDE: f32,
     AEROSOL_TURBIDITY: f32,
-    // EARTH_RADIUS: f32,
-    // ATMOSPHERE_THICKNESS: f32,
+    SKY_EXPOSURE: f32,
+    _pad0: f32,
+    _pad1: f32,
+    _pad2: f32,
 };
 @group(0) @binding(0) var<storage, read> params: Params;
 
@@ -167,8 +169,8 @@ fn get_atmosphere_collision_coefficients(_h: f32) -> CollisionCoefficients {
 //     // out.aerosol_scattering = vec4(0.0);
 // #else
     let aerosol_density = get_aerosol_density(h);
-    out.aerosol_absorption = aerosol_absorption_cross_section * aerosol_density * AEROSOL_TURBIDITY;
-    out.aerosol_scattering = aerosol_scattering_cross_section * aerosol_density * AEROSOL_TURBIDITY;
+    out.aerosol_absorption = aerosol_absorption_cross_section * aerosol_density * params.AEROSOL_TURBIDITY;
+    out.aerosol_scattering = aerosol_scattering_cross_section * aerosol_density * params.AEROSOL_TURBIDITY;
 // #endif
     out.molecular_absorption = get_molecular_absorption_coefficient(h);
     out.molecular_scattering = get_molecular_scattering_coefficient(h);

@@ -60,8 +60,8 @@ fn IsFrustumCulled(meshlet: MeshletInfo, modelMatrix: mat4x4<f32>) -> bool {
         //     return true;
         // }
 
-        let parentBoundsWorld = vec4f(worldCenter(modelMatrix, meshlet.bounding_sphere.xyz), meshlet.bounding_sphere.w * radiusScale);
-        let boundsWorld = vec4f(worldCenter(modelMatrix, meshlet.parent_bounding_sphere.xyz), meshlet.parent_bounding_sphere.w * radiusScale);
+        let parentBoundsWorld = vec4f(worldCenter(modelMatrix, meshlet.parent_bounding_sphere.xyz), meshlet.parent_bounding_sphere.w * radiusScale);
+        let boundsWorld = vec4f(worldCenter(modelMatrix, meshlet.bounding_sphere.xyz), meshlet.bounding_sphere.w * radiusScale);
 
         let threshold = meshletParamsBuffer.dynamicLODErrorThresholdValue / frameBuffer.projectionOutputSize.y;
         let proj = frameBuffer.projectionMatrix[1][1];

@@ -1,6 +1,6 @@
-import { Component, Geometry, GPU, IndexAttribute, InterleavedVertexAttribute, Mathf, Utils } from "@trident/core";
+import { Component, EventSystem, Geometry, GPU, IndexAttribute, InterleavedVertexAttribute, Mathf, Utils } from "@trident/core";
 import { Meshlet } from "./meshoptimizer/Meshoptimizer";
-import { buildMeshletData } from "./MeshletMesh";
+import { buildMeshletData, MeshletEvents } from "./MeshletMesh";
 
 export class InstancedMeshletMesh extends Component {
     private static readonly DefaultCapacity = 1024;
@@ -51,5 +51,6 @@ export class InstancedMeshletMesh extends Component {
         this.interleavedVertices = data.interleavedVertices;
         this.indices = data.indices;
         this.meshletInfoPacked = data.meshletInfoPacked;
+        EventSystem.emit(MeshletEvents.Updated, this);
     }
 }

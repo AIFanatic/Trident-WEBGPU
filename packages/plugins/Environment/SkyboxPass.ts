@@ -1,36 +1,35 @@
-import { Geometry, GPU } from "@trident/core";
+import { Geometry, GPU, Mathf } from "@trident/core";
 
 export class SkyboxPass extends GPU.RenderPass {
     public name: string = "SkyboxPass";
     private shader: GPU.Shader;
     private quadGeometry: Geometry;
     private skyboxTexture: GPU.CubeTexture;
+    private sunValues = new Float32Array(8);
 
     public initialized = false;
 
     public async init() {
         this.shader = await GPU.Shader.Create({
             code: `
+                #include "@trident/core/resources/webgpu/shaders/deferred/Common.wgsl";
+
                 struct VertexOutput {
                     @builtin(position) position: vec4<f32>,
                 };
 
                 @group(0) @binding(0) var textureSampler: sampler;
+                @group(0) @binding(1) var depthTexture: texture_depth_2d;
+                @group(0) @binding(2) var skyboxTexture: texture_cube<f32>;
+                @group(0) @binding(3) var<storage, read> frameBuffer: FrameBuffer;
 
-                @group(0) @binding(4) var depthTexture: texture_depth_2d;
+                const PI = 3.14159265358979323846;
 
-                @group(0) @binding(6) var skyboxTexture: texture_cube<f32>;
-
-                struct View {
-                    projectionOutputSize: vec4<f32>,
-                    viewPosition: vec4<f32>,
-                    projectionInverseMatrix: mat4x4<f32>,
-                    viewInverseMatrix: mat4x4<f32>,
-                    viewMatrix: mat4x4<f32>,
-                    projectionMatrix: mat4x4<f32>,
+                struct Sun {
+                    direction: vec4<f32>,   // xyz = world dir towards sun, w = intensity
+                    color: vec4<f32>,
                 };
-                @group(0) @binding(13) var<storage, read> view: View;
-
+                @group(0) @binding(4) var<storage, read> sun: Sun;
 
                 // Full-screen triangle (covers screen with 3 verts)
                 const p = array<vec2f, 3>(
@@ -58,39 +57,47 @@ export class SkyboxPass extends GPU.RenderPass {
 
                     // Build NDC + view/world rays (same as before)
                     let ndc = vec3<f32>(
-                        (input.position.x / view.projectionOutputSize.x) * 2.0 - 1.0,
-                        (input.position.y / view.projectionOutputSize.y) * 2.0 - 1.0,
+                        (input.position.x / frameBuffer.projectionOutputSize.x) * 2.0 - 1.0,
+                        (input.position.y / frameBuffer.projectionOutputSize.y) * 2.0 - 1.0,
                         1.0
                     );
-                    let viewRay4 = view.projectionInverseMatrix * vec4(ndc, 1.0);
+                    let viewRay4 = frameBuffer.projectionInverseMatrix * vec4(ndc, 1.0);
                     var viewRay  = normalize(viewRay4.xyz / viewRay4.w);
                     viewRay.y   *= -1.0;
-                    var worldRay = normalize((view.viewInverseMatrix * vec4(viewRay, 0.0)).xyz);
+                    var worldRay = normalize((frameBuffer.viewInverseMatrix * vec4(viewRay, 0.0)).xyz);
 
                     let sky = textureSample(skyboxTexture, textureSampler, worldRay).rgb;
-                    return vec4f(sky, 1.0);
+
+                    const sunAngularRadius = 0.265 * PI / 180.0;
+                    let cosTheta = dot(worldRay, sun.direction.xyz);
+                    let aa = max(fwidth(cosTheta), 1e-7);
+                    let disk = smoothstep(cos(sunAngularRadius) - aa, cos(sunAngularRadius) + aa, cosTheta);
+
+                    let halo = pow(max(cosTheta, 0.0), 2000.0) * 0.3;
+                    return vec4f(sky + (disk + halo) * sun.color.rgb * sun.direction.w, 1.0);
+
+                    // return vec4f(sky + disk * sun.color.rgb * sun.direction.w, 1.0);
                 }
             `,
-            uniforms: {
-                textureSampler: { group: 0, binding: 0, type: "sampler" },
-                depthTexture: { group: 0, binding: 4, type: "depthTexture" },
-
-                skyboxTexture: { group: 0, binding: 6, type: "texture" },
-
-                view: { group: 0, binding: 13, type: "storage" },
-            },
             colorOutputs: [{ format: "rgba16float" }],
         });
 
         this.shader.SetSampler("textureSampler", new GPU.TextureSampler());
 
         this.quadGeometry = new Geometry();
+        this.sunValues.set([0, 0, 0, 1], 0);
+        this.sunValues.set([1, 1, 1, 1], 4);
 
         this.initialized = true;
     }
 
     public SetSkybox(texture: GPU.CubeTexture) {
         this.skyboxTexture = texture;
+    }
+
+    public SetSun(direction: Mathf.Vector3, intensity: number) {
+        this.sunValues.set([direction.x, direction.y, direction.z, intensity], 0);
+        this.sunValues.set([1, 1, 1, 1], 4);
     }
 
     public preFrame(resources: GPU.ResourcePool) {
@@ -104,7 +111,8 @@ export class SkyboxPass extends GPU.RenderPass {
 
         this.shader.SetTexture("depthTexture", inputGBufferDepth);
         this.shader.SetTexture("skyboxTexture", this.skyboxTexture);
-        this.shader.SetBuffer("view", inputFrameBuffer);
+        this.shader.SetBuffer("frameBuffer", inputFrameBuffer);
+        this.shader.SetArray("sun", this.sunValues);
 
         this.drawCommands.push({ geometry: this.quadGeometry, shader: this.shader, instanceCount: 1, firstInstance: 0 });
     }

@@ -34,7 +34,7 @@ export class InstancedLODGroup extends Components.Renderable {
 
     // 0 = only LOD0 casts shadows
     // 1 = LOD0 and LOD1 cast shadows
-    public maxShadowLodIndex = 1;
+    public maxShadowLodIndex = 10;
 
     // Per-LOD table: screenSize + where that LOD's draw slots live. Uploaded as one Float32Array.
     private lodTable: Float32Array;

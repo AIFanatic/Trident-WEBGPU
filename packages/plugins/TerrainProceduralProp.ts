@@ -69,7 +69,7 @@ export class TerrainProceduralProp extends Components.Component {
                     1,0,0,0,
                     0,1,0,0,
                     0,0,1,0,
-                    terrainCoord.x, terrain.x * 2000.0 - 1000.0, terrainCoord.y, 1);
+                    terrainCoord.x, terrain.x * 2000.0, terrainCoord.y, 1);
                 }
             }
           `,

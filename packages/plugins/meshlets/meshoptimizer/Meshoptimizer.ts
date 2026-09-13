@@ -20,6 +20,8 @@ export interface Meshlet {
     error: number;
 
     group_error: number;
+    group_center: Float32Array;
+    group_radius: number;
     parent_center: Float32Array;
     parent_radius: number;
     parent_error: number;
@@ -92,6 +94,9 @@ export class Meshoptimizer {
                 index_count: new Uint32Array(heap, base + 24, 1)[0],
                 
                 group_error: group.error,
+                group_center: group.center,
+                group_radius: group.radius,
+
                 parent_center: refined.center,
                 parent_radius: refined.radius,
                 parent_error: refined_group_id >= 0 ? refined.error : 0,
