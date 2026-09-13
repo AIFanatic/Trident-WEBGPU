@@ -128,7 +128,7 @@ async function Application(canvas: HTMLCanvasElement) {
     cube2.transform.eulerAngles.y = 65;
     const cubeMesh2 = cube2.AddComponent(Components.Mesh);
     cubeMesh2.geometry = cubeGeometry;
-    cubeMesh2.material = new PBRMaterial({ albedoColor: new Mathf.Color(1, 1, 1, 1), emissiveColor: new Mathf.Color(5,0,0,1), roughness: roughness, metalness: metalness });
+    cubeMesh2.material = new PBRMaterial({ albedoColor: new Mathf.Color(1, 1, 1, 1), emissiveColor: new Mathf.Color(1,0,0,1), emissiveExposure: 5, roughness: roughness, metalness: metalness });
 
     const lightGameObject2 = new GameObject();
     const light2 = lightGameObject2.AddComponent(Components.PointLight);

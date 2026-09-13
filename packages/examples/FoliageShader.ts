@@ -9,6 +9,7 @@ import { Sky } from "@trident/plugins/Environment/Sky";
 import { FoliageMaterial } from "@trident/plugins/FoliageMaterial";
 import { ImpostorMesh } from "@trident/plugins/Impostors/ImpostorMesh";
 import { UITextureViewer } from "@trident/plugins/ui/UIStats";
+import { HDRParser } from "@trident/plugins/HDRParser";
 
 async function Application(canvas: HTMLCanvasElement) {
     
@@ -27,31 +28,34 @@ async function Application(canvas: HTMLCanvasElement) {
     mainCameraGameObject.AddComponent(OrbitControls);
 
     const lightGameObject = new GameObject();
-    lightGameObject.transform.position.set(2, 0, 0);
+    lightGameObject.transform.position.set(4, 4, 0);
     lightGameObject.transform.LookAt(new Mathf.Vector3(0, 0, 0));
     const light = lightGameObject.AddComponent(Components.DirectionalLight);
-    light.castShadows = false;
-    light.intensity = 20;
+    // light.castShadows = false;
+    light.intensity = 1;
 
-    // const sky = new Sky();
-    // await sky.init();
+    const sky = new Sky();
+    await sky.init();
     // const skyTexture = sky.skyTextureCubemap;
-    // const iblLightingPass = Runtime.Renderer.RenderPipeline.AddPass(IBLLightingPass, GPU.RenderPassOrder.AfterLighting);
-    // const skyboxPass = Runtime.Renderer.RenderPipeline.AddPass(SkyboxPass, GPU.RenderPassOrder.AfterLighting);
-    // iblLightingPass.SetEnvironment(skyTexture);
-    // skyboxPass.SetSkybox(skyTexture);
+    const hdr = await HDRParser.Load("./assets/textures/HDR/forest.hdr");
+    const skyTexture = await HDRParser.ToCubemap(hdr);
+    const iblLightingPass = Runtime.Renderer.RenderPipeline.AddPass(IBLLightingPass, GPU.RenderPassOrder.AfterLighting);
+    const skyboxPass = Runtime.Renderer.RenderPipeline.AddPass(SkyboxPass, GPU.RenderPassOrder.AfterLighting);
+    iblLightingPass.SetEnvironment(skyTexture);
+    skyboxPass.SetSkybox(skyTexture);
 
 
-    const floorGameObject = new GameObject();
-    floorGameObject.transform.scale.set(2000, 2000, 0);
-    floorGameObject.transform.eulerAngles.x = -90
-    const floorMesh = floorGameObject.AddComponent(Components.Mesh);
-    floorMesh.geometry = Geometry.Plane();
-    floorMesh.material = new PBRMaterial();
+    // const floorGameObject = new GameObject();
+    // floorGameObject.transform.scale.set(100, 100, 1);
+    // floorGameObject.transform.eulerAngles.x = -90
+    // const floorMesh = floorGameObject.AddComponent(Components.Mesh);
+    // floorMesh.geometry = Geometry.Plane();
+    // floorMesh.material = new PBRMaterial();
 
-    const rootGO = await GLTFLoader.Load("/extra/SampleProject/GameAssets/Trees/Eucalyptus camaldulensis RT.glb", scene);
+    const rootGO = await GLTFLoader.Load("/extra/SampleProject/GameAssets/Trees/Eucalyptus camaldulensis RT/Sources/GLB/Eucalyptus camaldulensis RT_5.glb", scene);
+    rootGO.transform.scale.set(1, 1, 1)
     const meshes = rootGO.GetComponentsInChildren(Components.Mesh);
-    let mesh = meshes[0];
+    let mesh = meshes[1];
     const material = mesh.material as PBRMaterial;
     // for (const mesh of meshes) console.log(mesh.material.params.albedoColor)
     mesh.material = new FoliageMaterial({foliageGeometry: mesh.geometry, foliageAlbedo: material.params.albedoMap, foliageNormal: material.params.normalMap });

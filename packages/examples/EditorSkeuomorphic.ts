@@ -1,4 +1,4 @@
-import { Components, Scene, GPU, Mathf, GameObject, Geometry, IndexAttribute, PBRMaterial, VertexAttribute, Runtime } from "@trident/core";
+import { Components, Scene, GPU, Mathf, GameObject, Geometry, IndexAttribute, PBRMaterial, VertexAttribute, Runtime, PlayerRuntime } from "@trident/core";
 
 import { OrbitControls } from "@trident/plugins/OrbitControls";
 import { GLTFLoader } from "@trident/plugins/GLTF/GLTFLoader";
@@ -15,88 +15,29 @@ import { MeshCollider } from "@trident/plugins/PhysicsRapier/colliders/MeshColli
 import { SpotLightHelper } from "@trident/plugins/SpotLightHelper";
 
 async function Application(canvas: HTMLCanvasElement) {
-    await Runtime.Create(canvas);
-    const scene = Runtime.SceneManager.CreateScene("DefaultScene");
-    Runtime.SceneManager.SetActiveScene(scene);
-
+    await PlayerRuntime.Create(canvas);
+    const scene = PlayerRuntime.SceneManager.CreateScene("DefaultScene");
+    PlayerRuntime.SceneManager.SetActiveScene(scene);
+    
     const mainCameraGameObject = new GameObject();
     mainCameraGameObject.transform.position.set(1.3214703183015142, 1.204350593000603, 0.8880642037210573);
     mainCameraGameObject.transform.rotation.set(-0.22277136531362418, 0.4210578424541847, 0.10748743891250674, 0.8726566693609583);
     mainCameraGameObject.name = "MainCamera";
     const camera = mainCameraGameObject.AddComponent(Components.Camera);
     camera.SetPerspective(60, canvas.width / canvas.height, 0.05, 100);
-
-    // mainCameraGameObject.transform.position.set(0, 0, 2);
-    // mainCameraGameObject.transform.LookAt(new Mathf.Vector3(0, 0, 0));
-
-    const controls = new OrbitControls(canvas, camera);
+    mainCameraGameObject.AddComponent(OrbitControls);
 
     const lightGameObject = new GameObject();
     lightGameObject.transform.position.set(0, 2, 0);
     lightGameObject.transform.LookAt(new Mathf.Vector3(0, 0, 0));
     const light = lightGameObject.AddComponent(Components.SpotLight);
     light.castShadows = true;
-    light.intensity = 0.01
+    light.intensity = 10
 
-    const lightHelper = lightGameObject.AddComponent(SpotLightHelper);
-    lightHelper.light = light;
-
-    const hdr = await HDRParser.Load("/extra/test-assets/editor/brown_photostudio_01_1k.hdr");
-    const skyTexture = await HDRParser.ToCubemap(hdr);
-
-    const environment = new Environment(scene, skyTexture);
-    await environment.init();
-
-    // const rootGameObject = await GLTFLoader.Load("./assets/models/DamagedHelmet/DamagedHelmet.gltf", scene);
     const rootGameObject = await GLTFLoader.Load("/extra/test-assets/editor/room.glb", scene);
     console.log(rootGameObject)
-    rootGameObject.transform.Update();
-    
-    function traverse(gameObjects: GameObject[], fn: (gameObject: GameObject) => void) {
-        for (const gameObject of gameObjects) {
-            fn(gameObject);
-            for (const child of gameObject.transform.children) {
-                traverse([child.gameObject], fn);
-            }
-        }
-    }
-
-    let modelsGameObject: GameObject = undefined;
-    traverse([rootGameObject], gameObject => {
-        if (gameObject.name === "ModelsBox_Prim_0") {
-            modelsGameObject = gameObject;
-        }
-    });
-
-    console.log(modelsGameObject.transform.position)
-
-    const physicsGameObject = new GameObject();
-    const physics = physicsGameObject.AddComponent(PhysicsRapier);
-    await physics.Load();
-
-    const physicsDebuggerGO = new GameObject();
-    physicsDebuggerGO.AddComponent(PhysicsDebugger);
-
-    const p = new Mathf.Vector3();
-    const q = new Mathf.Quaternion();
-    const s = new Mathf.Vector3();
-    modelsGameObject.transform.localToWorldMatrix.decompose(p, q, s);
-    
-    modelsGameObject.AddComponent(MeshCollider);
-    const rigid = modelsGameObject.AddComponent(RigidBody);
-    // rigid.Create("kinematicPosition");
-    
-    setTimeout(() => {
-        const v = p
-        v.z += 0.1;
-
-        rigid.rigidBody.setNextKinematicTranslation(v);
-
-        console.log(rigid)
-    }, 2000);
     
     Debugger.Enable();
-    Runtime.Play();
 };
 
 Application(document.querySelector("canvas"));

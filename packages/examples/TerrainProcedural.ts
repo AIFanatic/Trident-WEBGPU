@@ -210,13 +210,12 @@ async function Application(canvas: HTMLCanvasElement) {
 
 
             
-            
-            
+            controls.center.set(0,1000,0)
             // const rtGLB = await GLTFLoader.Load("/extra/SampleProject/GameAssets/Trees/Jacaranda mimosifolia RT.glb", scene);
-            const rtGLB = await GLTFLoader.Load("/extra/SampleProject/GameAssets/Trees/Eucalyptus camaldulensis RT.glb", scene);
+            const rtGLB = await GLTFLoader.Load("/extra/SampleProject/GameAssets/Trees/Eucalyptus camaldulensis RT/Sources/GLB/Eucalyptus camaldulensis RT_5.glb", scene);
             const rtMeshes = rtGLB.GetComponentsInChildren(Components.Mesh);
             console.log(rtMeshes);
-            rtMeshes[0].material = FoliageMaterial.SetFromMesh(rtMeshes[0]);
+            rtMeshes[1].material = FoliageMaterial.SetFromMesh(rtMeshes[1]);
             // rtMeshes[1].material = FoliageMaterial.SetFromMesh(rtMeshes[1]);
 
             const go = new GameObject();
@@ -225,7 +224,7 @@ async function Application(canvas: HTMLCanvasElement) {
 
             const lodGameObject = new GameObject();
             const lodInstanceRenderable = lodGameObject.AddComponent(InstancedLODGroup);
-            // lodInstanceRenderable.enableShadows = false;
+            lodInstanceRenderable.enableShadows = false;
 
             // const billboardGO = new GameObject();
             // const billboard = billboardGO.AddComponent(Billboarder);

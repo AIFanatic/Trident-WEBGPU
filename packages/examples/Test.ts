@@ -1,15 +1,24 @@
 import {
-    Geometry,
+    GameObject,
     Components,
     Mathf,
-    GPU,
-    GameObject,
     PBRMaterial,
+    GPU,
+    Runtime,
     PlayerRuntime,
 } from "@trident/core";
-import { GLTFLoader } from "@trident/plugins/GLTF/GLTFLoader";
 
 import { OrbitControls } from "@trident/plugins/OrbitControls";
+import { OBJLoaderIndexed } from "@trident/plugins/OBJLoader";
+import { GLTFLoader } from "@trident/plugins/GLTF/GLTFLoader";
+
+import { MeshletMesh as MeshletMesh } from "@trident/plugins/meshlets/MeshletMesh";
+import { MeshletDraw } from "@trident/plugins/meshlets/passes/MeshletDraw";
+import { HDRParser } from "@trident/plugins/HDRParser";
+
+import { IBLLightingPass } from "@trident/plugins/Environment/IBLLightingPass";
+import { SkyboxPass } from "@trident/plugins/Environment/SkyboxPass";
+import { InstancedMeshletMesh } from "@trident/plugins/meshlets/InstancedMeshletMesh";
 
 async function Application(canvas: HTMLCanvasElement) {
     await PlayerRuntime.Create(canvas);
@@ -17,126 +26,108 @@ async function Application(canvas: HTMLCanvasElement) {
     PlayerRuntime.SceneManager.SetActiveScene(scene);
 
     const mainCameraGameObject = new GameObject();
-    mainCameraGameObject.transform.position.set(0, 0, 10);
+    mainCameraGameObject.transform.position.set(0, 0, -15);
     mainCameraGameObject.name = "MainCamera";
     const camera = mainCameraGameObject.AddComponent(Components.Camera);
-    camera.SetPerspective(60, canvas.width / canvas.height, 0.05, 512);
+    camera.SetPerspective(60, canvas.width / canvas.height, 0.05, 1000);
 
-    const observer = new ResizeObserver(entries => {
-        camera.SetPerspective(60, canvas.width / canvas.height, 0.05, 512);
-    });
-    observer.observe(canvas);
 
+    mainCameraGameObject.transform.position.set(0, 0, 5);
+    mainCameraGameObject.transform.LookAt(new Mathf.Vector3(0, 0, 0));
     mainCameraGameObject.AddComponent(OrbitControls);
 
+    // TODO: Should be added automatically from plugin
+    Runtime.Renderer.RenderPipeline.AddPass(new MeshletDraw(), GPU.RenderPassOrder.BeforeGBuffer);
+
     const lightGameObject = new GameObject();
-    lightGameObject.transform.position.set(-1, 4, 0.01);
+    lightGameObject.transform.position.set(-4, 4, 4);
     lightGameObject.transform.LookAt(new Mathf.Vector3(0, 0, 0));
     const light = lightGameObject.AddComponent(Components.DirectionalLight);
-    light.intensity = 1;
+    light.intensity = 20;
+    light.color.set(1, 1, 1, 1);
+    light.castShadows = false;
 
     {
-        const planeGO = new GameObject();
-        planeGO.transform.eulerAngles.x = -90;
-        planeGO.transform.position.set(0, -2, 0);
-        planeGO.transform.scale.set(10, 10, 1);
-        const sphereMesh = planeGO.AddComponent(Components.Mesh);
-        sphereMesh.geometry = Geometry.Plane();
-        const mat = new PBRMaterial({ albedoColor: new Mathf.Color(1, 1, 1), metalness: 0.0, roughness: 1 });
-        sphereMesh.material = mat;
-    }
-    
-    {
-        const planeGO = new GameObject();
-        planeGO.transform.position.set(2, 0, 0);
-        planeGO.transform.eulerAngles.x = 90;
-        const sphereMesh = planeGO.AddComponent(Components.Mesh);
-        sphereMesh.geometry = Geometry.Plane();
-        const mat = new PBRMaterial();
-        mat.SetProperty("albedoMap", await GPU.Texture.Load("/dist/examples/assets/textures/64x64.png"))
-        sphereMesh.material = mat;
-    }
+        const mesh = await GLTFLoader.Load("/extra/test-assets/trees/Tree_realistic_highpoly.glb", scene);
+        const meshes = mesh.GetComponentsInChildren(Components.Mesh);
+        // const mesh = await OBJLoaderIndexed.load("./assets/models/bunny.obj");
+        // mesh.geometry.ComputeNormals();
+        // mesh.geometry.ComputeTangents();
+        // const meshes = [mesh];
+        mesh.enabled = false;
+        
+        function CreateMeshletFromMesh(mesh: Components.Mesh) {
+            
+            const go = new GameObject();
+            const meshletInstanced = go.AddComponent(InstancedMeshletMesh);
+            meshletInstanced.geometry = mesh.geometry;
+            meshletInstanced.material = mesh.material;
 
-    {
-        const fpArmsAKMGO = await GLTFLoader.Load("/extra/SampleProject/GameAssets/GLB/FP_Arms_AKM.glb", scene);
-        fpArmsAKMGO.transform.position.x = 2;
-        const fpArmsAKM = fpArmsAKMGO.GetComponent(Components.Animator);
-        console.log(fpArmsAKM)
-        fpArmsAKM.SetClipByIndex(0);
-    }
+            const c = 1;
+            const off = 10;
+            const total = c * c * c;
+            const p = new Mathf.Vector3();
+            const q = new Mathf.Quaternion();
+            const s = new Mathf.Vector3(1, 1, 1);
+            const m = new Mathf.Matrix4();
+            const matrices = new Float32Array(total * 16);
 
-    {
-        const sphereGameObject = new GameObject();
-        const sphereMesh = sphereGameObject.AddComponent(Components.Mesh);
-        sphereMesh.geometry = Geometry.Sphere();
-        const mat = new GPU.ShaderMaterial({
-            isDeferred: true,
-            shader: await GPU.Shader.Create({
-                code: `
-                    #include "@trident/core/resources/webgpu/shaders/deferred/Common.wgsl";
-
-                    @group(0) @binding(0) var<storage, read> frameBuffer: FrameBuffer;
-                    @group(0) @binding(1) var<storage, read> modelMatrix: array<mat4x4<f32>>;
-
-                    struct VertexInput {
-                        @builtin(instance_index) instanceIdx : u32, 
-                        @location(0) position : vec3<f32>,
-                        @location(1) normal : vec3<f32>,
-                        @location(2) uv : vec2<f32>,
-                    };
-
-                    struct VertexOutput {
-                        @builtin(position) position : vec4<f32>,
-                        @location(0) vPosition : vec3<f32>,
-                        @location(1) vNormal : vec3<f32>,
-                        @location(2) vUv : vec2<f32>,
-                    };
-
-                    @vertex
-                    fn vertexMain(input: VertexInput) -> VertexOutput {
-                        var output : VertexOutput;
-
-                        output.position = frameBuffer.viewProjectionMatrix * modelMatrix[input.instanceIdx] * vec4(input.position, 1.0);
-                        
-                        output.vPosition = input.position;
-                        output.vNormal = input.normal;
-                        output.vUv = input.uv;
-
-                        return output;
+            let i = 0;
+            for (let x = 0; x < c; x++) {
+                for (let y = 0; y < c; y++) {
+                    for (let z = 0; z < c; z++) {
+                        p.set(x * off, y * off, z * off);
+                        m.compose(p, q, s);
+                        matrices.set(m.elements, i * 16);
+                        i++;
                     }
+                }
+            }
+            meshletInstanced.SetMatricesBulk(matrices);
 
-                    struct FragmentOutput {
-                        @location(0) albedo : vec4f,
-                        @location(1) normal : vec4f,
-                        @location(2) RMO : vec4f,
-                    };
+            return meshletInstanced
 
-                    @fragment
-                    fn fragmentMain(input: VertexOutput) -> FragmentOutput {
-                        var output: FragmentOutput;
+        }
 
-                        var albedo = vec3f(1.0);
-                        var unlit = 0.0;
-                        output.albedo = vec4(albedo.rgb, 1.0);
-                        output.normal = vec4(OctEncode(input.vNormal.xyz), 0.0, 0.0);
-                        output.RMO = vec4(vec3(0.0), unlit);
+        let instances = []
+        for (let i = 0; i < meshes.length; i++) {
+            const instance = CreateMeshletFromMesh(meshes[i]);
+            instances.push(instance);
+        }
+        // console.log(meshletInstanced)
 
-                        return output;
-                    }
-                `,
-                colorOutputs: [{ format: "rgba16float" }, { format: "rgba16float" }, { format: "rgba16float" }],
-                depthOutput: "depth24plus"
-            })
-        });
+        // let j = 0;
+        // for (const m of meshletInstanced.meshlets) if (m.lod === 0) j++;
+        // console.log(j);
 
-        setTimeout(async () => {
-            // mat.SetTexture("albedoMap", await GPU.Texture.Load("/dist/examples/assets/textures/cube.png"));
-            // mat.SetColor("albedoColor", new Mathf.Color(1,0,0,1))
-            // mat.SetValue("roughness", 0.2);
-            // mat.SetValue("metalness", 1);
-        }, 1000);
-        sphereMesh.material = mat;
+        // const p = new Mathf.Vector3();
+        // const q = new Mathf.Quaternion();
+        // const s = new Mathf.Vector3(1, 1, 1);
+        // const m = new Mathf.Matrix4();
+        // const matrices = new Float32Array(total * 16);
+
+        // let i = 0;
+        // for (let x = 0; x < c; x++) {
+        //     for (let y = 0; y < c; y++) {
+        //         for (let z = 0; z < c; z++) {
+        //             p.set(x * off, y * off, z * off);
+        //             m.compose(p, q, s);
+        //             matrices.set(m.elements, i * 16);
+        //             i++;
+        //         }
+        //     }
+        // }
+
+        // meshletInstanced.SetMatricesBulk(matrices);
     }
+
+    const hdr = await HDRParser.Load("./assets/textures/HDR/autumn_field_puresky_1k.hdr");
+    const skyTexture = await HDRParser.ToCubemap(hdr);
+
+    const iblLightingPass = Runtime.Renderer.RenderPipeline.AddPass(IBLLightingPass, GPU.RenderPassOrder.AfterLighting);
+    const skyboxPass = Runtime.Renderer.RenderPipeline.AddPass(SkyboxPass, GPU.RenderPassOrder.AfterLighting);
+    iblLightingPass.SetEnvironment(skyTexture);
+    skyboxPass.SetSkybox(skyTexture);
 };
 
 Application(document.querySelector("canvas"));

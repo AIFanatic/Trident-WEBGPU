@@ -17,6 +17,7 @@ import { CharacterController } from "@trident/plugins/PhysicsRapier/CharacterCon
 
 async function Application(canvas: HTMLCanvasElement) {
     await PlayerRuntime.Create(canvas);
+    PlayerRuntime.Renderer.SetResolution({mode: "fit", scale: window.devicePixelRatio})
     const scene = PlayerRuntime.SceneManager.CreateScene("DefaultScene");
     PlayerRuntime.SceneManager.SetActiveScene(scene);
 
@@ -36,7 +37,7 @@ async function Application(canvas: HTMLCanvasElement) {
     lightGameObject.transform.LookAt(new Mathf.Vector3(0, 0, 0));
     const light = lightGameObject.AddComponent(Components.DirectionalLight);
     light.castShadows = false;
-    light.intensity = 2;
+    light.intensity = 0;
 
     // const lightHelper = lightGameObject.AddComponent(DirectionalLightHelper);
     // lightHelper.light = light;
@@ -59,6 +60,11 @@ async function Application(canvas: HTMLCanvasElement) {
     // const rootGO = await GLTFLoader.Load("/extra/test-assets/sphere/sphere.gltf", scene);
     // const rootGO = await GLTFLoader.Load("./assets/models/Fox.glb", scene);
 
+    
+    {
+        const rootGO = await GLTFLoader.Load("/extra/test-assets/grass_medium_01_4k_v2.glb", scene);
+    }
+
     const meshComponents = rootGO.GetComponentsInChildren(Components.Mesh);
     for (const mesh of meshComponents) {
         const animator = mesh.gameObject.GetComponent(Components.Animator);
@@ -74,32 +80,10 @@ async function Application(canvas: HTMLCanvasElement) {
     console.log(fpArmsAKM)
     fpArmsAKM.SetClipByIndex(0);
 
-    // const fpAKMGO = await GLTFLoader.Load("/extra/SampleProject/Survival/Wieldables/GLB/FP_AKM.glb", scene);
-    // fpAKMGO.transform.position.x = 2;
-    // const fpAKM = fpAKMGO.GetComponent(Components.Animator);
-    // console.log(fpAKM)
-    // // fpAKM.SetClipByIndex(0);
-
-    // setTimeout(() => {
-    //     console.log("Playing");
-    //     fpArmsAKM.SetClipByIndex(1);
-    //     fpAKM.SetClipByIndex(0);
-    // }, 3000);
-
-    //     {
-    //         const gameObject = await GLTFLoader.Load("/extra/test-assets/bouquet.glb", scene);
-    //         gameObject.transform.position.x = -2;
-    //         // gameObject.transform.scale.set(0.01, 0.01, 0.01);
-
-    //         const animator = gameObject.GetComponent(Components.Animator);
-    //         console.log(animator)
-    //         // animator.SetClipByIndex(1)
-    //         // animator.CrossFadeTo(0, 1000);
-
-    //     }
 
     // const hdr = await HDRParser.Load("./assets/textures/HDR/autumn_field_puresky_1k.hdr");
-    const hdr = await HDRParser.Load("./assets/textures/HDR/spruit_sunrise_1k.hdr");
+    // const hdr = await HDRParser.Load("./assets/textures/HDR/spruit_sunrise_1k.hdr");
+    const hdr = await HDRParser.Load("./assets/textures/HDR/forest.hdr");
     const skyTexture = await HDRParser.ToCubemap(hdr);
 
     // const sky = new Sky();
@@ -112,14 +96,14 @@ async function Application(canvas: HTMLCanvasElement) {
     skyboxPass.SetSkybox(skyTexture);
 
 
-    const gameObject = new GameObject();
-    const mesh = gameObject.AddComponent(Components.Mesh);
-    mesh.geometry = Geometry.Sphere();
-    mesh.material = new PBRMaterial({
-        albedoMap: await GPU.Texture.Load("/extra/SampleProject/Nature/Terrain/leafy_grass/leafy_grass_diff_2k.jpg", { format: "rgba8unorm-srgb" }),
-        normalMap: await GPU.Texture.Load("/extra/SampleProject/Nature/Terrain/leafy_grass/leafy_grass_nor_gl_2k.jpg"),
-        armMap: await GPU.Texture.Load("/extra/SampleProject/Nature/Terrain/leafy_grass/leafy_grass_arm_2k.jpg"),
-    });
+    // const gameObject = new GameObject();
+    // const mesh = gameObject.AddComponent(Components.Mesh);
+    // mesh.geometry = Geometry.Sphere();
+    // mesh.material = new PBRMaterial({
+    //     albedoMap: await GPU.Texture.Load("/extra/SampleProject/Nature/Terrain/leafy_grass/leafy_grass_diff_2k.jpg", { format: "rgba8unorm-srgb" }),
+    //     normalMap: await GPU.Texture.Load("/extra/SampleProject/Nature/Terrain/leafy_grass/leafy_grass_nor_gl_2k.jpg"),
+    //     armMap: await GPU.Texture.Load("/extra/SampleProject/Nature/Terrain/leafy_grass/leafy_grass_arm_2k.jpg"),
+    // });
 
 
     // Drag and drop models
